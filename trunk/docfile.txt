@@ -1,0 +1,455 @@
+[help]
+
+YAFU Version 1.20.2
+
+-------------
+Introduction:
+-------------
+YAFU is a interactive mathematical environment, similar to
+MATLAB, pari/gp, or bc.  You write expressions on the command line,
+and it will interpret and evaluate them.  Results can be assigned
+to variables, and variables can be used in expressions.  Use 'quit' 
+or 'exit' to exit the application.
+
+You can also call yafu from the OS command line, either by providing
+an argument to yafu like this:
+
+yafu "2+2" 
+or 
+yafu "siqs(rsa(200))"
+
+Or by redirecting input from somewhere else:
+
+echo "2+2" | yafu
+yafu < in.txt
+
+The use of quotes around the expressions may or may not be necessary
+depending on the OS.  All expressions supported in the interactive
+environment are supported in this way.  
+
+In addition, when providing arguments to yafu you can specify 
+flags to change program behavior.  Supported flags in v1.19 are:
+-B1pm1	<num>   B1 bound in the pm1 method
+-B1pp1	<num>   B1 bound in the pp1 method
+-B1ecm	<num>   B1 bound in the ECM method
+-rhomax	<num>   max iterations in the rho method
+-B2pm1	<num>   B2 bound in the pm1 method
+-B2pp1	<num>   B2 bound in the pp1 method
+-B2ecm	<num>   B2 bound in the ECM method
+-qssave	<name>  Name of the siqs savefile to use in this session
+-siqsR <num>	Stop after finding num relations in siqs
+-siqsT <num>	Stop after num seconds in siqs
+-logfile <name>	Name of the logfile to use in this session
+-seed <num,num> 32 bit numbers for use in seeding the RNG <highseed,lowseed>
+-batchfile <name>	Name of batchfile to use in command line job
+-sigma <num>	Input to ECM's sigma parameter.  Limited to 32 bits.
+-session <name>	Use name instead of the default session.log
+-threads <num>	Use num sieving threads in SIQS and ECM
+-v 		        Use to increase verbosity of output, can be used multiple times
+-silent		    No output except to log file (not available in interactive environment)
+-pfile			Adding this flag causes the primes() function to output primes to primes.txt
+-pscreen		Adding this flag causes the primes() function to output primes to the screen
+-forceDLP		Adding this flag forces SIQS to use double large primes
+-fmtmax <num>	max iterations for the fermat method
+-noopt			flag to force siqs to not perform optimization on the small tf bound
+-vproc		Increase verbosity of processor detection code on startup
+
+These flags are ignored when redirecting input to yafu.
+
+These same flags can be specified in a file named yafu.ini in the same
+directory as the executable.  Put <flag>=<value> pairs on single lines
+of the file to override default values.  Command line arguments will override
+both default values and anything in the .ini file.  An example yafu.ini
+should have been included along with the binary in the downloadable package.
+
+------------
+Batchfiles
+------------
+New in version 1.07.  A command line driver job can take as input a batchfile
+using the -batchfile flag.  This batchfile can contain any valid YAFU expression
+on each line of the file.  Optionally, an expression can be supplied on the command
+line in the usual manner.  In this case the expressions are substituted into the input
+expression in place of the special character @ in the input expression.
+
+For example, if you had a file called in.bat containing 10 numbers to be factored,
+you could do:
+% yafu "factor(@)" -batchfile in.bat
+from the command line.
+
+------------
+Expressions:
+------------
+An expression is any (nested) series of functions and/or operators.  
+Any amount of nesting is possible, so long as the expression is
+less than 2048 characters.  White space can be used anywhere - it is
+removed prior to processing.  Expressions must be proper infix notation,
+for example -1(7*8) will not work but -1*(7*8) will.
+	------
+	Bases:
+	------
+	YAFU can handle input/output in several different bases, specified
+	by the IBASE and OBASE reserved words.  Recognized bases include
+	(for the moment) hexadecimal and decimal.  Binary and Octal as
+	well as arbitrary bases are on the agenda.  Once IBASE is set to
+	a base, all other input is interpreted in that base.  Likewise once
+	OBASE is set, all output appears in that representation.
+	This behavior can be overridden on input by using 0x before a number 
+	to indicate hexadecimal, or 0d for decimal.  
+	All hexadecimal alphabetic characters must be entered in ALL CAPS.
+
+----------
+Operators:
+----------
+Valid operators include the standard +,-,*,/,%,^, as well as ! for
+factorial, # for primorial, >> for binary right shift and << 
+for binary left shift.  Left and right parentheses can also be used
+for grouping.
+
+----------
+Functions:
+----------
+Functions all take the form 'funcname(args)', where funcname is the
+function's name and args is some number of comma delimited arguments.
+Issuing the command 'help funcname' will bring up more detailed help
+on a particular function.  Some functions support a variable number
+of arguments, with a default defined for the optional arguments.  See
+the individual functions documentation for more info.
+The following are all the supported functions:
+
+utility			factoring		arithmetic
+------------------------------------------------------------------------------------------
+rsa				factor			shift
+size				siqs			nroot
+primes			mpqs			modexp
+nextprime			qs			sqrt
+rand			squfof			lg2
+randb			pm1			log
+			pp1			ln
+			rho			gcd
+			trial			jacobi
+			ecm			modinv
+			fermat			fib
+						luc
+						llt
+
+----------
+Variables:
+----------
+Variable names can be any combination of lower case alphanumeric 
+characters including _ and `, but the first character must be 
+in {a-z} or _.  Variable names also cannot be the same as certain 
+reserved words.
+
+---------------
+Reserved Words:
+---------------
+Some words are reserved by the application and most can be altered 
+by the user to impact the program execution.  They are typically 
+in all caps.  Some examples include:
+POLLARD_STG1_MAX - controls the upper bound of p-1 stage 1 factoring
+POLLARD_STG2_MAX - controls the upper bound of p-1 stage 2 factoring
+WILL_STG1_MAX - controls the upper bound of p+1 stage 1 factoring
+WILL_STG2_MAX - controls the upper bound of p+1 stage 2 factoring
+ECM_STG1_MAX - controls the upper bound of ECM stage 1 factoring
+ECM_STG2_MAX - controls the upper bound of ECM stage 2 factoring
+BRENT_MAX_IT - controls the maximum number of iterations in pollard rho
+QS_DUMP_CUTOFF - controls the cutoff over which siqs automatically saves
+	the state of the factorization upon completion
+NUM_WITNESSES - the number of witnesses to use in rabin-miller prp tests
+IBASE - controls the input numeric base
+OBASE - controls the output numeric base
+PRIMES_TO_FILE - set to non zero to enable printing primes to a file, when using the
+		primes() function
+PRIMES_TO_SCREEN - set to non zero to enable printing primes to the screen, when using the
+		primes() function
+VFLAG - control verbosity within the interactive environment
+
+[siqs]
+usage: siqs(expression)
+
+description:
+the siqs factoring method.  uses the single large prime variation, small prime variation,
+bucket sieving, and too many other optimizations to mention. post-
+processing courtesy of Jason Papadopoulos's msieve block Lanczos implementation.
+Useful for inputs < 105 digits.  Above that, parameter settings utilizing the double
+large prime variation have not been tested at all and most likely are increasingly bad.
+
+An abort signal (ctrl-c) will stop a factorization in progress.  state will be saved
+in siqs.dat (default) or a different file specified with the -qssave switch.  factorizations
+can then be resumed by starting siqs again with the same input.  different inputs to
+siqs will overwrite the file, so be careful to back up siqs.dat if you stop a factorization
+and plan to come back to it after performing other siqs work.
+The savefile should appear in the same directory as the executable.
+
+
+command line flags effecting siqs:
+-qssave	<name>  Name of the siqs savefile to use in this session
+-siqsR <num>	Stop after finding num relations in siqs
+-siqsT <num>	Stop after num seconds in siqs
+
+[mpqs]
+usage: mpqs(expression)
+
+description:
+the mpqs factoring method.  uses the single large prime variation, and automatically 
+switches in the small prime variation depending on the size of the input.  post-
+processing uses a block gaussian solver and is useful only for moderately
+sized inputs.
+
+[qs]
+usage: qs(expression)
+
+description:
+the qs factoring method.  uses the single large prime variation.  uses a block gaussian
+routine for post processing.  limited to 16000 blocks of sieving, due to 32 bit 
+constraints.  As such, is only useful up to about 50 digits, and is far slower than other
+qs implementations.  However, it will work for inputs as small as about 12 digits, and
+is extremely fast in that case.
+
+[factor]
+usage: factor(expression)
+
+description:
+combines a variety of routines to (hopefully) optimally factor an arbitrary input.
+
+[pm1]
+usage: pm1(expression)
+
+description:
+New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
+When building from source in an environement without these libraries available, still uses
+it's native p-1 factoring method, implementing stage 1 and the enhanced standard 
+stage 2 continuation with prime pairing.  Stage 1 bound is configurable using
+the POLLARD_STG1_MAX parameter.  The default is 100000.  Stage 2 bound is also 
+configurable using the POLLARD_STG2_MAX parameter.  The default is 5000000.
+
+To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
+there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
+or in the command line arguments.  
+Specifying a B1 value only will cause B2 to be automatically determined for either 
+gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+
+command line flags effecting pm1:
+
+-B1pm1	<num>   B1 bound in the pm1 method
+-B2pm1	<num>   B2 bound in the pm1 method
+
+[ecm]
+usage: ecm(expression1,[expression2])
+
+description:
+New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
+When building from source in an environement without these libraries available, still uses
+it's native elliptic curve factoring method, implementing stage 1 with PRAC and the enhanced 
+standard stage 2 continuation with prime pairing (Crandall and Pomerance's 2 muls per
+prime version).  The first argument should be the number to factor and the second 
+should be the number of curves to run at the current ECM_STG* bounds.  If no
+expression2 is given, the default behavior is 1 curve at the current ECM_STG* bounds.
+
+The stage 1 bound is configurable using the ECM_STG1_MAX parameter.  
+The default is 11000.  Stage 2 bound is also configurable using the
+ECM_STG2_MAX parameter.  The default is 1100000.  
+
+To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
+there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
+or in the command line arguments.  
+Specifying a B1 value only will cause B2 to be automatically determined for either 
+gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+
+command line flags effecting ecm:
+
+-B1ecm	<num>   B1 bound in the ECM method
+-B2ecm	<num>   B2 bound in the ECM method
+
+[pp1]
+usage: pp1(expression)
+
+description:
+New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
+When building from source in an environement without these libraries available, still uses
+it's native p+1 factoring method, implementing stage 1 and the enhanced standard 
+stage 2 continuation with prime pairing.  Stage 1 bound is configurable using
+the WILL_STG1_MAX parameter.  The default is 20000.  Stage 2 bound is also 
+configurable using the WILL_STG2_MAX parameter.  The default is 1000000.
+
+To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
+there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
+or in the command line arguments.  
+Specifying a B1 value only will cause B2 to be automatically determined for either 
+gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+
+command line flags effecting pp1:
+
+-B1pp1	<num>   B1 bound in the pp1 method
+-B2pp1	<num>   B2 bound in the pp1 method
+
+[rho]
+usage: rho(expression)
+
+description:
+Pollard's rho method, with Brent's improvement.  The maximum number of iterations to 
+perform is configurable using the BRENT_MAX_IT parameter.
+
+command line flags effecting rho:
+
+-rhomax	<num>   max iterations in the rho method
+
+[trial]
+usage: trial(expression1,[expression2])
+
+description:
+trial division of the result of expression1 to a bound specified by the result of 
+the optional expression2.  All primes less than the bound are divided into the input.
+If no expression2 is provided, the default value is 10000.
+
+[fermat]
+usage: fermat(expression1,expression2)
+
+description:
+performs the fermat factorization algorithm on expression1, using a maximum of
+expression2 iterations.
+
+[squfof]
+usage: squfof(expression)
+
+description:
+Shanks's square form factorization method, using multipliers.  Upper bound of the input
+is set to 62 bits.
+
+[gcd]
+usage: gcd(expression,expression)
+
+description:
+greatest common divisor of two inputs, using the Lehmer/Euclid method.
+
+[jacobi]
+usage: jacobi(expression,expression)
+
+description:
+jacobi symbol of two inputs p/q
+
+[isprime]
+usage: isprime(expression)
+
+description:
+uses trial division followed by the rabin-miller probabalistic primalty
+test to determine probable-primalty.  The number of witnesses in the rabin-miller test
+is configurable using the NUM_WITNESSES parameter.  The default is 20.
+
+[fib]
+usage: fib(expression)
+
+description:
+computes the nth fibonacci number
+
+[luc]
+usage: luc(expression)
+
+description:
+computes the nth lucas number
+
+[modinv]
+usage: modinv(expression1,expression2)
+
+description:
+computes the modular inverse of one number with respect to another
+
+[lg2]
+usage: lg2(expression)
+
+description:
+the binary log
+
+[log]
+usage: log(expression)
+
+description:
+the base 10 log
+
+[ln]
+usage: ln(expression)
+
+description:
+the natural log
+
+[modexp]
+usage: modexp(expression1,expression2,expression3)
+
+description:
+modular exponentiation: a^b%n
+
+[sqrt]
+usage: sqrt(expression)
+
+description:
+sqrt using newton's method
+
+[nroot]
+usage: nroot(expression1,expression2)
+
+description:
+nth root using newton's method.  The result of expression2 is the nth root to take of
+the result of expression1.
+
+[shift]
+usage: shift(expression1,expression2)
+
+description:
+binary left or right shift by result of expression2
+
+[size]
+usage: size(expression)
+
+description:
+size of a number, digits and bits
+
+[rsa]
+usage: rsa(expression)
+
+description:
+form a difficult to factor number of a specified bit size
+
+[rand]
+usage: rand(expression)
+
+description:
+form a random number with a specified number of digits
+
+[primes]
+usage: primes(expression1,expression2,[expression3])
+
+description:
+print or count the primes in a range between the first two parameters.  
+The third parameter should evaluate to 1 if the range is to only be counted or 0 if printed.
+If the PRIMES_TO_FILE environment variable is set to non-zero, the primes will
+be output to a file called primes.dat, in the same directory as the executable.
+If the PRIMES_TO_SCREEN environement variable is set to non-zero, the primes
+will be printed to the screen.  By default, PRIMES_TO_FILE and
+PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
+enable the same behavior.  It could take a very long time to print if the range is large.
+If expression 3 is omitted, the behavior defaults to a count of primes.
+expression 1 and expression 2 should both evaluate to numbers less than 4e18.  
+The condition expression 2 > expression 1 is also enforced.
+
+
+[nextprime]
+usage: nextprime(expression1,[expression2])
+
+description:
+find the next prime after a specified number.  If expression2 evaluates to zero, 
+the next prime is smaller than the given number.  Else the next prime is larger than the 
+specified number.  If no expression2 is given, the default is the next bigger prime 
+(as if a non-zero input were given).
+
+[llt]
+usage: llt(expression)
+
+description:
+start the lucas lehmer test on the number 2^expression - 1.  A small amount of trial
+division is first performed, after determining that the expression is prime.
+Multiplication is N^2, so this is pretty slow for expression evaluating to greater than
+10000 or so.
+[end]
+
+
+
