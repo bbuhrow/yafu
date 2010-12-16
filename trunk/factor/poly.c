@@ -1201,6 +1201,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
+		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
 			//experiment: different way to check/create new slices
@@ -1228,7 +1229,6 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			//}
 
 			prime = update_data.prime[j];
-			//logp = update_data.logp[j];
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 
@@ -1257,7 +1257,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
-
+		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound;j++,ptr++)				
 		{			
 			CHECK_NEW_SLICE(j);
@@ -1334,10 +1334,10 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
+		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
 			prime = update_data.prime[j];
-			//logp = update_data.logp[j];
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 
@@ -1366,12 +1366,12 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
+		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound;j++,ptr++)				
 		{				
 			CHECK_NEW_SLICE(j);
 
 			prime = update_data.prime[j];			
-			//logp = update_data.logp[j];				
 			root1 = update_data.firstroots1[j];	
 			root2 = update_data.firstroots2[j];	
 
