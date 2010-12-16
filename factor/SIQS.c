@@ -106,12 +106,12 @@ void SIQS(fact_obj_t *fobj)
 	//experimental
 	//MAX_DIFF = 0;
 	//MAX_DIFF2 = 0;
-	for (i=0; i<20; i++)
+	/*for (i=0; i<20; i++)
 	{
 		total_primes_per_slice[i] = 0;
 		count_polys_using_slice[i] = 0;
 		average_primes_per_slice[i] = 0;
-	}
+	}*/
 
 	//init locals
 	zInit(&tmp1);
