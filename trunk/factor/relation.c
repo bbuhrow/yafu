@@ -461,6 +461,13 @@ code to the public domain.
 		zShortDiv32(Q,prime,Q);			\
 	} while (zShortMod32(Q,prime) == 0);
 
+#define PROTECTED_DIVIDE_ONE_PRIME \
+	while (zShortMod32(Q,prime) == 0) \
+	{						\
+		fb_offsets[++smooth_num] = i;	\
+		zShortDiv32(Q,prime,Q);			\
+	}
+
 //#define SCAN_MASK (( (uint64)0x80808080 << 32) | (uint64)0x80808080)
 #define SCAN_MASK 0x8080808080808080
 
@@ -764,11 +771,7 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 	int smooth_num=-1;
 	uint32 fb_offsets[MAX_SMOOTH_PRIMES];
 	uint32 polya_factors[20];
-#ifdef USEBUCKETSTRUCT
-	bucket_element *bptr;
-#else
 	uint32 *bptr;
-#endif
 	sieve_fb *fb;
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
@@ -812,20 +815,8 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 
 #else
 	z64_to_z32(&dconf->qstmp4,&dconf->qstmp32);
-	//j = abs(dconf->qstmp4.size) * 2;
-	//for (i=0; i<j; i+=2)
-	//{
-	//	dconf->qstmp32.val[i] = (uint32)(dconf->qstmp4.val[i/2] & 0xffffffff);
-	//	dconf->qstmp32.val[i+1] = (uint32)(dconf->qstmp4.val[i/2] >> 32);
-	//}
-	//dconf->qstmp32.size = j;
-	//dconf->qstmp32.type = dconf->qstmp4.type;
-	//if (dconf->qstmp32.val[dconf->qstmp32.size - 1] == 0)
-	//	dconf->qstmp32.size--;
-	//if (dconf->qstmp4.size < 0)
-	//	dconf->qstmp32.size *= -1;
-
 #endif
+
 	Q = &dconf->qstmp32;
 	
 	fullfb_ptr = fullfb;
@@ -1303,157 +1294,19 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 	bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
 	if (parity)
 	{
-#ifdef USEMAXBLOCKS
-		bptr += (MAX_NUM_BLOCKS << BUCKET_BITS);
-		basebucket = MAX_NUM_BLOCKS;
-#else
 		bptr += (sconf->num_blocks << BUCKET_BITS);
 		basebucket = sconf->num_blocks;
-#endif
 	}
 	else
 		basebucket = 0;
 
 	//times_checked++;
-#ifdef USEMANYSLICES
 	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
 	{
-#else
-	if (dconf->buckets->num_slices > 0)
-	{
-		k=0;
-#endif
-
 		uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
 
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result;
-
-#ifdef USEBUCKETSTRUCT
-		for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
-		{
-			SCAN_16X;
-			//SCAN_32X;
-
-			if (result == 0)
-				continue;
-
-			//noticably faster to not put these in a loop!
-			if (bptr[j  ].loc == block_loc)
-			{
-				i = fb_bound + bptr[j].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+1].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+1].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+2].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+2].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+3].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+3].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+4].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+4].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+5].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+5].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+6].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+6].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+7].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+7].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-
-			if (bptr[j+8].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+8].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+9].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+9].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+10].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+10].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+11].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+11].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+12].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+12].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+13].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+13].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+14].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+14].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if (bptr[j+15].loc == block_loc)
-			{
-				i = fb_bound + bptr[j+15].fb_index;
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-
-			//if ((Q->size == 1) && (Q->val[0] < pmax ))
-			//	goto early_abort;
-		
-		}
-		
-		for (; (uint32)j < lpnum; j++)
-		{
-			if (bptr[j  ].loc == block_loc)
-			{
-				i = fb_bound + bptr[j].fb_index;
-				prime = fb[i].prime;
-				//printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
-				//	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
-				DIVIDE_ONE_PRIME;
-			}
-		}
-#else
 
 		for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
 		{
@@ -1576,19 +1429,10 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 				DIVIDE_ONE_PRIME;
 			}
 		}
-#endif
-
-
 
 		//point to the next slice of primes
-#ifdef USEMAXBLOCKS
-		bptr += (MAX_NUM_BLOCKS << (BUCKET_BITS + 1));
-		basebucket += (MAX_NUM_BLOCKS << 1);
-#else
 		bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
 		basebucket += (sconf->num_blocks << 1);
-#endif
-
 	}
 
 	SCAN_CLEAN;
@@ -1726,14 +1570,6 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 			printf("error re-allocating temporary storage of relations\n");
 			exit(-1);
 		}
-		/*
-		for (i=conf->buffered_rels; i<conf->buffered_rel_alloc * 2; i++)
-		{
-			rel = conf->relation_buf + i;
-			rel->fb_offsets = (uint32 *)malloc(
-				(MAX_SMOOTH_PRIMES * sizeof(uint32)));
-		}
-		*/
 		conf->buffered_rel_alloc *= 2;
 	}
 

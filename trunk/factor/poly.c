@@ -22,31 +22,7 @@ code to the public domain.
 #include "qs.h"
 #include "util.h"
 #include "common.h"
-//
-//typedef struct 
-//{
-//	//read/write data inputs
-//	uint32 *numptr_n;
-//	uint32 *numptr_p;
-//	bucket_element *sliceptr_n;
-//	bucket_element *sliceptr_p;
-//	update_t *update_data;
-//	lp_bucket *lp_bucket_p;
-//	int *ptr;
-//
-//	//read only inputs:
-//	uint64 large_B;
-//	uint64 B;
-//	uint64 interval;
-//	int64 numblocks;
-//
-//	//read/write words
-//	uint64 bound_val;
-//	int64 bound_index;
-//	int64 check_bound;
-//	uint64 logp;
-//
-//} polysieve_t;
+
 
 void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
@@ -493,8 +469,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_p +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_p[bnum];					\
-		/*bptr->fb_index = i - bound_val;	*/	\
-		/*bptr->loc = root1 & BLOCKSIZEm1;	*/ \
 		*bptr = ((i - bound_val) << 16) | (root1 & BLOCKSIZEm1); \
 		numptr_p[bnum]++;					\
 	}										\
@@ -504,28 +478,8 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_p +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_p[bnum];					\
-		/* bptr->fb_index = i - bound_val;*/		\
-		/* bptr->loc = root2 & BLOCKSIZEm1;*/	\
 		*bptr = ((i - bound_val) << 16) | (root2 & BLOCKSIZEm1); \
 		numptr_p[bnum]++;					\
-	}
-
-#define FILL_ONE_PRIME_P2(i)					\
-	if (root1 < interval)					\
-	{										\
-		bnum = root1 >> BLOCKBITS;			\
-		bptr = next_loc_p[bnum];				\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root1 & BLOCKSIZEm1;	\
-		next_loc_p[bnum]++;					\
-	}										\
-	if (root2 < interval)					\
-	{										\
-		bnum = root2 >> BLOCKBITS;			\
-		bptr = next_loc_p[bnum];				\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root2 & BLOCKSIZEm1;	\
-		next_loc_p[bnum]++;					\
 	}
 
 #define FILL_ONE_PRIME_N(i)						\
@@ -535,8 +489,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_n +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_n[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/		\
-		/*bptr->loc = root1 & BLOCKSIZEm1;*/	\
 		*bptr = ((i - bound_val) << 16) | (root1 & BLOCKSIZEm1); \
 		numptr_n[bnum]++;					\
 	}										\
@@ -546,50 +498,8 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_n +					\
 			(bnum << BUCKET_BITS) +			\
 			numptr_n[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/		\
-		/*bptr->loc = root2 & BLOCKSIZEm1;*/	\
 		*bptr = ((i - bound_val) << 16) | (root2 & BLOCKSIZEm1); \
 		numptr_n[bnum]++;					\
-	}			
-
-#define FILL_ONE_PRIME_N3(i)						\
-	if (root1 < interval)						\
-	{											\
-		bnum = root1 >> BLOCKBITS;			\
-		bptr = sliceptr_p +	MAX_NUM_BLOCKS_PROD_BUCKET_BITS + \
-			(bnum << BUCKET_BITS) +			\
-			numptr_p[bnum+MAX_NUM_BLOCKS];					\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root1 & BLOCKSIZEm1;	\
-		numptr_p[bnum+MAX_NUM_BLOCKS]++;					\
-	}										\
-	if (root2 < interval)					\
-	{										\
-		bnum = root2 >> BLOCKBITS;			\
-		bptr = sliceptr_p +	MAX_NUM_BLOCKS_PROD_BUCKET_BITS + 					\
-			(bnum << BUCKET_BITS) +			\
-			numptr_p[bnum+MAX_NUM_BLOCKS];					\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root2 & BLOCKSIZEm1;	\
-		numptr_p[bnum+MAX_NUM_BLOCKS]++;					\
-	}			
-
-#define FILL_ONE_PRIME_N2(i)						\
-	if (root1 < interval)						\
-	{											\
-		bnum = root1 >> BLOCKBITS;			\
-		bptr = next_loc_n[bnum];				\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root1 & BLOCKSIZEm1;	\
-		next_loc_n[bnum]++;					\
-	}										\
-	if (root2 < interval)					\
-	{										\
-		bnum = root2 >> BLOCKBITS;			\
-		bptr = next_loc_n[bnum];				\
-		bptr->fb_index = i - bound_val;		\
-		bptr->loc = root2 & BLOCKSIZEm1;	\
-		next_loc_n[bnum]++;					\
 	}			
 
 #define FILL_ONE_PRIME_LOOP_P(i)				\
@@ -599,8 +509,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_p +						\
 			(bnum << BUCKET_BITS) +				\
 			numptr_p[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/			\
-		/*bptr->loc = root1 & BLOCKSIZEm1;*/		\
 		*bptr = ((i - bound_val) << 16) | (root1 & BLOCKSIZEm1); \
 		numptr_p[bnum]++;					\
 		root1 += prime;							\
@@ -612,32 +520,8 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_p +						\
 			(bnum << BUCKET_BITS) +				\
 			numptr_p[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/			\
-		/*bptr->loc = root2 & BLOCKSIZEm1;*/		\
 		*bptr = ((i - bound_val) << 16) | (root2 & BLOCKSIZEm1); \
 		numptr_p[bnum]++;					\
-		root2 += prime;							\
-		bnum = root2 >> BLOCKBITS;				\
-	} 
-
-#define FILL_ONE_PRIME_LOOP_P2(i)				\
-	bnum = root1 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = next_loc_p[bnum];				\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root1 & BLOCKSIZEm1;		\
-		next_loc_p[bnum]++;					\
-		root1 += prime;							\
-		bnum = root1 >> BLOCKBITS;				\
-	}											\
-	bnum = root2 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = next_loc_p[bnum];				\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root2 & BLOCKSIZEm1;		\
-		next_loc_p[bnum]++;					\
 		root2 += prime;							\
 		bnum = root2 >> BLOCKBITS;				\
 	} 
@@ -649,8 +533,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_n +						\
 			(bnum << BUCKET_BITS) +				\
 			numptr_n[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/			\
-		/*bptr->loc = root1 & BLOCKSIZEm1;*/		\
 		*bptr = ((i - bound_val) << 16) | (root1 & BLOCKSIZEm1); \
 		numptr_n[bnum]++;					\
 		root1 += prime;							\
@@ -662,61 +544,26 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bptr = sliceptr_n +						\
 			(bnum << BUCKET_BITS) +				\
 			numptr_n[bnum];					\
-		/*bptr->fb_index = i - bound_val;*/			\
-		/*bptr->loc = root2 & BLOCKSIZEm1;*/		\
 		*bptr = ((i - bound_val) << 16) | (root2 & BLOCKSIZEm1); \
 		numptr_n[bnum]++;					\
 		root2 += prime;							\
 		bnum = root2 >> BLOCKBITS;				\
 	} 
 
-#define FILL_ONE_PRIME_LOOP_N3(i)				\
-	bnum = root1 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = sliceptr_p +						\
-			(bnum << BUCKET_BITS) +	MAX_NUM_BLOCKS_PROD_BUCKET_BITS +			\
-			numptr_p[bnum+MAX_NUM_BLOCKS];					\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root1 & BLOCKSIZEm1;		\
-		numptr_p[bnum+MAX_NUM_BLOCKS]++;					\
-		root1 += prime;							\
-		bnum = root1 >> BLOCKBITS;				\
-	}											\
-	bnum = root2 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = sliceptr_p +	MAX_NUM_BLOCKS_PROD_BUCKET_BITS +					\
-			(bnum << BUCKET_BITS) +				\
-			numptr_p[bnum+MAX_NUM_BLOCKS];					\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root2 & BLOCKSIZEm1;		\
-		numptr_p[bnum+MAX_NUM_BLOCKS]++;					\
-		root2 += prime;							\
-		bnum = root2 >> BLOCKBITS;				\
-	} 
 
-#define FILL_ONE_PRIME_LOOP_N2(i)				\
-	bnum = root1 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = next_loc_n[bnum];				\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root1 & BLOCKSIZEm1;		\
-		next_loc_n[bnum]++;					\
-		root1 += prime;							\
-		bnum = root1 >> BLOCKBITS;				\
-	}											\
-	bnum = root2 >> BLOCKBITS;					\
-	while (bnum < numblocks)					\
-	{											\
-		bptr = next_loc_n[bnum];				\
-		bptr->fb_index = i - bound_val;			\
-		bptr->loc = root2 & BLOCKSIZEm1;		\
-		next_loc_n[bnum]++;					\
-		root2 += prime;							\
-		bnum = root2 >> BLOCKBITS;				\
-	} 
+#define MAKE_NEW_SLICE(j)	\
+	if (1)							\
+	{													\
+		lp_bucket_p->logp[bound_index] = logp;			\
+		bound_index++;									\
+		lp_bucket_p->fb_bounds[bound_index] = j;		\
+		bound_val = j;									\
+		sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
+		sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
+		numptr_p += (numblocks << 1);							\
+		numptr_n += (numblocks << 1);							\
+		check_bound += BUCKET_ALLOC >> 1;					\
+	}
 
 #define CHECK_NEW_SLICE(j)									\
 	if (j >= check_bound)							\
@@ -732,6 +579,7 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		room = BUCKET_ALLOC - room;							\
 		if (room < 32)										\
 		{													\
+			logp = update_data.logp[j];						\
 			lp_bucket_p->logp[bound_index] = logp;			\
 			bound_index++;									\
 			lp_bucket_p->fb_bounds[bound_index] = j;		\
@@ -758,41 +606,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		check_bound += BUCKET_ALLOC >> 1;					\
 	}
 
-#define CHECK_NEW_SLICE3(j)									\
-	if (j >= check_bound)							\
-	{														\
-		room = 0;											\
-		for (k=0;k<numblocks;k++)							\
-		{													\
-			if (*(numptr_p + k) > room)						\
-				room = *(numptr_p + k);						\
-			if (*(numptr_p + k + MAX_NUM_BLOCKS) > room)						\
-				room = *(numptr_p + k + MAX_NUM_BLOCKS);						\
-		}													\
-		room = BUCKET_ALLOC - room;							\
-		if (room < 32)										\
-		{													\
-			lp_bucket_p->logp[bound_index] = logp;			\
-			bound_index++;									\
-			lp_bucket_p->fb_bounds[bound_index] = j;		\
-			bound_val = j;									\
-			sliceptr_p += (MAX_NUM_BLOCKS << (BUCKET_BITS + 1));		\
-			numptr_p += (MAX_NUM_BLOCKS << 1);							\
-			check_bound += BUCKET_ALLOC >> 1;					\
-		}													\
-		else												\
-			check_bound += room >> 1;						\
-	}										\
-	else if ((j - bound_val) >= 65536)		\
-	{										\
-		lp_bucket_p->logp[bound_index] = logp;			\
-		bound_index++;									\
-		lp_bucket_p->fb_bounds[bound_index] = j;		\
-		bound_val = j;									\
-		sliceptr_p += (MAX_NUM_BLOCKS << (BUCKET_BITS + 1));		\
-		numptr_p += (MAX_NUM_BLOCKS << 1);							\
-		check_bound += BUCKET_ALLOC >> 1;					\
-	}
 
 #if defined(_MSC_VER)
 
@@ -1091,11 +904,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	z *Bl = dconf->Bl;
 	uint32 start_prime = 2;
 	int *rootupdates = dconf->rootupdates;
-#ifdef UPDATEDATA_AOS
-	update_t *update_data = dconf->update_data;
-#else
 	update_t update_data = dconf->update_data;
-#endif
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
 	sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
 	lp_bucket *lp_bucket_p = dconf->buckets;
@@ -1108,11 +917,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	int s = poly->s;
 	int bound_index = 0, k;
 	uint32 bound_val = fb->med_B;
-#ifdef USEBUCKETSTRUCT
-	bucket_element *bptr,*sliceptr_p,*sliceptr_n;
-#else
 	uint32 *bptr, *sliceptr_p, *sliceptr_n;
-#endif
 	uint32 *numptr_p, *numptr_n;
 	int check_bound = BUCKET_ALLOC/2 - 1, room;
 
@@ -1123,16 +928,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	{
 		lp_bucket_p->fb_bounds[0] = fb->med_B;
 
-#ifdef USEMAXBLOCKS
-		sliceptr_p = lp_bucket_p->list;
-		//sliceptr_n = lp_bucket_p->list + MAX_NUM_BLOCKS_PROD_BUCKET_BITS;
-
-		numptr_p = lp_bucket_p->num;
-		//numptr_n = lp_bucket_p->num + MAX_NUM_BLOCKS;
-		//reset lp_buckets
-		for (i=0;i< (2*MAX_NUM_BLOCKS*lp_bucket_p->alloc_slices) ;i++)
-			numptr_p[i] = 0;
-#else
 		sliceptr_p = lp_bucket_p->list;
 		sliceptr_n = lp_bucket_p->list + (numblocks << BUCKET_BITS);
 
@@ -1141,7 +936,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//reset lp_buckets
 		for (i=0;i< (2*numblocks*lp_bucket_p->alloc_slices) ;i++)
 			numptr_p[i] = 0;
-#endif
 
 		lp_bucket_p->num_slices = 0;
 	}
@@ -1172,27 +966,15 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		if (root2 < root1)
 		{
-#ifdef UPDATEDATA_AOS
-			update_data[i].firstroots1 = root2;
-			update_data[i].firstroots2 = root1;
-#else
 			update_data.firstroots1[i] = root2;
 			update_data.firstroots2[i] = root1;
-#endif
-			//update_data[i].firstroots1 = (int)((root1 << 16) | root2);
 			fb_p[i].roots = (uint32)((root1 << 16) | root2);
 			fb_n[i].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
 		}
 		else
 		{
-#ifdef UPDATEDATA_AOS
-			update_data[i].firstroots1 = root1;
-			update_data[i].firstroots2 = root2;
-#else
 			update_data.firstroots1[i] = root1;
 			update_data.firstroots2[i] = root2;
-#endif
-			//update_data[i].firstroots1 = (int)((root2 << 16) | root1);
 			fb_p[i].roots = (uint32)((root2 << 16) | root1);
 			fb_n[i].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
 		}
@@ -1228,37 +1010,17 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
 		root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
 
-#ifdef USEMANYSLICES
-#ifdef USEMAXBLOCKS
-		CHECK_NEW_SLICE3(i);
-#else
 		CHECK_NEW_SLICE(i);
-#endif
-#endif
 
-#ifdef UPDATEDATA_AOS
-		update_data[i].firstroots1 = root1;
-		update_data[i].firstroots2 = root2;
-#else
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
-#endif
 
 		FILL_ONE_PRIME_LOOP_P(i);
 
-#ifdef UPDATEDATA_AOS
-		root1 = (prime - update_data[i].firstroots1);
-		root2 = (prime - update_data[i].firstroots2);
-#else
 		root1 = (prime - update_data.firstroots1[i]);
 		root2 = (prime - update_data.firstroots2[i]);
-#endif
-	
-#ifdef USEMAXBLOCKS
-		FILL_ONE_PRIME_LOOP_N3(i);
-#else
+
 		FILL_ONE_PRIME_LOOP_N(i);
-#endif
 
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
@@ -1270,30 +1032,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = (int)((int64)x * (int64)inv % (int64)prime);
 			rootupdates[(j)*fb->B+i] = x;
 		}
-		//we could do the following:
-		//loop over very large primes
-		//	compute the s root updates for this prime
-		//	loop over (a few of) the 2^(s-1) polys
-		//		compute the roots for this poly
-		//		check the 4 candidates against interval size
-		//		only put those that survive in a matrix where:
-		//			rows are bucket elements for 1 poly
-		//			cols are different polys
-		//	end
-		//end
-		//
-		//we then sort a row using a cache friendly quicksort and the 
-		//elements are ready to be dumped into a sieve.  this eliminates
-		//the vlp bucket sorting in nextroots.
-		//matrix rows are contiguous in memory
-		//matrix cols are not - but we always write to the head of each column
-		//when looping over polys, so they should still be in L1.
-		//we benefit by not needing to store the rootupdates array and
-		//by not needing to update the firstroots fields in update data
-		//as often (only at the end of the loop over polys).  I suppose
-		//we could either do a linear dump of bucket elements followed by a 
-		//sort or we could directly bucket sort... hmmm.
-
 
 	}
 
@@ -1315,32 +1053,17 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
 		root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
 
-#ifdef USEMANYSLICES
-#ifdef USEMAXBLOCKS
-		CHECK_NEW_SLICE3(i);
-#else
 		CHECK_NEW_SLICE(i);
-#endif
-#endif
 
-#ifdef UPDATEDATA_AOS
-		update_data[i].firstroots1 = root1;
-		update_data[i].firstroots2 = root2;
-#else
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
-#endif
 
 		FILL_ONE_PRIME_P(i);
 
 		root1 = (prime - root1);
 		root2 = (prime - root2);
 
-#ifdef USEMAXBLOCKS
-		FILL_ONE_PRIME_N3(i);
-#else
 		FILL_ONE_PRIME_N(i);
-#endif
 
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
@@ -1367,16 +1090,11 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//update the roots 
-
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
 	sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
 	int *rootupdates = dconf->rootupdates;
 
-#ifdef UPDATEDATA_AOS
-	update_t *update_data = dconf->update_data;
-#else
 	update_t update_data = dconf->update_data;
-#endif
 
 	uint32 startprime = 2;
 	uint32 bound = sconf->factor_base->B;
@@ -1392,26 +1110,18 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 j, interval;
 	int k,bnum,numblocks,room;
 	uint32 root1, root2, prime;
-	//uint32 *scratch;
-	//uint32 ptroffset;
-	
+
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
 	uint32 bound_val = med_B;
-#ifdef USEBUCKETSTRUCT
-	bucket_element *bptr,*sliceptr_p,*sliceptr_n;
-#else
 	uint32 *bptr, *sliceptr_p,*sliceptr_n;
-#endif
 	uint32 *numptr_p, *numptr_n;
 	uint8 logp=0;
-	//polysieve_t helperstruct;
 
-	//scratch = (uint32 *)memalign(64,4 * sizeof(uint32));
-	//scratch[0] = 1;
-	//scratch[1] = 1;
-	//scratch[2] = 1;
-	//scratch[3] = 1;
+	//experiment: different way to check/create new slices
+	//uint32 slicebound, room2;
+	//room2 = 2000;
+	//slicebound = med_B + room2;
 
 	numblocks = sconf->num_blocks;
 	interval = numblocks << BLOCKBITS;
@@ -1420,18 +1130,6 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	{
 		lp_bucket_p->fb_bounds[0] = med_B;
 
-#ifdef USEMAXBLOCKS
-		sliceptr_p = lp_bucket_p->list;
-
-		numptr_p = lp_bucket_p->num;
-
-		//reuse this for a sec...
-		prime = 2*MAX_NUM_BLOCKS*lp_bucket_p->alloc_slices;
-
-		//reset lp_buckets
-		for (j=0;j<prime;j++)
-			numptr_p[j] = 0;
-#else
 		sliceptr_p = lp_bucket_p->list;
 		sliceptr_n = lp_bucket_p->list + (numblocks << BUCKET_BITS);
 
@@ -1444,7 +1142,6 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//reset lp_buckets
 		for (j=0;j<prime;j++)
 			numptr_p[j] = 0;
-#endif
 	
 		lp_bucket_p->num_slices = 0;
 
@@ -1459,125 +1156,32 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	k=0;
 	ptr = &rootupdates[(v-1) * bound + startprime];
-	//ptroffset = (v-1) * bound + startprime;
 
 	if (sign > 0)
 	{
-
-		// update all roots, then sort into buckets or the compressed sieve fb.
-		// first get to a spot where we can use movdqa on rootupdates and the update data fields
-		// this means that the index into all of these arrays is even (a multiple of 64 bytes)
-		// (v-1)   bound   startprime   ptroffset   initial j   possible?
-		//  odd     odd       odd         even      odd            n
-		//  odd     odd       even        odd       even           n
-		//  odd     even      odd         odd       odd            y
-		//  odd     even      even        even      even           y
-		//  even    odd       odd         odd       odd            y
-		//  even    odd       even        even      even           y
-		//  even    even      odd         odd       odd            y
-		//  even    even      even        even      even           y
-		// the above truth table suggests that bound should be forced to be even
-		//
-		// argh.  the condition moves, etc, just seem to make this unsuitable for
-		// multimedia operations.  at least without pmulld.
-
-		//if (startprime & 0x1)
-		//{
-		//	j = startprime;
-		//	prime = update_data.prime[j];
-		//	root1 = update_data.firstroots1[j];
-		//	root2 = update_data.firstroots2[j];
-		//	COMPUTE_NEXT_ROOTS_P;
-		//	update_data.firstroots1[j] = root1;
-		//	update_data.firstroots2[j] = root2;
-		//	j++;
-		//	ptr++;
-		//}
-		//else
-		//	j = startprime;		
-
-
-		//ASM_G (											\
-		//	"xorl %%r8d, %%r8d		\n\t"	/*r8d = 0*/	\
-		//	"xorl %%r9d, %%r9d		\n\t"	/*r9d = 0*/	\
-		//	"subl %2, %%eax			\n\t"	/*root1 - ptr*/	\
-		//	"cmovc %3, %%r8d		\n\t"	/*prime into r8 if overflow*/	\
-		//	"subl %2, %%edx			\n\t"	/*root2 - ptr*/	\
-		//	"cmovc %3, %%r9d		\n\t"	/*prime into r9 if overflow*/	\
-		//	"addl %%r8d, %%eax		\n\t"		\
-		//	"addl %%r9d, %%edx		\n\t"		\
-		//	: "+a"(root1), "+d"(root2)			\
-		//	: "g"(*ptr), "g"(prime)		\
-		//	: "r8", "r9", "cc");	
-
-
-		//asm volatile (
-		//	"movdqa (%1), %%xmm1 \n\t" /* mov roots1 into sse2 reg */
-		//	"movdqa (%2), %%xmm2 \n\t" /* mov roots2 into sse2 reg */
-		//	"movdqa (%0), %%xmm3 \n\t" /* mov update values into sse2 reg */
-		//	"movdqa (%3), %%xmm4 \n\t" /* mov primes into sse2 reg */
-		//	"psubd %%xmm3, %%xmm1 \n\t" /* compute new root1s */
-		//	"psubd %%xmm3, %%xmm2 \n\t" /* compute new root2s */
-		//	"movdqa %%xmm1, %%xmm6 \n\t" /* copy new roots */
-		//	"movdqa %%xmm2, %%xmm7 \n\t" /* copy new roots */
-		//	"psrad 31, %%xmm1 \n\t" /* shift right all doublewords 31 bits */
-		//	"psrad 31, %%xmm2 \n\t" /* shift right all doublewords 31 bits */
-		//	/*"pand (%4), %%xmm1 \n\t" /* clear possible sign bits from shifting */
-		//	/*"pand (%4), %%xmm2 \n\t" /* clear possible sign bits from shifting */
-		//	/*"pmulld %%xmm4, %%xmm1 \n\t" /* multiply by primes */
-		//	/*"pmulld %%xmm4, %%xmm2 \n\t" /* multiply by primes */
-		//	"pmovmskb %%xmm1, %%eax \n\t" /* extract sign bits */
-		//	"pmovmskb %%xmm2, %%ebx \n\t" /* extract sign bits */
-		//	"paddd %%xmm6, %%xmm1 \n\t" /* add correction to new roots */
-		//	"paddd %%xmm7, %%xmm2 \n\t" /* add correction to new roots */
-		//	"movdqa %%xmm1, (%1) \n\t" /* store new root1s back to memory */
-		//	"movdqa %%xmm2, (%2) \n\t" /* store new root2s back to memory */
-		//	: 
-		//	: "r"(ptr), "r"(update_data.firstroots1 + j), "r"(update_data.firstroots2 + j), "r"(update_data.prime + j), "r"(scratch), "g"(j), "g"(bound)
-		//	: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
-
-
-
 #ifdef QS_TIMING
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
 		for (j=startprime;j<med_B;j++,ptr++)
 		{
-			
-#ifdef UPDATEDATA_AOS
-			prime = update_data[j].prime;
-			root1 = update_data[j].firstroots1;
-			root2 = update_data[j].firstroots2;
-#else
 			prime = update_data.prime[j];
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
-#endif
 
 			COMPUTE_NEXT_ROOTS_P;
 			
 			if (root2 < root1)
 			{
-#ifdef UPDATEDATA_AOS
-				update_data[j].firstroots1 = root2;
-				update_data[j].firstroots2 = root1;
-#else
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
-#endif
 				fb_p[j].roots = (uint32)((root1 << 16) | root2);
 				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
 			}
 			else
 			{
-#ifdef UPDATEDATA_AOS
-				update_data[j].firstroots1 = root1;
-				update_data[j].firstroots2 = root2;
-#else
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
-#endif
 				fb_p[j].roots = (uint32)((root2 << 16) | root1);
 				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
 			}
@@ -1599,53 +1203,48 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
-#ifdef UPDATEDATA_AOS
-			prime = update_data[j].prime;
-			logp = update_data[j].logp;
+			//experiment: different way to check/create new slices
+			//if (j > slicebound)
+			//{				
+			//	room2 *= 2;
+			//	slicebound = j + room2;
+			//	//room = 0;											
+			//	//for (k=0;k<numblocks;k++)							
+			//	//{													
+			//	//	if (*(numptr_p + k) > room)						
+			//	//		room = *(numptr_p + k);						
+			//	//	if (*(numptr_n + k) > room)						
+			//	//		room = *(numptr_n + k);						
+			//	//}										
+			//	//if (room > 2048)
+			//	//	printf("warning: bucket overflow\n");
+			//	//total_primes_per_slice[bound_index] += room;
+			//	//count_polys_using_slice[bound_index]++;
+			//	//average_primes_per_slice[bound_index] = 
+			//	//	(double)total_primes_per_slice[bound_index] / (double)count_polys_using_slice[bound_index];
+			//	//printf("making new slice at prime %d.  max utilization of this slice was %d\n",
+			//	//	j,room);
+			//	MAKE_NEW_SLICE(j);
+			//}
 
-			root1 = update_data[j].firstroots1;
-			root2 = update_data[j].firstroots2;
-#else
 			prime = update_data.prime[j];
-			logp = update_data.logp[j];
-
+			//logp = update_data.logp[j];
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
-#endif
 
 			COMPUTE_NEXT_ROOTS_P;
 
-#ifdef UPDATEDATA_AOS
-			update_data[j].firstroots1 = root1;
-			update_data[j].firstroots2 = root2;
-#else
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
-#endif
 
-#ifdef USEMANYSLICES
-#ifdef USEMAXBLOCKS
-			CHECK_NEW_SLICE3(j);
-#else
 			CHECK_NEW_SLICE(j);
-#endif
-#endif
 
 			FILL_ONE_PRIME_LOOP_P(j);
 
-#ifdef UPDATEDATA_AOS
-			root1 = (prime - update_data[j].firstroots1);
-			root2 = (prime - update_data[j].firstroots2);
-#else
 			root1 = (prime - update_data.firstroots1[j]);
 			root2 = (prime - update_data.firstroots2[j]);
-#endif
 
-#ifdef USEMAXBLOCKS
-			FILL_ONE_PRIME_LOOP_N3(j);
-#else
 			FILL_ONE_PRIME_LOOP_N(j);
-#endif
 		}
 
 #ifdef QS_TIMING
@@ -1699,42 +1298,23 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		for (j=startprime;j<med_B;j++,ptr++)
 		{
-			
-#ifdef UPDATEDATA_AOS
-			root1 = update_data[j].firstroots1;
-			root2 = update_data[j].firstroots2;
-			prime = update_data[j].prime;
-#else
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
-#endif
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-#ifdef UPDATEDATA_AOS
-				update_data[j].firstroots1 = root2;
-				update_data[j].firstroots2 = root1;
-#else
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
-#endif
-				//update_data[j].firstroots1 = (int)((root1 << 16) | root2);
 				fb_p[j].roots = (uint32)((root1 << 16) | root2);
 				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
 			}
 			else
 			{
-#ifdef UPDATEDATA_AOS
-				update_data[j].firstroots1 = root1;
-				update_data[j].firstroots2 = root2;
-#else
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
-#endif
-				//update_data[j].firstroots1 = (int)((root2 << 16) | root1);
 				fb_p[j].roots = (uint32)((root2 << 16) | root1);
 				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
 			}
@@ -1756,54 +1336,24 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
-#ifdef UPDATEDATA_AOS
-			prime = update_data[j].prime;
-			logp = update_data[j].logp;
-
-			root1 = update_data[j].firstroots1;
-			root2 = update_data[j].firstroots2;
-#else
 			prime = update_data.prime[j];
-			logp = update_data.logp[j];
-
+			//logp = update_data.logp[j];
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
-#endif
 
 			COMPUTE_NEXT_ROOTS_N;
 
-#ifdef UPDATEDATA_AOS
-			update_data[j].firstroots1 = root1;
-			update_data[j].firstroots2 = root2;
-#else
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
-#endif
 
-#ifdef USEMANYSLICES
-#ifdef USEMAXBLOCKS
-			CHECK_NEW_SLICE3(j);
-#else
 			CHECK_NEW_SLICE(j);
-#endif
-#endif
 
 			FILL_ONE_PRIME_LOOP_P(j);
 
-#ifdef UPDATEDATA_AOS
-			root1 = (prime - update_data[j].firstroots1);
-			root2 = (prime - update_data[j].firstroots2);
-#else
 			root1 = (prime - update_data.firstroots1[j]);
 			root2 = (prime - update_data.firstroots2[j]);
-#endif
 
-#ifdef USEMAXBLOCKS
-			FILL_ONE_PRIME_LOOP_N3(j);
-#else
 			FILL_ONE_PRIME_LOOP_N(j);
-#endif
-
 		}
 
 #ifdef QS_TIMING
@@ -1818,47 +1368,24 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		for (j=large_B;j<bound;j++,ptr++)				
 		{				
-#ifdef USEMANYSLICES
-#ifdef USEMAXBLOCKS
-			CHECK_NEW_SLICE3(j);
-#else
 			CHECK_NEW_SLICE(j);
-#endif
-#endif
 
-#ifdef UPDATEDATA_AOS
-			prime = update_data[j].prime;			
-			logp = update_data[j].logp;				
-			root1 = update_data[j].firstroots1;	
-			root2 = update_data[j].firstroots2;	
-#else
 			prime = update_data.prime[j];			
-			logp = update_data.logp[j];				
+			//logp = update_data.logp[j];				
 			root1 = update_data.firstroots1[j];	
 			root2 = update_data.firstroots2[j];	
-#endif
 
 			COMPUTE_NEXT_ROOTS_N;				
 
-#ifdef UPDATEDATA_AOS
-			update_data[j].firstroots1 = root1;	
-			update_data[j].firstroots2 = root2;	
-#else
 			update_data.firstroots1[j] = root1;	
 			update_data.firstroots2[j] = root2;	
-#endif
 
 			FILL_ONE_PRIME_P(j);	
 
 			root1 = (prime - root1);		
 			root2 = (prime - root2);	
 			
-#ifdef USEMAXBLOCKS
-			FILL_ONE_PRIME_N3(j);
-#else
 			FILL_ONE_PRIME_N(j);
-#endif
-
 		}
 
 #ifdef QS_TIMING
@@ -1877,6 +1404,5 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		lp_bucket_p->logp[bound_index] = logp;
 	}
 
-	//free(scratch);
 	return;
 }

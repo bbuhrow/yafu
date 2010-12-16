@@ -26,10 +26,6 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 
-//#define MANUAL_PREFETCH 1
-//#define DETAILED_PROFILING 1
-//#define QS_TIMING
-
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
 TIME_DIFF *qs_timing_diff;
@@ -61,11 +57,8 @@ double COUNT;
 //1 bucket = 1 block
 #define BUCKET_ALLOC 2048
 #define BUCKET_BITS 11
-#define MAX_NUM_BLOCKS 16 //128
-#define MAX_NUM_BLOCKS_PROD_BUCKET_BITS 16384 //131072
-#define USEMANYSLICES 1
-//#define USEMAXBLOCKS 1
 
+//compile time definition of sieve block size.  should be equal to the size of L1 cache.
 #ifdef YAFU_64K
 #define BLOCKSIZE 65536
 #define BLOCKSIZEm1 65535
@@ -78,10 +71,21 @@ double COUNT;
 #define BLOCKBITS 15
 #endif
 
-double times_checked_per_block;
-double times_checked_per_side;
-//uint32 primes_found;
-uint32 MAX_DIFF, MAX_DIFF2;
+// these were used in an experiment to check how many times a routine was called
+//double times_checked_per_block;
+//double times_checked_per_side;
+
+// these were used in an experiment to track the difference in sizes between the largest and
+// smallest buckets during bucket sieving.  This was in an effort to see whether we can get
+// rid of the checks to see if buckets are full and simply set an upper bound on primes to sieve
+// instead.
+//uint32 MAX_DIFF, MAX_DIFF2;
+
+//experiment to find the average number of primes per slice
+//uint32 total_primes_per_slice[100];
+//uint32 count_polys_using_slice[100];
+//double average_primes_per_slice[100];
+
 
 typedef struct
 {
@@ -106,37 +110,30 @@ typedef struct
 	uint8 logprime;
 } sieve_fb;
 
+// the idea here is to reduce memory loads.  we trade a few bit operations to be able to load 2 32bit 
+// words from memory per prime during sieving rather than 4 16bit words.
 typedef struct
 {
-	uint32 prime_and_logp;
-	uint32 roots;
-	//uint16 root2;
-	//uint8 logp;
+	uint32 prime_and_logp;		//prime is stored in the lower 16 bits, logp in the upper 16
+	uint32 roots;				//root1 is stored in the lower 16 bits, root2 in the upper 16
 } sieve_fb_compressed;
 
 /************************* SIQS types and functions *****************/
 typedef struct
 {
 	uint32 large_prime[2];		//large prime in the pd.
-	uint32 sieve_offset;			//offset specifying Q (the quadratic polynomial)
+	uint32 sieve_offset;		//offset specifying Q (the quadratic polynomial)
 	uint32 poly_idx;			//which poly this relation uses
-	uint32 parity;			//the sign of the offset (x) 0 is positive, 1 is negative
-	uint32 *fb_offsets;		//offsets of factor base primes dividing Q(offset).  max # of fb primes < 2^16 with this choice
-	uint32 num_factors;		//number of factor base factors in the factorization of Q
+	uint32 parity;				//the sign of the offset (x) 0 is positive, 1 is negative
+	uint32 *fb_offsets;			//offsets of factor base primes dividing Q(offset).  
+								//note that other code limits the max # of fb primes to < 2^16
+	uint32 num_factors;			//number of factor base factors in the factorization of Q
 } siqs_r;
 
-typedef struct
-{
-	uint32 num_full;
-	uint32 num_partial;
-	uint32 act_r;
-	uint32 allocated;
-	siqs_r **list;
-} siqs_rlist;
 
 typedef struct poly_t {
-	uint32 a_idx;			// offset into a list of 'a' values 
-	z b;			// the MPQS 'b' value 
+	uint32 a_idx;				// offset into a list of 'a' values 
+	z b;						// the MPQS 'b' value 
 } poly_t;
 
 typedef struct
@@ -147,6 +144,9 @@ typedef struct
 	uint32 *logprime;
 } fb_element_siqs;
 
+// similarly to sieve_fb_compressed, we trade a few bit operations per prime to be able to load
+// both the fb_index and the sieve location in a single 32bit load.  A bucket element is now stored using
+// a uint32.  The bottom 16 bits hold the fb_index and the top 16 bits hold the sieve hit index (loc)
 #ifdef USEBUCKETSTRUCT
 //used when bucket sieving
 typedef struct
@@ -156,15 +156,6 @@ typedef struct
 } bucket_element;
 #endif
 
-#ifdef UPDATEDATA_AOS
-typedef struct
-{
-	uint32 prime;
-	int firstroots1;
-	int firstroots2;
-	uint8 logp;
-} update_t;
-#else
 typedef struct
 {
 	uint32 *prime;
@@ -172,7 +163,6 @@ typedef struct
 	int *firstroots2;
 	uint8 *logp;
 } update_t;
-#endif
 
 typedef struct
 {
@@ -182,11 +172,7 @@ typedef struct
 	uint32 num_slices;		//the number of fb slices needed
 	uint32 alloc_slices;	//the number of fb slices allocated
 	uint32 list_size;		//number of contiguous buckets allocated
-#ifdef USEBUCKETSTRUCT
-	bucket_element *list;	//contiguous list of buckets, each has num[i] elements out of alloc possible
-#else
-	uint32 *list;
-#endif
+	uint32 *list;			//contiguous space for all buckets
 } lp_bucket;
 
 typedef struct
@@ -222,7 +208,6 @@ typedef struct {
 	uint32 count;
 } cycle_t;
 
-//data I/O
 typedef struct
 {
 	int num_apoly;
@@ -276,8 +261,8 @@ typedef struct {
 	uint32 tf_med_recip2_cutoff;
 	uint32 tf_large_cutoff;
 
-	//clock_t totaltime_start;	// start time of this job
-	struct timeval totaltime_start;
+	
+	struct timeval totaltime_start;	// start time of this job
 
 	uint32 large_prime_max;		// the cutoff value for keeping a partial
 								// relation; actual value, not a multiplier
@@ -296,9 +281,8 @@ typedef struct {
 	uint32 num_r;				// total relations found
 	uint32 num;					// sieve locations we've subjected to trial division
 
-	//used to check on progress of the factorization
-	//clock_t update_start;		// time at which we last assessed the situation
-	struct timeval update_start;
+	//used to check on progress of the factorization	
+	struct timeval update_start;	// time at which we last assessed the situation
 	double t_update;			// ?
 	double update_time;			// time at which we should next assess the situation
 	uint32 check_inc;			// for really short jobs, these kick in before the
@@ -350,11 +334,7 @@ typedef struct {
 	sieve_fb *fb_sieve_n;		// for use during sieving smallish primes
 
 	//large prime sieving
-#ifdef UPDATEDATA_AOS
-	update_t *update_data;		// data for updating root values
-#else
 	update_t update_data;		// data for updating root values
-#endif
 	lp_bucket *buckets;			// bins holding sieve updates
 	int *rootupdates;			// updates to apply to roots of primes
 	
