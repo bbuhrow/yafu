@@ -23,7 +23,11 @@ code to the public domain.
 #include "util.h"
 
 //#define VDEBUG
-#define OPT_DEBUG
+// opt debug will print out some info relevant to the process used to 
+// optimize the tf_small_cutoff value.  This value is varied slightly during the
+// first few polynomials and the value which maximizes relation discover rate
+// is chosen.
+//#define OPT_DEBUG
 
 void SIQS(fact_obj_t *fobj)
 {
@@ -100,8 +104,14 @@ void SIQS(fact_obj_t *fobj)
 	//4.) get ready to find the factor base
 
 	//experimental
-	MAX_DIFF = 0;
-	MAX_DIFF2 = 0;
+	//MAX_DIFF = 0;
+	//MAX_DIFF2 = 0;
+	for (i=0; i<20; i++)
+	{
+		total_primes_per_slice[i] = 0;
+		count_polys_using_slice[i] = 0;
+		average_primes_per_slice[i] = 0;
+	}
 
 	//init locals
 	zInit(&tmp1);
@@ -357,7 +367,7 @@ void SIQS(fact_obj_t *fobj)
 #ifdef OPT_DEBUG
 	fprintf(optfile,"\n\n");
 	fclose(optfile);
-#endif
+#endif	
 
 	//stop worker threads
 	for (i=0; i<THREADS - 1; i++)
@@ -573,10 +583,6 @@ void *worker_thread_main(void *thread_data) {
 
 		if (t->command == COMMAND_RUN)
 			process_poly(t);
-		//else if (t->command == COMMAND_RUN_TRANS)
-		//	mul_trans_packed_core(t);
-		//else if (t->command == COMMAND_INIT)
-		//	matrix_thread_init(t);
 		else if (t->command == COMMAND_END)
 			break;
 
@@ -690,6 +696,11 @@ void *process_poly(void *ptr)
 
 	}
 	
+	//printf("average utilizaiton of buckets in slices\n");
+	//for (i=0; i<20; i++)
+	//	printf("%d: %1.1f ",i,average_primes_per_slice[i]);
+	//printf("\n");
+
 	//unlock_thread_from_core();
 	return 0;
 }
@@ -937,7 +948,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
 	//allocate the dynamic structure which hold scratch space for 
 	//various things used during sieving.
-	uint32 i;
+	uint32 i, memsize;
+
+	if (VFLAG > 2)
+	{
+		printf("memory usage during sieving:\n");
+	}
 
 	//workspace bigints
 	zInit(&dconf->qstmp1);
@@ -956,11 +972,25 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	dconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
 	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
+	if (VFLAG > 2)
+	{
+		memsize = dconf->curr_poly->poly_a.alloc * sizeof(fp_digit) * 3;
+		memsize += MAX_A_FACTORS*sizeof(int);
+		memsize += 65536 * sizeof(char);
+		memsize += 65536 * sizeof(char);
+		printf("\tcurr_poly structure: %d bytes\n",memsize);
+	}
 
 	//initialize temporary storage of relations
 	dconf->relation_buf = (siqs_r *)malloc(32768 * sizeof(siqs_r));
 	dconf->buffered_rel_alloc = 32768;
 	dconf->buffered_rels = 0;
+
+	if (VFLAG > 2)
+	{
+		memsize = 32768 * sizeof(siqs_r);
+		printf("\trelation buffer: %d bytes\n",memsize);
+	}
 
 	//allocate the sieving factor bases
 #if defined (_MSC_VER) 
@@ -973,10 +1003,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->fb_sieve_n = (sieve_fb *)_aligned_malloc(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
 	//allocate storage for the update data needed when changing polys
-#ifdef UPDATEDATA_AOS
-	dconf->update_data = (update_t *)_aligned_malloc(
-		sconf->factor_base->B * sizeof(update_t),64);
-#else
 	dconf->update_data.firstroots1 = (int *)_aligned_malloc(
 		sconf->factor_base->B * sizeof(int),64);
 	dconf->update_data.firstroots2 = (int *)_aligned_malloc(
@@ -985,8 +1011,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		sconf->factor_base->B * sizeof(uint32),64);
 	dconf->update_data.logp = (uint8 *)_aligned_malloc(
 		sconf->factor_base->B * sizeof(uint8),64);
-#endif
-
 	dconf->rootupdates = (int *)_aligned_malloc(
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int),64);
 
@@ -1000,8 +1024,14 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->fb_sieve_n = (sieve_fb *)malloc(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	//allocate storage for the update data needed when changing polys
-	dconf->update_data = (update_t *)malloc(
-		sconf->factor_base->B * sizeof(update_t));
+	dconf->update_data.firstroots1 = (int *)malloc(
+		sconf->factor_base->B * sizeof(int));
+	dconf->update_data.firstroots2 = (int *)malloc(
+		sconf->factor_base->B * sizeof(int));
+	dconf->update_data.prime = (uint32 *)malloc(
+		sconf->factor_base->B * sizeof(uint32));
+	dconf->update_data.logp = (uint8 *)malloc(
+		sconf->factor_base->B * sizeof(uint8));
 	dconf->rootupdates = (int *)malloc(
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
 
@@ -1015,10 +1045,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->fb_sieve_n = (sieve_fb *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	//allocate storage for the update data needed when changing polys
-#ifdef UPDATEDATA_AOS
-	dconf->update_data = (update_t *)memalign(64,
-		sconf->factor_base->B * sizeof(update_t));
-#else
 	dconf->update_data.firstroots1 = (int *)memalign(64,
 		sconf->factor_base->B * sizeof(int));
 	dconf->update_data.firstroots2 = (int *)memalign(64,
@@ -1027,12 +1053,25 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		sconf->factor_base->B * sizeof(uint32));
 	dconf->update_data.logp = (uint8 *)memalign(64,
 		sconf->factor_base->B * sizeof(uint8));
-#endif
-
 	dconf->rootupdates = (int *)memalign(64,
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
 
 #endif
+
+	if (VFLAG > 2)
+	{
+		memsize = sconf->factor_base->med_B * sizeof(sieve_fb_compressed) * 2;
+		memsize += sconf->factor_base->B * sizeof(sieve_fb) * 2;
+		printf("\tfactor bases: %d bytes\n",memsize);
+	}
+
+	if (VFLAG > 2)
+	{
+		memsize = sconf->factor_base->B * sizeof(int)  * 2;
+		memsize += sconf->factor_base->B * sizeof(uint32);
+		memsize += sconf->factor_base->B * sizeof(uint8);
+		printf("\tupdate data: %d bytes\n",memsize);
+	}
 	
 	//allocate the sieve
 #if defined (_MSC_VER) 
@@ -1046,10 +1085,22 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t) (BLOCKSIZE * sizeof(uint8)));
 #endif
 
+	if (VFLAG > 2)
+	{
+		memsize = BLOCKSIZE * sizeof(uint8);
+		printf("\tsieve: %d bytes\n",memsize);
+	}
+
 	//allocate the Bl array, space for MAX_Bl bigint numbers
 	dconf->Bl = (z *)malloc(MAX_A_FACTORS * sizeof(z));
 	for (i=0;i<MAX_A_FACTORS;i++)
 		zInit(&dconf->Bl[i]);
+
+	if (VFLAG > 2)
+	{
+		memsize = MAX_A_FACTORS * dconf->Bl[0].alloc * sizeof(fp_digit);
+		printf("\tBl data: %d bytes\n",memsize);
+	}
 
 	//copy the unchanging part to the sieving factor bases
 	for (i = 2; i < sconf->factor_base->med_B; i++)
@@ -1064,13 +1115,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->fb_sieve_p[i].logprime = lp;
 		dconf->fb_sieve_n[i].prime = p;
 		dconf->fb_sieve_n[i].logprime = lp;
-#ifdef UPDATEDATA_AOS
-		dconf->update_data[i].prime = p;
-		dconf->update_data[i].logp = lp;
-#else
 		dconf->update_data.prime[i] = p;
 		dconf->update_data.logp[i] = lp;
-#endif
 	}
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1078,13 +1124,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->fb_sieve_p[i].logprime = sconf->factor_base->list->logprime[i];
 		dconf->fb_sieve_n[i].prime = sconf->factor_base->list->prime[i];
 		dconf->fb_sieve_n[i].logprime = sconf->factor_base->list->logprime[i];
-#ifdef UPDATEDATA_AOS
-		dconf->update_data[i].prime = sconf->factor_base->list->prime[i];
-		dconf->update_data[i].logp = sconf->factor_base->list->logprime[i];
-#else
 		dconf->update_data.prime[i] = sconf->factor_base->list->prime[i];
 		dconf->update_data.logp[i] = sconf->factor_base->list->logprime[i];
-#endif
 	}
 
 	//check if we should use bucket sieving, and allocate structures if so
@@ -1096,13 +1137,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		testfirstRoots(sconf,dconf);
 
 		//initialize the bucket lists and auxilary info.
-#ifdef USEMAXBLOCKS
-		dconf->buckets->num = (uint32 *)malloc(
-			NUM_POLY * 2 * MAX_NUM_BLOCKS * dconf->buckets->alloc_slices * sizeof(uint32));
-#else
 		dconf->buckets->num = (uint32 *)malloc(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32));
-#endif
 		dconf->buckets->fb_bounds = (uint32 *)malloc(
 			dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->logp = (uint8 *)malloc(
@@ -1111,55 +1147,39 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		
 		//now allocate the buckets
 #if defined(_MSC_VER)
-	#ifdef USEMAXBLOCKS
-		dconf->buckets->list = (bucket_element *)_aligned_malloc(
-			2 * MAX_NUM_BLOCKS * dconf->buckets->alloc_slices * 
-			BUCKET_ALLOC * sizeof(bucket_element),64);
-	#else
-		#ifdef USEBUCKETSTRUCT
-			dconf->buckets->list = (bucket_element *)_aligned_malloc(
-				2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-				BUCKET_ALLOC * sizeof(bucket_element),64);
-		#else
-			dconf->buckets->list = (uint32 *)_aligned_malloc(
-				2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-				BUCKET_ALLOC * sizeof(uint32),64);
-		#endif
-	#endif
-#elif defined(__MINGW32__)
-		dconf->buckets->list = (bucket_element *)malloc(
+		dconf->buckets->list = (uint32 *)_aligned_malloc(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-			BUCKET_ALLOC * sizeof(bucket_element));
-
+			BUCKET_ALLOC * sizeof(uint32),64);
+#elif defined(__MINGW32__)
+		dconf->buckets->list = (uint32 *)malloc(
+			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
+			BUCKET_ALLOC * sizeof(uint32));
 #else
-	#ifdef USEMAXBLOCKS
-		dconf->buckets->list = (bucket_element *)memalign(64,
-			2 * MAX_NUM_BLOCKS * dconf->buckets->alloc_slices * 
-			BUCKET_ALLOC * sizeof(bucket_element));
-	#else
-		#ifdef USEBUCKETSTRUCT
-			dconf->buckets->list = (bucket_element *)memalign(64,
-				2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-				BUCKET_ALLOC * sizeof(bucket_element));
-		#else
-			dconf->buckets->list = (uint32 *)memalign(64,
-				2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-				BUCKET_ALLOC * sizeof(uint32));
-		#endif
-
-	#endif
+		dconf->buckets->list = (uint32 *)memalign(64,
+			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
+			BUCKET_ALLOC * sizeof(uint32));
 #endif
 
 	}
 	else
 	{
-		dconf->buckets = malloc(sizeof(lp_bucket));
+		dconf->buckets = (lp_bucket *)malloc(sizeof(lp_bucket));
 		dconf->buckets->list = NULL;
 		dconf->buckets->alloc_slices = 0;
 		dconf->buckets->num_slices = 0;
 	}
 
-	//used in trial division
+	if (VFLAG > 2)
+	{
+		memsize = 2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32);
+		memsize += dconf->buckets->alloc_slices * sizeof(uint32);
+		memsize += dconf->buckets->alloc_slices * sizeof(uint8);
+		memsize += 2 * sconf->num_blocks * dconf->buckets->alloc_slices * BUCKET_ALLOC * sizeof(uint32);
+		printf("\tbucket data: %d bytes\n",memsize);
+	}
+
+	//used in trial division to mask out the fb_index portion of bucket entries, so that
+	//multiple block locations can be searched for in parallel using SSE2 instructions
 #if defined (_MSC_VER)
 	dconf->mask = (uint16 *)_aligned_malloc(8 * sizeof(uint16),16);
 #elif defined (__GNUC__)
@@ -1171,7 +1191,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[3] = 0xFFFF;
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
-
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1190,10 +1209,15 @@ int siqs_static_init(static_conf_t *sconf)
 	//process.  this scratch space is shared among all threads.
 
 	fact_obj_t *obj = sconf->obj;
-	uint32 i;
+	uint32 i, memsize;
 	uint32 closnuf;
 	double sum, avg, sd;
 	z tmp1, tmp2;
+
+	if (VFLAG > 2)
+	{
+		printf("static memory usage:\n");
+	}
 
 	//local bigints
 	zInit(&tmp1);
@@ -1234,6 +1258,14 @@ int siqs_static_init(static_conf_t *sconf)
 		sconf->cycle_table_alloc = 10000;
 		sconf->cycle_table = (cycle_t *)xmalloc(
 			sconf->cycle_table_alloc * sizeof(cycle_t));
+	}
+
+	if (VFLAG > 2)
+	{
+		memsize = (1 << LOG2_CYCLE_HASH) * sizeof(uint32);
+		printf("\tinitial cycle hashtable: %d bytes\n",memsize);
+		memsize = sconf->cycle_table_alloc * sizeof(cycle_t);
+		printf("\tinitial cycle table: %d bytes\n",memsize);
 	}
 
 	while (1)
@@ -1285,6 +1317,13 @@ int siqs_static_init(static_conf_t *sconf)
 		sconf->factor_base->list->logprime = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 #endif
+
+		if (VFLAG > 2)
+		{
+			memsize = sconf->factor_base->B * sizeof(uint32) * 5;
+			printf("\tfactor base: %d bytes\n",memsize);
+		}
+
 		//find multiplier
 		sconf->multiplier = (uint32)choose_multiplier_siqs(sconf->factor_base->B, &sconf->n);
 
@@ -1393,14 +1432,14 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	/*
-	printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tx2_large: %u\n\tall: %u\n",
-		sconf->factor_base->small_B,
-		sconf->factor_base->med_B,
-		sconf->factor_base->large_B,
-		sconf->factor_base->x2_large_B,
-		sconf->factor_base->B);
-		*/
+	if (VFLAG > 2)
+	{
+		printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+			sconf->factor_base->small_B,
+			sconf->factor_base->med_B,
+			sconf->factor_base->large_B,
+			sconf->factor_base->B);
+	}
 
 	//a couple limits
 	sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B-1];
@@ -1507,11 +1546,11 @@ int siqs_static_init(static_conf_t *sconf)
 #ifdef QS_TIMING
 	printf("%d primes not sieved in SPV\n",sconf->sieve_small_fb_start);
 	printf("%d primes in small_B range\n",
-		sconf->factor_base->small_B - sconf->sieve_small_fb_start);
+		sconf->factor_base->med_B - sconf->sieve_small_fb_start);
 	printf("%d primes in med_B range\n",
-		sconf->factor_base->med_B - sconf->factor_base->small_B);
-	printf("%d primes in large_B range\n",
 		sconf->factor_base->large_B - sconf->factor_base->med_B);
+	printf("%d primes in large_B range\n",
+		sconf->factor_base->B - sconf->factor_base->large_B);
 	printf("detailing QS timing profiling enabled\n");
 
 	TF_STG1 = 0;
@@ -1878,9 +1917,6 @@ int free_sieve(dynamic_conf_t *dconf)
 	_aligned_free(dconf->comp_sieve_p);
 	_aligned_free(dconf->comp_sieve_n);
 	_aligned_free(dconf->rootupdates);
-#ifdef UPDATEDATA_AOS
-	_aligned_free(dconf->update_data);
-#endif
 #elif defined(__MINGW32__)
 	free(dconf->fb_sieve_p);
 	free(dconf->fb_sieve_n);
@@ -1896,9 +1932,6 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->comp_sieve_n);
 	free(dconf->sieve);
 	free(dconf->rootupdates);
-#ifdef UPDATEDATA_AOS
-	free(dconf->update_data);
-#endif
 #endif
 	
 

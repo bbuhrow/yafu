@@ -39,13 +39,8 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 	uint32 i,j,lpnum,basebucket;
 	uint8 logp;
 	sieve_fb_compressed *fbptr;
-#ifdef USEBUCKETSTRUCT
-	bucket_element *bptr;
-#else
 	uint32 *bptr;
-#endif
 	
-
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
@@ -189,13 +184,8 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 	bptr = lp->list + (bnum << BUCKET_BITS);
 	if (side)
 	{
-#ifdef USEMAXBLOCKS
-		bptr += (MAX_NUM_BLOCKS << BUCKET_BITS);
-		basebucket = MAX_NUM_BLOCKS;
-#else
 		bptr += (numblocks << BUCKET_BITS);
 		basebucket = numblocks;
-#endif
 	}
 	else
 		basebucket = 0;
@@ -207,6 +197,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 	for (j=0;j<lp->num_slices;j++)
 	{
 		lpnum = *(lp->num + bnum + basebucket);
+		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
 		logp = *(lp->logp + j);
 		for (i = 0; i < (lpnum & (uint32)(~15)); i += 16)
 		{
@@ -221,24 +212,6 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 #endif
 #endif
 
-#ifdef USEBUCKETSTRUCT
-			ADDRESS_SIEVE(ADDRESS_LOC(i  )) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+1)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+2)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+3)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+4)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+5)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+6)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+7)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+8)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+9)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+10)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+11)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+12)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+13)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+14)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+15)) -= logp;
-#else
 			sieve[bptr[i  ] & 0x0000ffff] -= logp;
 			sieve[bptr[i+1] & 0x0000ffff] -= logp;
 			sieve[bptr[i+2] & 0x0000ffff] -= logp;
@@ -255,17 +228,10 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 			sieve[bptr[i+13] & 0x0000ffff] -= logp;
 			sieve[bptr[i+14] & 0x0000ffff] -= logp;
 			sieve[bptr[i+15] & 0x0000ffff] -= logp;
-#endif
 		}
 
-#ifdef USEBUCKETSTRUCT
-		//and finish the leftovers.
-		for (;i<lpnum;i++)
-			ADDRESS_SIEVE(ADDRESS_LOC(i)) -= logp;
-#else
 		for (;i<lpnum;i++)
 			sieve[bptr[i] & 0x0000ffff] -= logp;
-#endif
 		
 		//point to the next slice of primes
 		bptr += (numblocks << (BUCKET_BITS + 1));
@@ -273,18 +239,10 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 	}
 #else
 
-#ifdef USEMANYSLICES
 	for (j=0;j<lp->num_slices;j++)
 	{
-#else
-	if (lp->num_slices > 0)
-	{
-		j=0;
-#endif
-
 		lpnum = *(lp->num + bnum + basebucket);
-
-		//printf("dumping in %u bucket hits from slice %d\n",lpnum,j);
+		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
 		logp = *(lp->logp + j);
 		for (i = 0; i < (lpnum & (uint32)(~7)); i += 8)
 		//the slices can be considered stacks; the highest indices are put in last.
@@ -302,16 +260,6 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 #endif
 #endif
 
-#ifdef USEBUCKETSTRUCT
-			ADDRESS_SIEVE(ADDRESS_LOC(i  )) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+1)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+2)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+3)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+4)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+5)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+6)) -= logp;
-			ADDRESS_SIEVE(ADDRESS_LOC(i+7)) -= logp;	
-#else
 			sieve[bptr[i  ] & 0x0000ffff] -= logp;
 			sieve[bptr[i+1] & 0x0000ffff] -= logp;
 			sieve[bptr[i+2] & 0x0000ffff] -= logp;
@@ -320,27 +268,14 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 			sieve[bptr[i+5] & 0x0000ffff] -= logp;
 			sieve[bptr[i+6] & 0x0000ffff] -= logp;
 			sieve[bptr[i+7] & 0x0000ffff] -= logp;
-#endif		
 		}
 
-#ifdef USEBUCKETSTRUCT
-		//and finish the leftovers.
-		for (;i<lpnum;i++)
-			ADDRESS_SIEVE(ADDRESS_LOC(i)) -= logp;
-#else
 		for (;i<lpnum;i++)
 			sieve[bptr[i] & 0x0000ffff] -= logp;
-#endif
 		
 		//point to the next slice of primes
-#ifdef USEMAXBLOCKS
-		bptr += (MAX_NUM_BLOCKS << (BUCKET_BITS + 1));
-		basebucket += (MAX_NUM_BLOCKS << 1);
-#else
 		bptr += (numblocks << (BUCKET_BITS + 1));
 		basebucket += (numblocks << 1);
-#endif
-
 	}
 
 #endif
