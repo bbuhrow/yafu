@@ -76,7 +76,7 @@ void brent_loop(fact_obj_t *fobj)
 		{
 			n->type = PRP;
 			logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-			add_to_factor_list(n);
+			add_to_factor_list(fobj, n);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 			zCopy(&zOne,n);
@@ -103,14 +103,14 @@ void brent_loop(fact_obj_t *fobj)
 			if (isPrime(&f))
 			{
 				f.type = PRP;
-				add_to_factor_list(&f);
+				add_to_factor_list(fobj, &f);
 				logprint(flog,"prp%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
 			else
 			{
 				f.type = COMPOSITE;
-				add_to_factor_list(&f);
+				add_to_factor_list(fobj, &f);
 				logprint(flog,"c%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}

@@ -48,10 +48,13 @@ endif
 ifeq ($(GMPECM),1)
 	CFLAGS += -DHAVE_GMP_ECM
 	CFLAGS += -DHAVE_GMP
-	INC += -I/users/buhrow/personal/math_stuff/mpDigits/working/gmp/include/
-	INC += -I/users/buhrow/personal/math_stuff/mpDigits/working/gmp-ecm/include/
-	LIBS += -L/users/buhrow/personal/math_stuff/mpDigits/working/gmp/lib/ -lgmp
-	LIBS += -L/users/buhrow/personal/math_stuff/mpDigits/working/gmp-ecm/lib/ -lecm
+	INC += -I../gmp/include/
+	INC += -I../gmp-ecm/include/
+	LIBS += -L../gmp/lib/ -lgmp
+	LIBS += -L../gmp-ecm/lib/ -lecm
+
+
+
 endif
 
 ifeq ($(FORCE_MODERN),1)

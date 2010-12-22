@@ -940,7 +940,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->N);
 		factor(fobj);
 		zCopy(&fobj->N,&operands[0]);
-		print_factors();
+		print_factors(fobj);
 		break;
 	case 8:
 		//rand - one argument
@@ -995,7 +995,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->pm1_obj.n);
 		pollard_loop(fobj);
 		zCopy(&fobj->pm1_obj.n,&operands[0]);
-		print_factors();
+		print_factors(fobj);
 		break;
 	case 13:
 		//pp1 - two arguments
@@ -1016,7 +1016,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in pp1\n");
 			break;
 		}
-		print_factors();
+		print_factors(fobj);
 		break;
 	case 14:
 		//rho - one argument
@@ -1028,7 +1028,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->rho_obj.n);
 		brent_loop(fobj);
 		zCopy(&fobj->rho_obj.n,&operands[0]);
-		print_factors();
+		print_factors(fobj);
 		break;
 	case 15:
 		//trial - two arguments
@@ -1055,7 +1055,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 		
-		print_factors();
+		print_factors(fobj);
 		break;
 	case 16:
 		//mpqs - one argument
@@ -1064,10 +1064,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in mpqs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->N);
+		zCopy(&operands[0],&fobj->qs_obj.n);
 		MPQS(fobj);
-		zCopy(&fobj->N,&operands[0]);
-		print_factors();
+		zCopy(&fobj->qs_obj.n,&operands[0]);
+		print_factors(fobj);
 		break;
 	case 17:
 		//next prime - two arguments
@@ -1127,7 +1127,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		}
 		n64 = sp_shanks_loop(&operands[0],fobj);
 		//n64 = (uint64)squfof_jp(&operands[0]);
-		print_factors();
+		print_factors(fobj);
 		sp642z(n64,&operands[0]);
 		break;
 	case 22:
@@ -1192,10 +1192,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in siqs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->N);
+		zCopy(&operands[0],&fobj->qs_obj.n);
 		SIQS(fobj);
-		zCopy(&fobj->N,&operands[0]);
-		print_factors();
+		zCopy(&fobj->qs_obj.n,&operands[0]);
+		print_factors(fobj);
 		break;
 
 	case 28:
@@ -1242,10 +1242,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in qs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->N);
+		zCopy(&operands[0],&fobj->qs_obj.n);
 		pQS(fobj);
-		zCopy(&fobj->N,&operands[0]);
-		print_factors();
+		zCopy(&fobj->qs_obj.n,&operands[0]);
+		print_factors(fobj);
 		break;
 	case 30:
 		//torture - two arguments
@@ -1263,8 +1263,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			zCopy(&mp2,&fobj->N);
 			factor(fobj);
 			zCopy(&fobj->N,&mp2);
-			print_factors();
-			free_factor_list();
+			print_factors(fobj);
+			clear_factor_list(fobj);
 		}
 
 		zClear(&mp2);
@@ -1298,7 +1298,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 		
-		print_factors();
+		print_factors(fobj);
 		break;
 
 	case 33:
@@ -1599,10 +1599,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in fermat\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->N);
+		zCopy(&operands[0],&fobj->div_obj.n);
 		zFermat(operands[1].val[0], fobj);
-		zCopy(&fobj->N,&operands[0]);
-		print_factors();
+		zCopy(&fobj->div_obj.n,&operands[0]);
+		print_factors(fobj);
 		break;
 
 	default:

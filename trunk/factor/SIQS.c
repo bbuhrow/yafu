@@ -35,7 +35,7 @@ void SIQS(fact_obj_t *fobj)
 	//the input number to this function.  a copy in different memory
 	//will also be made, and modified by a multiplier.  don't confuse
 	//these two.
-	z *n = &fobj->N;
+	z *n = &fobj->qs_obj.n;
 	z tmp1, tmp2;
 
 	//thread data holds all data needed during sieving
@@ -1236,7 +1236,7 @@ int siqs_static_init(static_conf_t *sconf)
 
 	//allocate space for a copy of input number in the job structure
 	zInit(&sconf->n);
-	zCopy(&obj->N,&sconf->n);
+	zCopy(&obj->qs_obj.n,&sconf->n);
 
 	//initialize some constants
 	zInit(&sconf->sqrt_n);
@@ -1347,7 +1347,7 @@ int siqs_static_init(static_conf_t *sconf)
 			//i is already divided out of n.  record the factor we found
 			sp2z(i,&tmp1);
 			tmp1.type = PRIME;
-			add_to_factor_list(&tmp1);
+			add_to_factor_list(sconf->obj, &tmp1);
 			tmp1.type = UNKNOWN;
 			//and remove the multiplier we may have added, so that
 			//we can try again to build a factor base.
@@ -1688,6 +1688,8 @@ int update_check(static_conf_t *sconf)
 				sconf->num,z2decstr(qstmp1,&gstr1));
 			fflush(stdout);
 			fflush(stderr);
+
+			print_factors(sconf->obj);
 			exit(1);
 		}
 
@@ -2062,19 +2064,19 @@ int free_siqs(static_conf_t *sconf)
 		if (isPrime(&sconf->factor_list.final_factors[i]->factor))
 		{
 			sconf->factor_list.final_factors[i]->factor.type = PRP;
-			add_to_factor_list(&sconf->factor_list.final_factors[i]->factor);
+			add_to_factor_list(sconf->obj, &sconf->factor_list.final_factors[i]->factor);
 		}
 		else
 		{
 			sconf->factor_list.final_factors[i]->factor.type = COMPOSITE;
-			add_to_factor_list(&sconf->factor_list.final_factors[i]->factor);
+			add_to_factor_list(sconf->obj, &sconf->factor_list.final_factors[i]->factor);
 		}
 		zFree(&sconf->factor_list.final_factors[i]->factor);
 		free(sconf->factor_list.final_factors[i]);
 		zCopy(&sconf->n,&tmp1);
 	}
 
-	zCopy(&sconf->n,&sconf->obj->N);
+	zCopy(&sconf->n,&sconf->obj->qs_obj.n);
 	zFree(&sconf->sqrt_n);
 	zFree(&sconf->n);
 	zFree(&sconf->max_fb2);

@@ -34,6 +34,7 @@ various papers by montgomery and kruppa
 // paths must use these prototypes
 void pm1_init();
 void pm1_finalize();
+void pm1exit(int sig);
 int mpollard(z *n, uint32 c, z *f);
 void pm1_print_B1_B2(z *n, FILE *flog);
 
@@ -52,7 +53,7 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 
 	void table_init(z *b, uint32 a, uint32 D, z *n);
 	void next_fa(z *fa, z *n);
-	void pm1exit(int sig);
+	
 
 	void pm1_init()
 	{
@@ -108,9 +109,6 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 		z *powarray;
 		FILE *instate;
 		char *str;
-
-		PM1_ABORT = 0;
-		signal(SIGINT,pm1exit);
 
 		if (POLLARD_STG1_MAX <= 2310)
 		{
@@ -586,8 +584,6 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 		if (exitcode == 0)
 			zCopy(&zZero,f);
 
-		signal(SIGINT,NULL);
-
 		return i;
 	}
 
@@ -688,14 +684,7 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 		zFree(&t);
 		zFree(&t2);
 		return;
-	}
-
-	void pm1exit(int sig)
-	{
-		printf("\nAborting...\n");
-		PM1_ABORT = 1;
-		return;
-	}
+	}	
 
 #else
 
@@ -843,24 +832,30 @@ void pollard_loop(fact_obj_t *fobj)
 		printf("could not open %s for writing\n",fobj->logname);
 		return;
 	}
+		
+	start = clock();
+
+	if (isPrime(n))
+	{
+		n->type = PRP;
+		add_to_factor_list(fobj, n);
+		logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+		stop = clock();
+		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+		zCopy(&zOne,n);
+		return;
+	}
+
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	PM1_ABORT = 0;
+	signal(SIGINT,pm1exit);
 
 	zInit(&d);
 	zInit(&f);
 	zInit(&t);
 
 	pm1_init();
-	
-	start = clock();
-
-	if (isPrime(n))
-	{
-		n->type = PRP;
-		add_to_factor_list(n);
-		logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-		stop = clock();
-		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-		zCopy(&zOne,n);
-	}
 		
 	base = spRand(3,0xFFFFFFFF);
 
@@ -875,7 +870,7 @@ void pollard_loop(fact_obj_t *fobj)
 		if (isPrime(&f))
 		{
 			f.type = PRP;
-			add_to_factor_list(&f);
+			add_to_factor_list(fobj, &f);
 			//log result
 			logprint(flog,"prp%d = %s\n",
 				ndigits(&f),z2decstr(&f,&gstr2));
@@ -883,7 +878,7 @@ void pollard_loop(fact_obj_t *fobj)
 		else
 		{
 			f.type = COMPOSITE;
-			add_to_factor_list(&f);
+			add_to_factor_list(fobj, &f);
 			//log result
 			logprint(flog,"c%d = %s\n",
 				ndigits(&f),z2decstr(&f,&gstr2));
@@ -899,6 +894,14 @@ void pollard_loop(fact_obj_t *fobj)
 
 	pm1_finalize();
 
+	//watch for an abort
+	if (PM1_ABORT)
+	{
+		print_factors(fobj);
+		exit(1);
+	}
+
+	signal(SIGINT,NULL);
 	zFree(&d);
 	zFree(&f);
 	zFree(&t);
@@ -984,6 +987,13 @@ void pm1_print_B1_B2(z *n, FILE *flog)
 	logprint(flog,"pm1: starting B1 = %s, B2 = %s on C%d\n",
 		stg1str,stg2str,ndigits(n));
 	
+	return;
+}
+
+void pm1exit(int sig)
+{
+	printf("\nAborting...\n");
+	PM1_ABORT = 1;
 	return;
 }
 

@@ -1,10 +1,17 @@
-v 1.21
+v 1.21 12/22/10
 + first sourceforge release
 + report number of primes in each category correctly when running/compiling with TIMING=1
 + clean up a bunch of experimental code
 + add memory allocation info to verbosity level 3 in siqs
-
-
++ fixed a bug wherein the number 1 could be sent to GMPECM's pm1 method, which causes an
+	assertion to fail
++ work on batch file input: 
++   lines removed from batch file as they complete
++   more robust parsing
++ automatically refactor composites reported during a factorization
++ ecm, pm1, pp1 methods now respond to cntl-c signals.  if cntl-c is detected in any of
+	these functions (or siqs), the factors found so far are printed to the screen, along
+	with any leftover co-factor
 
 v 1.20.2 12/7/10
 + fixed a bug preventing squfof from being run on small inputs to siqs, possibly resulting in 

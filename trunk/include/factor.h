@@ -240,6 +240,11 @@ typedef struct
 	uint32 seed1;
 	uint32 seed2;
 
+	//global storage for a list of factors
+	factor_t *fobj_factors;
+	uint32 num_factors;
+	uint32 allocated_factors;
+
 } fact_obj_t;
 
 void init_factobj(fact_obj_t *fobj);
@@ -294,17 +299,14 @@ void factor_test(void);
 void factor_big(z *b);
 void factor_range_pp1(int kmin, int kmax, int n, int sign);
 void factor_range_pm1(int kmin, int kmax, int n, int sign);
-void add_to_factor_list(z *n);
-void print_factors(void);
-void free_factor_list(void);
+void add_to_factor_list(fact_obj_t *fobj, z *n);
+void print_factors(fact_obj_t *fobj);
+void free_factor_list(fact_obj_t *fobj);
+void clear_factor_list(fact_obj_t *fobj);
+void delete_from_factor_list(fact_obj_t *fobj, z *n);
 void aliquot(z *input, fact_obj_t *fobj);
 
 //algebraic factoring
 int algebraic(str_t *str);
-
-//global storage for a list of factors
-factor_t *global_factors;
-uint32 NUM_GLOBAL_FACTORS;
-uint32 MAX_GLOBAL_FACTORS;
 
 #endif //_FACTOR_H

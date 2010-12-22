@@ -230,7 +230,7 @@ void test_dlp_composites()
 				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
 		}
 		sp642z(comp[i],&tmp);
-		zCopy(&tmp,&fobj->N);
+		zCopy(&tmp,&fobj->qs_obj.n);
 		fobj->qs_obj.flags = 12345;
 		pQS(fobj);
 
