@@ -51,7 +51,7 @@ void zTrial(fp_digit limit, int print, fact_obj_t *fobj)
 			zShortDiv(n,q,n);
 			sp2z(q,&tmp);
 			tmp.type = PRIME;
-			add_to_factor_list(&tmp);
+			add_to_factor_list(fobj, &tmp);
 			if (print)
 				printf("PRIME FACTOR: %u\n",q);
 		}
@@ -85,7 +85,7 @@ void Trial64(int64 n, int print)
 			n /= spSOEprimes[k];
 			sp2z((fp_digit)spSOEprimes[k],&tmp);
 			tmp.type = PRIME;
-			add_to_factor_list(&tmp);
+			//add_to_factor_list(fobj, &tmp);
 			if (print)
 				printf("PRIME FACTOR: %lu\n",spSOEprimes[k]);
 			if (n == 1) break; 
@@ -97,7 +97,7 @@ void Trial64(int64 n, int print)
 	{
 		sp642z(n,&tmp);
 		tmp.type = PRIME;
-		add_to_factor_list(&tmp);
+		//add_to_factor_list(&tmp);
 		if (print)
 			printf("PRIME FACTOR: %s\n",z2decstr(&tmp,&gstr2));
 	}
@@ -126,7 +126,7 @@ void Trial32(int32 n, int print)
 			n /= (int32)spSOEprimes[k];
 			sp2z((fp_digit)spSOEprimes[k],&tmp);
 			tmp.type = PRIME;
-			add_to_factor_list(&tmp);
+			//add_to_factor_list(&tmp);
 			if (print)
 				printf("PRIME FACTOR: %lu\n",spSOEprimes[k]);
 			if (n == 1) break; 
@@ -138,7 +138,7 @@ void Trial32(int32 n, int print)
 	{
 		sp2z(n,&tmp);
 		tmp.type = PRIME;
-		add_to_factor_list(&tmp);
+		//add_to_factor_list(&tmp);
 		if (print)
 			printf("PRIME FACTOR: %d\n",n);
 	}
@@ -151,7 +151,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
  //	  Fermat's factorization method (wikipedia psuedo-code)
 
 
-	z *n = &fobj->N;
+	z *n = &fobj->div_obj.n;
 	z a, b2, tmp, tmp2, tmp3, maxa;
 	int i;
 	int numChars;
@@ -162,7 +162,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 	{
 		zShiftRight(n,n,1);
 		isPrime(&zTwo);
-		add_to_factor_list(&zTwo);
+		add_to_factor_list(fobj, &zTwo);
 		return;
 	}
 
@@ -172,8 +172,8 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 	{
 		zNroot(n,&a,2);	
 		isPrime(&a);
-		add_to_factor_list(&a);
-		add_to_factor_list(&a);
+		add_to_factor_list(fobj, &a);
+		add_to_factor_list(fobj, &a);
 		zCopy(&zOne,n);
 		zFree(&a);
 		return;
@@ -240,13 +240,13 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		zNroot(&b2,&tmp,2);
 		zAdd(&a,&tmp,&tmp);
 		isPrime(&tmp);	//sets type property of tmp
-		add_to_factor_list(&tmp);
+		add_to_factor_list(fobj, &tmp);
 		zDiv(n,&tmp,&tmp2,&tmp3);
 		zCopy(&tmp2,n);
 		zNroot(&b2,&tmp,2);
 		zSub(&a,&tmp,&tmp);
 		isPrime(&tmp);
-		add_to_factor_list(&tmp);
+		add_to_factor_list(fobj, &tmp);
 		zDiv(n,&tmp,&tmp2,&tmp3);
 		zCopy(&tmp2,n);
 		zFree(&tmp2);

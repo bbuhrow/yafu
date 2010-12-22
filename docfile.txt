@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.20.2
+YAFU Version 1.21
 
 -------------
 Introduction:
@@ -65,16 +65,27 @@ should have been included along with the binary in the downloadable package.
 ------------
 Batchfiles
 ------------
-New in version 1.07.  A command line driver job can take as input a batchfile
+A command line driver job can take as input a batchfile
 using the -batchfile flag.  This batchfile can contain any valid YAFU expression
 on each line of the file.  Optionally, an expression can be supplied on the command
-line in the usual manner.  In this case the expressions are substituted into the input
-expression in place of the special character @ in the input expression.
+line in the usual manner.  In this case the expressions in the batch file are substituted 
+into the input expression in place of the special character @ in the input expression.
+If the @ character is not found, the input expression is ignored and the lines of the batchfile
+are treated as the input expressions.
 
-For example, if you had a file called in.bat containing 10 numbers to be factored,
-you could do:
+Examples:
+
+To start factoring work on a list of input numbers, one per line, contained in a file called in.bat, do
+the following from the command line:
 % yafu "factor(@)" -batchfile in.bat
-from the command line.
+
+To start work on a list of input expressions, one per line, contained in a file called in.bat, do
+the following from the command line:
+./yafu "@" -batchfile in.bat
+or, equivalently:
+./yafu -batchfile in.bat
+
+Lines of the batchfile are removed as they are completed.
 
 ------------
 Expressions:

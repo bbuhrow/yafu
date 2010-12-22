@@ -93,7 +93,7 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 	if (isPrime(n))
 	{
 		n->type = PRP;
-		add_to_factor_list(n);
+		add_to_factor_list(fobj, n);
 		logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
 		zFree(&w1);
@@ -106,9 +106,9 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 		//run MPQS, as SIQS doesn't work for smaller inputs
 		//MPQS will take over the log file, so close it now.
 		fclose(sieve_log);
-		zCopy(n,&fobj->N);
+		zCopy(n,&fobj->qs_obj.n);
 		MPQS(fobj);
-		zCopy(&fobj->N,n);
+		zCopy(&fobj->qs_obj.n,n);
 		zFree(&w1);
 		zFree(&w2);
 		return 2;	//tells SIQS to not try to close the logfile
@@ -132,16 +132,16 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 			logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
 			logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
 			w1.type = PRP;
-			add_to_factor_list(&w1);
-			add_to_factor_list(&w1);
+			add_to_factor_list(fobj, &w1);
+			add_to_factor_list(fobj, &w1);
 		}
 		else
 		{
 			logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
 			logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
 			w1.type = COMPOSITE;
-			add_to_factor_list(&w1);
-			add_to_factor_list(&w1);
+			add_to_factor_list(fobj, &w1);
+			add_to_factor_list(fobj, &w1);
 		}
 		zCopy(&zOne,n);
 		zFree(&w1);
@@ -328,7 +328,7 @@ void siqsbench(fact_obj_t *fobj)
 	for (i=0; i<10; i++)
 	{
 		str2hexz(list[i],&n);
-		zCopy(&n,&fobj->N);
+		zCopy(&n,&fobj->qs_obj.n);
 		SIQS(fobj);
 	}
 
@@ -507,7 +507,7 @@ void siqstune(int bits)
 							i*9 + x*3 + y + 1,5*3*3);
 
 						//run siqs
-						zCopy(&input,&fobj->N);
+						zCopy(&input,&fobj->qs_obj.n);
 						SIQS(fobj);
 
 						//get timing from fact_obj

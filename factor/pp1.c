@@ -683,6 +683,11 @@ void williams_loop(int trials, fact_obj_t *fobj)
 		return;
 	}
 
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	PP1_ABORT = 0;
+	signal(SIGINT,pp1exit);
+
 	zInit(&d);
 	zInit(&f);
 	zInit(&t);
@@ -692,11 +697,18 @@ void williams_loop(int trials, fact_obj_t *fobj)
 	i=0;
 	while (i<trials)
 	{
+		//watch for an abort
+		if (PP1_ABORT)
+		{
+			print_factors(fobj);
+			exit(1);
+		}
+
 		start = clock();
 		if (isPrime(n))
 		{
 			n->type = PRP;
-			add_to_factor_list(n);
+			add_to_factor_list(fobj, n);
 			logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
@@ -725,14 +737,14 @@ void williams_loop(int trials, fact_obj_t *fobj)
 			if (isPrime(&f))
 			{
 				f.type = PRP;
-				add_to_factor_list(&f);
+				add_to_factor_list(fobj, &f);
 				logprint(flog,"prp%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
 			else
 			{
 				f.type = COMPOSITE;
-				add_to_factor_list(&f);
+				add_to_factor_list(fobj, &f);
 				logprint(flog,"c%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
@@ -752,6 +764,7 @@ void williams_loop(int trials, fact_obj_t *fobj)
 
 	pp1_finalize();
 
+	signal(SIGINT,NULL);
 	zFree(&d);
 	zFree(&f);
 	zFree(&t);

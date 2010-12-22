@@ -46,7 +46,7 @@ int BlockGauss_smQS(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 void pQS(fact_obj_t *fobj)
 {
-	z *n = &fobj->N;
+	z *n = &fobj->qs_obj.n;
 	mpqs_rlist *full, *partial;
 	fb_list_mpqs *fb;
 	sieve_fb *fb_sieve_p,*fb_sieve_n;
@@ -84,7 +84,7 @@ void pQS(fact_obj_t *fobj)
 	if (isPrime(n))
 	{
 		n->type = PRP;
-		add_to_factor_list(n);
+		add_to_factor_list(fobj, n);
 		logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
 		fclose(sieve_log);
@@ -126,7 +126,7 @@ void pQS(fact_obj_t *fobj)
 				"C%d = %s\n",ndigits(&tmp),z2decstr(&tmp,&gstr1));
 		}
 
-		add_to_factor_list(&tmp);
+		add_to_factor_list(fobj, &tmp);
 		
 		//... and divide it out of n
 		zDiv(n,&tmp,&tmp2,&tmp3);
@@ -157,7 +157,7 @@ void pQS(fact_obj_t *fobj)
 				"C%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		}
 
-		add_to_factor_list(n);
+		add_to_factor_list(fobj, n);
 
 		zCopy(&zOne,n);
 		zFree(&tmp);
@@ -181,14 +181,14 @@ void pQS(fact_obj_t *fobj)
 		if (isPrime(&tmp))
 		{
 			tmp.type = PRP;
-			add_to_factor_list(&tmp);
-			add_to_factor_list(&tmp);
+			add_to_factor_list(fobj, &tmp);
+			add_to_factor_list(fobj, &tmp);
 		}
 		else
 		{
 			tmp.type = COMPOSITE;
-			add_to_factor_list(&tmp);
-			add_to_factor_list(&tmp);
+			add_to_factor_list(fobj, &tmp);
+			add_to_factor_list(fobj, &tmp);
 		}
 		zCopy(&zOne,n);
 		zFree(&tmp);
@@ -426,12 +426,12 @@ void pQS(fact_obj_t *fobj)
 			if (isPrime(&factors[i]))
 			{
 				factors[i].type = PRP;
-				add_to_factor_list(&factors[i]);
+				add_to_factor_list(fobj, &factors[i]);
 			}
 			else
 			{
 				factors[i].type = COMPOSITE;
-				add_to_factor_list(&factors[i]);
+				add_to_factor_list(fobj, &factors[i]);
 			}
 		}
 		else

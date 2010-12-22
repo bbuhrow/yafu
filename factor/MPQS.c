@@ -137,7 +137,7 @@ void make_fb_mpqs(fb_list_mpqs *fb, z *n)
 
 void MPQS(fact_obj_t *fobj)
 {
-	z *n = &fobj->N;
+	z *n = &fobj->qs_obj.n;
 	mpqs_rlist *full, *partial;
 	fb_list_mpqs *fb;
 	sieve_fb *fb_sieve_p,*fb_sieve_n;
@@ -185,7 +185,7 @@ void MPQS(fact_obj_t *fobj)
 	if (isPrime(n))
 	{
 		n->type = PRP;
-		add_to_factor_list(n);
+		add_to_factor_list(fobj, n);
 		logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
 		fclose(sieve_log);
@@ -195,9 +195,9 @@ void MPQS(fact_obj_t *fobj)
 	if (zBits(n) < 58)
 	{
 		fclose(sieve_log);
-		zCopy(n,&fobj->N);
+		zCopy(n,&fobj->qs_obj.n);
 		pQS(fobj);
-		zCopy(&fobj->N,n);
+		zCopy(&fobj->qs_obj.n,n);
 		return;
 	}
 
@@ -221,14 +221,14 @@ void MPQS(fact_obj_t *fobj)
 		if (isPrime(&tmp))
 		{
 			tmp.type = PRP;
-			add_to_factor_list(&tmp);
-			add_to_factor_list(&tmp);
+			add_to_factor_list(fobj, &tmp);
+			add_to_factor_list(fobj, &tmp);
 		}
 		else
 		{
 			tmp.type = COMPOSITE;
-			add_to_factor_list(&tmp);
-			add_to_factor_list(&tmp);
+			add_to_factor_list(fobj, &tmp);
+			add_to_factor_list(fobj, &tmp);
 		}
 		zCopy(&zOne,n);
 		zFree(&tmp);
@@ -620,7 +620,10 @@ void MPQS(fact_obj_t *fobj)
 			if (i >= check_total)
 			{
 				if (MPQS_ABORT)
+				{
+					print_factors(fobj);
 					exit(1);
+				}
 
 				//check the partials for full relations
 				qsort(partial->list,partial->num_r,sizeof(mpqs_r *),&qcomp_mpqs);
@@ -732,12 +735,12 @@ done:
 		if (isPrime(&factors[i]))
 		{
 			factors[i].type = PRP;
-			add_to_factor_list(&factors[i]);
+			add_to_factor_list(fobj, &factors[i]);
 		}
 		else
 		{
 			factors[i].type = COMPOSITE;
-			add_to_factor_list(&factors[i]);
+			add_to_factor_list(fobj, &factors[i]);
 		}
 	}
 	zShortDiv(n,mul,&tmp);

@@ -26,9 +26,83 @@ code to the public domain.
 #include "util.h"
 #include "yafu_string.h"
 
+#define target_ecm_fraction 0.25
+
+// what would be neat: a file format definition and library of functions 
+// for recording the amount of work done on a number.  the library would
+// be able to parse the file to determine the next optimal factorization step
+// based on the recorded work history.  the library would also be able to
+// merge work files and display them nicely.  this would allow people to 
+// pass the work they have done to another person and have that work 
+// immediately taken into account by the library to determine the next optimal 
+// factorization step.  a centralized repository (factordb) could then merge
+// work files to facilitate large scale contributions for difficult numbers.
+typedef struct
+{
+	double trialdiv_time;
+	double fermat_time;
+	double rho_time;
+	double pp1_lvl1_time_per_curve;
+	double pp1_lvl2_time_per_curve;
+	double pp1_lvl3_time_per_curve;
+	double pm1_lvl1_time_per_curve;
+	double pm1_lvl2_time_per_curve;
+	double pm1_lvl3_time_per_curve;
+	double ecm_15digit_time_per_curve;
+	double ecm_20digit_time_per_curve;
+	double ecm_25digit_time_per_curve;
+	double ecm_30digit_time_per_curve;
+	double ecm_35digit_time_per_curve;
+	double ecm_autoinc_time_per_curve;
+} method_timing_t;
+
+enum work_method {
+	trialdiv_work,
+	fermat_work,
+	rho_work,
+	ecm_curve,
+	pp1_curve,
+	pm1_curve,
+	qs_work
+};
+
+enum factorization_state {
+	state_idle,
+	state_trialdiv,
+	state_fermat,
+	state_rho,
+	state_pp1_lvl1,
+	state_pp1_lvl2,
+	state_pp1_lvl3,
+	state_pm1_lvl1,
+	state_pm1_lvl2,
+	state_pm1_lvl3,
+	state_ecm_15digit,
+	state_ecm_20digit,
+	state_ecm_25digit,
+	state_ecm_30digit,
+	state_ecm_35digit,
+	state_ecm_auto_increasing,
+	state_qs
+};
+
+static int refactor_depth = 0;
+double total_time = 0;
+uint32 auto_increasing_curves = 3000;
+uint32 auto_increasing_B1 = 10000000;
+uint64 auto_increasing_B2 = 1000000000;
+
 int isUnique(z *in, z *list, int sz);
 uint32 nCk(uint32 n, uint32 k);
 void cycle_permute(z *list, int sz);
+
+// local function to do requested curve based factorization
+double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
+	z *b, fact_obj_t *fobj);
+int check_if_done(fact_obj_t *fobj, z *N);
+enum factorization_state scale_requested_work(method_timing_t *method_times, 
+	enum factorization_state fact_state, int *next_work, double time_available, z *N);
+int switch_to_qs(z *N, double *time_available);
 
 void init_factobj(fact_obj_t *fobj)
 {
@@ -93,7 +167,11 @@ void init_factobj(fact_obj_t *fobj)
 	sInit(&fobj->div_obj.in);
 	sInit(&fobj->div_obj.out);
 
-	
+	//global list of factors
+	fobj->allocated_factors = 256;
+	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
+	fobj->num_factors = 0;
+
 	return;
 }
 
@@ -176,6 +254,8 @@ void free_factobj(fact_obj_t *fobj)
 	zFree(&fobj->N);
 	sFree(&fobj->str_N);
 
+	clear_factor_list(fobj);
+	free(fobj->fobj_factors);
 
 	return;
 }
@@ -247,7 +327,6 @@ void record_new_factor(fact_obj_t *fobj, char *method, z *n)
 
 	return;
 }
-
 
 void save_state(int stage, z *n, z *m, z *mm, z *cc, int i, int method)
 {
@@ -383,82 +462,156 @@ void recover_stg2(z *n, z *cc, z *m, z *mm, int method)
 	return;
 }
 
-void add_to_factor_list(z *n)
+void add_to_factor_list(fact_obj_t *fobj, z *n)
 {
 	//stick the number n into the global factor list
 	uint32 i;
 	int found = 0;
 
-	if (NUM_GLOBAL_FACTORS >= MAX_GLOBAL_FACTORS)
+	if (fobj->num_factors >= fobj->allocated_factors)
 	{
-		MAX_GLOBAL_FACTORS *= 2;
-		global_factors = (factor_t *)realloc(global_factors,
-			MAX_GLOBAL_FACTORS * sizeof(factor_t));
+		fobj->allocated_factors *= 2;
+		fobj->fobj_factors = (factor_t *)realloc(fobj->fobj_factors,
+			fobj->allocated_factors * sizeof(factor_t));
 	}
 
 	//look to see if this factor is already in the list
-	for (i=0;i<NUM_GLOBAL_FACTORS && !found; i++)
+	for (i=0;i<fobj->num_factors && !found; i++)
 	{
-		if (zCompare(n,&global_factors[i].factor) == 0)
+		if (zCompare(n,&fobj->fobj_factors[i].factor) == 0)
 		{
 			found = 1;
-			global_factors[i].count++;
+			fobj->fobj_factors[i].count++;
 			return;
 		}
 	}
 
 	//else, put it in the list
-	zInit(&global_factors[NUM_GLOBAL_FACTORS].factor);
-	zCopy(n,&global_factors[NUM_GLOBAL_FACTORS].factor);
-	global_factors[NUM_GLOBAL_FACTORS].count = 1;
-	NUM_GLOBAL_FACTORS++;
+	zInit(&fobj->fobj_factors[fobj->num_factors].factor);
+	zCopy(n,&fobj->fobj_factors[fobj->num_factors].factor);
+	fobj->fobj_factors[fobj->num_factors].count = 1;
+	fobj->num_factors++;
 
 	return;
 }
 
-void free_factor_list(void)
+void delete_from_factor_list(fact_obj_t *fobj, z *n)
+{
+	//remove the number n from the global factor list
+	uint32 i;
+
+	//find the factor
+	for (i=0;i<fobj->num_factors; i++)
+	{
+		if (zCompare(n,&fobj->fobj_factors[i].factor) == 0)
+		{
+			int j;
+			// copy everything above this in the list back one position
+			for (j=i; j<fobj->num_factors-1; j++)
+			{
+				zCopy(&fobj->fobj_factors[j+1].factor, &fobj->fobj_factors[j].factor);
+				fobj->fobj_factors[j].count = fobj->fobj_factors[j+1].count;
+			}
+			// remove the last one in the list
+			fobj->fobj_factors[j].count = 0;
+			zFree(&fobj->fobj_factors[j].factor);
+
+			fobj->num_factors--;
+			break;
+		}
+	}
+
+	return;
+}
+
+void clear_factor_list(fact_obj_t *fobj)
 {
 	uint32 i;
 
 	//clear this info
-	for (i=0; i<NUM_GLOBAL_FACTORS; i++)
-		zFree(&global_factors[i].factor);
-	NUM_GLOBAL_FACTORS = 0;
+	for (i=0; i<fobj->num_factors; i++)
+	{
+		fobj->fobj_factors[i].count = 0;
+		zFree(&fobj->fobj_factors[i].factor);
+	}
+	fobj->num_factors = 0;
 
 	return;
 }
 
-void print_factors(void)
+void print_factors(fact_obj_t *fobj)
 {
 	uint32 i;
 	int j;
+	z tmp, tmp2, tmp3, tmp4;
 
 	//always print factors unless complete silence is requested
 	if (VFLAG >= 0)
 	{
 		printf("\n\n***factors found***\n\n");
+		zInit(&tmp);
+		zCopy(&zOne,&tmp);
 
-		for (i=0; i<NUM_GLOBAL_FACTORS; i++)
+		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (global_factors[i].factor.type == COMPOSITE)
+			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
 			{
-				for (j=0;j<global_factors[i].count;j++)
-					printf("C%d = %s\n",ndigits(&global_factors[i].factor),
-						z2decstr(&global_factors[i].factor,&gstr1));
+				for (j=0;j<fobj->fobj_factors[i].count;j++)
+				{
+					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+					printf("C%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
+						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+				}
 			}
-			else if (global_factors[i].factor.type == PRP)
+			else if (fobj->fobj_factors[i].factor.type == PRP)
 			{
-				for (j=0;j<global_factors[i].count;j++)
-					printf("PRP%d = %s\n",ndigits(&global_factors[i].factor),
-						z2decstr(&global_factors[i].factor,&gstr1));
+				for (j=0;j<fobj->fobj_factors[i].count;j++)
+				{
+					printf("PRP%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
+						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+				}
 			}
-			else if (global_factors[i].factor.type == PRIME)
+			else if (fobj->fobj_factors[i].factor.type == PRIME)
 			{
-				for (j=0;j<global_factors[i].count;j++)
-					printf("P%d = %s\n",ndigits(&global_factors[i].factor),
-						z2decstr(&global_factors[i].factor,&gstr1));
+				for (j=0;j<fobj->fobj_factors[i].count;j++)
+				{
+					printf("P%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
+						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+				}
 			}
 		}
+
+		if (zCompare(&fobj->N, &zOne) > 0)
+		{
+			// non-trivial N remaining... compute and display the known co-factor
+			zInit(&tmp2);
+			zInit(&tmp3);
+			zInit(&tmp4);
+			zCopy(&fobj->N, &tmp2);
+			zDiv(&tmp2, &tmp, &tmp3, &tmp4);
+			if (zCompare(&tmp3,&zOne) != 0)
+			{
+//				printf("original N = %s\naccumulated value = %s\n",
+	//				z2decstr(&fobj->N, &gstr1),z2decstr(&tmp, &gstr2));
+				if (isPrime(&tmp3))
+				{
+					printf("\n***co-factor***\nPRP%d = %s\n",
+						ndigits(&tmp3), z2decstr(&tmp3, &gstr1));
+				}
+				else
+				{
+					printf("\n***co-factor***\nC%d = %s\n",
+						ndigits(&tmp3), z2decstr(&tmp3, &gstr1));
+				}
+			}			
+			zFree(&tmp2);
+			zFree(&tmp3);
+			zFree(&tmp4);
+		}
+		zFree(&tmp);
+
 	}
 
 	return;
@@ -583,43 +736,605 @@ double get_qs_time_estimate(double freq, int digits)
 	return estimate;
 }
 
+double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
+	z *b, fact_obj_t *fobj)
+{
+	uint32 tmp1;
+	uint64 tmp2;
+	uint64 startticks, endticks;
+	double time_per_unit_work;	
+	//struct timeval start2, stop2;
+	//double t_time;
+	//TIME_DIFF *	difference;
+
+	startticks = read_clock();	
+
+	switch (method)
+	{
+	case trialdiv_work:		
+		if (VFLAG >= 0)
+			printf("div: primes less than %d\n",10000);
+		PRIME_THRESHOLD = 100000000;
+		zCopy(b,&fobj->div_obj.n);
+		zTrial(B1,0,fobj);
+		zCopy(&fobj->div_obj.n,b);		
+		break;
+
+	case rho_work:
+		zCopy(b,&fobj->rho_obj.n);
+		brent_loop(fobj);
+		zCopy(&fobj->rho_obj.n,b);
+		break;
+
+	case fermat_work:
+		if (VFLAG >= 0)
+			printf("fmt: %d iterations\n",B1);
+		zCopy(b,&fobj->div_obj.n);
+		zFermat(B1,fobj);
+		zCopy(&fobj->div_obj.n,b);		
+		break;
+
+	case ecm_curve:
+		tmp1 = ECM_STG1_MAX;
+		tmp2 = ECM_STG2_MAX;
+		ECM_STG1_MAX=B1;
+		ECM_STG2_MAX=B2;
+		*work = ecm_loop(b,*work,fobj);
+		ECM_STG1_MAX=tmp1;
+		ECM_STG2_MAX=tmp2;
+		break;
+
+	case pp1_curve:
+		tmp1 = WILL_STG1_MAX;
+		tmp2 = WILL_STG2_MAX;
+		WILL_STG1_MAX=B1;
+		WILL_STG2_MAX=B2;
+		zCopy(b,&fobj->pp1_obj.n);
+		williams_loop(*work,fobj);
+		zCopy(&fobj->pp1_obj.n,b);
+		WILL_STG1_MAX=tmp1;
+		WILL_STG2_MAX=tmp2;
+		break;
+
+	case pm1_curve:
+		tmp1 = POLLARD_STG1_MAX;
+		tmp2 = POLLARD_STG2_MAX;
+		POLLARD_STG1_MAX=B1;
+		POLLARD_STG2_MAX=B2;
+		zCopy(b,&fobj->pm1_obj.n);
+		pollard_loop(fobj);
+		zCopy(&fobj->pm1_obj.n,b);
+		POLLARD_STG1_MAX=tmp1;
+		POLLARD_STG2_MAX=tmp2;
+		break;
+
+	case qs_work:
+		//gettimeofday(&start2,NULL);
+		zCopy(b,&fobj->qs_obj.n);
+		SIQS(fobj);
+		zCopy(&fobj->qs_obj.n,b);
+		break;
+		//gettimeofday(&stop2,NULL);
+		//difference = my_difftime (&start2, &stop2);
+		//t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		//free(difference);
+
+	default:
+		printf("nothing to do for method %d\n",method);
+		break;
+	}
+
+	endticks = read_clock();
+
+	//estimate time per curve for these completed curves
+	time_per_unit_work = (double)(endticks - startticks) 
+		/ (MEAS_CPU_FREQUENCY * 1e6) / (double)(*work);
+
+	return time_per_unit_work;
+}
+
+int check_if_done(fact_obj_t *fobj, z *N)
+{
+	int i, done = 0;
+	z tmp;
+
+	zInit(&tmp);
+	zCopy(&zOne,&tmp);
+
+	//printf("checking if prod of factors = %s\n",z2decstr(N,&gstr1));
+
+	// check if the number is completely factorized
+	for (i=0; i<fobj->num_factors; i++)
+	{		
+		int j;
+		for (j=0; j<fobj->fobj_factors[i].count; j++)
+		{
+			zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+			//printf("accumulating factor %s = %s\n",z2decstr(&global_factors[i].factor,&gstr1), 
+				//z2decstr(&tmp,&gstr2));
+		}		
+	}
+
+	if (zCompare(N,&tmp) == 0)
+	{		
+		// yes, they are equal.  make sure everything is prp or prime.
+		done = 1;
+		for (i=0; i<fobj->num_factors; i++)
+		{
+			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
+			{
+				refactor_depth++;
+				if (refactor_depth > 3)
+				{
+					printf("too many refactorization attempts, aborting\n");
+				}
+				else
+				{
+					//printf("ignoring refactorization of composite factor\n");
+					fact_obj_t *fobj_refactor;
+					int j;
+
+					printf("\nComposite result found, starting re-factorization\n");
+
+					// load the new fobj with this number
+					fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+					init_factobj(fobj_refactor);
+					zCopy(&fobj->fobj_factors[i].factor,&fobj_refactor->N);
+
+					// recurse on factor
+					factor(fobj_refactor);
+
+					// remove the factor from the original list
+					delete_from_factor_list(fobj, &fobj->fobj_factors[i].factor);
+
+					// add all factors found during the refactorization
+					for (j=0; j< fobj_refactor->num_factors; j++)
+					{
+						int k;
+						for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
+							add_to_factor_list(fobj, &fobj_refactor->fobj_factors[j].factor);
+					}
+
+					// factorization completed if we got to here.  reset the recursion limit.
+					refactor_depth = 0;
+
+					// free temps
+					free_factobj(fobj_refactor);
+					free(fobj_refactor);
+				}
+			}
+		}
+	}
+
+	zFree(&tmp);
+	return done;
+}
+
+int switch_to_qs(z *N, double *time_available)
+{
+	// compare the total time spent so far with the estimate of how long it 
+	// would take to finish using qs and decide whether or not to switch over
+	// to qs.
+	int decision, sizeN;
+	double qs_est_time;
+	
+	// if the size of N is small enough, always switch
+	sizeN = zBits(N);
+	if (sizeN < 135)
+	{
+		*time_available = 0;
+		decision = 1;
+	}
+	else
+	{
+		qs_est_time = get_qs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
+		if (VFLAG >= 2)
+			printf("***** qs time estimate = %f seconds\n",qs_est_time);
+
+		// if qs_est_time is zero, then we don't have a good estimate.  flag the caller 
+		// of this fact
+		if (qs_est_time == 0)
+		{
+			decision = 0;
+			*time_available = -1;
+		}		
+		else if (total_time > target_ecm_fraction * qs_est_time)
+		{
+			// if the total time we've spent so far is greater than a fraction of the time
+			// we estimate it would take QS to finish, switch to qs.  
+			decision = 1;
+			*time_available = 0;
+		}
+		else
+		{
+			// otherwise, return the amount of time we have left before the switchover.
+			decision = 0;
+			*time_available = (target_ecm_fraction * qs_est_time) - total_time;
+		}
+
+	}
+
+	return decision;
+}
+
+enum factorization_state scale_requested_work(method_timing_t *method_times, 
+	enum factorization_state fact_state, int *next_work, double time_available, z *N)
+{
+	enum factorization_state new_state = fact_state;
+	double base_time_per_curve, time_per_curve;
+	int default_curves_15digit = 25;
+	int default_curves_20digit = 90;
+	int default_curves_25digit = 200;
+	int default_curves_30digit = 400;
+	int default_curves_35digit = 1000;
+
+	if (time_available < 0)
+	{
+		// this is a flag from the switch_to_qs function indicating that we
+		// can't make a good estimate about how long qs will take.  thus we also
+		// don't know how much time is left.  we have to make a decision about how
+		// much and what kind of work to do based on the size of the input and our
+		// current factorization state.
+		int sizeN = zBits(N);
+
+		switch (fact_state)
+		{
+		case state_trialdiv:			
+		case state_fermat:
+		case state_rho:
+		case state_pp1_lvl1:
+		default:
+			// any of these states requested: just do it
+			break;
+		
+		case state_pp1_lvl2:
+			// equivalent to ecm @ 30 digits
+			if (sizeN < 300)
+				new_state = state_qs;
+			break;
+
+		case state_pp1_lvl3:
+			// equivalent to ecm @ 35 digits
+			if (sizeN < 330)
+				new_state = state_qs;
+			break;
+
+		case state_pm1_lvl1:
+			if (sizeN < 160)
+				new_state = state_qs;
+			break;
+
+		case state_pm1_lvl2:
+			// equivalent to ecm @ 30 digits
+			if (sizeN < 300)
+				new_state = state_qs;
+			break;
+
+		case state_pm1_lvl3:
+			// equivalent to ecm @ 35 digits
+			if (sizeN < 330)
+				new_state = state_qs;
+			break;
+
+		case state_ecm_15digit:
+			if (sizeN < 180)
+				new_state = state_qs;
+			else
+				*next_work = default_curves_15digit;
+			break;
+
+		case state_ecm_20digit:
+			if (sizeN < 220)
+				new_state = state_qs;
+			else
+				*next_work = default_curves_20digit;
+			break;
+
+		case state_ecm_25digit:
+			if (sizeN < 260)
+				new_state = state_qs;
+			else
+				*next_work = default_curves_25digit;
+			break;
+
+		case state_ecm_30digit:
+			if (sizeN < 300)
+				new_state = state_qs;
+			else
+				*next_work = default_curves_30digit;
+			break;
+
+		case state_ecm_35digit:
+			if (sizeN < 330)
+				new_state = state_qs;
+			else
+				*next_work = default_curves_35digit;
+			break;
+
+		case state_ecm_auto_increasing:
+			if (ndigits(N) < 120)
+				new_state = state_qs;
+			else
+				*next_work = auto_increasing_curves;
+			break;
+
+		}
+	}
+	else
+	{
+		// use the timing information recorded for previous states to decide how much
+		// work we can do in the requested state		
+
+		switch (fact_state)
+		{
+		case state_trialdiv:			
+		case state_fermat:
+		case state_rho:
+		case state_pp1_lvl1:		
+		case state_pm1_lvl1:
+		default:
+			// any of these states requested: just do it
+			break;
+
+		case state_pp1_lvl2:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->pp1_lvl1_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 10;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > 3)
+				*next_work = 3;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at p+1 level 2\n",*next_work);
+			break;
+
+		case state_pp1_lvl3:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->pp1_lvl2_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 10;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > 3)
+				*next_work = 3;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at p+1 level 3\n",*next_work);
+			break;
+
+		case state_pm1_lvl2:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->pm1_lvl1_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 10;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > 1)
+				*next_work = 1;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curve can "
+					"be run at p-1 level 2\n",*next_work);
+			break;
+
+		case state_pm1_lvl3:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->pm1_lvl2_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 10;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > 1)
+				*next_work = 1;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curve can "
+					"be run at p-1 level 3\n",*next_work);
+			break;
+
+		case state_ecm_15digit:
+			*next_work = default_curves_15digit;
+			break;
+
+		case state_ecm_20digit:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->ecm_15digit_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 11000 / 2000;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > default_curves_20digit)
+				*next_work = default_curves_20digit;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at 20 digit level\n",*next_work);
+
+			break;
+
+		case state_ecm_25digit:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->ecm_20digit_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 50000 / 11000;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > default_curves_25digit)
+				*next_work = default_curves_25digit;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at 25 digit level\n",*next_work);
+
+			break;
+
+		case state_ecm_30digit:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->ecm_25digit_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 250000 / 50000;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > default_curves_30digit)
+				*next_work = default_curves_30digit;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at 30 digit level\n",*next_work);
+
+			break;
+
+		case state_ecm_35digit:
+			//estimate time per curve for this ecm level
+			base_time_per_curve = method_times->ecm_30digit_time_per_curve;
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 1000000 / 250000;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > default_curves_35digit)
+				*next_work = default_curves_35digit;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at 35 digit level\n",*next_work);
+
+			break;
+
+		case state_ecm_auto_increasing:
+			//estimate time per curve for this ecm level
+			if (method_times->ecm_autoinc_time_per_curve == 0)
+			{
+				base_time_per_curve = method_times->ecm_35digit_time_per_curve;
+				auto_increasing_curves = default_curves_35digit * 3;
+				auto_increasing_B1 = 10000000;
+				auto_increasing_B2 = 1000000000;
+			}
+			else
+			{
+				base_time_per_curve = method_times->ecm_autoinc_time_per_curve;
+				auto_increasing_curves *= 3;
+				auto_increasing_B1 *= 10;
+				auto_increasing_B2 *= 10;
+			}
+					
+			//first scale the base time by the next level ECM
+			//curve size
+			time_per_curve = base_time_per_curve * 10;
+
+			// estimate curves we can do
+			*next_work = (int)(time_available / time_per_curve);
+
+			// sanity check
+			if (*next_work <= 0)
+				*next_work = 1;
+			else if (*next_work > auto_increasing_curves)
+				*next_work = auto_increasing_curves;
+
+			if (VFLAG >= 2)
+				printf("***** estimating %d more curves can "
+					"be run at auto increasing level\n",*next_work);
+
+			break;
+
+		}
+
+	}
+
+	return new_state;
+}
+
 void factor(fact_obj_t *fobj)
 {
 	//run a varity of factoring algorithms on b
 	//return any composite number left over
 	//the factoring routines will build up a list of factors
 
-	z *b = &fobj->N;
-	int i, no_ecm_opt = 0;
+	z *b;
+	z origN;
+	z copyN;
+	enum factorization_state fact_state = state_idle;
+	method_timing_t method_times;
 	int curves = 1;
-	int next = 0;
-	int done = 0;
-	uint32 auto_increasing_B1 = 10000000;
-	uint64 auto_increasing_B2 = 1000000000;
-	uint32 tmp1;
-	uint64 tmp2;
-	uint64 startticks, endticks;
-	double freq, ecm_time = 0, qs_est_time = 0;
-	double base_time_per_curve, time_per_curve;
+	int decision = 0;
+	int done = 0;	
 	FILE *flog;
-	struct timeval start, stop, start2, stop2;
+	struct timeval start, stop;
 	double t_time;
 	TIME_DIFF *	difference;
 
-	/*
-	next = 0 -> williams
-	next = 1 -> pollard
-	next = 2 -> ecm 15 digit
-	next = 3 -> ecm 20 digit
-	next = 4 -> siqs
-	next = 5 -> ecm 25 digit
-	*/
-
-	freq = MEAS_CPU_FREQUENCY;
+	zInit(&origN);
+	zInit(&copyN);
+	zCopy(&fobj->N,&origN);
+	zCopy(&fobj->N,&copyN);
+	b = &copyN;
 
 	if (zCompare(b,&zOne) <= 0)
+	{
+		zFree(&copyN);
+		zFree(&origN);
 		return;
-
+	}
+	
 	gettimeofday(&start, NULL);
 
 	flog = fopen(flogname,"a");
@@ -627,470 +1342,183 @@ void factor(fact_obj_t *fobj)
 	logprint(flog,"****************************\n");
 	logprint(flog,"Starting factorization of %s\n",z2decstr(b,&gstr1));
 	logprint(flog,"****************************\n");
-
-	//if (VFLAG > 0)
-	//	printf("***** cpu looks to be about %f MHz\n",freq);
-	//logprint(flog,"cpu looks to be about %f MHz\n",freq);
-
 	fclose(flog);
 
 	AUTO_FACTOR=1;
-	
+
 	if (VFLAG >= 0)
-	{
 		printf("factoring %s\n\n",z2decstr(b,&gstr2));
-		printf("div: primes less than %d\n",10000);
-	}
-	PRIME_THRESHOLD = 100000000;
-	zCopy(b,&fobj->div_obj.n);
-	zTrial(10000,0,fobj);
-	zCopy(&fobj->div_obj.n,b);
+
+	// initialize time per curve
+	method_times.ecm_autoinc_time_per_curve = 0;
 	
-	if (!(zCompare(b,&zOne) == 0))
+	while (!done)
 	{
-		if (VFLAG >= 0)
-			printf("fmt: %d iterations\n",FMTMAX);
-		zCopy(b,&fobj->N);
-		zFermat(FMTMAX,fobj);
-		zCopy(&fobj->N,b);
-	}
-
-	if (!(zCompare(b,&zOne) == 0))
-	{
-		zCopy(b,&fobj->rho_obj.n);
-		brent_loop(fobj);
-		zCopy(&fobj->rho_obj.n,b);
-
-		if (!(b->size == 1 && b->val[0] == 1))
+		switch (fact_state)
 		{
-			while (!done)
+		case state_idle:
+			// if this is the top level call, reset the total factorization time
+			if (refactor_depth == 0)
+				total_time = 0;
+
+			// start things up
+			fact_state = state_trialdiv;
+			break;
+
+		case state_trialdiv:
+			curves = 1;
+			t_time = do_work(trialdiv_work, 10000, -1, &curves, b, fobj);
+			method_times.trialdiv_time = t_time;
+			total_time += t_time * curves;
+			fact_state = state_fermat;
+			break;
+
+		case state_fermat:
+			curves = 1;
+			t_time = do_work(fermat_work, FMTMAX, -1, &curves, b, fobj);
+			method_times.fermat_time = t_time;
+			total_time += t_time * curves;
+			fact_state = state_rho;
+			break;
+
+		case state_rho:
+			curves = 1;
+			t_time = do_work(rho_work, -1, -1, &curves, b, fobj);
+			method_times.rho_time = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pp1_lvl1;
+			break;
+
+		case state_pp1_lvl1:
+			curves = 3;
+			t_time = do_work(pp1_curve, 20000, 2000000, &curves, b, fobj);
+			method_times.pp1_lvl1_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pm1_lvl1;
+			break;
+
+		case state_pp1_lvl2:
+			t_time = do_work(pp1_curve, 200000, 20000000, &curves, b, fobj);
+			method_times.pp1_lvl2_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pm1_lvl2;
+			break;
+
+		case state_pp1_lvl3:
+			t_time = do_work(pp1_curve, 2000000, 200000000, &curves, b, fobj);
+			method_times.pp1_lvl3_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pm1_lvl3;
+			break;
+
+		case state_pm1_lvl1:
+			curves = 1;
+			t_time = do_work(pm1_curve, 100000, 10000000, &curves, b, fobj);
+			method_times.pm1_lvl1_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_15digit;
+			break;
+
+		case state_pm1_lvl2:
+			t_time = do_work(pm1_curve, 1000000, 100000000, &curves, b, fobj);
+			method_times.pm1_lvl2_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_30digit;
+			break;
+
+		case state_pm1_lvl3:
+			t_time = do_work(pm1_curve, 10000000, 1000000000, &curves, b, fobj);
+			method_times.pm1_lvl3_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_35digit;
+			break;
+
+		case state_ecm_15digit:
+			t_time = do_work(ecm_curve, 2000, 200000, &curves, b, fobj);
+			method_times.ecm_15digit_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_20digit;
+			break;
+
+		case state_ecm_20digit:
+			t_time = do_work(ecm_curve, 11000, 1100000, &curves, b, fobj);
+			method_times.ecm_20digit_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_25digit;
+			break;
+
+		case state_ecm_25digit:
+			t_time = do_work(ecm_curve, 50000, 5000000, &curves, b, fobj);
+			method_times.ecm_25digit_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pp1_lvl2;
+			break;
+
+		case state_ecm_30digit:
+			t_time = do_work(ecm_curve, 250000, 25000000, &curves, b, fobj);
+			method_times.ecm_30digit_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_pp1_lvl3;
+			break;
+
+		case state_ecm_35digit:
+			t_time = do_work(ecm_curve, 1000000, 100000000, &curves, b, fobj);
+			method_times.ecm_35digit_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_auto_increasing;
+			break;
+
+		case state_ecm_auto_increasing:
+			t_time = do_work(ecm_curve, auto_increasing_B1, auto_increasing_B2, &curves, b, fobj);
+			method_times.ecm_autoinc_time_per_curve = t_time;
+			total_time += t_time * curves;
+			fact_state = state_ecm_auto_increasing;
+			break;
+
+		case state_qs:
+			curves = 1;
+			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
+			if (VFLAG > 0)
+				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
+			total_time += t_time * curves;
+			break;
+
+		}
+
+		// first, check if we're done
+		done = check_if_done(fobj, &origN);		
+
+		if (!done)
+		{
+			// if we're not done, decide what to do next: either the default next state or
+			// switch to qs.
+			decision = switch_to_qs(b, &t_time);
+			//printf("total time = %f\n",total_time);
+			//printf("time available = %f\n",t_time);
+			if (decision)
 			{
-				i = zBits(b);
-				if (i < 100)
-				{
-					zCopy(b,&fobj->N);
-					pQS(fobj);
-					zCopy(&fobj->N,b);
-					done = 1;
-				}
-				else if (i <= 135)
-				{
-					zCopy(b,&fobj->N);
-					MPQS(fobj);
-					zCopy(&fobj->N,b);
-					done = 1;
-				}
-				else
-				{
-					switch(next)
-					{
-					case 0:
-						tmp1 = WILL_STG1_MAX;
-						tmp2 = WILL_STG2_MAX;
-						WILL_STG1_MAX=20000;
-						WILL_STG2_MAX=1000000;
-						zCopy(b,&fobj->pp1_obj.n);
-						williams_loop(3,fobj);
-						zCopy(&fobj->pp1_obj.n,b);
-						WILL_STG1_MAX=tmp1;
-						WILL_STG2_MAX=tmp2;
-						if (zBits(b) > 160)
-							next++;
-						else
-							next = 4;
-						break;
-					case 1:
-						tmp1 = POLLARD_STG1_MAX;
-						tmp2 = POLLARD_STG2_MAX;
-						POLLARD_STG1_MAX=100000;
-						POLLARD_STG2_MAX=5000000;
-						zCopy(b,&fobj->pm1_obj.n);
-						pollard_loop(fobj);
-						zCopy(&fobj->pm1_obj.n,b);
-						POLLARD_STG1_MAX=tmp1;
-						POLLARD_STG2_MAX=tmp2;
-						if (zBits(b) > 180)
-						{
-							//the next step is ECM, so get an estimate of how
-							//long the job would take to finish with siqs first
-							next++;
-							qs_est_time = get_qs_time_estimate(freq,ndigits(b));
-							if (VFLAG >= 2)
-								printf("***** qs time estimate = %f seconds\n",qs_est_time);
+				// either the number is small enough to finish off, or it would be better, 
+				// timewise, to switch
+				fact_state = state_qs;
+			}
+			else
+			{
+				// continue with the next default state.
+				// use the amount of time available to determine how much work to schedule
+				// for the next state
+				fact_state = scale_requested_work(&method_times, fact_state, &curves, t_time, b);
 
-							//if qs_est_time is 0, set a flag to not do ECM
-							//curve count optimization
-							if (qs_est_time == 0)
-								no_ecm_opt = 1;
-
-						}
-						else
-							next = 4;
-						break;
-					case 2:
-						//ecm to 15 digits
-						//use these curves to estimate ECM speed on this
-						//machine.  a better way would be to time each individual
-						//curve and stop when time_elapsed > .25 * qs_est_time, but
-						//right now don't have a good way to run single curves 
-						//efficiently
-						startticks = read_clock();
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=2000;
-						ECM_STG2_MAX=200000;
-						curves = ecm_loop(b,25,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-						endticks = read_clock();
-
-						//estimate time per curve for this ecm level
-						base_time_per_curve = (double)(endticks - startticks) 
-							/ (freq * 1e6) / (double)curves;
-
-						//record ecm time spent so far
-						ecm_time = base_time_per_curve * curves;
-
-						if (VFLAG >= 2)
-							printf("***** 15 digit level took %f seconds.\n",
-								base_time_per_curve * curves);
-
-						//continue with next level of ecm.  decide how
-						//many curves to do based on expected ECM time vs. 
-						//expected QS time and how much time we've been 
-						//ECMing so far
-						
-						//first scale the base time by the next level ECM
-						//curve size
-						time_per_curve = base_time_per_curve * 11000 / 2000;
-
-						//estimate how many curves we can do in less than
-						//0.25 * qs_est_time seconds have elapsed, taking into account
-						//the time we've spent in ecm till now, as well.
-						qs_est_time = get_qs_time_estimate(freq,ndigits(b));
-						if (VFLAG >= 2)
-							printf("***** qs time estimate = %f seconds\n",qs_est_time);
-
-						curves = (int)((0.25 * qs_est_time - ecm_time)
-							/ time_per_curve);
-
-						//set the next number of curves at 11000 level
-						next = 3;
-						if (no_ecm_opt)
-						{
-							if (zBits(b) > 220)
-								curves = 90;
-							else
-								next = 4;
-						}
-						else if (curves <= 0)
-						{
-							if (ndigits(b) < 130)
-								next = 4;		//done ecm'ing, number ready for siqs
-							else
-								curves = 90;	//curves may have overflowed, set to max
-						}
-						else
-						{
-							if (curves > 90)
-								curves = 90;	//cap to this digit limit
-						}
-						
-						if (VFLAG >= 2)
-							printf("***** estimating %d more curves can "
-								"be run at 20 digit level\n",curves);
-
-						break;
-					case 3:
-						//ecm to 20 digits
-						startticks = read_clock();
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=11000;
-						ECM_STG2_MAX=1100000;
-						curves = ecm_loop(b,curves,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-						endticks = read_clock();
-
-						//estimate time per curve for this ecm level
-						base_time_per_curve = (double)(endticks - startticks) 
-							/ (freq * 1e6) / (double)curves;
-
-						//record ecm time spent so far
-						ecm_time += (base_time_per_curve * curves);
-
-						if (VFLAG >= 2)
-							printf("***** 20 digit level took %f seconds.\n",
-								base_time_per_curve * curves);
-
-						
-						//continue with next level of ecm.  decide how
-						//many curves to do based on expected ECM time vs. 
-						//expected QS time and how much time we've been 
-						//ECMing so far
-						
-						//first scale the base time by the next level ECM
-						//curve size
-						time_per_curve = base_time_per_curve * 50000 / 11000;
-
-						//estimate how many curves we can do in less than
-						//0.25 * qs_est_time seconds have elapsed, taking into account
-						//the time we've spent in ecm till now, as well.
-						qs_est_time = get_qs_time_estimate(freq,ndigits(b));
-						if (VFLAG >= 2)
-							printf("***** qs time estimate = %f seconds\n",qs_est_time);
-
-						curves = (int)((0.25 * qs_est_time - ecm_time)
-							/ time_per_curve);
-
-						//set the next number of curves at 50000 level
-						next = 5;
-						if (no_ecm_opt)
-						{
-							if (zBits(b) > 260)
-								curves = 200;
-							else
-								next = 4;
-						}
-						else if (curves <= 0)
-						{
-							if (ndigits(b) < 130)
-								next = 4;		//done ecm'ing, number ready for siqs
-							else
-								curves = 200;	//curves may have overflowed, set to max
-						}
-						else
-						{
-							if (curves > 200)
-								curves = 200;	//cap to this digit limit
-						}
-
-						if (VFLAG >= 2)
-							printf("***** estimating %d more curves can "
-								"be run at 25 digit level\n",curves);
-
-						break;
-					case 4:
-						gettimeofday(&start2,NULL);
-						zCopy(b,&fobj->N);
-						SIQS(fobj);
-						zCopy(&fobj->N,b);
-						gettimeofday(&stop2,NULL);
-						difference = my_difftime (&start2, &stop2);
-						t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-						free(difference);
-						if (VFLAG > 0)
-							printf("ECM/SIQS ratio was = %f\n",ecm_time/t_time);
-						done = 1;
-						break;
-					case 5:
-						//ecm to 25 digits
-						startticks = read_clock();
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=50000;
-						ECM_STG2_MAX=5000000;
-						curves = ecm_loop(b,curves,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-						endticks = read_clock();
-
-						//estimate time per curve for this ecm level
-						base_time_per_curve = (double)(endticks - startticks) 
-							/ (freq * 1e6) / (double)curves;
-
-						//record ecm time spent so far
-						ecm_time += (base_time_per_curve * curves);
-
-						if (VFLAG >= 2)
-							printf("***** 25 digit level took %f seconds.\n",
-								base_time_per_curve * curves);
-
-						//continue with next level of ecm.  decide how
-						//many curves to do based on expected ECM time vs. 
-						//expected QS time and how much time we've been 
-						//ECMing so far
-						
-						//first scale the base time by the next level ECM
-						//curve size
-						time_per_curve = base_time_per_curve * 250000 / 50000;
-
-						//estimate how many curves we can do in less than
-						//0.25 * qs_est_time seconds have elapsed, taking into account
-						//the time we've spent in ecm till now, as well.
-						qs_est_time = get_qs_time_estimate(freq,ndigits(b));
-						if (VFLAG >= 2)
-							printf("***** qs time estimate = %f seconds\n",qs_est_time);
-
-						curves = (int)((0.25 * qs_est_time - ecm_time)
-							/ time_per_curve);
-
-						//set the next number of curves at 250000 level
-						next = 6;
-						if (no_ecm_opt)
-						{
-							if (zBits(b) > 300)
-								curves = 400;
-							else
-								next = 4;
-						}
-						else if (curves <= 0)
-						{
-							if (ndigits(b) < 130)
-								next = 4;		//done ecm'ing, number ready for siqs
-							else
-								curves = 400;	//curves may have overflowed, set to max
-						}
-						else
-						{
-							if (curves > 400)
-								curves = 400;	//cap to this digit limit
-						}
-
-						if (VFLAG >= 2)
-							printf("***** estimating %d more curves can "
-								"be run at 30 digit level\n",curves);
-
-						break;
-					case 6:
-						//ecm to 30 digits
-						startticks = read_clock();
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=250000;
-						ECM_STG2_MAX=25000000;
-						curves = ecm_loop(b,curves,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-						endticks = read_clock();
-
-						//estimate time per curve for this ecm level
-						base_time_per_curve = (double)(endticks - startticks) 
-							/ (freq * 1e6) / (double)curves;
-
-						//record ecm time spent so far
-						ecm_time += (base_time_per_curve * curves);
-
-						if (VFLAG >= 2)
-							printf("***** 30 digit level took %f seconds.\n",
-								base_time_per_curve * curves);
-
-						//continue with next level of ecm.  decide how
-						//many curves to do based on expected ECM time vs. 
-						//expected QS time and how much time we've been 
-						//ECMing so far
-						
-						//first scale the base time by the next level ECM
-						//curve size
-						time_per_curve = base_time_per_curve * 1000000 / 250000;
-
-						//estimate how many curves we can do in less than
-						//0.25 * qs_est_time seconds have elapsed, taking into account
-						//the time we've spent in ecm till now, as well.
-						qs_est_time = get_qs_time_estimate(freq,ndigits(b));
-						if (VFLAG >= 2)
-							printf("***** qs time estimate = %f seconds\n",qs_est_time);
-
-						curves = (int)((0.25 * qs_est_time - ecm_time)
-							/ time_per_curve);
-
-						//set the next number of curves at 1000000 level
-						next = 7;
-						if (no_ecm_opt)
-						{
-							if (zBits(b) >= 330)
-								curves = 1000;
-							else
-								next = 4;
-						}
-						else if (curves <= 0)
-						{
-							if (ndigits(b) < 130)
-								next = 4;		//done ecm'ing, number ready for siqs
-							else
-								curves = 1000;	//curves may have overflowed, set to max
-						}
-						else
-						{
-							if (curves > 1000)
-								curves = 1000;	//cap to this digit limit
-						}
-
-						if (VFLAG >= 2)
-							printf("***** estimating %d more curves can "
-								"be run at 35 digit level\n",curves);
-
-						break;
-					case 7:
-						//ecm to 35 digits
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=1000000;
-						ECM_STG2_MAX=100000000;
-						curves = ecm_loop(b,curves,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-
-						if (ndigits(b) > 130)
-						{
-							if (VFLAG >= 2)
-								printf("***** input too big for SIQS, continuing ECM\n");
-							auto_increasing_B1 = 10000000;
-							auto_increasing_B2 = 1000000000;
-							curves = 3000;
-							next = 8;
-						}
-						else
-							next = 4;
-						break;
-
-					case 8:
-						tmp1 = ECM_STG1_MAX;
-						tmp2 = ECM_STG2_MAX;
-						ECM_STG1_MAX=auto_increasing_B1;
-						ECM_STG2_MAX=auto_increasing_B2;
-						curves = ecm_loop(b,curves,fobj);
-						ECM_STG1_MAX=tmp1;
-						ECM_STG2_MAX=tmp2;
-
-						if (ndigits(b) > 130)
-						{
-							if (VFLAG >= 2)
-								printf("***** input too big for SIQS, continuing ECM\n");
-							auto_increasing_B1 *= 10;
-							auto_increasing_B2 *= 10;
-							curves *= 3;
-							next = 8;
-						}
-						else
-							next = 4;
-						
-						break;
-					}
-				}
-				if (isPrime(b))
-				{
-					b->type = PRP;
-					add_to_factor_list(b);
-					flog = fopen(flogname,"a");
-					logprint(flog,"prp%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
-					fclose(flog);
-					zCopy(&zOne,b);
-				}
-
-				if (isOne(b))
-					done = 1;
 			}
 		}
 	}
+		
 	if (!isOne(b))
 	{
 		b->type = COMPOSITE;
 		flog = fopen(flogname,"a");
 		logprint(flog,"c%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
 		fclose(flog);
-		add_to_factor_list(b);
+		add_to_factor_list(fobj,b);
 	}
 	zCopy(b,&fobj->N);
 
@@ -1112,6 +1540,8 @@ void factor(fact_obj_t *fobj)
 	}
 
 	AUTO_FACTOR=0;
+	zFree(&origN);
+	zFree(&copyN);
 	return;
 }
 
@@ -1288,16 +1718,16 @@ void aliquot(z *input, fact_obj_t *fobj)
 		zCopy(&fobj->N,&next);
 
 		//put them in a simple list, and take care of any composite factors
-		for (i=0; i<NUM_GLOBAL_FACTORS; i++)
+		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (global_factors[i].factor.type == COMPOSITE)
+			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
 			{
 				printf("composite factor detected, refactoring\n");
-				zCopy(&global_factors[i].factor,&tmp);
+				zCopy(&fobj->fobj_factors[i].factor,&tmp);
 				zCopy(&tmp,&fobj->N);
 				factor(fobj);
 				zCopy(&fobj->N,&tmp);
-				if (zCompare(&tmp,&global_factors[i].factor) == 0)
+				if (zCompare(&tmp,&fobj->fobj_factors[i].factor) == 0)
 				{
 					printf("refactoring failed\n");
 					exit(-1);
@@ -1306,26 +1736,26 @@ void aliquot(z *input, fact_obj_t *fobj)
 		}
 
 		num_fact = 0;
-		for (i=0; i<NUM_GLOBAL_FACTORS; i++)
+		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (global_factors[i].factor.type == COMPOSITE)
+			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
 				continue;
 
-			num_fact += global_factors[i].count;
+			num_fact += fobj->fobj_factors[i].count;
 		}
 
 		zCopy(input,&w1);
 		factors = (z *)realloc(factors,num_fact * sizeof(z));
 		k=0;
-		for (i=0; i<NUM_GLOBAL_FACTORS; i++)
+		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (global_factors[i].factor.type == COMPOSITE)
+			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
 				continue;
 
-			for (j=0;j<global_factors[i].count;j++)
+			for (j=0;j<fobj->fobj_factors[i].count;j++)
 			{
 				zInit(&factors[k]);
-				zCopy(&global_factors[i].factor,&factors[k]);
+				zCopy(&fobj->fobj_factors[i].factor,&factors[k]);
 				//divide factor out of input
 				zDiv(&w1,&factors[k],&w2,&w3);
 				zCopy(&w2,&w1);
@@ -1362,7 +1792,7 @@ void aliquot(z *input, fact_obj_t *fobj)
 					if (num_prop >= proper_alloc)
 					{
 						proper_alloc *= 2;
-						proper = realloc(proper,proper_alloc * sizeof(z));
+						proper = (z *)realloc(proper,proper_alloc * sizeof(z));
 					}
 				}
 			}
@@ -1375,7 +1805,7 @@ void aliquot(z *input, fact_obj_t *fobj)
 				if (num_prop >= proper_alloc)
 				{
 					proper_alloc *= 2;
-					proper = realloc(proper,proper_alloc * sizeof(z));
+					proper = (z *)realloc(proper,proper_alloc * sizeof(z));
 				}
 			}
 		}
@@ -1392,7 +1822,7 @@ void aliquot(z *input, fact_obj_t *fobj)
 		for (i=0; i<num_prop; i++)
 			zFree(&proper[i]);
 
-		free_factor_list();
+		//free_factor_list(fobj);
 
 		if (!isUnique(&next,seq,num_seq))
 		{
@@ -1406,7 +1836,7 @@ void aliquot(z *input, fact_obj_t *fobj)
 			if (num_seq >= seq_alloc)
 			{
 				seq_alloc *= 2;
-				seq = realloc(seq,seq_alloc * sizeof(z));
+				seq = (z *)realloc(seq,seq_alloc * sizeof(z));
 			}
 		}
 	}

@@ -36,7 +36,13 @@ code to the public domain.
 	#include "config.h"
 #endif
 
-char OptionArray[28][20] = {
+// the number of recognized command line options
+#define NUMOPTIONS 28
+// maximum length of command line option strings
+#define MAXOPTIONLEN 20
+
+// command line options visible to driver.c
+char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"B1pm1",
 	"B1pp1",
 	"B1ecm",
@@ -65,275 +71,75 @@ char OptionArray[28][20] = {
 	"fmtmax",
 	"noopt",
 	"vproc"};
-int needsArg[28] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,0,0};
-int numOptions = 28;
+
+// indication of whether or not an option needs a corresponding argument
+int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,0,0};
+
+// function to read the .ini file and populate options
 void readINI(void);
-void gen_masks();
-void gen_maps();
 
-/*
-void gen_masks()
-{
-	//generate masks for the 8 primes 7,11,13,17,19,23,29,31 mod 64
-	//for all possible offsets mod p
-	int p[9] = {5,7,11,13,17,19,23,29,31};
-	int i,offset,k;
-	uint64 one = 1;
+// functions to populate the global options with default values, and to free
+// those which allocate memory
+void set_default_globals(void);
+void free_globals(void);
 
-	for (i=0; i<9; i++)
-	{
-		//each prime
-		int prime = p[i];
+// function containing system commands to get the computer name
+void get_computer_info(char *idstr);
 
-		printf("64 mod %d = %d\n",prime,64 % prime);
-		for (offset=0;offset<prime;offset++)
-		{
-			uint64 mask = 0;
-			uint64 byte[8];
+// function to print the splash screen to file/screen
+void print_splash(int is_cmdline_run, FILE *logfile, char *idstr);
 
-			//each offset
-			for (k=offset; k<64; k+=prime)
-				mask |= (uint64)(one << (uint64)k);
+// functions to make a batchfile ready to execute, and to process batchfile lines
+void prepare_batchfile(char *input_exp);
+int process_batchline(char *input_exp, char *indup);
+void finalize_batchline();
 
-			printf("0x%lx,\n",~mask);
-		}
-
-	}
-
-
-	return;
-}
-
-void gen_maps()
-{
-	//generate a map which does the following:
-	//given a starting value, n,  in (0,30], and another value, p, taking on values mod 30,
-	//return the number of steps of p starting from n which equals 1
-	int i,j,k,t,val;
-	int steps30[8] = {1,7,11,13,17,19,23,29};
-	int steps6[2] = {1,5};
-	int steps210[48] = {1, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 
-		101, 103, 107, 109, 113, 121, 127, 131, 137, 139, 143, 149, 151, 157, 163, 167, 
-		169, 173, 179, 181, 187, 191, 193, 197, 199, 209};
-
-
-	//30 starting values
-	for (i=0; i < 30; i++)
-	{		
-		printf("}\n{");
-		//8 step values
-		for (k=0; k < 8; k++)
-		{
-			//30 increments
-			val = i;
-			for (j=0; j < 30; j++)
-			{
-				//check for a residue of 1.  other residues can be generated from this table.
-				if (val == 1)
-				{
-					printf("%d,",j);
-					break;
-				}
-				else
-				{
-					val += steps30[k];
-					if (val > 30)
-						val -= 30;
-				}
-			}
-		}
-	}
-
-	//6 starting values
-	for (i=0; i < 6; i++)
-	{		
-		printf("}\n{");
-		//2 step values
-		for (k=0; k < 2; k++)
-		{
-			//6 increments
-			val = i;
-			for (j=0; j < 6; j++)
-			{
-				//check for a residue of 1.  other residues can be generated from this table.
-				if (val == 1)
-				{
-					printf("%d,",j);
-					break;
-				}
-				else
-				{
-					val += steps6[k];
-					if (val > 6)
-						val -= 6;
-				}
-			}
-		}
-	}
-
-	//210 starting values
-	for (i=0; i < 210; i++)
-	{		
-		printf("}\n{");
-		//48 step values
-		for (k=0; k < 48; k++)
-		{
-			//210 increments
-			val = i;
-			for (j=0; j < 210; j++)
-			{
-				//check for a residue of 1.  other residues can be generated from this table.
-				if (val == 1)
-				{
-					printf("%d,",j);
-					break;
-				}
-				else
-				{
-					val += steps210[k];
-					if (val > 210)
-						val -= 210;
-				}
-			}
-		}
-	}
-	
-
-	return;
-}
-
-*/
+// function to process all incoming arguments
+int process_arguments(int argc, char **argv, char *input_exp);
 
 int main(int argc, char *argv[])
 {
 	uint32 i=0,insize = GSTR_MAXSIZE;
-	uint64 limit;
-	char *s, *ptr, *line, *indup, idstr[64];
+	char *input_exp, *ptr, *indup, idstr[64];
 	str_t str;
 	z tmp;
-	enum cpu_type cpu;
-	int nooutput,offset,slog,do_once=0,cachelinesize;
-	FILE *logfile, *in = stdin, *batchfile;
+	int nooutput,offset,slog,is_cmdline_run=0;
+	FILE *logfile;
 
 	//the input expression
-	s = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
+	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	indup = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
-	strcpy(s,"");
+	strcpy(input_exp,"");
 	sInit(&str);
 
-	//for reading batch files
-	line = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
-	strcpy(line,"");
-
 	//set defaults for various things
-	BRENT_MAX_IT=1000;
-	FMTMAX=1000000;
-	WILL_STG1_MAX=20000;
-	WILL_STG2_MAX = 50 * (uint64)WILL_STG1_MAX;
-	PP1_STG2_ISDEFAULT = 1;
-	POLLARD_STG1_MAX=100000;
-	POLLARD_STG2_MAX = 100 * (uint64)POLLARD_STG1_MAX;
-	PM1_STG2_ISDEFAULT = 1;
-	ECM_STG1_MAX=11000;
-	ECM_STG2_MAX = 25 * (uint64)ECM_STG1_MAX;
-	ECM_STG2_ISDEFAULT = 1;
-	VFLAG = 0;
-	VERBOSE_PROC_INFO = 0;
-	LOGFLAG = 1;
-	QS_DUMP_CUTOFF = 2048;
-	NUM_WITNESSES = 20;
-	AUTO_FACTOR=0;
-	PRIME_THRESHOLD = 100000000;
-	PRIMES_TO_FILE = 0;
-	PRIMES_TO_SCREEN = 0;
-	SCALE = 40;
-	USEBATCHFILE = 0;
-	USERSEED = 0;
-	SIGMA = 0;
-	THREADS = 1;
-	gbl_override_B_flag = 0;
-	gbl_override_blocks_flag = 0;
-	gbl_override_lpmult_flag = 0;
-	gbl_force_DLP = 0;
-	strcpy(siqs_savefile,"siqs.dat");
-	strcpy(flogname,"factor.log");
-	strcpy(sessionname,"session.log");
+	set_default_globals();
 
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
-	readINI();
+	readINI();	
 
-	//get the computer name
-#ifdef WIN32
+	//check/process input arguments
+	is_cmdline_run = process_arguments(argc, argv, input_exp);
 
-	sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
-	GetComputerName(sysname,&sysname_sz);
-	
-#else
+	//get the computer name, cache sizes, etc.  store in globals
+	get_computer_info(idstr);	
 
-	sysname_sz = 255;
-	gethostname(sysname,sysname_sz);
-	sysname_sz = strlen(sysname);
-	
-#endif
-
-	//now check for and handle any incoming arguments, whatever
-	//their source.  
-	if (argc > 1)
+	// get the batchfile ready, if requested
+	if (USEBATCHFILE)
 	{
-		//process arguments
+		prepare_batchfile(input_exp);		
+		
+		//batchfile jobs are command line in nature
+		is_cmdline_run = 1;
 
-		if (argv[1][0] == '-')
-		{
-			//then there are just flags, no expression.  start up normally
-			//after processing the flags
-			process_flags(argc-1, &argv[1]);
-		}
-		else
-		{
-			//assume its a command.  execute once, after processing any
-			//flags.  an invalid command will be handled by calc.
-			do_once = 1;
-			strcpy(s,argv[1]);
-			if (argc > 2)
-				process_flags(argc-2, &argv[2]);
-		}		
+		//remember the input expression
+		strcpy(indup,input_exp);
 	}
-	else
-	{
-		//else, need to check for input from a redirect or pipe.
-		//this is done differently on unix like systems vs. windows
-#ifdef WIN32	//not complete, but ok for now
-		fseek(in,-1,SEEK_END);
-		if (ftell(in) >= 0)
-		{
-			rewind(in);
-			fgets(s,1024,in);
-			do_once = 1;
-		}
-
-#else
-		if (isatty(fileno(in)) == 0)
-		{
-			
-			fgets(s,1024,in);
-			printf("processing redirect %s\n",s);
-			do_once = 1;
-		}
-#endif
-	}
-
-	//don't get as many primes if this is a cmd line job.
-	//this many should be unnoticable to the user, and
-	//routines that need more know how to get more.
-	if (do_once)
-		szSOEp = 1000100;
-	else
-		szSOEp = 10000100;
 
 	//never run silently when run interactively, else the results of
 	//calculations will never be displayed.
-	if (!do_once && VFLAG < 0)
+	if (!is_cmdline_run && VFLAG < 0)
 		VFLAG = 0;
 
 	//session log
@@ -344,147 +150,17 @@ int main(int argc, char *argv[])
 		slog = 0;
 	}
 	else
-		slog = 1;
-
-	if (VFLAG >= 0)
-		printf("\n\n");
-
-
-	if (VFLAG > 0 || !do_once)
-	{	
-		logprint(NULL,"System/Build Info: \n");
-	}
-	logprint(logfile,"System/Build Info: \n");
-	fflush(stdout);
-
-#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
-	fflush(stdout);
-#else
-	if (VFLAG > 0 || !do_once)
-#ifdef _MSC_MPIR_VERSION
-		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
-_MSC_MPIR_VERSION);
-#else
-		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION, 
-			__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-#endif
-#ifdef _MSC_MPIR_VERSION
-	fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
-_MSC_MPIR_VERSION);
-#else
-	fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION,
-		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-#endif
-	fflush(stdout);
-#endif
-
-
-	//find, and hold globally, primes less than some N
-	i = (uint32)((double)szSOEp/log((double)szSOEp)*1.2);
-	limit=szSOEp;
-	spSOEprimes = (uint64 *)malloc((size_t) (i*sizeof(uint64)));
-	szSOEp = spSOE(spSOEprimes,0,&limit,0);
-	spSOEprimes = (uint64 *)realloc(spSOEprimes,(size_t) (szSOEp*sizeof(uint64)));
-
-	//resident chunk of primes
-	PRIMES = (uint64 *)malloc((size_t) (szSOEp*sizeof(uint64)));
-	for (i=0;i<szSOEp;i++)
-		PRIMES[i] = spSOEprimes[i];
-
-	NUM_P=szSOEp;
-	P_MIN=0; 
-	P_MAX=spSOEprimes[(uint32)NUM_P-1];
-
-	get_cache_sizes(&L1CACHE,&L2CACHE);
-	cpu = get_cpu_type();
-
-	//figure out cpu freq in order to scale qs time estimations
-	//0.1 seconds won't be very accurate, but hopefully close
-	//enough for the rough scaling we'll be doing anyway.
-    MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
-
-	extended_cpuid(idstr, &cachelinesize, VERBOSE_PROC_INFO);
+		slog = 1;	
 		
-	fprintf(logfile,"cached %lu primes. pmax = %lu\n",szSOEp,spSOEprimes[szSOEp-1]);
-	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-		idstr,L1CACHE,L2CACHE,cachelinesize);
-	fprintf(logfile,"measured cpu frequency ~= %f\n\n",
-		MEAS_CPU_FREQUENCY);
+	// print the splash screen, to the logfile and depending on options, to the screen
+	print_splash(is_cmdline_run, logfile, idstr);
 
-	fflush(logfile);
-
-	if (VFLAG > 0 || !do_once)
-	{		
-		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-			idstr,L1CACHE,L2CACHE,cachelinesize);
-		printf("measured cpu frequency ~= %f\n\n",
-			MEAS_CPU_FREQUENCY);
-
-		printf("===============================================================\n");
-		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
-		printf("=======             bbuhrow@gmail.com                   =======\n");
-		printf("=======     Type help at any time, or quit to quit      =======\n");
-		printf("===============================================================\n");
-		printf("cached %lu primes. pmax = %lu\n\n",szSOEp,spSOEprimes[szSOEp-1]);
-		printf("\n>> ");
-
-	}
-
-	//set some useful globals
-	zInit(&zZero);
-	zInit(&zOne);
-	zInit(&zTwo);
-	zInit(&zThree);
-	zOne.val[0] = 1;
-	zTwo.val[0] = 2;
-	zThree.val[0] = 3;
+	// bigint used in this routine
 	zInit(&tmp);
-
-	//global strings, used mostly for logprint stuff
-	sInit(&gstr1);
-	sInit(&gstr2);
-	sInit(&gstr3);
-
-	//global i/o base
-	IBASE = DEC;
-	OBASE = DEC;
-
+	
 	//start the calculator
 	//right now this just allocates room for user variables
-	calc_init();
-
-	//global list of factors
-	MAX_GLOBAL_FACTORS = 256;
-	global_factors = (factor_t *)malloc(MAX_GLOBAL_FACTORS * sizeof(factor_t));
-	NUM_GLOBAL_FACTORS = 0;
-
-	MSC_ASM = 0;
-		
-	batchfile = NULL;
-	if (USEBATCHFILE)
-	{
-		//get the first line
-		batchfile = fopen(batchfilename,"r");
-		if (batchfile == NULL)
-		{
-			printf("couldn't open %s for reading\n",batchfilename);
-			exit(-1);
-		}
-		fgets(line,1024,batchfile);
-		if (strlen(line) == 0)
-		{
-			printf("nothing to read in %s\n",batchfilename);
-			exit(-1);
-		}
-		ptr = strchr(line,10);
-		if (ptr == NULL)
-		{
-			printf("newline missing in %s\n",batchfilename);
-			exit(-1);
-		}
-		//remember the input expression
-		strcpy(indup,s);
-	}
+	calc_init();				
 		
 	if (USERSEED)
 	{
@@ -507,79 +183,33 @@ _MSC_MPIR_VERSION);
 	LCGSTATE = g_rand.low;
 #endif
 
-	//gen_masks();
-	//gen_maps();
-
 	//command line
 	while (1)
 	{
 		//handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
-			if (do_once)
+			i = process_batchline(input_exp, indup);
+			if (i == 1)
 			{
-				//if this is a command line job, then we need to do two things
-				//1.) preserve the do_once nature of the command line job
-				//2.) loop over the inputs in the batchfile
-				//do this by loading in ith line of batchfile into the @
-				//symbol of the input expression, and looping over the number
-				//of lines in the batch file.
-
-				//need special check for @ symbol in input expression
-				ptr = strchr(s,'@');
-				if (ptr == NULL)
-				{
-					printf("missing variable indicator (@) input expression\n");
-					exit(-1);
-				}
-				if (strlen(s) + strlen(line) > GSTR_MAXSIZE)
-				{
-					printf("allocating input expression\n");
-					s = realloc(s,strlen(s) + strlen(line) + 2);
-				}
-				//replace @ with line
-				//gcc fgets says the newline is two bytes
-				//msvd says the newline is one byte
-#if defined(_MSC_VER)
-				memcpy(ptr + strlen(line)-1,ptr + 1,s + strlen(s) - ptr);
-				memcpy(ptr,line,strlen(line)-1);
-#else
-				memcpy(ptr + strlen(line)-2,ptr + 1,s + strlen(s) - ptr);
-				memcpy(ptr,line,strlen(line)-2);
-#endif
-
-
-				printf("=== Starting work on batchfile expression ===\n");
-				printf("%s\n",s);
-				printf("=============================================\n");
-
+				finalize_batchline();
+				break;
 			}
-			else
-			{
-				//this is a normal execution.  make the lines of the batchfile
-				//available to the user in N separate user variable, and
-				//announce their names.  if the inputs are expressions, will
-				//need to evaulate them
-	
-
-			}
+			else if (i == 2)
+				continue;
 		}
-
-		if (!do_once)
+		else if (!is_cmdline_run)
 		{
-			//scanf("%[^\n]",s);	//read everything up to carriage return
-			fgets(s,GSTR_MAXSIZE,stdin);
+			// get command from user
+			fgets(input_exp,GSTR_MAXSIZE,stdin);
 			while (1)
 			{
-				if (s[strlen(s) - 1] == 13 || s[strlen(s) - 1] == 10)
+				if (input_exp[strlen(input_exp) - 1] == 13 || input_exp[strlen(input_exp) - 1] == 10)
 				{
 					//replace with a null char and continue
 					printf("\n");
 					fflush(stdout);
-					//get_random_seeds(&g_rand);
-					//logprint(logfile,"New random seeds: %u, %u\n\n",g_rand.hi,g_rand.low);
-					//srand(g_rand.low);
-					s[strlen(s) - 1] = '\0';
+					input_exp[strlen(input_exp) - 1] = '\0';
 					break;
 				}
 				else
@@ -588,43 +218,35 @@ _MSC_MPIR_VERSION);
 					//the input is longer than allocated.
 					//reallocate and get another chunk
 					insize += GSTR_MAXSIZE;
-					s = (char *)realloc(s,insize*sizeof(char));
-					if (s == NULL)
+					input_exp = (char *)realloc(input_exp,insize*sizeof(char));
+					if (input_exp == NULL)
 					{
 						printf("couldn't reallocate string when parsing\n");
 						exit(-1);
 					}
-					fgets(s+strlen(s),GSTR_MAXSIZE,stdin);
+					fgets(input_exp+strlen(input_exp),GSTR_MAXSIZE,stdin);
 				}
 			}	
 		}
-		
-		/*
-		ptr = strstr(s,"algebraic");
-		if (ptr != NULL)
+		else
 		{
-			strcpy(str.s,s);
-			str.nchars = strlen(s)+1;
-			algebraic(&str);
-			strcpy(s,"");
-			continue;
-		}
-		*/
+			// input expression already read in.  nothing to do here.
 
+		}
+		
 		//search for substring help in input
-		ptr = strstr(s,"help");
+		ptr = strstr(input_exp,"help");
 		if (ptr != NULL)
-			helpfunc(s);
-		else if ((strcmp(s,"quit") == 0) || (strcmp(s,"exit") == 0))
+			helpfunc(input_exp);
+		else if ((strcmp(input_exp,"quit") == 0) || (strcmp(input_exp,"exit") == 0))
 			break;
 		else
 		{
-			//printf("Processing expression: %s\n\n",s);
-			logprint(logfile,"Processing expression: %s\n\n",s);
-			toStr(s,&str);
+			logprint(logfile,"Processing expression: %s\n\n",input_exp);
+			toStr(input_exp,&str);
 
 			preprocess(&str);
-			strcpy(s,str.s);
+			strcpy(input_exp,str.s);
 
 			//detect an '=' operation, and verify the destination of the = is valid
 			//pass on everything to the right of the = to the calculator
@@ -637,8 +259,8 @@ _MSC_MPIR_VERSION);
 					offset = ptr-str.s+1;
 					sFree(&str);
 					sInit(&str);
-					memcpy(str.s,s+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
-					strcpy(s,"ans");
+					memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
+					strcpy(input_exp,"ans");
 					str.nchars = strlen(str.s) + 1;
 				}
 				else
@@ -646,14 +268,14 @@ _MSC_MPIR_VERSION);
 					offset = ptr-str.s+1;
 					sFree(&str);
 					sInit(&str);
-					memcpy(str.s,s+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
+					memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
 
-					s[offset-1] = '\0';
+					input_exp[offset-1] = '\0';
 					str.nchars = strlen(str.s) + 1;
 				}
 			}
 			else
-				strcpy(s,"ans");
+				strcpy(input_exp,"ans");
 
 			//look for a trailing semicolon
 			if (str.s[str.nchars-2] == ';')
@@ -665,127 +287,87 @@ _MSC_MPIR_VERSION);
 			else
 				nooutput = 0;
 
-			//if (slog)
-			//	logprint(logfile,"%s\n",str.s);
-
 			if (!calc(&str))
 			{
 				if (strcmp(str.s,"") != 0)
 				{
-					//printf("calc returned string: %s\n",str.s);
 					str2hexz(str.s,&tmp);
-					if (set_uvar(s,&tmp))
-						new_uvar(s,&tmp);
+					if (set_uvar(input_exp,&tmp))
+						new_uvar(input_exp,&tmp);
 					if (nooutput == 0)
 					{
 						if (OBASE == DEC)
 						{
 							if (VFLAG >= 0)
-								printf("\n%s = %s\n\n",s,z2decstr(&tmp,&gstr1));
+								printf("\n%s = %s\n\n",input_exp,z2decstr(&tmp,&gstr1));
 						}
 						else if (OBASE == HEX)
 						{
 							if (strstr(str.s,"0x") != NULL)
 							{
 								if (VFLAG >= 0)
-									printf("\n%s = %s\n\n",s,str.s);
+									printf("\n%s = %s\n\n",input_exp,str.s);
 							}
 							else
 							{
 								z2hexstr(&tmp,&str);
 								if (VFLAG >= 0)
-									printf("\n%s = %s\n\n",s,str.s);
+									printf("\n%s = %s\n\n",input_exp,str.s);
 							}
 						}
 					}
 				}
 			}
 			
-			free_factor_list();
+			//free_factor_list();
 		}
 
 #ifdef WIN32
 		fflush(stdin);	//important!  otherwise scanf will process printf's output
 		
 #else
-		if (!do_once)
+		if (!is_cmdline_run)
 		{
-			//scanf("%s",s);  //read carriage return;
 			fflush(stdin);	//important!  otherwise scanf will process printf's output
 			fflush(stdout);
 		}
 #endif
 
-		s = (char *)realloc(s,GSTR_MAXSIZE*sizeof(char));
-		if (s == NULL)
+		input_exp = (char *)realloc(input_exp,GSTR_MAXSIZE*sizeof(char));
+		if (input_exp == NULL)
 		{
 			printf("couldn't reallocate string during cleanup\n");
 			exit(-1);
 		}
-		s[0] = '\0';
+		input_exp[0] = '\0';
 
-		if (do_once)
+		if (is_cmdline_run)
 		{
 			if (USEBATCHFILE)
 			{
-				//get the next line, exit if there is nothing more to get
-				strcpy(line,"");
-				if (feof(batchfile))
-					break;
-
-				fgets(line,GSTR_MAXSIZE,batchfile);
-
-				if (strlen(line) == 0)
-					break;
-
-				ptr = strchr(line,10);
-				if (ptr == NULL)
-				{
-					printf("warning: newline missing in %s\n",batchfilename);
-					toStr(line,&str);
-#if defined(_MSC_VER)
-					sAppend("\n",&str);
-#else
-					sAppend("\n\n",&str);
-#endif
-					strcpy(line,str.s);
-				}
-
-				//restore the input expression
-				strcpy(s,indup);
+				// the line from the batchfile finished.  make the temporary file
+				// created in processs_batchline the new batchfile, with the line
+				// we just finished removed.
+				finalize_batchline();
 			}
 			else
-			{
-				//we are running from the command line, just execute once
 				break;
-			}
 		}
 		else
 			printf(">> ");
+
 	}
 
 	if (slog)
 		fclose(logfile);
 
-	if (USEBATCHFILE)
-		fclose(batchfile);
-
 	calc_finalize();
-	free(global_factors);
-	free(spSOEprimes);
-	free(PRIMES);
-	sFree(&gstr1);
-	sFree(&gstr2);
-	sFree(&gstr3);
+	free_globals();
 	sFree(&str);
-	free(s);
-	free(line);
-	free(indup);
-	zFree(&zZero);
-	zFree(&zOne);
-	zFree(&zTwo);
-	zFree(&zThree);
+	free(input_exp);
+	free(indup);	
 	zFree(&tmp);
+
 	return 1;
 }
 
@@ -1055,10 +637,366 @@ int invalid_num(char *num)
 	return 0;
 }
 
+void prepare_batchfile(char *input_exp)
+{
+	char *ptr;
+	
+	//look for @ symbol in input expression
+	ptr = strchr(input_exp,'@');
+	if (ptr == NULL)
+	{
+		printf("missing variable indicator (@) in input expression\n");
+		printf("ignoring any input expression: interpreting batchfile lines as input expressions\n");
+		sprintf(input_exp,"@");
+	}
+
+	return;
+}
+
+int process_arguments(int argc, char **argv, char *input_exp)
+{
+	int is_cmdline_run=0;
+	FILE *in = stdin;
+
+	//now check for and handle any incoming arguments, whatever
+	//their source.  
+	if (argc > 1)
+	{
+		//process arguments
+
+		if (argv[1][0] == '-')
+		{
+			//then there are just flags, no expression.  start up normally
+			//after processing the flags
+			process_flags(argc-1, &argv[1]);
+		}
+		else
+		{
+			//assume its a command.  execute once, after processing any
+			//flags.  an invalid command will be handled by calc.
+			is_cmdline_run = 1;
+			strcpy(input_exp,argv[1]);
+			if (argc > 2)
+				process_flags(argc-2, &argv[2]);
+		}		
+	}
+	else
+	{
+		//else, need to check for input from a redirect or pipe.
+		//this is done differently on unix like systems vs. windows
+#ifdef WIN32	//not complete, but ok for now
+		fseek(in,-1,SEEK_END);
+		if (ftell(in) >= 0)
+		{
+			rewind(in);
+			fgets(input_exp,1024,in);
+			is_cmdline_run = 1;
+		}
+
+#else
+		if (isatty(fileno(in)) == 0)
+		{			
+			fgets(input_exp,1024,in);
+			is_cmdline_run = 1;
+		}
+#endif
+	}
+
+	return is_cmdline_run;
+
+}
+
+void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
+{
+	if (VFLAG >= 0)
+		printf("\n\n");
+
+	if (VFLAG > 0 || !is_cmdline_run)
+	{	
+		logprint(NULL,"System/Build Info: \n");
+	}
+	logprint(logfile,"System/Build Info: \n");
+	fflush(stdout);
+
+#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
+	fflush(stdout);
+#else
+	if (VFLAG > 0 || !is_cmdline_run)
+#ifdef _MSC_MPIR_VERSION
+		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+_MSC_MPIR_VERSION);
+#else
+		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION, 
+			__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+#endif
+#ifdef _MSC_MPIR_VERSION
+	fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+_MSC_MPIR_VERSION);
+#else
+	fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION,
+		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+#endif
+	fflush(stdout);
+#endif
+
+	fprintf(logfile,"cached %lu primes. pmax = %lu\n",szSOEp,spSOEprimes[szSOEp-1]);
+	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+		idstr,L1CACHE,L2CACHE,CLSIZE);
+	fprintf(logfile,"measured cpu frequency ~= %f\n\n",
+		MEAS_CPU_FREQUENCY);
+
+	fflush(logfile);
+
+	if (VFLAG > 0 || !is_cmdline_run)
+	{		
+		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+			idstr,L1CACHE,L2CACHE,CLSIZE);
+		printf("measured cpu frequency ~= %f\n\n",
+			MEAS_CPU_FREQUENCY);
+
+		printf("===============================================================\n");
+		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
+		printf("=======             bbuhrow@gmail.com                   =======\n");
+		printf("=======     Type help at any time, or quit to quit      =======\n");
+		printf("===============================================================\n");
+		printf("cached %lu primes. pmax = %lu\n\n",szSOEp,spSOEprimes[szSOEp-1]);
+		printf("\n>> ");
+
+	}
+
+	return;
+}
+
+void get_computer_info(char *idstr)
+{
+
+	//read cache sizes
+	get_cache_sizes(&L1CACHE,&L2CACHE);
+
+	//figure out cpu freq in order to scale qs time estimations
+	//0.1 seconds won't be very accurate, but hopefully close
+	//enough for the rough scaling we'll be doing anyway.
+    MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
+
+	// run an extended cpuid command to get the cache line size, and
+	// optionally print a bunch of info to the screen
+	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
+
+#ifdef WIN32
+
+	sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
+	GetComputerName(sysname,&sysname_sz);
+	
+#else
+
+	sysname_sz = 255;
+	gethostname(sysname,sysname_sz);
+	sysname_sz = strlen(sysname);
+	
+#endif
+	return;
+}
+
+void set_default_globals(void)
+{
+	uint64 limit, i;
+	uint32 p_est;
+
+	BRENT_MAX_IT=1000;
+	FMTMAX=1000000;
+	WILL_STG1_MAX=20000;
+	WILL_STG2_MAX = 50 * (uint64)WILL_STG1_MAX;
+	PP1_STG2_ISDEFAULT = 1;
+	POLLARD_STG1_MAX=100000;
+	POLLARD_STG2_MAX = 100 * (uint64)POLLARD_STG1_MAX;
+	PM1_STG2_ISDEFAULT = 1;
+	ECM_STG1_MAX=11000;
+	ECM_STG2_MAX = 25 * (uint64)ECM_STG1_MAX;
+	ECM_STG2_ISDEFAULT = 1;
+	VFLAG = 0;
+	VERBOSE_PROC_INFO = 0;
+	LOGFLAG = 1;
+	QS_DUMP_CUTOFF = 2048;
+	NUM_WITNESSES = 20;
+	AUTO_FACTOR=0;
+	PRIME_THRESHOLD = 100000000;
+	PRIMES_TO_FILE = 0;
+	PRIMES_TO_SCREEN = 0;
+	SCALE = 40;
+	USEBATCHFILE = 0;
+	USERSEED = 0;
+	SIGMA = 0;
+	THREADS = 1;
+	gbl_override_B_flag = 0;
+	gbl_override_blocks_flag = 0;
+	gbl_override_lpmult_flag = 0;
+	gbl_force_DLP = 0;
+	strcpy(siqs_savefile,"siqs.dat");
+	strcpy(flogname,"factor.log");
+	strcpy(sessionname,"session.log");
+	szSOEp = 1000100;	
+	
+	//set some useful globals
+	zInit(&zZero);
+	zInit(&zOne);
+	zInit(&zTwo);
+	zInit(&zThree);
+	zOne.val[0] = 1;
+	zTwo.val[0] = 2;
+	zThree.val[0] = 3;
+
+	//global strings, used mostly for logprint stuff
+	sInit(&gstr1);
+	sInit(&gstr2);
+	sInit(&gstr3);
+
+	//global i/o base
+	IBASE = DEC;
+	OBASE = DEC;
+
+	//find, and hold globally, primes less than some N
+	p_est = (uint32)((double)szSOEp/log((double)szSOEp)*1.2);
+	limit=szSOEp;
+	spSOEprimes = (uint64 *)malloc((size_t) (p_est*sizeof(uint64)));
+	szSOEp = spSOE(spSOEprimes,0,&limit,0);
+	spSOEprimes = (uint64 *)realloc(spSOEprimes,(size_t) (szSOEp*sizeof(uint64)));
+
+	//resident chunk of primes
+	PRIMES = (uint64 *)malloc((size_t) (szSOEp*sizeof(uint64)));
+	for (i=0;i<szSOEp;i++)
+		PRIMES[i] = spSOEprimes[i];
+
+	NUM_P=szSOEp;
+	P_MIN=0; 
+	P_MAX=spSOEprimes[(uint32)NUM_P-1];
+
+	return;
+}
+
+void free_globals()
+{
+	zFree(&zZero);
+	zFree(&zOne);
+	zFree(&zTwo);
+	zFree(&zThree);
+	free(spSOEprimes);
+	free(PRIMES);
+	sFree(&gstr1);
+	sFree(&gstr2);
+	sFree(&gstr3);
+
+	return;
+}
+
+void finalize_batchline()
+{
+	rename(batchfilename,"_bkup");
+	rename("__tmpbatchfile",batchfilename);
+	remove("_bkup");
+	remove("__tmpbatchfile");
+
+	return;
+}
+
+int process_batchline(char *input_exp, char *indup)
+{
+	int nChars, j, i;
+	char line[GSTR_MAXSIZE], tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
+	FILE *batchfile, *tmpfile;
+
+	//try to open the file
+	batchfile = fopen(batchfilename,"r");	
+
+	if (batchfile == NULL)
+	{
+		printf("couldn't open %s for reading\n",batchfilename);
+		exit(-1);
+	}	
+
+	//load the next line of the batch file and get the expression
+	//ready for processing
+	strcpy(line,"");
+	strcpy(input_exp,"");
+
+	// read a line
+	ptr = fgets(line,GSTR_MAXSIZE,batchfile);	
+
+	// copy everything in the file after the line we just read to
+	// a temporary file.  if the expression we just read finishes, 
+	// the temporary file will become the batch file (effectively 
+	// eliminating the expression from the batch file).
+	tmpfile = fopen("__tmpbatchfile", "w");
+
+	while (!feof(batchfile))
+	{
+		ptr2 = fgets(tmpline,GSTR_MAXSIZE,batchfile);
+		if (ptr2 == NULL)
+			break;
+		fputs(tmpline,tmpfile);
+	}
+	fclose(tmpfile);
+
+	// close the batchfile
+	fclose(batchfile);
+
+	// check the line we read
+	if (ptr == NULL)
+	{
+		printf("fgets returned null; done processing batchfile\n");		
+		return 1;
+	}
+
+	// remove LF an CRs from line
+	nChars = 0;
+	for (j=0; j<strlen(line); j++)
+	{
+		switch (line[j])
+		{
+		case 13:
+		case 10:
+			break;
+		default:
+			line[nChars++] = line[j];
+			break;
+		}
+	}
+	line[nChars++] = '\0';
+
+	//ignore blank lines
+	if (strlen(line) == 0)
+	{
+		printf("skipping blank line\n");
+		return 2;
+	}
+
+	//substitute the batchfile line into the '@' symbol in the input expression
+	nChars = 0;
+	for (i=0; i<strlen(indup); i++)
+	{
+		if (indup[i] == '@')
+		{
+			for (j=0; j<strlen(line); j++)
+				input_exp[nChars++] = line[j];
+		}
+		else				
+			input_exp[nChars++] = indup[i];
+
+		if (nChars > GSTR_MAXSIZE)
+			input_exp = (char *)realloc(input_exp,strlen(indup) + strlen(line) + 2);
+	}
+	input_exp[nChars++] = '\0';
+
+	printf("=== Starting work on batchfile expression ===\n");
+	printf("%s\n",input_exp);
+	printf("=============================================\n");
+
+	return 0;
+}
+
 unsigned process_flags(int argc, char **argv)
 {
     int ch = 0, i,j,valid;
-	char optbuf[20];
+	char optbuf[MAXOPTIONLEN];
 	char argbuf[80];
 
     //argument loop
@@ -1076,7 +1014,7 @@ unsigned process_flags(int argc, char **argv)
 
 		//check if its valid
 		valid = 0;
-		for (j=0; j<numOptions;j++)
+		for (j=0; j<NUMOPTIONS;j++)
 		{
 			if (strcmp(OptionArray[j],optbuf+1) == 0)
 			{

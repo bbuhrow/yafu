@@ -1213,7 +1213,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	if (zShortMod(n,3) == 0)
 	{
 		zShortDiv(n,3,n);
-		add_to_factor_list(&zThree);
+		add_to_factor_list(fobj, &zThree);
 		logprint(flog,"Trivial factor of 3 found in ECM\n");
 		fclose(flog);
 		return 0;
@@ -1221,7 +1221,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	if ((n->val[0] & 0x1) != 1)
 	{
 		zShortDiv(n,2,n);
-		add_to_factor_list(&zTwo);
+		add_to_factor_list(fobj, &zTwo);
 		logprint(flog,"Trivial factor of 2 found in ECM\n");
 		fclose(flog);
 		return 0;
@@ -1231,7 +1231,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
 		n->type = PRP;
-		add_to_factor_list(n);
+		add_to_factor_list(fobj, n);
 		logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
 		fclose(flog);
@@ -1245,6 +1245,11 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	//curves.  initialize the needed data structures, then split
 	//the curves up over N threads.  The main thread will farm out different
 	//sigmas to the worker threads.
+
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	ECM_ABORT = 0;
+	signal(SIGINT,ecmexit);
 
 	//init ecm process
 	ecm_process_init(n);
@@ -1301,6 +1306,13 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	//split the requested curves up among the specified number of threads. 
 	for (j=0; j < numcurves / THREADS; j++)
 	{
+		//watch for an abort
+		if (ECM_ABORT)
+		{
+			print_factors(fobj);
+			exit(1);
+		}
+
 		//do work on different sigmas
 		for (i=0; i<THREADS; i++)
 		{
@@ -1375,7 +1387,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 					if (isPrime(&thread_data[i].factor))
 					{
 						thread_data[i].factor.type = PRP;
-						add_to_factor_list(&thread_data[i].factor);
+						add_to_factor_list(fobj, &thread_data[i].factor);
 						logprint(flog,"prp%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
 							ndigits(&thread_data[i].factor),
 							z2decstr(&thread_data[i].factor,&gstr1),
@@ -1384,7 +1396,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 					else
 					{
 						thread_data[i].factor.type = COMPOSITE;
-						add_to_factor_list(&thread_data[i].factor);
+						add_to_factor_list(fobj, &thread_data[i].factor);
 						logprint(flog,"c%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
 							ndigits(&thread_data[i].factor),
 							z2decstr(&thread_data[i].factor,&gstr1),
@@ -1467,6 +1479,7 @@ done:
 	zFree(&d);
 	zFree(&t);
 	zFree(&nn);
+	signal(SIGINT,NULL);
 	
 	ecm_process_free();
 

@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.20.2"
+#define VERSION_STRING "1.21"
 
 //basics
 #define POSITIVE 0
@@ -200,11 +200,11 @@ int PRIMES_TO_FILE;
 int PRIMES_TO_SCREEN;
 int THREADS;
 int AUTO_FACTOR;
-int MSC_ASM;
 int SCALE;
 int USEBATCHFILE;
 int USERSEED;
 uint32 L1CACHE, L2CACHE;
+int CLSIZE;
 uint64 PRIME_THRESHOLD;
 uint64 gcounts[10];
 uint32 maxbn;
