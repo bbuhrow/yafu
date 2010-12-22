@@ -330,6 +330,7 @@ void siqsbench(fact_obj_t *fobj)
 		str2hexz(list[i],&n);
 		zCopy(&n,&fobj->qs_obj.n);
 		SIQS(fobj);
+		clear_factor_list(fobj);
 	}
 
 	strcpy(flogname,oldflogname);
