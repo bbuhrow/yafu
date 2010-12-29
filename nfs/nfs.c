@@ -57,6 +57,7 @@ void *lasieve_launcher(void *ptr);
 
 void find_best_msieve_poly(z *N, ggnfs_job_t *job);
 void msieve_to_ggnfs(ggnfs_job_t *job);
+void ggnfs_to_msieve(ggnfs_job_t *job);
 void get_ggnfs_params(z *N, ggnfs_job_t *job);
 int check_existing_files(z *N, uint32 *last_spq);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
@@ -137,12 +138,45 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		{
 			printf("nfs: continuing job at specialq = %u\n",last_specialq);
 			startq = last_specialq;
+
+			// since we apparently found some relations, see if it is enough
+			//set flags to do filtering
+			flags = 0;
+			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
+			if (VFLAG > 1)
+				flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+			flags = flags | MSIEVE_FLAG_NFS_FILTER;
+			obj->flags = flags;
+
+			//msieve: filter
+			if (VFLAG >= 0)
+				printf("nfs: msieve filtering\n");
+
+			{
+				FILE *tmp;
+				tmp = fopen("msieve.fb","r");
+				if (tmp == NULL)
+					ggnfs_to_msieve(&job);
+				else
+					fclose(tmp);
+			}
+
+			relations_needed = nfs_filter_relations(obj, &mpN);
 		}
 	}
 	else
 	{
-		//remove any previous .p file
+		//this is a new factorization.  remove any previous files
 		remove("msieve.dat.p");
+		remove("msieve.dat");
+		remove("msieve.dat.br");
+		remove("msieve.dat.cyc");
+		remove("msieve.dat.dep");
+		remove("msieve.dat.hc");
+		remove("msieve.dat.mat");
+		remove("msieve.fb");
+		remove("msieve.dat.lp");
+		remove("msieve.dat.d");
 
 		//msieve: polyselect
 		if (VFLAG >= 0)
@@ -242,11 +276,52 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			nfs_threaddata_t *t = thread_data + i;
 		
 #ifdef WIN32
-			sprintf(syscmd,"type %s >> msieve.dat",t->outfilename);
+			FILE *in, *out;
+			int a;
+
+			// test for cat
+			sprintf(syscmd,"echo testing | cat");
+			a = system(syscmd);
+	
+			if (a)
+			{
+				printf("for optimal performance, consider installing unix utilities for windows:\n");
+				printf("http://unxutils.sourceforge.net/ \n");
+
+				in = fopen(t->outfilename,"r");
+				if (in == NULL)
+				{
+					printf("could not open %s for reading\n",t->outfilename);
+					exit(-1);
+				}
+				out = fopen("msieve.dat","a");
+				if (out == NULL)
+				{
+					printf("could not open msieve.dat for appending\n");
+					exit(-1);
+				}
+				while (!feof(in))
+				{
+					char tmpline[GSTR_MAXSIZE], *tmpptr;
+					tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
+					if (tmpptr == NULL)
+						break;
+					else
+					{
+						if (strlen(tmpline) < 20)
+							printf("read abnormally short line: %s\n",tmpline);							
+						else
+							fputs(tmpline, out);
+					}
+				}
+				fclose(in);
+				fclose(out);
+			}
 #else
 			sprintf(syscmd,"cat %s >> msieve.dat",t->outfilename);
-#endif
 			system(syscmd);
+#endif
+			
 		}
 
 		//set flags to do filtering
@@ -260,6 +335,16 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		//msieve: filter
 		if (VFLAG >= 0)
 			printf("nfs: msieve filtering\n");
+
+		{
+			FILE *tmp;
+			tmp = fopen("msieve.fb","r");
+			if (tmp == NULL)
+				ggnfs_to_msieve(&job);
+			else
+				fclose(tmp);
+		}
+
 		relations_needed = nfs_filter_relations(obj, &mpN);
 	}
 
@@ -552,43 +637,48 @@ int check_existing_files(z *N, uint32 *last_spq)
 			// first, test for the existence of unxutils						
 			if (a)
 			{
+				char line2[GSTR_MAXSIZE];
+
 				printf("for optimal performance, consider installing unix utilities for windows:\n");
-				printf("http://unxutils.sourceforge.net/");
+				printf("http://unxutils.sourceforge.net/ \n");
 
 				in = fopen("msieve.dat","r");
-				//set the file position indicated several kilobytes back from the end of the file
-				//if this returns non-zero, then this was forbidden, likely because the file wasn't 
-				//that big.  If that's the case, give up finding the last special q.
-				a = fseek(in, -4096, SEEK_END);
-				if (a)
+				ptr = fgets(line2, GSTR_MAXSIZE, in);
+				if (ptr == NULL)
 				{
 					fclose(in);
 					*last_spq = 0;
 					return ans;
 				}
-				else
-				{
-					// we were able to set the file position indicator back a ways.  we don't know
-					// where it is exactly, so get and throw away a line
-					ptr = fgets(line, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
-					{
-						fclose(in);
-						*last_spq = 0;
-						return ans;
-					}
 
-					// then get a line which we'll try to extract last_spq from
+				// crawl through the entire data file to find the next to last line
+				while (!feof(in))
+				{
 					ptr = fgets(line, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						fclose(in);
+						//next to the last line is in line2
+						int i;
+						printf("examining line %s\n",line2);
 						*last_spq = 0;
+						//note: this assumes algebraic side sieving
+						for (i=strlen(line2); i>=0; i--)
+						{
+							if (line2[i] == ',')
+								break;
+						}
+						sscanf(line2+i+1,"%x",last_spq);
+						//printf("read last specialq value of %s\n",line+i+1);				
+						fclose(in);
 						return ans;
 					}
-					else
+										
+					ptr = fgets(line2, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
 					{
+						//next to the last line is in line
 						int i;
+						printf("examining line %s\n",line);
 						*last_spq = 0;
 						//note: this assumes algebraic side sieving
 						for (i=strlen(line); i>=0; i--)
@@ -600,7 +690,7 @@ int check_existing_files(z *N, uint32 *last_spq)
 						//printf("read last specialq value of %s\n",line+i+1);				
 						fclose(in);
 						return ans;
-					}
+					}					
 				}
 			}
 			
@@ -818,6 +908,54 @@ void msieve_to_ggnfs(ggnfs_job_t *job)
 	fprintf(out,"mfba: %u\n",job->mfb);
 	fprintf(out,"rlambda: %f\n",job->lambda);
 	fprintf(out,"alambda: %f\n",job->lambda);
+
+	fclose(in);
+	fclose(out);
+
+	return;
+}
+
+void ggnfs_to_msieve(ggnfs_job_t *job)
+{
+	// convert a ggnfs.job file into a msieve.fb polynomial file
+	FILE *in, *out;
+	char line[GSTR_MAXSIZE], outline[GSTR_MAXSIZE], *ptr;
+
+	in = fopen("ggnfs.job","r");
+	if (in == NULL)
+	{
+		printf("could not open ggnfs.job for reading!\n");
+		exit(1);
+	}
+
+	//always overwrites previous job files!
+	out = fopen("msieve.fb","w");
+	if (out == NULL)
+	{
+		printf("could not open msieve.fb for writing!\n");
+		exit(1);
+	}
+
+	//translate the polynomial info
+	while (!feof(in))
+	{
+		ptr = fgets(line,GSTR_MAXSIZE,in);
+		if (ptr == NULL)
+			break;
+
+		if (line[0] == 'n')
+			sprintf(outline, "N %s",line + 2);
+		else if(line[0] == 's')
+			sprintf(outline, "SKEW %s",line + 5);
+		else if (line[0] == 'Y')
+			sprintf(outline, "R%c %s",line[1], line + 4);
+		else if (line[0] == 'c')
+			sprintf(outline, "A%c %s",line[1], line + 4);
+		else
+			strcpy(outline, "");
+
+		fputs(outline,out);
+	}
 
 	fclose(in);
 	fclose(out);

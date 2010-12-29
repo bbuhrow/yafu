@@ -15,6 +15,12 @@ v 1.22
 + added a nfs() function
 + added nfs support to windows builds
 + added check for existence of ggnfs lasieve binary prior to starting NFS factorization
++ added checks for unxutils in windows environments prior to starting homegrown (read 'poor') 
+	workarounds for 'tail' and 'cat'
++ added a check for the existence of msieve.fb prior to starting msieve filtering.  If one
+	does not exist, one is created from the ggnfs.job polynomial file.
++ added an initial filtering run if continuing a job found that a relation files already
+	exists
 
 
 v 1.21 12/22/10
