@@ -85,6 +85,7 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectName)-$(Platform)</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)-$(Platform)</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectName)-$(Platform)</TargetName>
+    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(VCInstallDir)lib\amd64;$(VCInstallDir)atlmfc\lib\amd64;$(WindowsSdkDir)lib\x64;C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64;</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Midl>
@@ -107,7 +108,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>psapi.lib;..\..\..\msieve\build.vc10\$(IntDir)gnfs.lib;..\..\..\msieve\build.vc10\$(IntDir)common.lib</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -152,7 +153,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;%(AdditionalDependencies);..\..\..\msieve\build.vc10\Win32\Release\gnfs.lib;..\..\..\msieve\build.vc10\Win32\Release\common.lib</AdditionalDependencies>
+      <AdditionalDependencies>psapi.lib;..\..\..\msieve\build.vc10\$(IntDir)gnfs.lib;..\..\..\msieve\build.vc10\$(IntDir)common.lib</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
@@ -189,7 +190,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>psapi.lib;..\..\..\msieve\build.vc10\$(IntDir)gnfs.lib;..\..\..\msieve\build.vc10\$(IntDir)common.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -215,7 +216,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\mpir\build.vc10\lib\$(IntDir);..\..\..\gmp-ecm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\mpir\build.vc10\lib\$(IntDir);..\..\..\gmp-ecm\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_64K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -235,7 +236,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>psapi.lib;..\..\..\msieve\build.vc10\$(IntDir)gnfs.lib;..\..\..\msieve\build.vc10\$(IntDir)common.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
@@ -260,6 +261,7 @@
     <ClCompile Include="..\..\eratosthenes\tiny.c" />
     <ClCompile Include="..\..\eratosthenes\worker.c" />
     <ClCompile Include="..\..\eratosthenes\wrapper.c" />
+    <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\nfs\nfs.c" />
     <ClCompile Include="..\..\nfs\winsupport.c" />
     <ClCompile Include="..\..\top\calc.c" />
@@ -322,6 +324,7 @@
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
+    <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
     <ClInclude Include="..\..\include\monty.h" />
     <ClInclude Include="..\..\include\qs.h" />
@@ -329,6 +332,7 @@
     <ClInclude Include="..\..\include\tfm.h" />
     <ClInclude Include="..\..\include\types.h" />
     <ClInclude Include="..\..\include\util.h" />
+    <ClInclude Include="..\..\include\winsupport.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
