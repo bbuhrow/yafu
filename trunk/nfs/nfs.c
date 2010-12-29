@@ -61,6 +61,7 @@ void ggnfs_to_msieve(ggnfs_job_t *job);
 void get_ggnfs_params(z *N, ggnfs_job_t *job);
 int check_existing_files(z *N, uint32 *last_spq);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
+uint32 get_spq(char *line);
 
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
@@ -630,20 +631,17 @@ int check_existing_files(z *N, uint32 *last_spq)
 			int a;
 
 			fclose(in);
-#ifdef WIN32
-			a = system("tail msieve.dat > rels.dat");
-			// no good tail command native to windows.  roll something similar here which will
-			// likely be much slower
-			// first, test for the existence of unxutils						
-			if (a)
+
+			//tail isn't good enough, because prior filtering steps could have inserted
+			//free relations, which don't have a special q to read.
+			//our task is to find the last valid line of the file, and then read
+			//the last numeric entry from that line.
+			if (1)
 			{
 				char line2[GSTR_MAXSIZE];
 
-				printf("for optimal performance, consider installing unix utilities for windows:\n");
-				printf("http://unxutils.sourceforge.net/ \n");
-
 				in = fopen("msieve.dat","r");
-				ptr = fgets(line2, GSTR_MAXSIZE, in);
+				ptr = fgets(line, GSTR_MAXSIZE, in);
 				if (ptr == NULL)
 				{
 					fclose(in);
@@ -654,70 +652,44 @@ int check_existing_files(z *N, uint32 *last_spq)
 				// crawl through the entire data file to find the next to last line
 				while (!feof(in))
 				{
-					ptr = fgets(line, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
-					{
-						//next to the last line is in line2
-						int i;
-						printf("examining line %s\n",line2);
-						*last_spq = 0;
-						//note: this assumes algebraic side sieving
-						for (i=strlen(line2); i>=0; i--)
-						{
-							if (line2[i] == ',')
-								break;
-						}
-						sscanf(line2+i+1,"%x",last_spq);
-						//printf("read last specialq value of %s\n",line+i+1);				
-						fclose(in);
-						return ans;
-					}
-										
+					//throw away the next three lines.  if we encounter an end of file
+					//in doing so, examine the last valid line
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						//next to the last line is in line
-						int i;
-						printf("examining line %s\n",line);
-						*last_spq = 0;
-						//note: this assumes algebraic side sieving
-						for (i=strlen(line); i>=0; i--)
-						{
-							if (line[i] == ',')
-								break;
-						}
-						sscanf(line+i+1,"%x",last_spq);
-						//printf("read last specialq value of %s\n",line+i+1);				
-						fclose(in);
+						*last_spq = get_spq(line);
 						return ans;
-					}					
+					}
+
+					ptr = fgets(line2, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
+					{
+						*last_spq = get_spq(line);
+						return ans;
+					}
+
+					ptr = fgets(line2, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
+					{
+						*last_spq = get_spq(line);
+						return ans;
+					}
+
+					//get another line, and check to make sure its valid.  if not,
+					//keep going
+					ptr = fgets(line2, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
+					{
+						*last_spq = get_spq(line);
+						return ans;
+					}
+					else
+					{
+						if (strlen(line2) > 30)
+							strcpy(line, line2);
+					}						
 				}
 			}
-			
-			// if we got to here, tail worked: unxutils or something similar must be present.
-			// share the linux code below.
-#else
-			system("tail msieve.dat > rels.dat");
-#endif
-			
-			data = fopen("rels.dat","r");
-			ptr = fgets(line,GSTR_MAXSIZE,data);
-			if (ptr == NULL)
-				*last_spq = 0;
-			else
-			{
-				int i;
-				*last_spq = 0;
-				//note: this assumes algebraic side sieving
-				for (i=strlen(line); i>=0; i--)
-				{
-					if (line[i] == ',')
-						break;
-				}
-				sscanf(line+i+1,"%x",last_spq);
-				//printf("read last specialq value of %s\n",line+i+1);								
-			}
-			fclose(data);
 		}
 
 	}
@@ -730,6 +702,25 @@ int check_existing_files(z *N, uint32 *last_spq)
 	zFree(&tmpz);
 	return ans;
 
+}
+
+uint32 get_spq(char *line)
+{
+	
+	//next to the last line is in line2
+	int i;
+	uint32 ans;
+	printf("examining line %s\n",line);
+
+	ans = 0;
+	//note: this assumes algebraic side sieving
+	for (i=strlen(line); i>=0; i--)
+	{
+		if (line[i] == ',')
+			break;
+	}
+	sscanf(line+i+1,"%x",&ans);
+	return ans;
 }
 
 void find_best_msieve_poly(z *N, ggnfs_job_t *job)
