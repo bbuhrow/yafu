@@ -143,7 +143,7 @@ randb			pm1			log
 			trial			jacobi
 			ecm			modinv
 			fermat			fib
-						luc
+			nfs			luc
 						llt
 
 ----------
@@ -177,6 +177,45 @@ PRIMES_TO_FILE - set to non zero to enable printing primes to a file, when using
 PRIMES_TO_SCREEN - set to non zero to enable printing primes to the screen, when using the
 		primes() function
 VFLAG - control verbosity within the interactive environment
+
+[nfs]
+usage: nfs(expression)
+Implements factorization using the general number field sieve.  Polynomial selection is 
+handled via msieve library function calls.  Sieving then proceeds in a multi-thread aware
+fashion.  Msieve filtering, linear algebra, and sqrt functions round out the method.
+The path to the ggnfs lasive binaries must be specified either on the command line using the
+-ggnfs_dir switch, or in the yafu.ini file as a "ggnfs_dir=<path>" line.  It is assumed that the
+ggnfs binaries follow the usual naming convention (i.e. gnfs-lasieve4IXXe).  nfs is 
+automatically resumed if a job is killed prior to completion and nfs is called again with the
+same input.  Starting a different job will overwrite a previously incomplete factorizations data
+files, which is potentially unrecoverable.  To skip polynomially selection and instead use an
+externally produced polynomial and lattice siever parameterization, create a file called 
+ggnfs.job with the following format prior to calling yafu with nfs("your number"), in the same 
+directory as the yafu binary:
+
+n: "your number here"
+skew: 18508.57
+Y0: -164285488596487844605
+Y1:  96982771931
+c0:  3745552009373958707561976
+c1: -171516434496742996334
+c2: -98669563931139619
+c3:  246374333386
+c4:  139871450
+c5:  3900
+rlim: 2500000
+alim: 2500000
+lpbr: 26
+lpba: 26
+mfbr: 52
+mfba: 52
+rlambda: 2.500000
+alambda: 2.500000
+
+the n: "your number here" line must be on the first line of the ggnfs.job file.  All other lines
+should be interchangable.  Supplying ggnfs.job in this way allows for SNFS factorizations to take place,
+albeit not completely automated.
+
 
 [siqs]
 usage: siqs(expression)

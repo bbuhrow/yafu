@@ -1,6 +1,8 @@
 v 1.22
 + incorporated a completely automated multi-threaded gnfs implemetation by using msieve 
-	library calls and externally called ggnfs lasieve binaries.  currently snfs not supported.
+	library calls and externally called ggnfs lasieve binaries.  currently snfs is not
+	completely automated - a polynomial file must be produced manually prior to calling
+	yafu with nfs().
 + creation of different filter heirarchy in MSVC solution
 + some rearrangement of function declarations
 + changed symbol names of all ported msieve code so that there aren't any collisions
