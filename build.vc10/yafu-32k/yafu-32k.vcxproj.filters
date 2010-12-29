@@ -206,6 +206,9 @@
     <ClCompile Include="..\..\factor\tune.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\nfs\winsupport.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -257,6 +260,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\gnfs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\winsupport.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

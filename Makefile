@@ -54,8 +54,21 @@ ifeq ($(GMPECM),1)
 	LIBS += -L../gmp-ecm/lib/ -lecm
 endif
 
-ifeq ($(NFS),1)
+ifeq ($(NFS),1)	
 	LIBS += -L../msieve/ -lmsieve
+
+	# NFS builds require GMP
+	ifneq ($(GMPECM),1)
+		CFLAGS += -DHAVE_GMP
+		INC += -I../gmp/include/
+		LIBS += -L../gmp/lib/ -lgmp
+	endif
+
+	# NOTE: if the included msieve library was build with ECM, then 
+	# ECM must also be enabled here
+	CFLAGS += -DHAVE_GMP_ECM
+	INC += -I../gmp-ecm/include/
+	LIBS += -L../gmp-ecm/lib/ -lecm
 endif
 
 ifeq ($(FORCE_MODERN),1)

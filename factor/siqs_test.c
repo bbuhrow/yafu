@@ -313,7 +313,7 @@ void siqsbench(fact_obj_t *fobj)
 		exit(1);
 	}
 
-	cpu = get_cpu_type();
+	cpu = yafu_get_cpu_type();
 	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
 #if defined(TFM_X86) || defined(TFM_X86_MSVC)
 	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");

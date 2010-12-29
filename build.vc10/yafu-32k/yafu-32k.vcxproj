@@ -263,6 +263,7 @@
     <ClCompile Include="..\..\eratosthenes\wrapper.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\nfs\nfs.c" />
+    <ClCompile Include="..\..\nfs\winsupport.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\stack.c" />
@@ -331,6 +332,7 @@
     <ClInclude Include="..\..\include\tfm.h" />
     <ClInclude Include="..\..\include\types.h" />
     <ClInclude Include="..\..\include\util.h" />
+    <ClInclude Include="..\..\include\winsupport.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />

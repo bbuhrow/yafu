@@ -203,6 +203,9 @@
     <ClCompile Include="..\..\nfs\nfs.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\nfs\winsupport.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
