@@ -10,9 +10,11 @@ v 1.22
 	mpqs and common code as well as NFS code).
 + added a -noecm flag
 + added a flag to specify the directory of ggnfs binaries
-+ modifications to factor() to incorporate nfs (currently only linux supported), with
-	limited size tuning (cutoff set to 95 digits).
-+ added a nfs() function (currently only linux supported)
++ modifications to factor() to incorporate nfs, with limited size tuning 
+	(cutoff set to 95 digits).
++ added a nfs() function
++ added nfs support to windows builds
++ added check for existence of ggnfs lasieve binary prior to starting NFS factorization
 
 
 v 1.21 12/22/10

@@ -155,9 +155,9 @@ enum cpu_type {
 	cpu_nehalem
 };
 
-uint64 read_clock(void);
-void get_cache_sizes(uint32 *level1_cache, uint32 *level2_cache);
-enum cpu_type get_cpu_type(void);
+uint64 yafu_read_clock(void);
+void yafu_get_cache_sizes(uint32 *level1_cache, uint32 *level2_cache);
+enum cpu_type yafu_get_cpu_type(void);
 
 int extended_cpuid(char *idstr, int *cachelinesize, int do_print);
 

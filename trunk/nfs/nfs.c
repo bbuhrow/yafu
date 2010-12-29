@@ -61,13 +61,6 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job);
 int check_existing_files(z *N, uint32 *last_spq);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 
-#ifdef WIN32
-void test_msieve_gnfs(fact_obj_t *fobj)
-{
-	printf("NFS in windows not yet supported\n");
-	return;
-}
-#else
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
 	z *N = &fobj->qs_obj.n;
@@ -79,7 +72,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	uint32 seed2 = g_rand.hi;
 	uint64 nfs_lower = 0;
 	uint64 nfs_upper = 0;
-	enum cpu_type cpu = get_cpu_type();
+	enum cpu_type cpu = yafu_get_cpu_type();
 	uint32 mem_mb = 0;
 	uint32 which_gpu = 0;
 	mp_t mpN;
@@ -248,7 +241,11 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		{
 			nfs_threaddata_t *t = thread_data + i;
 		
+#ifdef WIN32
+			sprintf(syscmd,"type %s >> msieve.dat",t->outfilename);
+#else
 			sprintf(syscmd,"cat %s >> msieve.dat",t->outfilename);
+#endif
 			system(syscmd);
 		}
 
@@ -310,13 +307,15 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 	free(difference);	
 
+	if (VFLAG >= 0)
+		printf("NFS elapsed time = %6.4f seconds.\n",t_time);
+
 	// free stuff
 	msieve_obj_free(obj);
 	sFree(&input_str);
 
 	return;
 }
-#endif
 
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
 				uint32 is_master_thread) {
@@ -457,7 +456,6 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	for (i=0;i<factor_list->num_factors;i++)
 	{
 		z tmpz;
-		//char buf[32 * MAX_MP_WORDS+1];
 		zInit(&tmpz);		
 		
 		mp_t2z(&factor_list->final_factors[i]->factor,&tmpz);
@@ -485,11 +483,13 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		{
 			tmp1.type = PRP;
 			add_to_factor_list(fobj, &tmp1);
+			zCopy(&zOne, N);
 		}
 		else
 		{
 			tmp1.type = COMPOSITE;
 			add_to_factor_list(fobj, &tmp1);
+			zCopy(&zOne, N);
 		}
 	}
 
@@ -542,9 +542,74 @@ int check_existing_files(z *N, uint32 *last_spq)
 			// found it.  read the last specialq
 			char syscmd[1024];
 			FILE *data;
+			int a;
 
-			sprintf(syscmd,"tail msieve.dat > rels.dat");
-			system(syscmd);
+			fclose(in);
+#ifdef WIN32
+			a = system("tail msieve.dat > rels.dat");
+			// no good tail command native to windows.  roll something similar here which will
+			// likely be much slower
+			// first, test for the existence of unxutils						
+			if (a)
+			{
+				printf("for optimal performance, consider installing unix utilities for windows:\n");
+				printf("http://unxutils.sourceforge.net/");
+
+				in = fopen("msieve.dat","r");
+				//set the file position indicated several kilobytes back from the end of the file
+				//if this returns non-zero, then this was forbidden, likely because the file wasn't 
+				//that big.  If that's the case, give up finding the last special q.
+				a = fseek(in, -4096, SEEK_END);
+				if (a)
+				{
+					fclose(in);
+					*last_spq = 0;
+					return ans;
+				}
+				else
+				{
+					// we were able to set the file position indicator back a ways.  we don't know
+					// where it is exactly, so get and throw away a line
+					ptr = fgets(line, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
+					{
+						fclose(in);
+						*last_spq = 0;
+						return ans;
+					}
+
+					// then get a line which we'll try to extract last_spq from
+					ptr = fgets(line, GSTR_MAXSIZE, in);
+					if (ptr == NULL)
+					{
+						fclose(in);
+						*last_spq = 0;
+						return ans;
+					}
+					else
+					{
+						int i;
+						*last_spq = 0;
+						//note: this assumes algebraic side sieving
+						for (i=strlen(line); i>=0; i--)
+						{
+							if (line[i] == ',')
+								break;
+						}
+						sscanf(line+i+1,"%x",last_spq);
+						//printf("read last specialq value of %s\n",line+i+1);				
+						fclose(in);
+						return ans;
+					}
+				}
+			}
+			
+			// if we got to here, tail worked: unxutils or something similar must be present.
+			// share the linux code below.
+#else
+			system("tail msieve.dat > rels.dat");
+#endif
+			
 			data = fopen("rels.dat","r");
 			ptr = fgets(line,GSTR_MAXSIZE,data);
 			if (ptr == NULL)
@@ -794,6 +859,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	// doing things by hand by then anyway.
 	int i, d = ndigits(N);
 	double scale;
+	FILE *test;
 	
 	job->rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
@@ -839,7 +905,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	if (job->rels == 0)
 	{
 		//couldn't find a table entry
-		if (d < ggnfs_table[0][0])
+		if (d <= ggnfs_table[0][0])
 		{
 			job->fblim = ggnfs_table[0][1];
 			job->lpb = ggnfs_table[0][2];
@@ -878,6 +944,18 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	case 15:
 		sprintf(job->sievername, "%sgnfs-lasieve4I15e", ggnfs_dir);
 		break;
+	}
+
+#ifdef WIN32
+	sprintf(job->sievername, "%s.exe", job->sievername);
+#endif
+
+	// test for existence of the siever
+	test = fopen(job->sievername, "rb");
+	if (test == NULL)
+	{
+		printf("could not find %s, bailing\n",job->sievername);
+		exit(-1);
 	}
 
 	return;

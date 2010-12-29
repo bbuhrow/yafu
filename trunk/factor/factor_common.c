@@ -111,7 +111,7 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize global stuff in fobj
 	fobj->seed1 = g_rand.low;
 	fobj->seed2 = g_rand.hi;
-	get_cache_sizes(&fobj->cache_size1,&fobj->cache_size2);
+	yafu_get_cache_sizes(&fobj->cache_size1,&fobj->cache_size2);
 	fobj->flags = 0;
 	strcpy(fobj->logname,flogname);
 	fobj->num_threads = 1;		//read from input arguments
@@ -627,7 +627,7 @@ double get_qs_time_estimate(double freq, int digits)
 	enum cpu_type cpu;
 	double estimate;
 
-	cpu = get_cpu_type();
+	cpu = yafu_get_cpu_type();
 	switch (cpu)
 	{
 		case 0:
@@ -749,7 +749,7 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	//double t_time;
 	//TIME_DIFF *	difference;
 
-	startticks = read_clock();	
+	startticks = yafu_read_clock();	
 
 	switch (method)
 	{
@@ -832,7 +832,7 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		break;
 	}
 
-	endticks = read_clock();
+	endticks = yafu_read_clock();
 
 	//estimate time per curve for these completed curves
 	time_per_unit_work = (double)(endticks - startticks) 
@@ -1427,11 +1427,7 @@ void factor(fact_obj_t *fobj)
 			if (NO_ECM)
 			{
 				if (ndigits(b) > 95)
-#ifdef WIN32
-					fact_state = state_qs;
-#else
 					fact_state = state_nfs;
-#endif
 				else
 					fact_state = state_qs;
 			}
@@ -1529,11 +1525,7 @@ void factor(fact_obj_t *fobj)
 				// either the number is small enough to finish off, or it would be better, 
 				// timewise, to switch
 				if (ndigits(b) > 95)
-#ifdef WIN32
-					fact_state = state_qs;
-#else
 					fact_state = state_nfs;
-#endif
 				else
 					fact_state = state_qs;
 			}

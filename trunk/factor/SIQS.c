@@ -176,7 +176,7 @@ void SIQS(fact_obj_t *fobj)
 	optfile = fopen("optfile.csv","a");
 	fprintf(optfile,"Optimization Debug File\n");
 	fprintf(optfile,"Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
-		get_cpu_type(),L1CACHE,L2CACHE);
+		yafu_get_cpu_type(),L1CACHE,L2CACHE);
 	fprintf(optfile,"Starting SIQS on c%d: %s\n\n",fobj->digits,z2decstr(n,&gstr1));
 	fprintf(optfile,"Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif

@@ -773,7 +773,7 @@ void get_computer_info(char *idstr)
 {
 
 	//read cache sizes
-	get_cache_sizes(&L1CACHE,&L2CACHE);
+	yafu_get_cache_sizes(&L1CACHE,&L2CACHE);
 
 	//figure out cpu freq in order to scale qs time estimations
 	//0.1 seconds won't be very accurate, but hopefully close
@@ -837,8 +837,10 @@ void set_default_globals(void)
 	strcpy(siqs_savefile,"siqs.dat");
 	strcpy(flogname,"factor.log");
 	strcpy(sessionname,"session.log");
-#ifdef WIN32
-	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs_bin\\");
+#if defined(_WIN64)
+	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
+#elif defined(WIN32)
+	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\Win32\\");
 #else
 	strcpy(ggnfs_dir,"../ggnfs-bin/");
 #endif
@@ -1457,7 +1459,7 @@ void get_random_seeds(rand_t *r) {
 		   current time), and the process ID. Multithreaded
 		   applications should fold in the thread ID too */
 
-		uint64 high_res_time = read_clock();
+		uint64 high_res_time = yafu_read_clock();
 		tmp_seed1 = ((uint32)(high_res_time >> 32) ^
 			     (uint32)time(NULL)) * 
 			    (uint32)getpid();

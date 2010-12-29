@@ -261,6 +261,7 @@
     <ClCompile Include="..\..\eratosthenes\worker.c" />
     <ClCompile Include="..\..\eratosthenes\wrapper.c" />
     <ClCompile Include="..\..\nfs\nfs.c" />
+    <ClCompile Include="..\..\nfs\winsupport.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\stack.c" />
