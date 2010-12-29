@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 28
+#define NUMOPTIONS 30
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -70,10 +70,12 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"forceDLP",
 	"fmtmax",
 	"noopt",
-	"vproc"};
+	"vproc",
+	"noecm",
+	"ggnfs_dir"};
 
 // indication of whether or not an option needs a corresponding argument
-int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,0,0};
+int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,0,0,0,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -823,6 +825,7 @@ void set_default_globals(void)
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
 	SCALE = 40;
+	NO_ECM = 0;
 	USEBATCHFILE = 0;
 	USERSEED = 0;
 	SIGMA = 0;
@@ -834,6 +837,11 @@ void set_default_globals(void)
 	strcpy(siqs_savefile,"siqs.dat");
 	strcpy(flogname,"factor.log");
 	strcpy(sessionname,"session.log");
+#ifdef WIN32
+	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs_bin\\");
+#else
+	strcpy(ggnfs_dir,"../ggnfs-bin/");
+#endif
 	szSOEp = 1000100;	
 	
 	//set some useful globals
@@ -1393,6 +1401,18 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[27]) == 0)
 	{
 		VERBOSE_PROC_INFO++;
+	}
+	else if (strcmp(opt,OptionArray[28]) == 0)
+	{
+		NO_ECM = 1;
+	}
+	else if (strcmp(opt,OptionArray[29]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+			strcpy(ggnfs_dir,arg);
+		else
+			printf("*** argument to ggnfs_dir too long, ignoring ***\n");
 	}
 	else
 	{

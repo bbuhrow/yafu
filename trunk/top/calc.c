@@ -794,7 +794,7 @@ int getFunc(char *s, int *nargs)
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sumpuzzle","aliquot","pseudolist","siqstune",
-						"ptable","primesum","fermat"};
+						"ptable","primesum","fermat","nfs"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
 					2,2,1,1,1,
@@ -807,7 +807,7 @@ int getFunc(char *s, int *nargs)
 					2,2,2,2,2,
 					2,2,2,1,0,
 					0,5,1,2,1,
-					0,2,2};
+					0,2,2,1};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -1602,6 +1602,19 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->div_obj.n);
 		zFermat(operands[1].val[0], fobj);
 		zCopy(&fobj->div_obj.n,&operands[0]);
+		print_factors(fobj);
+		break;
+
+	case 58:
+		//nfs - one argument
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in nfs\n");
+			break;
+		}
+		zCopy(&operands[0],&fobj->qs_obj.n);
+		test_msieve_gnfs(fobj);
+		zCopy(&fobj->qs_obj.n,&operands[0]);
 		print_factors(fobj);
 		break;
 

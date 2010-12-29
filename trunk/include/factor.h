@@ -23,12 +23,11 @@ code to the public domain.
 
 #include "yafu.h"
 #include "arith.h"
+#include "util.h"
 
-/*
-declarations of factorization routines not grouped in with QS methods
+/* declarations of factorization routines not grouped in with QS methods
 or group theoretic methods, as well as higher level factorization
-routines and bookkeeping
-*/
+routines and bookkeeping */
 
 #define MAX_FACTORS 10
 #define POLLARD_METHOD 0
@@ -40,6 +39,19 @@ routines and bookkeeping
 // the yafu sieve routines
 
 /* structure encapsulating the savefile used in a factorization */
+typedef struct {
+
+#if defined(WIN32) || defined(_WIN64)
+	HANDLE file_handle;
+	uint32 read_size;
+	uint32 eof;
+#else
+	FILE *fp;
+#endif
+	char *name;
+	char *buf;
+	uint32 buf_off;
+} qs_savefile_t;
 
 typedef struct {
 
@@ -72,19 +84,22 @@ enum msieve_flags {
 					    sieving where exact progress info
 					    is not needed, sieving clients can
 					    save a lot of memory with this */
-	MSIEVE_FLAG_NFS_POLY = 0x40,     /* if input is large enough, perform
-	                                    polynomial selection for NFS */
-	MSIEVE_FLAG_NFS_SIEVE = 0x80,    /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_POLY1 = 0x40,     /* if input is large enough, perform
+	                                    stage 1 polynomial selection for NFS */
+	MSIEVE_FLAG_NFS_POLY2 = 0x80,     /* if input is large enough, perform
+	                                    stage 2 polynomial selection for NFS */
+	MSIEVE_FLAG_NFS_SIEVE = 0x100,   /* if input is large enough, perform
 	                                    sieving for NFS */
-	MSIEVE_FLAG_NFS_FILTER = 0x100,  /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_FILTER = 0x200,  /* if input is large enough, perform
 	                                    filtering phase for NFS */
-	MSIEVE_FLAG_NFS_LA = 0x200,      /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_LA = 0x400,      /* if input is large enough, perform
 	                                    linear algebra phase for NFS */
-	MSIEVE_FLAG_NFS_SQRT = 0x400,    /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_SQRT = 0x800,    /* if input is large enough, perform
 	                                    square root phase for NFS */
-	MSIEVE_FLAG_NFS_LA_RESTART = 0x800,/* restart the NFS linear algbra */
-	MSIEVE_FLAG_DEEP_ECM = 0x1000    /* perform nontrivial-size ECM */
+	MSIEVE_FLAG_NFS_LA_RESTART = 0x1000,/* restart the NFS linear algbra */
+	MSIEVE_FLAG_DEEP_ECM = 0x2000    /* perform nontrivial-size ECM */
 };
+	
 
 enum msieve_factor_type {
 	MSIEVE_COMPOSITE,
@@ -92,8 +107,90 @@ enum msieve_factor_type {
 	MSIEVE_PROBABLE_PRIME
 };
 
+typedef struct msieve_factor {
+	enum msieve_factor_type factor_type;
+	char *number;
+	struct msieve_factor *next;
+} msieve_factor;
+
+
+/* One factorization is represented by a msieve_obj
+   structure. This contains all the static information
+   that gets passed from one stage of the factorization
+   to another. If this was C++ it would be a simple object */
+// this must be declared when calling msieve routines through
+// the msieve libraries
 typedef struct {
-	z factor;
+	char *input;		  /* pointer to string version of the 
+				     integer to be factored */
+	msieve_factor *factors;   /* linked list of factors found (in
+				     ascending order */
+	volatile uint32 flags;	  /* input/output flags */
+	savefile_t savefile;      /* data for savefile */
+	char *logfile_name;       /* name of the logfile that will be
+				     used for this factorization */
+	uint32 seed1, seed2;      /* current state of random number generator
+				     (updated as random numbers are created) */
+	char *nfs_fbfile_name;    /* name of factor base file */
+	uint32 max_relations;      /* the number of relations that the sieving
+	                              stage will try to find. The default (0)
+				      is to keep sieving until all necessary 
+				      relations are found. */
+	uint64 nfs_lower;         /* lower bound for NFS-related thing to do */
+	uint64 nfs_upper;         /* upper bound for NFS-related thing to do */
+
+	uint32 cache_size1;       /* bytes in level 1 cache */
+	uint32 cache_size2;       /* bytes in level 2 cache */
+	enum cpu_type cpu;
+	uint32 num_threads;
+
+#ifdef HAVE_MPI
+	uint32 mpi_size;          /* number of MPI processes, each with
+                                     num_threads threads */
+	uint32 mpi_rank;          /* from 0 to mpi_size - 1 */
+
+	uint32 mpi_nrows;         /* a 2-D MPI lanczos grid */
+	uint32 mpi_ncols;
+	MPI_Comm mpi_la_grid;
+	MPI_Comm mpi_la_row_grid; /* communicator for the current MPI row */
+	MPI_Comm mpi_la_col_grid; /* communicator for the current MPI col */
+	uint32 mpi_la_row_rank;
+	uint32 mpi_la_col_rank;
+#endif
+
+
+	uint32 mem_mb;            /* megabytes usable for NFS filtering */
+
+	uint32 which_gpu;         /* ordinal ID of GPU to use */
+
+	char mp_sprintf_buf[32 * MAX_MP_WORDS+1]; /* scratch space for 
+						printing big integers */
+} msieve_obj;
+
+// these must be declared when calling msieve routines through
+// the msieve libraries.  they are defined in the msieve library.
+msieve_obj * msieve_obj_new(char *input_integer,
+			    uint32 flags,
+			    char *savefile_name,
+			    char *logfile_name,
+			    char *nfs_fbfile_name,
+			    uint32 seed1,
+			    uint32 seed2,
+			    uint32 max_relations,
+			    uint64 nfs_lower,
+			    uint64 nfs_upper,
+			    enum cpu_type cpu,
+			    uint32 cache_size1,
+			    uint32 cache_size2,
+			    uint32 num_threads,
+			    uint32 mem_mb,
+			    uint32 which_gpu);
+
+msieve_obj * msieve_obj_free(msieve_obj *obj);
+
+
+typedef struct {
+	mp_t factor;
 	enum msieve_factor_type type;
 } final_factor_t;
 
@@ -110,15 +207,15 @@ typedef struct {
 typedef struct {
 	uint32 num_relations;  /* number of relations in the cycle */
 	uint32 *list;          /* list of offsets into an array of relations */
-} la_cycle_t;
+} qs_la_cycle_t;
 
 /* A column of the matrix */
 
 typedef struct {
 	uint32 *data;		/* The list of occupied rows in this column */
 	uint32 weight;		/* Number of nonzero entries in this column */
-	la_cycle_t cycle;       /* list of relations comprising this column */
-} la_col_t;
+	qs_la_cycle_t cycle;       /* list of relations comprising this column */
+} qs_la_col_t;
 
 /*---------------- SAVEFILE RELATED DECLARATIONS ---------------------*/
 
@@ -200,7 +297,7 @@ typedef struct
 {
 	z n;
 	str_t in, out;
-	savefile_t savefile;		//savefile object
+	qs_savefile_t savefile;		//savefile object
 	uint32 override1;			//override of default parameters
 	uint32 override2;			//override of default parameters
 	uint32 override3;			//override of default parameters
@@ -251,25 +348,34 @@ void init_factobj(fact_obj_t *fobj);
 void record_new_factor(fact_obj_t *fobj,char *method, z *n);
 void free_factobj(fact_obj_t *fobj);
 
-void savefile_init(savefile_t *s, char *filename);
-void savefile_free(savefile_t *s);
-void savefile_open(savefile_t *s, uint32 flags);
-void savefile_close(savefile_t *s);
-uint32 savefile_eof(savefile_t *s);
-uint32 savefile_exists(savefile_t *s);
-void savefile_rewind(savefile_t *s);
-void savefile_read_line(char *buf, size_t max_len, savefile_t *s);
-void savefile_write_line(savefile_t *s, char *buf);
-void savefile_flush(savefile_t *s);
+/* ---------------- DECLARATIONS FOR SAVEFILE MANIPULATION -------------- */
+// copied from msieve source code
+void qs_savefile_init(qs_savefile_t *s, char *filename);
+void qs_savefile_free(qs_savefile_t *s);
+void qs_savefile_open(qs_savefile_t *s, uint32 flags);
+void qs_savefile_close(qs_savefile_t *s);
+uint32 qs_savefile_eof(qs_savefile_t *s);
+uint32 qs_savefile_exists(qs_savefile_t *s);
+void qs_savefile_rewind(qs_savefile_t *s);
+void qs_savefile_read_line(char *buf, size_t max_len, qs_savefile_t *s);
+void qs_savefile_write_line(qs_savefile_t *s, char *buf);
+void qs_savefile_flush(qs_savefile_t *s);
 
 
 /*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/
 
+//msieve
 void factor_list_init(factor_list_t *list);
-
 uint32 factor_list_max_composite(factor_list_t *list);
-
 void factor_list_free(z *n, factor_list_t *list, fact_obj_t *obj);
+
+//yafu
+void add_to_factor_list(fact_obj_t *fobj, z *n);
+void print_factors(fact_obj_t *fobj);
+void free_factor_list(fact_obj_t *fobj);
+void clear_factor_list(fact_obj_t *fobj);
+void delete_from_factor_list(fact_obj_t *fobj, z *n);
+
 
 //common to the QS variants
 uint8 choose_multiplier(z *n, uint32 fbsize);
@@ -295,18 +401,15 @@ void Trial32(int32 n, int print);
 //auto factoring routines
 double get_qs_time_estimate(double freq, int bits);
 void factor(fact_obj_t *fobj);
-void factor_test(void);
-void factor_big(z *b);
-void factor_range_pp1(int kmin, int kmax, int n, int sign);
-void factor_range_pm1(int kmin, int kmax, int n, int sign);
-void add_to_factor_list(fact_obj_t *fobj, z *n);
-void print_factors(fact_obj_t *fobj);
-void free_factor_list(fact_obj_t *fobj);
-void clear_factor_list(fact_obj_t *fobj);
-void delete_from_factor_list(fact_obj_t *fobj, z *n);
 void aliquot(z *input, fact_obj_t *fobj);
 
-//algebraic factoring
-int algebraic(str_t *str);
+//nfs factoring
+//void logprintf(msieve_obj *obj, char *fmt, ...);
+void test_msieve_gnfs(fact_obj_t *fobj);
+
+/* Factor a number using GNFS. Returns
+   1 if any factors were found and 0 if not */
+
+uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
 
 #endif //_FACTOR_H

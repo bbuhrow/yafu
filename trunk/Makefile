@@ -18,7 +18,7 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-CFLAGS = -g
+CFLAGS = -g -march=nocona
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
@@ -52,9 +52,10 @@ ifeq ($(GMPECM),1)
 	INC += -I../gmp-ecm/include/
 	LIBS += -L../gmp/lib/ -lgmp
 	LIBS += -L../gmp-ecm/lib/ -lecm
+endif
 
-
-
+ifeq ($(NFS),1)
+	LIBS += -L../msieve/ -lmsieve
 endif
 
 ifeq ($(FORCE_MODERN),1)
@@ -99,8 +100,8 @@ MSIEVE_SRCS = \
 	msieve/lanczos_pre.c \
 	msieve/mpqs_gf2.c \
 	msieve/sqrt.c \
-	msieve/savefile.c \
-	msieve/squfof_jp.c
+	msieve/savefile.c 
+#	msieve/squfof_jp.c
 	
 MSIEVE_OBJS = $(MSIEVE_SRCS:.c=.o)
 	
@@ -142,7 +143,8 @@ YAFU_SRCS = \
 	eratosthenes/soe.c \
 	eratosthenes/tiny.c \
 	eratosthenes/worker.c \
-	eratosthenes/wrapper.c
+	eratosthenes/wrapper.c \
+	nfs/nfs.c
 
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 

@@ -74,7 +74,7 @@ typedef struct {
 	/* items used during initialization */
 
 	uint32 my_oid;		/* number assigned to this thread */
-	la_col_t *initial_cols; /* unpacked matrix columns */
+	qs_la_col_t *initial_cols; /* unpacked matrix columns */
 	uint32 col_min;
 	uint32 col_max;		/* range of column indices to handle */
 	uint32 nrows_in;	/* number of rows in the matrix */
@@ -120,35 +120,35 @@ typedef struct {
 	uint32 num_dense_rows;
 	uint32 num_threads;
 
-	la_col_t *unpacked_cols;  /* used if no packing takes place */
+	qs_la_col_t *unpacked_cols;  /* used if no packing takes place */
 
 	thread_data_t thread_data[MAX_THREADS];
 
 } packed_matrix_t;
 
-void packed_matrix_init(fact_obj_t *obj, 
+void yafu_packed_matrix_init(fact_obj_t *obj, 
 			packed_matrix_t *packed_matrix,
-			la_col_t *A, uint32 nrows, uint32 ncols,
+			qs_la_col_t *A, uint32 nrows, uint32 ncols,
 			uint32 num_dense_rows);
 
-void packed_matrix_free(packed_matrix_t *packed_matrix);
+void yafu_packed_matrix_free(packed_matrix_t *packed_matrix);
 
-size_t packed_matrix_sizeof(packed_matrix_t *packed_matrix);
+size_t yafu_packed_matrix_sizeof(packed_matrix_t *packed_matrix);
 
-void mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
 
-void mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
 
-void mul_Nx64_64x64_acc(uint64 *v, uint64 *x, uint64 *y, uint32 n);
+void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x, uint64 *y, uint32 n);
 
-void mul_64xN_Nx64(uint64 *x, uint64 *y, uint64 *xy, uint32 n);
+void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y, uint64 *xy, uint32 n);
 
 /* for big jobs, we use a multithreaded framework that calls
    these two routines for the heavy lifting */
 
-void mul_packed_core(thread_data_t *t);
+void yafu_mul_packed_core(thread_data_t *t);
 
-void mul_trans_packed_core(thread_data_t *t);
+void yafu_mul_trans_packed_core(thread_data_t *t);
 
 #ifdef __cplusplus
 }

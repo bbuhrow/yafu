@@ -377,25 +377,37 @@ void get_gray_code(siqs_poly *poly)
 	return;
 }
 
-uint32 factor_list_add(fact_obj_t *obj, factor_list_t *list, 
+uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
 				z *new_factor) {
 
 	uint32 i, bitsleft;
 	int isnew = 1;
+	z tmpz;
+
+	zInit(&tmpz);
 
 	//look to see if we've already included this one
 	for (i=0; i<list->num_factors; i++)
-		isnew &= (zCompare(&list->final_factors[i]->factor,new_factor) != 0);
+	{
+		mp_t2z(&list->final_factors[i]->factor, &tmpz);
+		isnew &= (zCompare(&tmpz,new_factor) != 0);
+	}
 
 	if (isnew)
 	{
+		char buf[32 * MAX_MP_WORDS+1];
+
 		logprint(obj->logfile,
 			"prp%d = %s\n",ndigits(new_factor),z2decstr(new_factor,&gstr1));
 		list->final_factors[list->num_factors] = (final_factor_t *)malloc(
 			sizeof(final_factor_t));
-		zInit(&list->final_factors[list->num_factors]->factor);
-		zCopy(new_factor,&list->final_factors[list->num_factors]->factor);
-		list->final_factors[list->num_factors]->type = PRIME;
+		z2mp_t(new_factor, &list->final_factors[list->num_factors]->factor);
+		//printf("saving mp_t = ");
+		//mp_print(&list->final_factors[list->num_factors]->factor, 10, stdout, buf);
+		//printf("\n");
+		//zInit(&list->final_factors[list->num_factors]->factor);
+		//zCopy(new_factor,&list->final_factors[list->num_factors]->factor);
+		//list->final_factors[list->num_factors]->type = PRIME;
 		list->num_factors++;
 	}
 
@@ -403,8 +415,12 @@ uint32 factor_list_add(fact_obj_t *obj, factor_list_t *list,
 	//the bits in the original n
 	bitsleft = obj->bits;
 	for (i=0; i<list->num_factors; i++)
-		bitsleft -= zBits(&list->final_factors[i]->factor);
+	{
+		mp_t2z(&list->final_factors[i]->factor, &tmpz);
+		bitsleft -= zBits(&tmpz);
+	}
 
+	zFree(&tmpz);
 	return bitsleft;
 }
 

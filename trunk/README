@@ -25,11 +25,16 @@ use GMP-ECM.
 
 GCC 32 bit OS
 =============
-make x86 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1]
+make x86 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
 
 GCC 64 bit OS
 =============
-make x86_64 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1]
+make x86_64 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
+
+optionally enable GNFS factorizations by setting NFS=1 during
+make.  This will require the makefile to be edited to point to 
+the libmsieve.a library.  By default, it is assumed to be located
+at ../msieve/ relative to the Makefile.  
 
 optionally enable the p+1, p-1, and ecm factoring routines
 to utilize GMPECM libraries by setting GMPECM=1 during make.

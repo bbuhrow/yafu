@@ -38,28 +38,30 @@ Purpose:	Port into Yafu-1.14.
 #define SAVEFILE_BUF_SIZE 65536
 
 /*--------------------------------------------------------------------*/
-void savefile_init(savefile_t *s, char *savefile_name) {
+void qs_savefile_init(qs_savefile_t *s, char *savefile_name) {
 	
-	//memset(s, 0, sizeof(savefile_t));
+	memset(s, 0, sizeof(qs_savefile_t));
 
-	//s->name = "siqs.dat";
-	strcpy(s->name,"siqs.dat");
+	s->name = "siqs.dat";
+	//strcpy(s->name,"siqs.dat");
 	if (savefile_name)
-		strcpy(s->name,savefile_name);
-		//s->name = savefile_name;
+	{
+		s->name = savefile_name;
+		//strcpy(s->name,savefile_name);
+	}
 	
 	s->buf = (char *)xmalloc((size_t)SAVEFILE_BUF_SIZE);
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_free(savefile_t *s) {
+void qs_savefile_free(qs_savefile_t *s) {
 	
 	free(s->buf);
-	memset(s, 0, sizeof(savefile_t));
+	memset(s, 0, sizeof(qs_savefile_t));
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_open(savefile_t *s, uint32 flags) {
+void qs_savefile_open(qs_savefile_t *s, uint32 flags) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	DWORD access_arg, open_arg;
@@ -121,7 +123,7 @@ void savefile_open(savefile_t *s, uint32 flags) {
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_close(savefile_t *s) {
+void qs_savefile_close(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	CloseHandle(s->file_handle);
@@ -133,7 +135,7 @@ void savefile_close(savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 savefile_eof(savefile_t *s) {
+uint32 qs_savefile_eof(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	return (s->buf_off == s->read_size && s->eof);
@@ -143,7 +145,7 @@ uint32 savefile_eof(savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 savefile_exists(savefile_t *s) {
+uint32 qs_savefile_exists(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	struct _stat dummy;
@@ -155,7 +157,7 @@ uint32 savefile_exists(savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_read_line(char *buf, size_t max_len, savefile_t *s) {
+void qs_savefile_read_line(char *buf, size_t max_len, qs_savefile_t *s) {
 
 #if defined(WIN32) || defined(_WIN64)
 	size_t i, j;
@@ -201,16 +203,16 @@ void savefile_read_line(char *buf, size_t max_len, savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_write_line(savefile_t *s, char *buf) {
+void qs_savefile_write_line(qs_savefile_t *s, char *buf) {
 
 	if (s->buf_off + strlen(buf) + 1 >= SAVEFILE_BUF_SIZE)
-		savefile_flush(s);
+		qs_savefile_flush(s);
 
 	s->buf_off += sprintf(s->buf + s->buf_off, "%s", buf);
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_flush(savefile_t *s) {
+void qs_savefile_flush(qs_savefile_t *s) {
 
 #if defined(WIN32) || defined(_WIN64)
 	if (s->buf_off) {
@@ -229,7 +231,7 @@ void savefile_flush(savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-void savefile_rewind(savefile_t *s) {
+void qs_savefile_rewind(qs_savefile_t *s) {
 
 #if defined(WIN32) || defined(_WIN64)
 	LARGE_INTEGER fileptr;

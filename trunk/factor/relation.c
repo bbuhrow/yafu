@@ -1637,13 +1637,13 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	else
 		i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
 
-	savefile_write_line(&obj->qs_obj.savefile, buf);
+	qs_savefile_write_line(&obj->qs_obj.savefile, buf);
 
 	/* for partial relations, also update the bookeeping for
 	   tracking the number of fundamental cycles */
 
 	if (large_prime[0] != large_prime[1]) {
-		add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);
+		yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);
 		conf->num_cycles++;
 	}
 	else {
@@ -1912,7 +1912,7 @@ int process_rel(char *substr, fb_list *fb, z *n,
 			&sconf->curr_b[rel->poly_idx],rel,fb,n))
 	{
 		if (lp[0] != lp[1]) {
-			add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
+			yafu_add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
 			sconf->num_cycles++;
 		}
 		else {
@@ -1965,7 +1965,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					//just trying to figure out how many relations we have
 					//so read in the large primes and add to cycles
 					substr = strchr(substr,'L');
-					read_large_primes(substr,lp,lp+1);
+					yafu_read_large_primes(substr,lp,lp+1);
 					if (sconf->use_dlp)
 					{
 						if ((lp[0] > 1) && (lp[0] < pmax))
@@ -1981,7 +1981,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					}
 					if (lp[0] != lp[1]) 
 					{
-						add_to_cycles(sconf, sconf->obj->flags, lp[0], lp[1]);
+						yafu_add_to_cycles(sconf, sconf->obj->flags, lp[0], lp[1]);
 						sconf->num_cycles++;
 					}
 					else {
@@ -2201,7 +2201,7 @@ static uint32 add_to_hashtable(cycle_t *table, uint32 *hashtable,
 }
 
 /*--------------------------------------------------------------------*/
-void add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2) {
+void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2) {
 
 	/* Top level routine for updating the graph of partial
 	   relations */
@@ -2243,7 +2243,7 @@ relations and find/optimize all the cycles
 *******************************************************************************/
 #define NUM_CYCLE_BINS 8
 
-void qs_filter_relations(static_conf_t *sconf) {
+void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	/* Perform all of the postprocessing on the list
 	   of relations from the sieving phase. There are
@@ -2259,7 +2259,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 	uint32 num_derived_poly;
 	uint32 *final_poly_index;
 	uint32 num_relations, num_cycles, num_poly;
-	la_col_t *cycle_list;
+	qs_la_col_t *cycle_list;
 	siqs_r *relation_list;
 
 	uint32 i, passes, start;
@@ -2285,14 +2285,14 @@ void qs_filter_relations(static_conf_t *sconf) {
 	total_poly_a = 0;
 
 	/* skip over the first line */
-	savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
-	savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+	qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
+	qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
 
 	//we don't know beforehand how many rels to expect, so start
 	//with some amount and allow it to increase as we read them
 	relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
 	curr_rel = 10000;
-	while (!savefile_eof(&obj->qs_obj.savefile)) {
+	while (!qs_savefile_eof(&obj->qs_obj.savefile)) {
 		char *start;
 
 		switch (buf[0]) {
@@ -2304,7 +2304,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 			start = strchr(buf, 'L');
 			if (start != NULL) {
 				uint32 prime1, prime2;
-				read_large_primes(start, &prime1, &prime2);
+				yafu_read_large_primes(start, &prime1, &prime2);
 				if (i == curr_rel) {
 					curr_rel = 3 * curr_rel / 2;
 					relation_list = (siqs_r *)xrealloc(
@@ -2320,7 +2320,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 			break;
 		}
 
-		savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
 	}
 	
 	num_relations = i;
@@ -2362,7 +2362,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 	/* Read in the relations and the polynomials they use
 	   at the same time. */
 
-	savefile_rewind(&obj->qs_obj.savefile);
+	qs_savefile_rewind(&obj->qs_obj.savefile);
 
 	first = 1;
 	while (curr_expected < num_relations) {
@@ -2371,9 +2371,9 @@ void qs_filter_relations(static_conf_t *sconf) {
 		siqs_r *r;
 
 		/* read in the next entity */
-		if (savefile_eof(&obj->qs_obj.savefile))
+		if (qs_savefile_eof(&obj->qs_obj.savefile))
 			break;
-		savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
 
 		switch (buf[0]) {
 		case 'A':
@@ -2497,7 +2497,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 		printf("recovered %u polynomials\n", i);
 	}
 
-	savefile_close(&obj->qs_obj.savefile);
+	qs_savefile_close(&obj->qs_obj.savefile);
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,
 					   i * sizeof(poly_t));
@@ -2517,7 +2517,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 	for (i = 0; i < num_relations; i++) {
 		siqs_r *r = relation_list + i;
 		if (r->large_prime[0] != r->large_prime[1]) {
-			add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], 
+			yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], 
 					r->large_prime[1]);
 		}
 	}
@@ -2586,7 +2586,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 	logprint(obj->logfile, "attempting to build %u cycles\n", num_cycles);
 	if (VFLAG > 0)
 		printf("attempting to build %u cycles\n", num_cycles);
-	cycle_list = (la_col_t *)xmalloc(num_cycles * sizeof(la_col_t));
+	cycle_list = (qs_la_col_t *)xmalloc(num_cycles * sizeof(qs_la_col_t));
 
 	/* keep going until either all cycles are found, all
 	   relations are processed, or cycles stop arriving. 
@@ -2614,7 +2614,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 				   'start'. The relation is now frozen at 
 				   that position */
 
-				la_col_t *c = cycle_list + curr_cycle++;
+				qs_la_col_t *c = cycle_list + curr_cycle++;
 				relation_list[i] = relation_list[start];
 				relation_list[start] = rtmp;
 
@@ -2660,7 +2660,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 				entry2->count = start;
 			}
 			else {
-				la_col_t *c = cycle_list + curr_cycle;
+				qs_la_col_t *c = cycle_list + curr_cycle;
 				c->cycle.list = NULL;
 				enumerate_cycle(obj, c, table, entry1,
 						entry2, start);
@@ -2694,7 +2694,7 @@ void qs_filter_relations(static_conf_t *sconf) {
 	   If the linear algebra code skips any cycles it
 	   can easily skip the most dense cycles */
 
-	qsort(cycle_list, (size_t)num_cycles, sizeof(la_col_t), sort_cycles);
+	qsort(cycle_list, (size_t)num_cycles, sizeof(qs_la_col_t), yafu_sort_cycles);
 
 	sconf->relation_list = relation_list;
 	sconf->num_relations = num_relations;
@@ -2756,7 +2756,7 @@ void pull_large_primes()
 			start = strchr(buf, 'L');
 			if (start != NULL) {
 				uint32 prime1, prime2;
-				read_large_primes(start, &prime1, &prime2);
+				yafu_read_large_primes(start, &prime1, &prime2);
 
 				if ((prime1 != 1) && (prime2 != 1))
 				{
@@ -2847,7 +2847,7 @@ uint32 purge_duplicate_relations(fact_obj_t *obj,
 	return j;
 }
 
-void read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
+void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 
 	char *next_field;
 	uint32 p1, p2;
@@ -2959,7 +2959,7 @@ uint32 purge_singletons(fact_obj_t *obj, siqs_r *list,
 
 /*--------------------------------------------------------------------*/
 void enumerate_cycle(fact_obj_t *obj, 
-			    la_col_t *c, 
+			    qs_la_col_t *c, 
 			    cycle_t *table,
 			    cycle_t *entry1, cycle_t *entry2,
 			    uint32 final_relation) {
@@ -3039,9 +3039,9 @@ void enumerate_cycle(fact_obj_t *obj,
 }
 
 /*--------------------------------------------------------------------*/
-int sort_cycles(const void *x, const void *y) {
-	la_col_t *xx = (la_col_t *)x;
-	la_col_t *yy = (la_col_t *)y;
+int yafu_sort_cycles(const void *x, const void *y) {
+	qs_la_col_t *xx = (qs_la_col_t *)x;
+	qs_la_col_t *yy = (qs_la_col_t *)y;
 
 	/* Callback for sorting a list of cycles by the
 	   number of relations each contains */

@@ -17,7 +17,7 @@ benefit from your work.
 	   when the matrix is in packed format */
 
 /*-------------------------------------------------------------------*/
-static void mul_trans_one_med_block(packed_block_t *curr_block,
+static void yafu_mul_trans_one_med_block(packed_block_t *curr_block,
 			uint64 *curr_row, uint64 *curr_b) {
 
 	uint16 *entries = curr_block->med_entries;
@@ -212,7 +212,7 @@ static void mul_trans_one_med_block(packed_block_t *curr_block,
 }
 
 /*-------------------------------------------------------------------*/
-static void mul_trans_one_block(packed_block_t *curr_block,
+static void yafu_mul_trans_one_block(packed_block_t *curr_block,
 				uint64 *curr_row, uint64 *curr_b) {
 
 	uint32 i = 0;
@@ -319,7 +319,7 @@ static void mul_trans_one_block(packed_block_t *curr_block,
 }
 
 /*-------------------------------------------------------------------*/
-void mul_trans_packed_core(thread_data_t *t) {
+void yafu_mul_trans_packed_core(thread_data_t *t) {
 
 	uint64 *x = t->x;
 	uint64 *b = t->b;
@@ -334,11 +334,11 @@ void mul_trans_packed_core(thread_data_t *t) {
 	for (i = 0; i < t->num_blocks; i++) {
 		packed_block_t *curr_block = t->blocks + i;
 		if (curr_block->med_entries)
-			mul_trans_one_med_block(curr_block, 
+			yafu_mul_trans_one_med_block(curr_block, 
 					x + curr_block->start_row,
 					b + curr_block->start_col);
 		else
-			mul_trans_one_block(curr_block, 
+			yafu_mul_trans_one_block(curr_block, 
 					x + curr_block->start_row,
 					b + curr_block->start_col);
 	}
@@ -346,7 +346,7 @@ void mul_trans_packed_core(thread_data_t *t) {
 	/* multiply the densest few rows by x (in batches of 64 rows) */
 
 	for (i = 0; i < (t->num_dense_rows + 63) / 64; i++) {
-		mul_Nx64_64x64_acc(t->dense_blocks[i], x + 64 * i, 
+		yafu_mul_Nx64_64x64_acc(t->dense_blocks[i], x + 64 * i, 
 				   b + t->blocks[0].start_col, t->ncols);
 	}
 }

@@ -38,10 +38,11 @@ code to the public domain.
 #define OCT 8
 #define BIN 2
 
+//max words for fixed precision msieve bignum
+#define MAX_MP_WORDS 32
+
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024
-
-//#define NO_ASM
 
 //support libraries
 #include "types.h"
@@ -62,6 +63,16 @@ typedef struct
 	int size;
 	int type;
 } z32;
+
+typedef struct {
+	uint32 nwords;		/* number of nonzero words in val[] */
+	uint32 val[MAX_MP_WORDS];
+} mp_t;
+
+typedef struct {
+	uint32 sign;	/* POSITIVE or NEGATIVE */
+	mp_t num;
+} signed_mp_t;
 
 typedef struct
 {
@@ -201,6 +212,7 @@ int PRIMES_TO_SCREEN;
 int THREADS;
 int AUTO_FACTOR;
 int SCALE;
+int NO_ECM;
 int USEBATCHFILE;
 int USERSEED;
 uint32 L1CACHE, L2CACHE;
@@ -251,11 +263,14 @@ char flogname[1024];
 //input batch file
 char batchfilename[1024];
 
-//siqs files
+//siqs save file name
 char siqs_savefile[1024];
 
 //session name
 char sessionname[1024];
+
+//ggnfs binaries directory
+char ggnfs_dir[1024];
 
 //random seeds and the state of the LCG
 rand_t g_rand;

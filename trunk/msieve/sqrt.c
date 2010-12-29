@@ -20,7 +20,7 @@ Purpose:	Port into Yafu-1.14.
 /*--------------------------------------------------------------------*/
 uint32 find_factors(fact_obj_t *obj, z *n, 
 		fb_element_siqs *factor_base, uint32 fb_size,
-		la_col_t *vectors, uint32 vsize, 
+		qs_la_col_t *vectors, uint32 vsize, 
 		siqs_r *relation_list,
 		uint64 *null_vectors, uint32 multiplier,
 		z *poly_a_list, poly_t *poly_list,
@@ -268,7 +268,7 @@ uint32 find_factors(fact_obj_t *obj, z *n,
 			}
 
 			//add the factor to our global list
-			bits = factor_list_add(obj, factor_list, &tmp);
+			bits = yafu_factor_list_add(obj, factor_list, &tmp);
 
 			//check if only the multiplier remains
 			if (abs(bits) < 8)
@@ -282,7 +282,7 @@ uint32 find_factors(fact_obj_t *obj, z *n,
 			{
 				//add it to our global factor list
 				//printf("remaining cofactor is prime\n");
-				bits = factor_list_add(obj, factor_list, &tmp2);
+				bits = yafu_factor_list_add(obj, factor_list, &tmp2);
 
 				//then bail
 				break;
@@ -300,7 +300,7 @@ uint32 find_factors(fact_obj_t *obj, z *n,
 					{
 						//add it to our global factor list
 						//printf("remaining cofactor is prime after removing multiplier\n");
-						bits = factor_list_add(obj, factor_list, &tmp);
+						bits = yafu_factor_list_add(obj, factor_list, &tmp);
 
 						//then bail
 						break;
