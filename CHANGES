@@ -1,3 +1,18 @@
+v 1.22
++ incorporated a completely automated multi-threaded gnfs implemetation by using msieve 
+	library calls and externally called ggnfs lasieve binaries.  currently snfs not supported.
++ creation of different filter heirarchy in MSVC solution
++ some rearrangement of function declarations
++ changed symbol names of all ported msieve code so that there aren't any collisions
+	with symbols defined in msieve libraries linked for NFS purposes (libraries contain
+	mpqs and common code as well as NFS code).
++ added a -noecm flag
++ added a flag to specify the directory of ggnfs binaries
++ modifications to factor() to incorporate nfs (currently only linux supported), with
+	limited size tuning (cutoff set to 95 digits).
++ added a nfs() function (currently only linux supported)
+
+
 v 1.21 12/22/10
 + first sourceforge release
 + report number of primes in each category correctly when running/compiling with TIMING=1

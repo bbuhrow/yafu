@@ -159,4 +159,11 @@ void z32_to_z32(z *src, z32 *dest);
 void swap(z *a, z *b);
 double rint(double x);
 
+// we need to convert between yafu bigints and msieve bigints occasionally
+void z2mp_t(z *src, mp_t *dest);
+void z2signed_mp_t(z *src, signed_mp_t *dest);
+void mp_t2z(mp_t *src, z *dest);
+
+char * mp_print(mp_t *a, uint32 base, FILE *f, char *scratch);
+#define mp_sprintf(a, base, scratch) mp_print(a, base, NULL, scratch)
 

@@ -316,7 +316,7 @@ typedef struct {
 	z *curr_b;					// list of all the 'b' values for that 'a' 
 	uint32 bpoly_alloc;			// size of allocated curr_b
 	siqs_r *relation_list;		// list of relations	
-	la_col_t *cycle_list;		/* cycles derived from relations */
+	qs_la_col_t *cycle_list;		/* cycles derived from relations */
 	siqs_poly *curr_poly;		// current poly during filtering
 
 } static_conf_t;
@@ -464,11 +464,11 @@ uint32 purge_duplicate_relations(fact_obj_t *obj,
 				siqs_r *rlist, 
 				uint32 num_relations);
 void enumerate_cycle(fact_obj_t *obj, 
-			    la_col_t *c, 
+			    qs_la_col_t *c, 
 			    cycle_t *table,
 			    cycle_t *entry1, cycle_t *entry2,
 			    uint32 final_relation);
-int sort_cycles(const void *x, const void *y);
+int yafu_sort_cycles(const void *x, const void *y);
 
 //aux
 uint8 choose_multiplier_siqs(uint32 B, z *n);
@@ -518,47 +518,47 @@ void asm_profile(fact_obj_t *fobj);
 		the only guarantee is that its final value is at least 
 		fb_size + NUM_EXTRA_RELATIONS */
 
-void solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
+void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
 		    uint64 **bitfield, 
 		    siqs_r *relation_list, 
-		    la_col_t *cycle_list,
+		    qs_la_col_t *cycle_list,
 		    uint32 *num_cycles);
 
 /* merge src1[] and src2[] into merge_array[], assumed
    large enough to hold the merged result. Return the
    final number of elements in merge_array */
 
-uint32 merge_relations(uint32 *merge_array,
+uint32 qs_merge_relations(uint32 *merge_array,
 		  uint32 *src1, uint32 n1,
 		  uint32 *src2, uint32 n2);
 
-uint64 * block_lanczos(fact_obj_t *obj,
+uint64 * qs_block_lanczos(fact_obj_t *obj,
 			uint32 nrows, 
 			uint32 num_dense_rows,
 			uint32 ncols, 
-			la_col_t *cols,
+			qs_la_col_t *cols,
 			uint32 *deps_found);
 
-void count_matrix_nonzero(fact_obj_t *obj,
+void count_qs_matrix_nonzero(fact_obj_t *obj,
 			uint32 nrows, uint32 num_dense_rows,
-			uint32 ncols, la_col_t *cols);
+			uint32 ncols, qs_la_col_t *cols);
 
-void reduce_matrix(fact_obj_t *obj, uint32 *nrows, 
+void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows, 
 		uint32 num_dense_rows, uint32 *ncols, 
-		la_col_t *cols, uint32 num_excess);
+		qs_la_col_t *cols, uint32 num_excess);
 
-void free_cycle_list(la_col_t *cycle_list, uint32 num_cycles);
+void qs_free_cycle_list(qs_la_col_t *cycle_list, uint32 num_cycles);
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/
 
 uint32 find_factors(fact_obj_t *obj, z *n, fb_element_siqs *factor_base, 
-			uint32 fb_size, la_col_t *vectors, 
+			uint32 fb_size, qs_la_col_t *vectors, 
 			uint32 vsize, siqs_r *relation_list,
 			uint64 *null_vectors, uint32 multiplier,
 			z *a_list, poly_t *poly_list, 
 			factor_list_t *factor_list);
 
-uint32 factor_list_add(fact_obj_t *obj, 
+uint32 yafu_factor_list_add(fact_obj_t *obj, 
 			factor_list_t *list, 
 			z *new_factor);
 
@@ -566,16 +566,16 @@ uint32 factor_list_add(fact_obj_t *obj,
 /* pull out the large primes from a relation read from
    the savefile */
 
-void read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
+void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
 
 /* given the primes from a sieve relation, add
    that relation to the graph used for tracking
    cycles */
 
-void add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2);
+void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2);
 
 /* perform postprocessing on a list of relations */
-void qs_filter_relations(static_conf_t *sconf);
+void yafu_qs_filter_relations(static_conf_t *sconf);
 
 //top
 void SIQS(fact_obj_t *fobj);

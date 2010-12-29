@@ -45,7 +45,7 @@ void SIQS(fact_obj_t *fobj)
 	static_conf_t *static_conf;
 
 	//stuff for lanczos
-	la_col_t *cycle_list;
+	qs_la_col_t *cycle_list;
 	uint32 num_cycles = 0;
 	uint64 *bitfield = NULL;
 	siqs_r *relation_list;
@@ -387,8 +387,8 @@ void SIQS(fact_obj_t *fobj)
 	free(static_conf->poly_a_list);
 
 	//finialize savefile
-	savefile_flush(&static_conf->obj->qs_obj.savefile);
-	savefile_close(&static_conf->obj->qs_obj.savefile);
+	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
+	qs_savefile_close(&static_conf->obj->qs_obj.savefile);
 
 	//for fun, compute the total number of locations sieved over
 	sp2z(static_conf->tot_poly,&tmp1);					//total number of polys
@@ -429,14 +429,14 @@ void SIQS(fact_obj_t *fobj)
 	static_conf->bpoly_alloc = 2;
 
 	//load and filter relations and polys.
-	qs_filter_relations(thread_data[0].sconf);
+	yafu_qs_filter_relations(thread_data[0].sconf);
 
 	cycle_list = static_conf->cycle_list;
 	num_cycles = static_conf->num_cycles;
 	relation_list = static_conf->relation_list;
 
 	//solve the system of equations
-	solve_linear_system(static_conf->obj, static_conf->factor_base->B, 
+	qs_solve_linear_system(static_conf->obj, static_conf->factor_base->B, 
 		&bitfield, relation_list, cycle_list, &num_cycles);
 
 	stop = clock();
@@ -716,7 +716,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//save the A value
 	sprintf(buf,"A %s\n",z2hexstr(&dconf->curr_poly->poly_a,&gstr1));
-	savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
+	qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 
 	//save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
@@ -752,7 +752,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	if ((uint32)sconf->num_r >= sconf->factor_base->B + sconf->num_extra_relations) 
 	{
 		//we've got enough total relations to stop		
-		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
 		dconf->buckets->list = NULL;
 		//signal that we should proceed to post-processing
 		state = 1;
@@ -762,19 +762,19 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		//we've got some relations, but not enough to finish.
 		//whether or not this is a big job, it needed to be resumed
 		//once so treat it as if it will need to be again.  use the savefile.
-		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 	}
 	else
 	{
 		//no relations found, get ready for new factorization
 		//we'll be writing to the savefile as we go, so get it ready
-		savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
 		sprintf(buf,"N %s\n",z2hexstr(&sconf->n,&gstr1));
-		savefile_write_line(&obj->qs_obj.savefile,buf);
-		savefile_flush(&obj->qs_obj.savefile);
-		savefile_close(&obj->qs_obj.savefile);
+		qs_savefile_write_line(&obj->qs_obj.savefile,buf);
+		qs_savefile_flush(&obj->qs_obj.savefile);
+		qs_savefile_close(&obj->qs_obj.savefile);
 		//and get ready for collecting relations
-		savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 	}
 
 	//print some info to the screen and the log file
@@ -1466,7 +1466,7 @@ int siqs_static_init(static_conf_t *sconf)
 		}
 		sconf->use_dlp = 0;
 	}
-	savefile_init(&obj->qs_obj.savefile, siqs_savefile);
+	qs_savefile_init(&obj->qs_obj.savefile, siqs_savefile);
 
 	//if we're using dlp, compute the range of residues which will
 	//be subjected to factorization beyond trial division
@@ -2060,18 +2060,25 @@ int free_siqs(static_conf_t *sconf)
 	zCopy(&sconf->n,&tmp1);
 	for (i=0;i<sconf->factor_list.num_factors;i++)
 	{
-		zDiv(&tmp1,&sconf->factor_list.final_factors[i]->factor,&sconf->n,&tmp2);
-		if (isPrime(&sconf->factor_list.final_factors[i]->factor))
+		z tmpz;
+		char buf[32 * MAX_MP_WORDS+1];
+		zInit(&tmpz);		
+
+		mp_t2z(&sconf->factor_list.final_factors[i]->factor,&tmpz);
+//		printf("extracting z = %s\n",z2decstr(&tmpz,&gstr1));
+
+		zDiv(&tmp1,&tmpz,&sconf->n,&tmp2);
+		if (isPrime(&tmpz))
 		{
-			sconf->factor_list.final_factors[i]->factor.type = PRP;
-			add_to_factor_list(sconf->obj, &sconf->factor_list.final_factors[i]->factor);
+			tmpz.type = PRP;
+			add_to_factor_list(sconf->obj, &tmpz);
 		}
 		else
 		{
-			sconf->factor_list.final_factors[i]->factor.type = COMPOSITE;
-			add_to_factor_list(sconf->obj, &sconf->factor_list.final_factors[i]->factor);
+			tmpz.type = COMPOSITE;
+			add_to_factor_list(sconf->obj, &tmpz);
 		}
-		zFree(&sconf->factor_list.final_factors[i]->factor);
+		zFree(&tmpz);
 		free(sconf->factor_list.final_factors[i]);
 		zCopy(&sconf->n,&tmp1);
 	}
@@ -2085,8 +2092,8 @@ int free_siqs(static_conf_t *sconf)
 	zFree(&tmp1);
 	zFree(&tmp2);
 
-	free(sconf->obj->qs_obj.savefile.name);
-	savefile_free(&sconf->obj->qs_obj.savefile);
+	//free(sconf->obj->qs_obj.savefile.name);
+	qs_savefile_free(&sconf->obj->qs_obj.savefile);
 
 	return 0;
 }

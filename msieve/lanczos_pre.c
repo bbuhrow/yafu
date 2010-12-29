@@ -24,19 +24,19 @@ typedef struct {
 	uint32 index;
 } row_count_t;
 
-static int compare_row_count(const void *x, const void *y) {
+static int yafu_compare_row_count(const void *x, const void *y) {
 	row_count_t *xx = (row_count_t *)x;
 	row_count_t *yy = (row_count_t *)y;
 	return yy->count - xx->count;
 }
 
-static int compare_row_index(const void *x, const void *y) {
+static int yafu_compare_row_index(const void *x, const void *y) {
 	row_count_t *xx = (row_count_t *)x;
 	row_count_t *yy = (row_count_t *)y;
 	return xx->index - yy->index;
 }
 
-static int compare_uint32(const void *x, const void *y) {
+static int yafu_compare_uint32(const void *x, const void *y) {
 	uint32 *xx = (uint32 *)x;
 	uint32 *yy = (uint32 *)y;
 	if (*xx > *yy)
@@ -46,23 +46,23 @@ static int compare_uint32(const void *x, const void *y) {
 	return 0;
 }
 
-static int compare_weight(const void *x, const void *y) {
-	la_col_t *xx = (la_col_t *)x;
-	la_col_t *yy = (la_col_t *)y;
+static int yafu_compare_weight(const void *x, const void *y) {
+	qs_la_col_t *xx = (qs_la_col_t *)x;
+	qs_la_col_t *yy = (qs_la_col_t *)y;
 	return xx->weight - yy->weight;
 }
 
 /*------------------------------------------------------------------*/
-void count_matrix_nonzero(fact_obj_t *obj,
+void count_qs_matrix_nonzero(fact_obj_t *obj,
 			uint32 nrows, uint32 num_dense_rows,
-			uint32 ncols, la_col_t *cols) {
+			uint32 ncols, qs_la_col_t *cols) {
 
 	uint32 i, j;
 	uint32 total_weight;
 	uint32 sparse_weight;
 	size_t mem_use;
 
-	mem_use = ncols * (sizeof(la_col_t) +
+	mem_use = ncols * (sizeof(qs_la_col_t) +
 		sizeof(uint32) * ((num_dense_rows + 31) / 32));
 
 	for (i = total_weight = sparse_weight = 0; i < ncols; i++) {
@@ -107,8 +107,8 @@ void count_matrix_nonzero(fact_obj_t *obj,
 /*------------------------------------------------------------------*/
 #define MAX_COL_WEIGHT 1000
 
-static void combine_cliques(uint32 num_dense_rows, 
-			uint32 *ncols_out, la_col_t *cols, 
+static void yafu_combine_cliques(uint32 num_dense_rows, 
+			uint32 *ncols_out, qs_la_col_t *cols, 
 			row_count_t *counts) {
 
 	uint32 i, j;
@@ -122,7 +122,7 @@ static void combine_cliques(uint32 num_dense_rows,
 	   that contains a nonzero entry in that row */
 
 	for (i = 0; i < ncols; i++) {
-		la_col_t *c = cols + i;
+		qs_la_col_t *c = cols + i;
 		for (j = 0; j < c->weight; j++) {
 			counts[c->data[j]].index = i;
 		}
@@ -131,8 +131,8 @@ static void combine_cliques(uint32 num_dense_rows,
 	/* for each column */
 
 	for (i = 0; i < ncols; i++) {
-		la_col_t *c0;
-		la_col_t *c1 = cols + i;
+		qs_la_col_t *c0;
+		qs_la_col_t *c1 = cols + i;
 		uint32 clique_base = (uint32)(-1);
 
 		if (c1->data == NULL)
@@ -168,10 +168,10 @@ static void combine_cliques(uint32 num_dense_rows,
 		/* merge column c1 into column c0. First merge the
 		   nonzero entries (do not assume they are sorted) */
 		qsort(c0->data, (size_t)c0->weight, 
-					sizeof(uint32), compare_uint32);
+					sizeof(uint32), yafu_compare_uint32);
 		qsort(c1->data, (size_t)c1->weight, 
-					sizeof(uint32), compare_uint32);
-		num_merged = merge_relations(merge_array, 
+					sizeof(uint32), yafu_compare_uint32);
+		num_merged = qs_merge_relations(merge_array, 
 						c0->data, c0->weight,
 						c1->data, c1->weight);
 		for (j = 0; j < dense_row_words; j++) {
@@ -222,9 +222,9 @@ static void combine_cliques(uint32 num_dense_rows,
 }
 
 /*------------------------------------------------------------------*/
-void reduce_matrix(fact_obj_t *obj, uint32 *nrows, 
+void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows, 
 		uint32 num_dense_rows, uint32 *ncols, 
-		la_col_t *cols, uint32 num_excess) {
+		qs_la_col_t *cols, uint32 num_excess) {
 
 	/* Perform light filtering on the nrows x ncols
 	   matrix specified by cols[]. The processing here is
@@ -252,7 +252,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 
 	/* sort the columns in order of increasing weight */
 
-	qsort(cols, (size_t)(*ncols), sizeof(la_col_t), compare_weight);
+	qsort(cols, (size_t)(*ncols), sizeof(qs_la_col_t), yafu_compare_weight);
 
 	/* count the number of nonzero entries in each row */
 
@@ -281,7 +281,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 			/* delete columns that contain a singleton row */
 
 			for (i = j = 0; i < reduced_cols; i++) {
-				la_col_t *col = cols + i;
+				qs_la_col_t *col = cols + i;
 				for (k = 0; k < col->weight; k++) {
 					if (counts[col->data[k]].count < 2)
 						break;
@@ -304,7 +304,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 			   of the cliques that it contains */
 
 			if (reduced_cols >= MIN_NCOLS_TO_PACK) {
-				combine_cliques(num_dense_rows, 
+				yafu_combine_cliques(num_dense_rows, 
 						&reduced_cols, 
 						cols, counts);
 			}
@@ -331,7 +331,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 			for (i = reduced_rows + num_excess;
 					i < reduced_cols; i++) {
 
-				la_col_t *col = cols + i;
+				qs_la_col_t *col = cols + i;
 				for (j = 0; j < col->weight; j++) {
 					counts[col->data[j]].count--;
 				}
@@ -365,7 +365,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 	if (VFLAG > 0)
 		printf("filtering completed in %u passes\n", passes);
 	logprint(obj->logfile, "filtering completed in %u passes\n", passes);
-	count_matrix_nonzero(obj, reduced_rows, num_dense_rows,
+	count_qs_matrix_nonzero(obj, reduced_rows, num_dense_rows,
 				reduced_cols, cols);
 
 	/* permute the row indices to remove rows with zero
@@ -376,19 +376,19 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 	for (i = num_dense_rows; i < *nrows; i++)
 		counts[i].index = i;
 	qsort(counts + num_dense_rows, (size_t)(*nrows - num_dense_rows), 
-			sizeof(row_count_t), compare_row_count);
+			sizeof(row_count_t), yafu_compare_row_count);
 	for (i = num_dense_rows; i < *nrows; i++)
 		counts[i].count = i;
 	qsort(counts + num_dense_rows, (size_t)(*nrows - num_dense_rows), 
-			sizeof(row_count_t), compare_row_index);
+			sizeof(row_count_t), yafu_compare_row_index);
 
 	for (i = 0; i < reduced_cols; i++) {
-		la_col_t *col = cols + i;
+		qs_la_col_t *col = cols + i;
 		for (j = 0; j < col->weight; j++) {
 			col->data[j] = counts[col->data[j]].count;
 		}
 		qsort(col->data, (size_t)col->weight, 
-				sizeof(uint32), compare_uint32);
+				sizeof(uint32), yafu_compare_uint32);
 	}
 
 	/* make heavy columns alternate with light columns; this
@@ -399,7 +399,7 @@ void reduce_matrix(fact_obj_t *obj, uint32 *nrows,
 	   scheme, but these consume huge amounts of memory */
 
 	for (i = 1, j = reduced_cols - 2; i < j; i += 2, j -= 2) {
-		la_col_t tmp = cols[i];
+		qs_la_col_t tmp = cols[i];
 		cols[i] = cols[j];
 		cols[j] = tmp;
 	}

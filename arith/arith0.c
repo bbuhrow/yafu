@@ -579,6 +579,96 @@ void z64_to_z32(z *a, z32 *b)
 	return;
 }
 
+void z2mp_t(z *src, mp_t *dest)
+{
+#if BITS_PER_DIGIT == 64
+	z32 tmp;
+	int i;
+
+	zInit32(&tmp);
+	z64_to_z32(src, &tmp);
+	
+	dest->nwords = abs(tmp.size);
+	for (i=0; i<abs(tmp.size); i++)
+		dest->val[i] = tmp.val[i];
+	
+	zFree32(&tmp);
+#else
+	int i;
+
+	dest->nwords = abs(src->size);
+	for (i=0; i<abs(src->size); i++)
+		dest->val[i] = src->val[i];
+
+#endif
+
+	return;
+}
+
+void mp_t2z(mp_t *src, z *dest)
+{
+#if BITS_PER_DIGIT == 64
+	z32 tmp;
+	int i, sz,j;
+
+	zInit32(&tmp);	
+	
+	if (src->nwords & 0x1)
+	{
+		sz = src->nwords + 1;
+		src->val[src->nwords]=0;
+	}
+	else
+		sz = src->nwords;
+
+	j = 0 ;
+	for (i=0; i<sz; i+=2)
+		dest->val[j++] = (uint64)src->val[i] | ((uint64)src->val[i+1] << 32);
+
+	dest->size = j;
+	dest->type = UNKNOWN;
+
+	zFree32(&tmp);
+#else
+	int i;
+
+	dest->size = src->nwords;
+	for (i=0; i<src->nwords; i++)
+		dest->val[i] = src->val[i];
+
+#endif
+
+	return;
+}
+
+void z2signed_mp_t(z *src, signed_mp_t *dest)
+{
+#if BITS_PER_DIGIT == 64
+	z32 tmp;
+	int i;
+
+	zInit32(&tmp);
+	z64_to_z32(src, &tmp);
+	
+	dest->num.nwords = abs(tmp.size);
+	dest->sign = (src->size < 0);
+	for (i=0; i<abs(tmp.size); i++)
+		dest->num.val[i] = tmp.val[i];
+
+	zFree32(&tmp);
+#else
+	int i;
+
+	dest->num.nwords = abs(src->size);
+	dest->sign = (src->size < 0);
+	for (i=0; i<abs(src->size); i++)
+		dest->num.val[i] = src->val[i];
+
+#endif
+
+	return;
+}
+
 void dbl2z(double n, z *a)
 {
 	char s[GSTR_MAXSIZE];

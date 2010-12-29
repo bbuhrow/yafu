@@ -126,7 +126,6 @@ void aligned_free(void *newptr);
 uint64 measure_processor_speed(void);
 int lock_thread_to_core(void);
 int unlock_thread_from_core(void);
-uint64 read_clock(void);
 void set_idle_priority(void);
 int qcomp_int(const void *x, const void *y);
 int qcomp_uint16(const void *x, const void *y);
@@ -156,8 +155,10 @@ enum cpu_type {
 	cpu_nehalem
 };
 
+uint64 read_clock(void);
 void get_cache_sizes(uint32 *level1_cache, uint32 *level2_cache);
 enum cpu_type get_cpu_type(void);
+
 int extended_cpuid(char *idstr, int *cachelinesize, int do_print);
 
 /* CPU-specific capabilities */

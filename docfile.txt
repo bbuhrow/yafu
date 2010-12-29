@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.21
+YAFU Version 1.22
 
 -------------
 Introduction:
@@ -52,7 +52,10 @@ flags to change program behavior.  Supported flags in v1.19 are:
 -forceDLP		Adding this flag forces SIQS to use double large primes
 -fmtmax <num>	max iterations for the fermat method
 -noopt			flag to force siqs to not perform optimization on the small tf bound
--vproc		Increase verbosity of processor detection code on startup
+-vproc			Increase verbosity of processor detection code on startup
+-noecm			Set this flag to skip all ECM stages in the factor() function and instead
+				proceed directly to QS/NFS after small factor detection.
+-ggnfs_dir <path>	path to ggnfs binaries
 
 These flags are ignored when redirecting input to yafu.
 

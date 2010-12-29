@@ -63,7 +63,8 @@ enum work_method {
 	ecm_curve,
 	pp1_curve,
 	pm1_curve,
-	qs_work
+	qs_work,
+	nfs_work
 };
 
 enum factorization_state {
@@ -83,7 +84,8 @@ enum factorization_state {
 	state_ecm_30digit,
 	state_ecm_35digit,
 	state_ecm_auto_increasing,
-	state_qs
+	state_qs,
+	state_nfs
 };
 
 static int refactor_depth = 0;
@@ -819,6 +821,12 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		//t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		//free(difference);
 
+	case nfs_work:
+		zCopy(b,&fobj->qs_obj.n);
+		test_msieve_gnfs(fobj);
+		zCopy(&fobj->qs_obj.n,b);
+		break;
+
 	default:
 		printf("nothing to do for method %d\n",method);
 		break;
@@ -1386,7 +1394,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(rho_work, -1, -1, &curves, b, fobj);
 			method_times.rho_time = t_time;
 			total_time += t_time * curves;
-			fact_state = state_pp1_lvl1;
+			fact_state = state_pp1_lvl1;			
 			break;
 
 		case state_pp1_lvl1:
@@ -1416,7 +1424,20 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(pm1_curve, 100000, 10000000, &curves, b, fobj);
 			method_times.pm1_lvl1_time_per_curve = t_time;
 			total_time += t_time * curves;
-			fact_state = state_ecm_15digit;
+			if (NO_ECM)
+			{
+				if (ndigits(b) > 95)
+#ifdef WIN32
+					fact_state = state_qs;
+#else
+					fact_state = state_nfs;
+#endif
+				else
+					fact_state = state_qs;
+			}
+			else
+				fact_state = state_ecm_15digit;
+
 			break;
 
 		case state_pm1_lvl2:
@@ -1437,7 +1458,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(ecm_curve, 2000, 200000, &curves, b, fobj);
 			method_times.ecm_15digit_time_per_curve = t_time;
 			total_time += t_time * curves;
-			fact_state = state_ecm_20digit;
+			fact_state = state_ecm_20digit;			
 			break;
 
 		case state_ecm_20digit:
@@ -1483,6 +1504,14 @@ void factor(fact_obj_t *fobj)
 			total_time += t_time * curves;
 			break;
 
+		case state_nfs:
+			curves = 1;
+			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
+			if (VFLAG > 0)
+				printf("ECM/NFS ratio was = %f\n",total_time/t_time);
+			total_time += t_time * curves;
+			break;
+
 		}
 
 		// first, check if we're done
@@ -1499,7 +1528,14 @@ void factor(fact_obj_t *fobj)
 			{
 				// either the number is small enough to finish off, or it would be better, 
 				// timewise, to switch
-				fact_state = state_qs;
+				if (ndigits(b) > 95)
+#ifdef WIN32
+					fact_state = state_qs;
+#else
+					fact_state = state_nfs;
+#endif
+				else
+					fact_state = state_qs;
 			}
 			else
 			{

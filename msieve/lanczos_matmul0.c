@@ -20,18 +20,18 @@ Purpose:	Port into Yafu-1.14.
 #include "util.h"
 
 /*-------------------------------------------------------------------*/
-static void mul_unpacked(packed_matrix_t *matrix,
+static void yafu_mul_unpacked(packed_matrix_t *matrix,
 			  uint64 *x, uint64 *b) {
 
 	uint32 ncols = matrix->ncols;
 	uint32 num_dense_rows = matrix->num_dense_rows;
-	la_col_t *A = matrix->unpacked_cols;
+	qs_la_col_t *A = matrix->unpacked_cols;
 	uint32 i, j;
 
 	memset(b, 0, ncols * sizeof(uint64));
 	
 	for (i = 0; i < ncols; i++) {
-		la_col_t *col = A + i;
+		qs_la_col_t *col = A + i;
 		uint32 *row_entries = col->data;
 		uint64 tmp = x[i];
 
@@ -42,7 +42,7 @@ static void mul_unpacked(packed_matrix_t *matrix,
 
 	if (num_dense_rows) {
 		for (i = 0; i < ncols; i++) {
-			la_col_t *col = A + i;
+			qs_la_col_t *col = A + i;
 			uint32 *row_entries = col->data + col->weight;
 			uint64 tmp = x[i];
 	
@@ -57,16 +57,16 @@ static void mul_unpacked(packed_matrix_t *matrix,
 }
 
 /*-------------------------------------------------------------------*/
-static void mul_trans_unpacked(packed_matrix_t *matrix,
+static void yafu_mul_trans_unpacked(packed_matrix_t *matrix,
 				uint64 *x, uint64 *b) {
 
 	uint32 ncols = matrix->ncols;
 	uint32 num_dense_rows = matrix->num_dense_rows;
-	la_col_t *A = matrix->unpacked_cols;
+	qs_la_col_t *A = matrix->unpacked_cols;
 	uint32 i, j;
 
 	for (i = 0; i < ncols; i++) {
-		la_col_t *col = A + i;
+		qs_la_col_t *col = A + i;
 		uint32 *row_entries = col->data;
 		uint64 accum = 0;
 
@@ -78,7 +78,7 @@ static void mul_trans_unpacked(packed_matrix_t *matrix,
 
 	if (num_dense_rows) {
 		for (i = 0; i < ncols; i++) {
-			la_col_t *col = A + i;
+			qs_la_col_t *col = A + i;
 			uint32 *row_entries = col->data + col->weight;
 			uint64 accum = b[i];
 	
@@ -94,7 +94,7 @@ static void mul_trans_unpacked(packed_matrix_t *matrix,
 }
 
 /*-------------------------------------------------------------------*/
-static void mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
+static void yafu_mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 	uint32 i;
 	uint32 ncols = matrix->ncols;
@@ -118,7 +118,7 @@ static void mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 		   saves one synchronize operation */
 
 		if (i == matrix->num_threads - 1) {
-			mul_packed_core(t);
+			yafu_mul_packed_core(t);
 		}
 		else {
 			t->command = COMMAND_RUN;
@@ -167,7 +167,7 @@ static void mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 }
 
 /*-------------------------------------------------------------------*/
-void mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
+void yafu_mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 	uint32 i;
 	uint32 ncols = matrix->ncols;
@@ -193,7 +193,7 @@ void mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 		   saves one synchronize operation */
 
 		if (i == matrix->num_threads - 1) {
-			mul_trans_packed_core(t);
+			yafu_mul_trans_packed_core(t);
 		}
 		else {
 			t->command = COMMAND_RUN_TRANS;
@@ -233,7 +233,7 @@ void mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 }
 
 /*-------------------------------------------------------------------*/
-int compare_row_off(const void *x, const void *y) {
+int yafu_compare_row_off(const void *x, const void *y) {
 	entry_idx_t *xx = (entry_idx_t *)x;
 	entry_idx_t *yy = (entry_idx_t *)y;
 
@@ -245,7 +245,7 @@ int compare_row_off(const void *x, const void *y) {
 	return (int)xx->col_off - (int)yy->col_off;
 }
 
-static void matrix_thread_init(thread_data_t *t) {
+static void yafu_matrix_thread_init(thread_data_t *t) {
 
 	uint32 i, j, k, m;
 	uint32 num_row_blocks;
@@ -254,7 +254,7 @@ static void matrix_thread_init(thread_data_t *t) {
 	packed_block_t *curr_stripe;
 	entry_idx_t *e;
 
-	la_col_t *A = t->initial_cols;
+	qs_la_col_t *A = t->initial_cols;
 	uint32 nrows = t->nrows_in;
 	uint32 col_min = t->col_min;
 	uint32 col_max = t->col_max;
@@ -281,7 +281,7 @@ static void matrix_thread_init(thread_data_t *t) {
 		}
 
 		for (i = 0; i < t->ncols; i++) {
-			la_col_t *c = A + col_min + i;
+			qs_la_col_t *c = A + col_min + i;
 			uint32 *src = c->data + c->weight;
 			for (j = 0; j < dense_row_blocks; j++) {
 				t->dense_blocks[j][i] = 
@@ -336,7 +336,7 @@ static void matrix_thread_init(thread_data_t *t) {
 		/* count the number of nonzero entries in each block */
 
 		for (j = 0; j < curr_cols; j++) {
-			la_col_t *c = A + col_min + i * block_size + j;
+			qs_la_col_t *c = A + col_min + i * block_size + j;
 
 			for (k = 0, b = curr_stripe; k < c->weight; k++) {
 				uint32 index = c->data[k];
@@ -369,7 +369,7 @@ static void matrix_thread_init(thread_data_t *t) {
 		}
 
 		for (j = 0; j < curr_cols; j++) {
-			la_col_t *c = A + col_min + i * block_size + j;
+			qs_la_col_t *c = A + col_min + i * block_size + j;
 
 			for (k = 0, b = curr_stripe; k < c->weight; k++) {
 				uint32 index = c->data[k];
@@ -394,7 +394,7 @@ static void matrix_thread_init(thread_data_t *t) {
 		b = curr_stripe;
 		e = b->entries;
 		qsort(e, (size_t)b->num_entries, 
-				sizeof(entry_idx_t), compare_row_off);
+				sizeof(entry_idx_t), yafu_compare_row_off);
 		for (j = k = 0; j < b->num_entries; j++) {
 			if (j == 0 || e[j].row_off != e[j-1].row_off)
 				k++;
@@ -431,7 +431,7 @@ static void matrix_thread_init(thread_data_t *t) {
 }
 
 /*-------------------------------------------------------------------*/
-static void matrix_thread_free(thread_data_t *t) {
+static void yafu_matrix_thread_free(thread_data_t *t) {
 
 	uint32 i;
 
@@ -450,9 +450,9 @@ static void matrix_thread_free(thread_data_t *t) {
 
 /*-------------------------------------------------------------------*/
 #if defined(WIN32) || defined(_WIN64)
-static DWORD WINAPI worker_thread_main(LPVOID thread_data) {
+static DWORD WINAPI yafu_worker_thread_main(LPVOID thread_data) {
 #else
-static void *worker_thread_main(void *thread_data) {
+static void *yafu_worker_thread_main(void *thread_data) {
 #endif
 	thread_data_t *t = (thread_data_t *)thread_data;
 
@@ -470,11 +470,11 @@ static void *worker_thread_main(void *thread_data) {
 		/* do work */
 
 		if (t->command == COMMAND_RUN)
-			mul_packed_core(t);
+			yafu_mul_packed_core(t);
 		else if (t->command == COMMAND_RUN_TRANS)
-			mul_trans_packed_core(t);
+			yafu_mul_trans_packed_core(t);
 		else if (t->command == COMMAND_INIT)
-			matrix_thread_init(t);
+			yafu_matrix_thread_init(t);
 		else if (t->command == COMMAND_END)
 			break;
 
@@ -489,7 +489,7 @@ static void *worker_thread_main(void *thread_data) {
 #endif
 	}
 
-	matrix_thread_free(t);
+	yafu_matrix_thread_free(t);
 
 #if defined(WIN32) || defined(_WIN64)
 	return 0;
@@ -499,7 +499,7 @@ static void *worker_thread_main(void *thread_data) {
 }
 
 /*-------------------------------------------------------------------*/
-static void start_worker_thread(thread_data_t *t, 
+static void yafu_start_worker_thread(thread_data_t *t, 
 				uint32 is_master_thread) {
 
 	/* create a thread that will handle matrix multiplies 
@@ -507,7 +507,7 @@ static void start_worker_thread(thread_data_t *t,
 	   not get its own thread (the current thread handles it) */
 
 	if (is_master_thread) {
-		matrix_thread_init(t);
+		yafu_matrix_thread_init(t);
 		return;
 	}
 
@@ -515,7 +515,7 @@ static void start_worker_thread(thread_data_t *t,
 #if defined(WIN32) || defined(_WIN64)
 	t->run_event = CreateEvent(NULL, FALSE, TRUE, NULL);
 	t->finish_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
+	t->thread_id = CreateThread(NULL, 0, yafu_worker_thread_main, t, 0, NULL);
 
 	WaitForSingleObject(t->finish_event, INFINITE); /* wait for ready */
 #else
@@ -524,7 +524,7 @@ static void start_worker_thread(thread_data_t *t,
 
 	pthread_cond_signal(&t->run_cond);
 	pthread_mutex_unlock(&t->run_lock);
-	pthread_create(&t->thread_id, NULL, worker_thread_main, t);
+	pthread_create(&t->thread_id, NULL, yafu_worker_thread_main, t);
 
 	pthread_mutex_lock(&t->run_lock); /* wait for ready */
 	while (t->command != COMMAND_WAIT)
@@ -533,11 +533,11 @@ static void start_worker_thread(thread_data_t *t,
 }
 
 /*-------------------------------------------------------------------*/
-static void stop_worker_thread(thread_data_t *t,
+static void yafu_stop_worker_thread(thread_data_t *t,
 				uint32 is_master_thread)
 {
 	if (is_master_thread) {
-		matrix_thread_free(t);
+		yafu_matrix_thread_free(t);
 		return;
 	}
 
@@ -558,8 +558,8 @@ static void stop_worker_thread(thread_data_t *t,
 }
 
 /*-------------------------------------------------------------------*/
-void packed_matrix_init(fact_obj_t *obj,
-			packed_matrix_t *p, la_col_t *A,
+void yafu_packed_matrix_init(fact_obj_t *obj,
+			packed_matrix_t *p, qs_la_col_t *A,
 			uint32 nrows, uint32 ncols,
 			uint32 num_dense_rows) {
 
@@ -661,18 +661,18 @@ void packed_matrix_init(fact_obj_t *obj,
 	   allocation is local on NUMA architectures */
 
 	for (i = 0; i < p->num_threads - 1; i++)
-		start_worker_thread(p->thread_data + i, 0);
+		yafu_start_worker_thread(p->thread_data + i, 0);
 
-	start_worker_thread(p->thread_data + i, 1);
+	yafu_start_worker_thread(p->thread_data + i, 1);
 }
 
 /*-------------------------------------------------------------------*/
-void packed_matrix_free(packed_matrix_t *p) {
+void yafu_packed_matrix_free(packed_matrix_t *p) {
 
 	uint32 i;
 
 	if (p->unpacked_cols) {
-		la_col_t *A = p->unpacked_cols;
+		qs_la_col_t *A = p->unpacked_cols;
 		for (i = 0; i < p->ncols; i++) {
 			free(A[i].data);
 			A[i].data = NULL;
@@ -683,21 +683,21 @@ void packed_matrix_free(packed_matrix_t *p) {
 		   its own memory */
 
 		for (i = 0; i < p->num_threads - 1; i++)
-			stop_worker_thread(p->thread_data + i, 0);
+			yafu_stop_worker_thread(p->thread_data + i, 0);
 
-		stop_worker_thread(p->thread_data + i, 1);
+		yafu_stop_worker_thread(p->thread_data + i, 1);
 	}
 }
 
 /*-------------------------------------------------------------------*/
-size_t packed_matrix_sizeof(packed_matrix_t *p) {
+size_t yafu_packed_matrix_sizeof(packed_matrix_t *p) {
 
 	uint32 i, j;
 	size_t mem_use = 0;
 
 	if (p->unpacked_cols) {
-		la_col_t *A = p->unpacked_cols;
-		mem_use = p->ncols * sizeof(la_col_t);
+		qs_la_col_t *A = p->unpacked_cols;
+		mem_use = p->ncols * sizeof(qs_la_col_t);
 		for (i = 0; i < p->ncols; i++) {
 			mem_use += A[i].weight * sizeof(uint32);
 		}
@@ -729,26 +729,26 @@ size_t packed_matrix_sizeof(packed_matrix_t *p) {
 }
 
 /*-------------------------------------------------------------------*/
-void mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
+void yafu_mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
 
 	/* Multiply the vector x[] by the matrix A (stored
 	   columnwise) and put the result in b[]. */
 
 	if (A->unpacked_cols)
-		mul_unpacked(A, x, b);
+		yafu_mul_unpacked(A, x, b);
 	else
-		mul_packed(A, x, b);
+		yafu_mul_packed(A, x, b);
 }
 
 /*-------------------------------------------------------------------*/
-void mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
+void yafu_mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
 
 	/* Multiply the vector x[] by the transpose of the
 	   matrix A and put the result in b[]. Since A is stored
 	   by columns, this is just a matrix-vector product */
 
 	if (A->unpacked_cols)
-		mul_trans_unpacked(A, x, b);
+		yafu_mul_trans_unpacked(A, x, b);
 	else
-		mul_trans_packed(A, x, b);
+		yafu_mul_trans_packed(A, x, b);
 }

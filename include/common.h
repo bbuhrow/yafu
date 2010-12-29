@@ -125,26 +125,6 @@ extern "C" {
 	#define ALIGN_LOOP /* nothing */
 #endif
 
-/*--------------DECLARATIONS FOR FACTORING METHODS -----------------*/
-
-
-
-#define SMALL_COMPOSITE_CUTOFF_BITS 85
-
-/* Factor a number up to 62 bits in size using the SQUFOF
-   algorithm. Returns zero if the factorization failed for 
-   whatever reason, otherwise returns one factor up to 31 bits.
-   Note that the factor returned may be 1, indicating a
-   trivial factorization you probably don't want */
-
-//uint32 squfof(z *n);
-
-
-/*-------------- MISCELLANEOUS STUFF ----------------------------------*/
-
-#define POSITIVE 0
-#define NEGATIVE 1
-
 
 #ifdef __cplusplus
 }

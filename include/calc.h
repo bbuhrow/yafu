@@ -38,7 +38,7 @@ code to the public domain.
 #define RIGHT 1
 #define LEFT 0
 
-#define NUM_FUNC 58
+#define NUM_FUNC 59
 
 //arbitrary precision calculator
 void testcalc(void);

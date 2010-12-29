@@ -8,9 +8,6 @@
     <Filter Include="Source Files\factoring">
       <UniqueIdentifier>{3d4fac14-d3e4-47e0-9a96-af519854d987}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\msieve">
-      <UniqueIdentifier>{64bc3fcc-d344-404a-9d55-da6d925a4587}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\tfm">
       <UniqueIdentifier>{8a6bb4b9-60ab-4166-b61c-d7be5247c90d}</UniqueIdentifier>
     </Filter>
@@ -23,6 +20,15 @@
     </Filter>
     <Filter Include="Source Files\sieve">
       <UniqueIdentifier>{492c5de7-16f5-4dbb-b4f1-745199a1cb53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\factoring\qs">
+      <UniqueIdentifier>{8b1eb3ac-614d-4f0c-96af-176c69147116}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\factoring\nfs">
+      <UniqueIdentifier>{bb92258d-b42f-4a0e-a0f0-a535037f3031}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\factoring\gmp-ecm">
+      <UniqueIdentifier>{2ff77beb-8735-4cf3-825a-ebc95e73fb0c}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -41,52 +47,10 @@
     <ClCompile Include="..\..\top\utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\algfactor.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\ecm.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\factor_common.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\gf2.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\MPQS.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\pm1.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\poly.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\pp1.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\pQS.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\relation.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\rho.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\sieve.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\SIQS.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\siqs_aux.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\siqs_test.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\smallmpqs.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\squfof.c">
@@ -94,33 +58,6 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\trialdiv.c">
       <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\lanczos.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\lanczos_matmul0.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\lanczos_matmul1.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\lanczos_matmul2.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\lanczos_pre.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\mpqs_gf2.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\savefile.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\sqrt.c">
-      <Filter>Source Files\msieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\msieve\squfof_jp.c">
-      <Filter>Source Files\msieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\tfm\fp_2expt.c">
       <Filter>Source Files\tfm</Filter>
@@ -203,6 +140,69 @@
     <ClCompile Include="..\..\eratosthenes\wrapper.c">
       <Filter>Source Files\sieve</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\ecm.c">
+      <Filter>Source Files\factoring\gmp-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gf2.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\MPQS.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\pm1.c">
+      <Filter>Source Files\factoring\gmp-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\poly.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\pp1.c">
+      <Filter>Source Files\factoring\gmp-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\pQS.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\relation.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\sieve.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\SIQS.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\siqs_aux.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\siqs_test.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\smallmpqs.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\lanczos.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\sqrt.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\lanczos_matmul0.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\lanczos_matmul1.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\lanczos_matmul2.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\lanczos_pre.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\msieve\savefile.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\nfs\nfs.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -224,9 +224,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\monty.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\msieve.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\qs.h">
