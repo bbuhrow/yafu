@@ -62,6 +62,9 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job);
 int check_existing_files(z *N, uint32 *last_spq);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char *line);
+uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
+void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
+void win_file_concat(nfs_threaddata_t *t);
 
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
@@ -93,21 +96,14 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
 	double t_time;
+	FILE *logfile;
 
 	//start a counter for the whole job
 	gettimeofday(&start, NULL);
 
 	//write the input bigint as a string
 	sInit(&input_str);
-	input = z2decstr(N, &input_str);
-	
-	//set flags to do poly selection
-	flags = 0;
-	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-	if (VFLAG > 1)
-		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-	flags = flags | MSIEVE_FLAG_NFS_POLY1;
-	flags = flags | MSIEVE_FLAG_NFS_POLY2;
+	input = z2decstr(N, &input_str);	
 
 	//create an msieve_obj
 	obj = msieve_obj_new(input, flags, NULL, NULL, NULL, seed1, seed2,
@@ -132,37 +128,38 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	{		
 		if (last_specialq == 0)
 		{
-			printf("nfs: continuing job - could not determine last special q; using default startq\n");
+			if (VFLAG >= 0)
+				printf("nfs: continuing job - could not determine last special q; using default startq\n");
+
+			logfile = fopen(flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: continuing job - could not determine last special q; using default startq\n");
+				fclose(logfile);
+			}
+
 			startq = job.fblim / 2;
 		}
 		else
 		{
-			printf("nfs: continuing job at specialq = %u\n",last_specialq);
+			if (VFLAG >= 0)
+				printf("nfs: continuing job at specialq = %u\n",last_specialq);
+
+			logfile = fopen(flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: continuing job at specialq = %u\n",last_specialq);
+				fclose(logfile);
+			}
+
 			startq = last_specialq;
 
 			// since we apparently found some relations, see if it is enough
-			//set flags to do filtering
-			flags = 0;
-			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-			if (VFLAG > 1)
-				flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-			flags = flags | MSIEVE_FLAG_NFS_FILTER;
-			obj->flags = flags;
-
-			//msieve: filter
-			if (VFLAG >= 0)
-				printf("nfs: msieve filtering\n");
-
-			{
-				FILE *tmp;
-				tmp = fopen("msieve.fb","r");
-				if (tmp == NULL)
-					ggnfs_to_msieve(&job);
-				else
-					fclose(tmp);
-			}
-
-			relations_needed = nfs_filter_relations(obj, &mpN);
+			relations_needed = do_msieve_filtering(obj, &job, &mpN);
 		}
 	}
 	else
@@ -179,25 +176,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		remove("msieve.dat.lp");
 		remove("msieve.dat.d");
 
-		//msieve: polyselect
-		if (VFLAG >= 0)
-			printf("nfs: msieve poly select\n");
-		status = factor_gnfs(obj, &mpN, &factor_list);		
-
-		//convert best poly to ggnfs job file
-		//check if polyselect made a .fb file
-		fid = fopen("msieve.fb","r");
-		if (fid == NULL)
-		{
-			// no, it didn't.  parse the .p file instead.
-			find_best_msieve_poly(N, &job);
-		}
-		else
-		{
-			// yes it did, close the file and call the conversion utility
-			fclose(fid);
-			msieve_to_ggnfs(&job);
-		}
+		do_msieve_polyselect(obj, &job, &mpN, &factor_list);
 		startq = job.fblim / 2;
 	}	
 
@@ -236,12 +215,21 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			startq += qrange;
 		}
 
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
+			fclose(logfile);
+		}
+
 		// create a new lasieve process in each thread and watch it
 		for (i = 0; i < THREADS; i++) 
 		{
 			nfs_threaddata_t *t = thread_data + i;
 
-			if (i == THREADS - 1) {
+			if (i == THREADS - 1) {				
 				lasieve_launcher(t);
 			}
 			else {
@@ -276,48 +264,16 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		{
 			nfs_threaddata_t *t = thread_data + i;
 		
-#ifdef WIN32
-			FILE *in, *out;
+#ifdef WIN32			
 			int a;
 
 			// test for cat
 			sprintf(syscmd,"echo testing | cat");
 			a = system(syscmd);
 	
-			if (a)
-			{
-				printf("for optimal performance, consider installing unix utilities for windows:\n");
-				printf("http://unxutils.sourceforge.net/ \n");
+			if (a)		
+				win_file_concat(t);
 
-				in = fopen(t->outfilename,"r");
-				if (in == NULL)
-				{
-					printf("could not open %s for reading\n",t->outfilename);
-					exit(-1);
-				}
-				out = fopen("msieve.dat","a");
-				if (out == NULL)
-				{
-					printf("could not open msieve.dat for appending\n");
-					exit(-1);
-				}
-				while (!feof(in))
-				{
-					char tmpline[GSTR_MAXSIZE], *tmpptr;
-					tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
-					if (tmpptr == NULL)
-						break;
-					else
-					{
-						if (strlen(tmpline) < 20)
-							printf("read abnormally short line: %s\n",tmpline);							
-						else
-							fputs(tmpline, out);
-					}
-				}
-				fclose(in);
-				fclose(out);
-			}
 #else
 			sprintf(syscmd,"cat %s >> msieve.dat",t->outfilename);
 			system(syscmd);
@@ -325,28 +281,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			
 		}
 
-		//set flags to do filtering
-		flags = 0;
-		flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-		if (VFLAG > 1)
-			flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-		flags = flags | MSIEVE_FLAG_NFS_FILTER;
-		obj->flags = flags;
-
-		//msieve: filter
-		if (VFLAG >= 0)
-			printf("nfs: msieve filtering\n");
-
-		{
-			FILE *tmp;
-			tmp = fopen("msieve.fb","r");
-			if (tmp == NULL)
-				ggnfs_to_msieve(&job);
-			else
-				fclose(tmp);
-		}
-
-		relations_needed = nfs_filter_relations(obj, &mpN);
+		relations_needed = do_msieve_filtering(obj, &job, &mpN);
 	}
 
 	//stop worker threads
@@ -368,7 +303,16 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	obj->flags = flags;
 
 	if (VFLAG >= 0)
-		printf("nfs: msieve linear algebra\n");
+		printf("nfs: commencing msieve linear algebra\n");
+	
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: commencing msieve linear algebra\n");
+		fclose(logfile);
+	}
 	nfs_solve_linear_system(obj, &mpN);			
 
 	//msieve: find factors
@@ -380,9 +324,18 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	obj->flags = flags;
 
 	if (VFLAG >= 0)
-		printf("nfs: msieve sqrt\n");
+		printf("nfs: commencing msieve sqrt\n");
+
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: commencing msieve sqrt\n");
+		fclose(logfile);
+	}
 	nfs_find_factors(obj, &mpN, &factor_list);
-	
+			
 	extract_factors(&factor_list,fobj);
 	
 	//start a counter for the whole job
@@ -401,6 +354,128 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	sFree(&input_str);
 
 	return;
+}
+
+void win_file_concat(nfs_threaddata_t *t)
+{
+	FILE *in, *out;
+
+	printf("for optimal performance, consider installing unix utilities for windows:\n");
+	printf("http://unxutils.sourceforge.net/ \n");
+
+	in = fopen(t->outfilename,"r");
+	if (in == NULL)
+	{
+		printf("could not open %s for reading\n",t->outfilename);
+		exit(-1);
+	}
+	out = fopen("msieve.dat","a");
+	if (out == NULL)
+	{
+		printf("could not open msieve.dat for appending\n");
+		exit(-1);
+	}
+	while (!feof(in))
+	{
+		char tmpline[GSTR_MAXSIZE], *tmpptr;
+		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
+		if (tmpptr == NULL)
+			break;
+		else
+			fputs(tmpline, out);
+	}
+	fclose(in);
+	fclose(out);
+
+	return;
+}
+
+void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list)
+{
+	int status;
+	FILE *fid, *logfile;
+	uint32 flags;
+
+	//msieve: polyselect
+	if (VFLAG >= 0)
+		printf("nfs: commencing msieve poly select\n");
+
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: commencing msieve poly select\n");
+		fclose(logfile);
+	}
+
+	//set flags to do poly selection
+	flags = 0;
+	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
+	if (VFLAG > 0)
+		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+	flags = flags | MSIEVE_FLAG_NFS_POLY1;
+	flags = flags | MSIEVE_FLAG_NFS_POLY2;
+
+	status = factor_gnfs(obj, mpN, factor_list);		
+
+	//convert best poly to ggnfs job file
+	//check if polyselect made a .fb file
+	fid = fopen("msieve.fb","r");
+	if (fid == NULL)
+	{
+		z N;
+		zInit(&N);
+
+		// no, it didn't.  parse the .p file instead.
+		mp_t2z(mpN,&N);
+		find_best_msieve_poly(&N, job);
+		zFree(&N);
+	}
+	else
+	{
+		// yes it did, close the file and call the conversion utility
+		fclose(fid);
+		msieve_to_ggnfs(job);
+	}
+
+	return;
+}
+
+uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN)
+{
+	FILE *tmp, *logfile;
+	uint32 relations_needed;
+	uint32 flags = 0;
+
+	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
+	if (VFLAG > 0)
+		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+	flags = flags | MSIEVE_FLAG_NFS_FILTER;
+	obj->flags = flags;
+
+	//msieve: filter
+	if (VFLAG >= 0)
+		printf("nfs: commencing msieve filtering\n");
+
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: commencing msieve filtering\n");
+		fclose(logfile);
+	}
+
+	tmp = fopen("msieve.fb","r");
+	if (tmp == NULL)
+		ggnfs_to_msieve(job);
+	else
+		fclose(tmp);
+
+	relations_needed = nfs_filter_relations(obj, mpN);
+
+	return relations_needed;
 }
 
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
@@ -523,7 +598,8 @@ void *lasieve_launcher(void *ptr)
 
 	if (VFLAG >= 0)
 	{
-		printf("nfs: sieving with command: %s\n",syscmd);
+		printf("nfs: commencing lattice sieving over range: %u - %u\n",
+			thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
 	}
 	system(syscmd);
 
@@ -534,6 +610,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 {
 	z tmp1, tmp2, *N = &fobj->qs_obj.n;
 	int i;
+	FILE *logfile;
 
 	// extract the factors
 	zInit(&tmp1);
@@ -543,6 +620,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	{
 		z tmpz;
 		zInit(&tmpz);		
+		char c[3];
 		
 		mp_t2z(&factor_list->final_factors[i]->factor,&tmpz);
 
@@ -551,12 +629,23 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		{
 			tmpz.type = PRP;
 			add_to_factor_list(fobj, &tmpz);
+			strcpy(c,"prp");
 		}
 		else
 		{
 			tmpz.type = COMPOSITE;
 			add_to_factor_list(fobj, &tmpz);
+			strcpy(c,"C");
 		}
+
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmp1),z2decstr(&tmp1,&gstr1));
+			fclose(logfile);
+		}		
 
 		zFree(&tmpz);		
 		//free(factor_list.final_factors[i]);
@@ -565,18 +654,30 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 
 	if (zCompare(&tmp1,&zOne) > 0)
 	{
+		char c[3];
 		if (isPrime(&tmp1))
 		{
 			tmp1.type = PRP;
 			add_to_factor_list(fobj, &tmp1);
+			strcpy(c,"prp");
 			zCopy(&zOne, N);
 		}
 		else
 		{
 			tmp1.type = COMPOSITE;
 			add_to_factor_list(fobj, &tmp1);
+			strcpy(c,"C");
 			zCopy(&zOne, N);
 		}
+
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmp1),z2decstr(&tmp1,&gstr1));
+			fclose(logfile);
+		}		
 	}
 
 	zFree(&tmp1);
@@ -589,7 +690,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 int check_existing_files(z *N, uint32 *last_spq)
 {
 	//check to see if there is a ggnfs.job for this number
-	FILE *in;
+	FILE *in, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
 	int ans;
 	z tmpz;
@@ -614,7 +715,21 @@ int check_existing_files(z *N, uint32 *last_spq)
 	ans = zCompare(&tmpz,N);
 	if (ans == 0)
 	{
+		
+
 		ans = 1;
+
+		if (VFLAG > 0)
+			printf("nfs: commencing NFS restart - searching for last special-q\n");
+
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "nfs: commencing NFS restart - searching for last special-q\n");
+			fclose(logfile);
+		}
 
 		// attempt to open data file
 		in = fopen("msieve.dat","r");
@@ -648,6 +763,8 @@ int check_existing_files(z *N, uint32 *last_spq)
 					*last_spq = 0;
 					return ans;
 				}
+
+				
 
 				// crawl through the entire data file to find the next to last line
 				while (!feof(in))
@@ -710,7 +827,8 @@ uint32 get_spq(char *line)
 	//next to the last line is in line2
 	int i;
 	uint32 ans;
-	printf("examining line %s\n",line);
+	if (VFLAG > 0)
+		printf("nfs: parsing special-q from line: %s\n",line);
 
 	ans = 0;
 	//note: this assumes algebraic side sieving

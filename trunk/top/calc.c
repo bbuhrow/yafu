@@ -794,7 +794,7 @@ int getFunc(char *s, int *nargs)
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sumpuzzle","aliquot","pseudolist","siqstune",
-						"ptable","primesum","fermat","nfs"};
+						"ptable","primesum","fermat","nfs","tune"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
 					2,2,1,1,1,
@@ -807,7 +807,7 @@ int getFunc(char *s, int *nargs)
 					2,2,2,2,2,
 					2,2,2,1,0,
 					0,5,1,2,1,
-					0,2,2,1};
+					0,2,2,1,0};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -1616,6 +1616,11 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		test_msieve_gnfs(fobj);
 		zCopy(&fobj->qs_obj.n,&operands[0]);
 		print_factors(fobj);
+		break;
+
+	case 59:
+		//tune, no arguments
+		factor_tune();
 		break;
 
 	default:

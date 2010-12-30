@@ -419,4 +419,6 @@ void test_msieve_gnfs(fact_obj_t *fobj);
 
 uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
 
+void factor_tune(void);
+
 #endif //_FACTOR_H
