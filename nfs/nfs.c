@@ -368,7 +368,6 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			
 	extract_factors(&factor_list,fobj);
 	
-	//start a counter for the whole job
 	gettimeofday(&stop, NULL);
 
 	difference = my_difftime (&start, &stop);
