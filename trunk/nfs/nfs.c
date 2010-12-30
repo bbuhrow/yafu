@@ -83,7 +83,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	mp_t mpN;
 	int status;
 	factor_list_t factor_list;
-	uint32 flags;
+	uint32 flags = 0;
 	FILE *fid;
 	int i;
 	ggnfs_job_t job;
@@ -97,6 +97,36 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	TIME_DIFF *	difference;
 	double t_time;
 	FILE *logfile;
+
+	//first a small amount of trial division
+	//which will add anything found to the global factor list
+	//this is only called with the main thread
+	zCopy(N,&fobj->div_obj.n);
+	zTrial(10000,0,fobj);
+	zCopy(&fobj->div_obj.n,N);
+
+	if (isPrime(N))
+	{
+		add_to_factor_list(fobj, N);
+		zCopy(&zOne,N);
+
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+			fclose(logfile);
+		}		
+	}
+
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "commencing nfs on c%d: %s",ndigits(N), z2decstr(N,&gstr1));
+		fclose(logfile);
+	}
 
 	//start a counter for the whole job
 	gettimeofday(&start, NULL);
@@ -268,7 +298,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			int a;
 
 			// test for cat
-			sprintf(syscmd,"echo testing | cat");
+			sprintf(syscmd,"cat %s >> msieve.dat",t->outfilename);
 			a = system(syscmd);
 	
 			if (a)		
@@ -416,6 +446,7 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 	flags = flags | MSIEVE_FLAG_NFS_POLY1;
 	flags = flags | MSIEVE_FLAG_NFS_POLY2;
+	obj->flags = flags;
 
 	status = factor_gnfs(obj, mpN, factor_list);		
 
@@ -611,6 +642,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	z tmp1, tmp2, *N = &fobj->qs_obj.n;
 	int i;
 	FILE *logfile;
+	char c[3];
 
 	// extract the factors
 	zInit(&tmp1);
@@ -619,8 +651,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	for (i=0;i<factor_list->num_factors;i++)
 	{
 		z tmpz;
-		zInit(&tmpz);		
-		char c[3];
+		zInit(&tmpz);				
 		
 		mp_t2z(&factor_list->final_factors[i]->factor,&tmpz);
 
