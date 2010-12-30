@@ -101,7 +101,9 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	//first a small amount of trial division
 	//which will add anything found to the global factor list
 	//this is only called with the main thread
-	zCopy(N,&fobj->div_obj.n);
+	if (VFLAG > 0)
+		printf("nfs: commencing trial factoring\n");
+	zCopy(N,&fobj->div_obj.n);	
 	zTrial(10000,0,fobj);
 	zCopy(&fobj->div_obj.n,N);
 
@@ -115,15 +117,20 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
+			if (VFLAG >= 0)
+				printf("PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
 			logprint(logfile, "PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
 			fclose(logfile);
 		}		
 	}
 
+	logfile = fopen(flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
 	{
+		if (VFLAG >= 0)
+			printf("commencing nfs on c%d: %s",ndigits(N), z2decstr(N,&gstr1));
 		logprint(logfile, "commencing nfs on c%d: %s",ndigits(N), z2decstr(N,&gstr1));
 		fclose(logfile);
 	}
