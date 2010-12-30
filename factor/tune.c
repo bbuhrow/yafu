@@ -4,6 +4,10 @@
 #include "qs.h"
 #include "gnfs.h"
 
+#define NUM_SIQS_PTS 5
+double best_linear_fit(double *x, double *y, int numpts, 
+	double *slope, double *intercept);
+
 void factor_tune(void)
 {
 	// perform trial runs on a set of inputs with known solutions using siqs and nfs
@@ -14,11 +18,16 @@ void factor_tune(void)
 	z n;
 	int i;
 	uint32 save_gbl_override_rel;
-	int save_gbl_override_blocks_flag;
+	int save_gbl_override_rel_flag;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
 	double t_time;
+	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
+		63709, 143984, 240663}; //, 568071, 793434, 1205061};
+	double siqs_extraptime[NUM_SIQS_PTS];
+	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80}; //, 85, 90, 95, 100};
+	double a, b, fit;
 
 	zInit(&n);
 
@@ -58,13 +67,12 @@ void factor_tune(void)
 	//requires 5783845 relations
 
 	save_gbl_override_rel = gbl_override_rel;
-	save_gbl_override_blocks_flag = gbl_override_blocks_flag;
-
-	gbl_override_rel = 10000;		
-	gbl_override_blocks_flag = 1;
+	save_gbl_override_rel_flag = gbl_override_rel_flag;
+		
+	gbl_override_rel_flag = 1;
 
 	// for each of the siqs inputs
-	for (i=0; i<10; i++)
+	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 		init_factobj(fobj);
@@ -72,7 +80,7 @@ void factor_tune(void)
 
 		//measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);
-
+		gbl_override_rel = 10000;	
 		gettimeofday(&start, NULL);
 		zCopy(&n,&fobj->qs_obj.n);
 		SIQS(fobj);
@@ -80,7 +88,10 @@ void factor_tune(void)
 		difference = my_difftime (&start, &stop);
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);			
+		// the number of relations actually gathered is stored in gbl_override_rel
+		siqs_extraptime[i] = t_time * siqs_actualrels[i] / gbl_override_rel;
 		printf("elapsed time for ~10k relations of c%d = %6.4f seconds.\n",ndigits(&n),t_time);
+		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
 
 		clear_factor_list(fobj);
 
@@ -89,8 +100,68 @@ void factor_tune(void)
 	}
 
 	gbl_override_rel = save_gbl_override_rel;		
-	gbl_override_blocks_flag = save_gbl_override_blocks_flag;
+	gbl_override_rel_flag = save_gbl_override_rel_flag;
+
+	fit = best_linear_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b);
+	printf("best linear fit is y = %g * x + %g\nR^2 = %g\n",pow(2.718281828459045,a),
+		pow(2.718281828459045,b),fit);
 
 	zFree(&n);
 	return;
 }
+
+double best_linear_fit(double *x, double *y, int numpts, 
+	double *slope, double *intercept)
+{
+	// given vectors of x and y values, compute the best linear fit
+	// to the data and return the slope and y-intercept of the line
+	// return the R^2 value.
+	// follows: http://mathworld.wolfram.com/LeastSquaresFitting.html
+	double avgX, avgY, varX, varY, cov, *yy;
+	int i;
+
+	yy = (double *)malloc(numpts * sizeof(double));
+
+	// linearize the y-axis
+	for (i=0; i<numpts; i++)
+		yy[i] = log(y[i]);
+
+	avgX = 0;
+	for (i=0; i<numpts; i++)
+		avgX += x[i];
+	avgX = avgX / (double)numpts;
+
+	avgY = 0;
+	for (i=0; i<numpts; i++)
+		avgY += yy[i];
+	avgY = avgY / (double)numpts;
+
+	varX = 0;
+	for (i=0; i<numpts; i++)
+		varX += (x[i] * x[i]);
+	varX = varX - (double)numpts * avgX * avgX;
+	varX /= (double)numpts;
+
+	varY = 0;
+	for (i=0; i<numpts; i++)
+		varY += (yy[i] * yy[i]);
+	varY = varY - (double)numpts * avgY * avgY;
+	varY /= (double)numpts;
+
+	cov = 0;
+	for (i=0; i<numpts; i++)
+		cov += (x[i] * yy[i]);
+	cov = cov - (double)numpts * avgX * avgY;
+	cov /= (double)numpts;
+
+	printf("average x = %g, average y = %g, varX = %g, varY = %g, cov = %g\n",
+		avgX, avgY, varX, varY, cov);
+	
+	*slope = cov / varX;
+	*intercept = avgY - *slope * avgX;
+
+	free(yy);
+	return cov * cov / (varX * varY);
+}
+
+

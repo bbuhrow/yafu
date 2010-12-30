@@ -66,6 +66,7 @@ void SIQS(fact_obj_t *fobj)
 	double t_time, opttime;
 	struct timeval myTVend, optstart, optstop;
 	TIME_DIFF *	difference;
+	int updatecode = 0;
 
 	//adaptive tf_small_cutoff variables
 	int avg_rels_per_A = 0;
@@ -353,7 +354,8 @@ void SIQS(fact_obj_t *fobj)
 		}
 
 		//check whether to continue or not, and update the screen
-		if (update_check(static_conf))
+		updatecode = update_check(static_conf);
+		if (updatecode)
 			break;
 
 		//if we need to continue, allocate the sieving structure again
@@ -369,6 +371,12 @@ void SIQS(fact_obj_t *fobj)
 	fclose(optfile);
 #endif	
 
+	if (updatecode == 2)
+	{
+		fclose(sieve_log);
+		return;
+	}
+
 	//stop worker threads
 	for (i=0; i<THREADS - 1; i++)
 	{
@@ -378,17 +386,19 @@ void SIQS(fact_obj_t *fobj)
 	}
 	stop_worker_thread(thread_data + i, 1);
 	free_sieve(thread_data[i].dconf);
-	free(thread_data[i].dconf->relation_buf);
+	free(thread_data[i].dconf->relation_buf);		
 
 	//we don't need the poly_a_list anymore... free it so the other routines
 	//can use it
 	for (i=0;i<static_conf->total_poly_a + 1;i++)
 		zFree(&static_conf->poly_a_list[i]);
 	free(static_conf->poly_a_list);
-
+	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
 	qs_savefile_close(&static_conf->obj->qs_obj.savefile);
+
+	
 
 	//for fun, compute the total number of locations sieved over
 	sp2z(static_conf->tot_poly,&tmp1);					//total number of polys
@@ -411,7 +421,7 @@ void SIQS(fact_obj_t *fobj)
 		printf("\n==== post processing stage (msieve-1.38) ====\n");
 	}
 
-	fobj->qs_obj.qs_time = t_time;
+	fobj->qs_obj.qs_time = t_time;	
 	
 	start = clock();
 
@@ -484,6 +494,8 @@ void SIQS(fact_obj_t *fobj)
 
 	static_conf->cycle_list = cycle_list;
 	static_conf->num_cycles = num_cycles;
+
+done:
 
 	//free everything else
 	free_siqs(thread_data[0].sconf);
@@ -1663,6 +1675,7 @@ int update_check(static_conf_t *sconf)
 	double t_update;
 	int tot_poly = sconf->tot_poly, i;
 	fb_list *fb = sconf->factor_base;
+	int retcode = 0;
 
 	zInit(&tmp1);
 	qstmp1 = &tmp1;
@@ -1708,7 +1721,10 @@ int update_check(static_conf_t *sconf)
 				sconf->num,z2decstr(qstmp1,&gstr1));
 			fflush(stdout);
 			fflush(stderr);
-			exit(1);
+			
+			gbl_override_rel = num_full + sconf->num_cycles;
+
+			return 2;
 		}
 
 		difference = my_difftime (&sconf->totaltime_start, &update_stop);
@@ -1729,7 +1745,8 @@ int update_check(static_conf_t *sconf)
 				sconf->num,z2decstr(qstmp1,&gstr1));
 			fflush(stdout);
 			fflush(stderr);
-			exit(1);
+			
+			return 2;
 		}
 		free(difference);
 
@@ -1806,7 +1823,7 @@ int update_check(static_conf_t *sconf)
 	}
 
 	zFree(&tmp1);
-	return 0;
+	return retcode;
 }
 
 int update_final(static_conf_t *sconf)

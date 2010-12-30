@@ -22,6 +22,7 @@ v 1.22
 + added an initial filtering run prior to sieving when restarting a NFS factorization
 + searching for last specialq saved no longer requires 'tail'.  dealing with free relations
 	meant a more robust solution was required.
++ added logging of NFS progress and results to yafu logfile.
 
 
 v 1.21 12/22/10

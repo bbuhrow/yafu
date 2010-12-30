@@ -143,6 +143,7 @@ YAFU_SRCS = \
 	factor/gf2.c \
 	factor/pQS.c \
 	factor/SIQS.c \
+	factor/tune.c \
 	arith/arith0.c \
 	arith/monty.c \
 	arith/arith1.c \
