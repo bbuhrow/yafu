@@ -205,6 +205,19 @@ int VFLAG, LOGFLAG;
 uint32 LOWER_POLYPOOL_INDEX;
 uint32 UPPER_POLYPOOL_INDEX;
 uint32 QS_DUMP_CUTOFF;
+
+// used to determine an estimate of QS runtime
+double QS_EXPONENT;
+double QS_MULTIPLIER;
+double QS_TUNE_FREQ;
+
+//used to determine an estimate of GNFS runtime
+double GNFS_EXPONENT;
+double GNFS_MULTIPLIER;
+double GNFS_TUNE_FREQ;
+
+double QS_GNFS_XOVER;
+
 uint32 NUM_WITNESSES;
 uint32 SIGMA;
 int PRIMES_TO_FILE;
@@ -223,6 +236,11 @@ uint32 maxbn;
 int NO_SIQS_OPT;
 double MEAS_CPU_FREQUENCY;
 int VERBOSE_PROC_INFO;
+double TARGET_ECM_QS_RATIO;
+double TARGET_ECM_GNFS_RATIO;
+double TARGET_ECM_SNFS_RATIO;
+char CPU_ID_STR[80];
+
 
 //globals for testing siqs
 int gbl_override_B_flag;

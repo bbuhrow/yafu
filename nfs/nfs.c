@@ -3,6 +3,8 @@
 #include "arith.h"
 #include "factor.h"
 
+//----------------------- LOCAL DATA TYPES -----------------------------------//
+
 enum nfs_thread_command {
 	NFS_COMMAND_INIT,
 	NFS_COMMAND_WAIT,
@@ -43,18 +45,8 @@ typedef struct {
 
 } nfs_threaddata_t;
 
-void nfs_stop_worker_thread(nfs_threaddata_t *t,
-				uint32 is_master_thread);
-void nfs_start_worker_thread(nfs_threaddata_t *t, 
-				uint32 is_master_thread);
-#if defined(WIN32) || defined(_WIN64)
-DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
-#else
-void *nfs_worker_thread_main(void *thread_data);
-#endif
-
+//----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
-
 void find_best_msieve_poly(z *N, ggnfs_job_t *job);
 void msieve_to_ggnfs(ggnfs_job_t *job);
 void ggnfs_to_msieve(ggnfs_job_t *job);
@@ -65,7 +57,17 @@ uint32 get_spq(char *line);
 uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
 void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void win_file_concat(nfs_threaddata_t *t);
+void nfs_stop_worker_thread(nfs_threaddata_t *t,
+				uint32 is_master_thread);
+void nfs_start_worker_thread(nfs_threaddata_t *t, 
+				uint32 is_master_thread);
+#if defined(WIN32) || defined(_WIN64)
+DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
+#else
+void *nfs_worker_thread_main(void *thread_data);
+#endif
 
+//----------------------- NFS ENTRY POINT ------------------------------------//
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
 	z *N = &fobj->qs_obj.n;
@@ -130,8 +132,8 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	else
 	{
 		if (VFLAG >= 0)
-			printf("commencing nfs on c%d: %s",ndigits(N), z2decstr(N,&gstr1));
-		logprint(logfile, "commencing nfs on c%d: %s",ndigits(N), z2decstr(N,&gstr1));
+			printf("nfs: commencing gnfs on c%d: %s\n",ndigits(N), z2decstr(N,&gstr1));
+		logprint(logfile, "nfs: commencing gnfs on c%d: %s\n",ndigits(N), z2decstr(N,&gstr1));
 		fclose(logfile);
 	}
 
@@ -334,7 +336,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	//msieve: build matrix
 	flags = 0;
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-	if (VFLAG > 1)
+	if (VFLAG > 0)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 	flags = flags | MSIEVE_FLAG_NFS_LA;
 	obj->flags = flags;
@@ -355,7 +357,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	//msieve: find factors
 	flags = 0;
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-	if (VFLAG > 1)
+	if (VFLAG > 0)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 	flags = flags | MSIEVE_FLAG_NFS_SQRT;
 	obj->flags = flags;

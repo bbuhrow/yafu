@@ -455,11 +455,11 @@ int zFactorial(uint32 n, z *w)
 		bins = (uint16 *)calloc(numbins,sizeof(uint16));
 		
 		//compute bins[i] = n/pi + n/pi^k + ... for pi^k < n
-		for (i=0;(uint32)spSOEprimes[i]<n;i++)
+		for (i=0; (uint32)spSOEprimes[i]<=n; i++)
 		{
 			test = (fp_digit)spSOEprimes[i];
 			bins[i] = 0;
-			while (test < n)
+			while (test <= n)
 			{
 				bins[i] += (uint16)(n/test);
 				test *= (fp_digit)spSOEprimes[i];

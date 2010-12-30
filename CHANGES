@@ -23,6 +23,15 @@ v 1.22
 + searching for last specialq saved no longer requires 'tail'.  dealing with free relations
 	meant a more robust solution was required.
 + added logging of NFS progress and results to yafu logfile.
++ added a small amount of trial division and a primalty test prior to starting NFS
+
++ output executable directory updated for yafu-32k (yafu-64k was ok) under Win32 (release and debug)
++ work on factor_tune: tuning produces exponential fit parameters and writes them to the 
+	yafu.ini file. The flag handling appartus then imports the tuning parameters and 
+	qs_time_estimation uses them if present.
+	Not quite done yet.
+	
+
 
 
 v 1.21 12/22/10
