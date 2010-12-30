@@ -26,8 +26,6 @@ code to the public domain.
 #include "util.h"
 #include "yafu_string.h"
 
-#define target_ecm_fraction 0.25
-
 // what would be neat: a file format definition and library of functions 
 // for recording the amount of work done on a number.  the library would
 // be able to parse the file to determine the next optimal factorization step
@@ -628,82 +626,95 @@ double get_qs_time_estimate(double freq, int digits)
 	double estimate;
 
 	cpu = yafu_get_cpu_type();
-	switch (cpu)
+	//if we have tuning info, use that instead
+	if (QS_MULTIPLIER != 0 && QS_EXPONENT != 0 && QS_TUNE_FREQ != 0)
 	{
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-			if (VFLAG >= 2)
-				printf("***** using 32bit windows p3 data for QS time estimation\n");
-			//use p3 windows 32 bit @ 3.4 GHz estimate
-			estimate = 0.0000967708 * exp(0.1981730566 * digits);
-			//scale with frequency
-			estimate = estimate * 3400.0 / freq; 
+		if (VFLAG >= 2)
+			printf("***** using tuning data for QS time estimation\n");
+		estimate = QS_MULTIPLIER * exp(QS_EXPONENT * digits);
 
-			break;
-		case 4:
+		//scale with frequency
+		estimate = estimate * QS_TUNE_FREQ / freq; 
+	}
+	else
+	{		
+		switch (cpu)
+		{
+			case 0:
+			case 1:
+			case 2:
+			case 3:
+				if (VFLAG >= 2)
+					printf("***** using 32bit windows p3 data for QS time estimation\n");
+				//use p3 windows 32 bit @ 3.4 GHz estimate
+				estimate = 0.0000967708 * exp(0.1981730566 * digits);
+				//scale with frequency
+				estimate = estimate * 3400.0 / freq; 
+
+				break;
+			case 4:
 			
-		case 5:
-			if (VFLAG >= 2)
-				printf("***** using 32bit windows p4 data for QS time estimation\n");
-			//use p4 windows 32 bit @ 3.8 GHz estimate
-			estimate = 0.0000836146 * exp(0.1984945754 * digits);
-			//scale with frequency
-			estimate = estimate * 3800.0 / freq; 
+			case 5:
+				if (VFLAG >= 2)
+					printf("***** using 32bit windows p4 data for QS time estimation\n");
+				//use p4 windows 32 bit @ 3.8 GHz estimate
+				estimate = 0.0000836146 * exp(0.1984945754 * digits);
+				//scale with frequency
+				estimate = estimate * 3800.0 / freq; 
 			 
-			break;
-		case 6:
-			//subdivide into 32bit or 64bit architecture
-			if (BITS_PER_DIGIT == 32)
-			{
+				break;
+			case 6:
+				//subdivide into 32bit or 64bit architecture
+				if (BITS_PER_DIGIT == 32)
+				{
+					if (VFLAG >= 2)
+						printf("***** using 64bit windows core2 data for QS time estimation\n");
+					estimate = 0.0000338875 * exp(0.2004412754 * digits);
+				}
+				else
+				{
+					if (VFLAG >= 2)
+						printf("***** using 64bit linux core2 data for QS time estimation\n");
+					estimate = 0.0000245199 * exp(0.2030407751 * digits);
+				}
+
+				//scale with frequency
+				estimate = estimate * 3000.0 / freq; 
+
+				break;
+			case 7:		
+			case 8:
+			case 9:
+				//subdivide into 32bit or 64bit architecture
 				if (VFLAG >= 2)
-					printf("***** using 64bit windows core2 data for QS time estimation\n");
-				estimate = 0.0000338875 * exp(0.2004412754 * digits);
-			}
-			else
-			{
+					printf("***** using 64bit linux opteron data for QS time estimation\n");
+				if (BITS_PER_DIGIT == 32)
+					estimate = 0.0000213524 * exp(0.2066333088 * digits);
+				else
+					estimate = 0.0000213524 * exp(0.2066333088 * digits);
+
+				//scale with frequency
+				estimate = estimate * 2800.0 / freq; 
+
+				break;
+			case 10:
+				//nehalem
 				if (VFLAG >= 2)
-					printf("***** using 64bit linux core2 data for QS time estimation\n");
-				estimate = 0.0000245199 * exp(0.2030407751 * digits);
-			}
+					printf("***** using 64bit linux nehalem data for QS time estimation\n");
 
-			//scale with frequency
-			estimate = estimate * 3000.0 / freq; 
+				estimate = 0.00002307333 * exp(0.2011087 * digits);
 
-			break;
-		case 7:		
-		case 8:
-		case 9:
-			//subdivide into 32bit or 64bit architecture
-			if (VFLAG >= 2)
-				printf("***** using 64bit linux opteron data for QS time estimation\n");
-			if (BITS_PER_DIGIT == 32)
-				estimate = 0.0000213524 * exp(0.2066333088 * digits);
-			else
-				estimate = 0.0000213524 * exp(0.2066333088 * digits);
+				//scale with frequency
+				estimate = estimate * 2930.0 / freq; 
 
-			//scale with frequency
-			estimate = estimate * 2800.0 / freq; 
+				break;
 
-			break;
-		case 10:
-			//nehalem
-			if (VFLAG >= 2)
-				printf("***** using 64bit linux nehalem data for QS time estimation\n");
-
-			estimate = 0.00002307333 * exp(0.2011087 * digits);
-
-			//scale with frequency
-			estimate = estimate * 2930.0 / freq; 
-
-			break;
-
-		default:
-			if (VFLAG >= 2)
-				printf("***** cpu type not found, ecm runtime will not be optimized\n");
-			estimate =  0;
-			break;
+			default:
+				if (VFLAG >= 2)
+					printf("***** cpu type not found, ecm runtime will not be optimized\n");
+				estimate =  0;
+				break;
+		}
 	}
 
 	//adjust for multi-threaded qs
@@ -946,7 +957,7 @@ int switch_to_qs(z *N, double *time_available)
 			decision = 0;
 			*time_available = -1;
 		}		
-		else if (total_time > target_ecm_fraction * qs_est_time)
+		else if (total_time > TARGET_ECM_QS_RATIO * qs_est_time)
 		{
 			// if the total time we've spent so far is greater than a fraction of the time
 			// we estimate it would take QS to finish, switch to qs.  
@@ -957,7 +968,7 @@ int switch_to_qs(z *N, double *time_available)
 		{
 			// otherwise, return the amount of time we have left before the switchover.
 			decision = 0;
-			*time_available = (target_ecm_fraction * qs_est_time) - total_time;
+			*time_available = (TARGET_ECM_QS_RATIO * qs_est_time) - total_time;
 		}
 
 	}

@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 30
+#define NUMOPTIONS 31
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -72,13 +72,17 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"noopt",
 	"vproc",
 	"noecm",
-	"ggnfs_dir"};
+	"ggnfs_dir",
+	"tune_info"};
+
 
 // indication of whether or not an option needs a corresponding argument
-int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,1,0,0,0,1};
+int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
+void apply_tuneinfo(char *arg);
 
 // functions to populate the global options with default values, and to free
 // those which allocate memory
@@ -102,7 +106,7 @@ int process_arguments(int argc, char **argv, char *input_exp);
 int main(int argc, char *argv[])
 {
 	uint32 i=0,insize = GSTR_MAXSIZE;
-	char *input_exp, *ptr, *indup, idstr[64];
+	char *input_exp, *ptr, *indup;
 	str_t str;
 	z tmp;
 	int nooutput,offset,slog,is_cmdline_run=0;
@@ -117,16 +121,16 @@ int main(int argc, char *argv[])
 	//set defaults for various things
 	set_default_globals();
 
+	//get the computer name, cache sizes, etc.  store in globals
+	get_computer_info(CPU_ID_STR);	
+
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
 	readINI();	
 
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp);
-
-	//get the computer name, cache sizes, etc.  store in globals
-	get_computer_info(idstr);	
-
+	
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
 	{
@@ -155,7 +159,7 @@ int main(int argc, char *argv[])
 		slog = 1;	
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
-	print_splash(is_cmdline_run, logfile, idstr);
+	print_splash(is_cmdline_run, logfile, CPU_ID_STR);
 
 	// bigint used in this routine
 	zInit(&tmp);
@@ -389,6 +393,10 @@ void readINI(void)
 	str = (char *)malloc(1024*sizeof(char));
 	while (fgets(str,1024,doc) != NULL)
 	{
+		//if first character is a % sign, skip this line
+		if (str[0] == '%')
+			continue;
+
 		//if last character of line is newline, remove it
 		do 
 		{
@@ -819,6 +827,17 @@ void set_default_globals(void)
 	VERBOSE_PROC_INFO = 0;
 	LOGFLAG = 1;
 	QS_DUMP_CUTOFF = 2048;
+
+	QS_EXPONENT = 0;
+	QS_MULTIPLIER = 0;
+	QS_TUNE_FREQ = 0;
+
+	GNFS_EXPONENT = 0;
+	GNFS_MULTIPLIER = 0;
+	GNFS_TUNE_FREQ = 0;
+
+	QS_GNFS_XOVER = 0;
+
 	NUM_WITNESSES = 20;
 	AUTO_FACTOR=0;
 	PRIME_THRESHOLD = 100000000;
@@ -830,6 +849,9 @@ void set_default_globals(void)
 	USERSEED = 0;
 	SIGMA = 0;
 	THREADS = 1;
+	TARGET_ECM_QS_RATIO = 0.25;
+	TARGET_ECM_GNFS_RATIO = 0.25;
+	TARGET_ECM_SNFS_RATIO = 0.20;
 	gbl_override_B_flag = 0;
 	gbl_override_blocks_flag = 0;
 	gbl_override_lpmult_flag = 0;
@@ -1416,6 +1438,12 @@ void applyOpt(char *opt, char *arg)
 		else
 			printf("*** argument to ggnfs_dir too long, ignoring ***\n");
 	}
+	else if (strcmp(opt,OptionArray[30]) == 0)
+	{
+		//parse the tune_info string and if it matches the current OS and CPU, 
+		//set the appropriate globals
+		apply_tuneinfo(arg);
+	}
 	else
 	{
 		printf("invalid option %s\n",opt);
@@ -1423,6 +1451,91 @@ void applyOpt(char *opt, char *arg)
 	}
 
 	zFree(&tmp);
+	return;
+}
+
+void apply_tuneinfo(char *arg)
+{
+	int i,j;
+	char cpustr[80], osstr[80];
+
+	//read up to the first comma - this is the cpu id string
+	j=0;
+	for (i=0; i<strlen(arg); i++)
+	{
+		if (arg[i] == 10) break;
+		if (arg[i] == 13) break;
+		if (arg[i] == ',') break;
+		cpustr[j++] = arg[i];
+	}
+	cpustr[j] = '\0';
+	i++;
+
+	//read up to the next comma - this is the OS string
+	j=0;
+	for ( ; i<strlen(arg); i++)
+	{
+		if (arg[i] == 10) break;
+		if (arg[i] == 13) break;
+		if (arg[i] == ',') break;
+		osstr[j++] = arg[i];
+	}
+	osstr[j] = '\0';
+
+	//printf("found OS = %s and CPU = %s in tune_info field\n",osstr, cpustr);
+
+
+#if defined(_WIN64)
+	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
+	{
+		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+			&QS_MULTIPLIER, &QS_EXPONENT,
+			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
+			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
+		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+
+	}
+#elif defined(WIN32)
+	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
+	{
+		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+			&QS_MULTIPLIER, &QS_EXPONENT,
+			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
+			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
+		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+	}
+#elif BITS_PER_DIGIT == 64
+	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
+	{
+		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+			&QS_MULTIPLIER, &QS_EXPONENT,
+			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
+			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
+		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+	}
+#else 
+	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
+	{
+		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		
+		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
+			&QS_MULTIPLIER, &QS_EXPONENT,
+			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
+			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
+		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+	}
+#endif	
+
+	//printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+	//	QS_MULTIPLIER, QS_EXPONENT,
+	//	GNFS_MULTIPLIER, GNFS_EXPONENT, 
+	//	QS_GNFS_XOVER, GNFS_TUNE_FREQ);
+
 	return;
 }
 
