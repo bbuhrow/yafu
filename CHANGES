@@ -48,6 +48,10 @@ v 1.22
 + gmp-ecm messages are printed now at verbosity level equal to 2 less than the yafu verbosity 
 	level.  for example, -v -v -v -v prints gmp-ecm messages at -v -v
 + added a minimum threshold below which nfs defaults to siqs
++ fixed a bug in the new factor structure where a number could be sent to siqs before any
+	pretesting.
++ removed messages to consider using unxutils. 
++ updated version to 1.22
 
 
 v 1.21 12/22/10
