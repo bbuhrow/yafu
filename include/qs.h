@@ -50,9 +50,8 @@ double COUNT;
 
 #define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
 #define MIN_FB_OFFSET 1
-#define NUM_EXTRA_RELATIONS 64
+#define NUM_EXTRA_QS_RELATIONS 64
 #define MAX_A_FACTORS 20
-#define MAX_THREADS 32
 //hold all the elements in a bucket of large primes
 //1 bucket = 1 block
 #define BUCKET_ALLOC 2048
@@ -199,14 +198,14 @@ typedef struct
 /* The sieving code needs a special structure for determining
    the number of cycles in a collection of partial relations */
 
-#define LOG2_CYCLE_HASH 22
+#define QS_LOG2_CYCLE_HASH 22
 
 typedef struct {
 	uint32 next;
 	uint32 prime;
 	uint32 data;
 	uint32 count;
-} cycle_t;
+} qs_cycle_t;
 
 typedef struct
 {
@@ -270,7 +269,7 @@ typedef struct {
 	z large_prime_max2;			// the cutoff value for factoring partials 
 
 	//master list of cycles
-	cycle_t *cycle_table;		/* list of all the vertices in the graph */
+	qs_cycle_t *cycle_table;		/* list of all the vertices in the graph */
 	uint32 cycle_table_size;	/* number of vertices filled in the table */
 	uint32 cycle_table_alloc;	/* number of cycle_t structures allocated */
 	uint32 *cycle_hashtable;	/* hashtable to index into cycle_table */
@@ -437,6 +436,7 @@ int free_sieve(dynamic_conf_t *dconf);
 int update_final(static_conf_t *sconf);
 int update_check(static_conf_t *sconf);
 int free_siqs(static_conf_t *sconf);
+void free_filter_vars(static_conf_t *sconf);
 
 //poly
 void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf);
@@ -457,16 +457,16 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB);
 int process_rel(char *substr, fb_list *fb, z *n,
 				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel);
 int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf);
-uint32 purge_singletons(fact_obj_t *obj, siqs_r *list, 
+uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
 				uint32 num_relations,
-				cycle_t *table, uint32 *hashtable);
-uint32 purge_duplicate_relations(fact_obj_t *obj,
+				qs_cycle_t *table, uint32 *hashtable);
+uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 				siqs_r *rlist, 
 				uint32 num_relations);
-void enumerate_cycle(fact_obj_t *obj, 
+void qs_enumerate_cycle(fact_obj_t *obj, 
 			    qs_la_col_t *c, 
-			    cycle_t *table,
-			    cycle_t *entry1, cycle_t *entry2,
+			    qs_cycle_t *table,
+			    qs_cycle_t *entry1, qs_cycle_t *entry2,
 			    uint32 final_relation);
 int yafu_sort_cycles(const void *x, const void *y);
 
@@ -551,7 +551,7 @@ void qs_free_cycle_list(qs_la_col_t *cycle_list, uint32 num_cycles);
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/
 
-uint32 find_factors(fact_obj_t *obj, z *n, fb_element_siqs *factor_base, 
+uint32 yafu_find_factors(fact_obj_t *obj, z *n, fb_element_siqs *factor_base, 
 			uint32 fb_size, qs_la_col_t *vectors, 
 			uint32 vsize, siqs_r *relation_list,
 			uint64 *null_vectors, uint32 multiplier,

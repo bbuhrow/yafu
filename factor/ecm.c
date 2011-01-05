@@ -28,7 +28,7 @@ code to the public domain.
 
 //local function declarations
 void *ecm_do_one_curve(void *ptr);
-int print_B1B2(void);
+int print_B1B2(FILE *fid);
 void ecmexit(int sig);
 void ecm_process_init(z *n);
 void ecm_process_free();
@@ -1084,9 +1084,10 @@ void *ecm_worker_thread_main(void *thread_data) {
 		ecm_thread_data_t *thread_data = (ecm_thread_data_t *)ptr;
 
 		thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
-		//thread_data->params->verbose = 2;		
+		if (VFLAG >= 3)
+			thread_data->params->verbose = VFLAG - 2;		
 		mpz_set_ui(thread_data->params->x, (unsigned long)0);
-		mpz_set_ui(thread_data->params->sigma, (unsigned long)0);
+		mpz_set_ui(thread_data->params->sigma, thread_data->sigma);
 
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 		mpz_import(thread_data->gmp_n, (size_t)(abs(thread_data->n.size)), -1, sizeof(uint32), 
@@ -1118,16 +1119,6 @@ void *ecm_worker_thread_main(void *thread_data) {
 		gmp2mp(thread_data->gmp_n,&thread_data->n);
 #endif
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-		zClear(&thread_data->factor);
-		mpz_export(thread_data->factor.val, &count, -1, sizeof(uint32),
-				0, (size_t)0, thread_data->params->sigma);
-		thread_data->factor.size = count;
-#else
-		//pull a couple things out of params
-		gmp2mp(thread_data->params->sigma,&thread_data->factor);
-		thread_data->sigma = (uint32)thread_data->factor.val[0];
-#endif
 
 		//printf ("used B2: ");
 		//mpz_out_str (stdout, 10, thread_data->params->B2);
@@ -1179,6 +1170,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	int bail_on_factor = 1;
 	int bail = 0;
 	int charcount = 0, charcount2 = 0;
+	int input_digits = ndigits(n);
 
 	//open the log file and annouce we are starting ECM
 	flog = fopen(fobj->logname,"a");
@@ -1291,7 +1283,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 
 		charcount = printf("ecm: %d curves on C%d input, at "
 			,curves_run,ndigits(n));
-		charcount2 = print_B1B2();
+		charcount2 = print_B1B2(NULL);
 		fflush(stdout);
 	}
 
@@ -1442,7 +1434,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 
 			charcount = printf("ecm: %d curves on C%d input, at "
 				,curves_run,ndigits(n));
-			charcount2 = print_B1B2();
+			charcount2 = print_B1B2(NULL);
 			fflush(stdout);
 		}
 
@@ -1460,8 +1452,10 @@ done:
 		return 0;
 	}
 
-	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, B1 = %u, B2 = %lu\n",
-		curves_run,ndigits(n),ECM_STG1_MAX,ECM_STG2_MAX);
+	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
+		curves_run,input_digits);
+	print_B1B2(flog);
+	fprintf(flog, "\n");
 
 	fclose(flog);
 
@@ -1486,7 +1480,7 @@ done:
 	return curves_run;
 }
 
-int print_B1B2(void)
+int print_B1B2(FILE *fid)
 {
 	int i;
 	char suffix;
@@ -1513,51 +1507,59 @@ int print_B1B2(void)
 		sprintf(stg1str,"%u",ECM_STG1_MAX);
 	}
 
-	if (ECM_STG2_MAX % 1000000000 == 0)
+	if (ECM_STG2_ISDEFAULT == 0)
 	{
-		suffix = 'B';
+		if (ECM_STG2_MAX % 1000000000 == 0)
+		{
+			suffix = 'B';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000000000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000000000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000000000, suffix);
 #endif
-	}
-	else if (ECM_STG2_MAX % 1000000 == 0)
-	{
-		suffix = 'M';
+		}
+		else if (ECM_STG2_MAX % 1000000 == 0)
+		{
+			suffix = 'M';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000000, suffix);
 #endif
-	}
-	else if (ECM_STG2_MAX % 1000 == 0)
-	{
-		suffix = 'K';
+		}
+		else if (ECM_STG2_MAX % 1000 == 0)
+		{
+			suffix = 'K';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%lu%c",ECM_STG2_MAX / 1000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%llu%c",ECM_STG2_MAX / 1000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%I64u%c",ECM_STG2_MAX / 1000, suffix);
 #endif
+		}
+		else
+		{
+#if defined(__unix__) && (BITS_PER_DIGIT == 64)
+			sprintf(stg2str,"%lu",ECM_STG2_MAX);
+#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
+			sprintf(stg2str,"%llu",ECM_STG2_MAX);
+#else
+			sprintf(stg2str,"%I64u",ECM_STG2_MAX);
+#endif
+		}
 	}
 	else
-	{
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu",ECM_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu",ECM_STG2_MAX);
-#else
-		sprintf(stg2str,"%I64u",ECM_STG2_MAX);
-#endif
-	}
+		sprintf(stg2str, "gmp-ecm default");
 
-	i = printf("B1 = %s, B2 = %s",stg1str,stg2str);
+	if (fid == NULL)
+		i = printf("B1 = %s, B2 = %s",stg1str,stg2str);
+	else
+		i = fprintf(fid,"B1 = %s, B2 = %s",stg1str,stg2str);
 
 	return i;
 }

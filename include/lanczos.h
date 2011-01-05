@@ -30,12 +30,12 @@ extern "C" {
 /* the smallest number of columns that will be
    converted to packed format */
 
-#define MIN_NCOLS_TO_PACK 18000
+#define QS_MIN_NCOLS_TO_PACK 18000
 
 /* the number of moderately dense rows that are
    packed less tightly */
 
-#define NUM_MEDIUM_ROWS 3000
+#define QS_NUM_MEDIUM_ROWS 3000
 
 /* structure representing a nonzero element of
    the matrix after packing into block format. 
@@ -45,7 +45,7 @@ extern "C" {
 typedef struct {
 	uint16 row_off;
 	uint16 col_off;
-} entry_idx_t;
+} qs_entry_idx_t;
 
 /* struct representing one block */
 
@@ -55,9 +55,9 @@ typedef struct {
 	uint32 num_rows;
 	uint32 num_entries;       /* number of nonzero matrix entries */
 	uint32 num_entries_alloc; /* nonzero matrix entries allocated */
-	entry_idx_t *entries;     /* nonzero entries */
+	qs_entry_idx_t *entries;     /* nonzero entries */
 	uint16 *med_entries;      /* nonzero entries for medium dense rows */
-} packed_block_t;
+} qs_packed_block_t;
 
 enum thread_command {
 	COMMAND_INIT,
@@ -91,7 +91,7 @@ typedef struct {
 	uint32 num_blocks;
 	uint64 *x;
 	uint64 *b;
-	packed_block_t *blocks; /* sparse part of matrix, in block format */
+	qs_packed_block_t *blocks; /* sparse part of matrix, in block format */
 
 	/* fields for thread pool synchronization */
 
@@ -107,10 +107,10 @@ typedef struct {
 	pthread_cond_t run_cond;
 #endif
 
-} thread_data_t;
+} qs_msieve_thread_data_t;
 
-#define MAX_THREADS 32
-#define MIN_NCOLS_TO_THREAD 200000
+#define QS_MAX_THREADS 32
+#define QS_MIN_NCOLS_TO_THREAD 200000
 
 /* struct representing a packed matrix */
 
@@ -122,22 +122,22 @@ typedef struct {
 
 	qs_la_col_t *unpacked_cols;  /* used if no packing takes place */
 
-	thread_data_t thread_data[MAX_THREADS];
+	qs_msieve_thread_data_t thread_data[QS_MAX_THREADS];
 
-} packed_matrix_t;
+} qs_packed_matrix_t;
 
 void yafu_packed_matrix_init(fact_obj_t *obj, 
-			packed_matrix_t *packed_matrix,
+			qs_packed_matrix_t *packed_matrix,
 			qs_la_col_t *A, uint32 nrows, uint32 ncols,
 			uint32 num_dense_rows);
 
-void yafu_packed_matrix_free(packed_matrix_t *packed_matrix);
+void yafu_packed_matrix_free(qs_packed_matrix_t *packed_matrix);
 
-size_t yafu_packed_matrix_sizeof(packed_matrix_t *packed_matrix);
+size_t yafu_packed_matrix_sizeof(qs_packed_matrix_t *packed_matrix);
 
-void yafu_mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b);
 
-void yafu_mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_trans_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b);
 
 void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x, uint64 *y, uint32 n);
 
@@ -146,9 +146,9 @@ void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y, uint64 *xy, uint32 n);
 /* for big jobs, we use a multithreaded framework that calls
    these two routines for the heavy lifting */
 
-void yafu_mul_packed_core(thread_data_t *t);
+void yafu_mul_packed_core(qs_msieve_thread_data_t *t);
 
-void yafu_mul_trans_packed_core(thread_data_t *t);
+void yafu_mul_trans_packed_core(qs_msieve_thread_data_t *t);
 
 #ifdef __cplusplus
 }

@@ -30,8 +30,24 @@ v 1.22
 	yafu.ini file. The flag handling appartus then imports the tuning parameters and 
 	qs_time_estimation uses them if present.
 	Not quite done yet.
-	
 
+	
++ tune command now ready for release
++ ecm/qs and ecm/gnfs target ratios now settable as flags
++ further segregation of ported msieve code used in qs post-processing from symbols defined
+	in gnfs.lib and common.lib (changing typedef names, static variable names, etc), in a 
+	vain effort to fix Win32 linear algebra failures.
++ added some additional log messages during NFS
++ fixed a bug in ecm, where the GMP-ECM generated sigma value was not reported back to 
+	yafu's ecm apparatus.  GMP-ECM is now fed sigma values from yafu.
++ fixed a bug in ecm, where the message printed to the logfile misrepresents the size
+	of the input if a factor is found.  The message should be printed prior to reducing the input
+	by the found factor.
++ changed yafu reporting of pm1, pp1, and ecm curves performed by gmp-ecm to report 
+	"gmp-ecm default B2" if the default B2 value is requested.
++ gmp-ecm messages are printed now at verbosity level equal to 2 less than the yafu verbosity 
+	level.  for example, -v -v -v -v prints gmp-ecm messages at -v -v
++ added a minimum threshold below which nfs defaults to siqs
 
 
 v 1.21 12/22/10

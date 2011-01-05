@@ -17,7 +17,7 @@ benefit from your work.
 	   when the matrix is in packed format */
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_trans_one_med_block(packed_block_t *curr_block,
+static void yafu_mul_trans_one_med_block(qs_packed_block_t *curr_block,
 			uint64 *curr_row, uint64 *curr_b) {
 
 	uint16 *entries = curr_block->med_entries;
@@ -212,14 +212,14 @@ static void yafu_mul_trans_one_med_block(packed_block_t *curr_block,
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_trans_one_block(packed_block_t *curr_block,
+static void yafu_mul_trans_one_block(qs_packed_block_t *curr_block,
 				uint64 *curr_row, uint64 *curr_b) {
 
 	uint32 i = 0;
 	uint32 j = 0;
 	uint32 k;
 	uint32 num_entries = curr_block->num_entries;
-	entry_idx_t *entries = curr_block->entries;
+	qs_entry_idx_t *entries = curr_block->entries;
 
 	/* unroll by 16, i.e. the number of matrix elements
 	   in one cache line (usually). For 32-bit x86, we get
@@ -319,7 +319,7 @@ static void yafu_mul_trans_one_block(packed_block_t *curr_block,
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_trans_packed_core(thread_data_t *t) {
+void yafu_mul_trans_packed_core(qs_msieve_thread_data_t *t) {
 
 	uint64 *x = t->x;
 	uint64 *b = t->b;
@@ -332,7 +332,7 @@ void yafu_mul_trans_packed_core(thread_data_t *t) {
 	   kind of thrashing somewhere */
 
 	for (i = 0; i < t->num_blocks; i++) {
-		packed_block_t *curr_block = t->blocks + i;
+		qs_packed_block_t *curr_block = t->blocks + i;
 		if (curr_block->med_entries)
 			yafu_mul_trans_one_med_block(curr_block, 
 					x + curr_block->start_row,

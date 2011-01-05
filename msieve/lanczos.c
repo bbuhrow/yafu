@@ -19,34 +19,34 @@ Purpose:	Port into Yafu-1.14.
 #include "util.h"
 #include "qs.h"
 
-#define BIT(x) ((uint64)(1) << (x))
+#define QS_BIT(x) ((uint64)(1) << (x))
 
-static const uint64 bitmask[64] = {
-	BIT( 0), BIT( 1), BIT( 2), BIT( 3), BIT( 4), BIT( 5), BIT( 6), BIT( 7),
-	BIT( 8), BIT( 9), BIT(10), BIT(11), BIT(12), BIT(13), BIT(14), BIT(15),
-	BIT(16), BIT(17), BIT(18), BIT(19), BIT(20), BIT(21), BIT(22), BIT(23),
-	BIT(24), BIT(25), BIT(26), BIT(27), BIT(28), BIT(29), BIT(30), BIT(31),
-	BIT(32), BIT(33), BIT(34), BIT(35), BIT(36), BIT(37), BIT(38), BIT(39),
-	BIT(40), BIT(41), BIT(42), BIT(43), BIT(44), BIT(45), BIT(46), BIT(47),
-	BIT(48), BIT(49), BIT(50), BIT(51), BIT(52), BIT(53), BIT(54), BIT(55),
-	BIT(56), BIT(57), BIT(58), BIT(59), BIT(60), BIT(61), BIT(62), BIT(63),
+static const uint64 qs_bitmask[64] = {
+	QS_BIT( 0), QS_BIT( 1), QS_BIT( 2), QS_BIT( 3), QS_BIT( 4), QS_BIT( 5), QS_BIT( 6), QS_BIT( 7),
+	QS_BIT( 8), QS_BIT( 9), QS_BIT(10), QS_BIT(11), QS_BIT(12), QS_BIT(13), QS_BIT(14), QS_BIT(15),
+	QS_BIT(16), QS_BIT(17), QS_BIT(18), QS_BIT(19), QS_BIT(20), QS_BIT(21), QS_BIT(22), QS_BIT(23),
+	QS_BIT(24), QS_BIT(25), QS_BIT(26), QS_BIT(27), QS_BIT(28), QS_BIT(29), QS_BIT(30), QS_BIT(31),
+	QS_BIT(32), QS_BIT(33), QS_BIT(34), QS_BIT(35), QS_BIT(36), QS_BIT(37), QS_BIT(38), QS_BIT(39),
+	QS_BIT(40), QS_BIT(41), QS_BIT(42), QS_BIT(43), QS_BIT(44), QS_BIT(45), QS_BIT(46), QS_BIT(47),
+	QS_BIT(48), QS_BIT(49), QS_BIT(50), QS_BIT(51), QS_BIT(52), QS_BIT(53), QS_BIT(54), QS_BIT(55),
+	QS_BIT(56), QS_BIT(57), QS_BIT(58), QS_BIT(59), QS_BIT(60), QS_BIT(61), QS_BIT(62), QS_BIT(63),
 };
 
-/* for matrices of dimension exceeding MIN_POST_LANCZOS_DIM,
-   the first POST_LANCZOS_ROWS rows are handled in a separate
+/* for matrices of dimension exceeding QS_MIN_POST_LANCZOS_DIM,
+   the first QS_POST_LANCZOS_ROWS rows are handled in a separate
    Gauss elimination phase after the Lanczos iteration
    completes. This means the lanczos code will produce about
-   64 - POST_LANCZOS_ROWS dependencies on average. 
+   64 - QS_POST_LANCZOS_ROWS dependencies on average. 
    
-   The code will still work if POST_LANCZOS_ROWS is 0, but I 
+   The code will still work if QS_POST_LANCZOS_ROWS is 0, but I 
    don't know why you would want to do that. The first rows are 
    essentially completely dense, and removing them from the main 
    Lanczos iteration greatly reduces the amount of arithmetic 
    in a matrix multiply, as well as the memory footprint of 
    the matrix */
 
-#define POST_LANCZOS_ROWS 48
-#define MIN_POST_LANCZOS_DIM 10000
+#define QS_POST_LANCZOS_ROWS 48
+#define QS_MIN_POST_LANCZOS_DIM 10000
 
 /*-------------------------------------------------------------------*/
 static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows, 
@@ -77,15 +77,15 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 	   would finish quickly */
 
 	submatrix = NULL;
-	if (ncols >= MIN_NCOLS_TO_PACK ||
-	    (POST_LANCZOS_ROWS > 0 && ncols >= MIN_POST_LANCZOS_DIM)) {
+	if (ncols >= QS_MIN_NCOLS_TO_PACK ||
+	    (QS_POST_LANCZOS_ROWS > 0 && ncols >= QS_MIN_POST_LANCZOS_DIM)) {
 
-		if (POST_LANCZOS_ROWS > 0) {
+		if (QS_POST_LANCZOS_ROWS > 0) {
 			if (VFLAG > 0)
 				printf("saving the first %u matrix rows "
-					"for later\n", POST_LANCZOS_ROWS);
+					"for later\n", QS_POST_LANCZOS_ROWS);
 			logprint(obj->logfile, "saving the first %u matrix rows "
-					"for later\n", POST_LANCZOS_ROWS);
+					"for later\n", QS_POST_LANCZOS_ROWS);
 			submatrix = (uint64 *)xmalloc(ncols * sizeof(uint64));
 		}
 	}
@@ -99,9 +99,9 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 	zInit32(&tmp);
 #endif
 
-	mask = (uint64)(-1) >> (64 - POST_LANCZOS_ROWS);
+	mask = (uint64)(-1) >> (64 - QS_POST_LANCZOS_ROWS);
 	dense_row_words = (num_dense_rows + 31) / 32;
-	/* we will be removing the first POST_LANCZOS_ROWS rows
+	/* we will be removing the first QS_POST_LANCZOS_ROWS rows
 	   from the matrix entirely, and packing together the
 	   next few rows. The matrix may have dense rows already, 
 	   or these rows may be partially or completely sparse, 
@@ -109,10 +109,10 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 	   the post-lanczos rows are removed, the number of dense 
 	   rows remaining is a multiple of 64 (minimum of 64) */
 
-	new_dense_rows = MAX(num_dense_rows, POST_LANCZOS_ROWS);
-	new_dense_rows += 64 - (new_dense_rows - POST_LANCZOS_ROWS) % 64;
+	new_dense_rows = MAX(num_dense_rows, QS_POST_LANCZOS_ROWS);
+	new_dense_rows += 64 - (new_dense_rows - QS_POST_LANCZOS_ROWS) % 64;
 	new_dense_row_words = (new_dense_rows + 31) / 32;
-	final_dense_row_words = (new_dense_rows - POST_LANCZOS_ROWS) / 32;
+	final_dense_row_words = (new_dense_rows - QS_POST_LANCZOS_ROWS) / 32;
 
 	for (i = 0; i < ncols; i++) {
 		uint32 curr_weight = cols[i].weight;
@@ -140,16 +140,16 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 
 			if (curr_index < new_dense_rows)
 				tmp.val[curr_index / 32] |= 
-						bitmask[curr_index % 32];
+						qs_bitmask[curr_index % 32];
 			else
-				curr_row[k++] = curr_index - POST_LANCZOS_ROWS;
+				curr_row[k++] = curr_index - QS_POST_LANCZOS_ROWS;
 		}
 
 		//tmp.nwords = new_dense_row_words;
 		tmp.size =  new_dense_row_words;
 
-#if POST_LANCZOS_ROWS > 0
-		/* remove the first POST_LANCZOS_ROWS bits from
+#if QS_POST_LANCZOS_ROWS > 0
+		/* remove the first QS_POST_LANCZOS_ROWS bits from
 		   the bitfield */
 		submatrix[i] = ((uint64)tmp.val[0] |
 				(uint64)tmp.val[1] << 32) & mask;
@@ -164,9 +164,9 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 						sizeof(uint32));
 
 #if BITS_PER_DIGIT == 32
-		zShiftRight(&tmp,&tmp,POST_LANCZOS_ROWS);
+		zShiftRight(&tmp,&tmp,QS_POST_LANCZOS_ROWS);
 #else
-		zShiftRight32(&tmp,&tmp,POST_LANCZOS_ROWS);
+		zShiftRight32(&tmp,&tmp,QS_POST_LANCZOS_ROWS);
 #endif
 			memcpy(cols[i].data + k, tmp.val, 
 						final_dense_row_words * 
@@ -178,8 +178,8 @@ static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 		}
 	}
 
-	*nrows -= POST_LANCZOS_ROWS;
-	*dense_rows_out = new_dense_rows - POST_LANCZOS_ROWS;
+	*nrows -= QS_POST_LANCZOS_ROWS;
+	*dense_rows_out = new_dense_rows - QS_POST_LANCZOS_ROWS;
 	count_qs_matrix_nonzero(obj, *nrows, *dense_rows_out, ncols, cols);
 
 #if BITS_PER_DIGIT == 32
@@ -227,9 +227,9 @@ static void yafu_transpose_64x64(uint64 *a, uint64 *b) {
 
 	for (i = 0; i < 64; i++) {
 		uint64 word = a[i];
-		uint64 mask = bitmask[i];
+		uint64 mask = qs_bitmask[i];
 		for (j = 0; j < 64; j++) {
-			if (word & bitmask[j])
+			if (word & qs_bitmask[j])
 				tmp[j] |= mask;
 		}
 	}
@@ -547,7 +547,7 @@ static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
 
 	for (i = 0; i < 64; i++) {
 		M[i][0] = t[i]; 
-		M[i][1] = bitmask[i];
+		M[i][1] = qs_bitmask[i];
 	}
 
 	/* put the column indices from last_s[] into the
@@ -557,10 +557,10 @@ static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
 	mask = 0;
 	for (i = 0; i < last_dim; i++) {
 		cols[63 - i] = last_s[i];
-		mask |= bitmask[last_s[i]];
+		mask |= qs_bitmask[last_s[i]];
 	}
 	for (i = j = 0; i < 64; i++) {
-		if (!(mask & bitmask[i]))
+		if (!(mask & qs_bitmask[i]))
 			cols[j++] = i;
 	}
 
@@ -570,7 +570,7 @@ static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
 	
 		/* find the next pivot row and put in row i */
 
-		mask = bitmask[cols[i]];
+		mask = qs_bitmask[cols[i]];
 		row_i = M[cols[i]];
 
 		for (j = i; j < 64; j++) {
@@ -666,7 +666,7 @@ static void yafu_transpose_vector(uint32 ncols, uint64 *v, uint64 **trans) {
 
 	for (i = 0; i < ncols; i++) {
 		col = i / 64;
-		mask = bitmask[i % 64];
+		mask = qs_bitmask[i % 64];
 		word = v[i];
 		j = 0;
 		while (word) {
@@ -728,7 +728,7 @@ static uint32 yafu_combine_cols(uint32 ncols,
 
 		/* find the next pivot row */
 
-		mask = bitmask[bitpos % 64];
+		mask = qs_bitmask[bitpos % 64];
 		col = bitpos / 64;
 		for (j = i; j < 128; j++) {
 			if (amatrix[j][col] & mask) {
@@ -772,11 +772,11 @@ static uint32 yafu_combine_cols(uint32 ncols,
 		uint64 word = 0;
 
 		col = j / 64;
-		mask = bitmask[j % 64];
+		mask = qs_bitmask[j % 64];
 
 		for (k = i; k < 64; k++) {
 			if (matrix[k][col] & mask)
-				word |= bitmask[k - i];
+				word |= qs_bitmask[k - i];
 		}
 		x[j] = word;
 	}
@@ -881,7 +881,7 @@ static void yafu_read_lanczos_state(fact_obj_t *obj,
 
 /*-----------------------------------------------------------------------*/
 static void yafu_init_lanczos_state(fact_obj_t *obj, 
-			packed_matrix_t *packed_matrix,
+			qs_packed_matrix_t *packed_matrix,
 			uint64 *x, uint64 *v0, uint64 **vt_v0, uint64 **v, 
 			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
 			uint32 n, uint32 s[2][64], uint32 *dim1) {
@@ -924,7 +924,7 @@ static void yafu_init_lanczos_state(fact_obj_t *obj,
 
 /*-----------------------------------------------------------------------*/
 static uint64 * yafu_block_lanczos_core(fact_obj_t *obj, 
-				packed_matrix_t *packed_matrix,
+				qs_packed_matrix_t *packed_matrix,
 				uint32 *num_deps_found,
 				uint64 *post_lanczos_matrix,
 				uint32 dump_interval) {
@@ -1023,7 +1023,7 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 
 	mask1 = 0;
 	for (i = 0; i < dim1; i++)
-		mask1 |= bitmask[s[1][i]];
+		mask1 |= qs_bitmask[s[1][i]];
 
 	/* determine if the solver will run long enough that
 	   it would be worthwhile to report progress */
@@ -1086,7 +1086,7 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 
 		mask0 = 0;
 		for (i = 0; i < dim0; i++)
-			mask0 |= bitmask[s[0][i]];
+			mask0 |= qs_bitmask[s[0][i]];
 
 		/* The block Lanczos recurrence depends on all columns
 		   of v'Av appearing in the current and/or previous iteration. 
@@ -1145,7 +1145,7 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		yafu_mul_64x64_64x64(winv[0], d, d);
 
 		for (i = 0; i < 64; i++)
-			d[i] = d[i] ^ bitmask[i];
+			d[i] = d[i] ^ qs_bitmask[i];
 
 		yafu_mul_Nx64_64x64_acc(v[0], d, vnext, n);
 
@@ -1174,7 +1174,7 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 			yafu_mul_64x64_64x64(vt_a_v[1], winv[1], f);
 
 			for (i = 0; i < 64; i++)
-				f[i] = f[i] ^ bitmask[i];
+				f[i] = f[i] ^ qs_bitmask[i];
 
 			yafu_mul_64x64_64x64(winv[2], f, f);
 
@@ -1315,16 +1315,16 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 
 	/* if necessary, add in the contribution of the
 	   first few rows that were originally in B. We 
-	   expect there to be about 64 - POST_LANCZOS_ROWS 
+	   expect there to be about 64 - QS_POST_LANCZOS_ROWS 
 	   bit vectors that are in the nullspace of B and
 	   post_lanczos_matrix simultaneously */
 
 	if (post_lanczos_matrix) {
-		for (i = 0; i < POST_LANCZOS_ROWS; i++) {
+		for (i = 0; i < QS_POST_LANCZOS_ROWS; i++) {
 			uint64 accum0 = 0;
 			uint64 accum1 = 0;
 			uint32 j;
-			mask0 = bitmask[i];
+			mask0 = qs_bitmask[i];
 			for (j = 0; j < n; j++) {
 				if (post_lanczos_matrix[j] & mask0) {
 					accum0 ^= x[j];
@@ -1386,7 +1386,7 @@ uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows,
 
 	uint64 *post_lanczos_matrix;
 	uint64 *dependencies;
-	packed_matrix_t packed_matrix;
+	qs_packed_matrix_t packed_matrix;
 	uint32 dump_interval;
 
 	if (ncols <= nrows) {

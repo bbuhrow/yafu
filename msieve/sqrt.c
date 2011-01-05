@@ -18,7 +18,7 @@ Purpose:	Port into Yafu-1.14.
 #include "qs.h"
 
 /*--------------------------------------------------------------------*/
-uint32 find_factors(fact_obj_t *obj, z *n, 
+uint32 yafu_find_factors(fact_obj_t *obj, z *n, 
 		fb_element_siqs *factor_base, uint32 fb_size,
 		qs_la_col_t *vectors, uint32 vsize, 
 		siqs_r *relation_list,

@@ -205,6 +205,7 @@ int VFLAG, LOGFLAG;
 uint32 LOWER_POLYPOOL_INDEX;
 uint32 UPPER_POLYPOOL_INDEX;
 uint32 QS_DUMP_CUTOFF;
+uint32 MIN_NFS_DIGITS;
 
 // used to determine an estimate of QS runtime
 double QS_EXPONENT;
@@ -216,7 +217,13 @@ double GNFS_EXPONENT;
 double GNFS_MULTIPLIER;
 double GNFS_TUNE_FREQ;
 
+//crossover between qs and gnfs
 double QS_GNFS_XOVER;
+
+//balance of ecm and various sieve methods
+double TARGET_ECM_QS_RATIO;
+double TARGET_ECM_GNFS_RATIO;
+double TARGET_ECM_SNFS_RATIO;
 
 uint32 NUM_WITNESSES;
 uint32 SIGMA;
@@ -236,9 +243,6 @@ uint32 maxbn;
 int NO_SIQS_OPT;
 double MEAS_CPU_FREQUENCY;
 int VERBOSE_PROC_INFO;
-double TARGET_ECM_QS_RATIO;
-double TARGET_ECM_GNFS_RATIO;
-double TARGET_ECM_SNFS_RATIO;
 char CPU_ID_STR[80];
 
 
