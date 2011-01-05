@@ -101,6 +101,16 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	double t_time;
 	FILE *logfile;
 
+
+
+#if defined(_WIN64)
+
+#elif defined(WIN32)
+	printf("NFS not supported on win32 systems.  Check back soon.\n");
+#endif
+
+
+
 	//below a certain amount, revert to SIQS
 	if (ndigits(N) < MIN_NFS_DIGITS)
 	{
@@ -417,8 +427,8 @@ void win_file_concat(nfs_threaddata_t *t)
 {
 	FILE *in, *out, *logfile;
 
-	printf("for optimal performance, consider installing unix utilities for windows:\n");
-	printf("http://unxutils.sourceforge.net/ \n");
+	//printf("for optimal performance, consider installing unix utilities for windows:\n");
+	//printf("http://unxutils.sourceforge.net/ \n");
 
 	in = fopen(t->outfilename,"r");
 	if (in == NULL)

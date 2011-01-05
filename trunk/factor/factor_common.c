@@ -1002,11 +1002,11 @@ int switch_to_qs(z *N, double *time_available)
 	{
 		qs_est_time = get_qs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
 		if (VFLAG >= 2)
-			printf("***** qs time estimate = %f seconds\n",qs_est_time);
+			printf("***** qs time estimate = %lg seconds\n",qs_est_time);
 
 		nfs_est_time = get_gnfs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
 		if (VFLAG >= 2)
-			printf("***** gnfs time estimate = %f seconds\n",nfs_est_time);
+			printf("***** gnfs time estimate = %lg seconds\n",nfs_est_time);
 
 		//proceed with whichever estimate is smaller
 		if (qs_est_time <= nfs_est_time)
@@ -1022,8 +1022,18 @@ int switch_to_qs(z *N, double *time_available)
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
 				// we estimate it would take QS to finish, switch to qs.  
-				decision = 1;
-				*time_available = 0;
+				if ((GNFS_EXPONENT == 0) && (ndigits(N) > 95))
+				{
+					//we decided to use qs, but the size is high enough and we're using
+					//qs time only because nfs hasn't been tuned, so use nfs instead
+					decision = 2;
+					*time_available = 0;
+				}
+				else
+				{
+					decision = 1;
+					*time_available = 0;
+				}
 			}
 			else
 			{
@@ -1418,6 +1428,7 @@ void factor(fact_obj_t *fobj)
 	method_timing_t method_times;
 	int curves = 1;
 	int decision = 0;
+	int min_pretest_done = 0;
 	int done = 0;	
 	FILE *flog;
 	struct timeval start, stop;
@@ -1453,20 +1464,13 @@ void factor(fact_obj_t *fobj)
 
 	// initialize time per curve
 	method_times.ecm_autoinc_time_per_curve = 0;
+	total_time = 0;
+	fact_state = state_trialdiv;
 	
 	while (!done)
 	{
 		switch (fact_state)
 		{
-		case state_idle:
-			// if this is the top level call, reset the total factorization time
-			if (refactor_depth == 0)
-				total_time = 0;
-
-			// start things up
-			fact_state = state_trialdiv;
-			break;
-
 		case state_trialdiv:
 			curves = 1;
 			t_time = do_work(trialdiv_work, 10000, -1, &curves, b, fobj);
@@ -1489,6 +1493,9 @@ void factor(fact_obj_t *fobj)
 			method_times.rho_time = t_time;
 			total_time += t_time * curves;
 			fact_state = state_pp1_lvl1;			
+			//after trial division, fermat, and rho, we're ready to 
+			//consider qs methods
+			min_pretest_done = 1;
 			break;
 
 		case state_pp1_lvl1:
@@ -1612,7 +1619,7 @@ void factor(fact_obj_t *fobj)
 		// first, check if we're done
 		done = check_if_done(fobj, &origN);		
 
-		if (!done)
+		if (!done && min_pretest_done)
 		{
 			// if we're not done, decide what to do next: either the default next state or
 			// switch to qs.
