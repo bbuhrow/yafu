@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 31
+#define NUMOPTIONS 33
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -73,12 +73,14 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"vproc",
 	"noecm",
 	"ggnfs_dir",
-	"tune_info"};
+	"tune_info",
+	"ecm_qs_ratio",
+	"ecm_gnfs_ratio"};
 
 
 // indication of whether or not an option needs a corresponding argument
 int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1};
+	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -838,6 +840,8 @@ void set_default_globals(void)
 
 	QS_GNFS_XOVER = 0;
 
+	MIN_NFS_DIGITS = 85;
+
 	NUM_WITNESSES = 20;
 	AUTO_FACTOR=0;
 	PRIME_THRESHOLD = 100000000;
@@ -1443,6 +1447,14 @@ void applyOpt(char *opt, char *arg)
 		//parse the tune_info string and if it matches the current OS and CPU, 
 		//set the appropriate globals
 		apply_tuneinfo(arg);
+	}
+	else if (strcmp(opt,OptionArray[31]) == 0)
+	{
+		sscanf(arg, "%lf", &TARGET_ECM_QS_RATIO);
+	}
+	else if (strcmp(opt,OptionArray[32]) == 0)
+	{
+		sscanf(arg, "%lf", &TARGET_ECM_GNFS_RATIO);
 	}
 	else
 	{

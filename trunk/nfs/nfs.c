@@ -2,6 +2,7 @@
 #include "yafu_string.h"
 #include "arith.h"
 #include "factor.h"
+#include "qs.h"
 
 //----------------------- LOCAL DATA TYPES -----------------------------------//
 
@@ -100,6 +101,13 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	double t_time;
 	FILE *logfile;
 
+	//below a certain amount, revert to SIQS
+	if (ndigits(N) < MIN_NFS_DIGITS)
+	{
+		SIQS(fobj);
+		return;
+	}
+		
 	//first a small amount of trial division
 	//which will add anything found to the global factor list
 	//this is only called with the main thread
@@ -124,6 +132,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			logprint(logfile, "PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
 			fclose(logfile);
 		}		
+		return;
 	}
 
 	logfile = fopen(flogname, "a");
@@ -352,7 +361,8 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		logprint(logfile, "nfs: commencing msieve linear algebra\n");
 		fclose(logfile);
 	}
-	nfs_solve_linear_system(obj, &mpN);			
+	factor_gnfs(obj, &mpN, &factor_list);	
+	//nfs_solve_linear_system(obj, &mpN);			
 
 	//msieve: find factors
 	flags = 0;
@@ -387,6 +397,15 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	if (VFLAG >= 0)
 		printf("NFS elapsed time = %6.4f seconds.\n",t_time);
 
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "NFS elapsed time = %6.4f seconds.\n",t_time);
+		fclose(logfile);
+	}
+
 	// free stuff
 	msieve_obj_free(obj);
 	sFree(&input_str);
@@ -396,7 +415,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 void win_file_concat(nfs_threaddata_t *t)
 {
-	FILE *in, *out;
+	FILE *in, *out, *logfile;
 
 	printf("for optimal performance, consider installing unix utilities for windows:\n");
 	printf("http://unxutils.sourceforge.net/ \n");
@@ -405,12 +424,28 @@ void win_file_concat(nfs_threaddata_t *t)
 	if (in == NULL)
 	{
 		printf("could not open %s for reading\n",t->outfilename);
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open %s for reading\n",t->outfilename);
+			fclose(logfile);
+		}
 		exit(-1);
 	}
 	out = fopen("msieve.dat","a");
 	if (out == NULL)
 	{
 		printf("could not open msieve.dat for appending\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open msieve.dat for appending\n");
+			fclose(logfile);
+		}
 		exit(-1);
 	}
 	while (!feof(in))
@@ -754,8 +789,6 @@ int check_existing_files(z *N, uint32 *last_spq)
 	ans = zCompare(&tmpz,N);
 	if (ans == 0)
 	{
-		
-
 		ans = 1;
 
 		if (VFLAG > 0)
@@ -802,8 +835,6 @@ int check_existing_files(z *N, uint32 *last_spq)
 					*last_spq = 0;
 					return ans;
 				}
-
-				
 
 				// crawl through the entire data file to find the next to last line
 				while (!feof(in))
@@ -861,13 +892,23 @@ int check_existing_files(z *N, uint32 *last_spq)
 }
 
 uint32 get_spq(char *line)
-{
-	
+{	
 	//next to the last line is in line2
 	int i;
 	uint32 ans;
+	FILE *logfile;
+
 	if (VFLAG > 0)
 		printf("nfs: parsing special-q from line: %s\n",line);
+
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: parsing special-q from line: %s\n",line);
+		fclose(logfile);
+	}
 
 	ans = 0;
 	//note: this assumes algebraic side sieving
@@ -884,7 +925,7 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
-	FILE *in, *out;
+	FILE *in, *out, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
 	double score, bestscore = 0;
 	int count, bestline, i;
@@ -893,6 +934,14 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open msieve.dat.p for reading!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open msieve.dat.p for reading!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -947,6 +996,14 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open msieve.dat.p for reading!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open msieve.dat.p for reading!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -955,6 +1012,14 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open ggnfs.job for writing!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open ggnfs.job for writing!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -1008,13 +1073,21 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 void msieve_to_ggnfs(ggnfs_job_t *job)
 {
 	// convert a msieve.fb polynomial into a ggnfs polynomial file
-	FILE *in, *out;
+	FILE *in, *out, *logfile;
 	char line[GSTR_MAXSIZE], outline[GSTR_MAXSIZE], *ptr;
 
 	in = fopen("msieve.fb","r");
 	if (in == NULL)
 	{
 		printf("could not open msieve.fb for reading!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open msieve.fb for reading!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -1023,6 +1096,14 @@ void msieve_to_ggnfs(ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open ggnfs.job for writing!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open ggnfs.job for writing!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -1066,13 +1147,21 @@ void msieve_to_ggnfs(ggnfs_job_t *job)
 void ggnfs_to_msieve(ggnfs_job_t *job)
 {
 	// convert a ggnfs.job file into a msieve.fb polynomial file
-	FILE *in, *out;
+	FILE *in, *out, *logfile;
 	char line[GSTR_MAXSIZE], outline[GSTR_MAXSIZE], *ptr;
 
 	in = fopen("ggnfs.job","r");
 	if (in == NULL)
 	{
 		printf("could not open ggnfs.job for reading!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open ggnfs.job for reading!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -1081,6 +1170,14 @@ void ggnfs_to_msieve(ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open msieve.fb for writing!\n");
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not open msieve.fb for writing!\n");
+			fclose(logfile);
+		}
 		exit(1);
 	}
 
@@ -1145,7 +1242,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	// doing things by hand by then anyway.
 	int i, d = ndigits(N);
 	double scale;
-	FILE *test;
+	FILE *test, *logfile;
 	
 	job->rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
@@ -1241,6 +1338,14 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	if (test == NULL)
 	{
 		printf("could not find %s, bailing\n",job->sievername);
+		logfile = fopen(flogname, "a");
+		if (logfile == NULL)
+			printf("could not open yafu logfile for appending\n");
+		else
+		{
+			logprint(logfile, "could not find %s, bailing\n",job->sievername);
+			fclose(logfile);
+		}
 		exit(-1);
 	}
 

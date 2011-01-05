@@ -55,7 +55,7 @@ void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size,
 
 	/* reduce the matrix dimensions to ignore almost empty rows */
 
-	reduce_qs_matrix(obj, &nrows, 0, &ncols, cols, NUM_EXTRA_RELATIONS);
+	reduce_qs_matrix(obj, &nrows, 0, &ncols, cols, NUM_EXTRA_QS_RELATIONS);
 
 	if (ncols == 0) {
 		printf("matrix is corrupt; skipping linear algebra\n");
@@ -153,7 +153,7 @@ uint32 qs_merge_relations(uint32 *merge_array,
 }
 
 /*------------------------------------------------------------------*/
-#define MAX_COL_WEIGHT 1000
+#define QS_MAX_COL_WEIGHT 1000
 
 static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
@@ -172,8 +172,8 @@ static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	   anyway */
 	
 	for (i = 0; i < ncols; i++) {
-		uint32 buf[MAX_COL_WEIGHT];
-		uint32 accum[MAX_COL_WEIGHT];
+		uint32 buf[QS_MAX_COL_WEIGHT];
+		uint32 accum[QS_MAX_COL_WEIGHT];
 		uint32 weight;
 
 		/* merge each succeeding relation into the accumulated

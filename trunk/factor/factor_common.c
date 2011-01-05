@@ -712,7 +712,7 @@ double get_qs_time_estimate(double freq, int digits)
 			default:
 				if (VFLAG >= 2)
 					printf("***** cpu type not found, ecm runtime will not be optimized\n");
-				estimate =  0;
+				estimate = DBL_MAX;
 				break;
 		}
 	}
@@ -720,6 +720,60 @@ double get_qs_time_estimate(double freq, int digits)
 	//adjust for multi-threaded qs
 	//if we assume threading is perfect, we'll get a smaller estimate for
 	//qs than we can really achieve, resulting in less ECM, so fudge it a bit
+	if (THREADS > 1)
+	{
+		switch (cpu)
+		{
+		case 0:
+		case 1:
+		case 2:	
+		case 3:
+		case 4:
+		case 5:			
+		case 6:
+		case 7:
+		case 8:
+			estimate = estimate / ((double)THREADS * 0.75);
+			break;
+		case 9:
+		case 10:
+			estimate = estimate / ((double)THREADS * 0.90);
+			break;
+
+		default:
+			estimate = estimate / ((double)THREADS * 0.75);
+			break;
+		}
+	}
+
+	return estimate;
+}
+
+double get_gnfs_time_estimate(double freq, int digits)
+{
+	//using rough empirical scaling equations, number size, information
+	//on cpu type, architecture, speed, and compilation options, 
+	//compute how long we think gnfs would take to finish a factorization
+	enum cpu_type cpu;
+	double estimate;
+
+	cpu = yafu_get_cpu_type();
+	//if we have tuning info, use that instead
+	if (GNFS_MULTIPLIER != 0 && GNFS_EXPONENT != 0 && GNFS_TUNE_FREQ != 0)
+	{
+		if (VFLAG >= 2)
+			printf("***** using tuning data for GNFS time estimation\n");
+		estimate = GNFS_MULTIPLIER * exp(GNFS_EXPONENT * digits);
+
+		//scale with frequency
+		estimate = estimate * GNFS_TUNE_FREQ / freq; 
+	}
+	else
+		estimate = DBL_MAX;
+
+	//adjust for multi-threaded nfs
+	//if we assume threading is perfect, we'll get a smaller estimate for
+	//nfs than we can really achieve, resulting in less ECM, so fudge it a bit
 	if (THREADS > 1)
 	{
 		switch (cpu)
@@ -935,9 +989,9 @@ int switch_to_qs(z *N, double *time_available)
 	// would take to finish using qs and decide whether or not to switch over
 	// to qs.
 	int decision, sizeN;
-	double qs_est_time;
+	double qs_est_time, nfs_est_time;
 	
-	// if the size of N is small enough, always switch
+	// if the size of N is small enough, always switch to qs
 	sizeN = zBits(N);
 	if (sizeN < 135)
 	{
@@ -950,25 +1004,54 @@ int switch_to_qs(z *N, double *time_available)
 		if (VFLAG >= 2)
 			printf("***** qs time estimate = %f seconds\n",qs_est_time);
 
-		// if qs_est_time is zero, then we don't have a good estimate.  flag the caller 
-		// of this fact
-		if (qs_est_time == 0)
-		{
-			decision = 0;
-			*time_available = -1;
-		}		
-		else if (total_time > TARGET_ECM_QS_RATIO * qs_est_time)
-		{
-			// if the total time we've spent so far is greater than a fraction of the time
-			// we estimate it would take QS to finish, switch to qs.  
-			decision = 1;
-			*time_available = 0;
+		nfs_est_time = get_gnfs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
+		if (VFLAG >= 2)
+			printf("***** gnfs time estimate = %f seconds\n",nfs_est_time);
+
+		//proceed with whichever estimate is smaller
+		if (qs_est_time <= nfs_est_time)
+		{		
+			// if qs_est_time is very large, then we don't have a good estimate.  flag the caller 
+			// of this fact
+			if (qs_est_time > 1e9)
+			{
+				decision = 0;
+				*time_available = -1;
+			}		
+			else if (total_time > TARGET_ECM_QS_RATIO * qs_est_time)
+			{
+				// if the total time we've spent so far is greater than a fraction of the time
+				// we estimate it would take QS to finish, switch to qs.  
+				decision = 1;
+				*time_available = 0;
+			}
+			else
+			{
+				// otherwise, return the amount of time we have left before the switchover.
+				decision = 0;
+				*time_available = (TARGET_ECM_QS_RATIO * qs_est_time) - total_time;
+			}
 		}
 		else
 		{
-			// otherwise, return the amount of time we have left before the switchover.
-			decision = 0;
-			*time_available = (TARGET_ECM_QS_RATIO * qs_est_time) - total_time;
+			if (nfs_est_time > 1e9)
+			{
+				decision = 0;
+				*time_available = -1;
+			}		
+			else if (total_time > TARGET_ECM_GNFS_RATIO * nfs_est_time)
+			{
+				// if the total time we've spent so far is greater than a fraction of the time
+				// we estimate it would take gnfs to finish, switch to qs.  
+				decision = 2;
+				*time_available = 0;
+			}
+			else
+			{
+				// otherwise, return the amount of time we have left before the switchover.
+				decision = 0;
+				*time_available = (TARGET_ECM_GNFS_RATIO * nfs_est_time) - total_time;
+			}
 		}
 
 	}
@@ -1437,7 +1520,12 @@ void factor(fact_obj_t *fobj)
 			total_time += t_time * curves;
 			if (NO_ECM)
 			{
-				if (ndigits(b) > 95)
+				if (QS_GNFS_XOVER > 0)				
+					decision = QS_GNFS_XOVER;
+				else
+					decision = 95;
+
+				if (ndigits(b) > decision)
 					fact_state = state_nfs;
 				else
 					fact_state = state_qs;
@@ -1511,7 +1599,7 @@ void factor(fact_obj_t *fobj)
 			total_time += t_time * curves;
 			break;
 
-		case state_nfs:
+		case state_nfs:			
 			curves = 1;
 			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
@@ -1535,7 +1623,7 @@ void factor(fact_obj_t *fobj)
 			{
 				// either the number is small enough to finish off, or it would be better, 
 				// timewise, to switch
-				if (ndigits(b) > 95)
+				if (decision == 2)
 					fact_state = state_nfs;
 				else
 					fact_state = state_qs;

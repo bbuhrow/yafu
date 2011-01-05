@@ -594,7 +594,8 @@ void pp1exit(int sig);
 		size_t count;
 
 		pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
-		//pp1_data.params->verbose = 2;
+		if (VFLAG >= 3)
+			pp1_data.params->verbose = VFLAG - 2;		
 
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 		mpz_import(pp1_data.gmp_n, (size_t)(abs(n->size)), -1, sizeof(uint32), 
@@ -797,49 +798,54 @@ void pp1_print_B1_B2(z *n, FILE *flog)
 		sprintf(stg1str,"%u",WILL_STG1_MAX);
 	}
 
-	if (WILL_STG2_MAX % 1000000000 == 0)
+	if (PP1_STG2_ISDEFAULT == 0)
 	{
-		suffix = 'B';
+		if (WILL_STG2_MAX % 1000000000 == 0)
+		{
+			suffix = 'B';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000000, suffix);
 #endif
-	}
-	else if (WILL_STG2_MAX % 1000000 == 0)
-	{
-		suffix = 'M';
+		}
+		else if (WILL_STG2_MAX % 1000000 == 0)
+		{
+			suffix = 'M';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000, suffix);
 #endif
-	}
-	else if (WILL_STG2_MAX % 1000 == 0)
-	{
-		suffix = 'K';
+		}
+		else if (WILL_STG2_MAX % 1000 == 0)
+		{
+			suffix = 'K';
 #if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000, suffix);
 #elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000, suffix);
 #else
-		sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000, suffix);
 #endif
+		}
+		else
+		{
+#if defined(__unix__) && (BITS_PER_DIGIT == 64)
+			sprintf(stg2str,"%lu",WILL_STG2_MAX);
+#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
+			sprintf(stg2str,"%llu",WILL_STG2_MAX);
+#else
+			sprintf(stg2str,"%I64u",WILL_STG2_MAX);
+#endif
+		}
 	}
 	else
-	{
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		sprintf(stg2str,"%lu",WILL_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		sprintf(stg2str,"%llu",WILL_STG2_MAX);
-#else
-		sprintf(stg2str,"%I64u",WILL_STG2_MAX);
-#endif
-	}
+		sprintf(stg2str, "gmp-ecm default");
 
 	if (VFLAG >= 0)
 	{

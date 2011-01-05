@@ -369,13 +369,7 @@ void SIQS(fact_obj_t *fobj)
 #ifdef OPT_DEBUG
 	fprintf(optfile,"\n\n");
 	fclose(optfile);
-#endif	
-
-	if (updatecode == 2)
-	{
-		fclose(sieve_log);
-		return;
-	}
+#endif		
 
 	//stop worker threads
 	for (i=0; i<THREADS - 1; i++)
@@ -386,19 +380,11 @@ void SIQS(fact_obj_t *fobj)
 	}
 	stop_worker_thread(thread_data + i, 1);
 	free_sieve(thread_data[i].dconf);
-	free(thread_data[i].dconf->relation_buf);		
-
-	//we don't need the poly_a_list anymore... free it so the other routines
-	//can use it
-	for (i=0;i<static_conf->total_poly_a + 1;i++)
-		zFree(&static_conf->poly_a_list[i]);
-	free(static_conf->poly_a_list);
+	free(thread_data[i].dconf->relation_buf);			
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-	qs_savefile_close(&static_conf->obj->qs_obj.savefile);
-
-	
+	qs_savefile_close(&static_conf->obj->qs_obj.savefile);	
 
 	//for fun, compute the total number of locations sieved over
 	sp2z(static_conf->tot_poly,&tmp1);					//total number of polys
@@ -407,6 +393,15 @@ void SIQS(fact_obj_t *fobj)
 	zShiftLeft(&tmp1,&tmp1,BLOCKBITS);	//sieve locations per block
 	
 	update_final(static_conf);
+
+	if (updatecode == 2)
+		goto done;
+
+	//we don't need the poly_a_list anymore... free it so the other routines
+	//can use it
+	for (i=0;i<static_conf->total_poly_a + 1;i++)
+		zFree(&static_conf->poly_a_list[i]);
+	free(static_conf->poly_a_list);
 	
 	gettimeofday (&myTVend, NULL);
 	difference = my_difftime (&static_conf->totaltime_start, &myTVend);
@@ -457,7 +452,7 @@ void SIQS(fact_obj_t *fobj)
 	if (bitfield != NULL && num_cycles > 0) 
 	{
 	
-		find_factors(static_conf->obj, &static_conf->n, static_conf->factor_base->list, 
+		yafu_find_factors(static_conf->obj, &static_conf->n, static_conf->factor_base->list, 
 			static_conf->factor_base->B, cycle_list, num_cycles, 
 			relation_list, bitfield, static_conf->multiplier, 
 			static_conf->poly_a_list, static_conf->poly_list, 
@@ -494,6 +489,9 @@ void SIQS(fact_obj_t *fobj)
 
 	static_conf->cycle_list = cycle_list;
 	static_conf->num_cycles = num_cycles;
+
+	//free stuff used during filtering
+	free_filter_vars(static_conf);
 
 done:
 
@@ -1264,19 +1262,19 @@ int siqs_static_init(static_conf_t *sconf)
 	//force this to happen for now, eventually should implement this flag
 	if (1 || !(sconf->obj->flags & MSIEVE_FLAG_SKIP_QS_CYCLES)) {
 		sconf->cycle_hashtable = (uint32 *)xcalloc(
-					(size_t)(1 << LOG2_CYCLE_HASH),
+					(size_t)(1 << QS_LOG2_CYCLE_HASH),
 					sizeof(uint32));
 		sconf->cycle_table_size = 1;
 		sconf->cycle_table_alloc = 10000;
-		sconf->cycle_table = (cycle_t *)xmalloc(
-			sconf->cycle_table_alloc * sizeof(cycle_t));
+		sconf->cycle_table = (qs_cycle_t *)xmalloc(
+			sconf->cycle_table_alloc * sizeof(qs_cycle_t));
 	}
 
 	if (VFLAG > 2)
 	{
-		memsize = (1 << LOG2_CYCLE_HASH) * sizeof(uint32);
+		memsize = (1 << QS_LOG2_CYCLE_HASH) * sizeof(uint32);
 		printf("\tinitial cycle hashtable: %d bytes\n",memsize);
-		memsize = sconf->cycle_table_alloc * sizeof(cycle_t);
+		memsize = sconf->cycle_table_alloc * sizeof(qs_cycle_t);
 		printf("\tinitial cycle table: %d bytes\n",memsize);
 	}
 
@@ -2003,6 +2001,57 @@ int free_sieve(dynamic_conf_t *dconf)
 	return 0;
 }
 
+void free_filter_vars(static_conf_t *sconf)
+{
+	int i;
+
+	//list of a values used first to track all a coefficients
+	//generated during sieving for duplication, then used again during
+	//filtering
+	for (i=0; (uint32)i < sconf->total_poly_a; i++)
+		zFree(&sconf->poly_a_list[i]);
+	free(sconf->poly_a_list);
+
+	//cycle table stuff created at the beginning of the factorization
+	free(sconf->cycle_hashtable);
+	free(sconf->cycle_table);
+
+	//list of polys used in filtering and sqrt
+	if (sconf->curr_b != NULL)
+	{
+		for (i=0;(uint32)i < sconf->bpoly_alloc;i++)
+			zFree(&sconf->curr_b[i]);
+		free(sconf->curr_b);
+	}
+
+	if (sconf->poly_list != NULL)
+	{
+		for (i=0;(uint32)i < sconf->poly_list_alloc;i++)
+			zFree(&sconf->poly_list[i].b);
+		free(sconf->poly_list);
+	}
+
+	if (sconf->relation_list != NULL)
+	{
+		//free post-processed relations
+		for (i=0; (uint32)i < sconf->num_relations; i++)
+			free(sconf->relation_list[i].fb_offsets);
+		free(sconf->relation_list);
+	}
+
+	for (i=0;i<sconf->num_cycles;i++)
+	{
+		if (sconf->cycle_list[i].cycle.list != NULL)
+			free(sconf->cycle_list[i].cycle.list);
+		if (sconf->cycle_list[i].data != NULL)
+			free(sconf->cycle_list[i].data);
+	}
+	if (sconf->cycle_list != NULL)
+		free(sconf->cycle_list);
+
+	return;
+}
+
 int free_siqs(static_conf_t *sconf)
 {
 	uint32 i;
@@ -2019,41 +2068,7 @@ int free_siqs(static_conf_t *sconf)
 	zFree(&sconf->curr_poly->poly_b);
 	zFree(&sconf->curr_poly->poly_c);
 	free(sconf->curr_poly);
-	zFree(&sconf->curr_a);
-
-	//list of a values used first to track all a coefficients
-	//generated during sieving for duplication, then used again during
-	//filtering
-	for (i=0; (uint32)i < sconf->total_poly_a; i++)
-		zFree(&sconf->poly_a_list[i]);
-	free(sconf->poly_a_list);
-
-	//cycle table stuff created at the beginning of the factorization
-	free(sconf->cycle_hashtable);
-	free(sconf->cycle_table);
-
-	//list of polys used in filtering and sqrt
-	for (i=0;(uint32)i < sconf->bpoly_alloc;i++)
-		zFree(&sconf->curr_b[i]);
-	free(sconf->curr_b);
-	for (i=0;(uint32)i < sconf->poly_list_alloc;i++)
-		zFree(&sconf->poly_list[i].b);
-	free(sconf->poly_list);
-
-	//free post-processed relations
-	for (i=0; (uint32)i < sconf->num_relations; i++)
-		free(sconf->relation_list[i].fb_offsets);
-	free(sconf->relation_list);
-
-	for (i=0;i<sconf->num_cycles;i++)
-	{
-		if (sconf->cycle_list[i].cycle.list != NULL)
-			free(sconf->cycle_list[i].cycle.list);
-		if (sconf->cycle_list[i].data != NULL)
-			free(sconf->cycle_list[i].data);
-	}
-	if (sconf->cycle_list != NULL)
-		free(sconf->cycle_list);
+	zFree(&sconf->curr_a);	
 
 #if defined(_MSC_VER)
 	free(sconf->modsqrt_array);

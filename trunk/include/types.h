@@ -56,6 +56,7 @@ code to the public domain.
 #include <signal.h>
 #include <memory.h>
 #include <malloc.h>
+#include <float.h>
 
 
 #ifndef _MSC_VER

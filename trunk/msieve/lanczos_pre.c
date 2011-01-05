@@ -22,17 +22,17 @@ Purpose:	Port into Yafu-1.14.
 typedef struct {
 	uint32 count;
 	uint32 index;
-} row_count_t;
+} qs_row_count_t;
 
 static int yafu_compare_row_count(const void *x, const void *y) {
-	row_count_t *xx = (row_count_t *)x;
-	row_count_t *yy = (row_count_t *)y;
+	qs_row_count_t *xx = (qs_row_count_t *)x;
+	qs_row_count_t *yy = (qs_row_count_t *)y;
 	return yy->count - xx->count;
 }
 
 static int yafu_compare_row_index(const void *x, const void *y) {
-	row_count_t *xx = (row_count_t *)x;
-	row_count_t *yy = (row_count_t *)y;
+	qs_row_count_t *xx = (qs_row_count_t *)x;
+	qs_row_count_t *yy = (qs_row_count_t *)y;
 	return xx->index - yy->index;
 }
 
@@ -105,18 +105,18 @@ void count_qs_matrix_nonzero(fact_obj_t *obj,
 }
 
 /*------------------------------------------------------------------*/
-#define MAX_COL_WEIGHT 1000
+#define QS_MAX_COL_WEIGHT 1000
 
 static void yafu_combine_cliques(uint32 num_dense_rows, 
 			uint32 *ncols_out, qs_la_col_t *cols, 
-			row_count_t *counts) {
+			qs_row_count_t *counts) {
 
 	uint32 i, j;
 	uint32 ncols = *ncols_out;
 	uint32 dense_row_words = (num_dense_rows + 31) / 32;
 
 	uint32 num_merged;
-	uint32 merge_array[MAX_COL_WEIGHT];
+	uint32 merge_array[QS_MAX_COL_WEIGHT];
 
 	/* for each row, mark the last column encountered 
 	   that contains a nonzero entry in that row */
@@ -143,7 +143,7 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 		   not previously merged */
 
 		for (j = 0; j < c1->weight; j++) {
-			row_count_t *curr_clique = counts + c1->data[j];
+			qs_row_count_t *curr_clique = counts + c1->data[j];
 			if (curr_clique->count == 2) {
 				clique_base = curr_clique->index;
 				break;
@@ -155,7 +155,7 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 
 		c0 = cols + clique_base;
 		if (c0->data == NULL || 
-		    c0->weight + c1->weight >= MAX_COL_WEIGHT)
+		    c0->weight + c1->weight >= QS_MAX_COL_WEIGHT)
 			continue;
 
 		/* remove c0 and c1 from the row counts */
@@ -199,7 +199,7 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 		/* add c0 back into the row counts */
 
 		for (j = 0; j < c0->weight; j++) {
-			row_count_t *curr_row = counts + c0->data[j];
+			qs_row_count_t *curr_row = counts + c0->data[j];
 			curr_row->count++;
 			curr_row->index = clique_base;
 		}
@@ -246,7 +246,7 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 
 	uint32 r, c, i, j, k;
 	uint32 passes;
-	row_count_t *counts;
+	qs_row_count_t *counts;
 	uint32 reduced_rows;
 	uint32 reduced_cols;
 
@@ -260,8 +260,8 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 	reduced_cols = *ncols;
 	passes = 0;
 
-	counts = (row_count_t *)xcalloc((size_t)reduced_rows, 
-					sizeof(row_count_t));
+	counts = (qs_row_count_t *)xcalloc((size_t)reduced_rows, 
+					sizeof(qs_row_count_t));
 	for (i = 0; i < reduced_cols; i++) {
 		for (j = 0; j < cols[i].weight; j++)
 			counts[cols[i].data[j]].count++;
@@ -303,7 +303,7 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 			/* if the matrix is big enough, collapse most 
 			   of the cliques that it contains */
 
-			if (reduced_cols >= MIN_NCOLS_TO_PACK) {
+			if (reduced_cols >= QS_MIN_NCOLS_TO_PACK) {
 				yafu_combine_cliques(num_dense_rows, 
 						&reduced_cols, 
 						cols, counts);
@@ -376,11 +376,11 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 	for (i = num_dense_rows; i < *nrows; i++)
 		counts[i].index = i;
 	qsort(counts + num_dense_rows, (size_t)(*nrows - num_dense_rows), 
-			sizeof(row_count_t), yafu_compare_row_count);
+			sizeof(qs_row_count_t), yafu_compare_row_count);
 	for (i = num_dense_rows; i < *nrows; i++)
 		counts[i].count = i;
 	qsort(counts + num_dense_rows, (size_t)(*nrows - num_dense_rows), 
-			sizeof(row_count_t), yafu_compare_row_index);
+			sizeof(qs_row_count_t), yafu_compare_row_index);
 
 	for (i = 0; i < reduced_cols; i++) {
 		qs_la_col_t *col = cols + i;

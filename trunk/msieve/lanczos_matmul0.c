@@ -20,7 +20,7 @@ Purpose:	Port into Yafu-1.14.
 #include "util.h"
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_unpacked(packed_matrix_t *matrix,
+static void yafu_mul_unpacked(qs_packed_matrix_t *matrix,
 			  uint64 *x, uint64 *b) {
 
 	uint32 ncols = matrix->ncols;
@@ -57,7 +57,7 @@ static void yafu_mul_unpacked(packed_matrix_t *matrix,
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_trans_unpacked(packed_matrix_t *matrix,
+static void yafu_mul_trans_unpacked(qs_packed_matrix_t *matrix,
 				uint64 *x, uint64 *b) {
 
 	uint32 ncols = matrix->ncols;
@@ -94,13 +94,13 @@ static void yafu_mul_trans_unpacked(packed_matrix_t *matrix,
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
+static void yafu_mul_packed(qs_packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 	uint32 i;
 	uint32 ncols = matrix->ncols;
 
 	for (i = 0; i < matrix->num_threads; i++) {
-		thread_data_t *t = matrix->thread_data + i;
+		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
 		/* use each thread's scratch vector, except the
 		   first thead, which has no scratch vector but
@@ -136,7 +136,7 @@ static void yafu_mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 	   vector */
 
 	for (i = 0; i < matrix->num_threads; i++) {
-		thread_data_t *t = matrix->thread_data + i;
+		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
 		if (i < matrix->num_threads - 1) {
 #if defined(WIN32) || defined(_WIN64)
@@ -167,16 +167,16 @@ static void yafu_mul_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
+void yafu_mul_trans_packed(qs_packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 	uint32 i;
 	uint32 ncols = matrix->ncols;
-	uint64 *tmp_b[MAX_THREADS];
+	uint64 *tmp_b[QS_MAX_THREADS];
 
 	memset(b, 0, ncols * sizeof(uint64));
 
 	for (i = 0; i < matrix->num_threads; i++) {
-		thread_data_t *t = matrix->thread_data + i;
+		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
 		/* separate threads fill up disjoint portions
 		   of a single b vector, and do not need 
@@ -209,7 +209,7 @@ void yafu_mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 	/* wait for each thread to finish */
 
 	for (i = 0; i < matrix->num_threads; i++) {
-		thread_data_t *t = matrix->thread_data + i;
+		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
 		if (i < matrix->num_threads - 1) {
 #if defined(WIN32) || defined(_WIN64)
@@ -234,8 +234,8 @@ void yafu_mul_trans_packed(packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 /*-------------------------------------------------------------------*/
 int yafu_compare_row_off(const void *x, const void *y) {
-	entry_idx_t *xx = (entry_idx_t *)x;
-	entry_idx_t *yy = (entry_idx_t *)y;
+	qs_entry_idx_t *xx = (qs_entry_idx_t *)x;
+	qs_entry_idx_t *yy = (qs_entry_idx_t *)y;
 
 	if (xx->row_off > yy->row_off)
 		return 1;
@@ -245,14 +245,14 @@ int yafu_compare_row_off(const void *x, const void *y) {
 	return (int)xx->col_off - (int)yy->col_off;
 }
 
-static void yafu_matrix_thread_init(thread_data_t *t) {
+static void yafu_matrix_thread_init(qs_msieve_thread_data_t *t) {
 
 	uint32 i, j, k, m;
 	uint32 num_row_blocks;
 	uint32 num_col_blocks;
 	uint32 dense_row_blocks;
-	packed_block_t *curr_stripe;
-	entry_idx_t *e;
+	qs_packed_block_t *curr_stripe;
+	qs_entry_idx_t *e;
 
 	qs_la_col_t *A = t->initial_cols;
 	uint32 nrows = t->nrows_in;
@@ -294,14 +294,14 @@ static void yafu_matrix_thread_init(thread_data_t *t) {
 	/* allocate blocks in row-major order; a 'stripe' is
 	   a vertical column of blocks */
 
-	num_row_blocks = (nrows - NUM_MEDIUM_ROWS + 
+	num_row_blocks = (nrows - QS_NUM_MEDIUM_ROWS + 
 				(block_size-1)) / block_size + 1;
 	num_col_blocks = ((col_max - col_min + 1) + 
 				(block_size-1)) / block_size;
 	t->num_blocks = num_row_blocks * num_col_blocks;
-	t->blocks = curr_stripe = (packed_block_t *)xcalloc(
+	t->blocks = curr_stripe = (qs_packed_block_t *)xcalloc(
 						(size_t)t->num_blocks,
-						sizeof(packed_block_t));
+						sizeof(qs_packed_block_t));
 
 	/* we convert the sparse part of the matrix to packed
 	   format one stripe at a time. This limits the worst-
@@ -311,20 +311,20 @@ static void yafu_matrix_thread_init(thread_data_t *t) {
 
 		uint32 curr_cols = MIN(block_size, (col_max - col_min + 1) - 
 						i * block_size);
-		packed_block_t *b;
+		qs_packed_block_t *b;
 
 		/* initialize the blocks in stripe i. The first
-		   block has NUM_MEDIUM_ROWS rows, and all the
+		   block has QS_NUM_MEDIUM_ROWS rows, and all the
 		   rest have block_size rows */
 
 		for (j = 0, b = curr_stripe; j < num_row_blocks; j++) {
 
 			if (j == 0) {
 				b->start_row = 0;
-				b->num_rows = NUM_MEDIUM_ROWS;
+				b->num_rows = QS_NUM_MEDIUM_ROWS;
 			}
 			else {
-				b->start_row = NUM_MEDIUM_ROWS +
+				b->start_row = QS_NUM_MEDIUM_ROWS +
 						(j - 1) * block_size;
 				b->num_rows = block_size;
 			}
@@ -362,9 +362,9 @@ static void yafu_matrix_thread_init(thread_data_t *t) {
 		   slowdown */
 
 		for (j = 0, b = curr_stripe; j < num_row_blocks; j++) {
-			b->entries = (entry_idx_t *)xmalloc(
+			b->entries = (qs_entry_idx_t *)xmalloc(
 						b->num_entries_alloc *
-						sizeof(entry_idx_t));
+						sizeof(qs_entry_idx_t));
 			b += num_col_blocks;
 		}
 
@@ -394,7 +394,7 @@ static void yafu_matrix_thread_init(thread_data_t *t) {
 		b = curr_stripe;
 		e = b->entries;
 		qsort(e, (size_t)b->num_entries, 
-				sizeof(entry_idx_t), yafu_compare_row_off);
+				sizeof(qs_entry_idx_t), yafu_compare_row_off);
 		for (j = k = 0; j < b->num_entries; j++) {
 			if (j == 0 || e[j].row_off != e[j-1].row_off)
 				k++;
@@ -431,7 +431,7 @@ static void yafu_matrix_thread_init(thread_data_t *t) {
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_matrix_thread_free(thread_data_t *t) {
+static void yafu_matrix_thread_free(qs_msieve_thread_data_t *t) {
 
 	uint32 i;
 
@@ -454,7 +454,7 @@ static DWORD WINAPI yafu_worker_thread_main(LPVOID thread_data) {
 #else
 static void *yafu_worker_thread_main(void *thread_data) {
 #endif
-	thread_data_t *t = (thread_data_t *)thread_data;
+	qs_msieve_thread_data_t *t = (qs_msieve_thread_data_t *)thread_data;
 
 	while(1) {
 
@@ -499,7 +499,7 @@ static void *yafu_worker_thread_main(void *thread_data) {
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_start_worker_thread(thread_data_t *t, 
+static void yafu_start_worker_thread(qs_msieve_thread_data_t *t, 
 				uint32 is_master_thread) {
 
 	/* create a thread that will handle matrix multiplies 
@@ -533,7 +533,7 @@ static void yafu_start_worker_thread(thread_data_t *t,
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_stop_worker_thread(thread_data_t *t,
+static void yafu_stop_worker_thread(qs_msieve_thread_data_t *t,
 				uint32 is_master_thread)
 {
 	if (is_master_thread) {
@@ -559,7 +559,7 @@ static void yafu_stop_worker_thread(thread_data_t *t,
 
 /*-------------------------------------------------------------------*/
 void yafu_packed_matrix_init(fact_obj_t *obj,
-			packed_matrix_t *p, qs_la_col_t *A,
+			qs_packed_matrix_t *p, qs_la_col_t *A,
 			uint32 nrows, uint32 ncols,
 			uint32 num_dense_rows) {
 
@@ -571,13 +571,13 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 
 	/* initialize */
 
-	memset(p, 0, sizeof(packed_matrix_t));
+	memset(p, 0, sizeof(qs_packed_matrix_t));
 	p->unpacked_cols = A;
 	p->nrows = nrows;
 	p->ncols = ncols;
 	p->num_dense_rows = num_dense_rows;
 
-	if (ncols <= MIN_NCOLS_TO_PACK)
+	if (ncols <= QS_MIN_NCOLS_TO_PACK)
 		return;
 
 	p->unpacked_cols = NULL;
@@ -615,9 +615,9 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 	/* determine the number of threads to use */
 
 	num_threads = obj->num_threads;
-	if (num_threads < 2 || ncols < MIN_NCOLS_TO_THREAD)
+	if (num_threads < 2 || ncols < QS_MIN_NCOLS_TO_THREAD)
 		num_threads = 1;
-	p->num_threads = num_threads = MIN(num_threads, MAX_THREADS);
+	p->num_threads = num_threads = MIN(num_threads, QS_MAX_THREADS);
 
 	/* compute the number of nonzero elements in the submatrix
 	   given to each thread; overestimate the number slightly
@@ -635,7 +635,7 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 		num_nonzero += A[i].weight;
 
 		if (i == ncols - 1 || num_nonzero >= num_nonzero_per_thread) {
-			thread_data_t *t = p->thread_data + k;
+			qs_msieve_thread_data_t *t = p->thread_data + k;
 
 			t->my_oid = k++;
 			t->initial_cols = A;
@@ -667,7 +667,7 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_packed_matrix_free(packed_matrix_t *p) {
+void yafu_packed_matrix_free(qs_packed_matrix_t *p) {
 
 	uint32 i;
 
@@ -690,7 +690,7 @@ void yafu_packed_matrix_free(packed_matrix_t *p) {
 }
 
 /*-------------------------------------------------------------------*/
-size_t yafu_packed_matrix_sizeof(packed_matrix_t *p) {
+size_t yafu_packed_matrix_sizeof(qs_packed_matrix_t *p) {
 
 	uint32 i, j;
 	size_t mem_use = 0;
@@ -704,22 +704,22 @@ size_t yafu_packed_matrix_sizeof(packed_matrix_t *p) {
 	}
 	else {
 		for (i = 0; i < p->num_threads; i++) {
-			thread_data_t *t = p->thread_data + i;
+			qs_msieve_thread_data_t *t = p->thread_data + i;
 
 			mem_use += p->ncols * sizeof(uint64) +
-				   t->num_blocks * sizeof(packed_block_t) +
+				   t->num_blocks * sizeof(qs_packed_block_t) +
 				   t->ncols * sizeof(uint64) *
 					((t->num_dense_rows + 63) / 64);
 
 			for (j = 0; j < t->num_blocks; j++) {
-				packed_block_t *b = t->blocks + j;
+				qs_packed_block_t *b = t->blocks + j;
 				if (b->entries) {
 					mem_use += b->num_entries * 
 							sizeof(uint32);
 				}
 				else {
 					mem_use += (b->num_entries + 
-						    2 * NUM_MEDIUM_ROWS) * 
+						    2 * QS_NUM_MEDIUM_ROWS) * 
 							sizeof(uint16);
 				}
 			}
@@ -729,7 +729,7 @@ size_t yafu_packed_matrix_sizeof(packed_matrix_t *p) {
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
+void yafu_mul_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b) {
 
 	/* Multiply the vector x[] by the matrix A (stored
 	   columnwise) and put the result in b[]. */
@@ -741,7 +741,7 @@ void yafu_mul_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_trans_MxN_Nx64(packed_matrix_t *A, uint64 *x, uint64 *b) {
+void yafu_mul_trans_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b) {
 
 	/* Multiply the vector x[] by the transpose of the
 	   matrix A and put the result in b[]. Since A is stored

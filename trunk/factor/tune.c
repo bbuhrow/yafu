@@ -93,8 +93,7 @@ void factor_tune(void)
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-		init_factobj(fobj);
-		zCopy(&fobj->fobj_factors[i].factor,&fobj->N);
+		init_factobj(fobj);		
 
 		//measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);
@@ -180,10 +179,15 @@ void factor_tune(void)
 
 		//count relations
 		in = fopen("tmprels.out","r");
-		count = 0;
-		while (fgets(tmpbuf, GSTR_MAXSIZE, in) != NULL)
-			count++;
-		fclose(in);
+		if (in != NULL)
+		{
+			count = 0;
+			while (fgets(tmpbuf, GSTR_MAXSIZE, in) != NULL)
+				count++;
+			fclose(in);
+		}
+		else
+			count = 1;	//no divide by zero
 
 		printf("nfs: elapsed time for %u relations of c%d = %6.4f seconds.\n",
 			count,(uint32)gnfs_sizes[i],t_time - t_time2);
@@ -484,7 +488,12 @@ void update_INI(double mult, double exponent, double mult2, double exponent2, do
 			fputs(str, out);
 			continue;
 		}
-		else
+		else if (found_entry)
+		{
+			//already found the right entry, just copy the rest of the file
+			fputs(str, out);
+			continue;
+		}
 		{
 			//remember original line
 			strcpy(str2, str);

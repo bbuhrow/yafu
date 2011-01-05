@@ -2020,18 +2020,18 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	return 0;
 }
 
-#define HASH_MULT ((uint32)(2654435761UL))
-#define HASH(a) (((a) * HASH_MULT) >> (32 - LOG2_CYCLE_HASH))
+#define QS_HASH_MULT ((uint32)(2654435761UL))
+#define QS_HASH(a) (((a) * QS_HASH_MULT) >> (32 - QS_LOG2_CYCLE_HASH))
 
 /**********************************************************
 These 3 routines are used to add a relation to the cycle
 tree every time one is found after sieving
 (e.g., add_to_cycles is called in save_relation)
 **********************************************************/
-static cycle_t *get_table_entry(cycle_t *table, uint32 *hashtable,
+static qs_cycle_t *get_table_entry(qs_cycle_t *table, uint32 *hashtable,
 				uint32 prime, uint32 new_entry_offset) {
 
-	/* return a pointer to a unique cycle_t specific
+	/* return a pointer to a unique qs_cycle_t specific
 	   to 'prime'. The value of 'prime' is hashed and
 	   the result used to index 'table'. If prime does
 	   not appear in table, specify 'new_entry_offset'
@@ -2042,9 +2042,9 @@ static cycle_t *get_table_entry(cycle_t *table, uint32 *hashtable,
 	   offsets in 'table'. */
 
 	uint32 offset, first_offset;
-	cycle_t *entry = NULL;
+	qs_cycle_t *entry = NULL;
 
-	first_offset = HASH(prime);
+	first_offset = QS_HASH(prime);
 	offset = hashtable[first_offset];
 	
 	/* follow the list of entries corresponding to
@@ -2074,7 +2074,7 @@ static cycle_t *get_table_entry(cycle_t *table, uint32 *hashtable,
 }
 
 /*--------------------------------------------------------------------*/
-static uint32 add_to_hashtable(cycle_t *table, uint32 *hashtable, 
+static uint32 add_to_hashtable(qs_cycle_t *table, uint32 *hashtable, 
 			uint32 prime1, uint32 prime2, 
 			uint32 default_table_entry, 
 			uint32 *components, uint32 *vertices) {
@@ -2110,9 +2110,9 @@ static uint32 add_to_hashtable(cycle_t *table, uint32 *hashtable,
 	for (i = 0; i < 2; i++) {
 		uint32 prime = ((i == 0) ? prime1 : prime2);
 		uint32 offset; 
-		cycle_t *entry;
+		qs_cycle_t *entry;
 
-		/* retrieve the cycle_t corresponding to that
+		/* retrieve the qs_cycle_t corresponding to that
 		   prime from the graph (or allocate a new one) */
 
 		entry = get_table_entry(table, hashtable,
@@ -2137,13 +2137,13 @@ static uint32 add_to_hashtable(cycle_t *table, uint32 *hashtable,
 		else {
 			/* the prime is already in the table, which
 			   means we can follow a linked list of pointers
-			   to other primes until we reach a cycle_t
-			   that points to itself. This last cycle_t is
+			   to other primes until we reach a qs_cycle_t
+			   that points to itself. This last qs_cycle_t is
 			   the 'root' of the connected component that
 			   contains 'prime'. Save its value */
 			//fprintf(globaltest,"data found: %u\n",prime);
 
-			cycle_t *first_entry, *next_entry;
+			qs_cycle_t *first_entry, *next_entry;
 
 			first_entry = entry;
 			next_entry = table + entry->data;
@@ -2208,7 +2208,7 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32
 
 	uint32 table_size = conf->cycle_table_size;
 	uint32 table_alloc = conf->cycle_table_alloc;
-	cycle_t *table = conf->cycle_table;
+	qs_cycle_t *table = conf->cycle_table;
 	uint32 *hashtable = conf->cycle_hashtable;
 
 	/* if we don't actually want to count cycles,
@@ -2225,8 +2225,8 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32
 
 	if (table_size + 2 >= table_alloc) {
 		table_alloc = conf->cycle_table_alloc = 2 * table_alloc;
-		conf->cycle_table = (cycle_t *)xrealloc(conf->cycle_table,
-						table_alloc * sizeof(cycle_t));
+		conf->cycle_table = (qs_cycle_t *)xrealloc(conf->cycle_table,
+						table_alloc * sizeof(qs_cycle_t));
 		table = conf->cycle_table;
 	}
 
@@ -2255,7 +2255,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	fact_obj_t *obj = sconf->obj;
 	uint32 *hashtable = sconf->cycle_hashtable;
-	cycle_t *table = sconf->cycle_table;
+	qs_cycle_t *table = sconf->cycle_table;
 	uint32 num_derived_poly;
 	uint32 *final_poly_index;
 	uint32 num_relations, num_cycles, num_poly;
@@ -2324,7 +2324,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 	
 	num_relations = i;
-	num_relations = purge_singletons(obj, relation_list, num_relations,
+	num_relations = qs_purge_singletons(obj, relation_list, num_relations,
 					table, hashtable);
 
 	relation_list = (siqs_r *)xrealloc(relation_list, num_relations * 
@@ -2506,10 +2506,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   duplicate relations. For the sake of consistency, 
 	   always rebuild the graph afterwards */
 
-	num_relations = purge_duplicate_relations(obj, 
+	num_relations = qs_purge_duplicate_relations(obj, 
 				relation_list, num_relations);
 
-	memset(hashtable, 0, sizeof(uint32) << LOG2_CYCLE_HASH);
+	memset(hashtable, 0, sizeof(uint32) << QS_LOG2_CYCLE_HASH);
 	sconf->vertices = 0;
 	sconf->components = 0;
 	sconf->cycle_table_size = 1;
@@ -2572,11 +2572,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   remove any primes whose cycle_t entry does not point
 	   to itself */
 
-	for (i = 0; i < (1 << LOG2_CYCLE_HASH); i++) {
+	for (i = 0; i < (1 << QS_LOG2_CYCLE_HASH); i++) {
 		uint32 offset = hashtable[i];
 
 		while (offset != 0) {
-			cycle_t *entry = table + offset;
+			qs_cycle_t *entry = table + offset;
 			if (offset != entry->data)
 				entry->data = 0;
 			offset = entry->next;
@@ -2603,7 +2603,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		for (i = start; i < num_relations &&
 				curr_cycle < num_cycles; i++) {
 
-			cycle_t *entry1, *entry2;
+			qs_cycle_t *entry1, *entry2;
 			siqs_r rtmp = relation_list[i];
 			
 			if (rtmp.large_prime[0] == rtmp.large_prime[1]) {
@@ -2662,7 +2662,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			else {
 				qs_la_col_t *c = cycle_list + curr_cycle;
 				c->cycle.list = NULL;
-				enumerate_cycle(obj, c, table, entry1,
+				qs_enumerate_cycle(obj, c, table, entry1,
 						entry2, start);
 				if (c->cycle.list)
 					curr_cycle++;
@@ -2813,7 +2813,7 @@ static int compare_relations(const void *x, const void *y) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 purge_duplicate_relations(fact_obj_t *obj,
+uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 				siqs_r *rlist, 
 				uint32 num_relations) {
 
@@ -2883,9 +2883,9 @@ void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 	}
 }
 
-uint32 purge_singletons(fact_obj_t *obj, siqs_r *list, 
+uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
 				uint32 num_relations,
-				cycle_t *table, uint32 *hashtable) {
+				qs_cycle_t *table, uint32 *hashtable) {
 	
 	/* given a list of relations and the graph from the
 	   sieving stage, remove any relation that contains
@@ -2910,7 +2910,7 @@ uint32 purge_singletons(fact_obj_t *obj, siqs_r *list,
 		for (i = j = 0; i < num_relations; i++) {
 			siqs_r *r = list + i;
 			uint32 prime;
-			cycle_t *entry;
+			qs_cycle_t *entry;
 
 			/* full relations always survive */
 
@@ -2958,10 +2958,10 @@ uint32 purge_singletons(fact_obj_t *obj, siqs_r *list,
 }
 
 /*--------------------------------------------------------------------*/
-void enumerate_cycle(fact_obj_t *obj, 
+void qs_enumerate_cycle(fact_obj_t *obj, 
 			    qs_la_col_t *c, 
-			    cycle_t *table,
-			    cycle_t *entry1, cycle_t *entry2,
+			    qs_cycle_t *table,
+			    qs_cycle_t *entry1, qs_cycle_t *entry2,
 			    uint32 final_relation) {
 
 	/* given two entries out of the hashtable, corresponding
