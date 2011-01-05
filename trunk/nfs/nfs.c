@@ -107,6 +107,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 #elif defined(WIN32)
 	printf("NFS not supported on win32 systems.  Check back soon.\n");
+	return;
 #endif
 
 
@@ -1224,8 +1225,8 @@ void ggnfs_to_msieve(ggnfs_job_t *job)
 //http://www.mersenneforum.org/showthread.php?t=12365
 #define GGNFS_TABLE_ROWS 15
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
-	{85,  900000,   24, 48, 2.5, 11, 0, 10000},
-	{90,  1200000,  25, 50, 2.5, 11, 0, 20000},
+	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
+	{90,  1200000,  25, 50, 2.3, 11, 0, 20000},
 	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
 	{100, 1800000,  26, 52, 2.5, 12, 0, 40000},
 	{105, 2500000,  26, 52, 2.5, 12, 0, 40000},
@@ -1279,7 +1280,10 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 				job->mfb = ggnfs_table[i+1][3];
 
 			//pick closest entry
-			job->lambda = 2.5;
+			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
+				job->lambda = ggnfs_table[i][4];
+			else
+				job->lambda = ggnfs_table[i+1][4];
 
 			//pick closest entry
 			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
