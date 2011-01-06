@@ -6,6 +6,26 @@ No installation necessary, just put the binary in whatever
 location you like and run it.  
 
 ---------------------------------------------------------------
+INSTALLATION WITH NFS SUPPORT
+---------------------------------------------------------------
+
+To run the general or special number field sieve using yafu,
+you will need to provide ggnfs executable files and make the
+location of these files known to yafu at runtime.  The easiest
+way to obtain the files is through Jeff Gilchrist's website:
+http://gilchrist.ca/jeff/factoring/index.html
+Download the .zip file for your OS and unzip it to a directory 
+on your computer.  The easiest way to let yafu know where these
+are is to modify your yafu.ini file (which should appear in the
+same directory as your yafu executable files) to contain a line
+specifying ggnfs_dir in the following way:
+ggnfs_dir=<location relative to yafu executable>
+For instance, if your ggnfs executables were located adjacent to
+the yafu folder in the directory tree, in a folder called
+ggnfs-bin, then the line would be
+ggnfs_dir=..\ggnfs-bin\
+
+---------------------------------------------------------------
 BUILD INFORMATION
 ---------------------------------------------------------------
 
@@ -60,10 +80,21 @@ WINDOWS MS Visual Studio Express Edition 2008
 =============
 
 Build files are available for MSVC EE2008 and 2010.  The directory 
-structure is important for these builds, especially if GMPECM
-support is desired.  The build files expect to see an mpir
+structure is important for these builds, especially if GMPECM or NFS
+support is desired.  The build files expect to see an mpir, msieve, 
 and gmp-ecm folder at the same level as the yafu folder in the
 directory tree, with the following structure:
+
+msieve
+	build.vc10
+		Win32
+			Release
+				gnfs.lib
+				common.lib
+		x64
+			Release
+				gnfs.lib
+				common.lib
 
 gmp-ecm
 	ecm.h
@@ -119,6 +150,7 @@ Other platforms
 =============
 If you build yafu on other platforms or using other IDE's or
 compilers, please let me know about it.
+
 
 
 

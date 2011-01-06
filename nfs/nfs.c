@@ -101,17 +101,6 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	double t_time;
 	FILE *logfile;
 
-
-
-#if defined(_WIN64)
-
-#elif defined(WIN32)
-	printf("NFS not supported on win32 systems.  Check back soon.\n");
-	return;
-#endif
-
-
-
 	//below a certain amount, revert to SIQS
 	if (ndigits(N) < MIN_NFS_DIGITS)
 	{

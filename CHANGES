@@ -1,4 +1,7 @@
-v 1.22
+v 1.22.1
++ remove restriction on Win32 NFS
+
+v 1.22 1/4/11
 + incorporated a completely automated multi-threaded gnfs implemetation by using msieve 
 	library calls and externally called ggnfs lasieve binaries.  currently snfs is not
 	completely automated - a polynomial file must be produced manually prior to calling
@@ -24,15 +27,10 @@ v 1.22
 	meant a more robust solution was required.
 + added logging of NFS progress and results to yafu logfile.
 + added a small amount of trial division and a primalty test prior to starting NFS
-
 + output executable directory updated for yafu-32k (yafu-64k was ok) under Win32 (release and debug)
 + work on factor_tune: tuning produces exponential fit parameters and writes them to the 
 	yafu.ini file. The flag handling appartus then imports the tuning parameters and 
 	qs_time_estimation uses them if present.
-	Not quite done yet.
-
-	
-+ tune command now ready for release
 + ecm/qs and ecm/gnfs target ratios now settable as flags
 + further segregation of ported msieve code used in qs post-processing from symbols defined
 	in gnfs.lib and common.lib (changing typedef names, static variable names, etc), in a 

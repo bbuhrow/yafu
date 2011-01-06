@@ -203,11 +203,11 @@
     <ClCompile Include="..\..\nfs\nfs.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\nfs\winsupport.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\tune.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\nfs\winsupport.c">
+      <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
