@@ -21,7 +21,7 @@ static void yafu_mul_trans_one_med_block(qs_packed_block_t *curr_block,
 			uint64 *curr_row, uint64 *curr_b) {
 
 	uint16 *entries = curr_block->med_entries;
-
+	
 	while (1) {
 		uint64 t;
 #if defined(GCC_ASM64X)
@@ -220,7 +220,7 @@ static void yafu_mul_trans_one_block(qs_packed_block_t *curr_block,
 	uint32 k;
 	uint32 num_entries = curr_block->num_entries;
 	qs_entry_idx_t *entries = curr_block->entries;
-
+	
 	/* unroll by 16, i.e. the number of matrix elements
 	   in one cache line (usually). For 32-bit x86, we get
 	   a huge performance boost by using either SSE or MMX
@@ -324,7 +324,7 @@ void yafu_mul_trans_packed_core(qs_msieve_thread_data_t *t) {
 	uint64 *x = t->x;
 	uint64 *b = t->b;
 	uint32 i;
-
+	
 	/* you would think that doing the matrix multiply
 	   in column-major order would be faster, since this would
 	   also minimize dirty cache writes. Except that it's slower;

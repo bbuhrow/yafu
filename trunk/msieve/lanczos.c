@@ -801,6 +801,7 @@ static void yafu_dump_lanczos_state(fact_obj_t *obj,
 	char buf[256];
 	FILE *dump_fp;
 
+	
 	sprintf(buf, "%s.chk", obj->savefile_name);
 	dump_fp = fopen(buf, "wb");
 	if (dump_fp == NULL) {
@@ -841,6 +842,7 @@ static void yafu_read_lanczos_state(fact_obj_t *obj,
 	char buf[256];
 	FILE *dump_fp;
 
+	
 	sprintf(buf, "%s.chk", obj->savefile_name);
 	dump_fp = fopen(buf, "rb");
 	if (dump_fp == NULL) {
@@ -891,7 +893,7 @@ static void yafu_init_lanczos_state(fact_obj_t *obj,
 	/* The computed solution 'x' starts off random,
 	   and v[0] starts off as B*x. This initial copy
 	   of v[0] must be saved off separately */
-
+	
 	for (i = 0; i < n; i++) {
 		x[i] = v[0][i] = 
 			  (uint64)(get_rand(&obj->seed1, &obj->seed2)) << 32 |
@@ -951,7 +953,7 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 	uint32 next_report = 0;
 	uint32 next_dump = 0;
 	time_t first_time;
-
+	
 	if (packed_matrix->num_threads > 1)
 	{	
 		if (VFLAG > 0)
@@ -1388,7 +1390,7 @@ uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows,
 	uint64 *dependencies;
 	qs_packed_matrix_t packed_matrix;
 	uint32 dump_interval;
-
+	
 	if (ncols <= nrows) {
 		printf("matrix must have more columns than rows\n");
 		logprint(obj->logfile, "matrix must have more columns than rows\n");

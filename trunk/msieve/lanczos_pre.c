@@ -61,7 +61,7 @@ void count_qs_matrix_nonzero(fact_obj_t *obj,
 	uint32 total_weight;
 	uint32 sparse_weight;
 	size_t mem_use;
-
+	
 	mem_use = ncols * (sizeof(qs_la_col_t) +
 		sizeof(uint32) * ((num_dense_rows + 31) / 32));
 
@@ -251,7 +251,6 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 	uint32 reduced_cols;
 
 	/* sort the columns in order of increasing weight */
-
 	qsort(cols, (size_t)(*ncols), sizeof(qs_la_col_t), yafu_compare_weight);
 
 	/* count the number of nonzero entries in each row */

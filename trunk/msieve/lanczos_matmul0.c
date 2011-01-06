@@ -27,7 +27,7 @@ static void yafu_mul_unpacked(qs_packed_matrix_t *matrix,
 	uint32 num_dense_rows = matrix->num_dense_rows;
 	qs_la_col_t *A = matrix->unpacked_cols;
 	uint32 i, j;
-
+	
 	memset(b, 0, ncols * sizeof(uint64));
 	
 	for (i = 0; i < ncols; i++) {
@@ -64,7 +64,7 @@ static void yafu_mul_trans_unpacked(qs_packed_matrix_t *matrix,
 	uint32 num_dense_rows = matrix->num_dense_rows;
 	qs_la_col_t *A = matrix->unpacked_cols;
 	uint32 i, j;
-
+	
 	for (i = 0; i < ncols; i++) {
 		qs_la_col_t *col = A + i;
 		uint32 *row_entries = col->data;
@@ -98,7 +98,7 @@ static void yafu_mul_packed(qs_packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 
 	uint32 i;
 	uint32 ncols = matrix->ncols;
-
+	
 	for (i = 0; i < matrix->num_threads; i++) {
 		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
@@ -174,7 +174,7 @@ void yafu_mul_trans_packed(qs_packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 	uint64 *tmp_b[QS_MAX_THREADS];
 
 	memset(b, 0, ncols * sizeof(uint64));
-
+	
 	for (i = 0; i < matrix->num_threads; i++) {
 		qs_msieve_thread_data_t *t = matrix->thread_data + i;
 
@@ -236,7 +236,7 @@ void yafu_mul_trans_packed(qs_packed_matrix_t *matrix, uint64 *x, uint64 *b) {
 int yafu_compare_row_off(const void *x, const void *y) {
 	qs_entry_idx_t *xx = (qs_entry_idx_t *)x;
 	qs_entry_idx_t *yy = (qs_entry_idx_t *)y;
-
+	
 	if (xx->row_off > yy->row_off)
 		return 1;
 	if (xx->row_off < yy->row_off)
@@ -260,7 +260,7 @@ static void yafu_matrix_thread_init(qs_msieve_thread_data_t *t) {
 	uint32 col_max = t->col_max;
 	uint32 block_size = t->block_size;
 	uint32 num_dense_rows = t->num_dense_rows;
-
+	
 	/* each thread needs scratch space to store
 	   matrix products. The first thread doesn't need
 	   scratch space, it's provided by calling code */
@@ -434,7 +434,7 @@ static void yafu_matrix_thread_init(qs_msieve_thread_data_t *t) {
 static void yafu_matrix_thread_free(qs_msieve_thread_data_t *t) {
 
 	uint32 i;
-
+	
 	for (i = 0; i < (t->num_dense_rows + 63) / 64; i++)
 		free(t->dense_blocks[i]);
 	free(t->dense_blocks);
@@ -468,7 +468,7 @@ static void *yafu_worker_thread_main(void *thread_data) {
 		}
 #endif
 		/* do work */
-
+		
 		if (t->command == COMMAND_RUN)
 			yafu_mul_packed_core(t);
 		else if (t->command == COMMAND_RUN_TRANS)
@@ -505,7 +505,7 @@ static void yafu_start_worker_thread(qs_msieve_thread_data_t *t,
 	/* create a thread that will handle matrix multiplies 
 	   for block k of the matrix. The last block does 
 	   not get its own thread (the current thread handles it) */
-
+					
 	if (is_master_thread) {
 		yafu_matrix_thread_init(t);
 		return;
@@ -540,7 +540,7 @@ static void yafu_stop_worker_thread(qs_msieve_thread_data_t *t,
 		yafu_matrix_thread_free(t);
 		return;
 	}
-
+	
 	t->command = COMMAND_END;
 #if defined(WIN32) || defined(_WIN64)
 	SetEvent(t->run_event);
@@ -570,7 +570,7 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 	uint32 num_nonzero_per_thread;
 
 	/* initialize */
-
+	
 	memset(p, 0, sizeof(qs_packed_matrix_t));
 	p->unpacked_cols = A;
 	p->nrows = nrows;
@@ -670,7 +670,7 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 void yafu_packed_matrix_free(qs_packed_matrix_t *p) {
 
 	uint32 i;
-
+	
 	if (p->unpacked_cols) {
 		qs_la_col_t *A = p->unpacked_cols;
 		for (i = 0; i < p->ncols; i++) {
@@ -694,7 +694,7 @@ size_t yafu_packed_matrix_sizeof(qs_packed_matrix_t *p) {
 
 	uint32 i, j;
 	size_t mem_use = 0;
-
+	
 	if (p->unpacked_cols) {
 		qs_la_col_t *A = p->unpacked_cols;
 		mem_use = p->ncols * sizeof(qs_la_col_t);
@@ -733,7 +733,7 @@ void yafu_mul_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b) {
 
 	/* Multiply the vector x[] by the matrix A (stored
 	   columnwise) and put the result in b[]. */
-
+	
 	if (A->unpacked_cols)
 		yafu_mul_unpacked(A, x, b);
 	else
@@ -746,7 +746,7 @@ void yafu_mul_trans_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b) {
 	/* Multiply the vector x[] by the transpose of the
 	   matrix A and put the result in b[]. Since A is stored
 	   by columns, this is just a matrix-vector product */
-
+	
 	if (A->unpacked_cols)
 		yafu_mul_trans_unpacked(A, x, b);
 	else

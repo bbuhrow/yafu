@@ -22,7 +22,7 @@ static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
 			uint64 *curr_col, uint64 *curr_b) {
 
 	uint16 *entries = curr_block->med_entries;
-
+	
 	while (1) {
 		uint64 accum;
 
@@ -207,7 +207,7 @@ static void yafu_mul_one_block(qs_packed_block_t *curr_block,
 	uint32 k;
 	uint32 num_entries = curr_block->num_entries;
 	qs_entry_idx_t *entries = curr_block->entries;
-
+	
 	/* unroll by 16, i.e. the number of matrix elements
 	   in one cache line (usually). For 32-bit x86, we get
 	   a huge performance boost by using either SSE or MMX
@@ -313,7 +313,7 @@ void yafu_mul_packed_core(qs_msieve_thread_data_t *t) {
 	uint64 *x = t->x;
 	uint64 *b = t->b;
 	uint32 i;
-
+	
 	/* proceed block by block. We assume that blocks access
 	   the matrix in row-major order; when computing b = A*x
 	   this will write to the same block of b repeatedly, and
