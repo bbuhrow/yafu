@@ -361,8 +361,8 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		logprint(logfile, "nfs: commencing msieve linear algebra\n");
 		fclose(logfile);
 	}
-	factor_gnfs(obj, &mpN, &factor_list);	
-	//nfs_solve_linear_system(obj, &mpN);			
+	//factor_gnfs(obj, &mpN, &factor_list);	
+	nfs_solve_linear_system(obj, &mpN);			
 
 	//msieve: find factors
 	flags = 0;

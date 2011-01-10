@@ -1181,11 +1181,13 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 		return 0;
 	}
 
+#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
 	if (ECM_STG2_MAX > 0xEE6B2800)
 	{
 		fprintf(stderr,"primes greater than 4e9 not supported in ECM, reducing.\n");
 		ECM_STG2_MAX = 0xEE6B2800;
 	}
+#endif
 
 	//check for trivial cases
 	if (isZero(n))
