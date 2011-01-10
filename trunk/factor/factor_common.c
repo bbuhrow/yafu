@@ -809,11 +809,11 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	uint32 tmp1;
 	uint64 tmp2;
 	uint64 startticks, endticks;
-	double time_per_unit_work;	
+	double time_per_unit_work;		
 	//struct timeval start2, stop2;
 	//double t_time;
 	//TIME_DIFF *	difference;
-
+	
 	startticks = yafu_read_clock();	
 
 	switch (method)
@@ -1079,6 +1079,7 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 	int default_curves_25digit = 200;
 	int default_curves_30digit = 400;
 	int default_curves_35digit = 1000;
+	char state_str[100];
 
 	if (time_available < 0)
 	{
@@ -1092,85 +1093,183 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 		switch (fact_state)
 		{
 		case state_trialdiv:			
+			strcpy(state_str,"trial division");
+			break;
+
 		case state_fermat:
+			strcpy(state_str,"Fermat");
+			break;
+
 		case state_rho:
+			strcpy(state_str,"Rho");
+			break;
+
 		case state_pp1_lvl1:
-		default:
-			// any of these states requested: just do it
+			strcpy(state_str,"P+1");
 			break;
 		
 		case state_pp1_lvl2:
-			// equivalent to ecm @ 30 digits
+			// equivalent to ecm @ 30 digits			
 			if (sizeN < 300)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
+			else
+			{
+				*next_work = 3;
+				strcpy(state_str,"P+1");			
+			}
+
 			break;
 
 		case state_pp1_lvl3:
 			// equivalent to ecm @ 35 digits
 			if (sizeN < 330)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
+			else
+			{
+				*next_work = 3;
+				strcpy(state_str,"P+1");		
+			}
+
 			break;
 
 		case state_pm1_lvl1:
 			if (sizeN < 160)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
+			else
+			{
+				*next_work = 1;
+				strcpy(state_str,"P-1");		
+			}
+
 			break;
 
 		case state_pm1_lvl2:
 			// equivalent to ecm @ 30 digits
 			if (sizeN < 300)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
+			else
+			{
+				*next_work = 1;
+				strcpy(state_str,"P-1");		
+			}
+
 			break;
 
 		case state_pm1_lvl3:
 			// equivalent to ecm @ 35 digits
 			if (sizeN < 330)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
+			else
+			{
+				*next_work = 1;
+				strcpy(state_str,"P-1");		
+			}
+
 			break;
 
 		case state_ecm_15digit:
 			if (sizeN < 180)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = default_curves_15digit;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		case state_ecm_20digit:
 			if (sizeN < 220)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = default_curves_20digit;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		case state_ecm_25digit:
 			if (sizeN < 260)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = default_curves_25digit;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		case state_ecm_30digit:
 			if (sizeN < 300)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = default_curves_30digit;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		case state_ecm_35digit:
 			if (sizeN < 330)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = default_curves_35digit;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		case state_ecm_auto_increasing:
 			if (ndigits(N) < 120)
+			{
 				new_state = state_qs;
+				strcpy(state_str,"SIQS");
+			}
 			else
+			{
 				*next_work = auto_increasing_curves;
+				strcpy(state_str,"ECM");		
+			}
+
 			break;
 
 		}
+
+		if (VFLAG >= 2)
+			printf("***** qs/nfs time estimate too high or not available, proceeding to %s\n",state_str);
 	}
 	else
 	{
@@ -1434,6 +1533,14 @@ void factor(fact_obj_t *fobj)
 	struct timeval start, stop;
 	double t_time;
 	TIME_DIFF *	difference;
+	int user_defined_ecm_b2 = ECM_STG2_ISDEFAULT;
+	int user_defined_pp1_b2 = PP1_STG2_ISDEFAULT;
+	int user_defined_pm1_b2 = PM1_STG2_ISDEFAULT;;
+
+	//factor() always ignores user specified B2 values
+	ECM_STG2_ISDEFAULT = 1;
+	PP1_STG2_ISDEFAULT = 1;
+	PM1_STG2_ISDEFAULT = 1;
 
 	zInit(&origN);
 	zInit(&copyN);
@@ -1674,6 +1781,12 @@ void factor(fact_obj_t *fobj)
 	}
 
 	AUTO_FACTOR=0;
+
+	//restore flags
+	ECM_STG2_ISDEFAULT = user_defined_ecm_b2;
+	PP1_STG2_ISDEFAULT = user_defined_pp1_b2;
+	PM1_STG2_ISDEFAULT = user_defined_pm1_b2;
+
 	zFree(&origN);
 	zFree(&copyN);
 	return;

@@ -169,8 +169,8 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print);
    the classic Pentium */
 
 #define HAS_CMOV
-#define HAS_SSE2
-#define CACHE_LINE_64
+//#define HAS_SSE2
+//#define CACHE_LINE_64
 
 #if defined(CPU_GENERIC)
 	#define MANUAL_PREFETCH
