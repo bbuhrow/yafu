@@ -244,6 +244,7 @@ int NO_SIQS_OPT;
 double MEAS_CPU_FREQUENCY;
 int VERBOSE_PROC_INFO;
 char CPU_ID_STR[80];
+int WANT_ONLY_1_FACTOR;
 
 
 //globals for testing siqs

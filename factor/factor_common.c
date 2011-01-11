@@ -591,10 +591,10 @@ void print_factors(fact_obj_t *fobj)
 			zInit(&tmp4);
 			zCopy(&fobj->N, &tmp2);
 			zDiv(&tmp2, &tmp, &tmp3, &tmp4);
-			if (zCompare(&tmp3,&zOne) != 0)
+			if (zCompare(&tmp3,&zOne) > 0)
 			{
-//				printf("original N = %s\naccumulated value = %s\n",
-	//				z2decstr(&fobj->N, &gstr1),z2decstr(&tmp, &gstr2));
+	//			printf("original N = %s\naccumulated value = %s\n",
+		//			z2decstr(&fobj->N, &gstr1),z2decstr(&tmp, &gstr2));
 				if (isPrime(&tmp3))
 				{
 					printf("\n***co-factor***\nPRP%d = %s\n",
@@ -915,6 +915,14 @@ int check_if_done(fact_obj_t *fobj, z *N)
 	zCopy(&zOne,&tmp);
 
 	//printf("checking if prod of factors = %s\n",z2decstr(N,&gstr1));
+
+	/* if the user only wants to find one factor, check for that here... */
+	if (WANT_ONLY_1_FACTOR && (fobj->num_factors >= 1))
+	{
+		done = 1;
+		zFree(&tmp);
+		return done;
+	}
 
 	// check if the number is completely factorized
 	for (i=0; i<fobj->num_factors; i++)
