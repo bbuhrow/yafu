@@ -3,7 +3,8 @@ v 1.22.2
 + factor() now properly ignores user defined B2 flags for ecm, pp1, and pm1
 + fixed bug in factor() when inputs are really big.  NFS/QS time estimate are too high
 	and the number of curves for P+1 level 2 was not set properly.
-
++ merged in changes from wraithx implementing a -one switch, used to stop factor() 
+	after finding one factor.
 
 v 1.22.1
 + remove restriction on Win32 NFS
