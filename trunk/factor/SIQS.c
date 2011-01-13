@@ -1303,7 +1303,7 @@ int siqs_static_init(static_conf_t *sconf)
 #elif defined(__MINGW32__)
 		sconf->factor_base->list = (fb_element_siqs *)malloc(
 			(size_t)(sizeof(fb_element_siqs)));
-		sconf->modsqrt = (uint32 *)malloc(
+		sconf->modsqrt_array = (uint32 *)malloc(
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
@@ -1941,7 +1941,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->comp_sieve_n);
 	free(dconf->sieve);
 	free(dconf->rootupdates);
-	free(dconf->update_data);
+	//free(dconf->update_data);
 #else
 	free(dconf->fb_sieve_p);
 	free(dconf->fb_sieve_n);

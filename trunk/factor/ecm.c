@@ -1276,15 +1276,15 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	//round numcurves up so that each thread has something to do every iteration.
 	//this prevents a single threaded "cleanup" round after the multi-threaded rounds
 	//to finish the leftover requested curves.
-	numcurves += numcurves % THREADS;
+	numcurves += ((numcurves % THREADS)?(THREADS-(numcurves%THREADS)):0);
 
 	if (VFLAG >= 0)
 	{
 		for (i=0;i<charcount+charcount2;i++)
 			printf("\b");
 
-		charcount = printf("ecm: %d curves on C%d input, at "
-			,curves_run,ndigits(n));
+		charcount = printf("ecm: %d/%d curves on C%d input, at "
+			,curves_run,numcurves,ndigits(n));
 		charcount2 = print_B1B2(NULL);
 		fflush(stdout);
 	}
@@ -1434,8 +1434,8 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 			for (i=0;i<charcount+charcount2;i++)
 				printf("\b");
 
-			charcount = printf("ecm: %d curves on C%d input, at "
-				,curves_run,ndigits(n));
+			charcount = printf("ecm: %d/%d curves on C%d input, at "
+				,curves_run,numcurves,ndigits(n));
 			charcount2 = print_B1B2(NULL);
 			fflush(stdout);
 		}
