@@ -1274,6 +1274,10 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 
 			break;
 
+		default:
+			printf("unknown factorization state\n");
+			exit(-1);
+
 		}
 
 		if (VFLAG >= 2)
@@ -1729,6 +1733,10 @@ void factor(fact_obj_t *fobj)
 			total_time += t_time * curves;
 			break;
 
+		default:
+			printf("unknown factorization state\n");
+			exit(-1);
+
 		}
 
 		// first, check if we're done
@@ -1763,11 +1771,22 @@ void factor(fact_obj_t *fobj)
 		
 	if (!isOne(b))
 	{
-		b->type = COMPOSITE;
-		flog = fopen(flogname,"a");
-		logprint(flog,"c%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
-		fclose(flog);
-		add_to_factor_list(fobj,b);
+		if (isPrime(b))
+		{
+			b->type = PRP;
+			flog = fopen(flogname,"a");
+			logprint(flog,"prp%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
+			fclose(flog);
+			add_to_factor_list(fobj,b);
+		}
+		else
+		{
+			b->type = COMPOSITE;
+			flog = fopen(flogname,"a");
+			logprint(flog,"c%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
+			fclose(flog);
+			add_to_factor_list(fobj,b);
+		}
 	}
 	zCopy(b,&fobj->N);
 
