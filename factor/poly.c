@@ -720,6 +720,50 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			: "g"(*ptr), "g"(prime)		\
 			: "r8", "r9", "cc");	
 
+	#define COMPUTE_4_PROOTS(j)								\
+		ASM_G (											\
+			"movdqa (%%rax), %%xmm3 \n\t"			/* xmm3 = next 4 values of rootupdates */ \
+			"movdqa (%%rcx), %%xmm1 \n\t"			/* xmm1 = next 4 values of root1 */ \
+			"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
+			"movdqa (%%rdx), %%xmm2 \n\t"			/* xmm2 = next 4 values of root2 */ \
+			"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */ \
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */ \
+			"movdqa (%%rbx), %%xmm0 \n\t"			/* xmm0 = next 4 primes */ \
+			"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm1, (%%rcx) \n\t"			/* save new root1 values */ \
+			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
+			: \
+			: "a"(ptr), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
+
+	#define COMPUTE_4_NROOTS(j)								\
+		ASM_G (											\
+			"movdqa (%%rax), %%xmm3 \n\t"			/* xmm3 = next 4 values of rootupdates */ \
+			"movdqa (%%rcx), %%xmm1 \n\t"			/* xmm1 = next 4 values of root1 */ \
+			"paddd	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */ \
+			"movdqa (%%rdx), %%xmm2 \n\t"			/* xmm2 = next 4 values of root2 */ \
+			"paddd	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */ \
+			"movdqa	%%xmm1, %%xmm4 \n\t"			/* copy root1 to xmm4 */ \
+			"movdqa (%%rbx), %%xmm0 \n\t"			/* xmm0 = next 4 primes */ \
+			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
+			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm1, (%%rcx) \n\t"			/* save new root1 values */ \
+			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
+			: \
+			: "a"(ptr), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
+
 	#define COMPUTE_NEXT_ROOTS_N		\
 		ASM_G (							\
 			"movl %%eax, %%r8d		\n\t"	\
@@ -1226,6 +1270,707 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
+#define TEST_4UP_LOOP_ASM_P 1
+		
+#if defined(TEST_4UP_LOOP_ASM_P) && defined(GCC_ASM64X)
+		logp = update_data.logp[med_B-1];
+
+		if (med_B % 16 != 0)
+		{
+			printf("med_B must be divisible by 16!\n");
+			exit(-1);
+		}
+		if ((large_B - med_B) % 16 != 0)
+		{
+			printf("med range must be divisible by 16!\n");
+			exit(-1);
+		}
+
+		//load up our helper struct, so we don't have a list
+		//of a 100 things to stick into our asm block
+		helperstruct.numptr_n = numptr_n;			//0
+		helperstruct.numptr_p = numptr_p;			//8
+		helperstruct.sliceptr_n = sliceptr_n;		//16
+		helperstruct.sliceptr_p = sliceptr_p;		//24
+		helperstruct.update_data_prime = update_data.prime;	//32
+		helperstruct.update_data_root1 = update_data.firstroots1;	//40
+		helperstruct.update_data_root2 = update_data.firstroots2;	//48
+		helperstruct.update_data_logp = update_data.logp;	//56
+		helperstruct.lp_bucket_p = lp_bucket_p;		//64
+		helperstruct.ptr = &rootupdates[(v-1) * bound];						//72
+		helperstruct.large_B = med_B;				//80
+		helperstruct.B = large_B;					//84
+		helperstruct.interval = interval;			//88
+		helperstruct.numblocks = numblocks;			//92
+		helperstruct.bound_val = bound_val;			//96
+		helperstruct.bound_index = bound_index;		//100
+		helperstruct.check_bound = check_bound;		//104
+		helperstruct.logp = logp;					//108
+
+		ASM_G (		\
+			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
+			"movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+													/* do the loop comparison */ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+			"jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
+			"8: \n\t"	\
+				/* ================================================ */	\
+				/* ========== BEGIN CHECK_NEW_SLICE BLOCK ========= */	\
+				/* ================================================ */	\
+			"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
+				/* else, this is the "else-if" check */ \
+			"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
+			"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+			"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
+			"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
+				/* now we are in the else-if block of CHECK_NEW_SLICE */ \
+			"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"cmp	%%rax,%%rax \n\t"				/* force jump */
+			"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"1:		\n\t"									\
+				/* now we are in the if block of CHECK_NEW_SLICE */ \
+			"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+			"jae    3f \n\t"						/* jump past loop if condition met */ \
+				/* condition not met, put a couple things in registers */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
+			"5:		\n\t"							\
+				/* now we are in the room loop */ \
+				/* room is in register ecx */ \
+			"movl   (%%r10,%%rbx,4),%%eax \n\t"		/* value at numptr_p + k */ \
+			"movl   (%%r11,%%rbx,4),%%edx \n\t"		/* value at numptr_n + k */ \
+			"cmpl   %%ecx,%%eax \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%eax,%%ecx \n\t"				/* new value of room if so */ \
+			"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
+			"incq   %%rbx \n\t"						/* increment counter */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+			"jl     5b \n\t"						/* iterate loop if condition met */ \
+			"3:		\n\t"							\
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
+			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
+			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
+			"jle    4f \n\t"						/* jump if less than */ \
+			"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
+			"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+			"cmpq	%%rax,%%rax \n\t"				/* force jump */
+			"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"4:		\n\t"							\
+				/* now we are inside the (room < 2) block */ \
+			"xorq	%%rax, %%rax \n\t" \
+			"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
+			"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
+			"xorq	%%rdx, %%rdx \n\t" \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t" \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"2:		\n\t"						\
+				/* ================================================ */	\
+				/* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
+				/* ================================================ */	\
+			"movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
+			"movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+			"movdqa (%%rdi,%%r15,4), %%xmm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
+			"movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+			"movdqa (%%r14,%%r15,4), %%xmm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
+			"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
+			"movdqa (%%r13,%%r15,4), %%xmm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
+			"movq	32(%%rsi,1),%%r12 \n\t"			/* move updata_data.prime pointer into r12 */ \
+			"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */ \
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */ \
+			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
+			"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+				/* ================================================ */	\
+				/* =========== ITERATION 1               ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 2               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 3               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 4               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
+				/* ================================================ */	\
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+			"jb     8b \n\t"	\
+			"9:		\n\t"				\
+			"movl	%%r15d, %%eax \n\t" \
+			:  \
+			: "g"(&helperstruct) \
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "memory", "cc");
+
+		// refresh local pointers and constants before entering the next loop
+		numptr_n = helperstruct.numptr_n;
+		numptr_p = helperstruct.numptr_p;
+		sliceptr_n = helperstruct.sliceptr_n;
+		sliceptr_p = helperstruct.sliceptr_p;
+		ptr = helperstruct.ptr;	
+		bound_val = helperstruct.bound_val;	
+		check_bound = helperstruct.check_bound;
+		bound_index = helperstruct.bound_index;
+		logp = helperstruct.logp;
+
+#else
+
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
@@ -1249,6 +1994,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			FILL_ONE_PRIME_LOOP_N(j);
 		}
 
+#endif
+
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
 		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
@@ -1259,10 +2006,24 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
-//#define TESTPOLYASMP 1
+
+
+//#define TEST_1UP_ASM 1
+#define TEST_4UP_ASM_P 1
 		
-#ifdef TESTPOLYASMP
-		logp = update_data.logp[j-1];
+#if defined(TEST_4UP_ASM_P) && defined(GCC_ASM64X)
+		logp = update_data.logp[large_B-1];
+
+		if (large_B % 16 != 0)
+		{
+			printf("large_B must be divisible by 16!\n");
+			exit(-1);
+		}
+		if ((bound - large_B) % 16 != 0)
+		{
+			printf("large range must be divisible by 16!\n");
+			exit(-1);
+		}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1275,12 +2036,9 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.update_data_root2 = update_data.firstroots2;	//48
 		helperstruct.update_data_logp = update_data.logp;	//56
 		helperstruct.lp_bucket_p = lp_bucket_p;		//64
-		helperstruct.ptr = ptr;						//72
+		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
 		helperstruct.large_B = large_B;				//80
-		if ((bound - large_B) & 0x3)
-			helperstruct.B = bound-((bound - large_B) & 0x3);				//84
-		else
-			helperstruct.B = bound;
+		helperstruct.B = bound;						//84
 		helperstruct.interval = interval;			//88
 		helperstruct.numblocks = numblocks;			//92
 		helperstruct.bound_val = bound_val;			//96
@@ -1289,745 +2047,576 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.logp = logp;					//108
 
 		ASM_G (		\
-			"movq	%0,%%rsi \n\t" \
-			"movl   80(%%rsi,1),%%r15d \n\t"	/* large_B = j = r15d */ \
-			/* do the loop comparison */ \
-			"cmpl   84(%%rsi,1),%%r15d \n\t" /* j >= bound ? */ \
-			"jae    9f	\n\t"	/* jump to end of loop, if test fails */ \
-			"8: \n\t"					\
+			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
+			"movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+													/* do the loop comparison */ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+			"jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
+			"8: \n\t"	\
 				/* ================================================ */	\
 				/* ========== BEGIN CHECK_NEW_SLICE BLOCK ========= */	\
 				/* ================================================ */	\
-			"cmpl   104(%%rsi,1),%%r15d	\n\t"	/* compare j with check_bound */ \
+			"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
 				/* note this is the counter j, not the byte offset j */ \
-			"jge     1f \n\t" /* jump into "if" code if comparison works */ \
+			"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
 				/* else, this is the "else-if" check */ \
-			"movl   %%r15d,%%ebx \n\t" /* copy j into ebx */ \
-			"subl   96(%%rsi,1),%%ebx \n\t" /* ebx = j - bound_val */ \
-			"cmpl   $0xffff,%%ebx \n\t" /* compare to 2^16 */ \
-			"jbe    2f \n\t" /* exit CHECK_NEW_SLICE if this comparison fails too */ \
+			"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
+			"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+			"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
+			"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
 				/* now we are in the else-if block of CHECK_NEW_SLICE */ \
-			"xorq	%%rdx, %%rdx \n\t" \
-			"movl   100(%%rsi,1),%%edx \n\t" /* move bound_index into rdx */ \
-			"movq   64(%%rsi,1),%%r9 \n\t" /* move lp_bucket_p ptr into r9 */ \
-			"movq	16(%%r9,1),%%r8 \n\t" /* move lp_bucket_p->logp ptr into r8 */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"movl   12(%%r14,%%rax,1),%%ebx \n\t" /* bring in logp */ \
-			"movb	%%bl, 108(%%rsi,1) \n\t" /* shove logp into output */ \
-			"movb   %%bl,(%%r8,%%rdx,1) \n\t" /* mov logp into lp_bucket_p->logp[bound_index] */ \
-			"incq   %%rdx \n\t" /* increment bound_index locally */ \
-			"movl   %%edx,100(%%rsi,1) \n\t" /* copy bound_index back to structure */ \
-			"movq	8(%%r9,1),%%r8 \n\t" /* move lp_bucket_p->fb_bounds ptr into r8 */ \
-			"movl   %%r15d,(%%r8,%%rdx,4) \n\t" /* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+			"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 				/* note this is the counter j, not the byte offset j */ \
-			"movl   %%r15d,96(%%rsi,1) \n\t" /* bound_val = j */ \
-			"xorq	%%rbx, %%rbx \n\t" \
-			"movl   92(%%rsi,1),%%ebx \n\t" /* put numblocks into ebx */ \
-			"shll	$2,%%ebx \n\t" /* numblocks * 4 (bytes) */ \
-			"shll	$0x1,%%ebx \n\t" /* numblocks << 1 */ \
-			"addq   %%rbx,8(%%rsi,1) \n\t" /* numptr_p += (numblocks << 1) */ \
-			"addq   %%rbx,0(%%rsi,1) \n\t" /* numptr_n += (numblocks << 1) */ \
-			"shlq   $0xa,%%rbx \n\t" /* numblocks << (BUCKET_BITS + 1) */ \
-				/* note, this will need to be manually changed if BUCKET_BITS is ever changed */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
-			"addq   %%rbx,24(%%rsi,1) \n\t" /* sliceptr_p += (numblocks << 11) */ \
-			"addq   %%rbx,16(%%rsi,1) \n\t" /* sliceptr_n += (numblocks << 11) */ \
-			"addl   $0x200,104(%%rsi,1) \n\t" /* add 512 to check_bound */ \
-			"cmp	%%rax,%%rax \n\t"
-			"je		2f \n\t" /* jump out of CHECK_NEW_SLICE */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"cmp	%%rax,%%rax \n\t"				/* force jump */
+			"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 			"1:		\n\t"									\
 				/* now we are in the if block of CHECK_NEW_SLICE */ \
-			"xorl   %%ecx,%%ecx \n\t"	/* ecx = room  = 0 */ \
-			"xorq	%%rbx, %%rbx \n\t" /* loop counter = 0 */ \
-			"cmpl   92(%%rsi,1),%%ebx \n\t" /* compare with numblocks */ \
-			"jae    3f \n\t" /* jump past loop if condition met */ \
+			"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+			"jae    3f \n\t"						/* jump past loop if condition met */ \
 				/* condition not met, put a couple things in registers */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	0(%%rsi,1),%%r11 \n\t" /* numptr_n into r11 */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
 			"5:		\n\t"							\
 				/* now we are in the room loop */ \
 				/* room is in register ecx */ \
-			"movl   (%%r10,%%rbx,4),%%eax \n\t" /* value at numptr_p + k */ \
-			"movl   (%%r11,%%rbx,4),%%edx \n\t" /* value at numptr_n + k */ \
-			"cmpl   %%ecx,%%eax \n\t" /* *(numptr_p + k) > room ? */ \
-			"cmova  %%eax,%%ecx \n\t" /* new value of room if so */ \
-			"cmpl   %%ecx,%%edx \n\t" /* *(numptr_p + k) > room ? */ \
-			"cmova  %%edx,%%ecx \n\t" /* new value of room if so */ \
-			"incq   %%rbx \n\t" /* increment counter */ \
-			"cmpl   92(%%rsi,1),%%ebx \n\t" /* compare to numblocks */ \
-			"jl     5b \n\t" /* iterate loop if condition met */ \
+			"movl   (%%r10,%%rbx,4),%%eax \n\t"		/* value at numptr_p + k */ \
+			"movl   (%%r11,%%rbx,4),%%edx \n\t"		/* value at numptr_n + k */ \
+			"cmpl   %%ecx,%%eax \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%eax,%%ecx \n\t"				/* new value of room if so */ \
+			"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
+			"incq   %%rbx \n\t"						/* increment counter */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+			"jl     5b \n\t"						/* iterate loop if condition met */ \
 			"3:		\n\t"							\
-			"movl   $0x400,%%ebx \n\t" /* move 1024 into register for subtraction */ \
-			"subl   %%ecx,%%ebx \n\t" /* room = bucket_alloc - room */ \
-			"cmpl   $0x7,%%ebx \n\t" /* answer less than 4? */ \
-			"movl   %%ebx,%%ecx \n\t" /* copy answer back to room register */ \
-			"jle    4f \n\t" /* */ \
-			"sarl   %%ebx	\n\t" /* room >> 1 (copy of room) */ \
-			"addl   %%ebx,104(%%rsi,1) \n\t" /* add (room >> 1) to check_bound */ \
-			"cmpq	%%rax,%%rax \n\t"
-			"je     2f \n\t" /* jump out of CHECK_NEW_SLICE */ \
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
+			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
+			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
+			"jle    4f \n\t"						/* jump if less than */ \
+			"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
+			"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+			"cmpq	%%rax,%%rax \n\t"				/* force jump */
+			"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 			"4:		\n\t"							\
 				/* now we are inside the (room < 2) block */ \
 			"xorq	%%rax, %%rax \n\t" \
-			"movl   %%r15d,%%eax \n\t" /* copy j to scratch reg */ \
-			"shll   $0x4,%%eax \n\t" /* multiply by 16 bytes per j */ \
+			"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
+			"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
 			"xorq	%%rdx, %%rdx \n\t" \
-			"movl   100(%%rsi,1),%%edx \n\t" /* move bound_index into rdx */ \
-			"movq   64(%%rsi,1),%%r9 \n\t" /* move lp_bucket_p ptr into r9 */ \
-			"movq	16(%%r9,1),%%r8 \n\t" /* move lp_bucket_p->logp ptr into r8 */ \
-			/*"movzbl 84(%%rsi,1),%%ebx \n\t" /* bring in logp */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"movl   12(%%r14,%%rax,1),%%ebx \n\t" /* bring in logp */ \
-			"movb	%%bl, 108(%%rsi,1) \n\t" /* shove logp into output */ \
-			"movb   %%bl,(%%r8,%%rdx,1) \n\t" /* mov logp into lp_bucket_p->logp[bound_index] */ \
-			"incq   %%rdx \n\t" /* increment bound_index locally */ \
-			"movl   %%edx,100(%%rsi,1) \n\t" /* copy bound_index back to structure */ \
-			"movq	8(%%r9,1),%%r8 \n\t" /* move lp_bucket_p->fb_bounds ptr into r8 */ \
-			"movl   %%r15d,(%%r8,%%rdx,4) \n\t" /* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 				/* note this is the counter j, not the byte offset j */ \
-			"movl   %%r15d,96(%%rsi,1) \n\t" /* bound_val = j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
 			"xorq	%%rbx, %%rbx \n\t" \
-			"movl   92(%%rsi,1),%%ebx \n\t" /* put numblocks into ebx */ \
-			"shll	$2,%%ebx \n\t" /* numblocks * 4 (bytes) */ \
-			"shll	$0x1,%%ebx \n\t" /* numblocks << 1 */ \
-			"addq   %%rbx,8(%%rsi,1) \n\t" /* numptr_p += (numblocks << 1) */ \
-			"addq   %%rbx,0(%%rsi,1) \n\t" /* numptr_n += (numblocks << 1) */ \
-			"shll   $0xa,%%ebx \n\t" /* numblocks << (BUCKET_BITS + 1) */ \
-				/* note, this will need to be manually changed if BUCKET_BITS is ever changed */ \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
-			"addq   %%rbx,24(%%rsi,1) \n\t" /* sliceptr_p += (numblocks << 11) */ \
-			"addq   %%rbx,16(%%rsi,1) \n\t" /* sliceptr_n += (numblocks << 11) */ \
-			"addl   $0x200,104(%%rsi,1) \n\t" /* add 512 to check_bound */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
 			"2:		\n\t"						\
 				/* ================================================ */	\
 				/* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
 				/* ================================================ */	\
-			"movq	48(%%rsi,1),%%rdi \n\t" /* edi = ptr */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"leaq   (%%r14,%%rax,1),%%rcx \n\t" /* update_data(j) ptr */ \
-			"movdqa (%%rcx), %%xmm0 \n\t" /* xmm0 = update_data(j) */ \
-			"movdqa 16(%%rcx), %%xmm1 \n\t" /* xmm0 = update_data(j+1) */ \
-			"movdqa 32(%%rcx), %%xmm2 \n\t" /* xmm0 = update_data(j+2) */ \
-			"movdqa 48(%%rcx), %%xmm3 \n\t" /* xmm0 = update_data(j+3) */ \
-			"movd	%%xmm0,%%r12d \n\t" /* prime */ \
-			"psrldq $4,%%xmm0 \n\t" \
-			"xorl   %%edx,%%edx	\n\t" /* edx = 0 */ \
-			"movd	%%xmm0,%%r8d \n\t" /* root1 */ \
-			"psrldq $4,%%xmm0 \n\t" \
-			"xorl   %%ebx,%%ebx	\n\t" /* ebx = 0 */ \
-			"movd	%%xmm0,%%r9d \n\t" /* root2 */ \
-			"movl	64(%%rsi,1),%%r13d \n\t" /* interval */ \
-			"subl   0(%%rdi),%%r8d	\n\t" /* r8d = root1 - *ptr */ \
-			"cmovb  %%r12d,%%ebx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%ebx,%%r8d	\n\t" /* r8d = (either prime or 0) + (root1 - *ptr) */ \
-			"subl   0(%%rdi),%%r9d	\n\t" /* r9d = root2 - *ptr */ \
-			"cmovb  %%r12d,%%edx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%edx,%%r9d \n\t" /* r9d = (either prime or 0) + (root2 - *ptr) */ \
-			"movl   %%r8d,4(%%r14,%%rax,1) \n\t" /* store new root1 to memory */ \
-			"movl   %%r9d,8(%%r14,%%rax,1) \n\t" /* store new root2 to memory */ \
-			/*"movl   12(%%r14,%%rax,1),%%r13d \n\t" /* bring in logp */ \
-			/*"movb	%%r13b, 84(%%rsi,1) \n\t" /* shove logp into output */ \
+			"movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
+			"movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+			"movdqa (%%rdi,%%r15,4), %%xmm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
+			"movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+			"movdqa (%%r14,%%r15,4), %%xmm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
+			"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
+			"movdqa (%%r13,%%r15,4), %%xmm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
+			"movq	32(%%rsi,1),%%r12 \n\t"			/* move updata_data.prime pointer into r12 */ \
+			"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */ \
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */ \
+			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
+			"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+				/* ================================================ */	\
+				/* =========== ITERATION 1               ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
 				/* all code paths at this point have:	*/ \
 				/* root1		-> r8d					*/ \
 				/* root2		-> r9d					*/ \
 				/* r12			-> prime				*/ \
-				/* r14			-> update_data ptr		*/ \
 				/* r15			 -> j					*/ \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"movl   %%r8d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
 			"jae    3f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
 				/* ================================================ */	\
-			"movl	%%r12d,%%ebx \n\t" \
-			"movl	%%r12d,%%edx \n\t" \
-			"subl   %%r8d,%%ebx \n\t" /* root1 = (prime - root1);	*/	\
-			"subl   %%r9d,%%edx \n\t" /* root2 = (prime - root2);	*/	\
-			"movl	%%ebx,%%r8d \n\t" /* neg root1 */ \
-			"movl	%%edx,%%r9d \n\t" /* neg root2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
 			"jae    5f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_n[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"movl   %%r8d,%%eax \n\t" /* mov root1 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
 			"jae    7f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrq   $0xf,%%rbx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movq   %%rbx,%%rcx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movq   %%rdi,%%rax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incq   %%rdi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root2 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
 				/* ================================================ */	\
-				/* ============ BEGIN - GET NEW ROOTS 2 =========== */	\
+				/* =========== ITERATION 2               ========== */	\
 				/* ================================================ */	\
-			"movq	48(%%rsi,1),%%rdi \n\t" /* edi = ptr */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"movd	%%xmm1,%%r12d \n\t" /* prime */ \
-			"psrldq $4,%%xmm1 \n\t" \
-			"xorl   %%edx,%%edx	\n\t" /* edx = 0 */ \
-			"movd	%%xmm1,%%r8d \n\t" /* root1 */ \
-			"psrldq $4,%%xmm1 \n\t" \
-			"xorl   %%ebx,%%ebx	\n\t" /* ebx = 0 */ \
-			"movd	%%xmm1,%%r9d \n\t" /* root2 */ \
-			"subl   4(%%rdi),%%r8d	\n\t" /* r8d = root1 - *ptr */ \
-			"cmovb  %%r12d,%%ebx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%ebx,%%r8d	\n\t" /* r8d = (either prime or 0) + (root1 - *ptr) */ \
-			"subl   4(%%rdi),%%r9d	\n\t" /* r9d = root2 - *ptr */ \
-			"cmovb  %%r12d,%%edx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%edx,%%r9d \n\t" /* r9d = (either prime or 0) + (root2 - *ptr) */ \
-			"movl   %%r8d,20(%%r14,%%rax,1) \n\t" /* store new root1 to memory */ \
-			"movl   %%r9d,24(%%r14,%%rax,1) \n\t" /* store new root2 to memory */ \
-			/*"movl   12(%%r14,%%rax,1),%%r13d \n\t" /* bring in logp */ \
-			/*"movb	%%r13b, 84(%%rsi,1) \n\t" /* shove logp into output */ \
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
 				/* all code paths at this point have:	*/ \
 				/* root1		-> r8d					*/ \
 				/* root2		-> r9d					*/ \
 				/* r12			-> prime				*/ \
-				/* r14			-> update_data ptr		*/ \
 				/* r15			 -> j					*/ \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$1,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
 			"jae    3f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$1,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
 				/* ================================================ */	\
-			"movl	%%r12d,%%ebx \n\t" \
-			"movl	%%r12d,%%edx \n\t" \
-			"subl   %%r8d,%%ebx \n\t" /* root1 = (prime - root1);	*/	\
-			"subl   %%r9d,%%edx \n\t" /* root2 = (prime - root2);	*/	\
-			"movl	%%ebx,%%r8d \n\t" /* neg root1 */ \
-			"movl	%%edx,%%r9d \n\t" /* neg root2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
 			"jae    5f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_n[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$1,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root1 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
 			"jae    7f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrq   $0xf,%%rbx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movq   %%rbx,%%rcx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movq   %%rdi,%%rax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incq   %%rdi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$1,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root2 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
 				/* ================================================ */	\
-				/* ============ BEGIN - GET NEW ROOTS 3 =========== */	\
+				/* =========== ITERATION 3               ========== */	\
 				/* ================================================ */	\
-			"movq	48(%%rsi,1),%%rdi \n\t" /* edi = ptr */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"movd	%%xmm2,%%r12d \n\t" /* prime */ \
-			"psrldq $4,%%xmm2 \n\t" \
-			"xorl   %%edx,%%edx	\n\t" /* edx = 0 */ \
-			"movd	%%xmm2,%%r8d \n\t" /* root1 */ \
-			"psrldq $4,%%xmm2 \n\t" \
-			"xorl   %%ebx,%%ebx	\n\t" /* ebx = 0 */ \
-			"movd	%%xmm2,%%r9d \n\t" /* root2 */ \
-			"subl   8(%%rdi),%%r8d	\n\t" /* r8d = root1 - *ptr */ \
-			"cmovb  %%r12d,%%ebx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%ebx,%%r8d	\n\t" /* r8d = (either prime or 0) + (root1 - *ptr) */ \
-			"subl   8(%%rdi),%%r9d	\n\t" /* r9d = root2 - *ptr */ \
-			"cmovb  %%r12d,%%edx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%edx,%%r9d \n\t" /* r9d = (either prime or 0) + (root2 - *ptr) */ \
-			"movl   %%r8d,36(%%r14,%%rax,1) \n\t" /* store new root1 to memory */ \
-			"movl   %%r9d,40(%%r14,%%rax,1) \n\t" /* store new root2 to memory */ \
-			/*"movl   12(%%r14,%%rax,1),%%r13d \n\t" /* bring in logp */ \
-			/*"movb	%%r13b, 84(%%rsi,1) \n\t" /* shove logp into output */ \
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
 				/* all code paths at this point have:	*/ \
 				/* root1		-> r8d					*/ \
 				/* root2		-> r9d					*/ \
 				/* r12			-> prime				*/ \
-				/* r14			-> update_data ptr		*/ \
 				/* r15			 -> j					*/ \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$2,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
 			"jae    3f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$2,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
 				/* ================================================ */	\
-			"movl	%%r12d,%%ebx \n\t" \
-			"movl	%%r12d,%%edx \n\t" \
-			"subl   %%r8d,%%ebx \n\t" /* root1 = (prime - root1);	*/	\
-			"subl   %%r9d,%%edx \n\t" /* root2 = (prime - root2);	*/	\
-			"movl	%%ebx,%%r8d \n\t" /* neg root1 */ \
-			"movl	%%edx,%%r9d \n\t" /* neg root2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
 			"jae    5f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_n[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$2,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root1 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
 			"jae    7f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrq   $0xf,%%rbx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movq   %%rbx,%%rcx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movq   %%rdi,%%rax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incq   %%rdi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$2,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root2 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
 				/* ================================================ */	\
-				/* ============ BEGIN - GET NEW ROOTS 4 =========== */	\
+				/* =========== ITERATION 4               ========== */	\
 				/* ================================================ */	\
-			"movq	48(%%rsi,1),%%rdi \n\t" /* edi = ptr */ \
-			"movl   %%r15d,%%eax \n\t"	/* j = r15d */ \
-			"shlq   $0x4,%%rax \n\t" /* multiply by 16 bytes per j */ \
-			"movd	%%xmm3,%%r12d \n\t" /* prime */ \
-			"psrldq $4,%%xmm3 \n\t" \
-			"xorl   %%edx,%%edx	\n\t" /* edx = 0 */ \
-			"movd	%%xmm3,%%r8d \n\t" /* root1 */ \
-			"psrldq $4,%%xmm3 \n\t" \
-			"xorl   %%ebx,%%ebx	\n\t" /* ebx = 0 */ \
-			"movd	%%xmm3,%%r9d \n\t" /* root2 */ \
-			"subl   12(%%rdi),%%r8d	\n\t" /* r8d = root1 - *ptr */ \
-			"cmovb  %%r12d,%%ebx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%ebx,%%r8d	\n\t" /* r8d = (either prime or 0) + (root1 - *ptr) */ \
-			"subl   12(%%rdi),%%r9d	\n\t" /* r9d = root2 - *ptr */ \
-			"cmovb  %%r12d,%%edx	\n\t" /* if previous sub overflows, tmp = prime */ \
-			"addl   %%edx,%%r9d \n\t" /* r9d = (either prime or 0) + (root2 - *ptr) */ \
-			"movl   %%r8d,52(%%r14,%%rax,1) \n\t" /* store new root1 to memory */ \
-			"movl   %%r9d,56(%%r14,%%rax,1) \n\t" /* store new root2 to memory */ \
-			/*"movl   12(%%r14,%%rax,1),%%r13d \n\t" /* bring in logp */ \
-			/*"movb	%%r13b, 84(%%rsi,1) \n\t" /* shove logp into output */ \
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
 				/* all code paths at this point have:	*/ \
 				/* root1		-> r8d					*/ \
 				/* root2		-> r9d					*/ \
 				/* r12			-> prime				*/ \
-				/* r14			-> update_data ptr		*/ \
 				/* r15			 -> j					*/ \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$3,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
 			"jae    3f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	8(%%rsi,1),%%r10 \n\t" /* numptr_p into r10 */ \
-			"movq	24(%%rsi,1),%%r11 \n\t" /* sliceptr_p into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_p[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_p[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_p[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$3,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
 				/* ================================================ */	\
-			"movl	%%r12d,%%ebx \n\t" \
-			"movl	%%r12d,%%edx \n\t" \
-			"subl   %%r8d,%%ebx \n\t" /* root1 = (prime - root1);	*/	\
-			"subl   %%r9d,%%edx \n\t" /* root2 = (prime - root2);	*/	\
-			"movl	%%ebx,%%r8d \n\t" /* neg root1 */ \
-			"movl	%%edx,%%r9d \n\t" /* neg root2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r8d \n\t" /* root1 > interval? */ \
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
 			"jae    5f \n\t" \
-			"movl   %%r8d,%%ebx \n\t" /* copy root1 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrl   $0xf,%%ebx \n\t" /* right shift root1 by 15  = bnum */ \
-			"movl   %%ebx,%%ecx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movl   %%edi,%%eax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incl   %%edi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_n[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$3,%%edi \n\t" \
-			"movl   %%r8d,%%eax \n\t" /* mov root1 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root1 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
 				/* ================================================ */	\
-			"cmpl   %%r13d,%%r9d \n\t" /* root2 > interval? */ \
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
 			"jae    7f \n\t" \
-			"movl   %%r9d,%%ebx \n\t" /* copy root2 to ebx */ \
-			"movq	0(%%rsi,1),%%r10 \n\t" /* numptr_n into r10 */ \
-			"movq	16(%%rsi,1),%%r11 \n\t" /* sliceptr_n into r10 */ \
-			"shrq   $0xf,%%rbx \n\t" /* right shift root2 by 15  = bnum */ \
-			"movq   %%rbx,%%rcx \n\t" /* make into 64 bit register for addressing */ \
-			"movl   (%%r10,%%rcx,4),%%edi \n\t" /* numptr_n[bnum] */ \
-			"shlq   $0xa,%%rcx\n\t" /* bnum << 10 */ \
-			"movq   %%rdi,%%rax \n\t" /* copy numptr_n[bnum] to eax */ \
-			"incq   %%rdi \n\t" /* increment numptr_n[bnum] */ \
-			"addq   %%rax,%%rcx \n\t" /* (bnum << 10) + numptr_p[bnum] */ \
-			"movl   %%edi,(%%r10,%%rbx,4) \n\t" /* store new numptr to memory */ \
-			"leaq   (%%r11,%%rcx,4),%%rdx \n\t" /* bptr */ \
-			/*"prefetcht0 (%%rdx) \n\t" /* hint */ \
-			"movl   %%r15d,%%edi \n\t" /* copy j to edx */ \
-			"subl   72(%%rsi,1),%%edi \n\t" /* j - bound_val */ \
-			"addl	$3,%%edi \n\t" \
-			"movl   %%r9d,%%eax \n\t" /* mov root2 to eax */ \
-			"andl   $0x7fff,%%eax \n\t" /* root2 & BLOCKSIZEm1 */ \
-			/*"shll	$16,%%eax \n\t" /* combine two words to reduce write port pressure */ \
-			/*"orl	%%eax,%%edi \n\t" */ \
-			"movw   %%di,(%%rdx) \n\t" /* store new fb_index to memory */ \
-			"movw   %%ax,0x2(%%rdx) \n\t" /* store new loc to memory */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
-			"addl   $4,%%r15d \n\t" /* increment j by 1*/ \
-			"addq   $16,48(%%rsi,1) \n\t" /* increment ptr by 1*/ \
-			"cmpl   60(%%rsi,1),%%r15d \n\t" /* j < bound ? */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
 			"jb     8b \n\t"	\
 			"9:		\n\t"				\
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
-
-			/*
-			alternate bucket update instructions:
-			"shll	$16,%%eax \n\t" \
-			"orl	%%eax,%%edi \n\t" \
-			"movl   %%edi,(%%rdx) \n\t" \
-
-			"movw   %%di,(%%rdx) \n\t"  \
-			"movw   %%ax,0x2(%%rdx) \n\t"  \
-			*/
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "memory", "cc");
 
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
+
 
 #else
 	
@@ -2109,6 +2698,707 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
+#define TEST_4UP_LOOP_ASM_N 1
+		
+#if defined(TEST_4UP_LOOP_ASM_N) && defined(GCC_ASM64X)
+		logp = update_data.logp[med_B-1];
+
+		if (med_B % 16 != 0)
+		{
+			printf("med_B must be divisible by 16!\n");
+			exit(-1);
+		}
+		if ((large_B - med_B) % 16 != 0)
+		{
+			printf("med range must be divisible by 16!\n");
+			exit(-1);
+		}
+
+		//load up our helper struct, so we don't have a list
+		//of a 100 things to stick into our asm block
+		helperstruct.numptr_n = numptr_n;			//0
+		helperstruct.numptr_p = numptr_p;			//8
+		helperstruct.sliceptr_n = sliceptr_n;		//16
+		helperstruct.sliceptr_p = sliceptr_p;		//24
+		helperstruct.update_data_prime = update_data.prime;	//32
+		helperstruct.update_data_root1 = update_data.firstroots1;	//40
+		helperstruct.update_data_root2 = update_data.firstroots2;	//48
+		helperstruct.update_data_logp = update_data.logp;	//56
+		helperstruct.lp_bucket_p = lp_bucket_p;		//64
+		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.large_B = med_B;				//80
+		helperstruct.B = large_B;					//84
+		helperstruct.interval = interval;			//88
+		helperstruct.numblocks = numblocks;			//92
+		helperstruct.bound_val = bound_val;			//96
+		helperstruct.bound_index = bound_index;		//100
+		helperstruct.check_bound = check_bound;		//104
+		helperstruct.logp = logp;					//108
+
+		ASM_G (		\
+			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
+			"movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+													/* do the loop comparison */ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+			"jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
+			"8: \n\t"	\
+				/* ================================================ */	\
+				/* ========== BEGIN CHECK_NEW_SLICE BLOCK ========= */	\
+				/* ================================================ */	\
+			"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
+				/* else, this is the "else-if" check */ \
+			"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
+			"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+			"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
+			"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
+				/* now we are in the else-if block of CHECK_NEW_SLICE */ \
+			"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"cmp	%%rax,%%rax \n\t"				/* force jump */
+			"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"1:		\n\t"									\
+				/* now we are in the if block of CHECK_NEW_SLICE */ \
+			"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+			"jae    3f \n\t"						/* jump past loop if condition met */ \
+				/* condition not met, put a couple things in registers */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
+			"5:		\n\t"							\
+				/* now we are in the room loop */ \
+				/* room is in register ecx */ \
+			"movl   (%%r10,%%rbx,4),%%eax \n\t"		/* value at numptr_p + k */ \
+			"movl   (%%r11,%%rbx,4),%%edx \n\t"		/* value at numptr_n + k */ \
+			"cmpl   %%ecx,%%eax \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%eax,%%ecx \n\t"				/* new value of room if so */ \
+			"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
+			"incq   %%rbx \n\t"						/* increment counter */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+			"jl     5b \n\t"						/* iterate loop if condition met */ \
+			"3:		\n\t"							\
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
+			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
+			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
+			"jle    4f \n\t"						/* jump if less than */ \
+			"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
+			"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+			"cmpq	%%rax,%%rax \n\t"				/* force jump */
+			"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"4:		\n\t"							\
+				/* now we are inside the (room < 2) block */ \
+			"xorq	%%rax, %%rax \n\t" \
+			"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
+			"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
+			"xorq	%%rdx, %%rdx \n\t" \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t" \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"2:		\n\t"						\
+				/* ================================================ */	\
+				/* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
+				/* ================================================ */	\
+			"movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
+			"movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+			"movdqa (%%rdi,%%r15,4), %%xmm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
+			"movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+			"movdqa (%%r14,%%r15,4), %%xmm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
+			"paddd	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */ \
+			"movdqa (%%r13,%%r15,4), %%xmm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
+			"movq	32(%%rsi,1),%%r12 \n\t"			/* move updata_data.prime pointer into r12 */ \
+			"paddd	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */ \
+			"movdqa	%%xmm1, %%xmm4 \n\t"			/* copy root1 to xmm4 */ \
+			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
+			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
+			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+				/* ================================================ */	\
+				/* =========== ITERATION 1               ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 2               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 3               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 4               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"	 						/* beginning of loop */ \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r8d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r9d \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to edx */ \
+			"movl	%%r12d,%%eax \n\t"				/* copy prime to eax */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%r12d \n\t"		/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root2 > interval? */ \
+			"jae	6f \n\t"						/* jump out if so */ \
+			"1:		\n\t"							/* beginning of do loop */ \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
+			"cmpl   88(%%rsi,1),%%edx \n\t"			/* root > interval? */ \
+			"jb		1b \n\t"						/* repeat if necessary */ \
+			"6:		\n\t" \
+				/* ================================================ */	\
+				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
+				/* ================================================ */	\
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+			"jb     8b \n\t"	\
+			"9:		\n\t"				\
+			"movl	%%r15d, %%eax \n\t" \
+			:  \
+			: "g"(&helperstruct) \
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "memory", "cc");
+
+		// refresh local pointers and constants before entering the next loop
+		numptr_n = helperstruct.numptr_n;
+		numptr_p = helperstruct.numptr_p;
+		sliceptr_n = helperstruct.sliceptr_n;
+		sliceptr_p = helperstruct.sliceptr_p;
+		ptr = helperstruct.ptr;	
+		bound_val = helperstruct.bound_val;	
+		check_bound = helperstruct.check_bound;
+		bound_index = helperstruct.bound_index;
+		logp = helperstruct.logp;
+
+#else
+
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
@@ -2131,6 +3421,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			FILL_ONE_PRIME_LOOP_N(j);
 		}
 
+#endif
+
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
 		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
@@ -2140,6 +3432,617 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		gettimeofday(&qs_timing_start, NULL);
 #endif
+
+
+#define TEST_4UP_ASM_N 1
+		
+#if defined(TEST_4UP_ASM_N) && defined(GCC_ASM64X)
+		logp = update_data.logp[large_B-1];
+		
+		if (large_B % 16 != 0)
+		{
+			printf("large_B must be divisible by 16!\n");
+			exit(-1);
+		}
+		if ((bound - large_B) % 16 != 0)
+		{
+			printf("large range must be divisible by 16!\n");
+			exit(-1);
+		}
+
+		//load up our helper struct, so we don't have a list
+		//of a 100 things to stick into our asm block
+		helperstruct.numptr_n = numptr_n;			//0
+		helperstruct.numptr_p = numptr_p;			//8
+		helperstruct.sliceptr_n = sliceptr_n;		//16
+		helperstruct.sliceptr_p = sliceptr_p;		//24
+		helperstruct.update_data_prime = update_data.prime;	//32
+		helperstruct.update_data_root1 = update_data.firstroots1;	//40
+		helperstruct.update_data_root2 = update_data.firstroots2;	//48
+		helperstruct.update_data_logp = update_data.logp;	//56
+		helperstruct.lp_bucket_p = lp_bucket_p;		//64
+		helperstruct.ptr = &rootupdates[(v-1) * bound];  //72;						//72
+		helperstruct.large_B = large_B;				//80
+		helperstruct.B = bound;						//84
+		helperstruct.interval = interval;			//88
+		helperstruct.numblocks = numblocks;			//92
+		helperstruct.bound_val = bound_val;			//96
+		helperstruct.bound_index = bound_index;		//100
+		helperstruct.check_bound = check_bound;		//104
+		helperstruct.logp = logp;					//108
+
+		ASM_G (		\
+			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
+			"movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+													/* do the loop comparison */ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+			"jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
+			"8: \n\t"	\
+				/* ================================================ */	\
+				/* ========== BEGIN CHECK_NEW_SLICE BLOCK ========= */	\
+				/* ================================================ */	\
+			"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
+				/* else, this is the "else-if" check */ \
+			"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
+			"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+			"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
+			"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
+				/* now we are in the else-if block of CHECK_NEW_SLICE */ \
+			"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"cmp	%%rax,%%rax \n\t"				/* force jump */
+			"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"1:		\n\t"									\
+				/* now we are in the if block of CHECK_NEW_SLICE */ \
+			"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
+			"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+			"jae    3f \n\t"						/* jump past loop if condition met */ \
+				/* condition not met, put a couple things in registers */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
+			"5:		\n\t"							\
+				/* now we are in the room loop */ \
+				/* room is in register ecx */ \
+			"movl   (%%r10,%%rbx,4),%%eax \n\t"		/* value at numptr_p + k */ \
+			"movl   (%%r11,%%rbx,4),%%edx \n\t"		/* value at numptr_n + k */ \
+			"cmpl   %%ecx,%%eax \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%eax,%%ecx \n\t"				/* new value of room if so */ \
+			"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
+			"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
+			"incq   %%rbx \n\t"						/* increment counter */ \
+			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+			"jl     5b \n\t"						/* iterate loop if condition met */ \
+			"3:		\n\t"							\
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
+			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
+			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
+			"jle    4f \n\t"						/* jump if less than */ \
+			"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
+			"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+			"cmpq	%%rax,%%rax \n\t"				/* force jump */
+			"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
+			"4:		\n\t"							\
+				/* now we are inside the (room < 2) block */ \
+			"xorq	%%rax, %%rax \n\t" \
+			"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
+			"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
+			"xorq	%%rdx, %%rdx \n\t" \
+			"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
+			"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+			"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+			"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+			"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
+			"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+			"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+			"incq   %%rdx \n\t"						/* increment bound_index locally */ \
+			"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
+			"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+			"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
+				/* note this is the counter j, not the byte offset j */ \
+			"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+			"xorq	%%rbx, %%rbx \n\t" \
+			"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+			"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
+			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
+			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
+			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+				/* note also, this works because we've already left shifted by 1 */ \
+			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"2:		\n\t"						\
+				/* ================================================ */	\
+				/* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
+				/* ================================================ */	\
+			"movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
+			"movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+			"movdqa (%%rdi,%%r15,4), %%xmm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
+			"movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+			"movdqa (%%r14,%%r15,4), %%xmm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
+			"paddd	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */ \
+			"movdqa (%%r13,%%r15,4), %%xmm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
+			"movq	32(%%rsi,1),%%r12 \n\t"			/* move updata_data.prime pointer into r12 */ \
+			"paddd	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */ \
+			"movdqa	%%xmm1, %%xmm4 \n\t"			/* copy root1 to xmm4 */ \
+			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
+			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
+			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+				/* ================================================ */	\
+				/* =========== ITERATION 1               ========== */	\
+				/* ================================================ */	\
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"1:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    3f \n\t" \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"3:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
+			"jae    5f \n\t" \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"5:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
+			"jae    7f \n\t" \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"7:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 2               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"1:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    3f \n\t" \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"3:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
+			"jae    5f \n\t" \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"5:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
+			"jae    7f \n\t" \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"7:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 3               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"1:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    3f \n\t" \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"3:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
+			"jae    5f \n\t" \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"5:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
+			"jae    7f \n\t" \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"7:		\n\t" \
+				/* ================================================ */	\
+				/* =========== ITERATION 4               ========== */	\
+				/* ================================================ */	\
+			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
+			"movd	%%xmm0,%%r12d \n\t"				/* extract prime from xmm0 */ \
+			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
+			"movd	%%xmm1,%%r8d \n\t"				/* extract root1,1 from xmm1 */ \
+			"psrldq $4,%%xmm2 \n\t" 				/* next root2 */ \
+			"movd	%%xmm2,%%r9d \n\t"				/* extract root2,1 from xmm2 */ \
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+				/* all code paths at this point have:	*/ \
+				/* root1		-> r8d					*/ \
+				/* root2		-> r9d					*/ \
+				/* r12			-> prime				*/ \
+				/* r15			 -> j					*/ \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" \
+			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"1:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE POS BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    3f \n\t" \
+			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"3:		\n\t" \
+				/* ================================================ */	\
+				/* =========== INVERT ROOTS FOR NEG SIDE ========== */	\
+				/* ================================================ */	\
+			"movl	%%r12d,%%edx \n\t"				/* copy prime to ebx */ \
+			"subl   %%r8d,%%r12d \n\t"				/* root1 (r12d) = (prime - root1);	*/	\
+			"subl   %%r9d,%%edx \n\t"				/* root2 (edx) = (prime - root2);	*/	\
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT1 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%r12d \n\t"				/* root1 > interval? */ \
+			"jae    5f \n\t" \
+			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"5:		\n\t" \
+				/* ================================================ */	\
+				/* =========== UPDATE NEG BUCKET - ROOT2 ========== */	\
+				/* ================================================ */	\
+			"cmpl   %%r13d,%%edx \n\t"				/* root2 > interval? */ \
+			"jae    7f \n\t" \
+			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
+			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
+			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
+			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
+			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
+			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
+			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
+			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
+			"7:		\n\t" \
+				/* ================================================ */	\
+				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
+				/* ================================================ */	\
+			"addl   $1,%%r15d \n\t"					/* increment j by 1*/ \
+			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+			"jb     8b \n\t"	\
+			"9:		\n\t"				\
+			"movl	%%r15d, %%eax \n\t" \
+			:  \
+			: "g"(&helperstruct) \
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "memory", "cc");
+
+		bound_index = helperstruct.bound_index;
+		logp = helperstruct.logp;
+
+#else
 
 		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound;j++,ptr++)				
@@ -2162,6 +4065,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			FILL_ONE_PRIME_N(j);
 		}
+
+#endif
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);

@@ -1283,8 +1283,13 @@ int siqs_static_init(static_conf_t *sconf)
 		//look up some parameters - tuned for 64k L1 cache
 		get_params(sconf);
 
-		if (sconf->factor_base->B & 0x1)
-			sconf->factor_base->B++;	//force this to be even for fast root updating
+		//the number of primes in the factor base is rounded up to the 
+		//next multiple of 16, so that we can use aligned moves to speed
+		//computations of root updates
+		sconf->factor_base->B += (16 - (sconf->factor_base->B % 16));
+
+		//if (sconf->factor_base->B & 0x1)
+		//	sconf->factor_base->B++;	//force this to be even for fast root updating
 
 		//allocate the space for the factor base elements
 #if defined(_MSC_VER) 
@@ -1408,19 +1413,22 @@ int siqs_static_init(static_conf_t *sconf)
 	//compute sieving limits
 	sconf->factor_base->small_B = MIN(
 		sconf->factor_base->B,((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
+
 	for (i = sconf->factor_base->small_B; i < sconf->factor_base->B; i++)
 	{
+		//find the point at which factor base primes exceed the blocksize.  
+		//wait until the index is a multiple of 16 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
-		if (sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))
-		{
-			i--;
+		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))  &&
+			(i % 16 == 0))
 			break;
-		}
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
 		{
-			i--;
+			i -= i%16;
 			break;
 		}
 
@@ -1430,8 +1438,16 @@ int siqs_static_init(static_conf_t *sconf)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		if (sconf->factor_base->list->prime[i] > sconf->sieve_interval)
+		//find the point at which factor base primes exceed the size of the sieve 
+		//interval.  wait until the index is a multiple of 16 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
+			(i % 16 == 0))
+		{
+			i -= 16;
 			break;
+		}
 	}
 	sconf->factor_base->large_B = i;
 
@@ -1442,13 +1458,17 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	if (VFLAG > 2)
+	if (1) //(VFLAG > 2)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
 			sconf->factor_base->med_B,
 			sconf->factor_base->large_B,
 			sconf->factor_base->B);
+
+	/*	printf("start primes\n\tmed: %u\n\tlarge: %u\n",
+			sconf->factor_base->list->prime[sconf->factor_base->med_B],
+			sconf->factor_base->list->prime[sconf->factor_base->large_B]);*/
 	}
 
 	//a couple limits

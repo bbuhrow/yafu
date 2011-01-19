@@ -56,6 +56,9 @@ double COUNT;
 //1 bucket = 1 block
 #define BUCKET_ALLOC 2048
 #define BUCKET_BITS 11
+#define BUCKET_ALLOCtxt "2048"
+#define HALFBUCKET_ALLOCtxt "1024"
+#define BUCKET_BITStxt "11"
 
 //compile time definition of sieve block size.  should be equal to the size of L1 cache.
 #ifdef YAFU_64K
@@ -63,11 +66,15 @@ double COUNT;
 #define BLOCKSIZEm1 65535
 #define INNER_BLOCKSIZE 32768
 #define BLOCKBITS 16
+#define BLOCKSIZEm1txt "0xffff"
+#define BLOCKBITStxt "16"
 #else
 #define BLOCKSIZE 32768
 #define BLOCKSIZEm1 32767
 #define INNER_BLOCKSIZE 16384
 #define BLOCKBITS 15
+#define BLOCKSIZEm1txt "0x7fff"
+#define BLOCKBITStxt "15"
 #endif
 
 // these were used in an experiment to check how many times a routine was called
