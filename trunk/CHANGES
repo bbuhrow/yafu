@@ -1,3 +1,13 @@
+v 1.22.3
++ added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
+	when stopping early using -one
++ changed msieve_obj declaration/definition to match current msieve version
++ added a bunch of assembly code to make bucket sieving in SIQS faster.  
+	only x86_64 linux builds will benefit at this point.  I see about a 10% improvement in 
+	overall factorization speed.
++ cleaned up comments in assembly code
+
+
 v 1.22.2
 + remove B2 cap in ecm
 + factor() now properly ignores user defined B2 flags for ecm, pp1, and pm1

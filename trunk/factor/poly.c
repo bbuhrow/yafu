@@ -1375,7 +1375,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
 			"jl     5b \n\t"						/* iterate loop if condition met */ \
 			"3:		\n\t"							\
-			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"	/* move bucket allocation into register for subtraction */ \
 			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
 			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
 			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
@@ -1409,11 +1409,11 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
 			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
 			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
-			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
 			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
 			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
-			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+			"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"	/* add 2^(BUCKET_BITS-1) to check_bound */ \
 			"2:		\n\t"						\
 				/* ================================================ */	\
 				/* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
@@ -1458,17 +1458,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -1484,17 +1484,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -1519,17 +1519,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -1545,17 +1545,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -1586,17 +1586,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -1612,17 +1612,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -1647,17 +1647,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -1673,17 +1673,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -1714,17 +1714,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -1740,17 +1740,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -1775,17 +1775,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -1801,17 +1801,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -1842,17 +1842,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -1868,17 +1868,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -1903,17 +1903,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -1929,17 +1929,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -2114,7 +2114,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
 			"jl     5b \n\t"						/* iterate loop if condition met */ \
 			"3:		\n\t"							\
-			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"	/* move bucket allocation into register for subtraction */ \
 			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
 			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
 			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
@@ -2148,7 +2148,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
 			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
 			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
-			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
 			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
 			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
@@ -2197,17 +2197,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -2219,17 +2219,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -2247,16 +2247,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -2268,16 +2268,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -2304,17 +2304,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -2326,17 +2326,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -2354,16 +2354,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -2375,16 +2375,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -2411,17 +2411,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -2433,17 +2433,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -2461,16 +2461,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -2482,16 +2482,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -2518,17 +2518,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -2540,17 +2540,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -2568,16 +2568,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -2589,16 +2589,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -2803,7 +2803,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
 			"jl     5b \n\t"						/* iterate loop if condition met */ \
 			"3:		\n\t"							\
-			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"	/* move bucket allocation into register for subtraction */ \
 			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
 			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
 			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
@@ -2837,7 +2837,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
 			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
 			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
-			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
 			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
 			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
@@ -2886,17 +2886,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -2912,17 +2912,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -2947,17 +2947,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -2973,17 +2973,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -3014,17 +3014,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -3040,17 +3040,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -3075,17 +3075,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -3101,17 +3101,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -3142,17 +3142,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -3168,17 +3168,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -3203,17 +3203,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -3229,17 +3229,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -3270,17 +3270,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d,%%r8d \n\t"				/* increment root by prime */ \
@@ -3296,17 +3296,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%r12d, %%r9d \n\t"				/* increment root by prime */ \
@@ -3331,17 +3331,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r12d,%%r13d \n\t"				/* copy root to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%r12d \n\t"				/* increment root by prime */ \
@@ -3357,17 +3357,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%edx,%%r13d \n\t"				/* copy root1 to r13 */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"			/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r13d \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%r13d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"addl	%%eax, %%edx \n\t"				/* increment root by prime */ \
@@ -3539,7 +3539,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
 			"jl     5b \n\t"						/* iterate loop if condition met */ \
 			"3:		\n\t"							\
-			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"				/* move bucket allocation into register for subtraction */ \
+			"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t" /* move bucket allocation into register for subtraction */ \
 			"subl   %%ecx,%%ebx \n\t"				/* room = bucket_alloc - room */ \
 			"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
 			"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
@@ -3573,7 +3573,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
 			"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
 			"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
-			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"					/* numblocks << (BUCKET_BITS + 1) */ \
+			"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 				/* note also, this works because we've already left shifted by 1 */ \
 			"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
 			"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
@@ -3622,17 +3622,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -3644,17 +3644,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -3672,16 +3672,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -3693,16 +3693,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -3729,17 +3729,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -3751,17 +3751,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -3779,16 +3779,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -3800,16 +3800,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"		/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -3836,17 +3836,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -3858,17 +3858,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -3886,16 +3886,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -3907,16 +3907,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \
@@ -3943,17 +3943,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r8d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r8d,%%eax \n\t"				/* mov root1 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"1:		\n\t" \
@@ -3965,17 +3965,17 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r9d,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
 			"movl   %%r9d,%%eax \n\t"				/* mov root2 to eax */ \
-			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%eax \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"3:		\n\t" \
@@ -3993,16 +3993,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%r12d,%%ebx \n\t"				/* copy root1 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"			/* root1 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%r12d \n\t"	/* root1 & BLOCKSIZEm1 */ \
 			"orl	%%r12d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"5:		\n\t" \
@@ -4014,16 +4014,16 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl   %%edx,%%ebx \n\t"				/* copy root2 to ebx */ \
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"				/* right shift root1 by 15  = bnum */ \
+			"shrl   $" BLOCKBITStxt ",%%ebx \n\t"	/* right shift root1 by 15  = bnum */ \
 			"movl   %%ebx,%%ecx \n\t"				/* make into 64 bit register for addressing */ \
 			"movl   %%r15d,%%edi \n\t"				/* copy j to edi */ \
 			"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_n[bnum] */ \
 			"subl   96(%%rsi,1),%%edi \n\t"			/* j - bound_val */ \
-			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"					/* bnum << BUCKET_BITS */ \
+			"shll   $" BUCKET_BITStxt ",%%ecx \n\t"	/* bnum << BUCKET_BITS */ \
 			"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 			"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_n[bnum] */ \
 			"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"				/* root2 & BLOCKSIZEm1 */ \
+			"andl   $" BLOCKSIZEm1txt ",%%edx \n\t"	/* root2 & BLOCKSIZEm1 */ \
 			"orl	%%edx,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 			"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */ \
 			"7:		\n\t" \

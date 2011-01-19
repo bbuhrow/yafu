@@ -1458,7 +1458,7 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	if (1) //(VFLAG > 2)
+	if (VFLAG > 2)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
