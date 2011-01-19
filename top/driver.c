@@ -739,15 +739,25 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
 _MSC_MPIR_VERSION);
 #else
+	#ifdef VERSION
 		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION, 
 			__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+	#else
+		fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
+	#endif
+
 #endif
+
 #ifdef _MSC_MPIR_VERSION
 	fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
 _MSC_MPIR_VERSION);
 #else
+#ifdef VERSION
 	fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION,
 		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+#else
+	fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
+#endif
 #endif
 	fflush(stdout);
 #endif
