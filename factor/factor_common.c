@@ -1768,6 +1768,57 @@ void factor(fact_obj_t *fobj)
 			}
 		}
 	}
+
+	if (fobj->num_factors >= 1) 
+	{
+		//If the only factor in our array == N, then N is prime or prp...
+		if (WANT_OUTPUT_PRIMES && (zCompare(&fobj->fobj_factors[0].factor,&origN) == 0))
+		{
+			if ((op_file = fopen(op_str, a)) == NULL)
+				printf(" ***Error: unable to open %s\n", op_str);
+			else
+			{
+				fprintf(op_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (fclose(op_file) != 0)
+					printf(" ***Error: problem closing file %s\n", op_str);
+			}
+		}
+
+		//If the first factor in the array != N, then is composite and we have factors...
+		if (WANT_OUTPUT_FACTORS && (zCompare(&fobj->fobj_factors[0].factor,&origN) != 0))
+		{
+			if ((of_file = fopen(of_str, a)) == NULL)
+				printf(" ***Error: unable to open %s\n", of_str);
+			else
+			{
+				fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
+				for (i=0; i<fobj->num_factors; i++)
+				{
+					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[0].factor,&gstr1)
+					if (fobj->fobj_factors[i].count > 1)
+						fprintf(of_file, "^%d", fobj->fobj_factors[i].count);
+					fprintf(of_file, "\n");
+				}
+				if (fclose(of_file) != 0)
+					printf(" ***Error: problem closing file %s\n", of_str);
+			}
+		}
+	}
+	else //assume: composite with no known factors... (need to clarify)
+	{
+		if (WANT_OUTPUT_UNFACTORED)
+		{
+			if ((ou_file = fopen(ou_str, a)) == NULL)
+				printf(" ***Error: unable to open %s\n", ou_str);
+			else
+			{
+				fprintf(ou_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (fclose(ou_file) != 0)
+					printf(" ***Error: problem closing file %s\n", ou_str);
+			}
+		}
+	}
+
 		
 	if (!isOne(b))
 	{

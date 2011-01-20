@@ -1382,19 +1382,25 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 					{
 						thread_data[i].factor.type = PRP;
 						add_to_factor_list(fobj, &thread_data[i].factor);
-						logprint(flog,"prp%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
+						//logprint(flog,"prp%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
+						//	ndigits(&thread_data[i].factor),
+						//	z2decstr(&thread_data[i].factor,&gstr1),
+						//	thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
+						logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 							ndigits(&thread_data[i].factor),
 							z2decstr(&thread_data[i].factor,&gstr1),
-							thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
+							curves_run+1,thread_data[i].stagefound,
+							ECM_STG1_MAX,thread_data[i].sigma,i);
 					}
 					else
 					{
 						thread_data[i].factor.type = COMPOSITE;
 						add_to_factor_list(fobj, &thread_data[i].factor);
-						logprint(flog,"c%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
+						logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 							ndigits(&thread_data[i].factor),
 							z2decstr(&thread_data[i].factor,&gstr1),
-							thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
+							curves_run+1,thread_data[i].stagefound,
+							ECM_STG1_MAX,thread_data[i].sigma,i);
 					}
 
 					fclose(flog);

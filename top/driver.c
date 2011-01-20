@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 34
+#define NUMOPTIONS 37
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -76,12 +76,15 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"tune_info",
 	"ecm_qs_ratio",
 	"ecm_gnfs_ratio",
-	"one"};
+	"one",
+	"op",
+	"of",
+	"ou"};
 
 
 // indication of whether or not an option needs a corresponding argument
 int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1,0};
+	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1,0,1,1,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -893,6 +896,11 @@ void set_default_globals(void)
 	zTwo.val[0] = 2;
 	zThree.val[0] = 3;
 
+	//whether we want to output certain info to their own files...
+	WANT_OUTPUT_PRIMES = 0;
+	WANT_OUTPUT_FACTORS = 0;
+	WANT_OUTPUT_UNFACTORED = 0;
+
 	//global strings, used mostly for logprint stuff
 	sInit(&gstr1);
 	sInit(&gstr2);
@@ -1471,6 +1479,39 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[33]) == 0)
 	{
 		WANT_ONLY_1_FACTOR = 1;
+	}
+	else if (strcmp(opt,OptionArray[34]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+		{
+			strcpy(op_str,arg);
+			WANT_OUTPUT_PRIMES = 1;
+		}
+		else
+			printf("*** argument to -op too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[35]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+		{
+			strcpy(of_str,arg);
+			WANT_OUTPUT_FACTORS = 1;
+		}
+		else
+			printf("*** argument to -of too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[36]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+		{
+			strcpy(ou_str,arg);
+			WANT_OUTPUT_UNFACTORED = 1;
+		}
+		else
+			printf("*** argument to -ou too long, ignoring ***\n");
 	}
 	else
 	{
