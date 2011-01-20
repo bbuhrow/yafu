@@ -57,6 +57,9 @@ flags to change program behavior.  Supported flags in v1.19 are:
 				proceed directly to QS/NFS after small factor detection.
 -one		Tells factor() to stop factoring after finding one factor.
 -ggnfs_dir <path>	path to ggnfs binaries
+-op <name>		Tells factor() to output primes and prps to file <name>.
+-of <name>		Tells factor() to output an input number and all found factors to file <name>.
+-ou <name>		Tells factor() to output unfactored composites to file <name>.
 
 These flags are ignored when redirecting input to yafu.
 

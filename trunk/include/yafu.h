@@ -245,6 +245,15 @@ double MEAS_CPU_FREQUENCY;
 int VERBOSE_PROC_INFO;
 char CPU_ID_STR[80];
 int WANT_ONLY_1_FACTOR;
+int WANT_OUTPUT_PRIMES;
+int WANT_OUTPUT_FACTORS;
+int WANT_OUTPUT_UNFACTORED;
+FILE *op_file;
+FILE *of_file;
+FILE *ou_file;
+char op_str[1024];
+char of_str[1024];
+char ou_str[1024];
 
 
 //globals for testing siqs
