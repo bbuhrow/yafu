@@ -14,6 +14,7 @@ v 1.23
 + (wraithx) added several new output option switches, -ou, -of, -op.  for details see
 	the docfile
 + (wraithx) changed logfile output of found ECM factors to record the B1 value used
++ added a -pretest switch to tell factor that we only want to pretest (skip sieve methods)
 
 
 v 1.22.2

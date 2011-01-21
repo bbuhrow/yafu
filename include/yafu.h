@@ -255,7 +255,7 @@ char op_str[1024];
 char of_str[1024];
 char ou_str[1024];
 
-//globals for implementing the "plan" switch
+//globals for implementing the "plan" and "pretest" switches
 enum pretest_plan {
 	PRETEST_NONE = 0,
 	PRETEST_NOECM = 1,
@@ -266,6 +266,7 @@ enum pretest_plan {
 };
 enum pretest_plan yafu_pretest_plan;
 char plan_str[1024];
+int ONLY_PRETEST;
 
 
 //globals for testing siqs

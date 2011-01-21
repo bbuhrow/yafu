@@ -37,55 +37,32 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 38
+#define NUMOPTIONS 39
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
 // command line options visible to driver.c
 char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
-	"B1pm1",
-	"B1pp1",
-	"B1ecm",
-	"rhomax",
-	"B2pm1",
-	"B2pp1",
-	"B2ecm",
-	"qssave",
-	"siqsB",
-	"siqsTF",
-	"siqsR",
-	"siqsT",
-	"siqsNB",
-	"siqsM",
-	"logfile",
-	"batchfile",
-	"seed",
-	"sigma",
-	"session",
-	"threads",
-	"v",
-	"silent",
-	"pfile",
-	"pscreen",
-	"forceDLP",
-	"fmtmax",
-	"noopt",
-	"vproc",
-	"noecm",
-	"ggnfs_dir",
-	"tune_info",
-	"ecm_qs_ratio",
-	"ecm_gnfs_ratio",
-	"one",
-	"op",
-	"of",
-	"ou",
-	"plan"};
+	"B1pm1", "B1pp1", "B1ecm", "rhomax", "B2pm1",
+	"B2pp1", "B2ecm", "qssave", "siqsB", "siqsTF",
+	"siqsR", "siqsT", "siqsNB", "siqsM", "logfile",
+	"batchfile", "seed", "sigma", "session", "threads",
+	"v", "silent", "pfile", "pscreen", "forceDLP",
+	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
+	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
+	"of", "ou", "plan", "pretest"};
 
 
 // indication of whether or not an option needs a corresponding argument
-int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1,0,1,1,1,1};
+int needsArg[NUMOPTIONS] = {
+	1,1,1,1,1,
+	1,1,1,1,1,
+	1,1,1,1,1,
+	1,1,1,1,1,
+	0,0,0,0,0,
+	1,0,0,0,1,
+	1,1,1,0,1,
+	1,1,1,0};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -905,6 +882,7 @@ void set_default_globals(void)
 	//pretesting plan used by factor()
 	yafu_pretest_plan = PRETEST_NORMAL;
 	strcpy(plan_str,"normal");
+	ONLY_PRETEST = 0;
 
 	//global strings, used mostly for logprint stuff
 	sInit(&gstr1);
@@ -1546,6 +1524,10 @@ void applyOpt(char *opt, char *arg)
 		}
 		else
 			printf("*** argument to -plan too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[38]) == 0)
+	{
+		ONLY_PRETEST = 1;
 	}
 	else
 	{

@@ -350,7 +350,6 @@ void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb)
 	{
 		ptr = fb + qli[i];
 		ptr->roots = val;
-		//ptr->root2 = (uint16)val;
 	}
 	return;
 }
