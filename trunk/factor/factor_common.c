@@ -1791,10 +1791,19 @@ void factor(fact_obj_t *fobj)
 			{
 				// either the number is small enough to finish off, or it would be better, 
 				// timewise, to switch
-				if (decision == 2)
-					fact_state = state_nfs;
+				if (ONLY_PRETEST)
+				{
+					// we're ready to go to a sieve method, but we only want to 
+					// pretest.  so we bail.
+					done = 1;
+				}
 				else
-					fact_state = state_qs;
+				{
+					if (decision == 2)
+						fact_state = state_nfs;
+					else
+						fact_state = state_qs;
+				}
 			}
 			else
 			{
@@ -1830,14 +1839,16 @@ void factor(fact_obj_t *fobj)
 			else
 			{
 				int i;
-				fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
+				//fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
+				fprintf(of_file, "%s", z2decstr(&origN,&gstr1));
 				for (i=0; i<fobj->num_factors; i++)
 				{
-					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[0].factor,&gstr1));
+					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
 					if (fobj->fobj_factors[i].count > 1)
 						fprintf(of_file, "^%d", fobj->fobj_factors[i].count);
-					fprintf(of_file, "\n");
+					//fprintf(of_file, "\n");
 				}
+				fprintf(of_file,"\n");
 				if (fclose(of_file) != 0)
 					printf(" ***Error: problem closing file %s\n", of_str);
 			}

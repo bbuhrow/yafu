@@ -658,7 +658,7 @@ void *process_poly(void *ptr)
 	dconf->numB = 1;
 	computeBl(sconf,dconf);
 	firstRoots(sconf,dconf);
-	
+
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
 	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
@@ -671,29 +671,33 @@ void *process_poly(void *ptr)
 	for ( ; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
 	{
 		int skip_x2_poly = dconf->numB & 0x1;
+		//setting these to be invalid means the last entry of every block will be ignored
+		//so we're throwing away 1/blocksize relations, potentially, but gaining 
+		//a faster sieve routine.
+		uint32 invalid_root_marker = 0xFFFFFFFF; //(BLOCKSIZEm1 << 16) | BLOCKSIZEm1;
 
 		for (i=0; i < num_blocks; i++)
 		{
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(0xFFFFFFFF, poly->qlisort, poly->s, fb_sieve_p);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
 			lp_sieveblock(sieve,fb_sieve_p,fb->med_B, i, num_blocks, buckets,
 				start_prime,blockinit,0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(0xFFFFFFFF, poly->qlisort, poly->s, fb_sieve_p);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
 			scan_ptr(i,0,sconf,dconf);
 
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(0xFFFFFFFF, poly->qlisort, poly->s, fb_sieve_n);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
 			lp_sieveblock(sieve,fb_sieve_n,fb->med_B, i, num_blocks, buckets,
 				start_prime,blockinit,1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(0xFFFFFFFF, poly->qlisort, poly->s, fb_sieve_n);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
 			scan_ptr(i,1,sconf,dconf);
 
 		}

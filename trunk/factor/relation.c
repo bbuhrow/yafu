@@ -524,7 +524,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 
 #ifdef YAFU_64K
 			//see discussion near line 377
-			if (thisloc == 65535)
+			if (thisloc ==	65535)
 				continue;
 #endif
 

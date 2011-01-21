@@ -303,8 +303,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
-	memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));
-
+	memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));	
 
 	return;
 }
