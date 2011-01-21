@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.22
+YAFU Version 1.23
 
 -------------
 Introduction:
@@ -55,11 +55,19 @@ flags to change program behavior.  Supported flags in v1.19 are:
 -vproc			Increase verbosity of processor detection code on startup
 -noecm			Set this flag to skip all ECM stages in the factor() function and instead
 				proceed directly to QS/NFS after small factor detection.
--one		Tells factor() to stop factoring after finding one factor.
+-one			Tells factor() to stop factoring after finding one factor.
 -ggnfs_dir <path>	path to ggnfs binaries
 -op <name>		Tells factor() to output primes and prps to file <name>.
 -of <name>		Tells factor() to output an input number and all found factors to file <name>.
 -ou <name>		Tells factor() to output unfactored composites to file <name>.
+-plan <name>	Tells factor() to follow one of the following pretesting plans:
+				<name> = none: do only trial division and rho
+				<name> = noecm: stop before first ecm step and start nfs/qs
+				<name> = light: stop after 25 digit ecm (B1=50k) and start nfs/qs
+				<name> = normal: proceed as normal
+				<name> = deep: skip to 30 digit ecm (B1=250k) after trial division
+				All plans will still be stopped early if it is time optimal to do so.
+				All plans can be used in combination with target_ecm ratio options
 
 These flags are ignored when redirecting input to yafu.
 

@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 37
+#define NUMOPTIONS 38
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -79,12 +79,13 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"one",
 	"op",
 	"of",
-	"ou"};
+	"ou",
+	"plan"};
 
 
 // indication of whether or not an option needs a corresponding argument
 int needsArg[NUMOPTIONS] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1,0,1,1,1};
+	1,1,1,1,1,0,0,0,0,0,1,0,0,0,1,1,1,1,0,1,1,1,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -901,6 +902,10 @@ void set_default_globals(void)
 	WANT_OUTPUT_FACTORS = 0;
 	WANT_OUTPUT_UNFACTORED = 0;
 
+	//pretesting plan used by factor()
+	yafu_pretest_plan = PRETEST_NORMAL;
+	strcpy(plan_str,"normal");
+
 	//global strings, used mostly for logprint stuff
 	sInit(&gstr1);
 	sInit(&gstr2);
@@ -1452,7 +1457,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[28]) == 0)
 	{
-		NO_ECM = 1;
+		yafu_pretest_plan = PRETEST_NOECM;
 	}
 	else if (strcmp(opt,OptionArray[29]) == 0)
 	{
@@ -1512,6 +1517,35 @@ void applyOpt(char *opt, char *arg)
 		}
 		else
 			printf("*** argument to -ou too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[37]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+		{
+			strcpy(plan_str,arg);
+
+			// test for recognized options.  for now, ignore "custom" even though
+			// it is in the enum, because it is too complicated to implement right now.
+			// that's a task for another day.
+			if (strcmp(plan_str, "none") == 0)
+				yafu_pretest_plan = PRETEST_NONE;
+			else if (strcmp(plan_str, "noecm") == 0)
+				yafu_pretest_plan = PRETEST_NOECM;
+			else if (strcmp(plan_str, "light") == 0)
+				yafu_pretest_plan = PRETEST_LIGHT;
+			else if (strcmp(plan_str, "deep") == 0)
+				yafu_pretest_plan = PRETEST_DEEP;
+			else if (strcmp(plan_str, "normal") == 0)
+				yafu_pretest_plan = PRETEST_NORMAL;
+			else			
+			{
+				printf("*** unknown plan option, ignoring ***\n");
+				strcpy(plan_str,"normal");
+			}
+		}
+		else
+			printf("*** argument to -plan too long, ignoring ***\n");
 	}
 	else
 	{

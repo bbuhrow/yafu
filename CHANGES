@@ -1,4 +1,4 @@
-v 1.22.3
+v 1.23
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
 	when stopping early using -one
 + changed msieve_obj declaration/definition to match current msieve version
@@ -10,6 +10,10 @@ v 1.22.3
 	+ see 2.5-5% improvement, sometimes more
 + added ASM macros to do a subset of the x86_64 ASM improvements on 32 bit linux machines
 	+ not tested yet.
++ added a -plan switch for greater selectivity in pretest plan options
++ (wraithx) added several new output option switches, -ou, -of, -op.  for details see
+	the docfile
++ (wraithx) changed logfile output of found ECM factors to record the B1 value used
 
 
 v 1.22.2
