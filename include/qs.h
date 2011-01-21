@@ -77,6 +77,8 @@ double COUNT;
 #define BLOCKBITStxt "15"
 #endif
 
+#define USE_POLY_SSE2_ASM 1
+
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
 //double times_checked_per_side;
