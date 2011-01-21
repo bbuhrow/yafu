@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.22.3"
+#define VERSION_STRING "1.23"
 
 //basics
 #define POSITIVE 0
@@ -254,6 +254,18 @@ FILE *ou_file;
 char op_str[1024];
 char of_str[1024];
 char ou_str[1024];
+
+//globals for implementing the "plan" switch
+enum pretest_plan {
+	PRETEST_NONE = 0,
+	PRETEST_NOECM = 1,
+	PRETEST_LIGHT = 2,
+	PRETEST_NORMAL = 3,
+	PRETEST_DEEP = 4,
+	PRETEST_CUSTOM = 5
+};
+enum pretest_plan yafu_pretest_plan;
+char plan_str[1024];
 
 
 //globals for testing siqs

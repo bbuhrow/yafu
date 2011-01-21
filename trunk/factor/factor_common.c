@@ -102,7 +102,7 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 int check_if_done(fact_obj_t *fobj, z *N);
 enum factorization_state scale_requested_work(method_timing_t *method_times, 
 	enum factorization_state fact_state, int *next_work, double time_available, z *N);
-int switch_to_qs(z *N, double *time_available);
+int switch_to_qs(z *N, double *time_available, int force_switch);
 
 void init_factobj(fact_obj_t *fobj)
 {
@@ -991,7 +991,7 @@ int check_if_done(fact_obj_t *fobj, z *N)
 	return done;
 }
 
-int switch_to_qs(z *N, double *time_available)
+int switch_to_qs(z *N, double *time_available, int force_switch)
 {
 	// compare the total time spent so far with the estimate of how long it 
 	// would take to finish using qs and decide whether or not to switch over
@@ -1019,10 +1019,27 @@ int switch_to_qs(z *N, double *time_available)
 		//proceed with whichever estimate is smaller
 		if (qs_est_time <= nfs_est_time)
 		{		
-			// if qs_est_time is very large, then we don't have a good estimate.  flag the caller 
-			// of this fact
-			if (qs_est_time > 1e9)
+			
+			if (force_switch)
 			{
+				//calling code is forcing a decision to switch
+				if ((GNFS_EXPONENT == 0) && (ndigits(N) > 95))
+				{
+					//est time decision was to use qs, but the size is high enough and we're using
+					//qs time only because nfs hasn't been tuned, so use nfs instead
+					decision = 2;
+					*time_available = 0;
+				}
+				else
+				{
+					decision = 1;
+					*time_available = 0;
+				}
+			}
+			else if (qs_est_time > 1e9)
+			{
+				// if qs_est_time is very large, then we don't have a good estimate.  flag the caller 
+				// of this fact
 				decision = 0;
 				*time_available = -1;
 			}		
@@ -1032,7 +1049,7 @@ int switch_to_qs(z *N, double *time_available)
 				// we estimate it would take QS to finish, switch to qs.  
 				if ((GNFS_EXPONENT == 0) && (ndigits(N) > 95))
 				{
-					//we decided to use qs, but the size is high enough and we're using
+					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
 					decision = 2;
 					*time_available = 0;
@@ -1052,7 +1069,12 @@ int switch_to_qs(z *N, double *time_available)
 		}
 		else
 		{
-			if (nfs_est_time > 1e9)
+			if (force_switch)
+			{
+				decision = 2;
+				*time_available = 0;				
+			}
+			else if (nfs_est_time > 1e9)
 			{
 				decision = 0;
 				*time_available = -1;
@@ -1547,7 +1569,8 @@ void factor(fact_obj_t *fobj)
 	TIME_DIFF *	difference;
 	int user_defined_ecm_b2 = ECM_STG2_ISDEFAULT;
 	int user_defined_pp1_b2 = PP1_STG2_ISDEFAULT;
-	int user_defined_pm1_b2 = PM1_STG2_ISDEFAULT;;
+	int user_defined_pm1_b2 = PM1_STG2_ISDEFAULT;
+	int force_switch = 0;
 
 	//factor() always ignores user specified B2 values
 	ECM_STG2_ISDEFAULT = 1;
@@ -1579,7 +1602,10 @@ void factor(fact_obj_t *fobj)
 	AUTO_FACTOR=1;
 
 	if (VFLAG >= 0)
-		printf("factoring %s\n\n",z2decstr(b,&gstr2));
+	{
+		printf("factoring %s\n",z2decstr(b,&gstr2));
+		printf("using pretesting plan: %s\n\n",plan_str);
+	}
 
 	// initialize time per curve
 	method_times.ecm_autoinc_time_per_curve = 0;
@@ -1611,10 +1637,19 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(rho_work, -1, -1, &curves, b, fobj);
 			method_times.rho_time = t_time;
 			total_time += t_time * curves;
-			fact_state = state_pp1_lvl1;			
+			
 			//after trial division, fermat, and rho, we're ready to 
-			//consider qs methods
+			//consider qs methods.  all pretest plans do at least this much work.
 			min_pretest_done = 1;
+
+			//where to go from here depends on the pretest plan in place
+			if (yafu_pretest_plan == PRETEST_NONE)
+				force_switch = 1;
+			else if (yafu_pretest_plan == PRETEST_DEEP)
+				fact_state = state_ecm_25digit;
+			else
+				fact_state = state_pp1_lvl1;			
+
 			break;
 
 		case state_pp1_lvl1:
@@ -1644,21 +1679,12 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(pm1_curve, 100000, 10000000, &curves, b, fobj);
 			method_times.pm1_lvl1_time_per_curve = t_time;
 			total_time += t_time * curves;
-			if (NO_ECM)
-			{
-				if (QS_GNFS_XOVER > 0)				
-					decision = QS_GNFS_XOVER;
-				else
-					decision = 95;
+			fact_state = state_ecm_15digit;
 
-				if (ndigits(b) > decision)
-					fact_state = state_nfs;
-				else
-					fact_state = state_qs;
-			}
-			else
-				fact_state = state_ecm_15digit;
-
+			//if we are not doing any ecm, force a switch to a sieve method
+			if (yafu_pretest_plan == PRETEST_NOECM)
+				force_switch = 1;
+				
 			break;
 
 		case state_pm1_lvl2:
@@ -1666,6 +1692,11 @@ void factor(fact_obj_t *fobj)
 			method_times.pm1_lvl2_time_per_curve = t_time;
 			total_time += t_time * curves;
 			fact_state = state_ecm_30digit;
+
+			//if we are doing light pretesting, force a switch to a sieve method
+			if (yafu_pretest_plan == PRETEST_LIGHT)
+				force_switch = 1;
+
 			break;
 
 		case state_pm1_lvl3:
@@ -1693,7 +1724,14 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(ecm_curve, 50000, 5000000, &curves, b, fobj);
 			method_times.ecm_25digit_time_per_curve = t_time;
 			total_time += t_time * curves;
-			fact_state = state_pp1_lvl2;
+
+			//for deep pretesting, skip the pp1/pm1 and go right to 30 digit
+			//ecm, after doing this curve at 25 digits to get timing info.
+			if (yafu_pretest_plan == PRETEST_DEEP)
+				fact_state = state_ecm_30digit;
+			else
+				fact_state = state_pp1_lvl2;
+
 			break;
 
 		case state_ecm_30digit:
@@ -1742,11 +1780,11 @@ void factor(fact_obj_t *fobj)
 		// first, check if we're done
 		done = check_if_done(fobj, &origN);		
 
-		if (!done && min_pretest_done)
+		if ((!done && min_pretest_done) || force_switch)
 		{
 			// if we're not done, decide what to do next: either the default next state or
 			// switch to qs.
-			decision = switch_to_qs(b, &t_time);
+			decision = switch_to_qs(b, &t_time, force_switch);
 			//printf("total time = %f\n",total_time);
 			//printf("time available = %f\n",t_time);
 			if (decision)
@@ -1774,7 +1812,7 @@ void factor(fact_obj_t *fobj)
 		//If the only factor in our array == N, then N is prime or prp...
 		if (WANT_OUTPUT_PRIMES && (zCompare(&fobj->fobj_factors[0].factor,&origN) == 0))
 		{
-			if ((op_file = fopen(op_str, a)) == NULL)
+			if ((op_file = fopen(op_str, "a")) == NULL)
 				printf(" ***Error: unable to open %s\n", op_str);
 			else
 			{
@@ -1787,14 +1825,15 @@ void factor(fact_obj_t *fobj)
 		//If the first factor in the array != N, then is composite and we have factors...
 		if (WANT_OUTPUT_FACTORS && (zCompare(&fobj->fobj_factors[0].factor,&origN) != 0))
 		{
-			if ((of_file = fopen(of_str, a)) == NULL)
+			if ((of_file = fopen(of_str, "a")) == NULL)
 				printf(" ***Error: unable to open %s\n", of_str);
 			else
 			{
+				int i;
 				fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
 				for (i=0; i<fobj->num_factors; i++)
 				{
-					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[0].factor,&gstr1)
+					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[0].factor,&gstr1));
 					if (fobj->fobj_factors[i].count > 1)
 						fprintf(of_file, "^%d", fobj->fobj_factors[i].count);
 					fprintf(of_file, "\n");
@@ -1808,7 +1847,7 @@ void factor(fact_obj_t *fobj)
 	{
 		if (WANT_OUTPUT_UNFACTORED)
 		{
-			if ((ou_file = fopen(ou_str, a)) == NULL)
+			if ((ou_file = fopen(ou_str, "a")) == NULL)
 				printf(" ***Error: unable to open %s\n", ou_str);
 			else
 			{
