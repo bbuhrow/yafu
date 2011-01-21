@@ -578,21 +578,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bnum = root2 >> BLOCKBITS;				\
 	} 
 
-
-#define MAKE_NEW_SLICE(j)	\
-	if (1)							\
-	{													\
-		lp_bucket_p->logp[bound_index] = logp;			\
-		bound_index++;									\
-		lp_bucket_p->fb_bounds[bound_index] = j;		\
-		bound_val = j;									\
-		sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
-		sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
-		numptr_p += (numblocks << 1);							\
-		numptr_n += (numblocks << 1);							\
-		check_bound += BUCKET_ALLOC >> 1;					\
-	}
-
 #define CHECK_NEW_SLICE(j)									\
 	if (j >= check_bound)							\
 	{														\
@@ -637,13 +622,66 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(_MSC_VER)
 
-#define ADDRESS_ROOT_1 (firstroots1[j])
-#define ADDRESS_ROOT_2 (firstroots2[j])
+	#define ADDRESS_ROOT_1 (firstroots1[j])
+	#define ADDRESS_ROOT_2 (firstroots2[j])
+
+	#define COMPUTE_4_PROOTS(j)								\
+		do {	\
+				__m128i primes;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i ptrs;	\
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(v-1) * bound + j])); \
+				root1s = _mm_load_si128((__m128i *)(update_data.firstroots1 + j)); \
+				root1s = _mm_sub_epi32(root1s, ptrs); 	 					/* root1 -= ptr */ \
+				root2s = _mm_load_si128((__m128i *)(update_data.firstroots2 + j)); \
+				root2s = _mm_sub_epi32(root2s, ptrs); 	 					/* root2 -= ptr */ \
+				tmp1 = _mm_xor_si128(tmp1, tmp1); 							/* zero xmm4 */ \
+				tmp2 = _mm_xor_si128(tmp2, tmp2);							/* zero xmm5 */ \
+				primes = _mm_load_si128((__m128i *)(update_data.prime + j)); \
+				tmp1 = _mm_cmpgt_epi32(tmp1,root1s); 						/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
+				tmp2 = _mm_cmpgt_epi32(tmp2,root2s); 						/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */ \
+				tmp1 = _mm_and_si128(tmp1, primes); 						/* copy prime to overflow locations (are set to 1) */ \
+				tmp2 = _mm_and_si128(tmp2, primes); 						/* copy prime to overflow locations (are set to 1) */ \
+				root1s = _mm_add_epi32(root1s, tmp1); 						/* selectively add back prime (modular subtract) */ \
+				_mm_store_si128((__m128i *)(update_data.firstroots1 + j),root1s);		/* save new root1 values */ \
+				root2s = _mm_add_epi32(root2s, tmp2); 						/* selectively add back prime (modular subtract) */ \
+				_mm_store_si128((__m128i *)(update_data.firstroots2 + j),root2s); 		/* save new root2 values */ \
+			} while (0);
+
+	#define COMPUTE_4_NROOTS(j)								\
+		do {	\
+				__m128i primes;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i ptrs;	\
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				ptrs = _mm_load_si128((__m128i *)(&rootupdates[(v-1) * bound + j])); \
+				root1s = _mm_load_si128((__m128i *)(update_data.firstroots1 + j)); \
+				root1s = _mm_add_epi32(root1s, ptrs); 	 					/* root1 += ptr */ \
+				root2s = _mm_load_si128((__m128i *)(update_data.firstroots2 + j)); \
+				root2s = _mm_add_epi32(root2s, ptrs); 	 					/* root2 += ptr */ \
+				tmp1 = _mm_shuffle_epi32(root1s, 0xe4); 					/* copy root1 to xmm4 */ \
+				tmp2 = _mm_shuffle_epi32(root2s, 0xe4);						/* copy root2 to xmm5 */ \
+				primes = _mm_load_si128((__m128i *)(update_data.prime + j)); \
+				tmp1 = _mm_cmpgt_epi32(tmp1,primes); 						/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
+				tmp2 = _mm_cmpgt_epi32(tmp2,primes); 						/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+				tmp1 = _mm_and_si128(tmp1, primes); 						/* copy prime to overflow locations (are set to 1) */ \
+				tmp2 = _mm_and_si128(tmp2, primes); 						/* copy prime to overflow locations (are set to 1) */ \
+				root1s = _mm_sub_epi32(root1s, tmp1); 						/* selectively sub back prime (modular addition) */ \
+				_mm_store_si128((__m128i *)(update_data.firstroots1 + j),root1s);		/* save new root1 values */ \
+				root2s = _mm_sub_epi32(root2s, tmp2); 						/* selectively sub back prime (modular addition) */ \
+				_mm_store_si128((__m128i *)(update_data.firstroots2 + j),root2s); 		/* save new root2 values */ \
+			} while (0);
+
 
 #else
 
-#define ADDRESS_ROOT_1 (*(firstroots1 + j))
-#define ADDRESS_ROOT_2 (*(firstroots2 + j))
+	#define ADDRESS_ROOT_1 (*(firstroots1 + j))
+	#define ADDRESS_ROOT_2 (*(firstroots2 + j))
 
 #endif
 
@@ -702,8 +740,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			ASM_M mov root2, edx}	\
 		} while (0);		
 
-
-
 #elif defined(GCC_ASM64X)
 
 	#define COMPUTE_NEXT_ROOTS_P						\
@@ -739,7 +775,7 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
 			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(ptr), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 	#define COMPUTE_4_NROOTS(j)								\
@@ -761,7 +797,7 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
 			"movdqa %%xmm2, (%%rdx) \n\t"			/* save new root2 values */ \
 			: \
-			: "a"(ptr), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
 	#define COMPUTE_NEXT_ROOTS_N		\
@@ -794,36 +830,95 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			: "r"(bmodp), "g"(prime)		\
 			: "r8", "r9", "cc");	
 
-	#define COMPUTE_NEXT_ROOTS_X2_P						\
-		ASM_G (											\
-			"xorl %%r8d, %%r8d		\n\t"	/*r8d = 0*/	\
-			"xorl %%r9d, %%r9d		\n\t"	/*r9d = 0*/	\
-			"subl %2, %%eax			\n\t"	/*root1 - ptr*/	\
-			"cmovc %3, %%r8d		\n\t"	/*prime into r8 if overflow*/	\
-			"subl %2, %%edx			\n\t"	/*root2 - ptr*/	\
-			"cmovc %3, %%r9d		\n\t"	/*prime into r9 if overflow*/	\
-			"addl %%r8d, %%eax		\n\t"		\
-			"addl %%r9d, %%edx		\n\t"		\
-			: "+a"(root1), "+d"(root2)			\
-			: "g"(*ptr2), "g"(prime)		\
-			: "r8", "r9", "cc");	
+#elif defined(GCC_ASM32X)
 
-	#define COMPUTE_NEXT_ROOTS_X2_N		\
+	#define COMPUTE_NEXT_ROOTS_P						\
+		ASM_G (											\
+			"xorl %%ecx, %%ecx		\n\t"	/*r8d = 0*/	\
+			"xorl %%edi, %%edi		\n\t"	/*r9d = 0*/	\
+			"subl %2, %%eax			\n\t"	/*root1 - ptr*/	\
+			"cmovc %3, %%ecx		\n\t"	/*prime into r8 if overflow*/	\
+			"subl %2, %%edx			\n\t"	/*root2 - ptr*/	\
+			"cmovc %3, %%edi		\n\t"	/*prime into r9 if overflow*/	\
+			"addl %%ecx, %%eax		\n\t"		\
+			"addl %%edi, %%edx		\n\t"		\
+			: "+a"(root1), "+d"(root2)			\
+			: "g"(*ptr), "g"(prime)		\
+			: "ecx", "edi", "cc");	
+
+	#define COMPUTE_4_PROOTS(j)								\
+		ASM_G (											\
+			"movdqa (%%eax), %%xmm3 \n\t"			/* xmm3 = next 4 values of rootupdates */ \
+			"movdqa (%%ecx), %%xmm1 \n\t"			/* xmm1 = next 4 values of root1 */ \
+			"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
+			"movdqa (%%edx), %%xmm2 \n\t"			/* xmm2 = next 4 values of root2 */ \
+			"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */ \
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */ \
+			"movdqa (%%ebx), %%xmm0 \n\t"			/* xmm0 = next 4 primes */ \
+			"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm1, (%%ecx) \n\t"			/* save new root1 values */ \
+			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm2, (%%edx) \n\t"			/* save new root2 values */ \
+			: \
+			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
+
+	#define COMPUTE_4_NROOTS(j)								\
+		ASM_G (											\
+			"movdqa (%%eax), %%xmm3 \n\t"			/* xmm3 = next 4 values of rootupdates */ \
+			"movdqa (%%ecx), %%xmm1 \n\t"			/* xmm1 = next 4 values of root1 */ \
+			"paddd	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */ \
+			"movdqa (%%edx), %%xmm2 \n\t"			/* xmm2 = next 4 values of root2 */ \
+			"paddd	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */ \
+			"movdqa	%%xmm1, %%xmm4 \n\t"			/* copy root1 to xmm4 */ \
+			"movdqa (%%ebx), %%xmm0 \n\t"			/* xmm0 = next 4 primes */ \
+			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
+			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm1, (%%ecx) \n\t"			/* save new root1 values */ \
+			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm2, (%%edx) \n\t"			/* save new root2 values */ \
+			: \
+			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
+
+	#define COMPUTE_NEXT_ROOTS_N		\
 		ASM_G (							\
-			"movl %%eax, %%r8d		\n\t"	\
-			"addl %2, %%r8d			\n\t"	/*r8d = root1 + ptr*/		\
-			"movl %%edx, %%r9d		\n\t"								\
-			"addl %2, %%r9d			\n\t"	/*r9d = root2 + ptr*/		\
+			"movl %%eax, %%ecx		\n\t"	\
+			"addl %2, %%ecx			\n\t"	/*r8d = root1 + ptr*/		\
+			"movl %%edx, %%edi		\n\t"								\
+			"addl %2, %%edi			\n\t"	/*r9d = root2 + ptr*/		\
 			"subl %3, %%eax			\n\t"	/*root1 = root1 - prime*/	\
 			"subl %3, %%edx			\n\t"	/*root2 = root2 - prime*/	\
 			"addl %2, %%eax			\n\t"	/*root1 + ptr*/				\
-			"cmovae %%r8d, %%eax	\n\t"	/*other caluclation if no overflow*/	\
+			"cmovae %%ecx, %%eax	\n\t"	/*other caluclation if no overflow*/	\
 			"addl %2, %%edx			\n\t"	/*root2 + ptr*/							\
-			"cmovae %%r9d, %%edx	\n\t"	/*other caluclation if no overflow*/	\
+			"cmovae %%edi, %%edx	\n\t"	/*other caluclation if no overflow*/	\
 			: "+a"(root1), "+d"(root2)		\
-			: "g"(*ptr2), "g"(prime)			\
-			: "r8", "r9", "cc");
+			: "g"(*ptr), "g"(prime)			\
+			: "ecx", "edi", "cc");
 
+	#define COMPUTE_FIRST_ROOTS			\
+		ASM_G (											\
+			"xorl %%ecx, %%ecx		\n\t"	/*r8d = 0*/	\
+			"xorl %%edi, %%edi		\n\t"	/*r9d = 0*/	\
+			"subl %2, %%eax			\n\t"	/*root1 - bmodp*/	\
+			"cmovc %3, %%ecx		\n\t"	/*prime into r8 if overflow*/	\
+			"subl %2, %%edx			\n\t"	/*root2 - bmodp*/	\
+			"cmovc %3, %%edi		\n\t"	/*prime into r9 if overflow*/	\
+			"addl %%ecx, %%eax		\n\t"		\
+			"addl %%edi, %%edx		\n\t"		\
+			: "+a"(root1), "+d"(root2)			\
+			: "r"(bmodp), "g"(prime)		\
+			: "ecx", "edi", "cc");	
 
 #else
 	#define COMPUTE_NEXT_ROOTS_P		\
@@ -1270,9 +1365,9 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
-#define TEST_4UP_LOOP_ASM_P 1
+
 		
-#if defined(TEST_4UP_LOOP_ASM_P) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
 		logp = update_data.logp[med_B-1];
 
 		if (med_B % 16 != 0)
@@ -1969,8 +2064,71 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
-#else
 
+#elif defined(HAS_SSE2)
+
+		logp = update_data.logp[j-1];
+		for (j=med_B;j<large_B; )
+		{
+			CHECK_NEW_SLICE(j);
+
+			COMPUTE_4_PROOTS(j);
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+		}
+
+
+#else
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
@@ -2006,12 +2164,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
-
-
-//#define TEST_1UP_ASM 1
-#define TEST_4UP_ASM_P 1
 		
-#if defined(TEST_4UP_ASM_P) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
 		logp = update_data.logp[large_B-1];
 
 		if (large_B % 16 != 0)
@@ -2618,8 +2772,70 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = helperstruct.logp;
 
 
+#elif defined(HAS_SSE2)
+
+		logp = update_data.logp[j-1];
+		for (j=large_B;j<bound; )
+		{
+			CHECK_NEW_SLICE(j);
+
+			COMPUTE_4_PROOTS(j);
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+			
+			j++;
+		}
+
+
 #else
-	
 		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound;j++,ptr++)				
 		{				
@@ -2698,9 +2914,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
-#define TEST_4UP_LOOP_ASM_N 1
 		
-#if defined(TEST_4UP_LOOP_ASM_N) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
 		logp = update_data.logp[med_B-1];
 
 		if (med_B % 16 != 0)
@@ -3397,6 +3612,69 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
+#elif defined(HAS_SSE2)
+
+		logp = update_data.logp[j-1];
+		for (j=med_B;j<large_B; )
+		{
+			CHECK_NEW_SLICE(j);
+
+			COMPUTE_4_NROOTS(j);
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_LOOP_P(j);
+
+			root1 = (prime - update_data.firstroots1[j]);
+			root2 = (prime - update_data.firstroots2[j]);
+
+			FILL_ONE_PRIME_LOOP_N(j);
+
+			j++;
+		}
+
+
 #else
 
 		logp = update_data.logp[j-1];
@@ -3433,10 +3711,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
-
-#define TEST_4UP_ASM_N 1
 		
-#if defined(TEST_4UP_ASM_N) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
 		logp = update_data.logp[large_B-1];
 		
 		if (large_B % 16 != 0)
@@ -4041,6 +4317,69 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
+
+#elif defined(HAS_SSE2)
+
+		logp = update_data.logp[j-1];
+		for (j=large_B;j<bound; )
+		{
+			CHECK_NEW_SLICE(j);
+
+			COMPUTE_4_NROOTS(j);
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+
+			j++;
+
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+			prime = update_data.prime[j];
+
+			FILL_ONE_PRIME_P(j);
+
+			root1 = (prime - root1);
+			root2 = (prime - root2);
+
+			FILL_ONE_PRIME_N(j);
+			
+			j++;
+		}
+
 
 #else
 

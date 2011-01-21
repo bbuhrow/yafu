@@ -3,9 +3,13 @@ v 1.22.3
 	when stopping early using -one
 + changed msieve_obj declaration/definition to match current msieve version
 + added a bunch of assembly code to make bucket sieving in SIQS faster.  
-	only x86_64 linux builds will benefit at this point.  I see about a 10% improvement in 
+	only x86_64 linux builds will benefit from this ASM.  I see about a 5-10% improvement in 
 	overall factorization speed.
 + cleaned up comments in assembly code
++ added SSE2 intrinsics to do a subset of the x86_64 ASM improvements on windows machines
+	+ see 2.5-5% improvement, sometimes more
++ added ASM macros to do a subset of the x86_64 ASM improvements on 32 bit linux machines
+	+ not tested yet.
 
 
 v 1.22.2
