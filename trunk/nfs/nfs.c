@@ -717,7 +717,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
-			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmp1),z2decstr(&tmp1,&gstr1));
+			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmpz),z2decstr(&tmpz,&gstr1));
 			fclose(logfile);
 		}		
 
