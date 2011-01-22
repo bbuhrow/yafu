@@ -1,4 +1,4 @@
-v 1.23
+v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
 	when stopping early using -one
 + changed msieve_obj declaration/definition to match current msieve version
@@ -15,6 +15,8 @@ v 1.23
 	the docfile
 + (wraithx) changed logfile output of found ECM factors to record the B1 value used
 + added a -pretest switch to tell factor that we only want to pretest (skip sieve methods)
++ fixed a bug in the extract factors function in nfs.c; factors found in the sqrt step
+	were not reported correctly (thanks Andi_HB)
 
 
 v 1.22.2

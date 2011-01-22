@@ -68,6 +68,8 @@ flags to change program behavior.  Supported flags in v1.19 are:
 				<name> = deep: skip to 30 digit ecm (B1=250k) after trial division
 				All plans will still be stopped early if it is time optimal to do so.
 				All plans can be used in combination with target_ecm ratio options
+-pretest		Use this switch to do only pretesting of the input number to
+				the factor() routine.  Sieve methods (QS/NFS) are not used
 
 These flags are ignored when redirecting input to yafu.
 
