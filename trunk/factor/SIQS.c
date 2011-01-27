@@ -1010,10 +1010,33 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//allocate the sieving factor bases
 #if defined (_MSC_VER) 
+
+#ifdef USE_COMPRESSED_FB
 	dconf->comp_sieve_p = (sieve_fb_compressed *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
 	dconf->comp_sieve_n = (sieve_fb_compressed *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
+#else
+	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+	dconf->comp_sieve_p->prime = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_p->root1 = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_p->root2 = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_p->logp = (uint8 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
+
+	dconf->comp_sieve_n->prime = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_n->root1 = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_n->root2 = (uint32 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_n->logp = (uint8 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
+#endif
 	dconf->fb_sieve_p = (sieve_fb *)_aligned_malloc(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
 	dconf->fb_sieve_n = (sieve_fb *)_aligned_malloc(
@@ -1052,10 +1075,34 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
 
 #else
+
+#ifdef USE_COMPRESSED_FB
 	dconf->comp_sieve_p = (sieve_fb_compressed *)memalign(64,
 			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
 	dconf->comp_sieve_n = (sieve_fb_compressed *)memalign(64,
 			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
+#else
+	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
+	dconf->comp_sieve_p->prime = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_p->root1 = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_p->root2 = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_p->logp = (uint8 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
+
+	dconf->comp_sieve_n->prime = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_n->root1 = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_n->root2 = (uint32 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_n->logp = (uint8 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
+
+#endif
 	dconf->fb_sieve_p = (sieve_fb *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	dconf->fb_sieve_n = (sieve_fb *)memalign(64,
@@ -1123,10 +1170,19 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	{
 		uint32 p = sconf->factor_base->list->prime[i];
 		uint32 lp = sconf->factor_base->list->logprime[i];
+
+#ifdef USE_COMPRESSED_FB
 		dconf->comp_sieve_p[i].prime_and_logp = lp << 16;
 		dconf->comp_sieve_p[i].prime_and_logp |= (uint16)p;
 		dconf->comp_sieve_n[i].prime_and_logp = lp << 16;
 		dconf->comp_sieve_n[i].prime_and_logp |= (uint16)p;
+#else
+		dconf->comp_sieve_p->logp[i] = (uint8)lp;
+		dconf->comp_sieve_p->prime[i] = (uint16)p;
+		dconf->comp_sieve_n->logp[i] = (uint8)lp;
+		dconf->comp_sieve_n->prime[i] = (uint16)p;
+#endif
+
 		dconf->fb_sieve_p[i].prime = p;
 		dconf->fb_sieve_p[i].logprime = lp;
 		dconf->fb_sieve_n[i].prime = p;
@@ -1970,8 +2026,22 @@ int free_sieve(dynamic_conf_t *dconf)
 	_aligned_free(dconf->sieve);
 	_aligned_free(dconf->fb_sieve_p);
 	_aligned_free(dconf->fb_sieve_n);
+#ifdef USE_COMPRESSED_FB
 	_aligned_free(dconf->comp_sieve_p);
 	_aligned_free(dconf->comp_sieve_n);
+#else
+	_aligned_free(dconf->comp_sieve_p->prime);
+	_aligned_free(dconf->comp_sieve_p->root1);
+	_aligned_free(dconf->comp_sieve_p->root2);
+	_aligned_free(dconf->comp_sieve_p->logp);
+	_aligned_free(dconf->comp_sieve_n->prime);
+	_aligned_free(dconf->comp_sieve_n->root1);
+	_aligned_free(dconf->comp_sieve_n->root2);
+	_aligned_free(dconf->comp_sieve_n->logp);
+	free(dconf->comp_sieve_p);
+	free(dconf->comp_sieve_n);
+#endif
+
 	_aligned_free(dconf->rootupdates);
 #elif defined(__MINGW32__)
 	free(dconf->fb_sieve_p);
@@ -1984,8 +2054,21 @@ int free_sieve(dynamic_conf_t *dconf)
 #else
 	free(dconf->fb_sieve_p);
 	free(dconf->fb_sieve_n);
+#ifdef USE_COMPRESSED_FB
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
+#else
+	free(dconf->comp_sieve_p->prime);
+	free(dconf->comp_sieve_p->root1);
+	free(dconf->comp_sieve_p->root2);
+	free(dconf->comp_sieve_p->logp);
+	free(dconf->comp_sieve_n->prime);
+	free(dconf->comp_sieve_n->root1);
+	free(dconf->comp_sieve_n->root2);
+	free(dconf->comp_sieve_n->logp);
+	free(dconf->comp_sieve_p);
+	free(dconf->comp_sieve_n);
+#endif
 	free(dconf->sieve);
 	free(dconf->rootupdates);
 #endif

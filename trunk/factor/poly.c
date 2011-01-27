@@ -1134,15 +1134,29 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		{
 			update_data.firstroots1[i] = root2;
 			update_data.firstroots2[i] = root1;
+#ifdef USE_COMPRESSED_FB
 			fb_p[i].roots = (uint32)((root1 << 16) | root2);
 			fb_n[i].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
+#else
+			fb_p->root1[i] = (uint16)root2;
+			fb_p->root2[i] = (uint16)root1;
+			fb_n->root1[i] = (uint16)(prime - root1);
+			fb_n->root2[i] = (uint16)(prime - root2);
+#endif
 		}
 		else
 		{
 			update_data.firstroots1[i] = root1;
 			update_data.firstroots2[i] = root2;
+#ifdef USE_COMPRESSED_FB
 			fb_p[i].roots = (uint32)((root2 << 16) | root1);
 			fb_n[i].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
+#else
+			fb_p->root1[i] = (uint16)root1;
+			fb_p->root2[i] = (uint16)root2;
+			fb_n->root1[i] = (uint16)(prime - root2);
+			fb_n->root2[i] = (uint16)(prime - root1);
+#endif
 		}
 
 		//for this factor base prime, compute the rootupdate value for all s
@@ -1338,15 +1352,29 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			{
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
+#ifdef USE_COMPRESSED_FB
 				fb_p[j].roots = (uint32)((root1 << 16) | root2);
 				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
+#else
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+#endif
 			}
 			else
 			{
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
+#ifdef USE_COMPRESSED_FB
 				fb_p[j].roots = (uint32)((root2 << 16) | root1);
 				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
+#else
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+#endif
 			}
 		}
 
@@ -2887,15 +2915,29 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			{
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
+#ifdef USE_COMPRESSED_FB
 				fb_p[j].roots = (uint32)((root1 << 16) | root2);
 				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
+#else
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+#endif
 			}
 			else
 			{
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
+#ifdef USE_COMPRESSED_FB
 				fb_p[j].roots = (uint32)((root2 << 16) | root1);
 				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
+#else
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+#endif
 			}
 		}
 
