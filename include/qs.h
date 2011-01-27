@@ -355,6 +355,8 @@ typedef struct {
 
 	//used in trial division
 	uint16 *mask;
+	uint32 *reports;			//sieve locations to submit to trial division
+	uint32 num_reports;
 
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving

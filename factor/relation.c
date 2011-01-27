@@ -506,6 +506,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 	uint64 mask = SCAN_MASK;
 
 	sieveblock = (uint64 *)dconf->sieve;
+	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j++)
@@ -519,7 +520,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		for (k=0;k<8;k++)
 		{
 			thisloc = (j<<3) + k;
-			if ((dconf->sieve[thisloc] & 0x80) == 0)
+			if ((dconf->sieve[thisloc] & 0x80) == 0)			
 				continue;
 
 #ifdef YAFU_64K
@@ -528,10 +529,16 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 				continue;
 #endif
 
-			trial_divide_Q_siqs(thisloc,
-				parity, dconf->sieve[thisloc],dconf->numB-1,
-				blocknum,sconf,dconf);
+			dconf->reports[dconf->num_reports++] = thisloc;			
 		}
+	}
+
+	for (j=0; j<dconf->num_reports; j++)
+	{
+		thisloc = dconf->reports[j];
+		trial_divide_Q_siqs(thisloc,
+			parity, dconf->sieve[thisloc],dconf->numB-1,
+			blocknum,sconf,dconf);
 	}
 
 	return 0;
@@ -547,6 +554,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	uint64 *sieveblock;
 
 	sieveblock = (uint64 *)dconf->sieve;
+	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=4)	
@@ -597,17 +605,23 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 #endif
 
-				trial_divide_Q_siqs(thisloc,
-					parity, dconf->sieve[thisloc],dconf->numB - 1,
-					blocknum,sconf,dconf);
+				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
+	// make it safe to perform floating point
+	SCAN_CLEAN;
 #endif
+
+	for (j=0; j<dconf->num_reports; j++)
+	{
+		thisloc = dconf->reports[j];
+		trial_divide_Q_siqs(thisloc,
+			parity, dconf->sieve[thisloc],dconf->numB-1,
+			blocknum,sconf,dconf);
+	}
 
 	return 0;
 }
@@ -621,6 +635,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	uint64 *sieveblock;
 
 	sieveblock = (uint64 *)dconf->sieve;
+	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=8)
@@ -669,17 +684,23 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 #endif
 
-				trial_divide_Q_siqs(thisloc,
-					parity, dconf->sieve[thisloc],dconf->numB - 1,
-					blocknum,sconf,dconf);
+				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
+	// make it safe to perform floating point
+	SCAN_CLEAN;
 #endif
+
+	for (j=0; j<dconf->num_reports; j++)
+	{
+		thisloc = dconf->reports[j];
+		trial_divide_Q_siqs(thisloc,
+			parity, dconf->sieve[thisloc],dconf->numB-1,
+			blocknum,sconf,dconf);
+	}
 
 	return 0;
 }
@@ -694,6 +715,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	uint64 *sieveblock;
 
 	sieveblock = (uint64 *)dconf->sieve;
+	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=16)
@@ -744,17 +766,23 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
-				trial_divide_Q_siqs(thisloc,
-					parity, dconf->sieve[thisloc],dconf->numB - 1,
-					blocknum,sconf,dconf);
+				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
+	// make it safe to perform floating point
+	SCAN_CLEAN;
 #endif
+
+	for (j=0; j<dconf->num_reports; j++)
+	{
+		thisloc = dconf->reports[j];
+		trial_divide_Q_siqs(thisloc,
+			parity, dconf->sieve[thisloc],dconf->numB-1,
+			blocknum,sconf,dconf);
+	}
 
 	return 0;
 }

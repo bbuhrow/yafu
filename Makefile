@@ -33,7 +33,8 @@ ifeq ($(BLOCK),64)
 endif
 
 ifeq ($(PROFILE),1)
-	CFLAGS += -pg
+	CFLAGS += -pg 
+	CFLAGS += -DPROFILING
 else
 	OPT_FLAGS += -fomit-frame-pointer
 endif
