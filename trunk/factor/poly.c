@@ -1366,7 +1366,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 
 		
-#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[med_B-1];
 
 		if (med_B % 16 != 0)
@@ -2164,7 +2164,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 			
 		
-#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[large_B-1];
 
 		if (large_B % 16 != 0)
@@ -2914,7 +2914,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		check_bound = med_B + BUCKET_ALLOC/2;
 		
 		
-#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[med_B-1];
 
 		if (med_B % 16 != 0)
@@ -3711,7 +3711,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
 		
-#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X)
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[large_B-1];
 		
 		if (large_B % 16 != 0)

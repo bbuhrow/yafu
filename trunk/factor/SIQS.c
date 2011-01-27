@@ -1206,6 +1206,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
 
+	// array of sieve locations scanned from the sieve block that we
+	// will submit to trial division.  make it the size of a sieve block 
+	// in the pathological case that every sieve location is a report
+	dconf->reports = (uint32 *)malloc(BLOCKSIZE * sizeof(uint32));
+	dconf->num_reports = 0;
+
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
 	dconf->num = 0;				//sieve locations subjected to trial division
@@ -2016,6 +2022,8 @@ int free_sieve(dynamic_conf_t *dconf)
 #else
 	free(dconf->mask);
 #endif
+
+	free(dconf->reports);
 
 	//free post-processed relations
 	//for (i=0; (uint32)i < dconf->buffered_rels; i++)

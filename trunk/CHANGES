@@ -1,3 +1,9 @@
+v 1.24
++ added proprocessing check for enabled profiling which disables poly.c ASM code.  profiling
+	doesn't work if all of the registers are in the clobber list.
++ rearranged sieve scanning in check_relations slightly so that a list of reports are 
+	generated first, then all reports are sequencially examined.
+
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
 	when stopping early using -one
