@@ -64,6 +64,9 @@ double TF_SPECIAL;
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
 
+//turn on/off usage of a compressed factor base for smallish primes
+//#define USE_COMPRESSED_FB
+
 //compile time definition of sieve block size.  should be equal to the size of L1 cache.
 #ifdef YAFU_64K
 #define BLOCKSIZE 65536
@@ -124,11 +127,21 @@ typedef struct
 
 // the idea here is to reduce memory loads.  we trade a few bit operations to be able to load 2 32bit 
 // words from memory per prime during sieving rather than 4 16bit words.
+#ifdef USE_COMPRESSED_FB
 typedef struct
 {
 	uint32 prime_and_logp;		//prime is stored in the lower 16 bits, logp in the upper 16
 	uint32 roots;				//root1 is stored in the lower 16 bits, root2 in the upper 16
 } sieve_fb_compressed;
+#else
+typedef struct
+{
+	uint32 *prime;			
+	uint32 *root1;				//root1 is stored in the lower 16 bits, root2 in the upper 16
+	uint32 *root2;
+	uint8 *logp;
+} sieve_fb_compressed;
+#endif
 
 /************************* SIQS types and functions *****************/
 typedef struct

@@ -533,6 +533,12 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		}
 	}
 
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	{
+		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+		exit(-1);
+	}
+
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
 	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
@@ -620,6 +626,12 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	// make it safe to perform floating point
 	SCAN_CLEAN;
 #endif
+
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	{
+		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+		exit(-1);
+	}
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
@@ -738,48 +750,26 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	j = sconf->factor_base->small_B;
 	if (parity)
 		fbc = dconf->comp_sieve_n;
 	else
 		fbc = dconf->comp_sieve_p;
 
+#ifdef REPORT_AS_INNER
+	j = sconf->factor_base->small_B;
 	while (j < sconf->factor_base->med_B)
 	{
 
-#ifdef NOTDEF
-		asm volatile (			\
-			"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
-			"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
-			"movdqa 16(%1), %%xmm2	\n\t"		\
-			"movdqa 32(%1), %%xmm3	\n\t"		\
-			"movdqa 48(%1), %%xmm4	\n\t"		\
-			"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
-			"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
-			"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
-			"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
-			"por %%xmm1, %%xmm4		\n\t"	/*or the comparisons*/	\
-			"por %%xmm2, %%xmm3		\n\t"		\
-			"por %%xmm3, %%xmm4		\n\t"		\
-			"pmovmskb %%xmm4, %0	\n\t"	/*if any are equal, this will be !0*/	\
-			: "=r"(result)		\
-			: "r"(bptr + j), "r"(mask)			\
-			: "%xmm0", "%xmm1", "%xmm2", "%xmm3", "%xmm4");	
-#endif
-
-
-		fbptr = fbc + j;
-		prime = (int)(fbptr->prime_and_logp & 0xFFFF);
-		root1 =  (int)(fbptr->roots & 0xFFFF);
-		root2 = (int)( fbptr->roots >> 16);
+		prime = (int)(fbc->prime[j]);
+		root1 =  (int)(fbc->root1[j] + BLOCKSIZE);
+		root2 = (int)(fbc->root2[j] + BLOCKSIZE);
 
 		root1 -= prime;
 		root2 -= prime;
 
 		while (root1 > 0)
 		{
-			int k,a;
-
+			int a;
 			for (k=0; k<dconf->num_reports; k++)
 			{
 				if (root1 == dconf->reports[k])
@@ -793,7 +783,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 		if (root2 > 0)
 		{
-			int k, a;
+			int a;
 			for (k=0; k<dconf->num_reports; k++)
 			{
 				if (root1 == dconf->reports[k])
@@ -804,6 +794,48 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		}
 		j++;
 	}
+
+#else
+	for (k=0; k<dconf->num_reports; k++)
+	{
+		if (!dconf->valid_Qs[k])
+			continue;
+
+		j = sconf->factor_base->small_B;
+		while (j < sconf->factor_base->med_B)
+		{
+
+			prime = (int)(fbc->prime[j]);
+			root1 =  (int)(fbc->root1[j] + BLOCKSIZE);
+			root2 = (int)(fbc->root2[j] + BLOCKSIZE);
+
+			root1 -= prime;
+			root2 -= prime;
+
+			while (root1 > 0)
+			{
+				int a;
+				if (root1 == dconf->reports[k])
+					a = 1;
+				else if (root2 == dconf->reports[k])
+					a = 1;
+
+				root1 -= prime;
+				root2 -= prime;
+			}
+
+			if (root2 > 0)
+			{
+				int a;
+				if (root1 == dconf->reports[k])
+					a = 1;
+				else if (root2 == dconf->reports[k])
+					a = 1;
+			}
+			j++;
+		}
+	}
+#endif
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -889,6 +921,12 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	// make it safe to perform floating point
 	SCAN_CLEAN;
 #endif
+
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	{
+		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+		exit(-1);
+	}
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
@@ -1046,11 +1084,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			
 			i -= 3;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+			logp = fbc->logp[i];
+#endif
 
 			if ((tmp1 == root1 || tmp1 == root2) || 
 				(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
@@ -1064,11 +1109,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			}
 
 			i++;
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+			logp = fbc->logp[i];
+#endif
 
 			if ((tmp2 == root1 || tmp2 == root2) || 
 				(root1 == prime && tmp2 == 0) || (root2 == prime && tmp2 == 0))
@@ -1082,11 +1134,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			}
 
 			i++;
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+			logp = fbc->logp[i];
+#endif
 
 			if ((tmp3 == root1 || tmp3 == root2) || 
 				(root1 == prime && tmp3 == 0) || (root2 == prime && tmp3 == 0))
@@ -1100,11 +1159,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			}
 
 			i++;
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+			logp = fbc->logp[i];
+#endif
 
 			if ((tmp4 == root1 || tmp4 == root2) || 
 				(root1 == prime && tmp4 == 0) || (root2 == prime && tmp4 == 0))
@@ -1124,11 +1190,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		{
 			uint64 q64;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+			logp = fbc->logp[i];
+#endif
 			
 			//this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
@@ -1368,6 +1441,8 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	return;
 }
 
+#define TEST_RESIEVING 1
+#define SSE2_RESIEVEING 1
 void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
@@ -1382,8 +1457,13 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 tmp1, tmp2, tmp3, tmp4, block_loc;
+	uint32 *corrections;
 	z32 *Q;	
 	
+#ifdef SSE2_RESIEVEING
+	corrections = (uint32 *)memalign(64, 4 * sizeof(uint32));
+#endif
+
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
@@ -1421,13 +1501,19 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//becomes faster...
 
 		i=sconf->sieve_small_fb_start;
-		bound = sconf->factor_base->small_B;
+		bound = MIN(sconf->factor_base->small_B, 8192);
 		while ((uint32)i < bound && ((i & 3) != 0))
 		{
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			//tmp = distance from this sieve block offset to the end of the block
 			tmp = BLOCKSIZE - block_loc;
@@ -1496,10 +1582,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 			i -= 3;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			if (tmp1 == root1 || tmp1 == root2)
 			{
@@ -1508,10 +1600,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			if (tmp2 == root1 || tmp2 == root2)
 			{
@@ -1520,10 +1618,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			if (tmp3 == root1 || tmp3 == root2)
 			{
@@ -1532,10 +1636,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			if (tmp4 == root1 || tmp4 == root2)
 			{
@@ -1560,10 +1670,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now cleanup any that don't fit in the last batch of 4
 		while ((uint32)i < bound)
 		{
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			tmp = BLOCKSIZE - block_loc;
 			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
@@ -1579,14 +1695,404 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
+		corrections[0] = BLOCKSIZE - block_loc;
+		corrections[1] = BLOCKSIZE - block_loc;
+		corrections[2] = BLOCKSIZE - block_loc;
+		corrections[3] = BLOCKSIZE - block_loc;
+		
+		bound = MIN(16384, sconf->factor_base->small_B);
+		while ((uint32)i < bound)
+		{
+			uint32 result = 0;
+			//printf("starting to check 4 locations at fb offset %d, prime %u... ",i,fbc->prime[i]);
+
+			//minimum prime > blocksize / 2
+			//maximum correction = blocksize
+			//maximum starting value > blocksize * 3/2
+			//max steps = 2
+			//this misses all reports at block_loc = 0.  would need to check
+			//for equality to blocksize in that case
+			asm (
+				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				
+				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */
+				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */
+				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */								
+				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */
+				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */
+				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/
+				: "=r"(result)
+				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections)
+				: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory"
+				);
+			
+			//printf("done.  result = %u\n", result);
+
+			if (result == 0)
+			{
+				i += 4;
+				continue;
+			}
+
+			if (result & 0x8)
+			{
+				do 
+				{						
+					//if (zShortMod32(Q,fbc->prime[i]) != 0)
+					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				} while (zShortMod32(Q,fbc->prime[i]) == 0);
+			}
+
+			if (result & 0x80)
+			{
+				do 
+				{						
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
+			}
+
+			if (result & 0x800)
+			{
+				do 
+				{					
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
+			}
+
+			if (result & 0x8000)
+			{
+				do 
+				{				
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
+			}
+
+			i += 4;
+		}
+
+
+#ifdef TEST_RESIEVING
+	
+		//i = sconf->factor_base->small_B;
+		bound = (32768, sconf->factor_base->med_B);
+		
+#ifdef SSE2_RESIEVEING
+
+		
+
+		while ((uint32)i < bound)
+		{
+			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
+			//	fbc->prime[i],fbc->root1[i],fbc->root2[i],
+			//	(fbc->prime[i] - 1 + BLOCKSIZE) / fbc->prime[i]);
+			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
+			//	fbc->prime[i+1],fbc->root1[i+1],fbc->root2[i+1],
+			//	(fbc->prime[i+1] - 1 + BLOCKSIZE) / fbc->prime[i+1]);
+			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
+			//	fbc->prime[i+2],fbc->root1[i+2],fbc->root2[i+2],
+			//	(fbc->prime[i+2] - 1 + BLOCKSIZE) / fbc->prime[i+2]);
+			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
+			//	fbc->prime[i+3],fbc->root1[i+3],fbc->root2[i+3],
+			//	(fbc->prime[i+3] - 1 + BLOCKSIZE) / fbc->prime[i+3]);
+
+			uint32 result = 0;
+			//printf("starting to check 4 locations at fb offset %d, prime %u... ",i,fbc->prime[i]);
+
+			//minimum prime > blocksize / 2
+			//maximum correction = blocksize
+			//maximum starting value > blocksize * 3/2
+			//max steps = 2
+			//this misses all reports at block_loc = 0.  would need to check
+			//for equality to blocksize in that case
+			asm (
+				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				
+				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */
+				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */
+				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */								
+				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */
+				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */
+				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/
+				: "=r"(result)
+				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections)
+				: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory"
+				);
+			
+			//printf("done.  result = %u\n", result);
+
+			if (result == 0)
+			{
+				i += 4;
+				continue;
+			}
+
+			if (result & 0x8)
+			{
+				do 
+				{						
+					//if (zShortMod32(Q,fbc->prime[i]) != 0)
+					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				} while (zShortMod32(Q,fbc->prime[i]) == 0);
+			}
+
+			if (result & 0x80)
+			{
+				do 
+				{						
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
+			}
+
+			if (result & 0x800)
+			{
+				do 
+				{					
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
+			}
+
+			if (result & 0x8000)
+			{
+				do 
+				{				
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
+			}
+
+			i += 4;
+		}
+
+		bound = sconf->factor_base->med_B;
+
+		while ((uint32)i < bound)
+		{
+
+			uint32 result = 0;
+			//printf("starting to check 4 locations at fb offset %d, prime %u... ",i,fbc->prime[i]);
+
+			//minimum prime > blocksize / 2
+			//maximum correction = blocksize
+			//maximum starting value > blocksize * 3/2
+			//max steps = 2
+			//this misses all reports at block_loc = 0.  would need to check
+			//for equality to blocksize in that case
+			asm (
+				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				
+				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */
+				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */
+				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */								
+				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */
+				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */
+				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			
+
+				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */
+				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */				
+				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */
+				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */
+				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */
+				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */
+				"por %%xmm5, %%xmm7 \n\t"		/* combine results */
+				"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/
+				: "=r"(result)
+				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections)
+				: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory"
+				);
+			
+			//printf("done.  result = %u\n", result);
+
+			if (result == 0)
+			{
+				i += 4;
+				continue;
+			}
+
+			if (result & 0x8)
+			{
+				do 
+				{						
+					//if (zShortMod32(Q,fbc->prime[i]) != 0)
+					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				} while (zShortMod32(Q,fbc->prime[i]) == 0);
+			}
+
+			if (result & 0x80)
+			{
+				do 
+				{						
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
+			}
+
+			if (result & 0x800)
+			{
+				do 
+				{					
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
+			}
+
+			if (result & 0x8000)
+			{
+				do 
+				{				
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
+			}
+
+			i += 4;
+		}
+
+#else
+
+		while ((uint32)i < bound)
+		{
+		
+			int p = (int)fbc->prime[i];
+			int r1 = (int)fbc->root1[i] + BLOCKSIZE; //(BLOCKSIZE - block_loc);
+			int r2 = (int)fbc->root2[i] + BLOCKSIZE; //(BLOCKSIZE - block_loc);
+
+			r1 -= p;
+			r2 -= p;
+
+			while (r1 > 0)
+			{
+				if (r1 == block_loc || r1 == BLOCKSIZE)
+				{
+					do 
+					{						
+						fb_offsets[++smooth_num] = i;	
+						zShortDiv32(Q,p,Q);			
+					} while (zShortMod32(Q,p) == 0);
+				}
+			
+				if (r2 == block_loc || r2 == BLOCKSIZE)
+				{
+					do 
+					{						
+						fb_offsets[++smooth_num] = i;	
+						zShortDiv32(Q,p,Q);			
+					} while (zShortMod32(Q,p) == 0);
+				}
+
+				r1 -= p;
+				r2 -= p;
+			}					
+
+			if (r2 > 0)
+			{
+				if (r2 == block_loc)
+				{
+					do 
+					{						
+						fb_offsets[++smooth_num] = i;	
+						zShortDiv32(Q,p,Q);			
+					} while (zShortMod32(Q,p) == 0);
+				}
+			}
+			i++;
+			
+		}		
+
+#endif
+
+		
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+#endif
+
+#else
 		i = sconf->factor_base->small_B;
 		bound = sconf->factor_base->med_B;
 		while ((uint32)i < bound)
 		{
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			//after sieving a block, the root is updated for the start of the next block
 			//get it back on the current block's progression
@@ -1645,10 +2151,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bound = sconf->factor_base->med_B;
 		while ((uint32)i < bound)
 		{
+#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
+#else
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+#endif
 
 			//the fbptr roots currently point to the next block
 			//so adjust the current index
@@ -1668,8 +2180,15 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		free(qs_timing_diff);
 #endif
 
-		dconf->smooth_num[report_num] = smooth_num;
+		
+#endif
+
+		dconf->smooth_num[report_num] = smooth_num;	
 	}
+
+#ifdef SSE2_RESIEVEING
+	free(corrections);
+#endif
 
 	return;
 }
