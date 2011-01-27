@@ -528,15 +528,16 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 			if (thisloc ==	65535)
 				continue;
 #endif
-
+			// log this report
 			dconf->reports[dconf->num_reports++] = thisloc;			
 		}
 	}
 
+	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(thisloc,
+		trial_divide_Q_siqs(j,
 			parity, dconf->sieve[thisloc],dconf->numB-1,
 			blocknum,sconf,dconf);
 	}
@@ -604,7 +605,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
-
+				// log this report
 				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
@@ -615,10 +616,11 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(thisloc,
+		trial_divide_Q_siqs(j,
 			parity, dconf->sieve[thisloc],dconf->numB-1,
 			blocknum,sconf,dconf);
 	}
@@ -633,6 +635,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	uint32 i,j,k,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
+	sieve_fb_compressed *fbptr, *fbc;
+	int prime, root1, root2;
 
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
@@ -684,6 +688,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 #endif
 
+				// log this report
 				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
@@ -694,13 +699,68 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(thisloc,
+		trial_divide_Q_siqs(j,
 			parity, dconf->sieve[thisloc],dconf->numB-1,
 			blocknum,sconf,dconf);
 	}
+
+	// test speed of resieving
+	gettimeofday(&qs_timing_start, NULL);
+
+	j = sconf->factor_base->small_B;
+	if (parity)
+		fbc = dconf->comp_sieve_n;
+	else
+		fbc = dconf->comp_sieve_p;
+
+	while (j < sconf->factor_base->med_B)
+	{
+		fbptr = fbc + j;
+		prime = (int)(fbptr->prime_and_logp & 0xFFFF);
+		root1 =  (int)(fbptr->roots & 0xFFFF);
+		root2 = (int)( fbptr->roots >> 16);
+
+		root1 -= prime;
+		root2 -= prime;
+
+		while (root1 > 0)
+		{
+			int k,a;
+
+			for (k=0; k<dconf->num_reports; k++)
+			{
+				if (root1 == dconf->reports[k])
+					a = 1;
+				else if (root2 == dconf->reports[k])
+					a = 1;
+			}
+			root1 -= prime;
+			root2 -= prime;
+		}
+
+		if (root2 > 0)
+		{
+			int k, a;
+			for (k=0; k<dconf->num_reports; k++)
+			{
+				if (root1 == dconf->reports[k])
+					a = 1;
+				else if (root2 == dconf->reports[k])
+					a = 1;
+			}
+		}
+		j++;
+	}
+
+	gettimeofday (&qs_timing_stop, NULL);
+	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+	TF_SPECIAL += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+	free(qs_timing_diff);
 
 	return 0;
 }
@@ -766,6 +826,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
+				// log this report
 				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
@@ -776,10 +837,11 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(thisloc,
+		trial_divide_Q_siqs(j,
 			parity, dconf->sieve[thisloc],dconf->numB-1,
 			blocknum,sconf,dconf);
 	}
@@ -787,66 +849,22 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity, 
-						 uint8 bits, uint32 poly_id, uint32 bnum, 
-						 static_conf_t *sconf, dynamic_conf_t *dconf)
+void filter_SPV(uint8 parity, 
+				uint8 bits, uint32 poly_id, uint32 bnum, 
+				static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
-	uint64 q64, f64;
 	int i,j,it,k;
-	uint32 bound, tmp, basebucket, prime, root1, root2;
-	int smooth_num=-1;
-	uint32 fb_offsets[MAX_SMOOTH_PRIMES];
-	uint32 polya_factors[20];
-	uint32 *bptr;
+	uint32 bound, tmp, prime, root1, root2;
+	int smooth_num;
 	sieve_fb *fb;
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 pmax = fullfb->prime[sconf->factor_base->B - 1];
 	uint8 logp;
-	uint32 tmp1, tmp2, tmp3, tmp4, offset;
+	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
 	z32 *Q;
-	uint16 *mask = dconf->mask;
 
-	//this one qualifies to check further, log that fact.
-	dconf->num++;
-
-	//this one is close enough, compute 
-	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-	//Q(x)/a = (ax + 2b)x + c;	
-	offset = (bnum << BLOCKBITS) + block_loc;
-	//multiple precision arithmatic.  all the qstmp's are a global hack
-	//but I don't want to Init/Free millions of times if I don't have to.
-	zShiftLeft(&dconf->qstmp2,&dconf->curr_poly->poly_b,1);
-	zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
-	if (parity)
-		zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-	else
-		zAdd(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-
-	zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
-	zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
-	
-	//this is another hack because on most fast systems the multiple
-	//precision arith is 64 bit based, but it turns out that the MP mod's
-	//we have to do a lot of in trial division I've implemented faster
-	//in 32 bit base.  The actual conversion here is just a cast.
-	
-#if BITS_PER_DIGIT == 32
-	//z32_to_z32(&dconf->qstmp4,&dconf->qstmp32);
-	j = abs(dconf->qstmp4.size);
-	for (i=0; i<j; i++)
-		dconf->qstmp32.val[i] = (uint32)dconf->qstmp4.val[i];
-	dconf->qstmp32.size = dconf->qstmp4.size;
-	dconf->qstmp32.type = dconf->qstmp4.type;
-
-#else
-	z64_to_z32(&dconf->qstmp4,&dconf->qstmp32);
-#endif
-
-	Q = &dconf->qstmp32;
-	
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
@@ -859,37 +877,76 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 		fbc = dconf->comp_sieve_p;
 	}
 
+	
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
-	//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
-	//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
-	//offset is stored standalone in the relation structure.
-	if (Q->size < 0)
+	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-		fb_offsets[++smooth_num] = 0;
-		Q->size = Q->size * -1;
-	}
+		//this one qualifies to check further, log that fact.
+		dconf->num++;
+
+		smooth_num = -1;
+
+		//this one is close enough, compute 
+		//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+		//Q(x)/a = (ax + 2b)x + c;	
+		offset = (bnum << BLOCKBITS) + dconf->reports[report_num];
+
+		//multiple precision arithmetic.  all the qstmp's are a global hack
+		//but I don't want to Init/Free millions of times if I don't have to.
+		zShiftLeft(&dconf->qstmp2,&dconf->curr_poly->poly_b,1);
+		zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
+		if (parity)
+			zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
+		else
+			zAdd(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
+
+		zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
+		zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
 	
-	//compute the bound for small primes.  if we can't find enough small
-	//primes, then abort the trial division early because it is likely to fail to
-	//produce even a partial relation.
-	bits = (255 - bits) + sconf->tf_closnuf + 1;
+		//this is another hack because on most fast systems the multiple
+		//precision arith is 64 bit based, but it turns out that the MP mod's
+		//we have to do a lot of in trial division I've implemented faster
+		//in 32 bit base.  The actual conversion here is just a cast.
+	
+#if BITS_PER_DIGIT == 32
+		j = abs(dconf->qstmp4.size);
+		for (i=0; i<j; i++)
+			dconf->Qvals[report_num].val[i] = (uint32)dconf->qstmp4.val[i];
+		dconf->Qvals[report_num].size = dconf->qstmp4.size;
+		dconf->Qvals[report_num].type = dconf->qstmp4.type;
 
-	//take care of powers of two
-	while (!(Q->val[0] & 1))
-	{
-		zShiftRight32(Q,Q,1);
-		fb_offsets[++smooth_num] = 1;
-		bits++;
-	}
+#else
+		z64_to_z32(&dconf->qstmp4,&dconf->Qvals[report_num]);
+#endif
 
-	//scratch = (uint32 *)memalign(8 * sizeof(uint32),64);
+		Q = &dconf->Qvals[report_num];
 
-	if (sconf->sieve_small_fb_start > 2)
-	{	
+		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
+		//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
+		//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
+		//offset is stored standalone in the relation structure.
+		if (Q->size < 0)
+		{
+			dconf->fb_offsets[report_num][++smooth_num] = 0;
+			Q->size = Q->size * -1;
+		}
+	
+		//compute the bound for small primes.  if we can't find enough small
+		//primes, then abort the trial division early because it is likely to fail to
+		//produce even a partial relation.
+		bits = (255 - bits) + sconf->tf_closnuf + 1;
+
+		//take care of powers of two
+		while (!(Q->val[0] & 1))
+		{
+			zShiftRight32(Q,Q,1);
+			dconf->fb_offsets[report_num][++smooth_num] = 1;
+			bits++;
+		}
+
 		i=2;
 		//explicitly trial divide by small primes which we have not
 		//been sieving.  because we haven't been sieving, their progressions
@@ -904,6 +961,8 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 		
 		while ((uint32)i < bound)
 		{
+			uint64 q64;
+
 			tmp1 = offset + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> 32; 
@@ -941,7 +1000,7 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 			{
 				do
 				{
-					fb_offsets[++smooth_num] = i;
+					dconf->fb_offsets[report_num][++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
@@ -959,7 +1018,7 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 			{
 				do
 				{
-					fb_offsets[++smooth_num] = i;
+					dconf->fb_offsets[report_num][++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
@@ -977,7 +1036,7 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 			{
 				do
 				{
-					fb_offsets[++smooth_num] = i;
+					dconf->fb_offsets[report_num][++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
@@ -995,7 +1054,7 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 			{
 				do
 				{
-					fb_offsets[++smooth_num] = i;
+					dconf->fb_offsets[report_num][++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
@@ -1006,6 +1065,8 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 		//finish up the rest of the small primes
 		while ((uint32)i < sconf->sieve_small_fb_start)
 		{
+			uint64 q64;
+
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
@@ -1027,13 +1088,20 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 			{
 				do
 				{
-					fb_offsets[++smooth_num] = i;
+					dconf->fb_offsets[report_num][++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
 			}
 			i++;
 		}
+
+		if (bits < (sconf->tf_closnuf + sconf->tf_small_cutoff))
+			dconf->valid_Qs[report_num] = 0;
+		else
+			dconf->valid_Qs[report_num] = 1;
+
+		dconf->smooth_num[report_num] = smooth_num;
 	}
 
 #ifdef QS_TIMING
@@ -1046,9 +1114,53 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	//if true, bail.
-	if (bits < (sconf->tf_closnuf + sconf->tf_small_cutoff))
-		return;	
+	return;
+}
+
+void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
+						 uint8 bits, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+	//we have flagged this sieve offset as likely to produce a relation
+	//nothing left to do now but check and see.
+	uint64 q64, f64;
+	int i,j,it,k;
+	uint32 bound, tmp, basebucket, prime, root1, root2;
+	int smooth_num;
+	uint32 *fb_offsets;
+	uint32 polya_factors[20];
+	uint32 *bptr;
+	sieve_fb *fb;
+	sieve_fb_compressed *fbptr, *fbc;
+	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
+	uint32 pmax = fullfb->prime[sconf->factor_base->B - 1];
+	uint8 logp;
+	uint32 tmp1, tmp2, tmp3, tmp4, offset, block_loc;
+	z32 *Q;
+	uint16 *mask = dconf->mask;
+
+
+	//this one is close enough, compute 
+	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+	//Q(x)/a = (ax + 2b)x + c;	
+	offset = (bnum << BLOCKBITS) + dconf->reports[report_num];
+
+	fb_offsets = &dconf->fb_offsets[report_num][0];
+	smooth_num = dconf->smooth_num[report_num];
+	Q = &dconf->Qvals[report_num];
+	block_loc = dconf->reports[report_num];
+	
+	fullfb_ptr = fullfb;
+	if (parity)
+	{
+		fb = dconf->fb_sieve_n;
+		fbc = dconf->comp_sieve_n;
+	}
+	else
+	{
+		fb = dconf->fb_sieve_p;
+		fbc = dconf->comp_sieve_p;
+	}
 
 	i=sconf->sieve_small_fb_start;
 
@@ -1475,7 +1587,6 @@ void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity,
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-early_abort:
 	//check for additional factors of the a-poly factors
 	//make a separate list then merge it with fb_offsets
 	it=0;	//max 20 factors allocated for - should be overkill
