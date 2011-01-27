@@ -841,6 +841,7 @@ code to the public domain.
 				RESIEVE_1X_14BIT_MAX(0x8000);									\
 				RESIEVE_1X_14BIT_MAX(0x8000);									\
 			} while (0); 
+
 		#define RESIEVE_4X_15BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
@@ -867,6 +868,7 @@ code to the public domain.
 				RESIEVE_1X_15BIT_MAX(0x8000);									\
 				RESIEVE_1X_15BIT_MAX(0x8000);									\
 			} while (0); 
+
 		#define RESIEVE_4X_16BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
