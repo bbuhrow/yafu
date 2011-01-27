@@ -26,7 +26,7 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 
-#define QS_TIMING
+//#define QS_TIMING
 
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
@@ -52,6 +52,7 @@ double TF_SPECIAL;
 /************************* Common types and functions *****************/
 
 #define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
+#define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
 #define MAX_A_FACTORS 20
@@ -362,7 +363,7 @@ typedef struct {
 	uint32 num_reports;
 	z32 *Qvals;					//expanded Q values for each report
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
-	uint32 fb_offsets[100][MAX_SMOOTH_PRIMES];
+	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
 	int *smooth_num;			//how many factors are there for each valid Q
 
 	//polynomial info during sieving
@@ -427,12 +428,14 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf);
 int (*scan_ptr)(uint32, uint8, static_conf_t *, dynamic_conf_t *);
 
-void filter_SPV(uint8 parity, 
-				uint8 bits, uint32 poly_id, uint32 bnum, 
+void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf);
+void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
+	static_conf_t *sconf, dynamic_conf_t *dconf);
+void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void trial_divide_Q_siqs(uint32 report_num, 
-						  uint8 parity, uint8 bits,
-						  uint32 poly_id, uint32 blocknum, 
+						  uint8 parity, uint32 poly_id, uint32 blocknum, 
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,

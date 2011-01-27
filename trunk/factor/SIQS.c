@@ -1211,13 +1211,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// array of sieve locations scanned from the sieve block that we
 	// will submit to trial division.  make it the size of a sieve block 
 	// in the pathological case that every sieve location is a report
-	dconf->reports = (uint32 *)malloc(100 * sizeof(uint32));
+	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
 	dconf->num_reports = 0;
-	dconf->Qvals = (z32 *)malloc(100 * sizeof(z32));
-	for (i=0; i<100; i++)
+	dconf->Qvals = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		zInit32(&dconf->Qvals[i]);
-	dconf->valid_Qs = (int *)malloc(100 * sizeof(int));
-	dconf->smooth_num = (int *)malloc(100 * sizeof(int));
+	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
+	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
