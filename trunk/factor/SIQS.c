@@ -842,6 +842,9 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		printf("using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
 	#endif
+	#if defined(SSE2_RESIEVEING)
+		printf("using SSE2 resieving\n");
+	#endif
 #elif defined(_MSC_VER)
 	#if defined(HAS_SSE2)
 		printf("using SSE2 for trial division and x%d sieve scanning\n",
@@ -1485,7 +1488,7 @@ int siqs_static_init(static_conf_t *sconf)
 
 	//compute sieving limits
 	sconf->factor_base->small_B = MIN(
-		sconf->factor_base->B,((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
+		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
 	for (i = sconf->factor_base->small_B; i < sconf->factor_base->B; i++)
 	{
