@@ -3,6 +3,7 @@ v 1.24
 	doesn't work if all of the registers are in the clobber list.
 + rearranged sieve scanning in check_relations slightly so that a list of reports are 
 	generated first, then all reports are sequencially examined.
++ fixed the reporting of how many total polynomials were used
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 

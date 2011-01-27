@@ -351,6 +351,7 @@ void SIQS(fact_obj_t *fobj)
 			for (j=0; j<thread_data[i].dconf->buffered_rels; j++)
 				free(thread_data[i].dconf->relation_buf[j].fb_offsets);
 			thread_data[i].dconf->num = 0;
+			thread_data[i].dconf->tot_poly = 0;
 		}
 
 		//check whether to continue or not, and update the screen
@@ -374,6 +375,7 @@ void SIQS(fact_obj_t *fobj)
 	//stop worker threads
 	for (i=0; i<THREADS - 1; i++)
 	{
+		//static_conf->tot_poly += thread_data[i].dconf->tot_poly;
 		stop_worker_thread(thread_data + i, 0);
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
@@ -1209,8 +1211,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// array of sieve locations scanned from the sieve block that we
 	// will submit to trial division.  make it the size of a sieve block 
 	// in the pathological case that every sieve location is a report
-	dconf->reports = (uint32 *)malloc(BLOCKSIZE * sizeof(uint32));
+	dconf->reports = (uint32 *)malloc(100 * sizeof(uint32));
 	dconf->num_reports = 0;
+	dconf->Qvals = (z32 *)malloc(100 * sizeof(z32));
+	for (i=0; i<100; i++)
+		zInit32(&dconf->Qvals[i]);
+	dconf->valid_Qs = (int *)malloc(100 * sizeof(int));
+	dconf->smooth_num = (int *)malloc(100 * sizeof(int));
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1599,6 +1606,7 @@ int siqs_static_init(static_conf_t *sconf)
 	TF_STG4 = 0;
 	TF_STG5 = 0;
 	TF_STG6 = 0;
+	TF_SPECIAL = 0;
 	SIEVE_STG1 = 0;
 	SIEVE_STG2 = 0;
 	POLY_STG0 = 0;
@@ -1871,8 +1879,8 @@ int update_final(static_conf_t *sconf)
 		zShiftLeft(&qstmp1,&qstmp1,BLOCKBITS);
 
 		if (VFLAG > 0)
-			printf("\n\ntrial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(&qstmp1,&gstr1));
+			printf("\n\nsieving required %d total polynomials\ntrial division touched %d sieve locations out of %s\n",
+				sconf->tot_poly, sconf->num,z2decstr(&qstmp1,&gstr1));
 		else
 			printf("\n\n");
 
@@ -1893,6 +1901,7 @@ int update_final(static_conf_t *sconf)
 		printf("timing for SPV check = %1.3f\n",TF_STG1);
 		printf("timing for small prime trial division = %1.3f\n",TF_STG2);
 		printf("timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
+		printf("timing for medium prime resieving test = %1.3f\n",TF_SPECIAL);
 		printf("timing for large prime trial division = %1.3f\n",TF_STG5);
 		printf("timing for LP splitting + buffering = %1.3f\n",TF_STG6);
 		printf("timing for poly a generation = %1.3f\n",POLY_STG0);
@@ -2023,7 +2032,13 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->mask);
 #endif
 
+	//free sieve scan report stuff
 	free(dconf->reports);
+	for (i=0; i<100; i++)
+		zFree32(&dconf->Qvals[i]);
+	free(dconf->Qvals);
+	free(dconf->valid_Qs);
+	free(dconf->smooth_num);
 
 	//free post-processed relations
 	//for (i=0; (uint32)i < dconf->buffered_rels; i++)

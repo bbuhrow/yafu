@@ -26,6 +26,8 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 
+#define QS_TIMING
+
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
 TIME_DIFF *qs_timing_diff;
@@ -44,6 +46,7 @@ double POLY_STG4;
 double SIEVE_STG1;
 double SIEVE_STG2;
 double COUNT;
+double TF_SPECIAL;
 #endif
 
 /************************* Common types and functions *****************/
@@ -357,6 +360,10 @@ typedef struct {
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
 	uint32 num_reports;
+	z32 *Qvals;					//expanded Q values for each report
+	int *valid_Qs;				//which of the report are still worth persuing after SPV check
+	uint32 fb_offsets[100][MAX_SMOOTH_PRIMES];
+	int *smooth_num;			//how many factors are there for each valid Q
 
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving
@@ -420,7 +427,10 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf);
 int (*scan_ptr)(uint32, uint8, static_conf_t *, dynamic_conf_t *);
 
-void trial_divide_Q_siqs(uint32 j, 
+void filter_SPV(uint8 parity, 
+				uint8 bits, uint32 poly_id, uint32 bnum, 
+				static_conf_t *sconf, dynamic_conf_t *dconf);
+void trial_divide_Q_siqs(uint32 report_num, 
 						  uint8 parity, uint8 bits,
 						  uint32 poly_id, uint32 blocknum, 
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
