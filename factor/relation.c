@@ -533,13 +533,18 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		}
 	}
 
+	//remove small primes, and test if its worth continuing for each report
+	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
+	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
-		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(j,
-			parity, dconf->sieve[thisloc],dconf->numB-1,
-			blocknum,sconf,dconf);
+		if (dconf->valid_Qs[j])
+		{
+			filter_LP(j, parity, blocknum, sconf, dconf);
+			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
+		}
 	}
 
 	return 0;
@@ -616,13 +621,18 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	//remove small primes, and test if its worth continuing for each report
+	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
+	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
-		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(j,
-			parity, dconf->sieve[thisloc],dconf->numB-1,
-			blocknum,sconf,dconf);
+		if (dconf->valid_Qs[j])
+		{
+			filter_LP(j, parity, blocknum, sconf, dconf);
+			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
+		}
 	}
 
 	return 0;
@@ -699,17 +709,34 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	{
+		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+		exit(-1);
+	}
+
+	//printf("block %d found %d reports\n", blocknum, dconf->num_reports);
+
+	//remove small primes, and test if its worth continuing for each report
+	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
+	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
-		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(j,
-			parity, dconf->sieve[thisloc],dconf->numB-1,
-			blocknum,sconf,dconf);
+		if (dconf->valid_Qs[j])
+		{
+			filter_LP(j, parity, blocknum, sconf, dconf);
+			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
+		}
 	}
 
+#ifdef NOTDEF
+
 	// test speed of resieving
+#ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
+#endif
 
 	j = sconf->factor_base->small_B;
 	if (parity)
@@ -719,6 +746,28 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 	while (j < sconf->factor_base->med_B)
 	{
+
+#ifdef NOTDEF
+		asm volatile (			\
+			"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
+			"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+			"movdqa 16(%1), %%xmm2	\n\t"		\
+			"movdqa 32(%1), %%xmm3	\n\t"		\
+			"movdqa 48(%1), %%xmm4	\n\t"		\
+			"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
+			"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
+			"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
+			"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
+			"por %%xmm1, %%xmm4		\n\t"	/*or the comparisons*/	\
+			"por %%xmm2, %%xmm3		\n\t"		\
+			"por %%xmm3, %%xmm4		\n\t"		\
+			"pmovmskb %%xmm4, %0	\n\t"	/*if any are equal, this will be !0*/	\
+			: "=r"(result)		\
+			: "r"(bptr + j), "r"(mask)			\
+			: "%xmm0", "%xmm1", "%xmm2", "%xmm3", "%xmm4");	
+#endif
+
+
 		fbptr = fbc + j;
 		prime = (int)(fbptr->prime_and_logp & 0xFFFF);
 		root1 =  (int)(fbptr->roots & 0xFFFF);
@@ -756,11 +805,15 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		j++;
 	}
 
+#ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
 	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
 
 	TF_SPECIAL += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
 	free(qs_timing_diff);
+#endif
+	
+#endif
 
 	return 0;
 }
@@ -837,31 +890,35 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
+	//remove small primes, and test if its worth continuing for each report
+	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
+	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
-		thisloc = dconf->reports[j];
-		trial_divide_Q_siqs(j,
-			parity, dconf->sieve[thisloc],dconf->numB-1,
-			blocknum,sconf,dconf);
+		if (dconf->valid_Qs[j])
+		{
+			filter_LP(j, parity, blocknum, sconf, dconf);
+			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
+		}
 	}
 
 	return 0;
 }
 
-void filter_SPV(uint8 parity, 
-				uint8 bits, uint32 poly_id, uint32 bnum, 
+void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
-	int i,j,it,k;
+	int i;
 	uint32 bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb *fb;
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint8 logp;
+	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
 	z32 *Q;
 
@@ -912,8 +969,7 @@ void filter_SPV(uint8 parity,
 		//in 32 bit base.  The actual conversion here is just a cast.
 	
 #if BITS_PER_DIGIT == 32
-		j = abs(dconf->qstmp4.size);
-		for (i=0; i<j; i++)
+		for (i=0; i<abs(dconf->qstmp4.size); i++)
 			dconf->Qvals[report_num].val[i] = (uint32)dconf->qstmp4.val[i];
 		dconf->Qvals[report_num].size = dconf->qstmp4.size;
 		dconf->Qvals[report_num].type = dconf->qstmp4.type;
@@ -937,6 +993,7 @@ void filter_SPV(uint8 parity,
 		//compute the bound for small primes.  if we can't find enough small
 		//primes, then abort the trial division early because it is likely to fail to
 		//produce even a partial relation.
+		bits = sieve[dconf->reports[report_num]];
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
 		//take care of powers of two
@@ -1117,316 +1174,37 @@ void filter_SPV(uint8 parity,
 	return;
 }
 
-void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
-						 uint8 bits, uint32 poly_id, uint32 bnum, 
-						 static_conf_t *sconf, dynamic_conf_t *dconf)
+void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
+	static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	//we have flagged this sieve offset as likely to produce a relation
-	//nothing left to do now but check and see.
-	uint64 q64, f64;
-	int i,j,it,k;
-	uint32 bound, tmp, basebucket, prime, root1, root2;
+	int i,j,k;
+	uint32 basebucket, prime;
 	int smooth_num;
 	uint32 *fb_offsets;
-	uint32 polya_factors[20];
 	uint32 *bptr;
 	sieve_fb *fb;
-	sieve_fb_compressed *fbptr, *fbc;
-	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 pmax = fullfb->prime[sconf->factor_base->B - 1];
-	uint8 logp;
-	uint32 tmp1, tmp2, tmp3, tmp4, offset, block_loc;
+	uint32 block_loc;
 	z32 *Q;
 	uint16 *mask = dconf->mask;
 
-
-	//this one is close enough, compute 
-	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-	//Q(x)/a = (ax + 2b)x + c;	
-	offset = (bnum << BLOCKBITS) + dconf->reports[report_num];
+#ifdef QS_TIMING
+	gettimeofday(&qs_timing_start, NULL);
+#endif
 
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
 	Q = &dconf->Qvals[report_num];
 	block_loc = dconf->reports[report_num];
-	
-	fullfb_ptr = fullfb;
-	if (parity)
-	{
-		fb = dconf->fb_sieve_n;
-		fbc = dconf->comp_sieve_n;
-	}
-	else
-	{
-		fb = dconf->fb_sieve_p;
-		fbc = dconf->comp_sieve_p;
-	}
-
-	i=sconf->sieve_small_fb_start;
-
-	//do the primes less than the blocksize.  primes bigger than the blocksize can be handled
-	//even more efficiently.
-	//a couple of observations from jasonp:
-	//if a prime divides Q(x), then this index (j) and either
-	//root1 or root2 are on the same arithmetic progression.  this we can
-	//test with a single precision mod operation
-	bound = sconf->factor_base->small_B;
-	//do the first few until the rest can be done in batches of 4 that are aligned to 16 byte
-	//boundaries.  this is necessary to use the SSE2 batch mod code, if it ever
-	//becomes faster...
-	while ((uint32)i < bound && ((i & 3) != 0))
-	{
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		//tmp = distance from this sieve block offset to the end of the block
-		tmp = BLOCKSIZE - block_loc;
-	
-		//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
-		//block, which is the state of the sieve now.
-		tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-				* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
-		tmp = block_loc + tmp*prime;
-		tmp = tmp - BLOCKSIZE;
-
-		//tmp = advance the offset to where it should be after the interval, and
-		//check to see if that's where either of the roots are now.  if so, then
-		//this offset is on the progression of the sieve for this prime
-		if (tmp == root1 || tmp == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-	}
-
-	//now do things in batches of 4 which are aligned on 16 byte boundaries.
-	bound = sconf->factor_base->small_B - 4;
-	while ((uint32)i < bound)
-	{
-		tmp1 = BLOCKSIZE - block_loc;
-		tmp2 = BLOCKSIZE - block_loc;
-		tmp3 = BLOCKSIZE - block_loc;
-		tmp4 = BLOCKSIZE - block_loc;
-
-		tmp1 = tmp1 + fullfb_ptr->correction[i];
-		q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
-		tmp1 = q64 >> 40; 
-		tmp1 = tmp1 + 1;
-		tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-		
-		i++;
-		
-		tmp2 = tmp2 + fullfb_ptr->correction[i];
-		q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i];
-		tmp2 = q64 >> 40; 
-		tmp2 = tmp2 + 1;
-		tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i];
-
-		i++;
-
-		tmp3 = tmp3 + fullfb_ptr->correction[i];
-		q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i];
-		tmp3 = q64 >> 40; 
-		tmp3 = tmp3 + 1;
-		tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i];
-
-		i++;
-
-		tmp4 = tmp4 + fullfb_ptr->correction[i];
-		q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i];
-		tmp4 = q64 >>  40; 
-		tmp4 = tmp4 + 1;
-		tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i];
-
-		tmp1 = tmp1 - BLOCKSIZE;
-		tmp2 = tmp2 - BLOCKSIZE;
-		tmp3 = tmp3 - BLOCKSIZE;
-		tmp4 = tmp4 - BLOCKSIZE;
-
-		i -= 3;
-
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		if (tmp1 == root1 || tmp1 == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		if (tmp2 == root1 || tmp2 == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		if (tmp3 == root1 || tmp3 == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		if (tmp4 == root1 || tmp4 == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-
-	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
-
-	gettimeofday(&qs_timing_start, NULL);
-#endif
-
-	bound = sconf->factor_base->small_B;
-	//now cleanup any that don't fit in the last batch of 4
-	while ((uint32)i < bound)
-	{
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		tmp = BLOCKSIZE - block_loc;
-		tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-				* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
-		tmp = block_loc + tmp*prime;
-		tmp = tmp - BLOCKSIZE;
-
-		if (tmp == root1 || tmp == root2)
-		{
-			//it will divide Q(x).  do so as many times as we can.
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-	}
-
-	i = sconf->factor_base->small_B;
-	
-	bound = sconf->factor_base->med_B;
-	while ((uint32)i < bound)
-	{
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		//after sieving a block, the root is updated for the start of the next block
-		//get it back on the current block's progression
-		root1 = root1 + BLOCKSIZE - block_loc;		
-		root2 = root2 + BLOCKSIZE - block_loc;	
-
-		//there are faster methods if this is the case
-		if (prime > BLOCKSIZE)
-			break;
-
-		//the difference root - blockoffset is less than prime about 20% of the time
-		//and thus we don't have to divide at all in those cases.
-		if (root2 >= prime)
-		{
-			//r2 is bigger than prime, it could be on the progression, check it.
-			tmp = root2 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-			tmp = q64 >> 40; 
-			tmp = root2 - tmp * prime;
-
-			if (tmp == 0)
-			{
-				//it is, so it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			else if (root1 >= prime)
-			{			
-				tmp = root1 + fullfb_ptr->correction[i];
-				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-				tmp = q64 >> 40; 
-				tmp = root1 - tmp * prime;
-
-				if (tmp == 0)
-				{
-					//r2 was a bust, but root1 met the criteria.  divide Q(x).	
-					DIVIDE_ONE_PRIME;
-				}
-			}
-		}
-		i++;
-	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
-
-	gettimeofday(&qs_timing_start, NULL);
-#endif
-
-	//for primes bigger than the blocksize, we don't need to divide at all since
-	//there can be at most one instance of the prime in the block.  thus the 
-	//distance to the next one is equal to 'prime', rather than a multiple of it.
-	bound = sconf->factor_base->med_B;
-	while ((uint32)i < bound)
-	{
-		fbptr = fbc + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-
-		//the fbptr roots currently point to the next block
-		//so adjust the current index
-		tmp = block_loc + prime - BLOCKSIZE;
-		if ((root1 == tmp) || (root2 == tmp))
-		{
-			DIVIDE_ONE_PRIME;
-		}
-		i++;
-	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
-
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	mask[0] = block_loc;
 	mask[2] = block_loc;
 	mask[4] = block_loc;
 	mask[6] = block_loc;
+	
+	if (parity)
+		fb = dconf->fb_sieve_n;
+	else
+		fb = dconf->fb_sieve_p;
 
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
@@ -1583,9 +1361,350 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	TF_STG5 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
 	free(qs_timing_diff);
+#endif
 
+	dconf->smooth_num[report_num] = smooth_num;
+
+	return;
+}
+
+void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+	//we have flagged this sieve offset as likely to produce a relation
+	//nothing left to do now but check and see.
+	uint64 q64;
+	int i;
+	uint32 bound, tmp, prime, root1, root2, report_num;
+	int smooth_num;
+	uint32 *fb_offsets;
+	sieve_fb *fb;
+	sieve_fb_compressed *fbptr, *fbc;
+	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
+	uint32 tmp1, tmp2, tmp3, tmp4, block_loc;
+	z32 *Q;	
+	
+	fullfb_ptr = fullfb;
+	if (parity)
+	{
+		fb = dconf->fb_sieve_n;
+		fbc = dconf->comp_sieve_n;
+	}
+	else
+	{
+		fb = dconf->fb_sieve_p;
+		fbc = dconf->comp_sieve_p;
+	}
+
+	for (report_num = 0; report_num < dconf->num_reports; report_num++)
+	{
+		if (!dconf->valid_Qs[report_num])
+			continue;
+
+		fb_offsets = &dconf->fb_offsets[report_num][0];
+		smooth_num = dconf->smooth_num[report_num];
+		Q = &dconf->Qvals[report_num];
+		block_loc = dconf->reports[report_num];
+
+#ifdef QS_TIMING
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+		
+		//do the primes less than the blocksize.  primes bigger than the blocksize can be handled
+		//even more efficiently.
+		//a couple of observations from jasonp:
+		//if a prime divides Q(x), then this index (j) and either
+		//root1 or root2 are on the same arithmetic progression.  this we can
+		//test with a single precision mod operation
+		//do the first few until the rest can be done in batches of 4 that are aligned to 16 byte
+		//boundaries.  this is necessary to use the SSE2 batch mod code, if it ever
+		//becomes faster...
+
+		i=sconf->sieve_small_fb_start;
+		bound = sconf->factor_base->small_B;
+		while ((uint32)i < bound && ((i & 3) != 0))
+		{
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			//tmp = distance from this sieve block offset to the end of the block
+			tmp = BLOCKSIZE - block_loc;
+	
+			//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
+			//block, which is the state of the sieve now.
+			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
+					* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
+			tmp = block_loc + tmp*prime;
+			tmp = tmp - BLOCKSIZE;
+
+			//tmp = advance the offset to where it should be after the interval, and
+			//check to see if that's where either of the roots are now.  if so, then
+			//this offset is on the progression of the sieve for this prime
+			if (tmp == root1 || tmp == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+		}
+
+		//now do things in batches of 4 which are aligned on 16 byte boundaries.
+		bound = sconf->factor_base->small_B - 4;
+		while ((uint32)i < bound)
+		{
+			tmp1 = BLOCKSIZE - block_loc;
+			tmp2 = BLOCKSIZE - block_loc;
+			tmp3 = BLOCKSIZE - block_loc;
+			tmp4 = BLOCKSIZE - block_loc;
+
+			tmp1 = tmp1 + fullfb_ptr->correction[i];
+			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+			tmp1 = q64 >> 40; 
+			tmp1 = tmp1 + 1;
+			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
+		
+			i++;
+		
+			tmp2 = tmp2 + fullfb_ptr->correction[i];
+			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i];
+			tmp2 = q64 >> 40; 
+			tmp2 = tmp2 + 1;
+			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i];
+
+			i++;
+
+			tmp3 = tmp3 + fullfb_ptr->correction[i];
+			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i];
+			tmp3 = q64 >> 40; 
+			tmp3 = tmp3 + 1;
+			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i];
+
+			i++;
+
+			tmp4 = tmp4 + fullfb_ptr->correction[i];
+			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i];
+			tmp4 = q64 >>  40; 
+			tmp4 = tmp4 + 1;
+			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i];
+
+			tmp1 = tmp1 - BLOCKSIZE;
+			tmp2 = tmp2 - BLOCKSIZE;
+			tmp3 = tmp3 - BLOCKSIZE;
+			tmp4 = tmp4 - BLOCKSIZE;
+
+			i -= 3;
+
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			if (tmp1 == root1 || tmp1 == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			if (tmp2 == root1 || tmp2 == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			if (tmp3 == root1 || tmp3 == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			if (tmp4 == root1 || tmp4 == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+
+		}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+
+		bound = sconf->factor_base->small_B;
+		//now cleanup any that don't fit in the last batch of 4
+		while ((uint32)i < bound)
+		{
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			tmp = BLOCKSIZE - block_loc;
+			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
+					* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
+			tmp = block_loc + tmp*prime;
+			tmp = tmp - BLOCKSIZE;
+
+			if (tmp == root1 || tmp == root2)
+			{
+				//it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+		}
+
+		i = sconf->factor_base->small_B;
+		bound = sconf->factor_base->med_B;
+		while ((uint32)i < bound)
+		{
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			//after sieving a block, the root is updated for the start of the next block
+			//get it back on the current block's progression
+			root1 = root1 + BLOCKSIZE - block_loc;		
+			root2 = root2 + BLOCKSIZE - block_loc;	
+
+			//there are faster methods if this is the case
+			if (prime > BLOCKSIZE)
+				break;
+
+			//the difference root - blockoffset is less than prime about 20% of the time
+			//and thus we don't have to divide at all in those cases.
+			if (root2 >= prime)
+			{
+				//r2 is bigger than prime, it could be on the progression, check it.
+				tmp = root2 + fullfb_ptr->correction[i];
+				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+				tmp = q64 >> 40; 
+				tmp = root2 - tmp * prime;
+
+				if (tmp == 0)
+				{
+					//it is, so it will divide Q(x).  do so as many times as we can.
+					DIVIDE_ONE_PRIME;
+				}
+				else if (root1 >= prime)
+				{			
+					tmp = root1 + fullfb_ptr->correction[i];
+					q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+					tmp = q64 >> 40; 
+					tmp = root1 - tmp * prime;
+
+					if (tmp == 0)
+					{
+						//r2 was a bust, but root1 met the criteria.  divide Q(x).	
+						DIVIDE_ONE_PRIME;
+					}
+				}
+			}
+			i++;
+		}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+
+		//for primes bigger than the blocksize, we don't need to divide at all since
+		//there can be at most one instance of the prime in the block.  thus the 
+		//distance to the next one is equal to 'prime', rather than a multiple of it.
+		bound = sconf->factor_base->med_B;
+		while ((uint32)i < bound)
+		{
+			fbptr = fbc + i;
+			prime = fbptr->prime_and_logp & 0xFFFF;
+			root1 = fbptr->roots & 0xFFFF;
+			root2 = fbptr->roots >> 16;
+
+			//the fbptr roots currently point to the next block
+			//so adjust the current index
+			tmp = block_loc + prime - BLOCKSIZE;
+			if ((root1 == tmp) || (root2 == tmp))
+			{
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+		}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+#endif
+
+		dconf->smooth_num[report_num] = smooth_num;
+	}
+
+	return;
+}
+
+void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
+						 uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+	//we have flagged this sieve offset as likely to produce a relation
+	//nothing left to do now but check and see.
+	uint64 q64, f64;
+	int j,it;
+	uint32 prime;
+	int smooth_num;
+	uint32 *fb_offsets;
+	uint32 polya_factors[20];
+	sieve_fb *fb;
+	uint32 offset, block_loc;
+	z32 *Q;
+
+	fb_offsets = &dconf->fb_offsets[report_num][0];
+	smooth_num = dconf->smooth_num[report_num];
+	Q = &dconf->Qvals[report_num];
+	block_loc = dconf->reports[report_num];
+	
+#ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
+
+	offset = (bnum << BLOCKBITS) + block_loc;
+
+	if (parity)
+		fb = dconf->fb_sieve_n;
+	else
+		fb = dconf->fb_sieve_p;
 
 	//check for additional factors of the a-poly factors
 	//make a separate list then merge it with fb_offsets
