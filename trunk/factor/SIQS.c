@@ -1572,17 +1572,23 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	if (VFLAG > 2)
+	if (VFLAG > 0)
 	{
-		printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+		printf("fb bounds\n\tsmall: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
+			sconf->factor_base->fb_13bit_B,
+			sconf->factor_base->fb_14bit_B,
+			sconf->factor_base->fb_15bit_B,
 			sconf->factor_base->med_B,
 			sconf->factor_base->large_B,
 			sconf->factor_base->B);
 
-	/*	printf("start primes\n\tmed: %u\n\tlarge: %u\n",
-			sconf->factor_base->list->prime[sconf->factor_base->med_B],
-			sconf->factor_base->list->prime[sconf->factor_base->large_B]);*/
+		printf("start primes\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->large_B-1]);
 	}
 
 	//a couple limits
