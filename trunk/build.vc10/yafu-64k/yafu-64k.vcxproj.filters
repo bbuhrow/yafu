@@ -267,11 +267,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\arith\mod32.asm">
+    <YASM Include="..\..\arith\mod64.asm">
       <Filter>Source Files\arith</Filter>
-    </None>
-    <None Include="..\..\arith\mod64.asm">
+    </YASM>
+    <YASM Include="..\..\arith\mod32.asm">
       <Filter>Source Files\arith</Filter>
-    </None>
+    </YASM>
   </ItemGroup>
 </Project>
