@@ -843,7 +843,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->scan_unrolling);
 	#endif
 	#if defined(SSE2_RESIEVEING)
-		printf("using SSE2 resieving\n");
+		printf("using SSE2 for resieving 13-16 bit primes\n");
 	#endif
 #elif defined(_MSC_VER)
 	#if defined(HAS_SSE2)
@@ -855,6 +855,10 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	#else
 		printf("using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
+	#endif
+
+	#if defined(HAS_SSE2)
+		printf("using SSE2 for resieving 14-16 bit primes\n");
 	#endif
 #else	/* compiler not recognized*/
 	
@@ -1492,19 +1496,53 @@ int siqs_static_init(static_conf_t *sconf)
 
 	for (i = sconf->factor_base->small_B; i < sconf->factor_base->B; i++)
 	{
+		//find the point at which factor base primes exceeds 13 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		//don't let med_B grow larger than 1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > 8192)  &&
+			(i % 4 == 0)) break;
+	}
+	sconf->factor_base->fb_13bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 14 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		if ((sconf->factor_base->list->prime[i] > 16384)  &&
+			(i % 4 == 0)) break;
+	}
+	sconf->factor_base->fb_14bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 15 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		if ((sconf->factor_base->list->prime[i] > 32768)  &&
+			(i % 4 == 0)) break;
+	}
+	sconf->factor_base->fb_15bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
 		//find the point at which factor base primes exceed the blocksize.  
 		//wait until the index is a multiple of 16 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))  &&
-			(i % 16 == 0))
+			(i % 4 == 0))
 			break;
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
 		{
-			i -= i%16;
+			i -= i%4;
 			break;
 		}
 
@@ -1519,9 +1557,9 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
-			(i % 16 == 0))
+			(i % 4 == 0))
 		{
-			i -= 16;
+			i -= 4;
 			break;
 		}
 	}

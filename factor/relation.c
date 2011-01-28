@@ -498,89 +498,38 @@ code to the public domain.
 	//always bail for location 65535 when the blocksize is 65536.
 
 #ifdef SSE2_RESIEVING
+
+	#define STEP_COMPARE_COMBINE \
+		"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
+		"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
+		"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
+		"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
+		"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
+		"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
+		"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
+		"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+
+	#define INIT_RESIEVE \
+		"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
+		"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
+		"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
+		"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
+		"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
+		"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
+		"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */
+
 	#ifdef YAFU_64K
 		#define RESIEVE_4X_14BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
@@ -589,50 +538,11 @@ code to the public domain.
 
 		#define RESIEVE_4X_15BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
@@ -641,32 +551,9 @@ code to the public domain.
 
 		#define RESIEVE_4X_16BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
@@ -675,50 +562,11 @@ code to the public domain.
 	#else
 		#define RESIEVE_4X_14BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
@@ -727,32 +575,9 @@ code to the public domain.
 
 		#define RESIEVE_4X_15BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
@@ -761,29 +586,142 @@ code to the public domain.
 
 		#define RESIEVE_4X_16BIT_MAX \
 			asm ( \
-				"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-				"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-				"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-				"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-				"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-				"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-				"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */			\
-				\
-				"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-				"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-				"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-				"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-				"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-				"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-				"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-				"por %%xmm6, %%xmm7 \n\t"		/* combine results */ \
-				\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
 				"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 				: "=r"(result) \
 				: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
 				: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
 				);
 	#endif
+
+#elif defined (HAS_SSE2)
+
+	#define STEP_COMPARE_COMBINE \
+		tmp1 = _mm_xor_si128(tmp1, tmp1); \
+		tmp2 = _mm_xor_si128(tmp2, tmp2); \
+		root1s = _mm_sub_epi32(root1s, primes); \
+		root2s = _mm_sub_epi32(root2s, primes); \
+		tmp1 = _mm_cmpeq_epi32(tmp1, root1s); \
+		tmp2 = _mm_cmpeq_epi32(tmp2, root2s); \
+		combine = _mm_xor_si128(combine, tmp1); \
+		combine = _mm_xor_si128(combine, tmp2);
+
+
+	#define INIT_RESIEVE \
+		c = _mm_load_si128((__m128i *)corrections); \
+		root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+		root1s = _mm_add_epi32(root1s, c); \
+		root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+		root2s = _mm_add_epi32(root2s, c); \
+		primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+		combine = _mm_xor_si128(combine, combine);
+
+	#ifdef YAFU_64K
+
+		#define RESIEVE_4X_14BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+		#define RESIEVE_4X_15BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+		#define RESIEVE_4X_16BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+	#else
+
+		#define RESIEVE_4X_14BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+		#define RESIEVE_4X_15BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+		#define RESIEVE_4X_16BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
+
+	#endif
+
 
 #else
 
@@ -1792,6 +1730,8 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	
 #ifdef SSE2_RESIEVEING
 	corrections = (uint32 *)memalign(64, 4 * sizeof(uint32));
+#elif defined(HAS_SSE2)
+	corrections = (uint32 *)_aligned_malloc(4 * sizeof(uint32),64);
 #endif
 
 	fullfb_ptr = fullfb;
@@ -1831,7 +1771,13 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//becomes faster...
 
 		i=sconf->sieve_small_fb_start;
-		bound = MIN(sconf->factor_base->small_B, 8192);
+
+#if defined(YAFU_64K) || !defined(USE_RESIEVING)
+		bound = sconf->factor_base->fb_14bit_B;
+#else
+		bound = sconf->factor_base->fb_13bit_B;
+#endif
+		
 		while ((uint32)i < bound && ((i & 3) != 0))
 		{
 			prime = fbc->prime[i];
@@ -1981,14 +1927,17 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
-#ifdef SSE2_RESIEVEING
+#ifdef USE_RESIEVING
+
+#if defined(SSE2_RESIEVEING) || defined(HAS_SSE2)
 		corrections[0] = BLOCKSIZE - block_loc;
 		corrections[1] = BLOCKSIZE - block_loc;
 		corrections[2] = BLOCKSIZE - block_loc;
 		corrections[3] = BLOCKSIZE - block_loc;		
 #endif
 		
-		bound = MIN(16384, sconf->factor_base->small_B);
+#ifndef YAFU_64K
+		bound = sconf->factor_base->fb_14bit_B;
 		while ((uint32)i < bound)
 		{
 			//minimum prime > blocksize / 2
@@ -2059,8 +2008,8 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 			i += 4;
 		}
-	
-		bound = MIN(32768, sconf->factor_base->med_B);
+#endif
+		bound = sconf->factor_base->fb_15bit_B;
 
 		while ((uint32)i < bound)
 		{
@@ -2178,10 +2127,105 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #endif
 
 		dconf->smooth_num[report_num] = smooth_num;	
+
+#else
+
+		bound = sconf->factor_base->med_B;
+		while ((uint32)i < bound)
+		{
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+
+			//after sieving a block, the root is updated for the start of the next block
+			//get it back on the current block's progression
+			root1 = root1 + BLOCKSIZE - block_loc;		
+			root2 = root2 + BLOCKSIZE - block_loc;	
+
+			//there are faster methods if this is the case
+			if (prime > BLOCKSIZE)
+				break;
+
+			//the difference root - blockoffset is less than prime about 20% of the time
+			//and thus we don't have to divide at all in those cases.
+			if (root2 >= prime)
+			{
+				//r2 is bigger than prime, it could be on the progression, check it.
+				tmp = root2 + fullfb_ptr->correction[i];
+				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+				tmp = q64 >> 40; 
+				tmp = root2 - tmp * prime;
+
+				if (tmp == 0)
+				{
+					//it is, so it will divide Q(x).  do so as many times as we can.
+					DIVIDE_ONE_PRIME;
+				}
+				else if (root1 >= prime)
+				{			
+					tmp = root1 + fullfb_ptr->correction[i];
+					q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+					tmp = q64 >> 40; 
+					tmp = root1 - tmp * prime;
+
+					if (tmp == 0)
+					{
+						//r2 was a bust, but root1 met the criteria.  divide Q(x).	
+						DIVIDE_ONE_PRIME;
+					}
+				}
+			}
+			i++;
+		}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+
+		//for primes bigger than the blocksize, we don't need to divide at all since
+		//there can be at most one instance of the prime in the block.  thus the 
+		//distance to the next one is equal to 'prime', rather than a multiple of it.
+		bound = sconf->factor_base->med_B;
+		while ((uint32)i < bound)
+		{
+			prime = fbc->prime[i];
+			root1 = fbc->root1[i];
+			root2 = fbc->root2[i];
+
+			//the fbptr roots currently point to the next block
+			//so adjust the current index
+			tmp = block_loc + prime - BLOCKSIZE;
+			if ((root1 == tmp) || (root2 == tmp))
+			{
+				DIVIDE_ONE_PRIME;
+			}
+			i++;
+		}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+
+#endif
+
 	}
 
-#ifdef SSE2_RESIEVEING
+#if defined(SSE2_RESIEVEING)
 	free(corrections);
+#elif defined(HAS_SSE2)
+	_aligned_free(corrections);
 #endif
 
 	return;

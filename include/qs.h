@@ -125,15 +125,6 @@ typedef struct
 	uint8 logprime;
 } sieve_fb;
 
-// the idea here is to reduce memory loads.  we trade a few bit operations to be able to load 2 32bit 
-// words from memory per prime during sieving rather than 4 16bit words.
-#ifdef USE_COMPRESSED_FB
-typedef struct
-{
-	uint32 prime_and_logp;		//prime is stored in the lower 16 bits, logp in the upper 16
-	uint32 roots;				//root1 is stored in the lower 16 bits, root2 in the upper 16
-} sieve_fb_compressed;
-#else
 typedef struct
 {
 	uint32 *prime;			
@@ -141,7 +132,6 @@ typedef struct
 	uint32 *root2;
 	uint8 *logp;
 } sieve_fb_compressed;
-#endif
 
 /************************* SIQS types and functions *****************/
 typedef struct
@@ -213,10 +203,13 @@ typedef struct
 
 typedef struct
 {
-	uint32 B;
-	uint32 small_B;
-	uint32 med_B;
-	uint32 large_B;
+	uint32 B;					//number of primes in the entire factor base
+	uint32 small_B;				//index 1024
+	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 4)
+	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 4)
+	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 4)
+	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 4)
+	uint32 large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 4)
 	uint32 x2_large_B;
 	fb_element_siqs *list;
 } fb_list;
