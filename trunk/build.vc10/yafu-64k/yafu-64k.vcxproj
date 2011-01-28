@@ -339,6 +339,10 @@
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\arith\mod32.asm" />
+    <None Include="..\..\arith\mod64.asm" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
