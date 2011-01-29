@@ -502,19 +502,19 @@ code to the public domain.
 	#define STEP_COMPARE_COMBINE \
 		"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
 		"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */	\
-		"psubd %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-		"psubd %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-		"pcmpeqd %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-		"pcmpeqd %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
+		"psubw %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
+		"psubw %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
+		"pcmpeqw %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
+		"pcmpeqw %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
 		"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
 		"por %%xmm6, %%xmm7 \n\t"		/* combine results */
 
 	#define INIT_RESIEVE \
 		"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
 		"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-		"paddd %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
+		"paddw %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
 		"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-		"paddd %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
+		"paddw %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
 		"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
 		"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */
 
@@ -600,10 +600,10 @@ code to the public domain.
 	#define STEP_COMPARE_COMBINE \
 		tmp1 = _mm_xor_si128(tmp1, tmp1); \
 		tmp2 = _mm_xor_si128(tmp2, tmp2); \
-		root1s = _mm_sub_epi32(root1s, primes); \
-		root2s = _mm_sub_epi32(root2s, primes); \
-		tmp1 = _mm_cmpeq_epi32(tmp1, root1s); \
-		tmp2 = _mm_cmpeq_epi32(tmp2, root2s); \
+		root1s = _mm_sub_epi16(root1s, primes); \
+		root2s = _mm_sub_epi16(root2s, primes); \
+		tmp1 = _mm_cmpeq_epi16(tmp1, root1s); \
+		tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
 		combine = _mm_xor_si128(combine, tmp1); \
 		combine = _mm_xor_si128(combine, tmp2);
 
@@ -611,9 +611,9 @@ code to the public domain.
 	#define INIT_RESIEVE \
 		c = _mm_load_si128((__m128i *)corrections); \
 		root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-		root1s = _mm_add_epi32(root1s, c); \
+		root1s = _mm_add_epi16(root1s, c); \
 		root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-		root2s = _mm_add_epi32(root2s, c); \
+		root2s = _mm_add_epi16(root2s, c); \
 		primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
 		combine = _mm_xor_si128(combine, combine);
 
@@ -726,7 +726,8 @@ code to the public domain.
 #else
 
 	#define COMPARE_RESIEVE_VALS(x)	\
-		if (r1 == 0 || r2 == 0) result |= x;
+		if (r1 == 0) result |= x; \
+		if (r2 == 0) result |= x;
 
 	#define STEP_RESIEVE \
 		r1 -= p;	\
@@ -1725,13 +1726,13 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 tmp1, tmp2, tmp3, tmp4, block_loc;
-	uint32 *corrections;
+	uint16 *corrections;
 	z32 *Q;	
 	
 #ifdef SSE2_RESIEVEING
-	corrections = (uint32 *)memalign(64, 4 * sizeof(uint32));
+	corrections = (uint16 *)memalign(64, 8 * sizeof(uint16));
 #elif defined(HAS_SSE2)
-	corrections = (uint32 *)_aligned_malloc(4 * sizeof(uint32),64);
+	corrections = (uint16 *)_aligned_malloc(8 * sizeof(uint16),64);
 #endif
 
 	fullfb_ptr = fullfb;
@@ -1772,7 +1773,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 		i=sconf->sieve_small_fb_start;
 
-#if defined(YAFU_64K) || !defined(USE_RESIEVING)
+#if !defined(USE_RESIEVING)
+		bound = sconf->factor_base->small_B;
+#elif defined(YAFU_64K)
 		bound = sconf->factor_base->fb_14bit_B;
 #else
 		bound = sconf->factor_base->fb_13bit_B;
@@ -1934,6 +1937,10 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		corrections[1] = BLOCKSIZE - block_loc;
 		corrections[2] = BLOCKSIZE - block_loc;
 		corrections[3] = BLOCKSIZE - block_loc;		
+		corrections[4] = BLOCKSIZE - block_loc;
+		corrections[5] = BLOCKSIZE - block_loc;
+		corrections[6] = BLOCKSIZE - block_loc;
+		corrections[7] = BLOCKSIZE - block_loc;		
 #endif
 		
 #ifndef YAFU_64K
@@ -1964,49 +1971,83 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			
 			if (result == 0)
 			{
-				i += 4;
+				i += 8;
 				continue;
+			}
+
+			if (result & 0x2)
+			{
+				while (zShortMod32(Q,fbc->prime[i]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				}
 			}
 
 			if (result & 0x8)
 			{
-				do 
+				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
 				{						
-					//if (zShortMod32(Q,fbc->prime[i]) != 0)
-					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				} while (zShortMod32(Q,fbc->prime[i]) == 0);
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				}
+			}
+
+			if (result & 0x20)
+			{
+				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				}
 			}
 
 			if (result & 0x80)
 			{
-				do 
+				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
 				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				}
+			}
+
+			if (result & 0x200)
+			{
+				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+4;	
+					zShortDiv32(Q,fbc->prime[i+4],Q);			
+				}
 			}
 
 			if (result & 0x800)
 			{
-				do 
-				{					
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
+				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+5;	
+					zShortDiv32(Q,fbc->prime[i+5],Q);			
+				}
+			}
+
+			if (result & 0x2000)
+			{
+				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+6;	
+					zShortDiv32(Q,fbc->prime[i+6],Q);			
+				}
 			}
 
 			if (result & 0x8000)
 			{
-				do 
-				{				
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
+				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+7;	
+					zShortDiv32(Q,fbc->prime[i+7],Q);			
+				}
 			}
 
-			i += 4;
+			i += 8;
 		}
 #endif
 		bound = sconf->factor_base->fb_15bit_B;
@@ -2018,49 +2059,83 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 			if (result == 0)
 			{
-				i += 4;
+				i += 8;
 				continue;
+			}
+
+			if (result & 0x2)
+			{
+				while (zShortMod32(Q,fbc->prime[i]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				}
 			}
 
 			if (result & 0x8)
 			{
-				do 
+				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
 				{						
-					//if (zShortMod32(Q,fbc->prime[i]) != 0)
-					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				} while (zShortMod32(Q,fbc->prime[i]) == 0);
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				}
+			}
+
+			if (result & 0x20)
+			{
+				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				}
 			}
 
 			if (result & 0x80)
 			{
-				do 
+				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
 				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				}
+			}
+
+			if (result & 0x200)
+			{
+				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+4;	
+					zShortDiv32(Q,fbc->prime[i+4],Q);			
+				}
 			}
 
 			if (result & 0x800)
 			{
-				do 
-				{					
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
+				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+5;	
+					zShortDiv32(Q,fbc->prime[i+5],Q);			
+				}
+			}
+
+			if (result & 0x2000)
+			{
+				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+6;	
+					zShortDiv32(Q,fbc->prime[i+6],Q);			
+				}
 			}
 
 			if (result & 0x8000)
 			{
-				do 
-				{				
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
+				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+7;	
+					zShortDiv32(Q,fbc->prime[i+7],Q);			
+				}
 			}
 
-			i += 4;
+			i += 8;
 		}
 
 		bound = sconf->factor_base->med_B;
@@ -2070,6 +2145,87 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			uint32 result = 0;
 			RESIEVE_4X_16BIT_MAX;
 
+			if (result == 0)
+			{
+				i += 8;
+				continue;
+			}
+
+			if (result & 0x2)
+			{
+				while (zShortMod32(Q,fbc->prime[i]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i;	
+					zShortDiv32(Q,fbc->prime[i],Q);			
+				}
+			}
+
+			if (result & 0x8)
+			{
+				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+1;	
+					zShortDiv32(Q,fbc->prime[i+1],Q);			
+				}
+			}
+
+			if (result & 0x20)
+			{
+				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+2;	
+					zShortDiv32(Q,fbc->prime[i+2],Q);			
+				}
+			}
+
+			if (result & 0x80)
+			{
+				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+3;	
+					zShortDiv32(Q,fbc->prime[i+3],Q);			
+				}
+			}
+
+			if (result & 0x200)
+			{
+				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+4;	
+					zShortDiv32(Q,fbc->prime[i+4],Q);			
+				}
+			}
+
+			if (result & 0x800)
+			{
+				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+5;	
+					zShortDiv32(Q,fbc->prime[i+5],Q);			
+				}
+			}
+
+			if (result & 0x2000)
+			{
+				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+6;	
+					zShortDiv32(Q,fbc->prime[i+6],Q);			
+				}
+			}
+
+			if (result & 0x8000)
+			{
+				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
+				{						
+					fb_offsets[++smooth_num] = i+7;	
+					zShortDiv32(Q,fbc->prime[i+7],Q);			
+				}
+			}
+
+			i += 8;
+
+			/*
 			if (result == 0)
 			{
 				i += 4;
@@ -2115,6 +2271,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 
 			i += 4;
+			*/
 		}
 		
 
@@ -2207,6 +2364,8 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 		}
+
+		dconf->smooth_num[report_num] = smooth_num;	
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);

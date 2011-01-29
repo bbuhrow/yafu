@@ -843,7 +843,11 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->scan_unrolling);
 	#endif
 	#if defined(SSE2_RESIEVEING)
-		printf("using SSE2 for resieving 13-16 bit primes\n");
+		#ifdef YAFU_64K
+			printf("using SSE2 for resieving 14-16 bit primes\n");
+		#else
+			printf("using SSE2 for resieving 13-16 bit primes\n");
+		#endif
 	#endif
 #elif defined(_MSC_VER)
 	#if defined(HAS_SSE2)
@@ -858,7 +862,11 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	#endif
 
 	#if defined(HAS_SSE2)
-		printf("using SSE2 for resieving 14-16 bit primes\n");
+		#ifdef YAFU_64K
+			printf("using SSE2 for resieving 14-16 bit primes\n");
+		#else
+			printf("using SSE2 for resieving 13-16 bit primes\n");
+		#endif
 	#endif
 #else	/* compiler not recognized*/
 	
@@ -1026,21 +1034,21 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #else
 	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
 	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
-	dconf->comp_sieve_p->root1 = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
-	dconf->comp_sieve_p->root2 = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_p->prime = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
+	dconf->comp_sieve_p->root1 = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
+	dconf->comp_sieve_p->root2 = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 	dconf->comp_sieve_p->logp = (uint8 *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
 
-	dconf->comp_sieve_n->prime = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
-	dconf->comp_sieve_n->root1 = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
-	dconf->comp_sieve_n->root2 = (uint32 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)),64);
+	dconf->comp_sieve_n->prime = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
+	dconf->comp_sieve_n->root1 = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
+	dconf->comp_sieve_n->root2 = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 	dconf->comp_sieve_n->logp = (uint8 *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
 #endif
@@ -1494,7 +1502,7 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->factor_base->small_B = MIN(
 		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
-	for (i = sconf->factor_base->small_B; i < sconf->factor_base->B; i++)
+	for (i = 2; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceeds 13 bits.  
 		//wait until the index is a multiple of 4 so that we can enter
@@ -1502,7 +1510,7 @@ int siqs_static_init(static_conf_t *sconf)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 8192)  &&
-			(i % 4 == 0)) break;
+			(i % 8 == 0)) break;
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
@@ -1513,7 +1521,7 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % 4 == 0)) break;
+			(i % 8 == 0)) break;
 	}
 	sconf->factor_base->fb_14bit_B = i;
 
@@ -1524,7 +1532,7 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 32768)  &&
-			(i % 4 == 0)) break;
+			(i % 8 == 0)) break;
 	}
 	sconf->factor_base->fb_15bit_B = i;
 
@@ -1536,13 +1544,13 @@ int siqs_static_init(static_conf_t *sconf)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))  &&
-			(i % 4 == 0))
+			(i % 8 == 0))
 			break;
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
 		{
-			i -= i%4;
+			i -= i%8;
 			break;
 		}
 
@@ -1557,9 +1565,9 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
-			(i % 4 == 0))
+			(i % 8 == 0))
 		{
-			i -= 4;
+			i -= 8;
 			break;
 		}
 	}
