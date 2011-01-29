@@ -94,6 +94,9 @@ double TF_SPECIAL;
 	#define USE_RESIEVING
 #endif
 
+#define USE_RESIEVING
+#define SSE2_RESIEVING
+
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
 //double times_checked_per_side;

@@ -595,7 +595,7 @@ code to the public domain.
 				);
 	#endif
 
-#elif defined (HAS_SSE2)
+#elif defined (HAS_SSE2) && defined(WIN32)
 
 	#define STEP_COMPARE_COMBINE \
 		tmp1 = _mm_xor_si128(tmp1, tmp1); \
