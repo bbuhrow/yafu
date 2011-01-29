@@ -1099,21 +1099,21 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #else
 	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
 	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
-	dconf->comp_sieve_p->root1 = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
-	dconf->comp_sieve_p->root2 = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_p->prime = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_p->root1 = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_p->root2 = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->comp_sieve_p->logp = (uint8 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
 
-	dconf->comp_sieve_n->prime = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
-	dconf->comp_sieve_n->root1 = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
-	dconf->comp_sieve_n->root2 = (uint32 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint32)));
+	dconf->comp_sieve_n->prime = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_n->root1 = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_n->root2 = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->comp_sieve_n->logp = (uint8 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
 
@@ -1544,13 +1544,13 @@ int siqs_static_init(static_conf_t *sconf)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))  &&
-			(i % 8 == 0))
+			(i % 16 == 0))
 			break;
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
 		{
-			i -= i%8;
+			i -= i%16;
 			break;
 		}
 
@@ -1565,9 +1565,9 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
-			(i % 8 == 0))
+			(i % 16 == 0))
 		{
-			i -= 8;
+			i -= 16;
 			break;
 		}
 	}
