@@ -86,6 +86,14 @@ double TF_SPECIAL;
 
 #define USE_POLY_SSE2_ASM 1
 
+#if defined(_WIN64)
+	#define USE_RESIEVING
+#elif defined(WIN32)
+	#undef USE_RESIEVING
+#else
+	#define USE_RESIEVING
+#endif
+
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
 //double times_checked_per_side;
@@ -127,9 +135,9 @@ typedef struct
 
 typedef struct
 {
-	uint32 *prime;			
-	uint32 *root1;				//root1 is stored in the lower 16 bits, root2 in the upper 16
-	uint32 *root2;
+	uint16 *prime;			
+	uint16 *root1;				//root1 is stored in the lower 16 bits, root2 in the upper 16
+	uint16 *root2;
 	uint8 *logp;
 } sieve_fb_compressed;
 
