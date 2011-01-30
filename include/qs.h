@@ -85,17 +85,15 @@ double TF_SPECIAL;
 #endif
 
 #define USE_POLY_SSE2_ASM 1
-
+//
 #if defined(_WIN64)
 	#define USE_RESIEVING
 #elif defined(WIN32)
 	#undef USE_RESIEVING
+	#define USE_COMPRESSED_FB
 #else
 	#define USE_RESIEVING
 #endif
-
-#define USE_RESIEVING
-#define SSE2_RESIEVING
 
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
@@ -136,13 +134,21 @@ typedef struct
 	uint8 logprime;
 } sieve_fb;
 
+#ifdef USE_COMPRESSED_FB
+typedef struct
+{
+	uint32 prime_and_logp;
+	uint32 roots;					//root1 is stored in the lower 16 bits, root2 in the upper 16
+} sieve_fb_compressed;
+#else
 typedef struct
 {
 	uint16 *prime;			
-	uint16 *root1;				//root1 is stored in the lower 16 bits, root2 in the upper 16
+	uint16 *root1;				
 	uint16 *root2;
 	uint8 *logp;
 } sieve_fb_compressed;
+#endif
 
 /************************* SIQS types and functions *****************/
 typedef struct
