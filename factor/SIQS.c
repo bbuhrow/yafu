@@ -1580,7 +1580,7 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	if (VFLAG > 0)
+	if (VFLAG > 1)
 	{
 		printf("fb bounds\n\tsmall: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
