@@ -75,10 +75,10 @@ code to the public domain.
 				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
 				"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movdqa 16(%1), %%xmm2	\n\t"		\
-				"movdqa 32(%1), %%xmm3	\n\t"		\
-				"movdqa 48(%1), %%xmm4	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
+				"movdqa 32(%1), %%xmm3	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
+				"movdqa 48(%1), %%xmm4	\n\t"		\								
 				"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
 				"por %%xmm1, %%xmm4		\n\t"	/*or the comparisons*/	\
@@ -240,10 +240,10 @@ code to the public domain.
 				"movq (%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq (%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movq 8(%1), %%mm2	\n\t"		\
-				"movq 16(%1), %%mm3	\n\t"		\
-				"movq 24(%1), %%mm4	\n\t"		\
 				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
+				"movq 16(%1), %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
+				"movq 24(%1), %%mm4	\n\t"		\								
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -258,10 +258,10 @@ code to the public domain.
 				"movq 8(%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq 32(%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movq 40(%1), %%mm2	\n\t"		\
-				"movq 48(%1), %%mm3	\n\t"		\
-				"movq 56(%1), %%mm4	\n\t"		\
 				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
+				"movq 48(%1), %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
+				"movq 56(%1), %%mm4	\n\t"		\								
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -339,10 +339,10 @@ code to the public domain.
 				ASM_M mov edi, local_bptr	\
 				ASM_M movdqa xmm1, XMMWORD PTR [edi]	\
 				ASM_M movdqa xmm2, XMMWORD PTR [edi + 16]	\
-				ASM_M movdqa xmm3, XMMWORD PTR [edi + 32]	\
-				ASM_M movdqa xmm4, XMMWORD PTR [edi + 48]	\
 				ASM_M pcmpeqw xmm1, xmm0	\
+				ASM_M movdqa xmm3, XMMWORD PTR [edi + 32]	\
 				ASM_M pcmpeqw xmm2, xmm0	\
+				ASM_M movdqa xmm4, XMMWORD PTR [edi + 48]	\
 				ASM_M pcmpeqw xmm3, xmm0	\
 				ASM_M pcmpeqw xmm4, xmm0	\
 				ASM_M por xmm4, xmm1		\
@@ -557,10 +557,10 @@ code to the public domain.
 			ASM_M mov edi, local_bptr				\
 			ASM_M movq mm1, QWORD PTR [edi]			\
 			ASM_M movq mm2, QWORD PTR [edi + 8]		\
-			ASM_M movq mm3, QWORD PTR [edi + 16]	\
-			ASM_M movq mm4, QWORD PTR [edi + 24]	\
 			ASM_M pcmpeqw mm1, mm0	\
+			ASM_M movq mm3, QWORD PTR [edi + 16]	\
 			ASM_M pcmpeqw mm2, mm0	\
+			ASM_M movq mm4, QWORD PTR [edi + 24]	\
 			ASM_M pcmpeqw mm3, mm0	\
 			ASM_M pcmpeqw mm4, mm0	\
 			ASM_M por mm4, mm1		\
@@ -579,10 +579,10 @@ code to the public domain.
 			ASM_M mov edi, local_bptr				\
 			ASM_M movq mm1, QWORD PTR [edi + 32]	\
 			ASM_M movq mm2, QWORD PTR [edi + 40]	\
-			ASM_M movq mm3, QWORD PTR [edi + 48]	\
-			ASM_M movq mm4, QWORD PTR [edi + 56]	\
 			ASM_M pcmpeqw mm1, mm0		\
+			ASM_M movq mm3, QWORD PTR [edi + 48]	\
 			ASM_M pcmpeqw mm2, mm0	\
+			ASM_M movq mm4, QWORD PTR [edi + 56]	\
 			ASM_M pcmpeqw mm3, mm0	\
 			ASM_M pcmpeqw mm4, mm0	\
 			ASM_M por mm4, mm1		\
@@ -624,9 +624,9 @@ code to the public domain.
 				local_block = _mm_load_si128(sieveblock + j); \
 				local_block2 = _mm_load_si128(sieveblock + j + 2); \
 				local_block3 = _mm_load_si128(sieveblock + j + 4); \
-				local_block4 = _mm_load_si128(sieveblock + j + 6); \
 				local_block = _mm_or_si128(local_block, local_block2); \
 				local_block = _mm_or_si128(local_block, local_block3); \
+				local_block4 = _mm_load_si128(sieveblock + j + 6); \
 				local_block = _mm_or_si128(local_block, local_block4); \
 				result = _mm_movemask_epi8(local_block); \
 			} while (0);
@@ -644,16 +644,16 @@ code to the public domain.
 				local_block = _mm_load_si128(sieveblock + j); \
 				local_block2 = _mm_load_si128(sieveblock + j + 2); \
 				local_block3 = _mm_load_si128(sieveblock + j + 4); \
-				local_block4 = _mm_load_si128(sieveblock + j + 6); \
-				local_block5 = _mm_load_si128(sieveblock + j + 8); \
-				local_block6 = _mm_load_si128(sieveblock + j + 10); \
-				local_block7 = _mm_load_si128(sieveblock + j + 12); \
-				local_block8 = _mm_load_si128(sieveblock + j + 14); \
 				local_block = _mm_or_si128(local_block, local_block2); \
+				local_block4 = _mm_load_si128(sieveblock + j + 6); \
 				local_block = _mm_or_si128(local_block, local_block3); \
+				local_block5 = _mm_load_si128(sieveblock + j + 8); \
 				local_block = _mm_or_si128(local_block, local_block4); \
+				local_block6 = _mm_load_si128(sieveblock + j + 10); \
 				local_block = _mm_or_si128(local_block, local_block5); \
+				local_block7 = _mm_load_si128(sieveblock + j + 12); \
 				local_block = _mm_or_si128(local_block, local_block6); \
+				local_block8 = _mm_load_si128(sieveblock + j + 14); \
 				local_block = _mm_or_si128(local_block, local_block7); \
 				local_block = _mm_or_si128(local_block, local_block8); \
 				result = _mm_movemask_epi8(local_block); \
@@ -669,10 +669,10 @@ code to the public domain.
 			local_mask = _mm_load_si128(&mask[0]); \
 			local_bptr = _mm_load_si128(bptr + j); \
 			local_bptr2 = _mm_load_si128(bptr + j + 4); \
-			local_bptr3 = _mm_load_si128(bptr + j + 8); \
-			local_bptr4 = _mm_load_si128(bptr + j + 12); \
 			local_bptr = _mm_cmpeq_epi16(local_bptr, local_mask); \
+			local_bptr3 = _mm_load_si128(bptr + j + 8); \
 			local_bptr2 = _mm_cmpeq_epi16(local_bptr2, local_mask); \
+			local_bptr4 = _mm_load_si128(bptr + j + 12); \
 			local_bptr3 = _mm_cmpeq_epi16(local_bptr3, local_mask); \
 			local_bptr4 = _mm_cmpeq_epi16(local_bptr4, local_mask); \
 			local_bptr4 = _mm_or_si128(local_bptr4, local_bptr); \
@@ -688,7 +688,6 @@ code to the public domain.
 			tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
 			combine = _mm_xor_si128(combine, tmp1); \
 			combine = _mm_xor_si128(combine, tmp2);
-
 
 		#define INIT_RESIEVE \
 			c = _mm_load_si128((__m128i *)corrections); \

@@ -5,8 +5,9 @@ v 1.24
 	generated first, then all reports are sequencially examined.
 + fixed the reporting of how many total polynomials were used
 + implemented a re-sieving algorithm for factor base primes between 8192 up to the med_B bound.  
-	makes use of SSE2 instructions for multi-up re-sieving.  current the project will only build 
-	with x86_64 gcc.
+	makes use of SSE2 instructions for multi-up re-sieving.  This change applies to x64 and
+	linux64 builds only.  It was slower for win32.
++ (Brian Gladman) contributed assembler files to support 64 bit mod operations in x64.
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
