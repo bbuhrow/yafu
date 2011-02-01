@@ -1,0 +1,177 @@
+---------------------------------------------------------------
+INSTALLATION
+---------------------------------------------------------------
+
+No installation necessary, just put the binary in whatever 
+location you like and run it.  
+
+---------------------------------------------------------------
+INSTALLATION WITH NFS SUPPORT
+---------------------------------------------------------------
+
+To run the general or special number field sieve using yafu,
+you will need to provide ggnfs executable files and make the
+location of these files known to yafu at runtime.  The easiest
+way to obtain the files is through Jeff Gilchrist's website:
+http://gilchrist.ca/jeff/factoring/index.html
+Download the .zip file for your OS and unzip it to a directory 
+on your computer.  The easiest way to let yafu know where these
+are is to modify your yafu.ini file (which should appear in the
+same directory as your yafu executable files) to contain a line
+specifying ggnfs_dir in the following way:
+ggnfs_dir=<location relative to yafu executable>
+For instance, if your ggnfs executables were located adjacent to
+the yafu folder in the directory tree, in a folder called
+ggnfs-bin, then the line would be
+ggnfs_dir=..\ggnfs-bin\
+
+---------------------------------------------------------------
+BUILD INFORMATION
+---------------------------------------------------------------
+
+Anyone is welcome to compile for your own system.  If you 
+can make a binary which beats the performance of one of the 
+pre-compiled versions for a particular architecture, I'd 
+love to hear about it!
+
+Note that some pre-compiled binaries have GMP-ECM enabled.  
+For windows builds, GMP-ECM 6.3 was linked against the 
+MPIR-2.1.3 core2 library for 32 bit builds.  64 bit windows
+builds do not use GMP-ECM.
+For linux builds, GMP-ECM 6.2.3 was linked against the GMP 4.3.2 
+x86_64 library for 64 bit builds.  32 bit linux builds do not
+use GMP-ECM.
+
+
+GCC 32 bit OS
+=============
+make x86 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
+
+GCC 64 bit OS
+=============
+make x86_64 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
+
+optionally enable GNFS factorizations by setting NFS=1 during
+make.  This will require the makefile to be edited to point to 
+the libmsieve.a library.  By default, it is assumed to be located
+at ../msieve/ relative to the Makefile.  
+
+optionally enable the p+1, p-1, and ecm factoring routines
+to utilize GMPECM libraries by setting GMPECM=1 during make.
+This will require the makefile to be edited to point to the
+location of your gmp and gmpecm libraries and include files.
+
+optionally enable 64k sieve block sizes by setting BLOCK=64 
+during make.  this sets the size of the sieve interval during
+siqs, mpqs, pqs, and the sieve of eratosthenes.  in general
+the sieve block size should match the L1 data cache size of your
+CPU.  64k blocksizes are faster for AMD64 systems 
+(and possibly others).
+
+optionally enable gcc profiling by setting PROFILE=1 during 
+make.  this produces profiling information when run and thus
+slows down the program.  profiling information can then be
+viewed using, for example, gprof.
+
+optionally enable more detailed timing during SIQS by setting
+TIMING=1 during make.  This will slightly slow down siqs.
+
+WINDOWS MS Visual Studio Express Edition 2008
+=============
+
+Build files are available for MSVC EE2008 and 2010.  The directory 
+structure is important for these builds, especially if GMPECM or NFS
+support is desired.  The build files expect to see an mpir, msieve, 
+and gmp-ecm folder at the same level as the yafu folder in the
+directory tree, with the following structure:
+
+msieve
+	build.vc10
+		Win32
+			Release
+				gnfs.lib
+				common.lib
+		x64
+			Release
+				gnfs.lib
+				common.lib
+
+gmp-ecm
+	ecm.h
+	config.h
+	build.vc9
+		Win32
+			Release
+				ecm.lib
+		x64
+			Release
+				ecm.lib
+	build.vc10
+		Win32
+			Release
+				libecm.lib
+		x64
+			Release
+				libecm.lib
+mpir
+	gmp.h
+	config.h
+	gmp-mparam.h
+	mpir.h
+	build.vc9
+		Win32
+			Release
+				mpir.lib
+		x64
+			Release
+				mpir.lib
+	build.vc10
+		Win32
+			Release
+				mpir.lib
+		x64
+			Release
+				mpir.lib
+				
+yafu
+	build.vc9
+		...
+	build.vc10
+		...
+		
+The mpir and gmp-ecm libraries will need to be build
+separately, for either Win32 or x64 targets.  To change the 
+target for a yafu build, within MSVC select 
+Build -> Configuration Manger
+then in the Active Solution Platform pulldown choose x64 or 
+Win32.
+
+Other platforms
+=============
+If you build yafu on other platforms or using other IDE's or
+compilers, please let me know about it.
+
+
+
+
+---------------------------------------------------------------
+HELP INFORMATION
+---------------------------------------------------------------
+
+Detailed (somewhat) documentation is available in docfile.txt, 
+which can be viewed during a yafu session by typing 'help'
+
+In you want to see the docfile from within the code, it needs 
+to be in the same directory as the executable.
+
+Check back at http://sites.google.com/site/bbuhrow for updates.
+
+---------------------------------------------------------------
+MISC INFORMATION
+---------------------------------------------------------------
+Here's a fun test case for factor(), which uses many of the 
+algorithms in yafu
+factor(2056802480868100646375721251575555494408897387375737955882170045672576386016591560879707933101909539325829251496440620798637813)
+
+neat example for ecm:
+140870298550359924914704160737419905257747544866892632000062896476968602578482966342704
