@@ -1038,27 +1038,6 @@ fp_digit zShortMod(z *u, fp_digit v)
 
 	return rem;
 
-#elif defined(_WIN64)
-	
-	uint64 rem = 0;
-
-	i = abs(u->size) - 1;
-	if (u->val[i] < v) 
-		rem = (uint64)u->val[i--];
-
-	while (i >= 0)
-	{
-		uint64 d = (rem << 32) | (u->val[i]);
-		rem = mod_64(d, v);
-		//rem = mod_64((uint64)u->val[i], rem, (uint64)v);
-		//rem = mod_32(u->val[i], rem, v);
-		i--;
-	}
-
-	return (uint32)rem;
-
-
-
 #else
 	
 	fp_digit qq[2], q64, rem;
@@ -2597,48 +2576,528 @@ void zDiv32(z32 *u, z32 *v, z32 *q, z32 *r);
 fp_digit spDivide(fp_digit *q, fp_digit *r, fp_digit u[2], fp_digit v)
 {
 
-	
+	z32 uu,qq,rr,vv;
+
+	zInit32(&uu);
+	zInit32(&qq);
+	zInit32(&rr);
+	zInit32(&vv);
+
+	uu.size = 4;
+	uu.val[3] = (uint32)(u[1] >> 32);
+	uu.val[2] = (uint32)(u[1] & 0xffffffff);
+	uu.val[1] = (uint32)(u[0] >> 32);
+	uu.val[0] = (uint32)(u[0] & 0xffffffff);
+
+	vv.size = 2;
+	vv.val[1] = (uint32)(v >> 32);
+	vv.val[0] = (uint32)(v & 0xffffffff);
+
+	fp_clamp(&uu);
+	fp_clamp(&vv);
+
+	zDiv32(&uu,&vv,&qq,&rr);
+
+	fp_clamp(&qq);
+	fp_clamp(&rr);
+
+	*q = ((fp_digit)qq.val[1] << 32) | ((fp_digit)qq.val[0]);
+	*r =((fp_digit)rr.val[1] << 32) | ((fp_digit)rr.val[0]);
+
+	zFree32(&uu);
+	zFree32(&qq);
+	zFree32(&rr);
+	zFree32(&vv);
+
+	return (fp_digit)qq.val[2];
 }
+
+void zDiv32(z32 *u, z32 *v, z32 *q, z32 *r)
+{
+	/*
+	q = u \ v
+	r = u mod v
+	u is overwritten
+
+	schoolbook long division.  see knuth TAOCP, vol. 2
+	*/
+	uint32 v1=0,v2=0,k,qhat,rhat,uj2,tt[2],pp[2];
+	int i,j,m,su,sv;
+	int s =0,cmp,sdd,sd;
+	unsigned int shift;
+	uint32 bitmask;
+	
+	su = abs(u->size);
+	sv = abs(v->size);
+	m = su-sv;
+
+	//Catch special cases 	
+	//divide by zero
+	if ((sv == 0) || ((sv == 1) && (v->val[0] == 0)))
+		return;	
+
+	//Use short division instead
+	if (sv == 1)
+	{	
+		r->val[0] = zShortDiv32(u,v->val[0],q);
+		r->size = 1;
+		s = (v->size < 0);
+		if (s)
+		{
+			q->size *= -1;
+			r->size *= -1;
+		}
+		return;
+	}
+
+	//v > u, so just set q = 0 and r = u
+	if (su < sv)
+	{	
+		zClear32(q);
+		q->size = 1;
+		zCopy32(u,r);
+		s = (u->size < 0) ^ (v->size < 0);
+		if (s)
+		{
+			r->size *= -1;
+		}
+		q->type = UNKNOWN;
+		r->type = UNKNOWN;
+		return;
+	}
+
+	//u and v are the same length
+	if (su == sv)
+	{	
+		cmp = zCompare32(u,v);
+		//v > u, as above
+		if (cmp < 0)
+		{	
+			zClear32(q);
+			q->size = 1;
+			zCopy32(u,r);
+			s = (u->size < 0) ^ (v->size < 0);
+			if (s)
+			{
+				q->size *= -1;
+				r->size *= -1;
+			}
+			q->type = UNKNOWN;
+			r->type = UNKNOWN;
+			return;
+		} 
+		else if (cmp == 0)	//v == u, so set q = 1 and r = 0
+		{	
+			q->size = 1;
+			q->val[0]=1;
+			r->size = 1;
+			r->val[0]=0;
+			s = (u->size < 0) ^ (v->size < 0);
+			if (s)
+			{
+				q->size *= -1;
+			}
+			q->type = UNKNOWN;
+			r->type = UNKNOWN;
+			return;
+		}
+	}
+
+	//normalize v by left shifting until the high bit of v is set (v1 >= floor(2^31))
+	bitmask = 0x80000000;
+	for (shift = 0; shift < 32; ++shift)
+	{
+		if (v->val[sv-1] & bitmask)
+			break;
+		bitmask >>= 1;
+	}
+
+	//normalize v by shifting left (x2) shift number of times
+	//overflow should never occur to v during normalization
+	zShiftLeft32(v,v,shift);
+
+	//left shift u the same amount - may get an overflow here
+	zShiftLeft32(u,u,shift);
+	if (abs(u->size) == su)
+	{	//no overflow - force extra digit
+		if (u->size < 0)
+			u->size--;
+		else
+			u->size++;
+		u->val[su] = 0;
+		su++;
+	}
+	else
+		su++;
+
+	//copy first two digits of v to local variables for quick access
+	v1=v->val[sv-1];
+	v2=v->val[sv-2];
+	
+	sdd=0;
+	sd=0;
+	//main loop
+	for (j=0;j<=m;++j)
+	{
+		//calculate qhat
+		tt[1] = u->val[su-j-1];		//first digit of normalized u
+		tt[0] = u->val[su-j-2];		//second digit of normalized u
+		if (tt[1] == v1)
+			qhat = 0xffffffff;
+		else
+			spDivide32(&qhat, &rhat, tt, v1);
+
+		//quick check if qhat is too big based on our initial guess involving 
+		//the first two digits of u and v.
+		uj2 = u->val[su-j-3];
+
+		while (1)
+		{
+			spMultiply32(qhat,v1,&pp[0],&pp[1]);
+			shortSubtract32(tt,pp,tt);
+			if (tt[1]) break;
+			tt[1] = tt[0]; tt[0] = uj2; 
+			spMultiply32(qhat,v2,&pp[0],&pp[1]);
+			i = shortCompare32(pp,tt);  //p = v2*qhat, t = (uj*b+uj1-qhat*v1)*b + uj2
+
+			if (i == 1)
+				qhat--;
+			else
+				break;
+		}
+	
+		//keep track of the significant digits
+		if (qhat > 0)
+		{
+			sdd = sdd + 1 + sd;
+			sd = 0;
+		}
+		else if (sdd != 0)
+			sd++;
+
+		//multiply and subtract, in situ
+		k=0;
+		for (i=0;i<sv;++i)
+		{
+			s=(int)(su-j-sv+i-1);
+			spMultiply32(v->val[i],qhat,&pp[0],&pp[1]);
+			spAdd32(pp[0],k,&tt[0],&tt[1]);
+			u->val[s] = u->val[s] - tt[0]; 
+			//check if this result is negative, remember the borrow for the next digit
+			if (u->val[s] > (u->val[s] + tt[0]))
+				k = pp[1] + tt[1] + 1;
+			else
+				k = pp[1] + tt[1];
+		}
+		
+		//if the final carry is bigger than the most significant digit of u, then qhat
+		//was too big, i.e. qhat[v1v2...vn] > [u0u1u2...un]
+		if (k > u->val[su-j-1])
+		{
+			//correct by decrementing qhat and adding back [v1v2...vn] to [u0u1...un]
+			qhat--;
+			//first subtract the final carry, yielding a negative number for [u0u1...un]
+			u->val[su-j-1] -= k;
+			//then add back v
+			k=0;
+			for (i=0;i<sv;i++)
+				spAdd3_32(u->val[su-j-sv+i-1],v->val[i],k,&u->val[su-j-sv+i-1],&k);
+			u->val[su-j-1] += k;
+		}
+		else //else qhat was ok, subtract the final carry
+			u->val[su-j-1] -= k;
+
+		//set digit of q
+		q->val[m-j] = qhat;
+	}
+	q->size = sdd+sd;
+	zCopy32(u,r);
+
+	for (s=r->size - 1; s>=0; --s)
+	{
+		if ((r->val[s] == 0) && (r->size > 0))
+			r->size--;
+		else
+			break;
+	}
+
+	//unnormalize.
+	zShiftRight32(v,v,shift);
+	zShiftRight32(r,r,shift);
+
+	if (r->size == 0)
+		r->size = 1;
+
+	s = (u->size < 0) ^ (v->size < 0);
+	if (s)
+	{
+		q->size *= -1;
+		r->size *= -1;
+	}
+	if (r->size < 0)
+	{
+		//r->size *= -1;
+		//zSub(q,r,r);
+	}
+
+	//for (i=0;i<q->size;i++)
+		//printf("q[%d] = %" PRIx64 "\n",i,q->val[i]);
+
+	//for (i=0;i<r->size;i++)
+		//printf("r[%d] = %" PRIx64 "\n",i,r->val[i]);
+
+	q->type = UNKNOWN;
+	r->type = UNKNOWN;
+	return;
+}
+
+uint32 spDivide32(uint32 *q, uint32 *r, uint32 u[2], uint32 v)
+{
+	uint64 uu,qq;
+	uu = ((uint64)u[1] << 32) | (uint64)u[0];
+	qq = (uu/(uint64)v);
+	*r = (uint32)(uu%(uint64)v);
+	*q = (uint32)qq;
+	return (uint32)(qq >> 32);
+}
+
+void spMultiply32(uint32 u, uint32 v, uint32 *product, uint32 *carry)
+{
+	uint64 uu;
+	uu = (uint64)u * (uint64)v;
+	*product = (uint32)uu;
+	*carry = (uint32)(uu >> 32);
+	return;
+}
+
+void spAdd32(uint32 u, uint32 v, uint32 *sum, uint32 *carry)
+{
+	uint64 w;
+	w = (uint64)u + (uint64)v;
+	*sum = (uint32)w;
+	*carry = (uint32)(w >> 32);
+	return;
+}
+
+void spAdd3_32(uint32 u, uint32 v, uint32 w, uint32 *sum, uint32 *carry)
+{
+	uint64 uu;
+	uu = (uint64)u + (uint64)v + (uint64)w;
+	*sum = (uint32)uu ;
+	*carry = (uint32)(uu >> 32);
+	return;
+}
+
+void spSub3_32(uint32 u, uint32 v, uint32 w, uint32 *sub, uint32 *borrow)
+{
+	uint64 uu;
+	uu = (uint64)u - (uint64)v - (uint64)w;
+	*sub = (uint32)uu ;
+	*borrow = (uint32)((uu >> 32) && 0xffffffff);
+	return;
+}
+
+void spSub32(uint32 u, uint32 v, uint32 *sub, uint32 *borrow)
+{
+	uint64 uu;
+	uu = (uint64)u - (uint64)v;
+	*sub = (uint32)uu ;
+	*borrow = (uint32)((uu >> 32) && 0xffffffff);
+	return;
+}
+
+int shortCompare32(uint32 p[2], uint32 t[2])
+{
+	//utility function used in zDiv
+	int i;
+
+	for (i=1;i>=0;--i)
+	{
+		if (p[i] > t[i]) return 1;
+		if (p[i] < t[i]) return -1;
+	}
+	return 0;
+}
+
+int shortSubtract32(uint32 u[2], uint32 v[2], uint32 w[2])
+{
+	//utility function used in zDiv
+	uint32 j=0;
+
+	w[0] = u[0] - v[0];
+	if (w[0] > (0xffffffff - v[0]))
+	{
+		j=1;
+		w[0] = w[0] + 0xffffffff + 1;
+	}
+	w[1] = u[1] - v[1] - j;
+	
+	return 1;
+}
+
+fp_digit spShortDiv(fp_digit u[2], fp_digit v, fp_digit *q)
+{
+	//v is known to fit in 32 bits
+
+	int su;
+	int i;
+	uint32 vv, uu[4], qq[2];
+	uint32 rem = 0;
+
+	qq[2] = 0;
+	qq[1] = 0;
+	qq[0] = 0;
+
+	// one 32 bit limb of v
+	vv = (uint32)v;
+
+	// up to four 32 bit limbs of u
+	uu[3] = (uint32)(u[1] >> 32);
+	uu[2] = (uint32)(u[1] & 0xffffffff);
+	uu[1] = (uint32)(u[0] >> 32);
+	uu[0] = (uint32)(u[0] & 0xffffffff);
+
+	su = 4;
+	if (uu[3] == 0)
+	{
+		su--;
+
+		if (uu[2] == 0)
+		{
+			su--;
+
+			if (uu[1] == 0)
+				su--;
+		}
+	}
+
+	i = su - 1;
+	if (uu[i] < vv) 
+	{
+		rem = uu[i];
+		qq[i--] = 0;
+	}
+
+	while (i >= 0)
+	{
+		uint64 acc = (uint64)rem << 32 | (uint64)uu[i];
+		qq[i] = (uint32)(acc / v);
+		rem = (uint32)(acc % v);
+		i--;
+	}
+
+	//the quotient could be one limb smaller than the input
+	*q = ((fp_digit)qq[1] << 32) | ((fp_digit)qq[0]);
+
+	return (fp_digit)rem;
+}
+
 
 void spMultiply(fp_digit u, fp_digit v, fp_digit *product, fp_digit *carry)
 {
-
+	uint64 tc;
+	*product = (fp_digit)_umul128(u,v,&tc);
+	*carry = (fp_digit)tc;
 	
 	return;
 }
 
 void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit *lower, fp_digit *carry)
 {
+	//u*v + (w+t)  used a lot in multiplication
+	//fp_word uu;
+	//uu = (fp_word)u * (fp_word)v + (fp_word)w + (fp_word)t;
+	//*lower = (fp_digit)uu;
+	//*carry = (fp_digit)(uu >> BITS_PER_DIGIT);
+	fp_digit tmp;
 
+	spMultiply(u,v,lower,carry);
+	spAdd3(*lower,w,t,lower,&tmp);
+	spAdd(tmp,*carry,carry,&tmp);
 	return;
 }
 
 void spAdd(fp_digit u, fp_digit v, fp_digit *sum, fp_digit *carry)
 {
-	
+	uint32 uu[2], vv[2],ts,ts2,tc;
+	uu[0] = (uint32)(u & 0xffffffff);
+	uu[1] = (uint32)(u >> 32);
+	vv[0] = (uint32)(v & 0xffffffff);
+	vv[1] = (uint32)(v >> 32);
+
+	spAdd32(uu[0],vv[0],&ts,&tc);
+	spAdd3_32(uu[1],vv[1],tc,&ts2,&tc);
+
+	*sum = ((fp_digit)ts2 << 32) | ((fp_digit)ts);
+	*carry = (fp_digit)tc;
+
 	return;
 }
 
 void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sum, fp_digit *carry)
 {
+	uint32 uu[2], vv[2], ww[2], ts, ts2, tc, tc2;
+	uu[0] = (uint32)(u & 0xffffffff);
+	uu[1] = (uint32)(u >> 32);
+	vv[0] = (uint32)(v & 0xffffffff);
+	vv[1] = (uint32)(v >> 32);
+	ww[0] = (uint32)(w & 0xffffffff);
+	ww[1] = (uint32)(w >> 32);
+
+	spAdd3_32(uu[0],vv[0],ww[0],&ts,&tc);
+	spAdd3_32(uu[1],vv[1],tc,&ts2,&tc);
+	spAdd32(ts2,ww[1],&ts2,&tc2);
+
+	*sum = ((fp_digit)ts2 << 32) | ((fp_digit)ts);
+	*carry = (fp_digit)(tc + tc2);
 
 	return;
 }
 
 void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sub, fp_digit *borrow)
 {
-	
+	uint32 uu[2], vv[2], ww[2], ts, ts2, tc, tc2;
+	uu[0] = (uint32)(u & 0xffffffff);
+	uu[1] = (uint32)(u >> 32);
+	vv[0] = (uint32)(v & 0xffffffff);
+	vv[1] = (uint32)(v >> 32);
+	ww[0] = (uint32)(w & 0xffffffff);
+	ww[1] = (uint32)(w >> 32);
+
+	spSub3_32(uu[0],vv[0],ww[0],&ts,&tc);
+	spSub3_32(uu[1],vv[1],tc,&ts2,&tc);
+	spSub32(ts2,ww[1],&ts2,&tc2);
+
+	*sub = ((fp_digit)ts2 << 32) | ((fp_digit)ts);
+	*borrow = (fp_digit)(tc + tc2);
+
 	return;
 }
 
 void spSub(fp_digit u, fp_digit v, fp_digit *sub, fp_digit *borrow)
 {
+	uint32 uu[2], vv[2],ts,ts2,tc;
+	uu[0] = (uint32)(u & 0xffffffff);
+	uu[1] = (uint32)(u >> 32);
+	vv[0] = (uint32)(v & 0xffffffff);
+	vv[1] = (uint32)(v >> 32);
+
+	spSub32(uu[0],vv[0],&ts,&tc);
+	spSub3_32(uu[1],vv[1],tc,&ts2,&tc);
+
+	*sub = ((fp_digit)ts2 << 32) | ((fp_digit)ts);
+	*borrow = (fp_digit)tc;
 	
 	return;
 }
 
 void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit *w)
 {
+	fp_digit p[2];
+	fp_digit q;
+
+	spMultiply(u,v,&p[0],&p[1]);
+	spDivide(&q,w,p,m);
 
 	return;
 }

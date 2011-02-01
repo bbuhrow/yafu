@@ -1,14 +1,3 @@
-v 1.24
-+ added proprocessing check for enabled profiling which disables poly.c ASM code.  profiling
-	doesn't work if all of the registers are in the clobber list.
-+ rearranged sieve scanning in check_relations slightly so that a list of reports are 
-	generated first, then all reports are sequencially examined.
-+ fixed the reporting of how many total polynomials were used
-+ implemented a re-sieving algorithm for factor base primes between 8192 up to the med_B bound.  
-	makes use of SSE2 instructions for multi-up re-sieving.  This change applies to x64 and
-	linux64 builds only.  It was slower for win32.
-+ (Brian Gladman) contributed assembler files to support 64 bit mod operations in x64.
-
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
 	when stopping early using -one

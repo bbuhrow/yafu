@@ -351,7 +351,6 @@ void SIQS(fact_obj_t *fobj)
 			for (j=0; j<thread_data[i].dconf->buffered_rels; j++)
 				free(thread_data[i].dconf->relation_buf[j].fb_offsets);
 			thread_data[i].dconf->num = 0;
-			thread_data[i].dconf->tot_poly = 0;
 		}
 
 		//check whether to continue or not, and update the screen
@@ -375,7 +374,6 @@ void SIQS(fact_obj_t *fobj)
 	//stop worker threads
 	for (i=0; i<THREADS - 1; i++)
 	{
-		//static_conf->tot_poly += thread_data[i].dconf->tot_poly;
 		stop_worker_thread(thread_data + i, 0);
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
@@ -842,13 +840,6 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		printf("using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
 	#endif
-	#if defined(SSE2_RESIEVEING)
-		#ifdef YAFU_64K
-			printf("using SSE2 for resieving 14-16 bit primes\n");
-		#else
-			printf("using SSE2 for resieving 13-16 bit primes\n");
-		#endif
-	#endif
 #elif defined(_MSC_VER)
 	#if defined(HAS_SSE2)
 		printf("using SSE2 for trial division and x%d sieve scanning\n",
@@ -859,14 +850,6 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	#else
 		printf("using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
-	#endif
-
-	#if defined(HAS_SSE2)
-		#ifdef YAFU_64K
-			printf("using SSE2 for resieving 14-16 bit primes\n");
-		#else
-			printf("using SSE2 for resieving 13-16 bit primes\n");
-		#endif
 	#endif
 #else	/* compiler not recognized*/
 	
@@ -1025,33 +1008,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//allocate the sieving factor bases
 #if defined (_MSC_VER) 
-
-#ifdef USE_COMPRESSED_FB
 	dconf->comp_sieve_p = (sieve_fb_compressed *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
 	dconf->comp_sieve_n = (sieve_fb_compressed *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
-#else
-	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->root1 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->root2 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->logp = (uint8 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
-
-	dconf->comp_sieve_n->prime = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->root1 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->root2 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->logp = (uint8 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
-#endif
 	dconf->fb_sieve_p = (sieve_fb *)_aligned_malloc(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
 	dconf->fb_sieve_n = (sieve_fb *)_aligned_malloc(
@@ -1090,34 +1050,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
 
 #else
-
-#ifdef USE_COMPRESSED_FB
 	dconf->comp_sieve_p = (sieve_fb_compressed *)memalign(64,
 			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
 	dconf->comp_sieve_n = (sieve_fb_compressed *)memalign(64,
 			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-#else
-	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_p->root1 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_p->root2 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_p->logp = (uint8 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
-
-	dconf->comp_sieve_n->prime = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_n->root1 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_n->root2 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_n->logp = (uint8 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
-
-#endif
 	dconf->fb_sieve_p = (sieve_fb *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	dconf->fb_sieve_n = (sieve_fb *)memalign(64,
@@ -1185,19 +1121,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	{
 		uint32 p = sconf->factor_base->list->prime[i];
 		uint32 lp = sconf->factor_base->list->logprime[i];
-
-#ifdef USE_COMPRESSED_FB
 		dconf->comp_sieve_p[i].prime_and_logp = lp << 16;
 		dconf->comp_sieve_p[i].prime_and_logp |= (uint16)p;
 		dconf->comp_sieve_n[i].prime_and_logp = lp << 16;
 		dconf->comp_sieve_n[i].prime_and_logp |= (uint16)p;
-#else
-		dconf->comp_sieve_p->logp[i] = (uint8)lp;
-		dconf->comp_sieve_p->prime[i] = (uint16)p;
-		dconf->comp_sieve_n->logp[i] = (uint8)lp;
-		dconf->comp_sieve_n->prime[i] = (uint16)p;
-#endif
-
 		dconf->fb_sieve_p[i].prime = p;
 		dconf->fb_sieve_p[i].logprime = lp;
 		dconf->fb_sieve_n[i].prime = p;
@@ -1278,17 +1205,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[3] = 0xFFFF;
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
-
-	// array of sieve locations scanned from the sieve block that we
-	// will submit to trial division.  make it the size of a sieve block 
-	// in the pathological case that every sieve location is a report
-	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
-	dconf->num_reports = 0;
-	dconf->Qvals = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		zInit32(&dconf->Qvals[i]);
-	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
-	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1500,43 +1416,9 @@ int siqs_static_init(static_conf_t *sconf)
 
 	//compute sieving limits
 	sconf->factor_base->small_B = MIN(
-		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
+		sconf->factor_base->B,((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
-	for (i = 2; i < sconf->factor_base->B; i++)
-	{
-		//find the point at which factor base primes exceeds 13 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
-		//this region of primes aligned on a 16 byte boundary and thus be able to use
-		//movdqa
-		//don't let med_B grow larger than 1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > 8192)  &&
-			(i % 8 == 0)) break;
-	}
-	sconf->factor_base->fb_13bit_B = i;
-
-	for (; i < sconf->factor_base->B; i++)
-	{
-		//find the point at which factor base primes exceeds 14 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
-		//this region of primes aligned on a 16 byte boundary and thus be able to use
-		//movdqa
-		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % 8 == 0)) break;
-	}
-	sconf->factor_base->fb_14bit_B = i;
-
-	for (; i < sconf->factor_base->B; i++)
-	{
-		//find the point at which factor base primes exceeds 15 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
-		//this region of primes aligned on a 16 byte boundary and thus be able to use
-		//movdqa
-		if ((sconf->factor_base->list->prime[i] > 32768)  &&
-			(i % 8 == 0)) break;
-	}
-	sconf->factor_base->fb_15bit_B = i;
-
-	for (; i < sconf->factor_base->B; i++)
+	for (i = sconf->factor_base->small_B; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceed the blocksize.  
 		//wait until the index is a multiple of 16 so that we can enter
@@ -1580,23 +1462,17 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	sconf->factor_base->x2_large_B = i;
 
-	if (VFLAG > 1)
+	if (VFLAG > 2)
 	{
-		printf("fb bounds\n\tsmall: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+		printf("fb bounds\n\tsmall: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
-			sconf->factor_base->fb_13bit_B,
-			sconf->factor_base->fb_14bit_B,
-			sconf->factor_base->fb_15bit_B,
 			sconf->factor_base->med_B,
 			sconf->factor_base->large_B,
 			sconf->factor_base->B);
 
-		printf("start primes\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
-			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->large_B-1]);
+	/*	printf("start primes\n\tmed: %u\n\tlarge: %u\n",
+			sconf->factor_base->list->prime[sconf->factor_base->med_B],
+			sconf->factor_base->list->prime[sconf->factor_base->large_B]);*/
 	}
 
 	//a couple limits
@@ -1717,7 +1593,6 @@ int siqs_static_init(static_conf_t *sconf)
 	TF_STG4 = 0;
 	TF_STG5 = 0;
 	TF_STG6 = 0;
-	TF_SPECIAL = 0;
 	SIEVE_STG1 = 0;
 	SIEVE_STG2 = 0;
 	POLY_STG0 = 0;
@@ -1990,8 +1865,8 @@ int update_final(static_conf_t *sconf)
 		zShiftLeft(&qstmp1,&qstmp1,BLOCKBITS);
 
 		if (VFLAG > 0)
-			printf("\n\nsieving required %d total polynomials\ntrial division touched %d sieve locations out of %s\n",
-				sconf->tot_poly, sconf->num,z2decstr(&qstmp1,&gstr1));
+			printf("\n\ntrial division touched %d sieve locations out of %s\n",
+				sconf->num,z2decstr(&qstmp1,&gstr1));
 		else
 			printf("\n\n");
 
@@ -2012,7 +1887,6 @@ int update_final(static_conf_t *sconf)
 		printf("timing for SPV check = %1.3f\n",TF_STG1);
 		printf("timing for small prime trial division = %1.3f\n",TF_STG2);
 		printf("timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
-		printf("timing for medium prime resieving test = %1.3f\n",TF_SPECIAL);
 		printf("timing for large prime trial division = %1.3f\n",TF_STG5);
 		printf("timing for LP splitting + buffering = %1.3f\n",TF_STG6);
 		printf("timing for poly a generation = %1.3f\n",POLY_STG0);
@@ -2081,22 +1955,8 @@ int free_sieve(dynamic_conf_t *dconf)
 	_aligned_free(dconf->sieve);
 	_aligned_free(dconf->fb_sieve_p);
 	_aligned_free(dconf->fb_sieve_n);
-#ifdef USE_COMPRESSED_FB
 	_aligned_free(dconf->comp_sieve_p);
 	_aligned_free(dconf->comp_sieve_n);
-#else
-	_aligned_free(dconf->comp_sieve_p->prime);
-	_aligned_free(dconf->comp_sieve_p->root1);
-	_aligned_free(dconf->comp_sieve_p->root2);
-	_aligned_free(dconf->comp_sieve_p->logp);
-	_aligned_free(dconf->comp_sieve_n->prime);
-	_aligned_free(dconf->comp_sieve_n->root1);
-	_aligned_free(dconf->comp_sieve_n->root2);
-	_aligned_free(dconf->comp_sieve_n->logp);
-	free(dconf->comp_sieve_p);
-	free(dconf->comp_sieve_n);
-#endif
-
 	_aligned_free(dconf->rootupdates);
 #elif defined(__MINGW32__)
 	free(dconf->fb_sieve_p);
@@ -2109,21 +1969,8 @@ int free_sieve(dynamic_conf_t *dconf)
 #else
 	free(dconf->fb_sieve_p);
 	free(dconf->fb_sieve_n);
-#ifdef USE_COMPRESSED_FB
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
-#else
-	free(dconf->comp_sieve_p->prime);
-	free(dconf->comp_sieve_p->root1);
-	free(dconf->comp_sieve_p->root2);
-	free(dconf->comp_sieve_p->logp);
-	free(dconf->comp_sieve_n->prime);
-	free(dconf->comp_sieve_n->root1);
-	free(dconf->comp_sieve_n->root2);
-	free(dconf->comp_sieve_n->logp);
-	free(dconf->comp_sieve_p);
-	free(dconf->comp_sieve_n);
-#endif
 	free(dconf->sieve);
 	free(dconf->rootupdates);
 #endif
@@ -2169,14 +2016,6 @@ int free_sieve(dynamic_conf_t *dconf)
 #else
 	free(dconf->mask);
 #endif
-
-	//free sieve scan report stuff
-	free(dconf->reports);
-	for (i=0; i<100; i++)
-		zFree32(&dconf->Qvals[i]);
-	free(dconf->Qvals);
-	free(dconf->valid_Qs);
-	free(dconf->smooth_num);
 
 	//free post-processed relations
 	//for (i=0; (uint32)i < dconf->buffered_rels; i++)

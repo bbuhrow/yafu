@@ -266,12 +266,4 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
-  <ItemGroup>
-    <YASM Include="..\..\arith\mod64.asm">
-      <Filter>Source Files\arith</Filter>
-    </YASM>
-    <YASM Include="..\..\arith\mod32.asm">
-      <Filter>Source Files\arith</Filter>
-    </YASM>
-  </ItemGroup>
 </Project>

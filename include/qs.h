@@ -26,8 +26,6 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 
-//#define QS_TIMING
-
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
 TIME_DIFF *qs_timing_diff;
@@ -46,13 +44,11 @@ double POLY_STG4;
 double SIEVE_STG1;
 double SIEVE_STG2;
 double COUNT;
-double TF_SPECIAL;
 #endif
 
 /************************* Common types and functions *****************/
 
 #define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
-#define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
 #define MAX_A_FACTORS 20
@@ -63,9 +59,6 @@ double TF_SPECIAL;
 #define BUCKET_ALLOCtxt "2048"
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
-
-//turn on/off usage of a compressed factor base for smallish primes
-//#define USE_COMPRESSED_FB
 
 //compile time definition of sieve block size.  should be equal to the size of L1 cache.
 #ifdef YAFU_64K
@@ -85,15 +78,6 @@ double TF_SPECIAL;
 #endif
 
 #define USE_POLY_SSE2_ASM 1
-//
-#if defined(_WIN64)
-	#define USE_RESIEVING
-#elif defined(WIN32)
-	#undef USE_RESIEVING
-	#define USE_COMPRESSED_FB
-#else
-	#define USE_RESIEVING
-#endif
 
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
@@ -134,21 +118,13 @@ typedef struct
 	uint8 logprime;
 } sieve_fb;
 
-#ifdef USE_COMPRESSED_FB
+// the idea here is to reduce memory loads.  we trade a few bit operations to be able to load 2 32bit 
+// words from memory per prime during sieving rather than 4 16bit words.
 typedef struct
 {
-	uint32 prime_and_logp;
-	uint32 roots;					//root1 is stored in the lower 16 bits, root2 in the upper 16
+	uint32 prime_and_logp;		//prime is stored in the lower 16 bits, logp in the upper 16
+	uint32 roots;				//root1 is stored in the lower 16 bits, root2 in the upper 16
 } sieve_fb_compressed;
-#else
-typedef struct
-{
-	uint16 *prime;			
-	uint16 *root1;				
-	uint16 *root2;
-	uint8 *logp;
-} sieve_fb_compressed;
-#endif
 
 /************************* SIQS types and functions *****************/
 typedef struct
@@ -220,13 +196,10 @@ typedef struct
 
 typedef struct
 {
-	uint32 B;					//number of primes in the entire factor base
-	uint32 small_B;				//index 1024
-	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 4)
-	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 4)
-	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 4)
-	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 4)
-	uint32 large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 4)
+	uint32 B;
+	uint32 small_B;
+	uint32 med_B;
+	uint32 large_B;
 	uint32 x2_large_B;
 	fb_element_siqs *list;
 } fb_list;
@@ -382,12 +355,6 @@ typedef struct {
 
 	//used in trial division
 	uint16 *mask;
-	uint32 *reports;			//sieve locations to submit to trial division
-	uint32 num_reports;
-	z32 *Qvals;					//expanded Q values for each report
-	int *valid_Qs;				//which of the report are still worth persuing after SPV check
-	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
-	int *smooth_num;			//how many factors are there for each valid Q
 
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving
@@ -451,14 +418,9 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf);
 int (*scan_ptr)(uint32, uint8, static_conf_t *, dynamic_conf_t *);
 
-void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
-				static_conf_t *sconf, dynamic_conf_t *dconf);
-void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
-	static_conf_t *sconf, dynamic_conf_t *dconf);
-void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
-						 static_conf_t *sconf, dynamic_conf_t *dconf);
-void trial_divide_Q_siqs(uint32 report_num, 
-						  uint8 parity, uint32 poly_id, uint32 blocknum, 
+void trial_divide_Q_siqs(uint32 j, 
+						  uint8 parity, uint8 bits,
+						  uint32 poly_id, uint32 blocknum, 
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,

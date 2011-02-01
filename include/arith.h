@@ -82,9 +82,6 @@ fp_digit zShortMod(z *u, fp_digit v);
 uint32 zShortEDiv32(z32 *u, uint32 v, uint32 inv);
 uint32 zShortDiv32(z32 *u, uint32 v, z32 *q);
 uint32 zShortMod32(z32 *u, uint32 v);
-#ifdef _WIN64
-	//uint32 mod_64(uint64 lo, uint64 hi, uint64 div);
-#endif
 
 //non-basic arbitrary precision arith routines
 //contents of arith2.c

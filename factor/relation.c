@@ -30,8 +30,7 @@ code to the public domain.
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	//these compilers support SIMD 
 	#define SIMD_SIEVE_SCAN 1
-	#define SCAN_CLEAN asm volatile("emms");	
-	#define SSE2_RESIEVING 1
+	#define SCAN_CLEAN asm volatile("emms");
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
@@ -75,10 +74,10 @@ code to the public domain.
 				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
 				"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movdqa 16(%1), %%xmm2	\n\t"		\
-				"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
 				"movdqa 32(%1), %%xmm3	\n\t"		\
+				"movdqa 48(%1), %%xmm4	\n\t"		\
+				"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
 				"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
-				"movdqa 48(%1), %%xmm4	\n\t"		\								
 				"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
 				"por %%xmm1, %%xmm4		\n\t"	/*or the comparisons*/	\
@@ -88,102 +87,6 @@ code to the public domain.
 				: "=r"(result)		\
 				: "r"(bptr + j), "r"(mask)			\
 				: "%xmm0", "%xmm1", "%xmm2", "%xmm3", "%xmm4");	
-
-		#define STEP_COMPARE_COMBINE \
-			"psubw %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-			"psubw %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-			"pcmpeqw %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-			"pcmpeqw %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-			"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-			"por %%xmm6, %%xmm7 \n\t"		/* combine results */
-
-		#define INIT_RESIEVE \
-			"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-			"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-			"paddw %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-			"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-			"paddw %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-			"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-			"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */ \
-			"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-			"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */
-
-		#ifdef YAFU_64K
-			#define RESIEVE_4X_14BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-		#else
-			#define RESIEVE_4X_14BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
-					);
-		#endif
 
 	#elif defined(HAS_MMX)
 		#define SIEVE_SCAN_32		\
@@ -240,10 +143,10 @@ code to the public domain.
 				"movq (%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq (%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movq 8(%1), %%mm2	\n\t"		\
-				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"movq 16(%1), %%mm3	\n\t"		\
+				"movq 24(%1), %%mm4	\n\t"		\
+				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
-				"movq 24(%1), %%mm4	\n\t"		\								
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -258,10 +161,10 @@ code to the public domain.
 				"movq 8(%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq 32(%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movq 40(%1), %%mm2	\n\t"		\
-				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"movq 48(%1), %%mm3	\n\t"		\
+				"movq 56(%1), %%mm4	\n\t"		\
+				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
-				"movq 56(%1), %%mm4	\n\t"		\								
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -278,11 +181,9 @@ code to the public domain.
 			result = 1;	/*dont know what compiler this is. force the normal method*/
 		#undef SIMD_SIEVE_SCAN
 	#endif
-
 #elif defined(MSC_ASM32A)
 	#define SIMD_SIEVE_SCAN 1
 	#define SCAN_CLEAN ASM_M {emms};
-	#define SSE2_RESIEVING 1
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
@@ -339,10 +240,10 @@ code to the public domain.
 				ASM_M mov edi, local_bptr	\
 				ASM_M movdqa xmm1, XMMWORD PTR [edi]	\
 				ASM_M movdqa xmm2, XMMWORD PTR [edi + 16]	\
-				ASM_M pcmpeqw xmm1, xmm0	\
 				ASM_M movdqa xmm3, XMMWORD PTR [edi + 32]	\
-				ASM_M pcmpeqw xmm2, xmm0	\
 				ASM_M movdqa xmm4, XMMWORD PTR [edi + 48]	\
+				ASM_M pcmpeqw xmm1, xmm0	\
+				ASM_M pcmpeqw xmm2, xmm0	\
 				ASM_M pcmpeqw xmm3, xmm0	\
 				ASM_M pcmpeqw xmm4, xmm0	\
 				ASM_M por xmm4, xmm1		\
@@ -351,143 +252,6 @@ code to the public domain.
 				ASM_M pmovmskb eax, xmm4	\
 				ASM_M mov result, eax		}	\
 			} while (0);
-
-		#define STEP_COMPARE_COMBINE \
-			ASM_M psubw xmm2, xmm1 \
-			ASM_M psubw xmm3, xmm1 \
-			ASM_M pcmpeqw xmm5, xmm2 \
-			ASM_M pcmpeqw xmm6, xmm3 \
-			ASM_M por xmm7, xmm5 \
-			ASM_M por xmm7, xmm6
-
-
-		#define INIT_RESIEVE \
-			ASM_M movdqa xmm4, XMMWORD PTR [edx] \
-			ASM_M movdqa xmm2, XMMWORD PTR [ebx] \
-			ASM_M paddw xmm2, xmm4 \
-			ASM_M movdqa xmm3, XMMWORD PTR [ecx] \
-			ASM_M paddw xmm3, xmm4 \
-			ASM_M movdqa xmm1, XMMWORD PTR [eax] \
-			ASM_M pxor xmm7, xmm7 \
-			ASM_M pxor xmm6, xmm6 \
-			ASM_M pxor xmm5, xmm5
-
-		#ifdef YAFU_64K
-
-			#define RESIEVE_4X_14BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_4X_14BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#endif
 
 	#elif defined(HAS_MMX)
 
@@ -557,10 +321,10 @@ code to the public domain.
 			ASM_M mov edi, local_bptr				\
 			ASM_M movq mm1, QWORD PTR [edi]			\
 			ASM_M movq mm2, QWORD PTR [edi + 8]		\
-			ASM_M pcmpeqw mm1, mm0	\
 			ASM_M movq mm3, QWORD PTR [edi + 16]	\
-			ASM_M pcmpeqw mm2, mm0	\
 			ASM_M movq mm4, QWORD PTR [edi + 24]	\
+			ASM_M pcmpeqw mm1, mm0	\
+			ASM_M pcmpeqw mm2, mm0	\
 			ASM_M pcmpeqw mm3, mm0	\
 			ASM_M pcmpeqw mm4, mm0	\
 			ASM_M por mm4, mm1		\
@@ -579,10 +343,10 @@ code to the public domain.
 			ASM_M mov edi, local_bptr				\
 			ASM_M movq mm1, QWORD PTR [edi + 32]	\
 			ASM_M movq mm2, QWORD PTR [edi + 40]	\
-			ASM_M pcmpeqw mm1, mm0		\
 			ASM_M movq mm3, QWORD PTR [edi + 48]	\
-			ASM_M pcmpeqw mm2, mm0	\
 			ASM_M movq mm4, QWORD PTR [edi + 56]	\
+			ASM_M pcmpeqw mm1, mm0		\
+			ASM_M pcmpeqw mm2, mm0	\
 			ASM_M pcmpeqw mm3, mm0	\
 			ASM_M pcmpeqw mm4, mm0	\
 			ASM_M por mm4, mm1		\
@@ -600,7 +364,6 @@ code to the public domain.
 #elif defined(_WIN64)
 
 	#define SIMD_SIEVE_SCAN 1
-	#define SSE2_RESIEVING 1
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
@@ -624,9 +387,9 @@ code to the public domain.
 				local_block = _mm_load_si128(sieveblock + j); \
 				local_block2 = _mm_load_si128(sieveblock + j + 2); \
 				local_block3 = _mm_load_si128(sieveblock + j + 4); \
+				local_block4 = _mm_load_si128(sieveblock + j + 6); \
 				local_block = _mm_or_si128(local_block, local_block2); \
 				local_block = _mm_or_si128(local_block, local_block3); \
-				local_block4 = _mm_load_si128(sieveblock + j + 6); \
 				local_block = _mm_or_si128(local_block, local_block4); \
 				result = _mm_movemask_epi8(local_block); \
 			} while (0);
@@ -644,16 +407,16 @@ code to the public domain.
 				local_block = _mm_load_si128(sieveblock + j); \
 				local_block2 = _mm_load_si128(sieveblock + j + 2); \
 				local_block3 = _mm_load_si128(sieveblock + j + 4); \
-				local_block = _mm_or_si128(local_block, local_block2); \
 				local_block4 = _mm_load_si128(sieveblock + j + 6); \
-				local_block = _mm_or_si128(local_block, local_block3); \
 				local_block5 = _mm_load_si128(sieveblock + j + 8); \
-				local_block = _mm_or_si128(local_block, local_block4); \
 				local_block6 = _mm_load_si128(sieveblock + j + 10); \
-				local_block = _mm_or_si128(local_block, local_block5); \
 				local_block7 = _mm_load_si128(sieveblock + j + 12); \
-				local_block = _mm_or_si128(local_block, local_block6); \
 				local_block8 = _mm_load_si128(sieveblock + j + 14); \
+				local_block = _mm_or_si128(local_block, local_block2); \
+				local_block = _mm_or_si128(local_block, local_block3); \
+				local_block = _mm_or_si128(local_block, local_block4); \
+				local_block = _mm_or_si128(local_block, local_block5); \
+				local_block = _mm_or_si128(local_block, local_block6); \
 				local_block = _mm_or_si128(local_block, local_block7); \
 				local_block = _mm_or_si128(local_block, local_block8); \
 				result = _mm_movemask_epi8(local_block); \
@@ -669,10 +432,10 @@ code to the public domain.
 			local_mask = _mm_load_si128(&mask[0]); \
 			local_bptr = _mm_load_si128(bptr + j); \
 			local_bptr2 = _mm_load_si128(bptr + j + 4); \
-			local_bptr = _mm_cmpeq_epi16(local_bptr, local_mask); \
 			local_bptr3 = _mm_load_si128(bptr + j + 8); \
-			local_bptr2 = _mm_cmpeq_epi16(local_bptr2, local_mask); \
 			local_bptr4 = _mm_load_si128(bptr + j + 12); \
+			local_bptr = _mm_cmpeq_epi16(local_bptr, local_mask); \
+			local_bptr2 = _mm_cmpeq_epi16(local_bptr2, local_mask); \
 			local_bptr3 = _mm_cmpeq_epi16(local_bptr3, local_mask); \
 			local_bptr4 = _mm_cmpeq_epi16(local_bptr4, local_mask); \
 			local_bptr4 = _mm_or_si128(local_bptr4, local_bptr); \
@@ -680,130 +443,6 @@ code to the public domain.
 			local_bptr4 = _mm_or_si128(local_bptr4, local_bptr2); \
 			result = _mm_movemask_epi8(local_bptr4); \
 			} while (0);
-
-		#define STEP_COMPARE_COMBINE \
-			root1s = _mm_sub_epi16(root1s, primes); \
-			root2s = _mm_sub_epi16(root2s, primes); \
-			tmp1 = _mm_cmpeq_epi16(tmp1, root1s); \
-			tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
-			combine = _mm_xor_si128(combine, tmp1); \
-			combine = _mm_xor_si128(combine, tmp2);
-
-		#define INIT_RESIEVE \
-			c = _mm_load_si128((__m128i *)corrections); \
-			root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-			root1s = _mm_add_epi16(root1s, c); \
-			root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-			root2s = _mm_add_epi16(root2s, c); \
-			primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
-			combine = _mm_xor_si128(combine, combine); \
-			tmp1 = _mm_xor_si128(tmp1, tmp1); \
-			tmp2 = _mm_xor_si128(tmp2, tmp2);
-
-		#ifdef YAFU_64K
-
-			#define RESIEVE_4X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_4X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_4X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_4X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#endif
 
 	#endif
 
@@ -813,319 +452,6 @@ code to the public domain.
 	#define SCAN_16X	\
 			result = 1;	/*dont know what compiler this is. force the normal method*/
 	#define SCAN_CLEAN /*nothing*/
-
-	#define COMPARE_RESIEVE_VALS(x)	\
-		if (r1 == 0) result |= x; \
-		if (r2 == 0) result |= x;
-
-	#define STEP_RESIEVE \
-		r1 -= p;	\
-		r2 -= p;
-
-	#define RESIEVE_1X_14BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#define RESIEVE_1X_15BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#define RESIEVE_1X_16BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#ifdef YAFU_64K
-		#define RESIEVE_4X_14BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_4X_15BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_4X_16BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-			} while (0); 
-	#else
-		#define RESIEVE_4X_14BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_4X_15BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_4X_16BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-			} while (0); 
-		
-	#endif
 #endif
 
 #define DIVIDE_ONE_PRIME \
@@ -1180,7 +506,6 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 	uint64 mask = SCAN_MASK;
 
 	sieveblock = (uint64 *)dconf->sieve;
-	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j++)
@@ -1194,7 +519,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		for (k=0;k<8;k++)
 		{
 			thisloc = (j<<3) + k;
-			if ((dconf->sieve[thisloc] & 0x80) == 0)			
+			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
 #ifdef YAFU_64K
@@ -1202,28 +527,10 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 			if (thisloc ==	65535)
 				continue;
 #endif
-			// log this report
-			dconf->reports[dconf->num_reports++] = thisloc;			
-		}
-	}
 
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
-
-	//remove small primes, and test if its worth continuing for each report
-	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-
-	// factor all reports in this block
-	for (j=0; j<dconf->num_reports; j++)
-	{
-		if (dconf->valid_Qs[j])
-		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
-			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
+			trial_divide_Q_siqs(thisloc,
+				parity, dconf->sieve[thisloc],dconf->numB-1,
+				blocknum,sconf,dconf);
 		}
 	}
 
@@ -1240,7 +547,6 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	uint64 *sieveblock;
 
 	sieveblock = (uint64 *)dconf->sieve;
-	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=4)	
@@ -1290,36 +596,18 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
-				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+
+				trial_divide_Q_siqs(thisloc,
+					parity, dconf->sieve[thisloc],dconf->numB - 1,
+					blocknum,sconf,dconf);
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-	// make it safe to perform floating point
-	SCAN_CLEAN;
+		// make it safe to perform floating point
+		SCAN_CLEAN;
 #endif
-
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
-
-	//remove small primes, and test if its worth continuing for each report
-	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-
-	// factor all reports in this block
-	for (j=0; j<dconf->num_reports; j++)
-	{
-		if (dconf->valid_Qs[j])
-		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
-			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
-		}
-	}
 
 	return 0;
 }
@@ -1331,11 +619,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	uint32 i,j,k,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
-	sieve_fb_compressed *fbptr, *fbc;
-	int prime, root1, root2;
 
 	sieveblock = (uint64 *)dconf->sieve;
-	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=8)
@@ -1384,38 +669,17 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 #endif
 
-				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				trial_divide_Q_siqs(thisloc,
+					parity, dconf->sieve[thisloc],dconf->numB - 1,
+					blocknum,sconf,dconf);
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-	// make it safe to perform floating point
-	SCAN_CLEAN;
+		// make it safe to perform floating point
+		SCAN_CLEAN;
 #endif
-
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
-
-	//printf("block %d found %d reports\n", blocknum, dconf->num_reports);
-
-	//remove small primes, and test if its worth continuing for each report
-	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-
-	// factor all reports in this block
-	for (j=0; j<dconf->num_reports; j++)
-	{
-		if (dconf->valid_Qs[j])
-		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
-			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
-		}
-	}
 
 	return 0;
 }
@@ -1430,7 +694,6 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	uint64 *sieveblock;
 
 	sieveblock = (uint64 *)dconf->sieve;
-	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j+=16)
@@ -1481,55 +744,81 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
-				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				trial_divide_Q_siqs(thisloc,
+					parity, dconf->sieve[thisloc],dconf->numB - 1,
+					blocknum,sconf,dconf);
 			}
 		}
 	}
 
 #if defined(SIMD_SIEVE_SCAN)
-	// make it safe to perform floating point
-	SCAN_CLEAN;
+		// make it safe to perform floating point
+		SCAN_CLEAN;
 #endif
-
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
-
-	//remove small primes, and test if its worth continuing for each report
-	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-
-	// factor all reports in this block
-	for (j=0; j<dconf->num_reports; j++)
-	{
-		if (dconf->valid_Qs[j])
-		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
-			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
-		}
-	}
 
 	return 0;
 }
 
-void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
-				static_conf_t *sconf, dynamic_conf_t *dconf)
+void trial_divide_Q_siqs(uint32 block_loc,  uint8 parity, 
+						 uint8 bits, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
-	int i;
-	uint32 bound, tmp, prime, root1, root2;
-	int smooth_num;
+	uint64 q64, f64;
+	int i,j,it,k;
+	uint32 bound, tmp, basebucket, prime, root1, root2;
+	int smooth_num=-1;
+	uint32 fb_offsets[MAX_SMOOTH_PRIMES];
+	uint32 polya_factors[20];
+	uint32 *bptr;
 	sieve_fb *fb;
 	sieve_fb_compressed *fbptr, *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint8 logp, bits;
-	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
+	uint32 pmax = fullfb->prime[sconf->factor_base->B - 1];
+	uint8 logp;
+	uint32 tmp1, tmp2, tmp3, tmp4, offset;
 	z32 *Q;
+	uint16 *mask = dconf->mask;
 
+	//this one qualifies to check further, log that fact.
+	dconf->num++;
+
+	//this one is close enough, compute 
+	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+	//Q(x)/a = (ax + 2b)x + c;	
+	offset = (bnum << BLOCKBITS) + block_loc;
+	//multiple precision arithmatic.  all the qstmp's are a global hack
+	//but I don't want to Init/Free millions of times if I don't have to.
+	zShiftLeft(&dconf->qstmp2,&dconf->curr_poly->poly_b,1);
+	zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
+	if (parity)
+		zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
+	else
+		zAdd(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
+
+	zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
+	zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
+	
+	//this is another hack because on most fast systems the multiple
+	//precision arith is 64 bit based, but it turns out that the MP mod's
+	//we have to do a lot of in trial division I've implemented faster
+	//in 32 bit base.  The actual conversion here is just a cast.
+	
+#if BITS_PER_DIGIT == 32
+	//z32_to_z32(&dconf->qstmp4,&dconf->qstmp32);
+	j = abs(dconf->qstmp4.size);
+	for (i=0; i<j; i++)
+		dconf->qstmp32.val[i] = (uint32)dconf->qstmp4.val[i];
+	dconf->qstmp32.size = dconf->qstmp4.size;
+	dconf->qstmp32.type = dconf->qstmp4.type;
+
+#else
+	z64_to_z32(&dconf->qstmp4,&dconf->qstmp32);
+#endif
+
+	Q = &dconf->qstmp32;
+	
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
@@ -1542,76 +831,37 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		fbc = dconf->comp_sieve_p;
 	}
 
-	
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	for (report_num = 0; report_num < dconf->num_reports; report_num++)
+	//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
+	//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
+	//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
+	//offset is stored standalone in the relation structure.
+	if (Q->size < 0)
 	{
-		//this one qualifies to check further, log that fact.
-		dconf->num++;
-
-		smooth_num = -1;
-
-		//this one is close enough, compute 
-		//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-		//Q(x)/a = (ax + 2b)x + c;	
-		offset = (bnum << BLOCKBITS) + dconf->reports[report_num];
-
-		//multiple precision arithmetic.  all the qstmp's are a global hack
-		//but I don't want to Init/Free millions of times if I don't have to.
-		zShiftLeft(&dconf->qstmp2,&dconf->curr_poly->poly_b,1);
-		zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
-		if (parity)
-			zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-		else
-			zAdd(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-
-		zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
-		zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
+		fb_offsets[++smooth_num] = 0;
+		Q->size = Q->size * -1;
+	}
 	
-		//this is another hack because on most fast systems the multiple
-		//precision arith is 64 bit based, but it turns out that the MP mod's
-		//we have to do a lot of in trial division I've implemented faster
-		//in 32 bit base.  The actual conversion here is just a cast.
-	
-#if BITS_PER_DIGIT == 32
-		for (i=0; i<abs(dconf->qstmp4.size); i++)
-			dconf->Qvals[report_num].val[i] = (uint32)dconf->qstmp4.val[i];
-		dconf->Qvals[report_num].size = dconf->qstmp4.size;
-		dconf->Qvals[report_num].type = dconf->qstmp4.type;
+	//compute the bound for small primes.  if we can't find enough small
+	//primes, then abort the trial division early because it is likely to fail to
+	//produce even a partial relation.
+	bits = (255 - bits) + sconf->tf_closnuf + 1;
 
-#else
-		z64_to_z32(&dconf->qstmp4,&dconf->Qvals[report_num]);
-#endif
+	//take care of powers of two
+	while (!(Q->val[0] & 1))
+	{
+		zShiftRight32(Q,Q,1);
+		fb_offsets[++smooth_num] = 1;
+		bits++;
+	}
 
-		Q = &dconf->Qvals[report_num];
+	//scratch = (uint32 *)memalign(8 * sizeof(uint32),64);
 
-		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
-		//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
-		//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
-		//offset is stored standalone in the relation structure.
-		if (Q->size < 0)
-		{
-			dconf->fb_offsets[report_num][++smooth_num] = 0;
-			Q->size = Q->size * -1;
-		}
-	
-		//compute the bound for small primes.  if we can't find enough small
-		//primes, then abort the trial division early because it is likely to fail to
-		//produce even a partial relation.
-		bits = sieve[dconf->reports[report_num]];
-		bits = (255 - bits) + sconf->tf_closnuf + 1;
-
-		//take care of powers of two
-		while (!(Q->val[0] & 1))
-		{
-			zShiftRight32(Q,Q,1);
-			dconf->fb_offsets[report_num][++smooth_num] = 1;
-			bits++;
-		}
-
+	if (sconf->sieve_small_fb_start > 2)
+	{	
 		i=2;
 		//explicitly trial divide by small primes which we have not
 		//been sieving.  because we haven't been sieving, their progressions
@@ -1626,8 +876,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		
 		while ((uint32)i < bound)
 		{
-			uint64 q64;
-
 			tmp1 = offset + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> 32; 
@@ -1654,103 +902,72 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			
 			i -= 3;
 
-#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-#endif
 
 			if ((tmp1 == root1 || tmp1 == root2) || 
 				(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
 			{
 				do
 				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
+					fb_offsets[++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
 			}
 
 			i++;
-
-#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-#endif
 
 			if ((tmp2 == root1 || tmp2 == root2) || 
 				(root1 == prime && tmp2 == 0) || (root2 == prime && tmp2 == 0))
 			{
 				do
 				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
+					fb_offsets[++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
 			}
 
 			i++;
-
-#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-#endif
 
 			if ((tmp3 == root1 || tmp3 == root2) || 
 				(root1 == prime && tmp3 == 0) || (root2 == prime && tmp3 == 0))
 			{
 				do
 				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
+					fb_offsets[++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
 			}
 
 			i++;
-
-#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-#endif
 
 			if ((tmp4 == root1 || tmp4 == root2) || 
 				(root1 == prime && tmp4 == 0) || (root2 == prime && tmp4 == 0))
 			{
 				do
 				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
+					fb_offsets[++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
@@ -1761,20 +978,11 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		//finish up the rest of the small primes
 		while ((uint32)i < sconf->sieve_small_fb_start)
 		{
-			uint64 q64;
-
-#ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
 			prime = fbptr->prime_and_logp & 0xFFFF;
 			root1 = fbptr->roots & 0xFFFF;
 			root2 = fbptr->roots >> 16;
 			logp = fbptr->prime_and_logp >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-#endif
 			
 			//this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
@@ -1791,20 +999,13 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			{
 				do
 				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
+					fb_offsets[++smooth_num] = i;
 					zShortDiv32(Q,prime,Q);
 					bits += logp;
 				} while (zShortMod32(Q,prime) == 0);
 			}
 			i++;
 		}
-
-		if (bits < (sconf->tf_closnuf + sconf->tf_small_cutoff))
-			dconf->valid_Qs[report_num] = 0;
-		else
-			dconf->valid_Qs[report_num] = 1;
-
-		dconf->smooth_num[report_num] = smooth_num;
 	}
 
 #ifdef QS_TIMING
@@ -1817,40 +1018,275 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	return;
-}
+	//if true, bail.
+	if (bits < (sconf->tf_closnuf + sconf->tf_small_cutoff))
+		return;	
 
-void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
-	static_conf_t *sconf, dynamic_conf_t *dconf)
-{
-	int i,j,k;
-	uint32 basebucket, prime;
-	int smooth_num;
-	uint32 *fb_offsets;
-	uint32 *bptr;
-	sieve_fb *fb;
-	uint32 block_loc;
-	z32 *Q;
-	uint16 *mask = dconf->mask;
+	i=sconf->sieve_small_fb_start;
+
+	//do the primes less than the blocksize.  primes bigger than the blocksize can be handled
+	//even more efficiently.
+	//a couple of observations from jasonp:
+	//if a prime divides Q(x), then this index (j) and either
+	//root1 or root2 are on the same arithmetic progression.  this we can
+	//test with a single precision mod operation
+	bound = sconf->factor_base->small_B;
+	//do the first few until the rest can be done in batches of 4 that are aligned to 16 byte
+	//boundaries.  this is necessary to use the SSE2 batch mod code, if it ever
+	//becomes faster...
+	while ((uint32)i < bound && ((i & 3) != 0))
+	{
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		//tmp = distance from this sieve block offset to the end of the block
+		tmp = BLOCKSIZE - block_loc;
+	
+		//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
+		//block, which is the state of the sieve now.
+		tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
+				* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
+		tmp = block_loc + tmp*prime;
+		tmp = tmp - BLOCKSIZE;
+
+		//tmp = advance the offset to where it should be after the interval, and
+		//check to see if that's where either of the roots are now.  if so, then
+		//this offset is on the progression of the sieve for this prime
+		if (tmp == root1 || tmp == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+	}
+
+	//now do things in batches of 4 which are aligned on 16 byte boundaries.
+	bound = sconf->factor_base->small_B - 4;
+	while ((uint32)i < bound)
+	{
+		tmp1 = BLOCKSIZE - block_loc;
+		tmp2 = BLOCKSIZE - block_loc;
+		tmp3 = BLOCKSIZE - block_loc;
+		tmp4 = BLOCKSIZE - block_loc;
+
+		tmp1 = tmp1 + fullfb_ptr->correction[i];
+		q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+		tmp1 = q64 >> 40; 
+		tmp1 = tmp1 + 1;
+		tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
+		
+		i++;
+		
+		tmp2 = tmp2 + fullfb_ptr->correction[i];
+		q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i];
+		tmp2 = q64 >> 40; 
+		tmp2 = tmp2 + 1;
+		tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i];
+
+		i++;
+
+		tmp3 = tmp3 + fullfb_ptr->correction[i];
+		q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i];
+		tmp3 = q64 >> 40; 
+		tmp3 = tmp3 + 1;
+		tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i];
+
+		i++;
+
+		tmp4 = tmp4 + fullfb_ptr->correction[i];
+		q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i];
+		tmp4 = q64 >>  40; 
+		tmp4 = tmp4 + 1;
+		tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i];
+
+		tmp1 = tmp1 - BLOCKSIZE;
+		tmp2 = tmp2 - BLOCKSIZE;
+		tmp3 = tmp3 - BLOCKSIZE;
+		tmp4 = tmp4 - BLOCKSIZE;
+
+		i -= 3;
+
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		if (tmp1 == root1 || tmp1 == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		if (tmp2 == root1 || tmp2 == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		if (tmp3 == root1 || tmp3 == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		if (tmp4 == root1 || tmp4 == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+
+	}
 
 #ifdef QS_TIMING
+	gettimeofday (&qs_timing_stop, NULL);
+	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+	TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+	free(qs_timing_diff);
+
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	fb_offsets = &dconf->fb_offsets[report_num][0];
-	smooth_num = dconf->smooth_num[report_num];
-	Q = &dconf->Qvals[report_num];
-	block_loc = dconf->reports[report_num];
+	bound = sconf->factor_base->small_B;
+	//now cleanup any that don't fit in the last batch of 4
+	while ((uint32)i < bound)
+	{
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		tmp = BLOCKSIZE - block_loc;
+		tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
+				* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
+		tmp = block_loc + tmp*prime;
+		tmp = tmp - BLOCKSIZE;
+
+		if (tmp == root1 || tmp == root2)
+		{
+			//it will divide Q(x).  do so as many times as we can.
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+	}
+
+	i = sconf->factor_base->small_B;
+	
+	bound = sconf->factor_base->med_B;
+	while ((uint32)i < bound)
+	{
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		//after sieving a block, the root is updated for the start of the next block
+		//get it back on the current block's progression
+		root1 = root1 + BLOCKSIZE - block_loc;		
+		root2 = root2 + BLOCKSIZE - block_loc;	
+
+		//there are faster methods if this is the case
+		if (prime > BLOCKSIZE)
+			break;
+
+		//the difference root - blockoffset is less than prime about 20% of the time
+		//and thus we don't have to divide at all in those cases.
+		if (root2 >= prime)
+		{
+			//r2 is bigger than prime, it could be on the progression, check it.
+			tmp = root2 + fullfb_ptr->correction[i];
+			q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+			tmp = q64 >> 40; 
+			tmp = root2 - tmp * prime;
+
+			if (tmp == 0)
+			{
+				//it is, so it will divide Q(x).  do so as many times as we can.
+				DIVIDE_ONE_PRIME;
+			}
+			else if (root1 >= prime)
+			{			
+				tmp = root1 + fullfb_ptr->correction[i];
+				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+				tmp = q64 >> 40; 
+				tmp = root1 - tmp * prime;
+
+				if (tmp == 0)
+				{
+					//r2 was a bust, but root1 met the criteria.  divide Q(x).	
+					DIVIDE_ONE_PRIME;
+				}
+			}
+		}
+		i++;
+	}
+
+#ifdef QS_TIMING
+	gettimeofday (&qs_timing_stop, NULL);
+	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+	TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+	free(qs_timing_diff);
+
+	gettimeofday(&qs_timing_start, NULL);
+#endif
+
+	//for primes bigger than the blocksize, we don't need to divide at all since
+	//there can be at most one instance of the prime in the block.  thus the 
+	//distance to the next one is equal to 'prime', rather than a multiple of it.
+	bound = sconf->factor_base->med_B;
+	while ((uint32)i < bound)
+	{
+		fbptr = fbc + i;
+		prime = fbptr->prime_and_logp & 0xFFFF;
+		root1 = fbptr->roots & 0xFFFF;
+		root2 = fbptr->roots >> 16;
+
+		//the fbptr roots currently point to the next block
+		//so adjust the current index
+		tmp = block_loc + prime - BLOCKSIZE;
+		if ((root1 == tmp) || (root2 == tmp))
+		{
+			DIVIDE_ONE_PRIME;
+		}
+		i++;
+	}
+
+#ifdef QS_TIMING
+	gettimeofday (&qs_timing_stop, NULL);
+	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+	TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+	free(qs_timing_diff);
+
+	gettimeofday(&qs_timing_start, NULL);
+#endif
 
 	mask[0] = block_loc;
 	mask[2] = block_loc;
 	mask[4] = block_loc;
 	mask[6] = block_loc;
-	
-	if (parity)
-		fb = dconf->fb_sieve_n;
-	else
-		fb = dconf->fb_sieve_p;
 
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
@@ -2007,782 +1443,11 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 	TF_STG5 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
 	free(qs_timing_diff);
-#endif
 
-	dconf->smooth_num[report_num] = smooth_num;
-
-	return;
-}
-
-void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
-						 static_conf_t *sconf, dynamic_conf_t *dconf)
-{
-	//we have flagged this sieve offset as likely to produce a relation
-	//nothing left to do now but check and see.
-	uint64 q64;
-	int i;
-	uint32 bound, tmp, prime, root1, root2, report_num;
-	int smooth_num;
-	uint32 *fb_offsets;
-	sieve_fb *fb;
-	sieve_fb_compressed *fbptr, *fbc;
-	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 tmp1, tmp2, tmp3, tmp4, block_loc;
-	uint16 *corrections;
-	z32 *Q;	
-	
-#ifdef SSE2_RESIEVING
-	#ifdef WIN32
-		corrections = (uint16 *)_aligned_malloc(8 * sizeof(uint16),64);
-	#else
-		corrections = (uint16 *)memalign(64, 8 * sizeof(uint16));
-	#endif
-#endif
-
-	fullfb_ptr = fullfb;
-	if (parity)
-	{
-		fb = dconf->fb_sieve_n;
-		fbc = dconf->comp_sieve_n;
-	}
-	else
-	{
-		fb = dconf->fb_sieve_p;
-		fbc = dconf->comp_sieve_p;
-	}
-
-	for (report_num = 0; report_num < dconf->num_reports; report_num++)
-	{
-		if (!dconf->valid_Qs[report_num])
-			continue;
-
-		fb_offsets = &dconf->fb_offsets[report_num][0];
-		smooth_num = dconf->smooth_num[report_num];
-		Q = &dconf->Qvals[report_num];
-		block_loc = dconf->reports[report_num];
-
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-		
-		//do the primes less than the blocksize.  primes bigger than the blocksize can be handled
-		//even more efficiently.
-		//a couple of observations from jasonp:
-		//if a prime divides Q(x), then this index (j) and either
-		//root1 or root2 are on the same arithmetic progression.  this we can
-		//test with a single precision mod operation
-		//do the first few until the rest can be done in batches of 4 that are aligned to 16 byte
-		//boundaries.  this is necessary to use the SSE2 batch mod code, if it ever
-		//becomes faster...
-
-		i=sconf->sieve_small_fb_start;
-
-#if !defined(USE_RESIEVING)
-		bound = sconf->factor_base->small_B;
-#elif defined(YAFU_64K)
-		bound = sconf->factor_base->fb_14bit_B;
-#else
-		bound = sconf->factor_base->fb_13bit_B;
-#endif
-		
-		while ((uint32)i < bound && ((i & 3) != 0))
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-			//tmp = distance from this sieve block offset to the end of the block
-			tmp = BLOCKSIZE - block_loc;
-	
-			//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
-			//block, which is the state of the sieve now.
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
-			tmp = block_loc + tmp*prime;
-			tmp = tmp - BLOCKSIZE;
-
-			//tmp = advance the offset to where it should be after the interval, and
-			//check to see if that's where either of the roots are now.  if so, then
-			//this offset is on the progression of the sieve for this prime
-			if (tmp == root1 || tmp == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-		//now do things in batches of 4 which are aligned on 16 byte boundaries.
-		while ((uint32)i < bound)
-		{
-			tmp1 = BLOCKSIZE - block_loc;
-			tmp2 = BLOCKSIZE - block_loc;
-			tmp3 = BLOCKSIZE - block_loc;
-			tmp4 = BLOCKSIZE - block_loc;
-
-			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> 40; 
-			tmp1 = tmp1 + 1;
-			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-		
-			i++;
-		
-			tmp2 = tmp2 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i];
-			tmp2 = q64 >> 40; 
-			tmp2 = tmp2 + 1;
-			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i];
-
-			i++;
-
-			tmp3 = tmp3 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i];
-			tmp3 = q64 >> 40; 
-			tmp3 = tmp3 + 1;
-			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i];
-
-			i++;
-
-			tmp4 = tmp4 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i];
-			tmp4 = q64 >>  40; 
-			tmp4 = tmp4 + 1;
-			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i];
-
-			tmp1 = tmp1 - BLOCKSIZE;
-			tmp2 = tmp2 - BLOCKSIZE;
-			tmp3 = tmp3 - BLOCKSIZE;
-			tmp4 = tmp4 - BLOCKSIZE;
-
-			i -= 3;
-
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			if (tmp1 == root1 || tmp1 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			if (tmp2 == root1 || tmp2 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			if (tmp3 == root1 || tmp3 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			if (tmp4 == root1 || tmp4 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-		}
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-		//now cleanup any that don't fit in the last batch of 4
-		while ((uint32)i < bound)
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			tmp = BLOCKSIZE - block_loc;
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> 40); 
-			tmp = block_loc + tmp*prime;
-			tmp = tmp - BLOCKSIZE;
-
-			if (tmp == root1 || tmp == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-#ifdef USE_RESIEVING
-
-#if defined(SSE2_RESIEVING)
-		corrections[0] = BLOCKSIZE - block_loc;
-		corrections[1] = BLOCKSIZE - block_loc;
-		corrections[2] = BLOCKSIZE - block_loc;
-		corrections[3] = BLOCKSIZE - block_loc;		
-		corrections[4] = BLOCKSIZE - block_loc;
-		corrections[5] = BLOCKSIZE - block_loc;
-		corrections[6] = BLOCKSIZE - block_loc;
-		corrections[7] = BLOCKSIZE - block_loc;		
-#endif
-		
-#ifndef YAFU_64K
-		bound = sconf->factor_base->fb_14bit_B;
-		while ((uint32)i < bound)
-		{
-			//minimum prime > blocksize / 2
-			//maximum correction = blocksize
-			//maximum starting value > blocksize * 3/2
-			//max steps = 2
-			//this misses all reports at block_loc = 0.  would need to check
-			//for equality to blocksize in that case
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i],fbc->root1[i],fbc->root2[i],
-			//	(fbc->prime[i] - 1 + BLOCKSIZE) / fbc->prime[i]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+1],fbc->root1[i+1],fbc->root2[i+1],
-			//	(fbc->prime[i+1] - 1 + BLOCKSIZE) / fbc->prime[i+1]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+2],fbc->root1[i+2],fbc->root2[i+2],
-			//	(fbc->prime[i+2] - 1 + BLOCKSIZE) / fbc->prime[i+2]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+3],fbc->root1[i+3],fbc->root2[i+3],
-			//	(fbc->prime[i+3] - 1 + BLOCKSIZE) / fbc->prime[i+3]);
-
-			uint32 result = 0;
-			RESIEVE_4X_14BIT_MAX;
-			
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				while (zShortMod32(Q,fbc->prime[i]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				}
-			}
-
-			if (result & 0x8)
-			{
-				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				}
-			}
-
-			if (result & 0x20)
-			{
-				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				}
-			}
-
-			if (result & 0x80)
-			{
-				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				}
-			}
-
-			if (result & 0x200)
-			{
-				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+4;	
-					zShortDiv32(Q,fbc->prime[i+4],Q);			
-				}
-			}
-
-			if (result & 0x800)
-			{
-				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+5;	
-					zShortDiv32(Q,fbc->prime[i+5],Q);			
-				}
-			}
-
-			if (result & 0x2000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+6;	
-					zShortDiv32(Q,fbc->prime[i+6],Q);			
-				}
-			}
-
-			if (result & 0x8000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+7;	
-					zShortDiv32(Q,fbc->prime[i+7],Q);			
-				}
-			}
-
-			i += 8;
-		}
-#endif
-		bound = sconf->factor_base->fb_15bit_B;
-
-		while ((uint32)i < bound)
-		{
-			uint32 result = 0;
-			RESIEVE_4X_15BIT_MAX;
-
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				while (zShortMod32(Q,fbc->prime[i]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				}
-			}
-
-			if (result & 0x8)
-			{
-				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				}
-			}
-
-			if (result & 0x20)
-			{
-				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				}
-			}
-
-			if (result & 0x80)
-			{
-				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				}
-			}
-
-			if (result & 0x200)
-			{
-				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+4;	
-					zShortDiv32(Q,fbc->prime[i+4],Q);			
-				}
-			}
-
-			if (result & 0x800)
-			{
-				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+5;	
-					zShortDiv32(Q,fbc->prime[i+5],Q);			
-				}
-			}
-
-			if (result & 0x2000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+6;	
-					zShortDiv32(Q,fbc->prime[i+6],Q);			
-				}
-			}
-
-			if (result & 0x8000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+7;	
-					zShortDiv32(Q,fbc->prime[i+7],Q);			
-				}
-			}
-
-			i += 8;
-		}
-
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-
-			uint32 result = 0;
-			RESIEVE_4X_16BIT_MAX;
-
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				while (zShortMod32(Q,fbc->prime[i]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				}
-			}
-
-			if (result & 0x8)
-			{
-				while (zShortMod32(Q,fbc->prime[i+1]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				}
-			}
-
-			if (result & 0x20)
-			{
-				while (zShortMod32(Q,fbc->prime[i+2]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				}
-			}
-
-			if (result & 0x80)
-			{
-				while (zShortMod32(Q,fbc->prime[i+3]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				}
-			}
-
-			if (result & 0x200)
-			{
-				while (zShortMod32(Q,fbc->prime[i+4]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+4;	
-					zShortDiv32(Q,fbc->prime[i+4],Q);			
-				}
-			}
-
-			if (result & 0x800)
-			{
-				while (zShortMod32(Q,fbc->prime[i+5]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+5;	
-					zShortDiv32(Q,fbc->prime[i+5],Q);			
-				}
-			}
-
-			if (result & 0x2000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+6]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+6;	
-					zShortDiv32(Q,fbc->prime[i+6],Q);			
-				}
-			}
-
-			if (result & 0x8000)
-			{
-				while (zShortMod32(Q,fbc->prime[i+7]) == 0) 
-				{						
-					fb_offsets[++smooth_num] = i+7;	
-					zShortDiv32(Q,fbc->prime[i+7],Q);			
-				}
-			}
-
-			i += 8;
-
-			/*
-			if (result == 0)
-			{
-				i += 4;
-				continue;
-			}
-
-			if (result & 0x8)
-			{
-				do 
-				{						
-					//if (zShortMod32(Q,fbc->prime[i]) != 0)
-					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				} while (zShortMod32(Q,fbc->prime[i]) == 0);
-			}
-
-			if (result & 0x80)
-			{
-				do 
-				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
-			}
-
-			if (result & 0x800)
-			{
-				do 
-				{					
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
-			}
-
-			if (result & 0x8000)
-			{
-				do 
-				{				
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
-			}
-
-			i += 4;
-			*/
-		}
-		
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-#endif
-
-		dconf->smooth_num[report_num] = smooth_num;	
-
-#else
-
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			//after sieving a block, the root is updated for the start of the next block
-			//get it back on the current block's progression
-			root1 = root1 + BLOCKSIZE - block_loc;		
-			root2 = root2 + BLOCKSIZE - block_loc;	
-
-			//there are faster methods if this is the case
-			if (prime > BLOCKSIZE)
-				break;
-
-			//the difference root - blockoffset is less than prime about 20% of the time
-			//and thus we don't have to divide at all in those cases.
-			if (root2 >= prime)
-			{
-				//r2 is bigger than prime, it could be on the progression, check it.
-				tmp = root2 + fullfb_ptr->correction[i];
-				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-				tmp = q64 >> 40; 
-				tmp = root2 - tmp * prime;
-
-				if (tmp == 0)
-				{
-					//it is, so it will divide Q(x).  do so as many times as we can.
-					DIVIDE_ONE_PRIME;
-				}
-				else if (root1 >= prime)
-				{			
-					tmp = root1 + fullfb_ptr->correction[i];
-					q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-					tmp = q64 >> 40; 
-					tmp = root1 - tmp * prime;
-
-					if (tmp == 0)
-					{
-						//r2 was a bust, but root1 met the criteria.  divide Q(x).	
-						DIVIDE_ONE_PRIME;
-					}
-				}
-			}
-			i++;
-		}
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-		//for primes bigger than the blocksize, we don't need to divide at all since
-		//there can be at most one instance of the prime in the block.  thus the 
-		//distance to the next one is equal to 'prime', rather than a multiple of it.
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			//the fbptr roots currently point to the next block
-			//so adjust the current index
-			tmp = block_loc + prime - BLOCKSIZE;
-			if ((root1 == tmp) || (root2 == tmp))
-			{
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-		dconf->smooth_num[report_num] = smooth_num;	
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-#endif
-
-	}
-
-#if defined(SSE2_RESIEVING)
-	#ifdef WIN32
-		_aligned_free(corrections);
-	#else
-		free(corrections);
-	#endif
-#endif
-
-	return;
-}
-
-void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
-						 uint32 poly_id, uint32 bnum, 
-						 static_conf_t *sconf, dynamic_conf_t *dconf)
-{
-	//we have flagged this sieve offset as likely to produce a relation
-	//nothing left to do now but check and see.
-	uint64 q64, f64;
-	int j,it;
-	uint32 prime;
-	int smooth_num;
-	uint32 *fb_offsets;
-	uint32 polya_factors[20];
-	sieve_fb *fb;
-	uint32 offset, block_loc;
-	z32 *Q;
-
-	fb_offsets = &dconf->fb_offsets[report_num][0];
-	smooth_num = dconf->smooth_num[report_num];
-	Q = &dconf->Qvals[report_num];
-	block_loc = dconf->reports[report_num];
-	
-#ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	offset = (bnum << BLOCKBITS) + block_loc;
-
-	if (parity)
-		fb = dconf->fb_sieve_n;
-	else
-		fb = dconf->fb_sieve_p;
-
+early_abort:
 	//check for additional factors of the a-poly factors
 	//make a separate list then merge it with fb_offsets
 	it=0;	//max 20 factors allocated for - should be overkill
