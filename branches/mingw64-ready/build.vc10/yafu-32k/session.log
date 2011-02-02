@@ -1,0 +1,20 @@
+01/04/11 21:19:03 v1.21 @ AVA-343686, System/Build Info: 
+Using GMP-ECM 6.3, Powered by MPIR 2.1.1
+cached 78504 primes. pmax = 0
+detected AMD Phenom(tm) II X4 955 Processor
+detected L1 = 65536 bytes, L2 = 6291456 bytes, CL = 64 bytes
+measured cpu frequency ~= 3185.230220
+
+01/04/11 21:19:03 v1.21 @ AVA-343686, New random seeds: 2182217695, 3901223676
+
+01/04/11 21:26:36 v1.21 @ AVA-343686, System/Build Info: 
+Using GMP-ECM 6.3, Powered by MPIR 2.1.1
+cached 78504 primes. pmax = 0
+detected AMD Phenom(tm) II X4 955 Processor
+detected L1 = 65536 bytes, L2 = 6291456 bytes, CL = 64 bytes
+measured cpu frequency ~= 3192.496530
+
+01/04/11 21:26:36 v1.21 @ AVA-343686, New random seeds: 1417912741, 2655972848
+
+01/04/11 21:26:56 v1.21 @ AVA-343686, Processing expression: factor(246290604621825)
+
