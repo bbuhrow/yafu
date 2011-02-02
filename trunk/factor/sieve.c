@@ -328,6 +328,246 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 
 }
 
+#ifdef NOTDEF
+void lp_sieveblock_gcc(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 bnum, uint32 numblocks,
+							 lp_bucket *lp, uint32 start_prime, uint8 s_init, int side)
+{
+	uint32 prime, root1, root2, tmp, stop, p16;
+	uint32 i,j,lpnum,basebucket;
+	uint8 logp;
+	sieve_fb_compressed *fbptr;
+	uint32 *bptr;
+	
+#ifdef QS_TIMING
+	gettimeofday(&qs_timing_start, NULL);
+#endif
+
+	//initialize the block
+	memset(sieve,s_init,BLOCKSIZE);
+
+	p16 = BLOCKSIZE >> 1;
+	for (i=start_prime;i<med_B;i++)
+	{	
+		uint8 *s2;		
+		prime = fb->prime[i];
+		root1 = fb->root1[i];
+		root2 = fb->root2[i];
+		logp = fb->logp[i];
+
+		//if we are past the blocksize, bail out because there are faster methods
+		if (prime > p16)
+			break;
+
+		stop = BLOCKSIZE - prime;
+		s2 = sieve + prime;
+
+		while (root2 < stop)
+		{
+			sieve[root1] -= logp;
+			sieve[root2] -= logp;
+			s2[root1] -= logp;
+			s2[root2] -= logp;
+			root1 += (prime << 1);
+			root2 += (prime << 1);
+		}
+
+		while (root2 < BLOCKSIZE)
+		{
+			ADDRESS_SIEVE(root1) -= logp;
+			ADDRESS_SIEVE(root2) -= logp;
+			root1 += prime;
+			root2 += prime;
+		}
+
+		//don't forget the last proot1[i], and compute the roots for the next block
+		if (root1 < BLOCKSIZE)
+		{
+			ADDRESS_SIEVE(root1) -= logp;
+			root1 += prime;
+			//root1 will be bigger on the next iteration, switch them now
+			tmp = root2;
+			root2 = root1;
+			root1 = tmp;
+		}
+			
+		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
+		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
+
+	}
+
+	for (;i<med_B;i++)
+	{	
+		prime = fb->prime[i];
+		root1 = fb->root1[i];
+		root2 = fb->root2[i];
+		logp = fb->logp[i];
+
+		//if we are past the blocksize, bail out because there are faster methods
+		if (prime > BLOCKSIZE)
+			break;
+
+		while (root2 < BLOCKSIZE)
+		{
+			ADDRESS_SIEVE(root1) -= logp;
+			ADDRESS_SIEVE(root2) -= logp;
+			root1 += prime;
+			root2 += prime;
+		}
+
+		//don't forget the last proot1[i], and compute the roots for the next block
+		if (root1 < BLOCKSIZE)
+		{
+			ADDRESS_SIEVE(root1) -= logp;
+			root1 += prime;
+			//root1 will be bigger on the next iteration, switch them now
+			tmp = root2;
+			root2 = root1;
+			root1 = tmp;
+		}
+			
+		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
+		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
+	}
+
+	//if there are primes left bigger than the blocksize, this will take
+	//care of them.  if not, it doesn't run at all.
+	for (;i<med_B;i++)
+	{	
+		prime = fb->prime[i];
+		root1 = fb->root1[i];
+		root2 = fb->root2[i];
+		logp = fb->logp[i];
+
+		if (root1 < BLOCKSIZE)
+		{
+			ADDRESS_SIEVE(root1) -= logp;
+			root1 += prime;
+
+			if (root2 < BLOCKSIZE)
+			{
+				ADDRESS_SIEVE(root2) -= logp;
+				root2 += prime;
+			}
+			else
+			{
+				tmp=root2;
+				root2=root1;
+				root1=tmp;
+			}
+		}
+
+		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
+		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
+	}
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		SIEVE_STG1 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+
+		gettimeofday(&qs_timing_start, NULL);
+#endif
+
+	//finally, dump the buckets into the now cached 
+	//sieve block in prefetched batches
+	//the starting address for this slice and bucket can be computed as an offset from
+	//lp->list, the list of bucket hits.  each block is a bucket, and each bucket gets
+	//2^BUCKET_BITS bytes of storage.  negative buckets are arranged immediately after
+	//positive buckets, thus we have numblocks positive buckets followed by numblocks
+	//negative buckets in every slice.  each slice is a complete set of such buckets.  slices
+	//are contiguous in memory, so the whole thing is physically one giant linear list of
+	//bucket hits which we have subdivided.  
+	bptr = lp->list + (bnum << BUCKET_BITS);
+	if (side)
+	{
+		bptr += (numblocks << BUCKET_BITS);
+		basebucket = numblocks;
+	}
+	else
+		basebucket = 0;
+
+	//use x8 when cache line has 32 bytes
+	//use x16 when chache line has 64 bytes
+#if defined(CACHE_LINE_64)
+	//printf("cache_line_64\n");
+	for (j=0;j<lp->num_slices;j++)
+	{
+		lpnum = *(lp->num + bnum + basebucket);
+		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
+		logp = *(lp->logp + j);
+		for (i = 0; i < (lpnum & (uint32)(~15)); i += 16)
+		{
+			sieve[bptr[i  ] & 0x0000ffff] -= logp;
+			sieve[bptr[i+1] & 0x0000ffff] -= logp;
+			sieve[bptr[i+2] & 0x0000ffff] -= logp;
+			sieve[bptr[i+3] & 0x0000ffff] -= logp;
+			sieve[bptr[i+4] & 0x0000ffff] -= logp;
+			sieve[bptr[i+5] & 0x0000ffff] -= logp;
+			sieve[bptr[i+6] & 0x0000ffff] -= logp;
+			sieve[bptr[i+7] & 0x0000ffff] -= logp;
+			sieve[bptr[i+8] & 0x0000ffff] -= logp;
+			sieve[bptr[i+9] & 0x0000ffff] -= logp;
+			sieve[bptr[i+10] & 0x0000ffff] -= logp;
+			sieve[bptr[i+11] & 0x0000ffff] -= logp;
+			sieve[bptr[i+12] & 0x0000ffff] -= logp;
+			sieve[bptr[i+13] & 0x0000ffff] -= logp;
+			sieve[bptr[i+14] & 0x0000ffff] -= logp;
+			sieve[bptr[i+15] & 0x0000ffff] -= logp;
+		}
+
+		for (;i<lpnum;i++)
+			sieve[bptr[i] & 0x0000ffff] -= logp;
+		
+		//point to the next slice of primes
+		bptr += (numblocks << (BUCKET_BITS + 1));
+		basebucket += (numblocks << 1);
+	}
+#else
+
+	for (j=0;j<lp->num_slices;j++)
+	{
+		lpnum = *(lp->num + bnum + basebucket);
+		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
+		logp = *(lp->logp + j);
+		for (i = 0; i < (lpnum & (uint32)(~7)); i += 8)
+		//the slices can be considered stacks; the highest indices are put in last.
+		//so it makes sense to take these out first, as they are more likely to 
+		//still be in cache.
+		//for (i = lpnum; i > (lpnum & 15); i -=16)
+		{
+			sieve[bptr[i  ] & 0x0000ffff] -= logp;
+			sieve[bptr[i+1] & 0x0000ffff] -= logp;
+			sieve[bptr[i+2] & 0x0000ffff] -= logp;
+			sieve[bptr[i+3] & 0x0000ffff] -= logp;
+			sieve[bptr[i+4] & 0x0000ffff] -= logp;
+			sieve[bptr[i+5] & 0x0000ffff] -= logp;
+			sieve[bptr[i+6] & 0x0000ffff] -= logp;
+			sieve[bptr[i+7] & 0x0000ffff] -= logp;
+		}
+
+		for (;i<lpnum;i++)
+			sieve[bptr[i] & 0x0000ffff] -= logp;
+		
+		//point to the next slice of primes
+		bptr += (numblocks << (BUCKET_BITS + 1));
+		basebucket += (numblocks << 1);
+	}
+
+#endif
+
+#ifdef QS_TIMING
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+		SIEVE_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
+#endif
+
+}
+#endif
+
 void test_block_siqs(uint8 *sieve, sieve_fb *fb, uint32 start_prime)
 {
 	//sieve the small primes over a block, in order to estimate their average

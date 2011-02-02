@@ -177,7 +177,7 @@ ASM_G (                                        \
 : "%rax", "%cc")
 
 /******************************************************************/
-//#elif defined(TFM_SSE2)  
+#elif defined(TFM_SSE2)  
 /* SSE2 code (assumes 32-bit fp_digits) */
 /* XMM register assignments:
  * xmm0  *tmpm++, then Mu * (*tmpm++)
@@ -185,7 +185,7 @@ ASM_G (                                        \
  * xmm2  mp
  * xmm3  cy
  * xmm4  _c[LO]
- 
+ */
 
 #define MONT_START \
    asm("movd %0,%%mm2"::"g"(mp))
@@ -199,8 +199,8 @@ asm(                        \
 "pxor %%mm3,%%mm3     \n\t" \
 "pmuludq %%mm2,%%mm1  \n\t" \
 :: "g"(c[x]))
-*/
-/* pmuludq on mmx registers does a 32x32->64 multiply. 
+
+/* pmuludq on mmx registers does a 32x32->64 multiply. */
 #define INNERMUL               \
 asm(                           \
    "movd %1,%%mm4        \n\t" \
@@ -290,17 +290,17 @@ asm(                                        \
 :"=g"(_c[LO]), "=r"(cy)                     \
 :"0"(_c[LO]), "1"(cy)                       \
 : "%eax", "%cc")
-*/
+
 /******************************************************************/
-//#elif defined(TFM_ARM)
-   /* ARMv4 code 
+#elif defined(TFM_ARM)
+   /* ARMv4 code */
 
 #define MONT_START 
 #define MONT_FINI
 #define LOOP_END
 #define LOOP_START \
    mu = c[x] * mp
-
+   
 #define INNERMUL                    \
 asm(                                \
     " LDR    r0,%1            \n\t" \
@@ -319,17 +319,17 @@ asm(                               \
     " MOVCS %0,#1            \n\t" \
     " MOVCC %0,#0            \n\t" \
 :"=r"(cy),"=m"(_c[0]):"0"(cy),"1"(_c[0]):"r0","%cc");
-*/
-/******************************************************************/
-//#elif defined(TFM_PPC32)
 
-/* PPC32 
+/******************************************************************/
+#elif defined(TFM_PPC32)
+
+/* PPC32 */
 #define MONT_START 
 #define MONT_FINI
 #define LOOP_END
 #define LOOP_START \
    mu = c[x] * mp
-
+   
 #define INNERMUL                     \
 asm(                                 \
    " mullw    16,%3,%4       \n\t"   \
@@ -350,17 +350,17 @@ asm(                                 \
    " xor      %0,%0,%0      \n\t"    \
    " addze    %0,%0         \n\t"    \
 :"=r"(cy),"=m"(_c[0]):"0"(cy),"1"(_c[0]):"16","%cc");
-*/
-/******************************************************************/
-//#elif defined(TFM_PPC64)
 
-/* PPC64 
+/******************************************************************/
+#elif defined(TFM_PPC64)
+
+/* PPC64 */
 #define MONT_START 
 #define MONT_FINI
 #define LOOP_END
 #define LOOP_START \
    mu = c[x] * mp
-
+   
 #define INNERMUL                     \
 asm(                                 \
    " mulld    r16,%3,%4       \n\t"   \
@@ -381,17 +381,17 @@ asm(                                 \
    " xor      %0,%0,%0      \n\t"    \
    " addze    %0,%0         \n\t"    \
 :"=r"(cy),"=m"(_c[0]):"0"(cy),"1"(_c[0]):"r16","%cc");
-*/
-/******************************************************************/
-//#elif defined(TFM_AVR32)
 
-/* AVR32 
+/******************************************************************/
+#elif defined(TFM_AVR32)
+
+/* AVR32 */
 #define MONT_START 
 #define MONT_FINI
 #define LOOP_END
 #define LOOP_START \
    mu = c[x] * mp
-
+   
 #define INNERMUL                    \
 asm(                                \
     " ld.w   r2,%1            \n\t" \
@@ -411,17 +411,17 @@ asm(                                 \
    " eor      %0,%0         \n\t"    \
    " acr      %0            \n\t"    \
 :"=r"(cy),"=r"(&_c[0]):"0"(cy),"1"(&_c[0]):"r2","%cc");
-*/
-/******************************************************************/
-//#elif defined(TFM_MIPS)
 
-/* MIPS 
+/******************************************************************/
+#elif defined(TFM_MIPS)
+
+/* MIPS */
 #define MONT_START 
 #define MONT_FINI
 #define LOOP_END
 #define LOOP_START \
    mu = c[x] * mp
-
+   
 #define INNERMUL                     \
 asm(                                 \
    " multu    %3,%4          \n\t"   \
@@ -444,7 +444,7 @@ asm(                                 \
    " sw       $10,%1        \n\t"    \
    " sltu     %0,$10,%0     \n\t"    \
 :"=r"(cy),"=m"(_c[0]):"0"(cy),"1"(_c[0]):"$10");
-*/
+
 /******************************************************************/
 
 #elif defined (TFM_X86_MSVC)
@@ -496,7 +496,7 @@ __asm						\
 
 #define INNERMUL                                      \
    do { fp_word t;                                    \
-   _c[0] = (fp_digit)t  = ((fp_word)_c[0] + (fp_word)cy) +      \
+   _c[0] = t  = ((fp_word)_c[0] + (fp_word)cy) +      \
                 (((fp_word)mu) * ((fp_word)*tmpm++)); \
    cy = (fp_digit)(t >> DIGIT_BIT);                             \
    } while (0)

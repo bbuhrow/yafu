@@ -820,18 +820,18 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		printf("using multiplier of %u\n",sconf->multiplier);
 		printf("using small prime variation correction of %d bits\n",
 			sconf->tf_small_cutoff);
-#if defined(__MINGW32__)
-	#if defined(HAS_SSE2)
-		printf("using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
-		printf("using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#else
-		printf("using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#endif
-#elif defined(__GNUC__)
+//#if defined(__MINGW32__)
+//	#if defined(HAS_SSE2)
+//		printf("using SSE2 for trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#elif defined(HAS_MMX)
+//		printf("using MMX for trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#else
+//		printf("using generic trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#endif
+#if defined(__GNUC__)
 	#if defined(HAS_SSE2)
 		printf("using SSE2 for trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
@@ -923,18 +923,18 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
 	logprint(sconf->obj->logfile,"using small prime variation correction of %d bits\n",
 		sconf->tf_small_cutoff);
-#if defined(__MINGW32__)
-	#if defined(HAS_SSE2)
-		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
-		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#else
-		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#endif
-#elif defined(__GNUC__)
+//#if defined(__MINGW32__)
+//	#if defined(HAS_SSE2)
+//		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#elif defined(HAS_MMX)
+//		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#else
+//		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
+//			sconf->scan_unrolling);
+//	#endif
+#if defined(__GNUC__)
 	#if defined(HAS_SSE2)
 		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
@@ -1067,28 +1067,28 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		sconf->factor_base->B * sizeof(uint8),64);
 	dconf->rootupdates = (int *)_aligned_malloc(
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int),64);
-
-#elif defined (__MINGW32__)
-	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-	dconf->fb_sieve_p = (sieve_fb *)malloc(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-	dconf->fb_sieve_n = (sieve_fb *)malloc(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-	//allocate storage for the update data needed when changing polys
-	dconf->update_data.firstroots1 = (int *)malloc(
-		sconf->factor_base->B * sizeof(int));
-	dconf->update_data.firstroots2 = (int *)malloc(
-		sconf->factor_base->B * sizeof(int));
-	dconf->update_data.prime = (uint32 *)malloc(
-		sconf->factor_base->B * sizeof(uint32));
-	dconf->update_data.logp = (uint8 *)malloc(
-		sconf->factor_base->B * sizeof(uint8));
-	dconf->rootupdates = (int *)malloc(
-		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
-
+//
+//#elif defined (__MINGW32__)
+//	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(
+//		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
+//	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(
+//		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
+//	dconf->fb_sieve_p = (sieve_fb *)malloc(
+//		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
+//	dconf->fb_sieve_n = (sieve_fb *)malloc(
+//		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
+//	//allocate storage for the update data needed when changing polys
+//	dconf->update_data.firstroots1 = (int *)malloc(
+//		sconf->factor_base->B * sizeof(int));
+//	dconf->update_data.firstroots2 = (int *)malloc(
+//		sconf->factor_base->B * sizeof(int));
+//	dconf->update_data.prime = (uint32 *)malloc(
+//		sconf->factor_base->B * sizeof(uint32));
+//	dconf->update_data.logp = (uint8 *)malloc(
+//		sconf->factor_base->B * sizeof(uint8));
+//	dconf->rootupdates = (int *)malloc(
+//		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
+//
 #else
 
 #ifdef USE_COMPRESSED_FB
@@ -1155,9 +1155,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #if defined (_MSC_VER) 
 	dconf->sieve = (uint8 *)_aligned_malloc(
 		(size_t) (BLOCKSIZE * sizeof(uint8)),64);
-#elif defined (__MINGW32__)
-	dconf->sieve = (uint8 *)malloc(
-		(size_t) (BLOCKSIZE * sizeof(uint8)));
+//#elif defined (__MINGW32__)
+//	dconf->sieve = (uint8 *)malloc(
+//		(size_t) (BLOCKSIZE * sizeof(uint8)));
 #else
 	dconf->sieve = (uint8 *)memalign(64,
 		(size_t) (BLOCKSIZE * sizeof(uint8)));
@@ -1237,10 +1237,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets->list = (uint32 *)_aligned_malloc(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
 			BUCKET_ALLOC * sizeof(uint32),64);
-#elif defined(__MINGW32__)
-		dconf->buckets->list = (uint32 *)malloc(
-			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-			BUCKET_ALLOC * sizeof(uint32));
+//#elif defined(__MINGW32__)
+//		dconf->buckets->list = (uint32 *)malloc(
+//			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
+//			BUCKET_ALLOC * sizeof(uint32));
 #else
 		dconf->buckets->list = (uint32 *)memalign(64,
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
@@ -1271,8 +1271,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask = (uint16 *)_aligned_malloc(8 * sizeof(uint16),16);
 #elif defined (__GNUC__)
 	dconf->mask = (uint16 *)memalign(16,8 * sizeof(uint16));
-#else
-	dconf->mask = (uint16 *)malloc(8 * sizeof(uint16));
+//#else
+//	dconf->mask = (uint16 *)malloc(8 * sizeof(uint16));
 #endif
 	dconf->mask[1] = 0xFFFF;
 	dconf->mask[3] = 0xFFFF;
@@ -1393,19 +1393,19 @@ int siqs_static_init(static_conf_t *sconf)
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
 		sconf->factor_base->list->logprime = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-#elif defined(__MINGW32__)
-		sconf->factor_base->list = (fb_element_siqs *)malloc(
-			(size_t)(sizeof(fb_element_siqs)));
-		sconf->modsqrt_array = (uint32 *)malloc(
-			sconf->factor_base->B * sizeof(uint32));
-		sconf->factor_base->list->prime = (uint32 *)malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->list->small_inv = (uint32 *)malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->list->correction = (uint32 *)malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->list->logprime = (uint32 *)malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+//#elif defined(__MINGW32__)
+//		sconf->factor_base->list = (fb_element_siqs *)malloc(
+//			(size_t)(sizeof(fb_element_siqs)));
+//		sconf->modsqrt_array = (uint32 *)malloc(
+//			sconf->factor_base->B * sizeof(uint32));
+//		sconf->factor_base->list->prime = (uint32 *)malloc(
+//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+//		sconf->factor_base->list->small_inv = (uint32 *)malloc(
+//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+//		sconf->factor_base->list->correction = (uint32 *)malloc(
+//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+//		sconf->factor_base->list->logprime = (uint32 *)malloc(
+//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 #else
 		sconf->factor_base->list = (fb_element_siqs *)memalign(64,
 			(size_t)(sizeof(fb_element_siqs)));
@@ -1455,21 +1455,12 @@ int siqs_static_init(static_conf_t *sconf)
 			//and remove the multiplier we may have added, so that
 			//we can try again to build a factor base.
 			zShortDiv(&sconf->n,sconf->multiplier,&sconf->n);
-#if defined(_MSC_VER)
 			free(sconf->modsqrt_array);
-			_aligned_free(sconf->factor_base->list->prime);
-			_aligned_free(sconf->factor_base->list->small_inv);
-			_aligned_free(sconf->factor_base->list->correction);
-			_aligned_free(sconf->factor_base->list->logprime);
-			_aligned_free(sconf->factor_base->list);
-#else
-			free(sconf->modsqrt_array);
-			free(sconf->factor_base->list->prime);
-			free(sconf->factor_base->list->small_inv);
-			free(sconf->factor_base->list->correction);
-			free(sconf->factor_base->list->logprime);
-			free(sconf->factor_base->list);
-#endif			
+			align_free(sconf->factor_base->list->prime);
+			align_free(sconf->factor_base->list->small_inv);
+			align_free(sconf->factor_base->list->correction);
+			align_free(sconf->factor_base->list->logprime);
+			align_free(sconf->factor_base->list);	
 		}
 	}
 
@@ -2076,68 +2067,29 @@ int free_sieve(dynamic_conf_t *dconf)
 	uint32 i;
 
 	//can free sieving structures now
-
-#if defined(_MSC_VER)
-	_aligned_free(dconf->sieve);
-	_aligned_free(dconf->fb_sieve_p);
-	_aligned_free(dconf->fb_sieve_n);
+	align_free(dconf->sieve);
+	align_free(dconf->fb_sieve_p);
+	align_free(dconf->fb_sieve_n);
 #ifdef USE_COMPRESSED_FB
-	_aligned_free(dconf->comp_sieve_p);
-	_aligned_free(dconf->comp_sieve_n);
+	align_free(dconf->comp_sieve_p);
+	align_free(dconf->comp_sieve_n);
 #else
-	_aligned_free(dconf->comp_sieve_p->prime);
-	_aligned_free(dconf->comp_sieve_p->root1);
-	_aligned_free(dconf->comp_sieve_p->root2);
-	_aligned_free(dconf->comp_sieve_p->logp);
-	_aligned_free(dconf->comp_sieve_n->prime);
-	_aligned_free(dconf->comp_sieve_n->root1);
-	_aligned_free(dconf->comp_sieve_n->root2);
-	_aligned_free(dconf->comp_sieve_n->logp);
+	align_free(dconf->comp_sieve_p->prime);
+	align_free(dconf->comp_sieve_p->root1);
+	align_free(dconf->comp_sieve_p->root2);
+	align_free(dconf->comp_sieve_p->logp);
+	align_free(dconf->comp_sieve_n->prime);
+	align_free(dconf->comp_sieve_n->root1);
+	align_free(dconf->comp_sieve_n->root2);
+	align_free(dconf->comp_sieve_n->logp);
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
 #endif
-
-	_aligned_free(dconf->rootupdates);
-#elif defined(__MINGW32__)
-	free(dconf->fb_sieve_p);
-	free(dconf->fb_sieve_n);
-	free(dconf->comp_sieve_p);
-	free(dconf->comp_sieve_n);
-	free(dconf->sieve);
-	free(dconf->rootupdates);
-	//free(dconf->update_data);
-#else
-	free(dconf->fb_sieve_p);
-	free(dconf->fb_sieve_n);
-#ifdef USE_COMPRESSED_FB
-	free(dconf->comp_sieve_p);
-	free(dconf->comp_sieve_n);
-#else
-	free(dconf->comp_sieve_p->prime);
-	free(dconf->comp_sieve_p->root1);
-	free(dconf->comp_sieve_p->root2);
-	free(dconf->comp_sieve_p->logp);
-	free(dconf->comp_sieve_n->prime);
-	free(dconf->comp_sieve_n->root1);
-	free(dconf->comp_sieve_n->root2);
-	free(dconf->comp_sieve_n->logp);
-	free(dconf->comp_sieve_p);
-	free(dconf->comp_sieve_n);
-#endif
-	free(dconf->sieve);
-	free(dconf->rootupdates);
-#endif
-	
+	align_free(dconf->rootupdates);
 
 	if (dconf->buckets->list != NULL)
 	{
-#if defined(_MSC_VER)
-		_aligned_free(dconf->buckets->list);
-#elif defined(__MINGW32__)
-		free(dconf->buckets->list);
-#else
-		free(dconf->buckets->list);
-#endif
+		align_free(dconf->buckets->list);
 		free(dconf->buckets->fb_bounds);
 		free(dconf->buckets->logp);
 		free(dconf->buckets->num);
@@ -2163,12 +2115,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	zFree(&dconf->qstmp3);
 	zFree(&dconf->qstmp4);
 	zFree32(&dconf->qstmp32);
-
-#if defined (_MSC_VER)
-	_aligned_free(dconf->mask);
-#else
-	free(dconf->mask);
-#endif
+	align_free(dconf->mask);
 
 	//free sieve scan report stuff
 	free(dconf->reports);
@@ -2254,22 +2201,12 @@ int free_siqs(static_conf_t *sconf)
 	zFree(&sconf->curr_poly->poly_c);
 	free(sconf->curr_poly);
 	zFree(&sconf->curr_a);	
-
-#if defined(_MSC_VER)
 	free(sconf->modsqrt_array);
-	_aligned_free(sconf->factor_base->list->prime);
-	_aligned_free(sconf->factor_base->list->small_inv);
-	_aligned_free(sconf->factor_base->list->correction);
-	_aligned_free(sconf->factor_base->list->logprime);
-	_aligned_free(sconf->factor_base->list);
-#else
-	free(sconf->modsqrt_array);
-	free(sconf->factor_base->list->prime);
-	free(sconf->factor_base->list->small_inv);
-	free(sconf->factor_base->list->correction);
-	free(sconf->factor_base->list->logprime);
-	free(sconf->factor_base->list);
-#endif	
+	align_free(sconf->factor_base->list->prime);
+	align_free(sconf->factor_base->list->small_inv);
+	align_free(sconf->factor_base->list->correction);
+	align_free(sconf->factor_base->list->logprime);
+	align_free(sconf->factor_base->list);
 	free(sconf->factor_base);
 
 	//while freeing the list of factors, divide them out of the input

@@ -803,45 +803,21 @@ void pp1_print_B1_B2(z *n, FILE *flog)
 		if (WILL_STG2_MAX % 1000000000 == 0)
 		{
 			suffix = 'B';
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000000, suffix);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000000, suffix);
-#else
-			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000000, suffix);
-#endif
+			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000000000, suffix);
 		}
 		else if (WILL_STG2_MAX % 1000000 == 0)
 		{
 			suffix = 'M';
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000000, suffix);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000000, suffix);
-#else
-			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000000, suffix);
-#endif
+			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000000, suffix);
 		}
 		else if (WILL_STG2_MAX % 1000 == 0)
 		{
 			suffix = 'K';
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-			sprintf(stg2str,"%lu%c",WILL_STG2_MAX / 1000, suffix);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-			sprintf(stg2str,"%llu%c",WILL_STG2_MAX / 1000, suffix);
-#else
-			sprintf(stg2str,"%I64u%c",WILL_STG2_MAX / 1000, suffix);
-#endif
+			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000, suffix);
 		}
 		else
 		{
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-			sprintf(stg2str,"%lu",WILL_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-			sprintf(stg2str,"%llu",WILL_STG2_MAX);
-#else
-			sprintf(stg2str,"%I64u",WILL_STG2_MAX);
-#endif
+			sprintf(stg2str,"%" PRIu64 "",WILL_STG2_MAX);
 		}
 	}
 	else

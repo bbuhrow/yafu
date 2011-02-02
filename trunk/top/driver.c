@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 			//free_factor_list();
 		}
 
-#ifdef WIN32
+#if defined(WIN32)
 		fflush(stdin);	//important!  otherwise scanf will process printf's output
 		
 #else
@@ -678,7 +678,7 @@ int process_arguments(int argc, char **argv, char *input_exp)
 	{
 		//else, need to check for input from a redirect or pipe.
 		//this is done differently on unix like systems vs. windows
-#ifdef WIN32	//not complete, but ok for now
+#if defined(WIN32)	//not complete, but ok for now
 		fseek(in,-1,SEEK_END);
 		if (ftell(in) >= 0)
 		{
@@ -743,7 +743,7 @@ _MSC_MPIR_VERSION);
 	fflush(stdout);
 #endif
 
-	fprintf(logfile,"cached %lu primes. pmax = %lu\n",szSOEp,spSOEprimes[szSOEp-1]);
+	fprintf(logfile,"cached %" PRIu64 " primes. pmax = %" PRIu64 "\n",szSOEp,spSOEprimes[szSOEp-1]);
 	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		idstr,L1CACHE,L2CACHE,CLSIZE);
 	fprintf(logfile,"measured cpu frequency ~= %f\n\n",
@@ -763,7 +763,7 @@ _MSC_MPIR_VERSION);
 		printf("=======             bbuhrow@gmail.com                   =======\n");
 		printf("=======     Type help at any time, or quit to quit      =======\n");
 		printf("===============================================================\n");
-		printf("cached %lu primes. pmax = %lu\n\n",szSOEp,spSOEprimes[szSOEp-1]);
+		printf("cached %" PRIu64 " primes. pmax = %" PRIu64 "\n\n",szSOEp,spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
 
 	}
@@ -786,7 +786,7 @@ void get_computer_info(char *idstr)
 	// optionally print a bunch of info to the screen
 	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
 
-#ifdef WIN32
+#if defined(WIN32)
 
 	sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
 	GetComputerName(sysname,&sysname_sz);

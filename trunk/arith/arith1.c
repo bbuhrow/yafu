@@ -1050,13 +1050,10 @@ fp_digit zShortMod(z *u, fp_digit v)
 	{
 		uint64 d = (rem << 32) | (u->val[i]);
 		rem = mod_64(d, v);
-		//rem = mod_64((uint64)u->val[i], rem, (uint64)v);
-		//rem = mod_32(u->val[i], rem, v);
 		i--;
 	}
 
 	return (uint32)rem;
-
 
 
 #else
@@ -1148,6 +1145,7 @@ uint32 zShortMod32(z32 *u, uint32 v)
 	}
 
 	return rem;
+
 
 #else
 	
@@ -2367,7 +2365,8 @@ void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit *w)
 
 void spAdd(fp_digit u, fp_digit v, fp_digit *sum, fp_digit *carry)
 {
-	fp_word s,c;
+	//fp_word s,c;
+	uint64 s,c;
 
 	s = v;
 	c = 0;
@@ -2387,7 +2386,8 @@ void spAdd(fp_digit u, fp_digit v, fp_digit *sum, fp_digit *carry)
 
 void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sum, fp_digit *carry)
 {
-	fp_word s,c;
+	//fp_word s,c;
+	uint64 s,c;
 
 	s = v;
 	c = 0;
@@ -2409,7 +2409,8 @@ void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sum, fp_digit *carry)
 
 void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sub, fp_digit *borrow)
 {
-	fp_word s,b;
+	//fp_word s,b;
+	uint64 s,b;
 
 	s = v;
 	b = 0;
@@ -2432,7 +2433,8 @@ void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sub, fp_digit *borrow)
 
 void spSub(fp_digit u, fp_digit v, fp_digit *sub, fp_digit *borrow)
 {
-	fp_word s,b;
+	//fp_word s,b;
+	uint64 s,b;
 
 	s = v;
 	b = 0;
@@ -2480,7 +2482,7 @@ void spMultiply(fp_digit u, fp_digit v, fp_digit *product, fp_digit *carry)
 
 void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit *lower, fp_digit *carry)
 {
-	fp_word k,p;
+	fp_digit k,p;
 	spMultiply(u,v,&p,carry);
 	spAdd3(p,w,t,lower,&k);
 	*carry += k;
@@ -2583,16 +2585,7 @@ void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit *w)
 
 #elif BITS_PER_DIGIT == 64
 
-void spAdd32(uint32 u, uint32 v, uint32 *sum, uint32 *carry);
-void spAdd3_32(uint32 u, uint32 v, uint32 w, uint32 *sum, uint32 *carry);
-void spMultiply32(uint32 u, uint32 v, uint32 *product, uint32 *carry);
-uint32 spDivide32(uint32 *q, uint32 *r, uint32 u[2], uint32 v);
-int shortCompare32(uint32 p[2], uint32 t[2]);
-int shortSubtract32(uint32 p[2], uint32 t[2], uint32 w[2]);
-fp_digit spShortDiv(fp_digit u[2], fp_digit v, fp_digit *q);
-void spSub32(uint32 u, uint32 v, uint32 *sub, uint32 *borrow);
-void spSub3_32(uint32 u, uint32 v, uint32 w, uint32 *sub, uint32 *borrow);
-void zDiv32(z32 *u, z32 *v, z32 *q, z32 *r);
+// TBD: needs low level assembly routines similar to mod_64
 
 fp_digit spDivide(fp_digit *q, fp_digit *r, fp_digit u[2], fp_digit v)
 {
