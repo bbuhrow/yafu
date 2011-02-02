@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup
     Condition="'$(YASMBeforeTargets)' == '' and '$(YASMAfterTargets)' == '' and '$(ConfigurationType)' != 'Makefile'">
@@ -10,7 +10,7 @@
       Condition="'$(ConfigurationType)' != 'Makefile'">_SelectedFiles;$(YASMDependsOn)</YASMDependsOn>
   </PropertyGroup>
   <PropertyGroup>
-    <YasmPath Condition= "'$(YASMPATH)' == ''">C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\</YasmPath>
+    <YasmPath Condition= "'$(YASMPATH)' == ''">C:\Program Files\Microsoft Visual Studio 10.0\VC\bin\</YasmPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <YASM>

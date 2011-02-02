@@ -62,19 +62,19 @@ ifeq ($(NFS),1)
 	# NFS builds require GMP
 	ifneq ($(GMPECM),1)
 		CFLAGS += -DHAVE_GMP
-		# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
-		INC += -I../gmp/include/
-		# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ -lgmp
-		LIBS += -L../gmp/lib/ -lgmp
+		INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
+		# INC += -I../gmp/include/
+		LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ -lgmp
+		# LIBS += -L../gmp/lib/ -lgmp
 	endif
 
 	# NOTE: if the included msieve library was build with ECM, then 
 	# ECM must also be enabled here
 	CFLAGS += -DHAVE_GMP_ECM
-	INC += -I../gmp-ecm/include/
-	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib/ -lecm
-	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm
+	# INC += -I../gmp-ecm/include/
+	INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
+	# LIBS += -L../gmp-ecm/lib/ -lecm
+	LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm
 endif
 
 ifeq ($(FORCE_MODERN),1)

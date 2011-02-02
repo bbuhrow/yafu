@@ -85,7 +85,7 @@ double TF_SPECIAL;
 #endif
 
 #define USE_POLY_SSE2_ASM 1
-//
+
 #if defined(_WIN64)
 	#define USE_RESIEVING
 #elif defined(WIN32)

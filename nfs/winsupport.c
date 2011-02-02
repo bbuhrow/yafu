@@ -6,7 +6,7 @@
 // windows builds need to supply the following functions because they 
 // are not available within gnfs.lib or common.lib, but are available
 // within libmsieve.a
-#ifdef WIN32
+#if defined(WIN32)
 
 // windows machines also need these declarations for functions supplied
 // in winsupport.c, for NFS factorizations using msieve.
