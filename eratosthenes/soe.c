@@ -192,7 +192,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		for (k=0; k<sp; k++)
 		{
 			if (locprimes[k] == 0)
-				printf("found prime == 0 in locprimes at location %I64u\n",k);
+				printf("found prime == 0 in locprimes at location %" PRIu64 "\n",k);
 			sdata.sieve_p[k] = (uint32)locprimes[k];
 		}
 #endif
@@ -256,7 +256,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		k = (uint64)((double)j/log((double)j)*1.2);
 		if (VFLAG > 2)
 		{
-			printf("estimating storage for primes up to %lu\n",*highlimit);
+			printf("estimating storage for primes up to %" PRIu64 "\n",*highlimit);
 			printf("allocating merge prime storage for %u primes\n",k);
 		}
 		locprimes = (uint64 *)realloc(locprimes,k * sizeof(uint64));
@@ -629,53 +629,21 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	if (VFLAG > 2)
 	{	
-		
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		printf("sieving range %lu to %lu\n",lowlimit,*highlimit);
-		printf("using %lu primes, max prime = %lu  \n",sdata.pboundi,sdata.pbound);
-		printf("using %lu residue classes\n",numclasses);
-		printf("lines have %lu bytes and %lu flags\n",numlinebytes,numlinebytes * 8);
-		printf("lines broken into = %lu blocks of size %u\n",sdata.blocks,BLOCKSIZE);
-		printf("blocks contain %u flags and cover %lu primes\n", FLAGSIZE, sdata.blk_r);
+		printf("sieving range %" PRIu64 " to %" PRIu64 "\n",lowlimit,*highlimit);
+		printf("using %" PRIu64 " primes, max prime = %" PRIu64 "  \n",sdata.pboundi,sdata.pbound);
+		printf("using %" PRIu64 " residue classes\n",numclasses);
+		printf("lines have %" PRIu64 " bytes and %" PRIu64 " flags\n",numlinebytes,numlinebytes * 8);
+		printf("lines broken into = %" PRIu64 " blocks of size %u\n",sdata.blocks,BLOCKSIZE);
+		printf("blocks contain %u flags and cover %" PRIu64 " primes\n", FLAGSIZE, sdata.blk_r);
 		if (bucket_depth > BUCKET_BUFFER)
 		{
 			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
-			printf("allocating space for %lu hits per bucket\n",bucket_alloc);
+			printf("allocating space for %" PRIu64 " hits per bucket\n",bucket_alloc);
 #ifdef DO_LARGE_BUCKETS
 			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
 #endif
 		}
-		printf("using %lu bytes for sieving storage\n",allocated_bytes);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		printf("sieving range %llu to %llu\n",lowlimit,*highlimit);
-		printf("using %llu primes, max prime = %llu  \n",sdata.pboundi,sdata.pbound);
-		printf("using %llu residue classes\n",numclasses);
-		printf("lines have %llu bytes and %llu flags\n",numlinebytes,numlinebytes * 8);
-		printf("lines broken into = %llu blocks of size %u\n",sdata.blocks,BLOCKSIZE);
-		printf("blocks contain %u flags and cover %llu primes\n", FLAGSIZE, sdata.blk_r);
-		if (bucket_depth > BUCKET_BUFFER)
-		{
-			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
-			printf("allocating space for %llu hits per bucket\n",bucket_alloc);
-			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
-		}
-		printf("using %llu bytes for sieving storage\n",allocated_bytes);
-#else
-		printf("sieving range %I64u to %I64u\n",lowlimit,*highlimit);
-		printf("using %I64u primes, max prime = %I64u  \n",sdata.pboundi,sdata.pbound);
-		printf("using %I64u residue classes\n",numclasses);
-		printf("lines have %I64u bytes and %I64u flags\n",numlinebytes,numlinebytes * 8);
-		printf("lines broken into = %I64u blocks of size %u\n",sdata.blocks,BLOCKSIZE);
-		printf("blocks contain %u flags and cover %I64u primes\n", FLAGSIZE, sdata.blk_r);
-		if (bucket_depth > BUCKET_BUFFER)
-		{
-			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
-			printf("allocating space for %I64u hits per bucket\n",bucket_alloc);
-			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
-		}
-		printf("using %I64u bytes for sieving storage\n",allocated_bytes);
-#endif
-			
+		printf("using %" PRIu64 " bytes for sieving storage\n",allocated_bytes);
 	}
 
 	/* activate the threads one at a time. The last is the
@@ -1055,7 +1023,7 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 		difference = my_difftime (&tstart, &tstop);
 		t = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		printf("\nfound %lu primes in range %lu to %lu in %6.4f sec\n",NUM_P,lower,tmpupper,t);
+		printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n",NUM_P,lower,tmpupper,t);
 				
 		gettimeofday(&tstart, NULL);
 		//now add up the squares.  NUM_P is set by the soe_wrapper to the number of primes
@@ -1108,9 +1076,9 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 				while (zShortMod(squaresum,squaremod) == 0)
 				{
 					out = fopen("sum_of_squares.csv","a");
-					printf("**** %lu divides prime square sum up to %lu ****\n",squaremod,PRIMES[j]);
+					printf("**** %" PRIu64 " divides prime square sum up to %" PRIu64 " ****\n",squaremod,PRIMES[j]);
 					fprintf(out,
-						"**** %lu divides prime square sum up to %lu, sum is %s ****\n",
+						"**** %" PRIu64 " divides prime square sum up to %" PRIu64 ", sum is %s ****\n",
 						squaremod,PRIMES[j],z2decstr(squaresum,&gstr1));
 					fclose(out);
 					//start looking for the next power of 10
@@ -1141,9 +1109,9 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 				while (zShortMod(sum,summod) == 0)
 				{
 					out = fopen("sum_of_squares.csv","a");
-					printf("**** %lu divides prime sum up to %lu ****\n",summod,PRIMES[j]);
+					printf("**** %" PRIu64 " divides prime sum up to %" PRIu64 " ****\n",summod,PRIMES[j]);
 					fprintf(out,
-						"**** %lu divides prime sum up to %lu, sum is %s ****\n",
+						"**** %" PRIu64 " divides prime sum up to %" PRIu64 ", sum is %s ****\n",
 						summod,PRIMES[j],z2decstr(sum,&gstr1));
 					fclose(out);
 					summod *= 10;
@@ -1185,7 +1153,7 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 			t,z2decstr(squaresum,&gstr1),z2decstr(sum,&gstr2));
 		
 		out = fopen("sum_of_squares.csv","a");
-		fprintf(out,"%lu,%lu,%lu,%s,%s\n",
+		fprintf(out,"%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%s,%s\n",
 			upper,n64,pcount,z2decstr(sum,&gstr1),z2decstr(squaresum,&gstr2));
 		fclose(out);
 		
@@ -1256,7 +1224,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 		difference = my_difftime (&tstart, &tstop);
 		t = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		printf("\nfound %lu primes in range %lu to %lu in %6.4f sec\n",NUM_P,lower,tmpupper,t);
+		printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n",NUM_P,lower,tmpupper,t);
 		
 		
 		gettimeofday(&tstart, NULL);
@@ -1342,10 +1310,10 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 				while (zShortMod(sum,summod) == 0)
 				{
 					out = fopen("sum_of_cubes.csv","a");
-					printf("**** %lu divides prime cube sum up to %lu, sum = %s ****\n",
+					printf("**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum = %s ****\n",
 						summod,PRIMES[j],z2decstr(sum,&gstr1));
 					fprintf(out,
-						"**** %lu divides prime cube sum up to %lu, sum is %s ****\n",
+						"**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum is %s ****\n",
 						summod,PRIMES[j],z2decstr(sum,&gstr1));
 					fclose(out);
 					summod *= 10;
@@ -1374,7 +1342,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 			t,z2decstr(sum,&gstr2));
 		
 		out = fopen("sum_of_cubes.csv","a");
-		fprintf(out,"%lu,%lu,%lu,%s\n",
+		fprintf(out,"%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%s\n",
 			tmpupper,n64,pcount,z2decstr(sum,&gstr1));
 		fclose(out);
 		
@@ -1382,7 +1350,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 		tmpupper += inc;
 	}
 
-	//printf("done looping.  lower = %lu, upper = %lu, tmpupper = %lu\n",lower,upper,tmpupper);
+	//printf("done looping.  lower = %" PRIu64 ", upper = %" PRIu64 ", tmpupper = %" PRIu64 "\n",lower,upper,tmpupper);
 	if (upper - lower > 0)
 	{
 		gettimeofday(&tstart, NULL);				
@@ -1392,7 +1360,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 		difference = my_difftime (&tstart, &tstop);
 		t = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		printf("\nfound %lu primes in range %lu to %lu in %6.4f sec\n",NUM_P,lower,upper,t);		
+		printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n",NUM_P,lower,upper,t);		
 		
 		gettimeofday(&tstart, NULL);
 		//now add up the squares
@@ -1431,7 +1399,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 
 #endif
 
-			//printf("%d:%lu:%s\n",j,PRIMES[j],z2decstr(sum,&gstr1));
+			//printf("%d:%" PRIu64 ":%s\n",j,PRIMES[j],z2decstr(sum,&gstr1));
 			//check if the sum is 0 modulo the current power of 10
 			if ((sum->val[0] & powof2m1sum) == 0)
 			{
@@ -1452,10 +1420,10 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 				while (zShortMod(sum,summod) == 0)
 				{
 					out = fopen("sum_of_cubes.csv","a");
-					printf("**** %lu divides prime cube sum up to %lu, sum = %s ****\n",
+					printf("**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum = %s ****\n",
 						summod,PRIMES[j],z2decstr(sum,&gstr1));
 					fprintf(out,
-						"**** %lu divides prime cube sum up to %lu, sum is %s ****\n",
+						"**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum is %s ****\n",
 						summod,PRIMES[j],z2decstr(sum,&gstr1));
 					fclose(out);
 					summod *= 10;
@@ -1518,7 +1486,7 @@ void primesum(uint64 lower, uint64 upper)
 		difference = my_difftime (&tstart, &tstop);
 		t = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		printf("\nfound %lu primes in range %lu to %lu in %6.4f sec\n",NUM_P,lower,tmpupper,t);
+		printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n",NUM_P,lower,tmpupper,t);
 		
 		
 		gettimeofday(&tstart, NULL);

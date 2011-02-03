@@ -87,7 +87,7 @@ void Trial64(int64 n, int print)
 			tmp.type = PRIME;
 			//add_to_factor_list(fobj, &tmp);
 			if (print)
-				printf("PRIME FACTOR: %lu\n",spSOEprimes[k]);
+				printf("PRIME FACTOR: %" PRIu64 "\n",spSOEprimes[k]);
 			if (n == 1) break; 
 			limit = (int64)sqrt((double)n);
 		}
@@ -128,7 +128,7 @@ void Trial32(int32 n, int print)
 			tmp.type = PRIME;
 			//add_to_factor_list(&tmp);
 			if (print)
-				printf("PRIME FACTOR: %lu\n",spSOEprimes[k]);
+				printf("PRIME FACTOR: %" PRIu64 "\n",spSOEprimes[k]);
 			if (n == 1) break; 
 			limit = (int32)sqrt((double)n);
 		}
@@ -225,7 +225,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		{
 			for (i=0; i< numChars; i++)
 				printf("\b");
-			numChars = printf("%lu%%",(uint64)((double)count / (double)limit * 100));
+			numChars = printf("%" PRIu64 "%%",(uint64)((double)count / (double)limit * 100));
 			fflush(stdout);
 			reportIt += reportInc;
 		}

@@ -321,7 +321,7 @@ char ggnfs_dir[1024];
 rand_t g_rand;
 uint64 LCGSTATE;
 
-#ifdef WIN32
+#if defined(WIN32)
 //system info
 char sysname[MAX_COMPUTERNAME_LENGTH + 1];
 int sysname_sz;

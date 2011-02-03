@@ -1514,7 +1514,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//maxbn = 0;
 		//for (i=0;i<10;i++) gcounts[i] = 0;
 		//test_dlp_composites();
-		//for (i=0;i<10;i++) printf("count of bn = %d: %lu\n",i+1,gcounts[i]);
+		//for (i=0;i<10;i++) printf("count of bn = %d: %" PRIu64 "\n",i+1,gcounts[i]);
 		//printf("max bn = %u\n",maxbn);
 		//modtest(100000);
 		//test_qsort();
@@ -1557,7 +1557,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//count = 50847534;
 		lower = 10;
 		count = 4;
-		printf("%lu: %lu\n",lower,count);
+		printf("%" PRIu64 ": %" PRIu64 "\n",lower,count);
 		for (i = 1; i < 13; i++)
 		{
 			inc = (uint64)pow(10,i);
@@ -1580,7 +1580,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				t = ((double)difference->secs + (double)difference->usecs / 1000000);
 				free(difference);
 				lower = upper;
-				printf("%lu: %lu, elapsed time = %6.4f\n",upper,count,t);
+				printf("%" PRIu64 ": %" PRIu64 ", elapsed time = %6.4f\n",upper,count,t);
 			}
 		}
 
@@ -1822,30 +1822,11 @@ int get_uvar(const char *name, z *data)
 
 	if (strcmp(name,"vars") == 0) {
 		printf("dumping variable name data:\n");
-		printf("POLLARD_STG1_MAX   %u\n",POLLARD_STG1_MAX);
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		printf("POLLARD_STG2_MAX   %lu\n",POLLARD_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		printf("POLLARD_STG2_MAX   %llu\n",POLLARD_STG2_MAX);
-#else
-		printf("POLLARD_STG2_MAX   %I64u\n",POLLARD_STG2_MAX);
-#endif
+		printf("POLLARD_STG2_MAX   %" PRIu64 "\n",POLLARD_STG2_MAX);
 		printf("ECM_STG1_MAX	   %u\n",ECM_STG1_MAX);
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		printf("ECM_STG2_MAX       %lu\n",ECM_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		printf("ECM_STG2_MAX       %llu\n",ECM_STG2_MAX);
-#else
-		printf("ECM_STG2_MAX       %I64u\n",ECM_STG2_MAX);
-#endif
+		printf("ECM_STG2_MAX       %" PRIu64 "\n",ECM_STG2_MAX);
 		printf("WILL_STG1_MAX      %u\n",WILL_STG1_MAX);
-#if defined(__unix__) && (BITS_PER_DIGIT == 64)
-		printf("WILL_STG2_MAX      %lu\n",WILL_STG2_MAX);
-#elif defined(__unix__) && (BITS_PER_DIGIT == 32)
-		printf("WILL_STG2_MAX      %llu\n",WILL_STG2_MAX);
-#else
-		printf("WILL_STG2_MAX      %I64u\n",WILL_STG2_MAX);
-#endif
+		printf("WILL_STG2_MAX      %" PRIu64 "\n",WILL_STG2_MAX);
 		printf("BRENT_MAX_IT       %u\n",BRENT_MAX_IT);
 		printf("IBASE              %u\n",IBASE);
 		printf("OBASE              %u\n",OBASE);		

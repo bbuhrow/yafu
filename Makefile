@@ -18,6 +18,7 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
+#CC = x86_64-w64-mingw32-gcc-4.5.1
 # CFLAGS = -g -march=nocona
 CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion

@@ -438,7 +438,7 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 		break;
 	}
 
-#ifdef WIN32
+#if defined(WIN32)
 	sprintf(sname, "%s.exe", sname);
 #endif
 
