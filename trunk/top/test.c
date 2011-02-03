@@ -65,15 +65,7 @@ void test_dlp_composites()
 	//read in everything
 	while (!feof(in))
 	{
-#if BITS_PER_DIGIT == 64
-		fscanf(in,"%lu,%u,%u",comp+i,f1+i,f2+i);
-#else
-#ifdef _WIN32
-		fscanf(in,"%I64u,%u,%u",comp+i,f1+i,f2+i);
-#else
-		fscanf(in,"%llu,%u,%u",comp+i,f1+i,f2+i);
-#endif
-#endif
+		fscanf(in,"%" PRIu64 ",%u,%u",comp+i,f1+i,f2+i);
 		sp642z(comp[i],&tmp);
 		j = zBits(&tmp);
 		totBits += j;
@@ -198,7 +190,7 @@ void test_dlp_composites()
 		sp642z(comp[i],&tmp);
 		////sp642z(2128691,&tmp);
 		squfof_rds((int64)z264(&tmp),&fact1, &fact2);
-		//printf("%lu = %u * %u\n",z264(&tmp), fact1, fact2);
+		//printf("%" PRIu64 " = %u * %u\n",z264(&tmp), fact1, fact2);
 
 
 		if ( ((uint32)fact1 == f1[i]) || ((uint32)fact1 == f2[i]))

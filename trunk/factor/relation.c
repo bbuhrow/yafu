@@ -2032,7 +2032,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	z32 *Q;	
 	
 #ifdef SSE2_RESIEVING
-	#if defined(WIN32) && !defined(__MINGW32__)
+	#if defined(_MSC_VER) || defined (__MINGW32__)
 		corrections = (uint16 *)_aligned_malloc(8 * sizeof(uint16),64);
 	#else
 		corrections = (uint16 *)memalign(64, 8 * sizeof(uint16));

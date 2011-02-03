@@ -68,6 +68,7 @@ DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
 void *nfs_worker_thread_main(void *thread_data);
 #endif
 
+#ifdef USE_NFS
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
@@ -312,7 +313,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		{
 			nfs_threaddata_t *t = thread_data + i;
 		
-#ifdef WIN32			
+#if defined(WIN32)
 			int a;
 
 			// test for cat
@@ -1332,7 +1333,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 		break;
 	}
 
-#ifdef WIN32
+#if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
 
@@ -1355,6 +1356,13 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	return;
 }
 	
+#else
 
+void test_msieve_gnfs(fact_obj_t *fobj)
+{
+	printf("gnfs has been disabled\n");
+	return;
+}
 
+#endif
 

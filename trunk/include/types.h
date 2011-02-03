@@ -71,7 +71,7 @@ code to the public domain.
 
 /* basic types  -------------------------------------------------------*/
 
-#if defined(_MSC_VER) || defined(NO_ASM)
+#if defined(_MSC_VER)
 
 	#define align_free _aligned_free
 
@@ -209,8 +209,8 @@ code to the public domain.
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
 	#if defined(__MINGW64__)
 		#include <mm_malloc.h>
-		#define memalign _mm_malloc
-		#define align_free _mm_free
+		#define memalign _aligned_malloc //_mm_malloc
+		#define align_free _aligned_free //_mm_free
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;

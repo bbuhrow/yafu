@@ -898,7 +898,7 @@ void shanks_mult_unit_big(z *N, mult_big_t *mult_save, uint64 *f)
 		//sp642z(Qn,&tmp1);
 		//zNroot(&tmp1,&tmp2,2);
 		//S = (uint64)tmp2.val[0];
-		//printf("S = %lu\n",S);
+		//printf("S = %" PRIu64 "\n",S);
 		S = (int64)sqrt((double)Qn);
 		Ro = P + S * ((b0 - P)/S);
 		t1 = Ro;

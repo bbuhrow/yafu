@@ -368,7 +368,7 @@ void save_state(int stage, z *n, z *m, z *mm, z *cc, int i, int method)
 
 		//print n, the limit, the resume point, and the residues
 		fprintf(outstate,"%s\n",z2hexstr(n,&gstr1));
-		fprintf(outstate,"%u,%u\n",limit,PRIMES[i]);
+		fprintf(outstate,"%u,%" PRIu64 "\n",limit,PRIMES[i]);
 		fprintf(outstate,"%s\n",z2hexstr(cc,&gstr1));
 		fprintf(outstate,"%s\n",z2hexstr(m,&gstr1));
 		fprintf(outstate,"%s\n",z2hexstr(mm,&gstr1));

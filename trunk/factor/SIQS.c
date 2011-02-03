@@ -1024,7 +1024,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//allocate the sieving factor bases
-#if defined (_MSC_VER) 
+#if defined (_MSC_VER) || defined(__MINGW32__)
 
 #ifdef USE_COMPRESSED_FB
 	dconf->comp_sieve_p = (sieve_fb_compressed *)_aligned_malloc(
@@ -1067,7 +1067,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		sconf->factor_base->B * sizeof(uint8),64);
 	dconf->rootupdates = (int *)_aligned_malloc(
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int),64);
-//
+
 //#elif defined (__MINGW32__)
 //	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(
 //		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
@@ -1152,7 +1152,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 	
 	//allocate the sieve
-#if defined (_MSC_VER) 
+#if defined (_MSC_VER) || defined (__MINGW32__)
 	dconf->sieve = (uint8 *)_aligned_malloc(
 		(size_t) (BLOCKSIZE * sizeof(uint8)),64);
 //#elif defined (__MINGW32__)
@@ -1233,7 +1233,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets->list_size = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 		
 		//now allocate the buckets
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined (__MINGW32__)
 		dconf->buckets->list = (uint32 *)_aligned_malloc(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
 			BUCKET_ALLOC * sizeof(uint32),64);
@@ -1267,7 +1267,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//used in trial division to mask out the fb_index portion of bucket entries, so that
 	//multiple block locations can be searched for in parallel using SSE2 instructions
-#if defined (_MSC_VER)
+#if defined (_MSC_VER) || defined (__MINGW32__)
 	dconf->mask = (uint16 *)_aligned_malloc(8 * sizeof(uint16),16);
 #elif defined (__GNUC__)
 	dconf->mask = (uint16 *)memalign(16,8 * sizeof(uint16));
@@ -1380,7 +1380,7 @@ int siqs_static_init(static_conf_t *sconf)
 		//	sconf->factor_base->B++;	//force this to be even for fast root updating
 
 		//allocate the space for the factor base elements
-#if defined(_MSC_VER) 
+#if defined(_MSC_VER) || defined (__MINGW32__)
 		sconf->factor_base->list = (fb_element_siqs *)_aligned_malloc(
 			(size_t)(sizeof(fb_element_siqs)),64);
 		sconf->modsqrt_array = (uint32 *)malloc(

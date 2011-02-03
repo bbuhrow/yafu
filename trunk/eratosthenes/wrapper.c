@@ -29,7 +29,7 @@ void GetPRIMESRange(uint64 lowlimit, uint64 highlimit)
 	PRIMES = (uint64 *)realloc(PRIMES,(size_t) (i*sizeof(uint64)));
 	if (PRIMES == NULL)
 	{
-		printf("unable to allocate %lu bytes for range %lu to %lu\n",
+		printf("unable to allocate %" PRIu64 " bytes for range %" PRIu64 " to %" PRIu64 "\n",
 			(uint64)(i*sizeof(uint64)),lowlimit,highlimit);
 		exit(1);
 	}
@@ -186,7 +186,7 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 				for (i = 0; i < NUM_P; i++)
 				{
 					if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-						fprintf(out,"%lu\n",PRIMES[i]);
+						fprintf(out,"%" PRIu64 "\n",PRIMES[i]);
 				}
 				fclose(out);
 			}
@@ -197,7 +197,7 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 			for (i = 0; i < NUM_P; i++)
 			{
 				if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-					printf("%lu ",PRIMES[i]);
+					printf("%" PRIu64 " ",PRIMES[i]);
 			}
 			printf("\n");
 		}
