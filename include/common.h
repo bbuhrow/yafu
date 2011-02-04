@@ -90,17 +90,10 @@ extern "C" {
 	#define ASM_G __asm__
 
 	#if defined(__x86_64__) 
-		/*#if defined(__MINGW32__)
-			#define GCC_ASM64A
-			#define GCC_ASM64X
-			#define FP_64BIT
-		#else*/
-			#define GCC_ASM64A
-			#define GCC_ASM64X
-			#define TFM_X86_64
-			#define FP_64BIT
-		//#endif
-
+		#define GCC_ASM64A
+		#define GCC_ASM64X
+		#define TFM_X86_64
+		#define FP_64BIT
 	#elif defined(__i386__)
 		#define GCC_ASM32A
 		#define GCC_ASM32X

@@ -74,6 +74,7 @@ double TF_SPECIAL;
 #define INNER_BLOCKSIZE 32768
 #define BLOCKBITS 16
 #define BLOCKSIZEm1txt "0xffff"
+#define BLOCKSIZEtxt "0x10000"
 #define BLOCKBITStxt "16"
 #else
 #define BLOCKSIZE 32768
@@ -81,6 +82,7 @@ double TF_SPECIAL;
 #define INNER_BLOCKSIZE 16384
 #define BLOCKBITS 15
 #define BLOCKSIZEm1txt "0x7fff"
+#define BLOCKSIZEtxt "0x8000"
 #define BLOCKBITStxt "15"
 #endif
 
@@ -135,6 +137,7 @@ typedef struct
 } sieve_fb;
 
 #ifdef USE_COMPRESSED_FB
+//#define LOGP_BITS 8
 typedef struct
 {
 	uint32 prime_and_logp;
@@ -146,7 +149,11 @@ typedef struct
 	uint16 *prime;			
 	uint16 *root1;				
 	uint16 *root2;
+#ifdef LOGP_BITS
 	uint8 *logp;
+#else
+	uint16 *logp;
+#endif
 } sieve_fb_compressed;
 #endif
 
