@@ -700,9 +700,11 @@ void *process_poly(void *ptr)
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
 			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
-			scan_ptr(i,1,sconf,dconf);
+			scan_ptr(i,1,sconf,dconf);			
 
 		}
+
+		//exit(1);
 
 		//next polynomial
 		//use the stored Bl's and the gray code to find the next b
@@ -1068,27 +1070,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->rootupdates = (int *)_aligned_malloc(
 		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int),64);
 
-//#elif defined (__MINGW32__)
-//	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(
-//		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-//	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(
-//		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-//	dconf->fb_sieve_p = (sieve_fb *)malloc(
-//		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-//	dconf->fb_sieve_n = (sieve_fb *)malloc(
-//		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-//	//allocate storage for the update data needed when changing polys
-//	dconf->update_data.firstroots1 = (int *)malloc(
-//		sconf->factor_base->B * sizeof(int));
-//	dconf->update_data.firstroots2 = (int *)malloc(
-//		sconf->factor_base->B * sizeof(int));
-//	dconf->update_data.prime = (uint32 *)malloc(
-//		sconf->factor_base->B * sizeof(uint32));
-//	dconf->update_data.logp = (uint8 *)malloc(
-//		sconf->factor_base->B * sizeof(uint8));
-//	dconf->rootupdates = (int *)malloc(
-//		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
-//
 #else
 
 #ifdef USE_COMPRESSED_FB
@@ -1105,8 +1086,15 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->comp_sieve_p->root2 = (uint16 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+#ifdef LOGP_BITS
+	//printf("logp values have 8 bits\n");
 	dconf->comp_sieve_p->logp = (uint8 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
+#else
+	//printf("logp values have 16 bits\n");
+	dconf->comp_sieve_p->logp = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+#endif
 
 	dconf->comp_sieve_n->prime = (uint16 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
@@ -1114,8 +1102,15 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->comp_sieve_n->root2 = (uint16 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+#ifdef LOGP_BITS
+	//printf("logp values have 8 bits\n");
 	dconf->comp_sieve_n->logp = (uint8 *)memalign(64,
 		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
+#else
+	//printf("logp values have 16 bits\n");
+	dconf->comp_sieve_n->logp = (uint16 *)memalign(64,
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+#endif
 
 #endif
 	dconf->fb_sieve_p = (sieve_fb *)memalign(64,
@@ -1155,9 +1150,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #if defined (_MSC_VER) || defined (__MINGW32__)
 	dconf->sieve = (uint8 *)_aligned_malloc(
 		(size_t) (BLOCKSIZE * sizeof(uint8)),64);
-//#elif defined (__MINGW32__)
-//	dconf->sieve = (uint8 *)malloc(
-//		(size_t) (BLOCKSIZE * sizeof(uint8)));
 #else
 	dconf->sieve = (uint8 *)memalign(64,
 		(size_t) (BLOCKSIZE * sizeof(uint8)));
@@ -1237,10 +1229,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets->list = (uint32 *)_aligned_malloc(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
 			BUCKET_ALLOC * sizeof(uint32),64);
-//#elif defined(__MINGW32__)
-//		dconf->buckets->list = (uint32 *)malloc(
-//			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-//			BUCKET_ALLOC * sizeof(uint32));
 #else
 		dconf->buckets->list = (uint32 *)memalign(64,
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
@@ -1589,6 +1577,7 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->large_B-1]);
 	}
+	//exit(1);
 
 	//a couple limits
 	sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B-1];
