@@ -1159,8 +1159,13 @@ typedef struct
 	#define ADDRESS_LOC(j) ((bptr + j)->loc)
 #endif
 
-//#define USE_ASM_SIEVE 1
-#define USE_SSE2_SIEVE 1
+#if defined( _MSC_VER ) and defined( _WIN64 )
+    #undef USE_SSE2_SIEVE
+    #undef USE_ASM_SIEVE
+#else
+    #define USE_SSE2_SIEVE 1
+    #define USE_ASM_SIEVE  1
+#endif
 
 void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 bnum, uint32 numblocks,
 							 lp_bucket *lp, uint32 start_prime, uint8 s_init, int side)
@@ -1384,7 +1389,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 b
 	i = asm_input.startprime;
 
 
-#elif USE_ASM_SIEVE
+#elifdef USE_ASM_SIEVE
 
 //start of 2x sieve pointer sieving
 //	p16 = BLOCKSIZE >> 1;
