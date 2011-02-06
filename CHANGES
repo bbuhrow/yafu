@@ -12,6 +12,8 @@ v 1.24
 	mingw64 friendly
 + actually make use of the PRIu/d/x64 definitions now
 + uncomment stuff in fp_montgomery_reduce.c which was protected by #ifdef's anyway
++ got SSE2 based assembly code working to sieve small/medium primes in sieve.c (x86-64 only)
++ got macros straightened out to report resieving usage correctly on supported platforms
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
