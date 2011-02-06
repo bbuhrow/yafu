@@ -683,7 +683,7 @@ void *process_poly(void *ptr)
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
 			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
-			lp_sieveblock(sieve,fb_sieve_p,fb->med_B, i, num_blocks, buckets,
+			lp_sieveblock(sieve,fb_sieve_p,fb, i, num_blocks, buckets,
 				start_prime,blockinit,0);
 
 			//set the roots for the factors of a to force the following routine
@@ -694,7 +694,7 @@ void *process_poly(void *ptr)
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
 			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
-			lp_sieveblock(sieve,fb_sieve_n,fb->med_B, i, num_blocks, buckets,
+			lp_sieveblock(sieve,fb_sieve_n,fb, i, num_blocks, buckets,
 				start_prime,blockinit,1);
 
 			//set the roots for the factors of a to force the following routine
@@ -822,57 +822,38 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		printf("using multiplier of %u\n",sconf->multiplier);
 		printf("using small prime variation correction of %d bits\n",
 			sconf->tf_small_cutoff);
-//#if defined(__MINGW32__)
-//	#if defined(HAS_SSE2)
-//		printf("using SSE2 for trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#elif defined(HAS_MMX)
-//		printf("using MMX for trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#else
-//		printf("using generic trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#endif
-#if defined(__GNUC__)
-	#if defined(HAS_SSE2)
-		printf("using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
-		printf("using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#else
-		printf("using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#endif
-	#if defined(SSE2_RESIEVEING)
-		#ifdef YAFU_64K
-			printf("using SSE2 for resieving 14-16 bit primes\n");
-		#else
-			printf("using SSE2 for resieving 13-16 bit primes\n");
-		#endif
-	#endif
-#elif defined(_MSC_VER)
-	#if defined(HAS_SSE2)
-		printf("using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
-		printf("using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#else
-		printf("using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#endif
 
-	#if defined(HAS_SSE2)
+#if defined(HAS_SSE2)
+		printf("using SSE2 for trial division and x%d sieve scanning\n",
+			sconf->scan_unrolling);
+#elif defined(HAS_MMX)
+		printf("using MMX for trial division and x%d sieve scanning\n",
+			sconf->scan_unrolling);
+#else
+		printf("using generic trial division and x%d sieve scanning\n",
+			sconf->scan_unrolling);
+#endif
+
+#if defined(USE_RESIEVING)
+	#if defined(SSE2_RESIEVING)
 		#ifdef YAFU_64K
 			printf("using SSE2 for resieving 14-16 bit primes\n");
 		#else
 			printf("using SSE2 for resieving 13-16 bit primes\n");
 		#endif
+	#else
+		#ifdef YAFU_64K
+			printf("resieving 14-16 bit primes\n");
+		#else
+			printf("resieving 13-16 bit primes\n");
+		#endif
 	#endif
-#else	/* compiler not recognized*/
-	
 #endif
+
+#if defined(SSE2_ASM_SIEVING)
+			printf("using SSE2 to sieve primes up to 16 bits\n");
+#endif
+
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
 		printf("using 64 byte cache line prefetching\n");
 #elif defined(MANUAL_PREFETCH)
@@ -925,42 +906,39 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
 	logprint(sconf->obj->logfile,"using small prime variation correction of %d bits\n",
 		sconf->tf_small_cutoff);
-//#if defined(__MINGW32__)
-//	#if defined(HAS_SSE2)
-//		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#elif defined(HAS_MMX)
-//		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#else
-//		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
-//			sconf->scan_unrolling);
-//	#endif
-#if defined(__GNUC__)
-	#if defined(HAS_SSE2)
+
+
+#if defined(HAS_SSE2)
 		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
+#elif defined(HAS_MMX)
 		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
-	#else
+#else
 		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
-	#endif
-#elif defined(_MSC_VER)
-	#if defined(HAS_SSE2)
-		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-	#elif defined(HAS_MMX)
-		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
+#endif
+
+#if defined(USE_RESIEVING)
+	#if defined(SSE2_RESIEVING)
+		#ifdef YAFU_64K
+			logprint(sconf->obj->logfile,"using SSE2 for resieving 14-16 bit primes\n");
+		#else
+			logprint(sconf->obj->logfile,"using SSE2 for resieving 13-16 bit primes\n");
+		#endif
 	#else
-		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
+		#ifdef YAFU_64K
+			logprint(sconf->obj->logfile,"resieving 14-16 bit primes\n");
+		#else
+			logprint(sconf->obj->logfile,"resieving 13-16 bit primes\n");
+		#endif
 	#endif
-#else	/* compiler not recognized*/
-	
-#endif	
+#endif
+
+#if defined(SSE2_ASM_SIEVING)
+			logprint(sconf->obj->logfile,"using SSE2 to sieve primes up to 16 bits\n");
+#endif
+
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
 	logprint(sconf->obj->logfile,"using 64 byte cache line prefetching\n");
 #elif defined(MANUAL_PREFETCH)
@@ -1042,8 +1020,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 	dconf->comp_sieve_p->root2 = (uint16 *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->logp = (uint8 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
+	dconf->comp_sieve_p->logp = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 
 	dconf->comp_sieve_n->prime = (uint16 *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
@@ -1051,8 +1029,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 	dconf->comp_sieve_n->root2 = (uint16 *)_aligned_malloc(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->logp = (uint8 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)),64);
+	dconf->comp_sieve_n->logp = (uint16 *)_aligned_malloc(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 #endif
 	dconf->fb_sieve_p = (sieve_fb *)_aligned_malloc(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
@@ -1381,19 +1359,6 @@ int siqs_static_init(static_conf_t *sconf)
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
 		sconf->factor_base->list->logprime = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-//#elif defined(__MINGW32__)
-//		sconf->factor_base->list = (fb_element_siqs *)malloc(
-//			(size_t)(sizeof(fb_element_siqs)));
-//		sconf->modsqrt_array = (uint32 *)malloc(
-//			sconf->factor_base->B * sizeof(uint32));
-//		sconf->factor_base->list->prime = (uint32 *)malloc(
-//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-//		sconf->factor_base->list->small_inv = (uint32 *)malloc(
-//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-//		sconf->factor_base->list->correction = (uint32 *)malloc(
-//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-//		sconf->factor_base->list->logprime = (uint32 *)malloc(
-//			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 #else
 		sconf->factor_base->list = (fb_element_siqs *)memalign(64,
 			(size_t)(sizeof(fb_element_siqs)));
@@ -1500,8 +1465,12 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % 8 == 0)) break;
-	}
+			(i % 8 == 0)) 
+		{
+			i -= 8;
+			break;
+		}
+	}	
 	sconf->factor_base->fb_14bit_B = i;
 
 	for (; i < sconf->factor_base->B; i++)
@@ -1577,7 +1546,6 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->large_B-1]);
 	}
-	//exit(1);
 
 	//a couple limits
 	sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B-1];

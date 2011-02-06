@@ -19,8 +19,8 @@
 
 CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
-# CFLAGS = -g -march=k8 -mtune=k8
-CFLAGS = -g 
+#CFLAGS = -g -march=native -mtune=native
+#CFLAGS =
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
@@ -63,19 +63,19 @@ ifeq ($(NFS),1)
 	# NFS builds require GMP
 	ifneq ($(GMPECM),1)
 		CFLAGS += -DHAVE_GMP
-		INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
-		# INC += -I../gmp/include/
-		LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ -lgmp
-		# LIBS += -L../gmp/lib/ -lgmp
+		# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
+		INC += -I../gmp/include/
+		# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ -lgmp
+		LIBS += -L../gmp/lib/ -lgmp
 	endif
 
 	# NOTE: if the included msieve library was build with ECM, then 
 	# ECM must also be enabled here
 	CFLAGS += -DHAVE_GMP_ECM
-	# INC += -I../gmp-ecm/include/
-	INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	# LIBS += -L../gmp-ecm/lib/ -lecm
-	LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm
+	INC += -I../gmp-ecm/include/
+	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
+	LIBS += -L../gmp-ecm/lib/ -lecm
+	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm
 endif
 
 ifeq ($(FORCE_MODERN),1)
@@ -89,9 +89,6 @@ endif
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	
 x86: CFLAGS += -m32
-
-#these aren't detected by gcc-3.2.3
-#DEFS += -DHAS_SSE2
 
 #---------------------------Tom's Fast Math file lists -------------------------
 TFM_SRCS = \

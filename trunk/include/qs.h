@@ -75,6 +75,7 @@ double TF_SPECIAL;
 #define BLOCKBITS 16
 #define BLOCKSIZEm1txt "0xffff"
 #define BLOCKSIZEtxt "0x10000"
+#define negBLOCKSIZE "0xffffffffffff0000"
 #define BLOCKBITStxt "16"
 #else
 #define BLOCKSIZE 32768
@@ -83,18 +84,25 @@ double TF_SPECIAL;
 #define BLOCKBITS 15
 #define BLOCKSIZEm1txt "0x7fff"
 #define BLOCKSIZEtxt "0x8000"
+#define negBLOCKSIZE "0xffffffffffff8000"
 #define BLOCKBITStxt "15"
 #endif
 
-#define USE_POLY_SSE2_ASM 1
+#if defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
+	#define USE_POLY_SSE2_ASM 1
+	#define SSE2_ASM_SIEVING 1
+	//#define ASM_SIEVING 1
+#endif
 
-#if defined(_WIN64)
+#if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
+	//64 bit gcc, msvc, or mingw builds
 	#define USE_RESIEVING
-#elif defined(WIN32)
-	#undef USE_RESIEVING
-	#define USE_COMPRESSED_FB
+	#ifdef HAS_SSE2
+		#define SSE2_RESIEVING 1
+	#endif
 #else
-	#define USE_RESIEVING
+	#undef USE_RESIEVING
+	#undef SSE2_RESIEVING
 #endif
 
 // these were used in an experiment to check how many times a routine was called
@@ -444,7 +452,7 @@ static const uint8 mult_list[] =
 	 61, 62, 65, 66, 67, 69, 70, 71, 73};
 
 //sieving
-void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, uint32 med_B, uint32 bnum, uint32 numblocks,
+void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint32 bnum, uint32 numblocks,
 							 lp_bucket *lp, uint32 start_prime, uint8 s_init, int side);
 void test_block_siqs(uint8 *sieve, sieve_fb *fb, uint32 start_prime);
 

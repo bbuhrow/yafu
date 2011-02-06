@@ -26,12 +26,23 @@ code to the public domain.
 #include "util.h"
 #include "calc.h"
 
+#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif
+
 //local function declarations
 void *ecm_do_one_curve(void *ptr);
 int print_B1B2(FILE *fid);
 void ecmexit(int sig);
-void ecm_process_init(z *n);
+void ecm_process_init(z *n, int numcurves, uint32 B1);
 void ecm_process_free();
+int ecm_deal_with_factor(fact_obj_t *fobj, ecm_thread_data_t *thread_data, z *factor,
+	z *n, z *tmp1, z *tmp2, int curves_run, int thread_num);
+int ecm_check_input(z *n, fact_obj_t *fobj);
+int ecm_get_sigma(ecm_thread_data_t *thread_data, z *tmp, int curves_run, int numcurves);
 
 void ecm_stop_worker_thread(ecm_thread_data_t *t,
 				uint32 is_master_thread);
@@ -149,6 +160,19 @@ void *ecm_worker_thread_main(void *thread_data) {
 }
 
 
+#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+void *malloc_shared(size_t bytes)
+{
+    int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
+    if (shmid == -1) {
+        printf("Couldn't allocated shared memory segment in ECM\n");
+        exit(1);
+    }
+    return shmat(shmid, 0, 0);
+}
+#endif
+
+
 // declarations/definitions when using YAFU's ECM
 #if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
 
@@ -200,7 +224,7 @@ void *ecm_worker_thread_main(void *thread_data) {
 		return;
 	}
 
-	void ecm_process_init(z *n)
+	void ecm_process_init(z *n, int numcurves, uint32 B1)
 	{
 		//initialize things which all threads will need.
 
@@ -1022,18 +1046,27 @@ void *ecm_worker_thread_main(void *thread_data) {
 	int TMP_THREADS;
 	uint64 TMP_STG2_MAX;
 
-	void ecm_process_init(z *n)
+	void ecm_process_init(z *n, int numcurves, uint32 B1)
 	{
 		//initialize things which all threads will need when using
 		//GMP-ECM
 		TMP_THREADS = THREADS;
 		TMP_STG2_MAX = ECM_STG2_MAX;
+
+#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+		// For small curves, or if we're only running one curve, don't
+        // bother spawning multiple threads
+        if (B1 < 10000 || numcurves == 1)
+			THREADS = 1;
+#else
+		
 		if (THREADS > 1)
 		{
 			if (VFLAG >= 2)
 				printf("GMP-ECM does not support multiple threads... running single threaded\n");
 			THREADS = 1;
 		}
+#endif
 
 		return;
 	}
@@ -1156,9 +1189,318 @@ void ecmexit(int sig)
 	return;
 }
 
+#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+	//thread data holds all data needed during sieving
+	ecm_thread_data_t *thread_data, *my_thread_data;
+    z * return_factor, *my_return_factor;
+    int *curves_run, *my_curves_run;
+    int *factor_found;
+    int master_thread;
+
+	z d,t,nn;
+	int D;
+	FILE *flog;
+	int curves_run = 0;
+	int i,j;
+	//maybe make this an input option: whether or not to stop after
+	//finding a factor in the middle of running a requested batch of curves
+	int bail_on_factor = 1;
+	int bail = 0;
+	int charcount = 0, charcount2 = 0;
+	int input_digits = ndigits(n);
+
+	if (ecm_check_input(n, fobj) == 0)
+		return 0;
+
+	//ok, having gotten this far we are now ready to run the requested
+	//curves.  initialize the needed data structures, then split
+	//the curves up over N threads.  The main thread will farm out different
+	//sigmas to the worker threads.
+
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	ECM_ABORT = 0;
+	signal(SIGINT,ecmexit);
+
+	//init ecm process
+	ecm_process_init(n);
+
+	//find the D value used in stg2 ECM.  thread data initialization
+	//depends on this value
+	if (ECM_STG1_MAX <= 2310)
+	{
+		if (ECM_STG1_MAX <= 210)
+		{
+			printf("ECM_STG1_MAX too low\n");
+			return 0;
+		}
+		D = 210;
+	}
+	else
+		D = 2310;
+
+	//init local big ints
+	zInit(&d);
+	zInit(&t);
+	zInit(&nn);
+
+	// Allocate shared memory for a variable saying someone found a factor, and an
+    // array for each thread to record the number of curves it has run.
+    factor_found = (int *)malloc_shared(sizeof(int));
+    curves_run = (int *)malloc_shared(THREADS * sizeof(int));
+
+    // We make the thread_data structures shared so that the master thread can
+    // log a few pieces of information (e.g. the sigma and stage where the factor
+    // was found) correctly. Note that many things in this structure are pointers
+    // which are later dynamically allocated, and those allocations will not be
+    // shared. The master thread must be careful to access only the statically
+    // declared fields in other threads' structures.
+    thread_data = malloc_shared(THREADS * sizeof(ecm_thread_data_t));
+
+    // Allocate shared memory for each thread to return the factor it found.
+    // I don't know how to support dynamic resizing of shared memory, so I
+    // just allocate plenty of space and assume it will never overflow.
+    return_factor = malloc_shared(THREADS * sizeof(z));
+    for (i=0; i<THREADS; i++) {
+        return_factor[i].size = 1;
+        return_factor[i].alloc = 4096;
+        return_factor[i].type = UNKNOWN;
+        return_factor[i].val = (fp_digit *)malloc_shared(4096 * sizeof(fp_digit));
+    }
+
+    // Set things up for the master thread
+    master_thread = 1;
+    my_return_factor = &return_factor[THREADS-1];
+    my_curves_run = &curves_run[THREADS-1];
+    my_thread_data = &thread_data[THREADS-1];
+
+	/* activate the threads one at a time. The last is the
+	   master thread (i.e. not a thread at all). */
+    for (i=0; i < THREADS-1; i++)
+    {
+        // We need to ensure that each child has different RNG state, otherwise they'll
+        // all get the same stream of random numbers. So we have the master thread generate
+        // a number and then copy that into the internal RNG state of the child.
+        uint64 child_lcgstate = spRand(2,MAX_DIGIT);
+
+        int pid = fork();
+        if (pid == 0) {
+            // I am a child thread. Set up pointers to my shared buffers accordingly.
+            master_thread = 0;
+            my_return_factor = &return_factor[i];
+            my_curves_run = &curves_run[i];
+            my_thread_data = &thread_data[i];
+            LCGSTATE = child_lcgstate;
+            break;
+        }
+    }
+
+    // Now we have THREADS number of separate processes running
+	// Initialize the internal pieces of thread_data
+    ecm_thread_init(n,D,my_thread_data);
+
+	// Divide the curves among the threads, rounding up so that all threads get the
+    // same number of curves. Also keep track of the total number of curves for logging.
+    numcurves = (numcurves + THREADS - 1) / THREADS;
+    total_numcurves = numcurves * THREADS;
+
+	// TBD: make this a subroutine
+	if (master_thread && VFLAG >= 0)
+	{
+		for (i=0;i<charcount+charcount2;i++)
+			printf("\b");
+
+        for (i=0, total_curves_run=0; i<THREADS; i++)
+            total_curves_run += curves_run[i];
+
+		charcount = printf("ecm: %d/%d curves on C%d input, at "
+			,total_curves_run,total_numcurves,input_digits);
+		charcount2 = print_B1B2(NULL);
+		fflush(stdout);
+	}
+
+	// Now each thread runs its assigned number of curves
+	for (j=0; j < numcurves; j++)
+	{
+		//watch for an abort
+		if (ECM_ABORT)
+		{
+            // On an abort, the master thread will wait for all the children to
+            // complete and then log any found factors. The children just exit
+            // right away.
+            if (master_thread) 
+            {
+                for (i=0; i<THREADS-1; i++)
+                    wait(NULL);
+                print_factors(fobj);
+            }
+            exit(1);
+		}
+
+		ecm_get_sigma(my_thread_data, &t, *my_curves_run, total_numcurves);
+
+        // Run a curve!
+        ecm_do_one_curve(my_thread_data);
+        (*my_curves_run)++;
+
+        if (zCompare(&my_thread_data->factor,&zOne) > 0 && zCompare(&my_thread_data->factor,n) < 0) {
+
+            // non-trivial factor found
+            // copy it into the shared return buffer so the master thread can see it, 
+            // and set the shared flag which tells everyone the game is over.
+            zCopy(&my_thread_data->factor, my_return_factor);
+            *factor_found = 1;
+
+            printf("thread %p found a factor\n", my_return_factor);
+		}
+
+        if (*factor_found) {
+
+            // If someone found a factor, the child threads just exit
+            if (!master_thread)
+                    exit(0);
+
+            // The master thread waits for all the children to complete
+            for (i=0; i<THREADS-1; i++)
+                    wait(NULL);
+
+            // Now that all the children are done, look for and log any factors they found
+            for (i=0; i<THREADS; i++) {
+
+                // Check thread i's return buffer. If it doesn't contain a factor, just move on
+                if (!(zCompare(&return_factor[i],&zOne) > 0 && zCompare(&return_factor[i],n) < 0))
+                        continue;
+
+				//since we could be doing many curves in parallel,
+				//it's possible more than one curve found this factor at the
+				//same time.  We divide out factors as we find them, so
+				//just check if this factor still divides n
+				zCopy(n,&nn);
+				zDiv(&nn,&return_factor[i],&t,&d);
+				if (zCompare(&d,&zZero) == 0)
+				{
+					//yes, it does... proceed to record the factor
+					ecm_deal_with_factor(fobj, &thread_data[i], &return_factor[i], n, 
+						&t, &d, curves_run[i], i);					
+
+					//we found a factor and might want to stop,
+					//but should check all threads output first
+					if (bail_on_factor)
+						bail = 1;
+					else if (isPrime(n))
+						bail = 1;
+					else
+					{
+                        // Note: this path no longer works since the child threads have exited.
+
+						//found a factor and the cofactor is composite.
+						//the user has specified to keep going with ECM until the 
+						//curve counts are finished thus:
+						//we need to re-initialize with a different modulus.  this is
+						//independant of the thread data initialization
+						ecm_process_free();
+						ecm_process_init(n, total_numcurves, ECM_STG1_MAX);
+					}
+				}
+			}
+
+        }
+
+        // Note that bail can only be set on the master thread, since if a factor was
+        // found all other threads will already have exited.
+        if (bail)
+                goto done;
+
+        // Only the master thread prints updates, otherwise they all step on each other.
+        if (master_thread && VFLAG >= 0)
+        {
+			for (i=0;i<charcount+charcount2;i++)
+			printf("\b");
+
+            for (i=0, total_curves_run=0; i<THREADS; i++)
+				total_curves_run += curves_run[i];
+
+			charcount = printf("ecm: %d/%d curves on C%d input, at "
+				,total_curves_run,total_numcurves,input_digits);
+			charcount2 = print_B1B2(NULL);
+			fflush(stdout);
+        }
+
+
+	}
+
+done:
+
+    // Either a factor was found, or this thread has completed all of its requested curves.
+    // At this point the child threads can just exit.
+    if (!master_thread)
+            exit(0);
+
+    // The master thread waits for all children to complete
+    for (i=0; i<THREADS-1; i++)
+        wait(NULL);
+
+    // print status message again so it shows any work done after the master thread finished its loop
+    if (VFLAG >= 0)
+    {
+        for (i=0;i<charcount+charcount2;i++)
+            printf("\b");
+
+        for (i=0, total_curves_run=0; i<THREADS; i++)
+            total_curves_run += curves_run[i];
+
+        charcount = printf("ecm: %d/%d curves on C%d input, at "
+			,total_curves_run,total_numcurves,input_digits);
+        charcount2 = print_B1B2(NULL);
+        fflush(stdout);
+    }
+
+	if (VFLAG >= 0)
+		printf("\n");
+
+	flog = fopen(fobj->logname,"a");
+	if (flog == NULL)
+	{
+		printf("could not open %s for writing\n",fobj->logname);
+		fclose(flog);
+		return 0;
+	}
+
+    for (i=0, total_curves_run=0; i<THREADS; i++)
+		total_curves_run += curves_run[i];
+
+	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
+		total_curves_run,input_digits);
+	print_B1B2(flog);
+	fprintf(flog, "\n");
+
+	fclose(flog);
+
+    // Detach from all shared memory segments allocated above
+    ecm_thread_free(my_thread_data);
+    for (i=0; i<THREADS; i++) {
+        shmdt(return_factor[i].val);
+    }
+    shmdt(return_factor);
+    shmdt(factor_found);
+    shmdt(curves_run);
+    shmdt(thread_data);
+
+	zFree(&d);
+	zFree(&t);
+	zFree(&nn);
+	signal(SIGINT,NULL);
+	
+	ecm_process_free();
+
+	return total_curves_run;
+}
+
+#else
+
+
 int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 {
-	//thread data holds all data needed during sieving
 	ecm_thread_data_t *thread_data;		//an array of thread data objects
 	z d,t,nn;
 	int D;
@@ -1171,6 +1513,285 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	int bail = 0;
 	int charcount = 0, charcount2 = 0;
 	int input_digits = ndigits(n);
+
+	if (ecm_check_input(n, fobj) == 0)
+		return 0;
+
+	//ok, having gotten this far we are now ready to run the requested
+	//curves.  initialize the needed data structures, then split
+	//the curves up over N threads.  The main thread will farm out different
+	//sigmas to the worker threads.
+
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	ECM_ABORT = 0;
+	signal(SIGINT,ecmexit);
+
+	//init ecm process
+	ecm_process_init(n,numcurves,ECM_STG1_MAX);
+
+	//find the D value used in stg2 ECM.  thread data initialization
+	//depends on this value
+	if (ECM_STG1_MAX <= 2310)
+	{
+		if (ECM_STG1_MAX <= 210)
+		{
+			printf("ECM_STG1_MAX too low\n");
+			return 0;
+		}
+		D = 210;
+	}
+	else
+		D = 2310;
+
+	//init local big ints
+	zInit(&d);
+	zInit(&t);
+	zInit(&nn);
+
+	thread_data = (ecm_thread_data_t *)malloc(THREADS * sizeof(ecm_thread_data_t));
+	for (i=0; i<THREADS; i++)
+	{
+		ecm_thread_init(n,D,&thread_data[i]);
+	}
+
+	//round numcurves up so that each thread has something to do every iteration.
+	//this prevents a single threaded "cleanup" round after the multi-threaded rounds
+	//to finish the leftover requested curves.
+	numcurves += ((numcurves % THREADS)?(THREADS-(numcurves%THREADS)):0);
+
+	if (VFLAG >= 0)
+	{
+		for (i=0;i<charcount+charcount2;i++)
+			printf("\b");
+
+		charcount = printf("ecm: %d/%d curves on C%d input, at "
+			,curves_run,numcurves,ndigits(n));
+		charcount2 = print_B1B2(NULL);
+		fflush(stdout);
+	}
+
+	/* activate the threads one at a time. The last is the
+	   master thread (i.e. not a thread at all). */
+
+	for (i = 0; i < THREADS - 1; i++)
+		ecm_start_worker_thread(thread_data + i, 0);
+
+	ecm_start_worker_thread(thread_data + i, 1);
+
+	//split the requested curves up among the specified number of threads. 
+	for (j=0; j < numcurves / THREADS; j++)
+	{
+		//watch for an abort
+		if (ECM_ABORT)
+		{
+			print_factors(fobj);
+			exit(1);
+		}
+
+		//do work on different sigmas
+		for (i=0; i<THREADS; i++)
+		{
+			ecm_get_sigma(&thread_data[i],&t, curves_run, numcurves);
+
+			if (i == THREADS - 1) {
+				ecm_do_one_curve(&thread_data[i]);
+			}
+			else {
+				thread_data[i].command = ECM_COMMAND_RUN;
+#if defined(WIN32) || defined(_WIN64)
+				SetEvent(thread_data[i].run_event);
+#else
+				pthread_cond_signal(&thread_data[i].run_cond);
+				pthread_mutex_unlock(&thread_data[i].run_lock);
+#endif
+			}
+		}
+
+		//wait for threads to finish
+		for (i=0; i<THREADS; i++)
+		{
+			if (i < THREADS - 1) {
+#if defined(WIN32) || defined(_WIN64)
+				WaitForSingleObject(thread_data[i].finish_event, INFINITE);
+#else
+				pthread_mutex_lock(&thread_data[i].run_lock);
+				while (thread_data[i].command != ECM_COMMAND_WAIT)
+					pthread_cond_wait(&thread_data[i].run_cond, &thread_data[i].run_lock);
+#endif
+			}
+		}
+
+		for (i=0; i<THREADS; i++)
+		{
+			//look at the result of each curve and see if we're done
+			if (zCompare(&thread_data[i].factor,&zOne) > 0 && 
+				zCompare(&thread_data[i].factor,n) < 0)
+			{
+				//non-trivial factor found
+				//since we could be doing many curves in parallel,
+				//it's possible more than one curve found this factor at the
+				//same time.  We divide out factors as we find them, so
+				//just check if this factor still divides n
+				zCopy(n,&nn);
+				zDiv(&nn,&thread_data[i].factor,&t,&d);
+				if (zCompare(&d,&zZero) == 0)
+				{
+					//yes, it does... proceed to record the factor
+					ecm_deal_with_factor(fobj, &thread_data[i], &thread_data[i].factor, n, 
+						&t, &d, curves_run, i);
+
+					//we found a factor and might want to stop,
+					//but should check all threads output first
+					if (bail_on_factor)
+						bail = 1;
+					else if (isPrime(n))
+						bail = 1;
+					else
+					{
+						//found a factor and the cofactor is composite.
+						//the user has specified to keep going with ECM until the 
+						//curve counts are finished thus:
+						//we need to re-initialize with a different modulus.  this is
+						//independant of the thread data initialization
+						ecm_process_free();
+						ecm_process_init(n,numcurves,ECM_STG1_MAX);
+					}
+				}
+			}
+
+			curves_run++;
+		}
+
+		if (bail)
+			goto done;
+
+		if (VFLAG >= 0)
+		{
+			for (i=0;i<charcount+charcount2;i++)
+				printf("\b");
+
+			charcount = printf("ecm: %d/%d curves on C%d input, at "
+				,curves_run,numcurves,ndigits(n));
+			charcount2 = print_B1B2(NULL);
+			fflush(stdout);
+		}
+
+	}
+
+done:
+	if (VFLAG >= 0)
+		printf("\n");
+
+	flog = fopen(fobj->logname,"a");
+	if (flog == NULL)
+	{
+		printf("could not open %s for writing\n",fobj->logname);
+		fclose(flog);
+		return 0;
+	}
+
+	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
+		curves_run,input_digits);
+	print_B1B2(flog);
+	fprintf(flog, "\n");
+
+	fclose(flog);
+
+	//stop worker threads
+	for (i=0; i<THREADS - 1; i++)
+	{
+		ecm_stop_worker_thread(thread_data + i, 0);
+	}
+	ecm_stop_worker_thread(thread_data + i, 1);
+
+	for (i=0; i<THREADS; i++)
+		ecm_thread_free(&thread_data[i]);
+	free(thread_data);
+
+	zFree(&d);
+	zFree(&t);
+	zFree(&nn);
+	signal(SIGINT,NULL);
+	
+	ecm_process_free();
+
+	return curves_run;
+}
+
+#endif
+
+int ecm_deal_with_factor(fact_obj_t *fobj, ecm_thread_data_t *thread_data, z *factor,
+	z *n, z *tmp1, z *tmp2, int curves_run, int thread_num)
+{
+	FILE *flog;
+
+	flog = fopen(fobj->logname,"a");
+	if (flog == NULL)
+	{
+		printf("could not open %s for writing\n",fobj->logname);
+		return 0;
+	}
+
+	if (isPrime(factor))
+	{
+		factor->type = PRP;
+		add_to_factor_list(fobj, factor);
+		//logprint(flog,"prp%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
+		//	ndigits(&thread_data[i].factor),
+		//	z2decstr(&thread_data[i].factor,&gstr1),
+		//	thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
+		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
+			ndigits(factor),
+			z2decstr(factor,&gstr1),
+			curves_run+1,thread_data->stagefound,
+			ECM_STG1_MAX,thread_data->sigma,thread_num);
+	}
+	else
+	{
+		factor->type = COMPOSITE;
+		add_to_factor_list(fobj, factor);
+		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
+			ndigits(factor),
+			z2decstr(factor,&gstr1),
+			curves_run+1,thread_data->stagefound,
+			ECM_STG1_MAX,thread_data->sigma,thread_num);
+	}
+
+	fclose(flog);
+			
+	//reduce input
+	zDiv(n,factor,tmp1,tmp2);
+	zCopy(tmp1,n);
+	zCopy(n,&thread_data->n);
+
+	return 1;
+}
+
+int ecm_get_sigma(ecm_thread_data_t *thread_data, z *tmp, int curves_run, int numcurves)
+{
+	if (SIGMA != 0)
+	{
+		if (curves_run == 0 &&  numcurves > 1)
+			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+		thread_data->sigma = SIGMA;
+	}
+	else if (get_uvar("sigma",tmp))
+		thread_data->sigma = spRand(6,MAX_DIGIT);
+	else
+	{
+		if (curves_run == 0 &&  numcurves > 1)
+			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+		thread_data->sigma = (uint32)tmp->val[0];
+	}
+
+	return 0;
+}
+
+int ecm_check_input(z *n, fact_obj_t *fobj)
+{
+	FILE *flog;
+
 
 	//open the log file and annouce we are starting ECM
 	flog = fopen(fobj->logname,"a");
@@ -1235,257 +1856,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	//close the log file for until we have something further to report
 	fclose(flog);
 
-	//ok, having gotten this far we are now ready to run the requested
-	//curves.  initialize the needed data structures, then split
-	//the curves up over N threads.  The main thread will farm out different
-	//sigmas to the worker threads.
-
-	//initialize the flag to watch for interrupts, and set the
-	//pointer to the function to call if we see a user interrupt
-	ECM_ABORT = 0;
-	signal(SIGINT,ecmexit);
-
-	//init ecm process
-	ecm_process_init(n);
-
-	//find the D value used in stg2 ECM.  thread data initialization
-	//depends on this value
-	if (ECM_STG1_MAX <= 2310)
-	{
-		if (ECM_STG1_MAX <= 210)
-		{
-			printf("ECM_STG1_MAX too low\n");
-			return 0;
-		}
-		D = 210;
-	}
-	else
-		D = 2310;
-
-	thread_data = (ecm_thread_data_t *)malloc(THREADS * sizeof(ecm_thread_data_t));
-	for (i=0; i<THREADS; i++)
-	{
-		ecm_thread_init(n,D,&thread_data[i]);
-	}
-
-	//init local big ints
-	zInit(&d);
-	zInit(&t);
-	zInit(&nn);
-
-	//round numcurves up so that each thread has something to do every iteration.
-	//this prevents a single threaded "cleanup" round after the multi-threaded rounds
-	//to finish the leftover requested curves.
-	numcurves += ((numcurves % THREADS)?(THREADS-(numcurves%THREADS)):0);
-
-	if (VFLAG >= 0)
-	{
-		for (i=0;i<charcount+charcount2;i++)
-			printf("\b");
-
-		charcount = printf("ecm: %d/%d curves on C%d input, at "
-			,curves_run,numcurves,ndigits(n));
-		charcount2 = print_B1B2(NULL);
-		fflush(stdout);
-	}
-
-	/* activate the threads one at a time. The last is the
-	   master thread (i.e. not a thread at all). */
-
-	for (i = 0; i < THREADS - 1; i++)
-		ecm_start_worker_thread(thread_data + i, 0);
-
-	ecm_start_worker_thread(thread_data + i, 1);
-
-	//split the requested curves up among the specified number of threads. 
-	for (j=0; j < numcurves / THREADS; j++)
-	{
-		//watch for an abort
-		if (ECM_ABORT)
-		{
-			print_factors(fobj);
-			exit(1);
-		}
-
-		//do work on different sigmas
-		for (i=0; i<THREADS; i++)
-		{
-
-			if (SIGMA != 0)
-			{
-				if (curves_run == 0 &&  numcurves > 1)
-					printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-				thread_data[i].sigma = SIGMA;
-			}
-			else if (get_uvar("sigma",&t))
-				thread_data[i].sigma = spRand(6,MAX_DIGIT);
-			else
-			{
-				if (curves_run == 0 &&  numcurves > 1)
-					printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-				thread_data[i].sigma = (uint32)t.val[0];
-			}
-
-			if (i == THREADS - 1) {
-				ecm_do_one_curve(&thread_data[i]);
-			}
-			else {
-				thread_data[i].command = ECM_COMMAND_RUN;
-#if defined(WIN32) || defined(_WIN64)
-				SetEvent(thread_data[i].run_event);
-#else
-				pthread_cond_signal(&thread_data[i].run_cond);
-				pthread_mutex_unlock(&thread_data[i].run_lock);
-#endif
-			}
-		}
-
-		//wait for threads to finish
-		for (i=0; i<THREADS; i++)
-		{
-			if (i < THREADS - 1) {
-#if defined(WIN32) || defined(_WIN64)
-				WaitForSingleObject(thread_data[i].finish_event, INFINITE);
-#else
-				pthread_mutex_lock(&thread_data[i].run_lock);
-				while (thread_data[i].command != ECM_COMMAND_WAIT)
-					pthread_cond_wait(&thread_data[i].run_cond, &thread_data[i].run_lock);
-#endif
-			}
-		}
-
-		for (i=0; i<THREADS; i++)
-		{
-			//look at the result of each curve and see if we're done
-			if (zCompare(&thread_data[i].factor,&zOne) > 0 && 
-				zCompare(&thread_data[i].factor,n) < 0)
-			{
-				//non-trivial factor found
-				//since we could be doing many curves in parallel,
-				//it's possible more than one curve found this factor at the
-				//same time.  We divide out factors as we find them, so
-				//just check if this factor still divides n
-				zCopy(n,&nn);
-				zDiv(&nn,&thread_data[i].factor,&t,&d);
-				if (zCompare(&d,&zZero) == 0)
-				{
-					//yes, it does... proceed to record the factor
-					
-					flog = fopen(fobj->logname,"a");
-					if (flog == NULL)
-					{
-						printf("could not open %s for writing\n",fobj->logname);
-						return 0;
-					}
-
-					if (isPrime(&thread_data[i].factor))
-					{
-						thread_data[i].factor.type = PRP;
-						add_to_factor_list(fobj, &thread_data[i].factor);
-						//logprint(flog,"prp%d = %s (found in stg%d of curve %d (thread %d) with sigma = %u)\n",
-						//	ndigits(&thread_data[i].factor),
-						//	z2decstr(&thread_data[i].factor,&gstr1),
-						//	thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
-						logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-							ndigits(&thread_data[i].factor),
-							z2decstr(&thread_data[i].factor,&gstr1),
-							curves_run+1,thread_data[i].stagefound,
-							ECM_STG1_MAX,thread_data[i].sigma,i);
-					}
-					else
-					{
-						thread_data[i].factor.type = COMPOSITE;
-						add_to_factor_list(fobj, &thread_data[i].factor);
-						logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-							ndigits(&thread_data[i].factor),
-							z2decstr(&thread_data[i].factor,&gstr1),
-							curves_run+1,thread_data[i].stagefound,
-							ECM_STG1_MAX,thread_data[i].sigma,i);
-					}
-
-					fclose(flog);
-			
-					//reduce input
-					zDiv(n,&thread_data[i].factor,&t,&d);
-					zCopy(&t,n);
-					zCopy(n,&thread_data[i].n);
-
-					//we found a factor and might want to stop,
-					//but should check all threads output first
-					if (bail_on_factor)
-						bail = 1;
-					else if (isPrime(n))
-						bail = 1;
-					else
-					{
-						//found a factor and the cofactor is composite.
-						//the user has specified to keep going with ECM until the 
-						//curve counts are finished thus:
-						//we need to re-initialize with a different modulus.  this is
-						//independant of the thread data initialization
-						ecm_process_free();
-						ecm_process_init(n);
-					}
-				}
-			}
-
-			curves_run++;
-		}
-
-		if (bail)
-			goto done;
-
-		if (VFLAG >= 0)
-		{
-			for (i=0;i<charcount+charcount2;i++)
-				printf("\b");
-
-			charcount = printf("ecm: %d/%d curves on C%d input, at "
-				,curves_run,numcurves,ndigits(n));
-			charcount2 = print_B1B2(NULL);
-			fflush(stdout);
-		}
-
-	}
-
-done:
-	if (VFLAG >= 0)
-		printf("\n");
-
-	flog = fopen(fobj->logname,"a");
-	if (flog == NULL)
-	{
-		printf("could not open %s for writing\n",fobj->logname);
-		fclose(flog);
-		return 0;
-	}
-
-	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
-		curves_run,input_digits);
-	print_B1B2(flog);
-	fprintf(flog, "\n");
-
-	fclose(flog);
-
-	//stop worker threads
-	for (i=0; i<THREADS - 1; i++)
-	{
-		ecm_stop_worker_thread(thread_data + i, 0);
-	}
-	ecm_stop_worker_thread(thread_data + i, 1);
-
-	for (i=0; i<THREADS; i++)
-		ecm_thread_free(&thread_data[i]);
-	free(thread_data);
-
-	zFree(&d);
-	zFree(&t);
-	zFree(&nn);
-	signal(SIGINT,NULL);
-	
-	ecm_process_free();
-
-	return curves_run;
+	return 1;
 }
 
 int print_B1B2(FILE *fid)

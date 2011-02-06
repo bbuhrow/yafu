@@ -388,6 +388,115 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 	return tokens;
 }
 
+int isNumber(char *str)
+{
+	int i = 0;
+	int base = 10;
+	int first_char_is_zero = 0;
+
+	for (i = 0; i < strlen(str); i++)
+	{
+		if ((i == 0) && (str[i] == '0'))
+		{
+			first_char_is_zero = 1;
+			continue;
+		}
+		if ((i == 1) && first_char_is_zero)
+		{
+			if (str[i] == 'b') base = 2;
+			else if (str[i] == 'o') base = 8;
+			else if (str[i] == 'd' || (str[i] >= '0' && str[i] <= '9')) base = 10;
+			else if (str[i] == 'x') base = 16;
+			else return 0;
+			continue;
+		}
+		if ((base == 2) && !(str[i] >= '0' && str[i] <= '1')) return 0;
+		if ((base == 8) && !(str[i] >= '0' && str[i] <= '7')) return 0;
+		if ((base == 10) && !(str[i] >= '0' && str[i] <= '9')) return 0;
+		if ((base == 16) && !(isdigit(str[i]) || (str[i] >= 'a' && str[i] <= 'f') || (str[i] >= 'A' && str[i] <= 'F'))) return 0;
+	}
+	return 1;
+}
+
+int isOperator(char *str)
+{
+	if (str[0] == '+' || str[0] == '-' || str[0] == '*' || str[0] == '/' || str[0] == '%' || str[0] == '^') return 1;
+	if (str[0] == '!' || str[0] == '#') return 1;
+	return 0;
+}
+
+void get_expression(char *in, str_t *out)
+{
+	char *tok;
+	char delim[] = {' ', '\0'};
+	bstack_t stk;
+	str_t *tmp,*tmp1,*tmp2;
+
+	/* if there is no input to process, we are done... */
+	if (in == NULL) return;
+
+	stack_init(20,&stk,STACK);
+	tmp = (str_t *)malloc(sizeof(str_t));
+	sInit(tmp);
+	tmp1 = (str_t *)malloc(sizeof(str_t));
+	sInit(tmp1);
+	tmp2 = (str_t *)malloc(sizeof(str_t));
+	sInit(tmp2);
+
+	tok = strtok(in, delim);
+	while (tok != NULL)
+	{
+		/* if token is a number, push it onto the stack... */
+		if (isNumber(tok))
+		{
+			toStr(tok, tmp);
+			push(tmp, &stk);
+		}
+		else if (isOperator(tok))
+		{
+			if (tok[0] == '!' || tok[0] == '#')
+			{
+				/* factorial and primorial are unary operators */
+				if (pop(tmp1, &stk) == 0) break;
+				sClear(tmp);
+				sAppend(tmp1->s, tmp);
+				sAppend(tok, tmp);
+				push(tmp, &stk);
+			}
+			else
+			{
+				/* pop off two elements a,b
+				   push back on "(aOPb)" */
+				if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+					break; /* bad input string, don't parse any more... */
+				sClear(tmp);
+				sAppend("(", tmp);
+				sAppend(tmp1->s, tmp);
+				sAppend(tok, tmp);
+				sAppend(tmp2->s, tmp);
+				sAppend(")", tmp);
+				push(tmp, &stk);
+			}
+		}
+		else
+		{
+			/* non-number and non-operator encountered, we're done grabbing the input string */
+			break;
+		}
+		tok = strtok(NULL, delim);
+	}
+
+	pop(out, &stk);
+
+	stack_free(&stk);
+	sFree(tmp);
+	free(tmp);
+	sFree(tmp1);
+	free(tmp1);
+	sFree(tmp2);
+	free(tmp2);
+}
+
 int calc(str_t *in)
 {
 
@@ -441,6 +550,7 @@ int calc(str_t *in)
 	str_t *post;		//post fix expression
 	char **tokens;		//pointer to an array of strings holding tokens
 	char *tok;
+	char *strN;			/* use this to make a copy of the post-fix string */
 	char delim[2];
 	int *token_types;	//type of each token
 	int num_tokens;		//number of tokens in the array.
@@ -657,6 +767,16 @@ int calc(str_t *in)
 	//this can be done with a simple stack
 	//all tokens are separated by spaces
 	//all tokens consist of numbers or functions
+
+	/* try to grab the input number as an expression, if found, store it in fobj->str_N */
+	strN = strdup(post->s); /* make a copy of the postfix string */
+	if (strN != NULL)
+	{
+		/* find input expression and store in str_N */
+		get_expression(strN, &(fobj->str_N));
+		printf("Found expression: %s\n", fobj->str_N.s);
+		free(strN);
+	}
 
 	//now evaluate the RPN expression
 	//printf("processing postfix expression: %s\n",post->s);

@@ -2569,54 +2569,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 
 			i += 8;
-
-			/*
-			if (result == 0)
-			{
-				i += 4;
-				continue;
-			}
-
-			if (result & 0x8)
-			{
-				do 
-				{						
-					//if (zShortMod32(Q,fbc->prime[i]) != 0)
-					//	printf("%u doesn't divide Q!\n",fbc->prime[i]);
-					fb_offsets[++smooth_num] = i;	
-					zShortDiv32(Q,fbc->prime[i],Q);			
-				} while (zShortMod32(Q,fbc->prime[i]) == 0);
-			}
-
-			if (result & 0x80)
-			{
-				do 
-				{						
-					fb_offsets[++smooth_num] = i+1;	
-					zShortDiv32(Q,fbc->prime[i+1],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
-			}
-
-			if (result & 0x800)
-			{
-				do 
-				{					
-					fb_offsets[++smooth_num] = i+2;	
-					zShortDiv32(Q,fbc->prime[i+2],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
-			}
-
-			if (result & 0x8000)
-			{
-				do 
-				{				
-					fb_offsets[++smooth_num] = i+3;	
-					zShortDiv32(Q,fbc->prime[i+3],Q);			
-				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
-			}
-
-			i += 4;
-			*/
 		}
 		
 
