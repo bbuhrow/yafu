@@ -25,10 +25,6 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
-#MINGW builds don't need -pthread
-#LIBS = -lm 
-LIBS = -lm -pthread
-
 ifeq ($(BLOCK),64)
 	CFLAGS += -DYAFU_64K
 endif
@@ -51,32 +47,31 @@ endif
 ifeq ($(GMPECM),1)
 	CFLAGS += -DHAVE_GMP_ECM
 	CFLAGS += -DHAVE_GMP
-	INC += -I../gmp/include/
-	INC += -I../gmp-ecm/include/
-	LIBS += -L../gmp/lib/ -lgmp
-	LIBS += -L../gmp-ecm/lib/ -lecm
+	INC += -I../gmp/include
+	INC += -I../gmp-ecm/include
+	LIBS += -L../gmp/lib -L../gmp-ecm/lib -lecm -lgmp
 endif
 
 ifeq ($(NFS),1)	
-	LIBS += -L../msieve/ -lmsieve
+	LIBS += -L../msieve 
 
 	# NFS builds require GMP
-	ifneq ($(GMPECM),1)
-		CFLAGS += -DHAVE_GMP
-		# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
-		INC += -I../gmp/include/
-		# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ -lgmp
-		LIBS += -L../gmp/lib/ -lgmp
-	endif
+	CFLAGS += -DHAVE_GMP
+	# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
+	INC += -I../gmp/include
+	# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ 
+	LIBS += -L../gmp/lib 
 
-	# NOTE: if the included msieve library was build with ECM, then 
-	# ECM must also be enabled here
 	CFLAGS += -DHAVE_GMP_ECM
-	INC += -I../gmp-ecm/include/
+	INC += -I../gmp-ecm/include
 	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib/ -lecm
-	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm
+	LIBS += -L../gmp-ecm/lib -lecm -lgmp -lmsieve
+	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm -lgmp -lmsieve
 endif
+
+#MINGW builds don't need -pthread
+LIBS += -lm 
+#LIBS = -lm -pthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
