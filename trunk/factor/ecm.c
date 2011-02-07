@@ -26,7 +26,7 @@ code to the public domain.
 #include "util.h"
 #include "calc.h"
 
-#if (defined(__MINGW32__) || defined(__GNUC__)) 
+#if defined(__GNUC__) && !defined(__MINGW32__) 
 #define FORK_ECM
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -161,7 +161,7 @@ void *ecm_worker_thread_main(void *thread_data) {
 }
 
 
-#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
+#if defined(FORK_ECM)
 void *malloc_shared(size_t bytes)
 {
     int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
@@ -1054,7 +1054,7 @@ void *malloc_shared(size_t bytes)
 		TMP_THREADS = THREADS;
 		TMP_STG2_MAX = ECM_STG2_MAX;
 
-#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
+#if defined(FORK_ECM)
 		// For small curves, or if we're only running one curve, don't
         // bother spawning multiple threads
         if (B1 < 10000 || numcurves == 1)
@@ -1190,7 +1190,7 @@ void ecmexit(int sig)
 	return;
 }
 
-#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
+#if defined(FORK_ECM)
 int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 {
 	//thread data holds all data needed during sieving
@@ -1353,7 +1353,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
             zCopy(&my_thread_data->factor, my_return_factor);
             *factor_found = 1;
 
-            printf("thread %p found a factor\n", my_return_factor);
+            //printf("thread %p found a factor\n", my_return_factor);
 		}
 
         if (*factor_found) {

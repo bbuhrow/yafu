@@ -30,7 +30,7 @@ code to the public domain.
 	#include "gmp.h"
 #endif
 
-#if defined(HAVE_GMP_ECM) && defined(WIN32) 
+#if defined(HAVE_GMP_ECM) && defined(_MSC_VER) 
 	#include <gmp-ecm\config.h>
 #elif defined(HAVE_GMP_ECM)
 	#include "config.h"
@@ -163,9 +163,9 @@ int main(int argc, char *argv[])
 	}
 	fflush(logfile);
 
-	printf("WARNING: constant seed is set\n");
-	g_rand.hi = 123;
-	g_rand.low = 123;
+	//printf("WARNING: constant seed is set\n");
+	//g_rand.hi = 123;
+	//g_rand.low = 123;
 	srand(g_rand.low);
 #if BITS_PER_DIGIT == 64
 	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;

@@ -14,6 +14,9 @@ v 1.24
 + uncomment stuff in fp_montgomery_reduce.c which was protected by #ifdef's anyway
 + got SSE2 based assembly code working to sieve small/medium primes in sieve.c (x86-64 only)
 + got macros straightened out to report resieving usage correctly on supported platforms
++ shared memory and fork not available in mingw after all - adjust preprocessor directives
+	accordingly
++ makefile needed to be adjusted to get ecm/gmp to link in mingw
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
