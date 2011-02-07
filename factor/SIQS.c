@@ -704,8 +704,6 @@ void *process_poly(void *ptr)
 
 		}
 
-		//exit(1);
-
 		//next polynomial
 		//use the stored Bl's and the gray code to find the next b
 		nextB(dconf,sconf);

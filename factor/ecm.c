@@ -26,7 +26,8 @@ code to the public domain.
 #include "util.h"
 #include "calc.h"
 
-#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+#if (defined(__MINGW32__) || defined(__GNUC__)) 
+#define FORK_ECM
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -160,7 +161,7 @@ void *ecm_worker_thread_main(void *thread_data) {
 }
 
 
-#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
 void *malloc_shared(size_t bytes)
 {
     int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
@@ -1053,7 +1054,7 @@ void *malloc_shared(size_t bytes)
 		TMP_THREADS = THREADS;
 		TMP_STG2_MAX = ECM_STG2_MAX;
 
-#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
 		// For small curves, or if we're only running one curve, don't
         // bother spawning multiple threads
         if (B1 < 10000 || numcurves == 1)
@@ -1189,18 +1190,19 @@ void ecmexit(int sig)
 	return;
 }
 
-#if (defined(__MINGW32__) || defined(__GNUC_)) && defined(FORK_ECM)
+#if (defined(__MINGW32__) || defined(__GNUC__)) && defined(FORK_ECM)
+int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
+{
 	//thread data holds all data needed during sieving
 	ecm_thread_data_t *thread_data, *my_thread_data;
     z * return_factor, *my_return_factor;
     int *curves_run, *my_curves_run;
     int *factor_found;
     int master_thread;
-
+	int total_numcurves, total_curves_run;
 	z d,t,nn;
 	int D;
 	FILE *flog;
-	int curves_run = 0;
 	int i,j;
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
@@ -1223,7 +1225,7 @@ void ecmexit(int sig)
 	signal(SIGINT,ecmexit);
 
 	//init ecm process
-	ecm_process_init(n);
+	ecm_process_init(n, numcurves, ECM_STG1_MAX);
 
 	//find the D value used in stg2 ECM.  thread data initialization
 	//depends on this value
