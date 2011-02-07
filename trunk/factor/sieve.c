@@ -1401,24 +1401,24 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 
 	i = asm_input.startprime;
 
-	if (1)
-	{
-		FILE *test;
-		test = fopen("dump_sieve_sse2.txt","w");
-		fprintf(test,"\n\n");
-		for (i=0; i<BLOCKSIZE; i++)
-			fprintf(test,"%u, %u\n",i,sieve[i]);
-		fprintf(test,"\n\n");
-		fclose(test);
+	//if (1)
+	//{
+	//	FILE *test;
+	//	test = fopen("dump_sieve_sse2.txt","w");
+	//	fprintf(test,"\n\n");
+	//	for (i=0; i<BLOCKSIZE; i++)
+	//		fprintf(test,"%u, %u\n",i,sieve[i]);
+	//	fprintf(test,"\n\n");
+	//	fclose(test);
 
-		test = fopen("dump_roots_sse2.txt","w");
-		fprintf(test,"\n\n");
-		for (i=0; i<med_B; i++)
-			fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
-		fprintf(test,"\n\n");
-		fclose(test);
-		exit(1);
-	}
+	//	test = fopen("dump_roots_sse2.txt","w");
+	//	fprintf(test,"\n\n");
+	//	for (i=0; i<med_B; i++)
+	//		fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
+	//	fprintf(test,"\n\n");
+	//	fclose(test);
+	//	exit(1);
+	//}
 
 #endif
 
