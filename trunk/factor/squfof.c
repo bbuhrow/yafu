@@ -242,7 +242,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 	//return 1 in f if no factor is found
 	uint32 imax,i,Q0,b0,Qn,bn,P,bbn,Ro,S,So,t1,t2;
 	int j=0;
-	FILE *out;
+	//FILE *out;
 	
 	//initialize output
 	*f=0;

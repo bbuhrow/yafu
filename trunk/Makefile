@@ -70,8 +70,8 @@ ifeq ($(NFS),1)
 endif
 
 #MINGW builds don't need -pthread
-#LIBS += -lm 
-LIBS += -lm -lpthread
+LIBS += -lm 
+#LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN

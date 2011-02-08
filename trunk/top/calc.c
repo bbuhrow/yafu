@@ -425,10 +425,35 @@ int isOperator(char *str)
 	return 0;
 }
 
+/* check to see if a string contains an operator */
+int hasOperator(char *str)
+{
+	int i = 0;
+
+	for (i = 0; i < strlen(str); i++)
+		if (isOperator(&str[i]))
+			return 1;
+
+	return 0;
+}
+
+/* check to see if str contains + or - (Addition or Subtraction)*/
+int hasOperatorAS(char *str)
+{
+	int i = 0;
+
+	for (i = 0; i < strlen(str); i++)
+		if (str[i] == '+' || str[i] == '-')
+			return 1;
+
+	return 0;
+}
+
 void get_expression(char *in, str_t *out)
 {
 	char *tok;
 	char delim[] = {' ', '\0'};
+	int invalid_string = 0;
 	bstack_t stk;
 	str_t *tmp,*tmp1,*tmp2;
 
@@ -457,10 +482,64 @@ void get_expression(char *in, str_t *out)
 			if (tok[0] == '!' || tok[0] == '#')
 			{
 				/* factorial and primorial are unary operators */
-				if (pop(tmp1, &stk) == 0) break;
+				if (pop(tmp1, &stk) == 0)
+				{
+					invalid_string = 1;
+					break;
+				}
+				if (hasOperator(tmp1->s))
+				{
+					sClear(tmp);
+					sAppend("(", tmp);
+					sAppend(tmp1->s, tmp);
+					sAppend(")", tmp);
+					sAppend(tok, tmp);
+				}
+				else
+				{
+					sClear(tmp);
+					sAppend(tmp1->s, tmp);
+					sAppend(tok, tmp);
+				}
+				push(tmp, &stk);
+			}
+			else if (tok[0] == '+')
+			{
+				/* pop off two elements a,b
+				   push back on "(aOPb)" */
+				if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+				{
+					invalid_string = 1;
+					break; /* bad input string, don't parse any more... */
+				}
 				sClear(tmp);
 				sAppend(tmp1->s, tmp);
 				sAppend(tok, tmp);
+				sAppend(tmp2->s, tmp);
+				push(tmp, &stk);
+			}
+			else if (tok[0] == '-')
+			{
+				/* pop off two elements a,b
+				   push back on "(aOPb)" */
+				if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+				{
+					invalid_string = 1;
+					break; /* bad input string, don't parse any more... */
+				}
+				sClear(tmp);
+				sAppend(tmp1->s, tmp);
+				sAppend(tok, tmp);
+				if (hasOperatorAS(tmp2->s))
+				{
+					sAppend("(", tmp);
+					sAppend(tmp2->s, tmp);
+					sAppend(")", tmp);
+				}
+				else
+				{
+					sAppend(tmp2->s, tmp);
+				}
 				push(tmp, &stk);
 			}
 			else
@@ -468,13 +547,31 @@ void get_expression(char *in, str_t *out)
 				/* pop off two elements a,b
 				   push back on "(aOPb)" */
 				if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+				{
+					invalid_string = 1;
 					break; /* bad input string, don't parse any more... */
+				}
 				sClear(tmp);
-				sAppend("(", tmp);
-				sAppend(tmp1->s, tmp);
+				if (hasOperator(tmp1->s))
+				{
+					sAppend("(", tmp);
+					sAppend(tmp1->s, tmp);
+					sAppend(")", tmp);
+				}
+				else
+					sAppend(tmp1->s, tmp);
+
 				sAppend(tok, tmp);
-				sAppend(tmp2->s, tmp);
-				sAppend(")", tmp);
+
+				if (hasOperator(tmp2->s))
+				{
+					sAppend("(", tmp);
+					sAppend(tmp2->s, tmp);
+					sAppend(")", tmp);
+				}
+				else
+					sAppend(tmp2->s, tmp);
+
 				push(tmp, &stk);
 			}
 		}
@@ -486,7 +583,7 @@ void get_expression(char *in, str_t *out)
 		tok = strtok(NULL, delim);
 	}
 
-	pop(out, &stk);
+	if (!invalid_string) pop(out, &stk);
 
 	stack_free(&stk);
 	sFree(tmp);
@@ -956,8 +1053,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	struct timeval tstart, tstop;
 	TIME_DIFF *	difference;
 	uint64 lower, upper, inc, count;
-	FILE *out;
-	uint64 powof2, powof2m1, summodp;
+	//FILE *out;
+	//uint64 powof2, powof2m1, summodp;
 
 
 	zInit(&mp1);
@@ -1683,10 +1780,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			inc = (uint64)pow(10,i);
 			//this increment may be too high.  break it into chunks no larger than 10e9.
 			k = 10; 
-			if (inc > 10000000000)
+			if (inc > 10000000000ULL)
 			{
-				k *= (uint32)(inc / 10000000000);
-				inc = 10000000000;
+				k *= (uint32)(inc / 10000000000ULL);
+				inc = 10000000000ULL;
 			}
 
 			for (j = 1; j < k; j++)

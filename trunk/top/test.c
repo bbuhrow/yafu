@@ -42,8 +42,8 @@ void test_dlp_composites()
 	clock_t start, stop;
 	int i,j,num,correct;
 	z tmp,tmp2,t1,t2,t3;
-	uint64 f64;
-	int64 queue[100];
+	//uint64 f64;
+	//int64 queue[100];
 	fact_obj_t *fobj;
 
 	comp = (uint64 *)malloc(2000000 * sizeof(uint64));

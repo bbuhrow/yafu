@@ -1112,7 +1112,9 @@ void *malloc_shared(size_t bytes)
 	//uint32 ecm_do_one_curve(z *f, uint32 sigma)
 	{
 		int status;
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
 		size_t count;
+#endif
 
 		//unpack the data structure and stuff inside it
 		ecm_thread_data_t *thread_data = (ecm_thread_data_t *)ptr;

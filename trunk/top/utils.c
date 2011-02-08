@@ -77,7 +77,7 @@ fp_digit spRand(fp_digit lower, fp_digit upper)
 
 	if (n > 32)
 	{
-		fp_digit boundary = 4294967296;
+		fp_digit boundary = 4294967296ULL;
 		fp_digit l,u;
 		l = spRand(lower,boundary-1);
 		u = spRand(0,upper>>32);
@@ -85,7 +85,7 @@ fp_digit spRand(fp_digit lower, fp_digit upper)
 	}
 	else
 	{
-		LCGSTATE = 6364136223846793005*LCGSTATE + 1442695040888963407;
+		LCGSTATE = 6364136223846793005ULL * LCGSTATE + 1442695040888963407ULL;
 		return lower + (fp_digit)(
 			(double)(upper - lower) * (double)(LCGSTATE >> 32) / 4294967296.0);
 	}
@@ -93,7 +93,7 @@ fp_digit spRand(fp_digit lower, fp_digit upper)
 	
 #else
 
-	LCGSTATE = 6364136223846793005*LCGSTATE + 1442695040888963407;
+	LCGSTATE = 6364136223846793005ULL * LCGSTATE + 1442695040888963407ULL;
 	return lower + (fp_digit)(
 			(double)(upper - lower) * (double)(LCGSTATE >> 32) / 4294967296.0);
 #endif

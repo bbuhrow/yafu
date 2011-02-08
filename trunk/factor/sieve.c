@@ -1167,11 +1167,13 @@ typedef struct
 void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint32 bnum, uint32 numblocks,
 							 lp_bucket *lp, uint32 start_prime, uint8 s_init, int side)
 {
-	uint32 prime, root1, root2, tmp, stop, p16;
 	uint32 i,j,lpnum,basebucket;
 	uint32 med_B, fb_14bit_B, fb_15bit_B;
 	uint8 logp;
+#if !defined(SSE2_ASM_SIEVING) && !defined(ASM_SIEVING)
 	sieve_fb_compressed *fbptr;
+	uint32 prime, root1, root2, tmp, stop, p16;
+#endif
 	uint32 *bptr;
 	helperstruct_t asm_input;
 

@@ -344,12 +344,12 @@ int qcomp_siqs(const void *x, const void *y)
 void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb)
 {
 	int i;
-	sieve_fb_compressed *ptr;
 
 	for (i=0;i<s;i++)
-	{
-		
+	{		
 #ifdef USE_COMPRESSED_FB
+		sieve_fb_compressed *ptr;
+
 		ptr = fb + qli[i];
 		ptr->roots = val;
 #else
@@ -400,7 +400,7 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 
 	if (isnew)
 	{
-		char buf[32 * MAX_MP_WORDS+1];
+		//char buf[32 * MAX_MP_WORDS+1];
 
 		logprint(obj->logfile,
 			"prp%d = %s\n",ndigits(new_factor),z2decstr(new_factor,&gstr1));

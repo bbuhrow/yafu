@@ -20,6 +20,7 @@ v 1.24
 + got inline ASM working to sieve small/medium primes in sieve.c (x86-64 only).  This is faster
 	than the SSE2 equivalent.
 + added typedef's for MINGW32 builds.
++ cleaned up a bunch of warnings and added ULL's to 64 bit constants
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 

@@ -203,14 +203,14 @@ code to the public domain.
 	//for gettimeofday using gcc
 	#include <sys/time.h>
 
-	//sleep in milliseconds
-	#define MySleep(x) usleep((x)*1000)
-
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
 	#if defined(__MINGW64__)
 		#include <mm_malloc.h>
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
+
+		//sleep in milliseconds
+		#define MySleep(x) Sleep((x))
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;
@@ -221,18 +221,18 @@ code to the public domain.
 		typedef long long int fp_signdigit;
 		typedef long long int fp_signword;
 
-		#define MAX_DIGIT 0xffffffffffffffff
+		#define MAX_DIGIT 0xffffffffffffffffULL
 		#define BITS_PER_DIGIT 64
 		#define DEC_DIGIT_PER_WORD 20
 		#define HEX_DIGIT_PER_WORD 16
-		#define HIBITMASK 0x8000000000000000
+		#define HIBITMASK 0x8000000000000000ULL
 		#define MAX_HALF_DIGIT 0xffffffff
-		#define MAX_DEC_WORD 0x8AC7230489E80000
+		#define MAX_DEC_WORD 0x8AC7230489E80000ULL
 		#define ADDRESS_BITS 3
 
-		#define PRId64 "lld"
-		#define PRIu64 "llu"
-		#define PRIx64 "llx"
+		#define PRId64 "I64d" //"lld"
+		#define PRIu64 "I64u" //"llu"
+		#define PRIx64 "I64x" //"llx"
 		
 		#ifndef RS6K
 		typedef char int8;
@@ -245,6 +245,9 @@ code to the public domain.
 		#include <mm_malloc.h>
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
+
+		//sleep in milliseconds
+		#define MySleep(x) Sleep((x))
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;
@@ -277,6 +280,9 @@ code to the public domain.
 
 	#elif defined(__x86_64__)
 
+		//sleep in milliseconds
+		#define MySleep(x) usleep((x)*1000)
+
 		#define align_free free
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;
@@ -307,6 +313,9 @@ code to the public domain.
 		#endif
 
 	#elif defined(__i386__)
+	
+		//sleep in milliseconds
+		#define MySleep(x) usleep((x)*1000)
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;

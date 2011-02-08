@@ -837,7 +837,7 @@ int zLEGCD(z *u, z *v, z *w)
 #if BITS_PER_DIGIT == 32
 		mask = 0xff000000;
 #else
-		mask = 0xff00000000000000;
+		mask = 0xff00000000000000ULL;
 #endif
 
 	w->type = UNKNOWN;

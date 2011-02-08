@@ -55,26 +55,26 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	if (*highlimit - lowlimit < 1000000)
 		*highlimit = lowlimit + 1000000;
 
-	if (*highlimit - lowlimit > 1000000000000)
+	if (*highlimit - lowlimit > 1000000000000ULL)
 	{
 		printf("range too big\n");
 		return 0;
 	}
 
 	//more efficient to sieve using mod210 when the range is big
-	if ((*highlimit - lowlimit) > 400000000000)
+	if ((*highlimit - lowlimit) > 400000000000ULL)
 	{
 		numclasses=5760;
 		prodN=30030;
 		startprime=6;
 	}	
-	else if ((*highlimit - lowlimit) > 40000000000)
+	else if ((*highlimit - lowlimit) > 40000000000ULL)
 	{
 		numclasses=480;
 		prodN=2310;
 		startprime=5;
 	}	
-	else if ((*highlimit - lowlimit) > 4000000000)
+	else if ((*highlimit - lowlimit) > 4000000000ULL)
 	{
 		numclasses=48;
 		prodN=210;
@@ -105,7 +105,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	//with the max sieve range set by the size of uint32, the number of primes
 	//needed is fixed.
 	//find the bound of primes we'll need to sieve with to get to limit
-	if (*highlimit > 4000000000000000000)
+	if (*highlimit > 4000000000000000000ULL)
 	{
 		printf("input too high\n");
 		return 0;
