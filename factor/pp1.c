@@ -591,7 +591,9 @@ void pp1exit(int sig);
 	int mwilliams(z *n, z *f, uint32 rp)
 	{
 		int status;
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
 		size_t count;
+#endif
 
 		pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 		if (VFLAG >= 3)

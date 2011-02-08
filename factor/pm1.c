@@ -740,7 +740,9 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 	int mpollard(z *n, uint32 c, z *f)
 	{
 		int status;
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
 		size_t count;
+#endif
 
 		pm1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 		if (VFLAG >= 3)

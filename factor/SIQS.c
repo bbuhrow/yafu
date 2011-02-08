@@ -672,7 +672,6 @@ void *process_poly(void *ptr)
 	//loop over each possible b value, for the current a value
 	for ( ; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
 	{
-		int skip_x2_poly = dconf->numB & 0x1;
 		//setting these to be invalid means the last entry of every block will be ignored
 		//so we're throwing away 1/blocksize relations, potentially, but gaining 
 		//a faster sieve routine.
@@ -2178,7 +2177,7 @@ int free_siqs(static_conf_t *sconf)
 	for (i=0;i<sconf->factor_list.num_factors;i++)
 	{
 		z tmpz;
-		char buf[32 * MAX_MP_WORDS+1];
+		//char buf[32 * MAX_MP_WORDS+1];
 		zInit(&tmpz);		
 
 		mp_t2z(&sconf->factor_list.final_factors[i]->factor,&tmpz);

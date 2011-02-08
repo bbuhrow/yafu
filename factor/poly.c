@@ -265,7 +265,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				{
 					printf("running away.  POLYPOOL bounds were: %u to %u (%d primes)\nkilling... \n",
 						fb->list->prime[LOWER_POLYPOOL_INDEX],fb->list->prime[UPPER_POLYPOOL_INDEX],
-						UPPER_POLYPOOL_INDEX,LOWER_POLYPOOL_INDEX);
+						UPPER_POLYPOOL_INDEX - LOWER_POLYPOOL_INDEX);
 					exit(-1);
 				}
 
@@ -1289,14 +1289,19 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 large_B = sconf->factor_base->large_B;
 
 	uint32 j, interval; //, fb_offset;
-	int k,bnum,numblocks,room;
+	int k,numblocks;
 	uint32 root1, root2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
 	uint32 bound_val = med_B;
-	uint32 *bptr, *sliceptr_p,*sliceptr_n;
-	uint32 *numptr_p, *numptr_n;
+	uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
+	
+#if !defined(USE_POLY_SSE2_ASM)
+	uint32 *bptr;
+	int bnum, room;
+#endif
+
 	uint8 logp=0;
 	polysieve_t helperstruct;
 

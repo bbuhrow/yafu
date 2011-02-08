@@ -78,7 +78,7 @@ code to the public domain.
 				"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
 				"movdqa 32(%1), %%xmm3	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
-				"movdqa 48(%1), %%xmm4	\n\t"		\								
+				"movdqa 48(%1), %%xmm4	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
 				"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
 				"por %%xmm1, %%xmm4		\n\t"	/*or the comparisons*/	\
@@ -243,7 +243,7 @@ code to the public domain.
 				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"movq 16(%1), %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
-				"movq 24(%1), %%mm4	\n\t"		\								
+				"movq 24(%1), %%mm4	\n\t"		\
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -261,7 +261,7 @@ code to the public domain.
 				"pcmpeqw %%mm0, %%mm1	\n\t"	/*compare to mask*/	\
 				"movq 48(%1), %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm2	\n\t"		\
-				"movq 56(%1), %%mm4	\n\t"		\								
+				"movq 56(%1), %%mm4	\n\t"		\
 				"pcmpeqw %%mm0, %%mm3	\n\t"		\
 				"pcmpeqw %%mm0, %%mm4	\n\t"		\
 				"por %%mm1, %%mm4		\n\t"	/*or the comparisons*/	\
@@ -1143,7 +1143,7 @@ code to the public domain.
 	}
 
 //#define SCAN_MASK (( (uint64)0x80808080 << 32) | (uint64)0x80808080)
-#define SCAN_MASK 0x8080808080808080
+#define SCAN_MASK 0x8080808080808080ULL
 
 
 	//when we compress small primes into 16 bits of a 32 bit field, the
@@ -1274,7 +1274,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 		for (i=0; i<4; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & 0x8080808080808080) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
 
 			//at least one passed the check, find which one(s) and pass to 
@@ -1331,8 +1331,6 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	uint32 i,j,k,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
-	sieve_fb_compressed *fbptr, *fbc;
-	int prime, root1, root2;
 
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
@@ -1369,7 +1367,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		for (i=0; i<8; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & 0x8080808080808080) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -1467,7 +1465,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 		for (i=0; i<16; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & 0x8080808080808080) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -1524,11 +1522,14 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	uint32 bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb *fb;
-	sieve_fb_compressed *fbptr, *fbc;
+	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
 	z32 *Q;
+#ifdef USE_COMPRESSED_FB
+	sieve_fb_compressed *fbptr;
+#endif
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -2025,11 +2026,14 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	sieve_fb *fb;
-	sieve_fb_compressed *fbptr, *fbc;
+	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 tmp1, tmp2, tmp3, tmp4, block_loc;
 	uint16 *corrections;
 	z32 *Q;	
+#ifdef USE_COMPRESSED_FB
+	sieve_fb_compressed *fbptr;
+#endif
 	
 #ifdef SSE2_RESIEVING
 	#if defined(_MSC_VER) || defined (__MINGW32__)

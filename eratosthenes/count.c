@@ -48,14 +48,14 @@ void count_line(thread_soedata_t *thread_data)
 		 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
 		 *  to accomdate 64 bit values.
 		 */
-		x = x - ((x >> 1) & 0x5555555555555555);
-		x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
+		x = x - ((x >> 1) & 0x5555555555555555ULL);
+		x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
 		x = x + (x >> 8);
 		x = x + (x >> 16);
 		x = x + (x >> 32);
 
-		it += (x & 0x000000000000003F);
+		it += (x & 0x000000000000003FULL);
 	}
 
 	//potentially misses the last few bytes
@@ -89,14 +89,14 @@ void count_line(thread_soedata_t *thread_data)
 			 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
 			 *  to accomdate 64 bit values.
 			 */
-			x = x - ((x >> 1) & 0x5555555555555555);
-			x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
+			x = x - ((x >> 1) & 0x5555555555555555ULL);
+			x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
 			x = x + (x >> 8);
 			x = x + (x >> 16);
 			x = x + (x >> 32);
 
-			it += (x & 0x000000000000003F);
+			it += (x & 0x000000000000003FULL);
 		}
 
 		//potentially misses the last few bytes
@@ -234,14 +234,14 @@ void count_line_special(thread_soedata_t *thread_data)
 			 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
 			 *  to accomdate 64 bit values.
 			 */
-			x = x - ((x >> 1) & 0x5555555555555555);
-			x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
+			x = x - ((x >> 1) & 0x5555555555555555ULL);
+			x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
 			x = x + (x >> 8);
 			x = x + (x >> 16);
 			x = x + (x >> 32);
 
-			it += (x & 0x000000000000003F);
+			it += (x & 0x000000000000003FULL);
 		}
 
 		//then correct the counts
