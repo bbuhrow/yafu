@@ -36,7 +36,7 @@ typedef struct
 	uint32 med_B;					//44
 } helperstruct_t;
 
-
+//#undef SSE2_ASM_SIEVING
 //#define ASM_SIEVING 1
 //#define SSE2_ASM_SIEVING 1
 
@@ -46,62 +46,62 @@ typedef struct
 			/* ============================================================ */ \
 			/* =            bring in info for this iteration              = */ \
 			/* ============================================================ */ \
-		"movd	%%xmm0,%%r10d \n\t"		/* extract prime,x from xmm0 */ \
-		"movd	%%xmm3,%%esi \n\t"		/* extract logp,x from xmm0 */ \
-		"movd	%%xmm2,%%edi \n\t"		/* extract root2,x from xmm2 */ \
-		"movd	%%xmm1,%%r9d \n\t"		/* extract root1,x from xmm1 */ \
+		"movd	%%xmm0,%%r10d \n\t"				/* extract prime,x from xmm0 */ \
+		"movd	%%xmm3,%%esi \n\t"				/* extract logp,x from xmm0 */ \
+		"movd	%%xmm2,%%edi \n\t"				/* extract root2,x from xmm2 */ \
+		"movd	%%xmm1,%%r9d \n\t"				/* extract root1,x from xmm1 */ \
 		"andl	$0xffff, %%r10d \n\t" \
 		"andl	$0xff, %%esi \n\t" \
 		"andl	$0xffff, %%edi \n\t" \
 		"andl	$0xffff, %%r9d \n\t" \
-  			"movl   $" BLOCKSIZEtxt ",%%r13d \n\t"			/* copy blocksize ; root1 ptr overwritten */	 \
-  			"movl   %%r10d,%%edx \n\t"				/* copy prime to edx; prime ptr overwritten */ \
-			"psrldq	$2,%%xmm0 \n\t" \
-  			"subl   %%r10d,%%r13d	 \n\t"			/* stop = blocksize - prime */ \
-  			"leaq   (%%rdx,%%rbx,1),%%rcx	 \n\t"	/* sieve2 = sieve + prime */ \
-  			"cmpl   %%r13d,%%edi \n\t"				/* root2 >= blocksize-prime? */ \
-			"psrldq	$2,%%xmm1 \n\t" \
-  			"jae    1f \n\t"						/* jump past loop if so */ \
-  			"leal   (%%r10,%%r10,1),%%r11d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
-			"0:  \n\t"								/* sieve to "stop"(r13d) */ \
-  			"movl   %%r9d,%%edx \n\t" \
-  			"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
-  			"addl   %%r11d,%%edi \n\t" \
-  			"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
-  			"addl   %%r11d,%%r9d \n\t" \
-  			"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
-  			"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
-  			"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
-  			"cmpl   %%r13d,%%edi \n\t" \
-  			"jb     0b \n\t"						/* repeat */ \
-			"1:  \n\t" \
-  			"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"				/* root2 >= blocksize? */ \
-			"ja     1f  \n\t"						/* jump to extra root1 check */ \
-			"0:  \n\t"								/* sieve to "blocksize" */ \
-  			"movl   %%r9d,%%ecx \n\t" \
-  			"movl   %%edi,%%edx \n\t" \
-  			"addl   %%r10d,%%edi \n\t" \
-  			"subb   %%sil,(%%rbx,%%rcx,1) \n\t" \
-  			"addl   %%r10d,%%r9d \n\t" \
-  			"subb   %%sil,(%%rbx,%%rdx,1) \n\t" \
-  			"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t" \
-  			"jbe    0b \n\t"						/* repeat */ \
-			"1:  \n\t" \
-  			"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* root1 >= blocksize? */ \
-  			"ja     1f \n\t"						/* jump past extra root1 block if so */ \
-  			"movl   %%r9d,%%r13d \n\t" \
-  			"subb   %%sil,(%%rbx,%%r13,1) \n\t" \
-  			"movl   %%edi,%%esi \n\t" \
-  			"leal   (%%r10,%%r9,1),%%edi \n\t"		/* root2 = root1 + prime */ \
-  			"movl   %%esi,%%r9d \n\t" \
-			"1:  \n\t" \
-			"psrldq	$2,%%xmm2 \n\t" \
- 			"leaq   " negBLOCKSIZE "(%%r9),%%r10 \n\t" \
-			"psrldq	$2,%%xmm3 \n\t" \
- 			"leaq   " negBLOCKSIZE "(%%rdi),%%r9 \n\t" \
-				/* ==================================================================== */ \
-				/* = put new roots, in r10 and r9, back into xmm registers            = */ \
-				/* ==================================================================== */ \
+  		"movl   $" BLOCKSIZEtxt ",%%r13d \n\t"	/* copy blocksize ; root1 ptr overwritten */	 \
+  		"movl   %%r10d,%%edx \n\t"				/* copy prime to edx; prime ptr overwritten */ \
+		"psrldq	$2,%%xmm0 \n\t" \
+  		"subl   %%r10d,%%r13d	 \n\t"			/* stop = blocksize - prime */ \
+  		"leaq   (%%rdx,%%rbx,1),%%rcx	 \n\t"	/* sieve2 = sieve + prime */ \
+  		"cmpl   %%r13d,%%edi \n\t"				/* root2 >= blocksize-prime? */ \
+		"psrldq	$2,%%xmm1 \n\t" \
+  		"jae    1f \n\t"						/* jump past loop if so */ \
+  		"leal   (%%r10,%%r10,1),%%r11d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
+		"0:  \n\t"								/* sieve to "stop"(r13d) */ \
+  		"movl   %%r9d,%%edx \n\t" \
+  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
+  		"addl   %%r11d,%%edi \n\t" \
+  		"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
+  		"addl   %%r11d,%%r9d \n\t" \
+  		"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
+  		"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
+  		"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
+  		"cmpl   %%r13d,%%edi \n\t" \
+  		"jb     0b \n\t"						/* repeat */ \
+		"1:  \n\t" \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"	/* root2 >= blocksize? */ \
+		"ja     1f  \n\t"						/* jump to extra root1 check */ \
+		"0:  \n\t"								/* sieve to "blocksize" */ \
+  		"movl   %%r9d,%%ecx \n\t" \
+  		"movl   %%edi,%%edx \n\t" \
+  		"addl   %%r10d,%%edi \n\t" \
+  		"subb   %%sil,(%%rbx,%%rcx,1) \n\t" \
+  		"addl   %%r10d,%%r9d \n\t" \
+  		"subb   %%sil,(%%rbx,%%rdx,1) \n\t" \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t" \
+  		"jbe    0b \n\t"						/* repeat */ \
+		"1:  \n\t" \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"	/* root1 >= blocksize? */ \
+  		"ja     1f \n\t"						/* jump past extra root1 block if so */ \
+  		"movl   %%r9d,%%r13d \n\t" \
+  		"subb   %%sil,(%%rbx,%%r13,1) \n\t" \
+  		"movl   %%edi,%%esi \n\t" \
+  		"leal   (%%r10,%%r9,1),%%edi \n\t"		/* root2 = root1 + prime */ \
+  		"movl   %%esi,%%r9d \n\t" \
+		"1:  \n\t" \
+		"psrldq	$2,%%xmm2 \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%r9),%%r10 \n\t" \
+		"psrldq	$2,%%xmm3 \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%rdi),%%r9 \n\t" \
+			/* ==================================================================== */ \
+			/* = put new roots, in r10 and r9, back into xmm registers            = */ \
+			/* ==================================================================== */ \
 		"pinsrw	$" x ",%%r10d,%%xmm5 \n\t"		/* insert root2 */ \
 		"pinsrw	$" x ",%%r9d,%%xmm4 \n\t"		/* insert root1 */
 
@@ -1401,41 +1401,9 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 
 	i = asm_input.startprime;
 
-	//if (1)
-	//{
-	//	FILE *test;
-	//	test = fopen("dump_sieve_sse2.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<BLOCKSIZE; i++)
-	//		fprintf(test,"%u, %u\n",i,sieve[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-
-	//	test = fopen("dump_roots_sse2.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<med_B; i++)
-	//		fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-	//	exit(1);
-	//}
-
 #endif
 
 #elif ASM_SIEVING
-
-//start of 2x sieve pointer sieving
-//	p16 = BLOCKSIZE >> 1;
-//	for (i=start_prime;i<med_B;i++)
-	//rbx likely  holds sieve
-
-	//uint8 *sieve;					//0
-	//uint16 *primeptr;				//8
-	//uint16 *root1ptr;				//16
-	//uint16 *root2ptr;				//24
-	//uint16 *logptr;					//32
-	//uint32 startprime;				//40
-	//uint32 med_B;					//44
 
 	asm_input.logptr = fb->logp;
 	asm_input.primeptr = fb->prime;
@@ -1445,23 +1413,19 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 	asm_input.startprime = start_prime;
 	asm_input.med_B = med_B;
 
-	//printf("sieving started\n");
-	//the 2x sieve loop seems mostly right
-	//the 1x sieve loop goes astray
-
 	__asm__ ( \
 		"movq	%0,%%r12 \n\t"					/* move helperstruct into rsi */ \
 		"movl   40(%%r12,1),%%r8d \n\t"			/* move startprime (i) into r8d */ \
 		"movq	(%%r12,1),%%rbx \n\t"			/* move sieve into rbx */ \
 		"movl   44(%%r12,1),%%r15d \n\t"		/* move med_B into r15d */ \
+		"movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
+  		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
 		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
 		"jae    9f \n\t"						/* jump to exit if so */ \
-		"7: \n\t"								/* start of 2x sieving loop */
-  		"movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
-  		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
+		"7: \n\t"								/* start of 2x sieving loop */  		
   		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
+		"movl   %%r8d,%%ecx \n\t"				/* copy i to ecx */ \
 		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
-  		"movl   %%r8d,%%ecx \n\t"				/* copy i to ecx */ \
 		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
   		"movzwl	(%%r13,%%rcx,2),%%r9d \n\t"		/* bring in root1 */ \
   		"movzwl (%%r11,%%rcx,2),%%edi \n\t"		/* bring in root2 */	 \
@@ -1472,7 +1436,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 			/* ==================================================================== */ \
 			/* = 2x sieving											              = */ \
 			/* ==================================================================== */ \
-  		"movl   $0x8000,%%r13d \n\t"			/* copy blocksize ; root1 ptr overwritten */	 \
+  		"movl   $" BLOCKSIZEtxt ",%%r13d \n\t"			/* copy blocksize ; root1 ptr overwritten */	 \
   		"movl   %%r10d,%%edx \n\t"				/* copy prime to edx; prime ptr overwritten */ \
   		"subl   %%r10d,%%r13d	 \n\t"			/* stop = blocksize - prime */ \
   		"leaq   (%%rdx,%%rbx,1),%%rcx	 \n\t"	/* sieve2 = sieve + prime */ \
@@ -1491,8 +1455,9 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
   		"cmpl   %%r13d,%%edi \n\t" \
   		"jb     0b \n\t"						/* repeat */ \
 		"1:  \n\t" \
-  		"cmpl   $0x7fff,%%edi \n\t"				/* root2 >= blocksize? */ \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"				/* root2 >= blocksize? */ \
 		"ja     1f  \n\t"						/* jump to extra root1 check */ \
+				/* data16 and nop */  \
 		"0:  \n\t"								/* sieve to "blocksize" */ \
   		"movl   %%r9d,%%ecx \n\t" \
   		"movl   %%edi,%%edx \n\t" \
@@ -1500,10 +1465,10 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
   		"subb   %%sil,(%%rbx,%%rcx,1) \n\t" \
   		"addl   %%r10d,%%r9d \n\t" \
   		"subb   %%sil,(%%rbx,%%rdx,1) \n\t" \
-  		"cmpl   $0x7fff,%%edi \n\t" \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t" \
   		"jbe    0b \n\t"						/* repeat */ \
 		"1:  \n\t" \
-  		"cmpl   $0x7fff,%%r9d \n\t"				/* root1 >= blocksize? */ \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* root1 >= blocksize? */ \
   		"ja     1f \n\t"						/* jump past extra root1 block if so */ \
   		"movl   %%r9d,%%r13d \n\t" \
   		"subb   %%sil,(%%rbx,%%r13,1) \n\t" \
@@ -1514,9 +1479,9 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
   		"movq   16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
   		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
   		"incl   %%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%r9),%%r10 \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%r9),%%r10 \n\t" \
  		"cmpl   %%r15d,%%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%rdi),%%r9 \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%rdi),%%r9 \n\t" \
  		"movw   %%r10w,0x0(%%r13,%%r14,2) \n\t" /* write out new root1 */ \
  		"movw   %%r9w,(%%r11,%%r14,2) \n\t"		/* write out new root2 */ \
  		"jb     7b \n\t"						/* repeat 2x sieving loop */ \
@@ -1524,352 +1489,100 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
  		"jae    9f	 \n\t"						/* exit to lp sieving */ \
 		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
 		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
-		"3: \n\t"								/* top of 1x sieving loop */ \
- 		"movq   %%r8,%%rcx \n\t"				/* copy i to ecx */ \
-		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
-  		"movzwl	(%%r13,%%rcx,2),%%r9d \n\t"		/* bring in root1 */ \
-  		"movzwl (%%r11,%%rcx,2),%%edi \n\t"		/* bring in root2 */	 \
-  		"movzwl (%%rdx,%%rcx,2),%%r10d \n\t"	/* bring in prime */	 \
-  		"movzbl (%%rax,%%rcx,2),%%esi \n\t"		/* bring in logp */ \
-		"8: \n\t" \
+		"8: \n\t"													\
 			/* ==================================================================== */ \
 			/* = 1x sieving											              = */ \
 			/* ==================================================================== */ \
- 		"cmpl    $0x8000,%%r10d \n\t" \
- 		"ja     2f \n\t"						/* if prime > blocksize, exit loop */ \
- 		"cmpl    $0x7fff,%%edi \n\t"			/* if root2 > blocksize, skip to extra root1 check */ \
- 		"ja     1f \n\t" \
-		"0: \n\t"								/* top of 1x unrolled loop */ \
- 		"movl   %%r9d,%%r13d \n\t" \
- 		"movl   %%edi,%%r11d \n\t" \
- 		"addl   %%r10d,%%edi \n\t" \
- 		"subb   %%sil,0x0(%%r13,%%rbx,1) \n\t" \
- 		"addl   %%r10d,%%r9d \n\t" \
- 		"subb   %%sil,(%%r11,%%rbx,1) \n\t" \
- 		"cmpl   $0x7fff,%%edi \n\t" \
- 		"jbe    0b \n\t"						/* back to top of 1x unrolled loop */ \
-		"1:  \n\t" \
- 		"cmpl   $0x7fff,%%r9d \n\t"				/* extra root1 check */ \
- 		"ja     1f \n\t"						/* if root1 > blocksize, skip past extra root1 check */ \
- 		"movl   %%r9d,%%eax \n\t" \
- 		"movl   %%edi,%%edx \n\t" \
- 		"leal   (%%r10,%%r9,1),%%edi \n\t" \
- 		"subb   %%sil,0x0(%%rax,%%rbx,1) \n\t" \
- 		"movl   %%edx,%%r9d \n\t" \
-		"1:  \n\t"								/* end of extra root1 check */ \
- 		"movq   16(%%r12,1),%%r13 \n\t" \
- 		"movq   24(%%r12,1),%%r11 \n\t" \
- 		"incl   %%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%r9),%%r10 \n\t" \
- 		"leaq   0xffffffffffff8000(%%rdi),%%rsi \n\t" \
- 		"cmpl   %%r15d,%%r8d \n\t" \
- 		"movw   %%r10w,0x0(%%r13,%%r14,2) \n\t" \
- 		"movw   %%si,(%%r11,%%r14,2) \n\t" \
- 		"jae    9f \n\t" \
- 		"movq   (%%r12,1),%%rdx \n\t" \
- 		"movq   32(%%r12,1),%%rax \n\t" \
- 		"jmp	3b \n\t" \
-		"2:  \n\t"
- 		"9: \n\t"								/* exit flag */ \
-		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
-		:	\
-		: "g"(&asm_input) \
-		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
-	
-	//{
-	//	double dd = 0;
-	//	printf("value of sieve loop hits: %u\n",asm_input.count);
-	//	for (j=0; j<BLOCKSIZE; j++)
-	//		dd += (double)sieve[j];
-	//	printf("avg sieve value = %g\n",dd/BLOCKSIZE);
-	//}
-
-	//exit(1);
-	if (1)
-	{
-		FILE *test;
-		test = fopen("dump_sieve.txt","w");
-		fprintf(test,"\n\n");
-		for (i=0; i<BLOCKSIZE; i++)
-			fprintf(test,"%u, %u\n",i,sieve[i]);
-		fprintf(test,"\n\n");
-		fclose(test);
-
-		test = fopen("dump_roots.txt","w");
-		fprintf(test,"\n\n");
-		for (i=0; i<med_B; i++)
-			fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
-		fprintf(test,"\n\n");
-		fclose(test);
-		exit(1);
-	}
-
-	i = asm_input.startprime;
-	//printf("sieving finished at index %u, prime %u\n",i, fb->prime[i]);
-	//printf("%u:%u ",BLOCKSIZE-1,sieve[BLOCKSIZE-1]);
-	/*
-	for (;i<med_B;i++)
-	{	
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
-#endif
-
-		//if we are past the blocksize, bail out because there are faster methods
-		if (prime > BLOCKSIZE)
-			break;
-
-		while (root2 < BLOCKSIZE)
-		{
-			ADDRESS_SIEVE(root1) -= logp;
-			ADDRESS_SIEVE(root2) -= logp;
-			root1 += prime;
-			root2 += prime;
-		}
-
-		//don't forget the last proot1[i], and compute the roots for the next block
-		if (root1 < BLOCKSIZE)
-		{
-			ADDRESS_SIEVE(root1) -= logp;
-			root1 += prime;
-			//root1 will be bigger on the next iteration, switch them now
-			tmp = root2;
-			root2 = root1;
-			root1 = tmp;
-		}
-			
-#ifdef USE_COMPRESSED_FB
-		fbptr->roots = (uint32)(((root2 - BLOCKSIZE) << 16) | (root1 - BLOCKSIZE));
-#else
-		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
-		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
-#endif
-	}
-	*/
-
-	for (;i<med_B;i++)
-	{	
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
-#endif
-
-		if (root1 < BLOCKSIZE)
-		{
-			ADDRESS_SIEVE(root1) -= logp;
-			root1 += prime;
-
-			if (root2 < BLOCKSIZE)
-			{
-				ADDRESS_SIEVE(root2) -= logp;
-				root2 += prime;
-			}
-			else
-			{
-				tmp=root2;
-				root2=root1;
-				root1=tmp;
-			}
-		}
-
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
-		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
-		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
-#endif
-
-	}
-
-
-#ifdef NOTDEF
-
-	__asm__ ( \
-		"movq	%0,%%r12 \n\t"					/* move helperstruct into rsi */ \
-		"movl   40(%%r12,1),%%r8d \n\t"			/* move startprime (i) into r8d */ \
-		"movq	(%%r12,1),%%rbx \n\t"			/* move sieve into rbx */ \
-		"movl   44(%%r12,1),%%r15d \n\t"		/* move med_B into r15d */ \
-		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
-		"jae    9f \n\t"						/* jump to exit if so */ \
-		"7: \n\t"								/* start of 2x sieving loop */
-  		"movq	16(%%r12,1),%%rbp \n\t"			/* rbp holds root1 pointer */ \
-  		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
-  		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
-		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
-  		"movl   %%r8d,%%ecx \n\t"				/* copy i to ecx */ \
-  		"movq   %%rcx,%%r13 \n\t"				/* copy i to r13 */ \
-  		"movzwl	0x0(%%rbp,%%rcx,2),%%r9d \n\t"	/* bring in root1 */ \
-  		"movzwl (%%r11,%%rcx,2),%%edi \n\t"		/* bring in root2 */	 \
-  		"movzwl (%%rdx,%%rcx,2),%%r10d \n\t"	/* bring in prime */	 \
-  		"movzbl (%%rax,%%rcx,1),%%esi \n\t"		/* bring in logp */ \
-  		"cmpl   $0x4000,%%r10d \n\t"			/* prime > 16384 */ \
-  		"ja     8f \n\t"						/* jump to 1x sieving if so */ \
-  		"movl   $0x8000,%%ebp \n\t"				/* copy blocksize ; root1 ptr overwritten */	 \
-  		"movl   %%r10d,%%edx \n\t"				/* copy prime to edx; prime ptr overwritten */ \
-  		"subl   %%r10d,%%ebp	 \n\t"			/* stop = blocksize - prime */ \
-  		"leaq   (%%rdx,%%rbx,1),%%rcx	 \n\t"	/* sieve2 = sieve + prime */ \
-  		"cmpl   %%ebp,%%edi \n\t"				/* root2 >= blocksize-prime? */ \
-  		"jae    1f \n\t"						/* jump past loop if so */ \
-  		"leal   (%%r10,%%r10,1),%%r11d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
-		"0:  \n\t"								/* start of loop */ \
-  		"movl   %%r9d,%%edx \n\t" \
-  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
-  		"addl   %%r11d,%%edi \n\t" \
-  		"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
-  		"addl   %%r11d,%%r9d \n\t" \
-  		"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
-  		"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
-  		"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
-  		"cmpl   %%ebp,%%edi \n\t" \
-  		"jb     0b \n\t"						/* repeat */ \
-		"1:  \n\t" \
-  		"cmpl   $0x7fff,%%edi \n\t"				/* root2 >= blocksize? */ \
-		"ja     1f  \n\t"						/* jump to extra root1 check */ \
-		"0:  \n\t"								/* start of 1x loop */ \
-  		"movl   %%r9d,%%ecx \n\t" \
-  		"movl   %%edi,%%edx \n\t" \
-  		"addl   %%r10d,%%edi \n\t" \
-  		"subb   %%sil,(%%rbx,%%rcx,1) \n\t" \
-  		"addl   %%r10d,%%r9d \n\t" \
-  		"subb   %%sil,(%%rbx,%%rdx,1) \n\t" \
-  		"cmpl   $0x7fff,%%edi \n\t" \
-  		"jbe    0b \n\t"						/* repeat */ \
-		"1:  \n\t" \
-  		"cmpl   $0x7fff,%%r9d \n\t"				/* root1 >= blocksize? */ \
-  		"ja     1f \n\t"						/* jump past extra root1 block if so */ \
-  		"movl   %%r9d,%%ebp \n\t" \
-  		"subb   %%sil,0x0(%%rbx,%%rbp,1) \n\t" \
-  		"movl   %%edi,%%esi \n\t" \
-  		"leal   (%%r10,%%r9,1),%%edi \n\t"		/* root2 = root1 + prime */ \
-  		"movl   %%esi,%%r9d \n\t" \
-		"1:  \n\t" \
-  		"movq   16(%%r12,1),%%rbp \n\t"			/* rbp holds root1 pointer */ \
-  		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
-  		"incl   %%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%r9),%%r10 \n\t" \
- 		"cmpl   %%r15d,%%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%rdi),%%r9 \n\t" \
- 		"movw   %%r10w,0x0(%%rbp,%%r13,2) \n\t" /* write out new root1 */ \
- 		"movw   %%r9w,(%%r11,%%r13,2) \n\t"		/* write out new root2 */ \
- 		"jb     7b \n\t"						/* repeat 2x sieving loop */ \
-		"8:	 \n\t"								/* entry point for standard sieving and > blocksize sieving */ \
- 		"9: \n\t"								/* exit flag */ \
-		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
-		:	\
-		: "g"(&asm_input) \
-		: "rax", "rbx", "rcx", "rdx", "rdi", "rbp", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r15", "memory", "cc");
-
-#endif
-
-
-	//1x sieving loop
-#ifdef NOTDEF
-		
- 		"cmpl   %%r15d,%%r8d \n\t" \
- 		"jae    9f	 \n\t"						/* exit to lp sieving */ \
+		"cmpl	%%r15d,%%r8d \n\t"										\
+		"jae    9f	 \n\t"						/* exit to lp sieving */ \
 		"3: \n\t"								/* top of 1x sieving loop */ \
- 		"movzwl (%%rdx,%%rcx,2),%%r10d \n\t" \
- 		"movzwl 0x0(%%rbp,%%rcx,2),%%r9d \n\t" \
- 		"movzwl (%%r11,%%rcx,2),%%edi \n\t" \
- 		"movzwl (%%rcx,%%rax,2),%%esi \n\t" \
- 		"cmpl    $0x8000,%%r10d \n\t" \
+  		"movzwl (%%rdx,%%r8,2),%%r10d \n\t"		/* bring in prime */	 \
+		"movzwl	(%%r13,%%r8,2),%%r9d \n\t"		/* bring in root1 */ \
+  		"movzwl (%%r11,%%r8,2),%%edi \n\t"		/* bring in root2 */	 \
+  		"movzbl (%%rax,%%r8,2),%%esi \n\t"		/* bring in logp */ \
+ 		"cmpl    $" BLOCKSIZEtxt ",%%r10d \n\t"										\
  		"ja     2f \n\t"						/* if prime > blocksize, exit loop */ \
- 		"cmpl    $0x7fff,%%edi \n\t"			/* if root2 > blocksize, skip to extra root1 check */ \
- 		"ja     1f \n\t" \
+ 		"cmpl    $" BLOCKSIZEm1txt ",%%edi \n\t"	/* if root2 > blocksize, skip to extra root1 check */ \
+ 		"ja     1f \n\t"																\
 		"0: \n\t"								/* top of 1x unrolled loop */ \
- 		"movl   %%r9d,%%r13d \n\t" \
- 		"movl   %%edi,%%r11d \n\t" \
- 		"addl   %%r10d,%%edi \n\t" \
- 		"subb   %%sil,0x0(%%r13,%%rbx,1) \n\t" \
- 		"addl   %%r10d,%%r9d \n\t" \
- 		"subb   %%sil,(%%r11,%%rbx,1) \n\t" \
- 		"cmpl   $0x7fff,%%edi \n\t" \
+ 		"movl   %%r9d,%%r13d \n\t"										\
+ 		"movl   %%edi,%%r11d \n\t"												\
+ 		"addl   %%r10d,%%edi \n\t"												\
+ 		"subb   %%sil,0x0(%%r13,%%rbx,1) \n\t"							\
+ 		"addl   %%r10d,%%r9d \n\t"										\
+ 		"subb   %%sil,(%%r11,%%rbx,1) \n\t"								\
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"							\
  		"jbe    0b \n\t"						/* back to top of 1x unrolled loop */ \
-		"1:  \n\t" \
- 		"cmpl   $0x7fff,%%r9d \n\t"				/* extra root1 check */ \
+		"1:  \n\t"																\
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* extra root1 check */ \
  		"ja     1f \n\t"						/* if root1 > blocksize, skip past extra root1 check */ \
- 		"movl   %%r9d,%%ebp \n\t" \
- 		"movl   %%edi,%%edx \n\t" \
- 		"leal   (%%r10,%%r9,1),%%edi \n\t" \
- 		"subb   %%sil,0x0(%%rbp,%%rbx,1) \n\t" \
- 		"movl   %%edx,%%r9d \n\t" \
+ 		"movl   %%r9d,%%r13d \n\t"										\
+ 		"movl   %%edi,%%edx \n\t"										\
+ 		"leal   (%%r10,%%r9,1),%%edi \n\t"		/* root2 = root1 + prime */ \
+ 		"subb   %%sil,0x0(%%r13,%%rbx,1) \n\t"							\
+ 		"movl   %%edx,%%r9d \n\t"				/* root1 = old root2 (swap) */ \
 		"1:  \n\t"								/* end of extra root1 check */ \
- 		"movq   16(%%r12,1),%%rbp \n\t" \
- 		"movq   24(%%r12,1),%%r11 \n\t" \
- 		"incl   %%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%r9),%%r10 \n\t" \
- 		"leaq   0xffffffffffff8000(%%rdi),%%rsi \n\t" \
- 		"cmpl   %%r15d,%%r8d \n\t" \
- 		"movw   %%r10w,0x0(%%rbp,%%rcx,2) \n\t" \
- 		"movw   %%si,(%%r11,%%rcx,2) \n\t" \
- 		"jae    9f \n\t" \
- 		"movl   %%r8d,%%ecx \n\t" \
- 		"movq   (%%r12,1),%%rdx \n\t" \
- 		"movq   32(%%r12,1),%%rax \n\t" \
- 		"jmp	3b \n\t" \
-		"2:  \n\t"
-#endif
-		//bigprime loop
-#ifdef NOTDEF
+		"movq   16(%%r12,1),%%r13 \n\t"									\
+ 		"movq   24(%%r12,1),%%r11 \n\t"									\
+		"incl   %%r8d \n\t"												\
+ 		"leaq   " negBLOCKSIZE "(%%r9),%%r10 \n\t"							\
+ 		"leaq   " negBLOCKSIZE "(%%rdi),%%r9 \n\t"						\
+ 		"cmpl   %%r15d,%%r8d \n\t"										\
+ 		"movw   %%r10w,0x0(%%r13,%%r14,2) \n\t"							\
+ 		"movw   %%r9w,(%%r11,%%r14,2) \n\t"									\
+ 		"jae    9f \n\t"												\
+ 		"movq   8(%%r12,1),%%rdx \n\t"									\
+ 		"movq   32(%%r12,1),%%rax \n\t"									\
+		"movl   %%r8d,%%r14d \n\t"				/* copy i to r14 */ \
+ 		"jmp	3b \n\t"												\
+		"2:  \n\t"														\
+			/* ==================================================================== */ \
+			/* = prime > blocksize sieving							              = */ \
+			/* ==================================================================== */ \
 		"cmpl   %%r15d,%%r8d \n\t" \
 		"jae    9f \n\t" \
-		"0: \n\t"								/* top of bigprime loop */ \
- 		"movzwl 0x0(%%rbp,%%rcx,2),%%r9d \n\t" \
- 		"movzwl (%%rdx,%%rcx,2),%%r10d \n\t" \
- 		"movzwl (%%r11,%%rcx,2),%%edi \n\t" \
- 		"movzwl (%%rcx,%%rax,2),%%esi \n\t" \
- 		"cmpl   $0x7fff,%%r9d \n\t"				/* root1 > blocksize, skip to root update */ \
+		"4: \n\t"								/* top of > blocksize sieving loop */ \
+		"movzwl (%%rdx,%%r8,2),%%r10d \n\t"		/* bring in prime */	 \
+		"movzwl	(%%r13,%%r8,2),%%r9d \n\t"		/* bring in root1 */ \
+  		"movzwl (%%r11,%%r8,2),%%edi \n\t"		/* bring in root2 */	 \
+  		"movzbl (%%rax,%%r8,2),%%esi \n\t"		/* bring in logp */ \
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* root1 > blocksize, skip to root update */ \
  		"ja     1f \n\t" \
  		"movl   %%r9d,%%r11d \n\t" \
  		"addl   %%r10d,%%r9d \n\t" \
  		"subb   %%sil,(%%r11,%%rbx,1) \n\t" \
- 		"cmpl   $0x7fff,%%edi \n\t"				/* root2 > blocksize, skip to swap roots */ \
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"				/* root2 > blocksize, skip to swap roots */ \
  		"ja     2f \n\t" \
  		"movl   %%edi,%%r13d \n\t" \
  		"addl   %%r10d,%%edi \n\t" \
  		"subb   %%sil,0x0(%%r13,%%rbx,1) \n\t" \
 		"3: \n\t" \
- 		"movq   16(%%r12,1),%%rbp \n\t" \
+ 		"movq   16(%%r12,1),%%r13 \n\t" \
  		"movq   24(%%r12,1),%%r11 \n\t" \
 		"1:  \n\t"								/* update roots */ \
  		"incl   %%r8d \n\t" \
- 		"leaq   0xffffffffffff8000(%%r9),%%rsi \n\t" \
- 		"leaq   0xffffffffffff8000(%%rdi),%%r9 \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%r9),%%rsi \n\t" \
+ 		"leaq   " negBLOCKSIZE "(%%rdi),%%r9 \n\t" \
  		"cmpl   %%r15d,%%r8d \n\t" \
- 		"movw   %%si,0x0(%%rbp,%%rcx,2) \n\t" \
- 		"movw   %%r9w,(%%r11,%%rcx,2) \n\t" \
+ 		"movw   %%si,0x0(%%r13,%%r14,2) \n\t" \
+ 		"movw   %%r9w,(%%r11,%%r14,2) \n\t" \
  		"jae    9f \n\t" \
- 		"movl   %%r8d,%%ecx \n\t" \
- 		"movq   (%%r12,1),%%rdx \n\t" \
+ 		"movl   %%r8d,%%r14d \n\t" \
+ 		"movq   8(%%r12,1),%%rdx \n\t" \
  		"movq   32(%%r12,1),%%rax \n\t" \
- 		"jmp    0b \n\t"						/* back up to top of bigprime loop */ \
+ 		"jmp    4b \n\t"						/* back up to top of bigprime loop */ \
 		"2: \n\t"								/* swap roots */ \
  		"movl   %%edi,%%edx \n\t" \
  		"movl   %%r9d,%%edi \n\t" \
  		"movl   %%edx,%%r9d \n\t" \
  		"jmp    3b \n\t"						/* jump to update roots */
-
-#endif
+ 		"9: \n\t"								/* exit flag */ \
+		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
+		:																\
+		: "g"(&asm_input)												\
+		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
+	
+	i = asm_input.startprime;
 
 #else
 
@@ -1935,33 +1648,6 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 #endif
 
 	}
-
-	//{
-	//	double dd = 0;
-	//	printf("value of sieve loop hits: %u\n",j);
-	//	for (j=0; j<BLOCKSIZE; j++)
-	//		dd += (double)sieve[j];
-	//	printf("avg sieve value = %g\n",dd/BLOCKSIZE);
-	//}
-
-	//if (1)
-	//{
-	//	FILE *test;
-	//	test = fopen("x2_dump_sieve_ref.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<BLOCKSIZE; i++)
-	//		fprintf(test,"%u, %u\n",i,sieve[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-
-	//	test = fopen("x2_dump_roots_ref.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<med_B; i++)
-	//		fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-	//	exit(1);
-	//}
 
 	for (;i<med_B;i++)
 	{	
@@ -2059,24 +1745,6 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 
 #endif	
 
-	//if (1)
-	//{
-	//	FILE *test;
-	//	test = fopen("dump_sieve_sse2.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<BLOCKSIZE; i++)
-	//		fprintf(test,"%u, %u\n",i,sieve[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-
-	//	test = fopen("dump_roots_sse2.txt","w");
-	//	fprintf(test,"\n\n");
-	//	for (i=0; i<med_B; i++)
-	//		fprintf(test,"%u, %u, %u, %u\n",i,fb->prime[i],fb->root1[i],fb->root2[i]);
-	//	fprintf(test,"\n\n");
-	//	fclose(test);
-	//	exit(1);
-	//}
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);

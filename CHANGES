@@ -17,6 +17,9 @@ v 1.24
 + shared memory and fork not available in mingw after all - adjust preprocessor directives
 	accordingly
 + makefile needed to be adjusted to get ecm/gmp to link in mingw
++ got inline ASM working to sieve small/medium primes in sieve.c (x86-64 only).  This is faster
+	than the SSE2 equivalent.
++ added typedef's for MINGW32 builds.
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
