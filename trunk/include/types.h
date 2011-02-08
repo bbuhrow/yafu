@@ -220,17 +220,6 @@ code to the public domain.
 		typedef long long unsigned int fp_word;
 		typedef long long int fp_signdigit;
 		typedef long long int fp_signword;
-	
-/*
-		#define uint8 unsigned char
-		#define uint16 unsigned short
-		#define uint32 unsigned int
-		#define uint64 long long unsigned int
-		#define fp_digit long long unsigned int
-		#define fp_word long long unsigned int
-		#define fp_signdigit long long int
-		#define fp_signword long long int
-		*/
 
 		#define MAX_DIGIT 0xffffffffffffffff
 		#define BITS_PER_DIGIT 64
@@ -240,6 +229,40 @@ code to the public domain.
 		#define MAX_HALF_DIGIT 0xffffffff
 		#define MAX_DEC_WORD 0x8AC7230489E80000
 		#define ADDRESS_BITS 3
+
+		#define PRId64 "lld"
+		#define PRIu64 "llu"
+		#define PRIx64 "llx"
+		
+		#ifndef RS6K
+		typedef char int8;
+		typedef short int16;
+		typedef int32_t int32;
+		typedef int64_t int64;
+		#endif
+
+	#elif defined(__MINGW32__)
+		#include <mm_malloc.h>
+		#define memalign _aligned_malloc //_mm_malloc
+		#define align_free _aligned_free //_mm_free
+
+		typedef unsigned char uint8;
+		typedef unsigned short uint16;
+		typedef unsigned int uint32;
+		typedef long long unsigned int uint64;
+		typedef unsigned int fp_digit;
+		typedef long long unsigned int fp_word;
+		typedef int fp_signdigit;
+		typedef long long int fp_signword;
+
+		#define MAX_DIGIT 0xffffffff
+		#define BITS_PER_DIGIT 32
+		#define DEC_DIGIT_PER_WORD 9
+		#define HEX_DIGIT_PER_WORD 8
+		#define HIBITMASK 0x80000000
+		#define MAX_HALF_DIGIT 0xffff
+		#define MAX_DEC_WORD 0x3b9aca00
+		#define ADDRESS_BITS 2
 
 		#define PRId64 "lld"
 		#define PRIu64 "llu"

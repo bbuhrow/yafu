@@ -88,13 +88,16 @@ double TF_SPECIAL;
 #define BLOCKBITStxt "15"
 #endif
 
-#if defined (__MINGW64__) 
-	#define USE_POLY_SSE2_ASM 1
-	#define SSE2_ASM_SIEVING 1
-#elif (defined(__GNUC__) && defined(__x86_64__))
+#if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
-	//#define ASM_SIEVING 1
+	#define ASM_SIEVING 1
+#elif (defined(__GNUC__) && defined(__x86_64__))
+	#define USE_POLY_SSE2_ASM 1
+	#if (__GNUC__ > 3)
+		//#define SSE2_ASM_SIEVING 1
+		#define ASM_SIEVING 1
+	#endif
 #endif
 
 #if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
