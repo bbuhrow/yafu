@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 39
+#define NUMOPTIONS 40
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"v", "silent", "pfile", "pscreen", "forceDLP",
 	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
 	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
-	"of", "ou", "plan", "pretest"};
+	"of", "ou", "plan", "pretest", "no_expr"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -62,7 +62,7 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,0,0,
 	1,0,0,0,1,
 	1,1,1,0,1,
-	1,1,1,0};
+	1,1,1,0,0};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -878,6 +878,7 @@ void set_default_globals(void)
 	WANT_OUTPUT_PRIMES = 0;
 	WANT_OUTPUT_FACTORS = 0;
 	WANT_OUTPUT_UNFACTORED = 0;
+	WANT_OUTPUT_EXPRESSIONS = 1;
 
 	//pretesting plan used by factor()
 	yafu_pretest_plan = PRETEST_NORMAL;
@@ -1528,6 +1529,10 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[38]) == 0)
 	{
 		ONLY_PRETEST = 1;
+	}
+	else if (strcmp(opt,OptionArray[39]) == 0)
+	{
+		WANT_OUTPUT_EXPRESSIONS = 0;
 	}
 	else
 	{

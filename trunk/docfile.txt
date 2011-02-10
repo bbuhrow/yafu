@@ -60,6 +60,7 @@ flags to change program behavior.  Supported flags in v1.19 are:
 -op <name>		Tells factor() to output primes and prps to file <name>.
 -of <name>		Tells factor() to output an input number and all found factors to file <name>.
 -ou <name>		Tells factor() to output unfactored composites to file <name>.
+-no_expr		When outputting numbers to file, do not print expression form, show full decimal expansion.
 -plan <name>	Tells factor() to follow one of the following pretesting plans:
 				<name> = none: do only trial division and rho
 				<name> = noecm: stop before first ecm step and start nfs/qs

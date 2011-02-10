@@ -1825,7 +1825,10 @@ void factor(fact_obj_t *fobj)
 				printf(" ***Error: unable to open %s\n", op_str);
 			else
 			{
-				fprintf(op_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (WANT_OUTPUT_EXPRESSIONS)
+					fprintf(op_file, "%s\n", fobj->str_N.s);
+				else
+					fprintf(op_file, "%s\n", z2decstr(&origN,&gstr1));
 				if (fclose(op_file) != 0)
 					printf(" ***Error: problem closing file %s\n", op_str);
 			}
@@ -1840,7 +1843,10 @@ void factor(fact_obj_t *fobj)
 			{
 				int i;
 				//fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
-				fprintf(of_file, "%s", z2decstr(&origN,&gstr1));
+				if (WANT_OUTPUT_EXPRESSIONS)
+					fprintf(of_file, "(%s)", fobj->str_N.s);
+				else
+					fprintf(of_file, "%s", z2decstr(&origN,&gstr1));
 				for (i=0; i<fobj->num_factors; i++)
 				{
 					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
@@ -1862,7 +1868,10 @@ void factor(fact_obj_t *fobj)
 				printf(" ***Error: unable to open %s\n", ou_str);
 			else
 			{
-				fprintf(ou_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (WANT_OUTPUT_EXPRESSIONS)
+					fprintf(ou_file, "%s\n", fobj->str_N.s);
+				else
+					fprintf(ou_file, "%s\n", z2decstr(&origN,&gstr1));
 				if (fclose(ou_file) != 0)
 					printf(" ***Error: problem closing file %s\n", ou_str);
 			}
