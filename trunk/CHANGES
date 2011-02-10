@@ -1,4 +1,4 @@
-v 1.24
+v 1.24 2/9/11
 + added proprocessing check for enabled profiling which disables poly.c ASM code.  profiling
 	doesn't work if all of the registers are in the clobber list.
 + rearranged sieve scanning in check_relations slightly so that a list of reports are 
@@ -6,14 +6,12 @@ v 1.24
 + fixed the reporting of how many total polynomials were used
 + implemented a re-sieving algorithm for factor base primes between 8192 up to the med_B bound.  
 	makes use of SSE2 instructions for multi-up re-sieving.  This change applies to x64 and
-	linux64 builds only.  It was slower for win32.
+	linux64 builds only for now.
 + (Brian Gladman) contributed assembler files to support 64 bit mod operations in x64.
 + changes to the preprocessor definition structure in many places to make the project 
 	mingw64 friendly
 + actually make use of the PRIu/d/x64 definitions now
 + uncomment stuff in fp_montgomery_reduce.c which was protected by #ifdef's anyway
-+ got SSE2 based assembly code working to sieve small/medium primes in sieve.c (x86-64 only)
-+ got macros straightened out to report resieving usage correctly on supported platforms
 + shared memory and fork not available in mingw after all - adjust preprocessor directives
 	accordingly
 + makefile needed to be adjusted to get ecm/gmp to link in mingw
@@ -21,6 +19,9 @@ v 1.24
 	than the SSE2 equivalent.
 + added typedef's for MINGW32 builds.
 + cleaned up a bunch of warnings and added ULL's to 64 bit constants
++ merged in parallel gmp-ecm code from bchaffin
++ wraithx contribued code to capture and log/print input expressions
+
 
 v 1.23 1/21/11
 + added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
