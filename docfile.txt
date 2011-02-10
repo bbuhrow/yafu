@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.23
+YAFU Version 1.24
 
 -------------
 Introduction:
