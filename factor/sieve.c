@@ -1426,13 +1426,12 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 		"jae    9f \n\t"						/* jump to exit if so */ \
 		"7: \n\t"								/* start of 2x sieving loop */  		
   		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
-		"movl   %%r8d,%%ecx \n\t"				/* copy i to ecx */ \
-		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
 		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
-  		"movzwl	(%%r13,%%rcx,2),%%r9d \n\t"		/* bring in root1 */ \
-  		"movzwl (%%r11,%%rcx,2),%%edi \n\t"		/* bring in root2 */	 \
-  		"movzwl (%%rdx,%%rcx,2),%%r10d \n\t"	/* bring in prime */	 \
-  		"movzbl (%%rax,%%rcx,2),%%esi \n\t"		/* bring in logp */ \
+		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
+  		"movzwl	(%%r13,%%r8,2),%%r9d \n\t"		/* bring in root1 */ \
+  		"movzwl (%%r11,%%r8,2),%%edi \n\t"		/* bring in root2 */	 \
+  		"movzwl (%%rdx,%%r8,2),%%r10d \n\t"		/* bring in prime */	 \
+  		"movzbl (%%rax,%%r8,2),%%esi \n\t"		/* bring in logp */ \
   		"cmpl   $0x4000,%%r10d \n\t"			/* prime > 16384 */ \
   		"ja     8f \n\t"						/* jump to 1x sieving if so */ \
 			/* ==================================================================== */ \
@@ -1457,7 +1456,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
   		"cmpl   %%r13d,%%edi \n\t" \
   		"jb     0b \n\t"						/* repeat */ \
 		"1:  \n\t" \
-  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"				/* root2 >= blocksize? */ \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"	/* root2 >= blocksize? */ \
 		"ja     1f  \n\t"						/* jump to extra root1 check */ \
 				/* data16 and nop */  \
 		"0:  \n\t"								/* sieve to "blocksize" */ \
@@ -1470,7 +1469,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
   		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t" \
   		"jbe    0b \n\t"						/* repeat */ \
 		"1:  \n\t" \
-  		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* root1 >= blocksize? */ \
+  		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"	/* root1 >= blocksize? */ \
   		"ja     1f \n\t"						/* jump past extra root1 block if so */ \
   		"movl   %%r9d,%%r13d \n\t" \
   		"subb   %%sil,(%%rbx,%%r13,1) \n\t" \
@@ -1548,12 +1547,12 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 		"movzwl	(%%r13,%%r8,2),%%r9d \n\t"		/* bring in root1 */ \
   		"movzwl (%%r11,%%r8,2),%%edi \n\t"		/* bring in root2 */	 \
   		"movzbl (%%rax,%%r8,2),%%esi \n\t"		/* bring in logp */ \
- 		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"				/* root1 > blocksize, skip to root update */ \
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%r9d \n\t"	/* root1 > blocksize, skip to root update */ \
  		"ja     1f \n\t" \
  		"movl   %%r9d,%%r11d \n\t" \
  		"addl   %%r10d,%%r9d \n\t" \
  		"subb   %%sil,(%%r11,%%rbx,1) \n\t" \
- 		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"				/* root2 > blocksize, skip to swap roots */ \
+ 		"cmpl   $" BLOCKSIZEm1txt ",%%edi \n\t"	/* root2 > blocksize, skip to swap roots */ \
  		"ja     2f \n\t" \
  		"movl   %%edi,%%r13d \n\t" \
  		"addl   %%r10d,%%edi \n\t" \

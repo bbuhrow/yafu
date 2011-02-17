@@ -25,6 +25,25 @@ the yafu folder in the directory tree, in a folder called
 ggnfs-bin, then the line would be
 ggnfs_dir=..\ggnfs-bin\
 
+
+---------------------------------------------------------------
+PRE-COMPILED BINARIES
+---------------------------------------------------------------
+
+Pre-compiled binaries have both GMP-ECM and selected msieve
+NFS routines built in (poly selection, linear algebra, and
+square root routines).
+
+For 32 bit windows, GMP-ECM 6.3 was linked against the 
+MPIR-2.1.3 32 bit generic library.
+For 64 bit windows, GMP-ECM 6.3 was linked against the 
+MPIR-2.1.3 64 bit core2 library.
+For 64 bit linux builds, GMP-ECM 6.3 was linked against 
+GMP 5.0.1 x86_64 library.  
+32 bit linux builds currently are not provided
+
+All versions were linked against version 1.48 of msieve.
+
 ---------------------------------------------------------------
 BUILD INFORMATION
 ---------------------------------------------------------------
@@ -34,15 +53,6 @@ can make a binary which beats the performance of one of the
 pre-compiled versions for a particular architecture, I'd 
 love to hear about it!
 
-Note that some pre-compiled binaries have GMP-ECM enabled.  
-For windows builds, GMP-ECM 6.3 was linked against the 
-MPIR-2.1.3 core2 library for 32 bit builds.  64 bit windows
-builds do not use GMP-ECM.
-For linux builds, GMP-ECM 6.2.3 was linked against the GMP 4.3.2 
-x86_64 library for 64 bit builds.  32 bit linux builds do not
-use GMP-ECM.
-
-
 GCC 32 bit OS
 =============
 make x86 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
@@ -51,30 +61,33 @@ GCC 64 bit OS
 =============
 make x86_64 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
 
-optionally enable GNFS factorizations by setting NFS=1 during
+Optionally enable GNFS factorizations by setting NFS=1 during
 make.  This will require the makefile to be edited to point to 
 the libmsieve.a library.  By default, it is assumed to be located
-at ../msieve/ relative to the Makefile.  
+at ../msieve/ relative to the Makefile.  Selecting NFS=1 will also
+require GMP and GMP-ECM.  See below.
 
-optionally enable the p+1, p-1, and ecm factoring routines
+Optionally enable the p+1, p-1, and ecm factoring routines
 to utilize GMPECM libraries by setting GMPECM=1 during make.
 This will require the makefile to be edited to point to the
 location of your gmp and gmpecm libraries and include files.
 
-optionally enable 64k sieve block sizes by setting BLOCK=64 
-during make.  this sets the size of the sieve interval during
-siqs, mpqs, pqs, and the sieve of eratosthenes.  in general
+Optionally enable 64k sieve block sizes by setting BLOCK=64 
+during make.  This sets the size of the sieve interval during
+siqs, mpqs, pqs, and the sieve of eratosthenes.  In general
 the sieve block size should match the L1 data cache size of your
 CPU.  64k blocksizes are faster for AMD64 systems 
-(and possibly others).
+(and possibly some older systems).  All intel chips should not
+use BLOCK=64.
 
-optionally enable gcc profiling by setting PROFILE=1 during 
+Optionally enable gcc profiling by setting PROFILE=1 during 
 make.  this produces profiling information when run and thus
-slows down the program.  profiling information can then be
-viewed using, for example, gprof.
+slows down the program.  Profiling information can then be
+viewed using, for example, using gprof.
 
-optionally enable more detailed timing during SIQS by setting
+Optionally enable more detailed timing during SIQS by setting
 TIMING=1 during make.  This will slightly slow down siqs.
+
 
 WINDOWS MS Visual Studio Express Edition 2008
 =============
@@ -139,14 +152,29 @@ yafu
 	build.vc10
 		...
 		
-The mpir and gmp-ecm libraries will need to be build
+The mpir and gmp-ecm libraries will need to be built
 separately, for either Win32 or x64 targets.  To change the 
 target for a yafu build, within MSVC select 
 Build -> Configuration Manger
 then in the Active Solution Platform pulldown choose x64 or 
 Win32.
 
-Other platforms
+
+MINGW-64 OR MINGW-32
+=============
+YAFU should build in a mingw or mingw-64 environment.  Follow the
+instructions for a GCC build, except the makefile will need to
+be edited in the following way first:
+
+uncomment this line (remove the # symbol):
+#LIBS += -lm
+
+and comment this line
+LIBS += -lm -lpthread
+
+
+
+OTHER
 =============
 If you build yafu on other platforms or using other IDE's or
 compilers, please let me know about it.
@@ -161,7 +189,7 @@ HELP INFORMATION
 Detailed (somewhat) documentation is available in docfile.txt, 
 which can be viewed during a yafu session by typing 'help'
 
-In you want to see the docfile from within the code, it needs 
+In you want to see the docfile from within the program, it needs 
 to be in the same directory as the executable.
 
 Check back at http://sites.google.com/site/bbuhrow for updates.
