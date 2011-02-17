@@ -95,10 +95,11 @@ code to the public domain.
 			"pcmpeqw %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
 			"pcmpeqw %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
 			"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-			"por %%xmm6, %%xmm7 \n\t"		/* combine results */
+			"por %%xmm6, %%xmm8 \n\t"		/* combine results */
 
 		#define INIT_RESIEVE \
 			"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
+			"pxor %%xmm8, %%xmm8 \n\t"		/* zero xmm8 */ \
 			"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
 			"paddw %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
 			"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
@@ -109,7 +110,7 @@ code to the public domain.
 			"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */
 
 		#ifdef YAFU_64K
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
@@ -120,68 +121,74 @@ code to the public domain.
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 		#else
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				asm ( \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
+					"por	%%xmm8, %%xmm7 \n\t" \
 					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 					: "=r"(result) \
 					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory" \
+					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
 					);
 		#endif
 
@@ -358,11 +365,12 @@ code to the public domain.
 			ASM_M pcmpeqw xmm5, xmm2 \
 			ASM_M pcmpeqw xmm6, xmm3 \
 			ASM_M por xmm7, xmm5 \
-			ASM_M por xmm7, xmm6
+			ASM_M por xmm8, xmm6
 
 
 		#define INIT_RESIEVE \
 			ASM_M movdqa xmm4, XMMWORD PTR [edx] \
+			ASM_M pxor xmm8, xmm8 \
 			ASM_M movdqa xmm2, XMMWORD PTR [ebx] \
 			ASM_M paddw xmm2, xmm4 \
 			ASM_M movdqa xmm3, XMMWORD PTR [ecx] \
@@ -374,7 +382,7 @@ code to the public domain.
 
 		#ifdef YAFU_64K
 
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				do { \
 					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
 					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
@@ -394,11 +402,12 @@ code to the public domain.
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				do { \
 					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
 					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
@@ -414,11 +423,12 @@ code to the public domain.
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				do { \
 					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
 					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
@@ -432,13 +442,14 @@ code to the public domain.
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
 
 		#else
 
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				do { \
 					uint16 *localprime = fbc->prime + i;	\
 					uint16 *localroot1 = fbc->root1 + i;	\
@@ -452,11 +463,12 @@ code to the public domain.
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				do { \
 					uint16 *localprime = fbc->prime + i;	\
 					uint16 *localroot1 = fbc->root1 + i;	\
@@ -468,11 +480,12 @@ code to the public domain.
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				do { \
 					uint16 *localprime = fbc->prime + i;	\
 					uint16 *localroot1 = fbc->root1 + i;	\
@@ -483,6 +496,7 @@ code to the public domain.
 					ASM_M mov ecx, localroot2 \
 					INIT_RESIEVE \
 					STEP_COMPARE_COMBINE	\
+					ASM_M por xmm7, xmm8 \
 					ASM_M pmovmskb eax, xmm7	\
 					ASM_M mov result, eax } \
 				} while (0);
@@ -702,7 +716,7 @@ code to the public domain.
 
 		#ifdef YAFU_64K
 
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -723,7 +737,7 @@ code to the public domain.
 					result = _mm_movemask_epi8(combine); \
 				} while (0);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -740,7 +754,7 @@ code to the public domain.
 					result = _mm_movemask_epi8(combine); \
 				} while (0);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -757,7 +771,7 @@ code to the public domain.
 
 		#else
 
-			#define RESIEVE_4X_14BIT_MAX \
+			#define RESIEVE_8X_14BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -774,7 +788,7 @@ code to the public domain.
 					result = _mm_movemask_epi8(combine); \
 				} while (0);
 
-			#define RESIEVE_4X_15BIT_MAX \
+			#define RESIEVE_8X_15BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -789,7 +803,7 @@ code to the public domain.
 					result = _mm_movemask_epi8(combine); \
 				} while (0);
 
-			#define RESIEVE_4X_16BIT_MAX \
+			#define RESIEVE_8X_16BIT_MAX \
 				do { \
 					__m128i tmp1;	\
 					__m128i tmp2;	\
@@ -843,7 +857,7 @@ code to the public domain.
 		COMPARE_RESIEVE_VALS(x);
 
 	#ifdef YAFU_64K
-		#define RESIEVE_4X_14BIT_MAX \
+		#define RESIEVE_8X_14BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -894,7 +908,7 @@ code to the public domain.
 				RESIEVE_1X_14BIT_MAX(0x8000);									\
 			} while (0); 
 
-		#define RESIEVE_4X_15BIT_MAX \
+		#define RESIEVE_8X_15BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -945,7 +959,7 @@ code to the public domain.
 				RESIEVE_1X_15BIT_MAX(0x8000);									\
 			} while (0); 
 
-		#define RESIEVE_4X_16BIT_MAX \
+		#define RESIEVE_8X_16BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -996,7 +1010,7 @@ code to the public domain.
 				RESIEVE_1X_16BIT_MAX(0x8000);									\
 			} while (0); 
 	#else
-		#define RESIEVE_4X_14BIT_MAX \
+		#define RESIEVE_8X_14BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -1039,7 +1053,7 @@ code to the public domain.
 				RESIEVE_1X_14BIT_MAX(0x8000);									\
 			} while (0); 
 
-		#define RESIEVE_4X_15BIT_MAX \
+		#define RESIEVE_8X_15BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -1082,7 +1096,7 @@ code to the public domain.
 				RESIEVE_1X_15BIT_MAX(0x8000);									\
 			} while (0); 
 
-		#define RESIEVE_4X_16BIT_MAX \
+		#define RESIEVE_8X_16BIT_MAX \
 			do { \
 				int p = (int)fbc->prime[i];										\
 				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
@@ -2293,6 +2307,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #endif
 		
 #ifndef YAFU_64K
+		// since the blocksize is bigger for YAFU_64K, skip resieving of primes
+		// up to 14 bits in size and instead use standard normal trial division.
+
 		bound = sconf->factor_base->fb_14bit_B;
 		while ((uint32)i < bound)
 		{
@@ -2316,7 +2333,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			//	(fbc->prime[i+3] - 1 + BLOCKSIZE) / fbc->prime[i+3]);
 
 			uint32 result = 0;
-			RESIEVE_4X_14BIT_MAX;
+			RESIEVE_8X_14BIT_MAX;
 			
 			if (result == 0)
 			{
@@ -2404,7 +2421,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		while ((uint32)i < bound)
 		{
 			uint32 result = 0;
-			RESIEVE_4X_15BIT_MAX;
+			RESIEVE_8X_15BIT_MAX;
 
 			if (result == 0)
 			{
@@ -2492,7 +2509,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		{
 
 			uint32 result = 0;
-			RESIEVE_4X_16BIT_MAX;
+			RESIEVE_8X_16BIT_MAX;
 
 			if (result == 0)
 			{
@@ -2587,6 +2604,8 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		dconf->smooth_num[report_num] = smooth_num;	
 
 #else
+		// standard trial division methods, for when either the compiler or the OS or both
+		// cause resieving to be slower.
 
 		bound = sconf->factor_base->med_B;
 		while ((uint32)i < bound)
