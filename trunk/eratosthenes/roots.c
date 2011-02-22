@@ -28,11 +28,23 @@ void getRoots(soe_staticdata_t *sdata)
 		uint32 inv;
 		prime = sdata->sieve_p[i];
 
+#ifdef INPLACE_BUCKET
+		if (i == BUCKETSTARTI)
+			break;
+#else
+
 		inv = modinv_1(prodN,prime);
 		
 		sdata->root[i] = prime - inv;
 		sdata->lower_mod_prime[i] = (sdata->lowlimit + 1) % prime;
+#endif
 	}
+
+#ifdef INPLACE_BUCKET
+	//for each bucket prime, compute its starting block,residue, and sieve location
+	//and add it to the appropriate linked list
+
+#endif
 
 	return;
 }
