@@ -59,6 +59,16 @@ typedef struct
 	uint8 bnum;
 } soe_bucket_t_old;
 
+//create num_blocks * num_residues linked lists, one for each combination of residue and block.
+//Then, for each residue, for each block, iterate through the appropriate list, AND its location, 
+//compute the next block, residue, and location, and add it to the end of the appropriate linked list.
+typedef struct
+{
+	uint32 prime;			//the prime
+	uint16 loc;				//location of the hit in the block
+	uint16 next;			//relative offset to the next bucket_prime_t with the same residue and block
+} bucket_prime_t;			
+
 typedef struct
 {
 	uint32 root;
