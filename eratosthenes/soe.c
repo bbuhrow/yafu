@@ -328,6 +328,8 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		//then we have primes bigger than BUCKETSTARTP - need to bucket sieve
 #ifdef INPLACE_BUCKET
 
+		//nothing to do
+
 #else
 		uint64 flagsperline = numlinebytes * 8;
 		uint64 num_hits = 0;
@@ -471,6 +473,21 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 #ifdef INPLACE_BUCKET
 
+			//allocate linked list pointers
+			sdata.listptrs = (bucket_prime_t **)malloc(
+				sdata.blocks * sdata.numclasses * sizeof(bucket_prime_t *));
+
+			//allocate bucket_primes
+			sdata.bucket_primes = (bucket_prime_t *)malloc(
+				(sdata.pboundi - BUCKETSTARTI) * sizeof(bucket_prime_t));
+
+			if (VFLAG > 2)
+				printf("allocated %u bytes for bucket pointers\n",
+				(uint32)sdata.blocks * sdata.numclasses * sizeof(bucket_prime_t *));
+
+			if (VFLAG > 2)
+				printf("allocated %u bytes for bucket primes\n",
+				(sdata.pboundi - BUCKETSTARTI) * sizeof(bucket_prime_t));
 #else
 			//create a bucket for each block
 			thread->ddata.sieve_buckets = (soe_bucket_t **)malloc(

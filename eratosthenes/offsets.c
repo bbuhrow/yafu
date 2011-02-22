@@ -75,6 +75,11 @@ void get_offsets(thread_soedata_t *thread_data)
 		ddata->offsets[i] = (uint32)(tmp2 % (uint64)prime);
 	}
 
+#ifdef INPLACE_BUCKET
+
+	//nothing to do
+
+#else
 	if (ddata->bucket_depth > BUCKET_BUFFER)
 	{
 		soe_bucket_t **bptr;
@@ -225,6 +230,7 @@ void get_offsets(thread_soedata_t *thread_data)
 		}
 
 	}
+#endif
 
 	return;
 }

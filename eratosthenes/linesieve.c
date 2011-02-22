@@ -438,6 +438,61 @@ void sieve_line(thread_soedata_t *thread_data)
 		
 		if (ddata->bucket_depth > BUCKET_BUFFER)
 		{
+
+#ifdef INPLACE_BUCKET
+			bucket_prime_t *listptr;
+			uint32 residue = sdata->rclass[thread_data->current_line];
+			uint64 root;
+
+			for (;j<ddata->pbounds[i];j++)
+			{
+				prime = sdata->sieve_p[j];
+				if (prime > BUCKETSTARTP)
+					break;
+				for (k=ddata->offsets[j];k<FLAGSIZE;k+=prime)
+					flagblock[k>>3] &= masks[k&7];
+
+				ddata->offsets[j]= (uint32)(k - FLAGSIZE);
+			}
+
+			//finally, traverse the bucket prime list for this block and residue
+			listptr = sdata->listptrs[i * sdata->numclasses + residue];
+			do
+			{
+				uint32 newblock, newresidue;
+
+				//zero this location
+				flagblock[listptr->loc >> 3] &= masks[listptr->loc & 7];
+
+				//compute the next location
+				root = (uint64)listptr->loc + ((uint64)i << FLAGBITS) + sdata->sieve_p[listptr->primeid];
+				newblock = root >> FLAGBITS;
+				newresidue = listptr->res + residue;
+				// now we need to iterate by prime until we get a residue that is in
+				// our set of residues, or we exceed the sieve range.  how do we do this fast?
+				
+				//now update the appropriate linked list
+				if (sdata->listptrs[newblock * sdata->prodN + newresidue] == NULL)
+				{
+					sdata->listptrs[newblock * sdata->prodN + newresidue] = &sdata->bucket_primes[listptr->primeid];
+					sdata->bucket_primes[listptr->primeid].next = (uint16)-1;
+				}
+				else
+				{
+					bucket_prime_t *lastp = sdata->listptrs[newblock * sdata->prodN + newresidue];
+					sdata->bucket_primes[listptr->primeid].next = listptr->primeid - lastp->primeid;
+					sdata->listptrs[newblock * sdata->prodN + newresidue] = &sdata->bucket_primes[listptr->primeid];
+				}
+
+				//and traverse to the next location
+				listptr -= listptr->next;
+
+
+			} while (listptr->next != (uint16)-1);
+
+
+
+#else
 			for (;j<ddata->pbounds[i];j++)
 			{
 				prime = sdata->sieve_p[j];
@@ -589,6 +644,8 @@ void sieve_line(thread_soedata_t *thread_data)
 					flagblock[(large_bptr[j] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j] & FLAGSIZEm1) & 7];
 
 			}
+
+#endif
 
 		}
 		else

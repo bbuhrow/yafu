@@ -41,6 +41,7 @@ code to the public domain.
 #define BUCKET_BUFFER 1024
 #define BITSINBYTE 8
 #define MAXSIEVEPRIMECOUNT 100000000	//# primes less than ~2e9: limit of 2e9^2 = 4e18
+//#define INPLACE_BUCKET 1
 
 //#define DO_SPECIAL_COUNT
 
@@ -64,8 +65,9 @@ typedef struct
 //compute the next block, residue, and location, and add it to the end of the appropriate linked list.
 typedef struct
 {
-	uint32 prime;			//the prime
-	uint16 loc;				//location of the hit in the block
+	uint32 primeid;			//the index of the prime in the sieve_p array
+	uint32 loc;				//location of the hit in the block
+	uint16 res;				//the residue class of this prime
 	uint16 next;			//relative offset to the next bucket_prime_t with the same residue and block
 } bucket_prime_t;			
 
@@ -96,6 +98,11 @@ typedef struct
 	uint32 *rclass;
 	uint32 *special_count;
 	uint32 num_special_bins;
+
+#ifdef INPLACE_BUCKET
+	bucket_prime_t **listptrs;		//array of pointers to bucket_prime_t's, one for each block and residue
+	bucket_prime_t *bucket_primes;
+#endif
 } soe_staticdata_t;
 
 typedef struct
