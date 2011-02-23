@@ -29,7 +29,7 @@ void getRoots(soe_staticdata_t *sdata)
 		prime = sdata->sieve_p[i];
 
 #ifdef INPLACE_BUCKET
-		if (i == BUCKETSTARTI)
+		if (i == sdata->inplace_startindex)
 			break;
 #endif
 
@@ -43,7 +43,7 @@ void getRoots(soe_staticdata_t *sdata)
 	//for each bucket prime, compute its starting block,residue, and sieve location
 	//and add it to the appropriate linked list
 	j = 0;
-	for (i=BUCKETSTARTI; i<sdata->pboundi; i++, j++)
+	for (i=sdata->inplace_startindex; i<sdata->pboundi; i++, j++)
 	{
 		uint64 root;
 		uint32 p = sdata->sieve_p[i];
