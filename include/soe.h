@@ -104,9 +104,10 @@ typedef struct
 
 #ifdef INPLACE_BUCKET
 	bucket_prime_t **listptrs;		//array of pointers to bucket_prime_t's, one for each block and residue
-	bucket_prime_t *bucket_primes;
-	
+	bucket_prime_t *bucket_primes;	
 #endif
+	uint32 inplace_startindex;
+	uint32 inplace_startprime;
 	uint32 *valid_residue;
 
 } soe_staticdata_t;

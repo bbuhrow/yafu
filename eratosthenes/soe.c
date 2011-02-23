@@ -64,9 +64,12 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	//more efficient to sieve using mod210 when the range is big
 	if ((*highlimit - lowlimit) > 400000000000ULL)
 	{
-		numclasses=5760;
-		prodN=30030;
-		startprime=6;
+		//numclasses=5760;
+		//prodN=30030;
+		//startprime=6;
+		numclasses=480;
+		prodN=2310;
+		startprime=5;
 	}	
 	else if ((*highlimit - lowlimit) > 40000000000ULL)
 	{
@@ -92,6 +95,9 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		prodN=6;
 		startprime=2;
 	}
+
+	//initialize
+	sdata.inplace_startprime = FLAGSIZE * prodN;
 
 	sdata.numclasses = numclasses;
 	sdata.prodN = prodN;
@@ -249,9 +255,9 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		if (spGCD(i,(fp_digit)prodN) == 1)
 		{
 			sdata.rclass[k] = (uint32)i;
-			//printf("%u ",i);
+			printf("%u ",i);
 			k++;
-			sdata.valid_residue[i] = 1;
+			sdata.valid_residue[i] = i;
 		}
 		else
 			sdata.valid_residue[i] = 0;
@@ -328,23 +334,29 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 			printf("allocated %u bytes for lower mod prime\n",
 			(uint32)sdata.pboundi * (uint32)sizeof(uint32));
 	}
+	
+	//initialize.  defaults to this value if inplace sieving is not available
+	sdata.inplace_startindex = sdata.pboundi;
 
 	if (sdata.pboundi > BUCKETSTARTI)
 	{
 		//then we have primes bigger than BUCKETSTARTP - need to bucket sieve
-
-#ifdef INPLACE_BUCKET
-
-		bucket_depth = (uint32)(sdata.pboundi - BUCKETSTARTI);
-
-#else
 		uint64 flagsperline = numlinebytes * 8;
 		uint64 num_hits = 0;
 		uint64 hits_per_bucket;
 		
-		bucket_depth = (uint32)(sdata.pboundi - BUCKETSTARTI);
 		for (i=BUCKETSTARTI; i<sdata.pboundi; i++)
 		{
+
+#ifdef INPLACE_BUCKET
+			if (sdata.sieve_p[i] > sdata.inplace_startprime)
+			{
+				//at this point and above, we can use in-place bucket sieving
+				sdata.inplace_startindex = i;
+				break;
+			}
+#endif
+
 			//condition to see if the current prime only hits the sieve interval once
 			if ((sdata.sieve_p[i] * sdata.prodN) > (sdata.blk_r * sdata.blocks))
 				break;
@@ -363,7 +375,17 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		num_hits = 0;
 		//printf("%u primes above large prime threshold\n",(uint32)(sdata.pboundi - i));
 		for (; i<sdata.pboundi; i++)
+		{
+#ifdef INPLACE_BUCKET
+			if (sdata.sieve_p[i] > sdata.inplace_startprime)
+			{
+				//at this point and above, we can use in-place bucket sieving
+				sdata.inplace_startindex = i;
+				break;
+			}
+#endif
 			num_hits++;
+		}
 
 		//assume hits are evenly distributed among buckets.
 		hits_per_bucket = num_hits / sdata.blocks;
@@ -372,15 +394,14 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		hits_per_bucket = (uint64)((double)hits_per_bucket * 1.1);
 
 		//set the bucket allocation amount, with a minimum of at least 25000
-		//because small allocation amounts violate the uniformity assumption
+		//because small allocation amounts may violate the uniformity assumption
 		//of hits per bucket
 		if (num_hits > 0)
 			large_bucket_alloc = MAX(hits_per_bucket,50000);
 		else
 			large_bucket_alloc = 0;
 
-#endif
-
+		bucket_depth = (uint32)(sdata.inplace_startindex - BUCKETSTARTI);
 	}
 	else
 	{
@@ -485,8 +506,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 				printf("allocated %u bytes for bucket primes\n",
 				(sdata.pboundi - BUCKETSTARTI) * sizeof(bucket_prime_t));
 
-			thread->ddata.bucket_depth = bucket_depth;
-#else
+#endif
 			//create a bucket for each block
 			thread->ddata.sieve_buckets = (soe_bucket_t **)malloc(
 				sdata.blocks * sizeof(soe_bucket_t *));
@@ -606,8 +626,6 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 				printf("allocated %u bytes for large buckets\n",
 				(uint32)sdata.blocks * (uint32)large_bucket_alloc * (uint32)sizeof(uint32));
 
-#endif
-
 		}	
 		else
 			thread->ddata.bucket_depth = 0;
@@ -643,9 +661,12 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		if (bucket_depth > BUCKET_BUFFER)
 		{
 			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
-#ifndef INPLACE_BUCKET
 			printf("allocating space for %" PRIu64 " hits per bucket\n",bucket_alloc);
+
+#ifdef INPLACE_BUCKET
+			printf("bucket sieving %u primes in-place\n",sdata.pboundi - sdata.inplace_startindex);
 #endif
+
 #ifdef DO_LARGE_BUCKETS
 			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
 #endif
