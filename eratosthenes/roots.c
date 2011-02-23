@@ -16,7 +16,7 @@ benefit from your work.
 
 void getRoots(soe_staticdata_t *sdata)
 {
-	int prime, prodN, j, max_dist = 0;
+	int prime, prodN, j;
 	uint64 startprime;
 	uint64 i;
 
@@ -49,11 +49,12 @@ void getRoots(soe_staticdata_t *sdata)
 		uint32 p = sdata->sieve_p[i];
 		uint32 block, loc, residue, steps;
 
-		sdata->bucket_primes[j].primeid = i;
+		sdata->bucket_primes[j].prime = p;
+		sdata->bucket_primes[j].id = j;
 
 		//compute the location of the first hit on the number line 
 		//that is past the beginning of our interval
-		root = (sdata->lowlimit / (uint64)p + 1) * (uint64)p;
+		root = (sdata->lowlimit / (uint64)p + 1) * (uint64)p;				
 
 		//translate this to a hit on one of the residue lines within the interval
 		//begin by finding the residue class of the hit
@@ -61,13 +62,13 @@ void getRoots(soe_staticdata_t *sdata)
 
 		//then find the number of steps on the residue line -- this is the bit offset
 		//of the hit in this residue line
-		steps = (root - sdata->lowlimit - residue) / sdata->prodN;
-						
+		steps = (root - sdata->lowlimit - residue) / sdata->prodN;									
+
 		//to prevent having to do the divisions every time we step this prime on the
 		//number line, record the number of steps and the residual step that this
 		//prime takes in residue space.  we need to know the residue class of the prime 
-		//itself also;
-		sdata->bucket_primes[j].steps = p / prodN + 1;
+		//itself anyway.
+		sdata->bucket_primes[j].steps = p / prodN;
 		sdata->bucket_primes[j].res = p % prodN;
 
 		//now that we have all this info, iterate the first hit until it is on
@@ -81,31 +82,34 @@ void getRoots(soe_staticdata_t *sdata)
 				residue -= sdata->prodN;
 				steps++;
 			}
-		}			
+		}					
 
 		//translate the final hit to block,offset notation
 		block = steps >> FLAGBITS;
 		sdata->bucket_primes[j].loc = steps & FLAGSIZEm1;
 
+		//debug: check for divisibility
+		root = sdata->lowlimit + residue + (uint64)((block << FLAGBITS) + sdata->bucket_primes[j].loc) * (uint64)prodN;
+		////root = sdata->lowlimit + residue + (uint64)steps * (uint64)prodN;
+		if (root % p != 0)
+			printf("prime %u does not divide this location\n",p);
+
 		if (block >= sdata->blocks)
 			continue;
 
-		if (sdata->listptrs[block * sdata->prodN + residue] == NULL)
+		if (sdata->listptrs[residue * sdata->blocks + block] == NULL)
 		{
-			sdata->listptrs[block * sdata->prodN + residue] = &sdata->bucket_primes[j];
+			sdata->listptrs[residue * sdata->blocks + block] = &sdata->bucket_primes[j];
 			sdata->bucket_primes[j].next = (uint32)-1;
 		}
 		else
 		{			
-			bucket_prime_t *lastp = sdata->listptrs[block * sdata->prodN + residue];
-			sdata->bucket_primes[j].next = i - lastp->primeid;
-			if (i - lastp->primeid > max_dist)
-				max_dist = i - lastp->primeid;
-			sdata->listptrs[block * sdata->prodN + residue] = &sdata->bucket_primes[j];
+			bucket_prime_t *lastp = sdata->listptrs[residue * sdata->blocks + block];
+			sdata->bucket_primes[j].next = lastp->id;
+			sdata->listptrs[residue * sdata->blocks + block] = &sdata->bucket_primes[j];
 		}
 	}
 
-	printf("maximum distance in linked lists = %d\n",max_dist);
 
 #endif
 

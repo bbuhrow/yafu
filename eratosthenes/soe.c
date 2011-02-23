@@ -255,7 +255,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		if (spGCD(i,(fp_digit)prodN) == 1)
 		{
 			sdata.rclass[k] = (uint32)i;
-			printf("%u ",i);
+			//printf("%u ",i);
 			k++;
 			sdata.valid_residue[i] = i;
 		}
@@ -361,6 +361,17 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 			if ((sdata.sieve_p[i] * sdata.prodN) > (sdata.blk_r * sdata.blocks))
 				break;
 			num_hits += ((uint32)flagsperline / sdata.sieve_p[i] + 1);
+		}
+
+		if (1)
+		{
+			uint64 tmphits = 0;
+			//test of the number of hits in the real number line of
+			//all bucket sieve primes
+			for (i=BUCKETSTARTI; i<sdata.pboundi; i++)			
+				tmphits += ((sdata.highlimit - sdata.lowlimit) / (uint64)sdata.sieve_p[i] + 1);
+
+			printf("hits in real number line = %" PRIu64 "\n",tmphits);
 		}
 
 		//assume hits are evenly distributed among buckets.
