@@ -239,8 +239,11 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	sdata.rclass = (uint32 *)malloc(numclasses * sizeof(uint32));
 	allocated_bytes += numclasses * sizeof(uint32);
 
+	sdata.valid_residue = (uint32 *)malloc(prodN * sizeof(uint32));
+
 	//find the residue classes
 	k=0;
+	sdata.valid_residue[0] = 0;
 	for (i=1;i<prodN;i++)
 	{
 		if (spGCD(i,(fp_digit)prodN) == 1)
@@ -248,7 +251,10 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 			sdata.rclass[k] = (uint32)i;
 			//printf("%u ",i);
 			k++;
+			sdata.valid_residue[i] = 1;
 		}
+		else
+			sdata.valid_residue[i] = 0;
 	}
 	
 	//temporarily set lowlimit to the first multiple of numclasses*prodN < lowlimit
@@ -326,9 +332,10 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	if (sdata.pboundi > BUCKETSTARTI)
 	{
 		//then we have primes bigger than BUCKETSTARTP - need to bucket sieve
+
 #ifdef INPLACE_BUCKET
 
-		//nothing to do
+		bucket_depth = (uint32)(sdata.pboundi - BUCKETSTARTI);
 
 #else
 		uint64 flagsperline = numlinebytes * 8;
@@ -342,20 +349,6 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 			if ((sdata.sieve_p[i] * sdata.prodN) > (sdata.blk_r * sdata.blocks))
 				break;
 			num_hits += ((uint32)flagsperline / sdata.sieve_p[i] + 1);
-		}
-
-		//experiment: see how big the buckets would be if we didn't restricting sieving
-		//by residue class
-		if (1)
-		{
-			double tmphits = 0;
-			int ii=0;
-			for (ii=BUCKETSTARTI; ii<sdata.pboundi; ii++)
-			{
-				tmphits += ((double)flagsperline / (double)sdata.sieve_p[ii]);
-			}
-
-			printf("estimate %f hits per bucket with unrestricted sieving\n",tmphits);
 		}
 
 		//assume hits are evenly distributed among buckets.
@@ -475,7 +468,10 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 			//allocate linked list pointers
 			sdata.listptrs = (bucket_prime_t **)malloc(
-				sdata.blocks * sdata.numclasses * sizeof(bucket_prime_t *));
+				sdata.blocks * sdata.prodN * sizeof(bucket_prime_t *));
+
+			for (j=0; j < sdata.blocks * sdata.prodN; j++)
+				sdata.listptrs[j] = NULL;
 
 			//allocate bucket_primes
 			sdata.bucket_primes = (bucket_prime_t *)malloc(
@@ -483,11 +479,13 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 			if (VFLAG > 2)
 				printf("allocated %u bytes for bucket pointers\n",
-				(uint32)sdata.blocks * sdata.numclasses * sizeof(bucket_prime_t *));
+				(uint32)sdata.blocks * sdata.prodN * sizeof(bucket_prime_t *));
 
 			if (VFLAG > 2)
 				printf("allocated %u bytes for bucket primes\n",
 				(sdata.pboundi - BUCKETSTARTI) * sizeof(bucket_prime_t));
+
+			thread->ddata.bucket_depth = bucket_depth;
 #else
 			//create a bucket for each block
 			thread->ddata.sieve_buckets = (soe_bucket_t **)malloc(
@@ -620,7 +618,19 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		thread->sdata = sdata;
 	}
 
+	gettimeofday (&tstart, NULL);
 	getRoots(&sdata);
+
+	if (VFLAG > 2)
+	{
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+
+		t = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		printf("elapsed time for computing roots = %6.4f\n",t);
+	}
 
 	if (VFLAG > 2)
 	{	
@@ -633,7 +643,9 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		if (bucket_depth > BUCKET_BUFFER)
 		{
 			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
+#ifndef INPLACE_BUCKET
 			printf("allocating space for %" PRIu64 " hits per bucket\n",bucket_alloc);
+#endif
 #ifdef DO_LARGE_BUCKETS
 			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
 #endif

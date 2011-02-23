@@ -34,9 +34,14 @@ void get_offsets(thread_soedata_t *thread_data)
 	for (i=0; i<sdata->blocks; i++)
 	{		
 		ddata->pbounds[i] = sdata->pboundi;
+		
+#ifdef INPLACE_BUCKET
+
+#else
 		//initialize bucket
 		if (ddata->bucket_depth > BUCKET_BUFFER)
 			ddata->bucket_hits[i] = 0;
+#endif
 	}
 
 	for (i=startprime;i<sdata->pboundi;i++)
