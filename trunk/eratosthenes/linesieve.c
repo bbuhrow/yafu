@@ -598,17 +598,23 @@ void sieve_line(thread_soedata_t *thread_data)
 			}
 
 #ifdef INPLACE_BUCKET
-
+			
 			//finally, traverse the bucket prime list for this block and residue
-			listptr = sdata->listptrs[i * sdata->prodN + residue];
+			listptr = sdata->listptrs[residue * sdata->blocks + i];
 
 			cc = 0;
 			if (listptr != NULL)
 			{
+				int thisnext;
+
 				do
 				{
-					uint32 newblock, newresidue, steps;
-					int thisnext;
+					uint32 newblock, newresidue, steps;					
+
+					//debug: check if this location is valid
+					root = residue + (uint64)((i << FLAGBITS) + listptr->loc) * sdata->prodN + sdata->lowlimit;
+					if (root % listptr->prime != 0)
+						printf("prime does not divide this location\n");
 
 					//zero this location
 					flagblock[listptr->loc >> 3] &= masks[listptr->loc & 7];
@@ -633,6 +639,11 @@ void sieve_line(thread_soedata_t *thread_data)
 						}
 					}			
 
+					//debug: check if this location is valid
+					root = newresidue + (uint64)steps * sdata->prodN + sdata->lowlimit;
+					if (root % listptr->prime != 0)
+						printf("prime does not divide new location\n");
+
 					//translate the final hit to block,offset notation
 					newblock = steps >> FLAGBITS;
 					listptr->loc = steps & FLAGSIZEm1;
@@ -645,31 +656,30 @@ void sieve_line(thread_soedata_t *thread_data)
 					if (newblock < sdata->blocks)
 					{
 						//now update the appropriate linked list
-						if (sdata->listptrs[newblock * sdata->prodN + newresidue] == NULL)
+						if (sdata->listptrs[newresidue * sdata->blocks + newblock] == NULL)
 						{
-							sdata->listptrs[newblock * sdata->prodN + newresidue] = listptr;
+							sdata->listptrs[newresidue * sdata->blocks + newblock] = listptr;
 							listptr->next = (uint32)-1;
 						}
 						else
 						{
-							bucket_prime_t *lastp = sdata->listptrs[newblock * sdata->prodN + newresidue];
-							listptr->next = listptr->primeid - lastp->primeid;
-							sdata->listptrs[newblock * sdata->prodN + newresidue] = listptr;
+							bucket_prime_t *lastp = sdata->listptrs[newresidue * sdata->blocks + newblock];
+							listptr->next = lastp->id;
+							sdata->listptrs[newresidue * sdata->blocks + newblock] = listptr;
 						}
 					}
 
 					//and traverse to the next location
-					listptr -= thisnext;
-
+					listptr = sdata->bucket_primes + thisnext;
 					cc++;
 
-				} while ((listptr->next != (uint32)-1) && (cc < ddata->bucket_depth));
+				} while (thisnext != (uint32)-1);
 			}
 			else
 				printf("skipped empty linked list\n");
 
 			printf("dumped %u hits into block %d, residue %u\n",cc,i,residue);
-
+			
 #endif
 
 		}
