@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioPropertySheet
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="gmp_ecm_config"
+	>
+	<Tool
+		Name="VCCLCompilerTool"
+		AdditionalIncludeDirectories="..\..\..\mpir;..\..\..\gmp-ecm"
+		PreprocessorDefinitions="HAVE_GMP;HAVE_GMP_ECM"
+	/>
+	<Tool
+		Name="VCLinkerTool"
+		AdditionalDependencies="..\..\..\mpir\build.vc9\lib\$(PlatformName)\$(ConfigurationName)\mpir.lib ..\..\..\gmp-ecm\build.vc9\$(PlatformName)\$(ConfigurationName)\ecm.lib"
+	/>
+</VisualStudioPropertySheet>
