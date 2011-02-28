@@ -41,7 +41,6 @@ code to the public domain.
 #define BUCKET_BUFFER 1024
 #define BITSINBYTE 8
 #define MAXSIEVEPRIMECOUNT 100000000	//# primes less than ~2e9: limit of 2e9^2 = 4e18
-//#define INPLACE_BUCKET 1
 
 //#define DO_SPECIAL_COUNT
 
@@ -59,31 +58,6 @@ typedef struct
 	uint8 mask;
 	uint8 bnum;
 } soe_bucket_t_old;
-
-//create num_blocks * num_residues linked lists, one for each combination of residue and block.
-//Then, for each residue, for each block, iterate through the appropriate list, AND its location, 
-//compute the next block, residue, and location, and add it to the end of the appropriate linked list.
-//******** this is only valid for primes with strides long enough to 
-//******** make sure that they hit a new block each step in residue space
-
-//update: nope doesn't work.  in the linesieve, we sieve all blocks of each residue class once.  but
-//with the inplace sieve, the residue class changes as the prime is advanced through the real number
-//line.  thus, we would need to sieve each block with each residue class, each of which uses a different
-//segment of memory.  this would be hugely inefficient.
-//example.  say we sieve all blocks in residue class 1, and then move on to residue class 7.  some primes
-//in that class will move back to residue class 1 when advanced, but we've already sieved class 1, so they
-//are missed.  thus class 7 would also need to sieve class 1, and would need the memory segments (blocks) from
-//the class 1 line.  the last class would need to sieve all other classes and would need all other lines' 
-//memory segments and would thus take forever.
-typedef struct
-{
-	uint32 prime;		//the value of this prime
-	uint32 id;			//the index of the prime in the bucket_prime array
-	uint32 loc;				//location of the hit in the block
-	uint32 next;			//relative offset to the next bucket_prime_t with the same residue and block
-	uint32 steps;
-	uint16 res;				//the residue class of this prime
-} bucket_prime_t;			
 
 typedef struct
 {
@@ -112,15 +86,6 @@ typedef struct
 	uint32 *rclass;
 	uint32 *special_count;
 	uint32 num_special_bins;
-
-#ifdef INPLACE_BUCKET
-	bucket_prime_t **listptrs;		//array of pointers to bucket_prime_t's, one for each block and residue
-	bucket_prime_t *bucket_primes;	
-#endif
-	uint32 inplace_startindex;
-	uint32 inplace_startprime;
-	uint32 *valid_residue;
-
 } soe_staticdata_t;
 
 typedef struct

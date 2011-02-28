@@ -34,7 +34,6 @@ void get_offsets(thread_soedata_t *thread_data)
 	for (i=0; i<sdata->blocks; i++)
 	{		
 		ddata->pbounds[i] = sdata->pboundi;
-		
 		//initialize bucket
 		if (ddata->bucket_depth > BUCKET_BUFFER)
 			ddata->bucket_hits[i] = 0;
@@ -86,7 +85,7 @@ void get_offsets(thread_soedata_t *thread_data)
 		nptr = ddata->bucket_hits;
 		bptr = ddata->sieve_buckets;
 
-		for (; i<sdata->inplace_startindex-1; i+=2)
+		for (; i<sdata->pboundi-1; i+=2)
 		{
 			uint64 tmp3;
 			uint32 p2, r2;
@@ -132,7 +131,7 @@ void get_offsets(thread_soedata_t *thread_data)
 			
 		}
 
-		if ((i<sdata->inplace_startindex) && (ddata->largep_offset == 0))
+		if ((i<sdata->pboundi) && (ddata->largep_offset == 0))
 		{
 			
 			prime = sdata->sieve_p[i];
@@ -169,7 +168,7 @@ void get_offsets(thread_soedata_t *thread_data)
 				large_nptr[i] = 0;
 			}
 
-			for (i = ddata->largep_offset; i<sdata->inplace_startindex-1; i+=2)
+			for (i = ddata->largep_offset; i<sdata->pboundi-1; i+=2)
 			{
 				uint64 tmp3;
 				uint32 p2, r2;
@@ -206,7 +205,7 @@ void get_offsets(thread_soedata_t *thread_data)
 				
 			}
 
-			if (i<sdata->inplace_startindex)
+			if (i<sdata->pboundi)
 			{		
 				prime = sdata->sieve_p[i];
 

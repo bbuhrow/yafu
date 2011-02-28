@@ -1297,7 +1297,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 bound_val = med_B;
 	uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
 	
-#if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
+#if !defined(USE_POLY_SSE2_ASM)
 	uint32 *bptr;
 	int bnum, room;
 #endif
