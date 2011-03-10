@@ -438,13 +438,6 @@ void sieve_line(thread_soedata_t *thread_data)
 		
 		if (ddata->bucket_depth > BUCKET_BUFFER)
 		{
-#ifdef INPLACE_BUCKET
-			bucket_prime_t *listptr;
-			uint32 residue = sdata->rclass[current_line];
-			uint64 root;
-			uint32 cc;
-#endif
-
 			for (;j<ddata->pbounds[i];j++)
 			{
 				prime = sdata->sieve_p[j];
@@ -596,91 +589,6 @@ void sieve_line(thread_soedata_t *thread_data)
 					flagblock[(large_bptr[j] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j] & FLAGSIZEm1) & 7];
 
 			}
-
-#ifdef INPLACE_BUCKET
-			
-			//finally, traverse the bucket prime list for this block and residue
-			listptr = sdata->listptrs[residue * sdata->blocks + i];
-
-			cc = 0;
-			if (listptr != NULL)
-			{
-				int thisnext;
-
-				do
-				{
-					uint32 newblock, newresidue, steps;					
-
-					//debug: check if this location is valid
-					root = residue + (uint64)((i << FLAGBITS) + listptr->loc) * sdata->prodN + sdata->lowlimit;
-					if (root % listptr->prime != 0)
-						printf("prime does not divide this location\n");
-
-					//zero this location
-					flagblock[listptr->loc >> 3] &= masks[listptr->loc & 7];
-
-					//step the prime on the residue number line
-					steps = (i << FLAGBITS) + listptr->loc + listptr->steps;
-					newresidue = residue + listptr->res;
-					if (newresidue >= sdata->prodN)
-					{
-						newresidue -= sdata->prodN;
-						steps++;
-					}
-
-					while (!sdata->valid_residue[newresidue])
-					{
-						steps += listptr->steps;
-						newresidue += listptr->res;
-						if (newresidue >= sdata->prodN)
-						{
-							newresidue -= sdata->prodN;
-							steps++;
-						}
-					}			
-
-					//debug: check if this location is valid
-					root = newresidue + (uint64)steps * sdata->prodN + sdata->lowlimit;
-					if (root % listptr->prime != 0)
-						printf("prime does not divide new location\n");
-
-					//translate the final hit to block,offset notation
-					newblock = steps >> FLAGBITS;
-					listptr->loc = steps & FLAGSIZEm1;
-				
-					//now update the pointer for the new block and residue.  
-					//this will change the next field for this prime, but we also need the next
-					//field to know where to traverse next in *this* block and residue.
-					thisnext = listptr->next;
-
-					if (newblock < sdata->blocks)
-					{
-						//now update the appropriate linked list
-						if (sdata->listptrs[newresidue * sdata->blocks + newblock] == NULL)
-						{
-							sdata->listptrs[newresidue * sdata->blocks + newblock] = listptr;
-							listptr->next = (uint32)-1;
-						}
-						else
-						{
-							bucket_prime_t *lastp = sdata->listptrs[newresidue * sdata->blocks + newblock];
-							listptr->next = lastp->id;
-							sdata->listptrs[newresidue * sdata->blocks + newblock] = listptr;
-						}
-					}
-
-					//and traverse to the next location
-					listptr = sdata->bucket_primes + thisnext;
-					cc++;
-
-				} while (thisnext != (uint32)-1);
-			}
-			else
-				printf("skipped empty linked list\n");
-
-			printf("dumped %u hits into block %d, residue %u\n",cc,i,residue);
-			
-#endif
 
 		}
 		else
