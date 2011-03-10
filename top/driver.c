@@ -87,6 +87,173 @@ void finalize_batchline();
 // function to process all incoming arguments
 int process_arguments(int argc, char **argv, char *input_exp);
 
+void wheel_table(int modulus);
+
+void wheel_table(int modulus)
+{
+	int *res;
+	int *resID;
+	int *diff;
+	int *scale;
+	char *resstr;
+	char *stepstr;
+	char stepstr2[100000];
+	int i,j,k,numres,diffnum,diffnum2;
+
+	res = (int *)calloc(modulus, sizeof(int));
+	resID = (int *)calloc(modulus, sizeof(int));
+	diff = (int *)calloc(modulus, sizeof(int));
+	scale = (int *)calloc(modulus, sizeof(int));
+	resstr = (char *)malloc(10000000 * sizeof(char));
+	stepstr = (char *)malloc(10000000 * sizeof(char));
+
+	k=1;
+	numres = 0;
+	printf("{");
+	for (i=0;i<modulus;i++)
+	{
+		if (spGCD(i,(fp_digit)modulus) == 1)
+		{
+			printf("%d,",numres);
+			res[i] = i;
+			resID[i] = k++;
+			numres++;
+		}
+		else
+			printf("-1,");
+	}
+	fflush(stdout);
+
+	//printf("};\n\n");
+	sprintf(resstr,"{\n");
+	sprintf(stepstr,"{\n");
+	for (i=0; i<modulus; i++)
+	{
+		int p, r, s, lastloc;
+
+		if (resID[i] == 0)
+			continue;
+
+		p = res[i];
+		s = res[i];
+		if (p == 1)
+			p += modulus;
+
+		lastloc = p;
+		r = p + p;
+		sprintf(resstr,"%s\t{%d, ",resstr,res[i]);		
+		diffnum = 0;
+		while (1)
+		{
+			int m = r % modulus;
+			if (resID[m] != 0)
+			{				
+				int lastres = lastloc % modulus;
+				int steps = (r - lastloc) / modulus * numres;
+				int resdiff = resID[m ]- resID[lastres];
+				
+				if (resdiff < 0)
+					steps += (resdiff + numres);
+				else
+					steps += resdiff;
+
+				diff[diffnum++] = steps - p;
+				sprintf(stepstr,"%s%d, ",stepstr,steps-p);
+				lastloc = r;
+
+				if (m == s)
+				{
+					//do it again with p += modulus
+					p += modulus;
+					lastloc = p;
+					r = p + p;
+					//sprintf(resstr,"%d ",res[i]);
+					sprintf(stepstr2,"");
+					diffnum2 = 0;
+					while (1)
+					{
+						int m = r % modulus;
+						if (resID[m] != 0)
+						{				
+							int lastres = lastloc % modulus;
+							int steps = (r - lastloc) / modulus * numres;
+							int resdiff = resID[m ]- resID[lastres];
+							int diff2;
+				
+							if (resdiff < 0)
+								steps += (resdiff + numres);
+							else
+								steps += resdiff;
+
+							diff2 = steps - p;
+							scale[diffnum2] = diff2 - diff[diffnum2];
+							diffnum2++;
+
+							sprintf(stepstr2,"%s%d ",stepstr2,steps);
+							lastloc = r;
+
+							if (m == s)							
+								break;
+						}
+
+						r += p;
+					}
+					break;				
+				}
+
+				sprintf(resstr,"%s%d, ",resstr,m);
+			}
+			r += p;
+		}
+
+		sprintf(resstr,"%s},\n",resstr);
+		sprintf(stepstr,"%s},\n",stepstr);
+		if (0)
+		{
+			printf("res:   {%s}\n",resstr);
+			//printf("%s\n",stepstr);
+			//printf("%s\n",stepstr2);
+			printf("diff:  {");
+			for (j=0; j<numres; j++)
+			{
+				printf("%d, ",diff[j]);
+			}
+			printf("}\nscale: {");
+			for (j=0; j<numres; j++)
+			{
+				printf("%d, ",scale[j]);
+			}
+			printf("}\n");
+		}
+
+	}
+
+	if (1)
+	{
+		FILE *out;
+		out = fopen("wheelinfo.txt","w");
+		fprintf(out,"resstr:\n   %s};\n",resstr);
+		fprintf(out,"stepstr:\n   %s};\n",stepstr);
+
+		fprintf(out,"scale: {");
+		for (j=0; j<numres; j++)
+		{
+			fprintf(out,"%d, ",scale[j]);
+		}
+		fprintf(out,"};\n");
+		fclose(out);
+	}
+
+	free(diff);
+	free(scale);
+	free(res);
+	free(resID);
+	free(resstr);
+	free(stepstr);
+
+	return;
+}
+
 int main(int argc, char *argv[])
 {
 	uint32 i=0,insize = GSTR_MAXSIZE;
@@ -172,6 +339,16 @@ int main(int argc, char *argv[])
 #else
 	LCGSTATE = g_rand.low;
 #endif
+
+
+	//wheel_table(30);
+	//wheel_table(210);
+	//wheel_table(2310);
+	//test_soe(1000000);
+	//test_soe(10000000);
+	//test_soe(100000000);
+	//test_soe(1000000000);
+
 
 	//command line
 	while (1)
