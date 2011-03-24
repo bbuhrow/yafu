@@ -241,19 +241,19 @@ void smallmpqs(fact_obj_t *fobj)
 	//crude tuning of sieve interval based on digits in n
 	if (i < 60)
 	{
-		j = squfof(n);	
-		fobj->qs_obj.num_factors += 2;
-		fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, 
-			fobj->qs_obj.num_factors * sizeof(z));
-		zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
-		sp2z(j, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
+		//j = squfof(n);	
+		//fobj->qs_obj.num_factors += 2;
+		//fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, 
+		//	fobj->qs_obj.num_factors * sizeof(z));
+		//zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
+		//sp2z(j, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
 
-		zShortDiv(n,j,&tmp);
-		zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
-		zCopy(&tmp, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
+		//zShortDiv(n,j,&tmp);
+		//zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
+		//zCopy(&tmp, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
 
-		zFree(&tmp);
-		return;
+		//zFree(&tmp);
+		//return;
 		j = 40;
 		sieve_params.num_blocks = 1;
 	}

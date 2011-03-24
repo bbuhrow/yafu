@@ -1761,7 +1761,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (i=0; i<numin; i++)
 				zInit(&input[i]);
 
-			for (bits=60; bits<=100; bits+=10)
+			for (bits=50; bits<=100; bits+=10)
 			{
 				gettimeofday(&tstart, NULL);
 
