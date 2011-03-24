@@ -1735,17 +1735,106 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//printf("max bn = %u\n",maxbn);
 		//modtest(100000);
 		//test_qsort();
-		arith_timing(operands[0].val[0]);
+		//arith_timing(operands[0].val[0]);
 		//siqs - one argument
 		//zCopy(&operands[0],&fobj->N);
 		//asm_profile(fobj);
-
 		//primesum(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
 		//	&operands[3], &operands[4]);
 		//primesum_check3(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
 		//	&operands[3]);
 		//primesum_check12(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
 		//	&operands[3], &operands[4]);
+
+		if (1)
+		{
+			z *input;
+			int numin = 1000;
+			int bits = 120;
+			int correct = 0;
+			fact_obj_t *fobj2;
+
+			fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+			init_factobj(fobj2);
+			input = (z *)malloc(numin * sizeof(z));
+			for (i=0; i<numin; i++)
+				zInit(&input[i]);
+			for (bits=70; bits<=120; bits+=10)
+			{
+				gettimeofday(&tstart, NULL);
+
+				for (i=0; i<numin; i++)
+				{
+					fp_digit a, b, c, d;
+	/*				c = 1ULL << (fp_digit)(bits/2 - 1);
+					d = 1ULL << (fp_digit)(bits/2 + 1);
+					printf("a=%" PRIu64 " b=%" PRIu64 " c=%" PRIu64 " d=%" PRIu64 "\n",a,b,c,d);
+					a = spRand(c-1,d+1);
+					b = spRand(c-1,d+1);*/
+					a = spRand(0,MAX_DIGIT);
+					b = spRand(0,MAX_DIGIT);
+					while (a > (1ULL << (bits/2)))
+						a >>= 1;
+					while (b > (2ULL << (bits/2)))
+						b >>= 1;
+
+					while (a < (1ULL << (bits/2)))
+						a <<= 1;
+					while (b < (2ULL << (bits/2)))
+						b <<= 1;
+					
+					zNextPrime_1(a,&c,&mp1,1);
+					sp2z(c,&mp1);
+					zNextPrime_1(b,&d,&mp2,1);
+					sp2z(d,&mp2);
+					
+					zMul(&mp1,&mp2,&input[i]);
+					
+					//build_RSA(bits, &input[i]);
+					
+				}
+
+				gettimeofday (&tstop, NULL);
+				difference = my_difftime (&tstart, &tstop);
+				t = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+				printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
+
+
+				gettimeofday(&tstart, NULL);
+				for (i=0; i<numin; i++)
+				{
+					if (i % 10 == 0)
+						printf("input %d\n"); //, %d correct\n",i,correct);
+				
+					zCopy(&input[i],&fobj2->qs_obj.n);
+					//MPQS(fobj2);
+
+					smallmpqs(fobj2);
+
+					//zMul(&f1, &f2, &t1);
+					//zMul(&t1, &f3, &t2);
+					//if (zCompare(&t2,&input[i]) == 0)
+					//	correct++;
+				}
+			
+			
+				gettimeofday (&tstop, NULL);
+				difference = my_difftime (&tstart, &tstop);
+				t = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+				printf("factoring %d %d bit inputs took = %6.4f\n",numin,bits,t);
+			}
+
+			// free temps
+			free_factobj(fobj2);
+			free(fobj2);
+
+			for (i=0; i<numin; i++)
+				zFree(&input[i]);
+
+			free(input);
+		}
 
 		break;
 	case 52:
