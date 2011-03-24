@@ -720,7 +720,7 @@ int qcomp_mpqs(const void *x, const void *y);
 void mpqsexit(int sig);
 void pQS(fact_obj_t *fobj);
 void MPQS(fact_obj_t *fobj);
-void smallmpqs(z *n, z *f1, z *f2, z *f3);
+void smallmpqs(fact_obj_t *fobj);
 
 #endif /* _SIQS_H_ */
 
