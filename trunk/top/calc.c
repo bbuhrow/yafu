@@ -1752,6 +1752,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			int numin = 1000;
 			int bits = 120;
 			int correct = 0;
+			double sum,avg;
 			fact_obj_t *fobj2;
 
 			fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
@@ -1759,13 +1760,19 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			input = (z *)malloc(numin * sizeof(z));
 			for (i=0; i<numin; i++)
 				zInit(&input[i]);
-			for (bits=70; bits<=120; bits+=10)
+
+			for (bits=60; bits<=100; bits+=10)
 			{
 				gettimeofday(&tstart, NULL);
 
+				sum = 0;
 				for (i=0; i<numin; i++)
 				{
 					fp_digit a, b, c, d;
+#ifdef _MSC_VER
+					build_RSA(bits, &input[i]);
+#else
+
 	/*				c = 1ULL << (fp_digit)(bits/2 - 1);
 					d = 1ULL << (fp_digit)(bits/2 + 1);
 					printf("a=%" PRIu64 " b=%" PRIu64 " c=%" PRIu64 " d=%" PRIu64 "\n",a,b,c,d);
@@ -1789,8 +1796,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					sp2z(d,&mp2);
 					
 					zMul(&mp1,&mp2,&input[i]);
+					sum += zBits(&input[i]);
 					
-					//build_RSA(bits, &input[i]);
+#endif
 					
 				}
 
@@ -1799,19 +1807,25 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				t = ((double)difference->secs + (double)difference->usecs / 1000000);
 				free(difference);
 				printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
-
+				printf("average size was %6.4f bits\n",sum/(double)numin);
 
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					if (i % 10 == 0)
-						printf("input %d\n"); //, %d correct\n",i,correct);
+					if (i % 100 == 0)
+						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);
 					//MPQS(fobj2);
-
 					smallmpqs(fobj2);
+					//fobj2->qs_obj.flags = 12345;
+					//pQS(fobj2);
 
+					//for (j=0; j<fobj->qs_obj.num_factors; j++)
+					//	zFree(&fobj->qs_obj.factors[j]);
+
+					//fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, sizeof(z));
+					//fobj->qs_obj.num_factors = 0;
 					//zMul(&f1, &f2, &t1);
 					//zMul(&t1, &f3, &t2);
 					//if (zCompare(&t2,&input[i]) == 0)
@@ -1838,10 +1852,24 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		break;
 	case 52:
-		printf("aliquot not currently supported\n");
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in qs\n");
+			break;
+		}
+		zCopy(&operands[0],&fobj->qs_obj.n);
+		smallmpqs(fobj);
+		zCopy(&zOne,&operands[0]);
+		printf("found factors:\n");
+		for (i=0; i<fobj->qs_obj.num_factors; i++)
+			printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
+				z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+		printf("\n");
+		
+		//printf("aliquot not currently supported\n");
 		break;
 
-		aliquot(&operands[0],fobj);
+		//aliquot(&operands[0],fobj);
 		break;
 	case 53:
 		printf("generate_pseudoprime_list not currently supported\n");

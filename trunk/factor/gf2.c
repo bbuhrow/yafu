@@ -700,12 +700,7 @@ free:
 	for (i=0; i<num_r; i++)
 		free(m[i]);
 	free(m);
-	
-	/*
-	free_lmatrix64(aug_64,0,num_r,0,num_col_aug-1);
-	free_lmatrix64(m2_64,0,num_r,0,num_col-1);
-	free_cmatrix(m,0,num_r,0,B-1);
-	*/
+
 	free(bl);
 	zFree(&zx);
 	zFree(&zy);

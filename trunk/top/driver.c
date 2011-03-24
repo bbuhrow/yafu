@@ -349,6 +349,21 @@ int main(int argc, char *argv[])
 	//test_soe(100000000);
 	//test_soe(1000000000);
 
+	//printf("\n");
+	//for (i=1; i<1200; i+=2)
+	//{
+	//	int jj;
+	//	printf("{");
+	//	for (jj=1;jj<200; jj++)
+	//	{
+	//		printf("%d,",jacobi_1(i,PRIMES[jj]));
+	//		fflush(stdout);
+	//	}
+
+	//	printf("}\n");
+	//}
+	//printf("};\n");
+
 
 	//command line
 	while (1)
