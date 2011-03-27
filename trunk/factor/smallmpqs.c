@@ -435,8 +435,11 @@ void smallmpqs(fact_obj_t *fobj)
 	
 	closnuf += 3;
 
-	start_prime = 2;
-	small_bits = 0;
+	//small prime variation -- hand tuned small_bits correction (likely could be better)
+	small_bits = 7;
+	closnuf -= small_bits;
+	start_prime = 7;
+	
 	s_init = closnuf;
 
 	//print some info to the screen and the log file
@@ -822,6 +825,8 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		fboffset[0] = 0;
 
 	smooth_num=0;
+	bits = (255-sieve[j]) + closnuf + 1;
+
 	//take care of powers of two
 	while (!(Q->val[0] & 1))
 	{
@@ -836,6 +841,43 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 
 		fboffset[++smooth_num] = 1;
 	}
+
+	i=2;
+	//this could be completed unrolled
+	while (i < start_prime)
+	{
+		uint64 q64;
+		uint32 tmp1;
+
+		fbptr = fb + i;
+		root1 = fbptr->roots >> 16;	
+		root2 = fbptr->roots & 0xffff;
+
+		prime = fbptr->prime_and_logp >> 16;
+		logp = fbptr->prime_and_logp & 0xff;
+
+		tmp1 = offset + fullfb->list->correction[i];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[i];
+		tmp1 = q64 >> 32; 
+		//at this point tmp1 is offset / prime
+		tmp1 = offset - tmp1 * prime;
+
+		if ((tmp1 == root1 || tmp1 == root2) || 
+			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		{
+			do
+			{
+				fboffset[++smooth_num] = i;
+				zShortDiv(Q,prime,Q);
+				bits += logp;
+			} while (zShortMod(Q,prime) == 0);
+		}
+
+		i++;
+	}
+
+	if (bits < (closnuf + small_cutoff))
+		return;
 
 	i=start_prime;
 	while (i < fullfb->B)
