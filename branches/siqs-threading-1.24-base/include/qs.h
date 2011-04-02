@@ -432,8 +432,11 @@ typedef struct {
 	static_conf_t *sconf;
 	dynamic_conf_t *dconf;
 
+        int tindex;
+
 	/* fields for thread pool synchronization */
 	volatile enum thread_command command;
+        volatile int *thread_queue, *threads_waiting;
 
 #if defined(WIN32) || defined(_WIN64)
 	HANDLE thread_id;
@@ -443,6 +446,9 @@ typedef struct {
 	pthread_t thread_id;
 	pthread_mutex_t run_lock;
 	pthread_cond_t run_cond;
+
+	pthread_mutex_t *queue_lock;
+	pthread_cond_t *queue_cond;
 #endif
 
 } thread_sievedata_t;
@@ -489,10 +495,8 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  static_conf_t *conf);
 
-void stop_worker_thread(thread_sievedata_t *t,
-				uint32 is_master_thread);
-void start_worker_thread(thread_sievedata_t *t, 
-				uint32 is_master_thread);
+void stop_worker_thread(thread_sievedata_t *t);
+void start_worker_thread(thread_sievedata_t *t);
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI worker_thread_main(LPVOID thread_data);
 #else
