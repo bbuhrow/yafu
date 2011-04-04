@@ -432,16 +432,22 @@ typedef struct {
 	static_conf_t *sconf;
 	dynamic_conf_t *dconf;
 
-        int tindex;
+    int tindex;
 
 	/* fields for thread pool synchronization */
 	volatile enum thread_command command;
-        volatile int *thread_queue, *threads_waiting;
+    volatile int *thread_queue, *threads_waiting;
 
 #if defined(WIN32) || defined(_WIN64)
 	HANDLE thread_id;
 	HANDLE run_event;
+
 	HANDLE finish_event;
+	HANDLE *queue_event;
+
+	HANDLE *queue_cond;
+	HANDLE *queue_lock;
+
 #else
 	pthread_t thread_id;
 	pthread_mutex_t run_lock;
