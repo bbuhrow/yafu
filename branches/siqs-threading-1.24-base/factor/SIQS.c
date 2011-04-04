@@ -52,7 +52,7 @@ void SIQS(fact_obj_t *fobj)
 	HANDLE queue_lock;
 	//HANDLE *finish_events;
 	HANDLE *queue_events;
-	HANDLE queue_cond;
+	//HANDLE queue_cond;
 #else
     pthread_mutex_t queue_lock;
     pthread_cond_t queue_cond;
@@ -176,7 +176,7 @@ void SIQS(fact_obj_t *fobj)
 		// TBD
 		// assign a pointer to the mutex
 		thread_data[i].queue_lock = &queue_lock;
-		thread_data[i].queue_cond = &queue_cond;
+		//thread_data[i].queue_cond = &queue_cond;
 		//thread_data[i].finish_event = &finish_events[i];
 		thread_data[i].queue_event = &queue_events[i];
 #else
@@ -307,9 +307,20 @@ void SIQS(fact_obj_t *fobj)
 		// Process threads until there are no more waiting for their results to be collected
 		while (*threads_waiting > 0)
 		{
+			int tid;
 
 			// Pop a waiting thread off the queue (OK, it's stack not a queue)
-			int tid = thread_queue[--(*threads_waiting)];
+#if defined(WIN32) || defined(_WIN64)
+			WaitForSingleObject( 
+				queue_lock,    // handle to mutex
+				INFINITE);  // no time-out interval
+#endif
+  
+			tid = thread_queue[--(*threads_waiting)];
+
+#if defined(WIN32) || defined(_WIN64)
+			ReleaseMutex(queue_lock);
+#endif
 
 			// Check whether the thread has any results to collect. This should only be false at the 
 			// very beginning, when the thread hasn't actually done anything yet.
@@ -463,7 +474,21 @@ void SIQS(fact_obj_t *fobj)
 #if defined(WIN32) || defined(_WIN64)
 		// TBD
 		//printf("master thread waiting for any queue event\n");
-		//WaitForSingleObject(queue_cond, INFINITE);
+		//for (i=0; i<THREADS; i++)
+		//{
+		//	j = WaitForSingleObject(queue_events[i], 10000);
+
+		//	if (j == WAIT_TIMEOUT)
+		//	{
+		//		printf("master thread timeout for thread %d\n",i);
+		//		break;
+		//	}
+		//}
+
+		//while (*threads_waiting == 0)
+		//	MySleep(10);
+
+			//WaitForSingleObject(queue_cond, INFINITE);
 		
 		j = WaitForMultipleObjects(
 			THREADS,
@@ -637,15 +662,9 @@ void start_worker_thread(thread_sievedata_t *t) {
 
 	t->command = COMMAND_INIT;
 #if defined(WIN32) || defined(_WIN64)
-	t->run_event = CreateEvent(NULL, FALSE, TRUE, NULL);
+	t->run_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->finish_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-	WaitForSingleObject( 
-            *t->queue_lock,    // handle to mutex
-            INFINITE);  // no time-out interval
 	*t->queue_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	ReleaseMutex(*t->queue_lock);
-
 	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
 
 	//printf("thread %d waiting for finish event in start_worker_thread\n",t->tindex);
@@ -674,13 +693,7 @@ void stop_worker_thread(thread_sievedata_t *t)
 	CloseHandle(t->thread_id);
 	CloseHandle(t->run_event);
 	CloseHandle(t->finish_event);
-	WaitForSingleObject( 
-            *t->queue_lock,    // handle to mutex
-            INFINITE);  // no time-out interval
-
 	CloseHandle(*t->queue_event);
-
-	ReleaseMutex(*t->queue_lock);
 #else
 	pthread_mutex_lock(&t->run_lock);
 	t->command = COMMAND_END;
@@ -753,7 +766,7 @@ void *worker_thread_main(void *thread_data) {
 		//SetEvent(t->queue_cond);
 
 		ReleaseMutex(*t->queue_lock);
-  
+		//printf("thread %d released mutex in worker_thread_main\n",t->tindex);
 		
 
 #else
