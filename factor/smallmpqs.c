@@ -23,6 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "soe.h"
 #include "util.h"
+#include "common.h"
 
 typedef struct
 {
@@ -58,6 +59,78 @@ uint8 smpqs_choose_multiplier(z *n, uint32 fb_size);
 int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 			fb_list *fb, z *n, int mul, 
 			z *factors,uint32 *num_factor);
+
+#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+	//these compilers support SIMD 
+	#define SIMD_SIEVE_SCAN 1
+	#define SCAN_CLEAN asm volatile("emms");	
+	#define SSE2_RESIEVING 1
+
+	#if defined(HAS_SSE2)
+		//top level sieve scanning with SSE2
+		#define SIEVE_SCAN_32	\
+			asm volatile (		\
+				"movdqa (%1), %%xmm0   \n\t"		\
+				"orpd 16(%1), %%xmm0    \n\t"		\
+				"pmovmskb %%xmm0, %0   \n\t"		\
+				: "=r"(result)						\
+				: "r"(sieveblock + j), "0"(result)	\
+				: "%xmm0");
+
+	#else
+		#define SCAN_16X	\
+			result = 1;	/*dont know what compiler this is. force the normal method*/
+		#undef SIMD_SIEVE_SCAN
+	#endif
+
+#elif defined(MSC_ASM32A)
+	#define SIMD_SIEVE_SCAN 1
+	#define SCAN_CLEAN ASM_M {emms};
+	#define SSE2_RESIEVING 1
+
+	#if defined(HAS_SSE2)
+		//top level sieve scanning with SSE2
+		#define SIEVE_SCAN_32	\
+			do	{						\
+				uint64 *localblock = sieveblock + j;	\
+				ASM_M  {			\
+					ASM_M mov edi, localblock			\
+					ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
+					ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
+					ASM_M pmovmskb ecx, xmm0			\
+					ASM_M mov result, ecx};			\
+			} while (0);
+
+	#else
+		#undef SIMD_SIEVE_SCAN
+	#endif
+
+#elif defined(_WIN64)
+
+	#define SIMD_SIEVE_SCAN 1
+	#define SSE2_RESIEVING 1
+
+	#if defined(HAS_SSE2)
+		//top level sieve scanning with SSE2
+		#define SIEVE_SCAN_32	\
+			do	{						\
+				__m128i local_block;	\
+				__m128i local_block2;	\
+				local_block = _mm_load_si128(sieveblock + j); \
+				local_block2 = _mm_load_si128(sieveblock + j + 2); \
+				local_block = _mm_or_si128(local_block, local_block2); \
+				result = _mm_movemask_epi8(local_block); \
+			} while (0);
+
+
+	#else
+		#undef SIMD_SIEVE_SCAN
+	#endif
+
+#endif
+
+#define SCAN_MASK 0x8080808080808080ULL
+
 
 void smpqs_make_fb_mpqs(fb_list *fb, uint32 *modsqrt, z *n)
 {
@@ -732,10 +805,9 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 s
 						uint32 cutoff, uint8 small_cutoff, uint32 start_prime, uint32 parity, uint32 *num, int numpoly)
 {
 	z Q,t1,t2,t3;
-	uint32 offset,j,k;
+	uint32 offset,i,j,k;
 	uint32 neg;
 	uint64 *sieveblock;
-	uint64 mask = ((uint64)0x80808080 << 32) | (uint64)0x80808080;
 	uint32 limit = BLOCKSIZE >> 3;
 	
 	sieveblock = (uint64 *)sieve;
@@ -743,50 +815,81 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 s
 	zInit(&t1);
 	zInit(&t2);
 	zInit(&t3);
+
 	//check for relations
-	for (j=0;j<limit;j++)
+	for (j=0;j<limit;j+=4)	
 	{
-		if ((sieveblock[j] & mask) == (uint64)(0))
+
+#ifdef SIMD_SIEVE_SCAN
+
+		uint32 result = 0;
+
+		SIEVE_SCAN_32;
+
+		if (result == 0)
 			continue;
 
-		if ((full->num_r + partial->act_r) > (fullfb->B + 16))
-			break;
+#else
+		uint64 mask = SCAN_MASK;
 
-		//else figure out which one's need to be checked
-		for (k=0;k<8;k++)
+		if (((sieveblock[j] | sieveblock[j+1] | 
+			sieveblock[j+2] | sieveblock[j+3]) & 
+		      mask) == (uint64)(0))
+			continue;
+#endif
+	
+#if defined(SIMD_SIEVE_SCAN)
+		// make it safe to perform floating point
+		SCAN_CLEAN;
+#endif
+
+		//at least one passed the check, find which one(s) and pass to 
+		//trial division stage
+		for (i=0; i<4; i++)
 		{
-			if ((sieve[8*j + k] & 0x80) == 0)
+			//check 8 locations simultaneously
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
 
-			(*num)++;
+			//at least one passed the check, find which one(s) and pass to 
+			//trial division stage
+			for (k=0;k<8;k++)
+			{
+				uint32 thisloc = ((j+i)<<3) + k;
+				if ((sieve[thisloc] & 0x80) == 0)
+					continue;
 
-			//this one is close enough, compute 
-			//Q(x) = (ax + b)^2 - N, where x is the sieve index
-			//(a*x +/- 2b)*x + c;
-			//offset = blocknum*BLOCKSIZE + 8*j+k;
-			//printf("computing Q for block %d, offset %d\n",blocknum,8*j+k);
-			offset = (blocknum<<BLOCKBITS) + (j<<3) + k;
-			zShiftLeft(&t2,&poly->poly_b,1);
+				(*num)++;
 
-			zShortMul(&poly->poly_a,offset,&t1);
-			if (parity)
-				zSub(&t1,&t2,&t3);
-			else
-				zAdd(&t1,&t2,&t3);
+				offset = (blocknum<<BLOCKBITS) + thisloc;
+				zShiftLeft(&t2,&poly->poly_b,1);
 
-			zShortMul(&t3,offset,&t1);
-			zAdd(&t1,&poly->poly_c,&Q);
-			if (Q.size < 0)
-				neg = 1;
-			else
-				neg = 0;
-			Q.size = abs(Q.size);
+				zShortMul(&poly->poly_a,offset,&t1);
+				if (parity)
+					zSub(&t1,&t2,&t3);
+				else
+					zAdd(&t1,&t2,&t3);
 
-			smpqs_trial_divide_Q(&Q,fb,full,partial,sieve,offset,
-				8*j+k,neg,fullfb,cutoff,small_cutoff,start_prime,
-				numpoly,parity,closnuf,sieve[8*j+k]);
+				zShortMul(&t3,offset,&t1);
+				zAdd(&t1,&poly->poly_c,&Q);
+				if (Q.size < 0)
+					neg = 1;
+				else
+					neg = 0;
+				Q.size = abs(Q.size);
+
+				smpqs_trial_divide_Q(&Q,fb,full,partial,sieve,offset,
+					thisloc,neg,fullfb,cutoff,small_cutoff,start_prime,
+					numpoly,parity,closnuf,sieve[thisloc]);
+			}
 		}
 	}
+
+#if defined(SIMD_SIEVE_SCAN)
+	// make it safe to perform floating point
+	SCAN_CLEAN;
+#endif
+
 	zFree(&Q);
 	zFree(&t1);
 	zFree(&t2);
@@ -842,22 +945,21 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		fboffset[++smooth_num] = 1;
 	}
 
-	i=2;
-	//this could be completed unrolled
-	while (i < start_prime)
+	//completely unrolled trial division by primes that we have not 
+	//sieved via the small prime variation
 	{
 		uint64 q64;
 		uint32 tmp1;
 
-		fbptr = fb + i;
+		fbptr = fb + 2;
 		root1 = fbptr->roots >> 16;	
 		root2 = fbptr->roots & 0xffff;
 
 		prime = fbptr->prime_and_logp >> 16;
 		logp = fbptr->prime_and_logp & 0xff;
 
-		tmp1 = offset + fullfb->list->correction[i];
-		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[i];
+		tmp1 = offset + fullfb->list->correction[2];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[2];
 		tmp1 = q64 >> 32; 
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
@@ -867,13 +969,107 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		{
 			do
 			{
-				fboffset[++smooth_num] = i;
+				fboffset[++smooth_num] = 2;
 				zShortDiv(Q,prime,Q);
 				bits += logp;
 			} while (zShortMod(Q,prime) == 0);
 		}
 
-		i++;
+		fbptr = fb + 3;
+		root1 = fbptr->roots >> 16;	
+		root2 = fbptr->roots & 0xffff;
+
+		prime = fbptr->prime_and_logp >> 16;
+		logp = fbptr->prime_and_logp & 0xff;
+
+		tmp1 = offset + fullfb->list->correction[3];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[3];
+		tmp1 = q64 >> 32; 
+		//at this point tmp1 is offset / prime
+		tmp1 = offset - tmp1 * prime;
+
+		if ((tmp1 == root1 || tmp1 == root2) || 
+			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		{
+			do
+			{
+				fboffset[++smooth_num] = 3;
+				zShortDiv(Q,prime,Q);
+				bits += logp;
+			} while (zShortMod(Q,prime) == 0);
+		}
+
+		fbptr = fb + 4;
+		root1 = fbptr->roots >> 16;	
+		root2 = fbptr->roots & 0xffff;
+
+		prime = fbptr->prime_and_logp >> 16;
+		logp = fbptr->prime_and_logp & 0xff;
+
+		tmp1 = offset + fullfb->list->correction[4];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[4];
+		tmp1 = q64 >> 32; 
+		//at this point tmp1 is offset / prime
+		tmp1 = offset - tmp1 * prime;
+
+		if ((tmp1 == root1 || tmp1 == root2) || 
+			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		{
+			do
+			{
+				fboffset[++smooth_num] = 4;
+				zShortDiv(Q,prime,Q);
+				bits += logp;
+			} while (zShortMod(Q,prime) == 0);
+		}
+
+		fbptr = fb + 5;
+		root1 = fbptr->roots >> 16;	
+		root2 = fbptr->roots & 0xffff;
+
+		prime = fbptr->prime_and_logp >> 16;
+		logp = fbptr->prime_and_logp & 0xff;
+
+		tmp1 = offset + fullfb->list->correction[5];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[5];
+		tmp1 = q64 >> 32; 
+		//at this point tmp1 is offset / prime
+		tmp1 = offset - tmp1 * prime;
+
+		if ((tmp1 == root1 || tmp1 == root2) || 
+			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		{
+			do
+			{
+				fboffset[++smooth_num] = 5;
+				zShortDiv(Q,prime,Q);
+				bits += logp;
+			} while (zShortMod(Q,prime) == 0);
+		}
+
+		fbptr = fb + 6;
+		root1 = fbptr->roots >> 16;	
+		root2 = fbptr->roots & 0xffff;
+
+		prime = fbptr->prime_and_logp >> 16;
+		logp = fbptr->prime_and_logp & 0xff;
+
+		tmp1 = offset + fullfb->list->correction[6];
+		q64 = (uint64)tmp1 * (uint64)fullfb->list->small_inv[6];
+		tmp1 = q64 >> 32; 
+		//at this point tmp1 is offset / prime
+		tmp1 = offset - tmp1 * prime;
+
+		if ((tmp1 == root1 || tmp1 == root2) || 
+			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		{
+			do
+			{
+				fboffset[++smooth_num] = 6;
+				zShortDiv(Q,prime,Q);
+				bits += logp;
+			} while (zShortMod(Q,prime) == 0);
+		}
 	}
 
 	if (bits < (closnuf + small_cutoff))
@@ -983,7 +1179,7 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	{
 		if (full->num_r == full->allocated) 
 		{
-			printf("\nreallocating fulls\n");
+			//printf("\nreallocating fulls\n");
 			r = full->allocated;
 			full->allocated *= 2;
 			full->list = (mpqs_r **)realloc(full->list, 
@@ -994,9 +1190,10 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	else if ((Q->size == 1)  && (Q->val[0] < cutoff))
 	{
 		smpqs_save_relation(partial,offset,Q->val[0],smooth_num+1,num_p,fboffset,numpoly,parity);
+
 		if (partial->num_r == partial->allocated) 
 		{
-			printf("\nreallocating partials\n");
+			//printf("\nreallocating partials\n");
 			r = partial->allocated;
 			partial->allocated *= 2;
 			partial->list = (mpqs_r **)realloc(partial->list, 
@@ -1258,7 +1455,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 	uint32 *pd;
 	uint32 r;
-	z zx, zy, tmp, tmp2, tmp3, tmp4, nn,tmp_a;
+	z zx, zy, tmp, tmp2, tmp3, tmp4, nn,tmp_a,input;
 	
 	zInit(&zx);
 	zInit(&zy);
@@ -1267,6 +1464,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 	zInit(&tmp3);
 	zInit(&tmp4);
 	zInit(&nn);
+	zInit(&input);
 	zInit(&tmp_a);
 
 	num_f = full->num_r;
@@ -1379,6 +1577,9 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 	*num_factor=0;
 
+	// remove the multiplier from the input
+	zShortDiv(n,mul,&input);
+
 	//initialize blacklist
 	for (i=0;i<num_r;i++) bl[i] = 0;
 	//search over all columns, right to left (more sparse on the right side)
@@ -1438,7 +1639,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 									//then the l'th relation is involved in the product of relations
 									if (l >= num_f)
 									{
-										uint64 pa,pb,d1,d2,q1,q2;
+										uint64 pa,pb,d1,d2;
 										//if l >= num_f, then this row refers to a relation generated from two partials.
 										//we'll need to go back to the two partial locations to find the two offsets to
 										//multiply together
@@ -1453,7 +1654,6 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 										//recreate poly_b from poly_a (store instead??)
 										polynum = partial->list[partial_index[l-num_f]]->polynum;
-										//zCopy(&bpoly[polynum],&poly_b);
 										pb = bpoly[polynum].val[0];
 											
 										//compute Q1(x)
@@ -1472,7 +1672,6 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 										//compute Q2(x)
 										polynum = partial->list[partial_index[l-num_f]-1]->polynum;
-										//zCopy(&bpoly[polynum],&poly_b);
 										pb = bpoly[polynum].val[0];
 											
 										//compute Q1(x)
@@ -1487,7 +1686,6 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 										//compute Q(x1)*Q(x2)
 										zMul(&tmp,&tmp2,&tmp4);	
-										//zDiv(&tmp4,n,&tmp2,&tmp3);	//mod n
 										zMul(&zx,&tmp4,&tmp);		//accumulate with previous terms
 										zDiv(&tmp,n,&tmp2,&zx);		//mod n
 
@@ -1501,7 +1699,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 									}
 									else
 									{
-										uint64 pa,pb,d1,d2,q1,q2;
+										uint64 pa,pb,d1;
 
 										//recreate poly_b from poly_a (store instead??)
 										polynum = full->list[l]->polynum;
@@ -1526,7 +1724,6 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 								}
 							}
 
-							//printf("attempting to factor\n");
 							//compute y mod n
 							//ignore the factor of -1 in this operation
 							for (l=1;l<(int)B;l++)
@@ -1536,8 +1733,10 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 									sp2z(fb->list->prime[l],&tmp);
 									//pd tracks the exponents of the smooth factors.  we know they are all even
 									//at this point.  we don't want to compute pd^2, so divide by 2.
-									sp2z(pd[l]/2,&tmp2);
-									zModExp(&tmp,&tmp2,n,&tmp3);
+									//computing the explicit exponentiation and then reducing is
+									//slightly faster than doing modexp in smallmpqs.
+									zExp(pd[l]/2,&tmp,&tmp2);
+									zDiv(&tmp2,n,&tmp4,&tmp3);
 									zMul(&tmp3,&zy,&tmp4);
 									zDiv(&tmp4,n,&tmp2,&zy);
 								}
@@ -1560,99 +1759,81 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 								//remove the 2's
 								while (!(nn.val[0] & 0x1))
 									zShiftRight(&nn,&nn,1);
-							}
-							
-							
-							if ((zCompare(&nn,&zOne) > 0) && (zCompare(n,&nn) > 0))
+							}							
+
+							if ((zCompare(&nn,&zOne) > 0) && (zCompare(&nn,&input) < 0))
 							{
-								//printf("non-trivial factor found = %s\n",z2decstr(&nn,&gstr1));
-								zCopy(&nn,&tmp2);
-								r = (uint32)zShortDiv(&tmp2,mul,&tmp3);
-								if (r == 0)
-									zCopy(&tmp3,&nn);
 
-								if (isPrime(&nn))
+								//check that we havent' already found this one
+								set_continue = 0;
+								for (l=0;l<(int)*num_factor;l++)
 								{
-									//check that we havent' already found this one
-									set_continue = 0;
-									for (l=0;l<(int)*num_factor;l++)
-									{
-										if (zCompare(&nn,&factors[l]) == 0)
-											set_continue = 1;
-									}
-									if (set_continue)
-										continue;
+									if (zCompare(&nn,&factors[l]) == 0)
+										set_continue = 1;
+								}
+								if (set_continue)
+									continue;
 
-									zCopy(&nn,&factors[*num_factor]);
+								zCopy(&nn,&factors[*num_factor]);
 
-									(*num_factor)++;
-									if (*num_factor > MAX_FACTORS)
-									{
-										printf("max number of factors found in block gauss\n");
-										goto free;
-									}
-									//check if we're done by accumulating all factors and comparing to n
-									zCopy(&factors[0],&nn);
-									for (l=1;l<(int)*num_factor;l++)
-									{
-										zCopy(&factors[l],&tmp);
-										zMul(&tmp,&nn,&tmp2);
-										zCopy(&tmp2,&nn);
-									}
-									if (zBits(&nn) + 10 >= zBits(n))
-									{
-										//+ 10 accounts for the multiplier in n
-										//found all factors, done
-										goto free;
-									}
+								(*num_factor)++;
+								if (*num_factor > MAX_FACTORS)
+								{
+									printf("max number of factors found in block gauss\n");
+									goto free;
+								}
+								//check if we're done by accumulating all factors and comparing to n
+								zCopy(&factors[0],&nn);
+								for (l=1;l<(int)*num_factor;l++)
+								{
+									zCopy(&factors[l],&tmp);
+									zMul(&tmp,&nn,&tmp2);
+									zCopy(&tmp2,&nn);
+								}
+								if (zBits(&nn) + 10 >= zBits(n))
+								{
+									//+ 10 accounts for the multiplier in n
+									//found all factors, done
+									goto free;
 								}
 
 								//check the other factor
-								zCopy(n,&tmp);
+								zCopy(&input,&tmp);
 								zDiv(&tmp,&nn,&tmp2,&tmp3);
 
-								//remove the multiplier if necessary
 								zCopy(&tmp2,&tmp);
-								r = zShortDiv(&tmp,mul,&tmp3);
-								if (r == 0)
-									zCopy(&tmp3,&tmp);
-								else
-									zCopy(&tmp2,&tmp);
-
-								if (isPrime(&tmp))
+	
+								//check that we havent' already found this one
+								set_continue = 0;
+								for (l=0;l<(int)*num_factor;l++)
 								{
-									//check that we havent' already found this one
-									set_continue = 0;
-									for (l=0;l<(int)*num_factor;l++)
-									{
-										if (zCompare(&tmp,&factors[l]) == 0)
-											set_continue = 1;
-									}
-									if (set_continue)
-										continue;
+									if (zCompare(&tmp,&factors[l]) == 0)
+										set_continue = 1;
+								}
+								if (set_continue)
+									continue;
 
-									zCopy(&tmp,&factors[*num_factor]);
+								zCopy(&tmp,&factors[*num_factor]);
 
-									(*num_factor)++;
-									if (*num_factor > MAX_FACTORS)
-									{
-										printf("max number of factors found in block gauss\n");
-										goto free;
-									}
-									//check if we're done by accumulating all factors and comparing to n
-									zCopy(&factors[0],&nn);
-									for (l=1;l<(int)*num_factor;l++)
-									{
-										zCopy(&factors[l],&tmp);
-										zMul(&tmp,&nn,&tmp2);
-										zCopy(&tmp2,&nn);
-									}
-									if (zBits(&nn) + 10 >= zBits(n))
-									{
-										//+ 10 accounts for the multiplier in n
-										//found all factors, done
-										goto free;
-									}
+								(*num_factor)++;
+								if (*num_factor > MAX_FACTORS)
+								{
+									printf("max number of factors found in block gauss\n");
+									goto free;
+								}
+								//check if we're done by accumulating all factors and comparing to n
+								zCopy(&factors[0],&nn);
+								for (l=1;l<(int)*num_factor;l++)
+								{
+									zCopy(&factors[l],&tmp);
+									zMul(&tmp,&nn,&tmp2);
+									zCopy(&tmp2,&nn);
+								}
+								if (zBits(&nn) + 10 >= zBits(n))
+								{
+									//+ 10 accounts for the multiplier in n
+									//found all factors, done
+									goto free;
 								}
 							} //if non-trivial factor
 						} //if a == 0
@@ -1725,4 +1906,8 @@ static uint64 smpqs_bitValRead64(uint64 **m, int row, int col)
 	offset = (col%64);
 	return (m[row][mcol] & smpqs_masks64[offset]);
 }
+
+
+
+
 

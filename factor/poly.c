@@ -1113,7 +1113,63 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_n = NULL;
 	}
 
-	for (i=start_prime;i<fb->med_B;i++)
+	for (i=start_prime;i<sconf->sieve_small_fb_start;i++)
+	{
+		prime = fb->list->prime[i];
+		root1 = modsqrt[i]; 
+		root2 = prime - root1; 
+
+		amodp = (int)zShortMod(&poly->poly_a,prime);
+		bmodp = (int)zShortMod(&poly->poly_b,prime);
+
+		//find a^-1 mod p = inv(a mod p) mod p
+		inv = modinv_1(amodp,prime);
+
+		COMPUTE_FIRST_ROOTS
+	
+		root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
+		root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
+	
+		//we don't sieve these primes, so ordering doesn't matter
+		update_data.firstroots1[i] = root1;
+		update_data.firstroots2[i] = root2;
+#ifdef USE_COMPRESSED_FB
+		fb_p[i].roots = (uint32)((root1 << 16) | root2);
+		if (root2 == 0)
+			fb_n[i].roots = 0;
+		else
+			fb_n[i].roots = (uint32)((prime - root2) << 16);
+		if (root1 == 0)
+			fb_n[i].roots |= 0;
+		else
+			fb_n[i].roots |= (uint32)(prime - root2);
+#else
+		fb_p->root1[i] = (uint16)root1;
+		fb_p->root2[i] = (uint16)root2;
+		fb_n->root1[i] = (uint16)(prime - root2);
+		fb_n->root2[i] = (uint16)(prime - root1);
+		//if we were sieving, this would double count the location on the 
+		//positive side.  but since we're not, its easier to check for inclusion
+		//on the progression if we reset the negative root to zero if it is == prime
+		if (fb_n->root1[i] == prime)
+			fb_n->root1[i] = 0;
+		if (fb_n->root2[i] == prime)
+			fb_n->root2[i] = 0;
+#endif
+
+		//for this factor base prime, compute the rootupdate value for all s
+		//Bl values.  amodp holds a^-1 mod p
+		//the rootupdate value is given by 2*Bj*amodp
+		//Bl[j] now holds 2*Bl
+		for (j=0;j<s;j++)
+		{
+			x = (int)zShortMod(&Bl[j],prime);
+			x = (int)((int64)x * (int64)inv % (int64)prime);
+			rootupdates[(j)*fb->B+i] = x;
+		}
+	}
+
+	for (i=sconf->sieve_small_fb_start;i<fb->med_B;i++)
 	{
 		prime = fb->list->prime[i];
 		root1 = modsqrt[i]; 
@@ -1345,7 +1401,41 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
-		for (j=startprime;j<med_B;j++,ptr++)
+		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_P;
+
+			//we don't sieve these, so ordering doesn't matter
+			update_data.firstroots1[j] = root1;
+			update_data.firstroots2[j] = root2;
+#ifdef USE_COMPRESSED_FB
+			fb_p[j].roots = (uint32)((root1 << 16) | root2);
+			if (root2 == 0)
+				fb_n[j].roots = 0;
+			else
+				fb_n[j].roots = (uint32)((prime - root2) << 16);
+			if (root1 == 0)
+				fb_n[j].roots |= 0;
+			else
+				fb_n[j].roots |= (uint32)(prime - root2);
+#else
+			fb_p->root1[j] = (uint16)root1;
+			fb_p->root2[j] = (uint16)root2;
+			fb_n->root1[j] = (uint16)(prime - root2);
+			fb_n->root2[j] = (uint16)(prime - root1);
+			if (fb_n->root1[j] == prime)
+				fb_n->root1[j] = 0;
+			if (fb_n->root2[j] == prime)
+				fb_n->root2[j] = 0;
+#endif
+
+		}
+
+		for (j=sconf->sieve_small_fb_start;j<med_B;j++,ptr++)
 		{
 			prime = update_data.prime[j];
 			root1 = update_data.firstroots1[j];
@@ -2908,7 +2998,41 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
-		for (j=startprime;j<med_B;j++,ptr++)
+		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_N;
+
+			//we don't sieve these, so ordering doesn't matter
+			update_data.firstroots1[j] = root1;
+			update_data.firstroots2[j] = root2;
+#ifdef USE_COMPRESSED_FB
+			fb_p[j].roots = (uint32)((root1 << 16) | root2);
+			if (root2 == 0)
+				fb_n[j].roots = 0;
+			else
+				fb_n[j].roots = (uint32)((prime - root2) << 16);
+			if (root1 == 0)
+				fb_n[j].roots |= 0;
+			else
+				fb_n[j].roots |= (uint32)(prime - root2);
+#else
+			fb_p->root1[j] = (uint16)root1;
+			fb_p->root2[j] = (uint16)root2;
+			fb_n->root1[j] = (uint16)(prime - root2);
+			fb_n->root2[j] = (uint16)(prime - root1);
+			if (fb_n->root1[j] == prime)
+				fb_n->root1[j] = 0;
+			if (fb_n->root2[j] == prime)
+				fb_n->root2[j] = 0;
+#endif
+
+		}
+
+		for (j=sconf->sieve_small_fb_start;j<med_B;j++,ptr++)
 		{
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];

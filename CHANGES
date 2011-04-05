@@ -1,3 +1,14 @@
+v 1.25
++ improved smallmpqs quite a bit
++ simplified the process of checking small-prime-variation primes for inclusion
+	on a sieve progression
++ experimentation with different versions of the sieve of eratosthenes.  no impact
+	to in-use code at this point.
++ much more efficient threading architecture in SIQS.  30-40% speedup in many cases for 
+	multi-threaded factorizations.  Architecture and code for linux platforms 
+	contributed by Ben Chaffin.
++ got rid of a couple stray debugging messages.
+
 v 1.24 2/9/11
 + added proprocessing check for enabled profiling which disables poly.c ASM code.  profiling
 	doesn't work if all of the registers are in the clobber list.

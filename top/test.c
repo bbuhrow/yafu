@@ -235,7 +235,7 @@ void test_dlp_composites()
 	printf("pQS got %d of %d correct in %2.2f sec\n",correct,num,t_time);
 	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
 	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);	
-	*/
+	
 
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);
@@ -278,7 +278,7 @@ void test_dlp_composites()
 	printf("smallmpqs got %d of %d correct in %2.2f sec\n",correct,num,t_time);
 	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
 	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);	
-
+	*/
 
 	free(f1);
 	free(f2);
