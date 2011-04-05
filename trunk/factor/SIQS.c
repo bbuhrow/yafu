@@ -817,8 +817,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->num_blocks,BLOCKSIZE);
 		printf("polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
 		printf("using multiplier of %u\n",sconf->multiplier);
-		printf("using small prime variation correction of %d bits\n",
-			sconf->tf_small_cutoff);
+		printf("using SPV correction of %d bits, starting at offset %d\n",
+			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 
 #if defined(HAS_SSE2)
 		printf("using SSE2 for trial division and x%d sieve scanning\n",
@@ -905,8 +905,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		sconf->num_blocks,BLOCKSIZE);
 	logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
 	logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
-	logprint(sconf->obj->logfile,"using small prime variation correction of %d bits\n",
-		sconf->tf_small_cutoff);
+	logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
+		sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 
 
 #if defined(HAS_SSE2)

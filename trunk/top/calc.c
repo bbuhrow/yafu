@@ -1772,14 +1772,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 #ifdef _MSC_VER
 					build_RSA(bits, &input[i]);
 #else
-
-	/*				c = 1ULL << (fp_digit)(bits/2 - 1);
-					d = 1ULL << (fp_digit)(bits/2 + 1);
-					printf("a=%" PRIu64 " b=%" PRIu64 " c=%" PRIu64 " d=%" PRIu64 "\n",a,b,c,d);
-					a = spRand(c-1,d+1);
-					b = spRand(c-1,d+1);*/
+					b = bits-2;
+					zRandb(&mp1, b/2 - 1);
+					zRandb(&mp2, b/2 + 1);
+					/*
 					a = spRand(0,MAX_DIGIT);
 					b = spRand(0,MAX_DIGIT);
+
 					while (a > (1ULL << (bits/2)))
 						a >>= 1;
 					while (b > (2ULL << (bits/2)))
@@ -1790,11 +1789,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					while (b < (2ULL << (bits/2)))
 						b <<= 1;
 					
+
 					zNextPrime_1(a,&c,&mp1,1);
 					sp2z(c,&mp1);
 					zNextPrime_1(b,&d,&mp2,1);
 					sp2z(d,&mp2);
+					*/
 					
+					zNextPrime(&mp1, &mp1, 1);
+					zNextPrime(&mp2, &mp2, 1);
+
 					zMul(&mp1,&mp2,&input[i]);
 					sum += zBits(&input[i]);
 					
@@ -1812,8 +1816,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					if (i % 100 == 0)
-						printf("input %d\n",i); //, %d correct\n",i,correct);
+					//if (i % 100 == 0)
+						//printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);
 					//MPQS(fobj2);
