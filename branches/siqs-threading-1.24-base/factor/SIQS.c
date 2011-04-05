@@ -48,11 +48,8 @@ void SIQS(fact_obj_t *fobj)
     int threads_working = 0;
     int *thread_queue, *threads_waiting;
 #if defined(WIN32) || defined(_WIN64)
-    // TBD
 	HANDLE queue_lock;
-	//HANDLE *finish_events;
 	HANDLE *queue_events;
-	//HANDLE queue_cond;
 #else
     pthread_mutex_t queue_lock;
     pthread_cond_t queue_cond;
@@ -147,15 +144,11 @@ void SIQS(fact_obj_t *fobj)
     threads_waiting = (int *)malloc(sizeof(int));
 
 #if defined(WIN32) || defined(_WIN64)
-    // TBD
 	queue_lock = CreateMutex( 
         NULL,              // default security attributes
         FALSE,             // initially not owned
         NULL);             // unnamed mutex
-	//finish_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
 	queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
-	//queue_cond = CreateEvent(NULL, FALSE, FALSE, NULL);
-
 #else
     pthread_mutex_init(&queue_lock, NULL);
     pthread_cond_init(&queue_cond, NULL);
@@ -173,11 +166,8 @@ void SIQS(fact_obj_t *fobj)
         thread_data[i].threads_waiting = threads_waiting;
 
 #if defined(WIN32) || defined(_WIN64)
-		// TBD
 		// assign a pointer to the mutex
 		thread_data[i].queue_lock = &queue_lock;
-		//thread_data[i].queue_cond = &queue_cond;
-		//thread_data[i].finish_event = &finish_events[i];
 		thread_data[i].queue_event = &queue_events[i];
 #else
 		thread_data[i].queue_lock = &queue_lock;
@@ -295,8 +285,9 @@ void SIQS(fact_obj_t *fobj)
            */
 
         // Master thread begins with the workqueue locked
+
 #if defined(WIN32) || defined(_WIN64)
-    // TBD
+	// nothing
 #else
     pthread_mutex_lock(&queue_lock);
 #endif
@@ -449,11 +440,8 @@ void SIQS(fact_obj_t *fobj)
 
 				// send the thread a signal to start processing the poly we just generated for it
 #if defined(WIN32) || defined(_WIN64)
-				// TBD
 				thread_data[tid].command = COMMAND_RUN;
-				//printf("master thread setting run event for worker %d\n",tid);
 				SetEvent(thread_data[tid].run_event);
-
 #else
 				pthread_mutex_lock(&thread_data[tid].run_lock);
 				thread_data[tid].command = COMMAND_RUN;
@@ -472,31 +460,11 @@ void SIQS(fact_obj_t *fobj)
 
 		// wait for a thread to finish and put itself in the waiting queue
 #if defined(WIN32) || defined(_WIN64)
-		// TBD
-		//printf("master thread waiting for any queue event\n");
-		//for (i=0; i<THREADS; i++)
-		//{
-		//	j = WaitForSingleObject(queue_events[i], 10000);
-
-		//	if (j == WAIT_TIMEOUT)
-		//	{
-		//		printf("master thread timeout for thread %d\n",i);
-		//		break;
-		//	}
-		//}
-
-		//while (*threads_waiting == 0)
-		//	MySleep(10);
-
-			//WaitForSingleObject(queue_cond, INFINITE);
-		
 		j = WaitForMultipleObjects(
 			THREADS,
 			queue_events,
 			FALSE,
 			INFINITE);
-
-		//printf("master thread got queue event from worker %d\n",j);
 #else
 		pthread_cond_wait(&queue_cond, &queue_lock);
 #endif
@@ -645,10 +613,8 @@ done:
 	zFree(&tmp2);
 
 #if defined(WIN32) || defined(_WIN64)
-	//free(finish_events);
 	free(queue_events);
 #endif
-	//free(threads);
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
@@ -667,9 +633,7 @@ void start_worker_thread(thread_sievedata_t *t) {
 	*t->queue_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
 
-	//printf("thread %d waiting for finish event in start_worker_thread\n",t->tindex);
 	WaitForSingleObject(t->finish_event, INFINITE); /* wait for ready */
-	//printf("thread %d got finish event in start_worker_thread\n",t->tindex);
 #else
 	pthread_mutex_init(&t->run_lock, NULL);
 	pthread_cond_init(&t->run_cond, NULL);
@@ -717,7 +681,6 @@ void *worker_thread_main(void *thread_data) {
         * specific initialization which needed to be done, it would go before this signal.
         */
 #if defined(WIN32) || defined(_WIN64)
-    // TBD
 	t->command = COMMAND_WAIT;
 	SetEvent(t->finish_event);
 #else
@@ -727,13 +690,12 @@ void *worker_thread_main(void *thread_data) {
     pthread_mutex_unlock(&t->run_lock);
 #endif
 
-	while(1) {
+	while(1)
+	{
 
 		/* wait forever for work to do */
 #if defined(WIN32) || defined(_WIN64)
-		//printf("thread %d waiting for run event in worker_thread_main\n",t->tindex);
 		WaitForSingleObject(t->run_event, INFINITE);		
-		//printf("thread %d got run event in worker_thread_main\n",t->tindex);
 #else
 		pthread_mutex_lock(&t->run_lock);
 		while (t->command == COMMAND_WAIT) {
@@ -752,23 +714,15 @@ void *worker_thread_main(void *thread_data) {
 		t->command = COMMAND_WAIT;
 #if defined(WIN32) || defined(_WIN64)
 
-		//printf("thread %d waiting for mutex in worker_thread_main\n",t->tindex);
 		WaitForSingleObject( 
             *t->queue_lock,    // handle to mutex
             INFINITE);  // no time-out interval
  
-		//printf("thread %d got mutex in worker_thread_main\n",t->tindex);
 		t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
-
-		//SetEvent(*t->finish_event);
-		//printf("thread %d setting done event in worker_thread_main\n",t->tindex);
 		SetEvent(*t->queue_event);
-		//SetEvent(t->queue_cond);
 
 		ReleaseMutex(*t->queue_lock);
-		//printf("thread %d released mutex in worker_thread_main\n",t->tindex);
 		
-
 #else
 		pthread_mutex_unlock(&t->run_lock);
 
@@ -781,8 +735,6 @@ void *worker_thread_main(void *thread_data) {
         pthread_mutex_unlock(t->queue_lock);
 #endif
 	}
-
-	//matrix_thread_free(t);
 
 #if defined(WIN32) || defined(_WIN64)
 	return 0;
@@ -2034,8 +1986,8 @@ int update_check(static_conf_t *sconf)
 		if (VFLAG >= 0)
 		{
 			uint32 update_rels;
-			//for (i=0; i < sconf->charcount; i++)
-			//	printf("\b");
+			for (i=0; i < sconf->charcount; i++)
+				printf("\b");
 			//in order to keep rels/sec from going mad when relations
 			//are reloaded on a restart, just use the number of
 			//relations we've found since the last update.  don't forget
@@ -2043,7 +1995,7 @@ int update_check(static_conf_t *sconf)
 			update_rels = sconf->num_relations + sconf->num_cycles - 
 				sconf->last_numfull - sconf->last_numcycles;
 			sconf->charcount = printf("%d rels found: %d full + "
-				"%d from %d partial, (%6.2f rels/sec)\n",
+				"%d from %d partial, (%6.2f rels/sec)",
 				sconf->num_r,sconf->num_relations,
 				sconf->num_cycles +
 				sconf->components - sconf->vertices,

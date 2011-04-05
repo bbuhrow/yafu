@@ -444,8 +444,6 @@ typedef struct {
 
 	HANDLE finish_event;
 	HANDLE *queue_event;
-
-	HANDLE *queue_cond;
 	HANDLE *queue_lock;
 
 #else

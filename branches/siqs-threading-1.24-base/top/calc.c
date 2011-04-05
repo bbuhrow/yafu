@@ -871,7 +871,7 @@ int calc(str_t *in)
 	{
 		/* find input expression and store in str_N */
 		get_expression(strN, &(fobj->str_N));
-		printf("Found expression: %s\n", fobj->str_N.s);
+		//printf("Found expression: %s\n", fobj->str_N.s);
 		free(strN);
 	}
 
