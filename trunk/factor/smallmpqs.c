@@ -109,6 +109,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 	#define SIMD_SIEVE_SCAN 1
 	#define SSE2_RESIEVING 1
+	#define SCAN_CLEAN /*nothing*/
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
