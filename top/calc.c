@@ -871,7 +871,7 @@ int calc(str_t *in)
 	{
 		/* find input expression and store in str_N */
 		get_expression(strN, &(fobj->str_N));
-		printf("Found expression: %s\n", fobj->str_N.s);
+		//printf("Found expression: %s\n", fobj->str_N.s);
 		free(strN);
 	}
 
@@ -1010,7 +1010,7 @@ int getFunc(char *s, int *nargs)
 						"*","/","!","#","==",
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
-						"pullp","sumpuzzle","aliquot","pseudolist","siqstune",
+						"pullp","sumpuzzle","smallmpqs","pseudolist","siqstune",
 						"ptable","primesum","fermat","nfs","tune"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
@@ -1654,6 +1654,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	case 46:
 		//sieve
 		//guess at the number of expected results
+		break;	// not supported in official release
+
 		if (nargs != 2)
 		{
 			printf("wrong number of arguments in sieve\n");
@@ -1692,6 +1694,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 	case 47:
 		//algebraic
+		break;	// not supported in official release
+
 		if (nargs != 2)
 		{
 			printf("wrong number of arguments in algebraic\n");
@@ -1728,6 +1732,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//pull_large_primes();
 		break;
 	case 51: 
+
+		break;	// not supported in official release
+
 		//maxbn = 0;
 		//for (i=0;i<10;i++) gcounts[i] = 0;
 		//test_dlp_composites();
@@ -1858,7 +1865,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	case 52:
 		if (nargs != 1)
 		{
-			printf("wrong number of arguments in qs\n");
+			printf("wrong number of arguments in smallmpqs\n");
 			break;
 		}
 		zCopy(&operands[0],&fobj->qs_obj.n);
@@ -1866,14 +1873,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&zOne,&operands[0]);
 		printf("found factors:\n");
 		for (i=0; i<fobj->qs_obj.num_factors; i++)
-			printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
-				z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+		{
+			if (isPrime(&fobj->qs_obj.factors[i]))
+				printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
+					z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+			else
+				printf("C%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
+					z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+		}
 		printf("\n");
-		
-		//printf("aliquot not currently supported\n");
-		break;
 
-		//aliquot(&operands[0],fobj);
 		break;
 	case 53:
 		printf("generate_pseudoprime_list not currently supported\n");
