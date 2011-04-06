@@ -19,8 +19,8 @@
 
 CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
-#CFLAGS = -g -march=native -mtune=native
-#CFLAGS =
+CFLAGS = -march=core2 -mtune=core2
+#CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
@@ -65,13 +65,13 @@ ifeq ($(NFS),1)
 	CFLAGS += -DHAVE_GMP_ECM
 	INC += -I../gmp-ecm/include
 	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib -lecm -lgmp -lmsieve
+	LIBS += -L../gmp-ecm/lib -lecm -lmsieve -lgmp 
 	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm -lgmp -lmsieve
 endif
 
 #MINGW builds don't need -pthread
-#LIBS += -lm 
-LIBS += -lm -lpthread
+LIBS += -lm 
+#LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN

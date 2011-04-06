@@ -87,6 +87,7 @@ void finalize_batchline();
 // function to process all incoming arguments
 int process_arguments(int argc, char **argv, char *input_exp);
 
+// tmp
 void wheel_table(int modulus);
 
 void wheel_table(int modulus)
@@ -339,7 +340,6 @@ int main(int argc, char *argv[])
 #else
 	LCGSTATE = g_rand.low;
 #endif
-
 
 	//wheel_table(30);
 	//wheel_table(210);
