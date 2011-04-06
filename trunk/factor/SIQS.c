@@ -44,6 +44,17 @@ void SIQS(fact_obj_t *fobj)
 	//master control structure
 	static_conf_t *static_conf;
 
+    // thread work-queue controls
+    int threads_working = 0;
+    int *thread_queue, *threads_waiting;
+#if defined(WIN32) || defined(_WIN64)
+	HANDLE queue_lock;
+	HANDLE *queue_events;
+#else
+    pthread_mutex_t queue_lock;
+    pthread_cond_t queue_cond;
+#endif
+
 	//stuff for lanczos
 	qs_la_col_t *cycle_list;
 	uint32 num_cycles = 0;
@@ -128,12 +139,40 @@ void SIQS(fact_obj_t *fobj)
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
 
+    // allocate the queue of threads waiting for work
+    thread_queue = (int *)malloc(THREADS * sizeof(int));
+    threads_waiting = (int *)malloc(sizeof(int));
+
+#if defined(WIN32) || defined(_WIN64)
+	queue_lock = CreateMutex( 
+        NULL,              // default security attributes
+        FALSE,             // initially not owned
+        NULL);             // unnamed mutex
+	queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
+#else
+    pthread_mutex_init(&queue_lock, NULL);
+    pthread_cond_init(&queue_cond, NULL);
+#endif
+
 	thread_data = (thread_sievedata_t *)malloc(THREADS * sizeof(thread_sievedata_t));
 	for (i=0; i<THREADS; i++)
 	{
 		thread_data[i].dconf = (dynamic_conf_t *)malloc(sizeof(dynamic_conf_t));
 		thread_data[i].sconf = static_conf;
-		//thread_data[i].tindex = i;
+		thread_data[i].tindex = i;
+		// assign all thread's a pointer to the waiting queue.  access to 
+		// the array will be controlled by a mutex
+        thread_data[i].thread_queue = thread_queue;
+        thread_data[i].threads_waiting = threads_waiting;
+
+#if defined(WIN32) || defined(_WIN64)
+		// assign a pointer to the mutex
+		thread_data[i].queue_lock = &queue_lock;
+		thread_data[i].queue_event = &queue_events[i];
+#else
+		thread_data[i].queue_lock = &queue_lock;
+		thread_data[i].queue_cond = &queue_cond;
+#endif
 	}
 
 	//initialize the flag to watch for interrupts, and set the
@@ -186,185 +225,249 @@ void SIQS(fact_obj_t *fobj)
 	num_meas = 0;
 	orig_value = static_conf->tf_small_cutoff;
 
-	/* activate the threads one at a time. The last is the
-	   master thread (i.e. not a thread at all). */
-
-	for (i = 0; i < THREADS - 1; i++)
-		start_worker_thread(thread_data + i, 0);
-
-	start_worker_thread(thread_data + i, 1);
-
-	//main loop
-	while (num_found < num_needed)
+	// Activate the worker threads one at a time. 
+    // Initialize the work queue to say all threads are waiting for work
+	for (i = 0; i < THREADS; i++) 
 	{
-		//sequentially generate N threads worth of new poly A values,
-		//using each thread's dconf.  this routine also stores the coefficients
-		//in a master list (which is why this part is single threaded, for now).
+		start_worker_thread(thread_data + i);
+        thread_queue[i] = i;
+    }
+    *threads_waiting = THREADS;
 
-		for (i=0; i<THREADS; i++)
-		{
-#ifdef QS_TIMING
-			gettimeofday (&qs_timing_start, NULL);
-#endif
+          /*
+            MASTER THREAD:
 
-			static_conf->total_poly_a++;
-			//get a new 'a'
-			new_poly_a(static_conf,thread_data[i].dconf);
+            Start N threads  // so there are really N+1 threads: N workers doing poly processing plus one master
+            initialize thread queue to contain all thread IDs
 
-#ifdef QS_TIMING
-			gettimeofday (&qs_timing_stop, NULL);
-			qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+            lock queue mutex
+            while (1) {
 
-			POLY_STG0 += 
-				((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-			free(qs_timing_diff);
-#endif
-		}
+              while (waiting threads queue is non-empty) {
+                pull thread id T from queue
 
-		//process the polynomials
-		for (i = 0; i < THREADS; i++) 
-		{
-			thread_sievedata_t *t = thread_data + i;
+                if (T has results) {   // only false on first dispatch to T
+                  siqs_merge_data(T)
+                  do SIQS opt code
+                  free T's sieving structures
+                  update_check()
+                  re-allocate sieving structure
+                  threads_working--
+                }
 
-			if (i == THREADS - 1) {
-				process_poly(t);
-			}
-			else {
-				t->command = COMMAND_RUN;
+                if (num_found < num_needed) {  // could optimize here to predict when enough threads are in flight
+                  new_poly_a(T)
+                  signal T to start with COMMAND_RUN (same as current code)
+                  threads_working++
+                }
+              }
+
+              if (threads_working == 0) break;
+
+              // waiting threads queue is now empty
+              wait on thread queue condition (unlocks queue mutex)
+              // when cond_wait returns, a thread is waiting for work
+            }
+
+
+            WORKER THREADS:
+
+            while (1) {
+              wait for COMMAND_RUN (same as current code)
+              process_poly()
+              set COMMAND_WAIT
+
+              lock queue mutex
+              add my TID to the queue
+              signal queue condition
+              unlock queue mutex
+            }
+           */
+
+        // Master thread begins with the workqueue locked
+
 #if defined(WIN32) || defined(_WIN64)
-				SetEvent(t->run_event);
+	// nothing
 #else
-				pthread_cond_signal(&t->run_cond);
-				pthread_mutex_unlock(&t->run_lock);
+    pthread_mutex_lock(&queue_lock);
 #endif
-			}
-		}
 
-		/* wait for each thread to finish */
+    while (1)
+	{
 
-		for (i = 0; i < THREADS; i++) {
-			thread_sievedata_t *t = thread_data + i;
-
-			if (i < THREADS - 1) {
-#if defined(WIN32) || defined(_WIN64)
-				WaitForSingleObject(t->finish_event, INFINITE);
-#else
-				pthread_mutex_lock(&t->run_lock);
-				while (t->command != COMMAND_WAIT)
-					pthread_cond_wait(&t->run_cond, &t->run_lock);
-#endif
-			}
-		}
-
-		//merge the results of each thread's work into master structure	
-		for (i=0; i<THREADS; i++)
+		// Process threads until there are no more waiting for their results to be collected
+		while (*threads_waiting > 0)
 		{
-			num_found = siqs_merge_data(thread_data[i].dconf,static_conf);
-		}
+			int tid;
 
-		if (NO_SIQS_OPT == 0) 
-		{			
-			if (static_conf->total_poly_a > num_avg && num_meas < 3)
+			// Pop a waiting thread off the queue (OK, it's stack not a queue)
+#if defined(WIN32) || defined(_WIN64)
+			WaitForSingleObject( 
+				queue_lock,    // handle to mutex
+				INFINITE);  // no time-out interval
+#endif
+  
+			tid = thread_queue[--(*threads_waiting)];
+
+#if defined(WIN32) || defined(_WIN64)
+			ReleaseMutex(queue_lock);
+#endif
+
+			// Check whether the thread has any results to collect. This should only be false at the 
+			// very beginning, when the thread hasn't actually done anything yet.
+			if (thread_data[tid].dconf->buffered_rels)
 			{
-			
-				if (static_conf->total_poly_a - poly_start_num >= num_avg)
+				num_found = siqs_merge_data(thread_data[tid].dconf,static_conf);
+
+				if (NO_SIQS_OPT == 0) 
 				{
-					poly_start_num = static_conf->total_poly_a;
+					if (static_conf->total_poly_a > num_avg && num_meas < 3)
+					{
+			
+						if (static_conf->total_poly_a - poly_start_num >= num_avg)
+						{
+							poly_start_num = static_conf->total_poly_a;
 
-					gettimeofday (&optstop, NULL);
-					difference = my_difftime (&optstart, &optstop);
+							gettimeofday (&optstop, NULL);
+							difference = my_difftime (&optstart, &optstop);
 
-					opttime = 
-						((double)difference->secs + (double)difference->usecs / 1000000);
-					free(difference);
+							opttime = 
+							((double)difference->secs + (double)difference->usecs / 1000000);
+							free(difference);
 
-					//new avg
-					avg_rels_per_A = 
-						(static_conf->num_relations + static_conf->num_cycles - num_start)/num_avg/opttime;
+							//new avg
+							avg_rels_per_A = 
+							(static_conf->num_relations + static_conf->num_cycles - num_start)/num_avg/opttime;
 
-					results[num_meas] = avg_rels_per_A;
+							results[num_meas] = avg_rels_per_A;
 #ifdef OPT_DEBUG
-					fprintf(optfile,"%d,%d,%d,%d\n",num_meas,static_conf->total_poly_a,
-						avg_rels_per_A, static_conf->tf_small_cutoff);
+							fprintf(optfile,"%d,%d,%d,%d\n",num_meas,static_conf->total_poly_a,
+									avg_rels_per_A, static_conf->tf_small_cutoff);
 #endif
-						
-					if (num_meas == 0)
-					{
-						static_conf->tf_small_cutoff = orig_value + 5;
-					}
-					else if (num_meas == 1)
-					{
-						static_conf->tf_small_cutoff = orig_value - 5;
-					}
-					else
-					{
-						//we've got our three measurements, make a decision.
-						//the experimental results need to be several bigger than
-						//our original guess in order to override it.
-						//make it much harder to change if using DLP
-						if (static_conf->use_dlp)
-							results[0] += 16;
-						else
-							results[0] += 4;
-						if (results[0] > results[1])
-						{
-							if (results[0] > results[2])
-							{
-								static_conf->tf_small_cutoff = orig_value;
-							}
-							else
-							{
-								static_conf->tf_small_cutoff = orig_value - 5;
-							}
-						}
-						else
-						{
-							if (results[1] > results[2])
+
+							if (num_meas == 0)
 							{
 								static_conf->tf_small_cutoff = orig_value + 5;
 							}
-							else
+							else if (num_meas == 1)
 							{
 								static_conf->tf_small_cutoff = orig_value - 5;
 							}
-						}	
+							else
+							{
+								//we've got our three measurements, make a decision.
+								//the experimental results need to be several bigger than
+								//our original guess in order to override it.
+								//make it much harder to change if using DLP
+								if (static_conf->use_dlp)
+									results[0] += 16;
+								else
+									results[0] += 4;
+								if (results[0] > results[1])
+								{
+									if (results[0] > results[2])
+									{
+										static_conf->tf_small_cutoff = orig_value;
+									}
+									else
+									{
+										static_conf->tf_small_cutoff = orig_value - 5;
+									}
+								}
+								else
+								{
+									if (results[1] > results[2])
+									{
+										static_conf->tf_small_cutoff = orig_value + 5;
+									}
+									else
+									{
+										static_conf->tf_small_cutoff = orig_value - 5;
+									}
+								}	
 
 #ifdef OPT_DEBUG
-						fprintf(optfile,"final value = %d\n",static_conf->tf_small_cutoff);
+								fprintf(optfile,"final value = %d\n",static_conf->tf_small_cutoff);
 #endif
+							}
+
+							num_meas++;
+
+							num_start = static_conf->num_relations + static_conf->num_cycles;	
+
+							gettimeofday(&optstart, NULL);
+
+						}
 					}
-
-					num_meas++;
-
-					num_start = static_conf->num_relations + static_conf->num_cycles;	
-
-					gettimeofday(&optstart, NULL);
-
 				}
+
+				// free sieving structure
+				for (j=0; j<thread_data[tid].dconf->buffered_rels; j++)
+					free(thread_data[tid].dconf->relation_buf[j].fb_offsets);
+				thread_data[tid].dconf->num = 0;
+				thread_data[tid].dconf->tot_poly = 0;
+				thread_data[tid].dconf->buffered_rels = 0;
+
+				//check whether to continue or not, and update the screen
+				updatecode = update_check(static_conf);
+
+				// this thread is done, so decrement the count of working threads
+				threads_working--;
+			}
+
+			// if we have enough relations, or if there was a break signal, stop dispatching
+			// any more threads
+			if (updatecode == 0 && num_found < num_needed) 
+			{
+
+#ifdef QS_TIMING
+				gettimeofday (&qs_timing_start, NULL);
+#endif
+
+				// generate a new poly A value for the thread we pulled out of the queue
+				// using its dconf.  this is done by the master thread because it also 
+				// stores the coefficients in a master list
+				static_conf->total_poly_a++;
+				new_poly_a(static_conf,thread_data[tid].dconf);
+
+#ifdef QS_TIMING
+				gettimeofday (&qs_timing_stop, NULL);
+				qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+				POLY_STG0 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+				free(qs_timing_diff);
+#endif
+
+				// send the thread a signal to start processing the poly we just generated for it
+#if defined(WIN32) || defined(_WIN64)
+				thread_data[tid].command = COMMAND_RUN;
+				SetEvent(thread_data[tid].run_event);
+#else
+				pthread_mutex_lock(&thread_data[tid].run_lock);
+				thread_data[tid].command = COMMAND_RUN;
+				pthread_cond_signal(&thread_data[tid].run_cond);
+				pthread_mutex_unlock(&thread_data[tid].run_lock);
+#endif
+
+				// this thread is now busy, so increment the count of working threads
+				threads_working++;
 			}
 		}
 
-		//free sieving structure
-		for (i=0; i<THREADS; i++)
-		{
-			//free the relations we merged, and reset some counters/timers
-			for (j=0; j<thread_data[i].dconf->buffered_rels; j++)
-				free(thread_data[i].dconf->relation_buf[j].fb_offsets);
-			thread_data[i].dconf->num = 0;
-			thread_data[i].dconf->tot_poly = 0;
-		}
-
-		//check whether to continue or not, and update the screen
-		updatecode = update_check(static_conf);
-		if (updatecode)
+		// if all threads are done, break out
+		if (threads_working == 0)
 			break;
 
-		//if we need to continue, allocate the sieving structure again
-		for (i=0; i<THREADS; i++)
-		{
-			//get ready to collect some more relations
-			thread_data[i].dconf->buffered_rels = 0;
-		}
+		// wait for a thread to finish and put itself in the waiting queue
+#if defined(WIN32) || defined(_WIN64)
+		j = WaitForMultipleObjects(
+			THREADS,
+			queue_events,
+			FALSE,
+			INFINITE);
+#else
+		pthread_cond_wait(&queue_cond, &queue_lock);
+#endif
 	}
 
 #ifdef OPT_DEBUG
@@ -373,16 +476,13 @@ void SIQS(fact_obj_t *fobj)
 #endif		
 
 	//stop worker threads
-	for (i=0; i<THREADS - 1; i++)
+	for (i=0; i<THREADS; i++)
 	{
 		//static_conf->tot_poly += thread_data[i].dconf->tot_poly;
-		stop_worker_thread(thread_data + i, 0);
+		stop_worker_thread(thread_data + i);
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
 	}
-	stop_worker_thread(thread_data + i, 1);
-	free_sieve(thread_data[i].dconf);
-	free(thread_data[i].dconf->relation_buf);			
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
@@ -507,9 +607,14 @@ done:
 	}
 	free(static_conf);
 	free(thread_data);
+    free(thread_queue);
+    free(threads_waiting);
 	zFree(&tmp1);
 	zFree(&tmp2);
-	//free(threads);
+
+#if defined(WIN32) || defined(_WIN64)
+	free(queue_events);
+#endif
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
@@ -517,21 +622,15 @@ done:
 	return;
 }
 
-void start_worker_thread(thread_sievedata_t *t, 
-				uint32 is_master_thread) {
+void start_worker_thread(thread_sievedata_t *t) {
 
-	/* create a thread that will process a polynomial The last poly does 
-	   not get its own thread (the current thread handles it) */
-
-	if (is_master_thread) {
-		//matrix_thread_init(t);
-		return;
-	}
+    //create a thread that will process a polynomial 
 
 	t->command = COMMAND_INIT;
 #if defined(WIN32) || defined(_WIN64)
-	t->run_event = CreateEvent(NULL, FALSE, TRUE, NULL);
+	t->run_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->finish_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	*t->queue_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
 
 	WaitForSingleObject(t->finish_event, INFINITE); /* wait for ready */
@@ -539,32 +638,29 @@ void start_worker_thread(thread_sievedata_t *t,
 	pthread_mutex_init(&t->run_lock, NULL);
 	pthread_cond_init(&t->run_cond, NULL);
 
-	pthread_cond_signal(&t->run_cond);
-	pthread_mutex_unlock(&t->run_lock);
 	pthread_create(&t->thread_id, NULL, worker_thread_main, t);
 
 	pthread_mutex_lock(&t->run_lock); /* wait for ready */
 	while (t->command != COMMAND_WAIT)
 		pthread_cond_wait(&t->run_cond, &t->run_lock);
+	pthread_mutex_unlock(&t->run_lock);
 #endif
 }
 
-void stop_worker_thread(thread_sievedata_t *t,
-				uint32 is_master_thread)
+void stop_worker_thread(thread_sievedata_t *t)
 {
-	if (is_master_thread) {
-		//matrix_thread_free(t);
-		return;
-	}
 
-	t->command = COMMAND_END;
 #if defined(WIN32) || defined(_WIN64)
+	t->command = COMMAND_END;
 	SetEvent(t->run_event);
 	WaitForSingleObject(t->thread_id, INFINITE);
 	CloseHandle(t->thread_id);
 	CloseHandle(t->run_event);
 	CloseHandle(t->finish_event);
+	CloseHandle(*t->queue_event);
 #else
+	pthread_mutex_lock(&t->run_lock);
+	t->command = COMMAND_END;
 	pthread_cond_signal(&t->run_cond);
 	pthread_mutex_unlock(&t->run_lock);
 	pthread_join(t->thread_id, NULL);
@@ -580,7 +676,22 @@ void *worker_thread_main(void *thread_data) {
 #endif
 	thread_sievedata_t *t = (thread_sievedata_t *)thread_data;
 
-	while(1) {
+    /*
+        * Respond to the master thread that we're ready for work. If we had any thread-
+        * specific initialization which needed to be done, it would go before this signal.
+        */
+#if defined(WIN32) || defined(_WIN64)
+	t->command = COMMAND_WAIT;
+	SetEvent(t->finish_event);
+#else
+    pthread_mutex_lock(&t->run_lock);
+    t->command = COMMAND_WAIT;
+    pthread_cond_signal(&t->run_cond);
+    pthread_mutex_unlock(&t->run_lock);
+#endif
+
+	while(1)
+	{
 
 		/* wait forever for work to do */
 #if defined(WIN32) || defined(_WIN64)
@@ -602,14 +713,28 @@ void *worker_thread_main(void *thread_data) {
 
 		t->command = COMMAND_WAIT;
 #if defined(WIN32) || defined(_WIN64)
-		SetEvent(t->finish_event);		
+
+		WaitForSingleObject( 
+            *t->queue_lock,    // handle to mutex
+            INFINITE);  // no time-out interval
+ 
+		t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
+		SetEvent(*t->queue_event);
+
+		ReleaseMutex(*t->queue_lock);
+		
 #else
-		pthread_cond_signal(&t->run_cond);
 		pthread_mutex_unlock(&t->run_lock);
+
+        // lock the work queue and insert my thread ID into it
+        // this tells the master that my results should be collected
+        // and I should be dispatched another polynomial
+        pthread_mutex_lock(t->queue_lock);
+        t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
+        pthread_cond_signal(t->queue_cond);
+        pthread_mutex_unlock(t->queue_lock);
 #endif
 	}
-
-	//matrix_thread_free(t);
 
 #if defined(WIN32) || defined(_WIN64)
 	return 0;

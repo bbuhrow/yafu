@@ -1770,7 +1770,7 @@ void apply_tuneinfo(char *arg)
 #if defined(_WIN64)
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
 	{
-		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&QS_MULTIPLIER, &QS_EXPONENT,
@@ -1782,7 +1782,7 @@ void apply_tuneinfo(char *arg)
 #elif defined(WIN32)
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
 	{
-		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&QS_MULTIPLIER, &QS_EXPONENT,
 			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
@@ -1792,7 +1792,7 @@ void apply_tuneinfo(char *arg)
 #elif BITS_PER_DIGIT == 64
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
 	{
-		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&QS_MULTIPLIER, &QS_EXPONENT,
@@ -1803,7 +1803,7 @@ void apply_tuneinfo(char *arg)
 #else 
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
 	{
-		printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&QS_MULTIPLIER, &QS_EXPONENT,
