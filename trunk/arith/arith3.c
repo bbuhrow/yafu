@@ -778,8 +778,8 @@ int zBinGCD(z *u, z *v, z *w)
 	k = 0;
 	while(((uu.val[0] & 0x1) == 0) && ((vv.val[0] & 0x1) == 0))
 	{
-		zShiftRight(&uu,&uu,1);
-		zShiftRight(&vv,&vv,1);
+		zShiftRight_1(&uu,&uu);
+		zShiftRight_1(&vv,&vv);
 		k++;
 	}
 
@@ -787,14 +787,14 @@ int zBinGCD(z *u, z *v, z *w)
 	do
 	{
 		if ((uu.val[0] & 0x1) == 0)
-			zShiftRight(&uu,&uu,1);
+			zShiftRight_1(&uu,&uu);
 		else if ((vv.val[0] & 0x1) == 0)
-			zShiftRight(&vv,&vv,1);
+			zShiftRight_1(&vv,&vv);
 		else
 		{
 			zSub(&uu,&vv,&t);
 			t.size = abs(t.size);
-			zShiftRight(&t,&t,1);
+			zShiftRight_1(&t,&t);
 			if (zCompare(&uu,&vv) < 0)
 				zCopy(&t,&vv);
 			else

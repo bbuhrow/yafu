@@ -1301,10 +1301,11 @@ void zDiv(z *u, z *v, z *q, z *r)
 
 	//normalize v by shifting left (x2) shift number of times
 	//overflow should never occur to v during normalization
-	zShiftLeft(v,v,shift);
+	zShiftLeft_x(v,v,shift);
 
 	//left shift u the same amount - may get an overflow here
-	zShiftLeft(u,u,shift);
+	zShiftLeft_x(u,u,shift);
+
 	if (abs(u->size) == su)
 	{	//no overflow - force extra digit
 		if (u->size < 0)
@@ -1409,8 +1410,8 @@ void zDiv(z *u, z *v, z *q, z *r)
 	}
 
 	//unnormalize.
-	zShiftRight(v,v,shift);
-	zShiftRight(r,r,shift);
+	zShiftRight_x(v,v,shift);
+	zShiftRight_x(r,r,shift);
 
 	if (r->size == 0)
 		r->size = 1;
@@ -1817,6 +1818,128 @@ void zNeg(z *u)
 	return;
 }
 
+void zShiftLeft_1(z *a, z *b)
+{	
+	/* Computes a = b << 1 */
+	int i,sign;
+	int y;
+	int sb,j;
+	fp_digit carry, nextcarry;
+
+	if (b->size < 0)
+	{
+		sb = -1 * b->size;
+		sign = 1;
+	}
+	else
+	{
+		sb = b->size;
+		sign = 0;
+	}
+
+	a->size = sb;
+
+	//for each digit, remember the highest x bits using the mask, then shift.
+	//the highest x bits becomes the lowest x bits for the next digit
+	y = BITS_PER_DIGIT - 1;
+	carry = 0;
+	for (j = 0; j < sb; ++j)
+	{
+		nextcarry = (b->val[j] & HIBITMASK) >> y;
+		a->val[j] = b->val[j] << 1 | carry;
+		carry = nextcarry;
+	}
+	
+	if (carry)
+	{
+		a->val[sb] = carry;
+		a->size++;
+	}
+
+	if (sign)
+		a->size *= -1;
+
+	a->type = COMPOSITE;
+	return;
+}
+
+static uint64 LEFTSHIFTMASKS64[64] = {
+	0x0000000000000000, 0x8000000000000000, 0xC000000000000000, 0xE000000000000000, 
+	0xF000000000000000, 0xF800000000000000, 0xFC00000000000000, 0xFE00000000000000, 
+	0xFF00000000000000, 0xFF80000000000000, 0xFFC0000000000000, 0xFFE0000000000000, 
+	0xFFF0000000000000, 0xFFF8000000000000, 0xFFFC000000000000, 0xFFFE000000000000,
+	0xFFFF000000000000, 0xFFFF800000000000, 0xFFFFC00000000000, 0xFFFFE00000000000, 
+	0xFFFFF00000000000, 0xFFFFF80000000000, 0xFFFFFC0000000000, 0xFFFFFE0000000000, 
+	0xFFFFFF0000000000, 0xFFFFFF8000000000, 0xFFFFFFC000000000, 0xFFFFFFE000000000, 
+	0xFFFFFFF000000000, 0xFFFFFFF800000000, 0xFFFFFFFC00000000, 0xFFFFFFFE00000000,
+	0xFFFFFFFF00000000, 0xFFFFFFFF80000000, 0xFFFFFFFFC0000000, 0xFFFFFFFFE0000000, 
+	0xFFFFFFFFF0000000, 0xFFFFFFFFF8000000, 0xFFFFFFFFFC000000, 0xFFFFFFFFFE000000, 
+	0xFFFFFFFFFF000000, 0xFFFFFFFFFF800000, 0xFFFFFFFFFFC00000, 0xFFFFFFFFFFE00000, 
+	0xFFFFFFFFFFF00000, 0xFFFFFFFFFFF80000, 0xFFFFFFFFFFFC0000, 0xFFFFFFFFFFFE0000,
+	0xFFFFFFFFFFFF0000, 0xFFFFFFFFFFFF8000, 0xFFFFFFFFFFFFC000, 0xFFFFFFFFFFFFE000, 
+	0xFFFFFFFFFFFFF000, 0xFFFFFFFFFFFFF800, 0xFFFFFFFFFFFFFC00, 0xFFFFFFFFFFFFFE00, 
+	0xFFFFFFFFFFFFFF00, 0xFFFFFFFFFFFFFF80, 0xFFFFFFFFFFFFFFC0, 0xFFFFFFFFFFFFFFE0, 
+	0xFFFFFFFFFFFFFFF0, 0xFFFFFFFFFFFFFFF8, 0xFFFFFFFFFFFFFFFC, 0xFFFFFFFFFFFFFFFE};
+
+static uint32 LEFTSHIFTMASKS32[32] = {
+	0x00000000, 0x80000000, 0xC0000000, 0xE0000000,
+	0xF0000000, 0xF8000000, 0xFC000000, 0xFE000000,
+	0xFF000000, 0xFF800000, 0xFFC00000, 0xFFE00000,
+	0xFFF00000, 0xFFF80000, 0xFFFC0000, 0xFFFE0000,
+	0xFFFF0000, 0xFFFF8000, 0xFFFFC000, 0xFFFFE000,
+	0xFFFFF000, 0xFFFFF800, 0xFFFFFC00, 0xFFFFFE00,
+	0xFFFFFF00, 0xFFFFFF80, 0xFFFFFFC0, 0xFFFFFFE0,
+	0xFFFFFFF0, 0xFFFFFFF8, 0xFFFFFFFC, 0xFFFFFFFE};
+
+void zShiftLeft_x(z *a, z *b, int x)
+{	
+	/* Computes a = b << x, where x is less than a word */
+	int i,sign;
+	int y;
+	int sb,j;
+	fp_digit mask, carry, nextcarry;
+	
+#if BITS_PER_DIGIT == 64
+	mask = LEFTSHIFTMASKS64[x];
+#else
+	mask = LEFTSHIFTMASKS32[x];
+#endif
+
+	if (b->size < 0)
+	{
+		sb = -1 * b->size;
+		sign = 1;
+	}
+	else
+	{
+		sb = b->size;
+		sign = 0;
+	}
+
+	//for each digit, remember the highest x bits using the mask, then shift.
+	//the highest x bits becomes the lowest x bits for the next digit
+	y = BITS_PER_DIGIT - x;
+	carry = 0;
+	for (j = 0; j < sb; ++j)
+	{
+		nextcarry = (b->val[j] & mask) >> y;
+		a->val[j] = b->val[j] << x | carry;
+		carry = nextcarry;
+	}
+	
+	if (carry)
+	{
+		a->val[sb] = carry;
+		a->size++;
+	}
+
+	if (sign)
+		a->size *= -1;
+
+	a->type = COMPOSITE;
+	return;
+}
+
 void zShiftLeft(z *a, z *b, int x)
 {	
 	/* Computes a = b << x */
@@ -1828,12 +1951,11 @@ void zShiftLeft(z *a, z *b, int x)
 	wordshift = x/BITS_PER_DIGIT;
 	x = x%BITS_PER_DIGIT;
 
-	//create a mask for the bits that will overflow each digit
-	mask = HIBITMASK;
-	for (i = 1; i < x; ++i)
-		mask = (mask >> 1) | mask;
-
-	if (x == 0) mask = 0x0;
+#if BITS_PER_DIGIT == 64
+	mask = LEFTSHIFTMASKS64[x];
+#else
+	mask = LEFTSHIFTMASKS32[x];
+#endif
 	
 	sb = abs(b->size);
 	sign = (b->size < 0);
@@ -1888,12 +2010,7 @@ void zShiftLeft32(z32 *a, z32 *b, int x)
 	wordshift = x/32;
 	x = x%32;
 
-	//create a mask for the bits that will overflow each digit
-	mask = 0x80000000;
-	for (i = 1; i < x; ++i)
-		mask = (mask >> 1) | mask;
-
-	if (x == 0) mask = 0x0;
+	mask = LEFTSHIFTMASKS32[x];
 	
 	sb = abs(b->size);
 	sign = (b->size < 0);
@@ -1937,6 +2054,35 @@ void zShiftLeft32(z32 *a, z32 *b, int x)
 	return;
 }
 
+static uint64 RIGHTSHIFTMASKS64[64] = {
+	0x0000000000000000, 0x0000000000000001, 0x0000000000000003, 0x0000000000000007, 
+	0x000000000000000F, 0x000000000000001F, 0x000000000000003F, 0x000000000000007F, 
+	0x00000000000000FF, 0x00000000000001FF, 0x00000000000003FF, 0x00000000000007FF, 
+	0x0000000000000FFF, 0x0000000000001FFF, 0x0000000000003FFF, 0x0000000000007FFF,
+	0x000000000000FFFF, 0x000000000001FFFF, 0x000000000003FFFF, 0x000000000007FFFF, 
+	0x00000000000FFFFF, 0x00000000001FFFFF, 0x00000000003FFFFF, 0x00000000007FFFFF, 
+	0x0000000000FFFFFF, 0x0000000001FFFFFF, 0x0000000003FFFFFF, 0x0000000007FFFFFF, 
+	0x000000000FFFFFFF, 0x000000001FFFFFFF, 0x000000003FFFFFFF, 0x000000007FFFFFFF,
+	0x00000000FFFFFFFF, 0x00000001FFFFFFFF, 0x00000003FFFFFFFF, 0x00000007FFFFFFFF, 
+	0x0000000FFFFFFFFF, 0x0000001FFFFFFFFF, 0x0000003FFFFFFFFF, 0x0000007FFFFFFFFF, 
+	0x000000FFFFFFFFFF, 0x000001FFFFFFFFFF, 0x000003FFFFFFFFFF, 0x000007FFFFFFFFFF, 
+	0x00000FFFFFFFFFFF, 0x00001FFFFFFFFFFF, 0x00003FFFFFFFFFFF, 0x00007FFFFFFFFFFF,
+	0x0000FFFFFFFFFFFF, 0x0001FFFFFFFFFFFF, 0x0003FFFFFFFFFFFF, 0x0007FFFFFFFFFFFF, 
+	0x000FFFFFFFFFFFFF, 0x001FFFFFFFFFFFFF, 0x003FFFFFFFFFFFFF, 0x007FFFFFFFFFFFFF, 
+	0x00FFFFFFFFFFFFFF, 0x01FFFFFFFFFFFFFF, 0x03FFFFFFFFFFFFFF, 0x07FFFFFFFFFFFFFF, 
+	0x0FFFFFFFFFFFFFFF, 0x1FFFFFFFFFFFFFFF, 0x3FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF};
+
+static uint32 RIGHTSHIFTMASKS32[32] = {
+	0x00000000, 0x00000001, 0x00000003, 0x00000007,
+	0x0000000F, 0x0000001F, 0x0000003F, 0x0000007F,
+	0x000000FF, 0x000001FF, 0x000003FF, 0x000007FF,
+	0x00000FFF, 0x00001FFF, 0x00003FFF, 0x00007FFF,
+	0x0000FFFF, 0x0001FFFF, 0x0003FFFF, 0x0007FFFF,
+	0x000FFFFF, 0x001FFFFF, 0x003FFFFF, 0x007FFFFF,
+	0x00FFFFFF, 0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF,
+	0x0FFFFFFF, 0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF};
+
+
 void zShiftRight(z *a, z *b, int x)
 {	/* Computes a = b >> x */
 	int i, y, sign, wordshift;
@@ -1952,13 +2098,11 @@ void zShiftRight(z *a, z *b, int x)
 	wordshift = x/BITS_PER_DIGIT;
 	x = x%BITS_PER_DIGIT;
 
-	//create a mask for the bits that will overflow each digit
-	mask = 0x1;
-	for (i = 1; i < x; ++i)
-	{
-		mask = (mask << 1) | mask;
-	}
-	if (x == 0) mask = 0x0;
+#if BITS_PER_DIGIT == 64
+	mask = RIGHTSHIFTMASKS64[x];
+#else
+	mask = RIGHTSHIFTMASKS32[x];
+#endif
 	
 	sb = b->size;
 	sign = (b->size < 0);
@@ -2009,6 +2153,110 @@ void zShiftRight(z *a, z *b, int x)
 	return;
 }
 
+void zShiftRight_x(z *a, z *b, int x)
+{	/* Computes a = b >> x, where x is less than a word*/
+	int i, y, sign;
+	long sb;
+	fp_digit mask, carry, nextcarry;
+
+#if BITS_PER_DIGIT == 64
+	mask = RIGHTSHIFTMASKS64[x];
+#else
+	mask = RIGHTSHIFTMASKS32[x];
+#endif
+
+	if (b->size < 0)
+	{
+		sb = -1 * b->size;
+		sign = 1;
+	}
+	else
+	{
+		sb = b->size;
+		sign = 0;
+	}
+
+	a->size = sb;
+
+	//for each digit, remember the lowest x bits using the mask, then shift.
+	//the lowest x bits becomes the highest x bits for the next digit
+	y = BITS_PER_DIGIT - x;
+	carry = 0;
+	for (i = sb - 1; i >= 0; --i)
+	{
+		nextcarry = (b->val[i] & mask) << y;
+		a->val[i] = b->val[i] >> x | carry;
+		carry = nextcarry;
+	}
+
+	for (i = a->size - 1; i >= 0; i--)
+	{
+		if (a->val[i] == 0)
+			a->size--;
+		else
+			break;
+	}
+
+	if (a->size == 0)
+		a->size = 1;
+
+	if (sign)
+		a->size *= -1;
+
+	a->type = UNKNOWN;
+
+	return;
+}
+
+
+void zShiftRight_1(z *a, z *b)
+{	/* Computes a = b >> 1 */
+	int i, y, sign;
+	long sb;
+	fp_digit carry, nextcarry;
+
+	if (b->size < 0)
+	{
+		sb = -1 * b->size;
+		sign = 1;
+	}
+	else
+	{
+		sb = b->size;
+		sign = 0;
+	}
+
+	//for each digit, remember the lowest x bits using the mask, then shift.
+	//the lowest x bits becomes the highest x bits for the next digit
+	y = BITS_PER_DIGIT - 1;
+	carry = 0;
+	for (i = sb - 1; i >= 0; --i)
+	{
+		nextcarry = (b->val[i] & 0x1) << y;
+		a->val[i] = b->val[i] >> 1 | carry;
+		carry = nextcarry;
+	}
+
+	for (i = a->size - 1; i >= 0; i--)
+	{
+		if (a->val[i] == 0)
+			a->size--;
+		else
+			break;
+	}
+
+	if (a->size == 0)
+		a->size = 1;
+
+	if (sign)
+		a->size *= -1;
+
+	a->type = UNKNOWN;
+
+	return;
+}
+
+
 void zShiftRight32(z32 *a, z32 *b, int x)
 {	
 	//Computes a = in >> 1 
@@ -2027,13 +2275,7 @@ void zShiftRight32(z32 *a, z32 *b, int x)
 	wordshift = x/32;
 	x = x%32;
 
-	//create a mask for the bits that will overflow each digit
-	mask = 0x1;
-	for (i = 1; i < x; ++i)
-	{
-		mask = (mask << 1) | mask;
-	}
-	if (x == 0) mask = 0x0;
+	mask = RIGHTSHIFTMASKS32[x];
 	
 	sb = b->size;
 	sign = (b->size < 0);
@@ -2061,6 +2303,51 @@ void zShiftRight32(z32 *a, z32 *b, int x)
 		//zero out the ones that were shifted
 		a->size -= wordshift;
 	}	
+
+	for (i = a->size - 1; i >= 0; i--)
+	{
+		if (a->val[i] == 0)
+			a->size--;
+		else
+			break;
+	}
+
+	if (a->size == 0)
+		a->size = 1;
+
+	if (sign)
+		a->size *= -1;
+
+	a->type = UNKNOWN;
+
+	return;
+}
+
+void zShiftRight32_x(z32 *a, z32 *b, int x)
+{	
+	//Computes a = in >> x, where x is less than a word 
+	//only used in the trial division stage of QS
+
+	int i, y, sign;
+	long sb;
+	fp_digit mask, carry, nextcarry;
+
+	mask = RIGHTSHIFTMASKS32[x];
+	
+	sb = b->size;
+	sign = (b->size < 0);
+	a->size = sb;
+
+	//for each digit, remember the lowest x bits using the mask, then shift.
+	//the lowest x bits becomes the highest x bits for the next digit
+	y = 32 - x;
+	carry = 0;
+	for (i = sb - 1; i >= 0; --i)
+	{
+		nextcarry = (b->val[i] & mask) << y;
+		a->val[i] = b->val[i] >> x | carry;
+		carry = nextcarry;
+	}
 
 	for (i = a->size - 1; i >= 0; i--)
 	{

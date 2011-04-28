@@ -111,6 +111,15 @@ double TF_SPECIAL;
 	#undef SSE2_RESIEVING
 #endif
 
+//#define USE_8X_MOD 1
+//#define USE_8X_MOD_ASM 1
+
+#ifdef USE_8X_MOD
+	#define FOGSHIFT 24
+#else
+	#define FOGSHIFT 40
+#endif
+
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;
 //double times_checked_per_side;
@@ -189,10 +198,25 @@ typedef struct poly_t {
 	z b;						// the MPQS 'b' value 
 } poly_t;
 
+#ifdef USE_8X_MOD
+	typedef struct
+	{
+		uint32 *correction;
+		uint32 *small_inv;
+		uint32 *prime;
+		uint32 *logprime;
+	} tiny_fb_element_siqs;
+#endif
+
 typedef struct
 {
+#ifdef USE_8X_MOD
+	uint16 *correction;			//for the range of value for which these are used
+	uint16 *small_inv;			//they are always less than 16 bits
+#else
 	uint32 *correction;
 	uint32 *small_inv;
+#endif
 	uint32 *prime;
 	uint32 *logprime;
 } fb_element_siqs;
@@ -250,6 +274,9 @@ typedef struct
 	uint32 large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 4)
 	uint32 x2_large_B;
 	fb_element_siqs *list;
+#ifdef USE_8X_MOD
+	tiny_fb_element_siqs *tinylist;
+#endif
 } fb_list;
 
 /* The sieving code needs a special structure for determining
@@ -422,6 +449,7 @@ typedef struct {
 
 	//counters and timers
 	uint32 num;					// sieve locations we've subjected to trial division
+	double rels_per_sec;
 
 	char buf[512];
 	uint32 cutoff;

@@ -97,8 +97,23 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 
 			//store a couple things so we can replace single precision
 			//mods with shifts and muls during trial division
+			//the shift determines how big the dividends can be - it should be 
+			//greater than the max possible dividend.  The shift should not be too
+			//big though.  Max word size (inverse * dividend) >> shift should leave
+			//more bits than the max divisor.
 			if (prime < 256)
 			{
+#ifdef USE_8X_MOD
+				fb->tinylist->small_inv[j] = (uint32)(((uint64)1 << 32) / prime);
+				if (floor(MP_RADIX / (double)prime + 0.5) ==
+								(double)fb->tinylist->small_inv[j]) {
+					fb->tinylist->correction[j] = 1;
+				}
+				else {
+					fb->tinylist->correction[j] = 0;
+					fb->tinylist->small_inv[j]++;
+				}
+#else
 				fb->list->small_inv[j] = (uint32)(((uint64)1 << 32) / (uint64)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
@@ -108,11 +123,13 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#endif
 			}
 			else
 			{
-				fb->list->small_inv[j] = (uint32)(((uint64)1 << 40) / (uint64)prime);
-				if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
+#ifdef USE_8X_MOD
+				fb->list->small_inv[j] = (uint16)(((uint32)1 << FOGSHIFT) / prime);
+				if (floor(256 * 65536 / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
@@ -120,6 +137,17 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#else
+				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
+				if (floor((double)(1 << FOGSHIFT) / (double)prime + 0.5) ==
+								(double)fb->list->small_inv[j]) {
+					fb->list->correction[j] = 1;
+				}
+				else {
+					fb->list->correction[j] = 0;
+					fb->list->small_inv[j]++;
+				}
+#endif
 			}
 
 			j++;
@@ -148,6 +176,18 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			//this is very fragile... need better range checking.
 			if (prime < 256)
 			{
+#ifdef USE_8X_MOD
+				fb->tinylist->small_inv[j] = (uint32)(((uint64)1 << 32) / prime);
+				if (floor(MP_RADIX / (double)prime + 0.5) ==
+								(double)fb->tinylist->small_inv[j]) {
+					fb->tinylist->correction[j] = 1;
+				}
+				else {
+					fb->tinylist->correction[j] = 0;
+					fb->tinylist->small_inv[j]++;
+				}
+				fb->tinylist->prime[j] = prime;
+#else
 				fb->list->small_inv[j] = (uint32)(((uint64)1 << 32) / (uint64)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
@@ -157,11 +197,13 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#endif
 			}
 			else
 			{
-				fb->list->small_inv[j] = (uint32)(((uint64)1 << 40) / (uint64)prime);
-				if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
+#ifdef USE_8X_MOD
+				fb->list->small_inv[j] = (uint16)(((uint32)1 << FOGSHIFT) / prime);
+				if (floor(256 * 65536 / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
@@ -169,6 +211,17 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					fb->list->correction[j] = 0;
 					fb->list->small_inv[j]++;
 				}
+#else
+				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
+				if (floor((double)(1 << FOGSHIFT) / (double)prime + 0.5) ==
+								(double)fb->list->small_inv[j]) {
+					fb->list->correction[j] = 1;
+				}
+				else {
+					fb->list->correction[j] = 0;
+					fb->list->small_inv[j]++;
+				}
+#endif
 			}
 
 			

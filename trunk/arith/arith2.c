@@ -635,7 +635,7 @@ void zModExp(z *a, z *b, z *m, z *u)
 			zMul(&n,&aa,&t);  //n*a
 			zDiv(&t,m,&q,&n);   //n*a mod m
 		}
-		zShiftRight(&bb,&bb,1);   //compute successive squares of a
+		zShiftRight_1(&bb,&bb);   //compute successive squares of a
 		zSqr(&aa,&t);
 		zDiv(&t,m,&q,&aa);
 		if (aa.size < 0)

@@ -1733,7 +1733,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 51: 
 
-		break;	// not supported in official release
+		//break;	// not supported in official release
 
 		//maxbn = 0;
 		//for (i=0;i<10;i++) gcounts[i] = 0;
