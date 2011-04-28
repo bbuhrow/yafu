@@ -364,6 +364,76 @@ int main(int argc, char *argv[])
 	//}
 	//printf("};\n");
 
+	if (0)
+	{
+		uint32 count = 0;
+		for (i=0; i<100000000; i++)
+		{
+			uint16 t16, inv16, c16;
+			uint32 t32, inv32, c32, q32;
+			uint64 q64;
+			uint32 block_loc, prime;
+
+			block_loc = spRand(0, (1 << 15) - 1);
+			prime = spRand((1 << 8) + 1, (1 << 13) - 1);
+			if ((prime & 0x1) == 0)
+				prime++;
+
+			t16 = BLOCKSIZE - block_loc;
+			t32 = BLOCKSIZE - block_loc;
+			inv16 = (uint16)(((uint32)1 << 24) / prime);
+			inv32 = (uint32)(((uint64)1 << 40) / prime);
+
+			if (floor(256 * 65535 / (double)prime + 0.5) ==
+							(double)inv16) {
+				c16 = 1;
+			}
+			else {
+				c16 = 0;
+				inv16++;
+			}
+
+			if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
+							(double)inv32) {
+				c32 = 1;
+			}
+			else {
+				c32 = 0;
+				inv32++;
+			}
+
+			t16 = t16 + c16;
+			q32 = (uint32)t16 * (uint32)inv16;
+			t16 = q32 >> 24; 
+			t16 = t16 + 1;
+			t16 = block_loc + t16 * prime;
+			t16 -= BLOCKSIZE;
+			//t16 += prime;
+
+			//if (t16 > BLOCKSIZE) t16 += prime;
+			//if (t16 >= prime) t16 -= prime;
+
+			t32 = t32 + c32;
+			q64 = (uint64)t32 * (uint64)inv32;
+			t32 = q64 >> 40; 
+			t32 = t32 + 1;
+			t32 = block_loc + t32 * prime;
+			t32 -= BLOCKSIZE;
+
+			//if (t32 == prime) t32 -= prime;
+
+			if (t16 != t32)
+			{
+			
+				printf("failed with mod16 = %u, mod32 = %u, p = %u, loc = %u, c16 = %u, c32 = %u, inv16 = %u, inv32 = %u\n",
+					t16,t32,prime,BLOCKSIZE-block_loc,c16,c32,inv16,inv32);
+				count++;
+			}
+		}
+
+		printf("attempts = %u, incorrect = %u, percent = %6.6f", 
+			100000000, count, (double)count / (double)100000000 * 100.);
+	}
 
 	//command line
 	while (1)

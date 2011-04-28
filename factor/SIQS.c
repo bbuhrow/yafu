@@ -81,7 +81,9 @@ void SIQS(fact_obj_t *fobj)
 
 	//adaptive tf_small_cutoff variables
 	int avg_rels_per_A = 0;
-	int results[3] = {0,0,0};
+	double rels_per_sec_avg = 0.0;
+	double results[3] = {0.0,0.0,0.0};
+	int averaged_polys = 0;
 	int num_avg = 10;
 	int num_start = 0;
 	int num_meas = 1;
@@ -321,29 +323,20 @@ void SIQS(fact_obj_t *fobj)
 
 				if (NO_SIQS_OPT == 0) 
 				{
-					if (static_conf->total_poly_a > num_avg && num_meas < 3)
-					{
-			
-						if (static_conf->total_poly_a - poly_start_num >= num_avg)
+					if (num_meas < 3)
+					{			
+						if (averaged_polys >= num_avg)
 						{
 							poly_start_num = static_conf->total_poly_a;
+							results[num_meas] = rels_per_sec_avg / (double)averaged_polys;						
 
-							gettimeofday (&optstop, NULL);
-							difference = my_difftime (&optstart, &optstop);
-
-							opttime = 
-							((double)difference->secs + (double)difference->usecs / 1000000);
-							free(difference);
-
-							//new avg
-							avg_rels_per_A = 
-							(static_conf->num_relations + static_conf->num_cycles - num_start)/num_avg/opttime;
-
-							results[num_meas] = avg_rels_per_A;
 #ifdef OPT_DEBUG
-							fprintf(optfile,"%d,%d,%d,%d\n",num_meas,static_conf->total_poly_a,
-									avg_rels_per_A, static_conf->tf_small_cutoff);
+							fprintf(optfile,"%d,%d,%f,%d\n",num_meas,static_conf->total_poly_a,
+									results[num_meas], static_conf->tf_small_cutoff);
 #endif
+
+							rels_per_sec_avg = 0.0;
+							averaged_polys = 0;
 
 							if (num_meas == 0)
 							{
@@ -356,47 +349,39 @@ void SIQS(fact_obj_t *fobj)
 							else
 							{
 								//we've got our three measurements, make a decision.
-								//the experimental results need to be several bigger than
-								//our original guess in order to override it.
-								//make it much harder to change if using DLP
+								//the experimental results need to be convincingly better
+								//in order to switch to a different value.  2% for numbers
+								//with one LP, 5% for DLP.
 								if (static_conf->use_dlp)
-									results[0] += 16;
+									results[0] *= 1.05;
 								else
-									results[0] += 4;
+									results[0] *= 1.02;
+
 								if (results[0] > results[1])
 								{
 									if (results[0] > results[2])
-									{
 										static_conf->tf_small_cutoff = orig_value;
-									}
 									else
-									{
 										static_conf->tf_small_cutoff = orig_value - 5;
-									}
 								}
 								else
 								{
 									if (results[1] > results[2])
-									{
 										static_conf->tf_small_cutoff = orig_value + 5;
-									}
 									else
-									{
 										static_conf->tf_small_cutoff = orig_value - 5;
-									}
 								}	
-
 #ifdef OPT_DEBUG
 								fprintf(optfile,"final value = %d\n",static_conf->tf_small_cutoff);
 #endif
 							}
 
 							num_meas++;
-
-							num_start = static_conf->num_relations + static_conf->num_cycles;	
-
-							gettimeofday(&optstart, NULL);
-
+						}
+						else
+						{
+							rels_per_sec_avg += thread_data[tid].dconf->rels_per_sec;
+							averaged_polys++;
 						}
 					}
 				}
@@ -767,6 +752,11 @@ void *process_poly(void *ptr)
 	//locals
 	uint32 i;
 
+	//to get relations per second
+	double t_time;
+	struct timeval start, stop;
+	TIME_DIFF *	difference;
+
 	//this routine is handed a dconf structure which already has a
 	//new poly a coefficient (and some supporting data).  continue from
 	//there, first initializing the gray code...
@@ -776,6 +766,8 @@ void *process_poly(void *ptr)
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_start, NULL);
 #endif
+
+	gettimeofday (&start, NULL);
 
 	//update the gray code
 	get_gray_code(dconf->curr_poly);
@@ -835,7 +827,14 @@ void *process_poly(void *ptr)
 		nextRoots(sconf, dconf);
 
 	}
-	
+
+	gettimeofday (&stop, NULL);
+	difference = my_difftime (&start, &stop);
+
+	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+	free(difference);
+	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
+
 	//printf("average utilizaiton of buckets in slices\n");
 	//for (i=0; i<20; i++)
 	//	printf("%d: %1.1f ",i,average_primes_per_slice[i]);
@@ -1483,10 +1482,30 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+#ifdef USE_8X_MOD
+		sconf->factor_base->list->small_inv = (uint16 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
+		sconf->factor_base->list->correction = (uint16 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
+
+		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)_aligned_malloc(
+			(size_t)(sizeof(tiny_fb_element_siqs)),64);
+
+		sconf->factor_base->tinylist->correction = (uint32 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->small_inv = (uint32 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->prime = (uint32 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->logprime = (uint32 *)_aligned_malloc(
+			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+#else
 		sconf->factor_base->list->small_inv = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
 		sconf->factor_base->list->correction = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+#endif
+		
 		sconf->factor_base->list->logprime = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
 #else
@@ -1496,10 +1515,31 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+#ifdef USE_8X_MOD
+		sconf->factor_base->list->small_inv = (uint16 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint16)));
+		sconf->factor_base->list->correction = (uint16 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint16)));
+
+		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)memalign(64,
+			(size_t)(sizeof(tiny_fb_element_siqs)));
+
+		sconf->factor_base->tinylist->logprime = (uint32 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+		sconf->factor_base->tinylist->prime = (uint32 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+		sconf->factor_base->tinylist->correction = (uint32 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+		sconf->factor_base->tinylist->small_inv = (uint32 *)memalign(64,
+			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+
+#else
 		sconf->factor_base->list->small_inv = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 		sconf->factor_base->list->correction = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+#endif
+		
 		sconf->factor_base->list->logprime = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 #endif
@@ -1544,6 +1584,13 @@ int siqs_static_init(static_conf_t *sconf)
 			align_free(sconf->factor_base->list->correction);
 			align_free(sconf->factor_base->list->logprime);
 			align_free(sconf->factor_base->list);	
+#ifdef USE_8X_MOD
+			align_free(sconf->factor_base->tinylist->prime);
+			align_free(sconf->factor_base->tinylist->small_inv);
+			align_free(sconf->factor_base->tinylist->correction);
+			align_free(sconf->factor_base->tinylist->logprime);
+			align_free(sconf->factor_base->tinylist);	
+#endif
 		}
 	}
 
@@ -2294,6 +2341,13 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->list->correction);
 	align_free(sconf->factor_base->list->logprime);
 	align_free(sconf->factor_base->list);
+#ifdef USE_8X_MOD
+	align_free(sconf->factor_base->tinylist->prime);
+	align_free(sconf->factor_base->tinylist->small_inv);
+	align_free(sconf->factor_base->tinylist->correction);
+	align_free(sconf->factor_base->tinylist->logprime);
+	align_free(sconf->factor_base->tinylist);
+#endif
 	free(sconf->factor_base);
 
 	//while freeing the list of factors, divide them out of the input

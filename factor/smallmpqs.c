@@ -109,7 +109,6 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 	#define SIMD_SIEVE_SCAN 1
 	#define SSE2_RESIEVING 1
-	#define SCAN_CLEAN /*nothing*/
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
@@ -510,7 +509,7 @@ void smallmpqs(fact_obj_t *fobj)
 	closnuf += (uint8)(log((double)sieve_interval/2)/log(2.0));
 	closnuf -= (uint8)(sieve_params.fudge_factor * log(cutoff) / log(2.0));
 	
-	closnuf += 3;
+	closnuf += 6;
 
 	//small prime variation -- hand tuned small_bits correction (likely could be better)
 	small_bits = 7;
@@ -565,6 +564,7 @@ void smallmpqs(fact_obj_t *fobj)
 			//zSub(&sqrt_n,&poly->poly_b,&tmp);
 			//zDiv(&tmp,&poly->poly_a,&tmp2,&tmp3);
 			smpqs_sieve_block(sieve,fb_sieve_p,start_prime,s_init,fb);
+
 			i = smpqs_check_relations(sieve_interval,j2,sieve,n,poly,
 				s_init,fb_sieve_p,fb,full,partial,cutoff,small_bits,
 				start_prime,0,&num,numpoly);
@@ -866,7 +866,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 s
 				(*num)++;
 
 				offset = (blocknum<<BLOCKBITS) + thisloc;
-				zShiftLeft(&t2,&poly->poly_b,1);
+				zShiftLeft_1(&t2,&poly->poly_b);
 
 				zShortMul(&poly->poly_a,offset,&t1);
 				if (parity)
@@ -905,8 +905,8 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 s
 	do \
 	{						\
 		fboffset[++smooth_num] = i;	\
-		zShortDiv(Q,prime,Q);			\
-	} while (zShortMod(Q,prime) == 0);
+		zShortDiv32(&Q32,prime,&Q32);			\
+	} while (zShortMod32(&Q32,prime) == 0);
 
 static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpqs_rlist *partial,
 						  uint8 *sieve, uint32 offset, uint32 j, uint32 sign, fb_list *fullfb, uint32 cutoff,
@@ -921,6 +921,7 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	uint8 logp;
 	num_f = full->num_r;
 	num_p = partial->num_r;
+	z32 Q32;
 	
 	//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
 	//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
@@ -949,6 +950,17 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		fboffset[++smooth_num] = 1;
 	}
 
+	zInit32(&Q32);
+#if BITS_PER_DIGIT == 32
+		for (i=0; i<abs(Q->size); i++)
+			Q32.val[i] = Q->val[i];
+		Q32.size = Q->size;
+		Q32.type = Q->type;
+
+#else
+		z64_to_z32(Q,&Q32);
+#endif
+
 	//completely unrolled trial division by primes that we have not 
 	//sieved via the small prime variation
 	{
@@ -968,15 +980,16 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
 
-		if ((tmp1 == root1 || tmp1 == root2) || 
-			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		//if ((tmp1 == root1 || tmp1 == root2) || 
+		//	(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		if (tmp1 == root1 || tmp1 == root2)
 		{
 			do
 			{
 				fboffset[++smooth_num] = 2;
-				zShortDiv(Q,prime,Q);
+				zShortDiv32(&Q32,prime,&Q32);
 				bits += logp;
-			} while (zShortMod(Q,prime) == 0);
+			} while (zShortMod32(&Q32,prime) == 0);
 		}
 
 		fbptr = fb + 3;
@@ -992,15 +1005,14 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
 
-		if ((tmp1 == root1 || tmp1 == root2) || 
-			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		if (tmp1 == root1 || tmp1 == root2)
 		{
 			do
 			{
 				fboffset[++smooth_num] = 3;
-				zShortDiv(Q,prime,Q);
+				zShortDiv32(&Q32,prime,&Q32);
 				bits += logp;
-			} while (zShortMod(Q,prime) == 0);
+			} while (zShortMod32(&Q32,prime) == 0);
 		}
 
 		fbptr = fb + 4;
@@ -1016,15 +1028,14 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
 
-		if ((tmp1 == root1 || tmp1 == root2) || 
-			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		if (tmp1 == root1 || tmp1 == root2)
 		{
 			do
 			{
 				fboffset[++smooth_num] = 4;
-				zShortDiv(Q,prime,Q);
+				zShortDiv32(&Q32,prime,&Q32);
 				bits += logp;
-			} while (zShortMod(Q,prime) == 0);
+			} while (zShortMod32(&Q32,prime) == 0);
 		}
 
 		fbptr = fb + 5;
@@ -1040,15 +1051,14 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
 
-		if ((tmp1 == root1 || tmp1 == root2) || 
-			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		if (tmp1 == root1 || tmp1 == root2)
 		{
 			do
 			{
 				fboffset[++smooth_num] = 5;
-				zShortDiv(Q,prime,Q);
+				zShortDiv32(&Q32,prime,&Q32);
 				bits += logp;
-			} while (zShortMod(Q,prime) == 0);
+			} while (zShortMod32(&Q32,prime) == 0);
 		}
 
 		fbptr = fb + 6;
@@ -1064,15 +1074,14 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		//at this point tmp1 is offset / prime
 		tmp1 = offset - tmp1 * prime;
 
-		if ((tmp1 == root1 || tmp1 == root2) || 
-			(root1 == prime && tmp1 == 0) || (root2 == prime && tmp1 == 0))
+		if (tmp1 == root1 || tmp1 == root2)
 		{
 			do
 			{
 				fboffset[++smooth_num] = 6;
-				zShortDiv(Q,prime,Q);
+				zShortDiv32(&Q32,prime,&Q32);
 				bits += logp;
-			} while (zShortMod(Q,prime) == 0);
+			} while (zShortMod32(&Q32,prime) == 0);
 		}
 	}
 
@@ -1179,7 +1188,7 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	}
 
 	//check if it completely factored by looking at the unfactored portion in tmp
-	if ((Q->size == 1) && (Q->val[0] == 1))
+	if ((Q32.size == 1) && (Q32.val[0] == 1))
 	{
 		if (full->num_r == full->allocated) 
 		{
@@ -1191,9 +1200,9 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 		}
 		smpqs_save_relation(full,offset,1,smooth_num+1,num_f,fboffset,numpoly,parity);
 	}
-	else if ((Q->size == 1)  && (Q->val[0] < cutoff))
+	else if ((Q32.size == 1)  && (Q32.val[0] < cutoff))
 	{
-		smpqs_save_relation(partial,offset,Q->val[0],smooth_num+1,num_p,fboffset,numpoly,parity);
+		smpqs_save_relation(partial,offset,Q32.val[0],smooth_num+1,num_p,fboffset,numpoly,parity);
 
 		if (partial->num_r == partial->allocated) 
 		{
@@ -1204,6 +1213,8 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 					partial->allocated * sizeof(mpqs_r *));
 		}
 	}
+
+	zFree32(&Q32);
 	return;
 }
 
@@ -1228,10 +1239,10 @@ static void smpqs_save_relation(mpqs_rlist *list, uint32 offset, uint32 largepri
 static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_prime, 
 	uint8 s_init, fb_list *fullfb)
 {
-	uint32 prime, root1, root2, tmp;
+	uint32 prime, root1, root2, tmp, stop;
 	uint32 B=fullfb->B;
 	uint32 i;
-	uint8 logp;
+	uint8 logp, *s2;
 	smpqs_sieve_fb *fbptr;
 
 	//initialize block
@@ -1246,7 +1257,19 @@ static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_pri
 		root2 = fbptr->roots & 0xffff;
 		logp = fbptr->prime_and_logp & 0xff;
 
-		//sieve over both roots
+		stop = BLOCKSIZE - prime;
+		s2 = sieve + prime;
+
+		while (root2 < stop)
+		{
+			sieve[root1] -= logp;
+			sieve[root2] -= logp;
+			s2[root1] -= logp;
+			s2[root2] -= logp;
+			root1 += (prime << 1);
+			root2 += (prime << 1);
+		}
+
 		while (root2 < BLOCKSIZE)
 		{
 			sieve[root1] -= logp;
@@ -1370,13 +1393,107 @@ void smpqs_computeRoots(mpqs_poly *poly, fb_list *fb, uint32 *modsqrt,
 	//uint32 root1, root2, prime, amodp;
 	int root1, root2, prime, amodp, bmodp, x;
 	uint32 i;
+	
+	for (i=2;i<7;i++)
+	{
+		uint64 q64, tmp, t2;
 
-	for (i=start_prime;i<fb->B;i++)
+		prime = fb->list->prime[i]; 
+		root1 = modsqrt[i]; 
+		root2 = prime - root1; 
+
+		bmodp = zShortMod(&poly->poly_b,prime);
+		x = (int)root1 - bmodp;
+		if (x < 0) x += prime; root1 = x;
+		x = (int)root2 - bmodp;
+		if (x < 0) x += prime; root2 = x;
+
+		amodp = zShortMod(&poly->poly_a,prime);
+		amodp = modinv_1(amodp,prime);
+
+		//root1 = (uint32)((uint64)amodp * (uint64)root1 % (uint64)prime);
+		t2 = (uint64)amodp * (uint64)root1;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 32; 
+		root1 = t2 - tmp * prime;
+
+		//root2 = (uint32)((uint64)amodp * (uint64)root2 % (uint64)prime);	
+		t2 = (uint64)amodp * (uint64)root2;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 32; 
+		root2 = t2 - tmp * prime;
+
+		// we don't sieve these primes, so ordering doesn't matter
+		fbp[i].roots = (uint32)((root1 << 16) | root2);
+		if (root2 == 0) fbn[i].roots = 0;
+		else fbn[i].roots = (uint32)((prime - root2) << 16);
+		if (root1 == 0) fbn[i].roots |= 0;
+		else fbn[i].roots |= (uint32)(prime - root1);
+	}
+
+	for (i=7;i<fb->B;i++)
 	{
 		//take the fast method of computing the inverse from lenstra...
 		//root1 = fb->list[i].c1;
 		//root2 = fb->list[i].c2;
 		//prime = fb->list[i].prime;
+		uint64 q64, tmp, t2;
+
+		prime = fb->list->prime[i];
+		root1 = modsqrt[i]; 
+		root2 = prime - root1; 
+
+		if (prime > 256)
+			break;
+
+		bmodp = zShortMod(&poly->poly_b,prime);
+		x = (int)root1 - bmodp;
+		if (x < 0) x += prime;
+		root1 = x;
+		x = (int)root2 - bmodp;
+		if (x < 0) x += prime;
+		root2 = x;
+	
+		//now (t - b) mod p is in root1 and (-t - b) mod p is in root2
+		//find a^-1 mod p = inv(a mod p) mod p
+		amodp = zShortMod(&poly->poly_a,prime);
+		amodp = modinv_1(amodp,prime);
+
+		//root1 = (uint32)((uint64)amodp * (uint64)root1 % (uint64)prime);
+		t2 = (uint64)amodp * (uint64)root1;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 32; 
+		root1 = t2 - tmp * prime;
+
+		//root2 = (uint32)((uint64)amodp * (uint64)root2 % (uint64)prime);	
+		t2 = (uint64)amodp * (uint64)root2;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 32; 
+		root2 = t2 - tmp * prime;
+
+		if (root2 < root1)
+		{
+			fbp[i].roots = (uint32)((root2 << 16) | root1);
+			fbn[i].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
+		}
+		else
+		{
+			fbp[i].roots = (uint32)((root1 << 16) | root2);
+			fbn[i].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
+		}
+	}
+
+	for ( ;i<fb->B;i++)
+	{
+		//take the fast method of computing the inverse from lenstra...
+		//root1 = fb->list[i].c1;
+		//root2 = fb->list[i].c2;
+		//prime = fb->list[i].prime;
+		uint64 q64, tmp, t2;
 
 		prime = fb->list->prime[i];
 		root1 = modsqrt[i]; 
@@ -1395,8 +1512,19 @@ void smpqs_computeRoots(mpqs_poly *poly, fb_list *fb, uint32 *modsqrt,
 		amodp = zShortMod(&poly->poly_a,prime);
 		amodp = modinv_1(amodp,prime);
 
-		root1 = (uint32)((uint64)amodp * (uint64)root1 % (uint64)prime);
-		root2 = (uint32)((uint64)amodp * (uint64)root2 % (uint64)prime);		
+		//root1 = (uint32)((uint64)amodp * (uint64)root1 % (uint64)prime);
+		t2 = (uint64)amodp * (uint64)root1;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 40; 
+		root1 = t2 - tmp * prime;
+
+		//root2 = (uint32)((uint64)amodp * (uint64)root2 % (uint64)prime);	
+		t2 = (uint64)amodp * (uint64)root2;
+		tmp = t2 + (uint64)fb->list->correction[i];
+		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = q64 >> 40; 
+		root2 = t2 - tmp * prime;
 
 		if (root2 < root1)
 		{
@@ -1762,7 +1890,7 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 								//if it's not odd (factors of 2 creep in there, for some reason
 								//remove the 2's
 								while (!(nn.val[0] & 0x1))
-									zShiftRight(&nn,&nn,1);
+									zShiftRight_1(&nn,&nn);
 							}							
 
 							if ((zCompare(&nn,&zOne) > 0) && (zCompare(&nn,&input) < 0))
@@ -1906,8 +2034,8 @@ static uint64 smpqs_bitValRead64(uint64 **m, int row, int col)
 	//don't bother to check the bounds of m w.r.t row and col, assume caller knows what it's doing
 	//return 0 if bit not set, 1 << bit offset otherwize
 	int offset, mcol;
-	mcol = col/64;
-	offset = (col%64);
+	mcol = col >> 6;
+	offset = col & 63;
 	return (m[row][mcol] & smpqs_masks64[offset]);
 }
 

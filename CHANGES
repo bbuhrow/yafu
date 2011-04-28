@@ -1,3 +1,14 @@
+v 1.26
++ fixed the process of optimizing the small trial division cutoff that was impacted
+	by the new threading architecture.
++ simplified the process of checking small-prime-variation primes for inclusion
+	on a sieve progression in smallmpqs as well.  also fixed a bug.
++ reused division by multiplication by inverse trick when computing the roots of
+	polynomials.
++ made special functions for left/right shifting by 1 and generally made shifting
+	more efficient (and associated functions that use shifting).
+
+
 v 1.25
 + improved smallmpqs quite a bit
 + simplified the process of checking small-prime-variation primes for inclusion

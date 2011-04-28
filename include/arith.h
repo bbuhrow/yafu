@@ -89,9 +89,13 @@ uint32 zShortMod32(z32 *u, uint32 v);
 //non-basic arbitrary precision arith routines
 //contents of arith2.c
 void zShiftLeft(z *a, z *b, int x);
+void zShiftLeft_x(z *a, z *b, int x);
+void zShiftLeft_1(z *a, z *b);
 void zShiftLeft32(z32 *a, z32 *b, int x);
 void zShiftRight(z *a, z *b, int x);
+void zShiftRight_1(z *a, z *b);
 void zShiftRight32(z32 *a, z32 *b, int x);
+void zShiftRight32_x(z32 *a, z32 *b, int x);
 int zNroot(z *u, z *w, int n);
 int zFactorial(uint32 n, z *w);
 int zPrimorial(uint32 n, z *w);

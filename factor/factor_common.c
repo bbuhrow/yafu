@@ -1082,7 +1082,7 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 			else if (total_time > TARGET_ECM_GNFS_RATIO * nfs_est_time)
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
-				// we estimate it would take gnfs to finish, switch to qs.  
+				// we estimate it would take gnfs to finish, switch to gnfs.  
 				decision = 2;
 				*time_available = 0;
 			}
