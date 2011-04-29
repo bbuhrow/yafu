@@ -919,9 +919,10 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	int smooth_num;
 	uint16 fboffset[MAX_SMOOTH_PRIMES];
 	uint8 logp;
+	z32 Q32;
+
 	num_f = full->num_r;
 	num_p = partial->num_r;
-	z32 Q32;
 	
 	//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
 	//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)

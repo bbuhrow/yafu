@@ -7,7 +7,8 @@ v 1.26
 	polynomials.
 + made special functions for left/right shifting by 1 and generally made shifting
 	more efficient (and associated functions that use shifting).
-
++ added a special threading case when running single threaded - the new architecture
+	of v1.25 impacted single threaded efficiency slightly which is now fixed.
 
 v 1.25
 + improved smallmpqs quite a bit
