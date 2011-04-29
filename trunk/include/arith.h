@@ -93,6 +93,7 @@ void zShiftLeft_x(z *a, z *b, int x);
 void zShiftLeft_1(z *a, z *b);
 void zShiftLeft32(z32 *a, z32 *b, int x);
 void zShiftRight(z *a, z *b, int x);
+void zShiftRight_x(z *a, z *b, int x);
 void zShiftRight_1(z *a, z *b);
 void zShiftRight32(z32 *a, z32 *b, int x);
 void zShiftRight32_x(z32 *a, z32 *b, int x);
