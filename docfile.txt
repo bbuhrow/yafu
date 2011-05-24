@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.24
+YAFU Version 1.26
 
 -------------
 Introduction:
@@ -28,7 +28,8 @@ depending on the OS.  All expressions supported in the interactive
 environment are supported in this way.  
 
 In addition, when providing arguments to yafu you can specify 
-flags to change program behavior.  Supported flags in v1.19 are:
+flags to change program behavior.  Supported flags in v1.26 are:
+
 -B1pm1	<num>   B1 bound in the pm1 method
 -B1pp1	<num>   B1 bound in the pp1 method
 -B1ecm	<num>   B1 bound in the ECM method
@@ -41,7 +42,8 @@ flags to change program behavior.  Supported flags in v1.19 are:
 -siqsT <num>	Stop after num seconds in siqs
 -logfile <name>	Name of the logfile to use in this session
 -seed <num,num> 32 bit numbers for use in seeding the RNG <highseed,lowseed>
--batchfile <name>	Name of batchfile to use in command line job
+-batchfile <name>	Name of batchfile to use in command line job.  Items are
+					removed from the batchfile as they are completed.
 -sigma <num>	Input to ECM's sigma parameter.  Limited to 32 bits.
 -session <name>	Use name instead of the default session.log
 -threads <num>	Use num sieving threads in SIQS and ECM
@@ -71,6 +73,19 @@ flags to change program behavior.  Supported flags in v1.19 are:
 				All plans can be used in combination with target_ecm ratio options
 -pretest		Use this switch to do only pretesting of the input number to
 				the factor() routine.  Sieve methods (QS/NFS) are not used
+-ns				Only perform sieving step within nfs() if a valid job file exists for the 
+					input number and if the input number is the same as that specified in
+					an existing data file.
+-np				Only perform poly search step within nfs().  NOTE: any existing poly files will
+					be overwritten.
+-nc				Only perform postprocessing step within nfs()
+-a				Use special Q on the algebraic side within nfs()
+-r				Use special Q on the rational side within nfs()
+-f <num>		Starting point for special Q range within nfs().  NOTE: this also sets the -ns flag
+-c <num>		Range of special Q to sieve within nfs().  NOTE: this also sets the -ns flag
+-job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
+-o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
+-ggnfsT <num>	Timeout to apply to nfs() command, in seconds
 
 These flags are ignored when redirecting input to yafu.
 
@@ -159,7 +174,7 @@ randb			pm1			log
 			ecm			modinv
 			fermat			fib
 			nfs			luc
-						llt
+			smallmpqs			llt
 
 ----------
 Variables:
@@ -173,8 +188,10 @@ reserved words.
 Reserved Words:
 ---------------
 Some words are reserved by the application and most can be altered 
-by the user to impact the program execution.  They are typically 
-in all caps.  Some examples include:
+by the user to impact the program execution.  They can be useful if
+you are in interactive mode and want to set a global variable that
+wasn't set while invoking yafu (or in the .ini file). 
+Some examples include:
 POLLARD_STG1_MAX - controls the upper bound of p-1 stage 1 factoring
 POLLARD_STG2_MAX - controls the upper bound of p-1 stage 2 factoring
 WILL_STG1_MAX - controls the upper bound of p+1 stage 1 factoring
@@ -193,11 +210,25 @@ PRIMES_TO_SCREEN - set to non zero to enable printing primes to the screen, when
 		primes() function
 VFLAG - control verbosity within the interactive environment
 
+[tune]
+usage: tune()
+
+description:
+performs detailed timing of a sequence of partial SIQS and NFS factorizations.  From these,
+regression analysis is performed and best-fit functions are created for the purpose of 
+estimating siqs() and nfs() factorizations.  Function coefficients together with machine info
+is automatically added to yafu.ini.  Estimation parameters are used to determine the optimal
+siqs/nfs crossover point and, together with in-situ timing analysis of ecm curves, determines
+the optimal amount of ecm to run when using the factor() function.  
+
 [nfs]
 usage: nfs(expression)
-Implements factorization using the general number field sieve.  Polynomial selection is 
+
+description:
+Automated factorization using the general number field sieve.  Polynomial selection is 
 handled via msieve library function calls.  Sieving then proceeds in a multi-thread aware
-fashion.  Msieve filtering, linear algebra, and sqrt functions round out the method.
+fashion using external ggnfs lattic sieve executables.  Post processing (filtering, 
+linear algebra, and sqrt functions) again make use of msieve library calls.
 The path to the ggnfs lasive binaries must be specified either on the command line using the
 -ggnfs_dir switch, or in the yafu.ini file as a "ggnfs_dir=<path>" line.  It is assumed that the
 ggnfs binaries follow the usual naming convention (i.e. gnfs-lasieve4IXXe).  nfs is 
@@ -231,16 +262,31 @@ the n: "your number here" line must be on the first line of the ggnfs.job file. 
 should be interchangable.  Supplying ggnfs.job in this way allows for SNFS factorizations to take place,
 albeit not completely automated.
 
+command line flags effecting nfs:
+-ns				Only perform sieving step within nfs() if a valid job file exists for the 
+					input number and if the input number is the same as that specified in
+					an existing data file.
+-np				Only perform poly search step within nfs().  NOTE: any existing poly files will
+					be overwritten.
+-nc				Only perform postprocessing step within nfs()
+-a				Use special Q on the algebraic side within nfs()
+-r				Use special Q on the rational side within nfs()
+-f <num>		Starting point for special Q range within nfs().  NOTE: this also sets the -ns flag
+-c <num>		Range of special Q to sieve within nfs().  NOTE: this also sets the -ns flag
+-job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
+-o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
+-ggnfsT <num>	Timeout to apply to nfs() command, in seconds
+-ggnfs_dir <path>	path to ggnfs binaries
 
 [siqs]
 usage: siqs(expression)
 
 description:
-the siqs factoring method.  uses the single large prime variation, small prime variation,
-bucket sieving, and too many other optimizations to mention. post-
-processing courtesy of Jason Papadopoulos's msieve block Lanczos implementation.
-Useful for inputs < 105 digits.  Above that, parameter settings utilizing the double
-large prime variation have not been tested at all and most likely are increasingly bad.
+the siqs factoring method.  uses the double large prime variation, small prime variation,
+bucket sieving, and too many other optimizations to mention. post-processing is 
+performed using a port of Jason Papadopoulos's msieve filtering and block Lanczos implementations.
+Best if used for inputs < 105 digits.  Above that, parameter settings
+have not been tested much.  Hard cap at 150 digits.  
 
 An abort signal (ctrl-c) will stop a factorization in progress.  state will be saved
 in siqs.dat (default) or a different file specified with the -qssave switch.  factorizations
@@ -249,11 +295,12 @@ siqs will overwrite the file, so be careful to back up siqs.dat if you stop a fa
 and plan to come back to it after performing other siqs work.
 The savefile should appear in the same directory as the executable.
 
-
 command line flags effecting siqs:
 -qssave	<name>  Name of the siqs savefile to use in this session
 -siqsR <num>	Stop after finding num relations in siqs
 -siqsT <num>	Stop after num seconds in siqs
+-threads <num>	Use num sieving threads in SIQS and ECM
+-v 		        Use to increase verbosity of output, can be used multiple times
 
 [mpqs]
 usage: mpqs(expression)
@@ -263,6 +310,12 @@ the mpqs factoring method.  uses the single large prime variation, and automatic
 switches in the small prime variation depending on the size of the input.  post-
 processing uses a block gaussian solver and is useful only for moderately
 sized inputs.
+
+[mpqs]
+usage: smallmpqs(expression)
+
+description:
+the mpqs factoring method optimized for small inputs.  
 
 [qs]
 usage: qs(expression)
@@ -279,6 +332,24 @@ usage: factor(expression)
 
 description:
 combines a variety of routines to (hopefully) optimally factor an arbitrary input.
+
+command line flags effecting factor:
+-noecm			Set this flag to skip all ECM stages in the factor() function and instead
+				proceed directly to QS/NFS after small factor detection.
+-one			Tells factor() to stop factoring after finding one factor.
+-op <name>		Tells factor() to output primes and prps to file <name>.
+-of <name>		Tells factor() to output an input number and all found factors to file <name>.
+-ou <name>		Tells factor() to output unfactored composites to file <name>.
+-plan <name>	Tells factor() to follow one of the following pretesting plans:
+				<name> = none: do only trial division and rho
+				<name> = noecm: stop before first ecm step and start nfs/qs
+				<name> = light: stop after 25 digit ecm (B1=50k) and start nfs/qs
+				<name> = normal: proceed as normal
+				<name> = deep: skip to 30 digit ecm (B1=250k) after trial division
+				All plans will still be stopped early if it is time optimal to do so.
+				All plans can be used in combination with target_ecm ratio options
+-pretest		Use this switch to do only pretesting of the input number to
+				the factor() routine.  Sieve methods (QS/NFS) are not used
 
 [pm1]
 usage: pm1(expression)
@@ -475,7 +546,7 @@ size of a number, digits and bits
 usage: rsa(expression)
 
 description:
-form a difficult to factor number of a specified bit size
+form a difficult to factor number of a specified bit size.  NOT FOR CRYPTOGRAPHIC USE.
 
 [rand]
 usage: rand(expression)

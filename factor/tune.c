@@ -138,8 +138,8 @@ void factor_tune(void)
 		double t_time2, d;
 
 		//remove previous tests
-		remove("tmprels.out");
-		remove("ggnfs.job.afb.0");
+		remove("tunerels.out");
+		remove("tune.job.afb.0");
 		MySleep(.1);
 
 		//make a job file for each input
@@ -150,7 +150,7 @@ void factor_tune(void)
 
 		//create the afb - we don't want the time it takes to do this to
 		//pollute the sieve timings
-		sprintf(syscmd,"%s -b ggnfs.job -k -c 0 -F", sievername);
+		sprintf(syscmd,"%s -b tune.job -k -c 0 -F", sievername);
 
 		printf("nfs: commencing construction of afb\n");
 
@@ -160,14 +160,14 @@ void factor_tune(void)
 		t_time2 = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);			
 		printf("afb generation took %6.4f seconds.\n",t_time2);
-		remove("ggnfs.job.afb.0");
+		remove("tune.job.afb.0");
 		MySleep(.1);
 
 		//measure how long it takes to sieve a fixed range of special-q	
 		gettimeofday(&start, NULL);
 
 		//start the test
-		sprintf(syscmd,"%s -a ggnfs.job -f %u -c %u -o tmprels.out",
+		sprintf(syscmd,"%s -a tune.job -f %u -c %u -o tunerels.out",
 			sievername, startq, qrange);
 		printf("nfs: commencing lattice sieving over range: %u - %u\n",
 			startq, startq + qrange);
@@ -178,7 +178,7 @@ void factor_tune(void)
 		free(difference);			
 
 		//count relations
-		in = fopen("tmprels.out","r");
+		in = fopen("tunerels.out","r");
 		if (in != NULL)
 		{
 			count = 0;
@@ -255,10 +255,10 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 	FILE *out, *test;
 	int siever;
 
-	out = fopen("ggnfs.job","w");
+	out = fopen("tune.job","w");
 	if (out == NULL)
 	{
-		printf("could not open ggnfs.job for writing!\n");
+		printf("could not open tune.job for writing!\n");
 		exit(1);
 	}
 

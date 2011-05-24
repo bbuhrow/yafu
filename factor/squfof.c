@@ -58,8 +58,6 @@ typedef struct
 } mult_big_t;
 
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
-void shanks_mult_unit_parallel(uint64 N, mult_t *mult_save, 
-							   mult_t *mult_save2, uint64 *f, uint64 *f2);
 uint64 sp_shanks_loop_big(z *N, fact_obj_t *fobj);
 void shanks_mult_unit_big(z *N, mult_big_t *mult_save, uint64 *f);
 
@@ -81,9 +79,8 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 	//TIME_DIFF *	difference;
 	//double t_time;
 
-	//otherwise mingw complains
-	big1 = ((uint64)0xFFFFFFFF << 32) | (uint64)0xFFFFFFFF;
-	big2 = ((uint64)0x3FFFFFFF << 32) | (uint64)0xFFFFFFFF;
+	big1 = 0xFFFFFFFFFFFFFFFFULL;
+	big2 = 0x3FFFFFFFFFFFFFFFULL;
 
 	if (zBits(N) > 62)
 	{
@@ -111,9 +108,10 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 	for (i=NUM_SQUFOF_MULT-1;i>=0;i--)
 	{
 		// can we multiply without overflowing 64 bits?
-		if (big1/(uint64)multipliers[i] < n64)
+		if (big2/(uint64)multipliers[i] < n64)
 		{
 			//this multiplier makes the input bigger than 64 bits
+			mult_save[i].mult = multipliers[i];
 			mult_save[i].valid = 0;
 			continue;
 		}
@@ -121,48 +119,38 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 		//form the multiplied input
 		nn64 = n64 * (uint64)multipliers[i];
 
-		// check if resulting number is too big
-		if (nn64 < big2)
-		{
-			//this multiplier is ok
-			mult_save[i].mult = multipliers[i];
-			mult_save[i].valid = 1;
-			//set imax = N^1/4
-			//b0 = (uint32)sqrt((double)(N));
-			sp642z(nn64,&tmp1);
-			zNroot(&tmp1,&tmp2,2);
-			mult_save[i].b0 = (uint32)tmp2.val[0];
-			mult_save[i].imax = (uint32)sqrt(mult_save[i].b0) / 2;
+		mult_save[i].mult = multipliers[i];
+		mult_save[i].valid = 1;
 
-			//set up recurrence
-			mult_save[i].Q0 = 1;
-			mult_save[i].P = mult_save[i].b0;
-			mult_save[i].Qn = (uint32)(nn64 - 
-				(uint64)mult_save[i].b0*(uint64)mult_save[i].b0);
+		//set imax = N^1/4
+		//b0 = (uint32)sqrt((double)(N));
+		sp642z(nn64,&tmp1);
+		zNroot(&tmp1,&tmp2,2);
+		mult_save[i].b0 = (uint32)tmp2.val[0];
+		mult_save[i].imax = (uint32)sqrt(mult_save[i].b0) / 2;
+
+		//set up recurrence
+		mult_save[i].Q0 = 1;
+		mult_save[i].P = mult_save[i].b0;
+		mult_save[i].Qn = (uint32)(nn64 - 
+			(uint64)mult_save[i].b0*(uint64)mult_save[i].b0);
 			
-			if (mult_save[i].Qn == 0)
-			{
-				//N is a perfect square
-				zFree(&tmp1);
-				zFree(&tmp2);
-				f64 = (uint64)mult_save[i].b0;
-				goto done;
-			}
-			mult_save[i].bn = (mult_save[i].b0 + mult_save[i].P)
-				/ mult_save[i].Qn;
-			mult_save[i].it = 0;
-		}
-		else
+		if (mult_save[i].Qn == 0)
 		{
-			//this multiplier makes the input too big
-			mult_save[i].mult = multipliers[i];
-			mult_save[i].valid = 0;
+			//N is a perfect square
+			zFree(&tmp1);
+			zFree(&tmp2);
+			f64 = (uint64)mult_save[i].b0;
+			goto done;
 		}
+		mult_save[i].bn = (mult_save[i].b0 + mult_save[i].P)
+			/ mult_save[i].Qn;
+		mult_save[i].it = 0;
+
 	}
 
 	zFree(&tmp1);
 	zFree(&tmp2);
-
 
 	//now process the multipliers a little at a time.  this allows more
 	//multipliers to be tried in order to hopefully find one that 
@@ -247,6 +235,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 	//initialize output
 	*f=0;
 
+	//load previous save point
 	P = mult_save->P;
 	bn = mult_save->bn;
 	Qn = mult_save->Qn;
@@ -259,7 +248,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 	{
 		j=0;
 
-		//i must be even on entering the loop below
+		//i must be even on entering the unrolled loop below
 		if (i & 0x1)
 		{
 			t1 = P;		//hold Pn for this iteration
@@ -379,25 +368,12 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 			if (Ro == t1)
 				break;
 
-			//j+=4;
-			//if (j > 100000000)
-			//{
-			//	out = fopen("squfof_error.log","a");
-			//	fprintf(out,"error on N = 0x%x%x\n",
-			//		(uint32)(N >> 32),(uint32)(N&0xFFFFFFFF));
-			//	fclose(out);
-			//	*f=-1;
-			//	//this gets stuck very rarely, but it does happen.
-			//	//we don't need to remember any state info, as this will
-			//	//invalidate this multiplier
-			//	return;		
-			//}
 		}
 	
 		*f = gcd64(Ro,N);
 		//found a factor - don't know yet if it's trivial or not.
-		//we don't need to remember any state info, as this will
-		//invalidate this multiplier
+		//we don't need to remember any state info, as one way or the other
+		//this multiplier will be invalidated
 		if (*f > 1)
 			return;
 	}
@@ -406,142 +382,146 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 /* Implementation of algorithm explained in Gower and Wagstaff paper */
 int SQUFOF_alpertron(int64 N, int64 queue[])
 {
-double sqrtn;
-int B, Q, Q1, P, P1, L, S;
-int i, r, s, t, q, u;
-int queueHead, queueTail, queueIndex;
-    /* Step 1: Initialize */
-if ((N & 3) == 1)
-{
-  N <<= 1;
-}
-sqrtn = sqrt(N);
-S = (int)sqrtn;
-if ((long)(S+1)*(long)(S+1)<=N)
-{
-  S++;
-}
-if ((long)S*(long)S > N)
-{
-  S--;
-}
-if ((long)S*(long)S == N)
-{
-  return S;
-}
-Q1 = 1;
-P = S;
-Q = (int)N - P*P;
-L = (int)(2*sqrt(2*sqrtn));
-B = L << 1;
-queueHead = 0;
-queueTail = 0;
-   /* Step 2: Cycle forward to find a proper square form */
-for (i=0; i<=B; i++)
-{
-  q = (S+P)/Q;
-  P1 = q*Q-P;
-  if (Q <= L)
-  {
-    if ((Q & 1) == 0)
-    {
-      queue[queueHead++] = Q >> 1;
-      queue[queueHead++] = P % (Q >> 1);
-      if (queueHead == 100)
-      {
-        queueHead = 0;
-      }
-    }
-    else if (Q+Q<=L)
-    {
-      queue[queueHead++] = Q;
-      queue[queueHead++] = P % Q;
-      if (queueHead == 100)
-      {
-        queueHead = 0;
-      }
-    }
-  }
-  t = Q1+q*(P-P1);
-  Q1 = Q;
-  Q = t;
-  P = P1;
-  if ((i & 1) == 0 && ((Q & 7) < 2 || (Q & 7) == 4))
-  {
-    r = (int)sqrt(Q);
-    if (r*r == Q)
-    {
-      queueIndex = queueTail;
-      for (;;)
-      {
-        if (queueIndex == queueHead)
-        {
-          /* Step 3: Compute inverse square root of the square form */
-          Q1 = r;
-          u = (S-P)%r;
-          u += (u >> 31) & r;
-          P = S-u;
-          Q = (int)((N-(long)P*(long)P)/Q1);
-             /* Step 4: Cycle in the reverse direction to find a factor of N */
-          for (;;)
-          {
-            q = (S+P)/Q;
-            P1 = q*Q-P;
-            if (P == P1)
-            {
-              break;
-            }
-            t = Q1 +q*(P-P1);
-            Q1 = Q;
-            Q = t;
-            P = P1;
-          }
-          /* Step 5: Get the factor of N */
-          if ((Q & 1) == 0)
-          {
-            return Q >> 1;
-          }
-          return Q;
-        }
-        s = queue[queueIndex++];
-        t = queue[queueIndex++];
-        if (queueIndex == 100)
-        {
-          queueIndex = 0;
-        }
-        if ((P-t)%s == 0)
-        {
-          break;
-        }
-      }
-      if (r > 1)
-      {
-        queueTail = queueIndex;
-      }
-      if (r == 1)
-      {
-        queueIndex = queueTail;
-        for (;;)
-        {
-          if (queueIndex == queueHead)
-          {
-            break;
-          }
-          if (queue[queueIndex] == 1)
-          {
-            return 0;
-          }
-          queueIndex += 2;
-          if (queueIndex == 100)
-          {
-            queueIndex = 0;
-          }
-        }
-      }
-    }
-  }
-}
-return 0;
+	double sqrtn;
+	int B, Q, Q1, P, P1, L, S;
+	int i, r, s, t, q, u;
+	int queueHead, queueTail, queueIndex;
+	
+	/* Step 1: Initialize */
+	if ((N & 3) == 1)
+	{
+		 N <<= 1;
+	}
+	sqrtn = sqrt(N);
+	S = (int)sqrtn;
+	if ((long)(S+1)*(long)(S+1)<=N)
+	{
+		S++;
+	}
+	if ((long)S*(long)S > N)
+	{
+		S--;
+	}
+	if ((long)S*(long)S == N)
+	{
+		return S;
+	}
+	Q1 = 1;
+	P = S;
+	Q = (int)N - P*P;
+	L = (int)(2*sqrt(2*sqrtn));
+	B = L << 1;
+	queueHead = 0;
+	queueTail = 0;
+
+	/* Step 2: Cycle forward to find a proper square form */
+	for (i=0; i<=B; i++)
+	{
+		q = (S+P)/Q;
+		P1 = q*Q-P;
+		if (Q <= L)
+		{
+			if ((Q & 1) == 0)
+			{
+				queue[queueHead++] = Q >> 1;
+				queue[queueHead++] = P % (Q >> 1);
+				if (queueHead == 100)
+				{
+					queueHead = 0;
+				}
+			}
+			else if (Q+Q<=L)
+			{
+				queue[queueHead++] = Q;
+				queue[queueHead++] = P % Q;
+				if (queueHead == 100)
+				{
+					queueHead = 0;
+				}
+			}
+		}
+
+		t = Q1+q*(P-P1);
+		Q1 = Q;
+		Q = t;
+		P = P1;
+		if ((i & 1) == 0 && ((Q & 7) < 2 || (Q & 7) == 4))
+		{
+			r = (int)sqrt(Q);
+			if (r*r == Q)
+			{
+				queueIndex = queueTail;
+				for (;;)
+				{
+					if (queueIndex == queueHead)
+					{
+						/* Step 3: Compute inverse square root of the square form */
+						Q1 = r;
+						u = (S-P)%r;
+						u += (u >> 31) & r;
+						P = S-u;
+						Q = (int)((N-(long)P*(long)P)/Q1);
+						/* Step 4: Cycle in the reverse direction to find a factor of N */
+						for (;;)
+						{
+							q = (S+P)/Q;
+							P1 = q*Q-P;
+							if (P == P1)
+							{
+								break;
+							}
+							t = Q1 +q*(P-P1);
+							Q1 = Q;
+							Q = t;
+							P = P1;
+						}
+
+						/* Step 5: Get the factor of N */
+						if ((Q & 1) == 0)
+						{
+							return Q >> 1;
+						}
+						return Q;
+					}
+					s = queue[queueIndex++];
+					t = queue[queueIndex++];
+					if (queueIndex == 100)
+					{
+						queueIndex = 0;
+					}
+					if ((P-t)%s == 0)
+					{
+						break;
+					}
+				}
+				if (r > 1)
+				{
+					queueTail = queueIndex;
+				}
+				if (r == 1)
+				{
+					queueIndex = queueTail;
+					for (;;)
+					{
+						if (queueIndex == queueHead)
+						{
+							break;
+						}
+						if (queue[queueIndex] == 1)
+						{
+							return 0;
+						}
+						queueIndex += 2;
+						if (queueIndex == 100)
+						{
+							queueIndex = 0;
+						}
+					}
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 int qqueue[100];
@@ -819,7 +799,6 @@ void shanks_mult_unit_big(z *N, mult_big_t *mult_save, uint64 *f)
 	uint64 imax,i,Q0,b0,Qn,bn,P,bbn,Ro,S,So,t1,t2;
 	int j=0;
 	z tmp1, tmp2;
-	//FILE *out;
 
 	zInit(&tmp1);
 	zInit(&tmp2);
@@ -926,23 +905,6 @@ void shanks_mult_unit_big(z *N, mult_big_t *mult_save, uint64 *f)
 			//check for symmetry point
 			if (Ro == t1)
 				break;
-
-
-			j++;
-			
-			if (j > 100000000)
-			{
-				//out = fopen("squfof_error.log","a");
-				printf("error \n");
-				//fclose(out);
-				*f=-1;
-				//this gets stuck very rarely, but it does happen.
-				//we don't need to remember any state info, as this will
-				//invalidate this multiplier
-				zFree(&tmp1);
-				zFree(&tmp2);
-				return;		
-			}
 
 		}
 	

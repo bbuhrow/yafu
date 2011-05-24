@@ -138,6 +138,7 @@ void test_dlp_composites(void);
 void modtest(int it);
 void test_qsort(void);
 void arith_timing(int num);
+void fivemack_puzzle(fp_digit n);
 
 /* for turning on CPU-specific code */
 

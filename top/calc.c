@@ -1728,7 +1728,21 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		siqsbench(fobj);
 		break;
 	case 50:
-		test_dlp_composites();
+		
+		for (i=29; i<31; i++)
+			fivemack_puzzle(((uint64)1 << i) - 1);
+		/*
+		fivemack_puzzle(((uint64)1 << 15) - 1);
+		fivemack_puzzle(((uint64)1 << 17) - 1);
+		fivemack_puzzle(((uint64)1 << 19) - 1);
+		fivemack_puzzle(((uint64)1 << 21) - 1);
+		fivemack_puzzle(((uint64)1 << 23) - 1);
+		fivemack_puzzle(((uint64)1 << 25) - 1);
+		fivemack_puzzle(((uint64)1 << 27) - 1);
+		fivemack_puzzle(((uint64)1 << 29) - 1);
+		*/
+		//fivemack_puzzle(((uint64)1 << 31) - 1);
+		//test_dlp_composites();
 		//pull_large_primes();
 		break;
 	case 51: 
@@ -1871,17 +1885,17 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->qs_obj.n);
 		smallmpqs(fobj);
 		zCopy(&zOne,&operands[0]);
-		printf("found factors:\n");
-		for (i=0; i<fobj->qs_obj.num_factors; i++)
-		{
-			if (isPrime(&fobj->qs_obj.factors[i]))
-				printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
-					z2decstr(&fobj->qs_obj.factors[i],&gstr1));
-			else
-				printf("C%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
-					z2decstr(&fobj->qs_obj.factors[i],&gstr1));
-		}
-		printf("\n");
+		//printf("found factors:\n");
+		//for (i=0; i<fobj->qs_obj.num_factors; i++)
+		//{
+		//	if (isPrime(&fobj->qs_obj.factors[i]))
+		//		printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
+		//			z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+		//	else
+		//		printf("C%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
+		//			z2decstr(&fobj->qs_obj.factors[i],&gstr1));
+		//}
+		//printf("\n");
 
 		break;
 	case 53:

@@ -1,4 +1,5 @@
 v 1.26
++ Makefile now properly includes NFS or not if specified
 + fixed the process of optimizing the small trial division cutoff that was impacted
 	by the new threading architecture.
 + simplified the process of checking small-prime-variation primes for inclusion
@@ -9,6 +10,19 @@ v 1.26
 	more efficient (and associated functions that use shifting).
 + added a special threading case when running single threaded - the new architecture
 	of v1.25 impacted single threaded efficiency slightly which is now fixed.
++ fixed a typo when reporting composite factors found in ECM
++ nfs() overhaul
++ added several input options for customization of NFS jobs (see docfile for details)
+	+ can specify different .job file (default still ggnfs.job)
+	+ can run custom sieving step
+		+ specify starting Q and range of Q
+		+ specify output file (default still msieve.dat)
+		+ specify algebraic or rational side special Q
+	+ can sieve only, poly search only, or postprocess only 
++ tune() now uses job files and data files different from default nfs() jobs,
+	to reduce likelihood of corruption
++ long overdue additions to docfile.txt
+
 
 v 1.25
 + improved smallmpqs quite a bit
