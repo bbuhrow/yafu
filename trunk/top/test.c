@@ -32,6 +32,100 @@ double muldiv_acc(int m, int sz);
 double sqrt_acc(int m, int sz);
 double gcd_acc(int m, int sz);
 
+void fivemack_puzzle_brute(fp_digit n)
+{
+
+	z N;
+	z testMult;
+	z div, rem, power, powers[64], tmp;
+	uint32 count, j, p;
+	uint64 r, i, binmask;
+
+	zInit(&N);
+	zInit(&testMult);
+	zInit(&div);
+	zInit(&rem);
+	zInit(&power);
+	zInit(&tmp);
+
+	zCopy(&zOne,&power);
+	for (i=0; i<64; i++)
+	{
+		zInit(&powers[i]);
+		zCopy(&power,&powers[i]);
+		zShortMul(&power,10,&power);
+	}
+
+	binmask = 0;
+	sp2z(n, &N);
+
+	//test all decimal numbers up to 31 digits in length 
+	//that have only binary (0,1) coefficients
+	count = 0;
+	for (i=((uint64)1<<0); i<((uint64)1<<32); i++)
+	{
+		//form the decimal representation of the binary number
+		binmask = i;
+		p = 0;
+		zCopy(&zZero,&testMult);
+		while (binmask > 0)
+		{
+			if (binmask & 0x1)
+				zAdd(&testMult, &powers[p], &testMult);
+
+			binmask >>= 1;
+			p++;
+		}
+
+		r = zShortMod(&testMult,n);
+		if (r == 0)
+		{
+			zShortDiv(&testMult,n,&div);
+			printf("\n%s divides %s.  multiplier = %s\n",
+				z2decstr(&testMult,&gstr1), z2decstr(&N,&gstr2), z2decstr(&div,&gstr3));
+			break;
+		}
+
+	}
+
+	zFree(&tmp);
+	zFree(&N);
+	zFree(&testMult);
+	zFree(&div);
+	zFree(&rem);
+	zFree(&power);
+	for (i=0; i<64; i++)
+		zFree(&powers[i]);
+	return;
+}
+
+void fivemack_puzzle(uint64 n)
+{
+
+	uint32 mCoeff[100], nCoeff[100], rCoeff[100];
+	uint32 i, j, p;
+	uint64 nn = n;
+
+	// write input coefficients
+	i = 0;
+	while (nn > 0)
+	{
+		nCoeff[i++] = n % 10;
+		n /= 10;
+	}
+
+	// initialize other coefficients
+	for (i=0; i<100; i++)
+	{
+		rCoeff[i] = 0;
+		mCoeff[i] = 0;
+	}
+
+
+
+	return;
+}
+
 void test_dlp_composites()
 {
 	FILE *in;

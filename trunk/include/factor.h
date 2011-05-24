@@ -417,7 +417,7 @@ void test_msieve_gnfs(fact_obj_t *fobj);
 /* Factor a number using GNFS. Returns
    1 if any factors were found and 0 if not */
 
-#define USE_NFS 1
+//#define USE_NFS 1
 uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
 
 void factor_tune(void);

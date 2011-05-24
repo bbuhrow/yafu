@@ -1027,7 +1027,12 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
+#ifdef USE_NFS
+					//only switch to NFS if it is enabled
 					decision = 2;
+#else
+					decision = 1;
+#endif
 					*time_available = 0;
 				}
 				else
@@ -1051,7 +1056,12 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
+#ifdef USE_NFS
+					//only switch to NFS if it is enabled
 					decision = 2;
+#else
+					decision = 1;
+#endif
 					*time_available = 0;
 				}
 				else

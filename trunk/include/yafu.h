@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.25"
+#define VERSION_STRING "1.26"
 
 //basics
 #define POSITIVE 0
@@ -184,9 +184,6 @@ typedef struct {
 	long		usecs;
 } TIME_DIFF;
 
-//int qcomp_uint16(const void *x, const void *y);
-//int qcomp_int(const void *x, const void *y);
-
 //global variables
 int IBASE;
 int OBASE;
@@ -255,6 +252,20 @@ FILE *ou_file;
 char op_str[1024];
 char of_str[1024];
 char ou_str[1024];
+
+//NFS options
+uint32 GGNFS_STARTQ;
+uint32 GGNFS_RANGEQ;
+char GGNFS_OUTPUTFILE[1024];
+char GGNFS_LOGFILE[1024];
+char GGNFS_FBFILE[1024];
+int GGNFS_SQ_SIDE;
+uint32 GGNFS_TIMEOUT;
+char GGNFS_JOB_INFILE[1024];
+int GGNFS_SIEVE_ONLY;
+int GGNFS_POLY_ONLY;
+int GGNFS_POST_ONLY;
+
 
 //globals for implementing the "plan" and "pretest" switches
 enum pretest_plan {

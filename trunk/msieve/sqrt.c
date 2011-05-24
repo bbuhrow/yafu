@@ -325,6 +325,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 	zFree(&tmp);
 	zFree(&tmp2);
 	zFree(&tmp3);
+	zFree(&tmpn);
 	zFree(&sum);
 	return factor_found;
 }

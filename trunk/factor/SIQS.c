@@ -633,7 +633,8 @@ done:
 	zFree(&tmp2);
 
 #if defined(WIN32) || defined(_WIN64)
-	free(queue_events);
+	if (THREADS > 1)
+		free(queue_events);
 #endif
 
 	//reset signal handler to default (no handler).
@@ -2256,6 +2257,11 @@ int free_sieve(dynamic_conf_t *dconf)
 #endif
 	align_free(dconf->rootupdates);
 
+	align_free(dconf->update_data.firstroots1);
+	align_free(dconf->update_data.firstroots2);
+	align_free(dconf->update_data.prime);
+	align_free(dconf->update_data.logp);
+
 	if (dconf->buckets->list != NULL)
 	{
 		align_free(dconf->buckets->list);
@@ -2288,7 +2294,7 @@ int free_sieve(dynamic_conf_t *dconf)
 
 	//free sieve scan report stuff
 	free(dconf->reports);
-	for (i=0; i<100; i++)
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		zFree32(&dconf->Qvals[i]);
 	free(dconf->Qvals);
 	free(dconf->valid_Qs);

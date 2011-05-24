@@ -315,7 +315,7 @@ void smallmpqs(fact_obj_t *fobj)
 	//crude tuning of sieve interval based on digits in n
 	if (i < 50)
 	{
-		j = squfof(n);	
+		j = sp_shanks_loop(n,fobj);	
 		fobj->qs_obj.num_factors += 2;
 		fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, 
 			fobj->qs_obj.num_factors * sizeof(z));

@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 40
+#define NUMOPTIONS 50
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,9 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"v", "silent", "pfile", "pscreen", "forceDLP",
 	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
 	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
-	"of", "ou", "plan", "pretest", "no_expr"};
+	"of", "ou", "plan", "pretest", "no_expr",
+	"f", "c", "o", "a", "r",
+	"ggnfsT", "job", "ns", "np", "nc"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -62,7 +64,9 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,0,0,
 	1,0,0,0,1,
 	1,1,1,0,1,
-	1,1,1,0,0};
+	1,1,1,0,0,
+	1,1,1,0,0,
+	1,1,0,0,0};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -1126,7 +1130,20 @@ void set_default_globals(void)
 	strcpy(ggnfs_dir,"../ggnfs-bin/");
 #endif
 	szSOEp = 1000100;	
-	
+
+	//nfs options
+	GGNFS_STARTQ = 0;						//default, not used
+	GGNFS_RANGEQ = 0;						//default, not used
+	strcpy(GGNFS_OUTPUTFILE,"msieve.dat");	//default
+	strcpy(GGNFS_LOGFILE,"msieve.log");		//default
+	strcpy(GGNFS_FBFILE,"msieve.fb");		//default
+	GGNFS_SQ_SIDE = 1;						//default = algebraic
+	GGNFS_TIMEOUT = 0;						//default, not used
+	strcpy(GGNFS_JOB_INFILE,"ggnfs.job");	//default
+	GGNFS_SIEVE_ONLY = 0;					//default = no
+	GGNFS_POLY_ONLY = 0;					//default = no
+	GGNFS_POST_ONLY = 0;					//default = no
+
 	//set some useful globals
 	zInit(&zZero);
 	zInit(&zOne);
@@ -1795,6 +1812,85 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{
 		WANT_OUTPUT_EXPRESSIONS = 0;
+	}
+	else if (strcmp(opt,OptionArray[40]) == 0)
+	{
+		//argument "f".  Indicates starting point for ggnfs sieving.
+		GGNFS_STARTQ = strtoul(arg,NULL,10);
+		GGNFS_SIEVE_ONLY = 1;
+	}
+	else if (strcmp(opt,OptionArray[41]) == 0)
+	{
+		//argument "c".  Indicates range for ggnfs sieving.
+		GGNFS_RANGEQ = strtoul(arg,NULL,10);
+		GGNFS_SIEVE_ONLY = 1;
+	}
+	else if (strcmp(opt,OptionArray[42]) == 0)
+	{
+		//argument "o".  Indicates output filename ggnfs sieving.
+		char *cptr;
+
+		if (strlen(arg) < 1024)
+		{
+			char tmp[1024];
+			strcpy(GGNFS_OUTPUTFILE,arg);			
+			strcpy(tmp,GGNFS_OUTPUTFILE);
+			cptr = strchr(tmp,46);
+			if (cptr == NULL)
+			{
+				//no . in provided filename
+				sprintf(GGNFS_LOGFILE, "%s.log",GGNFS_OUTPUTFILE);
+				sprintf(GGNFS_FBFILE, "%s.fb",GGNFS_OUTPUTFILE);
+			}
+			else
+			{				
+				cptr[0] = '\0';
+				sprintf(GGNFS_LOGFILE, "%s.log",tmp);
+				sprintf(GGNFS_FBFILE, "%s.fb",tmp);
+			}
+		}
+		else
+			printf("*** argument to -o too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[43]) == 0)
+	{
+		//argument "a".  Indicates algebraic side special Q.
+		GGNFS_SQ_SIDE = 1;
+	}
+	else if (strcmp(opt,OptionArray[44]) == 0)
+	{
+		//argument "r".  Indicates rational side special Q.
+		GGNFS_SQ_SIDE = 0;
+	}
+	else if (strcmp(opt,OptionArray[45]) == 0)
+	{
+		//argument "ggnfsT".  Indicates timeout (in seconds) for NFS job.
+		GGNFS_TIMEOUT = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[46]) == 0)
+	{
+		//argument "job".  Indicates input .job file automated NFS.
+		if (strlen(arg) < 1024)
+		{
+			strcpy(GGNFS_JOB_INFILE,arg);
+		}
+		else
+			printf("*** argument to -job too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[47]) == 0)
+	{
+		//argument "ns".  nfs sieving only
+		GGNFS_SIEVE_ONLY = 1;
+	}
+	else if (strcmp(opt,OptionArray[48]) == 0)
+	{
+		//argument "np".  nfs poly finding only
+		GGNFS_POLY_ONLY = 1;
+	}
+	else if (strcmp(opt,OptionArray[49]) == 0)
+	{
+		//argument "nc".  nfs post processing only
+		GGNFS_POST_ONLY = 1;
 	}
 	else
 	{

@@ -1755,7 +1755,7 @@ int ecm_deal_with_factor(fact_obj_t *fobj, ecm_thread_data_t *thread_data, z *fa
 	{
 		factor->type = COMPOSITE;
 		add_to_factor_list(fobj, factor);
-		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
+		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			ndigits(factor),
 			z2decstr(factor,&gstr1),
 			curves_run+1,thread_data->stagefound,
