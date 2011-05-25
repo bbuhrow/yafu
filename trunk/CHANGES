@@ -22,7 +22,8 @@ v 1.26
 + tune() now uses job files and data files different from default nfs() jobs,
 	to reduce likelihood of corruption
 + long overdue additions to docfile.txt
-
++ nfs polynomial selection is now performed in parallel
+	+ default msieve deadline is scaled by num_threads
 
 v 1.25
 + improved smallmpqs quite a bit

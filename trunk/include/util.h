@@ -142,6 +142,19 @@ void fivemack_puzzle(fp_digit n);
 
 /* for turning on CPU-specific code */
 
+//enum cpu_type {
+//	cpu_generic,
+//	cpu_pentium,
+//	cpu_pentium2,
+//	cpu_pentium3,
+//	cpu_pentium4,
+//	cpu_pentium_m,
+//	cpu_core,
+//	cpu_athlon,
+//	cpu_athlon_xp,
+//	cpu_opteron
+//};
+
 enum cpu_type {
 	cpu_generic,
 	cpu_pentium,
@@ -153,12 +166,13 @@ enum cpu_type {
 	cpu_athlon,
 	cpu_athlon_xp,
 	cpu_opteron,
-	cpu_nehalem
+	//cpu_nehalem
 };
 
 uint64 yafu_read_clock(void);
 void yafu_get_cache_sizes(uint32 *level1_cache, uint32 *level2_cache);
 enum cpu_type yafu_get_cpu_type(void);
+//enum cpu_type get_cpu_type(void);
 
 int extended_cpuid(char *idstr, int *cachelinesize, int do_print);
 

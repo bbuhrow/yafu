@@ -1184,7 +1184,7 @@ enum cpu_type yafu_get_cpu_type(void) {
 			model = (a >> 4) & 0xf;
 
 			if (model >= 10)
-				cpu = cpu_nehalem;
+				cpu = cpu_core; //cpu_nehalem;
 			else
 				cpu = cpu_core;
 
@@ -1212,7 +1212,6 @@ enum cpu_type yafu_get_cpu_type(void) {
 
 	return cpu;
 }
-
 
 // http://msdn.microsoft.com/en-us/library/hskdteyh.aspx
 // cpuid.cpp 

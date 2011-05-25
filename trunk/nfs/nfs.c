@@ -6,11 +6,41 @@
 
 //----------------------- LOCAL DATA TYPES -----------------------------------//
 
+/* used to place a deadline on how long polynomial 
+   selection will run. Note that the time budget is
+   independent of CPU speed; faster CPUs will simply
+   search more of the polynomial space */
+
+typedef struct {
+	uint32 bits;
+	uint32 seconds;
+} poly_deadline_t;
+
+static const poly_deadline_t time_limits[] = {
+	{264, 4 * 60},
+	{304, 8 * 60},
+	{320, 15 * 60},
+	{348, 30 * 60},
+	{365, 1 * 3600},
+	{383, 2 * 3600},
+	{399, 4 * 3600},
+	{416, 8 * 3600},
+	{433, 16 * 3600},
+	{449, 32 * 3600},
+	{466, 64 * 3600},
+	{482, 100 * 3600},
+	{498, 200 * 3600},
+	{514, 300 * 3600},
+};
+
+#define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
+
+
 enum nfs_thread_command {
 	NFS_COMMAND_INIT,
 	NFS_COMMAND_WAIT,
 	NFS_COMMAND_RUN,
-	NFS_COMMAND_RUN_TRANS,
+	NFS_COMMAND_RUN_POLY,
 	NFS_COMMAND_END
 };
 
@@ -28,8 +58,17 @@ typedef struct
 } ggnfs_job_t;
 
 typedef struct {
+	// stuff for parallel ggnfs sieving
 	char outfilename[80];
 	ggnfs_job_t job;
+
+	// stuff for parallel msieve poly select
+	char *polyfilename, *logfilename;
+	uint64 poly_lower;
+	uint64 poly_upper;
+	msieve_obj *obj;
+	mp_t *mpN;
+	factor_list_t *factor_list;
 
 	/* fields for thread pool synchronization */
 	volatile enum nfs_thread_command command;
@@ -46,14 +85,9 @@ typedef struct {
 
 } nfs_threaddata_t;
 
-typedef struct {
-	int num;
-
-
-} nfs_state;
-
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
+void *polyfind_launcher(void *ptr);
 void find_best_msieve_poly(z *N, ggnfs_job_t *job);
 void msieve_to_ggnfs(ggnfs_job_t *job);
 void ggnfs_to_msieve(ggnfs_job_t *job);
@@ -63,7 +97,8 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char *line);
 uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
 void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
-void win_file_concat(nfs_threaddata_t *t);
+void do_sieving(ggnfs_job_t job);
+void win_file_concat(char *filein, char *fileout);
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
 				uint32 is_master_thread);
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
@@ -76,6 +111,7 @@ void *nfs_worker_thread_main(void *thread_data);
 
 #define USE_NFS
 #ifdef USE_NFS
+
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
@@ -102,15 +138,13 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	uint32 startq, qrange;
 	int is_continuation;
 	uint32 last_specialq = 0;
-	nfs_threaddata_t *thread_data;		//an array of thread data objects
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
 	double t_time;
 	FILE *logfile;
 	int statenum;
-	char tmpstr[1024];
-	char syscmd[1024];
+	char tmpstr[1024];	
 	int process_done;
 
 	//below a certain amount, revert to SIQS
@@ -147,6 +181,44 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		return;
 	}
 
+	//check for inconsistent options
+	if (((GGNFS_STARTQ > 0) && !(GGNFS_RANGEQ > 0)) ||
+		(!(GGNFS_STARTQ > 0) && (GGNFS_RANGEQ > 0)))
+	{
+		printf("-f and -c must be specified together\n");
+		exit(1);
+	}
+
+	if (((GGNFS_STARTQ > 0) || (GGNFS_RANGEQ > 0)) && GGNFS_POLY_ONLY)
+	{
+		printf("bad options: -np with -f or -c\n");
+		exit(1);
+	}
+
+	if (((GGNFS_STARTQ > 0) || (GGNFS_RANGEQ > 0)) && GGNFS_POST_ONLY)
+	{
+		printf("bad options: -nc with -f or -c\n");
+		exit(1);
+	}
+
+	if (GGNFS_SIEVE_ONLY && GGNFS_POST_ONLY)
+	{
+		printf("bad options: -nc with -ns\n");
+		exit(1);
+	}
+
+	if (GGNFS_SIEVE_ONLY && GGNFS_POLY_ONLY)
+	{
+		printf("bad options: -np with -ns\n");
+		exit(1);
+	}
+
+	if (GGNFS_POLY_ONLY && GGNFS_POST_ONLY)
+	{
+		printf("bad options: -nc with -np\n");
+		exit(1);
+	}
+
 	//start a counter for the whole job
 	gettimeofday(&start, NULL);
 	
@@ -176,7 +248,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 			//create an msieve_obj
 			obj = msieve_obj_new(input, flags, GGNFS_OUTPUTFILE, GGNFS_LOGFILE, GGNFS_FBFILE, seed1, seed2,
-				max_relations, nfs_lower, nfs_upper, cpu, L1CACHE, L2CACHE, THREADS, mem_mb, which_gpu);
+				max_relations, nfs_lower, nfs_upper, cpu, L1CACHE, L2CACHE, THREADS, mem_mb, which_gpu, 0.0);
 
 			//convert input to msieve bigint notation and initialize a list of factors
 			z2mp_t(N,&mpN);
@@ -190,7 +262,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			is_continuation = check_existing_files(N, &last_specialq);
 
 			//find best job parameters
-			get_ggnfs_params(N,&job);
+			get_ggnfs_params(N,&job);						
 
 			//determine sieving start value and range.
 			if (GGNFS_RANGEQ > 0)
@@ -262,6 +334,9 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 				statenum = 1;								
 			}
 
+			//load the job structure with the starting Q.
+			job.startq = startq;
+
 			//override with custom commands, if applicable
 			if (GGNFS_POLY_ONLY)
 				statenum = 1;
@@ -273,8 +348,9 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			break;
 
 		case 1: //"polysearch":
-
+			
 			do_msieve_polyselect(obj, &job, &mpN, &factor_list);
+			
 			if (GGNFS_POLY_ONLY)
 				process_done = 1;
 			statenum = 2;
@@ -282,115 +358,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 		case 2: //"sieve":
 
-			thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
-			for (i=0; i<THREADS; i++)
-			{
-				sprintf(thread_data[i].outfilename, "rels%d.dat", i);
-				thread_data[i].job.fblim = job.fblim;
-				thread_data[i].job.lambda = job.lambda;
-				thread_data[i].job.lpb = job.lpb;
-				thread_data[i].job.mfb = job.mfb;
-				if (GGNFS_RANGEQ > 0)
-					thread_data[i].job.qrange = ceil((double)GGNFS_RANGEQ / (double)THREADS);
-				else
-					thread_data[i].job.qrange = job.qrange;
-				thread_data[i].job.rels = job.rels;
-				thread_data[i].job.siever = job.siever;
-				thread_data[i].job.startq = job.startq;
-				strcpy(thread_data[i].job.sievername, job.sievername);
-			}
-
-			/* activate the threads one at a time. The last is the
-				  master thread (i.e. not a thread at all). */		
-			for (i = 0; i < THREADS - 1; i++)
-				nfs_start_worker_thread(thread_data + i, 0);
-
-			nfs_start_worker_thread(thread_data + i, 1);			
-
-			// load threads with work
-			for (i = 0; i < THREADS; i++) 
-			{
-				nfs_threaddata_t *t = thread_data + i;
-				t->job.startq = startq;
-				startq += t->job.qrange;
-			}
-
-			logfile = fopen(flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
-				fclose(logfile);
-			}
-
-			// create a new lasieve process in each thread and watch it
-			for (i = 0; i < THREADS; i++) 
-			{
-				nfs_threaddata_t *t = thread_data + i;
-
-				if (i == THREADS - 1) {				
-					lasieve_launcher(t);
-				}
-				else {
-					t->command = NFS_COMMAND_RUN;
-#if defined(WIN32) || defined(_WIN64)
-					SetEvent(t->run_event);
-#else
-					pthread_cond_signal(&t->run_cond);
-					pthread_mutex_unlock(&t->run_lock);
-#endif
-				}
-			}
-
-			/* wait for each thread to finish */
-
-			for (i = 0; i < THREADS; i++) {
-				nfs_threaddata_t *t = thread_data + i;
-
-				if (i < THREADS - 1) {
-#if defined(WIN32) || defined(_WIN64)
-					WaitForSingleObject(t->finish_event, INFINITE);
-#else
-					pthread_mutex_lock(&t->run_lock);
-					while (t->command != NFS_COMMAND_WAIT)
-						pthread_cond_wait(&t->run_cond, &t->run_lock);
-#endif
-				}
-			}
-		
-			//combine output
-			for (i = 0; i < THREADS; i++) 
-			{
-				nfs_threaddata_t *t = thread_data + i;
-		
-#if defined(WIN32)
-				int a;
-
-				// test for cat
-				sprintf(syscmd,"cat %s >> %s",t->outfilename,GGNFS_OUTPUTFILE);
-				a = system(syscmd);
-	
-				if (a)		
-					win_file_concat(t);
-
-#else
-				sprintf(syscmd,"cat %s >> %s",t->outfilename,GGNFS_OUTPUTFILE);
-				system(syscmd);
-#endif
-
-				remove(thread_data[i].outfilename);			
-			}
-
-			//stop worker threads
-			for (i=0; i<THREADS - 1; i++)
-			{
-				nfs_stop_worker_thread(thread_data + i, 0);
-			}
-			nfs_stop_worker_thread(thread_data + i, 1);
-
-			//free the thread structure
-			free(thread_data);
+			do_sieving(job);
 
 			//see how we're doing
 			if (GGNFS_SIEVE_ONLY || (GGNFS_RANGEQ > 0))
@@ -518,6 +486,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 		}
 
+		//after every state, check elasped time against a specified timeout value
 		gettimeofday(&stop, NULL);
 		difference = my_difftime (&start, &stop);
 
@@ -543,41 +512,147 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	return;
 }
 
-void win_file_concat(nfs_threaddata_t *t)
+void do_sieving(ggnfs_job_t job)
 {
-	FILE *in, *out, *logfile;
+	nfs_threaddata_t *thread_data;		//an array of thread data objects
+	int i;
+	uint32 startq = job.startq;
+	FILE *logfile;
+	char syscmd[1024];
 
+	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
+	for (i=0; i<THREADS; i++)
+	{
+		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
+		thread_data[i].job.fblim = job.fblim;
+		thread_data[i].job.lambda = job.lambda;
+		thread_data[i].job.lpb = job.lpb;
+		thread_data[i].job.mfb = job.mfb;
+		if (GGNFS_RANGEQ > 0)
+			thread_data[i].job.qrange = ceil((double)GGNFS_RANGEQ / (double)THREADS);
+		else
+			thread_data[i].job.qrange = job.qrange;
+		thread_data[i].job.rels = job.rels;
+		thread_data[i].job.siever = job.siever;
+		thread_data[i].job.startq = job.startq;
+		strcpy(thread_data[i].job.sievername, job.sievername);
+	}
+
+	/* activate the threads one at a time. The last is the
+			master thread (i.e. not a thread at all). */		
+	for (i = 0; i < THREADS - 1; i++)
+		nfs_start_worker_thread(thread_data + i, 0);
+
+	nfs_start_worker_thread(thread_data + i, 1);			
+
+	// load threads with work
+	for (i = 0; i < THREADS; i++) 
+	{
+		nfs_threaddata_t *t = thread_data + i;
+		t->job.startq = startq;
+		startq += t->job.qrange;
+	}
+
+	logfile = fopen(flogname, "a");
+	if (logfile == NULL)
+		printf("could not open yafu logfile for appending\n");
+	else
+	{
+		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
+		fclose(logfile);
+	}
+
+	// create a new lasieve process in each thread and watch it
+	for (i = 0; i < THREADS; i++) 
+	{
+		nfs_threaddata_t *t = thread_data + i;
+
+		if (i == THREADS - 1) {				
+			lasieve_launcher(t);
+		}
+		else {
+			t->command = NFS_COMMAND_RUN;
+#if defined(WIN32) || defined(_WIN64)
+			SetEvent(t->run_event);
+#else
+			pthread_cond_signal(&t->run_cond);
+			pthread_mutex_unlock(&t->run_lock);
+#endif
+		}
+	}
+
+	/* wait for each thread to finish */
+
+	for (i = 0; i < THREADS; i++) {
+		nfs_threaddata_t *t = thread_data + i;
+
+		if (i < THREADS - 1) {
+#if defined(WIN32) || defined(_WIN64)
+			WaitForSingleObject(t->finish_event, INFINITE);
+#else
+			pthread_mutex_lock(&t->run_lock);
+			while (t->command != NFS_COMMAND_WAIT)
+				pthread_cond_wait(&t->run_cond, &t->run_lock);
+#endif
+		}
+	}
+		
+	//combine output
+	for (i = 0; i < THREADS; i++) 
+	{
+		nfs_threaddata_t *t = thread_data + i;
+		
+#if defined(WIN32)
+		int a;
+
+		// test for cat
+		sprintf(syscmd,"cat %s >> %s",t->outfilename,GGNFS_OUTPUTFILE);
+		a = system(syscmd);
+	
+		if (a)		
+			win_file_concat(t->outfilename,GGNFS_OUTPUTFILE);
+
+#else
+		sprintf(syscmd,"cat %s >> %s",t->outfilename,GGNFS_OUTPUTFILE);
+		system(syscmd);
+#endif
+
+		remove(thread_data[i].outfilename);			
+	}
+
+	//stop worker threads
+	for (i=0; i<THREADS - 1; i++)
+	{
+		nfs_stop_worker_thread(thread_data + i, 0);
+	}
+	nfs_stop_worker_thread(thread_data + i, 1);
+
+	//free the thread structure
+	free(thread_data);
+
+	return;
+}
+
+void win_file_concat(char *filein, char *fileout)
+{
+	FILE *in, *out;
 	//printf("for optimal performance, consider installing unix utilities for windows:\n");
 	//printf("http://unxutils.sourceforge.net/ \n");
 
-	in = fopen(t->outfilename,"r");
+	in = fopen(filein,"r");
 	if (in == NULL)
 	{
-		printf("could not open %s for reading\n",t->outfilename);
-		logfile = fopen(flogname, "a");
-		if (logfile == NULL)
-			printf("could not open yafu logfile for appending\n");
-		else
-		{
-			logprint(logfile, "could not open %s for reading\n",t->outfilename);
-			fclose(logfile);
-		}
+		printf("could not open %s for reading\n",filein);
 		exit(-1);
 	}
-	out = fopen(GGNFS_OUTPUTFILE,"a");
+
+	out = fopen(fileout,"a");
 	if (out == NULL)
 	{
-		printf("could not open %s for appending\n",GGNFS_OUTPUTFILE);
-		logfile = fopen(flogname, "a");
-		if (logfile == NULL)
-			printf("could not open yafu logfile for appending\n");
-		else
-		{
-			logprint(logfile, "could not open %s for appending\n",GGNFS_OUTPUTFILE);
-			fclose(logfile);
-		}
+		printf("could not open %s for appending\n",fileout);
 		exit(-1);
 	}
+
 	while (!feof(in))
 	{
 		char tmpline[GSTR_MAXSIZE], *tmpptr;
@@ -596,52 +671,251 @@ void win_file_concat(nfs_threaddata_t *t)
 void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list)
 {
 	int status;
-	FILE *fid, *logfile;
+	FILE *logfile;
 	uint32 flags;
+	z N;
 
-	//msieve: polyselect
-	if (VFLAG >= 0)
-		printf("nfs: commencing msieve poly select\n");
+	nfs_threaddata_t *thread_data;		//an array of thread data objects
+	int i,j;
+	char syscmd[1024];
+	char master_polyfile[80];
+	uint64 start = 0, range = 0;
+	uint32 deadline;
+	struct timeval stopt;	// stop time of this job
+	struct timeval startt;	// start time of this job
+	TIME_DIFF *	difference;
+	double t_time;
 
+	//file into which we will combine all of the thread results
+	sprintf(master_polyfile,"%s.p",GGNFS_OUTPUTFILE);
+
+	//make sure we are starting from scratch
+	remove(master_polyfile);
+
+	/* figure out how long poly selection should take */
+	zInit(&N);
+	mp_t2z(mpN,&N);
+	i = zBits(&N);
+	for (j = 0; j < NUM_TIME_LIMITS; j++) {
+		if (i < time_limits[j].bits)
+			break;
+	}
+	if (j == NUM_TIME_LIMITS) {
+		deadline = time_limits[j-1].seconds;
+	}
+	else {
+		const poly_deadline_t *low = &time_limits[j-1];
+		const poly_deadline_t *high = &time_limits[j];
+		uint32 dist = high->bits - low->bits;
+		deadline = (uint32)(
+			 ((double)low->seconds * (high->bits - i) +
+			  (double)high->seconds * (i - low->bits)) / dist);
+	}
+
+	//scale by number of threads
+	deadline /= THREADS;
+
+	if (VFLAG > 0)
+		printf("setting deadline of %u seconds\n",deadline);
+
+	//start a counter for the poly selection
+	gettimeofday(&startt, NULL);
+
+	//init each thread data structure with info needed to do poly search on a range
+	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
+
+	//set flags to do poly selection
+	flags = 0;
+	if (VFLAG > 0)
+		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+	flags = flags | MSIEVE_FLAG_NFS_POLY1;
+	flags = flags | MSIEVE_FLAG_NFS_POLY2;		
+	
+	for (i=0; i<THREADS; i++)
+	{
+		nfs_threaddata_t *t = thread_data + i;		
+
+		t->logfilename = (char *)malloc(80 * sizeof(char));
+		t->polyfilename = (char *)malloc(80 * sizeof(char));
+		sprintf(t->polyfilename,"%s.%d",GGNFS_OUTPUTFILE,i);
+		sprintf(t->logfilename,"%s.%d",GGNFS_LOGFILE,i);
+
+		//create an msieve_obj.  for poly select, the intermediate output file should be specified in
+		//the savefile field		
+		t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, GGNFS_FBFILE, 
+			g_rand.low, g_rand.hi, (uint32)0, (uint64)1, (uint64)1001, 
+			obj->cpu, (uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+
+		//pointers to things that are static during poly select
+		t->mpN = mpN;
+		t->factor_list = factor_list;
+
+	}
+
+	// log that we are starting
 	logfile = fopen(flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
 	{
-		logprint(logfile, "nfs: commencing msieve poly select\n");
+		logprint(logfile, "nfs: commencing poly selection with %d threads\n",THREADS);
+		logprint(logfile, "nfs: setting deadline of %u seconds\n",deadline);
 		fclose(logfile);
 	}
 
-	//set flags to do poly selection
-	flags = 0;
-	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-	if (VFLAG > 0)
-		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-	flags = flags | MSIEVE_FLAG_NFS_POLY1;
-	flags = flags | MSIEVE_FLAG_NFS_POLY2;
-	obj->flags = flags;
+	/* activate the threads one at a time. The last is the
+				master thread (i.e. not a thread at all). */		
+	for (i = 0; i < THREADS - 1; i++)
+		nfs_start_worker_thread(thread_data + i, 0);
 
-	status = factor_gnfs(obj, mpN, factor_list);		
+	nfs_start_worker_thread(thread_data + i, 1);			
 
-	//convert best poly to ggnfs job file
-	//check if polyselect made a .fb file
-	fid = fopen(GGNFS_FBFILE,"r");
-	if (fid == NULL)
+	//search smallish chunks of the space in parallel until we've hit our deadline
+	start = 1ULL;
+	range = 1000ULL;
+	while (1)
 	{
-		z N;
-		zInit(&N);
+		//assign some work
+		for (i=0; i<THREADS; i++)
+		{
+			nfs_threaddata_t *t = thread_data + i;		
 
-		// no, it didn't.  parse the .p file instead.
-		mp_t2z(mpN,&N);
-		find_best_msieve_poly(&N, job);
-		zFree(&N);
-	}
-	else
+			//create temporary storage files
+			t->logfilename = (char *)malloc(80 * sizeof(char));
+			t->polyfilename = (char *)malloc(80 * sizeof(char));
+			sprintf(t->polyfilename,"%s.%d",GGNFS_OUTPUTFILE,i);
+			sprintf(t->logfilename,"%s.%d",GGNFS_LOGFILE,i);
+
+			//create an msieve_obj.  for poly select, the intermediate output file should be specified in
+			//the savefile field.  it may seem inefficient to continually allocate msieve_obj and then
+			//destroy them within the timed loop, but this works.  the interface is pretty finicky - most
+			//other attempts failed.
+			t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, GGNFS_FBFILE, 
+				g_rand.low, g_rand.hi, (uint32)0, (uint64)start, (uint64)(start + range), 
+				obj->cpu, (uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+
+			//pointers to things that are static during poly select
+			t->mpN = mpN;
+			t->factor_list = factor_list;
+			
+			//next range
+			start += range;
+		}
+
+		// launch a new poly selection process in each thread
+		for (i = 0; i < THREADS; i++) 
+		{
+			nfs_threaddata_t *t = thread_data + i;
+
+			if (i == THREADS - 1) {		
+				polyfind_launcher(t);
+			}
+			else {
+				t->command = NFS_COMMAND_RUN_POLY;
+#if defined(WIN32) || defined(_WIN64)
+				SetEvent(t->run_event);
+#else
+				pthread_cond_signal(&t->run_cond);
+				pthread_mutex_unlock(&t->run_lock);
+#endif
+			}
+		}
+
+		/* wait for each thread to finish */
+
+		for (i = 0; i < THREADS; i++) {
+			nfs_threaddata_t *t = thread_data + i;
+
+			if (i < THREADS - 1) {
+#if defined(WIN32) || defined(_WIN64)
+				WaitForSingleObject(t->finish_event, INFINITE);
+#else
+				pthread_mutex_lock(&t->run_lock);
+				while (t->command != NFS_COMMAND_WAIT)
+					pthread_cond_wait(&t->run_cond, &t->run_lock);
+#endif
+			}
+		}
+
+		//combine output
+		for (i = 0; i < THREADS; i++) 
+		{
+			nfs_threaddata_t *t = thread_data + i;
+		
+			// concatenate all of the .p files produced into a master .p file
+#if defined(WIN32)
+			int a;
+
+			// test for cat
+			sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
+			//printf("%s\n",syscmd);
+			a = system(syscmd);
+	
+			if (a)		
+			{
+				char tmp[80];
+				sprintf(tmp, "%s.p",t->polyfilename);
+				win_file_concat(tmp, master_polyfile);
+			}
+
+#else
+			sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
+			system(syscmd);
+#endif
+
+			// remove each thread's .p file after copied
+			//printf("removing %s\n",thread_data[i].polyfilename);
+			sprintf(syscmd, "%s.p",thread_data[i].polyfilename); 
+			remove(syscmd);	
+
+			// also remove the temporary log file
+			sprintf(syscmd,"%s.%d",GGNFS_LOGFILE,i);
+			remove(syscmd);
+		}
+
+		//free data
+		for (i=0; i<THREADS - 1; i++)
+		{
+			nfs_threaddata_t *t = thread_data + i;
+
+			free(t->logfilename);
+			free(t->polyfilename);
+			msieve_obj_free(t->obj);
+		}
+		msieve_obj_free((thread_data + i)->obj);
+
+		remove(GGNFS_FBFILE);
+
+		//check the time
+		gettimeofday(&stopt, NULL);
+		difference = my_difftime (&startt, &stopt);
+
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);	
+
+		if ((uint32)t_time >= deadline)
+		{
+			printf("deadline of %u seconds met; poly select done\n",deadline);
+			break;
+		}
+	}			
+
+	//stop worker threads
+	for (i=0; i<THREADS - 1; i++)
 	{
-		// yes it did, close the file and call the conversion utility
-		fclose(fid);
-		msieve_to_ggnfs(job);
+		nfs_threaddata_t *t = thread_data + i;
+		nfs_stop_worker_thread(t, 0);		
 	}
+	nfs_stop_worker_thread(thread_data + i, 1);
+
+	//free the thread structure
+	free(thread_data);		
+
+	// parse the master .p file and find the best poly	
+	find_best_msieve_poly(&N, job);
+	//also create a .fb file
+	ggnfs_to_msieve(job);
+	zFree(&N);
 
 	return;
 }
@@ -677,6 +951,7 @@ uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN)
 	else
 		fclose(tmp);
 
+	printf("%s\n",mp_print(mpN, 10, NULL, gstr1.s));
 	relations_needed = nfs_filter_relations(obj, mpN);
 
 	return relations_needed;
@@ -760,6 +1035,8 @@ void *nfs_worker_thread_main(void *thread_data) {
 
 		if (t->command == NFS_COMMAND_RUN)
 			lasieve_launcher(t);
+		else if (t->command == NFS_COMMAND_RUN_POLY)
+			polyfind_launcher(t);
 		else if (t->command == NFS_COMMAND_END)
 			break;
 
@@ -773,8 +1050,6 @@ void *nfs_worker_thread_main(void *thread_data) {
 		pthread_mutex_unlock(&t->run_lock);
 #endif
 	}
-
-	//matrix_thread_free(t);
 
 #if defined(WIN32) || defined(_WIN64)
 	return 0;
@@ -818,6 +1093,33 @@ void *lasieve_launcher(void *ptr)
 
 	return 0;
 }
+
+void *polyfind_launcher(void *ptr)
+{
+	//top level function which performs poly search on a range of leading A coefficient values.
+	//has pthread calling conventions, meant to be used in a multi-threaded environment
+	nfs_threaddata_t *t = (nfs_threaddata_t *)ptr;
+
+	//remove any temporary relation files
+	remove(t->polyfilename);
+		
+	if (VFLAG >= 0)
+	{
+		printf("nfs: commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
+			//thread_data->poly_lower, thread_data->poly_upper);
+			t->obj->nfs_lower, t->obj->nfs_upper);
+		fflush(stdout);
+	}
+
+	//start polyfind
+	//factor_integer(t->obj->input, t->obj->flags, GGNFS_OUTPUTFILE, GGNFS_LOGFILE, GGNFS_FBFILE, 
+	//	&g_rand.low, &g_rand.hi, 0, t->obj->nfs_lower, t->obj->nfs_upper, t->obj->cpu, 
+	//	L1CACHE, L2CACHE, THREADS, 0, 0, 0.0);
+	factor_gnfs(t->obj, t->mpN, t->factor_list);
+
+	return 0;
+}
+
 
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 {
@@ -1329,7 +1631,7 @@ void ggnfs_to_msieve(ggnfs_job_t *job)
 			break;
 
 		if (line[0] == 'n')
-			sprintf(outline, "N %s",line + 2);
+			sprintf(outline, "N %s",line + 3);
 		else if(line[0] == 's')
 			sprintf(outline, "SKEW %s",line + 5);
 		else if (line[0] == 'Y')

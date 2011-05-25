@@ -54,19 +54,19 @@ endif
 
 ifeq ($(NFS),1)	
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve 
+	LIBS += -L../msieve/lib/mingw
 
 	# NFS builds require GMP
 	CFLAGS += -DHAVE_GMP
 	# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 	INC += -I../gmp/include
 	# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ 
-	LIBS += -L../gmp/lib 
+	LIBS += -L../gmp/lib/mingw
 
 	CFLAGS += -DHAVE_GMP_ECM
 	INC += -I../gmp-ecm/include
 	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib -lecm -lmsieve -lgmp 
+	LIBS += -L../gmp-ecm/lib/mingw -lecm -lmsieve -lgmp 
 	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm -lmsieve -lgmp 
 endif
 
