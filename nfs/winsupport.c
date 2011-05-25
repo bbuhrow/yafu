@@ -20,64 +20,66 @@ void factor_list_add_core(msieve_obj *obj, factor_list_t *list, mp_t *new_factor
 
 #endif
 
-msieve_obj * msieve_obj_new(char *input_integer, uint32 flags,
-			    char *savefile_name, char *logfile_name,
-			    char *nfs_fbfile_name,
-			    uint32 seed1, uint32 seed2, uint32 max_relations,
-			    uint64 nfs_lower, uint64 nfs_upper,
-			    enum cpu_type cpu,
-			    uint32 cache_size1, uint32 cache_size2,
-			    uint32 num_threads, uint32 mem_mb,
-			    uint32 which_gpu) {
-
-	msieve_obj *obj = (msieve_obj *)xcalloc((size_t)1, sizeof(msieve_obj));
-
-	if (obj == NULL)
-		return obj;
-	
-	obj->input = input_integer;
-	obj->flags = flags;
-	obj->seed1 = seed1;
-	obj->seed2 = seed2;
-	obj->max_relations = max_relations;
-	obj->nfs_lower = nfs_lower;
-	obj->nfs_upper = nfs_upper;
-	obj->cpu = cpu;
-	obj->cache_size1 = cache_size1;
-	obj->cache_size2 = cache_size2;
-	obj->num_threads = num_threads;
-	obj->mem_mb = mem_mb;
-	obj->which_gpu = which_gpu;
-	obj->logfile_name = MSIEVE_DEFAULT_LOGFILE;
-	if (logfile_name)
-		obj->logfile_name = logfile_name;
-	obj->nfs_fbfile_name = MSIEVE_DEFAULT_NFS_FBFILE;
-	if (nfs_fbfile_name)
-		obj->nfs_fbfile_name = nfs_fbfile_name;
-	obj->mp_sprintf_buf = (char *)xmalloc(32 * MAX_MP_WORDS + 1);
-	savefile_init(&obj->savefile, savefile_name);
-	
-	return obj;
-}
-
-/*--------------------------------------------------------------------*/
-msieve_obj * msieve_obj_free(msieve_obj *obj) {
-
-	msieve_factor *curr_factor;
-
-	curr_factor = obj->factors;
-	while (curr_factor != NULL) {
-		msieve_factor *next_factor = curr_factor->next;
-		free(curr_factor->number);
-		free(curr_factor);
-		curr_factor = next_factor;
-	}
-
-	savefile_free(&obj->savefile);
-	free(obj->mp_sprintf_buf);
-	free(obj);
-	return NULL;
-}
+//msieve_obj * msieve_obj_new(char *input_integer, uint32 flags,
+//			    char *savefile_name, char *logfile_name,
+//			    char *nfs_fbfile_name,
+//			    uint32 seed1, uint32 seed2, uint32 max_relations,
+//			    uint64 nfs_lower, uint64 nfs_upper,
+//			    enum cpu_type cpu,
+//			    uint32 cache_size1, uint32 cache_size2,
+//			    uint32 num_threads, uint32 mem_mb,
+//			    uint32 which_gpu,
+//			    double target_density) {
+//
+//	msieve_obj *obj = (msieve_obj *)xcalloc((size_t)1, sizeof(msieve_obj));
+//
+//	if (obj == NULL)
+//		return obj;
+//	
+//	obj->input = input_integer;
+//	obj->flags = flags;
+//	obj->seed1 = seed1;
+//	obj->seed2 = seed2;
+//	obj->max_relations = max_relations;
+//	obj->nfs_lower = nfs_lower;
+//	obj->nfs_upper = nfs_upper;
+//	obj->cpu = cpu;
+//	obj->cache_size1 = cache_size1;
+//	obj->cache_size2 = cache_size2;
+//	obj->num_threads = num_threads;
+//	obj->mem_mb = mem_mb;
+//	obj->which_gpu = which_gpu;
+//	obj->target_density = target_density;
+//	obj->logfile_name = MSIEVE_DEFAULT_LOGFILE;
+//	if (logfile_name)
+//		obj->logfile_name = logfile_name;
+//	obj->nfs_fbfile_name = MSIEVE_DEFAULT_NFS_FBFILE;
+//	if (nfs_fbfile_name)
+//		obj->nfs_fbfile_name = nfs_fbfile_name;
+//	obj->mp_sprintf_buf = (char *)xmalloc(32 * MAX_MP_WORDS + 1);
+//	savefile_init(&obj->savefile, savefile_name);
+//	
+//	return obj;
+//}
+//
+///*--------------------------------------------------------------------*/
+//msieve_obj * msieve_obj_free(msieve_obj *obj) {
+//
+//	msieve_factor *curr_factor;
+//
+//	curr_factor = obj->factors;
+//	while (curr_factor != NULL) {
+//		msieve_factor *next_factor = curr_factor->next;
+//		free(curr_factor->number);
+//		free(curr_factor);
+//		curr_factor = next_factor;
+//	}
+//
+//	savefile_free(&obj->savefile);
+//	free(obj->mp_sprintf_buf);
+//	free(obj);
+//	return NULL;
+//}
 
 void factor_list_init(factor_list_t *list) {
 

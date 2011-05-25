@@ -114,10 +114,10 @@ typedef struct msieve_factor {
 } msieve_factor;
 
 
-/* One factorization is represented by a msieve_obj
-   structure. This contains all the static information
-   that gets passed from one stage of the factorization
-   to another. If this was C++ it would be a simple object */
+//* One factorization is represented by a msieve_obj
+//   structure. This contains all the static information
+//   that gets passed from one stage of the factorization
+//   to another. If this was C++ it would be a simple object */
 // this must be declared when calling msieve routines through
 // the msieve libraries
 typedef struct {
@@ -163,8 +163,9 @@ typedef struct {
 
 	uint32 which_gpu;         /* ordinal ID of GPU to use */
 
-	char *mp_sprintf_buf; /* scratch space for 
-						printing big integers */
+	double target_density;   /* the target number of nonzeros per matrix
+				    column, used in NFS filtering */
+	char *mp_sprintf_buf;    /* scratch space for printing big integers */
 } msieve_obj;
 
 // these must be declared when calling msieve routines through
@@ -184,7 +185,8 @@ msieve_obj * msieve_obj_new(char *input_integer,
 			    uint32 cache_size2,
 			    uint32 num_threads,
 			    uint32 mem_mb,
-			    uint32 which_gpu);
+			    uint32 which_gpu,
+			    double target_density);
 
 msieve_obj * msieve_obj_free(msieve_obj *obj);
 
