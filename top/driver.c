@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 50
+#define NUMOPTIONS 49
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -51,11 +51,14 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
 	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
 	"of", "ou", "plan", "pretest", "no_expr",
-	"f", "c", "o", "a", "r",
-	"ggnfsT", "job", "ns", "np", "nc"};
+	"o", "a", "r", "ggnfsT", "job", 
+	"ns", "np", "nc", "psearch"};
 
 
 // indication of whether or not an option needs a corresponding argument
+// 0 = no argument
+// 1 = argument required
+// 2 = argument optional
 int needsArg[NUMOPTIONS] = {
 	1,1,1,1,1,
 	1,1,1,1,1,
@@ -65,8 +68,8 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,0,1,
 	1,1,1,0,1,
 	1,1,1,0,0,
-	1,1,1,0,0,
-	1,1,0,0,0};
+	1,0,0,1,1,
+	2,2,0,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -1134,15 +1137,20 @@ void set_default_globals(void)
 	//nfs options
 	GGNFS_STARTQ = 0;						//default, not used
 	GGNFS_RANGEQ = 0;						//default, not used
-	strcpy(GGNFS_OUTPUTFILE,"msieve.dat");	//default
-	strcpy(GGNFS_LOGFILE,"msieve.log");		//default
-	strcpy(GGNFS_FBFILE,"msieve.fb");		//default
+	GGNFS_POLYSTART = 0;					//default, not used
+	GGNFS_POLYRANGE = 0;					//default, not used
+	strcpy(GGNFS_OUTPUTFILE,"nfs.dat");		//default
+	strcpy(GGNFS_LOGFILE,"nfs.log");		//default
+	strcpy(GGNFS_FBFILE,"nfs.fb");			//default
 	GGNFS_SQ_SIDE = 1;						//default = algebraic
 	GGNFS_TIMEOUT = 0;						//default, not used
-	strcpy(GGNFS_JOB_INFILE,"ggnfs.job");	//default
+	strcpy(GGNFS_JOB_INFILE,"nfs.job");		//default
 	GGNFS_SIEVE_ONLY = 0;					//default = no
 	GGNFS_POLY_ONLY = 0;					//default = no
 	GGNFS_POST_ONLY = 0;					//default = no
+	GGNFS_POLY_OPTION = 0;					//default = fast search
+											//1 = wide
+											//2 = deep
 
 	//set some useful globals
 	zInit(&zZero);
@@ -1348,7 +1356,7 @@ unsigned process_flags(int argc, char **argv)
 		}
 
 		//check to see if this option requires an argument
-		if (needsArg[j])
+		if (needsArg[j] == 1)
 		{
 			i++;
 			if (i == argc)
@@ -1360,6 +1368,25 @@ unsigned process_flags(int argc, char **argv)
 
 			//now apply -option argument
 			applyOpt(optbuf+1,argbuf);
+		}
+		else if (needsArg[j] == 2)
+		{
+			// check to see if an argument was supplied
+			if (((i+1) == argc) || argv[i+1][0] == '-')
+			{
+				// no option supplied.  use default option
+				applyOpt(optbuf+1,NULL);
+			}
+			else
+			{
+				i++;
+				// an option was supplied, pass it on
+				strcpy(argbuf,argv[i]);
+
+				//now apply -option argument
+				applyOpt(optbuf+1,argbuf);
+			}
+
 		}
 		else
 		{
@@ -1812,20 +1839,8 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{
 		WANT_OUTPUT_EXPRESSIONS = 0;
-	}
+	}	
 	else if (strcmp(opt,OptionArray[40]) == 0)
-	{
-		//argument "f".  Indicates starting point for ggnfs sieving.
-		GGNFS_STARTQ = strtoul(arg,NULL,10);
-		GGNFS_SIEVE_ONLY = 1;
-	}
-	else if (strcmp(opt,OptionArray[41]) == 0)
-	{
-		//argument "c".  Indicates range for ggnfs sieving.
-		GGNFS_RANGEQ = strtoul(arg,NULL,10);
-		GGNFS_SIEVE_ONLY = 1;
-	}
-	else if (strcmp(opt,OptionArray[42]) == 0)
 	{
 		//argument "o".  Indicates output filename ggnfs sieving.
 		char *cptr;
@@ -1852,22 +1867,22 @@ void applyOpt(char *opt, char *arg)
 		else
 			printf("*** argument to -o too long, ignoring ***\n");
 	}
-	else if (strcmp(opt,OptionArray[43]) == 0)
+	else if (strcmp(opt,OptionArray[41]) == 0)
 	{
 		//argument "a".  Indicates algebraic side special Q.
 		GGNFS_SQ_SIDE = 1;
 	}
-	else if (strcmp(opt,OptionArray[44]) == 0)
+	else if (strcmp(opt,OptionArray[42]) == 0)
 	{
 		//argument "r".  Indicates rational side special Q.
 		GGNFS_SQ_SIDE = 0;
 	}
-	else if (strcmp(opt,OptionArray[45]) == 0)
+	else if (strcmp(opt,OptionArray[43]) == 0)
 	{
 		//argument "ggnfsT".  Indicates timeout (in seconds) for NFS job.
 		GGNFS_TIMEOUT = strtoul(arg,NULL,10);
 	}
-	else if (strcmp(opt,OptionArray[46]) == 0)
+	else if (strcmp(opt,OptionArray[44]) == 0)
 	{
 		//argument "job".  Indicates input .job file automated NFS.
 		if (strlen(arg) < 1024)
@@ -1877,20 +1892,99 @@ void applyOpt(char *opt, char *arg)
 		else
 			printf("*** argument to -job too long, ignoring ***\n");
 	}
-	else if (strcmp(opt,OptionArray[47]) == 0)
+	else if (strcmp(opt,OptionArray[45]) == 0)
 	{
+		char **nextptr;
+
 		//argument "ns".  nfs sieving only
 		GGNFS_SIEVE_ONLY = 1;
+		
+		if (arg != NULL)
+		{
+			// if an argument was supplied, parse the start and range of 
+			//special Q in the format X,Y
+			GGNFS_STARTQ = strtoul(arg,nextptr,10);
+
+			if (*nextptr[0] != ',')
+			{
+				printf("format of sieving argument is START,STOP\n");
+				exit(1);
+			}
+			GGNFS_RANGEQ = strtoul(*nextptr + 1,NULL,10);
+
+			if (GGNFS_STARTQ >= GGNFS_RANGEQ)
+			{
+				printf("format of sieving argument is START,STOP; STOP must be > START\n");
+				exit(1);
+			}
+			GGNFS_RANGEQ = GGNFS_RANGEQ - GGNFS_STARTQ;
+		}
+		else
+		{
+			GGNFS_STARTQ = 0;
+			GGNFS_RANGEQ = 0;
+		}
+
 	}
-	else if (strcmp(opt,OptionArray[48]) == 0)
+	else if (strcmp(opt,OptionArray[46]) == 0)
 	{
+		char **nextptr;
+
 		//argument "np".  nfs poly finding only
 		GGNFS_POLY_ONLY = 1;
+
+		if (arg != NULL)
+		{
+			// if an argument was supplied, parse the start and stop coefficient range in the
+			// format X,Y
+			GGNFS_POLYSTART = strtoul(arg,nextptr,10);
+
+			if (*nextptr[0] != ',')
+			{
+				printf("format of poly select argument is START,STOP\n");
+				exit(1);
+			}
+			GGNFS_POLYRANGE = strtoul(*nextptr + 1,NULL,10);
+
+			if (GGNFS_POLYSTART >= GGNFS_POLYRANGE)
+			{
+				printf("format of poly select argument is START,STOP; STOP must be > START\n");
+				exit(1);
+			}
+			GGNFS_POLYRANGE = GGNFS_POLYRANGE - GGNFS_POLYSTART;
+		}
+		else
+		{
+			GGNFS_POLYSTART = 0;
+			GGNFS_POLYRANGE = 0;
+		}
 	}
-	else if (strcmp(opt,OptionArray[49]) == 0)
+	else if (strcmp(opt,OptionArray[47]) == 0)
 	{
 		//argument "nc".  nfs post processing only
 		GGNFS_POST_ONLY = 1;
+	}
+	else if (strcmp(opt,OptionArray[48]) == 0)
+	{
+		//argument "psearch".  modify poly search methodology
+		if (strlen(arg) < 1024)
+		{
+			if (strcmp(arg, "wide") == 0)
+				GGNFS_POLY_OPTION = 1;
+			else if (strcmp(arg, "deep") == 0)
+				GGNFS_POLY_OPTION = 2;
+			else if (strcmp(arg, "fast") == 0)
+				GGNFS_POLY_OPTION = 0;
+			else
+			{
+				printf("option -psearch recognizes arguments 'deep', 'wide', or 'fast'.\n  see docfile.txt for details\n"); 
+				exit(1);
+			}
+			
+		}
+		else
+			printf("*** argument to -psearch too long, ignoring ***\n");
+
 	}
 	else
 	{

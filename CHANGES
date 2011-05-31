@@ -13,17 +13,15 @@ v 1.26
 + fixed a typo when reporting composite factors found in ECM
 + nfs() overhaul
 + added several input options for customization of NFS jobs (see docfile for details)
-	+ can specify different .job file (default still ggnfs.job)
-	+ can run custom sieving step
-		+ specify starting Q and range of Q
-		+ specify output file (default still msieve.dat)
-		+ specify algebraic or rational side special Q
-	+ can sieve only, poly search only, or postprocess only 
 + tune() now uses job files and data files different from default nfs() jobs,
 	to reduce likelihood of corruption
 + long overdue additions to docfile.txt
 + nfs polynomial selection is now performed in parallel
-	+ default msieve deadline is scaled by num_threads
+	+ added a number of options to tailor parallel poly selection - see docfile.txt
++ automated nfs jobs now only invoke filtering after a minimum number of relations
+	have been collected
++ added a simple abort handler to NFS
+
 
 v 1.25
 + improved smallmpqs quite a bit

@@ -73,19 +73,24 @@ flags to change program behavior.  Supported flags in v1.26 are:
 				All plans can be used in combination with target_ecm ratio options
 -pretest		Use this switch to do only pretesting of the input number to
 				the factor() routine.  Sieve methods (QS/NFS) are not used
--ns				Only perform sieving step within nfs() if a valid job file exists for the 
+-ns	[X,Y]		Only perform sieving step within nfs() if a valid job file exists for the 
 					input number and if the input number is the same as that specified in
 					an existing data file.
--np				Only perform poly search step within nfs().  NOTE: any existing poly files will
+					Optionally, provide a range of special Q over which to sieve in the format: start,stop
+-np	[X,Y]		Only perform poly search step within nfs().  NOTE: any existing poly files will
 					be overwritten.
+					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
 -nc				Only perform postprocessing step within nfs()
 -a				Use special Q on the algebraic side within nfs()
 -r				Use special Q on the rational side within nfs()
--f <num>		Starting point for special Q range within nfs().  NOTE: this also sets the -ns flag
--c <num>		Range of special Q to sieve within nfs().  NOTE: this also sets the -ns flag
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
 -o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
 -ggnfsT <num>	Timeout to apply to nfs() command, in seconds
+-psearch <name>	Specify method of parallel polynomial selection with N threads:
+					'fast' - divides the search time by N
+					'wide' - normal time deadline, search N times the leading coefficient range
+					'deep' - normal time deadline, search every leading coefficient with N threads
+					Note that when N = 1, this option has no effect.
 
 These flags are ignored when redirecting input to yafu.
 
@@ -263,20 +268,38 @@ should be interchangable.  Supplying ggnfs.job in this way allows for SNFS facto
 albeit not completely automated.
 
 command line flags effecting nfs:
--ns				Only perform sieving step within nfs() if a valid job file exists for the 
+-ns	[X,Y]		Only perform sieving step within nfs() if a valid job file exists for the 
 					input number and if the input number is the same as that specified in
 					an existing data file.
--np				Only perform poly search step within nfs().  NOTE: any existing poly files will
+					Optionally, provide a range of special Q over which to sieve in the format: start,stop
+-np	[X,Y]		Only perform poly search step within nfs().  NOTE: any existing poly files will
 					be overwritten.
+					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
 -nc				Only perform postprocessing step within nfs()
 -a				Use special Q on the algebraic side within nfs()
 -r				Use special Q on the rational side within nfs()
--f <num>		Starting point for special Q range within nfs().  NOTE: this also sets the -ns flag
--c <num>		Range of special Q to sieve within nfs().  NOTE: this also sets the -ns flag
+
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
 -o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
 -ggnfsT <num>	Timeout to apply to nfs() command, in seconds
 -ggnfs_dir <path>	path to ggnfs binaries
+-psearch <name>	Specify method of parallel polynomial selection with N threads:
+					'fast' - divides the search time by N
+					'wide' - normal time deadline, search N times the leading coefficient range
+					'deep' - normal time deadline, search every leading coefficient with N threads
+					Note that when N = 1, this option has no effect.
+
+Examples:
+1) perform poly selection only, in parallel, within a custom starting value (default range), with verbose output:
+"nfs(number)" -v -threads 4 -np 10000,0
+
+2) perform automated nfs on a 400 bit input, but do a 'deep' polynomial search,
+	and stop the process after 36000 seconds:
+"nfs(rsa(400))" -v -threads 4 -psearch deep -ggnfsT 36000
+
+3) perform automated nfs, using a custom job file (SNFS), using rational side sieving,
+	and output to a custom data file
+"nfs(number)" -v -threads 4 -job snfs.job -r -o snfs_output.dat
 
 [siqs]
 usage: siqs(expression)

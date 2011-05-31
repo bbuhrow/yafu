@@ -162,14 +162,23 @@ void *ecm_worker_thread_main(void *thread_data) {
 
 
 #if defined(FORK_ECM)
-void *malloc_shared(size_t bytes)
+void *malloc_shared(size_t bytes, int *save_shmid)
 {
     int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
     if (shmid == -1) {
         printf("Couldn't allocated shared memory segment in ECM\n");
         exit(1);
     }
+	*save_shmid = shmid;
     return shmat(shmid, 0, 0);
+}
+
+void destroy_shm_segments(int *shmid_list, int num_shmids)
+{
+    int i;
+
+    for (i=0; i<num_shmids; i++)
+		shmctl(shmid_list[i], IPC_RMID, NULL);
 }
 #endif
 
@@ -1200,6 +1209,7 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
     z * return_factor, *my_return_factor;
     int *curves_run, *my_curves_run;
     int *factor_found;
+	int *shmid_list, num_shmids=0;
     int master_thread;
 	int total_numcurves, total_curves_run;
 	z d,t,nn;
@@ -1248,10 +1258,14 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 	zInit(&t);
 	zInit(&nn);
 
+	// Allocate room for a list of all shared memory segments -- one per thread plus 4 more
+	// We need this to correctly destroy all the segments on exit
+	shmid_list = (int *)malloc((THREADS + 4) * sizeof(int));
+
 	// Allocate shared memory for a variable saying someone found a factor, and an
     // array for each thread to record the number of curves it has run.
-    factor_found = (int *)malloc_shared(sizeof(int));
-    curves_run = (int *)malloc_shared(THREADS * sizeof(int));
+    factor_found = (int *)malloc_shared(sizeof(int), &shmid_list[num_shmids++]);
+    curves_run = (int *)malloc_shared(THREADS * sizeof(int), &shmid_list[num_shmids++]);
 
     // We make the thread_data structures shared so that the master thread can
     // log a few pieces of information (e.g. the sigma and stage where the factor
@@ -1259,17 +1273,17 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
     // which are later dynamically allocated, and those allocations will not be
     // shared. The master thread must be careful to access only the statically
     // declared fields in other threads' structures.
-    thread_data = malloc_shared(THREADS * sizeof(ecm_thread_data_t));
+    thread_data = malloc_shared(THREADS * sizeof(ecm_thread_data_t), &shmid_list[num_shmids++]);
 
     // Allocate shared memory for each thread to return the factor it found.
     // I don't know how to support dynamic resizing of shared memory, so I
     // just allocate plenty of space and assume it will never overflow.
-    return_factor = malloc_shared(THREADS * sizeof(z));
+    return_factor = malloc_shared(THREADS * sizeof(z), &shmid_list[num_shmids++]);
     for (i=0; i<THREADS; i++) {
         return_factor[i].size = 1;
         return_factor[i].alloc = 4096;
         return_factor[i].type = UNKNOWN;
-        return_factor[i].val = (fp_digit *)malloc_shared(4096 * sizeof(fp_digit));
+        return_factor[i].val = (fp_digit *)malloc_shared(4096 * sizeof(fp_digit), &shmid_list[num_shmids++]);
     }
 
     // Set things up for the master thread
@@ -1338,6 +1352,10 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
                     wait(NULL);
                 print_factors(fobj);
             }
+
+			// We still have to mark shared memory segments for destruction
+            destroy_shm_segments(shmid_list, num_shmids);
+
             exit(1);
 		}
 
@@ -1489,6 +1507,10 @@ done:
     shmdt(factor_found);
     shmdt(curves_run);
     shmdt(thread_data);
+
+	// And mark them for destruction
+    destroy_shm_segments(shmid_list, num_shmids);
+    free(shmid_list);
 
 	zFree(&d);
 	zFree(&t);
