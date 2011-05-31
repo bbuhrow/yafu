@@ -97,20 +97,32 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char *line);
 uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
 void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
-void do_sieving(ggnfs_job_t job);
+void get_polysearch_params(uint64 *start, uint64 *range);
+void do_sieving(ggnfs_job_t *job);
 void win_file_concat(char *filein, char *fileout);
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
 				uint32 is_master_thread);
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
 				uint32 is_master_thread);
+void nfsexit(int sig);
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
 #else
 void *nfs_worker_thread_main(void *thread_data);
 #endif
 
+int NFS_ABORT;
+
 #define USE_NFS
 #ifdef USE_NFS
+
+void nfsexit(int sig)
+{
+	printf("\nAborting... \n");
+	NFS_ABORT = 1;
+	return;
+}
+
 
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void test_msieve_gnfs(fact_obj_t *fobj)
@@ -118,8 +130,8 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	z *N = &fobj->qs_obj.n;
 	char *input;
 	str_t input_str;
-	msieve_obj *obj;
-	uint32 max_relations = 0;
+	msieve_obj *obj = NULL;
+	uint32 max_relations = 0, count;
 	uint32 seed1 = g_rand.low;
 	uint32 seed2 = g_rand.hi;
 	uint64 nfs_lower = 0;
@@ -128,11 +140,9 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	uint32 mem_mb = 0;
 	uint32 which_gpu = 0;
 	mp_t mpN;
-	int status;
 	factor_list_t factor_list;
 	uint32 flags = 0;
 	FILE *fid;
-	int i;
 	ggnfs_job_t job;
 	uint32 relations_needed = 1;	
 	uint32 startq, qrange;
@@ -141,11 +151,11 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
-	double t_time;
+	double t_time, rels_est;
 	FILE *logfile;
 	int statenum;
-	char tmpstr[1024];	
-	int process_done;
+	char tmpstr[GSTR_MAXSIZE];	
+	int process_done, check_rels = 1;
 
 	//below a certain amount, revert to SIQS
 	if (ndigits(N) < MIN_NFS_DIGITS)
@@ -218,6 +228,11 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 		printf("bad options: -nc with -np\n");
 		exit(1);
 	}
+
+	//initialize the flag to watch for interrupts, and set the
+	//pointer to the function to call if we see a user interrupt
+	NFS_ABORT = 0;
+	signal(SIGINT,nfsexit);
 
 	//start a counter for the whole job
 	gettimeofday(&start, NULL);
@@ -325,7 +340,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			else
 			{
 				// new factorization				
-				if (GGNFS_STARTQ > 0)
+				if ((GGNFS_STARTQ > 0) || GGNFS_SIEVE_ONLY)
 				{
 					printf("no job file exists for this input\n");
 					exit(1);
@@ -336,6 +351,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 			//load the job structure with the starting Q.
 			job.startq = startq;
+			job.qrange = qrange;
 
 			//override with custom commands, if applicable
 			if (GGNFS_POLY_ONLY)
@@ -358,13 +374,51 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 
 		case 2: //"sieve":
 
-			do_sieving(job);
+			do_sieving(&job);
 
 			//see how we're doing
 			if (GGNFS_SIEVE_ONLY || (GGNFS_RANGEQ > 0))
 				process_done = 1;
 			else
+			{
+				if (check_rels == 1)
+					statenum = 8;
+				else
+					statenum = 3;
+			}
+
+			break;
+
+		case 8:	// count rels
+
+			fid = fopen(GGNFS_OUTPUTFILE,"r");
+			count = 0;
+			while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+				count++;
+			fclose(fid);
+			rels_est = (double)(1 << job.lpb);
+			rels_est /= log(rels_est);
+			//rels_est *= 1.2;
+			relations_needed = (uint32)rels_est;
+
+			if (count > relations_needed)
+			{
+				if (VFLAG > 0)
+					printf("found %u relations, need %u, proceeding with filtering ...\n",
+					count, relations_needed);
+				
+				check_rels = 0;
 				statenum = 3;
+			}
+			else
+			{
+				if (VFLAG > 0)
+					printf("found %u relations, need %u, continuing with sieving ...\n",
+					count, relations_needed);
+
+				check_rels = 1;
+				statenum = 2;
+			}
 
 			break;
 
@@ -507,16 +561,19 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			}
 			process_done = 1;
 		}
+
+		if (NFS_ABORT)
+			process_done = 1;
 	}
 	
 	return;
 }
 
-void do_sieving(ggnfs_job_t job)
+void do_sieving(ggnfs_job_t *job)
 {
 	nfs_threaddata_t *thread_data;		//an array of thread data objects
 	int i;
-	uint32 startq = job.startq;
+	//uint32 startq = job.startq;
 	FILE *logfile;
 	char syscmd[1024];
 
@@ -524,18 +581,18 @@ void do_sieving(ggnfs_job_t job)
 	for (i=0; i<THREADS; i++)
 	{
 		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
-		thread_data[i].job.fblim = job.fblim;
-		thread_data[i].job.lambda = job.lambda;
-		thread_data[i].job.lpb = job.lpb;
-		thread_data[i].job.mfb = job.mfb;
+		thread_data[i].job.fblim = job->fblim;
+		thread_data[i].job.lambda = job->lambda;
+		thread_data[i].job.lpb = job->lpb;
+		thread_data[i].job.mfb = job->mfb;
 		if (GGNFS_RANGEQ > 0)
 			thread_data[i].job.qrange = ceil((double)GGNFS_RANGEQ / (double)THREADS);
 		else
-			thread_data[i].job.qrange = job.qrange;
-		thread_data[i].job.rels = job.rels;
-		thread_data[i].job.siever = job.siever;
-		thread_data[i].job.startq = job.startq;
-		strcpy(thread_data[i].job.sievername, job.sievername);
+			thread_data[i].job.qrange = job->qrange;
+		thread_data[i].job.rels = job->rels;
+		thread_data[i].job.siever = job->siever;
+		thread_data[i].job.startq = job->startq;
+		strcpy(thread_data[i].job.sievername, job->sievername);
 	}
 
 	/* activate the threads one at a time. The last is the
@@ -549,8 +606,8 @@ void do_sieving(ggnfs_job_t job)
 	for (i = 0; i < THREADS; i++) 
 	{
 		nfs_threaddata_t *t = thread_data + i;
-		t->job.startq = startq;
-		startq += t->job.qrange;
+		t->job.startq = job->startq;
+		job->startq += t->job.qrange;
 	}
 
 	logfile = fopen(flogname, "a");
@@ -670,7 +727,6 @@ void win_file_concat(char *filein, char *fileout)
 
 void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list)
 {
-	int status;
 	FILE *logfile;
 	uint32 flags;
 	z N;
@@ -712,8 +768,11 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 			  (double)high->seconds * (i - low->bits)) / dist);
 	}
 
-	//scale by number of threads
-	deadline /= THREADS;
+	if (GGNFS_POLY_OPTION == 0)
+	{
+		// 'fast' search.  scale by number of threads
+		deadline /= THREADS;
+	}
 
 	if (VFLAG > 0)
 		printf("setting deadline of %u seconds\n",deadline);
@@ -770,9 +829,9 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 
 	nfs_start_worker_thread(thread_data + i, 1);			
 
-	//search smallish chunks of the space in parallel until we've hit our deadline
-	start = 1ULL;
-	range = 1000ULL;
+	// determine the start and range values
+	get_polysearch_params(&start, &range);	
+
 	while (1)
 	{
 		//assign some work
@@ -798,8 +857,17 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 			t->mpN = mpN;
 			t->factor_list = factor_list;
 			
-			//next range
-			start += range;
+			if (GGNFS_POLY_OPTION == 2)
+			{
+				// 'deep' searching assigns all threads to the same range
+				start = start;
+			}
+			else
+			{
+				// 'fast' and 'wide' searches aim to cover more ground with extra threads.
+				// assign next range
+				start += range;
+			}
 		}
 
 		// launch a new poly selection process in each thread
@@ -898,6 +966,21 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 			printf("deadline of %u seconds met; poly select done\n",deadline);
 			break;
 		}
+
+		if (GGNFS_POLYRANGE > 0)
+		{
+			printf("custom range search complete in %6.4f seconds\n",t_time);
+			break;
+		}
+
+		if (GGNFS_POLY_OPTION == 2)
+		{
+			// 'deep' searching assigns all threads to the same range
+			start += range;
+		}
+
+		if (NFS_ABORT)
+			break;
 	}			
 
 	//stop worker threads
@@ -916,6 +999,34 @@ void do_msieve_polyselect(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_l
 	//also create a .fb file
 	ggnfs_to_msieve(job);
 	zFree(&N);
+
+	return;
+}
+
+void get_polysearch_params(uint64 *start, uint64 *range)
+{
+
+	//search smallish chunks of the space in parallel until we've hit our deadline
+	if (GGNFS_POLYSTART > 0)
+		*start = GGNFS_POLYSTART;
+	else
+		*start = 1ULL;
+	
+	if (GGNFS_POLYRANGE > 0)
+	{
+		// search custom range of leading coefficient.  This effectively ignores the deadline
+		// because the deadline is only checked after each range is done.  if we assign the
+		// entire range up front, the deadline is never checked before polysearch finishes.
+		*range = GGNFS_POLYRANGE / THREADS;
+
+		// sanity check
+		if (*range == 0) *range = 1;
+	}
+	else
+	{
+		// loop on a default range until the time deadline is reached
+		*range = 1000ULL;
+	}
 
 	return;
 }
@@ -1226,6 +1337,7 @@ int check_existing_files(z *N, uint32 *last_spq)
 	zInit(&tmpz);
 	z2decstr(N,&gstr1);
 	str2hexz(line+3,&tmpz);
+	//printf("read line %s from exisiting job file\n",z2decstr(&tmpz,&gstr1));
 	ans = zCompare(&tmpz,N);
 	if (ans == 0)
 	{
@@ -1253,10 +1365,6 @@ int check_existing_files(z *N, uint32 *last_spq)
 		else
 		{
 			// found it.  read the last specialq
-			char syscmd[1024];
-			FILE *data;
-			int a;
-
 			fclose(in);
 
 			//tail isn't good enough, because prior filtering steps could have inserted

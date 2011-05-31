@@ -54,25 +54,25 @@ endif
 
 ifeq ($(NFS),1)	
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/mingw
+	LIBS += -L../msieve/lib/linux
 
 	# NFS builds require GMP
 	CFLAGS += -DHAVE_GMP
 	# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 	INC += -I../gmp/include
 	# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ 
-	LIBS += -L../gmp/lib/mingw
+	LIBS += -L../gmp/lib/linux
 
 	CFLAGS += -DHAVE_GMP_ECM
 	INC += -I../gmp-ecm/include
 	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib/mingw -lecm -lmsieve -lgmp 
+	LIBS += -L../gmp-ecm/lib/linux -lecm -lmsieve -lgmp 
 	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm -lmsieve -lgmp 
 endif
 
 #MINGW builds don't need -pthread
-LIBS += -lm 
-#LIBS += -lm -lpthread
+#LIBS += -lm 
+LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN

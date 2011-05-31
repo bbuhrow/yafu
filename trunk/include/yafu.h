@@ -256,6 +256,8 @@ char ou_str[1024];
 //NFS options
 uint32 GGNFS_STARTQ;
 uint32 GGNFS_RANGEQ;
+uint32 GGNFS_POLYSTART;
+uint32 GGNFS_POLYRANGE;
 char GGNFS_OUTPUTFILE[1024];
 char GGNFS_LOGFILE[1024];
 char GGNFS_FBFILE[1024];
@@ -265,6 +267,7 @@ char GGNFS_JOB_INFILE[1024];
 int GGNFS_SIEVE_ONLY;
 int GGNFS_POLY_ONLY;
 int GGNFS_POST_ONLY;
+int GGNFS_POLY_OPTION;
 
 
 //globals for implementing the "plan" and "pretest" switches
