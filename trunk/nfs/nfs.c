@@ -113,7 +113,7 @@ void *nfs_worker_thread_main(void *thread_data);
 
 int NFS_ABORT;
 
-#define USE_NFS
+//#define USE_NFS
 #ifdef USE_NFS
 
 void nfsexit(int sig)
