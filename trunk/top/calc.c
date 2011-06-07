@@ -1729,25 +1729,12 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 50:
 		
-		for (i=29; i<31; i++)
-			fivemack_puzzle(((uint64)1 << i) - 1);
-		/*
-		fivemack_puzzle(((uint64)1 << 15) - 1);
-		fivemack_puzzle(((uint64)1 << 17) - 1);
-		fivemack_puzzle(((uint64)1 << 19) - 1);
-		fivemack_puzzle(((uint64)1 << 21) - 1);
-		fivemack_puzzle(((uint64)1 << 23) - 1);
-		fivemack_puzzle(((uint64)1 << 25) - 1);
-		fivemack_puzzle(((uint64)1 << 27) - 1);
-		fivemack_puzzle(((uint64)1 << 29) - 1);
-		*/
-		//fivemack_puzzle(((uint64)1 << 31) - 1);
 		//test_dlp_composites();
 		//pull_large_primes();
 		break;
 	case 51: 
 
-		//break;	// not supported in official release
+		break;	// not supported in official release
 
 		//maxbn = 0;
 		//for (i=0;i<10;i++) gcounts[i] = 0;
@@ -1767,7 +1754,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//primesum_check12(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
 		//	&operands[3], &operands[4]);
 
-		if (1)
+		
+#ifdef NOT_DEFINED
 		{
 			z *input;
 			int numin = 1000;
@@ -1876,6 +1864,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		}
 
 		break;
+
+#endif
+
 	case 52:
 		if (nargs != 1)
 		{

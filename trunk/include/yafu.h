@@ -268,6 +268,8 @@ int GGNFS_SIEVE_ONLY;
 int GGNFS_POLY_ONLY;
 int GGNFS_POST_ONLY;
 int GGNFS_POLY_OPTION;
+int GGNFS_RESTART_FLAG;
+uint32 GGNFS_POLYBATCH;
 
 
 //globals for implementing the "plan" and "pretest" switches
