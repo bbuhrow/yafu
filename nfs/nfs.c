@@ -1513,7 +1513,7 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 	FILE *in, *out, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
 	double score, bestscore = 0;
-	int count, bestline, i;
+	int count, bestline = 0, i;
 
 	sprintf(line, "%s.p",GGNFS_OUTPUTFILE);
 	in = fopen(line,"r");
@@ -1532,6 +1532,9 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 	}
 
 	// read and count polys of the file
+	if (VFLAG > 0)
+		printf("searching for best poly...\n");
+
 	count = 0;
 	while (!feof(in))
 	{
@@ -1542,7 +1545,8 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 		if (line[0] == '#')
 		{
 			count++;
-			//printf("found poly: %s",line);
+			if (VFLAG > 0)
+				printf("found poly: %s",line);
 			// the comment line for a new polynomial.  read characters until we 
 			// find the e-score designator
 			i=1;
@@ -1569,7 +1573,8 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 				{
 					bestscore = score;
 					bestline = count;
-					//printf("new best score = %e, new best line = %d\n",bestscore, bestline);
+					if (VFLAG > 0)
+						printf("new best score = %e, new best line = %d\n",bestscore, bestline);
 				}
 			}
 		}
@@ -1618,15 +1623,32 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 			break;		
 
 		if (line[0] == '#')
-			count--;
+			bestline--;
 
-		if (count == 0)
+		if (bestline == 0)
+		{
+			if (VFLAG > 0)
+				printf("best poly: \n%s",line);
+
+			logfile = fopen(flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "best poly: %s",line);
+				fclose(logfile);
+			}
+
 			break;
+		}
 	}
 
 	//copy n into the job file
 	z2decstr(N,&gstr1);
 	fprintf(out, "n: %s\n",gstr1.s);
+
+	if (VFLAG > 0)
+		printf("n: %s\n",gstr1.s);
 
 	// copy out the poly
 	while (!feof(in))
@@ -1639,6 +1661,9 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 			break;		
 		
 		fputs(line,out);
+
+		if (VFLAG > 0)
+			printf("%s",line);
 	}
 
 	// and copy in the job parameters
