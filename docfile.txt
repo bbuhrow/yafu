@@ -81,16 +81,21 @@ flags to change program behavior.  Supported flags in v1.26 are:
 					be overwritten.
 					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
 -nc				Only perform postprocessing step within nfs()
--a				Use special Q on the algebraic side within nfs()
+-a				Use special Q on the algebraic side within nfs() (default)
 -r				Use special Q on the rational side within nfs()
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
 -o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
--ggnfsT <num>	Timeout to apply to nfs() command, in seconds
+-ggnfsT <num>	Timeout to apply to nfs() command, in seconds (default = infinity)
 -psearch <name>	Specify method of parallel polynomial selection with N threads:
-					'fast' - divides the search time by N
+					'fast' - divides the search time by N (default)
 					'wide' - normal time deadline, search N times the leading coefficient range
 					'deep' - normal time deadline, search every leading coefficient with N threads
 					Note that when N = 1, this option has no effect.
+-pbatch <num>	Size of blocks of leading coefficients to distribute during NFS polynomial selection.
+				Default is 250.
+-R				Must specify in order to restart when a previous savefile exists
+
+
 
 These flags are ignored when redirecting input to yafu.
 
@@ -276,18 +281,22 @@ command line flags effecting nfs:
 					be overwritten.
 					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
 -nc				Only perform postprocessing step within nfs()
--a				Use special Q on the algebraic side within nfs()
+-a				Use special Q on the algebraic side within nfs() (default)
 -r				Use special Q on the rational side within nfs()
 
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
 -o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
--ggnfsT <num>	Timeout to apply to nfs() command, in seconds
+-ggnfsT <num>	Timeout to apply to nfs() command, in seconds (default = infinity)
 -ggnfs_dir <path>	path to ggnfs binaries
 -psearch <name>	Specify method of parallel polynomial selection with N threads:
-					'fast' - divides the search time by N
+					'fast' - divides the search time by N (default)
 					'wide' - normal time deadline, search N times the leading coefficient range
 					'deep' - normal time deadline, search every leading coefficient with N threads
 					Note that when N = 1, this option has no effect.
+-pbatch <num>	Size of blocks of leading coefficients to distribute during NFS polynomial selection.
+				Default is 250.
+-R				Must specify in order to restart when a previous savefile exists
+
 
 Examples:
 1) perform poly selection only, in parallel, within a custom starting value (default range), with verbose output:

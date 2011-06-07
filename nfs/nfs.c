@@ -51,10 +51,11 @@ typedef struct
 	uint32 mfb;
 	float lambda;
 	uint32 siever; 
-	uint32 rels;
 	uint32 qrange;
 	char sievername[1024];
 	uint32 startq;
+	uint32 min_rels;
+	uint32 current_rels;
 } ggnfs_job_t;
 
 typedef struct {
@@ -92,7 +93,7 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job);
 void msieve_to_ggnfs(ggnfs_job_t *job);
 void ggnfs_to_msieve(ggnfs_job_t *job);
 void get_ggnfs_params(z *N, ggnfs_job_t *job);
-int check_existing_files(z *N, uint32 *last_spq);
+int check_existing_files(z *N, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char *line);
 uint32 do_msieve_filtering(msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
@@ -113,7 +114,7 @@ void *nfs_worker_thread_main(void *thread_data);
 
 int NFS_ABORT;
 
-//#define USE_NFS
+#define USE_NFS
 #ifdef USE_NFS
 
 void nfsexit(int sig)
@@ -131,7 +132,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	char *input;
 	str_t input_str;
 	msieve_obj *obj = NULL;
-	uint32 max_relations = 0, count;
+	uint32 max_relations = 0;
 	uint32 seed1 = g_rand.low;
 	uint32 seed2 = g_rand.hi;
 	uint64 nfs_lower = 0;
@@ -142,7 +143,6 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	mp_t mpN;
 	factor_list_t factor_list;
 	uint32 flags = 0;
-	FILE *fid;
 	ggnfs_job_t job;
 	uint32 relations_needed = 1;	
 	uint32 startq, qrange;
@@ -151,11 +151,11 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
-	double t_time, rels_est;
+	double t_time;
 	FILE *logfile;
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
-	int process_done, check_rels = 1;
+	int process_done;
 
 	//below a certain amount, revert to SIQS
 	if (ndigits(N) < MIN_NFS_DIGITS)
@@ -274,7 +274,8 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			//file exist for this N, or if a ggnfs.job file exists for this N.
 			//if any of the .job, .fb and/or .dat exist but for conflicting N's,
 			//complain and stop.  else, start new job.
-			is_continuation = check_existing_files(N, &last_specialq);
+			job.current_rels = 0;
+			is_continuation = check_existing_files(N, &last_specialq, &job);
 
 			//find best job parameters
 			get_ggnfs_params(N,&job);						
@@ -285,7 +286,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 			else
 				qrange = job.qrange;
 
-			if (is_continuation)
+			if (is_continuation > 0)
 			{		
 				if (last_specialq == 0)
 				{
@@ -312,20 +313,27 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 				else
 				{
 					if (VFLAG >= 0)
-						printf("nfs: continuing job at specialq = %u\n",last_specialq);
+						printf("nfs: found ~ %u relations, continuing job at specialq = %u\n",
+						job.current_rels,last_specialq);
 
 					logfile = fopen(flogname, "a");
 					if (logfile == NULL)
 						printf("could not open yafu logfile for appending\n");
 					else
 					{
-						logprint(logfile, "nfs: continuing job at specialq = %u\n",last_specialq);
+						logprint(logfile, "nfs: found ~ %u relations, continuing job at specialq = %u\n",
+							job.current_rels,last_specialq);
 						fclose(logfile);
 					}
 
 					if (GGNFS_STARTQ > 0)
 					{
 						startq = GGNFS_STARTQ;
+						statenum = 2;
+					}
+					else if (GGNFS_SIEVE_ONLY)
+					{
+						startq = last_specialq;
 						statenum = 2;
 					}
 					else
@@ -337,7 +345,7 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 					}
 				}
 			}
-			else
+			else if (is_continuation == 0)
 			{
 				// new factorization				
 				if ((GGNFS_STARTQ > 0) || GGNFS_SIEVE_ONLY)
@@ -347,6 +355,12 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 				}
 				startq = job.fblim / 2;
 				statenum = 1;								
+			}
+			else
+			{
+				// failed restart
+				process_done = 1;
+				break;
 			}
 
 			//load the job structure with the starting Q.
@@ -381,43 +395,22 @@ void test_msieve_gnfs(fact_obj_t *fobj)
 				process_done = 1;
 			else
 			{
-				if (check_rels == 1)
-					statenum = 8;
-				else
-					statenum = 3;
-			}
-
-			break;
-
-		case 8:	// count rels
-
-			fid = fopen(GGNFS_OUTPUTFILE,"r");
-			count = 0;
-			while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
-				count++;
-			fclose(fid);
-			rels_est = (double)(1 << job.lpb);
-			rels_est /= log(rels_est);
-			//rels_est *= 1.2;
-			relations_needed = (uint32)rels_est;
-
-			if (count > relations_needed)
-			{
-				if (VFLAG > 0)
-					printf("found %u relations, need %u, proceeding with filtering ...\n",
-					count, relations_needed);
+				if (job.current_rels >= job.min_rels)
+				{
+					if (VFLAG > 0)
+						printf("found %u relations, need at least %u, proceeding with filtering ...\n",
+						job.current_rels, job.min_rels);
 				
-				check_rels = 0;
-				statenum = 3;
-			}
-			else
-			{
-				if (VFLAG > 0)
-					printf("found %u relations, need %u, continuing with sieving ...\n",
-					count, relations_needed);
+					statenum = 3;
+				}
+				else
+				{
+					if (VFLAG > 0)
+						printf("found %u relations, need at least %u, continuing with sieving ...\n",
+						job.current_rels, job.min_rels);
 
-				check_rels = 1;
-				statenum = 2;
+					statenum = 2;
+				}
 			}
 
 			break;
@@ -589,7 +582,8 @@ void do_sieving(ggnfs_job_t *job)
 			thread_data[i].job.qrange = ceil((double)GGNFS_RANGEQ / (double)THREADS);
 		else
 			thread_data[i].job.qrange = job->qrange;
-		thread_data[i].job.rels = job->rels;
+		thread_data[i].job.min_rels = job->min_rels;
+		thread_data[i].job.current_rels = job->current_rels;
 		thread_data[i].job.siever = job->siever;
 		thread_data[i].job.startq = job->startq;
 		strcpy(thread_data[i].job.sievername, job->sievername);
@@ -673,6 +667,8 @@ void do_sieving(ggnfs_job_t *job)
 		sprintf(syscmd,"cat %s >> %s",t->outfilename,GGNFS_OUTPUTFILE);
 		system(syscmd);
 #endif
+		// accumulate relation counts
+		job->current_rels += thread_data[i].job.current_rels;
 
 		remove(thread_data[i].outfilename);			
 	}
@@ -1025,7 +1021,7 @@ void get_polysearch_params(uint64 *start, uint64 *range)
 	else
 	{
 		// loop on a default range until the time deadline is reached
-		*range = 1000ULL;
+		*range = (uint64)GGNFS_POLYBATCH;
 	}
 
 	return;
@@ -1176,7 +1172,9 @@ void *lasieve_launcher(void *ptr)
 	//new a coefficient.  has pthread calling conventions, meant to be
 	//used in a multi-threaded environment
 	nfs_threaddata_t *thread_data = (nfs_threaddata_t *)ptr;
-	char syscmd[1024];	
+	char syscmd[GSTR_MAXSIZE], tmpstr[GSTR_MAXSIZE];	
+	FILE *fid;
+	int cmdret;
 
 	//remove any temporary relation files
 	remove(thread_data->outfilename);
@@ -1200,7 +1198,15 @@ void *lasieve_launcher(void *ptr)
 			printf("nfs: commencing rational side lattice sieving over range: %u - %u\n",
 				thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
 	}
-	system(syscmd);
+	cmdret = system(syscmd);
+
+	// count the relations produced
+	MySleep(100);
+	fid = fopen(thread_data->outfilename,"r");
+	thread_data->job.current_rels = 0;
+	while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+		thread_data->job.current_rels++;
+	fclose(fid);
 
 	return 0;
 }
@@ -1312,7 +1318,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 }
 
 
-int check_existing_files(z *N, uint32 *last_spq)
+int check_existing_files(z *N, uint32 *last_spq, ggnfs_job_t *job)
 {
 	//check to see if there is a .job for this number
 	FILE *in, *logfile;
@@ -1323,35 +1329,35 @@ int check_existing_files(z *N, uint32 *last_spq)
 
 	in = fopen(GGNFS_JOB_INFILE,"r");
 	if (in == NULL)
-		return 0;
+		return 0;	// no input job file.  not a restart.
 
 	ptr = fgets(line,GSTR_MAXSIZE,in);
 	if (ptr == NULL)
-		return 0;
+		return 0;	// job file is empty.  not a restart.
 
 	fclose(in);
 
 	if (line[0] != 'n')
-		return 0;
+		return 0;	// malformed job file.  not a restart.
 
 	zInit(&tmpz);
 	z2decstr(N,&gstr1);
 	str2hexz(line+3,&tmpz);
-	//printf("read line %s from exisiting job file\n",z2decstr(&tmpz,&gstr1));
 	ans = zCompare(&tmpz,N);
 	if (ans == 0)
 	{
+		// ok, we have a job file for the current input.  this is a restart.
 		ans = 1;
 
 		if (VFLAG > 0)
-			printf("nfs: commencing NFS restart - searching for last special-q\n");
+			printf("nfs: commencing NFS restart\n");
 
 		logfile = fopen(flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
-			logprint(logfile, "nfs: commencing NFS restart - searching for last special-q\n");
+			logprint(logfile, "nfs: commencing NFS restart\n");
 			fclose(logfile);
 		}
 
@@ -1359,13 +1365,25 @@ int check_existing_files(z *N, uint32 *last_spq)
 		in = fopen(GGNFS_OUTPUTFILE,"r");
 		if (in == NULL)
 		{
-			// didn't exist, return flag to start sieving from the beginning
+			// data file doesn't exist, return flag to start sieving from the beginning
 			*last_spq = 0;
 		}
-		else
+		else if (GGNFS_RESTART_FLAG)
 		{
 			// found it.  read the last specialq
 			fclose(in);
+
+			if (VFLAG > 0)
+				printf("nfs: previous data file found - commencing search for last special-q\n");
+
+			logfile = fopen(flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: previous data file found - commencing search for last special-q\n");
+				fclose(logfile);
+			}
 
 			//tail isn't good enough, because prior filtering steps could have inserted
 			//free relations, which don't have a special q to read.
@@ -1394,7 +1412,7 @@ int check_existing_files(z *N, uint32 *last_spq)
 					{
 						*last_spq = get_spq(line);
 						return ans;
-					}
+					}					
 
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
@@ -1422,14 +1440,33 @@ int check_existing_files(z *N, uint32 *last_spq)
 					{
 						if (strlen(line2) > 30)
 							strcpy(line, line2);
-					}						
+					}
+					job->current_rels += 4;
+
 				}
 			}
+		}
+		else
+		{
+			printf("must specify -R to restart when a savefile already exists\n");	
+
+			logfile = fopen(flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: refusing to restart without -R option\n");
+				fclose(logfile);
+			}
+
+			*last_spq = 0;
+			ans = -1;
 		}
 
 	}
 	else
 	{
+		// job file is for a different input.  not a restart.
 		ans = 0;
 		*last_spq = 0;
 	}
@@ -1794,7 +1831,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 	double scale;
 	FILE *test, *logfile;
 	
-	job->rels = 0;
+	job->min_rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
 	{
 		if (d > ggnfs_table[i][0] && d <= ggnfs_table[i+1][0])
@@ -1830,7 +1867,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 			else
 				job->siever = ggnfs_table[i+1][5];
 
-			job->rels = 0.8 * 2 * pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
+			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
 
 			//interp
 			job->qrange = ggnfs_table[i+1][7] - 
@@ -1838,7 +1875,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 		}
 	}
 
-	if (job->rels == 0)
+	if (job->min_rels == 0)
 	{
 		//couldn't find a table entry
 		if (d <= ggnfs_table[0][0])
@@ -1848,7 +1885,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 			job->mfb = ggnfs_table[0][3];
 			job->lambda = ggnfs_table[0][4];
 			job->siever = ggnfs_table[0][5];
-			job->rels = 0.8 * 2 * pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
+			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
 			job->qrange = ggnfs_table[0][7];
 		}
 		else
@@ -1858,7 +1895,7 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 			job->mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
 			job->lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
 			job->siever = ggnfs_table[GGNFS_TABLE_ROWS-1][5];
-			job->rels = 0.8 * 2 * pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
+			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
 			job->qrange = ggnfs_table[GGNFS_TABLE_ROWS-1][7];
 		}
 	}

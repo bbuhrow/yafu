@@ -1588,7 +1588,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 #ifdef USE_COMPRESSED_FB
 	sieve_fb_compressed *fbptr;
 #endif
+
+#ifdef DO_4X_SPV
 	uint32 *offsetarray, *mask1, *mask2;
+#endif
 
 	fullfb_ptr = fullfb;
 	if (parity)

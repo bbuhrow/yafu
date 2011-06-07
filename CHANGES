@@ -21,6 +21,7 @@ v 1.26
 + automated nfs jobs now only invoke filtering after a minimum number of relations
 	have been collected
 + added a simple abort handler to NFS
++ added a -R option, for specifing a NFS restart using an existing savefile
 
 
 v 1.25

@@ -1821,7 +1821,7 @@ void zNeg(z *u)
 void zShiftLeft_1(z *a, z *b)
 {	
 	/* Computes a = b << 1 */
-	int i,sign;
+	int sign;
 	int y;
 	int sb,j;
 	fp_digit carry, nextcarry;
@@ -1894,7 +1894,7 @@ static uint32 LEFTSHIFTMASKS32[32] = {
 void zShiftLeft_x(z *a, z *b, int x)
 {	
 	/* Computes a = b << x, where x is less than a word */
-	int i,sign;
+	int sign;
 	int y;
 	int sb,j;
 	fp_digit mask, carry, nextcarry;

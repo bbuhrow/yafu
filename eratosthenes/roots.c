@@ -16,7 +16,7 @@ benefit from your work.
 
 void getRoots(soe_staticdata_t *sdata)
 {
-	int prime, prodN, j;
+	int prime, prodN;
 	uint64 startprime;
 	uint64 i;
 

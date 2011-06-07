@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 49
+#define NUMOPTIONS 51
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -52,7 +52,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
-	"ns", "np", "nc", "psearch"};
+	"ns", "np", "nc", "psearch", "R",
+	"pbatch"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -69,7 +70,8 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,1,
 	1,1,1,0,0,
 	1,0,0,1,1,
-	2,2,0,1};
+	2,2,0,1,0,
+	1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -95,6 +97,7 @@ void finalize_batchline();
 int process_arguments(int argc, char **argv, char *input_exp);
 
 // tmp
+/*
 void wheel_table(int modulus);
 
 void wheel_table(int modulus)
@@ -261,6 +264,7 @@ void wheel_table(int modulus)
 
 	return;
 }
+*/
 
 int main(int argc, char *argv[])
 {
@@ -675,11 +679,11 @@ void readINI(void)
 		//read value
 		value = strtok((char *)0,"=");
 
-		if (value == NULL)
-		{
-			printf("expected value after keyword %s\n",key);
-			continue;
-		}
+		//if (value == NULL)
+		//{
+		//	printf("expected value after keyword %s\n",key);
+		//	continue;
+		//}
 
 		//apply the option... same routine command line options use
 		applyOpt(key,value);
@@ -1151,6 +1155,9 @@ void set_default_globals(void)
 	GGNFS_POLY_OPTION = 0;					//default = fast search
 											//1 = wide
 											//2 = deep
+	GGNFS_RESTART_FLAG = 0;					//default = not a restart
+	GGNFS_POLYBATCH = 250;					//default
+
 
 	//set some useful globals
 	zInit(&zZero);
@@ -1894,7 +1901,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[45]) == 0)
 	{
-		char **nextptr;
+		char **nextptr = NULL;
 
 		//argument "ns".  nfs sieving only
 		GGNFS_SIEVE_ONLY = 1;
@@ -1928,7 +1935,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[46]) == 0)
 	{
-		char **nextptr;
+		char **nextptr = NULL;
 
 		//argument "np".  nfs poly finding only
 		GGNFS_POLY_ONLY = 1;
@@ -1985,6 +1992,19 @@ void applyOpt(char *opt, char *arg)
 		else
 			printf("*** argument to -psearch too long, ignoring ***\n");
 
+	}
+	else if (strcmp(opt,OptionArray[49]) == 0)
+	{
+		//argument "R".  nfs restart flag
+		GGNFS_RESTART_FLAG = 1;
+	}
+	else if (strcmp(opt,OptionArray[50]) == 0)
+	{
+		//argument "pbatch".  Indicates size of blocks of leading coefficients to
+		//distribute to each thread in threaded NFS poly selection.
+		GGNFS_POLYBATCH = strtoul(arg,NULL,10);
+		if (GGNFS_POLYBATCH == 0)
+			GGNFS_POLYBATCH = 250;
 	}
 	else
 	{

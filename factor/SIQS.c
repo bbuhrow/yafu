@@ -74,18 +74,16 @@ void SIQS(fact_obj_t *fobj)
 	uint32 j;
 	int i;
 	clock_t start, stop;
-	double t_time, opttime;
-	struct timeval myTVend, optstart, optstop;
+	double t_time;
+	struct timeval myTVend, optstart;
 	TIME_DIFF *	difference;
 	int updatecode = 0;
 
 	//adaptive tf_small_cutoff variables
-	int avg_rels_per_A = 0;
 	double rels_per_sec_avg = 0.0;
 	double results[3] = {0.0,0.0,0.0};
 	int averaged_polys = 0;
 	int num_avg = 10;
-	int num_start = 0;
 	int num_meas = 1;
 	int orig_value;
 	int	poly_start_num = 0;

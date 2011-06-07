@@ -1561,7 +1561,7 @@ void fastDiv(z *n, z *d, z *q, z *r)
 	//given that we know that n is at most 3 digits
 	//and d is at most 2 digits
 
-	fp_digit nn[2], d1, d2, q1, q2, r1, r2;
+	//fp_digit nn[2], d1, d2, q1, q2, r1, r2;
 
 	
 

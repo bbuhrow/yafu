@@ -829,7 +829,7 @@ int BlockGauss_smQS(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 			fb_list_mpqs *fb, z *n, int mul, 
 			FILE *sieve_log,z *factors,uint32 *num_factor)
 {
-	int i,j,k,l,a,q,polynum;
+	int i,j,k,l,a,q; //polynum;
 	int *bl;
 	uint8 **m;		//matrix of the powers of the prime decompositions of the relations over the factor base
 	uint64 **m2_64;	//m mod 2, packed into 32 bit words
