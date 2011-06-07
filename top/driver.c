@@ -1901,7 +1901,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[45]) == 0)
 	{
-		char **nextptr = NULL;
+		char **nextptr = &arg;
 
 		//argument "ns".  nfs sieving only
 		GGNFS_SIEVE_ONLY = 1;
@@ -1935,7 +1935,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[46]) == 0)
 	{
-		char **nextptr = NULL;
+		char **nextptr = &arg;
 
 		//argument "np".  nfs poly finding only
 		GGNFS_POLY_ONLY = 1;
