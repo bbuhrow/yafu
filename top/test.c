@@ -395,10 +395,11 @@ void arith_timing(int num)
 	zInit(&d);
 	zInit(&e);
 	
-	spAcc(num);
+	//spAcc(num);
 	
 	//sqrt_acc(num, int sz);
 	//gcd_acc(num, int sz);
+	goto sqrt_test;
 
 	for (sz=50; sz<=500; sz += 50)
 	{
@@ -476,6 +477,7 @@ void arith_timing(int num)
 		*/
 	}
 
+sqr_test:
 	for (sz=50; sz<=500; sz += 50)
 	{
 		sqr_acc(num, sz);
@@ -497,11 +499,11 @@ void arith_timing(int num)
 		*/
 	}
 
-	
+sqrt_test:	
 	for (sz=50; sz<=500; sz += 50)
 	{
-		gcd_acc(num/100,sz);
-		sqrt_acc(num/100,sz);
+		//gcd_acc(num/100,sz);
+		sqrt_acc(num,sz);
 
 		/*
 		zRand(&a,sz);
@@ -548,7 +550,7 @@ double spAcc(int m)
 	zInit(&c);
 	zInit(&d);
 
-	printf("\nAccuracy test of single precision stuff\n");
+	printf("\nAccuracy test of single precision stuff, %d iterations\n",m);
 	start = clock();
 	for (j=1; j<m; ++j)
 	{
@@ -609,7 +611,7 @@ double sqr_acc(int m, int sz)
 	zInit(&c);
 	zInit(&d);
 
-	printf("\nAccuracy test, square and verify by sqrt:\n");
+	printf("\nAccuracy test, square and verify by mul:\n");
 	start = clock();
 	for (j=1; j<m; ++j)
 	{
@@ -619,12 +621,13 @@ double sqr_acc(int m, int sz)
 			a.size *= -1;
 
 		zSqr(&a,&b);
-		zNroot(&b,&c,2);
+		//zNroot(&b,&c,2);
+		zMul(&a,&a,&c);
 
-		if (a.size < 0)
-			c.size *= -1;
+		//if (a.size < 0)
+		//	c.size *= -1;
 
-		i = zCompare(&c,&a);
+		i = zCompare(&c,&b);
 
 		if (!(i==0))
 		{
@@ -834,7 +837,10 @@ double sqrt_acc(int m, int sz)
 		i = zCompare(&c,&a);
 		if (!((i==0) || (i==MAX_DIGIT)))
 		{
-			printf("error, not <= 0 at %d, iterations: %d\na:        ",j,k);
+			printf("error, not <= 0 at %d, iterations: %d\na:        ",j,k);			
+			printf("a = %s\nb = %s\nc = %s\n",
+				z2decstr(&a,&gstr1),z2decstr(&b,&gstr2),z2decstr(&c,&gstr3));
+
 			break;
 		}
 		zShortAdd(&b,1,&c);
@@ -843,13 +849,15 @@ double sqrt_acc(int m, int sz)
 		if (i<=0)
 		{
 			printf("error, not > 0 at %d, iterations: %d\na:       ",j,k);
+			printf("a = %s\nb = %s\nd = %s\n",
+				z2decstr(&a,&gstr1),z2decstr(&b,&gstr2),z2decstr(&d,&gstr3));
 			break;
 		}
 	}
 	stop = clock();
 
 	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("%d numbers verified.  Elapsed time = %6.4f seconds.\n", m,t);
+	printf("%d numbers verified.  Elapsed time = %6.4f seconds.\n", j,t);
 
 	zFree(&a);
 	zFree(&b);

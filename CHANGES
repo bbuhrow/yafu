@@ -1,3 +1,9 @@
+v 1.27
++ count digits using multiply-compare instead of division
++ str2hexz now works with 64 bit string/num conversions when appropriate
++ fixed nRoot (again)
+
+
 v 1.26
 + Makefile now properly includes NFS or not if specified
 + fixed the process of optimizing the small trial division cutoff that was impacted

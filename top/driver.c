@@ -554,15 +554,28 @@ int main(int argc, char *argv[])
 			{
 				if (strcmp(str.s,"") != 0)
 				{
+					clock_t start, stop;
+					double t;
+
+					start = clock();
 					str2hexz(str.s,&tmp);
+					stop = clock();
+					t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+					//printf("str2hexz in = %6.4f seconds.\n",t);
+
 					if (set_uvar(input_exp,&tmp))
 						new_uvar(input_exp,&tmp);
 					if (nooutput == 0)
 					{
 						if (OBASE == DEC)
 						{
+							start = clock();
 							if (VFLAG >= 0)
 								printf("\n%s = %s\n\n",input_exp,z2decstr(&tmp,&gstr1));
+
+							stop = clock();
+							t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+							//printf("output (including z2decstr) in = %6.4f seconds.\n",t);
 						}
 						else if (OBASE == HEX)
 						{

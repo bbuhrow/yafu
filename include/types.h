@@ -73,7 +73,7 @@ code to the public domain.
 
 #if defined(_MSC_VER)
 
-	#define align_free _aligned_free
+	#define align_free _aligned_free	
 
 	// check for _WIN64 first, because win64 also defines WIN32
 	#if defined(_WIN64)
@@ -82,6 +82,8 @@ code to the public domain.
 		//type will continue to be 32 bit, and no assembly will be used.
 		//if this changes in the future, then other parts of the code
 		//will need to change, for instance the defines in lanczos.c
+
+		#define strto_fpdigit _strtoui64
 
 		#pragma intrinsic(_umul128)
 		typedef __int8 int8;
@@ -151,6 +153,8 @@ code to the public domain.
 	#else
 
 		//MSVC builds using a 32 bit compiler
+		#define strto_fpdigit strtoul
+
 		typedef __int8 int8;
 		typedef __int16 int16;
 		typedef __int32 int32;
@@ -208,6 +212,7 @@ code to the public domain.
 		#include <mm_malloc.h>
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
+		#define strto_fpdigit _strtoui64
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))
@@ -223,7 +228,7 @@ code to the public domain.
 
 		#define MAX_DIGIT 0xffffffffffffffffULL
 		#define BITS_PER_DIGIT 64
-		#define DEC_DIGIT_PER_WORD 20
+		#define DEC_DIGIT_PER_WORD 19
 		#define HEX_DIGIT_PER_WORD 16
 		#define HIBITMASK 0x8000000000000000ULL
 		#define MAX_HALF_DIGIT 0xffffffff
@@ -245,6 +250,7 @@ code to the public domain.
 		#include <mm_malloc.h>
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
+		#define strto_fpdigit strtoul
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))
@@ -282,6 +288,7 @@ code to the public domain.
 
 		//sleep in milliseconds
 		#define MySleep(x) usleep((x)*1000)
+		#define strto_fpdigit strtoull
 
 		#define align_free free
 		typedef unsigned char uint8;
@@ -294,7 +301,7 @@ code to the public domain.
 		typedef int64_t fp_signword;
 		#define MAX_DIGIT 0xffffffffffffffff
 		#define BITS_PER_DIGIT 64
-		#define DEC_DIGIT_PER_WORD 20
+		#define DEC_DIGIT_PER_WORD 19
 		#define HEX_DIGIT_PER_WORD 16
 		#define HIBITMASK 0x8000000000000000
 		#define MAX_HALF_DIGIT 0xffffffff
@@ -316,6 +323,7 @@ code to the public domain.
 	
 		//sleep in milliseconds
 		#define MySleep(x) usleep((x)*1000)
+		#define strto_fpdigit strtoul
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;

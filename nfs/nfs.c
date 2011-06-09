@@ -1635,7 +1635,7 @@ void find_best_msieve_poly(z *N, ggnfs_job_t *job)
 				printf("could not open yafu logfile for appending\n");
 			else
 			{
-				logprint(logfile, "best poly: %s",line);
+				logprint(logfile, "nfs: best poly = %s",line);
 				fclose(logfile);
 			}
 
