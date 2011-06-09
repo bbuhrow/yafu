@@ -160,7 +160,7 @@ char *z2hexstr(z *n, str_t *s);
 int zCompare(z *u, z *v);
 int zCompare32(z32 *u, z32 *v);
 void zHex2Dec(z *u, z *v);
-void zDec2Hex(z32 *u, z *v);
+void zDec2Hex(z *u, z *v);
 void z32_to_z64(z32 *a, z *b);
 void z64_to_z32(z *a, z32 *b);
 void z32_to_z32(z *src, z32 *dest);

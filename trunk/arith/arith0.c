@@ -298,17 +298,6 @@ void str2hexz(char in[], z *u)
 	char *s2,*s,*incpy;
 	char **ptr = NULL;
 	int i,j,su,base,step,sign=0;
-	z32 t;
-
-	t.val = (uint32 *)calloc(MAX_DIGITS, sizeof(uint32));
-	if (t.val == NULL)
-	{
-		printf("couldn't allocate bignum in zInit\n");
-		exit(1);
-	}
-	t.size = 1;
-	t.alloc = MAX_DIGITS;
-	t.type = UNKNOWN;
 
 	//work with a copy of in
 	i = strlen(in);
@@ -336,16 +325,16 @@ void str2hexz(char in[], z *u)
 	}
 
 	//determine base of s by looking for 0x (hex) 0b (bin) or 0o (oct).  if 
-	//none of these, it is assumed to be decimal
+	//none of these, go with the input base.
 	if (s[0] == '0' && s[1] == 'x')
 	{
-		step = 8;
+		step = HEX_DIGIT_PER_WORD;
 		base = HEX;
 		s += 2;
 	}
 	else if (s[0] == '0' && s[1] == 'b')
 	{
-		step = 32;
+		step = BITS_PER_DIGIT;
 		base = BIN;
 		s += 2;
 	}
@@ -357,7 +346,7 @@ void str2hexz(char in[], z *u)
 	}
 	else if (s[0] == '0' && s[1] == 'd')
 	{
-		step = 9;
+		step = DEC_DIGIT_PER_WORD;
 		base = DEC;
 		s += 2;
 	}
@@ -365,13 +354,13 @@ void str2hexz(char in[], z *u)
 	{
 		base = IBASE;
 		if (base == HEX)
-			step = 8;
+			step = HEX_DIGIT_PER_WORD;
 		else if (base == DEC)
-			step = 9;
+			step = DEC_DIGIT_PER_WORD;
 		else if (base == BIN)
-			step = 32;
+			step = BITS_PER_DIGIT;
 		else
-			step = 20;
+			step = 20;	//fixme
 	}
 
 	//check for non-numeric characters
@@ -385,7 +374,6 @@ void str2hexz(char in[], z *u)
 			{
 				printf("invalid character in str2hexz\n");
 				free(incpy);
-				free(t.val);
 				zClear(u);
 				u->size = 0;	//error flag
 				return;
@@ -396,7 +384,6 @@ void str2hexz(char in[], z *u)
 			{
 				printf("invalid character in str2hexz\n");
 				free(incpy);
-				free(t.val);
 				zClear(u);
 				u->size = 0;	//error flag
 				return;
@@ -406,32 +393,16 @@ void str2hexz(char in[], z *u)
 	}
 
 	su = strlen(s)/step + (strlen(s)%step != 0);
-	if (t.alloc < su)
-	{
-		//grow
-		t.val = (uint32 *)realloc(t.val, (su + 2) * sizeof(uint32));
-		if (t.val == NULL)
-		{
-			printf("realloc failure in grow\n");
-			exit(1);
-		}
-		t.alloc = (su + 2);
-
-		//clear
-		memset(t.val, 0, t.alloc * sizeof(uint32));
-		t.size = 1;
-		t.type = UNKNOWN;
-	}
-
-	////////////////////// strtoul does not have a 64 bit equivalent /////////////////////////
-	////////////////////// need to read in as 32 bit and convert /////////////////////////////
+	if (u->alloc < su)
+		zGrow(u,(su + 2));		
+	zClear(u);
 
 	//read and convert step characters of s at a time
 	j=0;
 	for (i=0;i<su-1;i++)
 	{
 		s2 = &s[strlen(s)] - step;
-		t.val[j] = strtoul(s2,ptr,base);
+		u->val[j] = strto_fpdigit(s2,ptr,base);
 		s2[0] = '\0';
 		j++;
 	}
@@ -440,37 +411,21 @@ void str2hexz(char in[], z *u)
 	{
 		s2 = s;
 		ptr = &s2;
-		t.val[j] = strtoul(s2,ptr,base);
+		u->val[j] = strto_fpdigit(s2,ptr,base);
 	}
-	t.size = j+1;
+	u->size = j+1;
 
 	if (sign)
-		t.size *= -1;
+		u->size *= -1;
 
 	//all routines work on binary data, so get the output in hex
 	if (base == DEC || base == OCT)
 	{
 		//the way OCT is read in, it ends up just like dec in u.
-		zDec2Hex(&t,u);
+		zDec2Hex(u,u);
 	}
-	else
-	{
-		//already in hex, copy out.
-#if BITS_PER_DIGIT == 32
-		//zCopy((z *)(&t),u);
-		z32_to_z32(&t,u);
-		if (u->alloc < t.size)
-			zGrow(u,t.size);
 
-		memcpy(u->val,t.val,abs(t.size) * sizeof(uint32));
-		u->size = t.size;
-		u->type = t.type;
-#else
-		z32_to_z64(&t,u);
-#endif
-	}
 	free(incpy);
-	free(t.val);
 	return;
 }
 
@@ -750,6 +705,31 @@ int ndigits_1(fp_digit n)
 
 int ndigits(z *n)
 {
+	//method which avoids divisions
+	int i;
+	int nb = zBits(n);
+	int nd_est = (int)((double)nb / 3.33);	//approx 3.322 bits/digit.  round slightly up
+											//so our estimate is slightly small.
+	z tmp;
+	
+	//nd_est is either correct or too small.  compute 10^nd_est to see which.
+	zInit(&tmp);
+	sp2z(1,&tmp);
+
+	for (i = 0; i<nd_est; i++)
+		zShortMul(&tmp,10,&tmp);
+
+	while (zCompare(n,&tmp) >= 0)
+	{
+		nd_est++;
+		zShortMul(&tmp,10,&tmp);
+	}
+
+	return nd_est;
+}
+
+int ndigits_old(z *n)
+{
 	int i=1;
 	z nn,tmp;
 	fp_digit r;
@@ -883,7 +863,7 @@ int zCompare32(z32 *u, z32 *v)
 	return 0;
 }
 
-void zDec2Hex(z32 *u, z *v)
+void zDec2Hex(z *u, z *v)
 {
 	//convert u[] in dec to v[] in hex by multiplying the ith digit by (1e9)*i
 	//and adding to the previous digits
@@ -897,7 +877,6 @@ void zDec2Hex(z32 *u, z *v)
 
 	if (v->alloc < su)
 		zGrow(v,su);
-	//zClear(v);
 
 	if (a.alloc < su)
 	{
@@ -925,7 +904,7 @@ void zDec2Hex(z32 *u, z *v)
 	{
 		zShortMul(&a,u->val[i],&b);
 		zAdd(&vv,&b,&vv);
-		zShortMul(&a,0x3b9aca00,&a);
+		zShortMul(&a,MAX_DEC_WORD,&a);
 	}
 
 	//v may have unused high order limbs
@@ -941,13 +920,6 @@ void zDec2Hex(z32 *u, z *v)
 
 	if (vv.size == 0)
 		vv.size = 1;
-
-	/*
-	printf("in dec2hex, 64 bit hex words: ");
-	for (i=vv.size-1;i>=0;i--)
-		printf("%llx ",vv.val[i]);
-	printf("\n");
-	*/
 
 	zCopy(&vv,v);
 

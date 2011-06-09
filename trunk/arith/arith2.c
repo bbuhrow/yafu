@@ -720,13 +720,8 @@ int zNroot(z *u, z *w, int n)
 	//in general, x_k+1 = 1/n[(n-1)x_k + N/(x_k^(n-1))]
 	//for n=2, this reduces to the sqrt iteration:
 	//x_k+1 = 1/2[x_k + N/x_k]
-	//make the initial guess x_0 be the double precision nth root of the first
-	//53 bits of the input.
 
-	//the recurrence loop also looks for oscillations, and if one is
-	//found, manually picks the correct answer
-
-	z c, g, uu,t1,t2,*osc;
+	z c, g, uu,t1,t2;
 	long i, j, q;
 	uint64 n64;
 	double d, p;
@@ -767,45 +762,10 @@ int zNroot(z *u, z *w, int n)
 		zGrow(&g,u->size);
 	}
 
-	//lg2 of input
-	q = zBits(u) - 52;
-	zShiftRight(&uu,u,q);
-	d = z2dbl(&uu);
-	d = log(d) + q * LN2;
-
-	//log base 2 of input
-	d = d / LN2;
-
-	//log base 2 root estimate
-	d = d / (double)n;
-
-	//get out of log base 2
-	if (d < 52.0)
-	{
-		d = pow(2.0,d) + 1;
-		n64 = (uint64)d;
-		sp642z(n64,&g);
-	}
-	else
-	{
-		//the guess is too big to take the power directly.
-		//d = p + BASE * q
-		//2^d = 2^p * 2^(BASE * q)
-		//    = 2^p * 2^BASE^q
-		p = fmod(d,(double)BITS_PER_DIGIT);
-		q = (long)(d/(double)BITS_PER_DIGIT);
-		d = pow(2.0,p) + 1;
-		n64 = (uint64)d;
-		sp642z(n64,&g);
-		zShiftLeft(&g,&g,BITS_PER_DIGIT * q);
-	}
-
-	osc = (z *)malloc(4 * sizeof(z));
-	for (i=0; i<4; i++)
-		zInit(&osc[i]);
-
-	//printf("A = %s\n",z2decstr(u,&gstr1));
-	//printf("x0 = %s\n",z2decstr(&g,&gstr1));
+	// form initial guess - don't worry about being too exact, just ensure that the guess
+	// is bigger than the real root.
+	zCopy(&zOne,&g);
+	zShiftLeft(&g,&g,ceil((double)zBits(u) / (double)n));
 
 	//Newton's method
 	//special case n = 2 (sqrt)
@@ -814,32 +774,6 @@ int zNroot(z *u, z *w, int n)
 		//x_k+1 = 1/2[x_k + N/x_k]
 		for (i=0;i<10000;++i)
 		{
-			zCopy(&g,&osc[i%4]);
-			if (i % 4 == 0)
-			{
-				//check for oscillation by looking to see if each
-				//of the values in the array are different by 1 from
-				//their neighbors
-				q = 1;
-				for (j=0; j<3; j++)
-				{
-					zSub(&osc[j+1],&osc[j],&t1);
-					t1.size = abs(t1.size);
-					q = q & isOne(&t1);
-					if (q == 0)
-						break;
-				}
-				if (q == 1)
-				{
-					//oscillation detected.  pick the smaller one
-					if (zCompare(&osc[0],&osc[1]) < 0)
-						zCopy(&osc[0],w);
-					else
-						zCopy(&osc[1],w);
-					break;
-				}
-			}
-
 			zCopy(u,&uu);
 			zDiv(&uu,&g,w,&c);
 
@@ -869,32 +803,6 @@ int zNroot(z *u, z *w, int n)
 		//x_k+1 = 1/n[(n-1)x_k + N/(x_k^(n-1))]
 		for (i=0;i<10000;++i)
 		{
-			zCopy(&g,&osc[i%4]);
-			if (i % 4 == 0)
-			{
-				//check for oscillation by looking to see if each
-				//of the values in the array are different by 1 from
-				//their neighbors
-				q = 1;
-				for (j=0; j<3; j++)
-				{
-					zSub(&osc[j+1],&osc[j],&t1);
-					t1.size = abs(t1.size);
-					q = q & isOne(&t1);
-					if (q == 0)
-						break;
-				}
-				if (q == 1)
-				{
-					//oscillation detected.  pick the smaller one
-					if (zCompare(&osc[0],&osc[1]) < 0)
-						zCopy(&osc[0],w);
-					else
-						zCopy(&osc[1],w);
-					break;
-				}
-			}
-
 			zCopy(u,&uu);
 
 			zExp(n-1,&g,&t1);
@@ -923,16 +831,10 @@ int zNroot(z *u, z *w, int n)
 			zCopy(&c,&g);
 		} 
 	}
-	/*
+	
 	if (i >= 10000)
 		printf("nroot did not converge\n");
-	else
-		printf("nroot converged after %d iterations\n",i);
-		*/
 
-	for (i=0; i<4; i++)
-		zFree(&osc[i]);
-	free(osc);
 	zFree(&c);
 	zFree(&g);
 	zFree(&uu);
