@@ -334,7 +334,6 @@
     <ClInclude Include="..\..\include\tfm.h" />
     <ClInclude Include="..\..\include\types.h" />
     <ClInclude Include="..\..\include\util.h" />
-    <ClInclude Include="..\..\include\winsupport.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
