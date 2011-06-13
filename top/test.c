@@ -399,7 +399,7 @@ void arith_timing(int num)
 	
 	//sqrt_acc(num, int sz);
 	//gcd_acc(num, int sz);
-	goto sqrt_test;
+	goto muldiv;
 
 	for (sz=50; sz<=500; sz += 50)
 	{
@@ -456,7 +456,9 @@ void arith_timing(int num)
 		*/
 	}
 
-	for (sz=50; sz<=500; sz += 50)
+muldiv:
+	//for (sz=50; sz<=500; sz += 50)
+	for (sz=5; sz<=50; sz += 1)
 	{
 		muldiv_acc(num, sz);
 
@@ -476,6 +478,8 @@ void arith_timing(int num)
 		printf("elapsed time = %2.3f\n",t_time);
 		*/
 	}
+
+	goto sqrt_test;
 
 sqr_test:
 	for (sz=50; sz<=500; sz += 50)
@@ -500,7 +504,8 @@ sqr_test:
 	}
 
 sqrt_test:	
-	for (sz=50; sz<=500; sz += 50)
+	for (sz=5; sz<=50; sz += 1)
+	//for (sz=50; sz<=150; sz += 10)
 	{
 		//gcd_acc(num/100,sz);
 		sqrt_acc(num,sz);
@@ -772,7 +777,11 @@ double muldiv_acc(int m, int sz)
 	for (j=1;j<m;++j)
 	{	
 		zRand(&a,sz*2);
-		zRand(&b,sz);
+
+		do 
+		{
+			zRandb(&b,(int)((double)sz * 3.33));
+		} while (zCompare(&b,&zZero) == 0);
 
 		zCopy(&a,&d);	//because a will be overwritten
 		zDiv(&a,&b,&q,&rem);
@@ -783,10 +792,10 @@ double muldiv_acc(int m, int sz)
 		
 		if (i != 0) 
 		{
-			printf("\nfailed at %d\na: ",j);
-			printf("a = %s\n, b = %s\n, q = %s\n",
+			printf("\nfailed at %d\n",j);
+			printf("a = %s\nb = %s\nq = %s\n",
 				z2decstr(&d,&gstr1),z2decstr(&b,&gstr2),z2decstr(&q,&gstr3));
-			printf("r = %s\n, qb = %s\n, qb+r = %s\n",
+			printf("r = %s\nqb = %s\nqb+r = %s\n",
 				z2decstr(&rem,&gstr1),z2decstr(&c,&gstr2),z2decstr(&a,&gstr3));
 			exit(-1);
 			break;

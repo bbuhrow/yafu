@@ -1,7 +1,13 @@
-v 1.27
+
+v 1.26.x
 + count digits using multiply-compare instead of division
 + str2hexz now works with 64 bit string/num conversions when appropriate
 + fixed nRoot (again)
++ fixed bug in poly select - best polynomial wasn't chosen
++ fixed cmd line parsing bug that was causing -np x,y to crash
++ fixed a bug in zShiftLeft_x.  wasn't initializing the size of the output correctly.
++ fixed a memory leak in smallmpqs
++ more robustness in trial division in mpqs/smallmpqs
 
 
 v 1.26

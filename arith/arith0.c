@@ -725,6 +725,7 @@ int ndigits(z *n)
 		zShortMul(&tmp,10,&tmp);
 	}
 
+	zFree(&tmp);
 	return nd_est;
 }
 

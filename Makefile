@@ -49,7 +49,7 @@ ifeq ($(GMPECM),1)
 	CFLAGS += -DHAVE_GMP
 	INC += -I../gmp/include
 	INC += -I../gmp-ecm/include
-	LIBS += -L../gmp/lib -L../gmp-ecm/lib -lecm -lgmp
+	LIBS += -L../gmp/lib/linux -L../gmp-ecm/lib/linux -lecm -lgmp
 endif
 
 ifeq ($(NFS),1)	
