@@ -903,11 +903,11 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 s
 }
 
 #define DIVIDE_ONE_PRIME \
-	do \
+	while (zShortMod32(&Q32,prime) == 0) \
 	{						\
 		fboffset[++smooth_num] = i;	\
 		zShortDiv32(&Q32,prime,&Q32);			\
-	} while (zShortMod32(&Q32,prime) == 0);
+	}
 
 static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpqs_rlist *partial,
 						  uint8 *sieve, uint32 offset, uint32 j, uint32 sign, fb_list *fullfb, uint32 cutoff,
@@ -1088,7 +1088,10 @@ static void smpqs_trial_divide_Q(z *Q, smpqs_sieve_fb *fb, mpqs_rlist *full, mpq
 	}
 
 	if (bits < (closnuf + small_cutoff))
+	{
+		zFree32(&Q32);
 		return;
+	}
 
 	i=start_prime;
 	while (i < fullfb->B)
@@ -2009,6 +2012,7 @@ free:
 	zFree(&tmp4);
 	zFree(&nn);
 	zFree(&tmp_a);
+	zFree(&input);
 	return 0;
 }
 

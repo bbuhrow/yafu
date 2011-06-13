@@ -892,23 +892,21 @@ static void trial_divide_Q(z *Q, sieve_fb *fb, mpqs_rlist *full, mpqs_rlist *par
 				
 			if (((offset - root1) % prime) == 0)
 			{
-				do
+				while (zShortMod(Q,prime) == 0)
 				{
 					fboffset[++smooth_num] = (uint16)i;
 					zShortDiv(Q,prime,Q);
 					bits += logp;
-					r = zShortMod(Q,prime);
-				} while (r == 0);
+				}
 			}
 			else if (((offset - root2) % prime) == 0)
 			{
-				do
+				while (zShortMod(Q,prime) == 0)
 				{
 					fboffset[++smooth_num] = (uint16)i;
 					zShortDiv(Q,prime,Q);
 					bits += logp;
-					r = zShortMod(Q,prime);
-				} while (r == 0);
+				}
 			}
 			i++;
 		}
@@ -955,26 +953,24 @@ static void trial_divide_Q(z *Q, sieve_fb *fb, mpqs_rlist *full, mpqs_rlist *par
 			if (!(root2 % prime))
 			{
 				//it is, so it will divide Q(x).  do so as many times as we can.
-				do
+				while (zShortMod(Q,prime) == 0)
 				{
 					fboffset[++smooth_num] = (uint16)i;
 					zShortDiv(Q,prime,Q);
 					sieve[j] += logp;
-					r = zShortMod(Q,prime);
-				} while (r == 0);
+				}
 				if (sieve[j] == closnuf)
 					goto done;
 			}
 			else if ((root1 >= prime) && (!(root1 % prime)))
 			{
 				//r2 was a bust, but root1 met the criteria.  divide Q(x).		
-				do
+				while (zShortMod(Q,prime) == 0)
 				{
 					fboffset[++smooth_num] = (uint16)i;
 					zShortDiv(Q,prime,Q);
 					sieve[j] += logp;
-					r = zShortMod(Q,prime);
-				} while (r == 0);
+				}
 				if (sieve[j] == closnuf)
 					goto done;
 			}
@@ -1001,13 +997,12 @@ static void trial_divide_Q(z *Q, sieve_fb *fb, mpqs_rlist *full, mpqs_rlist *par
 
 		if ((root1 == prime) || (root2 == prime))
 		{
-			do
+			while (zShortMod(Q,prime) == 0)
 			{
 				fboffset[++smooth_num] = (uint16)i;
 				zShortDiv(Q,prime,Q);
 				sieve[j] += logp;
-				r = zShortMod(Q,prime);
-			} while (r == 0);
+			}
 			if (sieve[j] == closnuf)
 				goto done;
 		}

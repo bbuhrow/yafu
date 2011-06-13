@@ -115,6 +115,7 @@ void *nfs_worker_thread_main(void *thread_data);
 int NFS_ABORT;
 
 #define USE_NFS
+
 #ifdef USE_NFS
 
 void nfsexit(int sig)
@@ -1971,7 +1972,10 @@ void get_ggnfs_params(z *N, ggnfs_job_t *job)
 
 void test_msieve_gnfs(fact_obj_t *fobj)
 {
-	printf("gnfs has been disabled\n");
+	printf("gnfs has not been enabled\n");
+
+	SIQS(fobj);
+
 	return;
 }
 

@@ -1836,7 +1836,6 @@ void zShiftLeft_1(z *a, z *b)
 		sb = b->size;
 		sign = 0;
 	}
-
 	a->size = sb;
 
 	//for each digit, remember the highest x bits using the mask, then shift.
@@ -1915,6 +1914,10 @@ void zShiftLeft_x(z *a, z *b, int x)
 		sb = b->size;
 		sign = 0;
 	}
+	a->size = sb;
+
+	if (a->alloc < (sb + 1))
+		zGrow(a, sb + LIMB_BLKSZ);
 
 	//for each digit, remember the highest x bits using the mask, then shift.
 	//the highest x bits becomes the lowest x bits for the next digit
