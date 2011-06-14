@@ -3318,6 +3318,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	rel->num_factors = num_factors + num_polya_factors;
 	rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
+	rel->large_prime[2] = large_prime[2];
 
 	conf->buffered_rels++;
 	return;
@@ -3346,9 +3347,9 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 		i += sprintf(buf + i, "%x ", fb_offsets[k++]);
 
 	if (large_prime[0] < large_prime[1])
-		i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
+		i += sprintf(buf + i, "L %x %x %x\n", large_prime[0], large_prime[1], 1);
 	else
-		i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
+		i += sprintf(buf + i, "L %x %x %x\n", large_prime[1], large_prime[0], 1);
 
 	qs_savefile_write_line(&obj->qs_obj.savefile, buf);
 
@@ -3356,7 +3357,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	   tracking the number of fundamental cycles */
 
 	if (large_prime[0] != large_prime[1]) {
-		yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);
+		yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1], 1);
 		conf->num_cycles++;
 	}
 	else {
@@ -3914,7 +3915,8 @@ static uint32 add_to_hashtable(qs_cycle_t *table, uint32 *hashtable,
 }
 
 /*--------------------------------------------------------------------*/
-void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2) {
+void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, 
+	uint32 prime1, uint32 prime2, uint32 prime3) {
 
 	/* Top level routine for updating the graph of partial
 	   relations */
@@ -4560,13 +4562,14 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 	return j;
 }
 
-void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
+void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2, uint32 *prime3) {
 
 	char *next_field;
-	uint32 p1, p2;
+	uint32 p1, p2, p3;
 
 	*prime1 = p1 = 1;
 	*prime2 = p2 = 2;
+	*prime3 = p3 = 3;
 	if (*buf != 'L')
 		return;
 
@@ -4584,7 +4587,18 @@ void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 	while (isspace(*buf))
 		buf++;
 	if (isxdigit(*buf))
+	{
 		p2 = strtoul(buf, &next_field, 16);
+		buf = next_field;
+	}
+	else {
+		return;
+	}
+
+	while (isspace(*buf))
+		buf++;
+	if (isxdigit(*buf))
+		p3 = strtoul(buf, &next_field, 16);
 	
 	if (p1 < p2) {
 		*prime1 = p1;
@@ -4594,6 +4608,8 @@ void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2) {
 		*prime1 = p2;
 		*prime2 = p1;
 	}
+	*prime3 = 1;
+
 }
 
 uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
