@@ -41,8 +41,11 @@ void factor_tune(void)
 	TIME_DIFF *	difference;
 	double t_time;
 
+	//uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
+		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
-		63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
+		63709, 143984, 242825, 589192, 847299, 1272852, 1709598};
+
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
 

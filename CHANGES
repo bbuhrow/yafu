@@ -1,3 +1,7 @@
+v 1.26.6
++ tweaks to siqs parameter selection for numbers > 80 digits - resulting in 
+	fairly significant improvements at 90+ digits (~15% on a c100)
+
 
 v 1.26.x
 + count digits using multiply-compare instead of division
