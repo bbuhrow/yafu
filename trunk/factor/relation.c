@@ -4696,6 +4696,8 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 
 	num1 = 0;
 	while (entry1 != table + entry1->data) {
+		//printf("entry1 step %u: entry %u points to prime %u, next step is %u\n",
+			//num1,entry1->data,table[entry1->data].prime,table[entry1->data].data);
 		if (num1 >= 100) {
 			logprint(obj->logfile, "warning: cycle too long, "
 					"skipping it\n");
@@ -4709,6 +4711,8 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 
 	num2 = 0;
 	while (entry2 != table + entry2->data) {
+		//printf("entry2 step %u: entry %u points to prime %u, next step is %u\n",
+			//num2,entry2->data,table[entry2->data].prime,table[entry2->data].data);
 		if (num2 >= 100) {
 			logprint(obj->logfile, "warning: cycle too long, "
 					"skipping it\n");
