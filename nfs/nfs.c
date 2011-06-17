@@ -4,6 +4,9 @@
 #include "factor.h"
 #include "qs.h"
 
+
+#define USE_NFS
+
 //----------------------- LOCAL DATA TYPES -----------------------------------//
 
 /* used to place a deadline on how long polynomial 
@@ -113,8 +116,6 @@ void *nfs_worker_thread_main(void *thread_data);
 #endif
 
 int NFS_ABORT;
-
-#define USE_NFS
 
 #ifdef USE_NFS
 

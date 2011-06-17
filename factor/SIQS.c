@@ -1820,37 +1820,8 @@ int siqs_static_init(static_conf_t *sconf)
 		closnuf -= 0;	//optimized for 75 digit num
 	else if (sconf->digits_n >=78 && sconf->digits_n < 81)
 		closnuf -= 2;	//optimized for 80 digit num
-	else if (sconf->digits_n >=81 && sconf->digits_n < 84)
+	else if (sconf->digits_n >=81 && sconf->digits_n < 85)
 		closnuf -= 3;	//optimized for 82 digit num
-	else if (sconf->digits_n >=84 && sconf->digits_n < 87)
-		closnuf -= 4;	//optimized for 85 digit num
-	else if (sconf->digits_n >=87 && sconf->digits_n < 90)
-		closnuf -= 4;
-	else if (sconf->digits_n >= 90)
-	{
-		//this is guesswork, but we definately want to expend more effort
-		//to find relations for a given polynomial.  
-		closnuf -= 5;
-		for (i = sconf->digits_n; i > 90; i--)
-			closnuf--;
-	}
-
-	//now add in any extra for double large prime variation, if active.
-	//also dependant on input size... haven't figured out a good relationship
-	//yet, so these are "handtuned" for now.
-	if (sconf->use_dlp)
-	{
-		if (sconf->digits_n >=82 && sconf->digits_n < 85)
-			closnuf -= 4;	
-		else if (sconf->digits_n >=85 && sconf->digits_n < 90)
-			closnuf -= 7;	
-		else if (sconf->digits_n >=90 && sconf->digits_n < 95)
-			closnuf -= 10;	
-		else if (sconf->digits_n >=95 && sconf->digits_n < 100)
-			closnuf -= 13;	
-		else if (sconf->digits_n >=100)
-			closnuf -= 17;	
-	}
 
 	//test the contribution of the small primes to the sieve.  
 	for (i = 2; i < sconf->factor_base->B; i++)
@@ -1907,7 +1878,11 @@ int siqs_static_init(static_conf_t *sconf)
 	//this appears to work fairly well... paper mentioned doing it this
 	//way... find out and reference here.
 	sconf->tf_small_cutoff = (uint8)(avg + 2.5*sd);
-	closnuf -= sconf->tf_small_cutoff;
+
+	if (sconf->digits_n >= 85)
+		closnuf = sconf->digits_n + 5;	//empirically, this was observed to work fairly well.
+	else
+		closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
 
 	if (gbl_override_tf_flag)
 	{
