@@ -823,7 +823,7 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 			printf("div: primes less than %d\n",10000);
 		PRIME_THRESHOLD = 100000000;
 		zCopy(b,&fobj->div_obj.n);
-		zTrial(B1,0,fobj);
+		zTrial(B1,1,fobj);
 		zCopy(&fobj->div_obj.n,b);		
 		break;
 

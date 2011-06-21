@@ -52,15 +52,15 @@ void zTrial(fp_digit limit, int print, fact_obj_t *fobj)
 			sp2z(q,&tmp);
 			tmp.type = PRIME;
 			add_to_factor_list(fobj, &tmp);
-			if (print)
-				printf("PRIME FACTOR: %u\n",q);
+			if (print && (VFLAG > 0))
+				printf("div: found prime factor = %u\n",q);
 		}
 	}
-	if (PRIMES[k] >= limit)
-	{
-		if (print)
-			printf("COMPOSITE FACTOR: %s\n",z2decstr(n,&gstr1));
-	}
+	//if (PRIMES[k] >= limit)
+	//{
+	//	if (print && (VFLAG > 0))
+	//		printf("div: remaining cofactor = %s\n",z2decstr(n,&gstr1));
+	//}
 	zFree(&tmp);
 }
 

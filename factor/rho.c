@@ -104,6 +104,8 @@ void brent_loop(fact_obj_t *fobj)
 			{
 				f.type = PRP;
 				add_to_factor_list(fobj, &f);
+				if (VFLAG > 0)
+					printf("rho: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 				logprint(flog,"prp%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
@@ -111,6 +113,8 @@ void brent_loop(fact_obj_t *fobj)
 			{
 				f.type = COMPOSITE;
 				add_to_factor_list(fobj, &f);
+				if (VFLAG > 0)
+					printf("rho: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 				logprint(flog,"c%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
