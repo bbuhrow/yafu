@@ -723,13 +723,6 @@ void williams_loop(int trials, fact_obj_t *fobj)
 
 		pp1_print_B1_B2(n,flog);
 
-#if defined(HAVE_GMP) && defined(HAVE_GMP_ECM)
-		//need a new line to make screen output look right, when
-		//using GMP-ECM, because the "processed" status is not printed
-		if (VFLAG >= 0)
-			printf("\n");
-#endif
-
 		it = mwilliams(n,&f,base);
 		
 		if (zCompare(&f,&zOne) > 0 && zCompare(&f,n) < 0)
@@ -741,6 +734,8 @@ void williams_loop(int trials, fact_obj_t *fobj)
 			{
 				f.type = PRP;
 				add_to_factor_list(fobj, &f);
+				if (VFLAG > 0)
+					printf("pp1: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 				logprint(flog,"prp%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
@@ -748,6 +743,8 @@ void williams_loop(int trials, fact_obj_t *fobj)
 			{
 				f.type = COMPOSITE;
 				add_to_factor_list(fobj, &f);
+				if (VFLAG > 0)
+					printf("pp1: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 				logprint(flog,"c%d = %s\n",
 					ndigits(&f),z2decstr(&f,&gstr2));
 			}
@@ -833,6 +830,13 @@ void pp1_print_B1_B2(z *n, FILE *flog)
 	}
 	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
 		,stg1str,stg2str,ndigits(n));
+
+#if defined(HAVE_GMP) && defined(HAVE_GMP_ECM)
+		//need a new line to make screen output look right, when
+		//using GMP-ECM, because the "processed" status is not printed
+	if (VFLAG >= 0)
+		printf("\n");
+#endif
 
 	return;
 }

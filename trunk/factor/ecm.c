@@ -1403,7 +1403,11 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 				{
 					//yes, it does... proceed to record the factor
 					ecm_deal_with_factor(fobj, &thread_data[i], &return_factor[i], n, 
-						&t, &d, curves_run[i], i);					
+						&t, &d, curves_run[i], i);			
+
+					// factor will have been printed with a newline - reset the backspaces.
+					if (VFLAG > 0)
+						charcount = charcount2 = 0;
 
 					//we found a factor and might want to stop,
 					//but should check all threads output first
@@ -1666,6 +1670,10 @@ int ecm_loop(z *n, int numcurves, fact_obj_t *fobj)
 					//yes, it does... proceed to record the factor
 					ecm_deal_with_factor(fobj, &thread_data[i], &thread_data[i].factor, n, 
 						&t, &d, curves_run, i);
+					
+					// factor will have been printed with a newline - reset the backspaces.
+					if (VFLAG > 0)
+						charcount = charcount2 = 0;
 
 					//we found a factor and might want to stop,
 					//but should check all threads output first
@@ -1767,6 +1775,8 @@ int ecm_deal_with_factor(fact_obj_t *fobj, ecm_thread_data_t *thread_data, z *fa
 		//	ndigits(&thread_data[i].factor),
 		//	z2decstr(&thread_data[i].factor,&gstr1),
 		//	thread_data[i].stagefound,curves_run+1,i,thread_data[i].sigma);
+		if (VFLAG > 0)
+			printf("\necm: found prp%d factor = %s\n",ndigits(factor),z2decstr(factor,&gstr1));
 		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			ndigits(factor),
 			z2decstr(factor,&gstr1),
@@ -1777,6 +1787,8 @@ int ecm_deal_with_factor(fact_obj_t *fobj, ecm_thread_data_t *thread_data, z *fa
 	{
 		factor->type = COMPOSITE;
 		add_to_factor_list(fobj, factor);
+		if (VFLAG > 0)
+			printf("\necm: found c%d factor = %s\n",ndigits(factor),z2decstr(factor,&gstr1));
 		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			ndigits(factor),
 			z2decstr(factor,&gstr1),

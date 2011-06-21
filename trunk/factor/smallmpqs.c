@@ -1901,37 +1901,40 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 							if ((zCompare(&nn,&zOne) > 0) && (zCompare(&nn,&input) < 0))
 							{
 
-								//check that we havent' already found this one
-								set_continue = 0;
-								for (l=0;l<(int)*num_factor;l++)
+								if (isPrime(&nn))
 								{
-									if (zCompare(&nn,&factors[l]) == 0)
-										set_continue = 1;
-								}
-								if (set_continue)
-									continue;
+									//check that we havent' already found this one
+									set_continue = 0;
+									for (l=0;l<(int)*num_factor;l++)
+									{
+										if (zCompare(&nn,&factors[l]) == 0)
+											set_continue = 1;
+									}
+									if (set_continue)
+										continue;
 
-								zCopy(&nn,&factors[*num_factor]);
+									zCopy(&nn,&factors[*num_factor]);
 
-								(*num_factor)++;
-								if (*num_factor > MAX_FACTORS)
-								{
-									printf("max number of factors found in block gauss\n");
-									goto free;
-								}
-								//check if we're done by accumulating all factors and comparing to n
-								zCopy(&factors[0],&nn);
-								for (l=1;l<(int)*num_factor;l++)
-								{
-									zCopy(&factors[l],&tmp);
-									zMul(&tmp,&nn,&tmp2);
-									zCopy(&tmp2,&nn);
-								}
-								if (zBits(&nn) + 10 >= zBits(n))
-								{
-									//+ 10 accounts for the multiplier in n
-									//found all factors, done
-									goto free;
+									(*num_factor)++;
+									if (*num_factor > MAX_FACTORS)
+									{
+										printf("max number of factors found in block gauss\n");
+										goto free;
+									}
+									//check if we're done by accumulating all factors and comparing to n
+									zCopy(&factors[0],&nn);
+									for (l=1;l<(int)*num_factor;l++)
+									{
+										zCopy(&factors[l],&tmp);
+										zMul(&tmp,&nn,&tmp2);
+										zCopy(&tmp2,&nn);
+									}
+									if (zBits(&nn) + 10 >= zBits(n))
+									{
+										//+ 10 accounts for the multiplier in n
+										//found all factors, done
+										goto free;
+									}
 								}
 
 								//check the other factor
@@ -1940,37 +1943,40 @@ int smpqs_BlockGauss(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
 
 								zCopy(&tmp2,&tmp);
 	
-								//check that we havent' already found this one
-								set_continue = 0;
-								for (l=0;l<(int)*num_factor;l++)
+								if (isPrime(&tmp))
 								{
-									if (zCompare(&tmp,&factors[l]) == 0)
-										set_continue = 1;
-								}
-								if (set_continue)
-									continue;
+									//check that we havent' already found this one
+									set_continue = 0;
+									for (l=0;l<(int)*num_factor;l++)
+									{
+										if (zCompare(&tmp,&factors[l]) == 0)
+											set_continue = 1;
+									}
+									if (set_continue)
+										continue;
 
-								zCopy(&tmp,&factors[*num_factor]);
+									zCopy(&tmp,&factors[*num_factor]);
 
-								(*num_factor)++;
-								if (*num_factor > MAX_FACTORS)
-								{
-									printf("max number of factors found in block gauss\n");
-									goto free;
-								}
-								//check if we're done by accumulating all factors and comparing to n
-								zCopy(&factors[0],&nn);
-								for (l=1;l<(int)*num_factor;l++)
-								{
-									zCopy(&factors[l],&tmp);
-									zMul(&tmp,&nn,&tmp2);
-									zCopy(&tmp2,&nn);
-								}
-								if (zBits(&nn) + 10 >= zBits(n))
-								{
-									//+ 10 accounts for the multiplier in n
-									//found all factors, done
-									goto free;
+									(*num_factor)++;
+									if (*num_factor > MAX_FACTORS)
+									{
+										printf("max number of factors found in block gauss\n");
+										goto free;
+									}
+									//check if we're done by accumulating all factors and comparing to n
+									zCopy(&factors[0],&nn);
+									for (l=1;l<(int)*num_factor;l++)
+									{
+										zCopy(&factors[l],&tmp);
+										zMul(&tmp,&nn,&tmp2);
+										zCopy(&tmp2,&nn);
+									}
+									if (zBits(&nn) + 10 >= zBits(n))
+									{
+										//+ 10 accounts for the multiplier in n
+										//found all factors, done
+										goto free;
+									}
 								}
 							} //if non-trivial factor
 						} //if a == 0

@@ -729,11 +729,7 @@ void pm1_print_B1_B2(z *n, FILE *flog);
 		mpz_clear(pm1_data.gmp_factor);
 
 		POLLARD_STG2_MAX = TMP_STG2_MAX;
-
-		//needs an extra return to make the screen output look right
-		if (VFLAG >= 0)
-			printf("\n");
-		
+	
 		return;
 	}
 
@@ -875,6 +871,8 @@ void pollard_loop(fact_obj_t *fobj)
 			f.type = PRP;
 			add_to_factor_list(fobj, &f);
 			//log result
+			if (VFLAG > 0)
+				printf("pm1: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 			logprint(flog,"prp%d = %s\n",
 				ndigits(&f),z2decstr(&f,&gstr2));
 		}
@@ -883,6 +881,8 @@ void pollard_loop(fact_obj_t *fobj)
 			f.type = COMPOSITE;
 			add_to_factor_list(fobj, &f);
 			//log result
+			if (VFLAG > 0)
+					printf("pm1: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
 			logprint(flog,"c%d = %s\n",
 				ndigits(&f),z2decstr(&f,&gstr2));
 		}
@@ -970,6 +970,13 @@ void pm1_print_B1_B2(z *n, FILE *flog)
 	}
 	logprint(flog,"pm1: starting B1 = %s, B2 = %s on C%d\n",
 		stg1str,stg2str,ndigits(n));
+
+#if defined(HAVE_GMP) && defined(HAVE_GMP_ECM)
+		//need a new line to make screen output look right, when
+		//using GMP-ECM, because the "processed" status is not printed
+	if (VFLAG >= 0)
+		printf("\n");
+#endif
 	
 	return;
 }

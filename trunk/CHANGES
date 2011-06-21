@@ -1,6 +1,11 @@
-v 1.26.6
+v 1.27
 + tweaks to siqs parameter selection for numbers > 80 digits - resulting in 
-	fairly significant improvements at 90+ digits (~15% on a c100)
+	fairly significant improvements at 90+ digits (~10% on a c95, ~20% on a c100)
++ factor() now prints factors as they are found by the various methods, with -v
++ (local) modifications to msieve to return a non-zero error code when encountering
+	the "too few cycles, matrix probably cannnot build" condition.  This allows yafu
+	to continue sieving rather than aborting.
++ modified NFS poly selection to use more efficient thread pool architecture
 
 
 v 1.26.x
