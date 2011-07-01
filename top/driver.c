@@ -1177,9 +1177,11 @@ void set_default_globals(void)
 	zInit(&zOne);
 	zInit(&zTwo);
 	zInit(&zThree);
+	zInit(&zFive);
 	zOne.val[0] = 1;
 	zTwo.val[0] = 2;
 	zThree.val[0] = 3;
+	zFive.val[0] = 5;
 
 	//whether we want to output certain info to their own files...
 	WANT_OUTPUT_PRIMES = 0;

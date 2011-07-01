@@ -156,6 +156,9 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for qs
 	fobj->qs_obj.num_factors = 0;
 	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
+	fobj->qs_obj.override1 = 0;
+	fobj->qs_obj.override2 = 0;
+	fobj->qs_obj.override3 = 0;
 	zInit(&fobj->qs_obj.n);
 	sInit(&fobj->qs_obj.in);
 	sInit(&fobj->qs_obj.out);

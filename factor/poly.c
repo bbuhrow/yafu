@@ -51,6 +51,8 @@ typedef struct
 
 } polysieve_t;
 
+//#define POLYA_DEBUG
+
 void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	/*the goal of this routine is to generate a new poly_a value from elements of the factor base
@@ -105,6 +107,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 potential_a_factor = 0, found_a_factor;
 	uint32 afact[20];
 	double target_mul = 0.9;
+	int too_close, min_ratio;
 	FILE *sieve_log = sconf->obj->logfile;
 
 	zInit(&tmp);
@@ -115,29 +118,87 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//this really should be done once after generating the factor base
 	UPPER_POLYPOOL_INDEX = fb->small_B - 1;
 
-	for (i=0;i<fb->small_B;i++)
+	if (sconf->bits < 130)
 	{
-		if ((fb->list->prime[i] > 1000) && (poly_low_found == 0))
+		// don't worry so much about generating a poly close to the target,
+		// just make sure the factors of poly_a are all relatively large and
+		// disperse to keep duplicates low.
+		uint32 hi = fb->B-1;
+		uint32 lo = (fb->B-1) / 4;
+		uint32 id;
+		int doover;
+
+		id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+		sp2z(fb->list->prime[id],poly_a);
+		qli[0] = id;
+
+		j=1;
+		while (zCompare(poly_a,target_a) < 0)
 		{
-			LOWER_POLYPOOL_INDEX = i;
-			poly_low_found=1;
+			int k = 0;
+			id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+
+			doover = 0;
+			for (k=0; k < j; k++)
+			{
+				if (id == qli[k])
+				{
+					doover = 1;
+					break;
+				}
+			}
+
+			if (doover)
+				continue;
+
+			zShortMul(poly_a,fb->list->prime[id],poly_a);
+			qli[j++] = id;
 		}
 
-		if (fb->list->prime[i] > 4000)
-		{
-			UPPER_POLYPOOL_INDEX = i-1;
-			break;
-		}
+		*s = j;
+
+#ifdef POLYA_DEBUG
+			printf("A id/factors = %d:%u, %d:%u, %d:%u, A = %s\n", 
+				qli[0],fb->list->prime[qli[0]], 
+				qli[1],fb->list->prime[qli[1]], 
+				qli[2],fb->list->prime[qli[2]], 
+				z2decstr(poly_a,&gstr1));
+#endif
+
+		goto done;
+
 	}
-	UPPER_POLYPOOL_INDEX = fb->small_B - 1;
+	else
+	{
+		for (i=0;i<fb->small_B;i++)
+		{
+			if ((fb->list->prime[i] > 1000) && (poly_low_found == 0))
+			{
+				LOWER_POLYPOOL_INDEX = i;
+				poly_low_found=1;
+			}
 
-	//brute force the poly to be somewhat close to the target
-	target_bits = (uint32)((double)zBits(target_a) * target_mul);
+			if (fb->list->prime[i] > 4000)
+			{
+				UPPER_POLYPOOL_INDEX = i-1;
+				break;
+			}
+		}
+		UPPER_POLYPOOL_INDEX = fb->small_B - 1;
+
+		//brute force the poly to be somewhat close to the target
+		target_bits = (uint32)((double)zBits(target_a) * target_mul);
+		too_close = 10;
+		min_ratio = 1000;
+	}
+
 
 	while (1)
 	{
 		//generate poly_a's until the residue is 'small enough'
-		//printf("*******new trial a********\n");
+#ifdef POLYA_DEBUG
+		printf("*******new trial a********\n");
+#endif
 
 		//sp2z(1,poly_a);
 		zCopy(&zOne,poly_a);
@@ -167,22 +228,30 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			//build up poly_a
 			zShortMul(poly_a,potential_a_factor,poly_a);
-			//printf("afactor %d = %u\n",*s,potential_a_factor);
+#ifdef POLYA_DEBUG
+			printf("afactor %d = %u\n",*s,potential_a_factor);
+#endif
 			afact[*s]=potential_a_factor;
 			qli[*s] = randindex;
 			*s = *s + 1;
 			//compute how close we are to target_a
 			j = zBits(target_a) - zBits(poly_a);
-			if (j < 10)
+			if (j < too_close)
 			{
 				//too close, we want the last factor to be between 15 and 10 bits
+#ifdef POLYA_DEBUG
+				printf("target_a too close for last factor\n");
+#endif
 				zCopy(&zOne,poly_a);
 				*s=0;
 				continue;
 			}
-			else if (j < 15)
+			else if (j < (too_close + 5))
 			{
 				//close enough to pick a last factor
+#ifdef POLYA_DEBUG
+				printf("picking last factor\n");
+#endif
 				break;
 			}
 		}
@@ -193,8 +262,13 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		mindiff = 0xffffffff;
 		a1 = tmp2.val[0];
-		if (a1 < 1000)
+		if (a1 < min_ratio)
+		{
+#ifdef POLYA_DEBUG
+			printf("ratio = %u, starting over\n",a1);
+#endif
 			continue;
+		}
 
 		randindex = 0;
 		for (i=0;i<fb->small_B;i++)
@@ -230,12 +304,16 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		if (randindex > fb->small_B)
 		{
-			//printf("last prime in poly_a > small_B\n");
+#ifdef POLYA_DEBUG
+			printf("last prime in poly_a > small_B\n");
+#endif
 			continue;
 		}
 
 		zShortMul(poly_a,fb->list->prime[randindex],poly_a);
-		//printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
+#ifdef POLYA_DEBUG
+		printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
+#endif
 		afact[*s] = fb->list->prime[randindex];
 		qli[*s] = randindex;
 		*s = *s + 1;
@@ -291,6 +369,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
+done:
+
 	zFree(&tmp);
 	zFree(&tmp2);
 	zFree(&tmp3);
@@ -304,6 +384,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
 	memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));	
+
+#ifdef POLYA_DEBUG
+		printf("done generating poly_a\n");
+#endif
 
 	return;
 }

@@ -200,11 +200,11 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	{
 		//allocate two arrays used for merging together primes found in different lines 
 		//that will be used later.
-		j = *highlimit;
+		j = *highlimit - lowlimit;
 		k = (uint64)((double)j/log((double)j)*1.2);
 		if (VFLAG > 2)
 		{
-			printf("estimating storage for primes up to %" PRIu64 "\n",*highlimit);
+			printf("estimating storage for primes up to %" PRIu64 "\n",j);
 			printf("allocating merge prime storage for %u primes\n",k);
 		}
 		locprimes = (uint64 *)realloc(locprimes,k * sizeof(uint64));

@@ -1,3 +1,14 @@
+v 1.27.x
++ fixed a bug in LEGCD that called spDivide when v == 1, causing a crash
++ tweaked poly_a generation to allow siqs to work on much smaller inputs 
++ modified siqs to use smallmpqs (instead of mpqs) below a threshold, and lowered 
+	the threshold to take advantage of new parameters for small siqs jobs.
++ fixed a bug in nextprime that caused some small primes to be identifed as not prime
++ smallmpqs called standalone now returns factors and residue
++ parameter adjustments to smallmpqs to give a speedup
++ fixed a bug in the SoE to allocate memory better
+
+
 v 1.27
 + tweaks to siqs parameter selection for numbers > 80 digits - resulting in 
 	fairly significant improvements at 90+ digits (~10% on a c95, ~20% on a c100)

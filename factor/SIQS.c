@@ -90,23 +90,34 @@ void SIQS(fact_obj_t *fobj)
 
 	//logfile for this factorization
 	//must ensure it is only written to by main thread
-	fobj->logfile = fopen(flogname,"a");
-	sieve_log = fobj->logfile;
-
-	//first a small amount of trial division
-	//which will add anything found to the global factor list
-	//this is only called with the main thread
-	zCopy(n,&fobj->div_obj.n);
-	zTrial(10000,0,fobj);
-	zCopy(&fobj->div_obj.n,n);
+	if (fobj->qs_obj.flags != 12345)
+	{
+		fobj->logfile = fopen(flogname,"a");
+		sieve_log = fobj->logfile;
+	}
+	else
+	{
+		fobj->logfile = NULL;
+		sieve_log = fobj->logfile;
+	}
 
 	//check for special cases and bail if there is one
 	if ((i = check_specialcase(n,fobj->logfile,fobj)) > 0)
 	{
 		if (i == 1)
-			fclose(sieve_log);
+		{
+			if (sieve_log != NULL)
+				fclose(sieve_log);
+		}
 		return;
 	}
+
+	//then do a small amount of trial division
+	//which will add anything found to the global factor list
+	//this is only called with the main thread
+	zCopy(n,&fobj->div_obj.n);
+	zTrial(10000,0,fobj);
+	zCopy(&fobj->div_obj.n,n);
 
 	//At this point, we are committed to doing qs on the input
 	//we need to:
@@ -197,9 +208,13 @@ void SIQS(fact_obj_t *fobj)
 
 	if (VFLAG >= 0)
 		printf("\nstarting SIQS on c%d: %s\n",fobj->digits,z2decstr(n,&gstr1));
-	logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,z2decstr(n,&gstr1));
-	logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
-	fflush(sieve_log);
+
+	if (sieve_log != NULL)
+	{
+		logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,z2decstr(n,&gstr1));
+		logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
+		fflush(sieve_log);
+	}
 
 	//get best parameters, multiplier, and factor base for the job
 	//initialize and fill out the static part of the job data structure
@@ -601,11 +616,14 @@ void SIQS(fact_obj_t *fobj)
 
 	fobj->qs_obj.total_time = static_conf->t_time3;
 
-	logprint(sieve_log,"Lanczos elapsed time = %6.4f seconds.\n",static_conf->t_time1);
-	logprint(sieve_log,"Sqrt elapsed time = %6.4f seconds.\n",static_conf->t_time2);
-	logprint(sieve_log,"SIQS elapsed time = %6.4f seconds.\n",static_conf->t_time3);
-	logprint(sieve_log,"\n");
-	logprint(sieve_log,"\n");
+	if (sieve_log != NULL)
+	{
+		logprint(sieve_log,"Lanczos elapsed time = %6.4f seconds.\n",static_conf->t_time1);
+		logprint(sieve_log,"Sqrt elapsed time = %6.4f seconds.\n",static_conf->t_time2);
+		logprint(sieve_log,"SIQS elapsed time = %6.4f seconds.\n",static_conf->t_time3);
+		logprint(sieve_log,"\n");
+		logprint(sieve_log,"\n");
+	}
 
 	static_conf->cycle_list = cycle_list;
 	static_conf->num_cycles = num_cycles;
@@ -618,7 +636,9 @@ done:
 	//free everything else
 	free_siqs(thread_data[0].sconf);
 
-	fclose(sieve_log);
+	if (sieve_log != NULL)
+		fclose(sieve_log);
+
 	for (i=0; i<THREADS; i++)
 	{
 		free(thread_data[i].dconf);
@@ -1039,32 +1059,34 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		}
 	}
 
-	logprint(sconf->obj->logfile,"==== sieve params ====\n");
-	logprint(sconf->obj->logfile,"n = %d digits, %d bits\n",
-		sconf->digits_n,sconf->bits);
-	logprint(sconf->obj->logfile,"factor base: %d primes (max prime = %u)\n",
-		sconf->factor_base->B,sconf->pmax);
-	logprint(sconf->obj->logfile,"single large prime cutoff: %u (%d * pmax)\n",
-		sconf->large_prime_max,sconf->large_mult);
-	if (sconf->use_dlp)
+	if (sconf->obj->logfile != NULL)
 	{
-		logprint(sconf->obj->logfile,"double large prime range from %d to %d bits\n",
-			sconf->dlp_lower,sconf->dlp_upper);
-		logprint(sconf->obj->logfile,"double large prime cutoff: %s\n",
-			z2decstr(&sconf->large_prime_max2,&gstr1));
-	}
-	if (dconf->buckets->list != NULL)
-	{
-		logprint(sconf->obj->logfile,"allocating %d large prime slices of factor base\n",
-			dconf->buckets->alloc_slices);
-		logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
-	}
-	logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
-		sconf->num_blocks,BLOCKSIZE);
-	logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
-	logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
-	logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
-		sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
+		logprint(sconf->obj->logfile,"==== sieve params ====\n");
+		logprint(sconf->obj->logfile,"n = %d digits, %d bits\n",
+			sconf->digits_n,sconf->bits);
+		logprint(sconf->obj->logfile,"factor base: %d primes (max prime = %u)\n",
+			sconf->factor_base->B,sconf->pmax);
+		logprint(sconf->obj->logfile,"single large prime cutoff: %u (%d * pmax)\n",
+			sconf->large_prime_max,sconf->large_mult);
+		if (sconf->use_dlp)
+		{
+			logprint(sconf->obj->logfile,"double large prime range from %d to %d bits\n",
+				sconf->dlp_lower,sconf->dlp_upper);
+			logprint(sconf->obj->logfile,"double large prime cutoff: %s\n",
+				z2decstr(&sconf->large_prime_max2,&gstr1));
+		}
+		if (dconf->buckets->list != NULL)
+		{
+			logprint(sconf->obj->logfile,"allocating %d large prime slices of factor base\n",
+				dconf->buckets->alloc_slices);
+			logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
+		}
+		logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
+			sconf->num_blocks,BLOCKSIZE);
+		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
+		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
+		logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
+			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 
 
 #if defined(HAS_SSE2)
@@ -1103,16 +1125,17 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
-	logprint(sconf->obj->logfile,"using 64 byte cache line prefetching\n");
+		logprint(sconf->obj->logfile,"using 64 byte cache line prefetching\n");
 #elif defined(MANUAL_PREFETCH)
-	logprint(sconf->obj->logfile,"using 32 byte cache line prefetching\n");
+		logprint(sconf->obj->logfile,"using 32 byte cache line prefetching\n");
 #endif
-	logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
-		sconf->tf_closnuf);
-	if (THREADS == 1)
-		logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
-	else
-		logprint(sconf->obj->logfile,"==== sieving started (%2d threads) ====\n",THREADS);
+		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
+			sconf->tf_closnuf);
+		if (THREADS == 1)
+			logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
+		else
+			logprint(sconf->obj->logfile,"==== sieving started (%2d threads) ====\n",THREADS);
+	}
 
 
 	return state;
@@ -1771,7 +1794,12 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 	else
 	{
-		if (sconf->digits_n < 60)
+		if (sconf->digits_n < 30)
+		{
+			scan_ptr = &check_relations_siqs_1;
+			sconf->scan_unrolling = 8;
+		}
+		else if (sconf->digits_n < 60)
 		{
 			scan_ptr = &check_relations_siqs_4;
 			sconf->scan_unrolling = 32;
@@ -2129,8 +2157,9 @@ int update_final(static_conf_t *sconf)
 		else
 			printf("\n\n");
 
-		logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-			sconf->num,z2decstr(&qstmp1,&gstr1));
+		if (sieve_log != NULL)
+			logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
+				sconf->num,z2decstr(&qstmp1,&gstr1));
 
 #ifdef QS_TIMING
 
@@ -2138,10 +2167,12 @@ int update_final(static_conf_t *sconf)
 			SIEVE_STG1+SIEVE_STG2,
 			TF_STG1+TF_STG2+TF_STG3+TF_STG4+TF_STG5+TF_STG6,
 			POLY_STG0+POLY_STG1+POLY_STG2+POLY_STG3+POLY_STG4);
-		logprint(sieve_log,"sieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
-			SIEVE_STG1+SIEVE_STG2,
-			TF_STG1+TF_STG2+TF_STG3+TF_STG4+TF_STG5+TF_STG6,
-			POLY_STG0+POLY_STG1+POLY_STG2+POLY_STG3+POLY_STG4);
+
+		if (sieve_log != NULL)
+			logprint(sieve_log,"sieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
+				SIEVE_STG1+SIEVE_STG2,
+				TF_STG1+TF_STG2+TF_STG3+TF_STG4+TF_STG5+TF_STG6,
+				POLY_STG0+POLY_STG1+POLY_STG2+POLY_STG3+POLY_STG4);
 
 		printf("timing for SPV check = %1.3f\n",TF_STG1);
 		printf("timing for small prime trial division = %1.3f\n",TF_STG2);
@@ -2157,18 +2188,21 @@ int update_final(static_conf_t *sconf)
 		printf("timing for sieving small/medium primes = %1.3f\n",SIEVE_STG1);
 		printf("timing for sieving large primes = %1.3f\n",SIEVE_STG2);
 
-		logprint(sieve_log,"timing for SPV check = %1.3f\n",TF_STG1);
-		logprint(sieve_log,"timing for small prime trial division = %1.3f\n",TF_STG2);
-		logprint(sieve_log,"timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
-		logprint(sieve_log,"timing for large prime trial division = %1.3f\n",TF_STG5);
-		logprint(sieve_log,"timing for LP splitting + buffering = %1.3f\n",TF_STG6);
-		logprint(sieve_log,"timing for poly a generation = %1.3f\n",POLY_STG0);
-		logprint(sieve_log,"timing for poly roots init = %1.3f\n",POLY_STG1);
-		logprint(sieve_log,"timing for poly update small primes = %1.3f\n",POLY_STG2);
-		logprint(sieve_log,"timing for poly sieve medium primes = %1.3f\n",POLY_STG3);
-		logprint(sieve_log,"timing for poly sieve large primes = %1.3f\n",POLY_STG4);
-		logprint(sieve_log,"timing for sieving small/medium primes = %1.3f\n",SIEVE_STG1);
-		logprint(sieve_log,"timing for sieving large primes = %1.3f\n",SIEVE_STG2);
+		if (sieve_log != NULL)
+		{
+			logprint(sieve_log,"timing for SPV check = %1.3f\n",TF_STG1);
+			logprint(sieve_log,"timing for small prime trial division = %1.3f\n",TF_STG2);
+			logprint(sieve_log,"timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
+			logprint(sieve_log,"timing for large prime trial division = %1.3f\n",TF_STG5);
+			logprint(sieve_log,"timing for LP splitting + buffering = %1.3f\n",TF_STG6);
+			logprint(sieve_log,"timing for poly a generation = %1.3f\n",POLY_STG0);
+			logprint(sieve_log,"timing for poly roots init = %1.3f\n",POLY_STG1);
+			logprint(sieve_log,"timing for poly update small primes = %1.3f\n",POLY_STG2);
+			logprint(sieve_log,"timing for poly sieve medium primes = %1.3f\n",POLY_STG3);
+			logprint(sieve_log,"timing for poly sieve large primes = %1.3f\n",POLY_STG4);
+			logprint(sieve_log,"timing for sieving small/medium primes = %1.3f\n",SIEVE_STG1);
+			logprint(sieve_log,"timing for sieving large primes = %1.3f\n",SIEVE_STG2);
+		}
 		
 		
 #endif
@@ -2176,28 +2210,36 @@ int update_final(static_conf_t *sconf)
 		fflush(stderr);
 	}
 
-	logprint(sieve_log,"%d relations found: %d full + "
-		"%d from %d partial, using %d polys (%d A polys)\n",
-		sconf->num_r,sconf->num_relations,
-		sconf->num_cycles +
-		sconf->components - sconf->vertices,
-		sconf->num_cycles,sconf->tot_poly,sconf->total_poly_a);
+	if (sieve_log != NULL)
+	{
+		logprint(sieve_log,"%d relations found: %d full + "
+			"%d from %d partial, using %d polys (%d A polys)\n",
+			sconf->num_r,sconf->num_relations,
+			sconf->num_cycles +
+			sconf->components - sconf->vertices,
+			sconf->num_cycles,sconf->tot_poly,sconf->total_poly_a);
+	}
 	
 	gettimeofday (&myTVend, NULL);
 	difference = my_difftime (&sconf->totaltime_start, &myTVend);
 
-	logprint(sieve_log,"on average, sieving found %1.2f rels/poly and %1.2f rels/sec\n",
-		(double)(sconf->num_relations + sconf->num_cycles)/(double)sconf->tot_poly,
-		(double)(sconf->num_relations + sconf->num_cycles) /
-		((double)difference->secs + (double)difference->usecs / 1000000));
-	logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-			sconf->num,z2decstr(&qstmp1,&gstr1));
-	logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");
+	if (sieve_log != NULL)
+	{
+		logprint(sieve_log,"on average, sieving found %1.2f rels/poly and %1.2f rels/sec\n",
+			(double)(sconf->num_relations + sconf->num_cycles)/(double)sconf->tot_poly,
+			(double)(sconf->num_relations + sconf->num_cycles) /
+			((double)difference->secs + (double)difference->usecs / 1000000));
+		logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
+				sconf->num,z2decstr(&qstmp1,&gstr1));
+		logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");
+	}
 
 	sconf->obj->qs_obj.rels_per_sec = (double)(sconf->num_relations + sconf->num_cycles) /
 		((double)difference->secs + (double)difference->usecs / 1000000);
 
-	fflush(sieve_log);
+	if (sieve_log != NULL)	
+		fflush(sieve_log);
+
 	//sieve_log = fopen(flogname,"a");
 	zFree(&qstmp1);
 	free(difference);

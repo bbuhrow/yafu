@@ -171,7 +171,7 @@ void MPQS(fact_obj_t *fobj)
 
 	if ((n->val[0] % 2) == 0)
 	{
-		printf("n must be odd\n");
+		printf("n must be odd in mpqs\n");
 		return;
 	}
 

@@ -33,7 +33,7 @@ void factor_tune(void)
 	char siqslist[9][200];
 	char nfslist[6][200];
 	z n;
-	int i;
+	int i, tmpT;
 	uint32 save_gbl_override_rel;
 	int save_gbl_override_rel_flag;
 	struct timeval stop;	// stop time of this job
@@ -63,6 +63,12 @@ void factor_tune(void)
 	//return;
 
 	zInit(&n);	
+
+	tmpT = THREADS;
+
+	if (THREADS != 1)
+		printf("Setting THREADS = 1 for tuning\n");
+	THREADS = 1;
 
 	//siqs: start with c60, increment by 5 digits, up to a c100
 	//this will allow determination of NFS/QS crossover as well as provide enough
@@ -213,6 +219,9 @@ void factor_tune(void)
 		printf("nfs: estimated time for complete factorization = %6.4f seconds\n",gnfs_extraptime[i]);
 		
 	}
+
+	// set THREADS back the way it was
+	THREADS = tmpT;
 
 	fit = best_linear_fit(gnfs_sizes, gnfs_extraptime, NUM_GNFS_PTS, &a2, &b2);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a2,b2,fit);
