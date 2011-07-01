@@ -1747,7 +1747,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//printf("max bn = %u\n",maxbn);
 		//modtest(100000);
 		//test_qsort();
-		arith_timing(10000000);
+		//arith_timing(10000000);
 		//siqs - one argument
 		//zCopy(&operands[0],&fobj->N);
 		//asm_profile(fobj);
@@ -1759,14 +1759,17 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//	&operands[3], &operands[4]);
 
 		
-#ifdef NOT_DEFINED
+//#ifdef NOT_DEFINED
 		{
 			z *input;
-			int numin = 1000;
+			int numin = 10000;
 			int bits = 120;
 			int correct = 0;
-			double sum,avg;
+			double sum,avg,t_min;
 			fact_obj_t *fobj2;
+			uint32 bcorr, mcorr, b_min,m_min;
+			int blcorr,bl_min;
+			int ctune = 0;
 
 			fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 			init_factobj(fobj2);
@@ -1774,7 +1777,149 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (i=0; i<numin; i++)
 				zInit(&input[i]);
 
-			for (bits=50; bits<=100; bits+=10)
+			/*
+			gettimeofday(&tstart, NULL);
+
+			sum = 0;
+			for (i=0; i<numin; i++)
+			{
+				fp_digit a, b, c, d;
+
+				b = bits-2;
+				zRandb(&mp1, b/2 - 1);
+				zRandb(&mp2, b/2 + 1);
+					
+				zNextPrime(&mp1, &mp1, 1);
+				zNextPrime(&mp2, &mp2, 1);
+
+				zMul(&mp1,&mp2,&input[i]);
+				sum += zBits(&input[i]);				
+			}
+
+			gettimeofday (&tstop, NULL);
+			difference = my_difftime (&tstart, &tstop);
+			t = ((double)difference->secs + (double)difference->usecs / 1000000);
+			free(difference);
+			printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
+			printf("average size was %6.4f bits\n",sum/(double)numin);
+
+			printf("\nwarmups\n");
+			for (blcorr=0; blcorr<3; blcorr++)
+			{
+				gettimeofday(&tstart, NULL);
+				for (i=0; i<numin; i++)
+				{
+					zCopy(&input[i],&fobj2->qs_obj.n);					
+					fobj2->qs_obj.flags = 12345;
+					fobj2->qs_obj.override1 = 0;
+					fobj2->qs_obj.override2 = 0;
+					fobj2->qs_obj.override3 = 0;
+					SIQS(fobj2);
+
+					if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
+					{						
+						printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+						print_factors(fobj2);
+					}
+
+					clear_factor_list(fobj2);
+				}
+			
+				gettimeofday (&tstop, NULL);
+				difference = my_difftime (&tstart, &tstop);
+				t = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+				printf("factoring %d %d bit inputs took = %6.4f\n",numin,bits,t);
+			}
+
+			ctune = 1;
+			t_min = 1000000000;
+			b_min = 0;
+			m_min = 0;
+			bl_min = 0;
+			if (ctune)
+			{
+				for (mcorr = 0; mcorr <= 20; mcorr += 5)
+				{		
+					for (bcorr = 0; bcorr <= 100; bcorr += 25)
+					{				
+						for (blcorr = 2; blcorr <=4; blcorr += 1)
+						{
+							gettimeofday(&tstart, NULL);
+							for (i=0; i<numin; i++)
+							{
+								zCopy(&input[i],&fobj2->qs_obj.n);					
+								fobj2->qs_obj.flags = 12345;
+								fobj2->qs_obj.override1 = 225 + bcorr;
+								fobj2->qs_obj.override2 = 40 + mcorr;
+								fobj2->qs_obj.override3 = blcorr;
+								SIQS(fobj2);
+
+								if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
+								{						
+									printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+									print_factors(fobj2);
+								}
+
+								clear_factor_list(fobj2);
+							}
+			
+							gettimeofday (&tstop, NULL);
+							difference = my_difftime (&tstart, &tstop);
+							t = ((double)difference->secs + (double)difference->usecs / 1000000);
+							free(difference);
+							if (t < t_min)
+							{
+								t_min = t;
+								b_min = fobj2->qs_obj.override1;
+								m_min = fobj2->qs_obj.override2;
+								bl_min = fobj2->qs_obj.override3;
+							}
+							printf("factoring %d %d bit inputs with B=%u, M=%u, BL=%d took on avg %6.0f us\n",
+								numin,bits,fobj2->qs_obj.override1,fobj2->qs_obj.override2,
+								fobj2->qs_obj.override3,t/numin*1000000);
+						}
+					}
+				}
+				printf("min time = %6.0f us at B = %u, M = %u, BL = %d\n",
+					t_min/numin*1000000,b_min,m_min,bl_min);
+			}
+			else
+			{
+				for (blcorr = 0; blcorr < 9; blcorr += 2)
+				{
+					gettimeofday(&tstart, NULL);
+					for (i=0; i<numin; i++)
+					{
+						zCopy(&input[i],&fobj2->qs_obj.n);					
+						fobj2->qs_obj.flags = 12345;
+						fobj2->qs_obj.override1 = 59;
+						fobj2->qs_obj.override2 = 55;
+						fobj2->qs_obj.override3 = blcorr;
+						SIQS(fobj2);
+
+						if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
+						{						
+							printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+							print_factors(fobj2);
+						}
+
+						clear_factor_list(fobj2);
+					}
+			
+					gettimeofday (&tstop, NULL);
+					difference = my_difftime (&tstart, &tstop);
+					t = ((double)difference->secs + (double)difference->usecs / 1000000);
+					free(difference);
+					printf("factoring %d %d bit inputs with B=%u, M=%u, C=%d took on avg %6.0f us\n",
+						numin,bits,fobj2->qs_obj.override1,fobj2->qs_obj.override2,
+						fobj2->qs_obj.override3,t/numin*1000000);
+				}
+			}
+			exit(1);
+			*/
+
+			for (bits=55; bits<=130; bits+=5)
 			{
 				gettimeofday(&tstart, NULL);
 
@@ -1782,41 +1927,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				for (i=0; i<numin; i++)
 				{
 					fp_digit a, b, c, d;
-#ifdef _MSC_VER
-					build_RSA(bits, &input[i]);
-#else
+
 					b = bits-2;
 					zRandb(&mp1, b/2 - 1);
 					zRandb(&mp2, b/2 + 1);
-					/*
-					a = spRand(0,MAX_DIGIT);
-					b = spRand(0,MAX_DIGIT);
-
-					while (a > (1ULL << (bits/2)))
-						a >>= 1;
-					while (b > (2ULL << (bits/2)))
-						b >>= 1;
-
-					while (a < (1ULL << (bits/2)))
-						a <<= 1;
-					while (b < (2ULL << (bits/2)))
-						b <<= 1;
-					
-
-					zNextPrime_1(a,&c,&mp1,1);
-					sp2z(c,&mp1);
-					zNextPrime_1(b,&d,&mp2,1);
-					sp2z(d,&mp2);
-					*/
 					
 					zNextPrime(&mp1, &mp1, 1);
 					zNextPrime(&mp2, &mp2, 1);
 
 					zMul(&mp1,&mp2,&input[i]);
-					sum += zBits(&input[i]);
-					
-#endif
-					
+					sum += zBits(&input[i]);				
 				}
 
 				gettimeofday (&tstop, NULL);
@@ -1829,24 +1949,20 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					//if (i % 100 == 0)
-						//printf("input %d\n",i); //, %d correct\n",i,correct);
+					if (i % 100 == 0)
+						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
-					zCopy(&input[i],&fobj2->qs_obj.n);
-					//MPQS(fobj2);
-					smallmpqs(fobj2);
-					//fobj2->qs_obj.flags = 12345;
-					//pQS(fobj2);
+					zCopy(&input[i],&fobj2->qs_obj.n);					
+					fobj2->qs_obj.flags = 12345;
+					SIQS(fobj2);
 
-					//for (j=0; j<fobj->qs_obj.num_factors; j++)
-					//	zFree(&fobj->qs_obj.factors[j]);
+					if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
+					{						
+						printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+						print_factors(fobj2);
+					}
 
-					//fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, sizeof(z));
-					//fobj->qs_obj.num_factors = 0;
-					//zMul(&f1, &f2, &t1);
-					//zMul(&t1, &f3, &t2);
-					//if (zCompare(&t2,&input[i]) == 0)
-					//	correct++;
+					clear_factor_list(fobj2);
 				}
 			
 			
@@ -1869,7 +1985,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		break;
 
-#endif
+//#endif
 
 	case 52:
 		if (nargs != 1)
@@ -1878,19 +1994,24 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 		zCopy(&operands[0],&fobj->qs_obj.n);
-		smallmpqs(fobj);
-		zCopy(&zOne,&operands[0]);
-		//printf("found factors:\n");
-		//for (i=0; i<fobj->qs_obj.num_factors; i++)
-		//{
-		//	if (isPrime(&fobj->qs_obj.factors[i]))
-		//		printf("PRP%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
-		//			z2decstr(&fobj->qs_obj.factors[i],&gstr1));
-		//	else
-		//		printf("C%d = %s\n",ndigits(&fobj->qs_obj.factors[i]),
-		//			z2decstr(&fobj->qs_obj.factors[i],&gstr1));
-		//}
-		//printf("\n");
+		smallmpqs(fobj);		
+		for (i=0; i<fobj->qs_obj.num_factors; i++)
+		{
+			if (isPrime(&fobj->qs_obj.factors[i]))
+			{
+				fobj->qs_obj.factors[i].type = PRP;
+				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
+			}
+			else
+			{
+				fobj->qs_obj.factors[i].type = COMPOSITE;
+				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
+			}
+			zCopy(&fobj->qs_obj.n,&tmp1);
+			zDiv(&tmp1,&fobj->qs_obj.factors[i],&fobj->qs_obj.n,&tmp2);
+		}
+		zCopy(&fobj->qs_obj.n,&operands[0]);
+		print_factors(fobj);
 
 		break;
 	case 53:

@@ -976,7 +976,12 @@ int zLEGCD(z *u, z *v, z *w)
 
 			//u''/v''
 			if (udp[1] == 1)
-				spDivide(&q2,&t,udp,vdp);
+			{
+				if (vdp == 1)
+					q2 = 1;
+				else
+					spDivide(&q2,&t,udp,vdp);
+			}
 			else
 				q2 = udp[0]/vdp;
 

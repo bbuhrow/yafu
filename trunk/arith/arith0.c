@@ -669,6 +669,11 @@ void sp642z(uint64 sp, z *mp)
 	return;
 }
 
+int isFive(z *n)
+{
+	return (abs(n->size) == 1 && n->val[0] == 5);
+}
+
 int isZero(z *n)
 {
 	return (abs(n->size) == 1 && n->val[0] == 0);
@@ -764,6 +769,8 @@ int zCompare(z *u, z *v)
 
 	su = abs(u->size);
 	sv = abs(v->size);
+	//su = i ? -1*u->size : u->size;
+	//sv = j ? -1*v->size : v->size;
 	
 	if (i > j) 
 	{

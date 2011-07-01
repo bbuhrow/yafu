@@ -233,7 +233,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	return 0;
 }
 
-#define NUM_PARAM_ROWS 18
+#define NUM_PARAM_ROWS 22
 void get_params(static_conf_t *sconf)
 {
 	int bits,i;
@@ -245,9 +245,9 @@ void get_params(static_conf_t *sconf)
 	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
-	int param_table[22][4] = {
-		{140,	600,	40,	1},
-		{149,	875,	40,	1},
+	int param_table[NUM_PARAM_ROWS][4] = {
+		{140,	828,	40,	1},
+		{149,	1028,	40,	1},
 		{165,	1228,	50,	1},
 		{181,	2247,	50,	1},
 		{198,	3485,	60,	2},
@@ -349,6 +349,11 @@ void get_params(static_conf_t *sconf)
 			scale + param_table[NUM_PARAM_ROWS-1][3]);
 	}
 
+	// minimum factor base - for use with really small inputs.
+	// not efficient, but needed for decent poly selection
+	if (fb->B < 250)
+		fb->B = 250;
+
 	if (gbl_override_B_flag)
 		fb->B = gbl_override_B;
 
@@ -434,9 +439,9 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 	if (isnew)
 	{
 		//char buf[32 * MAX_MP_WORDS+1];
-
-		logprint(obj->logfile,
-			"prp%d = %s\n",ndigits(new_factor),z2decstr(new_factor,&gstr1));
+		if (obj->logfile != NULL)
+			logprint(obj->logfile,
+				"prp%d = %s\n",ndigits(new_factor),z2decstr(new_factor,&gstr1));
 		list->final_factors[list->num_factors] = (final_factor_t *)malloc(
 			sizeof(final_factor_t));
 		z2mp_t(new_factor, &list->final_factors[list->num_factors]->factor);

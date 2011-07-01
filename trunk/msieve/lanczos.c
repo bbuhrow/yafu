@@ -959,14 +959,16 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		if (VFLAG > 0)
 			printf("commencing Lanczos iteration (%u threads)\n",
 					packed_matrix->num_threads);
-		logprint(obj->logfile, "commencing Lanczos iteration (%u threads)\n",
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "commencing Lanczos iteration (%u threads)\n",
 					packed_matrix->num_threads);
 	}
 	else
 	{
 		if (VFLAG > 0)
 			printf("commencing Lanczos iteration\n");
-		logprint(obj->logfile, "commencing Lanczos iteration\n");
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "commencing Lanczos iteration\n");
 	}
 
 	/* allocate all the 64x64 variables */
@@ -998,7 +1000,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		printf("memory use: %.1f MB\n", (double)
 			((6 * n * sizeof(uint64) +
 			 yafu_packed_matrix_sizeof(packed_matrix))) / 1048576);
-	logprint(obj->logfile, "memory use: %.1f MB\n", (double)
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "memory use: %.1f MB\n", (double)
 			((6 * n * sizeof(uint64) +
 			 yafu_packed_matrix_sizeof(packed_matrix))) / 1048576);
 
@@ -1014,7 +1017,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		if (VFLAG > 0)
 			printf("restarting at iteration %u (dim = %u)\n",
 				iter, dim_solved);
-		logprint(obj->logfile, "restarting at iteration %u (dim = %u)\n",
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "restarting at iteration %u (dim = %u)\n",
 				iter, dim_solved);
 	}
 	else {
@@ -1109,7 +1113,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 				printf("lanczos error (dim = %u): "
 						"not all columns used\n",
 						dim_solved);
-				logprint(obj->logfile, "lanczos error (dim = %u): "
+				if (obj->logfile != NULL)
+					logprint(obj->logfile, "lanczos error (dim = %u): "
 						"not all columns used\n",
 						dim_solved);
 				dim0 = 0;
@@ -1271,7 +1276,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 	if (VFLAG > 0)
 		printf("lanczos halted after %u iterations (dim = %u)\n", 
 					iter, dim_solved);
-	logprint(obj->logfile, "lanczos halted after %u iterations (dim = %u)\n", 
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "lanczos halted after %u iterations (dim = %u)\n", 
 					iter, dim_solved);
 
 	/* free unneeded storage */
@@ -1302,7 +1308,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		if (dim0 == 0)
 		{
 			printf("linear algebra failed; retrying...\n");
-			logprint(obj->logfile,"linear algebra failed; retrying...\n");
+			if (obj->logfile != NULL)
+				logprint(obj->logfile,"linear algebra failed; retrying...\n");
 			exit(1);
 		}
 		return NULL;
@@ -1350,7 +1357,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 	}
 	if (i < n) {
 		printf("lanczos error: dependencies don't work\n");
-		logprint(obj->logfile, "lanczos error: dependencies don't work\n");
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "lanczos error: dependencies don't work\n");
 		exit(-1);
 	}
 	
@@ -1365,7 +1373,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 	{
 		printf("lanczos error: only trivial "
 				"dependencies found\n");
-		logprint(obj->logfile, "lanczos error: only trivial "
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "lanczos error: only trivial "
 				"dependencies found\n");
 	}
 	else
@@ -1373,7 +1382,8 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		if (VFLAG > 0)
 			printf("recovered %u nontrivial dependencies\n", 
 				*num_deps_found);
-		logprint(obj->logfile, "recovered %u nontrivial dependencies\n", 
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "recovered %u nontrivial dependencies\n", 
 			*num_deps_found);
 	}
 	return x;
@@ -1393,7 +1403,8 @@ uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows,
 	
 	if (ncols <= nrows) {
 		printf("matrix must have more columns than rows\n");
-		logprint(obj->logfile, "matrix must have more columns than rows\n");
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "matrix must have more columns than rows\n");
 		exit(-1);
 	}
 
@@ -1406,7 +1417,8 @@ uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows,
 		if (VFLAG > 0)
 			printf("matrix includes %u packed rows\n", 
 					num_dense_rows);
-		logprint(obj->logfile, "matrix includes %u packed rows\n", 
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "matrix includes %u packed rows\n", 
 					num_dense_rows);
 	}
 

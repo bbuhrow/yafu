@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.27"
+#define VERSION_STRING "1.27.1"
 
 //basics
 #define POSITIVE 0
@@ -302,7 +302,7 @@ uint32 gbl_override_lpmult;		//override the large prime multiplier
 int gbl_force_DLP;
 
 //global workspace variables
-z zZero, zOne, zTwo, zThree;
+z zZero, zOne, zTwo, zThree, zFive;
 
 //this array holds a global store of prime numbers
 uint64 *spSOEprimes;	//the primes	

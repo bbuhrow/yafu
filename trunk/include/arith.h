@@ -149,6 +149,7 @@ void zClear32(z32 *num);
 void str2hexz(char s[], z *u);
 int isZero(z *n);
 int isOne(z *n);
+int isFive(z *n);
 double z2dbl(z *a);
 void sp642z(uint64 sp, z *mp);
 void sp2z(fp_digit sp, z *mp);

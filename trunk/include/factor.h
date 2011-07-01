@@ -302,7 +302,7 @@ typedef struct
 	qs_savefile_t savefile;		//savefile object
 	uint32 override1;			//override of default parameters
 	uint32 override2;			//override of default parameters
-	uint32 override3;			//override of default parameters
+	int override3;				//override of default parameters
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	uint32 flags;				//each bit corresponds to a location in the 

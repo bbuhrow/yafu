@@ -94,20 +94,51 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 	{
 		n->type = PRP;
 		add_to_factor_list(fobj, n);
-		logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+		if (sieve_log != NULL)
+			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
 		zFree(&w1);
 		zFree(&w2);
 		return 1;
 	}
 
-	if (zBits(n) <= 130)
+	if (zBits(n) < 115)
 	{
 		//run MPQS, as SIQS doesn't work for smaller inputs
 		//MPQS will take over the log file, so close it now.
-		fclose(sieve_log);
+		int i;
+
+		if (sieve_log != NULL)
+			fclose(sieve_log);
+
+		// we've verified that the input is not odd or prime.  also
+		// do some very quick trial division before calling smallmpqs, which
+		// does none of these things.
+		for (i=1; i<25; i++)
+		{
+			if (zShortMod(n, spSOEprimes[i]) == 0)
+				zShortDiv(n, spSOEprimes[i], n);
+		}
+
 		zCopy(n,&fobj->qs_obj.n);
-		MPQS(fobj);
+		smallmpqs(fobj);
+		for (i=0; i<fobj->qs_obj.num_factors; i++)
+		{
+			if (isPrime(&fobj->qs_obj.factors[i]))
+			{
+				fobj->qs_obj.factors[i].type = PRP;
+				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
+			}
+			else
+			{
+				fobj->qs_obj.factors[i].type = COMPOSITE;
+				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
+			}
+			zCopy(&fobj->qs_obj.n,&w1);
+			zDiv(&w1,&fobj->qs_obj.factors[i],&fobj->qs_obj.n,&w2);
+			zFree(&fobj->qs_obj.factors[i]);
+		}
+		fobj->qs_obj.num_factors = 0;
 		zCopy(&fobj->qs_obj.n,n);
 		zFree(&w1);
 		zFree(&w2);
@@ -129,16 +160,22 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 		printf("input is a perfect square\n");
 		if (isPrime(&w1))
 		{
-			logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-			logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+			if (sieve_log != NULL)
+			{
+				logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+				logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+			}
 			w1.type = PRP;
 			add_to_factor_list(fobj, &w1);
 			add_to_factor_list(fobj, &w1);
 		}
 		else
 		{
-			logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-			logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+			if (sieve_log != NULL)
+			{
+				logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+				logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
+			}
 			w1.type = COMPOSITE;
 			add_to_factor_list(fobj, &w1);
 			add_to_factor_list(fobj, &w1);

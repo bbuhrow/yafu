@@ -1255,11 +1255,12 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 				continue;
 #endif
 			// log this report
-			dconf->reports[dconf->num_reports++] = thisloc;			
+			if (dconf->num_reports < MAX_SIEVE_REPORTS)
+				dconf->reports[dconf->num_reports++] = thisloc;			
 		}
 	}
 
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	if (dconf->num_reports > MAX_SIEVE_REPORTS)
 	{
 		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
 		exit(-1);
@@ -1343,7 +1344,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 #endif
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -1353,7 +1355,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	SCAN_CLEAN;
 #endif
 
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	if (dconf->num_reports > MAX_SIEVE_REPORTS)
 	{
 		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
 		exit(-1);
@@ -2100,106 +2102,118 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 				continue;
 
 			//noticably faster to not put these in a loop!
-			if ((bptr[j] & 0x0000ffff) == block_loc)
+			if (result & 0x2)
 			{
-				i = fb_bound + (bptr[j] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
+				// could be j = 0, 4, 8, or 12
+				if ((bptr[j] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+4] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+4] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+8] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+8] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+12] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+12] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
 			}
-			if ((bptr[j+1] & 0x0000ffff) == block_loc)
+			if (result & 0x20)
 			{
-				i = fb_bound + (bptr[j+1] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
+				// could be j = 1, 5, 9, or 13
+				if ((bptr[j+1] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+1] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+5] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+5] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+9] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+9] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+13] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+13] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
 			}
-			if ((bptr[j+2] & 0x0000ffff) == block_loc)
+			if (result & 0x200)
 			{
-				i = fb_bound + (bptr[j+2] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
+				// could be j = 2, 6, 10, or 14
+				if ((bptr[j+2] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+2] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+6] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+6] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+10] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+10] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+14] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+14] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
 			}
-			if ((bptr[j+3] & 0x0000ffff) == block_loc)
+			if (result & 0x2000)
 			{
-				i = fb_bound + (bptr[j+3] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
+				// could be j= 3, 7, 11, or 15
+				if ((bptr[j+3] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+3] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+7] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+7] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+11] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+11] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
+				if ((bptr[j+15] & 0x0000ffff) == block_loc)
+				{
+					i = fb_bound + (bptr[j+15] >> 16);
+					prime = fb[i].prime;
+					DIVIDE_ONE_PRIME;
+				}
 			}
-			if ((bptr[j+4] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+4] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+5] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+5] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+6] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+6] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+7] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+7] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+8] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+8] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+9] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+9] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+10] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+10] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+11] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+11] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+12] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+12] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+13] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+13] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+14] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+14] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-			if ((bptr[j+15] & 0x0000ffff) == block_loc)
-			{
-				i = fb_bound + (bptr[j+15] >> 16);
-				prime = fb[i].prime;
-				DIVIDE_ONE_PRIME;
-			}
-
-			//if ((Q->size == 1) && (Q->val[0] < pmax ))
-			//	goto early_abort;
-		
 		}
 		
 		for (; (uint32)j < lpnum; j++)
@@ -4159,10 +4173,12 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			subbuf = buf + 2;	//skip over the R and a space
 			if (process_rel(subbuf, sconf->factor_base,
 				&sconf->n, sconf, sconf->obj, r)) {
-				logprint(obj->logfile, "failed to read relation %d\n", 
+
+					if (obj->logfile != NULL)
+						logprint(obj->logfile, "failed to read relation %d\n", 
 							curr_expected - 1);
-				if (VFLAG > 0)
-					printf("failed to read relation %d\n", 
+					if (VFLAG > 0)
+						printf("failed to read relation %d\n", 
 							curr_expected - 1);
 				break;
 			}
@@ -4202,8 +4218,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   and polynomials actually recovered */
 
 	num_relations = curr_saved;
-	logprint(obj->logfile, "recovered %u relations\n", num_relations);
-	logprint(obj->logfile, "recovered %u polynomials\n", i);
+	if (obj->logfile != NULL)
+	{
+		logprint(obj->logfile, "recovered %u relations\n", num_relations);
+		logprint(obj->logfile, "recovered %u polynomials\n", i);
+	}
 	if (VFLAG > 0)
 	{
 		printf("recovered %u relations\n", num_relations);
@@ -4296,7 +4315,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		}
 	}
 
-	logprint(obj->logfile, "attempting to build %u cycles\n", num_cycles);
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "attempting to build %u cycles\n", num_cycles);
 	if (VFLAG > 0)
 		printf("attempting to build %u cycles\n", num_cycles);
 	cycle_list = (qs_la_col_t *)xmalloc(num_cycles * sizeof(qs_la_col_t));
@@ -4398,7 +4418,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 	num_cycles = curr_cycle;
 
-	logprint(obj->logfile, "found %u cycles in %u passes\n", num_cycles, passes);
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "found %u cycles in %u passes\n", num_cycles, passes);
 	if (VFLAG > 0)
 		printf("found %u cycles in %u passes\n", num_cycles, passes);
 	
@@ -4425,12 +4446,16 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		else
 			cycle_bins[num_relations - 1]++;
 	}
-	logprint(obj->logfile, "distribution of cycle lengths:\n");
+
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "distribution of cycle lengths:\n");
+
 	if (VFLAG > 0)
 		printf("distribution of cycle lengths:\n");
 	for (i = 0; i < NUM_CYCLE_BINS; i++) {
 		if (cycle_bins[i]) {
-			logprint(obj->logfile, "   length %d : %d\n", 
+			if (obj->logfile != NULL)
+				logprint(obj->logfile, "   length %d : %d\n", 
 					i + 1, cycle_bins[i]);
 			if (VFLAG > 0)
 				printf("   length %d : %d\n", 
@@ -4439,12 +4464,17 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 	if (cycle_bins[i])
 	{
-		logprint(obj->logfile, "   length %u+: %u\n", i + 1, cycle_bins[i]);
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "   length %u+: %u\n", i + 1, cycle_bins[i]);
+
 		if (VFLAG > 0)
 			printf("   length %u+: %u\n", i + 1, cycle_bins[i]);
 	}
-	logprint(obj->logfile, "largest cycle: %u relations\n",
+	
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
+
 	if (VFLAG > 0)
 		printf("largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
@@ -4552,7 +4582,8 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 	j++;
 	if (j != num_relations)
 	{
-		logprint(obj->logfile, "freed %d duplicate relations\n", 
+		if (obj->logfile != NULL)
+			logprint(obj->logfile, "freed %d duplicate relations\n", 
 					num_relations - j);
 		printf("freed %d duplicate relations\n", 
 					num_relations - j);
@@ -4613,7 +4644,8 @@ uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list,
 
 	if (VFLAG > 0)
 		printf("begin with %u relations\n", num_relations);
-	logprint(obj->logfile, "begin with %u relations\n", num_relations);
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "begin with %u relations\n", num_relations);
 
 	do {
 		num_left = num_relations;
@@ -4661,8 +4693,9 @@ uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list,
 		passes++;
 
 	} while (num_left != num_relations);
-				
-	logprint(obj->logfile, "reduce to %u relations in %u passes\n", 
+			
+	if (obj->logfile != NULL)
+		logprint(obj->logfile, "reduce to %u relations in %u passes\n", 
 				num_left, passes);
 	if (VFLAG > 0)
 		printf("reduce to %u relations in %u passes\n", 
@@ -4699,7 +4732,8 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 		//printf("entry1 step %u: entry %u points to prime %u, next step is %u\n",
 			//num1,entry1->data,table[entry1->data].prime,table[entry1->data].data);
 		if (num1 >= 100) {
-			logprint(obj->logfile, "warning: cycle too long, "
+			if (obj->logfile != NULL)
+				logprint(obj->logfile, "warning: cycle too long, "
 					"skipping it\n");
 			printf("warning: cycle too long, "
 					"skipping it\n");
@@ -4714,7 +4748,8 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 		//printf("entry2 step %u: entry %u points to prime %u, next step is %u\n",
 			//num2,entry2->data,table[entry2->data].prime,table[entry2->data].data);
 		if (num2 >= 100) {
-			logprint(obj->logfile, "warning: cycle too long, "
+			if (obj->logfile != NULL)
+				logprint(obj->logfile, "warning: cycle too long, "
 					"skipping it\n");
 			printf("warning: cycle too long, "
 					"skipping it\n");

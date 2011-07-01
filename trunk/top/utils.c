@@ -341,6 +341,25 @@ void zNextPrime(z *n, z *p, int dir)
 	if (szn > p->alloc)
 		zGrow(p,szn + LIMB_BLKSZ);
 
+	if (zCompare(n,&zThree) <= 0)
+	{
+		// handle special cases of really small inputs
+		if (dir > 0)
+		{
+			if (n->val[0] == 3)
+				sp2z(5,p);
+			else if (n->val[0] == 2)
+				sp2z(3,p);
+			else
+				sp2z(2,p);
+		}
+		else
+		{
+			sp2z(2,p);
+		}
+		return;
+	}
+
 	//make sure start is odd
 	if (!(n->val[0] & 1))
 	{
@@ -365,7 +384,7 @@ void zNextPrime(z *n, z *p, int dir)
 		else
 		{
 			zShortSub(p,2,p);
-			if (zShortMod(p,5) == 0)
+			if (zShortMod(p,5) == 0 && zCompare(p,&zFive) != 0)
 				zShortSub(p,2,p);
 		}
 
@@ -380,6 +399,25 @@ void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir)
 {
 	//return the next prime after n, in the direction indicated by dir
 	//if dir is positive, next higher else, next lower prime
+
+	if (n <= 3)
+	{
+		// handle special cases of really small inputs
+		if (dir > 0)
+		{
+			if (n == 3)
+				*p = 5;
+			else if (n == 2)
+				*p = 3;
+			else
+				*p = 2;
+		}
+		else
+		{
+			*p = 2;
+		}
+		return;
+	}
 
 	//make sure start is odd
 	if (!(n & 1))
@@ -397,13 +435,13 @@ void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir)
 		if (dir > 0)
 		{
 			*p += 2;
-			if ((*p % 5) == 0)
+			if (((*p % 5) == 0))
 				*p += 2;
 		}
 		else
 		{
 			*p -= 2;
-			if ((*p % 5) == 0)
+			if (((*p % 5) == 0) && (*p != 5))
 				*p -= 2;
 		}
 
