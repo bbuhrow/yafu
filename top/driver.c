@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 51
+#define NUMOPTIONS 52
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -53,7 +53,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
-	"pbatch"};
+	"pbatch", "ecm_dir"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -71,7 +71,7 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,0,
 	1,0,0,1,1,
 	2,2,0,1,0,
-	1};
+	1,1};
 
 // function to read the .ini file and populate options
 void readINI(void);
@@ -1142,6 +1142,7 @@ void set_default_globals(void)
 	strcpy(siqs_savefile,"siqs.dat");
 	strcpy(flogname,"factor.log");
 	strcpy(sessionname,"session.log");
+
 #if defined(_WIN64)
 	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
 #elif defined(WIN32)
@@ -1149,6 +1150,14 @@ void set_default_globals(void)
 #else
 	strcpy(ggnfs_dir,"../ggnfs-bin/");
 #endif
+
+	// unlike ggnfs, ecm does not *require* external binaries.  
+	// an empty string indicates the use of the built-in GMP-ECM hooks, while
+	// a non-empty string (filled in by the user) will indicate the use of
+	// an external binary
+	strcpy(ecm_dir,"");
+
+	// initial limit of cache of primes.
 	szSOEp = 1000100;	
 
 	//nfs options
@@ -2020,6 +2029,14 @@ void applyOpt(char *opt, char *arg)
 		GGNFS_POLYBATCH = strtoul(arg,NULL,10);
 		if (GGNFS_POLYBATCH == 0)
 			GGNFS_POLYBATCH = 250;
+	}
+	else if (strcmp(opt,OptionArray[51]) == 0)
+	{
+		//argument is a string
+		if (strlen(arg) < 1024)
+			strcpy(ecm_dir,arg);
+		else
+			printf("*** argument to ecm_dir too long, ignoring ***\n");
 	}
 	else
 	{

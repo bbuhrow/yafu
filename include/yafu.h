@@ -334,6 +334,9 @@ char sessionname[1024];
 //ggnfs binaries directory
 char ggnfs_dir[1024];
 
+//ecm binaries directory
+char ecm_dir[1024];
+
 //random seeds and the state of the LCG
 rand_t g_rand;
 uint64 LCGSTATE;
