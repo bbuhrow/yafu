@@ -488,6 +488,12 @@ void smallmpqs(fact_obj_t *fobj)
 		return;
 	}
 
+#ifdef _MSC_VER
+	// until I can fix the bug in the msvc win32 build
+	pQS(fobj);
+	return;
+#endif
+
 	zInit(&tmp);
 	
 	// factor base bound
