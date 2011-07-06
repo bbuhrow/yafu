@@ -311,15 +311,6 @@ int jacobi_1(fp_digit n, fp_digit p)
 	if (nn==0)
 		return 0;
 
-	/*
-	if (nn<0)
-	{
-		nn *= -1;
-		if (p%4 == 3)
-			j = -1;
-	}
-	*/
-
 	pull_twos(&nn,&j,p);	
 	while (nn>1)
 	{

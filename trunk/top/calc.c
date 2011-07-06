@@ -1919,7 +1919,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			exit(1);
 			*/
 
-			for (bits=55; bits<=130; bits+=5)
+			for (bits=55; bits<=75; bits+=5)
 			{
 				gettimeofday(&tstart, NULL);
 
@@ -1949,12 +1949,32 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
+					int j;
+
 					if (i % 100 == 0)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);					
 					fobj2->qs_obj.flags = 12345;
-					SIQS(fobj2);
+					//SIQS(fobj2);
+
+					smallmpqs(fobj2);
+
+					if (fobj2->qs_obj.num_factors != 2)
+					{						
+						printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+						print_factors(fobj2);
+					}
+
+					for (j=0; j<fobj2->qs_obj.num_factors; j++)
+					{
+						fobj2->qs_obj.factors[j].type = PRP;
+						add_to_factor_list(fobj2, &fobj2->qs_obj.factors[j]);
+						zCopy(&fobj2->qs_obj.n,&mp1);
+						zDiv(&mp1,&fobj2->qs_obj.factors[j],&fobj2->qs_obj.n,&mp2);
+						zFree(&fobj2->qs_obj.factors[j]);
+					}
+					fobj2->qs_obj.num_factors = 0;
 
 					if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
 					{						
