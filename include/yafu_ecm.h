@@ -52,110 +52,32 @@ enum ecm_thread_command {
 	ECM_COMMAND_END
 };
 
-#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
-	typedef struct 
-	{
-		z X;
-		z Z;
-	} ecm_pt;
 
-	typedef struct 
-	{
-		z sum1;
-		z diff1;
-		z sum2;
-		z diff2;
-		z tt1;
-		z tt2;
-		z tt3;
-		z s;
-		ecm_pt *A;
-		ecm_pt *B;
-		ecm_pt *C;
-		ecm_pt *tmp1;
-		ecm_pt *tmp2;
-	} ecm_work;
+#include <gmp_xface.h>
+#include <ecm.h>
 
-	typedef struct {
-		ecm_work *work;
-		uint8 *marks;
-		uint8 *nmarks;
-		z n;
-		z u;
-		z v;
-		z factor;
-		z bb;
-		z acc;
-		z Paprod;
-		z *Pbprod;		//vector of D big ints
-		ecm_pt *P;
-		ecm_pt *Pb;		//vector of D ecm_pts
-		ecm_pt Pa;
-		ecm_pt Pd;
-		ecm_pt Pad;
-		int D;
-		uint32 sigma;
-		int stagefound;
+typedef struct {
+	mpz_t gmp_n, gmp_factor;
+	z n, factor;
+	ecm_params params;
+	uint32 sigma;
+	int stagefound;
 
-		/* fields for thread pool synchronization */
-		volatile enum ecm_thread_command command;
+	/* fields for thread pool synchronization */
+	volatile enum ecm_thread_command command;
 
-	#if defined(WIN32) || defined(_WIN64)
-		HANDLE thread_id;
-		HANDLE run_event;
-		HANDLE finish_event;
-	#else
-		pthread_t thread_id;
-		pthread_mutex_t run_lock;
-		pthread_cond_t run_cond;
-	#endif
-
-	} ecm_thread_data_t;
-
-	void ecm_thread_free(ecm_thread_data_t *tdata);
-	void ecm_thread_init(z *n, int D, ecm_thread_data_t *tdata);
-	void ecm_work_init(ecm_work *work);
-	void ecm_work_free(ecm_work *work);
-	void ecm_pt_init(ecm_pt *pt);
-	void ecm_pt_free(ecm_pt *pt);
-	void add(ecm_pt *Pin, ecm_pt *Pout, ecm_work *work, z *n);
-	void duplicate(z *insum, z *indiff, ecm_pt *P, ecm_work *work, z *n);
-	void next_pt(ecm_pt *P, int c, ecm_work *work, z *n);
-	void prac (ecm_pt *A, unsigned long k, z *b, ecm_work *work, z *n);
-	void pracdup(ecm_pt *P, z *diff, z *sum, ecm_work *work, z *b, z *n);
-	void pracadd(ecm_pt *P, ecm_pt *P0, ecm_work *work, z *n);
-	void pt_diff(ecm_pt *P, z *diff, z *n);
-	void pt_sum(ecm_pt *P, z *sum, z *n);
-	void pt_copy(ecm_pt *src, ecm_pt *dest);
-	void ecm_pt_clear(ecm_pt *pt);
-	int check_factor(z *Z, z *n, z *f);
+#if defined(WIN32) || defined(_WIN64)
+	HANDLE thread_id;
+	HANDLE run_event;
+	HANDLE finish_event;
 #else
-	#include <gmp_xface.h>
-	#include <ecm.h>
-
-	typedef struct {
-		mpz_t gmp_n, gmp_factor;
-		z n, factor;
-		ecm_params params;
-		uint32 sigma;
-		int stagefound;
-
-		/* fields for thread pool synchronization */
-		volatile enum ecm_thread_command command;
-
-	#if defined(WIN32) || defined(_WIN64)
-		HANDLE thread_id;
-		HANDLE run_event;
-		HANDLE finish_event;
-	#else
-		pthread_t thread_id;
-		pthread_mutex_t run_lock;
-		pthread_cond_t run_cond;
-	#endif
-
-	} ecm_thread_data_t;
-
+	pthread_t thread_id;
+	pthread_mutex_t run_lock;
+	pthread_cond_t run_cond;
 #endif
+
+} ecm_thread_data_t;
+
 
 //globals
 int ECM_ABORT;
