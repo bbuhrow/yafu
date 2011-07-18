@@ -273,11 +273,9 @@
     <ClCompile Include="..\..\factor\ecm.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gf2.c" />
-    <ClCompile Include="..\..\factor\MPQS.c" />
     <ClCompile Include="..\..\factor\pm1.c" />
     <ClCompile Include="..\..\factor\poly.c" />
     <ClCompile Include="..\..\factor\pp1.c" />
-    <ClCompile Include="..\..\factor\pQS.c" />
     <ClCompile Include="..\..\factor\relation.c" />
     <ClCompile Include="..\..\factor\rho.c" />
     <ClCompile Include="..\..\factor\sieve.c" />

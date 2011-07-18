@@ -21,6 +21,8 @@ code to the public domain.
 #include "yafu.h"
 #include "factor.h"
 #include "arith.h"
+#include <gmp_xface.h>
+#include <ecm.h>
 
 /* 
 declarations for types and functions used in ECM and other
@@ -39,11 +41,6 @@ void williams_loop(int trials, fact_obj_t *fobj);
 //ecm
 int ecm_loop(z *n, int numcurves, fact_obj_t *fobj);
 
-//state save/recover for p-1,p+1
-void recover_stg1(z *n, z *m, int method);
-void recover_stg2(z *n, z *cc, z *m, z *mm, int method);
-void save_state(int stage, z *n, z *m, z *mm, z *cc, int i, int method);
-
 enum ecm_thread_command {
 	ECM_COMMAND_INIT,
 	ECM_COMMAND_WAIT,
@@ -51,10 +48,6 @@ enum ecm_thread_command {
 	ECM_COMMAND_RUN_TRANS,
 	ECM_COMMAND_END
 };
-
-
-#include <gmp_xface.h>
-#include <ecm.h>
 
 typedef struct {
 	mpz_t gmp_n, gmp_factor;
@@ -77,7 +70,6 @@ typedef struct {
 #endif
 
 } ecm_thread_data_t;
-
 
 //globals
 int ECM_ABORT;

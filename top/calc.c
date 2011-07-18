@@ -1280,16 +1280,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 16:
 		//mpqs - one argument
-		if (nargs != 1)
-		{
-			printf("wrong number of arguments in mpqs\n");
-			break;
-		}
-		zCopy(&operands[0],&fobj->qs_obj.n);
-		MPQS(fobj);
-		zCopy(&fobj->qs_obj.n,&operands[0]);
-		print_factors(fobj);
+		printf("no longer supported\n");
 		break;
+
 	case 17:
 		//next prime - two arguments
 		if (nargs == 2)
@@ -1458,16 +1451,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 29:
 		//pQS - one argument
-		if (nargs != 1)
-		{
-			printf("wrong number of arguments in qs\n");
-			break;
-		}
-		zCopy(&operands[0],&fobj->qs_obj.n);
-		pQS(fobj);
-		zCopy(&fobj->qs_obj.n,&operands[0]);
-		print_factors(fobj);
+		printf("no longer supported\n");
 		break;
+
 	case 30:
 		//torture - two arguments
 		if (nargs != 2)
@@ -1763,13 +1749,12 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		{
 			z *input;
 			int numin = 10000;
-			int bits = 120;
-			int correct = 0;
-			double sum,avg,t_min;
+			int bits = 115;
+			double sum;
 			fact_obj_t *fobj2;
-			uint32 bcorr, mcorr, b_min,m_min;
-			int blcorr,bl_min;
-			int ctune = 0;
+			//uint32 bcorr, mcorr, b_min,m_min;
+			//int blcorr,bl_min;
+			//int ctune = 0;
 
 			fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 			init_factobj(fobj2);
@@ -1919,14 +1904,14 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			exit(1);
 			*/
 
-			for (bits=55; bits<=75; bits+=5)
+			for (bits=55; bits<=120; bits+=5)
 			{
 				gettimeofday(&tstart, NULL);
 
 				sum = 0;
 				for (i=0; i<numin; i++)
 				{
-					fp_digit a, b, c, d;
+					fp_digit b;
 
 					b = bits-2;
 					zRandb(&mp1, b/2 - 1);
@@ -1949,32 +1934,12 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					int j;
-
 					if (i % 100 == 0)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);					
 					fobj2->qs_obj.flags = 12345;
-					//SIQS(fobj2);
-
-					smallmpqs(fobj2);
-
-					if (fobj2->qs_obj.num_factors != 2)
-					{						
-						printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
-						print_factors(fobj2);
-					}
-
-					for (j=0; j<fobj2->qs_obj.num_factors; j++)
-					{
-						fobj2->qs_obj.factors[j].type = PRP;
-						add_to_factor_list(fobj2, &fobj2->qs_obj.factors[j]);
-						zCopy(&fobj2->qs_obj.n,&mp1);
-						zDiv(&mp1,&fobj2->qs_obj.factors[j],&fobj2->qs_obj.n,&mp2);
-						zFree(&fobj2->qs_obj.factors[j]);
-					}
-					fobj2->qs_obj.num_factors = 0;
+					SIQS(fobj2);
 
 					if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
 					{						

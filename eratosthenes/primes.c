@@ -53,6 +53,9 @@ void primes_from_lineflags(thread_soedata_t *t)
 					ddata->primes[it] = prime;
 					it++;
 				}
+				//else
+					//printf("prime %" PRIu64 " is outside of original limits of %" PRIu64 " and %" PRIu64"\n",
+					//prime, sdata->orig_llimit, sdata->orig_hlimit);
 			}
 			
 		}

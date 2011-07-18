@@ -246,7 +246,7 @@ automatically resumed if a job is killed prior to completion and nfs is called a
 same input.  Starting a different job will overwrite a previously incomplete factorizations data
 files, which is potentially unrecoverable.  To skip polynomially selection and instead use an
 externally produced polynomial and lattice siever parameterization, create a file called 
-ggnfs.job with the following format prior to calling yafu with nfs("your number"), in the same 
+nfs.job with the following format prior to calling yafu with nfs("your number"), in the same 
 directory as the yafu binary:
 
 n: "your number here"
@@ -268,8 +268,8 @@ mfba: 52
 rlambda: 2.500000
 alambda: 2.500000
 
-the n: "your number here" line must be on the first line of the ggnfs.job file.  All other lines
-should be interchangable.  Supplying ggnfs.job in this way allows for SNFS factorizations to take place,
+the n: "your number here" line must be on the first line of the nfs.job file.  All other lines
+should be interchangable.  Supplying nfs.job in this way allows for SNFS factorizations to take place,
 albeit not completely automated.
 
 command line flags effecting nfs:

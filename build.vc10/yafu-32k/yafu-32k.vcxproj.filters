@@ -158,13 +158,7 @@
     <ClCompile Include="..\..\factor\poly.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\pQS.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\relation.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\MPQS.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\siqs_aux.c">

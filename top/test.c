@@ -481,7 +481,7 @@ muldiv:
 
 	goto sqrt_test;
 
-sqr_test:
+//sqr_test:
 	for (sz=50; sz<=500; sz += 50)
 	{
 		sqr_acc(num, sz);

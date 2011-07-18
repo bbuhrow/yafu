@@ -722,9 +722,9 @@ int zNroot(z *u, z *w, int n)
 	//x_k+1 = 1/2[x_k + N/x_k]
 
 	z c, g, uu,t1,t2;
-	long i, j, q;
+	long i; //, j, q;
 	uint64 n64;
-	double d, p;
+	//double d, p;
 
 	//check signage
 	if ((u->size < 0) && (n % 2 == 0))

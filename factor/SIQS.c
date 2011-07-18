@@ -422,6 +422,11 @@ void SIQS(fact_obj_t *fobj)
 				thread_data[tid].dconf->num = 0;
 				thread_data[tid].dconf->tot_poly = 0;
 				thread_data[tid].dconf->buffered_rels = 0;
+				thread_data[tid].dconf->attempted_squfof = 0;
+				thread_data[tid].dconf->failed_squfof = 0;
+				thread_data[tid].dconf->dlp_outside_range = 0;
+				thread_data[tid].dconf->dlp_prp = 0;
+				thread_data[tid].dconf->dlp_useful = 0;
 
 				//check whether to continue or not, and update the screen
 				updatecode = update_check(static_conf);
@@ -923,6 +928,11 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	//update some progress indicators
 	sconf->num += dconf->num;
 	sconf->tot_poly += dconf->tot_poly;
+	sconf->failed_squfof += dconf->failed_squfof;
+	sconf->attempted_squfof += dconf->attempted_squfof;
+	sconf->dlp_outside_range += dconf->dlp_outside_range;
+	sconf->dlp_prp += dconf->dlp_prp;
+	sconf->dlp_useful += dconf->dlp_useful;
 
 	//compute total relations found so far
 	sconf->num_r = sconf->num_relations + 
@@ -982,8 +992,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		{
 			printf("double large prime range from %d to %d bits\n",
 				sconf->dlp_lower,sconf->dlp_upper);
-			printf("double large prime cutoff: %s\n",
-				z2decstr(&sconf->large_prime_max2,&gstr1));
+			printf("double large prime cutoff: %" PRIu64 "\n",
+				sconf->large_prime_max2);
 		}
 		if (dconf->buckets->list != NULL)
 		{
@@ -1072,8 +1082,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		{
 			logprint(sconf->obj->logfile,"double large prime range from %d to %d bits\n",
 				sconf->dlp_lower,sconf->dlp_upper);
-			logprint(sconf->obj->logfile,"double large prime cutoff: %s\n",
-				z2decstr(&sconf->large_prime_max2,&gstr1));
+			logprint(sconf->obj->logfile,"double large prime cutoff: %" PRIu64 "\n",
+				sconf->large_prime_max2);
 		}
 		if (dconf->buckets->list != NULL)
 		{
@@ -1441,6 +1451,11 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		zInit32(&dconf->Qvals[i]);
 	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
+	dconf->failed_squfof = 0;
+	dconf->attempted_squfof = 0;
+	dconf->dlp_outside_range = 0;
+	dconf->dlp_prp = 0;
+	dconf->dlp_useful = 0;
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1491,8 +1506,6 @@ int siqs_static_init(static_conf_t *sconf)
 	//initialize some constants
 	zInit(&sconf->sqrt_n);
 	zInit(&sconf->target_a);
-	zInit(&sconf->max_fb2);
-	zInit(&sconf->large_prime_max2);
 
 	//initialize the bookkeeping for tracking partial relations
 	sconf->components = 0;
@@ -1817,14 +1830,10 @@ int siqs_static_init(static_conf_t *sconf)
 	//be subjected to factorization beyond trial division
 	if (sconf->use_dlp)
 	{
-		sp2z(sconf->factor_base->list->prime[sconf->factor_base->B - 1],&tmp1);
-		zSqr(&tmp1,&tmp1);
-		zCopy(&tmp1,&sconf->max_fb2);
-		sconf->dlp_lower = zBits(&tmp1) + 1;
-		sum = pow((double)sconf->large_prime_max,1.8);
-		dbl2z(sum,&tmp1);
-		zCopy(&tmp1,&sconf->large_prime_max2);
-		sconf->dlp_upper = zBits(&tmp1);
+		sconf->max_fb2 = (uint64)pow((double)sconf->factor_base->list->prime[sconf->factor_base->B - 1],2.0);
+		sconf->dlp_lower = spBits(sconf->max_fb2); 
+		sconf->large_prime_max2 = (uint64)pow((double)sconf->large_prime_max,1.8);
+		sconf->dlp_upper = spBits(sconf->large_prime_max2);
 	}
 
 	//'a' values should be as close as possible to sqrt(2n)/M, 
@@ -1947,6 +1956,11 @@ int siqs_static_init(static_conf_t *sconf)
 	gettimeofday(&sconf->update_start, NULL);
 	//sconf->update_start = clock();
 
+	sconf->failed_squfof = 0;
+	sconf->attempted_squfof = 0;
+	sconf->dlp_outside_range = 0;
+	sconf->dlp_prp = 0;
+	sconf->dlp_useful = 0;
 	sconf->total_poly_a = 0;	//track number of A polys used
 	sconf->num_r = 0;			//total relations found
 	sconf->charcount = 0;		//characters on the screen
@@ -2152,14 +2166,24 @@ int update_final(static_conf_t *sconf)
 		zShiftLeft(&qstmp1,&qstmp1,BLOCKBITS);
 
 		if (VFLAG > 0)
+		{
 			printf("\n\nsieving required %d total polynomials\ntrial division touched %d sieve locations out of %s\n",
 				sconf->tot_poly, sconf->num,z2decstr(&qstmp1,&gstr1));
+			if (sconf->use_dlp)
+				printf("squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
+					sconf->failed_squfof, sconf->attempted_squfof, 
+					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
+		}
 		else
 			printf("\n\n");
 
 		if (sieve_log != NULL)
 			logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
 				sconf->num,z2decstr(&qstmp1,&gstr1));
+		if (sconf->use_dlp)
+				logprint(sieve_log, "squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
+					sconf->failed_squfof, sconf->attempted_squfof, 
+					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
 
 #ifdef QS_TIMING
 
@@ -2437,8 +2461,6 @@ int free_siqs(static_conf_t *sconf)
 	zCopy(&sconf->n,&sconf->obj->qs_obj.n);
 	zFree(&sconf->sqrt_n);
 	zFree(&sconf->n);
-	zFree(&sconf->max_fb2);
-	zFree(&sconf->large_prime_max2);
 	zFree(&sconf->target_a);
 	zFree(&tmp1);
 	zFree(&tmp2);

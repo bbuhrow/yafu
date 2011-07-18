@@ -24,11 +24,8 @@ code to the public domain.
 #include "monty.h"
 #include "factor.h"
 #include "util.h"
-
-/*
-implements williams's p+1 algorihm.  inspired by Bressoud's book, and
-various papers by montgomery and kruppa
-*/
+#include <gmp_xface.h>
+#include <ecm.h>
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
@@ -37,12 +34,6 @@ void pp1_finalize();
 void pp1_print_B1_B2(z *n, FILE *flog);
 int mwilliams(z *n, z *f, uint32 rp);
 void pp1exit(int sig);
-
-// declarations and definitions used when GMP-ECM and GMP are 
-// available
-#include <gmp_xface.h>
-#include <ecm.h>
-
 uint64 TMP_STG2_MAX;
 
 typedef struct

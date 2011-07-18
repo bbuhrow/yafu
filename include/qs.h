@@ -349,8 +349,8 @@ typedef struct {
 
 	uint32 large_prime_max;		// the cutoff value for keeping a partial
 								// relation; actual value, not a multiplier
-	z max_fb2;					// the square of the largest factor base prime 
-	z large_prime_max2;			// the cutoff value for factoring partials 
+	uint64 max_fb2;					// the square of the largest factor base prime 
+	uint64 large_prime_max2;			// the cutoff value for factoring partials 
 
 	//master list of cycles
 	qs_cycle_t *cycle_table;		/* list of all the vertices in the graph */
@@ -377,6 +377,11 @@ typedef struct {
 	uint32 num_expected;
 	int charcount;				// characters on the screen
 	uint32 tot_poly;
+	uint32 failed_squfof;
+	uint32 attempted_squfof;
+	uint32 dlp_outside_range;
+	uint32 dlp_prp;
+	uint32 dlp_useful;
 
 	//master time record
 	double t_time1;				// sieve time
@@ -436,6 +441,11 @@ typedef struct {
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
 	int *smooth_num;			//how many factors are there for each valid Q
+	uint32 failed_squfof;
+	uint32 attempted_squfof;
+	uint32 dlp_outside_range;
+	uint32 dlp_prp;
+	uint32 dlp_useful;
 
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving
@@ -693,70 +703,6 @@ qs_params sieve_params;
 
 int SIQS_ABORT;
 
-/************************* MPQS types and functions *****************/
-typedef struct
-{
-	z polyb;				//which polyb this relation uses
-	uint32 largeprime;		//large prime in the pd.
-	uint32 offset;			//offset specifying Q (the quadratic polynomial)
-	uint32 polynum;			//which poly this relation uses
-	uint32 parity;			//the sign of the offset (x) 0 is positive, 1 is negative
-	uint16 *fboffset;		//offsets of factor base primes dividing Q(offset).  max # of fb primes < 2^16 with this choice
-	uint8 num_factors;		//number of factor base factors in the factorization of Q
-} mpqs_r;
-
-typedef struct
-{
-	uint32 num_r;
-	uint32 act_r;
-	uint32 allocated;
-	mpqs_r **list;
-} mpqs_rlist;
-
-//holds all the info for a factor base element
-typedef struct
-{
-	uint32 prime;
-	uint32 proot1;
-	uint32 proot2;
-	uint32 nroot1;
-	uint32 nroot2;
-	uint32 c1;
-	uint32 c2;
-	uint32 inv;
-	uint8 logprime;
-} fb_element_mpqs;
-
-typedef struct
-{
-	z poly_a;
-	z poly_b;
-	z poly_c;
-	z poly_d;
-} mpqs_poly;
-
-typedef struct
-{
-	uint32 B;
-	uint32 small_B;
-	uint32 med_B;
-	fb_element_mpqs *list;
-} fb_list_mpqs;
-
-//MPQS routines
-void nextD(z *poly_d, z *n);
-void computeB(mpqs_poly *poly, z *n);
-void computeRoots(mpqs_poly *poly, fb_list_mpqs *fb, uint32 start_prime);
-int checkpoly(mpqs_poly *poly, z *n);
-void make_fb_mpqs(fb_list_mpqs *fb,z *n);
-void make_fb(fb_list_mpqs *fb, uint32 B, z *n, z *sqrt_n);	//for pQS
-int BlockGauss_MPQS(mpqs_rlist *full, mpqs_rlist *partial, z *apoly, z *bpoly,
-			fb_list_mpqs *fb, z *n, int mul, 
-			FILE *sieve_log,z *factors, uint32 *num_factors,uint32 QSflag);
-int qcomp_mpqs(const void *x, const void *y);
-void mpqsexit(int sig);
-void pQS(fact_obj_t *fobj);
-void MPQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
 
 #endif /* _SIQS_H_ */

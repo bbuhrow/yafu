@@ -741,9 +741,11 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 				
 				if (num_p == 0)
 				{
+					//printf("adding %" PRIu64 " primes from line %d\n",linecount, i);
 					//add the first primes to the mergelist
 					for (index = 0; index < linecount; index++)
 					{
+						//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[index]);
 						mergeprimes[index] = thread_data[i].ddata.primes[index];
 						locprimes[index] = thread_data[i].ddata.primes[index];
 					}
@@ -753,6 +755,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 				{
 					//merge this lines primes (linecount), with the previous merge (num_p)
 					//this lines primes are ordered, and so is the previous merged list.
+					//printf("merging %" PRIu64 " primes from line %d\n",linecount, i);
 
 					//increase size of mergeprimes
 					i1 = i2 = i3 = 0;
@@ -760,12 +763,18 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 						if (locprimes[i1] < thread_data[i].ddata.primes[i2])
 							mergeprimes[i3++] = locprimes[i1++];
 						else
+						{
+							//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[i2]);
 							mergeprimes[i3++] = thread_data[i].ddata.primes[i2++];
+						}
 					}
 					while (i1 < num_p)
 						mergeprimes[i3++] = locprimes[i1++];
 					while (i2 < linecount)
-						mergeprimes[i3++] = thread_data[i].ddata.primes[i2++];
+					{
+						//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[i2]);
+						mergeprimes[i3++] = thread_data[i].ddata.primes[i2++];						
+					}
 
 					for (i1=0; i1<(num_p + linecount); i1++)
 					{
@@ -802,12 +811,12 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	if (count)
 	{
 		//add in relevant sieving primes not captured in the flag arrays
-		if (sdata.pbound > lowlimit)
+		if (sdata.pbound >= sdata.orig_llimit)
 		{
 			i=0;
 			while (i<thread_data[0].ddata.pbounds[0])
 			{ 
-				if (sdata.sieve_p[i] > lowlimit)
+				if (sdata.sieve_p[i] >= sdata.orig_llimit)
 				{
 					num_p++;
 #ifdef DO_SPECIAL_COUNT
@@ -822,36 +831,57 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	{
 		//the sieve primes are not in the line array, so they must be added
 		//in if necessary
-		//uint64 start_index = num_p;
+		int start_index=0, numd = 0;
 		it=0;
 		
 		//first count them
-		if (sdata.pbound > lowlimit)
+		if (sdata.pbound >= sdata.orig_llimit)
 		{
 			i=0;
 			while (i<thread_data[0].ddata.pbounds[0])
 			{ 
-				if (sdata.sieve_p[i] > lowlimit)
+				if (sdata.sieve_p[i] >= sdata.orig_llimit)
+				{
+					if (it == 0)
+						start_index = i;
 					it++;
+				}
 				i++;
 			}
 		}
+		//printf("%" PRIu64" primes to be included from sieve primes\n",it);
 
 		//merge the sieve primes (it), with the previous merge (num_p)
 		//this lines primes are ordered, and so is the previous merged list.
 		i1 = i2 = i3 = 0;
 		while ((i1 < num_p) && (i2 < it)) {
-			if (locprimes[i1] < sdata.sieve_p[i2])
+			if (locprimes[i1] < sdata.sieve_p[i2 + start_index])
 				mergeprimes[i3++] = locprimes[i1++];
+			else if (locprimes[i1] == sdata.sieve_p[i2 + start_index])
+			{
+				printf("duplicate prime found: %" PRIu64 "\n", locprimes[i1]);
+				i1++;
+				i2++;
+				numd++;
+			}
 			else
-				mergeprimes[i3++] = sdata.sieve_p[i2++];
+			{
+				//printf("%u\n", sdata.sieve_p[i2]);
+				mergeprimes[i3++] = sdata.sieve_p[i2 + start_index];
+				i2++;
+			}
 		}
 		while (i1 < num_p)
 			mergeprimes[i3++] = locprimes[i1++];
 		while (i2 < it)
-			mergeprimes[i3++] = sdata.sieve_p[i2++];
+		{
+			//printf("%u\n", sdata.sieve_p[i2]);
+			mergeprimes[i3++] = sdata.sieve_p[i2 + start_index];
+			i2++;
+		}
 
 		num_p += it;
+		num_p -= numd;
 
 		//copy the local mergeprimes into the output primes array
 		memcpy(primes,mergeprimes,num_p * sizeof(uint64));
@@ -1672,7 +1702,7 @@ int scale_mod210[48] = {270, -114, -18, -114, -18, 78, -114, 78, -18, -114, -18,
 int resID_mod210[210] = 
 	{-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,-1,2,-1,-1,-1,3,-1,4,-1,-1,-1,5,-1,-1,-1,-1,-1,6,-1,7,-1,-1,-1,-1,-1,8,-1,-1,-1,9,-1,10,-1,-1,-1,11,-1,-1,-1,-1,-1,12,-1,-1,-1,-1,-1,13,-1,14,-1,-1,-1,-1,-1,15,-1,-1,-1,16,-1,17,-1,-1,-1,-1,-1,18,-1,-1,-1,19,-1,-1,-1,-1,-1,20,-1,-1,-1,-1,-1,-1,-1,21,-1,-1,-1,22,-1,23,-1,-1,-1,24,-1,25,-1,-1,-1,26,-1,-1,-1,-1,-1,-1,-1,27,-1,-1,-1,-1,-1,28,-1,-1,-1,29,-1,-1,-1,-1,-1,30,-1,31,-1,-1,-1,32,-1,-1,-1,-1,-1,33,-1,34,-1,-1,-1,-1,-1,35,-1,-1,-1,-1,-1,36,-1,-1,-1,37,-1,38,-1,-1,-1,39,-1,-1,-1,-1,-1,40,-1,41,-1,-1,-1,-1,-1,42,-1,-1,-1,43,-1,44,-1,-1,-1,45,-1,46,-1,-1,-1,-1,-1,-1,-1,-1,-1,47};
 
-
+/*
 void test_soe(int upper)
 {
 	uint64 *flagblock64;
@@ -1880,13 +1910,13 @@ void test_soe(int upper)
 		flagblock64 = (uint64 *)sieve;
 		for (i=0;i<4096;i++)
 		{
-			/* Convert to 64-bit unsigned integer */    
+			// Convert to 64-bit unsigned integer
 			uint64 x = flagblock64[i];
 	    
-			/*  Employ bit population counter algorithm from Henry S. Warren's
-			 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
-			 *  to accomdate 64 bit values.
-			 */
+			//  Employ bit population counter algorithm from Henry S. Warren's
+			//  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
+			//  to accomdate 64 bit values.
+			//
 			x = x - ((x >> 1) & 0x5555555555555555ULL);
 			x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
 			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
@@ -1916,7 +1946,7 @@ void test_soe(int upper)
 
 	return;
 }
-
+*/
 
 
 

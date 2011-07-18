@@ -5,8 +5,17 @@ v 1.27.x
 	the threshold to take advantage of new parameters for small siqs jobs.
 + fixed a bug in nextprime that caused some small primes to be identifed as not prime
 + smallmpqs called standalone now returns factors and residue
-+ parameter adjustments to smallmpqs to give a speedup
++ smallmpqs now uses gmp throughout (for a large speedup)
++ parameter adjustments to smallmpqs resulting in a small speedup
 + fixed a bug in the SoE to allocate memory better
++ double large prime cutoffs changed to uint64s, simplifying the code and providing
+	a small speedup for larger jobs
++ better polynomial root update and bucket sieving assembler code, providing a
+	small speedup
++ fixed a couple more bugs in prime counting and printing (thanks again to Alex
+	Balfour and his Calendar Magic beta testers!)
++ added some extra info to the -v printout at the end of DLP siqs factorizations
++ removed some obsolete code and cleaned up some compiler warnings
 
 
 v 1.27
