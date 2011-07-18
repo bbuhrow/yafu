@@ -1170,12 +1170,15 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 	uint32 i,j,lpnum,basebucket;
 	uint32 med_B, fb_14bit_B, fb_15bit_B;
 	uint8 logp;
-#if !defined(SSE2_ASM_SIEVING) && !defined(ASM_SIEVING)
-	sieve_fb_compressed *fbptr;
+#if !defined(SSE2_ASM_SIEVING) && !defined(ASM_SIEVING)	
 	uint32 prime, root1, root2, tmp, stop, p16;
 #endif
 	uint32 *bptr;
+
+#if defined(SSE2_ASM_SIEVING) || defined(ASM_SIEVING)
+	sieve_fb_compressed *fbptr;
 	helperstruct_t asm_input;
+#endif
 
 	med_B = full_fb->med_B;
 	fb_14bit_B = full_fb->fb_14bit_B;
@@ -1314,7 +1317,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 		"movdqa (%%rcx,%%r8,2), %%xmm0 \n\t"	/* xmm0 = next 8 prime */ \
 		"movdqa (%%r13,%%r8,2), %%xmm1 \n\t"	/* xmm1 = next 8 root1 start locations */ \
 		"movdqa (%%r14,%%r8,2), %%xmm2 \n\t"	/* xmm2 = next 8 root2 start locations */ \
-		"movdqa (%%r11,%%r8,2), %%xmm3 \n\t"	/* xmm3 = next 8 logp */ \		
+		"movdqa (%%r11,%%r8,2), %%xmm3 \n\t"	/* xmm3 = next 8 logp */ \
 		"5: \n\t"	\
 		SIEVE_ONE_PRIME_X1_LOOP_1("0")	\
 		SIEVE_ONE_PRIME_X1_LOOP("1")	\

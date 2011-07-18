@@ -21,6 +21,34 @@ code to the public domain.
 #include "yafu.h"
 #include "arith.h"
 
+uint64 mpz_get_64(mpz_t src)
+{
+
+	uint64 out = mpz_getlimbn(src, 0);
+#if GMP_LIMB_BITS == 32
+	if (mpz_size(src) >= 2)
+		out |= (uint64)mpz_getlimbn(src, 1) << 32;
+#endif
+
+	return out;
+
+}
+
+void mpz_set_64(mpz_t dest, uint64 src)
+{
+
+#if GMP_LIMB_BITS == 64
+	dest->_mp_d[0] = src;
+	dest->_mp_size = (src ? 1 : 0);
+#else
+	/* mpz_import is terribly slow */
+	mpz_set_ui(dest, (uint32)(src >> 32));
+	mpz_mul_2exp(dest, dest, 32);
+	mpz_add_ui(dest, dest, (uint32)src);
+#endif
+
+}
+
 void zCopy(z *src, z *dest)
 {
 	//physically copy the digits of u into the digits of v

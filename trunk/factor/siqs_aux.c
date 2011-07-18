@@ -139,7 +139,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				}
 #else
 				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
-				if (floor((double)(1 << FOGSHIFT) / (double)prime + 0.5) ==
+				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}
@@ -213,7 +213,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				}
 #else
 				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
-				if (floor((double)(1 << FOGSHIFT) / (double)prime + 0.5) ==
+				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
 				}

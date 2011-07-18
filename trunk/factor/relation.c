@@ -3217,19 +3217,17 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		return;
 
 	q64 = (uint64)Q->val[0] + ((uint64)Q->val[1] << 32);
-	sp642z(q64,&dconf->qstmp1);
 
-	if ((zCompare(&dconf->qstmp1,&sconf->max_fb2) > 0) && 
-		(zCompare(&dconf->qstmp1,&sconf->large_prime_max2) < 0))
+	if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 	{	
 		//quick prime check: compute 2^(residue-1) mod residue.  
-		zShortSub(&dconf->qstmp1,1,&dconf->qstmp2);
-		zModExp(&zTwo,&dconf->qstmp2,&dconf->qstmp1,&dconf->qstmp3);
+		fp_digit res;
+		spModExp(2, q64 - 1, q64, &res);
 
 		//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
 		//more important to quickly weed out probable primes than to spend more time to be
 		//more sure.
-		if (isOne(&dconf->qstmp3))
+		if (res == 1)
 		{
 #ifdef QS_TIMING
 			gettimeofday (&qs_timing_stop, NULL);
@@ -3238,32 +3236,37 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
 			free(qs_timing_diff);
 #endif
+			dconf->dlp_prp++;
 			return;
 		}
-
-		//zShortSub(&qstmp1,1,&qstmp2);
-		//zModExp(&zThree,&qstmp2,&qstmp1,&qstmp3);
-		//if (isOne(&qstmp3))
-		//	return;
 		
 		//try to find a double large prime
+		dconf->attempted_squfof++;
+		sp642z(q64, &dconf->qstmp1);
 		f64 = sp_shanks_loop(&dconf->qstmp1,sconf->obj);
 		if (f64 > 1 && f64 != q64)
 		{
 			uint32 large_prime[2];
 
 			large_prime[0] = (uint32)f64;
-			large_prime[1] = (uint32)(q64 / (uint64)large_prime[0]);
+			large_prime[1] = (uint32)(q64 / f64);
 
 			if (large_prime[0] < sconf->large_prime_max 
 				&& large_prime[1] < sconf->large_prime_max)
 			{
 				//add this one
+				dconf->dlp_useful++;
 				buffer_relation(offset,large_prime,smooth_num+1,
 					fb_offsets,poly_id,parity,dconf,polya_factors,it);
 			}
+				
 		}
+		else
+			dconf->failed_squfof++;
 	}
+	else
+		dconf->dlp_outside_range++;
+
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
 	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);

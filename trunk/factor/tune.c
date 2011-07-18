@@ -280,7 +280,7 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 	//more accurate test
 	*qrange = 5000;
 
-	printf("nfs: commencing job file construction for c%d\n",strlen(inputstr));
+	printf("nfs: commencing job file construction for c%d\n",(int)strlen(inputstr));
 
 	fprintf(out, "n: %s\n",inputstr);
 	switch (inputnum)

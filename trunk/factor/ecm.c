@@ -147,8 +147,6 @@ void *ecm_worker_thread_main(void *thread_data) {
 #endif
 	}
 
-	//matrix_thread_free(t);
-
 #if defined(WIN32) || defined(_WIN64)
 	return 0;
 #else
@@ -963,6 +961,14 @@ int ecm_check_input(z *n, fact_obj_t *fobj)
 		fclose(flog);
 		return 0;
 	}
+
+#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
+	if (ECM_STG2_MAX > 0xEE6B2800)
+	{
+		fprintf(stderr,"primes greater than 4e9 not supported in ECM, reducing.\n");
+		ECM_STG2_MAX = 0xEE6B2800;
+	}
+#endif
 
 	//check for trivial cases
 	if (isZero(n))

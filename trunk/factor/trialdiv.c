@@ -53,7 +53,7 @@ void zTrial(fp_digit limit, int print, fact_obj_t *fobj)
 			tmp.type = PRIME;
 			add_to_factor_list(fobj, &tmp);
 			if (print && (VFLAG > 0))
-				printf("div: found prime factor = %u\n",q);
+				printf("div: found prime factor = %" PRIu64 "\n",q);
 		}
 	}
 	//if (PRIMES[k] >= limit)

@@ -24,11 +24,9 @@ code to the public domain.
 #include "monty.h"
 #include "factor.h"
 #include "util.h"
+#include <gmp_xface.h>
+#include <ecm.h>
 
-/*
-implements pollard's p-1 algorihm.  inspired by Bressoud's book, and
-various papers by montgomery and kruppa
-*/
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
@@ -38,10 +36,6 @@ void pm1exit(int sig);
 int mpollard(z *n, uint32 c, z *f);
 void pm1_print_B1_B2(z *n, FILE *flog);
 
-// declarations and definitions used when GMP-ECM and GMP are 
-// available
-#include <gmp_xface.h>
-#include <ecm.h>
 
 uint64 TMP_STG2_MAX;
 
@@ -145,6 +139,7 @@ int mpollard(z *n, uint32 c, z *f)
 
 	return status;
 }
+
 
 // top level routine: the only one visible to the rest of the program
 void pollard_loop(fact_obj_t *fobj)
