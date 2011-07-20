@@ -49,30 +49,30 @@ ifeq ($(GMPECM),1)
 	CFLAGS += -DHAVE_GMP
 	INC += -I../gmp/include
 	INC += -I../gmp-ecm/include
-	LIBS += -L../gmp/lib/linux -L../gmp-ecm/lib/linux -lecm -lgmp
+	LIBS += -L../gmp/lib -L../gmp-ecm/lib -lecm -lgmp
 endif
 
 ifeq ($(NFS),1)	
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/linux
+	LIBS += -L../msieve/lib/mingw
 
 	# NFS builds require GMP
 	CFLAGS += -DHAVE_GMP
 	# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 	INC += -I../gmp/include
 	# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/ 
-	LIBS += -L../gmp/lib/linux
+	LIBS += -L../gmp/lib/mingw
 
 	CFLAGS += -DHAVE_GMP_ECM
 	INC += -I../gmp-ecm/include
 	# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
-	LIBS += -L../gmp-ecm/lib/linux -lecm -lmsieve -lgmp 
+	LIBS += -L../gmp-ecm/lib/mingw -lecm -lmsieve -lgmp 
 	# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/ -lecm -lmsieve -lgmp 
 endif
 
 #MINGW builds don't need -pthread
-#LIBS += -lm 
-LIBS += -lm -lpthread
+LIBS += -lm 
+#LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
@@ -161,7 +161,7 @@ YAFU_SRCS = \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/wrapper.c
-	
+
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
 #---------------------------Header file lists -------------------------
@@ -170,6 +170,7 @@ HEAD = include/yafu.h  \
 	include/lanczos.h  \
 	include/types.h  \
 	include/tfm.h  \
+	include/ecm.h \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
@@ -181,7 +182,6 @@ HEAD = include/yafu.h  \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
-	include/yafu_ecm.h \
 	include/gmp_xface.h
 
 #---------------------------Make Targets -------------------------
@@ -195,11 +195,11 @@ all:
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
 x86: $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) -m32 $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
+	$(CC) -m32 $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu-win32 $(LIBS)
 	
 	
 x86_64: $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
+	$(CC) $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu-x64 $(LIBS)
 	
 clean:
 	rm -f $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) 

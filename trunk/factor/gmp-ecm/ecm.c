@@ -567,7 +567,7 @@ done:
 	
 	ecm_process_free(fobj);
 
-	return 0;
+	return total_curves_run;
 }
 
 #endif
