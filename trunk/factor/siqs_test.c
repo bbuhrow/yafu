@@ -122,23 +122,6 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 
 		zCopy(n,&fobj->qs_obj.n);
 		smallmpqs(fobj);
-		for (i=0; i<fobj->qs_obj.num_factors; i++)
-		{
-			if (isPrime(&fobj->qs_obj.factors[i]))
-			{
-				fobj->qs_obj.factors[i].type = PRP;
-				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
-			}
-			else
-			{
-				fobj->qs_obj.factors[i].type = COMPOSITE;
-				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
-			}
-			zCopy(&fobj->qs_obj.n,&w1);
-			zDiv(&w1,&fobj->qs_obj.factors[i],&fobj->qs_obj.n,&w2);
-			zFree(&fobj->qs_obj.factors[i]);
-		}
-		fobj->qs_obj.num_factors = 0;
 		zCopy(&fobj->qs_obj.n,n);
 		zFree(&w1);
 		zFree(&w2);
@@ -529,11 +512,11 @@ void siqstune(int bits)
 						init_factobj(fobj);
 
 						//force these parameters into SIQS
-						gbl_override_B_flag = 1;
-						gbl_override_B = Bvec[x];
+						fobj->qs_obj.gbl_override_B_flag = 1;
+						fobj->qs_obj.gbl_override_B = Bvec[x];
 
-						gbl_override_blocks_flag = 1;
-						gbl_override_blocks = NBvec[y];
+						fobj->qs_obj.gbl_override_blocks_flag = 1;
+						fobj->qs_obj.gbl_override_blocks = NBvec[y];
 
 						//gbl_override_lpmult_flag = 1;
 						//gbl_override_lpmult = Mvec[w];

@@ -22,22 +22,26 @@ code to the public domain.
 #include "factor.h"
 #include "soe.h"
 
-void zTrial(fp_digit limit, int print, fact_obj_t *fobj)
+void zTrial(fact_obj_t *fobj)
 {
 	//trial divide n using primes below limit. optionally, print factors found
 	uint32 r,k=0;
+	uint32 limit = fobj->div_obj.limit;
+	int print = fobj->div_obj.print;
 	fp_digit q;
 	z *n = &fobj->div_obj.n;
 	z tmp;
 
 	zInit(&tmp);
-	GetPRIMESRange(0,10001000);
+
+	if (P_MAX < limit)
+		GetPRIMESRange(0,limit);
 
 	while (!(n->size == 1 && n->val[0] <= 1) && (PRIMES[k] < limit))
 	{
 		if (k >= NUM_P)
 		{
-			GetPRIMESRange(PRIMES[k-1]-1,PRIMES[k-1]+10001000);
+			GetPRIMESRange(PRIMES[k-1]-1,PRIMES[k-1]+10000000);
 			k=0;
 		}
 
@@ -56,94 +60,8 @@ void zTrial(fp_digit limit, int print, fact_obj_t *fobj)
 				printf("div: found prime factor = %" PRIu64 "\n",q);
 		}
 	}
-	//if (PRIMES[k] >= limit)
-	//{
-	//	if (print && (VFLAG > 0))
-	//		printf("div: remaining cofactor = %s\n",z2decstr(n,&gstr1));
-	//}
+
 	zFree(&tmp);
-}
-
-void Trial64(int64 n, int print)
-{
-	//trial divide n, autocompute prime limit
-	int64 r;
-	int64 limit = (int64)sqrt((double)n);
-	uint32 k=0;
-	z tmp;
-
-	zInit(&tmp);
-
-	while (((int64)spSOEprimes[k] < limit) && (k < szSOEp))
-	{
-		r = n % spSOEprimes[k];
-		
-		if (r != 0)
-			k++;
-		else
-		{
-			n /= spSOEprimes[k];
-			sp2z((fp_digit)spSOEprimes[k],&tmp);
-			tmp.type = PRIME;
-			//add_to_factor_list(fobj, &tmp);
-			if (print)
-				printf("PRIME FACTOR: %" PRIu64 "\n",spSOEprimes[k]);
-			if (n == 1) break; 
-			limit = (int64)sqrt((double)n);
-		}
-	}
-
-	if ((int64)spSOEprimes[k] >= limit)
-	{
-		sp642z(n,&tmp);
-		tmp.type = PRIME;
-		//add_to_factor_list(&tmp);
-		if (print)
-			printf("PRIME FACTOR: %s\n",z2decstr(&tmp,&gstr2));
-	}
-	zFree(&tmp);
-	
-}
-
-void Trial32(int32 n, int print)
-{
-	//trial divide n, autocompute prime limit
-	int32 r;
-	uint32 limit = (uint32)sqrt((double)n);
-	uint32 k=0;
-	z tmp;
-
-	zInit(&tmp);
-
-	while ((spSOEprimes[k] < limit) && (k < szSOEp))
-	{
-		r = n % spSOEprimes[k];
-		
-		if (r != 0)
-			k++;
-		else
-		{
-			n /= (int32)spSOEprimes[k];
-			sp2z((fp_digit)spSOEprimes[k],&tmp);
-			tmp.type = PRIME;
-			//add_to_factor_list(&tmp);
-			if (print)
-				printf("PRIME FACTOR: %" PRIu64 "\n",spSOEprimes[k]);
-			if (n == 1) break; 
-			limit = (int32)sqrt((double)n);
-		}
-	}
-
-	if (spSOEprimes[k] >= limit)
-	{
-		sp2z(n,&tmp);
-		tmp.type = PRIME;
-		//add_to_factor_list(&tmp);
-		if (print)
-			printf("PRIME FACTOR: %d\n",n);
-	}
-	zFree(&tmp);
-	
 }
 
 void zFermat(fp_digit limit, fact_obj_t *fobj)

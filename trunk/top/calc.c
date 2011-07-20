@@ -594,7 +594,7 @@ void get_expression(char *in, str_t *out)
 	free(tmp2);
 }
 
-int calc(str_t *in)
+int calc(str_t *in, fact_obj_t *fobj)
 {
 
 	/*
@@ -657,19 +657,14 @@ int calc(str_t *in)
 	int num_tokens;		//number of tokens in the array.
 	int varstate;
 	z tmpz;
-	fact_obj_t *fobj;
-
-	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj);
+	
 	retval = 0;
 
 	//initialize and find tokens
 	token_types = (int *)malloc(100 * sizeof(int));
 	tokens = tokenize(in->s, token_types, &num_tokens);
 	if (tokens == NULL)
-	{
-		free_factobj(fobj);
-		free(fobj);
+	{		
 		free(token_types);
 		return 1;
 	}
@@ -992,8 +987,6 @@ free:
 	free(tmp);
 	sFree(post);
 	free(post);
-	free_factobj(fobj);
-	free(fobj);
 	return retval;
 
 }
@@ -1223,13 +1216,15 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		if (nargs == 2)
 		{
 			zCopy(&operands[0],&fobj->pp1_obj.n);
-			williams_loop(operands[1].val[0],fobj);
+			fobj->pp1_obj.numbases = operands[1].val[0];
+			williams_loop(fobj);
 			zCopy(&fobj->pp1_obj.n,&operands[0]);
 		}
 		else if (nargs == 1)
 		{
 			zCopy(&operands[1],&fobj->pp1_obj.n);
-			williams_loop(1,fobj);
+			fobj->pp1_obj.numbases = 1;
+			williams_loop(fobj);
 			zCopy(&fobj->pp1_obj.n,&operands[1]);
 		}
 		else
@@ -1256,14 +1251,18 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		if (nargs == 2)
 		{
 			zCopy(&operands[0],&fobj->div_obj.n);
-			zTrial(operands[1].val[0],0,fobj);
+			fobj->div_obj.print = 0;
+			fobj->div_obj.limit = operands[1].val[0];
+			zTrial(fobj);
 			zCopy(&fobj->div_obj.n,&operands[0]);
 		}
 		else if (nargs == 1)
 		{
 			printf("using default trial division bound of 10000\n");
 			zCopy(&operands[1],&fobj->div_obj.n);
-			zTrial(10000,0,fobj);
+			fobj->div_obj.print = 0;
+			fobj->div_obj.limit = 10000;
+			zTrial(fobj);
 			zCopy(&fobj->div_obj.n,&operands[1]);
 			//apparently this comes in as operand 1, but the calling function
 			//expects the result in operand 0, so put it there.  This should be
@@ -1492,12 +1491,17 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		if (nargs == 2)
 		{
 			k = operands[1].val[0];
-			ecm_loop(&operands[0],k,fobj);
+			fobj->ecm_obj.num_curves = k;
+			zCopy(&operands[0], &fobj->ecm_obj.n);
+			ecm_loop(fobj);
+			zCopy(&fobj->ecm_obj.n, &operands[0]);
 		}
 		else if (nargs == 1)
 		{
-			k = 1;
-			ecm_loop(&operands[1],k,fobj);
+			fobj->ecm_obj.num_curves = 1;
+			zCopy(&operands[1], &fobj->ecm_obj.n);
+			ecm_loop(fobj);
+			zCopy(&fobj->ecm_obj.n, &operands[0]);
 		}
 		else
 		{
@@ -1723,27 +1727,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//pull_large_primes();
 		break;
 	case 51: 
-
-		//break;	// not supported in official release
-
-		//maxbn = 0;
-		//for (i=0;i<10;i++) gcounts[i] = 0;
-		//test_dlp_composites();
-		//for (i=0;i<10;i++) printf("count of bn = %d: %" PRIu64 "\n",i+1,gcounts[i]);
-		//printf("max bn = %u\n",maxbn);
-		//modtest(100000);
-		//test_qsort();
-		//arith_timing(10000000);
-		//siqs - one argument
-		//zCopy(&operands[0],&fobj->N);
-		//asm_profile(fobj);
-		//primesum(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
-		//	&operands[3], &operands[4]);
-		//primesum_check3(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
-		//	&operands[3]);
-		//primesum_check12(z264(&operands[0]), z264(&operands[1]), z264(&operands[2]),
-		//	&operands[3], &operands[4]);
-
 		
 //#ifdef NOT_DEFINED
 		{
@@ -1980,21 +1963,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		}
 		zCopy(&operands[0],&fobj->qs_obj.n);
 		smallmpqs(fobj);		
-		for (i=0; i<fobj->qs_obj.num_factors; i++)
-		{
-			if (isPrime(&fobj->qs_obj.factors[i]))
-			{
-				fobj->qs_obj.factors[i].type = PRP;
-				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
-			}
-			else
-			{
-				fobj->qs_obj.factors[i].type = COMPOSITE;
-				add_to_factor_list(fobj, &fobj->qs_obj.factors[i]);
-			}
-			zCopy(&fobj->qs_obj.n,&tmp1);
-			zDiv(&tmp1,&fobj->qs_obj.factors[i],&fobj->qs_obj.n,&tmp2);
-		}
 		zCopy(&fobj->qs_obj.n,&operands[0]);
 		print_factors(fobj);
 
@@ -2074,9 +2042,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in nfs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->qs_obj.n);
-		test_msieve_gnfs(fobj);
-		zCopy(&fobj->qs_obj.n,&operands[0]);
+		zCopy(&operands[0],&fobj->nfs_obj.n);
+		nfs(fobj);
+		zCopy(&fobj->nfs_obj.n,&operands[0]);
 		print_factors(fobj);
 		break;
 
@@ -2100,6 +2068,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	return 1;
 }
 
+/*
 int getArgs(str_t *args, str_t *in, int num)
 {
 	int numparen,argnum;
@@ -2140,6 +2109,7 @@ int getArgs(str_t *args, str_t *in, int num)
 
 	return argnum + 1;
 }
+*/
 
 int new_uvar(const char *name, z *data)
 {
@@ -2170,21 +2140,7 @@ int set_uvar(const char *name, z *data)
 
 	i = data->val[0];
 	//first look if it is a global constant
-	if (strcmp(name,"QS_DUMP_CUTOFF") == 0) {
-		QS_DUMP_CUTOFF = i; return 0;}
-	else if (strcmp(name,"NUM_WITNESSES") == 0) {
-		NUM_WITNESSES = i; return 0;}
-	else if (strcmp(name,"POLLARD_STG1_MAX") == 0) {
-		POLLARD_STG1_MAX = i; return 0;}
-	else if (strcmp(name,"POLLARD_STG2_MAX") == 0) {
-		POLLARD_STG2_MAX = z264(data); return 0;}
-	else if (strcmp(name,"WILL_STG1_MAX") == 0) {
-		WILL_STG1_MAX = i; return 0;}
-	else if (strcmp(name,"WILL_STG2_MAX") == 0) {
-		WILL_STG2_MAX = z264(data); return 0;}
-	else if (strcmp(name,"BRENT_MAX_IT") == 0) {
-		BRENT_MAX_IT = i; return 0;}
-	else if (strcmp(name,"IBASE") == 0)
+	if (strcmp(name,"IBASE") == 0)
 	{
 		if (i != DEC && i != HEX && i != BIN && i != OCT)
 		{
@@ -2210,10 +2166,6 @@ int set_uvar(const char *name, z *data)
 			return 1;
 		}
 	}
-	else if (strcmp(name,"ECM_STG1_MAX") == 0) {
-		ECM_STG1_MAX = i; return 0;}
-	else if (strcmp(name,"ECM_STG2_MAX") == 0) {
-		ECM_STG2_MAX = z264(data); return 0;}
 	else if (strcmp(name,"LOGFLAG") == 0) {
 		LOGFLAG = i; return 0;}
 	else if (strcmp(name,"VFLAG") == 0) {
@@ -2242,28 +2194,12 @@ int get_uvar(const char *name, z *data)
 	int i;
 
 	//first look if it is a global constant
-	if (strcmp(name,"POLLARD_STG1_MAX") == 0) {
-		sp2z(POLLARD_STG1_MAX,data); return 0;}
-	else if (strcmp(name,"POLLARD_STG2_MAX") == 0) {
-		sp642z(POLLARD_STG2_MAX,data); return 0;}
-	else if (strcmp(name,"WILL_STG1_MAX") == 0) {
-		sp2z(WILL_STG1_MAX,data); return 0;}
-	else if (strcmp(name,"WILL_STG2_MAX") == 0) {
-		sp642z(WILL_STG2_MAX,data); return 0;}
-	else if (strcmp(name,"ECM_STG1_MAX") == 0) {
-		sp2z(ECM_STG1_MAX,data); return 0;}
-	else if (strcmp(name,"ECM_STG2_MAX") == 0) {
-		sp642z(ECM_STG2_MAX,data); return 0;}
-	else if (strcmp(name,"BRENT_MAX_IT") == 0) {
-		sp2z(BRENT_MAX_IT,data); return 0;}
-	else if (strcmp(name,"IBASE") == 0) {
+	if (strcmp(name,"IBASE") == 0) {
 		sp2z(IBASE,data); return 0;}
 	else if (strcmp(name,"OBASE") == 0) {
 		sp2z(OBASE,data); return 0;}
 	else if (strcmp(name,"NUM_WITNESSES") == 0) {
 		sp2z(NUM_WITNESSES,data); return 0;}
-	else if (strcmp(name,"QS_DUMP_CUTOFF") == 0) {
-		sp2z(QS_DUMP_CUTOFF,data); return 0;}
 	else if (strcmp(name,"LOGFLAG") == 0) {
 		sp2z(LOGFLAG,data); return 0;}
 	else if (strcmp(name,"VFLAG") == 0) {
@@ -2284,15 +2220,8 @@ int get_uvar(const char *name, z *data)
 
 	if (strcmp(name,"vars") == 0) {
 		printf("dumping variable name data:\n");
-		printf("POLLARD_STG2_MAX   %" PRIu64 "\n",POLLARD_STG2_MAX);
-		printf("ECM_STG1_MAX	   %u\n",ECM_STG1_MAX);
-		printf("ECM_STG2_MAX       %" PRIu64 "\n",ECM_STG2_MAX);
-		printf("WILL_STG1_MAX      %u\n",WILL_STG1_MAX);
-		printf("WILL_STG2_MAX      %" PRIu64 "\n",WILL_STG2_MAX);
-		printf("BRENT_MAX_IT       %u\n",BRENT_MAX_IT);
 		printf("IBASE              %u\n",IBASE);
 		printf("OBASE              %u\n",OBASE);		
-		printf("QS_DUMP_CUTOFF     %u\n",QS_DUMP_CUTOFF);
 		printf("NUM_WITNESSES      %u\n",NUM_WITNESSES);
 		printf("LOGFLAG            %u\n",LOGFLAG);
 		printf("VFLAG              %u\n",VFLAG);

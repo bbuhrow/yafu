@@ -20,6 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "factor.h"
+#include "util.h"
 #include "arith.h"
 #include <gmp_xface.h>
 #include <ecm.h>
@@ -29,17 +30,15 @@ declarations for types and functions used in ECM and other
 group theoretic factorization routines
 */
 
-//brent's rho
-void brent_loop(fact_obj_t *fobj);
+#if defined(FORK_ECM)
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
-//pollard's p-1
-void pollard_loop(fact_obj_t *fobj);
-
-//williams p+1
-void williams_loop(int trials, fact_obj_t *fobj);
-
-//ecm
-int ecm_loop(z *n, int numcurves, fact_obj_t *fobj);
+void *malloc_shared(size_t bytes, int *save_shmid);
+void destroy_shm_segments(int *shmid_list, int num_shmids);
+#endif
 
 enum ecm_thread_command {
 	ECM_COMMAND_INIT,
@@ -55,6 +54,9 @@ typedef struct {
 	ecm_params params;
 	uint32 sigma;
 	int stagefound;
+	fact_obj_t *fobj;
+	int thread_num;
+	int curves_run;
 
 	/* fields for thread pool synchronization */
 	volatile enum ecm_thread_command command;
@@ -71,8 +73,30 @@ typedef struct {
 
 } ecm_thread_data_t;
 
-//globals
+//local function declarations
+void *ecm_do_one_curve(void *ptr);
+int print_B1B2(fact_obj_t *fobj, FILE *fid);
+void ecmexit(int sig);
+void ecm_process_init(fact_obj_t *fobj);
+void ecm_process_free(fact_obj_t *fobj);
+int ecm_check_input(fact_obj_t *fobj);
+int ecm_get_sigma(ecm_thread_data_t *thread_data);
+int ecm_deal_with_factor(ecm_thread_data_t *thread_data);
+void ecm_stop_worker_thread(ecm_thread_data_t *t, uint32 is_master_thread);
+void ecm_start_worker_thread(ecm_thread_data_t *t, uint32 is_master_thread);
+void ecm_thread_free(ecm_thread_data_t *tdata);
+void ecm_thread_init(ecm_thread_data_t *tdata);
+
+#if defined(WIN32) || defined(_WIN64)
+DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
+#else
+void *ecm_worker_thread_main(void *thread_data);
+#endif
+
+// "local" globals
 int ECM_ABORT;
 int PM1_ABORT;
 int PP1_ABORT;
 
+int TMP_THREADS;
+uint64 TMP_STG2_MAX;

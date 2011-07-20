@@ -126,10 +126,16 @@ YAFU_SRCS = \
 	top/calc.c \
 	top/test.c \
 	factor/factor_common.c \
-	factor/algfactor.c \
-	factor/relation.c \
+	factor/filter.c \
+	factor/tdiv.c \
+	factor/tdiv_small.c \
+	factor/tdiv_med.c \
+	factor/tdiv_large.c \
+	factor/tdiv_scan.c \
 	factor/sieve.c \
-	factor/poly.c \
+	factor/new_poly.c \
+	factor/poly_roots.c \
+	factor/update_poly_roots.c \
 	factor/siqs_test.c \
 	factor/siqs_aux.c \
 	factor/smallmpqs.c \
@@ -166,7 +172,6 @@ HEAD = include/yafu.h  \
 	include/lanczos.h  \
 	include/types.h  \
 	include/tfm.h  \
-	include/ecm.h \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
@@ -178,6 +183,7 @@ HEAD = include/yafu.h  \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
+	include/yafu_ecm.h \
 	include/gmp_xface.h
 
 #---------------------------Make Targets -------------------------

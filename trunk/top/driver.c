@@ -37,7 +37,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 52
+#define NUMOPTIONS 53
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -53,7 +53,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
-	"pbatch", "ecm_dir"};
+	"pbatch", "ecm_dir", "siever"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -71,11 +71,11 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,0,
 	1,0,0,1,1,
 	2,2,0,1,0,
-	1,1};
+	1,1,1};
 
 // function to read the .ini file and populate options
-void readINI(void);
-void apply_tuneinfo(char *arg);
+void readINI(fact_obj_t *fobj);
+void apply_tuneinfo(fact_obj_t *fobj, char *arg);
 
 // functions to populate the global options with default values, and to free
 // those which allocate memory
@@ -93,178 +93,10 @@ void prepare_batchfile(char *input_exp);
 int process_batchline(char *input_exp, char *indup);
 void finalize_batchline();
 
-// function to process all incoming arguments
-int process_arguments(int argc, char **argv, char *input_exp);
-
-// tmp
-/*
-void wheel_table(int modulus);
-
-void wheel_table(int modulus)
-{
-	int *res;
-	int *resID;
-	int *diff;
-	int *scale;
-	char *resstr;
-	char *stepstr;
-	char stepstr2[100000];
-	int i,j,k,numres,diffnum,diffnum2;
-
-	res = (int *)calloc(modulus, sizeof(int));
-	resID = (int *)calloc(modulus, sizeof(int));
-	diff = (int *)calloc(modulus, sizeof(int));
-	scale = (int *)calloc(modulus, sizeof(int));
-	resstr = (char *)malloc(10000000 * sizeof(char));
-	stepstr = (char *)malloc(10000000 * sizeof(char));
-
-	k=1;
-	numres = 0;
-	printf("{");
-	for (i=0;i<modulus;i++)
-	{
-		if (spGCD(i,(fp_digit)modulus) == 1)
-		{
-			printf("%d,",numres);
-			res[i] = i;
-			resID[i] = k++;
-			numres++;
-		}
-		else
-			printf("-1,");
-	}
-	fflush(stdout);
-
-	//printf("};\n\n");
-	sprintf(resstr,"{\n");
-	sprintf(stepstr,"{\n");
-	for (i=0; i<modulus; i++)
-	{
-		int p, r, s, lastloc;
-
-		if (resID[i] == 0)
-			continue;
-
-		p = res[i];
-		s = res[i];
-		if (p == 1)
-			p += modulus;
-
-		lastloc = p;
-		r = p + p;
-		sprintf(resstr,"%s\t{%d, ",resstr,res[i]);		
-		diffnum = 0;
-		while (1)
-		{
-			int m = r % modulus;
-			if (resID[m] != 0)
-			{				
-				int lastres = lastloc % modulus;
-				int steps = (r - lastloc) / modulus * numres;
-				int resdiff = resID[m ]- resID[lastres];
-				
-				if (resdiff < 0)
-					steps += (resdiff + numres);
-				else
-					steps += resdiff;
-
-				diff[diffnum++] = steps - p;
-				sprintf(stepstr,"%s%d, ",stepstr,steps-p);
-				lastloc = r;
-
-				if (m == s)
-				{
-					//do it again with p += modulus
-					p += modulus;
-					lastloc = p;
-					r = p + p;
-					//sprintf(resstr,"%d ",res[i]);
-					sprintf(stepstr2,"");
-					diffnum2 = 0;
-					while (1)
-					{
-						int m = r % modulus;
-						if (resID[m] != 0)
-						{				
-							int lastres = lastloc % modulus;
-							int steps = (r - lastloc) / modulus * numres;
-							int resdiff = resID[m ]- resID[lastres];
-							int diff2;
-				
-							if (resdiff < 0)
-								steps += (resdiff + numres);
-							else
-								steps += resdiff;
-
-							diff2 = steps - p;
-							scale[diffnum2] = diff2 - diff[diffnum2];
-							diffnum2++;
-
-							sprintf(stepstr2,"%s%d ",stepstr2,steps);
-							lastloc = r;
-
-							if (m == s)							
-								break;
-						}
-
-						r += p;
-					}
-					break;				
-				}
-
-				sprintf(resstr,"%s%d, ",resstr,m);
-			}
-			r += p;
-		}
-
-		sprintf(resstr,"%s},\n",resstr);
-		sprintf(stepstr,"%s},\n",stepstr);
-		if (0)
-		{
-			printf("res:   {%s}\n",resstr);
-			//printf("%s\n",stepstr);
-			//printf("%s\n",stepstr2);
-			printf("diff:  {");
-			for (j=0; j<numres; j++)
-			{
-				printf("%d, ",diff[j]);
-			}
-			printf("}\nscale: {");
-			for (j=0; j<numres; j++)
-			{
-				printf("%d, ",scale[j]);
-			}
-			printf("}\n");
-		}
-
-	}
-
-	if (1)
-	{
-		FILE *out;
-		out = fopen("wheelinfo.txt","w");
-		fprintf(out,"resstr:\n   %s};\n",resstr);
-		fprintf(out,"stepstr:\n   %s};\n",stepstr);
-
-		fprintf(out,"scale: {");
-		for (j=0; j<numres; j++)
-		{
-			fprintf(out,"%d, ",scale[j]);
-		}
-		fprintf(out,"};\n");
-		fclose(out);
-	}
-
-	free(diff);
-	free(scale);
-	free(res);
-	free(resID);
-	free(resstr);
-	free(stepstr);
-
-	return;
-}
-*/
+// functions to process all incoming arguments
+int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj);
+void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj);
 
 int main(int argc, char *argv[])
 {
@@ -274,6 +106,7 @@ int main(int argc, char *argv[])
 	z tmp;
 	int nooutput,offset,slog,is_cmdline_run=0;
 	FILE *logfile;
+	fact_obj_t *fobj;	
 
 	//the input expression
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -284,15 +117,22 @@ int main(int argc, char *argv[])
 	//set defaults for various things
 	set_default_globals();
 
+	// a factorization object that gets passed around to any factorization routine
+	// called out in the input expression.  if no factorization routine is specified,
+	// this is not used.  the factor object must be initialized prior to parsing
+	// input options in order to make those options stick.
+	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+	init_factobj(fobj);
+
 	//get the computer name, cache sizes, etc.  store in globals
 	get_computer_info(CPU_ID_STR);	
 
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
-	readINI();	
+	readINI(fobj);	
 
 	//check/process input arguments
-	is_cmdline_run = process_arguments(argc, argv, input_exp);
+	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
 	
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
@@ -336,8 +176,7 @@ int main(int argc, char *argv[])
 		logprint(logfile,"User random seed:  %u\n\n",g_rand.low);
 	}
 	else
-	{
-		get_random_seeds(&g_rand);
+	{		
 		logprint(logfile,"New random seeds: %u, %u\n\n",g_rand.hi,g_rand.low);
 	}
 	fflush(logfile);
@@ -351,100 +190,6 @@ int main(int argc, char *argv[])
 #else
 	LCGSTATE = g_rand.low;
 #endif
-
-	//wheel_table(30);
-	//wheel_table(210);
-	//wheel_table(2310);
-	//test_soe(1000000);
-	//test_soe(10000000);
-	//test_soe(100000000);
-	//test_soe(1000000000);
-
-	//printf("\n");
-	//for (i=1; i<1200; i+=2)
-	//{
-	//	int jj;
-	//	printf("{");
-	//	for (jj=1;jj<200; jj++)
-	//	{
-	//		printf("%d,",jacobi_1(i,PRIMES[jj]));
-	//		fflush(stdout);
-	//	}
-
-	//	printf("}\n");
-	//}
-	//printf("};\n");
-
-	if (0)
-	{
-		uint32 count = 0;
-		for (i=0; i<100000000; i++)
-		{
-			uint16 t16, inv16, c16;
-			uint32 t32, inv32, c32, q32;
-			uint64 q64;
-			uint32 block_loc, prime;
-
-			block_loc = spRand(0, (1 << 15) - 1);
-			prime = spRand((1 << 8) + 1, (1 << 13) - 1);
-			if ((prime & 0x1) == 0)
-				prime++;
-
-			t16 = BLOCKSIZE - block_loc;
-			t32 = BLOCKSIZE - block_loc;
-			inv16 = (uint16)(((uint32)1 << 24) / prime);
-			inv32 = (uint32)(((uint64)1 << 40) / prime);
-
-			if (floor(256 * 65535 / (double)prime + 0.5) ==
-							(double)inv16) {
-				c16 = 1;
-			}
-			else {
-				c16 = 0;
-				inv16++;
-			}
-
-			if (floor(256 * MP_RADIX / (double)prime + 0.5) ==
-							(double)inv32) {
-				c32 = 1;
-			}
-			else {
-				c32 = 0;
-				inv32++;
-			}
-
-			t16 = t16 + c16;
-			q32 = (uint32)t16 * (uint32)inv16;
-			t16 = q32 >> 24; 
-			t16 = t16 + 1;
-			t16 = block_loc + t16 * prime;
-			t16 -= BLOCKSIZE;
-			//t16 += prime;
-
-			//if (t16 > BLOCKSIZE) t16 += prime;
-			//if (t16 >= prime) t16 -= prime;
-
-			t32 = t32 + c32;
-			q64 = (uint64)t32 * (uint64)inv32;
-			t32 = q64 >> 40; 
-			t32 = t32 + 1;
-			t32 = block_loc + t32 * prime;
-			t32 -= BLOCKSIZE;
-
-			//if (t32 == prime) t32 -= prime;
-
-			if (t16 != t32)
-			{
-			
-				printf("failed with mod16 = %u, mod32 = %u, p = %u, loc = %u, c16 = %u, c32 = %u, inv16 = %u, inv32 = %u\n",
-					t16,t32,prime,BLOCKSIZE-block_loc,c16,c32,inv16,inv32);
-				count++;
-			}
-		}
-
-		printf("attempts = %u, incorrect = %u, percent = %6.6f", 
-			100000000, count, (double)count / (double)100000000 * 100.);
-	}
 
 	//command line
 	while (1)
@@ -550,7 +295,7 @@ int main(int argc, char *argv[])
 			else
 				nooutput = 0;
 
-			if (!calc(&str))
+			if (!calc(&str,fobj))
 			{
 				if (strcmp(str.s,"") != 0)
 				{
@@ -643,11 +388,13 @@ int main(int argc, char *argv[])
 	free(input_exp);
 	free(indup);	
 	zFree(&tmp);
+	free_factobj(fobj);
+	free(fobj);
 
 	return 1;
 }
 
-void readINI(void)
+void readINI(fact_obj_t *fobj)
 {
 	FILE *doc;
 	char *str;
@@ -699,7 +446,7 @@ void readINI(void)
 		//}
 
 		//apply the option... same routine command line options use
-		applyOpt(key,value);
+		applyOpt(key,value,fobj);
 	}
 
 	fclose(doc);
@@ -933,7 +680,7 @@ void prepare_batchfile(char *input_exp)
 	return;
 }
 
-int process_arguments(int argc, char **argv, char *input_exp)
+int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 {
 	int is_cmdline_run=0;
 	FILE *in = stdin;
@@ -948,7 +695,7 @@ int process_arguments(int argc, char **argv, char *input_exp)
 		{
 			//then there are just flags, no expression.  start up normally
 			//after processing the flags
-			process_flags(argc-1, &argv[1]);
+			process_flags(argc-1, &argv[1], fobj);
 		}
 		else
 		{
@@ -957,7 +704,7 @@ int process_arguments(int argc, char **argv, char *input_exp)
 			is_cmdline_run = 1;
 			strcpy(input_exp,argv[1]);
 			if (argc > 2)
-				process_flags(argc-2, &argv[2]);
+				process_flags(argc-2, &argv[2], fobj);
 		}		
 	}
 	else
@@ -1091,54 +838,25 @@ void set_default_globals(void)
 {
 	uint64 limit, i;
 	uint32 p_est;
-
-	BRENT_MAX_IT=1000;
-	FMTMAX=1000000;
-	WILL_STG1_MAX=20000;
-	WILL_STG2_MAX = 50 * (uint64)WILL_STG1_MAX;
-	PP1_STG2_ISDEFAULT = 1;
-	POLLARD_STG1_MAX=100000;
-	POLLARD_STG2_MAX = 100 * (uint64)POLLARD_STG1_MAX;
-	PM1_STG2_ISDEFAULT = 1;
-	ECM_STG1_MAX=11000;
-	ECM_STG2_MAX = 25 * (uint64)ECM_STG1_MAX;
-	ECM_STG2_ISDEFAULT = 1;
+	
+	
 	VFLAG = 0;
 	VERBOSE_PROC_INFO = 0;
 	LOGFLAG = 1;
-	QS_DUMP_CUTOFF = 2048;
 
-	QS_EXPONENT = 0;
-	QS_MULTIPLIER = 0;
-	QS_TUNE_FREQ = 0;
-
-	GNFS_EXPONENT = 0;
-	GNFS_MULTIPLIER = 0;
-	GNFS_TUNE_FREQ = 0;
-
-	QS_GNFS_XOVER = 0;
-
-	MIN_NFS_DIGITS = 85;
+	
 
 	NUM_WITNESSES = 20;
-	AUTO_FACTOR=0;
-	WANT_ONLY_1_FACTOR = 0;
+	
 	PRIME_THRESHOLD = 100000000;
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
-	SCALE = 40;
-	NO_ECM = 0;
+	
 	USEBATCHFILE = 0;
 	USERSEED = 0;
-	SIGMA = 0;
 	THREADS = 1;
-	TARGET_ECM_QS_RATIO = 0.25;
-	TARGET_ECM_GNFS_RATIO = 0.25;
-	TARGET_ECM_SNFS_RATIO = 0.20;
-	gbl_override_B_flag = 0;
-	gbl_override_blocks_flag = 0;
-	gbl_override_lpmult_flag = 0;
-	gbl_force_DLP = 0;
+	
+	
 	strcpy(siqs_savefile,"siqs.dat");
 	strcpy(flogname,"factor.log");
 	strcpy(sessionname,"session.log");
@@ -1160,27 +878,6 @@ void set_default_globals(void)
 	// initial limit of cache of primes.
 	szSOEp = 1000100;	
 
-	//nfs options
-	GGNFS_STARTQ = 0;						//default, not used
-	GGNFS_RANGEQ = 0;						//default, not used
-	GGNFS_POLYSTART = 0;					//default, not used
-	GGNFS_POLYRANGE = 0;					//default, not used
-	strcpy(GGNFS_OUTPUTFILE,"nfs.dat");		//default
-	strcpy(GGNFS_LOGFILE,"nfs.log");		//default
-	strcpy(GGNFS_FBFILE,"nfs.fb");			//default
-	GGNFS_SQ_SIDE = 1;						//default = algebraic
-	GGNFS_TIMEOUT = 0;						//default, not used
-	strcpy(GGNFS_JOB_INFILE,"nfs.job");		//default
-	GGNFS_SIEVE_ONLY = 0;					//default = no
-	GGNFS_POLY_ONLY = 0;					//default = no
-	GGNFS_POST_ONLY = 0;					//default = no
-	GGNFS_POLY_OPTION = 0;					//default = fast search
-											//1 = wide
-											//2 = deep
-	GGNFS_RESTART_FLAG = 0;					//default = not a restart
-	GGNFS_POLYBATCH = 250;					//default
-
-
 	//set some useful globals
 	zInit(&zZero);
 	zInit(&zOne);
@@ -1192,16 +889,7 @@ void set_default_globals(void)
 	zThree.val[0] = 3;
 	zFive.val[0] = 5;
 
-	//whether we want to output certain info to their own files...
-	WANT_OUTPUT_PRIMES = 0;
-	WANT_OUTPUT_FACTORS = 0;
-	WANT_OUTPUT_UNFACTORED = 0;
-	WANT_OUTPUT_EXPRESSIONS = 1;
-
-	//pretesting plan used by factor()
-	yafu_pretest_plan = PRETEST_NORMAL;
-	strcpy(plan_str,"normal");
-	ONLY_PRETEST = 0;
+	
 
 	//global strings, used mostly for logprint stuff
 	sInit(&gstr1);
@@ -1227,6 +915,9 @@ void set_default_globals(void)
 	NUM_P=szSOEp;
 	P_MIN=0; 
 	P_MAX=spSOEprimes[(uint32)NUM_P-1];
+
+	// random seeds
+	get_random_seeds(&g_rand);
 
 	return;
 }
@@ -1351,7 +1042,7 @@ int process_batchline(char *input_exp, char *indup)
 	return 0;
 }
 
-unsigned process_flags(int argc, char **argv)
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)
 {
     int ch = 0, i,j,valid;
 	char optbuf[MAXOPTIONLEN];
@@ -1398,7 +1089,7 @@ unsigned process_flags(int argc, char **argv)
 			strcpy(argbuf,argv[i]);
 
 			//now apply -option argument
-			applyOpt(optbuf+1,argbuf);
+			applyOpt(optbuf+1,argbuf,fobj);
 		}
 		else if (needsArg[j] == 2)
 		{
@@ -1406,7 +1097,7 @@ unsigned process_flags(int argc, char **argv)
 			if (((i+1) == argc) || argv[i+1][0] == '-')
 			{
 				// no option supplied.  use default option
-				applyOpt(optbuf+1,NULL);
+				applyOpt(optbuf+1,NULL,fobj);
 			}
 			else
 			{
@@ -1415,7 +1106,7 @@ unsigned process_flags(int argc, char **argv)
 				strcpy(argbuf,argv[i]);
 
 				//now apply -option argument
-				applyOpt(optbuf+1,argbuf);
+				applyOpt(optbuf+1,argbuf,fobj);
 			}
 
 		}
@@ -1423,7 +1114,7 @@ unsigned process_flags(int argc, char **argv)
 		{
 			//apply -option
 			//now apply -option argument
-			applyOpt(optbuf+1,NULL);
+			applyOpt(optbuf+1,NULL,fobj);
 
 		}
 		i++;
@@ -1432,7 +1123,7 @@ unsigned process_flags(int argc, char **argv)
     return 1;
 }
 
-void applyOpt(char *opt, char *arg)
+void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 {
 	char **ptr;
 	int i;
@@ -1453,11 +1144,11 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		POLLARD_STG1_MAX = strtoul(arg,ptr,10);
-		if (PM1_STG2_ISDEFAULT)
+		fobj->pm1_obj.B1 = strtoul(arg,ptr,10);
+		if (fobj->pm1_obj.stg2_is_default)
 		{
 			//stg2 hasn't been specified yet, so set it to the default value
-			POLLARD_STG2_MAX = 100 * (uint64)POLLARD_STG1_MAX;
+			fobj->pm1_obj.B2 = 100 * (uint64)fobj->pm1_obj.B1;
 			//else, we have already specified a B2, so don't overwrite it with
 			//the default
 		}
@@ -1474,11 +1165,11 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		WILL_STG1_MAX = strtoul(arg,ptr,10);
-		if (PP1_STG2_ISDEFAULT)
+		fobj->pp1_obj.B1 = strtoul(arg,ptr,10);
+		if (fobj->pp1_obj.stg2_is_default)
 		{
 			//stg2 hasn't been specified yet, so set it to the default value
-			WILL_STG2_MAX = 50 * (uint64)WILL_STG1_MAX;
+			fobj->pp1_obj.B2 = 50 * (uint64)fobj->pp1_obj.B1;
 			//else, we have already specified a B2, so don't overwrite it with
 			//the default
 		}
@@ -1495,11 +1186,11 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		ECM_STG1_MAX = strtoul(arg,ptr,10);
-		if (ECM_STG2_ISDEFAULT)
+		fobj->ecm_obj.B1 = strtoul(arg,ptr,10);
+		if (fobj->pp1_obj.stg2_is_default)
 		{
 			//stg2 hasn't been specified yet, so set it to the default value
-			ECM_STG2_MAX = 25 * (uint64)ECM_STG1_MAX;
+			fobj->ecm_obj.B2 = 25 * (uint64)fobj->ecm_obj.B1;
 			//else, we have already specified a B2, so don't overwrite it with
 			//the default
 		}
@@ -1516,7 +1207,7 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		BRENT_MAX_IT = strtoul(arg,ptr,10);
+		fobj->rho_obj.iterations = strtoul(arg,ptr,10);
 	}
 	else if (strcmp(opt,OptionArray[4]) == 0)
 	{
@@ -1530,9 +1221,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		str2hexz(arg,&tmp);
-		POLLARD_STG2_MAX = z264(&tmp);
-		PM1_STG2_ISDEFAULT = 0;
+		fobj->pm1_obj.B2 = strto_uint64(arg,ptr,10);
+		fobj->pm1_obj.stg2_is_default = 0;
 	}
 	else if (strcmp(opt,OptionArray[5]) == 0)
 	{
@@ -1546,10 +1236,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		//WILL_STG2_MAX = strtoul(arg,ptr,10);
-		str2hexz(arg,&tmp);
-		WILL_STG2_MAX = z264(&tmp);
-		PP1_STG2_ISDEFAULT = 0;
+		fobj->pp1_obj.B2 = strto_uint64(arg,ptr,10);
+		fobj->pp1_obj.stg2_is_default = 0;
 	}
 	else if (strcmp(opt,OptionArray[6]) == 0)
 	{
@@ -1563,10 +1251,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		//ECM_STG2_MAX = strtoul(arg,ptr,10);
-		str2hexz(arg,&tmp);
-		ECM_STG2_MAX = z264(&tmp);
-		ECM_STG2_ISDEFAULT = 0;
+		fobj->ecm_obj.B2 = strto_uint64(arg,ptr,10);
+		fobj->ecm_obj.stg2_is_default = 0;
 	}
 	else if (strcmp(opt,OptionArray[7]) == 0)
 	{
@@ -1589,8 +1275,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_B = strtoul(arg,ptr,10);
-		gbl_override_B_flag = 1;
+		fobj->qs_obj.gbl_override_B = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_B_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[9]) == 0)
 	{
@@ -1604,8 +1290,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_tf = strtoul(arg,ptr,10);
-		gbl_override_tf_flag = 1;
+		fobj->qs_obj.gbl_override_tf = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_tf_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[10]) == 0)
 	{
@@ -1619,8 +1305,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_rel = strtoul(arg,ptr,10);
-		gbl_override_rel_flag = 1;
+		fobj->qs_obj.gbl_override_rel = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_rel_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[11]) == 0)
 	{
@@ -1634,8 +1320,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_time = strtoul(arg,ptr,10);
-		gbl_override_time_flag = 1;
+		fobj->qs_obj.gbl_override_time = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_time_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[12]) == 0)
 	{
@@ -1649,8 +1335,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_blocks = strtoul(arg,ptr,10);
-		gbl_override_blocks_flag = 1;
+		fobj->qs_obj.gbl_override_blocks = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_blocks_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[13]) == 0)
 	{
@@ -1664,8 +1350,8 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		gbl_override_lpmult = strtoul(arg,ptr,10);
-		gbl_override_lpmult_flag = 1;
+		fobj->qs_obj.gbl_override_lpmult = strtoul(arg,ptr,10);
+		fobj->qs_obj.gbl_override_lpmult_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[14]) == 0)
 	{
@@ -1703,7 +1389,7 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		SIGMA = strtoul(arg,NULL,10);
+		fobj->ecm_obj.sigma = strtoul(arg,NULL,10);
 	}
 	else if (strcmp(opt,OptionArray[18]) == 0)
 	{
@@ -1747,7 +1433,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[24]) == 0)
 	{
-		gbl_force_DLP = 1;
+		fobj->qs_obj.gbl_force_DLP = 1;
 	}
 	else if (strcmp(opt,OptionArray[25]) == 0)
 	{
@@ -1761,11 +1447,11 @@ void applyOpt(char *opt, char *arg)
 			}
 		}
 
-		FMTMAX = strtoul(arg,NULL,10);
+		fobj->div_obj.fmtlimit = strtoul(arg,NULL,10);
 	}
 	else if (strcmp(opt,OptionArray[26]) == 0)
 	{
-		NO_SIQS_OPT = 1;
+		fobj->qs_obj.no_small_cutoff_opt = 1;
 	}
 	else if (strcmp(opt,OptionArray[27]) == 0)
 	{
@@ -1773,7 +1459,7 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[28]) == 0)
 	{
-		yafu_pretest_plan = PRETEST_NOECM;
+		fobj->autofact_obj.yafu_pretest_plan = PRETEST_NOECM;
 	}
 	else if (strcmp(opt,OptionArray[29]) == 0)
 	{
@@ -1787,27 +1473,27 @@ void applyOpt(char *opt, char *arg)
 	{
 		//parse the tune_info string and if it matches the current OS and CPU, 
 		//set the appropriate globals
-		apply_tuneinfo(arg);
+		apply_tuneinfo(fobj, arg);
 	}
 	else if (strcmp(opt,OptionArray[31]) == 0)
 	{
-		sscanf(arg, "%lf", &TARGET_ECM_QS_RATIO);
+		sscanf(arg, "%lf", &fobj->autofact_obj.target_ecm_qs_ratio);
 	}
 	else if (strcmp(opt,OptionArray[32]) == 0)
 	{
-		sscanf(arg, "%lf", &TARGET_ECM_GNFS_RATIO);
+		sscanf(arg, "%lf", &fobj->autofact_obj.target_ecm_gnfs_ratio);
 	}
 	else if (strcmp(opt,OptionArray[33]) == 0)
 	{
-		WANT_ONLY_1_FACTOR = 1;
+		fobj->autofact_obj.want_only_1_factor = 1;
 	}
 	else if (strcmp(opt,OptionArray[34]) == 0)
 	{
 		//argument is a string
 		if (strlen(arg) < 1024)
 		{
-			strcpy(op_str,arg);
-			WANT_OUTPUT_PRIMES = 1;
+			strcpy(fobj->autofact_obj.op_str,arg);
+			fobj->autofact_obj.want_output_primes = 1;
 		}
 		else
 			printf("*** argument to -op too long, ignoring ***\n");
@@ -1817,8 +1503,8 @@ void applyOpt(char *opt, char *arg)
 		//argument is a string
 		if (strlen(arg) < 1024)
 		{
-			strcpy(of_str,arg);
-			WANT_OUTPUT_FACTORS = 1;
+			strcpy(fobj->autofact_obj.of_str,arg);
+			fobj->autofact_obj.want_output_factors = 1;
 		}
 		else
 			printf("*** argument to -of too long, ignoring ***\n");
@@ -1828,8 +1514,8 @@ void applyOpt(char *opt, char *arg)
 		//argument is a string
 		if (strlen(arg) < 1024)
 		{
-			strcpy(ou_str,arg);
-			WANT_OUTPUT_UNFACTORED = 1;
+			strcpy(fobj->autofact_obj.ou_str,arg);
+			fobj->autofact_obj.want_output_unfactored = 1;
 		}
 		else
 			printf("*** argument to -ou too long, ignoring ***\n");
@@ -1839,25 +1525,25 @@ void applyOpt(char *opt, char *arg)
 		//argument is a string
 		if (strlen(arg) < 1024)
 		{
-			strcpy(plan_str,arg);
+			strcpy(fobj->autofact_obj.plan_str,arg);
 
 			// test for recognized options.  for now, ignore "custom" even though
 			// it is in the enum, because it is too complicated to implement right now.
 			// that's a task for another day.
-			if (strcmp(plan_str, "none") == 0)
-				yafu_pretest_plan = PRETEST_NONE;
-			else if (strcmp(plan_str, "noecm") == 0)
-				yafu_pretest_plan = PRETEST_NOECM;
-			else if (strcmp(plan_str, "light") == 0)
-				yafu_pretest_plan = PRETEST_LIGHT;
-			else if (strcmp(plan_str, "deep") == 0)
-				yafu_pretest_plan = PRETEST_DEEP;
-			else if (strcmp(plan_str, "normal") == 0)
-				yafu_pretest_plan = PRETEST_NORMAL;
+			if (strcmp(fobj->autofact_obj.plan_str, "none") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NONE;
+			else if (strcmp(fobj->autofact_obj.plan_str, "noecm") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NOECM;
+			else if (strcmp(fobj->autofact_obj.plan_str, "light") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_LIGHT;
+			else if (strcmp(fobj->autofact_obj.plan_str, "deep") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
+			else if (strcmp(fobj->autofact_obj.plan_str, "normal") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
 			else			
 			{
 				printf("*** unknown plan option, ignoring ***\n");
-				strcpy(plan_str,"normal");
+				strcpy(fobj->autofact_obj.plan_str,"normal");
 			}
 		}
 		else
@@ -1865,11 +1551,11 @@ void applyOpt(char *opt, char *arg)
 	}
 	else if (strcmp(opt,OptionArray[38]) == 0)
 	{
-		ONLY_PRETEST = 1;
+		fobj->autofact_obj.only_pretest = 1;
 	}
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{
-		WANT_OUTPUT_EXPRESSIONS = 0;
+		fobj->autofact_obj.want_output_expressions = 0;
 	}	
 	else if (strcmp(opt,OptionArray[40]) == 0)
 	{
@@ -1879,20 +1565,20 @@ void applyOpt(char *opt, char *arg)
 		if (strlen(arg) < 1024)
 		{
 			char tmp[1024];
-			strcpy(GGNFS_OUTPUTFILE,arg);			
-			strcpy(tmp,GGNFS_OUTPUTFILE);
+			strcpy(fobj->nfs_obj.outputfile,arg);			
+			strcpy(tmp,fobj->nfs_obj.outputfile);
 			cptr = strchr(tmp,46);
 			if (cptr == NULL)
 			{
 				//no . in provided filename
-				sprintf(GGNFS_LOGFILE, "%s.log",GGNFS_OUTPUTFILE);
-				sprintf(GGNFS_FBFILE, "%s.fb",GGNFS_OUTPUTFILE);
+				sprintf(fobj->nfs_obj.logfile, "%s.log",fobj->nfs_obj.outputfile);
+				sprintf(fobj->nfs_obj.fbfile, "%s.fb",fobj->nfs_obj.outputfile);
 			}
 			else
 			{				
 				cptr[0] = '\0';
-				sprintf(GGNFS_LOGFILE, "%s.log",tmp);
-				sprintf(GGNFS_FBFILE, "%s.fb",tmp);
+				sprintf(fobj->nfs_obj.logfile, "%s.log",tmp);
+				sprintf(fobj->nfs_obj.fbfile, "%s.fb",tmp);
 			}
 		}
 		else
@@ -1901,24 +1587,24 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[41]) == 0)
 	{
 		//argument "a".  Indicates algebraic side special Q.
-		GGNFS_SQ_SIDE = 1;
+		fobj->nfs_obj.sq_side = 1;
 	}
 	else if (strcmp(opt,OptionArray[42]) == 0)
 	{
 		//argument "r".  Indicates rational side special Q.
-		GGNFS_SQ_SIDE = 0;
+		fobj->nfs_obj.sq_side = 0;
 	}
 	else if (strcmp(opt,OptionArray[43]) == 0)
 	{
 		//argument "ggnfsT".  Indicates timeout (in seconds) for NFS job.
-		GGNFS_TIMEOUT = strtoul(arg,NULL,10);
+		fobj->nfs_obj.timeout = strtoul(arg,NULL,10);
 	}
 	else if (strcmp(opt,OptionArray[44]) == 0)
 	{
 		//argument "job".  Indicates input .job file automated NFS.
 		if (strlen(arg) < 1024)
 		{
-			strcpy(GGNFS_JOB_INFILE,arg);
+			strcpy(fobj->nfs_obj.job_infile,arg);
 		}
 		else
 			printf("*** argument to -job too long, ignoring ***\n");
@@ -1928,32 +1614,32 @@ void applyOpt(char *opt, char *arg)
 		char **nextptr = &arg;
 
 		//argument "ns".  nfs sieving only
-		GGNFS_SIEVE_ONLY = 1;
+		fobj->nfs_obj.sieve_only = 1;
 		
 		if (arg != NULL)
 		{
 			// if an argument was supplied, parse the start and range of 
 			//special Q in the format X,Y
-			GGNFS_STARTQ = strtoul(arg,nextptr,10);
+			fobj->nfs_obj.startq = strtoul(arg,nextptr,10);
 
 			if (*nextptr[0] != ',')
 			{
 				printf("format of sieving argument is START,STOP\n");
 				exit(1);
 			}
-			GGNFS_RANGEQ = strtoul(*nextptr + 1,NULL,10);
+			fobj->nfs_obj.rangeq = strtoul(*nextptr + 1,NULL,10);
 
-			if (GGNFS_STARTQ >= GGNFS_RANGEQ)
+			if (fobj->nfs_obj.startq >= fobj->nfs_obj.rangeq)
 			{
 				printf("format of sieving argument is START,STOP; STOP must be > START\n");
 				exit(1);
 			}
-			GGNFS_RANGEQ = GGNFS_RANGEQ - GGNFS_STARTQ;
+			fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
 		}
 		else
 		{
-			GGNFS_STARTQ = 0;
-			GGNFS_RANGEQ = 0;
+			fobj->nfs_obj.startq = 0;
+			fobj->nfs_obj.rangeq = 0;
 		}
 
 	}
@@ -1962,38 +1648,38 @@ void applyOpt(char *opt, char *arg)
 		char **nextptr = &arg;
 
 		//argument "np".  nfs poly finding only
-		GGNFS_POLY_ONLY = 1;
+		fobj->nfs_obj.poly_only = 1;
 
 		if (arg != NULL)
 		{
 			// if an argument was supplied, parse the start and stop coefficient range in the
 			// format X,Y
-			GGNFS_POLYSTART = strtoul(arg,nextptr,10);
+			fobj->nfs_obj.polystart = strtoul(arg,nextptr,10);
 
 			if (*nextptr[0] != ',')
 			{
 				printf("format of poly select argument is START,STOP\n");
 				exit(1);
 			}
-			GGNFS_POLYRANGE = strtoul(*nextptr + 1,NULL,10);
+			fobj->nfs_obj.polyrange = strtoul(*nextptr + 1,NULL,10);
 
-			if (GGNFS_POLYSTART >= GGNFS_POLYRANGE)
+			if (fobj->nfs_obj.polystart >= fobj->nfs_obj.polyrange)
 			{
 				printf("format of poly select argument is START,STOP; STOP must be > START\n");
 				exit(1);
 			}
-			GGNFS_POLYRANGE = GGNFS_POLYRANGE - GGNFS_POLYSTART;
+			fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
 		}
 		else
 		{
-			GGNFS_POLYSTART = 0;
-			GGNFS_POLYRANGE = 0;
+			fobj->nfs_obj.polystart = 0;
+			fobj->nfs_obj.polyrange = 0;
 		}
 	}
 	else if (strcmp(opt,OptionArray[47]) == 0)
 	{
 		//argument "nc".  nfs post processing only
-		GGNFS_POST_ONLY = 1;
+		fobj->nfs_obj.post_only = 1;
 	}
 	else if (strcmp(opt,OptionArray[48]) == 0)
 	{
@@ -2001,11 +1687,11 @@ void applyOpt(char *opt, char *arg)
 		if (strlen(arg) < 1024)
 		{
 			if (strcmp(arg, "wide") == 0)
-				GGNFS_POLY_OPTION = 1;
+				fobj->nfs_obj.poly_option = 1;
 			else if (strcmp(arg, "deep") == 0)
-				GGNFS_POLY_OPTION = 2;
+				fobj->nfs_obj.poly_option = 2;
 			else if (strcmp(arg, "fast") == 0)
-				GGNFS_POLY_OPTION = 0;
+				fobj->nfs_obj.poly_option = 0;
 			else
 			{
 				printf("option -psearch recognizes arguments 'deep', 'wide', or 'fast'.\n  see docfile.txt for details\n"); 
@@ -2020,15 +1706,15 @@ void applyOpt(char *opt, char *arg)
 	else if (strcmp(opt,OptionArray[49]) == 0)
 	{
 		//argument "R".  nfs restart flag
-		GGNFS_RESTART_FLAG = 1;
+		fobj->nfs_obj.restart_flag = 1;
 	}
 	else if (strcmp(opt,OptionArray[50]) == 0)
 	{
 		//argument "pbatch".  Indicates size of blocks of leading coefficients to
 		//distribute to each thread in threaded NFS poly selection.
-		GGNFS_POLYBATCH = strtoul(arg,NULL,10);
-		if (GGNFS_POLYBATCH == 0)
-			GGNFS_POLYBATCH = 250;
+		fobj->nfs_obj.polybatch = strtoul(arg,NULL,10);
+		if (fobj->nfs_obj.polybatch == 0)
+			fobj->nfs_obj.polybatch = 250;
 	}
 	else if (strcmp(opt,OptionArray[51]) == 0)
 	{
@@ -2037,6 +1723,20 @@ void applyOpt(char *opt, char *arg)
 			strcpy(ecm_dir,arg);
 		else
 			printf("*** argument to ecm_dir too long, ignoring ***\n");
+	}
+	else if (strcmp(opt,OptionArray[52]) == 0)
+	{
+		//argument should be all numeric
+		for (i=0;i<(int)strlen(arg);i++)
+		{
+			if (!isdigit(arg[i]))
+			{
+				printf("expected numeric input for option %s\n",opt);
+				exit(1);
+			}
+		}
+
+		fobj->nfs_obj.siever = strtoul(arg,NULL,10);
 	}
 	else
 	{
@@ -2048,7 +1748,7 @@ void applyOpt(char *opt, char *arg)
 	return;
 }
 
-void apply_tuneinfo(char *arg)
+void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 {
 	int i,j;
 	char cpustr[80], osstr[80];
@@ -2085,10 +1785,10 @@ void apply_tuneinfo(char *arg)
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
-			&QS_MULTIPLIER, &QS_EXPONENT,
-			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
-			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
-		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
+			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
+			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 
 	}
 #elif defined(WIN32)
@@ -2096,10 +1796,10 @@ void apply_tuneinfo(char *arg)
 	{
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
-			&QS_MULTIPLIER, &QS_EXPONENT,
-			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
-			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
-		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
+			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
+			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #elif BITS_PER_DIGIT == 64
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
@@ -2107,10 +1807,10 @@ void apply_tuneinfo(char *arg)
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
-			&QS_MULTIPLIER, &QS_EXPONENT,
-			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
-			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
-		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
+			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
+			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #else 
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
@@ -2118,17 +1818,17 @@ void apply_tuneinfo(char *arg)
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
-			&QS_MULTIPLIER, &QS_EXPONENT,
-			&GNFS_MULTIPLIER, &GNFS_EXPONENT, 
-			&QS_GNFS_XOVER, &GNFS_TUNE_FREQ);
-		QS_TUNE_FREQ = GNFS_TUNE_FREQ;
+			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
+			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
+			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
+		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #endif	
 
 	//printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
-	//	QS_MULTIPLIER, QS_EXPONENT,
-	//	GNFS_MULTIPLIER, GNFS_EXPONENT, 
-	//	QS_GNFS_XOVER, GNFS_TUNE_FREQ);
+	//	fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+	//	fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
+	//	fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
 
 	return;
 }

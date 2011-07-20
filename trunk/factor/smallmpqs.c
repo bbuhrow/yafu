@@ -516,22 +516,18 @@ void smallmpqs(fact_obj_t *fobj)
 		return;
 	}
 
-	//empircal tuning of sieve interval based on digits in n
 	if (bits_n < 50)
 	{
 		z ztmp;
 		zInit(&ztmp);
 
 		j = sp_shanks_loop(&fobj->qs_obj.n,fobj);	
-		fobj->qs_obj.num_factors += 2;
-		fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, 
-			fobj->qs_obj.num_factors * sizeof(z));
-		zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
-		sp2z(j, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 2]);
+		sp2z(j, &ztmp);
+		add_to_factor_list(fobj, &ztmp);
 
 		zShortDiv(&fobj->qs_obj.n,j,&ztmp);
-		zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
-		zCopy(&ztmp, &fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
+		add_to_factor_list(fobj, &ztmp);
+		zCopy(&zOne, &fobj->qs_obj.n);
 
 		mpz_clear(n);
 		mpz_clear(tmp);
@@ -540,6 +536,7 @@ void smallmpqs(fact_obj_t *fobj)
 	}
 	else
 	{
+		//empircal tuning of sieve interval based on digits in n
 		sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
 	}
 
@@ -827,7 +824,7 @@ done:
 	if (VFLAG > 0)
 		printf("Gauss elapsed time = %6.4f seconds.\n",t_time);
 		
-	if (fobj->qs_obj.flags == 12345)
+	if (1) //fobj->qs_obj.flags == 12345)
 	{
 		for(i=0;i<num_factors;i++)
 		{
@@ -838,18 +835,6 @@ done:
 			zInit(&t1);
 			zInit(&t2);
 
-			/*
-			sp2z(mpz_get_ui(factors[i]), &t2);
-			mpz_tdiv_q_2exp(factors[i], factors[i], BITS_PER_DIGIT);
-			j = 1;
-			while (mpz_size(factors[i]) > 0)
-			{
-				sp2z(mpz_get_ui(factors[i]), &tmpz);
-				zShiftLeft(&tmpz, &tmpz, BITS_PER_DIGIT * j);
-				zAdd(&tmpz, &t2, &t2);
-				mpz_tdiv_q_2exp(factors[i], factors[i], BITS_PER_DIGIT);
-			}
-			*/
 			mpz_export(t2.val, &count, -1, sizeof(fp_digit),
 				0, (size_t)0, factors[i]);
 			t2.size = count;
@@ -873,31 +858,14 @@ done:
 		for(i=0;i<num_factors;i++)
 		{
 			z *f;				
-			//z tmpz;
 			size_t count;
 
 			f = &fobj->qs_obj.factors[fobj->qs_obj.num_factors - i - 1];
 
 			zInit(f);
-			//zInit(&tmpz);
 
-			/*
-			sp2z(mpz_get_ui(factors[i]), f);
-			mpz_tdiv_q_2exp(factors[i], factors[i], BITS_PER_DIGIT);
-			j = 1;
-			while (mpz_size(factors[i]) > 0)
-			{
-				sp2z(mpz_get_ui(factors[i]), &tmpz);
-				zShiftLeft(&tmpz, &tmpz, BITS_PER_DIGIT * j);
-				zAdd(&tmpz, f, f);
-				mpz_tdiv_q_2exp(factors[i], factors[i], BITS_PER_DIGIT);
-			}
-			*/
 			mpz_export(f->val, &count, -1, sizeof(fp_digit),
 				0, (size_t)0, factors[i]);
-
-			//zFree(&tmpz);
-			//mpz_set(fobj->qs_obj.factors[fobj->qs_obj.num_factors - i - 1], factors[i]);
 
 		}
 

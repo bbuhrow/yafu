@@ -24,7 +24,7 @@ code to the public domain.
 #include "util.h"
 #include "yafu_ecm.h"
 
-int mbrent(z *n, uint32 c, z *f);
+int mbrent(fact_obj_t *fobj);
 
 void brent_loop(fact_obj_t *fobj)
 {
@@ -34,8 +34,9 @@ void brent_loop(fact_obj_t *fobj)
 	//polynomials, and their values, configurable, but for 
 	//now it is hardcoded.
 	z *n = &fobj->rho_obj.n;
-	z d,f,t;
-	uint32 c[3] = {1,3,2};
+	z *f;
+
+	z d,t;
 	int i;
 	FILE *flog;
 	clock_t start, stop;
@@ -61,13 +62,14 @@ void brent_loop(fact_obj_t *fobj)
 		return;
 	}
 
-	//initialize some local arbs
-	zInit(&f);
+	//initialize some local args
 	zInit(&d);
 	zInit(&t);
+	zInit(&fobj->rho_obj.factors[0]);
+	f = &fobj->rho_obj.factors[0];
 
-	i=0;
-	while(i<3)
+	fobj->rho_obj.curr_poly = 0;
+	while(fobj->rho_obj.curr_poly < 3)
 	{
 		//for each different constant, first check primalty because each
 		//time around the number may be different
@@ -85,43 +87,42 @@ void brent_loop(fact_obj_t *fobj)
 
 		//verbose: print status to screen
 		if (VFLAG >= 0)
-			printf("rho: x^2 + %u, starting %d iterations on C%d ",c[i],BRENT_MAX_IT,ndigits(n));
-		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%d\n",c[i],BRENT_MAX_IT,ndigits(n));
+			printf("rho: x^2 + %u, starting %d iterations on C%d ",
+			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, ndigits(n));
+		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%d\n",
+			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, ndigits(n));
 		
-		//call brent's rho algorithm, using montgomery arithmetic.  any
-		//factor found is returned in 'f'
-		mbrent(n,c[i],&f);
+		//call brent's rho algorithm, using montgomery arithmetic.
+		mbrent(fobj);
 
 		//check to see if 'f' is non-trivial
-		if (zCompare(&f,&zOne) > 0 && zCompare(&f,n) < 0)
+		if (zCompare(f,&zOne) > 0 && zCompare(f,n) < 0)
 		{	
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			//check if the factor is prime
-			if (isPrime(&f))
+			if (isPrime(f))
 			{
-				f.type = PRP;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, f);
 				if (VFLAG > 0)
-					printf("rho: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+					printf("rho: found prp%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 				logprint(flog,"prp%d = %s\n",
-					ndigits(&f),z2decstr(&f,&gstr2));
+					ndigits(f),z2decstr(f,&gstr2));
 			}
 			else
 			{
-				f.type = COMPOSITE;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, f);
 				if (VFLAG > 0)
-					printf("rho: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+					printf("rho: found c%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 				logprint(flog,"c%d = %s\n",
-					ndigits(&f),z2decstr(&f,&gstr2));
+					ndigits(f),z2decstr(f,&gstr2));
 			}
 			start = clock();
 
 			//reduce input
-			zDiv(n,&f,&t,&d);
+			zDiv(n,f,&t,&d);
 			zCopy(&t,n);
 		}
 		else
@@ -130,19 +131,19 @@ void brent_loop(fact_obj_t *fobj)
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
-			i++; //try a different function
+			fobj->rho_obj.curr_poly++; //try a different function
 		}
 	}
 
+	fobj->rho_obj.ttime = tt;
 	fclose(flog);
-	zFree(&f);
 	zFree(&d);
 	zFree(&t);
 	return;
 }
 
 
-int mbrent(z *n, uint32 c, z *f)
+int mbrent(fact_obj_t *fobj)
 {
 	/*
 	run pollard's rho algorithm on n with Brent's modification, 
@@ -152,11 +153,13 @@ int mbrent(z *n, uint32 c, z *f)
 	use montgomery arithmetic. 
 	*/
 
+	z *n = &fobj->rho_obj.n;
+	z *f;
 	z x,y,q,g,ys,t1,t2,cc;
 
-	uint32 i=0,k,r,m;
+	uint32 i=0,k,r,m,c;
 	int it;
-	int imax = BRENT_MAX_IT;
+	int imax = fobj->rho_obj.iterations;
 
 	//initialize local arbs
 	zInit(&x);
@@ -168,12 +171,17 @@ int mbrent(z *n, uint32 c, z *f)
 	zInit(&t2);
 	zInit(&cc);
 
+	// make space for a factor
+	fobj->rho_obj.num_factors = 1;
+	f = &fobj->rho_obj.factors[0];
+
 	//starting state of algorithm.  
 	r = 1;
 	m = 10;
 	i = 0;
 	it = 0;
-	sp2z(c,&cc);
+	c = fobj->rho_obj.curr_poly;
+	sp2z(fobj->rho_obj.polynomials[c],&cc);
 	q.val[0] = 1;
 	y.val[0] = 0;
 	g.val[0] = 1;

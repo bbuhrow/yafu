@@ -84,6 +84,7 @@ code to the public domain.
 		//will need to change, for instance the defines in lanczos.c
 
 		#define strto_fpdigit _strtoui64
+		#define strto_uint64 _strtoui64
 
 		#pragma intrinsic(_umul128)
 		typedef __int8 int8;
@@ -154,6 +155,7 @@ code to the public domain.
 
 		//MSVC builds using a 32 bit compiler
 		#define strto_fpdigit strtoul
+		#define strto_uint64 _strtoui64
 
 		typedef __int8 int8;
 		typedef __int16 int16;
@@ -213,6 +215,7 @@ code to the public domain.
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit _strtoui64
+		#define strto_uint64 _strtoui64
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))
@@ -251,6 +254,7 @@ code to the public domain.
 		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit strtoul
+		#define strto_uint64 _strtoui64
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))
@@ -289,6 +293,7 @@ code to the public domain.
 		//sleep in milliseconds
 		#define MySleep(x) usleep((x)*1000)
 		#define strto_fpdigit strtoull
+		#define strto_uint64 strtoull
 
 		#define align_free free
 		typedef unsigned char uint8;
@@ -324,6 +329,7 @@ code to the public domain.
 		//sleep in milliseconds
 		#define MySleep(x) usleep((x)*1000)
 		#define strto_fpdigit strtoul
+		#define strto_uint64 strtoull
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;

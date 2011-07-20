@@ -25,15 +25,15 @@ code to the public domain.
 #include "arith.h"
 #include "util.h"
 
+#if defined(__GNUC__) && !defined(__MINGW32__) 
+#define FORK_ECM
+#endif
+
 /* declarations of factorization routines not grouped in with QS methods
 or group theoretic methods, as well as higher level factorization
 routines and bookkeeping */
 
 #define MAX_FACTORS 10
-#define POLLARD_METHOD 0
-#define WILLIAMS_METHOD 1
-#define STG1 1
-#define STG2 2
 
 // stuff that needs to be visible to the msieve routines and 
 // the yafu sieve routines
@@ -231,78 +231,124 @@ typedef struct {
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
+	int stg2_is_default;
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
+	uint32 base;				//we compute base^B1
 
 } pm1_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
-	uint32 *bases;
+	int stg2_is_default;
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
+	uint32 base;				//we compute base^B1
+	uint32 numbases;
 
 } pp1_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
+	int stg2_is_default;
+#if defined(FORK_ECM)
+	int *curves_run;
+#else
+	int curves_run;
+#endif
 	uint32 num_curves;
 	uint32 sigma;				//sigma value of successful curve
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
 
 } ecm_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	uint32 iterations;
 	uint32 num_poly;
 	uint32 *polynomials;
+	uint32 curr_poly;			//current polynomial in the list of polynomials
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
 
 } rho_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
-	uint32 limit;
+	uint32 limit;				//trial div limit
+	uint32 fmtlimit;			//fermat max iterations
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
+	int print;
 
 } div_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
+	double ttime;
 
 } squfof_obj_t;
 
 typedef struct
 {
 	z n;
+	z inz, outz;
 	str_t in, out;
 	qs_savefile_t savefile;		//savefile object
 	uint32 override1;			//override of default parameters
 	uint32 override2;			//override of default parameters
 	int override3;				//override of default parameters
+
+	double qs_exponent;
+	double qs_multiplier;
+	double qs_tune_freq;
+	int no_small_cutoff_opt;	//1 is true - perform no optimization.  0 is false.
+
+	int gbl_override_B_flag;
+	uint32 gbl_override_B;			//override the # of factor base primes
+	int gbl_override_tf_flag;
+	uint32 gbl_override_tf;			//extra reduction of the TF bound by X bits
+	int gbl_override_time_flag;
+	uint32 gbl_override_time;		//stop after this many seconds
+	int gbl_override_rel_flag;
+	uint32 gbl_override_rel;		//stop after collecting this many relations
+	int gbl_override_blocks_flag;
+	uint32 gbl_override_blocks;		//override the # of blocks used
+	int gbl_override_lpmult_flag;
+	uint32 gbl_override_lpmult;		//override the large prime multiplier
+	int gbl_force_DLP;
+
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	uint32 flags;				//each bit corresponds to a location in the 
@@ -312,6 +358,87 @@ typedef struct
 	double total_time;
 
 } qs_obj_t;
+
+typedef struct
+{
+	z n;
+	z inz, outz;
+	str_t in, out;
+
+	uint32 siever;
+	uint32 startq;
+	uint32 rangeq;
+	uint32 polystart;
+	uint32 polyrange;
+	char outputfile[1024];
+	char logfile[1024];
+	char fbfile[1024];
+	int sq_side;
+	uint32 timeout;
+	char job_infile[1024];
+	int sieve_only;
+	int poly_only;
+	int post_only;
+	int poly_option;
+	int restart_flag;
+	uint32 polybatch;
+
+	double gnfs_exponent;
+	double gnfs_multiplier;
+	double gnfs_tune_freq;
+
+	uint32 min_digits;
+
+	uint32 num_factors;			//number of factors found in this method
+	z *factors;					//array of bigint factors found in this method
+	double ttime;
+
+} nfs_obj_t;
+
+
+//globals for implementing the "plan" and "pretest" switches
+enum pretest_plan {
+	PRETEST_NONE = 0,
+	PRETEST_NOECM = 1,
+	PRETEST_LIGHT = 2,
+	PRETEST_NORMAL = 3,
+	PRETEST_DEEP = 4,
+	PRETEST_CUSTOM = 5
+};
+
+typedef struct
+{
+	//crossover between qs and gnfs
+	double qs_gnfs_xover;
+
+	//balance of ecm and various sieve methods
+	double target_ecm_qs_ratio;
+	double target_ecm_gnfs_ratio;
+	double target_ecm_snfs_ratio;
+
+	int no_ecm;
+
+	int want_only_1_factor;
+	int want_output_primes;
+	int want_output_factors;
+	int want_output_unfactored;
+	int want_output_expressions;
+	FILE *op_file;
+	FILE *of_file;
+	FILE *ou_file;
+	char op_str[1024];
+	char of_str[1024];
+	char ou_str[1024];
+
+	enum pretest_plan yafu_pretest_plan;
+	char plan_str[1024];
+	int only_pretest;
+	int autofact_active;
+
+	double ttime;
+
+} autofact_obj_t;
+
 
 typedef struct
 {
@@ -332,6 +459,8 @@ typedef struct
 	pp1_obj_t pp1_obj;			//info for any pp1 work 
 	ecm_obj_t ecm_obj;			//info for any ecm work 
 	qs_obj_t qs_obj;			//info for any qs work 
+	nfs_obj_t nfs_obj;			//info for any nfs work
+	autofact_obj_t autofact_obj;
 
 	uint32 cache_size1;
 	uint32 cache_size2;
@@ -389,37 +518,26 @@ void delete_from_factor_list(fact_obj_t *fobj, z *n);
 //common to the QS variants
 uint8 choose_multiplier(z *n, uint32 fbsize);
 
-// factoring routines not declared inside their own header //
+/*-----------TOP LEVEL ENTRY POINT FOR ALL FACTORING ROUTINES ----------*/
 
-//shanks SQUFOF
-void shanks_mult(uint64 N, uint64 *f);
+void brent_loop(fact_obj_t *fobj);
+void pollard_loop(fact_obj_t *fobj);
+void williams_loop(fact_obj_t *fobj);
+int ecm_loop(fact_obj_t *fobj);
 uint64 sp_shanks_loop(z *N, fact_obj_t *fobj);
-uint32 squfof(z *n);
-//jasonp's squfof, for comparison
-uint32 squfof_jp(z *n);
-int SQUFOF_alpertron(int64 N, int64 queue[]);
-void enqu(int q,int *iter);
-int squfof_rds(int64 n, int *fac1, int *fac2);
-
-//trial division
-void zTrial(fp_digit limit, int print, fact_obj_t *fobj);
+void zTrial(fact_obj_t *fobj);
 void zFermat(fp_digit limit, fact_obj_t *fobj);
-void Trial64(int64 n, int print);
-void Trial32(int32 n, int print);
+void nfs(fact_obj_t *fobj);
+void SIQS(fact_obj_t *fobj);
+void smallmpqs(fact_obj_t *fobj);
 
-//auto factoring routines
-double get_qs_time_estimate(double freq, int bits);
+//auto factor routine
 void factor(fact_obj_t *fobj);
-void aliquot(z *input, fact_obj_t *fobj);
 
-//nfs factoring
-//void logprintf(msieve_obj *obj, char *fmt, ...);
-void test_msieve_gnfs(fact_obj_t *fobj);
 
 /* Factor a number using GNFS. Returns
    1 if any factors were found and 0 if not */
 
-//#define USE_NFS 1
 uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
 
 void factor_tune(void);

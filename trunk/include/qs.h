@@ -692,9 +692,6 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32
 /* perform postprocessing on a list of relations */
 void yafu_qs_filter_relations(static_conf_t *sconf);
 
-//top
-void SIQS(fact_obj_t *fobj);
-
 #define SAVEFILE_BUF_SIZE 2048
 char savebuf[2048];
 int savefile_buf_off;
@@ -703,7 +700,6 @@ qs_params sieve_params;
 
 int SIQS_ABORT;
 
-void smallmpqs(fact_obj_t *fobj);
 
 #endif /* _SIQS_H_ */
 

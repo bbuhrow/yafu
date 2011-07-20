@@ -34,8 +34,6 @@ void factor_tune(void)
 	char nfslist[6][200];
 	z n;
 	int i, tmpT;
-	uint32 save_gbl_override_rel;
-	int save_gbl_override_rel_flag;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
@@ -92,12 +90,7 @@ void factor_tune(void)
 	strcpy(nfslist[3],"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
 	strcpy(nfslist[4],"466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
 	strcpy(nfslist[5],"48178889479314834847826896738914354061668125063983964035428538278448985505047157633738779051249185304620494013");
-
-	save_gbl_override_rel = gbl_override_rel;
-	save_gbl_override_rel_flag = gbl_override_rel_flag;
 		
-	gbl_override_rel_flag = 1;
-
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
@@ -106,7 +99,8 @@ void factor_tune(void)
 
 		//measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);
-		gbl_override_rel = 10000;	
+		fobj->qs_obj.gbl_override_rel_flag = 1;
+		fobj->qs_obj.gbl_override_rel = 10000;	
 		gettimeofday(&start, NULL);
 		zCopy(&n,&fobj->qs_obj.n);
 		SIQS(fobj);
@@ -116,7 +110,7 @@ void factor_tune(void)
 		free(difference);			
 
 		// the number of relations actually gathered is stored in gbl_override_rel
-		siqs_extraptime[i] = t_time * siqs_actualrels[i] / gbl_override_rel;
+		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
 
 		// add a guess at the linalg + sqrt time: something reasonable seems to be about
 		// 2% of the total sieve time
@@ -130,9 +124,6 @@ void factor_tune(void)
 		free_factobj(fobj);
 		free(fobj);
 	}
-
-	gbl_override_rel = save_gbl_override_rel;		
-	gbl_override_rel_flag = save_gbl_override_rel_flag;
 
 	fit = best_linear_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a,b,fit);

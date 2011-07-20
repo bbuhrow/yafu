@@ -93,12 +93,15 @@ uint32 auto_increasing_B1 = 10000000;
 uint64 auto_increasing_B2 = 1000000000;
 
 // local function to do requested curve based factorization
+double get_qs_time_estimate(fact_obj_t *fobj, double freq, int bits);
+double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits);
+
 double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
 	z *b, fact_obj_t *fobj);
 int check_if_done(fact_obj_t *fobj, z *N);
 enum factorization_state scale_requested_work(method_timing_t *method_times, 
 	enum factorization_state fact_state, int *next_work, double time_available, z *N);
-int switch_to_qs(z *N, double *time_available, int force_switch);
+int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switch);
 
 void init_factobj(fact_obj_t *fobj)
 {
@@ -116,7 +119,12 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->rho_obj.num_factors = 0;
 	fobj->rho_obj.factors = (z *)malloc(sizeof(z));
 	fobj->rho_obj.num_poly = 3;
+	fobj->rho_obj.iterations = 1000;
 	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
+	fobj->rho_obj.polynomials[0] = 1;
+	fobj->rho_obj.polynomials[1] = 3;
+	fobj->rho_obj.polynomials[2] = 2;
+	fobj->rho_obj.curr_poly = 0;
 	zInit(&fobj->rho_obj.n);
 	sInit(&fobj->rho_obj.in);
 	sInit(&fobj->rho_obj.out);
@@ -124,6 +132,9 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for pm1
 	fobj->pm1_obj.num_factors = 0;
 	fobj->pm1_obj.factors = (z *)malloc(sizeof(z));
+	fobj->pm1_obj.B1 = 100000;
+	fobj->pm1_obj.B2 = 10000000;
+	fobj->pm1_obj.stg2_is_default = 1;
 	zInit(&fobj->pm1_obj.n);
 	sInit(&fobj->pm1_obj.in);
 	sInit(&fobj->pm1_obj.out);
@@ -131,6 +142,9 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for pp1
 	fobj->pp1_obj.num_factors = 0;
 	fobj->pp1_obj.factors = (z *)malloc(sizeof(z));
+	fobj->pp1_obj.B1 = 20000;
+	fobj->pp1_obj.B2 = 1000000;
+	fobj->pp1_obj.stg2_is_default = 1;
 	zInit(&fobj->pp1_obj.n);
 	sInit(&fobj->pp1_obj.in);
 	sInit(&fobj->pp1_obj.out);
@@ -138,6 +152,16 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for ecm
 	fobj->ecm_obj.num_factors = 0;
 	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
+	fobj->ecm_obj.B1 = 11000;
+	fobj->ecm_obj.B2 = 1100000;
+	fobj->ecm_obj.stg2_is_default = 1;
+	fobj->ecm_obj.sigma = 0;
+	fobj->ecm_obj.num_curves = 90;
+#ifdef FORK_ECM
+	fobj->ecm_obj.curves_run = NULL;
+#else
+	fobj->ecm_obj.curves_run = 0;
+#endif
 	zInit(&fobj->ecm_obj.n);
 	sInit(&fobj->ecm_obj.in);
 	sInit(&fobj->ecm_obj.out);
@@ -155,6 +179,14 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.override1 = 0;
 	fobj->qs_obj.override2 = 0;
 	fobj->qs_obj.override3 = 0;
+	fobj->qs_obj.gbl_override_B_flag = 0;
+	fobj->qs_obj.gbl_override_blocks_flag = 0;
+	fobj->qs_obj.gbl_override_lpmult_flag = 0;
+	fobj->qs_obj.gbl_force_DLP = 0;
+	fobj->qs_obj.qs_exponent = 0;
+	fobj->qs_obj.qs_multiplier = 0;
+	fobj->qs_obj.qs_tune_freq = 0;
+	fobj->qs_obj.no_small_cutoff_opt = 0;
 	zInit(&fobj->qs_obj.n);
 	sInit(&fobj->qs_obj.in);
 	sInit(&fobj->qs_obj.out);
@@ -162,9 +194,61 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for trial division
 	fobj->div_obj.num_factors = 0;
 	fobj->div_obj.factors = (z *)malloc(sizeof(z));
+	fobj->div_obj.print = 0;
+	fobj->div_obj.limit = 10000;
+	fobj->div_obj.fmtlimit = 1000000;
 	zInit(&fobj->div_obj.n);
 	sInit(&fobj->div_obj.in);
 	sInit(&fobj->div_obj.out);
+
+	//initialize stuff for nfs
+	fobj->nfs_obj.num_factors = 0;
+	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
+	fobj->nfs_obj.gnfs_exponent = 0;
+	fobj->nfs_obj.gnfs_multiplier = 0;
+	fobj->nfs_obj.gnfs_tune_freq = 0;
+	fobj->nfs_obj.min_digits = 85;
+	fobj->nfs_obj.siever = 0;							//default, use automatic selection
+	fobj->nfs_obj.startq = 0;							//default, not used
+	fobj->nfs_obj.rangeq = 0;							//default, not used
+	fobj->nfs_obj.polystart = 0;						//default, not used
+	fobj->nfs_obj.polyrange = 0;						//default, not used
+	strcpy(fobj->nfs_obj.outputfile,"nfs.dat");			//default
+	strcpy(fobj->nfs_obj.logfile,"nfs.log");			//default
+	strcpy(fobj->nfs_obj.fbfile,"nfs.fb");				//default
+	fobj->nfs_obj.sq_side = 1;							//default = algebraic
+	fobj->nfs_obj.timeout = 0;							//default, not used
+	strcpy(fobj->nfs_obj.job_infile,"nfs.job");			//default
+	fobj->nfs_obj.sieve_only = 0;						//default = no
+	fobj->nfs_obj.poly_only = 0;						//default = no
+	fobj->nfs_obj.post_only = 0;						//default = no
+	fobj->nfs_obj.poly_option = 0;						//default = fast search
+															//1 = wide
+															//2 = deep
+	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
+	fobj->nfs_obj.polybatch = 250;						//default
+	zInit(&fobj->nfs_obj.n);
+	sInit(&fobj->nfs_obj.in);
+	sInit(&fobj->nfs_obj.out);
+
+	//initialize autofactor object
+	//whether we want to output certain info to their own files...
+	fobj->autofact_obj.want_output_primes = 0;
+	fobj->autofact_obj.want_output_factors = 0;
+	fobj->autofact_obj.want_output_unfactored = 0;
+	fobj->autofact_obj.want_output_expressions = 1;
+	fobj->autofact_obj.qs_gnfs_xover = 0;
+	fobj->autofact_obj.want_only_1_factor = 0;
+	fobj->autofact_obj.no_ecm = 0;
+	fobj->autofact_obj.target_ecm_qs_ratio = 0.25;
+	fobj->autofact_obj.target_ecm_gnfs_ratio = 0.25;
+	fobj->autofact_obj.target_ecm_snfs_ratio = 0.20;
+
+	//pretesting plan used by factor()
+	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+	strcpy(fobj->autofact_obj.plan_str,"normal");
+	fobj->autofact_obj.only_pretest = 0;
+	fobj->autofact_obj.autofact_active = 0;
 
 	//global list of factors
 	fobj->allocated_factors = 256;
@@ -248,6 +332,16 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->div_obj.in);
 	sFree(&fobj->div_obj.out);
 	zFree(&fobj->div_obj.n);
+
+	// free any factors found in nfs
+	for (i=0; i<fobj->nfs_obj.num_factors; i++)
+		zFree(&fobj->nfs_obj.factors[i]);
+	free(fobj->nfs_obj.factors);
+
+	// then free other stuff in nfs
+	sFree(&fobj->nfs_obj.in);
+	sFree(&fobj->nfs_obj.out);
+	zFree(&fobj->nfs_obj.n);
 
 	//free general fobj stuff
 	zFree(&fobj->N);
@@ -446,6 +540,28 @@ void print_factors(fact_obj_t *fobj)
 					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
 				}
 			}
+			else
+			{
+				//type not set, determine it now
+				if (isPrime(&fobj->fobj_factors[i].factor))
+				{
+					for (j=0;j<fobj->fobj_factors[i].count;j++)
+					{
+						printf("PRP%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
+							z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+						zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+					}
+				}
+				else
+				{
+					for (j=0;j<fobj->fobj_factors[i].count;j++)
+					{
+						printf("C%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
+							z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+						zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+					}
+				}
+			}
 		}
 
 		if (zCompare(&fobj->N, &zOne) > 0)
@@ -482,7 +598,7 @@ void print_factors(fact_obj_t *fobj)
 	return;
 }
 
-double get_qs_time_estimate(double freq, int digits)
+double get_qs_time_estimate(fact_obj_t *fobj, double freq, int digits)
 {
 	//using rough empirical scaling equations, number size, information
 	//on cpu type, architecture, speed, and compilation options, 
@@ -492,14 +608,14 @@ double get_qs_time_estimate(double freq, int digits)
 
 	cpu = yafu_get_cpu_type();
 	//if we have tuning info, use that instead
-	if (QS_MULTIPLIER != 0 && QS_EXPONENT != 0 && QS_TUNE_FREQ != 0)
+	if (fobj->qs_obj.qs_multiplier != 0 && fobj->qs_obj.qs_exponent != 0 && fobj->qs_obj.qs_tune_freq != 0)
 	{
 		if (VFLAG >= 2)
 			printf("***** using tuning data for QS time estimation\n");
-		estimate = QS_MULTIPLIER * exp(QS_EXPONENT * digits);
+		estimate = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
 
 		//scale with frequency
-		estimate = estimate * QS_TUNE_FREQ / freq; 
+		estimate = estimate * fobj->qs_obj.qs_tune_freq / freq; 
 	}
 	else
 	{		
@@ -614,7 +730,7 @@ double get_qs_time_estimate(double freq, int digits)
 	return estimate;
 }
 
-double get_gnfs_time_estimate(double freq, int digits)
+double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits)
 {
 	//using rough empirical scaling equations, number size, information
 	//on cpu type, architecture, speed, and compilation options, 
@@ -624,14 +740,14 @@ double get_gnfs_time_estimate(double freq, int digits)
 
 	cpu = yafu_get_cpu_type();
 	//if we have tuning info, use that instead
-	if (GNFS_MULTIPLIER != 0 && GNFS_EXPONENT != 0 && GNFS_TUNE_FREQ != 0)
+	if (fobj->nfs_obj.gnfs_multiplier != 0 && fobj->nfs_obj.gnfs_exponent != 0 && fobj->nfs_obj.gnfs_tune_freq != 0)
 	{
 		if (VFLAG >= 2)
 			printf("***** using tuning data for GNFS time estimation\n");
-		estimate = GNFS_MULTIPLIER * exp(GNFS_EXPONENT * digits);
+		estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
 
 		//scale with frequency
-		estimate = estimate * GNFS_TUNE_FREQ / freq; 
+		estimate = estimate * fobj->nfs_obj.gnfs_tune_freq / freq; 
 	}
 	else
 		estimate = DBL_MAX;
@@ -679,16 +795,18 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	//double t_time;
 	//TIME_DIFF *	difference;
 	
-	startticks = yafu_read_clock();	
+	startticks = yafu_read_clock();		
 
 	switch (method)
 	{
 	case trialdiv_work:		
 		if (VFLAG >= 0)
-			printf("div: primes less than %d\n",10000);
-		PRIME_THRESHOLD = 100000000;
+			printf("div: primes less than %d\n",B1);
+		PRIME_THRESHOLD = B1 * B1;
 		zCopy(b,&fobj->div_obj.n);
-		zTrial(B1,1,fobj);
+		fobj->div_obj.print = 1;
+		fobj->div_obj.limit = B1;
+		zTrial(fobj);
 		zCopy(&fobj->div_obj.n,b);		
 		break;
 
@@ -707,37 +825,41 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		break;
 
 	case ecm_curve:
-		tmp1 = ECM_STG1_MAX;
-		tmp2 = ECM_STG2_MAX;
-		ECM_STG1_MAX=B1;
-		ECM_STG2_MAX=B2;
-		*work = ecm_loop(b,*work,fobj);
-		ECM_STG1_MAX=tmp1;
-		ECM_STG2_MAX=tmp2;
+		tmp1 = fobj->ecm_obj.B1;
+		tmp2 = fobj->ecm_obj.B2;
+		fobj->ecm_obj.B1 = B1;
+		fobj->ecm_obj.B2 = B2;
+		fobj->ecm_obj.num_curves = *work;
+		zCopy(b, &fobj->ecm_obj.n);
+		*work = ecm_loop(fobj);
+		zCopy(&fobj->ecm_obj.n, b);
+		fobj->ecm_obj.B1 = tmp1;
+		fobj->ecm_obj.B2 = tmp2;
 		break;
 
 	case pp1_curve:
-		tmp1 = WILL_STG1_MAX;
-		tmp2 = WILL_STG2_MAX;
-		WILL_STG1_MAX=B1;
-		WILL_STG2_MAX=B2;
+		tmp1 = fobj->pp1_obj.B1;
+		tmp2 = fobj->pp1_obj.B2;
+		fobj->pp1_obj.B1 = B1;
+		fobj->pp1_obj.B2 = B2;
 		zCopy(b,&fobj->pp1_obj.n);
-		williams_loop(*work,fobj);
+		fobj->pp1_obj.numbases = *work;
+		williams_loop(fobj);
 		zCopy(&fobj->pp1_obj.n,b);
-		WILL_STG1_MAX=tmp1;
-		WILL_STG2_MAX=tmp2;
+		fobj->pp1_obj.B1 = tmp1;
+		fobj->pp1_obj.B2 = tmp2;
 		break;
 
 	case pm1_curve:
-		tmp1 = POLLARD_STG1_MAX;
-		tmp2 = POLLARD_STG2_MAX;
-		POLLARD_STG1_MAX=B1;
-		POLLARD_STG2_MAX=B2;
+		tmp1 = fobj->pm1_obj.B1;
+		tmp2 = fobj->pm1_obj.B2;
+		fobj->pm1_obj.B1 = B1;
+		fobj->pm1_obj.B2 = B2;
 		zCopy(b,&fobj->pm1_obj.n);
 		pollard_loop(fobj);
 		zCopy(&fobj->pm1_obj.n,b);
-		POLLARD_STG1_MAX=tmp1;
-		POLLARD_STG2_MAX=tmp2;
+		fobj->pm1_obj.B1 = tmp1;
+		fobj->pm1_obj.B2 = tmp2;
 		break;
 
 	case qs_work:
@@ -752,9 +874,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		//free(difference);
 
 	case nfs_work:
-		zCopy(b,&fobj->qs_obj.n);
-		test_msieve_gnfs(fobj);
-		zCopy(&fobj->qs_obj.n,b);
+		zCopy(b,&fobj->nfs_obj.n);
+		nfs(fobj);
+		zCopy(&fobj->nfs_obj.n,b);
 		break;
 
 	default:
@@ -782,7 +904,7 @@ int check_if_done(fact_obj_t *fobj, z *N)
 	//printf("checking if prod of factors = %s\n",z2decstr(N,&gstr1));
 
 	/* if the user only wants to find one factor, check for that here... */
-	if (WANT_ONLY_1_FACTOR && (fobj->num_factors >= 1))
+	if (fobj->autofact_obj.want_only_1_factor && (fobj->num_factors >= 1))
 	{
 		done = 1;
 		zFree(&tmp);
@@ -856,7 +978,7 @@ int check_if_done(fact_obj_t *fobj, z *N)
 	return done;
 }
 
-int switch_to_qs(z *N, double *time_available, int force_switch)
+int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switch)
 {
 	// compare the total time spent so far with the estimate of how long it 
 	// would take to finish using qs and decide whether or not to switch over
@@ -873,11 +995,11 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 	}
 	else
 	{
-		qs_est_time = get_qs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
+		qs_est_time = get_qs_time_estimate(fobj, MEAS_CPU_FREQUENCY,ndigits(N));
 		if (VFLAG >= 2)
 			printf("***** qs time estimate = %lg seconds\n",qs_est_time);
 
-		nfs_est_time = get_gnfs_time_estimate(MEAS_CPU_FREQUENCY,ndigits(N));
+		nfs_est_time = get_gnfs_time_estimate(fobj, MEAS_CPU_FREQUENCY, ndigits(N));
 		if (VFLAG >= 2)
 			printf("***** gnfs time estimate = %lg seconds\n",nfs_est_time);
 
@@ -888,7 +1010,7 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 			if (force_switch)
 			{
 				//calling code is forcing a decision to switch
-				if ((GNFS_EXPONENT == 0) && (ndigits(N) > 95))
+				if ((fobj->nfs_obj.gnfs_exponent == 0) && (ndigits(N) > 95))
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
@@ -913,11 +1035,11 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 				decision = 0;
 				*time_available = -1;
 			}		
-			else if (total_time > TARGET_ECM_QS_RATIO * qs_est_time)
+			else if (total_time > fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time)
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
 				// we estimate it would take QS to finish, switch to qs.  
-				if ((GNFS_EXPONENT == 0) && (ndigits(N) > 95))
+				if ((fobj->nfs_obj.gnfs_exponent == 0) && (ndigits(N) > 95))
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
@@ -939,7 +1061,7 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 			{
 				// otherwise, return the amount of time we have left before the switchover.
 				decision = 0;
-				*time_available = (TARGET_ECM_QS_RATIO * qs_est_time) - total_time;
+				*time_available = (fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time) - total_time;
 			}
 		}
 		else
@@ -954,7 +1076,7 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 				decision = 0;
 				*time_available = -1;
 			}		
-			else if (total_time > TARGET_ECM_GNFS_RATIO * nfs_est_time)
+			else if (total_time > fobj->autofact_obj.target_ecm_gnfs_ratio * nfs_est_time)
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
 				// we estimate it would take gnfs to finish, switch to gnfs.  
@@ -965,7 +1087,7 @@ int switch_to_qs(z *N, double *time_available, int force_switch)
 			{
 				// otherwise, return the amount of time we have left before the switchover.
 				decision = 0;
-				*time_available = (TARGET_ECM_GNFS_RATIO * nfs_est_time) - total_time;
+				*time_available = (fobj->autofact_obj.target_ecm_gnfs_ratio * nfs_est_time) - total_time;
 			}
 		}
 
@@ -1442,15 +1564,15 @@ void factor(fact_obj_t *fobj)
 	struct timeval start, stop;
 	double t_time;
 	TIME_DIFF *	difference;
-	int user_defined_ecm_b2 = ECM_STG2_ISDEFAULT;
-	int user_defined_pp1_b2 = PP1_STG2_ISDEFAULT;
-	int user_defined_pm1_b2 = PM1_STG2_ISDEFAULT;
+	int user_defined_ecm_b2 = fobj->ecm_obj.stg2_is_default;
+	int user_defined_pp1_b2 = fobj->pp1_obj.stg2_is_default;
+	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
 	int force_switch = 0;
 
 	//factor() always ignores user specified B2 values
-	ECM_STG2_ISDEFAULT = 1;
-	PP1_STG2_ISDEFAULT = 1;
-	PM1_STG2_ISDEFAULT = 1;
+	fobj->ecm_obj.stg2_is_default = 1;
+	fobj->pp1_obj.stg2_is_default = 1;
+	fobj->pm1_obj.stg2_is_default = 1;
 
 	zInit(&origN);
 	zInit(&copyN);
@@ -1474,12 +1596,12 @@ void factor(fact_obj_t *fobj)
 	logprint(flog,"****************************\n");
 	fclose(flog);
 
-	AUTO_FACTOR=1;
+	fobj->autofact_obj.autofact_active = 1;
 
 	if (VFLAG >= 0)
 	{
 		printf("factoring %s\n",z2decstr(b,&gstr2));
-		printf("using pretesting plan: %s\n\n",plan_str);
+		printf("using pretesting plan: %s\n\n",fobj->autofact_obj.plan_str);
 	}
 
 	// initialize time per curve
@@ -1501,7 +1623,7 @@ void factor(fact_obj_t *fobj)
 
 		case state_fermat:
 			curves = 1;
-			t_time = do_work(fermat_work, FMTMAX, -1, &curves, b, fobj);
+			t_time = do_work(fermat_work, fobj->div_obj.fmtlimit, -1, &curves, b, fobj);
 			method_times.fermat_time = t_time;
 			total_time += t_time * curves;
 			fact_state = state_rho;
@@ -1518,9 +1640,9 @@ void factor(fact_obj_t *fobj)
 			min_pretest_done = 1;
 
 			//where to go from here depends on the pretest plan in place
-			if (yafu_pretest_plan == PRETEST_NONE)
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NONE)
 				force_switch = 1;
-			else if (yafu_pretest_plan == PRETEST_DEEP)
+			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
 				fact_state = state_ecm_25digit;
 			else
 				fact_state = state_pp1_lvl1;			
@@ -1536,14 +1658,14 @@ void factor(fact_obj_t *fobj)
 			break;
 
 		case state_pp1_lvl2:
-			t_time = do_work(pp1_curve, 200000, 20000000, &curves, b, fobj);
+			t_time = do_work(pp1_curve, 1250000, 125000000, &curves, b, fobj);
 			method_times.pp1_lvl2_time_per_curve = t_time;
 			total_time += t_time * curves;
 			fact_state = state_pm1_lvl2;
 			break;
 
 		case state_pp1_lvl3:
-			t_time = do_work(pp1_curve, 2000000, 200000000, &curves, b, fobj);
+			t_time = do_work(pp1_curve, 5000000, 500000000, &curves, b, fobj);
 			method_times.pp1_lvl3_time_per_curve = t_time;
 			total_time += t_time * curves;
 			fact_state = state_pm1_lvl3;
@@ -1557,19 +1679,19 @@ void factor(fact_obj_t *fobj)
 			fact_state = state_ecm_15digit;
 
 			//if we are not doing any ecm, force a switch to a sieve method
-			if (yafu_pretest_plan == PRETEST_NOECM)
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NOECM)
 				force_switch = 1;
 				
 			break;
 
 		case state_pm1_lvl2:
-			t_time = do_work(pm1_curve, 1000000, 100000000, &curves, b, fobj);
+			t_time = do_work(pm1_curve, 2500000, 250000000, &curves, b, fobj);
 			method_times.pm1_lvl2_time_per_curve = t_time;
 			total_time += t_time * curves;
 			fact_state = state_ecm_30digit;
 
 			//if we are doing light pretesting, force a switch to a sieve method
-			if (yafu_pretest_plan == PRETEST_LIGHT)
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
 				force_switch = 1;
 
 			break;
@@ -1602,7 +1724,7 @@ void factor(fact_obj_t *fobj)
 
 			//for deep pretesting, skip the pp1/pm1 and go right to 30 digit
 			//ecm, after doing this curve at 25 digits to get timing info.
-			if (yafu_pretest_plan == PRETEST_DEEP)
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
 				fact_state = state_ecm_30digit;
 			else
 				fact_state = state_pp1_lvl2;
@@ -1650,7 +1772,7 @@ void factor(fact_obj_t *fobj)
 			printf("unknown factorization state\n");
 			exit(-1);
 
-		}
+		}		
 
 		// first, check if we're done
 		done = check_if_done(fobj, &origN);		
@@ -1659,14 +1781,14 @@ void factor(fact_obj_t *fobj)
 		{
 			// if we're not done, decide what to do next: either the default next state or
 			// switch to qs.
-			decision = switch_to_qs(b, &t_time, force_switch);
+			decision = switch_to_qs(fobj, b, &t_time, force_switch);
 			//printf("total time = %f\n",total_time);
 			//printf("time available = %f\n",t_time);
 			if (decision)
 			{
 				// either the number is small enough to finish off, or it would be better, 
 				// timewise, to switch
-				if (ONLY_PRETEST)
+				if (fobj->autofact_obj.only_pretest)
 				{
 					// we're ready to go to a sieve method, but we only want to 
 					// pretest.  so we bail.
@@ -1694,61 +1816,61 @@ void factor(fact_obj_t *fobj)
 	if (fobj->num_factors >= 1) 
 	{
 		//If the only factor in our array == N, then N is prime or prp...
-		if (WANT_OUTPUT_PRIMES && (zCompare(&fobj->fobj_factors[0].factor,&origN) == 0))
+		if (fobj->autofact_obj.want_output_primes && (zCompare(&fobj->fobj_factors[0].factor,&origN) == 0))
 		{
-			if ((op_file = fopen(op_str, "a")) == NULL)
-				printf(" ***Error: unable to open %s\n", op_str);
+			if ((fobj->autofact_obj.op_file = fopen(fobj->autofact_obj.op_str, "a")) == NULL)
+				printf(" ***Error: unable to open %s\n", fobj->autofact_obj.op_str);
 			else
 			{
-				if (WANT_OUTPUT_EXPRESSIONS)
-					fprintf(op_file, "%s\n", fobj->str_N.s);
+				if (fobj->autofact_obj.want_output_expressions)
+					fprintf(fobj->autofact_obj.op_file, "%s\n", fobj->str_N.s);
 				else
-					fprintf(op_file, "%s\n", z2decstr(&origN,&gstr1));
-				if (fclose(op_file) != 0)
-					printf(" ***Error: problem closing file %s\n", op_str);
+					fprintf(fobj->autofact_obj.op_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (fclose(fobj->autofact_obj.op_file) != 0)
+					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.op_str);
 			}
 		}
 
 		//If the first factor in the array != N, then is composite and we have factors...
-		if (WANT_OUTPUT_FACTORS && (zCompare(&fobj->fobj_factors[0].factor,&origN) != 0))
+		if (fobj->autofact_obj.want_output_factors && (zCompare(&fobj->fobj_factors[0].factor,&origN) != 0))
 		{
-			if ((of_file = fopen(of_str, "a")) == NULL)
-				printf(" ***Error: unable to open %s\n", of_str);
+			if ((fobj->autofact_obj.of_file = fopen(fobj->autofact_obj.of_str, "a")) == NULL)
+				printf(" ***Error: unable to open %s\n", fobj->autofact_obj.of_str);
 			else
 			{
 				int i;
-				//fprintf(of_file, "%s\n", z2decstr(&origN,&gstr1));
-				if (WANT_OUTPUT_EXPRESSIONS)
-					fprintf(of_file, "(%s)", fobj->str_N.s);
+				//fprintf(fobj->autofact_obj.of_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (fobj->autofact_obj.want_output_expressions)
+					fprintf(fobj->autofact_obj.of_file, "(%s)", fobj->str_N.s);
 				else
-					fprintf(of_file, "%s", z2decstr(&origN,&gstr1));
+					fprintf(fobj->autofact_obj.of_file, "%s", z2decstr(&origN,&gstr1));
 				for (i=0; i<fobj->num_factors; i++)
 				{
-					fprintf(of_file, "/%s", z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+					fprintf(fobj->autofact_obj.of_file, "/%s", z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
 					if (fobj->fobj_factors[i].count > 1)
-						fprintf(of_file, "^%d", fobj->fobj_factors[i].count);
-					//fprintf(of_file, "\n");
+						fprintf(fobj->autofact_obj.of_file, "^%d", fobj->fobj_factors[i].count);
+					//fprintf(fobj->autofact_obj.of_file, "\n");
 				}
-				fprintf(of_file,"\n");
-				if (fclose(of_file) != 0)
-					printf(" ***Error: problem closing file %s\n", of_str);
+				fprintf(fobj->autofact_obj.of_file,"\n");
+				if (fclose(fobj->autofact_obj.of_file) != 0)
+					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.of_str);
 			}
 		}
 	}
 	else //assume: composite with no known factors... (need to clarify)
 	{
-		if (WANT_OUTPUT_UNFACTORED)
+		if (fobj->autofact_obj.want_output_unfactored)
 		{
-			if ((ou_file = fopen(ou_str, "a")) == NULL)
-				printf(" ***Error: unable to open %s\n", ou_str);
+			if ((fobj->autofact_obj.ou_file = fopen(fobj->autofact_obj.ou_str, "a")) == NULL)
+				printf(" ***Error: unable to open %s\n", fobj->autofact_obj.ou_str);
 			else
 			{
-				if (WANT_OUTPUT_EXPRESSIONS)
-					fprintf(ou_file, "%s\n", fobj->str_N.s);
+				if (fobj->autofact_obj.want_output_expressions)
+					fprintf(fobj->autofact_obj.ou_file, "%s\n", fobj->str_N.s);
 				else
-					fprintf(ou_file, "%s\n", z2decstr(&origN,&gstr1));
-				if (fclose(ou_file) != 0)
-					printf(" ***Error: problem closing file %s\n", ou_str);
+					fprintf(fobj->autofact_obj.ou_file, "%s\n", z2decstr(&origN,&gstr1));
+				if (fclose(fobj->autofact_obj.ou_file) != 0)
+					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.ou_str);
 			}
 		}
 	}
@@ -1792,12 +1914,12 @@ void factor(fact_obj_t *fobj)
 		fclose(flog);
 	}
 
-	AUTO_FACTOR=0;
+	fobj->autofact_obj.autofact_active=0;
 
 	//restore flags
-	ECM_STG2_ISDEFAULT = user_defined_ecm_b2;
-	PP1_STG2_ISDEFAULT = user_defined_pp1_b2;
-	PM1_STG2_ISDEFAULT = user_defined_pm1_b2;
+	fobj->ecm_obj.stg2_is_default = user_defined_ecm_b2;
+	fobj->pp1_obj.stg2_is_default = user_defined_pp1_b2;
+	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;
 
 	zFree(&origN);
 	zFree(&copyN);

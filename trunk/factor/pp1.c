@@ -21,7 +21,6 @@ code to the public domain.
 #include "yafu.h"
 #include "yafu_ecm.h"
 #include "soe.h"
-#include "monty.h"
 #include "factor.h"
 #include "util.h"
 #include <gmp_xface.h>
@@ -29,10 +28,10 @@ code to the public domain.
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
-void pp1_init();
-void pp1_finalize();
-void pp1_print_B1_B2(z *n, FILE *flog);
-int mwilliams(z *n, z *f, uint32 rp);
+void pp1_init(fact_obj_t *fobj);
+void pp1_finalize(fact_obj_t *fobj);
+void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog);
+int pp1_wrapper(fact_obj_t *fobj);
 void pp1exit(int sig);
 uint64 TMP_STG2_MAX;
 
@@ -47,7 +46,7 @@ typedef struct
 
 ecm_pp1_data_t pp1_data;
 
-void pp1_init()
+void pp1_init(fact_obj_t *fobj)
 {
 	mpz_init(pp1_data.gmp_n);
 	mpz_init(pp1_data.gmp_factor);
@@ -58,7 +57,7 @@ void pp1_init()
 	pp1_data.params->method = ECM_PP1;
 	//pp1_data.params->verbose = 1;
 
-	TMP_STG2_MAX = WILL_STG2_MAX;
+	TMP_STG2_MAX = fobj->pp1_obj.B2; //WILL_STG2_MAX;
 
 	PP1_ABORT = 0;
 	signal(SIGINT,pp1exit);
@@ -66,21 +65,27 @@ void pp1_init()
 	return;
 }
 
-void pp1_finalize()
+void pp1_finalize(fact_obj_t *fobj)
 {
 	ecm_clear(pp1_data.params);
 	mpz_clear(pp1_data.gmp_n);
 	mpz_clear(pp1_data.gmp_factor);
 
-	WILL_STG2_MAX = TMP_STG2_MAX;
+	//WILL_STG2_MAX = TMP_STG2_MAX;
+	fobj->pp1_obj.B2 = TMP_STG2_MAX;
 	signal(SIGINT,NULL);
 
 	return;
 }
 
-int mwilliams(z *n, z *f, uint32 rp)
+int pp1_wrapper(fact_obj_t *fobj)
 {
 	int status;
+	z *n, *f;
+
+	f = &fobj->pp1_obj.factors[0];
+	n = &fobj->pp1_obj.n;
+
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 	size_t count;
 #endif
@@ -97,17 +102,17 @@ int mwilliams(z *n, z *f, uint32 rp)
 	mp2gmp(n, pp1_data.gmp_n);
 #endif
 
-	if (PP1_STG2_ISDEFAULT == 0)
+	if (fobj->pp1_obj.stg2_is_default == 0)
 	{
 		//not default, tell gmp-ecm to use the requested B2
 		//printf("using requested B2 value\n");
-		sp642z(WILL_STG2_MAX,f);
+		sp642z(fobj->pp1_obj.B2,f);
 		mp2gmp(f,pp1_data.params->B2);
 		zClear(f);
 	}
 
 	status = ecm_factor(pp1_data.gmp_factor, pp1_data.gmp_n,
-			WILL_STG1_MAX, pp1_data.params);
+			fobj->pp1_obj.B1, pp1_data.params);
 
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 	zClear(n);
@@ -141,15 +146,14 @@ int mwilliams(z *n, z *f, uint32 rp)
 	return status;
 }
 
-void williams_loop(int trials, fact_obj_t *fobj)
+void williams_loop(fact_obj_t *fobj)
 {
 	//use william's p+1 algorithm 'trials' times on n.
 	//we allow multiple trials since we may not always get a p+1 group
 	//with our random choice of base
 	z *n = &fobj->pp1_obj.n;
-	z d,f,t;
-	int i,it;
-	uint32 base;
+	z d, *f, t;
+	int i,it,trials = fobj->pp1_obj.numbases;
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
@@ -180,13 +184,15 @@ void williams_loop(int trials, fact_obj_t *fobj)
 	signal(SIGINT,pp1exit);
 
 	zInit(&d);
-	zInit(&f);
+	fobj->pp1_obj.num_factors = 1;
+	zInit(&fobj->pp1_obj.factors[0]);
+	f = &fobj->pp1_obj.factors[0];
 	zInit(&t);
 
-	pp1_init();
+	pp1_init(fobj);
 
 	i=0;
-	while (i<trials)
+	while (i < trials)
 	{
 		//watch for an abort
 		if (PP1_ABORT)
@@ -207,39 +213,39 @@ void williams_loop(int trials, fact_obj_t *fobj)
 			break;
 		}
 		
-		base = spRand(3,MAX_DIGIT);
+		fobj->pp1_obj.base = spRand(3,MAX_DIGIT);
 
-		pp1_print_B1_B2(n,flog);
+		pp1_print_B1_B2(fobj,flog);
 
-		it = mwilliams(n,&f,base);
+		it = pp1_wrapper(fobj);
 		
-		if (zCompare(&f,&zOne) > 0 && zCompare(&f,n) < 0)
+		if (zCompare(f,&zOne) > 0 && zCompare(f,n) < 0)
 		{
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-			if (isPrime(&f))
+			if (isPrime(f))
 			{
-				f.type = PRP;
-				add_to_factor_list(fobj, &f);
+				f->type = PRP;
+				add_to_factor_list(fobj, f);
 				if (VFLAG > 0)
-					printf("pp1: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+					printf("pp1: found prp%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 				logprint(flog,"prp%d = %s\n",
-					ndigits(&f),z2decstr(&f,&gstr2));
+					ndigits(f),z2decstr(f,&gstr2));
 			}
 			else
 			{
-				f.type = COMPOSITE;
-				add_to_factor_list(fobj, &f);
+				f->type = COMPOSITE;
+				add_to_factor_list(fobj, f);
 				if (VFLAG > 0)
-					printf("pp1: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+					printf("pp1: found c%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 				logprint(flog,"c%d = %s\n",
-					ndigits(&f),z2decstr(&f,&gstr2));
+					ndigits(f),z2decstr(f,&gstr2));
 			}
 			start = clock();
 
 			//reduce input
-			zDiv(n,&f,&t,&d);
+			zDiv(n,f,&t,&d);
 			zCopy(&t,n);
 			i++;
 			break;
@@ -250,61 +256,61 @@ void williams_loop(int trials, fact_obj_t *fobj)
 
 	fclose(flog);
 
-	pp1_finalize();
+	pp1_finalize(fobj);
 
 	signal(SIGINT,NULL);
 	zFree(&d);
-	zFree(&f);
 	zFree(&t);
 	return;
 }
 
-void pp1_print_B1_B2(z *n, FILE *flog)
+void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 {
+	z *n = &fobj->pp1_obj.n;
 	char suffix;
 	char stg1str[20];
 	char stg2str[20];
 
-	if (WILL_STG1_MAX % 1000000000 == 0)
+	if (fobj->pp1_obj.B1 % 1000000000 == 0)
 	{
 		suffix = 'B';
-		sprintf(stg1str,"%u%c",WILL_STG1_MAX / 1000000000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000000000, suffix);
 	}
-	else if (WILL_STG1_MAX % 1000000 == 0)
+	else if (fobj->pp1_obj.B1 % 1000000 == 0)
 	{
 		suffix = 'M';
-		sprintf(stg1str,"%u%c",WILL_STG1_MAX / 1000000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000000, suffix);
 	}
-	else if (WILL_STG1_MAX % 1000 == 0)
+	else if (fobj->pp1_obj.B1 % 1000 == 0)
 	{
 		suffix = 'K';
-		sprintf(stg1str,"%u%c",WILL_STG1_MAX / 1000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pp1_obj.B1 / 1000, suffix);
 	}
 	else
 	{
-		sprintf(stg1str,"%u",WILL_STG1_MAX);
+		sprintf(stg1str,"%u",fobj->pp1_obj.B1);
 	}
 
-	if (PP1_STG2_ISDEFAULT == 0)
+	if (fobj->pp1_obj.stg2_is_default == 0)
 	{
-		if (WILL_STG2_MAX % 1000000000 == 0)
+		if (fobj->pp1_obj.B2 % 1000000000 == 0)
 		{
 			suffix = 'B';
-			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pp1_obj.B2 / 1000000000, suffix);
 		}
-		else if (WILL_STG2_MAX % 1000000 == 0)
+		else if (fobj->pp1_obj.B2 % 1000000 == 0)
 		{
 			suffix = 'M';
-			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pp1_obj.B2 / 1000000, suffix);
 		}
-		else if (WILL_STG2_MAX % 1000 == 0)
+		else if (fobj->pp1_obj.B2 % 1000 == 0)
 		{
 			suffix = 'K';
-			sprintf(stg2str,"%" PRIu64 "%c",WILL_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pp1_obj.B2 / 1000, suffix);
 		}
 		else
 		{
-			sprintf(stg2str,"%" PRIu64 "",WILL_STG2_MAX);
+			sprintf(stg2str,"%" PRIu64 "",fobj->pp1_obj.B2);
 		}
 	}
 	else
