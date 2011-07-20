@@ -94,6 +94,8 @@ flags to change program behavior.  Supported flags in v1.26 are:
 -pbatch <num>	Size of blocks of leading coefficients to distribute during NFS polynomial selection.
 				Default is 250.
 -R				Must specify in order to restart when a previous savefile exists
+-siever <num>	Specify the ggnfs siever version to use, where <num> is the integer in the default
+					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe		
 
 
 
@@ -296,6 +298,8 @@ command line flags effecting nfs:
 -pbatch <num>	Size of blocks of leading coefficients to distribute during NFS polynomial selection.
 				Default is 250.
 -R				Must specify in order to restart when a previous savefile exists
+-siever <num>	Specify the ggnfs siever version to use, where <num> is the integer in the default
+					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe	
 
 
 Examples:

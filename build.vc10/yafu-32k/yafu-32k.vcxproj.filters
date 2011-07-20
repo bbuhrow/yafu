@@ -155,12 +155,6 @@
     <ClCompile Include="..\..\factor\gf2.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\poly.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\relation.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\siqs_aux.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
@@ -202,6 +196,33 @@
     </ClCompile>
     <ClCompile Include="..\..\nfs\winsupport.c">
       <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\new_poly.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\poly_roots.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\update_poly_roots.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\filter.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tdiv.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tdiv_large.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tdiv_med.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tdiv_small.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tdiv_scan.c">
+      <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

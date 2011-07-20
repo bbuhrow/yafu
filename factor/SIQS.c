@@ -116,7 +116,9 @@ void SIQS(fact_obj_t *fobj)
 	//which will add anything found to the global factor list
 	//this is only called with the main thread
 	zCopy(n,&fobj->div_obj.n);
-	zTrial(10000,0,fobj);
+	fobj->div_obj.print = 0;
+	fobj->div_obj.limit = 10000;
+	zTrial(fobj);
 	zCopy(&fobj->div_obj.n,n);
 
 	//At this point, we are committed to doing qs on the input
@@ -351,7 +353,7 @@ void SIQS(fact_obj_t *fobj)
 			{				
 				num_found = siqs_merge_data(thread_data[tid].dconf,static_conf);
 
-				if (NO_SIQS_OPT == 0) 
+				if (fobj->qs_obj.no_small_cutoff_opt == 0) 
 				{
 					if (num_meas < 3)
 					{			
@@ -1799,7 +1801,7 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->large_prime_max = sconf->pmax * sconf->large_mult;
 
 	//based on the size of the input, determine how to proceed.
-	if (sconf->digits_n > 81 || gbl_force_DLP)
+	if (sconf->digits_n > 81 || sconf->obj->qs_obj.gbl_force_DLP)
 	{
 		sconf->use_dlp = 1;
 		scan_ptr = &check_relations_siqs_16;
@@ -1921,9 +1923,9 @@ int siqs_static_init(static_conf_t *sconf)
 	else
 		closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
 
-	if (gbl_override_tf_flag)
+	if (sconf->obj->qs_obj.gbl_override_tf_flag)
 	{
-		closnuf = gbl_override_tf;
+		closnuf = sconf->obj->qs_obj.gbl_override_tf;
 		printf("overriding with new closnuf = %d\n",closnuf);
 	}
 
@@ -2029,8 +2031,8 @@ int update_check(static_conf_t *sconf)
 			exit(1);
 		}
 
-		if 	(gbl_override_rel_flag && 
-			((num_full + sconf->num_cycles) > gbl_override_rel))
+		if 	(sconf->obj->qs_obj.gbl_override_rel_flag && 
+			((num_full + sconf->num_cycles) > sconf->obj->qs_obj.gbl_override_rel))
 		{
 			printf("\nMax specified relations found\n");
 			sp2z(tot_poly,qstmp1);									
@@ -2045,15 +2047,15 @@ int update_check(static_conf_t *sconf)
 			fflush(stdout);
 			fflush(stderr);
 			
-			gbl_override_rel = num_full + sconf->num_cycles;
+			sconf->obj->qs_obj.gbl_override_rel = num_full + sconf->num_cycles;
 
 			return 2;
 		}
 
 		difference = my_difftime (&sconf->totaltime_start, &update_stop);
-		if (gbl_override_time_flag &&
+		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(((double)difference->secs + (double)difference->usecs / 1000000) > 
-			gbl_override_time))
+			sconf->obj->qs_obj.gbl_override_time))
 		{
 			printf("\nMax specified time limit reached\n");
 

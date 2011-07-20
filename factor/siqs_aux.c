@@ -354,14 +354,14 @@ void get_params(static_conf_t *sconf)
 	if (fb->B < 250)
 		fb->B = 250;
 
-	if (gbl_override_B_flag)
-		fb->B = gbl_override_B;
+	if (sconf->obj->qs_obj.gbl_override_B_flag)
+		fb->B = sconf->obj->qs_obj.gbl_override_B;
 
-	if (gbl_override_blocks_flag)
-		sconf->num_blocks = gbl_override_blocks;
+	if (sconf->obj->qs_obj.gbl_override_blocks_flag)
+		sconf->num_blocks = sconf->obj->qs_obj.gbl_override_blocks;
 
-	if (gbl_override_lpmult_flag)
-		sconf->large_mult = gbl_override_lpmult;
+	if (sconf->obj->qs_obj.gbl_override_lpmult_flag)
+		sconf->large_mult = sconf->obj->qs_obj.gbl_override_lpmult;
 
 	return;
 }

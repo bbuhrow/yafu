@@ -30,11 +30,11 @@ code to the public domain.
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
-void pm1_init();
-void pm1_finalize();
+void pm1_init(fact_obj_t *fobj);
+void pm1_finalize(fact_obj_t *fobj);
 void pm1exit(int sig);
-int mpollard(z *n, uint32 c, z *f);
-void pm1_print_B1_B2(z *n, FILE *flog);
+int pm1_wrapper(fact_obj_t *fobj);
+void pm1_print_B1_B2(fact_obj_t *fobj, FILE *flog);
 
 
 uint64 TMP_STG2_MAX;
@@ -50,7 +50,7 @@ typedef struct
 
 ecm_pm1_data_t pm1_data;
 
-void pm1_init()
+void pm1_init(fact_obj_t *fobj)
 {
 	mpz_init(pm1_data.gmp_n);
 	mpz_init(pm1_data.gmp_factor);
@@ -61,28 +61,32 @@ void pm1_init()
 	pm1_data.params->method = ECM_PM1;
 	//pm1_data.params->verbose = 1;
 
-	TMP_STG2_MAX = POLLARD_STG2_MAX;
+	TMP_STG2_MAX = fobj->pm1_obj.B2;
 
 	return;
 }
 
-void pm1_finalize()
+void pm1_finalize(fact_obj_t *fobj)
 {
 	ecm_clear(pm1_data.params);
 	mpz_clear(pm1_data.gmp_n);
 	mpz_clear(pm1_data.gmp_factor);
 
-	POLLARD_STG2_MAX = TMP_STG2_MAX;
+	fobj->pm1_obj.B2 = TMP_STG2_MAX;
 	
 	return;
 }
 
-int mpollard(z *n, uint32 c, z *f)
+int pm1_wrapper(fact_obj_t *fobj)
 {
+	z *n, *f;	
 	int status;
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 	size_t count;
 #endif
+
+	f = &fobj->pp1_obj.factors[0];
+	n = &fobj->pp1_obj.n;
 
 	pm1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 	if (VFLAG >= 3)
@@ -96,17 +100,17 @@ int mpollard(z *n, uint32 c, z *f)
 	mp2gmp(n, pm1_data.gmp_n);
 #endif
 
-	if (PM1_STG2_ISDEFAULT == 0)
+	if (fobj->pm1_obj.stg2_is_default == 0)
 	{
 		//not default, tell gmp-ecm to use the requested B2
 		//printf("using requested B2 value\n");
-		sp642z(POLLARD_STG2_MAX,f);
+		sp642z(fobj->pm1_obj.B2,f);
 		mp2gmp(f,pm1_data.params->B2);
 		zClear(f);
 	}
 
 	status = ecm_factor(pm1_data.gmp_factor, pm1_data.gmp_n,
-			POLLARD_STG1_MAX, pm1_data.params);
+			fobj->pm1_obj.B1, pm1_data.params);
 
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 	zClear(n);
@@ -147,7 +151,7 @@ void pollard_loop(fact_obj_t *fobj)
 	//run pollard's p-1 algorithm once on the input, using a 
 	//32 bit random base
 	z *n = &fobj->pm1_obj.n;
-	z d,f,t;   
+	z d,*f,t;   
 	//int i;
 	uint32 base;
 	FILE *flog;
@@ -193,51 +197,53 @@ void pollard_loop(fact_obj_t *fobj)
 	signal(SIGINT,pm1exit);
 
 	zInit(&d);
-	zInit(&f);
+	fobj->pm1_obj.num_factors = 1;
+	zInit(&fobj->pm1_obj.factors[0]);
+	f = &fobj->pm1_obj.factors[0];
 	zInit(&t);
 
-	pm1_init();
+	pm1_init(fobj);
 		
-	base = spRand(3,0xFFFFFFFF);
+	//base = spRand(3,0xFFFFFFFF);
 
-	pm1_print_B1_B2(n,flog);
-	mpollard(n,base,&f);
+	pm1_print_B1_B2(fobj,flog);
+	pm1_wrapper(fobj);
 		
-	if (zCompare(&f,&zOne) > 0 && zCompare(&f,n) < 0)
+	if (zCompare(f,&zOne) > 0 && zCompare(f,n) < 0)
 	{
 		//non-trivial factor found
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-		if (isPrime(&f))
+		if (isPrime(f))
 		{
-			f.type = PRP;
-			add_to_factor_list(fobj, &f);
+			f->type = PRP;
+			add_to_factor_list(fobj, f);
 			//log result
 			if (VFLAG > 0)
-				printf("pm1: found prp%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+				printf("pm1: found prp%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 			logprint(flog,"prp%d = %s\n",
-				ndigits(&f),z2decstr(&f,&gstr2));
+				ndigits(f),z2decstr(f,&gstr2));
 		}
 		else
 		{
-			f.type = COMPOSITE;
-			add_to_factor_list(fobj, &f);
+			f->type = COMPOSITE;
+			add_to_factor_list(fobj, f);
 			//log result
 			if (VFLAG > 0)
-					printf("pm1: found c%d factor = %s\n",ndigits(&f),z2decstr(&f,&gstr1));
+					printf("pm1: found c%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
 			logprint(flog,"c%d = %s\n",
-				ndigits(&f),z2decstr(&f,&gstr2));
+				ndigits(f),z2decstr(f,&gstr2));
 		}
 		start = clock();
 
 		//reduce input
-		zDiv(n,&f,&t,&d);
+		zDiv(n,f,&t,&d);
 		zCopy(&t,n);
 	}
 
 	fclose(flog);
 
-	pm1_finalize();
+	pm1_finalize(fobj);
 
 	//watch for an abort
 	if (PM1_ABORT)
@@ -248,57 +254,57 @@ void pollard_loop(fact_obj_t *fobj)
 
 	signal(SIGINT,NULL);
 	zFree(&d);
-	zFree(&f);
 	zFree(&t);
 	return;
 }
 
-void pm1_print_B1_B2(z *n, FILE *flog)
+void pm1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 {
+	z *n = &fobj->pm1_obj.n;
 	char suffix;
 	char stg1str[20];
 	char stg2str[20];
 
-	if (POLLARD_STG1_MAX % 1000000000 == 0)
+	if (fobj->pm1_obj.B1 % 1000000000 == 0)
 	{
 		suffix = 'B';
-		sprintf(stg1str,"%u%c",POLLARD_STG1_MAX / 1000000000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000000000, suffix);
 	}
-	else if (POLLARD_STG1_MAX % 1000000 == 0)
+	else if (fobj->pm1_obj.B1 % 1000000 == 0)
 	{
 		suffix = 'M';
-		sprintf(stg1str,"%u%c",POLLARD_STG1_MAX / 1000000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000000, suffix);
 	}
-	else if (POLLARD_STG1_MAX % 1000 == 0)
+	else if (fobj->pm1_obj.B1 % 1000 == 0)
 	{
 		suffix = 'K';
-		sprintf(stg1str,"%u%c",POLLARD_STG1_MAX / 1000, suffix);
+		sprintf(stg1str,"%u%c",fobj->pm1_obj.B1 / 1000, suffix);
 	}
 	else
 	{
-		sprintf(stg1str,"%u",POLLARD_STG1_MAX);
+		sprintf(stg1str,"%u",fobj->pm1_obj.B1);
 	}
 
-	if (PM1_STG2_ISDEFAULT == 0)
+	if (fobj->pm1_obj.stg2_is_default == 0)
 	{
-		if (POLLARD_STG2_MAX % 1000000000 == 0)
+		if (fobj->pm1_obj.B2 % 1000000000 == 0)
 		{
 			suffix = 'B';
-			sprintf(stg2str,"%" PRIu64 "%c",POLLARD_STG2_MAX / 1000000000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pm1_obj.B2 / 1000000000, suffix);
 		}
-		else if (POLLARD_STG2_MAX % 1000000 == 0)
+		else if (fobj->pm1_obj.B2 % 1000000 == 0)
 		{
 			suffix = 'M';
-			sprintf(stg2str,"%" PRIu64 "%c",POLLARD_STG2_MAX / 1000000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pm1_obj.B2 / 1000000, suffix);
 		}
-		else if (POLLARD_STG2_MAX % 1000 == 0)
+		else if (fobj->pm1_obj.B2 % 1000 == 0)
 		{
 			suffix = 'K';
-			sprintf(stg2str,"%" PRIu64 "%c",POLLARD_STG2_MAX / 1000, suffix);
+			sprintf(stg2str,"%" PRIu64 "%c",fobj->pm1_obj.B2 / 1000, suffix);
 		}
 		else
 		{
-			sprintf(stg2str,"%" PRIu64 "",POLLARD_STG2_MAX);
+			sprintf(stg2str,"%" PRIu64 "",fobj->pm1_obj.B2);
 		}
 	}
 	else
