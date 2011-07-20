@@ -176,12 +176,18 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for qs
 	fobj->qs_obj.num_factors = 0;
 	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
-	fobj->qs_obj.override1 = 0;
-	fobj->qs_obj.override2 = 0;
-	fobj->qs_obj.override3 = 0;
 	fobj->qs_obj.gbl_override_B_flag = 0;
+	fobj->qs_obj.gbl_override_B = 0;
 	fobj->qs_obj.gbl_override_blocks_flag = 0;
+	fobj->qs_obj.gbl_override_blocks = 0 ;
 	fobj->qs_obj.gbl_override_lpmult_flag = 0;
+	fobj->qs_obj.gbl_override_lpmult = 0;
+	fobj->qs_obj.gbl_override_rel_flag = 0;
+	fobj->qs_obj.gbl_override_rel = 0;
+	fobj->qs_obj.gbl_override_tf_flag = 0;
+	fobj->qs_obj.gbl_override_tf = 0;
+	fobj->qs_obj.gbl_override_time_flag = 0;
+	fobj->qs_obj.gbl_override_time = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
 	fobj->qs_obj.qs_exponent = 0;
 	fobj->qs_obj.qs_multiplier = 0;
@@ -1006,7 +1012,6 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 		//proceed with whichever estimate is smaller
 		if (qs_est_time <= nfs_est_time)
 		{		
-			
 			if (force_switch)
 			{
 				//calling code is forcing a decision to switch
@@ -1028,14 +1033,14 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 					*time_available = 0;
 				}
 			}
-			else if (qs_est_time > 1e9)
+			else if (qs_est_time > 1000000000.0)
 			{
 				// if qs_est_time is very large, then we don't have a good estimate.  flag the caller 
 				// of this fact
 				decision = 0;
 				*time_available = -1;
 			}		
-			else if (total_time > fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time)
+			else if (total_time > (fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time))
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
 				// we estimate it would take QS to finish, switch to qs.  

@@ -1825,10 +1825,10 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 	}
 #endif	
 
-	//printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
-	//	fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
-	//	fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
-	//	fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+	printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+		fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+		fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
+		fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
 
 	return;
 }

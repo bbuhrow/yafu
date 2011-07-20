@@ -546,8 +546,8 @@ void smallmpqs(fact_obj_t *fobj)
 	
 	//default mpqs parameters
 	sm_sieve_params.fudge_factor = 1.3;
-	if (fobj->qs_obj.override2 != 0)
-		sm_sieve_params.large_mult = fobj->qs_obj.override2;
+	if (fobj->qs_obj.gbl_override_lpmult_flag != 0)
+		sm_sieve_params.large_mult = fobj->qs_obj.gbl_override_lpmult;
 
 	sm_sieve_params.num_extra_relations = 32;
 
@@ -555,13 +555,13 @@ void smallmpqs(fact_obj_t *fobj)
 	fb = (fb_list_sm_mpqs *)malloc(sizeof(fb_list_sm_mpqs));
 	
 	//set fb size from above
-	if (fobj->qs_obj.override1 != 0)
-		fb->B = fobj->qs_obj.override1;
+	if (fobj->qs_obj.gbl_override_B_flag != 0)
+		fb->B = fobj->qs_obj.gbl_override_B;
 	else
 		fb->B = j;
 
-	if (fobj->qs_obj.override3 != 0)
-		sm_sieve_params.num_blocks = fobj->qs_obj.override3;
+	if (fobj->qs_obj.gbl_override_blocks_flag != 0)
+		sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
 
 	//compute the number of digits in n 
 	digits_n = mpz_sizeinbase(n,10);
