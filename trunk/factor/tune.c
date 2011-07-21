@@ -13,10 +13,10 @@
 double best_linear_fit(double *x, double *y, int numpts, 
 	double *slope, double *intercept);
 void update_INI(double mult, double exponent, double mult2, double exponent2, double xover);
-void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum);
+void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
 
 //----------------------- TUNE ENTRY POINT ------------------------------------//
-void factor_tune(void)
+void factor_tune(fact_obj_t *inobj)
 {
 	// perform trial runs on a set of inputs with known solutions using siqs and nfs.
 	// compute crossover points and time estimation coefficients.
@@ -143,7 +143,7 @@ void factor_tune(void)
 		MySleep(.1);
 
 		//make a job file for each input
-		make_job_file(sievername, &startq, &qrange, nfslist[i], i);
+		make_job_file(sievername, &startq, &qrange, nfslist[i], i, inobj);
 
 		//measure how long it takes to generate the afb... for fun.		
 		gettimeofday(&start, NULL);
@@ -253,7 +253,7 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 };
 */
 
-void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum)
+void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
 {
 	FILE *out, *test;
 	int siever;
@@ -425,19 +425,19 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 	switch (siever)
 	{
 	case 11:
-		sprintf(sname, "%sgnfs-lasieve4I11e", ggnfs_dir);
+		sprintf(sname, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
 		break;
 	case 12:
-		sprintf(sname, "%sgnfs-lasieve4I12e", ggnfs_dir);
+		sprintf(sname, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
 		break;
 	case 13:
-		sprintf(sname, "%sgnfs-lasieve4I13e", ggnfs_dir);
+		sprintf(sname, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
 		break;
 	case 14:
-		sprintf(sname, "%sgnfs-lasieve4I14e", ggnfs_dir);
+		sprintf(sname, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
 		break;
 	case 15:
-		sprintf(sname, "%sgnfs-lasieve4I15e", ggnfs_dir);
+		sprintf(sname, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
 		break;
 	}
 

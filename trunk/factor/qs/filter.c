@@ -313,7 +313,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//fact_obj_t *obj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
-	data = fopen(siqs_savefile,"r");
+	data = fopen(sconf->obj->qs_obj.siqs_savefile,"r");
 	i=0;
 	j=0;
 	
@@ -1128,44 +1128,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (VFLAG > 0)
 		printf("largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
-}
-
-void pull_large_primes()
-{
-	FILE *in, *out;
-	char buf[1000];
-	z tmp;
-
-	zInit(&tmp);
-	in = fopen(siqs_savefile,"r");
-	out = fopen("dlp_composites.txt","a");
-
-	while (!feof(in)) {
-		char *start;
-		fgets(buf,1000,in);
-
-		switch (buf[0]) {
-		case 'R':
-			start = strchr(buf, 'L');
-			if (start != NULL) {
-				uint32 prime1, prime2;
-				yafu_read_large_primes(start, &prime1, &prime2);
-
-				if ((prime1 != 1) && (prime2 != 1))
-				{
-					sp2z(prime1,&tmp);
-					zShortMul(&tmp,prime2,&tmp);
-					fprintf(out,"%s,%u,%u\n",z2decstr(&tmp,&gstr1),prime1,prime2);
-				}
-			}
-			break;
-		}
-	}
-
-	fclose(in);
-	fclose(out);
-	zFree(&tmp);
-	return;
 }
 
 static int compare_relations(const void *x, const void *y) {

@@ -171,10 +171,10 @@ void pollard_loop(fact_obj_t *fobj)
 	}	
 
 	//open the log file
-	flog = fopen(fobj->logname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->logname);
+		printf("could not open %s for writing\n",fobj->flogname);
 		return;
 	}
 		

@@ -53,7 +53,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
-	"pbatch", "ecm_dir", "siever"};
+	"pbatch", "ecm_path", "siever"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
 	// input options in order to make those options stick.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);
+	//printf("%u\n",fobj->ecm_obj.B1);
 
 	//get the computer name, cache sizes, etc.  store in globals
 	get_computer_info(CPU_ID_STR);	
@@ -130,9 +131,11 @@ int main(int argc, char *argv[])
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
 	readINI(fobj);	
+	//printf("%u\n",fobj->ecm_obj.B1);
 
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
+	//printf("%u\n",fobj->ecm_obj.B1);
 	
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
@@ -839,41 +842,20 @@ void set_default_globals(void)
 	uint64 limit, i;
 	uint32 p_est;
 	
-	
 	VFLAG = 0;
 	VERBOSE_PROC_INFO = 0;
 	LOGFLAG = 1;
 
-	
-
 	NUM_WITNESSES = 20;
 	
-	PRIME_THRESHOLD = 100000000;
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
 	
 	USEBATCHFILE = 0;
 	USERSEED = 0;
 	THREADS = 1;
-	
-	
-	strcpy(siqs_savefile,"siqs.dat");
-	strcpy(flogname,"factor.log");
-	strcpy(sessionname,"session.log");
 
-#if defined(_WIN64)
-	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
-#elif defined(WIN32)
-	strcpy(ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\Win32\\");
-#else
-	strcpy(ggnfs_dir,"../ggnfs-bin/");
-#endif
-
-	// unlike ggnfs, ecm does not *require* external binaries.  
-	// an empty string indicates the use of the built-in GMP-ECM hooks, while
-	// a non-empty string (filled in by the user) will indicate the use of
-	// an external binary
-	strcpy(ecm_dir,"");
+	strcpy(sessionname,"session.log");	
 
 	// initial limit of cache of primes.
 	szSOEp = 1000100;	
@@ -888,8 +870,6 @@ void set_default_globals(void)
 	zTwo.val[0] = 2;
 	zThree.val[0] = 3;
 	zFive.val[0] = 5;
-
-	
 
 	//global strings, used mostly for logprint stuff
 	sInit(&gstr1);
@@ -1089,6 +1069,7 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)
 			strcpy(argbuf,argv[i]);
 
 			//now apply -option argument
+			//printf("applying option %s with argument %s\n",optbuf+1,argbuf);
 			applyOpt(optbuf+1,argbuf,fobj);
 		}
 		else if (needsArg[j] == 2)
@@ -1259,7 +1240,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument is a string
 	
 		if (strlen(arg) < 1024)
-			strcpy(siqs_savefile,arg);
+			strcpy(fobj->qs_obj.siqs_savefile,arg);
 		else
 			printf("*** argument to savefile too long, ignoring ***\n");
 	}
@@ -1357,7 +1338,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument is a string
 		if (strlen(arg) < 1024)
-			strcpy(flogname,arg);
+			strcpy(fobj->flogname,arg);
 		else
 			printf("*** argument to logfile too long, ignoring ***\n");
 	}
@@ -1465,7 +1446,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument is a string
 		if (strlen(arg) < 1024)
-			strcpy(ggnfs_dir,arg);
+			strcpy(fobj->nfs_obj.ggnfs_dir,arg);
 		else
 			printf("*** argument to ggnfs_dir too long, ignoring ***\n");
 	}
@@ -1720,9 +1701,9 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument is a string
 		if (strlen(arg) < 1024)
-			strcpy(ecm_dir,arg);
+			strcpy(fobj->ecm_obj.ecm_path,arg);
 		else
-			printf("*** argument to ecm_dir too long, ignoring ***\n");
+			printf("*** argument to ecm_path too long, ignoring ***\n");
 	}
 	else if (strcmp(opt,OptionArray[52]) == 0)
 	{
@@ -1825,10 +1806,10 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 	}
 #endif	
 
-	printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
-		fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
-		fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
-		fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+	//printf("QS_MULTIPLIER = %lg, QS_EXPONENT = %lg\nNFS_MULTIPLIER = %lg, NFS_EXPONENT = %lg\nXOVER = %lg, TUNE_FREQ = %lg\n",
+	//	fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
+	//	fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
+	//	fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
 
 	return;
 }

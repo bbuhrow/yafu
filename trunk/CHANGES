@@ -18,7 +18,7 @@ v 1.28
 + removed some obsolete code and cleaned up some compiler warnings
 + added an option to specify the ggnfs siever version to use for a NFS factorization
 + massive overhaul of the code
-	+ moved all globals into a factorization structure that gets passed around to 
+	+ moved most globals into a factorization structure that gets passed around to 
 		all factorization routines.
 	+ creation of a pseudo-library for factorization methods and a clear(er) 
 		delineation between factorization stuff and top level stuff like
@@ -26,6 +26,8 @@ v 1.28
 	+ cleanup of directory structure, header relationships, files, etc.
 + slightly changed the pm1/pp1 bounds during auto factorization, to maintain a
 	1/5/10 ratio between the next stage of ecm and pp1/pm1
++ added multi-threaded ecm to windows (and linux) via support of external 
+	gmp-ecm binaries
 
 
 v 1.27
