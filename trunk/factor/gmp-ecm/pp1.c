@@ -83,12 +83,12 @@ int pp1_wrapper(fact_obj_t *fobj)
 	int status;
 	z *n, *f;
 
-	f = &fobj->pp1_obj.factors[0];
-	n = &fobj->pp1_obj.n;
-
 #if defined(_WIN64) && BITS_PER_DIGIT == 32
 	size_t count;
 #endif
+
+    f = &fobj->pp1_obj.factors[0];
+	n = &fobj->pp1_obj.n;
 
 	pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 	if (VFLAG >= 3)
