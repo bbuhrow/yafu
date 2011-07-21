@@ -22,8 +22,29 @@ code to the public domain.
 #include "factor.h"
 #include "yafu.h"
 #include "calc.h"
+#include "yafu_string.h"
 
 #if defined(FORK_ECM)
+
+void *malloc_shared(size_t bytes, int *save_shmid)
+{
+    int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
+    if (shmid == -1) {
+        printf("Couldn't allocated shared memory segment in ECM\n");
+        exit(1);
+    }
+	*save_shmid = shmid;
+    return shmat(shmid, 0, 0);
+}
+
+void destroy_shm_segments(int *shmid_list, int num_shmids)
+{
+    int i;
+
+    for (i=0; i<num_shmids; i++)
+		shmctl(shmid_list[i], IPC_RMID, NULL);
+}
+
 int ecm_loop(fact_obj_t *fobj)
 {
 	//thread data holds all data needed during sieving
@@ -298,13 +319,24 @@ done:
         fflush(stdout);
     }
 
+	// clean up after external ecm use, if necessary, since thread_free doesn't get called here.
+	if (fobj->ecm_obj.use_external)
+	{
+		for (i=0; i<THREADS; i++)
+		{
+			char tmpstr[1024];
+			sprintf(tmpstr, "_yafu_ecm_tmp%d.out", i);
+			remove(tmpstr);
+		}
+	}
+
 	if (VFLAG >= 0)
 		printf("\n");
 
-	flog = fopen(fobj->logname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->logname);
+		printf("could not open %s for writing\n",fobj->flogname);
 		fclose(flog);
 		return 0;
 	}
@@ -530,10 +562,10 @@ done:
 	if (VFLAG >= 0)
 		printf("\n");
 
-	flog = fopen(fobj->logname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->logname);
+		printf("could not open %s for writing\n",fobj->flogname);
 		fclose(flog);
 		return 0;
 	}
@@ -585,10 +617,10 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	zInit(&tmp1);
 	zInit(&tmp2);
 
-	flog = fopen(fobj->logname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->logname);
+		printf("could not open %s for writing\n",fobj->flogname);
 		return 0;
 	}
 
@@ -665,10 +697,10 @@ int ecm_check_input(fact_obj_t *fobj)
 	z *n = &fobj->ecm_obj.n;
 
 	//open the log file and annouce we are starting ECM
-	flog = fopen(fobj->logname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->logname);
+		printf("could not open %s for writing\n",fobj->flogname);
 		fclose(flog);
 		return 0;
 	}
@@ -818,27 +850,6 @@ void *ecm_worker_thread_main(void *thread_data) {
 }
 
 
-#if defined(FORK_ECM)
-void *malloc_shared(size_t bytes, int *save_shmid)
-{
-    int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
-    if (shmid == -1) {
-        printf("Couldn't allocated shared memory segment in ECM\n");
-        exit(1);
-    }
-	*save_shmid = shmid;
-    return shmat(shmid, 0, 0);
-}
-
-void destroy_shm_segments(int *shmid_list, int num_shmids)
-{
-    int i;
-
-    for (i=0; i<num_shmids; i++)
-		shmctl(shmid_list[i], IPC_RMID, NULL);
-}
-#endif
-
 void ecm_process_init(fact_obj_t *fobj)
 {
 	//initialize things which all threads will need when using
@@ -846,18 +857,44 @@ void ecm_process_init(fact_obj_t *fobj)
 	TMP_THREADS = THREADS;
 	TMP_STG2_MAX = fobj->ecm_obj.B2;
 
+	if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
+		fobj->ecm_obj.use_external = 1;
+
 #if defined(FORK_ECM)
 	// For small curves, or if we're only running one curve, don't
     // bother spawning multiple threads
-    if (fobj->ecm_obj.B1 < 10000 || fobj->ecm_obj.num_curves == 1)
-		THREADS = 1;
+	if (!fobj->ecm_obj.use_external)
+	{
+		if (fobj->ecm_obj.B1 < 10000 || fobj->ecm_obj.num_curves == 1)
+			THREADS = 1;
+	}
+	else
+	{
+		if (fobj->ecm_obj.B1 < 40000 || fobj->ecm_obj.num_curves == 1)
+		{
+			THREADS = 1;
+			fobj->ecm_obj.use_external = 0;
+		}
+	}
+
 #else
 		
 	if (THREADS > 1)
 	{
-		if (VFLAG >= 2)
-			printf("GMP-ECM does not support multiple threads... running single threaded\n");
-		THREADS = 1;
+		if (!fobj->ecm_obj.use_external)
+		{
+			if (VFLAG >= 2)
+				printf("GMP-ECM does not support multiple threads... running single threaded\n");
+			THREADS = 1;
+		}
+		else
+		{
+			if (fobj->ecm_obj.B1 < 40000 || fobj->ecm_obj.num_curves == 1)
+			{
+				THREADS = 1;
+				fobj->ecm_obj.use_external = 0;
+			}
+		}
 	}
 #endif
 
@@ -888,6 +925,13 @@ void ecm_thread_free(ecm_thread_data_t *tdata)
 	zFree(&tdata->n);
 	zFree(&tdata->factor);
 
+	if (tdata->fobj->ecm_obj.use_external)
+	{
+		// remove temp file specific to this thread num
+		sprintf(tdata->tmp_output, "_yafu_ecm_tmp%d.out", tdata->thread_num);
+		remove(tdata->tmp_output);
+	}
+
 	return;
 }
 
@@ -900,74 +944,131 @@ void ecm_process_free(fact_obj_t *fobj)
 
 void *ecm_do_one_curve(void *ptr)
 {
-	int status;
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	size_t count;
-#endif
-
 	//unpack the data structure and stuff inside it
 	ecm_thread_data_t *thread_data = (ecm_thread_data_t *)ptr;
 	fact_obj_t *fobj = thread_data->fobj;
 
-	thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
-	if (VFLAG >= 3)
-		thread_data->params->verbose = VFLAG - 2;		
-	mpz_set_ui(thread_data->params->x, (unsigned long)0);
-	mpz_set_ui(thread_data->params->sigma, thread_data->sigma);
-
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	mpz_import(thread_data->gmp_n, (size_t)(abs(thread_data->n.size)), -1, sizeof(uint32), 
-		0, (size_t)0, thread_data->n.val);
-#else
-	//wrapper for YAFU bigints and call to gmp-ecm
-	mp2gmp(&thread_data->n, thread_data->gmp_n);
-#endif
-
-	if (fobj->ecm_obj.stg2_is_default == 0)
+	if (!fobj->ecm_obj.use_external)
 	{
-		//not default, tell gmp-ecm to use the requested B2
-		//printf("using requested B2 value\n");
-		sp642z(fobj->ecm_obj.B2,&thread_data->factor);
-		mp2gmp(&thread_data->factor,thread_data->params->B2);
+		int status;
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
+		size_t count;
+#endif
+
+		thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
+		if (VFLAG >= 3)
+			thread_data->params->verbose = VFLAG - 2;		
+		mpz_set_ui(thread_data->params->x, (unsigned long)0);
+		mpz_set_ui(thread_data->params->sigma, thread_data->sigma);
+
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
+		mpz_import(thread_data->gmp_n, (size_t)(abs(thread_data->n.size)), -1, sizeof(uint32), 
+			0, (size_t)0, thread_data->n.val);
+#else
+		//wrapper for YAFU bigints and call to gmp-ecm
+		mp2gmp(&thread_data->n, thread_data->gmp_n);
+#endif
+
+		if (fobj->ecm_obj.stg2_is_default == 0)
+		{
+			//not default, tell gmp-ecm to use the requested B2
+			//printf("using requested B2 value\n");
+			sp642z(fobj->ecm_obj.B2,&thread_data->factor);
+			mp2gmp(&thread_data->factor,thread_data->params->B2);
+			zClear(&thread_data->factor);
+		}
+
+		status = ecm_factor(thread_data->gmp_factor, thread_data->gmp_n,
+				fobj->ecm_obj.B1, thread_data->params);
+
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
+		zClear(&thread_data->n);
+		mpz_export(thread_data->n.val, &count, -1, sizeof(uint32),
+				0, (size_t)0, thread_data->gmp_n);
+		thread_data->n.size = count;
+#else
+		//update n: not sure if gmp-ecm modifies it
+		gmp2mp(thread_data->gmp_n,&thread_data->n);
+#endif
+
+
+		//printf ("used B2: ");
+		//mpz_out_str (stdout, 10, thread_data->params->B2);
+		//printf ("\n");
+
+		//NOTE: this required a modification to the GMP-ECM source code in ecm.c
+		//in order to get the automatically computed B2 value out of the
+		//library
+		//gmp2mp(thread_data->params->B2,&thread_data->factor);
+		//ECM_STG2_MAX = z264(&thread_data->factor);
+
+#if defined(_WIN64) && BITS_PER_DIGIT == 32
 		zClear(&thread_data->factor);
+		mpz_export(thread_data->factor.val, &count, -1, sizeof(uint32),
+				0, (size_t)0, thread_data->gmp_factor);
+		thread_data->factor.size = count;
+#else
+		//pull out any factor found
+		gmp2mp(thread_data->gmp_factor,&thread_data->factor);
+#endif
+
+		//the return value is the stage the factor was found in, if no error
+		thread_data->stagefound = status;
 	}
+	else
+	{
+		char cmd[1024];
+		str_t lstr;
+		FILE *fid;
+		char line[1024];
+		char *ptr;
 
-	status = ecm_factor(thread_data->gmp_factor, thread_data->gmp_n,
-			fobj->ecm_obj.B1, thread_data->params);
+		sInit(&lstr);
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	zClear(&thread_data->n);
-	mpz_export(thread_data->n.val, &count, -1, sizeof(uint32),
-			0, (size_t)0, thread_data->gmp_n);
-	thread_data->n.size = count;
-#else
-	//update n: not sure if gmp-ecm modifies it
-	gmp2mp(thread_data->gmp_n,&thread_data->n);
-#endif
+		// external executable was specified
+		sprintf(thread_data->tmp_output, "_yafu_ecm_tmp%d.out", thread_data->thread_num);
 
+		// build system command
+		//"echo \042 %s \042 | %s %u >> %s\n",
+		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", z2decstr(&thread_data->n, &lstr),
+			fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, thread_data->tmp_output);
 
-	//printf ("used B2: ");
-	//mpz_out_str (stdout, 10, thread_data->params->B2);
-	//printf ("\n");
+		// run system command
+		system(cmd);
+		//printf("%s",cmd);
 
-	//NOTE: this required a modification to the GMP-ECM source code in ecm.c
-	//in order to get the automatically computed B2 value out of the
-	//library
-	//gmp2mp(thread_data->params->B2,&thread_data->factor);
-	//ECM_STG2_MAX = z264(&thread_data->factor);
+		// parse output file
+		fid = fopen(thread_data->tmp_output, "r");
+		while (!feof(fid))
+		{
+			char fact[1024];
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	zClear(&thread_data->factor);
-	mpz_export(thread_data->factor.val, &count, -1, sizeof(uint32),
-			0, (size_t)0, thread_data->gmp_factor);
-	thread_data->factor.size = count;
-#else
-	//pull out any factor found
-	gmp2mp(thread_data->gmp_factor,&thread_data->factor);
-#endif
+			fgets(line, 1024, fid);
+			if (line == NULL)
+				break;
 
-	//the return value is the stage the factor was found in, if no error
-	thread_data->stagefound = status;
+			ptr = strstr(line, "**********");
+			if (ptr == NULL)
+				continue;
+
+			// found a factor.  search for the :
+			ptr = strstr(ptr, ":");
+			if (ptr == NULL)
+				continue;
+
+			// the character prior to this is the stage, and the rest of the line
+			// after it is the factor
+			sscanf(ptr-2,"%d",&thread_data->stagefound);
+
+			strcpy(fact, ptr+1);
+
+			str2hexz(fact, &thread_data->factor);
+
+			break;
+		}
+
+		sFree(&lstr);
+	}
 
 	return 0;
 }

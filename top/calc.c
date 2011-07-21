@@ -2050,7 +2050,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 	case 59:
 		//tune, no arguments
-		factor_tune();
+		factor_tune(fobj);
 		break;
 
 	default:

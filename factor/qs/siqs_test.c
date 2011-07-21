@@ -312,7 +312,7 @@ void siqsbench(fact_obj_t *fobj)
 	int i;
 
 	zInit(&n);
-	strcpy(oldflogname,flogname);
+	strcpy(oldflogname,fobj->flogname);
 
 	strcpy(list[0],"405461849292216354219321922871108605045931309");
 	strcpy(list[1],"29660734457033883936073030405220515257819037444591");
@@ -325,11 +325,11 @@ void siqsbench(fact_obj_t *fobj)
 	strcpy(list[8],"7456482836301983072751757080079609980368702375378513429852397523678294751191007081");
 	strcpy(list[9],"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
 
-	strcpy(flogname,"bench.log");
-	log = fopen(flogname,"a");
+	strcpy(fobj->flogname,"bench.log");
+	log = fopen(fobj->flogname,"a");
 	if (log == NULL)
 	{
-		printf("couldn't open %s for writing\n",flogname);
+		printf("couldn't open %s for writing\n",fobj->flogname);
 		exit(1);
 	}
 
@@ -353,7 +353,7 @@ void siqsbench(fact_obj_t *fobj)
 		clear_factor_list(fobj);
 	}
 
-	strcpy(flogname,oldflogname);
+	strcpy(fobj->flogname,oldflogname);
 
 	zFree(&n);
 	return;

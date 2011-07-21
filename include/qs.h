@@ -599,7 +599,6 @@ void siqsexit(int sig);
 void qs_save(char *buf, FILE *data, int force);
 int qcomp_siqs(const void *x, const void *y);
 uint32 make_fb_siqs(static_conf_t *sconf);
-void pull_large_primes();
 void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB);
 void siqstune(int bits);
 

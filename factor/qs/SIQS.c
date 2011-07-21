@@ -92,7 +92,7 @@ void SIQS(fact_obj_t *fobj)
 	//must ensure it is only written to by main thread
 	if (fobj->qs_obj.flags != 12345)
 	{
-		fobj->logfile = fopen(flogname,"a");
+		fobj->logfile = fopen(fobj->flogname,"a");
 		sieve_log = fobj->logfile;
 	}
 	else
@@ -146,7 +146,7 @@ void SIQS(fact_obj_t *fobj)
 	fobj->bits = zBits(n);
 	fobj->digits = ndigits(n);
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
-	strcpy(fobj->savefile_name,siqs_savefile);
+	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
 	//initialize the data objects
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
@@ -1826,7 +1826,7 @@ int siqs_static_init(static_conf_t *sconf)
 		}
 		sconf->use_dlp = 0;
 	}
-	qs_savefile_init(&obj->qs_obj.savefile, siqs_savefile);
+	qs_savefile_init(&obj->qs_obj.savefile, sconf->obj->qs_obj.siqs_savefile);
 
 	//if we're using dlp, compute the range of residues which will
 	//be subjected to factorization beyond trial division

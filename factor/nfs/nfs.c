@@ -109,7 +109,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job);
 int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
-uint32 get_spq(char *line);
+uint32 get_spq(char *line, fact_obj_t *fobj);
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
@@ -196,7 +196,7 @@ void nfs(fact_obj_t *fobj)
 		add_to_factor_list(fobj, N);
 		zCopy(&zOne,N);
 
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -264,7 +264,7 @@ void nfs(fact_obj_t *fobj)
 		{
 		case 0: //"init":
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -312,7 +312,7 @@ void nfs(fact_obj_t *fobj)
 					if (VFLAG >= 0)
 						printf("nfs: continuing job - could not determine last special q; using default startq\n");
 
-					logfile = fopen(flogname, "a");
+					logfile = fopen(fobj->flogname, "a");
 					if (logfile == NULL)
 						printf("could not open yafu logfile for appending\n");
 					else
@@ -335,7 +335,7 @@ void nfs(fact_obj_t *fobj)
 						printf("nfs: found %u relations, continuing job at specialq = %u\n",
 						job.current_rels,last_specialq);
 
-					logfile = fopen(flogname, "a");
+					logfile = fopen(fobj->flogname, "a");
 					if (logfile == NULL)
 						printf("could not open yafu logfile for appending\n");
 					else
@@ -461,7 +461,7 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("nfs: commencing msieve linear algebra\n");
 	
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -487,7 +487,7 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("nfs: commencing msieve sqrt\n");
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -527,7 +527,7 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -563,7 +563,7 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("NFS timeout after %6.4f seconds.\n",t_time);
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -626,7 +626,7 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 		job->startq += t->job.qrange;
 	}
 
-	logfile = fopen(flogname, "a");
+	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
@@ -870,7 +870,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, m
 	}
 
 	// log that we are starting
-	logfile = fopen(flogname, "a");
+	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
@@ -1105,7 +1105,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, m
 		printf("elapsed time of %6.4f seconds exceeds %u second deadline; poly select done\n",
 			t_time,deadline);
 	
-	logfile = fopen(flogname, "a");
+	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
@@ -1215,7 +1215,7 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
 	if (VFLAG >= 0)
 		printf("nfs: commencing msieve filtering\n");
 
-	logfile = fopen(flogname, "a");
+	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
@@ -1520,7 +1520,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			strcpy(c,"C");
 		}
 
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1551,7 +1551,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			zCopy(&zOne, N);
 		}
 
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1602,7 +1602,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 		if (VFLAG > 0)
 			printf("nfs: commencing NFS restart\n");
 
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1626,7 +1626,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 			if (VFLAG > 0)
 				printf("nfs: previous data file found - commencing search for last special-q\n");
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -1660,21 +1660,21 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						*last_spq = get_spq(line);
+						*last_spq = get_spq(line, fobj);
 						return ans;
 					}					
 
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						*last_spq = get_spq(line);
+						*last_spq = get_spq(line, fobj);
 						return ans;
 					}
 
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						*last_spq = get_spq(line);
+						*last_spq = get_spq(line, fobj);
 						return ans;
 					}
 
@@ -1683,7 +1683,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 					ptr = fgets(line2, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
 					{
-						*last_spq = get_spq(line);
+						*last_spq = get_spq(line, fobj);
 						return ans;
 					}
 					else
@@ -1700,7 +1700,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 		{
 			printf("must specify -R to restart when a savefile already exists\n");	
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -1726,7 +1726,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 
 }
 
-uint32 get_spq(char *line)
+uint32 get_spq(char *line, fact_obj_t *fobj)
 {	
 	//next to the last line is in line2
 	int i;
@@ -1736,7 +1736,7 @@ uint32 get_spq(char *line)
 	if (VFLAG > 0)
 		printf("nfs: parsing special-q from line: %s\n",line);
 
-	logfile = fopen(flogname, "a");
+	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
@@ -1770,7 +1770,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open %s for reading!\n",line);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1838,7 +1838,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open %s for reading!\n",fobj->nfs_obj.outputfile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1854,7 +1854,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open %s for writing!\n",fobj->nfs_obj.job_infile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1880,7 +1880,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 			if (VFLAG > 0)
 				printf("best poly: \n%s",line);
 
-			logfile = fopen(flogname, "a");
+			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
@@ -1942,7 +1942,7 @@ void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open %s for reading!\n",fobj->nfs_obj.fbfile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -1958,7 +1958,7 @@ void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open %s for writing!\n",fobj->nfs_obj.job_infile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -2016,7 +2016,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 	if (in == NULL)
 	{
 		printf("could not open %s for reading!\n",fobj->nfs_obj.job_infile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -2032,7 +2032,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 	if (out == NULL)
 	{
 		printf("could not open %s for writing!\n",fobj->nfs_obj.fbfile);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
@@ -2180,19 +2180,19 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 		switch (fobj->nfs_obj.siever)
 		{
 		case 11:
-			sprintf(job->sievername, "%sgnfs-lasieve4I11e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 12:
-			sprintf(job->sievername, "%sgnfs-lasieve4I12e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 13:
-			sprintf(job->sievername, "%sgnfs-lasieve4I13e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 14:
-			sprintf(job->sievername, "%sgnfs-lasieve4I14e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 15:
-			sprintf(job->sievername, "%sgnfs-lasieve4I15e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		}
 	}
@@ -2201,19 +2201,19 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 		switch (job->siever)
 		{
 		case 11:
-			sprintf(job->sievername, "%sgnfs-lasieve4I11e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 12:
-			sprintf(job->sievername, "%sgnfs-lasieve4I12e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 13:
-			sprintf(job->sievername, "%sgnfs-lasieve4I13e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 14:
-			sprintf(job->sievername, "%sgnfs-lasieve4I14e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		case 15:
-			sprintf(job->sievername, "%sgnfs-lasieve4I15e", ggnfs_dir);
+			sprintf(job->sievername, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
 			break;
 		}
 	}
@@ -2227,7 +2227,7 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	if (test == NULL)
 	{
 		printf("could not find %s, bailing\n",job->sievername);
-		logfile = fopen(flogname, "a");
+		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else

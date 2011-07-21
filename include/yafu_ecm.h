@@ -57,6 +57,7 @@ typedef struct {
 	fact_obj_t *fobj;
 	int thread_num;
 	int curves_run;
+	char tmp_output[80];
 
 	/* fields for thread pool synchronization */
 	volatile enum ecm_thread_command command;

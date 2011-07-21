@@ -716,10 +716,15 @@ uint64 z264(z *n)
 {
 	//assumes n is only 2 or less digits long
 	//sign information is lost.
+	uint64 out = (uint64)n->val[0];
+
 #if BITS_PER_DIGIT == 32
-	return ((uint64)n->val[0] + ((uint64)n->val[1] << 32));
+	if (n->size > 1)
+		return (out | ((uint64)n->val[1] << 32));
+	else
+		return out;
 #else
-	return (uint64)n->val[0];
+	return out;
 #endif
 }
 

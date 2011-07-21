@@ -110,10 +110,10 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->seed2 = g_rand.hi;
 	yafu_get_cache_sizes(&fobj->cache_size1,&fobj->cache_size2);
 	fobj->flags = 0;
-	strcpy(fobj->logname,flogname);
 	fobj->num_threads = 1;		//read from input arguments
 	zInit(&fobj->N);
-	sInit(&fobj->str_N);
+	sInit(&fobj->str_N);	
+	strcpy(fobj->flogname,"factor.log");	
 
 	// initialize stuff for rho
 	fobj->rho_obj.num_factors = 0;
@@ -165,6 +165,12 @@ void init_factobj(fact_obj_t *fobj)
 	zInit(&fobj->ecm_obj.n);
 	sInit(&fobj->ecm_obj.in);
 	sInit(&fobj->ecm_obj.out);
+	// unlike ggnfs, ecm does not *require* external binaries.  
+	// an empty string indicates the use of the built-in GMP-ECM hooks, while
+	// a non-empty string (filled in by the user) will indicate the use of
+	// an external binary
+	strcpy(fobj->ecm_obj.ecm_path,"");
+	fobj->ecm_obj.use_external = 0;
 
 	// initialize stuff for squfof
 	fobj->squfof_obj.num_factors = 0;
@@ -193,6 +199,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.qs_multiplier = 0;
 	fobj->qs_obj.qs_tune_freq = 0;
 	fobj->qs_obj.no_small_cutoff_opt = 0;
+	strcpy(fobj->qs_obj.siqs_savefile,"siqs.dat");
 	zInit(&fobj->qs_obj.n);
 	sInit(&fobj->qs_obj.in);
 	sInit(&fobj->qs_obj.out);
@@ -236,6 +243,13 @@ void init_factobj(fact_obj_t *fobj)
 	zInit(&fobj->nfs_obj.n);
 	sInit(&fobj->nfs_obj.in);
 	sInit(&fobj->nfs_obj.out);
+#if defined(_WIN64)
+	strcpy(fobj->nfs_obj.ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
+#elif defined(WIN32)
+	strcpy(fobj->nfs_obj.ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\Win32\\");
+#else
+	strcpy(fobj->nfs_obj.ggnfs_dir,"../ggnfs-bin/");
+#endif
 
 	//initialize autofactor object
 	//whether we want to output certain info to their own files...
@@ -808,7 +822,7 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	case trialdiv_work:		
 		if (VFLAG >= 0)
 			printf("div: primes less than %d\n",B1);
-		PRIME_THRESHOLD = B1 * B1;
+		fobj->prime_threshold = B1 * B1;
 		zCopy(b,&fobj->div_obj.n);
 		fobj->div_obj.print = 1;
 		fobj->div_obj.limit = B1;
@@ -1594,7 +1608,7 @@ void factor(fact_obj_t *fobj)
 	
 	gettimeofday(&start, NULL);
 
-	flog = fopen(flogname,"a");
+	flog = fopen(fobj->flogname,"a");
 	logprint(flog,"\n");
 	logprint(flog,"****************************\n");
 	logprint(flog,"Starting factorization of %s\n",z2decstr(b,&gstr1));
@@ -1886,7 +1900,7 @@ void factor(fact_obj_t *fobj)
 		if (isPrime(b))
 		{
 			b->type = PRP;
-			flog = fopen(flogname,"a");
+			flog = fopen(fobj->flogname,"a");
 			logprint(flog,"prp%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
@@ -1894,7 +1908,7 @@ void factor(fact_obj_t *fobj)
 		else
 		{
 			b->type = COMPOSITE;
-			flog = fopen(flogname,"a");
+			flog = fopen(fobj->flogname,"a");
 			logprint(flog,"c%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
@@ -1910,9 +1924,9 @@ void factor(fact_obj_t *fobj)
 	if (VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);
 
-	flog = fopen(flogname,"a");
+	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
-		printf("Could not open %s for appending\n",flogname);
+		printf("Could not open %s for appending\n",fobj->flogname);
 	else
 	{
 		logprint(flog,"Total factoring time = %6.4f seconds\n",t_time);

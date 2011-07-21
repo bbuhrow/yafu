@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.27.2"
+#define VERSION_STRING "1.28"
 
 //basics
 #define POSITIVE 0
@@ -157,15 +157,6 @@ char sessionname[1024];
 // random numbers - used everywhere
 rand_t g_rand;
 uint64 LCGSTATE;
-
-// set by trial div... part of fobj
-uint64 PRIME_THRESHOLD;
-
-// other fobj stuff
-char flogname[1024];
-char siqs_savefile[1024];
-char ggnfs_dir[1024];
-char ecm_dir[1024];
 
 //SoE
 int PRIMES_TO_FILE;

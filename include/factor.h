@@ -264,6 +264,9 @@ typedef struct
 	z n;
 	z inz, outz;
 	str_t in, out;
+
+	char ecm_path[1024];
+	int use_external;
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
@@ -326,6 +329,7 @@ typedef struct
 	z inz, outz;
 	str_t in, out;
 	qs_savefile_t savefile;		//savefile object
+	char siqs_savefile[1024];
 
 	double qs_exponent;
 	double qs_multiplier;
@@ -362,6 +366,7 @@ typedef struct
 	z inz, outz;
 	str_t in, out;
 
+	char ggnfs_dir[1024];
 	uint32 siever;
 	uint32 startq;
 	uint32 rangeq;
@@ -443,7 +448,7 @@ typedef struct
 	str_t str_N;				//string representation of input (expression form)
 	uint32 digits;				//number of digits in input
 	uint32 bits;				//number of bits in input
-	char logname[80];			//name of the factorization logfile to use
+	char flogname[1024];		//name of the factorization logfile to use
 	FILE *logfile;				//the logfile
 	char savefile_name[80];		//data savefile name
 	uint32 flags;				//state flags
@@ -464,6 +469,9 @@ typedef struct
 	int num_threads;
 	uint32 seed1;
 	uint32 seed2;
+
+	// threshold at which we know number are prime, as determined by trial division
+	uint64 prime_threshold;
 
 	//global storage for a list of factors
 	factor_t *fobj_factors;
@@ -537,6 +545,6 @@ void factor(fact_obj_t *fobj);
 
 uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
 
-void factor_tune(void);
+void factor_tune(fact_obj_t *fobj);
 
 #endif //_FACTOR_H
