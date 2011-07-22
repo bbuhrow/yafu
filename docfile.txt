@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.26
+YAFU Version 1.28
 
 -------------
 Introduction:
@@ -96,6 +96,7 @@ flags to change program behavior.  Supported flags in v1.26 are:
 -R				Must specify in order to restart when a previous savefile exists
 -siever <num>	Specify the ggnfs siever version to use, where <num> is the integer in the default
 					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe		
+-ecm_path <path>	full path to ecm binary
 
 
 
@@ -338,30 +339,12 @@ command line flags effecting siqs:
 -threads <num>	Use num sieving threads in SIQS and ECM
 -v 		        Use to increase verbosity of output, can be used multiple times
 
-[mpqs]
-usage: mpqs(expression)
-
-description:
-the mpqs factoring method.  uses the single large prime variation, and automatically 
-switches in the small prime variation depending on the size of the input.  post-
-processing uses a block gaussian solver and is useful only for moderately
-sized inputs.
-
-[mpqs]
+[smallmpqs]
 usage: smallmpqs(expression)
 
 description:
 the mpqs factoring method optimized for small inputs.  
 
-[qs]
-usage: qs(expression)
-
-description:
-the qs factoring method.  uses the single large prime variation.  uses a block gaussian
-routine for post processing.  limited to 16000 blocks of sieving, due to 32 bit 
-constraints.  As such, is only useful up to about 50 digits, and is far slower than other
-qs implementations.  However, it will work for inputs as small as about 12 digits, and
-is extremely fast in that case.
 
 [factor]
 usage: factor(expression)
@@ -391,18 +374,13 @@ command line flags effecting factor:
 usage: pm1(expression)
 
 description:
-New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
-When building from source in an environement without these libraries available, still uses
-it's native p-1 factoring method, implementing stage 1 and the enhanced standard 
-stage 2 continuation with prime pairing.  Stage 1 bound is configurable using
+New in version 1.28: uses GMP-ECM exclusively.  Stage 1 bound is configurable using
 the POLLARD_STG1_MAX parameter.  The default is 100000.  Stage 2 bound is also 
-configurable using the POLLARD_STG2_MAX parameter.  The default is 5000000.
+configurable using the POLLARD_STG2_MAX parameter.
 
-To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
-there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
-or in the command line arguments.  
-Specifying a B1 value only will cause B2 to be automatically determined for either 
-gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+To use the default B2 with gmp-ecm, simply do not specify the B2ecm or B2pp1 or B2pm1 
+flags in the .ini file or in the command line arguments.  
+Specifying B2 as well will cause the default value to be overridden.
 
 command line flags effecting pm1:
 
@@ -413,45 +391,44 @@ command line flags effecting pm1:
 usage: ecm(expression1,[expression2])
 
 description:
-New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
-When building from source in an environement without these libraries available, still uses
-it's native elliptic curve factoring method, implementing stage 1 with PRAC and the enhanced 
-standard stage 2 continuation with prime pairing (Crandall and Pomerance's 2 muls per
-prime version).  The first argument should be the number to factor and the second 
-should be the number of curves to run at the current ECM_STG* bounds.  If no
+New in version 1.28: uses GMP-ECM exclusively.  Stage 1 bound is configurable using
+the ECM_STG1_MAX parameter.  The default is 11000.  Stage 2 bound is also 
+configurable using the ECM_STG2_MAX parameter.
+
+To use the default B2 with gmp-ecm, simply do not specify the B2ecm or B2pp1 or B2pm1 
+flags in the .ini file or in the command line arguments.  
+Specifying B2 as well will cause the default value to be overridden. 
+The first argument should be the number to factor and the second 
+can optionally be a number of curves to run at the current ECM_STG* bounds.  If no
 expression2 is given, the default behavior is 1 curve at the current ECM_STG* bounds.
 
-The stage 1 bound is configurable using the ECM_STG1_MAX parameter.  
-The default is 11000.  Stage 2 bound is also configurable using the
-ECM_STG2_MAX parameter.  The default is 1100000.  
-
-To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
-there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
-or in the command line arguments.  
-Specifying a B1 value only will cause B2 to be automatically determined for either 
-gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+To use an external ecm binary instead of the built-in gmp-ecm code, specify a full path
+to the binary using the -ecm_path command line option or .ini file entry.  Ecm will be
+run multi-threaded, if requested, when using an external binary.  Note that linux can
+also run multi-threaded using the built-in gmp-ecm code.  External binaries can still be
+used in linux, for example if they are specially optimized for a particular system.
 
 command line flags effecting ecm:
 
 -B1ecm	<num>   B1 bound in the ECM method
 -B2ecm	<num>   B2 bound in the ECM method
+-ecm_path <path>	full path to ecm binary
 
 [pp1]
-usage: pp1(expression)
+usage: pp1(expression,[expression2])
 
 description:
-New in version 1.15: uses GMP-ECM, powered by P4 optmized MPIR 1.3.0 libraries.
-When building from source in an environement without these libraries available, still uses
-it's native p+1 factoring method, implementing stage 1 and the enhanced standard 
-stage 2 continuation with prime pairing.  Stage 1 bound is configurable using
-the WILL_STG1_MAX parameter.  The default is 20000.  Stage 2 bound is also 
-configurable using the WILL_STG2_MAX parameter.  The default is 1000000.
+New in version 1.28: uses GMP-ECM exclusively.  Stage 1 bound is configurable using
+the WILLIAMS_STG1_MAX parameter.  The default is 20000.  Stage 2 bound is also 
+configurable using the WILLIAMS_STG2_MAX parameter.
+The first argument should be the number to factor and the second can optionally 
+be a number of "curves" to run.  Typically the number of curves is 3, in order to
+make it more likely that an actual pp1 test is performed.  For more details, see
+C & P.
 
-To use the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
-there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file
-or in the command line arguments.  
-Specifying a B1 value only will cause B2 to be automatically determined for either 
-gmp-ecm or yafu routines.  Specifying B2 as well will cause the default value to be overridden.
+To use the default B2 with gmp-ecm, simply do not specify the B2ecm or B2pp1 or B2pm1 
+flags in the .ini file or in the command line arguments.  
+Specifying B2 as well will cause the default value to be overridden.
 
 command line flags effecting pp1:
 

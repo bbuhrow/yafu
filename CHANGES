@@ -1,3 +1,7 @@
+v 1.28.1
++ fixed a bug in multi-threaded external ecm
+
+
 v 1.28
 + fixed a bug in LEGCD that called spDivide when v == 1, causing a crash
 + tweaked poly_a generation to allow siqs to work on much smaller inputs 

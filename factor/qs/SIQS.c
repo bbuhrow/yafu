@@ -837,6 +837,7 @@ void *process_poly(void *ptr)
 	dconf->maxB = 1<<(dconf->curr_poly->s-1);
 	dconf->numB = 1;
 	computeBl(sconf,dconf);
+
 	firstRoots(sconf,dconf);
 
 #ifdef QS_TIMING
@@ -1170,6 +1171,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	zInit(&dconf->qstmp3);
 	zInit(&dconf->qstmp4);
 	zInit32(&dconf->qstmp32);
+	mpz_init2(dconf->gmptmp1, sconf->bits);
+	mpz_init2(dconf->gmptmp2, sconf->bits);
 
 	//this stuff changes with every new poly
 	//allocate a polynomial structure which will hold the current
@@ -1178,6 +1181,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	zInit(&dconf->curr_poly->poly_a);
 	zInit(&dconf->curr_poly->poly_b);
 	zInit(&dconf->curr_poly->poly_c);
+	mpz_init(dconf->curr_poly->mpz_poly_a);
+	mpz_init(dconf->curr_poly->mpz_poly_b);
+	mpz_init(dconf->curr_poly->mpz_poly_c);
 	dconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	dconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
 	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
@@ -1443,14 +1449,28 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
 
+#ifdef SSE2_RESIEVING
+	#if defined(_MSC_VER) || defined (__MINGW32__)
+		dconf->corrections = (uint16 *)_aligned_malloc(8 * sizeof(uint16),64);
+	#else
+		dconf->corrections = (uint16 *)memalign(64, 8 * sizeof(uint16));
+	#endif
+#endif
+
 	// array of sieve locations scanned from the sieve block that we
 	// will submit to trial division.  make it the size of a sieve block 
 	// in the pathological case that every sieve location is a report
 	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
 	dconf->num_reports = 0;
+#if defined(TDIV_GMP)
+	dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
+		mpz_init2(dconf->Qvals[i], sconf->bits);
+#else
 	dconf->Qvals = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		zInit32(&dconf->Qvals[i]);
+#endif
 	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->failed_squfof = 0;
@@ -1938,6 +1958,9 @@ int siqs_static_init(static_conf_t *sconf)
 	zInit(&sconf->curr_poly->poly_a);
 	zInit(&sconf->curr_poly->poly_b);
 	zInit(&sconf->curr_poly->poly_c);
+	mpz_init2(sconf->curr_poly->mpz_poly_a, sconf->bits);
+	mpz_init2(sconf->curr_poly->mpz_poly_b, sconf->bits);
+	mpz_init2(sconf->curr_poly->mpz_poly_c, sconf->bits);
 	sconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	sconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
 	sconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
@@ -2316,6 +2339,9 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->curr_poly->gray);
 	free(dconf->curr_poly->nu);
 	free(dconf->curr_poly->qlisort);
+	mpz_clear(dconf->curr_poly->mpz_poly_a);
+	mpz_clear(dconf->curr_poly->mpz_poly_b);
+	mpz_clear(dconf->curr_poly->mpz_poly_c);
 	zFree(&dconf->curr_poly->poly_a);
 	zFree(&dconf->curr_poly->poly_b);
 	zFree(&dconf->curr_poly->poly_c);
@@ -2331,15 +2357,27 @@ int free_sieve(dynamic_conf_t *dconf)
 	zFree(&dconf->qstmp3);
 	zFree(&dconf->qstmp4);
 	zFree32(&dconf->qstmp32);
+	mpz_clear(dconf->gmptmp1);
+	mpz_clear(dconf->gmptmp2);
+
 	align_free(dconf->mask);
 
 	//free sieve scan report stuff
 	free(dconf->reports);
+#if defined(TDIV_GMP)
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
+		mpz_clear(dconf->Qvals[i]);
+#else
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		zFree32(&dconf->Qvals[i]);
+#endif
 	free(dconf->Qvals);
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
+
+#if defined(SSE2_RESIEVING)
+	align_free(dconf->corrections);
+#endif
 
 	//free post-processed relations
 	//for (i=0; (uint32)i < dconf->buffered_rels; i++)
@@ -2415,6 +2453,9 @@ int free_siqs(static_conf_t *sconf)
 	zFree(&sconf->curr_poly->poly_a);
 	zFree(&sconf->curr_poly->poly_b);
 	zFree(&sconf->curr_poly->poly_c);
+	mpz_clear(sconf->curr_poly->mpz_poly_a);
+	mpz_clear(sconf->curr_poly->mpz_poly_b);
+	mpz_clear(sconf->curr_poly->mpz_poly_c);
 	free(sconf->curr_poly);
 	zFree(&sconf->curr_a);	
 	free(sconf->modsqrt_array);

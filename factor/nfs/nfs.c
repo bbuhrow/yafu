@@ -5,7 +5,7 @@
 #include "qs.h"
 
 
-#define USE_NFS
+//#define USE_NFS
 
 //----------------------- LOCAL DATA TYPES -----------------------------------//
 

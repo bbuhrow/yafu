@@ -22,6 +22,7 @@ code to the public domain.
 #include "qs.h"
 #include "util.h"
 #include "common.h"
+#include "gmp_xface.h"
 
 //#define POLYA_DEBUG
 
@@ -355,6 +356,7 @@ done:
 		(sconf->total_poly_a + 1) * sizeof(z));
 	zInit(&sconf->poly_a_list[sconf->total_poly_a]);
 	zCopy(poly_a,&sconf->poly_a_list[sconf->total_poly_a]);
+	mp2gmp(poly_a, poly->mpz_poly_a);
 
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
@@ -419,6 +421,23 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	dconf->qstmp2.size *= -1;
 	zDiv(&dconf->qstmp2,&poly->poly_a,&poly->poly_c,&dconf->qstmp1);
 	poly->poly_c.size *= -1;
+	mp2gmp(&poly->poly_b, poly->mpz_poly_b);
+	mp2gmp(&poly->poly_c, poly->mpz_poly_c);
+
+	/*
+	// check the mpz representation
+	// b^2 - c * a = n
+	mpz_mul(dconf->gmptmp1, poly->mpz_poly_c, poly->mpz_poly_a);
+	mpz_mul(dconf->gmptmp2, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_sub(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp1);
+	gmp2mp(dconf->gmptmp1, &dconf->qstmp1);
+	if (zCompare(&dconf->qstmp1, &sconf->n) != 0)
+	{
+		printf("mpz poly not correct!\n");
+		printf("%s, %s, %s\n", z2decstr(&poly->poly_a, &gstr1), z2decstr(&poly->poly_b, &gstr2), z2decstr(&poly->poly_c, &gstr3));
+		gmp_printf("%Zd, %Zd, %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
+	}
+	*/
 
 	return;
 }
@@ -458,6 +477,23 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 	tmp2->size *= -1;
 	zDiv(tmp2,&poly->poly_a,&poly->poly_c,tmp);
 	poly->poly_c.size *= -1;
+	mp2gmp(&poly->poly_b, poly->mpz_poly_b);
+	mp2gmp(&poly->poly_c, poly->mpz_poly_c);	
+	
+	// check the mpz representation
+	// b^2 - c * a = n
+	/*
+	mpz_mul(dconf->gmptmp1, poly->mpz_poly_c, poly->mpz_poly_a);
+	mpz_mul(dconf->gmptmp2, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_sub(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp1);
+	gmp2mp(dconf->gmptmp1, &dconf->qstmp1);
+	if (zCompare(&dconf->qstmp1, &sconf->n) != 0)
+	{
+		printf("mpz poly not correct!\n");
+		printf("%s, %s, %s\n", z2decstr(&poly->poly_a, &gstr1), z2decstr(&poly->poly_b, &gstr2), z2decstr(&poly->poly_c, &gstr3));
+		gmp_printf("%Zd, %Zd, %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
+	}
+	*/
 
 	return;
 }

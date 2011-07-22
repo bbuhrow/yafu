@@ -58,6 +58,9 @@ uint32 process_poly_a(static_conf_t *sconf)
 	zInit(&dconf->curr_poly->poly_a);
 	zInit(&dconf->curr_poly->poly_b);
 	zInit(&dconf->curr_poly->poly_c);
+	mpz_init(dconf->curr_poly->mpz_poly_a);
+	mpz_init(dconf->curr_poly->mpz_poly_b);
+	mpz_init(dconf->curr_poly->mpz_poly_c);
 	dconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	dconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
 	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
@@ -83,6 +86,9 @@ uint32 process_poly_a(static_conf_t *sconf)
 		zFree(&dconf->curr_poly->poly_a);
 		zFree(&dconf->curr_poly->poly_b);
 		zFree(&dconf->curr_poly->poly_c);
+		mpz_clear(dconf->curr_poly->mpz_poly_a);
+		mpz_clear(dconf->curr_poly->mpz_poly_b);
+		mpz_clear(dconf->curr_poly->mpz_poly_c);
 		free(dconf->curr_poly);
 
 		for (i=0;i<MAX_A_FACTORS;i++)
@@ -138,6 +144,9 @@ uint32 process_poly_a(static_conf_t *sconf)
 	zFree(&dconf->curr_poly->poly_a);
 	zFree(&dconf->curr_poly->poly_b);
 	zFree(&dconf->curr_poly->poly_c);
+	mpz_clear(dconf->curr_poly->mpz_poly_a);
+	mpz_clear(dconf->curr_poly->mpz_poly_b);
+	mpz_clear(dconf->curr_poly->mpz_poly_c);
 	free(dconf->curr_poly);
 
 	for (i=0;i<MAX_A_FACTORS;i++)

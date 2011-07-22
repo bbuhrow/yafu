@@ -35,6 +35,9 @@ static INLINE void mp2gmp(z *src, mpz_t dest) {
 
 	mpz_import(dest, (size_t)(abs(src->size)), -1, sizeof(fp_digit), 
 			0, (size_t)0, src->val);
+
+	if (src->size < 0)
+		mpz_neg(dest, dest);
 }
 
 /*--------------------------------------------------------------------*/

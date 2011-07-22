@@ -22,6 +22,7 @@ code to the public domain.
 #include "factor.h"
 #include "common.h"
 #include "util.h"
+#include <gmp.h>
 
 #define NUM_SQUFOF_MULT 16
 
@@ -58,10 +59,11 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 	uint64 n64, nn64, f64, big1, big2;
 	mult_t mult_save[NUM_SQUFOF_MULT];//, mult_save2;
 	z tmp1, tmp2;
+	//mpz_t tmp;
 	//struct timeval myTVstart, myTVend;
 	//TIME_DIFF *	difference;
-	//double t_time;
-
+	//double t_time;	
+	
 	big1 = 0xFFFFFFFFFFFFFFFFULL;
 	big2 = 0x3FFFFFFFFFFFFFFFULL;
 
@@ -79,11 +81,11 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 	if (n64 <= 3)
 		return n64;
 
-	//gettimeofday(&myTVstart, NULL);
-
-	//prepare to factor using squfof
+	//mpz_init(tmp);
 	zInit(&tmp1);
 	zInit(&tmp2);
+
+	//gettimeofday(&myTVstart, NULL);
 
 	for (i=NUM_SQUFOF_MULT-1;i>=0;i--)
 	{
@@ -104,9 +106,12 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 
 		//set imax = N^1/4
 		//b0 = (uint32)sqrt((double)(N));
+		//mpz_set_64(tmp, nn64);		
+		//mpz_sqrt(tmp, tmp); 
+		//mult_save[i].b0 = (uint32)mpz_get_ui(tmp); 
 		sp642z(nn64,&tmp1);
-		zNroot(&tmp1,&tmp2,2);
-		mult_save[i].b0 = (uint32)tmp2.val[0];
+		zNroot(&tmp1,&tmp2,2);				
+		mult_save[i].b0 = tmp2.val[0];
 		mult_save[i].imax = (uint32)sqrt(mult_save[i].b0) / 2;
 
 		//set up recurrence
@@ -118,8 +123,6 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 		if (mult_save[i].Qn == 0)
 		{
 			//N is a perfect square
-			zFree(&tmp1);
-			zFree(&tmp2);
 			f64 = (uint64)mult_save[i].b0;
 			goto done;
 		}
@@ -128,9 +131,6 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 		mult_save[i].it = 0;
 
 	}
-
-	zFree(&tmp1);
-	zFree(&tmp2);
 
 	//now process the multipliers a little at a time.  this allows more
 	//multipliers to be tried in order to hopefully find one that 
@@ -199,6 +199,10 @@ done:
 	if (1)
 		printf("Total squfof time = %6.6f seconds.\n",t_time);
 		*/
+
+	//mpz_clear(tmp);
+	zFree(&tmp1);
+	zFree(&tmp2);
 
 	return f64;
 }
