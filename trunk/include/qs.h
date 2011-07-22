@@ -88,6 +88,8 @@ double TF_SPECIAL;
 #define BLOCKBITStxt "15"
 #endif
 
+//#define TDIV_GMP 1
+
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
@@ -257,6 +259,9 @@ typedef struct
 	z poly_a;
 	z poly_b;
 	z poly_c;
+	mpz_t mpz_poly_a;
+	mpz_t mpz_poly_b;
+	mpz_t mpz_poly_c;
 	int *qlisort;	//sorted list of indices into the factor base of factors of poly_a
 	char *gray;		//2^s - 1 length array of signs for the graycode
 	char *nu;		//2^s - 1 length array of Bl values to use in the graycode
@@ -432,12 +437,18 @@ typedef struct {
 	z qstmp3;
 	z qstmp4;
 	z32 qstmp32;
+	mpz_t gmptmp1;
+	mpz_t gmptmp2;
 
 	//used in trial division
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
 	uint32 num_reports;
+#if defined(TDIV_GMP)
+	mpz_t *Qvals;
+#else
 	z32 *Qvals;					//expanded Q values for each report
+#endif
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
 	int *smooth_num;			//how many factors are there for each valid Q
@@ -448,7 +459,7 @@ typedef struct {
 	uint32 dlp_useful;
 
 	//polynomial info during sieving
-	siqs_poly *curr_poly;		// current poly during sieving
+	siqs_poly *curr_poly;		// current poly during sieving	
 	z *Bl;						// array of Bl values used to compute new B polys
 	uint32 tot_poly, numB, maxB;// polynomial counters
 
@@ -456,6 +467,8 @@ typedef struct {
 	uint32 buffered_rels;
 	uint32 buffered_rel_alloc;
 	siqs_r *relation_buf;
+
+	uint16 *corrections;
 
 	//counters and timers
 	uint32 num;					// sieve locations we've subjected to trial division

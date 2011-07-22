@@ -23,7 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "util.h"
 #include "common.h"
-
+#include "gmp_xface.h"
 
 /*
 We are given an array of bytes that has been sieved.  The basic trial 
@@ -52,6 +52,24 @@ this file contains code implementing 2)
 
 */
 
+#if defined(TDIV_GMP)
+#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
+		bits += logp;	\
+	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
+#else
+	#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);	\
+		bits += logp;	\
+	} while (zShortMod32(&dconf->Qvals[report_num], prime) == 0);
+#endif
+
 //#define DO_4X_SPV 1
 
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
@@ -71,7 +89,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 #endif
 	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
-	z32 *Q;
 #ifdef USE_COMPRESSED_FB
 	sieve_fb_compressed *fbptr;
 #endif
@@ -113,8 +130,28 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 		//multiple precision arithmetic.  all the qstmp's are a global hack
 		//but I don't want to Init/Free millions of times if I don't have to.
+
+#if defined(TDIV_GMP)
+		mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1); 
+		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+		if (parity)
+			mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2); 
+		else
+			mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2); 
+
+		mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset); 
+		mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c); 
+
+		if (mpz_sgn(dconf->Qvals[report_num]) < 0)
+		{
+			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
+			dconf->fb_offsets[report_num][++smooth_num] = 0;
+		}
+#else
+
 		zShiftLeft_1(&dconf->qstmp2,&dconf->curr_poly->poly_b);
 		zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
+		
 		if (parity)
 			zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
 		else
@@ -122,12 +159,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 		zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
 		zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
-	
-		//this is another hack because on most fast systems the multiple
-		//precision arith is 64 bit based, but it turns out that the MP mod's
-		//we have to do a lot of in trial division I've implemented faster
-		//in 32 bit base.  The actual conversion here is just a cast.
-	
+
 #if BITS_PER_DIGIT == 32
 		for (i=0; i<abs(dconf->qstmp4.size); i++)
 			dconf->Qvals[report_num].val[i] = (uint32)dconf->qstmp4.val[i];
@@ -138,17 +170,19 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		z64_to_z32(&dconf->qstmp4,&dconf->Qvals[report_num]);
 #endif
 
-		Q = &dconf->Qvals[report_num];
+		if (dconf->Qvals[report_num].size < 0)
+		{
+			dconf->Qvals[report_num].size *= -1;
+			dconf->fb_offsets[report_num][++smooth_num] = 0;
+		}
+
+#endif
 
 		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
 		//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
 		//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
 		//offset is stored standalone in the relation structure.
-		if (Q->size < 0)
-		{
-			dconf->fb_offsets[report_num][++smooth_num] = 0;
-			Q->size = Q->size * -1;
-		}
+		
 	
 		//compute the bound for small primes.  if we can't find enough small
 		//primes, then abort the trial division early because it is likely to fail to
@@ -157,12 +191,24 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
 		//take care of powers of two
-		while (!(Q->val[0] & 1))
+#if defined(TDIV_GMP)
+		while (mpz_even_p(dconf->Qvals[report_num]))
 		{
-			zShiftRight32_x(Q,Q,1);
+			//zShiftRight32_x(Q,Q,1);
+			mpz_tdiv_q_2exp(dconf->Qvals[report_num], dconf->Qvals[report_num], 1);
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
 			bits++;
 		}
+#else
+		while ((dconf->Qvals[report_num].val[0] & 0x1) == 0)
+		{
+			//
+			zShiftRight32_x(&dconf->Qvals[report_num],&dconf->Qvals[report_num],1);
+			dconf->fb_offsets[report_num][++smooth_num] = 1;
+			bits++;
+		}
+#endif
+		
 
 		
 #ifdef DO_4X_SPV
@@ -379,12 +425,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			if (tmp1 == root1 || tmp1 == root2)
 			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,prime,Q);
-					bits += logp;
-				} while (zShortMod32(Q,prime) == 0);
+				DIVIDE_ONE_PRIME
 			}
 
 			i++;
@@ -404,12 +445,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			if (tmp2 == root1 || tmp2 == root2)
 			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,prime,Q);
-					bits += logp;
-				} while (zShortMod32(Q,prime) == 0);
+				DIVIDE_ONE_PRIME
 			}
 
 			i++;
@@ -429,12 +465,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			if (tmp3 == root1 || tmp3 == root2)
 			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,prime,Q);
-					bits += logp;
-				} while (zShortMod32(Q,prime) == 0);
+				DIVIDE_ONE_PRIME
 			}
 
 			i++;
@@ -454,12 +485,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			if (tmp4 == root1 || tmp4 == root2)
 			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,prime,Q);
-					bits += logp;
-				} while (zShortMod32(Q,prime) == 0);
+				DIVIDE_ONE_PRIME
 			}
 			i++;
 		}
@@ -496,12 +522,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			//often.  the simple offset % prime check will miss these cases.
 			if (tmp == root1 || tmp == root2)
 			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,prime,Q);
-					bits += logp;
-				} while (zShortMod32(Q,prime) == 0);
+				DIVIDE_ONE_PRIME
 			}
 			i++;
 		}

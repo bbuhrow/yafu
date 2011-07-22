@@ -254,13 +254,21 @@ this file contains code implementing 5)
 
 #endif
 
+#if defined(TDIV_GMP)
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
 		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(Q,prime,Q);			\
-	} while (zShortMod32(Q,prime) == 0);
-
+		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
+	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
+#else
+	#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);	\
+	} while (zShortMod32(&dconf->Qvals[report_num], prime) == 0);
+#endif
 
 void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -272,7 +280,6 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	uint32 *bptr;
 	sieve_fb *fb;
 	uint32 block_loc;
-	z32 *Q;
 	uint16 *mask = dconf->mask;
 
 #ifdef QS_TIMING
@@ -281,7 +288,6 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
-	Q = &dconf->Qvals[report_num];
 	block_loc = dconf->reports[report_num];
 
 	mask[0] = block_loc;

@@ -70,11 +70,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	uint32 polya_factors[20];
 	sieve_fb *fb;
 	uint32 offset, block_loc;
-	z32 *Q;
 
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
-	Q = &dconf->Qvals[report_num];
 	block_loc = dconf->reports[report_num];
 	
 #ifdef QS_TIMING
@@ -97,19 +95,38 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		//prime = fbptr->prime;
 		prime = fb[dconf->curr_poly->qlisort[j]].prime;
 
-		while ((zShortMod32(Q,prime) == 0) && (it < 20))
+#if defined(TDIV_GMP)
+		while ((mpz_tdiv_ui(dconf->Qvals[report_num],prime) == 0) && (it < 20))
 		{
-			zShortDiv32(Q,prime,Q);
+			mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);
 			polya_factors[it++] = dconf->curr_poly->qlisort[j];
 		}
+#else
+		while ((zShortMod32(&dconf->Qvals[report_num],prime) == 0) && (it < 20))
+		{
+			zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);
+			polya_factors[it++] = dconf->curr_poly->qlisort[j];
+		}
+
+#endif
 	}
 
 	//check if it completely factored by looking at the unfactored portion in tmp
-	if ((Q->size == 1) && (Q->val[0] < sconf->large_prime_max))
+#if defined(TDIV_GMP)
+	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
+		((uint32)mpz_get_ui(dconf->Qvals[report_num]) < sconf->large_prime_max))
+#else
+	if ((dconf->Qvals[report_num].size == 1) && 
+		(dconf->Qvals[report_num].val[0] < sconf->large_prime_max))
+#endif
 	{
 		uint32 large_prime[2];
 		
-		large_prime[0] = Q->val[0];
+#if defined(TDIV_GMP)
+		large_prime[0] = (uint32)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
+#else
+		large_prime[0] = dconf->Qvals[report_num].val[0];
+#endif
 		large_prime[1] = 1;
 
 		//add this one
@@ -130,11 +147,20 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	if (sconf->use_dlp == 0)
 		return;
 
+#if defined(TDIV_GMP)
 	//quick check if Q is way too big for DLP (more than 64 bits)
-	if (Q->size >= 3)
+	
+	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) >= 64)
 		return;
 
-	q64 = (uint64)Q->val[0] + ((uint64)Q->val[1] << 32);
+	q64 = mpz_get_64(dconf->Qvals[report_num]);
+#else
+	if (dconf->Qvals[report_num].size >= 3)
+		return;
+
+	q64 = (uint64)dconf->Qvals[report_num].val[0] + ((uint64)dconf->Qvals[report_num].val[1] << 32);
+#endif
+
 
 	if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 	{	

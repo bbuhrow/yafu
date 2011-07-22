@@ -148,7 +148,7 @@ int ecm_loop(fact_obj_t *fobj)
             LCGSTATE = child_lcgstate;			
             break;
         }
-		my_thread_data->thread_num = i;
+		my_thread_data->thread_num = THREADS - 1;
 		my_thread_data->curves_run = *my_curves_run;
     }
 
@@ -1035,11 +1035,10 @@ void *ecm_do_one_curve(void *ptr)
 
 		// run system command
 		system(cmd);
-		//printf("%s",cmd);
-
+		
 		// parse output file
 		fid = fopen(thread_data->tmp_output, "r");
-		while (!feof(fid))
+		while ((fid != NULL) && (!feof(fid)))
 		{
 			char fact[1024];
 
@@ -1052,7 +1051,7 @@ void *ecm_do_one_curve(void *ptr)
 				continue;
 
 			// found a factor.  search for the :
-			ptr = strstr(ptr, ":");
+			ptr = strstr(line, ":");
 			if (ptr == NULL)
 				continue;
 
@@ -1066,6 +1065,7 @@ void *ecm_do_one_curve(void *ptr)
 
 			break;
 		}
+		fclose(fid);
 
 		sFree(&lstr);
 	}
