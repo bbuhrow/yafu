@@ -788,8 +788,8 @@ this file contains code implementing 3) and 4)
 	do \
 	{						\
 		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);			\
-	} while (zShortMod32(&dconf->Qvals[report_num], prime) == 0);
+		zShortDiv32(Q, prime, Q);			\
+	} while (zShortMod32(Q, prime) == 0);
 #endif
 
 #if defined(TDIV_GMP)
@@ -801,10 +801,10 @@ this file contains code implementing 3) and 4)
 	}
 #else
 #define DIVIDE_RESIEVED_PRIME(j) \
-	while (zShortMod32(&dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
+	while (zShortMod32(Q, fbc->prime[i+j]) == 0) \
 	{						\
 		fb_offsets[++smooth_num] = i+j;	\
-		zShortDiv32(&dconf->Qvals[report_num], fbc->prime[i+j], &dconf->Qvals[report_num]);		\
+		zShortDiv32(Q, fbc->prime[i+j], Q);		\
 	}
 #endif
 
@@ -855,6 +855,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
+#if !defined(TDIV_GMP)
+		z32 *Q = &dconf->Qvals[report_num];
+#endif
 		if (!dconf->valid_Qs[report_num])
 			continue;
 

@@ -65,9 +65,9 @@ this file contains code implementing 2)
 	do	\
 	{	\
 		dconf->fb_offsets[report_num][++smooth_num] = i;	\
-		zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);	\
+		zShortDiv32(Q, prime, Q);	\
 		bits += logp;	\
-	} while (zShortMod32(&dconf->Qvals[report_num], prime) == 0);
+	} while (zShortMod32(Q, prime) == 0);
 #endif
 
 //#define DO_4X_SPV 1
@@ -95,6 +95,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 #ifdef DO_4X_SPV
 	uint32 *offsetarray, *mask1, *mask2;
+#endif
+
+#if !defined(TDIV_GMP)
+	z32 *Q;
 #endif
 
 	fullfb_ptr = fullfb;
@@ -170,9 +174,11 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		z64_to_z32(&dconf->qstmp4,&dconf->Qvals[report_num]);
 #endif
 
-		if (dconf->Qvals[report_num].size < 0)
+		Q = &dconf->Qvals[report_num];
+
+		if (Q->size < 0)
 		{
-			dconf->Qvals[report_num].size *= -1;
+			Q->size *= -1;
 			dconf->fb_offsets[report_num][++smooth_num] = 0;
 		}
 
@@ -200,10 +206,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			bits++;
 		}
 #else
-		while ((dconf->Qvals[report_num].val[0] & 0x1) == 0)
+		while (!(Q->val[0] & 0x1))
 		{
 			//
-			zShiftRight32_x(&dconf->Qvals[report_num],&dconf->Qvals[report_num],1);
+			zShiftRight32_x(Q, Q, 1);
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
 			bits++;
 		}
