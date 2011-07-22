@@ -71,6 +71,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	sieve_fb *fb;
 	uint32 offset, block_loc;
 
+#if !defined(TDIV_GMP)
+	z32 *Q = &dconf->Qvals[report_num];
+#endif
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
@@ -102,9 +105,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			polya_factors[it++] = dconf->curr_poly->qlisort[j];
 		}
 #else
-		while ((zShortMod32(&dconf->Qvals[report_num],prime) == 0) && (it < 20))
+		while ((zShortMod32(Q, prime) == 0) && (it < 20))
 		{
-			zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);
+			zShortDiv32(Q, prime, Q);
 			polya_factors[it++] = dconf->curr_poly->qlisort[j];
 		}
 
@@ -116,8 +119,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		((uint32)mpz_get_ui(dconf->Qvals[report_num]) < sconf->large_prime_max))
 #else
-	if ((dconf->Qvals[report_num].size == 1) && 
-		(dconf->Qvals[report_num].val[0] < sconf->large_prime_max))
+	if ((Q->size == 1) && 
+		(Q->val[0] < sconf->large_prime_max))
 #endif
 	{
 		uint32 large_prime[2];
@@ -125,7 +128,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #if defined(TDIV_GMP)
 		large_prime[0] = (uint32)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 #else
-		large_prime[0] = dconf->Qvals[report_num].val[0];
+		large_prime[0] = Q->val[0];
 #endif
 		large_prime[1] = 1;
 
@@ -155,10 +158,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	q64 = mpz_get_64(dconf->Qvals[report_num]);
 #else
-	if (dconf->Qvals[report_num].size >= 3)
+	if (Q->size >= 3)
 		return;
 
-	q64 = (uint64)dconf->Qvals[report_num].val[0] + ((uint64)dconf->Qvals[report_num].val[1] << 32);
+	q64 = (uint64)Q->val[0] + ((uint64)Q->val[1] << 32);
 #endif
 
 

@@ -266,8 +266,8 @@ this file contains code implementing 5)
 	do	\
 	{	\
 		dconf->fb_offsets[report_num][++smooth_num] = i;	\
-		zShortDiv32(&dconf->Qvals[report_num], prime, &dconf->Qvals[report_num]);	\
-	} while (zShortMod32(&dconf->Qvals[report_num], prime) == 0);
+		zShortDiv32(Q, prime, Q);	\
+	} while (zShortMod32(Q, prime) == 0);
 #endif
 
 void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
@@ -281,6 +281,10 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	sieve_fb *fb;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
+
+#if !defined(TDIV_GMP)
+	z32 *Q = &dconf->Qvals[report_num];
+#endif
 
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
