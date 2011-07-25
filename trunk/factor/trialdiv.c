@@ -57,7 +57,11 @@ void zTrial(fact_obj_t *fobj)
 			tmp.type = PRIME;
 			add_to_factor_list(fobj, &tmp);
 			if (print && (VFLAG > 0))
+#if BITS_PER_DIGIT == 64
 				printf("div: found prime factor = %" PRIu64 "\n",q);
+#else
+				printf("div: found prime factor = %u\n",q);
+#endif
 		}
 	}
 

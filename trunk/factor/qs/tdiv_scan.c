@@ -61,41 +61,79 @@ this file contains code implementing 1)
 	#define SCAN_CLEAN asm volatile("emms");	
 
 	#if defined(HAS_SSE2)
-		//top level sieve scanning with SSE2
-		#define SIEVE_SCAN_32	\
-			asm volatile (		\
-				"movdqa (%1), %%xmm0   \n\t"		\
-				"orpd 16(%1), %%xmm0    \n\t"		\
-				"pmovmskb %%xmm0, %0   \n\t"		\
-				: "=r"(result)						\
-				: "r"(sieveblock + j), "0"(result)	\
-				: "%xmm0");
+		#define SIMD_SIEVE_SCAN_VEC 1
 
-		#define SIEVE_SCAN_64		\
+		//top level sieve scanning with SSE2
+		#define SIEVE_SCAN_32_VEC					\
 			asm volatile (							\
 				"movdqa (%1), %%xmm0   \n\t"		\
-				"orpd 16(%1), %%xmm0    \n\t"		\
-				"orpd 32(%1), %%xmm0    \n\t"		\
-				"orpd 48(%1), %%xmm0    \n\t"		\
-				"pmovmskb %%xmm0, %0   \n\t"		\
+				"por 16(%1), %%xmm0    \n\t"		\
+				"pmovmskb %%xmm0, %%r11   \n\t"		/* output results to 64 bit register */		\
+				"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
+				"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+				"movdqa (%1), %%xmm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
+				"movdqa 16(%1), %%xmm1   \n\t"		/* there are 16 bytes in each section */ \
+				"pmovmskb %%xmm1, %%r9d   \n\t"		/*  */		\
+				"salq $16, %%r9		\n\t"			/*  */ \
+				"pmovmskb %%xmm0, %%r8d   \n\t"		/*  */		\
+				"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+				"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+				"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+				"1:			\n\t"					/* top of bit scan loop */ \
+				"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+				"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+				"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+				"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+				"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+				"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+				"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
+				"jnz 1b		\n\t"					/* loop if so */ \
+				"2:		\n\t"						/*  */ \
+				"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
 				: "=r"(result)						\
-				: "r"(sieveblock + j), "0"(result)	\
-				: "%xmm0");
+				: "r"(sieveblock + j), "r"(buffer)	\
+				: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
-		#define SIEVE_SCAN_128		\
-			asm volatile (			\
+		#define SIEVE_SCAN_64_VEC					\
+			asm volatile (							\
 				"movdqa (%1), %%xmm0   \n\t"		\
-				"orpd 16(%1), %%xmm0    \n\t"		\
-				"orpd 32(%1), %%xmm0    \n\t"		\
-				"orpd 48(%1), %%xmm0    \n\t"		\
-				"orpd 64(%1), %%xmm0    \n\t"		\
-				"orpd 80(%1), %%xmm0    \n\t"		\
-				"orpd 96(%1), %%xmm0    \n\t"		\
-				"orpd 112(%1), %%xmm0    \n\t"		\
-				"pmovmskb %%xmm0, %0   \n\t"		\
+				"por 16(%1), %%xmm0    \n\t"		\
+				"por 32(%1), %%xmm0    \n\t"		\
+				"por 48(%1), %%xmm0    \n\t"		\
+				"pmovmskb %%xmm0, %%r11   \n\t"		/* output results to 64 bit register */		\
+				"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
+				"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+				"movdqa (%1), %%xmm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
+				"movdqa 16(%1), %%xmm1   \n\t"		/* there are 16 bytes in each section */ \
+				"movdqa 32(%1), %%xmm2   \n\t"		/* extract high bit masks from each byte */ \
+				"movdqa 48(%1), %%xmm3   \n\t"		/* and combine into one 64 bit register */ \
+				"pmovmskb %%xmm1, %%r9d   \n\t"		/*  */		\
+				"pmovmskb %%xmm3, %%r11d   \n\t"	/*  */		\
+				"salq $16, %%r9		\n\t"			/*  */ \
+				"pmovmskb %%xmm2, %%r10d   \n\t"	/*  */		\
+				"salq $48, %%r11		\n\t"		/*  */ \
+				"pmovmskb %%xmm0, %%r8d   \n\t"		/*  */		\
+				"salq $32, %%r10		\n\t"		/*  */ \
+				"orq	%%r11,%%r9		\n\t"		/*  */ \
+				"orq	%%r10,%%r8		\n\t"		/*  */ \
+				"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+				"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+				"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+				"1:			\n\t"					/* top of bit scan loop */ \
+				"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+				"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+				"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+				"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+				"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+				"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+				"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
+				"jnz 1b		\n\t"					/* loop if so */ \
+				"2:		\n\t"						/*  */ \
+				"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
 				: "=r"(result)						\
-				: "r"(sieveblock + j), "0"(result)	\
-				: "%xmm0");
+				: "r"(sieveblock + j), "r"(buffer)	\
+				: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
 
 	#elif defined(HAS_MMX)
 		#define SIEVE_SCAN_32		\
@@ -432,32 +470,49 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
 
-	//check for relations
+#ifdef SIMD_SIEVE_SCAN_VEC
+
 	for (j=0;j<it;j+=4)	
+	{		
+		uint32 result;
+		uint8 buffer[32];
+		
+		SIEVE_SCAN_32_VEC;
+
+		if (result == 0)
+			continue;
+
+		for (i=0; i<result; i++)
+		{
+			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			if ((dconf->sieve[thisloc] & 0x80) == 0)
+				continue;
+
+#ifdef YAFU_64K
+			//see discussion near line 377
+			if (thisloc == 65535)
+				continue;
+#endif
+
+			// log this report
+			dconf->reports[dconf->num_reports++] = thisloc;
+		}
+	}
+
+	// make it safe to perform floating point
+	SCAN_CLEAN;
+
+#elif defined(SIMD_SIEVE_SCAN)
+
+	//check for relations
+	for (j=0;j<it;j+=4)
 	{
-
-#ifdef SIMD_SIEVE_SCAN
-
 		uint32 result = 0;
 
 		SIEVE_SCAN_32;
 
 		if (result == 0)
 			continue;
-
-#else
-		uint64 mask = SCAN_MASK;
-
-		if (((sieveblock[j] | sieveblock[j+1] | 
-			sieveblock[j+2] | sieveblock[j+3]) & 
-		      mask) == (uint64)(0))
-			continue;
-#endif
-	
-#if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
-#endif
 
 		//at least one passed the check, find which one(s) and pass to 
 		//trial division stage
@@ -467,8 +522,6 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
 
-			//at least one passed the check, find which one(s) and pass to 
-			//trial division stage
 			for (k=0;k<8;k++)
 			{
 				thisloc = ((j+i)<<3) + k;
@@ -480,16 +533,53 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
+
 				// log this report
-				if (dconf->num_reports < MAX_SIEVE_REPORTS)
-					dconf->reports[dconf->num_reports++] = thisloc;
+				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
 
-#if defined(SIMD_SIEVE_SCAN)
 	// make it safe to perform floating point
 	SCAN_CLEAN;
+
+#else
+
+	for (j=0;j<limit;j+=4)	
+	{
+		uint32 k;
+
+		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3]
+			) & SCAN_MASK) == (uint64)(0))
+			continue;
+
+		//at least one passed the check, find which one(s) and pass to 
+		//trial division stage
+		for (i=0; i<4; i++)
+		{
+			//check 8 locations simultaneously
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+				continue;
+
+			for (k=0;k<8;k++)
+			{
+				thisloc = ((j+i)<<3) + k;
+				if ((dconf->sieve[thisloc] & 0x80) == 0)
+					continue;
+
+#ifdef YAFU_64K
+				//see discussion near line 377
+				if (thisloc == 65535)
+					continue;
+#endif
+
+				// log this report
+				dconf->reports[dconf->num_reports++] = thisloc;
+			}
+		}
+	}
+
+
 #endif
 
 	if (dconf->num_reports > MAX_SIEVE_REPORTS)
@@ -526,32 +616,49 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
 
+#ifdef SIMD_SIEVE_SCAN_VEC
+
+	for (j=0;j<it;j+=8)	
+	{		
+		uint32 result;
+		uint8 buffer[64];
+		
+		SIEVE_SCAN_64_VEC;
+
+		if (result == 0)
+			continue;
+
+		for (i=0; i<result; i++)
+		{
+			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			if ((dconf->sieve[thisloc] & 0x80) == 0)
+				continue;
+
+#ifdef YAFU_64K
+			//see discussion near line 377
+			if (thisloc == 65535)
+				continue;
+#endif
+
+			// log this report
+			dconf->reports[dconf->num_reports++] = thisloc;
+		}
+	}
+
+	// make it safe to perform floating point
+	SCAN_CLEAN;
+
+#elif defined(SIMD_SIEVE_SCAN)
+
 	//check for relations
 	for (j=0;j<it;j+=8)
 	{
-
-#ifdef SIMD_SIEVE_SCAN
-
 		uint32 result = 0;
 
 		SIEVE_SCAN_64;
 
 		if (result == 0)
 			continue;
-
-#else
-		uint64 mask = SCAN_MASK;
-
-		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
-		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7]) 
-			  & mask) == (uint64)(0))
-			continue;
-#endif
-		
-#if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
-#endif
 
 		//at least one passed the check, find which one(s) and pass to 
 		//trial division stage
@@ -579,9 +686,47 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		}
 	}
 
-#if defined(SIMD_SIEVE_SCAN)
 	// make it safe to perform floating point
 	SCAN_CLEAN;
+
+#else
+
+	for (j=0;j<limit;j+=8)	
+	{
+		uint32 k;
+
+		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
+		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7]
+			) & SCAN_MASK) == (uint64)(0))
+			continue;
+
+		//at least one passed the check, find which one(s) and pass to 
+		//trial division stage
+		for (i=0; i<8; i++)
+		{
+			//check 8 locations simultaneously
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+				continue;
+
+			for (k=0;k<8;k++)
+			{
+				thisloc = ((j+i)<<3) + k;
+				if ((dconf->sieve[thisloc] & 0x80) == 0)
+					continue;
+
+#ifdef YAFU_64K
+				//see discussion near line 377
+				if (thisloc == 65535)
+					continue;
+#endif
+
+				// log this report
+				dconf->reports[dconf->num_reports++] = thisloc;
+			}
+		}
+	}
+
+
 #endif
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
@@ -621,35 +766,50 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
 
+#ifdef SIMD_SIEVE_SCAN_VEC
+
+	for (j=0;j<it;j+=8)	
+	{		
+		uint32 result;
+		uint8 buffer[64];
+		
+		SIEVE_SCAN_64_VEC;
+
+		if (result == 0)
+			continue;
+
+		for (i=0; i<result; i++)
+		{
+			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			
+			if ((dconf->sieve[thisloc] & 0x80) == 0)
+				continue;
+
+#ifdef YAFU_64K
+			//see discussion near line 377
+			if (thisloc == 65535)
+				continue;
+#endif
+
+			// log this report
+			dconf->reports[dconf->num_reports++] = thisloc;
+		}
+	}
+
+	// make it safe to perform floating point
+	SCAN_CLEAN;
+
+#elif defined(SIMD_SIEVE_SCAN)
+
 	//check for relations
 	for (j=0;j<it;j+=16)
 	{
-
-#ifdef SIMD_SIEVE_SCAN
-
 		uint32 result = 0;
 
 		SIEVE_SCAN_128;
 
 		if (result == 0)
 			continue;
-
-#else
-		uint64 mask = SCAN_MASK;
-
-		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
-		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7] |
-			  sieveblock[j+8] | sieveblock[j+9] | sieveblock[j+10] | sieveblock[j+11] |
-		      sieveblock[j+12] | sieveblock[j+13] | sieveblock[j+14] | sieveblock[j+15]
-				) & mask) == (uint64)(0))
-			continue;
-#endif
-		
-
-#if defined(SIMD_SIEVE_SCAN)
-		// make it safe to perform floating point
-		SCAN_CLEAN;
-#endif
 
 		//at least one passed the check, find which one(s) and pass to 
 		//trial division stage
@@ -670,16 +830,57 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if (thisloc == 65535)
 					continue;
 #endif
+
 				// log this report
 				dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
 
-#if defined(SIMD_SIEVE_SCAN)
 	// make it safe to perform floating point
 	SCAN_CLEAN;
+
+#else
+
+	for (j=0;j<limit;j+=16)	
+	{
+		uint32 k;
+
+		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
+		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7] |
+			  sieveblock[j+8] | sieveblock[j+9] | sieveblock[j+10] | sieveblock[j+11] |
+		      sieveblock[j+12] | sieveblock[j+13] | sieveblock[j+14] | sieveblock[j+15]
+				) & SCAN_MASK) == (uint64)(0))
+			continue;
+
+		//at least one passed the check, find which one(s) and pass to 
+		//trial division stage
+		for (i=0; i<16; i++)
+		{
+			//check 8 locations simultaneously
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+				continue;
+
+			for (k=0;k<8;k++)
+			{
+				thisloc = ((j+i)<<3) + k;
+				if ((dconf->sieve[thisloc] & 0x80) == 0)
+					continue;
+
+#ifdef YAFU_64K
+				//see discussion near line 377
+				if (thisloc == 65535)
+					continue;
 #endif
+
+				// log this report
+				dconf->reports[dconf->num_reports++] = thisloc;
+			}
+		}
+	}
+
+
+#endif	
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 	{
