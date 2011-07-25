@@ -955,6 +955,7 @@ int check_if_done(fact_obj_t *fobj, z *N)
 				if (refactor_depth > 3)
 				{
 					printf("too many refactorization attempts, aborting\n");
+					break;
 				}
 				else
 				{
@@ -1776,6 +1777,8 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
+			if (zCompare(b, &zOne) != 0)
+				printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 
@@ -1784,6 +1787,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/NFS ratio was = %f\n",total_time/t_time);
+			printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 
@@ -1794,7 +1798,14 @@ void factor(fact_obj_t *fobj)
 		}		
 
 		// first, check if we're done
-		done = check_if_done(fobj, &origN);		
+		done = check_if_done(fobj, &origN);	
+
+		// paranoia
+		if (zCompare(b, &zZero) == 0)
+		{
+			printf("b = 0, exiting\n");
+			done = 1;
+		}
 
 		if ((!done && min_pretest_done) || force_switch)
 		{

@@ -1,6 +1,16 @@
+v 1.28.2
++ fixed a bug in Win32 builds that crippled the speed of double large prime
+	siqs factorizations
++ running single threaded now imposes the B1 limit on using external ECM 
+	executables
++ implemented a bit scanning technique to enhance the sse2 sieve scanning already
+	present in smallmpqs and siqs.  significant speedup to smallmpqs, almost
+	unnoticable to siqs.
++ fixed a bug in Win32 builds: trial division in verbose mode used the wrong output
+	display type
+
 v 1.28.1
 + fixed a bug in multi-threaded external ecm
-
 
 v 1.28
 + fixed a bug in LEGCD that called spDivide when v == 1, causing a crash

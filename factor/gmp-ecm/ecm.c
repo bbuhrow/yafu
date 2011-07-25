@@ -896,6 +896,12 @@ void ecm_process_init(fact_obj_t *fobj)
 			}
 		}
 	}
+	else
+	{
+		if (fobj->ecm_obj.B1 < 40000)
+			fobj->ecm_obj.use_external = 0;
+	}
+
 #endif
 
 	return;

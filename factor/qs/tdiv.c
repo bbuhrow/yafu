@@ -168,8 +168,16 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 	{	
 		//quick prime check: compute 2^(residue-1) mod residue.  
-		fp_digit res;
+		uint64 res;
+
+#if BITS_PER_DIGIT == 32
+		sp642z(q64,&dconf->qstmp1);
+		zShortSub(&dconf->qstmp1,1,&dconf->qstmp2);
+		zModExp(&zTwo,&dconf->qstmp2,&dconf->qstmp1,&dconf->qstmp3);
+		res = z264(&dconf->qstmp3);
+#else
 		spModExp(2, q64 - 1, q64, &res);
+#endif
 
 		//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
 		//more important to quickly weed out probable primes than to spend more time to be
