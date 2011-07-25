@@ -1731,7 +1731,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 //#ifdef NOT_DEFINED
 		{
 			z *input;
-			int numin = 1000;
+			int numin = 10000;
 			int bits = 115;
 			double sum;
 			fact_obj_t *fobj2;
@@ -1887,10 +1887,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			exit(1);
 			*/
 
-			for (bits=55; bits<=115; bits+=5)
+			for (bits=50; bits<=115; bits+=5)
 			{
 				int test_squfof = 0;
-
+				
 				gettimeofday(&tstart, NULL);
 
 				sum = 0;
@@ -1919,7 +1919,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					if (i % 100 == 0)
+					if (i % 1000 == 0)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);		
@@ -1930,7 +1930,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					else
 					{
 						fobj2->qs_obj.flags = 12345;
-						SIQS(fobj2);
+						smallmpqs(fobj2); //SIQS(fobj2);
 
 						if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
 						{						

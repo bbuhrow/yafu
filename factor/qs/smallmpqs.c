@@ -82,12 +82,14 @@ typedef struct
 
 typedef struct
 {
-	mpz_t poly_a;
-	mpz_t poly_b;
+	uint64 poly_a;
+	uint64 poly_b;
 	mpz_t poly_c;
-	mpz_t poly_d;
-	uint64 a64;
-	uint64 b64;
+	uint32 poly_d;
+	int poly_d_idp;
+	int poly_d_idn;
+	int side;
+	int use_only_p;
 } sm_mpqs_poly;
 
 static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_prime, 
@@ -109,13 +111,13 @@ static void smpqs_save_relation(sm_mpqs_rlist *list, uint32 offset, uint32 large
 						  uint32 rnum, uint16 *fboffset, int numpoly, uint32 parity);
 
 void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32 *modsqrt, mpz_t n);
-void smpqs_computeB(sm_mpqs_poly *poly, uint32 polyd, mpz_t n);
-void smpqs_nextD(uint32 *polyd, uint32 *polyd_id, mpz_t n);
+void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n);
+void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n);
 void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt, 
 	smpqs_sieve_fb *fbp, smpqs_sieve_fb *fbn, uint32 start_prime);
 
 uint8 smpqs_choose_multiplier(mpz_t n, uint32 fb_size);
-int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, mpz_t *apoly, mpz_t *bpoly,
+int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64 *apoly, uint64 *bpoly,
 			fb_list_sm_mpqs *fb, mpz_t n, int mul, 
 			mpz_t *factors, uint32 *num_factor);
 int sm_check_relation(mpz_t a, mpz_t b, sm_mpqs_r *r, fb_list_sm_mpqs *fb, mpz_t n);
@@ -497,12 +499,13 @@ void smallmpqs(fact_obj_t *fobj)
 	uint32 *modsqrt;
 
 	mpz_t n;
-	mpz_t *factors, tmp, tmp2, tmp3, sqrt_n, *apoly, *bpoly;
+	mpz_t *factors, tmp, tmp2, tmp3, sqrt_n;
+	uint64 *apoly, *bpoly;
 
 	double t_time;
 	struct timeval tstart, tend;
 	TIME_DIFF *	difference;
-	uint32 numpoly, polyalloc, polyd, polyd_id;
+	uint32 numpoly, polyalloc, polyd_id;
 	uint32 mul,i,j, j2;
 	uint32 pmax;							//largest prime in factor base
 	uint32 cutoff;
@@ -651,20 +654,12 @@ void smallmpqs(fact_obj_t *fobj)
 
 	//allocate the current polynomial
 	poly = (sm_mpqs_poly *)malloc(sizeof(sm_mpqs_poly));
-	mpz_init(poly->poly_a);
-	mpz_init(poly->poly_b);
 	mpz_init(poly->poly_c);
-	mpz_init(poly->poly_d);
 
 	//allocate the polynomial lists
 	polyalloc = 32;
-	apoly = (mpz_t *)malloc(polyalloc * sizeof(mpz_t));
-	bpoly = (mpz_t *)malloc(polyalloc * sizeof(mpz_t));
-	for (i=0; i<polyalloc; i++)
-	{
-		mpz_init(apoly[i]);
-		mpz_init(bpoly[i]);
-	}
+	apoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
+	bpoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
 
 	//find multiplier
 	mul = (uint32)smpqs_choose_multiplier(n,fb->B);
@@ -694,20 +689,24 @@ void smallmpqs(fact_obj_t *fobj)
 	if (P_MAX < 10000000)
 		GetPRIMESRange(0,10001000);
 
-	mpz_sqrt(poly->poly_d, tmp2); //zNroot(&tmp2,&poly->poly_d,2);
-	if (mpz_even_p(poly->poly_d))
-		mpz_add_ui(poly->poly_d, poly->poly_d, 1); //zAdd(&poly->poly_d,&zOne,&poly->poly_d);
+	mpz_sqrt(tmp, tmp2); //zNroot(&tmp2,&poly->poly_d,2);
+	if (mpz_even_p(tmp))
+		mpz_add_ui(tmp, tmp, 1); //zAdd(&poly->poly_d,&zOne,&poly->poly_d);
 	
-	mpz_nextprime(poly->poly_d,poly->poly_d); //zNextPrime_1(polyd, &fpt, &tmp, 1);
-	polyd = mpz_get_ui(poly->poly_d); //.val[0];
+	mpz_nextprime(tmp, tmp); //zNextPrime_1(polyd, &fpt, &tmp, 1);
+	poly->poly_d = (uint64)mpz_get_ui(tmp); //.val[0];
 
 	for (i=0; i<NUM_P; i++)
-		if (polyd == PRIMES[i])
+		if (poly->poly_d == PRIMES[i])
 			break;
-	polyd_id = i;
+	poly->poly_d_idp = i;
+	poly->poly_d_idn = i;
+	poly->side = 1;
+	if (i >= 5)
+		poly->use_only_p = 0;
 
-	smpqs_nextD(&polyd,&polyd_id,n);
-	smpqs_computeB(poly,polyd,n);	
+	smpqs_nextD(poly,n);
+	smpqs_computeB(poly,n);	
 
 	fb->list->prime[0] = 1;
 	fb->list->prime[1] = 2;
@@ -764,22 +763,18 @@ void smallmpqs(fact_obj_t *fobj)
 		//copy current poly into the poly lists
 		if (numpoly < polyalloc)
 		{
-			sm_zcopy(poly->poly_a,apoly[numpoly]);
-			sm_zcopy(poly->poly_b,bpoly[numpoly]);
+			apoly[numpoly] = poly->poly_a;
+			bpoly[numpoly] = poly->poly_b;
 		}
 		else
 		{
 			// get more space for the polys, if needed
 			polyalloc *= 2;
-			apoly = (mpz_t *)realloc(apoly, polyalloc * sizeof(mpz_t));
-			bpoly = (mpz_t *)realloc(bpoly, polyalloc * sizeof(mpz_t));
-			for (i=numpoly; i<polyalloc; i++)
-			{
-				mpz_init(apoly[i]);
-				mpz_init(bpoly[i]);
-			}
-			sm_zcopy(poly->poly_a,apoly[numpoly]);
-			sm_zcopy(poly->poly_b,bpoly[numpoly]);
+			apoly = (uint64 *)realloc(apoly, polyalloc * sizeof(uint64));
+			bpoly = (uint64 *)realloc(bpoly, polyalloc * sizeof(uint64));
+
+			apoly[numpoly] = poly->poly_a;
+			bpoly[numpoly] = poly->poly_b;
 		}
 
 		for (j2=0; j2 < sm_sieve_params.num_blocks; j2++)
@@ -817,8 +812,8 @@ void smallmpqs(fact_obj_t *fobj)
 		}
 
 		//next polynomial
-		smpqs_nextD(&polyd,&polyd_id,n);
-		smpqs_computeB(poly,polyd,n);
+		smpqs_nextD(poly,n);
+		smpqs_computeB(poly,n);
 		smpqs_computeRoots(poly,fb,modsqrt,fb_sieve_p,fb_sieve_n,2);
 
 		numpoly++;
@@ -845,10 +840,7 @@ done:
 	align_free(sieve);
 	free(fb_sieve_p);
 	free(fb_sieve_n);
-	mpz_clear(poly->poly_a);
-	mpz_clear(poly->poly_b);
 	mpz_clear(poly->poly_c);
-	mpz_clear(poly->poly_d);
 	free(poly);
 	free(modsqrt);
 
@@ -946,11 +938,6 @@ done:
 	free(partial->list);
 	free(partial);
 
-	for (i=0;i<polyalloc;i++)
-	{
-		mpz_clear(apoly[i]);
-		mpz_clear(bpoly[i]);
-	}
 	free(apoly);
 	free(bpoly);
 
@@ -1110,9 +1097,11 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 			(*num)++;
 
 			offset = (blocknum<<SM_BLOCKBITS) + thisloc;
-			mpz_mul_2exp(t2, poly->poly_b, 1); //zShiftLeft_1(&t2,&poly->poly_b);
+			mpz_set_64(t2, poly->poly_b);
+			mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
-			mpz_mul_ui(t1, poly->poly_a, offset); //zShortMul(&poly->poly_a,offset,&t1);
+			mpz_set_64(t1, poly->poly_a);
+			mpz_mul_ui(t1, t1, offset); //zShortMul(&poly->poly_a,offset,&t1);
 			if (parity)
 				mpz_sub(t3, t1, t2); //zSub(&t1,&t2,&t3);
 			else
@@ -1164,9 +1153,11 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 				(*num)++;
 
 				offset = (blocknum<<SM_BLOCKBITS) + thisloc;
-				mpz_mul_2exp(t2, poly->poly_b, 1); //zShiftLeft_1(&t2,&poly->poly_b);
+				mpz_set_64(t2, poly->poly_b);
+				mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
-				mpz_mul_ui(t1, poly->poly_a, offset); //zShortMul(&poly->poly_a,offset,&t1);
+				mpz_set_64(t1, poly->poly_a);
+				mpz_mul_ui(t1, t1, offset); //zShortMul(&poly->poly_a,offset,&t1);
 				if (parity)
 					mpz_sub(t3, t1, t2); //zSub(&t1,&t2,&t3);
 				else
@@ -1220,9 +1211,11 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 				(*num)++;
 
 				offset = (blocknum<<SM_BLOCKBITS) + thisloc;
-				mpz_mul_2exp(t2, poly->poly_b, 1); //zShiftLeft_1(&t2,&poly->poly_b);
+				mpz_set_64(t2, poly->poly_b);
+				mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
-				mpz_mul_ui(t1, poly->poly_a, offset); //zShortMul(&poly->poly_a,offset,&t1);
+				mpz_set_64(t1, poly->poly_a);
+				mpz_mul_ui(t1, t1, offset); //zShortMul(&poly->poly_a,offset,&t1);
 				if (parity)
 					mpz_sub(t3, t1, t2); //zSub(&t1,&t2,&t3);
 				else
@@ -1571,15 +1564,36 @@ static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_pri
 	return;
 }
 
-void smpqs_nextD(uint32 *polyd, uint32 *polyd_id, mpz_t n)
+void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 {
 	uint32 r;
-	do 
+
+	if (poly->side || poly->use_only_p)
 	{
-		(*polyd_id)++;
-		*polyd = PRIMES[*polyd_id];
-		r = mpz_tdiv_ui(n,*polyd); //zShortMod(n,*polyd);
-	} while ((jacobi_1(r,*polyd) != 1) || ((*polyd & 3) != 3));
+		do 
+		{
+			poly->poly_d_idp++;
+			poly->poly_d = PRIMES[poly->poly_d_idp];
+			r = mpz_tdiv_ui(n,poly->poly_d); //zShortMod(n,*polyd);
+		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
+	}
+	else
+	{
+		do 
+		{
+			poly->poly_d_idn--;
+			if (poly->poly_d_idn < 5)
+			{
+				poly->use_only_p = 1;
+				smpqs_nextD(poly, n);
+				return;
+			}
+			poly->poly_d = PRIMES[poly->poly_d_idn];			
+			r = mpz_tdiv_ui(n,poly->poly_d); //zShortMod(n,*polyd);
+		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
+	}
+
+	poly->side = !poly->side;
 
 	return;
 }
@@ -1619,13 +1633,14 @@ void gmpModExp_1(mpz_t a, uint32 b, uint32 m, uint32 *u)
 }
 
 
-void smpqs_computeB(sm_mpqs_poly *poly, uint32 polyd, mpz_t n)
+void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
 {
 	//using poly_d, compute poly_b and poly_a = poly_d^2
 	//int i;
 	mpz_t t1, t2, t3, t4, t5;
 	uint64 pa, pb;
 	uint32 ut1;
+	uint32 polyd = poly->poly_d;
 
 	mpz_init(t1);
 	mpz_init(t2);
@@ -1667,27 +1682,22 @@ void smpqs_computeB(sm_mpqs_poly *poly, uint32 polyd, mpz_t n)
 	mpz_add(t5, t4, t1); //zAdd(&t4,&t1,&t5);
 
 	//we're now done with d, so compute a = d^2
-	mpz_set_ui(poly->poly_a, polyd); //pa = (uint64)polyd * (uint64)polyd;
-	mpz_mul_ui(poly->poly_a, poly->poly_a, polyd);
-	pa = mpz_get_64(poly->poly_a);
+	poly->poly_a = (uint64)polyd * (uint64)polyd;
 
 	//compute b = h1 + h2*d mod a
-	mpz_tdiv_r(t5, t5, poly->poly_a); //zShortMod(&t5,pa);	
-	pb = mpz_get_64(t5);
+	mpz_set_64(t4, poly->poly_a);
+	mpz_tdiv_r(t5, t5, t4);
+	poly->poly_b = mpz_get_64(t5);
 
 	//make sure b < a/2
-	if (pb > (pa >> 1))
-		mpz_set_64(poly->poly_b, pa-pb); //sp2z(pa - pb,&poly->poly_b);
-	else
-		mpz_set_64(poly->poly_b, pb); //sp2z(pb,&poly->poly_b);
+	if (poly->poly_b > (poly->poly_a >> 1))
+		poly->poly_b = poly->poly_a - poly->poly_b; //sp2z(pa - pb,&poly->poly_b);
 
 	//now that we have b, compute c = (b*b - n)/a
-	mpz_mul(t1, poly->poly_b, poly->poly_b); //zSqr(&poly->poly_b,&t1);
+	mpz_set_64(t2, poly->poly_b);
+	mpz_mul(t1, t2, t2); //zSqr(&poly->poly_b,&t1);
 	mpz_sub(t3, t1, n); //zSub(&t1,n,&t3);
-	mpz_tdiv_q(poly->poly_c, t3, poly->poly_a); //zShortDiv(&t3,pa,&poly->poly_c);
-
-	poly->a64 = mpz_get_64(poly->poly_a);
-	poly->b64 = mpz_get_64(poly->poly_b);
+	mpz_tdiv_q(poly->poly_c, t3, t4); //zShortDiv(&t3,pa,&poly->poly_c);
 
 	mpz_clear(t1);
 	mpz_clear(t2);
@@ -1765,13 +1775,13 @@ void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt
 		root1 = modsqrt[i]; 
 		root2 = prime - root1; 
 
-		bmodp = poly->b64 % (uint64)prime;
+		bmodp = poly->poly_b % (uint64)prime;
 		x = (int)root1 - bmodp;
 		if (x < 0) x += prime; root1 = x;
 		x = (int)root2 - bmodp;
 		if (x < 0) x += prime; root2 = x;
 
-		amodp = poly->a64 % (uint64)prime;
+		amodp = poly->poly_a % (uint64)prime;
 		amodp = modinv_1(amodp,prime);
 
 		t2 = (uint64)amodp * (uint64)root1;
@@ -1805,7 +1815,7 @@ void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt
 		if (prime > 256)
 			break;
 
-		bmodp = poly->b64 % (uint64)prime;
+		bmodp = poly->poly_b % (uint64)prime;
 		x = (int)root1 - bmodp;
 		if (x < 0) x += prime;
 		root1 = x;
@@ -1815,7 +1825,7 @@ void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt
 	
 		//now (t - b) mod p is in root1 and (-t - b) mod p is in root2
 		//find a^-1 mod p = inv(a mod p) mod p
-		amodp = poly->a64 % (uint64)prime;
+		amodp = poly->poly_a % (uint64)prime;
 		amodp = modinv_1(amodp,prime);
 
 		t2 = (uint64)amodp * (uint64)root1;
@@ -1850,7 +1860,7 @@ void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt
 		root1 = modsqrt[i]; 
 		root2 = prime - root1; 
 
-		bmodp = poly->b64 % (uint64)prime;
+		bmodp = poly->poly_b % (uint64)prime;
 		x = (int)root1 - bmodp;
 		if (x < 0) x += prime;
 		root1 = x;
@@ -1860,7 +1870,7 @@ void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt
 	
 		//now (t - b) mod p is in root1 and (-t - b) mod p is in root2
 		//find a^-1 mod p = inv(a mod p) mod p
-		amodp = poly->a64 % (uint64)prime;
+		amodp = poly->poly_a % (uint64)prime;
 		amodp = modinv_1(amodp,prime);
 
 		t2 = (uint64)amodp * (uint64)root1;
@@ -1904,7 +1914,7 @@ int qcomp_smpqs(const void *x, const void *y)
 
 static uint64 smpqs_bitValRead64(uint64 **m, int row, int col);
 
-int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, mpz_t *apoly, mpz_t *bpoly,
+int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64 *apoly, uint64 *bpoly,
 			fb_list_sm_mpqs *fb, mpz_t n, int mul, 
 			mpz_t *factors,uint32 *num_factor)
 {
@@ -2127,19 +2137,18 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, mpz_t *apoly, 
 
 										//recreate poly_b from poly_a (store instead??)
 										polynum = partial->list[partial_index[l-num_f]]->polynum;
-
-										sm_check_relation(apoly[polynum], bpoly[polynum], 
-											partial->list[partial_index[l-num_f]], fb, n);
 											
 										//compute Q1(x)
-										pa = mpz_get_64(apoly[polynum]); //apoly[polynum].val[0];
+										pa = apoly[polynum];
 										d1 = (uint32)sqrt((int64)pa);
 										
-										mpz_mul_ui(tmp, apoly[polynum], partial->list[partial_index[l-num_f]]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]]->offset,&tmp);
+										mpz_set_64(tmp, apoly[polynum]);
+										mpz_set_64(tmp3, bpoly[polynum]);
+										mpz_mul_ui(tmp, tmp, partial->list[partial_index[l-num_f]]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]]->offset,&tmp);
 										if (partial->list[partial_index[l-num_f]]->parity)
-											mpz_sub(tmp, tmp, bpoly[polynum]); //zShortSub(&tmp,pb,&tmp);
+											mpz_sub(tmp, tmp, tmp3); //zShortSub(&tmp,pb,&tmp);
 										else
-											mpz_add(tmp, tmp, bpoly[polynum]); //zShortAdd(&tmp,pb,&tmp);
+											mpz_add(tmp, tmp, tmp3); //zShortAdd(&tmp,pb,&tmp);
 
 										//include 'a'
 										mpz_mul_ui(tmp2, zy, d1); //zShortMul(&zy,d1,&tmp2);
@@ -2147,19 +2156,18 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, mpz_t *apoly, 
 
 										//compute Q2(x)
 										polynum = partial->list[partial_index[l-num_f]-1]->polynum;
-
-										sm_check_relation(apoly[polynum], bpoly[polynum], 
-											partial->list[partial_index[l-num_f]-1], fb, n);
 											
 										//compute Q1(x)
-										pa = mpz_get_64(apoly[polynum]); //apoly[polynum].val[0];
+										pa = apoly[polynum]; 
 										d2 = (uint32)sqrt((int64)pa);
 										
-										mpz_mul_ui(tmp3, apoly[polynum],partial->list[partial_index[l-num_f]-1]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]-1]->offset,&tmp3);
+										mpz_set_64(tmp3, apoly[polynum]);
+										mpz_set_64(tmp4, bpoly[polynum]);
+										mpz_mul_ui(tmp3, tmp3, partial->list[partial_index[l-num_f]-1]->offset); //zShortMul(&apoly[polynum],partial->list[partial_index[l-num_f]-1]->offset,&tmp3);
 										if (partial->list[partial_index[l-num_f]-1]->parity)
-											mpz_sub(tmp2, tmp3, bpoly[polynum]); //zShortSub(&tmp3,pb,&tmp2);
+											mpz_sub(tmp2, tmp3, tmp4); //zShortSub(&tmp3,pb,&tmp2);
 										else
-											mpz_add(tmp2, tmp3, bpoly[polynum]); //zShortAdd(&tmp3,pb,&tmp2);
+											mpz_add(tmp2, tmp3, tmp4); //zShortAdd(&tmp3,pb,&tmp2);
 
 										//compute Q(x1)*Q(x2)
 										mpz_mul(tmp4, tmp, tmp2); //zMul(&tmp,&tmp2,&tmp4);	
@@ -2180,19 +2188,18 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, mpz_t *apoly, 
 
 										//recreate poly_b from poly_a (store instead??)
 										polynum = full->list[l]->polynum;
-
-										sm_check_relation(apoly[polynum], bpoly[polynum], 
-											full->list[l], fb, n);
 											
 										//compute Q1(x)
-										mpz_mul_ui(tmp, apoly[polynum],full->list[l]->offset); //zShortMul(&apoly[polynum],full->list[l]->offset,&tmp);
-										pa = mpz_get_64(apoly[polynum]); //apoly[polynum].val[0];
+										mpz_set_64(tmp, apoly[polynum]);
+										mpz_set_64(tmp4, bpoly[polynum]);
+										mpz_mul_ui(tmp, tmp, full->list[l]->offset); //zShortMul(&apoly[polynum],full->list[l]->offset,&tmp);
+										pa = apoly[polynum]; //apoly[polynum].val[0];
 										d1 = (uint32)sqrt((int64)pa);
 
 										if (full->list[l]->parity)
-											mpz_sub(nn, tmp, bpoly[polynum]); //zShortSub(&tmp,pb,&nn);
+											mpz_sub(nn, tmp, tmp4); //zShortSub(&tmp,pb,&nn);
 										else
-											mpz_add(nn, tmp, bpoly[polynum]); //zShortAdd(&tmp,pb,&nn);
+											mpz_add(nn, tmp, tmp4); //zShortAdd(&tmp,pb,&nn);
 
 										mpz_mul(tmp, zx, nn); //zMul(&zx,&nn,&tmp);			//accumulate with previous terms
 										mpz_tdiv_r(zx, tmp, n); //zDiv(&tmp,n,&tmp2,&zx);		//mod n
