@@ -483,6 +483,8 @@ typedef struct
 void init_factobj(fact_obj_t *fobj);
 void record_new_factor(fact_obj_t *fobj,char *method, z *n);
 void free_factobj(fact_obj_t *fobj);
+void reset_factobj(fact_obj_t *fobj);
+void alloc_factobj(fact_obj_t *fobj);
 
 /* ---------------- DECLARATIONS FOR SAVEFILE MANIPULATION -------------- */
 // copied from msieve source code

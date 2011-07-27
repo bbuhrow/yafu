@@ -109,7 +109,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job);
 int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
-uint32 get_spq(char *line, fact_obj_t *fobj);
+uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
@@ -1639,61 +1639,75 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 			//free relations, which don't have a special q to read.
 			//our task is to find the last valid line of the file, and then read
 			//the last numeric entry from that line.
+			//furthermore, the last valid line could be incomplete if a job is interrupted.  so
+			//we must be able to check the next to last valid line as well.
+			//finally, we must be able to parse the special q from the line, which could have
+			//been from a rational side or algebraic side sieve.  unfortunately, there is
+			//no way to tell what previous jobs may have done (alg or rat), so instead we 
+			//parse according to what the current job is using and then test the result
+			//with some sanity checks to see if we interpreted correctly.
+			//the sanity checks are as follows:
+			//if the number we picked is actually a special-q, then it will have numbers of similar
+			//size (or the same) in identical positions in other lines.  it should also be above
+			//a certain bound, and be prime.  if it meets all of these criteria, then we probably
+			//used the right interpretation.
 			if (1)
 			{
-				char line2[GSTR_MAXSIZE];
+				char **lines, tmp[GSTR_MAXSIZE];
+				int line;
+				int i;
+
+				lines = (char **)malloc(4 * sizeof(char *));
+				for (i=0; i < 4; i++)
+					lines[i] = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 
 				in = fopen(fobj->nfs_obj.outputfile,"r");
-				ptr = fgets(line, GSTR_MAXSIZE, in);
+				ptr = fgets(lines[0], GSTR_MAXSIZE, in);
 				if (ptr == NULL)
 				{
 					fclose(in);
 					*last_spq = 0;
+					for (i=0; i < 4; i++)
+						free(lines[i]);
+					free(lines);
 					return ans;
 				}
 
 				// crawl through the entire data file to find the next to last line
+				// TODO: can't we start from the end of the file somehow?
+				line = 0;
 				while (!feof(in))
 				{
-					//throw away the next three lines.  if we encounter an end of file
-					//in doing so, examine the last valid line
-					ptr = fgets(line2, GSTR_MAXSIZE, in);
+					// read a line into the next position of the circular buffer
+					ptr = fgets(tmp, GSTR_MAXSIZE, in);
 					if (ptr == NULL)
-					{
-						*last_spq = get_spq(line, fobj);
-						return ans;
-					}					
+						break;					
 
-					ptr = fgets(line2, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
+					// quick check that it might be a valid line
+					if (strlen(tmp) > 30)
 					{
-						*last_spq = get_spq(line, fobj);
-						return ans;
+						// wrap
+						if (++line > 3) line = 0;
+						// then copy
+						strcpy(lines[line], tmp);					
 					}
 
-					ptr = fgets(line2, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
-					{
-						*last_spq = get_spq(line, fobj);
-						return ans;
-					}
-
-					//get another line, and check to make sure its valid.  if not,
-					//keep going
-					ptr = fgets(line2, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
-					{
-						*last_spq = get_spq(line, fobj);
-						return ans;
-					}
-					else
-					{
-						if (strlen(line2) > 30)
-							strcpy(line, line2);
-					}
-					job->current_rels += 4;
+					// while we are at it, count the lines
+					job->current_rels++;
 
 				}
+				fclose(in);
+
+				// now we are done and we have a buffer with the last 4 valid lines
+				// throw away the last one, which may be malformed, and extract
+				// the special q from the other 3.
+				for (i=0; i<4; i++)
+					printf("line %d = %s\n",i, lines[i]);
+				*last_spq = get_spq(lines, line, fobj);
+
+				for (i=0; i < 4; i++)
+					free(lines[i]);
+				free(lines);
 			}
 		}
 		else
@@ -1726,34 +1740,116 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 
 }
 
-uint32 get_spq(char *line, fact_obj_t *fobj)
+uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 {	
-	//next to the last line is in line2
-	int i;
+	//the last 4 valid lines are passed in
+	int i, line, count;
+	double var[2], avg[2];
 	uint32 ans;
 	FILE *logfile;
+	uint32 rat[3], alg[3];
+	char *ptr;
 
 	if (VFLAG > 0)
-		printf("nfs: parsing special-q from line: %s\n",line);
+		printf("nfs: parsing special-q\n");
 
 	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
 		printf("could not open yafu logfile for appending\n");
 	else
 	{
-		logprint(logfile, "nfs: parsing special-q from line: %s\n",line);
+		logprint(logfile, "nfs: parsing special-q\n");
 		fclose(logfile);
 	}
 
 	ans = 0;
-	//note: this assumes algebraic side sieving
-	for (i=strlen(line); i>=0; i--)
+	// grab the entry in both the rational side and algebraic side
+	// special-q locations from 3 different lines
+	line = last_line;
+	for (count=0; count < 3; count++)
 	{
-		if (line[i] == ',')
-			break;
+		if (++line > 3) line = 0;
+
+		// find a,b delimiter
+		ptr = strstr(lines[line], ":");
+		if (ptr == NULL)
+		{
+			rat[count] = alg[count] = 0;
+			continue;
+		}
+
+		// find rat side delimiter
+		ptr = strstr(ptr + 1, ":");
+		if (ptr == NULL)
+		{
+			rat[count] = alg[count] = 0;
+			continue;
+		}
+
+		// grab rat side entry
+		for (i = (ptr - lines[line]) - 1; i >= 0; i--)
+			if (lines[line][i] == ',')
+				break;
+
+		printf("parsing rat side spq from %s\n",lines[line]);
+		sscanf(lines[line] + i + 1, "%x", &rat[count]);
+		printf("found %x\n", rat[count]);
+
+		// grab alg side entry
+		for (i= strlen(lines[line]) - 1; i >= 0; i--)
+			if (lines[line][i] == ',')
+				break;
+
+		printf("parsing alg side spq from %s\n",lines[line]);
+		sscanf(lines[line] + i + 1, "%x", &alg[count]);
+		printf("found %x\n", alg[count]);
 	}
-	sscanf(line+i+1,"%x",&ans);
-	return ans;
+
+	// now we gotta make a decision.
+	// if any two of the entries are less than 10000, eliminate
+	// that side
+
+	if (((rat[0] < 10000) && (rat[1] < 10000)) ||
+		((rat[0] < 10000) && (rat[2] < 10000)) ||
+		((rat[1] < 10000) && (rat[1] < 10000)))
+	{
+		// guess that it is an algebraic line
+		return alg[0];
+	}
+	else if (((alg[0] < 10000) && (alg[1] < 10000)) ||
+		((alg[0] < 10000) && (alg[2] < 10000)) ||
+		((alg[1] < 10000) && (alg[1] < 10000)))
+	{
+		// guess that it is a rational line
+		return rat[0];
+	}
+	
+	// if all 3 are the same for either, then pick that one
+	if ((rat[0] == rat[1]) && (rat[1] == rat[2]))
+	{
+		return rat[0];
+	}
+	else if ((alg[0] == alg[1]) && (alg[1] == alg[2]))
+	{
+		return alg[0];
+	}
+
+	// else, pick the one with lowest variance
+	avg[0] = ((double)rat[0] + (double)rat[1] + (double)rat[2]) / 3;
+	avg[1] = ((double)alg[0] + (double)alg[1] + (double)alg[2]) / 3;
+
+	var[0] = (pow((double)rat[0] - avg[0],2) + 
+		pow((double)rat[1] - avg[0],2) + 
+		pow((double)rat[2] - avg[0],2)) / 3;
+	var[1] = (pow((double)alg[0] - avg[1],2) + 
+		pow((double)alg[1] - avg[1],2) + 
+		pow((double)alg[2] - avg[1],2)) / 3;
+
+	if (var[0] < var[1])
+		return rat[0];
+	else
+		return alg[0];
+
 }
 
 void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)

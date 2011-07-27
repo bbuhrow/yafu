@@ -105,53 +105,32 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 
 void init_factobj(fact_obj_t *fobj)
 {
+	// get space for everything
+	alloc_factobj(fobj);
+
 	// initialize global stuff in fobj
 	fobj->seed1 = g_rand.low;
 	fobj->seed2 = g_rand.hi;
 	yafu_get_cache_sizes(&fobj->cache_size1,&fobj->cache_size2);
 	fobj->flags = 0;
-	fobj->num_threads = 1;		//read from input arguments
-	zInit(&fobj->N);
-	sInit(&fobj->str_N);	
+	fobj->num_threads = 1;		//read from input arguments	
 	strcpy(fobj->flogname,"factor.log");	
 
-	// initialize stuff for rho
-	fobj->rho_obj.num_factors = 0;
-	fobj->rho_obj.factors = (z *)malloc(sizeof(z));
-	fobj->rho_obj.num_poly = 3;
-	fobj->rho_obj.iterations = 1000;
-	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
-	fobj->rho_obj.polynomials[0] = 1;
-	fobj->rho_obj.polynomials[1] = 3;
-	fobj->rho_obj.polynomials[2] = 2;
-	fobj->rho_obj.curr_poly = 0;
-	zInit(&fobj->rho_obj.n);
-	sInit(&fobj->rho_obj.in);
-	sInit(&fobj->rho_obj.out);
+	// initialize stuff for rho	
+	fobj->rho_obj.iterations = 1000;		
+	fobj->rho_obj.curr_poly = 0;	
 
-	// initialize stuff for pm1
-	fobj->pm1_obj.num_factors = 0;
-	fobj->pm1_obj.factors = (z *)malloc(sizeof(z));
+	// initialize stuff for pm1	
 	fobj->pm1_obj.B1 = 100000;
 	fobj->pm1_obj.B2 = 10000000;
-	fobj->pm1_obj.stg2_is_default = 1;
-	zInit(&fobj->pm1_obj.n);
-	sInit(&fobj->pm1_obj.in);
-	sInit(&fobj->pm1_obj.out);
+	fobj->pm1_obj.stg2_is_default = 1;	
 
-	// initialize stuff for pp1
-	fobj->pp1_obj.num_factors = 0;
-	fobj->pp1_obj.factors = (z *)malloc(sizeof(z));
+	// initialize stuff for pp1	
 	fobj->pp1_obj.B1 = 20000;
 	fobj->pp1_obj.B2 = 1000000;
-	fobj->pp1_obj.stg2_is_default = 1;
-	zInit(&fobj->pp1_obj.n);
-	sInit(&fobj->pp1_obj.in);
-	sInit(&fobj->pp1_obj.out);
+	fobj->pp1_obj.stg2_is_default = 1;	
 
-	// initialize stuff for ecm
-	fobj->ecm_obj.num_factors = 0;
-	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
+	// initialize stuff for ecm	
 	fobj->ecm_obj.B1 = 11000;
 	fobj->ecm_obj.B2 = 1100000;
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -161,10 +140,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->ecm_obj.curves_run = NULL;
 #else
 	fobj->ecm_obj.curves_run = 0;
-#endif
-	zInit(&fobj->ecm_obj.n);
-	sInit(&fobj->ecm_obj.in);
-	sInit(&fobj->ecm_obj.out);
+#endif	
 	// unlike ggnfs, ecm does not *require* external binaries.  
 	// an empty string indicates the use of the built-in GMP-ECM hooks, while
 	// a non-empty string (filled in by the user) will indicate the use of
@@ -173,15 +149,9 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->ecm_obj.use_external = 0;
 
 	// initialize stuff for squfof
-	fobj->squfof_obj.num_factors = 0;
-	fobj->squfof_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->squfof_obj.n);
-	sInit(&fobj->squfof_obj.in);
-	sInit(&fobj->squfof_obj.out);
+	fobj->squfof_obj.num_factors = 0;	
 
-	// initialize stuff for qs
-	fobj->qs_obj.num_factors = 0;
-	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
+	// initialize stuff for qs	
 	fobj->qs_obj.gbl_override_B_flag = 0;
 	fobj->qs_obj.gbl_override_B = 0;
 	fobj->qs_obj.gbl_override_blocks_flag = 0;
@@ -199,24 +169,14 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.qs_multiplier = 0;
 	fobj->qs_obj.qs_tune_freq = 0;
 	fobj->qs_obj.no_small_cutoff_opt = 0;
-	strcpy(fobj->qs_obj.siqs_savefile,"siqs.dat");
-	zInit(&fobj->qs_obj.n);
-	sInit(&fobj->qs_obj.in);
-	sInit(&fobj->qs_obj.out);
+	strcpy(fobj->qs_obj.siqs_savefile,"siqs.dat");	
 
-	// initialize stuff for trial division
-	fobj->div_obj.num_factors = 0;
-	fobj->div_obj.factors = (z *)malloc(sizeof(z));
+	// initialize stuff for trial division	
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	fobj->div_obj.fmtlimit = 1000000;
-	zInit(&fobj->div_obj.n);
-	sInit(&fobj->div_obj.in);
-	sInit(&fobj->div_obj.out);
-
-	//initialize stuff for nfs
-	fobj->nfs_obj.num_factors = 0;
-	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
+	
+	//initialize stuff for nfs	
 	fobj->nfs_obj.gnfs_exponent = 0;
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;
@@ -239,10 +199,7 @@ void init_factobj(fact_obj_t *fobj)
 															//1 = wide
 															//2 = deep
 	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
-	fobj->nfs_obj.polybatch = 250;						//default
-	zInit(&fobj->nfs_obj.n);
-	sInit(&fobj->nfs_obj.in);
-	sInit(&fobj->nfs_obj.out);
+	fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
 	strcpy(fobj->nfs_obj.ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
 #elif defined(WIN32)
@@ -269,11 +226,6 @@ void init_factobj(fact_obj_t *fobj)
 	strcpy(fobj->autofact_obj.plan_str,"normal");
 	fobj->autofact_obj.only_pretest = 0;
 	fobj->autofact_obj.autofact_active = 0;
-
-	//global list of factors
-	fobj->allocated_factors = 256;
-	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
-	fobj->num_factors = 0;
 
 	return;
 }
@@ -369,6 +321,81 @@ void free_factobj(fact_obj_t *fobj)
 
 	clear_factor_list(fobj);
 	free(fobj->fobj_factors);
+
+	return;
+}
+
+void alloc_factobj(fact_obj_t *fobj)
+{
+	zInit(&fobj->N);
+	sInit(&fobj->str_N);	
+
+	fobj->rho_obj.factors = (z *)malloc(sizeof(z));
+	fobj->rho_obj.num_poly = 3;
+	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
+	fobj->rho_obj.polynomials[0] = 1;
+	fobj->rho_obj.polynomials[1] = 3;
+	fobj->rho_obj.polynomials[2] = 2;
+	zInit(&fobj->rho_obj.n);
+	sInit(&fobj->rho_obj.in);
+	sInit(&fobj->rho_obj.out);
+
+	fobj->pm1_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->pm1_obj.n);
+	sInit(&fobj->pm1_obj.in);
+	sInit(&fobj->pm1_obj.out);
+	
+	fobj->pp1_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->pp1_obj.n);
+	sInit(&fobj->pp1_obj.in);
+	sInit(&fobj->pp1_obj.out);
+
+	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->ecm_obj.n);
+	sInit(&fobj->ecm_obj.in);
+	sInit(&fobj->ecm_obj.out);
+
+	fobj->squfof_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->squfof_obj.n);
+	sInit(&fobj->squfof_obj.in);
+	sInit(&fobj->squfof_obj.out);
+
+	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->qs_obj.n);
+	sInit(&fobj->qs_obj.in);
+	sInit(&fobj->qs_obj.out);
+
+	fobj->div_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->div_obj.n);
+	sInit(&fobj->div_obj.in);
+	sInit(&fobj->div_obj.out);
+
+	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
+	zInit(&fobj->nfs_obj.n);
+	sInit(&fobj->nfs_obj.in);
+	sInit(&fobj->nfs_obj.out);
+
+	fobj->allocated_factors = 256;
+	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
+
+	fobj->rho_obj.num_factors = 0;	
+	fobj->pm1_obj.num_factors = 0;	
+	fobj->pp1_obj.num_factors = 0;	
+	fobj->ecm_obj.num_factors = 0;	
+	fobj->qs_obj.num_factors = 0;	
+	fobj->div_obj.num_factors = 0;	
+	fobj->nfs_obj.num_factors = 0;	
+	fobj->num_factors = 0;
+
+	return;
+}
+
+void reset_factobj(fact_obj_t *fobj)
+{
+	// keep all of the settings in fobj, but do an init/free cycle on all
+	// allocated structures
+	free_factobj(fobj);
+	alloc_factobj(fobj);
 
 	return;
 }
@@ -1777,8 +1804,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
-			if (zCompare(b, &zOne) != 0)
-				printf("b = %s\n",z2decstr(b, &gstr1));
+			printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 

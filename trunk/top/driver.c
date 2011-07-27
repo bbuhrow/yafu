@@ -196,7 +196,9 @@ int main(int argc, char *argv[])
 
 	//command line
 	while (1)
-	{
+	{		
+		reset_factobj(fobj);		
+
 		//handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
@@ -341,9 +343,7 @@ int main(int argc, char *argv[])
 						}
 					}
 				}
-			}
-			
-			//free_factor_list();
+			}						
 		}
 
 #if defined(WIN32)
