@@ -505,7 +505,7 @@ void smallmpqs(fact_obj_t *fobj)
 	double t_time;
 	struct timeval tstart, tend;
 	TIME_DIFF *	difference;
-	uint32 numpoly, polyalloc, polyd_id;
+	uint32 numpoly, polyalloc;
 	uint32 mul,i,j, j2;
 	uint32 pmax;							//largest prime in factor base
 	uint32 cutoff;
@@ -702,8 +702,8 @@ void smallmpqs(fact_obj_t *fobj)
 	poly->poly_d_idp = i;
 	poly->poly_d_idn = i;
 	poly->side = 1;
-	if (i >= 5)
-		poly->use_only_p = 0;
+	//if (i >= 5)
+	poly->use_only_p = 0;
 
 	smpqs_nextD(poly,n);
 	smpqs_computeB(poly,n);	
@@ -1513,7 +1513,7 @@ static void smpqs_save_relation(sm_mpqs_rlist *list, uint32 offset, uint32 large
 static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_prime, 
 	uint8 s_init, fb_list_sm_mpqs *fullfb)
 {
-	uint32 prime, root1, root2, tmp, stop;
+	uint32 prime, root1, root2, stop;
 	uint32 B=fullfb->B;
 	uint32 i, fourp;
 	uint8 logp, *s2, *s3, *s4;
@@ -1638,7 +1638,6 @@ void smpqs_computeB(sm_mpqs_poly *poly, mpz_t n)
 	//using poly_d, compute poly_b and poly_a = poly_d^2
 	//int i;
 	mpz_t t1, t2, t3, t4, t5;
-	uint64 pa, pb;
 	uint32 ut1;
 	uint32 polyd = poly->poly_d;
 

@@ -1,3 +1,9 @@
+v 1.28.3
++ robustified nfs data file parsing a bit
++ fixed a couple issues with yafu running in the interactive 
+	environment (thanks kar_bon!)
++ a couple more smallmpqs improvements
+
 v 1.28.2
 + fixed a bug in Win32 builds that crippled the speed of double large prime
 	siqs factorizations
