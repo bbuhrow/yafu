@@ -1038,6 +1038,14 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	#endif
 #endif
 
+#if defined(USE_8X_MOD_ASM)
+		#ifdef YAFU_64K
+			printf("using SSE2 for 8x trial divison to 14 bits\n");
+		#else
+			printf("using SSE2 for 8x trial divison to 13 bits\n");
+		#endif
+#endif
+
 #if defined(SSE2_ASM_SIEVING)
 			printf("using SSE2 to sieve primes up to 16 bits\n");
 #endif
@@ -1570,27 +1578,28 @@ int siqs_static_init(static_conf_t *sconf)
 #if defined(_MSC_VER) || defined (__MINGW32__)
 		sconf->factor_base->list = (fb_element_siqs *)_aligned_malloc(
 			(size_t)(sizeof(fb_element_siqs)),64);
+		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)_aligned_malloc(
+			(size_t)(sizeof(tiny_fb_element_siqs)),64);
+
 		sconf->modsqrt_array = (uint32 *)malloc(
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
+
+		sconf->factor_base->tinylist->prime = (uint32 *)_aligned_malloc(
+			(size_t)(256 * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->small_inv = (uint32 *)_aligned_malloc(
+			(size_t)(256 * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->correction = (uint32 *)_aligned_malloc(
+			(size_t)(256 * sizeof(uint32)),64);
+		sconf->factor_base->tinylist->logprime = (uint32 *)_aligned_malloc(
+			(size_t)(256 * sizeof(uint32)),64);
+
 #ifdef USE_8X_MOD
 		sconf->factor_base->list->small_inv = (uint16 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
 		sconf->factor_base->list->correction = (uint16 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
-
-		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)_aligned_malloc(
-			(size_t)(sizeof(tiny_fb_element_siqs)),64);
-
-		sconf->factor_base->tinylist->correction = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->small_inv = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->prime = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->logprime = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
 #else
 		sconf->factor_base->list->small_inv = (uint32 *)_aligned_malloc(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
@@ -1603,28 +1612,28 @@ int siqs_static_init(static_conf_t *sconf)
 #else
 		sconf->factor_base->list = (fb_element_siqs *)memalign(64,
 			(size_t)(sizeof(fb_element_siqs)));
+		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)memalign(64,
+			(size_t)(sizeof(tiny_fb_element_siqs)));
+
 		sconf->modsqrt_array = (uint32 *)malloc(
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+
+		sconf->factor_base->tinylist->prime = (uint32 *)memalign(64,
+			(size_t)(256 * sizeof(uint32)));
+		sconf->factor_base->tinylist->logprime = (uint32 *)memalign(64,
+			(size_t)(256 * sizeof(uint32)));
+		sconf->factor_base->tinylist->small_inv = (uint32 *)memalign(64,
+			(size_t)(256 * sizeof(uint32)));
+		sconf->factor_base->tinylist->correction = (uint32 *)memalign(64,
+			(size_t)(256 * sizeof(uint32)));
+
 #ifdef USE_8X_MOD
 		sconf->factor_base->list->small_inv = (uint16 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint16)));
 		sconf->factor_base->list->correction = (uint16 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint16)));
-
-		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)memalign(64,
-			(size_t)(sizeof(tiny_fb_element_siqs)));
-
-		sconf->factor_base->tinylist->logprime = (uint32 *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->tinylist->prime = (uint32 *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->tinylist->correction = (uint32 *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->tinylist->small_inv = (uint32 *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-
 #else
 		sconf->factor_base->list->small_inv = (uint32 *)memalign(64,
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
@@ -1676,13 +1685,6 @@ int siqs_static_init(static_conf_t *sconf)
 			align_free(sconf->factor_base->list->correction);
 			align_free(sconf->factor_base->list->logprime);
 			align_free(sconf->factor_base->list);	
-#ifdef USE_8X_MOD
-			align_free(sconf->factor_base->tinylist->prime);
-			align_free(sconf->factor_base->tinylist->small_inv);
-			align_free(sconf->factor_base->tinylist->correction);
-			align_free(sconf->factor_base->tinylist->logprime);
-			align_free(sconf->factor_base->tinylist);	
-#endif
 		}
 	}
 
@@ -1715,7 +1717,27 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->factor_base->small_B = MIN(
 		sconf->factor_base->B,1024); //((INNER_BLOCKSIZE)/(sizeof(sieve_fb))));
 
+	//test the contribution of the small primes to the sieve.  
 	for (i = 2; i < sconf->factor_base->B; i++)
+	{
+		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
+			break;
+	}
+	sconf->sieve_small_fb_start = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 13 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		//don't let med_B grow larger than 1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > 2048)  &&
+			(i % 8 == 0)) break;
+	}
+	sconf->factor_base->fb_11bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceeds 13 bits.  
 		//wait until the index is a multiple of 4 so that we can enter
@@ -1799,8 +1821,10 @@ int siqs_static_init(static_conf_t *sconf)
 
 	if (VFLAG > 1)
 	{
-		printf("fb bounds\n\tsmall: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t11bit: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
+			sconf->sieve_small_fb_start,
+			sconf->factor_base->fb_11bit_B,
 			sconf->factor_base->fb_13bit_B,
 			sconf->factor_base->fb_14bit_B,
 			sconf->factor_base->fb_15bit_B,
@@ -1808,7 +1832,9 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->large_B,
 			sconf->factor_base->B);
 
-		printf("start primes\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+		printf("start primes\n\tSPV: %u\n\t11bit: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
@@ -1880,15 +1906,7 @@ int siqs_static_init(static_conf_t *sconf)
 	else if (sconf->digits_n >=78 && sconf->digits_n < 81)
 		closnuf -= 2;	//optimized for 80 digit num
 	else if (sconf->digits_n >=81 && sconf->digits_n < 85)
-		closnuf -= 3;	//optimized for 82 digit num
-
-	//test the contribution of the small primes to the sieve.  
-	for (i = 2; i < sconf->factor_base->B; i++)
-	{
-		if (sconf->factor_base->list->prime[i] > sconf->small_limit)
-			break;
-	}
-	sconf->sieve_small_fb_start = i;
+		closnuf -= 3;	//optimized for 82 digit num	
 
 #ifdef QS_TIMING
 	printf("%d primes not sieved in SPV\n",sconf->sieve_small_fb_start);
@@ -2463,14 +2481,12 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);
 	align_free(sconf->factor_base->list->logprime);
-	align_free(sconf->factor_base->list);
-#ifdef USE_8X_MOD
 	align_free(sconf->factor_base->tinylist->prime);
 	align_free(sconf->factor_base->tinylist->small_inv);
 	align_free(sconf->factor_base->tinylist->correction);
 	align_free(sconf->factor_base->tinylist->logprime);
+	align_free(sconf->factor_base->list);
 	align_free(sconf->factor_base->tinylist);
-#endif
 	free(sconf->factor_base);
 
 	//while freeing the list of factors, divide them out of the input

@@ -463,7 +463,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 {
 	//unrolled x32; for medium inputs
 
-	uint32 i,j,k,it=BLOCKSIZE>>3;
+	uint32 i,j,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -484,7 +484,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 		for (i=0; i<result; i++)
 		{
-			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			thisloc = (j << 3) + (uint32)buffer[i];
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
@@ -518,6 +518,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<4; i++)
 		{
+			uint32 k;
+
 			//check 8 locations simultaneously
 			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
@@ -609,7 +611,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x64; for large inputs
-	uint32 i,j,k,it=BLOCKSIZE>>3;
+	uint32 i,j,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -630,7 +632,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 		for (i=0; i<result; i++)
 		{
-			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			thisloc = (j << 3) + (uint32)buffer[i];
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
@@ -664,6 +666,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<8; i++)
 		{
+			uint32 k;
+
 			//check 8 locations simultaneously
 			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
@@ -759,7 +763,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x128; for large inputs
-	uint32 i,j,k,it=BLOCKSIZE>>3;
+	uint32 i,j,it=BLOCKSIZE>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -780,7 +784,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 		for (i=0; i<result; i++)
 		{
-			uint32 thisloc = (j << 3) + (uint32)buffer[i];
+			thisloc = (j << 3) + (uint32)buffer[i];
 			
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
@@ -815,6 +819,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<16; i++)
 		{
+			uint32 k;
+
 			//check 8 locations simultaneously
 			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
 				continue;
