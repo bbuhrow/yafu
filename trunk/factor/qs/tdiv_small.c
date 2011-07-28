@@ -82,11 +82,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	int smooth_num;
 	sieve_fb *fb;
 	sieve_fb_compressed *fbc;
-#ifdef USE_8X_MOD
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
-#else
-	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-#endif
 	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
 #ifdef USE_COMPRESSED_FB

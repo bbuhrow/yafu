@@ -94,11 +94,22 @@ double TF_SPECIAL;
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
 	#define ASM_SIEVING 1
+
+	#if BLOCKSIZE == 32768
+		#define USE_8X_MOD 1
+		#define USE_8X_MOD_ASM 1
+	#endif
+
 #elif (defined(__GNUC__) && defined(__x86_64__))
 	#define USE_POLY_SSE2_ASM 1
 	#if (__GNUC__ > 3)
 		//#define SSE2_ASM_SIEVING 1
 		#define ASM_SIEVING 1
+	#endif
+
+	#if BLOCKSIZE == 32768
+		#define USE_8X_MOD 1
+		#define USE_8X_MOD_ASM 1
 	#endif
 #endif
 
@@ -113,13 +124,12 @@ double TF_SPECIAL;
 	#undef SSE2_RESIEVING
 #endif
 
-//#define USE_8X_MOD 1
-//#define USE_8X_MOD_ASM 1
-
 #ifdef USE_8X_MOD
 	#define FOGSHIFT 24
+	#define FOGSHIFT_2 26
 #else
 	#define FOGSHIFT 40
+	#define FOGSHIFT_2 40
 #endif
 
 // these were used in an experiment to check how many times a routine was called
@@ -200,21 +210,19 @@ typedef struct poly_t {
 	z b;						// the MPQS 'b' value 
 } poly_t;
 
-#ifdef USE_8X_MOD
-	typedef struct
-	{
-		uint32 *correction;
-		uint32 *small_inv;
-		uint32 *prime;
-		uint32 *logprime;
-	} tiny_fb_element_siqs;
-#endif
+typedef struct
+{
+	uint32 *correction;
+	uint32 *small_inv;
+	uint32 *prime;
+	uint32 *logprime;
+} tiny_fb_element_siqs;
 
 typedef struct
 {
 #ifdef USE_8X_MOD
-	uint16 *correction;			//for the range of value for which these are used
-	uint16 *small_inv;			//they are always less than 16 bits
+	uint16 *correction;
+	uint16 *small_inv;
 #else
 	uint32 *correction;
 	uint32 *small_inv;
@@ -272,16 +280,15 @@ typedef struct
 {
 	uint32 B;					//number of primes in the entire factor base
 	uint32 small_B;				//index 1024
-	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 4)
-	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 4)
-	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 4)
-	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 4)
-	uint32 large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 4)
+	uint32 fb_11bit_B;			//index at which primes are bigger than 11 bits (and a multiple of 8)
+	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 8)
+	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 8)
+	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 8)
+	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)
+	uint32 large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 8)
 	uint32 x2_large_B;
-	fb_element_siqs *list;
-#ifdef USE_8X_MOD
 	tiny_fb_element_siqs *tinylist;
-#endif
+	fb_element_siqs *list;
 } fb_list;
 
 /* The sieving code needs a special structure for determining

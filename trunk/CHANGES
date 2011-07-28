@@ -3,6 +3,8 @@ v 1.28.3
 + fixed a couple issues with yafu running in the interactive 
 	environment (thanks kar_bon!)
 + a couple more smallmpqs improvements
++ more ASM code in SIQS trial division - checking primes between 8 and 13 bits 
+	8 at a time using SSE2 (not enabled in 64k versions)
 
 v 1.28.2
 + fixed a bug in Win32 builds that crippled the speed of double large prime

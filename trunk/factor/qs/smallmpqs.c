@@ -565,7 +565,7 @@ void smallmpqs(fact_obj_t *fobj)
 		return;
 	}
 
-	if (bits_n < 50)
+	if (bits_n < 60)
 	{
 		z ztmp;
 		zInit(&ztmp);

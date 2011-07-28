@@ -362,7 +362,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	{
 		uint64 q64, tmp, t2;
 
-		prime = fb->list->prime[i];
+		prime = fb->tinylist->prime[i];
 		root1 = modsqrt[i]; 
 		root2 = prime - root1; 
 
@@ -378,15 +378,15 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// in trial division stage
 		// inv * root1 % prime
 		t2 = (uint64)inv * (uint64)root1;
-		tmp = t2 + (uint64)fb->list->correction[i];
-		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = t2 + (uint64)fb->tinylist->correction[i];
+		q64 = tmp * (uint64)fb->tinylist->small_inv[i];
 		tmp = q64 >> 32; 
 		root1 = t2 - tmp * prime;
 
 		// inv * root2 % prime
 		t2 = (uint64)inv * (uint64)root2;
-		tmp = t2 + (uint64)fb->list->correction[i];
-		q64 = tmp * (uint64)fb->list->small_inv[i];
+		tmp = t2 + (uint64)fb->tinylist->correction[i];
+		q64 = tmp * (uint64)fb->tinylist->small_inv[i];
 		tmp = q64 >> 32; 
 		root2 = t2 - tmp * prime;
 	
@@ -427,8 +427,8 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			// x * inv % prime
 			t2 = (uint64)inv * (uint64)x;
-			tmp = t2 + (uint64)fb->list->correction[i];
-			q64 = tmp * (uint64)fb->list->small_inv[i];
+			tmp = t2 + (uint64)fb->tinylist->correction[i];
+			q64 = tmp * (uint64)fb->tinylist->small_inv[i];
 			tmp = q64 >> 32; 
 			x = t2 - tmp * prime;
 
