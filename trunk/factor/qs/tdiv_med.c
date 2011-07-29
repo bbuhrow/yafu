@@ -926,6 +926,20 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 		tmp1 = (BLOCKSIZE << 16) | BLOCKSIZE;
 		tmp2 = (block_loc << 16) | block_loc;
+
+#ifdef YAFU_64K
+		// the 64k blocksize will overflow the 16 bit word
+		// so we use blocksize-1 and then compensate in 
+		// the assembly by adding back 1 when needed
+		bl_sizes[0] = BLOCKSIZEm1;
+		bl_sizes[1] = BLOCKSIZEm1;
+		bl_sizes[2] = BLOCKSIZEm1;
+		bl_sizes[3] = BLOCKSIZEm1;
+		bl_sizes[4] = BLOCKSIZEm1;
+		bl_sizes[5] = BLOCKSIZEm1;
+		bl_sizes[6] = BLOCKSIZEm1;
+		bl_sizes[7] = BLOCKSIZEm1;
+#else
 		bl_sizes[0] = BLOCKSIZE;
 		bl_sizes[1] = BLOCKSIZE;
 		bl_sizes[2] = BLOCKSIZE;
@@ -934,7 +948,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bl_sizes[5] = BLOCKSIZE;
 		bl_sizes[6] = BLOCKSIZE;
 		bl_sizes[7] = BLOCKSIZE;
-
+#endif
 		bl_locs[0] = block_loc;
 		bl_locs[1] = block_loc;
 		bl_locs[2] = block_loc;
@@ -973,6 +987,36 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			// subtraction always yeilds a number less than 2^16, the overflow
 			// does not hurt.
 
+#ifdef YAFU_64K
+			ASM_G (
+				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */
+				"pcmpeqw	%%xmm9, %%xmm9 \n\t"	/* create an array of 1's */
+				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */
+				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */
+				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */
+				"psrlw	$15, %%xmm9 \n\t"		/* create an array of 1's */
+				"movdqa %%xmm1, %%xmm8 \n\t"	/* copy block_loc */
+				"paddw	%%xmm9, %%xmm2 \n\t"	/* add in 1's */
+				"psubw	%%xmm9, %%xmm8 \n\t"	/* substract 1's */
+				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */
+				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */
+				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */			
+				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */
+				"movdqa (%5), %%xmm7 \n\t"		/* move in root2s */									
+				"psrlw	$8, %%xmm4 \n\t"		/* to get to total shift of 24 bits */	
+				"paddw	%%xmm3, %%xmm8 \n\t"	/* add primes and block_loc */
+				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				
+				"paddw	%%xmm8, %%xmm4 \n\t"	/* add in block_loc + primes */
+				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */
+				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */
+				"pcmpeqw	%%xmm4, %%xmm7 \n\t"	/* compare to root2s */
+				"por	%%xmm6, %%xmm7 \n\t"	/* combine compares */
+				"pmovmskb %%xmm7, %0 \n\t"		/* export to result */
+				: "=r" (tmp3)
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)
+				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9");
+
+#else
 			ASM_G (
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */
@@ -996,6 +1040,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 				: "=r" (tmp3)
 				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)
 				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9");
+#endif
 
 			if (tmp3 == 0)
 			{
@@ -1290,6 +1335,16 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 		tmp1 = (BLOCKSIZE << 16) | BLOCKSIZE;
 		tmp2 = (block_loc << 16) | block_loc;
+#ifdef YAFU_64K
+		bl_sizes[0] = BLOCKSIZEm1;
+		bl_sizes[1] = BLOCKSIZEm1;
+		bl_sizes[2] = BLOCKSIZEm1;
+		bl_sizes[3] = BLOCKSIZEm1;
+		bl_sizes[4] = BLOCKSIZEm1;
+		bl_sizes[5] = BLOCKSIZEm1;
+		bl_sizes[6] = BLOCKSIZEm1;
+		bl_sizes[7] = BLOCKSIZEm1;
+#else
 		bl_sizes[0] = BLOCKSIZE;
 		bl_sizes[1] = BLOCKSIZE;
 		bl_sizes[2] = BLOCKSIZE;
@@ -1298,7 +1353,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bl_sizes[5] = BLOCKSIZE;
 		bl_sizes[6] = BLOCKSIZE;
 		bl_sizes[7] = BLOCKSIZE;
-
+#endif
 		bl_locs[0] = block_loc;
 		bl_locs[1] = block_loc;
 		bl_locs[2] = block_loc;
@@ -1328,8 +1383,45 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			// steps = 1 + (BLOCKSIZE - block_loc) / prime
 
 			// to do the div quickly using precomputed values, do:
-			// tmp = ((BLOCKSIZE - block_loc) + correction) * inv >> 24
-			// result = (BLOCKSIZE - block_loc) - tmp * prime
+			// tmp = ((BLOCKSIZE - block_loc) + correction) * inv >> shift
+			// shift is either 24 or 26 bits, depending on the size of prime
+			// in order to keep enough precision.  See Agner Fog's optimization
+			// manuals.
+			// also note that with 64k versions, the final addition will overflow,
+			// but since the addition does not saturate and since the final 
+			// subtraction always yeilds a number less than 2^16, the overflow
+			// does not hurt.
+
+#ifdef YAFU_64K
+			ASM_G (
+				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */
+				"pcmpeqw	%%xmm9, %%xmm9 \n\t"	/* create an array of 1's */
+				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */
+				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */
+				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */
+				"psrlw	$15, %%xmm9 \n\t"		/* create an array of 1's */
+				"movdqa %%xmm1, %%xmm8 \n\t"	/* copy block_loc */
+				"paddw	%%xmm9, %%xmm2 \n\t"	/* add in 1's */
+				"psubw	%%xmm9, %%xmm8 \n\t"	/* substract 1's */
+				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */
+				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */
+				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */			
+				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */
+				"movdqa (%5), %%xmm7 \n\t"		/* move in root2s */									
+				"psrlw	$10, %%xmm4 \n\t"		/* to get to total shift of 26 bits */	
+				"paddw	%%xmm3, %%xmm8 \n\t"	/* add primes and block_loc */
+				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				
+				"paddw	%%xmm8, %%xmm4 \n\t"	/* add in block_loc + primes */
+				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */
+				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */
+				"pcmpeqw	%%xmm4, %%xmm7 \n\t"	/* compare to root2s */
+				"por	%%xmm6, %%xmm7 \n\t"	/* combine compares */
+				"pmovmskb %%xmm7, %0 \n\t"		/* export to result */
+				: "=r" (tmp3)
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)
+				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9");
+
+#else
 
 			ASM_G (
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */
@@ -1354,7 +1446,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 				: "=r" (tmp3)
 				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)
 				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9");
-
+#endif
 			if (tmp3 == 0)
 			{
 				i += 8;

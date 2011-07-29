@@ -95,10 +95,10 @@ double TF_SPECIAL;
 	//#define SSE2_ASM_SIEVING 1
 	#define ASM_SIEVING 1
 
-	#if BLOCKSIZE == 32768
+	//#if BLOCKSIZE == 32768
 		#define USE_8X_MOD 1
 		#define USE_8X_MOD_ASM 1
-	#endif
+	//#endif
 
 #elif (defined(__GNUC__) && defined(__x86_64__))
 	#define USE_POLY_SSE2_ASM 1
@@ -107,10 +107,10 @@ double TF_SPECIAL;
 		#define ASM_SIEVING 1
 	#endif
 
-	#if BLOCKSIZE == 32768
+	//#if BLOCKSIZE == 32768
 		#define USE_8X_MOD 1
 		#define USE_8X_MOD_ASM 1
-	#endif
+	//#endif
 #endif
 
 #if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
