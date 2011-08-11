@@ -262,10 +262,14 @@
     <ClCompile Include="..\..\arith\tfm\fp_mont_small.c" />
     <ClCompile Include="..\..\arith\tfm\fp_mul_2.c" />
     <ClCompile Include="..\..\arith\tfm\fp_mul_comba.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_mul_comba_small_set.c" />
+    <ClCompile Include="..\..\arith\tfm\fp_mul_comba_small_set.c">
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Disabled</Optimization>
+    </ClCompile>
     <ClCompile Include="..\..\arith\tfm\fp_sqr_comba.c" />
     <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_generic.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_small_set.c" />
+    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_small_set.c">
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Disabled</Optimization>
+    </ClCompile>
     <ClCompile Include="..\..\arith\tfm\s_fp_sub.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
