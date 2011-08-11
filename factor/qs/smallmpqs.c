@@ -565,6 +565,14 @@ void smallmpqs(fact_obj_t *fobj)
 		return;
 	}
 
+	// don't use the logfile if we see this special flag
+	if (fobj->qs_obj.flags != 12345)
+	{
+		if (fobj->logfile != NULL)
+			logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
+				ndigits(&fobj->qs_obj.n),z2decstr(&fobj->qs_obj.n,&gstr1));
+	}
+
 	if (bits_n < 60)
 	{
 		z ztmp;
@@ -574,8 +582,23 @@ void smallmpqs(fact_obj_t *fobj)
 		sp2z(j, &ztmp);
 		add_to_factor_list(fobj, &ztmp);
 
+		if (fobj->qs_obj.flags != 12345)
+		{
+			if (fobj->logfile != NULL)
+				logprint(fobj->logfile,
+					"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+		}
+
 		zShortDiv(&fobj->qs_obj.n,j,&ztmp);
 		add_to_factor_list(fobj, &ztmp);
+
+		if (fobj->qs_obj.flags != 12345)
+		{
+			if (fobj->logfile != NULL)
+				logprint(fobj->logfile,
+					"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+		}
+
 		zCopy(&zOne, &fobj->qs_obj.n);
 
 		mpz_clear(n);
@@ -862,55 +885,35 @@ done:
 	if (VFLAG > 0)
 		printf("Gauss elapsed time = %6.4f seconds.\n",t_time);
 		
-	if (1) //fobj->qs_obj.flags == 12345)
+	for(i=0;i<num_factors;i++)
 	{
-		for(i=0;i<num_factors;i++)
+		z tmpz, t1, t2;
+		size_t count;
+
+		zInit(&tmpz);
+		zInit(&t1);
+		zInit(&t2);
+
+		mpz_export(t2.val, &count, -1, sizeof(fp_digit),
+			0, (size_t)0, factors[i]);
+		t2.size = count;
+
+		add_to_factor_list(fobj, &t2);
+
+		if (fobj->qs_obj.flags != 12345)
 		{
-			z tmpz, t1, t2;
-			size_t count;
-
-			zInit(&tmpz);
-			zInit(&t1);
-			zInit(&t2);
-
-			mpz_export(t2.val, &count, -1, sizeof(fp_digit),
-				0, (size_t)0, factors[i]);
-			t2.size = count;
-
-			add_to_factor_list(fobj, &t2);
+			if (fobj->logfile != NULL)
+				logprint(fobj->logfile,
+					"prp%d = %s\n",ndigits(&t2),z2decstr(&t2,&gstr1));
+		}
 			
-			zCopy(&fobj->qs_obj.n, &tmpz);
-			zDiv(&tmpz, &t2, &fobj->qs_obj.n, &t1);
+		zCopy(&fobj->qs_obj.n, &tmpz);
+		zDiv(&tmpz, &t2, &fobj->qs_obj.n, &t1);
 
-			zFree(&tmpz);
-			zFree(&t1);
-			zFree(&t2);
-		}
+		zFree(&tmpz);
+		zFree(&t1);
+		zFree(&t2);
 	}
-	else
-	{		
-		fobj->qs_obj.num_factors += num_factors;
-		fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors, 
-			fobj->qs_obj.num_factors * sizeof(z));
-
-		for(i=0;i<num_factors;i++)
-		{
-			z *f;				
-			size_t count;
-
-			f = &fobj->qs_obj.factors[fobj->qs_obj.num_factors - i - 1];
-
-			zInit(f);
-
-			mpz_export(f->val, &count, -1, sizeof(fp_digit),
-				0, (size_t)0, factors[i]);
-
-		}
-
-	}
-
-	// remove the multiplier prior to returning
-	//mpz_tdiv_q_ui(n, n, mul); //zShortDiv(n, mul, n);
 
 	mpz_clear(n);
 	mpz_clear(tmp);

@@ -108,8 +108,8 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 		//MPQS will take over the log file, so close it now.
 		int i;
 
-		if (sieve_log != NULL)
-			fclose(sieve_log);
+		//if (sieve_log != NULL)
+		//	fclose(sieve_log);
 
 		// we've verified that the input is not odd or prime.  also
 		// do some very quick trial division before calling smallmpqs, which
@@ -125,7 +125,7 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 		zCopy(&fobj->qs_obj.n,n);
 		zFree(&w1);
 		zFree(&w2);
-		return 2;	//tells SIQS to not try to close the logfile
+		return 1;	//tells SIQS to not try to close the logfile
 	}
 
 	if (ndigits(n) > 150)

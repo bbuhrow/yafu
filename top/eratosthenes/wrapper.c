@@ -22,7 +22,7 @@ void GetPRIMESRange(uint64 lowlimit, uint64 highlimit)
 	//primes in the interval
 	
 	i = (uint64)(highlimit/log(highlimit));
-	if (lowlimit != 0)
+	if (lowlimit > 1)
 		i -= (uint64)(lowlimit/log(lowlimit));
 	i += (highlimit - lowlimit) * 1.2;
 

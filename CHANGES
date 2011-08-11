@@ -1,3 +1,8 @@
+v 1.28.4
++ fixed bug in primes() routine
++ smallmpqs now prints its factors to the logfile like it should
++ 8x med prime trial division now enabled for all versions
+
 v 1.28.3
 + robustified nfs data file parsing a bit
 + fixed a couple issues with yafu running in the interactive 
