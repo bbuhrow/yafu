@@ -90,6 +90,11 @@ double TF_SPECIAL;
 
 //#define TDIV_GMP 1
 
+#if defined(_MSC_VER) && !defined(_WIN64)
+	#define USE_8X_MOD 1
+	#define USE_8X_MOD_ASM 1
+#endif
+
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
