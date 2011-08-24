@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 	free_factobj(fobj);
 	free(fobj);
 
-	return 1;
+	return 0;
 }
 
 void readINI(fact_obj_t *fobj)

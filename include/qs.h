@@ -90,10 +90,10 @@ double TF_SPECIAL;
 
 //#define TDIV_GMP 1
 
-#if defined(_MSC_VER) && !defined(_WIN64)
-	#define USE_8X_MOD 1
-	#define USE_8X_MOD_ASM 1
-#endif
+//#if defined(_MSC_VER) && !defined(_WIN64)
+//	#define USE_8X_MOD 1
+//	#define USE_8X_MOD_ASM 1
+//#endif
 
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
@@ -101,8 +101,8 @@ double TF_SPECIAL;
 	#define ASM_SIEVING 1
 
 	//#if BLOCKSIZE == 32768
-		#define USE_8X_MOD 1
-		#define USE_8X_MOD_ASM 1
+	//	#define USE_8X_MOD 1
+	//	#define USE_8X_MOD_ASM 1
 	//#endif
 
 #elif (defined(__GNUC__) && defined(__x86_64__))
@@ -112,10 +112,8 @@ double TF_SPECIAL;
 		#define ASM_SIEVING 1
 	#endif
 
-	//#if BLOCKSIZE == 32768
-		#define USE_8X_MOD 1
-		#define USE_8X_MOD_ASM 1
-	//#endif
+	//#define USE_8X_MOD 1
+	//#define USE_8X_MOD_ASM 1
 #endif
 
 #if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
@@ -131,7 +129,7 @@ double TF_SPECIAL;
 
 #ifdef USE_8X_MOD
 	#define FOGSHIFT 24
-	#define FOGSHIFT_2 26
+	#define FOGSHIFT_2 27
 #else
 	#define FOGSHIFT 40
 	#define FOGSHIFT_2 40

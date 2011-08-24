@@ -21,7 +21,6 @@ code to the public domain.
 #include "yafu.h"
 #include "yafu_ecm.h"
 #include "soe.h"
-#include "monty.h"
 #include "factor.h"
 #include "util.h"
 #include <gmp_xface.h>

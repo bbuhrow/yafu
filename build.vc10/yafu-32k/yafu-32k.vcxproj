@@ -320,7 +320,6 @@
     <ClCompile Include="..\..\arith\arith1.c" />
     <ClCompile Include="..\..\arith\arith2.c" />
     <ClCompile Include="..\..\arith\arith3.c" />
-    <ClCompile Include="..\..\arith\monty.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h" />
@@ -330,7 +329,6 @@
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
-    <ClInclude Include="..\..\include\monty.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\soe.h" />
     <ClInclude Include="..\..\include\tfm.h" />

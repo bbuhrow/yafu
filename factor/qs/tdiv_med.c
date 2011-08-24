@@ -149,6 +149,8 @@ this file contains code implementing 3) and 4)
 #else
 		#define MOD_CMP_8X																		\
 			ASM_G (																				\
+				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \	
+				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
 				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
@@ -169,11 +171,13 @@ this file contains code implementing 3) and 4)
 				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */								\
 				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
 				: "=r" (tmp3)																	\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)	\
-				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i), "r" (bl_sizes), "r" (bl_locs)	\
+				: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
 		#define MOD_CMP_BIG_8X																	\
 			ASM_G (																				\
+				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \	
+				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
 				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
@@ -184,7 +188,7 @@ this file contains code implementing 3) and 4)
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
 				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\		
-				"psrlw	$10, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
+				"psrlw	$11, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
 				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes */					\
@@ -194,8 +198,8 @@ this file contains code implementing 3) and 4)
 				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */								\
 				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
 				: "=r" (tmp3)																	\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)	\
-				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i), "r" (bl_sizes), "r" (bl_locs)	\
+				: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 #endif
 
 
@@ -1273,7 +1277,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bl_locs[6] = block_loc;
 		bl_locs[7] = block_loc;
 		
-		MOD_INIT_8X;
+		//MOD_INIT_8X;
 
 		while ((uint32)i < bound)
 		{
@@ -1330,6 +1334,11 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i += 8;			
 
 		}
+
+#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+		asm volatile("emms");
+#endif
+
 #else
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
 		while ((uint32)i < bound)
@@ -1554,7 +1563,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bl_locs[6] = block_loc;
 		bl_locs[7] = block_loc;
 
-		MOD_INIT_8X;
+		//MOD_INIT_8X;
 
 		while ((uint32)i < bound)
 		{
@@ -1611,6 +1620,11 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i += 8;			
 
 		}
+
+#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+		asm volatile("emms");
+#endif
+
 #else
 
 		// single-up test until i is a multiple of 8
