@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.28.3"
+#define VERSION_STRING "1.28.4"
 
 //basics
 #define POSITIVE 0
@@ -94,14 +94,6 @@ typedef struct
 	int num;
 	int alloc;
 } uvars_t;
-
-typedef struct
-{
-	z r;
-	z rhat;
-	z nhat;
-	z one;
-} monty;
 
 typedef struct
 {

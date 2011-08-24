@@ -148,7 +148,6 @@ YAFU_SRCS = \
 	factor/gmp-ecm/pm1.c \
 	factor/nfs/nfs.c \
 	arith/arith0.c \
-	arith/monty.c \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
@@ -173,7 +172,6 @@ HEAD = include/yafu.h  \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
-	include/monty.h  \
 	include/soe.h  \
 	include/util.h  \
 	include/types.h \

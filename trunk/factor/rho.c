@@ -20,7 +20,6 @@ code to the public domain.
 
 #include "yafu.h"
 #include "factor.h"
-#include "monty.h"
 #include "util.h"
 #include "yafu_ecm.h"
 
@@ -153,27 +152,34 @@ int mbrent(fact_obj_t *fobj)
 	use montgomery arithmetic. 
 	*/
 
-	z *n = &fobj->rho_obj.n;
-	z *f;
-	z x,y,q,g,ys,t1,t2,cc;
+	//z *n = &fobj->rho_obj.n;
+	//z *f;
+	mpz_t n,f;
+	mpz_t x,y,q,g,ys,t1,t2,cc;
 
 	uint32 i=0,k,r,m,c;
 	int it;
 	int imax = fobj->rho_obj.iterations;
 
+	mpz_init(n);
+
+	mpz_import(n, abs(fobj->rho_obj.n.size), -1, sizeof(fp_digit), 
+		0, (size_t)0, fobj->rho_obj.n.val);
+
 	//initialize local arbs
-	zInit(&x);
-	zInit(&y);
-	zInit(&q);
-	zInit(&g);
-	zInit(&ys);
-	zInit(&t1);
-	zInit(&t2);
-	zInit(&cc);
+	mpz_init(x); //zInit(&x);
+	mpz_init(y); //zInit(&y);
+	mpz_init(q); //zInit(&q);
+	mpz_init(g); //zInit(&g);
+	mpz_init(ys); //zInit(&ys);
+	mpz_init(t1); //zInit(&t1);
+	mpz_init(t2); //zInit(&t2);
+	mpz_init(cc); //zInit(&cc);
 
 	// make space for a factor
 	fobj->rho_obj.num_factors = 1;
-	f = &fobj->rho_obj.factors[0];
+	
+	mpz_init(f); //f = &fobj->rho_obj.factors[0];
 
 	//starting state of algorithm.  
 	r = 1;
@@ -181,85 +187,96 @@ int mbrent(fact_obj_t *fobj)
 	i = 0;
 	it = 0;
 	c = fobj->rho_obj.curr_poly;
-	sp2z(fobj->rho_obj.polynomials[c],&cc);
-	q.val[0] = 1;
-	y.val[0] = 0;
-	g.val[0] = 1;
+	mpz_set_ui(cc, fobj->rho_obj.polynomials[c]);
+	mpz_set_ui(q, 1); //q.val[0] = 1;
+	mpz_set_ui(y, 0); //y.val[0] = 0;
+	mpz_set_ui(g, 1); //g.val[0] = 1;
 
 	//initialize montgomery arithmetic, and a few constants
-	monty_init(n);
-	zCopy(&montyconst.one,&g);
-	zCopy(&montyconst.one,&q);
-	to_monty(&cc,n);
+	//monty_init(n);
+	//zCopy(&montyconst.one,&g);
+	//zCopy(&montyconst.one,&q);
+	//to_monty(&cc,n);
 
 	do
 	{
-		zCopy(&y,&x);	
+		mpz_set(x,y); //zCopy(&y,&x);	
 		for(i=0;i<=r;i++)
 		{
-			monty_sqr(&y,&t1,n);		//y=(y*y + c)%n
-			monty_add(&t1,&cc,&y,n);
+			mpz_mul(t1,y,y); //monty_sqr(&y,&t1,n);		//y=(y*y + c)%n
+			mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&y,n);
+			mpz_tdiv_r(t1, t1, n);			
 		}
 
 		k=0;
 		do
 		{
-			zCopy(&y,&ys);	
+			mpz_set(ys, y); //zCopy(&y,&ys);	
 			for(i=1;i<=MIN(m,r-k);i++)
 			{
-				monty_sqr(&y,&t1,n);	//y=(y*y + c)%n
-				monty_add(&t1,&cc,&y,n);	
-				monty_sub(&x,&y,&t1,n);	//q = q*abs(x-y) mod n
-				t1.size = abs(t1.size);
-				monty_mul(&q,&t1,&t2,n);
-				zCopy(&t2,&q);
+				mpz_mul(t1,y,y); //monty_sqr(&y,&t1,n);	//y=(y*y + c)%n
+				mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&y,n);	
+				mpz_tdiv_r(y, t1, n);	
+
+				mpz_sub(t1, x, y); //monty_sub(&x,&y,&t1,n);	//q = q*abs(x-y) mod n
+				if (mpz_sgn(t1) < 0)
+					mpz_add(t1, t1, n);
+				mpz_mul(q, t1, q); //monty_mul(&q,&t1,&t2,n);
+				mpz_tdiv_r(q, q, n);	
+				//zCopy(&t2,&q);
 			}
-			zLEGCD(&q,n,&g);
+			mpz_gcd(g, q, n); //zLEGCD(&q,n,&g);
 			k+=m;
 			it++;
 
 			if (it>imax)
 			{
-				zCopy(&zZero,f);
+				mpz_set_ui(f, 0); //zCopy(&zZero,f);
 				goto free;
 			}
-			g.size = abs(g.size);
-		} while (k<r && ((g.size == 1) && (g.val[0] == 1)));
+			if (mpz_sgn(g) < 0)
+				mpz_neg(g, g); 
+		} while (k<r && ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1)));
 		r*=2;
-	} while ((g.size == 1) && (g.val[0] == 1));
+	} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
 
-	if (zCompare(&g,n) == 0)
+	if (mpz_cmp(g,n) == 0)
 	{
 		//back track
 		it=0;
 		do
 		{
-			monty_sqr(&ys,&t1,n);		//ys = (ys*ys + c) mod n
-			monty_add(&t1,&cc,&ys,n);
-			monty_sub(&ys,&x,&t1,n);
-			zLEGCD(&t1,n,&g);
+			mpz_mul(t1, ys, ys); //monty_sqr(&ys,&t1,n);		//ys = (ys*ys + c) mod n
+			mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&ys,n);
+			mpz_tdiv_r(ys, t1, n); 
+
+			mpz_sub(t1, ys, x); //monty_sub(&ys,&x,&t1,n);
+			if (mpz_sgn(t1) < 0)
+				mpz_add(t1, t1, n);
+			mpz_gcd(g, t1, n); //zLEGCD(&t1,n,&g);
 			it++;
 			if (it>imax)
 			{
-				zCopy(&zZero,f);
+				mpz_set_ui(f, 0); //zCopy(&zZero,f);
 				goto free;
 			}
-			g.size = abs(g.size);
-		} while ((g.size == 1) && (g.val[0] == 1));
-		if (zCompare(&g,n) == 0)
+			if (mpz_sgn(g) < 0)
+				mpz_neg(g, g); 
+		} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
+		if (mpz_cmp(g,n) == 0)
 		{
-			zCopy(&zZero,f);
+			mpz_set_ui(f, 0); //zCopy(&zZero,f);
 			goto free;
 		}
 		else
 		{
-			zCopy(&g,f);
+			mpz_set(f, g); //zCopy(&g,f);
 			goto free;
 		}
 	}
 	else
 	{
-		zCopy(&g,f);
+		mpz_set(f, g); //zCopy(&g,f);
 		goto free;
 	}
 
@@ -267,14 +284,22 @@ free:
 	if (VFLAG >= 0)
 		printf("\n");
 
-	zFree(&x);
-	zFree(&y);
-	zFree(&q);
-	zFree(&g);
-	zFree(&ys);
-	zFree(&t1);
-	zFree(&t2);
-	zFree(&cc);
-	monty_free();
+	mpz_clear(x);
+	mpz_clear(y);
+	mpz_clear(q);
+	mpz_clear(g);
+	mpz_clear(ys);
+	mpz_clear(t1);
+	mpz_clear(t2);
+	mpz_clear(cc);
+	
+	mpz_export(fobj->rho_obj.factors[0].val, &c, -1, sizeof(fp_digit),
+		0, (size_t)0, f);
+	fobj->rho_obj.factors[0].size = c;
+
+	mpz_clear(f);
+	mpz_clear(n);
+
+	//monty_free();
 	return it;
 }

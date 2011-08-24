@@ -74,9 +74,6 @@
     <ClCompile Include="..\..\arith\arith3.c">
       <Filter>Source Files\arith</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\arith\monty.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\tune.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
@@ -245,9 +242,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lanczos.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\monty.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\qs.h">
