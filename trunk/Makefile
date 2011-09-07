@@ -25,6 +25,10 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
+ifeq ($(STATIC),1)
+	CFLAGS += -static
+endif
+
 ifeq ($(BLOCK),64)
 	CFLAGS += -DYAFU_64K
 endif
