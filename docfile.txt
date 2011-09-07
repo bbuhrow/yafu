@@ -177,17 +177,17 @@ utility			factoring		arithmetic
 ------------------------------------------------------------------------------------------
 rsa				factor			shift
 size				siqs			nroot
-primes			mpqs			modexp
-nextprime			qs			sqrt
+primes				smallmpqs		modexp
+nextprime			nfs			sqrt
 rand			squfof			lg2
 randb			pm1			log
-			pp1			ln
-			rho			gcd
-			trial			jacobi
+isprime			pp1			ln
+ispow			rho			gcd
+issquare			trial			jacobi
 			ecm			modinv
 			fermat			fib
-			nfs			luc
-			smallmpqs			llt
+						luc
+						llt
 
 ----------
 Variables:
@@ -212,8 +212,6 @@ WILL_STG2_MAX - controls the upper bound of p+1 stage 2 factoring
 ECM_STG1_MAX - controls the upper bound of ECM stage 1 factoring
 ECM_STG2_MAX - controls the upper bound of ECM stage 2 factoring
 BRENT_MAX_IT - controls the maximum number of iterations in pollard rho
-QS_DUMP_CUTOFF - controls the cutoff over which siqs automatically saves
-	the state of the factorization upon completion
 NUM_WITNESSES - the number of witnesses to use in rabin-miller prp tests
 IBASE - controls the input numeric base
 OBASE - controls the output numeric base
@@ -487,6 +485,18 @@ description:
 uses trial division followed by the rabin-miller probabalistic primalty
 test to determine probable-primalty.  The number of witnesses in the rabin-miller test
 is configurable using the NUM_WITNESSES parameter.  The default is 20.
+
+[issquare]
+usage: issquare(expression)
+
+description:
+determines if the number the expression evaluates to is a perfect square
+
+[ispow]
+usage: ispow(expression)
+
+description:
+determines if the number the expression evaluates to is a perfect power
 
 [fib]
 usage: fib(expression)

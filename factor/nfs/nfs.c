@@ -116,6 +116,7 @@ void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32 flags, uint64 start, uint64 stop);
 void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job);
+void savefile_concat(char *filein, char *fileout, msieve_obj *mobj);
 void win_file_concat(char *filein, char *fileout);
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
 				uint32 is_master_thread);
@@ -172,13 +173,16 @@ void nfs(fact_obj_t *fobj)
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
+	mpz_t gmpz;
+	int i;
 
 	//below a certain amount, revert to SIQS
 	if (ndigits(N) < fobj->nfs_obj.min_digits)
 	{
+		zCopy(N, &fobj->qs_obj.n);
 		SIQS(fobj);
 		return;
-	}
+	}	
 		
 	//first a small amount of trial division
 	//which will add anything found to the global factor list
@@ -206,6 +210,44 @@ void nfs(fact_obj_t *fobj)
 			logprint(logfile, "PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
 			fclose(logfile);
 		}		
+		return;
+	}
+
+	if (isSquare(N))
+	{
+		zNroot(N,N,2);
+		N->type = PRP;
+		add_to_factor_list(fobj, N);
+		logfile = fopen(fobj->flogname, "a");
+		if (logfile != NULL)
+			logprint(logfile,"prp%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+		add_to_factor_list(fobj, N);
+		if (logfile != NULL)
+			logprint(logfile,"prp%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+		zCopy(&zOne,N);
+		fclose(logfile);
+		return;
+	}
+
+	mpz_init(gmpz);
+	mpz_import(gmpz, abs(N->size), -1, sizeof(fp_digit), 
+		0, (size_t)0, N->val);
+	if (N->size < 0)
+		mpz_neg(gmpz, gmpz);
+	i = mpz_perfect_power_p(gmpz);
+	mpz_clear(gmpz);
+
+	if (i)
+	{
+		printf("input is a perfect power\n");
+		add_to_factor_list(fobj, N);
+		logfile = fopen(fobj->flogname, "a");
+		if (logfile != NULL)
+		{
+			logprint(logfile,"input is a perfect power\n");
+			logprint(logfile,"c%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+		}
+		fclose(logfile);
 		return;
 	}
 
@@ -247,6 +289,32 @@ void nfs(fact_obj_t *fobj)
 		exit(1);
 	}
 
+	//find best job parameters
+	get_ggnfs_params(fobj, N,&job);			
+
+	//if we are going to be doing sieving, check for the sievers
+	if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
+	{
+		FILE *test;
+		// test for existence of the siever
+		test = fopen(job.sievername, "rb");
+		if (test == NULL)
+		{
+			printf("WARNING: could not find %s, reverting to siqs!\n",job.sievername);
+			logfile = fopen(fobj->flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "WARNING: could not find %s, reverting to siqs!\n",job.sievername);
+				fclose(logfile);
+			}
+			zCopy(N, &fobj->qs_obj.n);
+			SIQS(fobj);
+			return;
+		}
+	}
+
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -280,24 +348,21 @@ void nfs(fact_obj_t *fobj)
 			input = z2decstr(N, &input_str);	
 
 			//create an msieve_obj
+			//this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
 				fobj->nfs_obj.fbfile, seed1, seed2, max_relations, nfs_lower, nfs_upper, cpu, 
 				L1CACHE, L2CACHE, THREADS, mem_mb, which_gpu, 0.0);
+
+			fobj->nfs_obj.mobj = obj;
 
 			//convert input to msieve bigint notation and initialize a list of factors
 			z2mp_t(N,&mpN);
 			factor_list_init(&factor_list);
 
-			//check if this is a continuation of a factorization (defined when
-			//a .fb file already exists for this N, or both a .fb and msieve.dat
-			//file exist for this N, or if a ggnfs.job file exists for this N.
-			//if any of the .job, .fb and/or .dat exist but for conflicting N's,
-			//complain and stop.  else, start new job.
+			//see if we can resume a factorization based on the combination of input number,
+			//.job file, .fb file, .dat file, and/or .p file.  else, start new job.
 			job.current_rels = 0;
-			is_continuation = check_existing_files(fobj, N, &last_specialq, &job);
-
-			//find best job parameters
-			get_ggnfs_params(fobj, N,&job);						
+			is_continuation = check_existing_files(fobj, N, &last_specialq, &job);						
 
 			//determine sieving start value and range.
 			if (fobj->nfs_obj.rangeq > 0)
@@ -360,7 +425,7 @@ void nfs(fact_obj_t *fobj)
 						startq = last_specialq;
 
 						// since we apparently found some relations, see if it is enough
-						statenum = 3;
+						statenum = 8;
 					}
 				}
 			}
@@ -414,22 +479,7 @@ void nfs(fact_obj_t *fobj)
 				process_done = 1;
 			else
 			{
-				if (job.current_rels >= job.min_rels)
-				{
-					if (VFLAG > 0)
-						printf("found %u relations, need at least %u, proceeding with filtering ...\n",
-						job.current_rels, job.min_rels);
-				
-					statenum = 3;
-				}
-				else
-				{
-					if (VFLAG > 0)
-						printf("found %u relations, need at least %u, continuing with sieving ...\n",
-						job.current_rels, job.min_rels);
-
-					statenum = 2;
-				}
+				statenum = 8;
 			}
 
 			break;
@@ -546,6 +596,25 @@ void nfs(fact_obj_t *fobj)
 			process_done = 1;
 			break;
 
+		case 8:		// check to see if we should try filtering
+			if (job.current_rels >= job.min_rels)
+			{
+				if (VFLAG > 0)
+					printf("found %u relations, need at least %u, proceeding with filtering ...\n",
+					job.current_rels, job.min_rels);
+				
+				statenum = 3;
+			}
+			else
+			{
+				if (VFLAG > 0)
+					printf("found %u relations, need at least %u, continuing with sieving ...\n",
+					job.current_rels, job.min_rels);
+
+				statenum = 2;
+			}
+			break;
+
 		default:
 			printf("unknown state, bailing\n");
 			exit(1);
@@ -585,9 +654,7 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 {
 	nfs_threaddata_t *thread_data;		//an array of thread data objects
 	int i;
-	//uint32 startq = job.startq;
 	FILE *logfile;
-	char syscmd[1024];
 
 	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
 	for (i=0; i<THREADS; i++)
@@ -674,21 +741,8 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 	for (i = 0; i < THREADS; i++) 
 	{
 		nfs_threaddata_t *t = thread_data + i;
-		
-#if defined(WIN32)
-		int a;
+		savefile_concat(t->outfilename,fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 
-		// test for cat
-		sprintf(syscmd,"cat %s >> %s",t->outfilename,fobj->nfs_obj.outputfile);
-		a = system(syscmd);
-	
-		if (a)		
-			win_file_concat(t->outfilename,fobj->nfs_obj.outputfile);
-
-#else
-		sprintf(syscmd,"cat %s >> %s",t->outfilename,fobj->nfs_obj.outputfile);
-		system(syscmd);
-#endif
 		// accumulate relation counts
 		job->current_rels += thread_data[i].job.current_rels;
 
@@ -704,6 +758,36 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 
 	//free the thread structure
 	free(thread_data);
+
+	return;
+}
+
+void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
+{
+	FILE *in;
+
+	in = fopen(filein,"r");
+	if (in == NULL)
+	{
+		printf("could not open %s for reading\n",filein);
+		exit(-1);
+	}
+
+	savefile_open(&mobj->savefile, SAVEFILE_APPEND);
+
+	while (!feof(in))
+	{
+		char tmpline[GSTR_MAXSIZE], *tmpptr;
+		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
+		if (tmpptr == NULL)
+			break;
+		else
+			savefile_write_line(&mobj->savefile, tmpline);
+	}
+	fclose(in);
+
+	savefile_flush(&mobj->savefile);
+	savefile_close(&mobj->savefile);
 
 	return;
 }
@@ -1239,7 +1323,7 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
 				uint32 is_master_thread) {
 
-	/* create a thread that will process a polynomial The last poly does 
+	/* create a thread that will process a polynomial. The last poly does 
 	   not get its own thread (the current thread handles it) */
 
 	if (is_master_thread == 1) {
@@ -1570,12 +1654,18 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 
 int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *job)
 {
-	//check to see if there is a .job for this number
+	// see if we can resume a factorization based on the combination of input number,
+	// .job file, .fb file, .dat file, and/or .p file.  else, start new job.
+	// be very cautious about overwriting .dat files, as building these up can 
+	// represent a *large* amount of work.
+	// the only time .dat files should be touched is if the user forces us to (with -R)
+	// or if an NFS process completes normally (in which case, we delete the .dat files).
+
 	FILE *in, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
 	int ans;
 	z tmpz;
-
+	msieve_obj *mobj = fobj->nfs_obj.mobj;
 
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)
@@ -1596,7 +1686,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 	ans = zCompare(&tmpz,N);
 	if (ans == 0)
 	{
-		// ok, we have a job file for the current input.  this is a restart.
+		// ok, we have a job file for the current input.  this is a restart of sieving
 		ans = 1;
 
 		if (VFLAG > 0)
@@ -1612,8 +1702,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 		}
 
 		// attempt to open data file
-		in = fopen(fobj->nfs_obj.outputfile,"r");
-		if (in == NULL)
+		if (!savefile_exists(&mobj->savefile))
 		{
 			// data file doesn't exist, return flag to start sieving from the beginning
 			*last_spq = 0;
@@ -1621,8 +1710,6 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 		else if (fobj->nfs_obj.restart_flag)
 		{
 			// found it.  read the last specialq
-			fclose(in);
-
 			if (VFLAG > 0)
 				printf("nfs: previous data file found - commencing search for last special-q\n");
 
@@ -1643,10 +1730,8 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 			//we must be able to check the next to last valid line as well.
 			//finally, we must be able to parse the special q from the line, which could have
 			//been from a rational side or algebraic side sieve.  unfortunately, there is
-			//no way to tell what previous jobs may have done (alg or rat), so instead we 
-			//parse according to what the current job is using and then test the result
-			//with some sanity checks to see if we interpreted correctly.
-			//the sanity checks are as follows:
+			//no way to tell what previous jobs may have done 
+			//the procedure is as follows:  parse a line and grab both the alg and rat hex values
 			//if the number we picked is actually a special-q, then it will have numbers of similar
 			//size (or the same) in identical positions in other lines.  it should also be above
 			//a certain bound, and be prime.  if it meets all of these criteria, then we probably
@@ -1661,11 +1746,11 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 				for (i=0; i < 4; i++)
 					lines[i] = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 
-				in = fopen(fobj->nfs_obj.outputfile,"r");
-				ptr = fgets(lines[0], GSTR_MAXSIZE, in);
-				if (ptr == NULL)
+				savefile_open(&mobj->savefile, SAVEFILE_READ);
+				savefile_read_line(lines[0], GSTR_MAXSIZE, &mobj->savefile);
+				if (savefile_eof(&mobj->savefile))
 				{
-					fclose(in);
+					savefile_close(&mobj->savefile);
 					*last_spq = 0;
 					for (i=0; i < 4; i++)
 						free(lines[i]);
@@ -1679,8 +1764,8 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 				while (!feof(in))
 				{
 					// read a line into the next position of the circular buffer
-					ptr = fgets(tmp, GSTR_MAXSIZE, in);
-					if (ptr == NULL)
+					savefile_read_line(tmp, GSTR_MAXSIZE, &mobj->savefile);
+					if (savefile_eof(&mobj->savefile))
 						break;					
 
 					// quick check that it might be a valid line
@@ -1696,7 +1781,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 					job->current_rels++;
 
 				}
-				fclose(in);
+				savefile_close(&mobj->savefile);
 
 				// now we are done and we have a buffer with the last 4 valid lines
 				// throw away the last one, which may be malformed, and extract
@@ -2148,8 +2233,8 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 
 		if (line[0] == 'n')
 			sprintf(outline, "N %s",line + 3);
-		else if(line[0] == 's')
-			sprintf(outline, "SKEW %s",line + 5);
+		//else if(line[0] == 's')
+		//	sprintf(outline, "SKEW %s",line + 5);
 		else if (line[0] == 'Y')
 			sprintf(outline, "R%c %s",line[1], line + 4);
 		else if (line[0] == 'c')
@@ -2200,7 +2285,6 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	// doing things by hand by then anyway.
 	int i, d = ndigits(N);
 	double scale;
-	FILE *test, *logfile;
 	
 	job->min_rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
@@ -2317,22 +2401,6 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
-
-	// test for existence of the siever
-	test = fopen(job->sievername, "rb");
-	if (test == NULL)
-	{
-		printf("could not find %s, bailing\n",job->sievername);
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile == NULL)
-			printf("could not open yafu logfile for appending\n");
-		else
-		{
-			logprint(logfile, "could not find %s, bailing\n",job->sievername);
-			fclose(logfile);
-		}
-		exit(-1);
-	}
 
 	return;
 }

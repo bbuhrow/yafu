@@ -1,3 +1,23 @@
+v 1.28.5
++ don't print SKEW line to nfs.fb files
++ add issquare and ispow to function list
++ cleanup of siqs tdiv code: now requires SSE2
++ added perfect power checks to siqs and nfs
++ on NFS restart, check any rels found against min_rels instead of always
+	proceeding to filtering
++ support for large nfs jobs on windows (file size limitations removed)
++ fix for the "skipping blank line" infinite loop sometimes encountered during
+	-batchfile runs
++ fixed estimation when allocating memory in SoE wrapper - now gives better
+	estimates and saves memory
++ fixed bug introduced in 1.28.4 where rho() doesn't detect PRP factors correctly
+	(thanks wblipp!)
++ if gnfs-lasieve binaries are not detected prior to starting an nfs job that
+	requires sieving, siqs is started instead of aborting (and a warning
+	message is printed to the screen and logfile)
++ added a check for a valid siqs savefile and restart siqs inside of factor()
+
+
 v 1.28.4
 + fixed bug in primes() routine
 + smallmpqs now prints its factors to the logfile like it should

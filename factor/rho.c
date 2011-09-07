@@ -167,19 +167,19 @@ int mbrent(fact_obj_t *fobj)
 		0, (size_t)0, fobj->rho_obj.n.val);
 
 	//initialize local arbs
-	mpz_init(x); //zInit(&x);
-	mpz_init(y); //zInit(&y);
-	mpz_init(q); //zInit(&q);
-	mpz_init(g); //zInit(&g);
-	mpz_init(ys); //zInit(&ys);
-	mpz_init(t1); //zInit(&t1);
-	mpz_init(t2); //zInit(&t2);
-	mpz_init(cc); //zInit(&cc);
+	mpz_init(x);
+	mpz_init(y);
+	mpz_init(q);
+	mpz_init(g);
+	mpz_init(ys);
+	mpz_init(t1);
+	mpz_init(t2);
+	mpz_init(cc);
 
 	// make space for a factor
 	fobj->rho_obj.num_factors = 1;
-	
-	mpz_init(f); //f = &fobj->rho_obj.factors[0];
+	zInit(&fobj->rho_obj.factors[0]);
+	mpz_init(f);
 
 	//starting state of algorithm.  
 	r = 1;
@@ -188,57 +188,50 @@ int mbrent(fact_obj_t *fobj)
 	it = 0;
 	c = fobj->rho_obj.curr_poly;
 	mpz_set_ui(cc, fobj->rho_obj.polynomials[c]);
-	mpz_set_ui(q, 1); //q.val[0] = 1;
-	mpz_set_ui(y, 0); //y.val[0] = 0;
-	mpz_set_ui(g, 1); //g.val[0] = 1;
-
-	//initialize montgomery arithmetic, and a few constants
-	//monty_init(n);
-	//zCopy(&montyconst.one,&g);
-	//zCopy(&montyconst.one,&q);
-	//to_monty(&cc,n);
+	mpz_set_ui(q, 1);
+	mpz_set_ui(y, 0);
+	mpz_set_ui(g, 1); 
 
 	do
 	{
-		mpz_set(x,y); //zCopy(&y,&x);	
+		mpz_set(x,y);
 		for(i=0;i<=r;i++)
 		{
-			mpz_mul(t1,y,y); //monty_sqr(&y,&t1,n);		//y=(y*y + c)%n
-			mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&y,n);
+			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
+			mpz_add_ui(t1, t1, c);
 			mpz_tdiv_r(t1, t1, n);			
 		}
 
 		k=0;
 		do
 		{
-			mpz_set(ys, y); //zCopy(&y,&ys);	
+			mpz_set(ys, y);
 			for(i=1;i<=MIN(m,r-k);i++)
 			{
-				mpz_mul(t1,y,y); //monty_sqr(&y,&t1,n);	//y=(y*y + c)%n
-				mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&y,n);	
+				mpz_mul(t1,y,y); //y=(y*y + c)%n
+				mpz_add_ui(t1, t1, c);
 				mpz_tdiv_r(y, t1, n);	
 
-				mpz_sub(t1, x, y); //monty_sub(&x,&y,&t1,n);	//q = q*abs(x-y) mod n
+				mpz_sub(t1, x, y); //q = q*abs(x-y) mod n
 				if (mpz_sgn(t1) < 0)
 					mpz_add(t1, t1, n);
-				mpz_mul(q, t1, q); //monty_mul(&q,&t1,&t2,n);
+				mpz_mul(q, t1, q); 
 				mpz_tdiv_r(q, q, n);	
-				//zCopy(&t2,&q);
 			}
-			mpz_gcd(g, q, n); //zLEGCD(&q,n,&g);
+			mpz_gcd(g, q, n);
 			k+=m;
 			it++;
 
 			if (it>imax)
 			{
-				mpz_set_ui(f, 0); //zCopy(&zZero,f);
+				mpz_set_ui(f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
 				mpz_neg(g, g); 
-		} while (k<r && ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1)));
+		} while (k<r && (mpz_get_ui(g) == 1));
 		r*=2;
-	} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
+	} while (mpz_get_ui(g) == 1);
 
 	if (mpz_cmp(g,n) == 0)
 	{
@@ -246,18 +239,18 @@ int mbrent(fact_obj_t *fobj)
 		it=0;
 		do
 		{
-			mpz_mul(t1, ys, ys); //monty_sqr(&ys,&t1,n);		//ys = (ys*ys + c) mod n
-			mpz_add_ui(t1, t1, c); //monty_add(&t1,&cc,&ys,n);
+			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
+			mpz_add_ui(t1, t1, c);
 			mpz_tdiv_r(ys, t1, n); 
 
-			mpz_sub(t1, ys, x); //monty_sub(&ys,&x,&t1,n);
+			mpz_sub(t1, ys, x);
 			if (mpz_sgn(t1) < 0)
 				mpz_add(t1, t1, n);
-			mpz_gcd(g, t1, n); //zLEGCD(&t1,n,&g);
+			mpz_gcd(g, t1, n);
 			it++;
 			if (it>imax)
 			{
-				mpz_set_ui(f, 0); //zCopy(&zZero,f);
+				mpz_set_ui(f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
@@ -265,18 +258,18 @@ int mbrent(fact_obj_t *fobj)
 		} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
 		if (mpz_cmp(g,n) == 0)
 		{
-			mpz_set_ui(f, 0); //zCopy(&zZero,f);
+			mpz_set_ui(f, 0);
 			goto free;
 		}
 		else
 		{
-			mpz_set(f, g); //zCopy(&g,f);
+			mpz_set(f, g);
 			goto free;
 		}
 	}
 	else
 	{
-		mpz_set(f, g); //zCopy(&g,f);
+		mpz_set(f, g);
 		goto free;
 	}
 
@@ -300,6 +293,5 @@ free:
 	mpz_clear(f);
 	mpz_clear(n);
 
-	//monty_free();
 	return it;
 }

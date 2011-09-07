@@ -395,6 +395,8 @@ typedef struct
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
 
+	msieve_obj *mobj;
+
 } nfs_obj_t;
 
 
@@ -499,12 +501,21 @@ void qs_savefile_read_line(char *buf, size_t max_len, qs_savefile_t *s);
 void qs_savefile_write_line(qs_savefile_t *s, char *buf);
 void qs_savefile_flush(qs_savefile_t *s);
 
-#if defined(WIN32)
+//#if defined(WIN32)
 // windows machines also need these declarations for functions located
 // within common.lib or gnfs.lib, for NFS factorizations using msieve.
 void savefile_init(savefile_t *s, char *filename);
 void savefile_free(savefile_t *s);
-#endif
+void savefile_open(savefile_t *s, uint32 flags);
+void savefile_close(savefile_t *s);
+uint32 savefile_eof(savefile_t *s);
+uint32 savefile_exists(savefile_t *s);
+void savefile_read_line(char *buf, size_t max_len, savefile_t *s);
+void savefile_write_line(savefile_t *s, char *buf);
+void savefile_flush(savefile_t *s);
+void savefile_rewind(savefile_t *s);
+
+//#endif
 
 
 /*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/

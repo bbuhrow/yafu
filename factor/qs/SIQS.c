@@ -928,6 +928,8 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 			rel->parity, sconf);
 	}
 
+	qs_savefile_flush(&sconf->obj->qs_obj.savefile);
+
 	//update some progress indicators
 	sconf->num += dconf->num;
 	sconf->tot_poly += dconf->tot_poly;
@@ -1012,13 +1014,10 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 
 #if defined(HAS_SSE2)
-		printf("using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-#elif defined(HAS_MMX)
-		printf("using MMX for trial division and x%d sieve scanning\n",
+		printf("using SSE2 for x%d sieve scanning\n",
 			sconf->scan_unrolling);
 #else
-		printf("using generic trial division and x%d sieve scanning\n",
+		printf("using generic x%d sieve scanning\n",
 			sconf->scan_unrolling);
 #endif
 
