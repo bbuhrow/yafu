@@ -97,6 +97,32 @@ void finalize_batchline();
 int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj);
 void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
 unsigned process_flags(int argc, char **argv, fact_obj_t *fobj);
+int bin_search(int idp, int idm, uint64 q);
+
+int bin_search(int idp, int idm, uint64 q)
+{
+	int next = (idp + idm) / 2;
+
+	while ((idp - idm) > 10)
+	{
+		if (PRIMES[next] > q)
+		{
+			idp = next;
+			next = (next + idm) / 2;							
+		}
+		else					
+		{
+			idm = next;
+			next = (idp + next) / 2;							
+		}
+	}
+
+	if (PRIMES[next] < q)
+		next += 10;
+
+	return next;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -193,6 +219,239 @@ int main(int argc, char *argv[])
 #else
 	LCGSTATE = g_rand.low;
 #endif
+
+	if (0)
+	{
+		// brute force verification of goldbach conjecture
+		uint64 cand;
+		int start_id;
+		uint64 range = 1000000000; //1ULL<<32; //1000000000; //1ULL<<32;
+		uint64 limit = 1000000000; //1ULL << 32; //1000000000000ULL; //1ULL << 32;
+		int nr, num_ranges = 1000;
+		uint64 rl, ru;
+		uint64 j;
+		uint64 pid, q, verified;
+		int id;
+		clock_t st, sp;
+		int max_pid = 0, count;
+		uint8 *cflags;
+		uint64 *cflags64;
+		uint8 masks[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
+		uint8 nmasks[8];
+		uint64 mask_3_127 = 0x40b6894d325a65b7; 
+		uint64 mask_131_257 = 0x90CB4108C3252619;
+		uint64 mask_263_383 = 0x5244B0902D021A64;
+		uint64 mask_389_509 = 0x2514416894C308A2;
+		
+		// init candidate flags
+		cflags = (uint8 *)malloc((1e9 / 16 + 1000) * sizeof(uint8));
+		memset(cflags, 0, (1e9 / 16 + 1000) * sizeof(uint8));
+		for (i=0; i<8; i++)
+			nmasks[i] = ~masks[i];
+
+		start_id = 5;
+		rl = 0;
+		ru = range; //1000000000000000000ULL + range;
+
+		cflags64 = (uint64 *)cflags;
+		for (nr=0; nr < num_ranges; nr++)
+		{
+			st = clock();
+			printf("getting primes for range %" PRIu64 " - %" PRIu64 "\n",rl, ru);
+			fflush(stdout);
+			st = clock();
+			if (rl == 0)
+				GetPRIMESRange(0, ru + 10000);
+			else
+				GetPRIMESRange(rl - 1e6, ru + 1e6);
+
+			sp = clock();
+			printf("found %" PRIu64 " primes in %2.4f\n",NUM_P, (sp - st) / (double)CLOCKS_PER_SEC);
+		
+			memset(cflags, 0, (1e9 / 16 + 1000) * sizeof(uint8));			
+
+			printf("sieving...");
+			fflush(stdout);
+			st = clock();
+			
+			// start at the beginning of the candidate range
+			i = 1;
+			while (PRIMES[i] < rl)
+				i++;
+			
+			while (PRIMES[i] < ru)
+			{
+				int bit_offset = ((PRIMES[i] - rl + 3) >> 1) & 63;	// mod 64
+				int word_num = ((PRIMES[i] - rl + 3) >> 1) >> 6;	// div 64
+
+				// hard coded masks are offsets of primes from 3, so that
+				// we can "add" many primes to the current prime at the
+				// same time
+				uint64 lm = mask_3_127 << bit_offset;
+				uint64 hm = mask_3_127 >> (64 - bit_offset);
+
+				cflags64[word_num] |= lm;
+				cflags64[word_num+1] |= hm;
+
+				lm = mask_131_257 << bit_offset;
+				hm = mask_131_257 >> (64 - bit_offset);
+
+				cflags64[word_num+1] |= lm;
+				cflags64[word_num+2] |= hm;
+
+				lm = mask_263_383 << bit_offset;
+				hm = mask_263_383 >> (64 - bit_offset);
+
+				cflags64[word_num+2] |= lm;
+				cflags64[word_num+3] |= hm;
+
+				lm = mask_389_509 << bit_offset;
+				hm = mask_389_509 >> (64 - bit_offset);
+
+				cflags64[word_num+3] |= lm;
+				cflags64[word_num+4] |= hm;
+
+				i++;
+			}
+			sp = clock();
+			printf("done in %2.4f\n", (sp - st) / (double)CLOCKS_PER_SEC);
+			
+			if (rl == 0)
+			{
+				// don't do 0,2, or 4
+				cflags[0] |= 7;
+			}
+
+			count = 0;
+			st = clock();
+			//for (i=0; i < range / 128; i++)
+			for (i=0; i < range / 16; i++)
+			{			
+				//printf("sieved word = %" PRIx64 "\n", cflags64[i]);
+				//if (cflags64[i] == 0xffffffffffffffffULL)
+				if (cflags[i] == 0xff)
+					continue;
+
+				//for (j=0; j<64; j++)
+				for (j=0; j<8; j++)
+				{
+					//if (cflags64[i] & (1 << j))
+					if (cflags[i] & (1 << j))
+						continue;
+
+					count++;
+					//cand = ((uint64)i * 64 + j) * 2 + rl;
+					cand = ((uint64)i * 8 + j) * 2 + rl;
+					while (PRIMES[start_id] < cand)
+						start_id++;
+
+					id = start_id-1;
+					//start at the prime index that we stopped sieving at
+					verified = 0;
+					for (pid = 96; spSOEprimes[pid] <= cand / 2; pid++)
+					{
+						//given the candidate and our current choice of p, compute q
+						q = cand - spSOEprimes[pid];
+
+						// scan backwards through the list of primes until
+						// success is impossible
+						while (PRIMES[id] > q)
+							id--;
+				
+						if (PRIMES[id] == q)
+						{
+							verified = 1;
+							break;
+						}
+					}
+
+					if (pid > max_pid)
+						max_pid = pid;
+
+					if (!verified)
+					{
+						printf("candidate %u was not verified!\n",cand);
+						exit(0);
+					}
+				}
+			}
+			sp = clock();
+			printf("checked %d non-sieved candidates in %2.4f\n", count, (sp - st) / (double)CLOCKS_PER_SEC);
+			printf("deepest prime used = %" PRIu64 ", index %d\n", spSOEprimes[max_pid], max_pid);
+
+			rl += range;
+			ru += range;
+			start_id = 0;
+		}
+
+
+		exit(0);
+
+
+		for (cand=8; cand<limit; cand+=2)
+		{
+			uint64 pid, q, verified;
+			int id;
+			
+			if (cand > ru)
+			{
+				sp = clock();
+				printf("cand %" PRIu64 ", in %2.4f.  max depth searched = %d\n", 
+					cand, (double)(sp - st) / (double)CLOCKS_PER_SEC, max_pid);
+				st = clock();
+
+				rl += range;
+				ru += range;
+				if (rl == 0)
+					GetPRIMESRange(0, ru + 10000);
+				else
+					GetPRIMESRange(rl - 10000, ru + 10000);
+				printf("found %" PRIu64 " primes\n",NUM_P);				
+				start_id = 0;
+			}
+
+			// instead of looping and checking, could do a bitscan instruction and jump
+			// directly to the next candidate
+			if ((cflags[cand >> 4] & nmasks[(cand & 15) >> 1]))
+				continue;
+	
+			while (PRIMES[start_id] < cand)
+				start_id++;
+
+			id = start_id-1;
+			//start at prime 5 (index 1) and search up to cand/2
+			verified = 0;
+			for (pid = 25; spSOEprimes[pid] <= cand / 2; pid++)
+			{
+				//given the candidate and our current choice of p, compute q
+				q = cand - spSOEprimes[pid];
+
+				// scan backwards through the list of primes until
+				// success is impossible
+				while (PRIMES[id] > q)
+					id--;
+				
+				if (PRIMES[id] == q)
+				{
+					//if (print)
+					//	printf("%u = %u + %u\n",cand, (uint32)spSOEprimes[pid], q);
+					verified = 1;
+					break;
+				}
+			}
+
+			if (pid > max_pid)
+				max_pid = pid;
+
+			if (!verified)
+			{
+				printf("candidate %u was not verified!\n",cand);
+				exit(0);
+			}
+
+		}
+		exit(0);
+	}
 
 	//command line
 	while (1)
@@ -950,6 +1209,13 @@ int process_batchline(char *input_exp, char *indup)
 	// read a line
 	ptr = fgets(line,GSTR_MAXSIZE,batchfile);	
 
+	if (feof(batchfile))
+	{
+		printf("eof; done processing batchfile\n");
+		fclose(batchfile);
+		return 1;
+	}
+
 	// copy everything in the file after the line we just read to
 	// a temporary file.  if the expression we just read finishes, 
 	// the temporary file will become the batch file (effectively 
@@ -974,7 +1240,7 @@ int process_batchline(char *input_exp, char *indup)
 		printf("fgets returned null; done processing batchfile\n");		
 		return 1;
 	}
-
+	
 	// remove LF an CRs from line
 	nChars = 0;
 	for (j=0; j<strlen(line); j++)

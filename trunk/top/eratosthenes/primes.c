@@ -29,7 +29,8 @@ void primes_from_lineflags(thread_soedata_t *t)
 
 	count_line(t);
 	num_alloc = t->linecount;
-	ddata->primes = (uint64 *)malloc(num_alloc * sizeof(uint64));
+	//printf("attempting to allocate room for %" PRIu64 " primes based on linecount\n",num_alloc);
+	ddata->primes = (uint64 *)malloc((size_t)(num_alloc * sizeof(uint64)));
 	if (ddata->primes == NULL)
 	{
 		printf("failed to allocate primes array in primes_from_lineflags\n");
@@ -50,8 +51,13 @@ void primes_from_lineflags(thread_soedata_t *t)
 				//only store the prime if it is within our requested bounds
 				if ((prime >= sdata->orig_llimit) &&  (prime <= sdata->orig_hlimit))
 				{
+					//if (it >= num_alloc)
+					//{
+					//	printf("error: did not allocate enough primes!\n");
+					//	fflush(stdout);
+					//}
 					ddata->primes[it] = prime;
-					it++;
+					it++;					
 				}
 				//else
 					//printf("prime %" PRIu64 " is outside of original limits of %" PRIu64 " and %" PRIu64"\n",

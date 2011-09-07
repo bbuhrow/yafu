@@ -76,6 +76,8 @@ int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
 
 int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 {
+	mpz_t gmpz;
+	int i;
 	z w1,w2;
 
 	zInit(&w1);
@@ -97,6 +99,44 @@ int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
 		zCopy(&zOne,n);
+		zFree(&w1);
+		zFree(&w2);
+		return 1;
+	}
+
+	if (isSquare(n))
+	{
+		zNroot(n,n,2);
+		n->type = PRP;
+		add_to_factor_list(fobj, n);
+		if (sieve_log != NULL)
+			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+		add_to_factor_list(fobj, n);
+		if (sieve_log != NULL)
+			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+		zCopy(&zOne,n);
+		zFree(&w1);
+		zFree(&w2);
+		return 1;
+	}
+
+	mpz_init(gmpz);
+	mpz_import(gmpz, abs(n->size), -1, sizeof(fp_digit), 
+		0, (size_t)0, n->val);
+	if (n->size < 0)
+		mpz_neg(gmpz, gmpz);
+	i = mpz_perfect_power_p(gmpz);
+	mpz_clear(gmpz);
+
+	if (i)
+	{
+		printf("input is a perfect power\n");
+		add_to_factor_list(fobj, n);
+		if (sieve_log != NULL)
+		{
+			logprint(sieve_log,"input is a perfect power\n");
+			logprint(sieve_log,"c%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+		}
 		zFree(&w1);
 		zFree(&w2);
 		return 1;

@@ -1000,9 +1000,9 @@ int getFunc(char *s, int *nargs)
 	char func[NUM_FUNC][11] = {"fib","luc","dec2hex","hex2dec","rsa",
 						"gcd","jacobi","factor","rand","lg2",
 						"log","ln","pm1","pp1","rho",
-						"trial","mpqs","nextprime","size","set",
+						"trial","mpqs","nextprime","size","issquare",
 						"isprime","squfof","sqrt","modinv","modexp",
-						"nroot","shift","siqs","primes", "qs", 
+						"nroot","shift","siqs","primes", "ispow", 
 						"torture","randb", "ecm","+","-",
 						"*","/","!","#","==",
 						"<<",">>","%","^","test",
@@ -1013,7 +1013,7 @@ int getFunc(char *s, int *nargs)
 	int args[NUM_FUNC] = {1,1,1,1,1,
 					2,2,1,1,1,
 					1,1,1,2,1,
-					2,1,2,1,2,
+					2,1,2,1,1,
 					1,1,1,2,3,
 					2,2,1,3,1, 
 					2,1,2,2,2,
@@ -1040,6 +1040,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 {
 	//evaluate the function 'fname', with argument(s) 'in'
 	z mp1, mp2, mp3, tmp1, tmp2;
+	mpz_t gmpz;
+
 	str_t str;
 	uint32 i=0;
 	uint64 n64;
@@ -1313,8 +1315,20 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&mp3,&operands[0]);
 		break;
 	case 19:
-		//set - two arguments
-		//not implemented
+		//issquare
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in issquare\n");
+			break;
+		}
+		i = isSquare(&operands[0]);
+		if (i)
+			printf("input is square\n");
+		else
+			printf("input is not square\n");
+
+		sp2z(i,&operands[0]);
+
 		break;
 	case 20:
 		//isprime - one argument
@@ -1449,8 +1463,24 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		break;
 	case 29:
-		//pQS - one argument
-		printf("no longer supported\n");
+		//ispow - one argument
+		mpz_init(gmpz);
+
+		mpz_import(gmpz, abs(operands[0].size), -1, sizeof(fp_digit), 
+			0, (size_t)0, operands[0].val);
+		if (operands[0].size < 0)
+			mpz_neg(gmpz, gmpz);
+
+		i = mpz_perfect_power_p(gmpz);
+
+		if (i)
+			printf("input is a perfect power\n");
+		else
+			printf("input is not a perfect power\n");
+
+		sp2z(i,&operands[0]);
+
+		mpz_clear(gmpz);
 		break;
 
 	case 30:

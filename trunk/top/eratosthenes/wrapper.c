@@ -17,14 +17,18 @@ benefit from your work.
 void GetPRIMESRange(uint64 lowlimit, uint64 highlimit)
 {
 	uint64 i;
+	uint64 hi_est, lo_est;
 	
 	//reallocate array based on conservative estimate of the number of 
 	//primes in the interval
 	
-	i = (uint64)(highlimit/log(highlimit));
+	hi_est = (uint64)(highlimit/log((double)highlimit));
 	if (lowlimit > 1)
-		i -= (uint64)(lowlimit/log(lowlimit));
-	i += (highlimit - lowlimit) * 1.2;
+		lo_est = (uint64)(lowlimit/log((double)lowlimit));
+	else
+		lo_est = 0;
+
+	i = (uint64)((double)(hi_est - lo_est) * 1.2);
 
 	PRIMES = (uint64 *)realloc(PRIMES,(size_t) (i*sizeof(uint64)));
 	if (PRIMES == NULL)
@@ -33,6 +37,8 @@ void GetPRIMESRange(uint64 lowlimit, uint64 highlimit)
 			(uint64)(i*sizeof(uint64)),lowlimit,highlimit);
 		exit(1);
 	}
+	//else
+		//printf("allocating %" PRIu64 " primes, %" PRIu64 " bytes\n",i, i*8);
 
 	//reset the global constants
 	P_MIN = lowlimit;

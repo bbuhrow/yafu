@@ -25,6 +25,7 @@ code to the public domain.
 #include "factor.h"
 #include "util.h"
 #include "lanczos.h"
+#include "common.h"
 
 //#define QS_TIMING
 
@@ -134,6 +135,20 @@ double TF_SPECIAL;
 	#define FOGSHIFT 40
 	#define FOGSHIFT_2 40
 #endif
+
+#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+	//assume we have sse2, set defines to use the sse2 code available
+	#define SIMD_SIEVE_SCAN 1
+	#define SIMD_SIEVE_SCAN_VEC 1
+
+#elif defined(MSC_ASM32A)
+	#define SIMD_SIEVE_SCAN 1
+
+#elif defined(_WIN64)
+	#define SIMD_SIEVE_SCAN 1
+
+#endif
+
 
 // these were used in an experiment to check how many times a routine was called
 //double times_checked_per_block;

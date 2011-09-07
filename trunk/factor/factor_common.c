@@ -1615,6 +1615,8 @@ void factor(fact_obj_t *fobj)
 	int user_defined_pp1_b2 = fobj->pp1_obj.stg2_is_default;
 	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
 	int force_switch = 0;
+	FILE *data;
+	char tmpstr[GSTR_MAXSIZE];
 
 	//factor() always ignores user specified B2 values
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -1654,8 +1656,34 @@ void factor(fact_obj_t *fobj)
 	// initialize time per curve
 	method_times.ecm_autoinc_time_per_curve = 0;
 	total_time = 0;
+
+	//default choice
 	fact_state = state_trialdiv;
-	
+
+	//check to see if a siqs savefile exists for this input	
+	data = fopen(fobj->qs_obj.siqs_savefile,"r");
+
+	if (data != NULL)
+	{	
+		char *substr;
+		z tmpz;
+
+		zInit(&tmpz);
+		fgets(tmpstr,1024,data);
+		substr = tmpstr + 2;
+		str2hexz(substr,&tmpz);
+		// gcd required because the savefile may have a multiplier applied
+		zLEGCD(&tmpz,b,&tmpz);
+		if (zCompare(&tmpz, b) == 0)
+		{
+			if (VFLAG > 1)
+				printf("found siqs savefile, resuming siqs\n");
+
+			//override default choice
+			fact_state = state_qs;
+		}
+	}
+
 	while (!done)
 	{
 		switch (fact_state)
