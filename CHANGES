@@ -1,5 +1,5 @@
 v 1.28.5
-+ don't print SKEW line to nfs.fb files
++ no longer print SKEW line to nfs.fb files
 + add issquare and ispow to function list
 + cleanup of siqs tdiv code: now requires SSE2
 + added perfect power checks to siqs and nfs

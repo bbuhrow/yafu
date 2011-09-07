@@ -386,71 +386,6 @@ int main(int argc, char *argv[])
 
 
 		exit(0);
-
-
-		for (cand=8; cand<limit; cand+=2)
-		{
-			uint64 pid, q, verified;
-			int id;
-			
-			if (cand > ru)
-			{
-				sp = clock();
-				printf("cand %" PRIu64 ", in %2.4f.  max depth searched = %d\n", 
-					cand, (double)(sp - st) / (double)CLOCKS_PER_SEC, max_pid);
-				st = clock();
-
-				rl += range;
-				ru += range;
-				if (rl == 0)
-					GetPRIMESRange(0, ru + 10000);
-				else
-					GetPRIMESRange(rl - 10000, ru + 10000);
-				printf("found %" PRIu64 " primes\n",NUM_P);				
-				start_id = 0;
-			}
-
-			// instead of looping and checking, could do a bitscan instruction and jump
-			// directly to the next candidate
-			if ((cflags[cand >> 4] & nmasks[(cand & 15) >> 1]))
-				continue;
-	
-			while (PRIMES[start_id] < cand)
-				start_id++;
-
-			id = start_id-1;
-			//start at prime 5 (index 1) and search up to cand/2
-			verified = 0;
-			for (pid = 25; spSOEprimes[pid] <= cand / 2; pid++)
-			{
-				//given the candidate and our current choice of p, compute q
-				q = cand - spSOEprimes[pid];
-
-				// scan backwards through the list of primes until
-				// success is impossible
-				while (PRIMES[id] > q)
-					id--;
-				
-				if (PRIMES[id] == q)
-				{
-					//if (print)
-					//	printf("%u = %u + %u\n",cand, (uint32)spSOEprimes[pid], q);
-					verified = 1;
-					break;
-				}
-			}
-
-			if (pid > max_pid)
-				max_pid = pid;
-
-			if (!verified)
-			{
-				printf("candidate %u was not verified!\n",cand);
-				exit(0);
-			}
-
-		}
-		exit(0);
 	}
 
 	//command line
@@ -1206,15 +1141,43 @@ int process_batchline(char *input_exp, char *indup)
 	strcpy(line,"");
 	strcpy(input_exp,"");
 
-	// read a line
-	ptr = fgets(line,GSTR_MAXSIZE,batchfile);	
-
-	if (feof(batchfile))
+	// read a line - skipping blank lines
+	do
 	{
-		printf("eof; done processing batchfile\n");
-		fclose(batchfile);
-		return 1;
-	}
+		ptr = fgets(line,GSTR_MAXSIZE,batchfile);	
+
+		if (feof(batchfile))
+		{
+			printf("eof; done processing batchfile\n");
+			fclose(batchfile);
+			return 1;
+		}
+
+		// check the line we read
+		if (ptr == NULL)
+		{
+			printf("fgets returned null; done processing batchfile\n");		
+			fclose(batchfile);
+			return 1;
+		}
+
+		// remove LF an CRs from line
+		nChars = 0;
+		for (j=0; j<strlen(line); j++)
+		{
+			switch (line[j])
+			{
+			case 13:
+			case 10:
+				break;
+			default:
+				line[nChars++] = line[j];
+				break;
+			}
+		}
+		line[nChars++] = '\0';
+
+	} while (strlen(line) == 0);	
 
 	// copy everything in the file after the line we just read to
 	// a temporary file.  if the expression we just read finishes, 
@@ -1227,35 +1190,16 @@ int process_batchline(char *input_exp, char *indup)
 		ptr2 = fgets(tmpline,GSTR_MAXSIZE,batchfile);
 		if (ptr2 == NULL)
 			break;
+
+		if (strlen(tmpline) == 0)
+			continue;
+
 		fputs(tmpline,tmpfile);
 	}
 	fclose(tmpfile);
 
 	// close the batchfile
-	fclose(batchfile);
-
-	// check the line we read
-	if (ptr == NULL)
-	{
-		printf("fgets returned null; done processing batchfile\n");		
-		return 1;
-	}
-	
-	// remove LF an CRs from line
-	nChars = 0;
-	for (j=0; j<strlen(line); j++)
-	{
-		switch (line[j])
-		{
-		case 13:
-		case 10:
-			break;
-		default:
-			line[nChars++] = line[j];
-			break;
-		}
-	}
-	line[nChars++] = '\0';
+	fclose(batchfile);		
 
 	//ignore blank lines
 	if (strlen(line) == 0)
