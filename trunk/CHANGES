@@ -1,3 +1,8 @@
+v 1.28.6
++ default ggnfs_dir is now the top level yafu directory
++ now require GMP and GMP-ECM header and library availability to compile
+
+
 v 1.28.5
 + no longer print SKEW line to nfs.fb files
 + add issquare and ispow to function list
