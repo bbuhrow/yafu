@@ -201,11 +201,11 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
 	fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
-	strcpy(fobj->nfs_obj.ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\x64\\");
+	strcpy(fobj->nfs_obj.ggnfs_dir,".\\");
 #elif defined(WIN32)
-	strcpy(fobj->nfs_obj.ggnfs_dir,"..\\..\\..\\..\\ggnfs-bin\\Win32\\");
+	strcpy(fobj->nfs_obj.ggnfs_dir,".\\");
 #else
-	strcpy(fobj->nfs_obj.ggnfs_dir,"../ggnfs-bin/");
+	strcpy(fobj->nfs_obj.ggnfs_dir,"./");
 #endif
 
 	//initialize autofactor object
@@ -1061,12 +1061,7 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
-#ifdef USE_NFS
-					//only switch to NFS if it is enabled
 					decision = 2;
-#else
-					decision = 1;
-#endif
 					*time_available = 0;
 				}
 				else
@@ -1090,12 +1085,7 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
-#ifdef USE_NFS
-					//only switch to NFS if it is enabled
 					decision = 2;
-#else
-					decision = 1;
-#endif
 					*time_available = 0;
 				}
 				else
