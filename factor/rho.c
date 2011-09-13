@@ -22,6 +22,7 @@ code to the public domain.
 #include "factor.h"
 #include "util.h"
 #include "yafu_ecm.h"
+#include "gmp_xface.h"
 
 int mbrent(fact_obj_t *fobj);
 
@@ -33,21 +34,23 @@ void brent_loop(fact_obj_t *fobj)
 	//polynomials, and their values, configurable, but for 
 	//now it is hardcoded.
 	z *n = &fobj->rho_obj.n;
-	z *f;
 
-	z d,t;
-	int i;
+	mpz_t d,t;
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
+	z f;
+		
+	mp2gmp(n, fobj->rho_obj.mpz_n);
 
 	//check for trivial cases
-	if (isOne(n) || isZero(n))
+	if ((mpz_cmp_ui(fobj->rho_obj.mpz_n, 1) == 0) || (mpz_cmp_ui(fobj->rho_obj.mpz_n, 0) == 0))
 	{
 		n->type = COMPOSITE;
 		return;
 	}
-	if (zCompare(n,&zTwo) == 0)
+
+	if (mpz_cmp_ui(fobj->rho_obj.mpz_n, 2) == 0)
 	{
 		n->type = PRIME;
 		return;
@@ -62,10 +65,9 @@ void brent_loop(fact_obj_t *fobj)
 	}
 
 	//initialize some local args
-	zInit(&d);
-	zInit(&t);
-	zInit(&fobj->rho_obj.factors[0]);
-	f = &fobj->rho_obj.factors[0];
+	mpz_init(d);
+	mpz_init(t);	
+	zInit(&f);
 
 	fobj->rho_obj.curr_poly = 0;
 	while(fobj->rho_obj.curr_poly < 3)
@@ -73,56 +75,72 @@ void brent_loop(fact_obj_t *fobj)
 		//for each different constant, first check primalty because each
 		//time around the number may be different
 		start = clock();
-		if (isPrime(n))
+		if (mpz_probab_prime_p(fobj->rho_obj.mpz_n, NUM_WITNESSES))
 		{
-			n->type = PRP;
-			logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-			add_to_factor_list(fobj, n);
+			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->rho_obj.mpz_n,10),
+				mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_n));
+
+			gmp2mp(fobj->rho_obj.mpz_n, &f);
+			add_to_factor_list(fobj, &f);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-			zCopy(&zOne,n);
+
+			mpz_set_ui(fobj->rho_obj.mpz_n, 1);
 			break;
 		}
 
 		//verbose: print status to screen
 		if (VFLAG >= 0)
-			printf("rho: x^2 + %u, starting %d iterations on C%d ",
-			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, ndigits(n));
-		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%d\n",
-			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, ndigits(n));
+			printf("rho: x^2 + %u, starting %d iterations on C%u ",
+			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
+			mpz_sizeinbase(fobj->rho_obj.mpz_n,10));
+
+		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%u\n",
+			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
+			mpz_sizeinbase(fobj->rho_obj.mpz_n,10));
 		
 		//call brent's rho algorithm, using montgomery arithmetic.
 		mbrent(fobj);
 
 		//check to see if 'f' is non-trivial
-		if (zCompare(f,&zOne) > 0 && zCompare(f,n) < 0)
-		{	
+		if ((mpz_cmp_ui(fobj->rho_obj.mpz_f, 1) > 0)
+			&& (mpz_cmp(fobj->rho_obj.mpz_f, fobj->rho_obj.mpz_n) < 0))
+		{				
+			gmp2mp(fobj->rho_obj.mpz_f, &f);
+
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			//check if the factor is prime
-			if (isPrime(f))
+			if (mpz_probab_prime_p(fobj->rho_obj.mpz_f, NUM_WITNESSES))
 			{
-				add_to_factor_list(fobj, f);
+				add_to_factor_list(fobj, &f);
+
 				if (VFLAG > 0)
-					printf("rho: found prp%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
+					gmp_printf("rho: found prp%d factor = %Zd\n",
+					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),fobj->rho_obj.mpz_f);
+
 				logprint(flog,"prp%d = %s\n",
-					ndigits(f),z2decstr(f,&gstr2));
+					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_f));
 			}
 			else
 			{
-				add_to_factor_list(fobj, f);
+				add_to_factor_list(fobj, &f);
 				if (VFLAG > 0)
-					printf("rho: found c%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
+					gmp_printf("rho: found c%d factor = %Zd\n",
+					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),fobj->rho_obj.mpz_f);
+
 				logprint(flog,"c%d = %s\n",
-					ndigits(f),z2decstr(f,&gstr2));
+					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_f));
 			}
 			start = clock();
 
 			//reduce input
-			zDiv(n,f,&t,&d);
-			zCopy(&t,n);
+			mpz_tdiv_q(fobj->rho_obj.mpz_n, fobj->rho_obj.mpz_n, fobj->rho_obj.mpz_f);
+			
 		}
 		else
 		{
@@ -134,10 +152,13 @@ void brent_loop(fact_obj_t *fobj)
 		}
 	}
 
+	gmp2mp(fobj->rho_obj.mpz_n, n);
 	fobj->rho_obj.ttime = tt;
 	fclose(flog);
-	zFree(&d);
-	zFree(&t);
+	mpz_clear(d);
+	mpz_clear(t);
+	zFree(&f);
+
 	return;
 }
 
@@ -152,19 +173,11 @@ int mbrent(fact_obj_t *fobj)
 	use montgomery arithmetic. 
 	*/
 
-	//z *n = &fobj->rho_obj.n;
-	//z *f;
-	mpz_t n,f;
 	mpz_t x,y,q,g,ys,t1,t2,cc;
 
 	uint32 i=0,k,r,m,c;
 	int it;
 	int imax = fobj->rho_obj.iterations;
-
-	mpz_init(n);
-
-	mpz_import(n, abs(fobj->rho_obj.n.size), -1, sizeof(fp_digit), 
-		0, (size_t)0, fobj->rho_obj.n.val);
 
 	//initialize local arbs
 	mpz_init(x);
@@ -175,11 +188,6 @@ int mbrent(fact_obj_t *fobj)
 	mpz_init(t1);
 	mpz_init(t2);
 	mpz_init(cc);
-
-	// make space for a factor
-	fobj->rho_obj.num_factors = 1;
-	zInit(&fobj->rho_obj.factors[0]);
-	mpz_init(f);
 
 	//starting state of algorithm.  
 	r = 1;
@@ -199,7 +207,7 @@ int mbrent(fact_obj_t *fobj)
 		{
 			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
 			mpz_add_ui(t1, t1, c);
-			mpz_tdiv_r(t1, t1, n);			
+			mpz_tdiv_r(t1, t1, fobj->rho_obj.mpz_n);			
 		}
 
 		k=0;
@@ -210,21 +218,21 @@ int mbrent(fact_obj_t *fobj)
 			{
 				mpz_mul(t1,y,y); //y=(y*y + c)%n
 				mpz_add_ui(t1, t1, c);
-				mpz_tdiv_r(y, t1, n);	
+				mpz_tdiv_r(y, t1, fobj->rho_obj.mpz_n);	
 
 				mpz_sub(t1, x, y); //q = q*abs(x-y) mod n
 				if (mpz_sgn(t1) < 0)
-					mpz_add(t1, t1, n);
+					mpz_add(t1, t1, fobj->rho_obj.mpz_n);
 				mpz_mul(q, t1, q); 
-				mpz_tdiv_r(q, q, n);	
+				mpz_tdiv_r(q, q, fobj->rho_obj.mpz_n);	
 			}
-			mpz_gcd(g, q, n);
+			mpz_gcd(g, q, fobj->rho_obj.mpz_n);
 			k+=m;
 			it++;
 
 			if (it>imax)
 			{
-				mpz_set_ui(f, 0);
+				mpz_set_ui(fobj->rho_obj.mpz_f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
@@ -233,7 +241,7 @@ int mbrent(fact_obj_t *fobj)
 		r*=2;
 	} while (mpz_get_ui(g) == 1);
 
-	if (mpz_cmp(g,n) == 0)
+	if (mpz_cmp(g,fobj->rho_obj.mpz_n) == 0)
 	{
 		//back track
 		it=0;
@@ -241,35 +249,35 @@ int mbrent(fact_obj_t *fobj)
 		{
 			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
 			mpz_add_ui(t1, t1, c);
-			mpz_tdiv_r(ys, t1, n); 
+			mpz_tdiv_r(ys, t1, fobj->rho_obj.mpz_n); 
 
 			mpz_sub(t1, ys, x);
 			if (mpz_sgn(t1) < 0)
-				mpz_add(t1, t1, n);
-			mpz_gcd(g, t1, n);
+				mpz_add(t1, t1, fobj->rho_obj.mpz_n);
+			mpz_gcd(g, t1, fobj->rho_obj.mpz_n);
 			it++;
 			if (it>imax)
 			{
-				mpz_set_ui(f, 0);
+				mpz_set_ui(fobj->rho_obj.mpz_f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
 				mpz_neg(g, g); 
 		} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
-		if (mpz_cmp(g,n) == 0)
+		if (mpz_cmp(g,fobj->rho_obj.mpz_n) == 0)
 		{
-			mpz_set_ui(f, 0);
+			mpz_set_ui(fobj->rho_obj.mpz_f, 0);
 			goto free;
 		}
 		else
 		{
-			mpz_set(f, g);
+			mpz_set(fobj->rho_obj.mpz_f, g);
 			goto free;
 		}
 	}
 	else
 	{
-		mpz_set(f, g);
+		mpz_set(fobj->rho_obj.mpz_f, g);
 		goto free;
 	}
 
@@ -286,12 +294,5 @@ free:
 	mpz_clear(t2);
 	mpz_clear(cc);
 	
-	mpz_export(fobj->rho_obj.factors[0].val, &c, -1, sizeof(fp_digit),
-		0, (size_t)0, f);
-	fobj->rho_obj.factors[0].size = c;
-
-	mpz_clear(f);
-	mpz_clear(n);
-
 	return it;
 }

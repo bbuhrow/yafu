@@ -232,12 +232,12 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t mpz_n;
+	mpz_t mpz_f;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
-	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	double ttime;
 	uint32 base;				//we compute base^B1
 
@@ -247,12 +247,12 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t mpz_n;
+	mpz_t mpz_f;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
-	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	double ttime;
 	uint32 base;				//we compute base^B1
 	uint32 numbases;
@@ -263,6 +263,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t mpz_n;
+	mpz_t mpz_f;
 	str_t in, out;
 
 	char ecm_path[1024];
@@ -287,13 +289,13 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t mpz_n;
+	mpz_t mpz_f;
 	str_t in, out;
 	uint32 iterations;
 	uint32 num_poly;
 	uint32 *polynomials;
 	uint32 curr_poly;			//current polynomial in the list of polynomials
-	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	double ttime;
 
 } rho_obj_t;

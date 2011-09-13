@@ -63,7 +63,7 @@ int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
 	if (zCompare(&Q,&RHS) != 0)
 	{
 		//printf("failure to equate relation\n");
-		//printf("%s %s\n",z2decstr(&Q,&gstr1),z2decstr(&RHS,&gstr2));
+		//printf("Q = %s, RHS = %s\n",z2decstr(&Q,&gstr1),z2decstr(&RHS,&gstr2));
 		retval = 1;
 	}
 

@@ -52,7 +52,6 @@ this file contains code implementing 2)
 
 */
 
-#if defined(TDIV_GMP)
 #define DIVIDE_ONE_PRIME \
 	do	\
 	{	\
@@ -60,15 +59,6 @@ this file contains code implementing 2)
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
 		bits += logp;	\
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
-#else
-	#define DIVIDE_ONE_PRIME \
-	do	\
-	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = i;	\
-		zShortDiv32(Q, prime, Q);	\
-		bits += logp;	\
-	} while (zShortMod32(Q, prime) == 0);
-#endif
 
 //#define DO_4X_SPV 1
 
@@ -91,10 +81,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 #ifdef DO_4X_SPV
 	uint32 *offsetarray, *mask1, *mask2;
-#endif
-
-#if !defined(TDIV_GMP)
-	z32 *Q;
 #endif
 
 	fullfb_ptr = fullfb;
@@ -131,7 +117,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		//multiple precision arithmetic.  all the qstmp's are a global hack
 		//but I don't want to Init/Free millions of times if I don't have to.
 
-#if defined(TDIV_GMP)
 		mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1); 
 		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
 		if (parity)
@@ -147,44 +132,11 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
 			dconf->fb_offsets[report_num][++smooth_num] = 0;
 		}
-#else
-
-		zShiftLeft_1(&dconf->qstmp2,&dconf->curr_poly->poly_b);
-		zShortMul(&dconf->curr_poly->poly_a,offset,&dconf->qstmp1);
-		
-		if (parity)
-			zSub(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-		else
-			zAdd(&dconf->qstmp1,&dconf->qstmp2,&dconf->qstmp3);
-
-		zShortMul(&dconf->qstmp3,offset,&dconf->qstmp1);
-		zAdd(&dconf->qstmp1,&dconf->curr_poly->poly_c,&dconf->qstmp4);
-
-#if BITS_PER_DIGIT == 32
-		for (i=0; i<abs(dconf->qstmp4.size); i++)
-			dconf->Qvals[report_num].val[i] = (uint32)dconf->qstmp4.val[i];
-		dconf->Qvals[report_num].size = dconf->qstmp4.size;
-		dconf->Qvals[report_num].type = dconf->qstmp4.type;
-
-#else
-		z64_to_z32(&dconf->qstmp4,&dconf->Qvals[report_num]);
-#endif
-
-		Q = &dconf->Qvals[report_num];
-
-		if (Q->size < 0)
-		{
-			Q->size *= -1;
-			dconf->fb_offsets[report_num][++smooth_num] = 0;
-		}
-
-#endif
 
 		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
 		//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
 		//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
 		//offset is stored standalone in the relation structure.
-		
 	
 		//compute the bound for small primes.  if we can't find enough small
 		//primes, then abort the trial division early because it is likely to fail to
@@ -193,7 +145,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
 		//take care of powers of two
-#if defined(TDIV_GMP)
 		while (mpz_even_p(dconf->Qvals[report_num]))
 		{
 			//zShiftRight32_x(Q,Q,1);
@@ -201,17 +152,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
 			bits++;
 		}
-#else
-		while (!(Q->val[0] & 0x1))
-		{
-			//
-			zShiftRight32_x(Q, Q, 1);
-			dconf->fb_offsets[report_num][++smooth_num] = 1;
-			bits++;
-		}
-#endif
-		
-
 		
 #ifdef DO_4X_SPV
 		// this won't work because to do the division via multiplication by inverse, the

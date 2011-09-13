@@ -25,14 +25,11 @@ code to the public domain.
 #include "util.h"
 #include "factor.h"
 #include "tfm.h"
+#include "gmp.h"
 
-#ifdef HAVE_GMP
-	#include "gmp.h"
-#endif
-
-#if defined(HAVE_GMP_ECM) && defined(_MSC_VER) 
+#if defined(_MSC_VER)
 	#include <gmp-ecm\config.h>
-#elif defined(HAVE_GMP_ECM)
+#else
 	#include "config.h"
 #endif
 
@@ -942,9 +939,6 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 	logprint(logfile,"System/Build Info: \n");
 	fflush(stdout);
 
-#if !defined(HAVE_GMP) || !defined(HAVE_GMP_ECM)
-	fflush(stdout);
-#else
 	if (VFLAG > 0 || !is_cmdline_run)
 #ifdef _MSC_MPIR_VERSION
 		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
@@ -971,7 +965,6 @@ _MSC_MPIR_VERSION);
 #endif
 #endif
 	fflush(stdout);
-#endif
 
 	fprintf(logfile,"cached %" PRIu64 " primes. pmax = %" PRIu64 "\n",szSOEp,spSOEprimes[szSOEp-1]);
 	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",

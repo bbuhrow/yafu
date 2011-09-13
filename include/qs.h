@@ -89,8 +89,6 @@ double TF_SPECIAL;
 #define BLOCKBITStxt "15"
 #endif
 
-//#define TDIV_GMP 1
-
 //#if defined(_MSC_VER) && !defined(_WIN64)
 //	#define USE_8X_MOD 1
 //	#define USE_8X_MOD_ASM 1
@@ -469,11 +467,7 @@ typedef struct {
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
 	uint32 num_reports;
-#if defined(TDIV_GMP)
 	mpz_t *Qvals;
-#else
-	z32 *Qvals;					//expanded Q values for each report
-#endif
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
 	int *smooth_num;			//how many factors are there for each valid Q
