@@ -1469,15 +1469,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// in the pathological case that every sieve location is a report
 	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
 	dconf->num_reports = 0;
-#if defined(TDIV_GMP)
 	dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		mpz_init2(dconf->Qvals[i], sconf->bits);
-#else
-	dconf->Qvals = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		zInit32(&dconf->Qvals[i]);
-#endif
 	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->failed_squfof = 0;
@@ -2381,13 +2375,8 @@ int free_sieve(dynamic_conf_t *dconf)
 
 	//free sieve scan report stuff
 	free(dconf->reports);
-#if defined(TDIV_GMP)
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		mpz_clear(dconf->Qvals[i]);
-#else
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		zFree32(&dconf->Qvals[i]);
-#endif
 	free(dconf->Qvals);
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);

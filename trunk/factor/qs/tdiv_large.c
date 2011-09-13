@@ -254,21 +254,12 @@ this file contains code implementing 5)
 
 #endif
 
-#if defined(TDIV_GMP)
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
 		fb_offsets[++smooth_num] = i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
-#else
-	#define DIVIDE_ONE_PRIME \
-	do	\
-	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = i;	\
-		zShortDiv32(Q, prime, Q);	\
-	} while (zShortMod32(Q, prime) == 0);
-#endif
 
 void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -281,10 +272,6 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	sieve_fb *fb;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
-
-#if !defined(TDIV_GMP)
-	z32 *Q = &dconf->Qvals[report_num];
-#endif
 
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);

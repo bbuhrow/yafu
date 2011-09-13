@@ -234,36 +234,27 @@ void free_factobj(fact_obj_t *fobj)
 {
 	uint32 i;
 
-	// free any factors found in rho
-	for (i=0; i<fobj->rho_obj.num_factors; i++)
-		zFree(&fobj->rho_obj.factors[i]);
-	free(fobj->rho_obj.factors);
-
-	// then free other stuff in rho
+	// free stuff in rho
 	free(fobj->rho_obj.polynomials);
+	mpz_clear(fobj->rho_obj.mpz_n);
+	mpz_clear(fobj->rho_obj.mpz_f);
 	sFree(&fobj->rho_obj.in);
 	sFree(&fobj->rho_obj.out);
 	zFree(&fobj->rho_obj.n);
 
-	// free any factors found in pm1
-	for (i=0; i<fobj->pm1_obj.num_factors; i++)
-		zFree(&fobj->pm1_obj.factors[i]);
-	free(fobj->pm1_obj.factors);
-
-	// then free other stuff in pm1
+	// free stuff in pm1
 	sFree(&fobj->pm1_obj.in);
 	sFree(&fobj->pm1_obj.out);
 	zFree(&fobj->pm1_obj.n);
+	mpz_clear(fobj->pm1_obj.mpz_n);
+	mpz_clear(fobj->pm1_obj.mpz_f);
 
-	// free any factors found in pp1
-	for (i=0; i<fobj->pp1_obj.num_factors; i++)
-		zFree(&fobj->pp1_obj.factors[i]);
-	free(fobj->pp1_obj.factors);
-
-	// then free other stuff in pp1
+	// free stuff in pp1
 	sFree(&fobj->pp1_obj.in);
 	sFree(&fobj->pp1_obj.out);
 	zFree(&fobj->pp1_obj.n);
+	mpz_clear(fobj->pp1_obj.mpz_n);
+	mpz_clear(fobj->pp1_obj.mpz_f);
 
 	// free any factors found in ecm
 	for (i=0; i<fobj->ecm_obj.num_factors; i++)
@@ -274,6 +265,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->ecm_obj.in);
 	sFree(&fobj->ecm_obj.out);
 	zFree(&fobj->ecm_obj.n);
+	mpz_clear(fobj->ecm_obj.mpz_n);
+	mpz_clear(fobj->ecm_obj.mpz_f);
 
 	// free any factors found in squfof
 	for (i=0; i<fobj->squfof_obj.num_factors; i++)
@@ -330,28 +323,33 @@ void alloc_factobj(fact_obj_t *fobj)
 	zInit(&fobj->N);
 	sInit(&fobj->str_N);	
 
-	fobj->rho_obj.factors = (z *)malloc(sizeof(z));
 	fobj->rho_obj.num_poly = 3;
 	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
-	fobj->rho_obj.polynomials[0] = 1;
-	fobj->rho_obj.polynomials[1] = 3;
-	fobj->rho_obj.polynomials[2] = 2;
+	fobj->rho_obj.polynomials[0] = 3;
+	fobj->rho_obj.polynomials[1] = 2;
+	fobj->rho_obj.polynomials[2] = 1;
+	mpz_init(fobj->rho_obj.mpz_n);
+	mpz_init(fobj->rho_obj.mpz_f);
 	zInit(&fobj->rho_obj.n);
 	sInit(&fobj->rho_obj.in);
 	sInit(&fobj->rho_obj.out);
 
-	fobj->pm1_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->pm1_obj.n);
+	mpz_init(fobj->pm1_obj.mpz_n);
+	mpz_init(fobj->pm1_obj.mpz_f);
 	sInit(&fobj->pm1_obj.in);
 	sInit(&fobj->pm1_obj.out);
 	
-	fobj->pp1_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->pp1_obj.n);
+	mpz_init(fobj->pp1_obj.mpz_n);
+	mpz_init(fobj->pp1_obj.mpz_f);
 	sInit(&fobj->pp1_obj.in);
 	sInit(&fobj->pp1_obj.out);
 
 	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->ecm_obj.n);
+	mpz_init(fobj->ecm_obj.mpz_n);
+	mpz_init(fobj->ecm_obj.mpz_f);
 	sInit(&fobj->ecm_obj.in);
 	sInit(&fobj->ecm_obj.out);
 
@@ -378,9 +376,6 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->allocated_factors = 256;
 	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
 
-	fobj->rho_obj.num_factors = 0;	
-	fobj->pm1_obj.num_factors = 0;	
-	fobj->pp1_obj.num_factors = 0;	
 	fobj->ecm_obj.num_factors = 0;	
 	fobj->qs_obj.num_factors = 0;	
 	fobj->div_obj.num_factors = 0;	
@@ -403,31 +398,7 @@ void reset_factobj(fact_obj_t *fobj)
 void record_new_factor(fact_obj_t *fobj, char *method, z *n)
 {
 	//switch on 'method'
-	if (strcmp(method,"rho"))
-	{
-		fobj->rho_obj.num_factors++;
-		fobj->rho_obj.factors = (z *)realloc(fobj->rho_obj.factors,
-			fobj->rho_obj.num_factors * sizeof(z));
-		zInit(&fobj->rho_obj.factors[fobj->rho_obj.num_factors - 1]);
-		zCopy(n,&fobj->rho_obj.factors[fobj->rho_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"pm1"))
-	{
-		fobj->pm1_obj.num_factors++;
-		fobj->pm1_obj.factors = (z *)realloc(fobj->pm1_obj.factors,
-			fobj->pm1_obj.num_factors * sizeof(z));
-		zInit(&fobj->pm1_obj.factors[fobj->pm1_obj.num_factors - 1]);
-		zCopy(n,&fobj->pm1_obj.factors[fobj->pm1_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"pp1"))
-	{
-		fobj->pp1_obj.num_factors++;
-		fobj->pp1_obj.factors = (z *)realloc(fobj->pp1_obj.factors,
-			fobj->pp1_obj.num_factors * sizeof(z));
-		zInit(&fobj->pp1_obj.factors[fobj->pp1_obj.num_factors - 1]);
-		zCopy(n,&fobj->pp1_obj.factors[fobj->pp1_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"ecm"))
+	if(strcmp(method,"ecm"))
 	{
 		fobj->ecm_obj.num_factors++;
 		fobj->ecm_obj.factors = (z *)realloc(fobj->ecm_obj.factors,

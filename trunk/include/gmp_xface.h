@@ -12,8 +12,6 @@ benefit from your work.
 $Id: gmp_xface.h 23 2009-07-20 02:59:07Z jasonp_sf $
 --------------------------------------------------------------------*/
 
-#ifdef HAVE_GMP
-
 #ifndef _GMP_XFACE_H_
 #define _GMP_XFACE_H_
 
@@ -106,5 +104,3 @@ static INLINE int64 gmp2int64(mpz_t src) {
 #endif
 
 #endif /* _GMP_XFACE_H_ */
-
-#endif /* HAVE_GMP */

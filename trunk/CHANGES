@@ -1,6 +1,8 @@
 v 1.28.6
 + default ggnfs_dir is now the top level yafu directory
 + now require GMP and GMP-ECM header and library availability to compile
+	(thanks Random_Poster)
++ conversion of a bunch more stuff to gmp
 
 
 v 1.28.5

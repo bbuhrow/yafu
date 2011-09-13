@@ -81,48 +81,24 @@ void pp1_finalize(fact_obj_t *fobj)
 int pp1_wrapper(fact_obj_t *fobj)
 {
 	int status;
-	z *n, *f;
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	size_t count;
-#endif
-
-    f = &fobj->pp1_obj.factors[0];
-	n = &fobj->pp1_obj.n;
+	mpz_set(pp1_data.gmp_n, fobj->pp1_obj.mpz_n);
 
 	pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 	if (VFLAG >= 3)
 		pp1_data.params->verbose = VFLAG - 2;		
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	mpz_import(pp1_data.gmp_n, (size_t)(abs(n->size)), -1, sizeof(uint32), 
-		0, (size_t)0, n->val);
-#else
-	//wrapper for YAFU bigints and call to gmp-ecm
-	mp2gmp(n, pp1_data.gmp_n);
-#endif
-
 	if (fobj->pp1_obj.stg2_is_default == 0)
 	{
 		//not default, tell gmp-ecm to use the requested B2
 		//printf("using requested B2 value\n");
-		sp642z(fobj->pp1_obj.B2,f);
-		mp2gmp(f,pp1_data.params->B2);
-		zClear(f);
+		uint64_2gmp(fobj->pp1_obj.B2, pp1_data.params->B2);
 	}
 
 	status = ecm_factor(pp1_data.gmp_factor, pp1_data.gmp_n,
 			fobj->pp1_obj.B1, pp1_data.params);
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	zClear(n);
-	mpz_export(n->val, &count, -1, sizeof(uint32),
-			0, (size_t)0, pp1_data.gmp_n);
-	n->size = count;
-#else
-	//update n: not sure if gmp-ecm modifies it
-	gmp2mp(pp1_data.gmp_n, n);
-#endif
+	mpz_set(fobj->pp1_obj.mpz_n, pp1_data.gmp_n);
 
 	//NOTE: this required a modification to the GMP-ECM source code in pp1.c
 	//in order to get the automatically computed B2 value out of the
@@ -130,15 +106,7 @@ int pp1_wrapper(fact_obj_t *fobj)
 	//gmp2mp(pp1_data.params->B2,f);
 	//WILL_STG2_MAX = z264(f);
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-	zClear(f);
-	mpz_export(f->val, &count, -1, sizeof(uint32),
-			0, (size_t)0, pp1_data.gmp_factor);
-	f->size = count;
-#else
-	//pull out any factor found
-	gmp2mp(pp1_data.gmp_factor,f);
-#endif
+	mpz_set(fobj->pp1_obj.mpz_f, pp1_data.gmp_factor);
 
 	//the return value is the stage the factor was found in, if no error
 	pp1_data.stagefound = status;
@@ -152,19 +120,23 @@ void williams_loop(fact_obj_t *fobj)
 	//we allow multiple trials since we may not always get a p+1 group
 	//with our random choice of base
 	z *n = &fobj->pp1_obj.n;
-	z d, *f, t;
+	mpz_t d,t;
 	int i,it,trials = fobj->pp1_obj.numbases;
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
+	z f;
+		
+	mp2gmp(n, fobj->pp1_obj.mpz_n);
 
 	//check for trivial cases
-	if (isOne(n) || isZero(n))
+	if ((mpz_cmp_ui(fobj->pp1_obj.mpz_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.mpz_n, 0) == 0))
 	{
 		n->type = COMPOSITE;
 		return;
 	}
-	if (zCompare(n,&zTwo) == 0)
+
+	if (mpz_cmp_ui(fobj->pp1_obj.mpz_n, 2) == 0)
 	{
 		n->type = PRIME;
 		return;
@@ -183,11 +155,10 @@ void williams_loop(fact_obj_t *fobj)
 	PP1_ABORT = 0;
 	signal(SIGINT,pp1exit);
 
-	zInit(&d);
-	fobj->pp1_obj.num_factors = 1;
-	zInit(&fobj->pp1_obj.factors[0]);
-	f = &fobj->pp1_obj.factors[0];
-	zInit(&t);
+	//initialize some local args
+	mpz_init(d);
+	mpz_init(t);	
+	zInit(&f);
 
 	pp1_init(fobj);
 
@@ -202,14 +173,17 @@ void williams_loop(fact_obj_t *fobj)
 		}
 
 		start = clock();
-		if (isPrime(n))
+		if (mpz_probab_prime_p(fobj->pp1_obj.mpz_n, NUM_WITNESSES))
 		{
-			n->type = PRP;
-			add_to_factor_list(fobj, n);
-			logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->pp1_obj.mpz_n,10),
+				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_n));
+
+			gmp2mp(fobj->pp1_obj.mpz_n, &f);
+			add_to_factor_list(fobj, &f);
+
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
-			zCopy(&zOne,n);
+			mpz_set_ui(fobj->pp1_obj.mpz_n, 1);
 			break;
 		}
 		
@@ -219,34 +193,44 @@ void williams_loop(fact_obj_t *fobj)
 
 		it = pp1_wrapper(fobj);
 		
-		if (zCompare(f,&zOne) > 0 && zCompare(f,n) < 0)
-		{
+		//check to see if 'f' is non-trivial
+		if ((mpz_cmp_ui(fobj->pp1_obj.mpz_f, 1) > 0)
+			&& (mpz_cmp(fobj->pp1_obj.mpz_f, fobj->pp1_obj.mpz_n) < 0))
+		{				
+			gmp2mp(fobj->pp1_obj.mpz_f, &f);
+
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-			if (isPrime(f))
+			//check if the factor is prime
+			if (mpz_probab_prime_p(fobj->pp1_obj.mpz_f, NUM_WITNESSES))
 			{
-				f->type = PRP;
-				add_to_factor_list(fobj, f);
+				add_to_factor_list(fobj, &f);
+
 				if (VFLAG > 0)
-					printf("pp1: found prp%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
+					gmp_printf("pp1: found prp%d factor = %Zd\n",
+					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),fobj->pp1_obj.mpz_f);
+
 				logprint(flog,"prp%d = %s\n",
-					ndigits(f),z2decstr(f,&gstr2));
+					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_f));
 			}
 			else
 			{
-				f->type = COMPOSITE;
-				add_to_factor_list(fobj, f);
+				add_to_factor_list(fobj, &f);
 				if (VFLAG > 0)
-					printf("pp1: found c%d factor = %s\n",ndigits(f),z2decstr(f,&gstr1));
+					gmp_printf("pp1: found c%d factor = %Zd\n",
+					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),fobj->pp1_obj.mpz_f);
+
 				logprint(flog,"c%d = %s\n",
-					ndigits(f),z2decstr(f,&gstr2));
+					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_f));
 			}
 			start = clock();
 
 			//reduce input
-			zDiv(n,f,&t,&d);
-			zCopy(&t,n);
+			mpz_tdiv_q(fobj->pp1_obj.mpz_n, fobj->pp1_obj.mpz_n, fobj->pp1_obj.mpz_f);
+
 			i++;
 			break;
 		}
@@ -257,16 +241,17 @@ void williams_loop(fact_obj_t *fobj)
 	fclose(flog);
 
 	pp1_finalize(fobj);
-
+	gmp2mp(fobj->pp1_obj.mpz_n, n);
 	signal(SIGINT,NULL);
-	zFree(&d);
-	zFree(&t);
+	mpz_clear(d);
+	mpz_clear(t);
+	zFree(&f);
+
 	return;
 }
 
 void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 {
-	z *n = &fobj->pp1_obj.n;
 	char suffix;
 	char stg1str[20];
 	char stg2str[20];
@@ -319,18 +304,16 @@ void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 	if (VFLAG >= 0)
 	{
 		printf("pp1: starting B1 = %s, B2 = %s on C%d"
-			,stg1str,stg2str,ndigits(n));
+			,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.mpz_n, 10));
 		fflush(stdout);	
 	}
 	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
-		,stg1str,stg2str,ndigits(n));
+		,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.mpz_n, 10));
 
-#if defined(HAVE_GMP) && defined(HAVE_GMP_ECM)
 		//need a new line to make screen output look right, when
 		//using GMP-ECM, because the "processed" status is not printed
 	if (VFLAG >= 0)
 		printf("\n");
-#endif
 
 	return;
 }

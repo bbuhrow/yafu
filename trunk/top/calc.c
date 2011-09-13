@@ -887,6 +887,12 @@ int calc(str_t *in, fact_obj_t *fobj)
 
 	do
 	{
+		//printf("stack contents: ");
+		//for (i=0; i<stk.num; i++)
+		//	printf("%s ",stk.elements[i]->s);
+		//printf("\n");
+		//printf("current token: %s\n\n", &tok[0]);
+
 		switch (get_el_type2(tok[0]))
 		{
 		case NUM:
