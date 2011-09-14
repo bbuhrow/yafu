@@ -141,6 +141,11 @@ YAFU_SRCS = \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
 	factor/nfs/nfs.c \
+	factor/nfs/nfs_sieving.c \
+	factor/nfs/nfs_poly.c \
+	factor/nfs/nfs_postproc.c \
+	factor/nfs/nfs_filemanip.c \
+	factor/nfs/nfs_threading.c \
 	arith/arith0.c \
 	arith/arith1.c \
 	arith/arith2.c \
@@ -174,7 +179,8 @@ HEAD = include/yafu.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
 	include/yafu_ecm.h \
-	include/gmp_xface.h
+	include/gmp_xface.h \
+	include/nfs.h
 
 #---------------------------Make Targets -------------------------
 

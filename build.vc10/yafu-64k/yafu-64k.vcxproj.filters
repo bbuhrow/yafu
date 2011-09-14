@@ -224,6 +224,21 @@
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c">
       <Filter>Source Files\sieve</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs_poly.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs_postproc.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs_sieving.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs_threading.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -272,6 +287,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\gnfs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\nfs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

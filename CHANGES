@@ -3,6 +3,7 @@ v 1.28.6
 + now require GMP and GMP-ECM header and library availability to compile
 	(thanks Random_Poster)
 + conversion of a bunch more stuff to gmp
++ fixed bug so that win32 will switch to nfs when appropriate
 
 
 v 1.28.5
