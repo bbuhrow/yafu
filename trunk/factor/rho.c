@@ -41,16 +41,16 @@ void brent_loop(fact_obj_t *fobj)
 	double tt;
 	z f;
 		
-	mp2gmp(n, fobj->rho_obj.mpz_n);
+	mp2gmp(n, fobj->rho_obj.gmp_n);
 
 	//check for trivial cases
-	if ((mpz_cmp_ui(fobj->rho_obj.mpz_n, 1) == 0) || (mpz_cmp_ui(fobj->rho_obj.mpz_n, 0) == 0))
+	if ((mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->rho_obj.gmp_n, 0) == 0))
 	{
 		n->type = COMPOSITE;
 		return;
 	}
 
-	if (mpz_cmp_ui(fobj->rho_obj.mpz_n, 2) == 0)
+	if (mpz_cmp_ui(fobj->rho_obj.gmp_n, 2) == 0)
 	{
 		n->type = PRIME;
 		return;
@@ -75,17 +75,17 @@ void brent_loop(fact_obj_t *fobj)
 		//for each different constant, first check primalty because each
 		//time around the number may be different
 		start = clock();
-		if (mpz_probab_prime_p(fobj->rho_obj.mpz_n, NUM_WITNESSES))
+		if (mpz_probab_prime_p(fobj->rho_obj.gmp_n, NUM_WITNESSES))
 		{
-			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->rho_obj.mpz_n,10),
-				mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_n));
+			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->rho_obj.gmp_n,10),
+				mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_n));
 
-			gmp2mp(fobj->rho_obj.mpz_n, &f);
+			gmp2mp(fobj->rho_obj.gmp_n, &f);
 			add_to_factor_list(fobj, &f);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
-			mpz_set_ui(fobj->rho_obj.mpz_n, 1);
+			mpz_set_ui(fobj->rho_obj.gmp_n, 1);
 			break;
 		}
 
@@ -93,53 +93,53 @@ void brent_loop(fact_obj_t *fobj)
 		if (VFLAG >= 0)
 			printf("rho: x^2 + %u, starting %d iterations on C%u ",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			mpz_sizeinbase(fobj->rho_obj.mpz_n,10));
+			mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
 
 		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%u\n",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			mpz_sizeinbase(fobj->rho_obj.mpz_n,10));
+			mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
 		
 		//call brent's rho algorithm, using montgomery arithmetic.
 		mbrent(fobj);
 
 		//check to see if 'f' is non-trivial
-		if ((mpz_cmp_ui(fobj->rho_obj.mpz_f, 1) > 0)
-			&& (mpz_cmp(fobj->rho_obj.mpz_f, fobj->rho_obj.mpz_n) < 0))
+		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
+			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
 		{				
-			gmp2mp(fobj->rho_obj.mpz_f, &f);
+			gmp2mp(fobj->rho_obj.gmp_f, &f);
 
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			//check if the factor is prime
-			if (mpz_probab_prime_p(fobj->rho_obj.mpz_f, NUM_WITNESSES))
+			if (mpz_probab_prime_p(fobj->rho_obj.gmp_f, NUM_WITNESSES))
 			{
 				add_to_factor_list(fobj, &f);
 
 				if (VFLAG > 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),fobj->rho_obj.mpz_f);
+					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"prp%d = %s\n",
-					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),
-					mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_f));
+					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_f));
 			}
 			else
 			{
 				add_to_factor_list(fobj, &f);
 				if (VFLAG > 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),fobj->rho_obj.mpz_f);
+					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"c%d = %s\n",
-					mpz_sizeinbase(fobj->rho_obj.mpz_f, 10),
-					mpz_get_str(gstr1.s, 10, fobj->rho_obj.mpz_f));
+					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_f));
 			}
 			start = clock();
 
 			//reduce input
-			mpz_tdiv_q(fobj->rho_obj.mpz_n, fobj->rho_obj.mpz_n, fobj->rho_obj.mpz_f);
+			mpz_tdiv_q(fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_n, fobj->rho_obj.gmp_f);
 			
 		}
 		else
@@ -152,7 +152,7 @@ void brent_loop(fact_obj_t *fobj)
 		}
 	}
 
-	gmp2mp(fobj->rho_obj.mpz_n, n);
+	gmp2mp(fobj->rho_obj.gmp_n, n);
 	fobj->rho_obj.ttime = tt;
 	fclose(flog);
 	mpz_clear(d);
@@ -207,7 +207,7 @@ int mbrent(fact_obj_t *fobj)
 		{
 			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
 			mpz_add_ui(t1, t1, c);
-			mpz_tdiv_r(t1, t1, fobj->rho_obj.mpz_n);			
+			mpz_tdiv_r(t1, t1, fobj->rho_obj.gmp_n);			
 		}
 
 		k=0;
@@ -218,21 +218,21 @@ int mbrent(fact_obj_t *fobj)
 			{
 				mpz_mul(t1,y,y); //y=(y*y + c)%n
 				mpz_add_ui(t1, t1, c);
-				mpz_tdiv_r(y, t1, fobj->rho_obj.mpz_n);	
+				mpz_tdiv_r(y, t1, fobj->rho_obj.gmp_n);	
 
 				mpz_sub(t1, x, y); //q = q*abs(x-y) mod n
 				if (mpz_sgn(t1) < 0)
-					mpz_add(t1, t1, fobj->rho_obj.mpz_n);
+					mpz_add(t1, t1, fobj->rho_obj.gmp_n);
 				mpz_mul(q, t1, q); 
-				mpz_tdiv_r(q, q, fobj->rho_obj.mpz_n);	
+				mpz_tdiv_r(q, q, fobj->rho_obj.gmp_n);	
 			}
-			mpz_gcd(g, q, fobj->rho_obj.mpz_n);
+			mpz_gcd(g, q, fobj->rho_obj.gmp_n);
 			k+=m;
 			it++;
 
 			if (it>imax)
 			{
-				mpz_set_ui(fobj->rho_obj.mpz_f, 0);
+				mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
@@ -241,7 +241,7 @@ int mbrent(fact_obj_t *fobj)
 		r*=2;
 	} while (mpz_get_ui(g) == 1);
 
-	if (mpz_cmp(g,fobj->rho_obj.mpz_n) == 0)
+	if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
 	{
 		//back track
 		it=0;
@@ -249,35 +249,35 @@ int mbrent(fact_obj_t *fobj)
 		{
 			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
 			mpz_add_ui(t1, t1, c);
-			mpz_tdiv_r(ys, t1, fobj->rho_obj.mpz_n); 
+			mpz_tdiv_r(ys, t1, fobj->rho_obj.gmp_n); 
 
 			mpz_sub(t1, ys, x);
 			if (mpz_sgn(t1) < 0)
-				mpz_add(t1, t1, fobj->rho_obj.mpz_n);
-			mpz_gcd(g, t1, fobj->rho_obj.mpz_n);
+				mpz_add(t1, t1, fobj->rho_obj.gmp_n);
+			mpz_gcd(g, t1, fobj->rho_obj.gmp_n);
 			it++;
 			if (it>imax)
 			{
-				mpz_set_ui(fobj->rho_obj.mpz_f, 0);
+				mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 				goto free;
 			}
 			if (mpz_sgn(g) < 0)
 				mpz_neg(g, g); 
 		} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
-		if (mpz_cmp(g,fobj->rho_obj.mpz_n) == 0)
+		if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
 		{
-			mpz_set_ui(fobj->rho_obj.mpz_f, 0);
+			mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 			goto free;
 		}
 		else
 		{
-			mpz_set(fobj->rho_obj.mpz_f, g);
+			mpz_set(fobj->rho_obj.gmp_f, g);
 			goto free;
 		}
 	}
 	else
 	{
-		mpz_set(fobj->rho_obj.mpz_f, g);
+		mpz_set(fobj->rho_obj.gmp_f, g);
 		goto free;
 	}
 

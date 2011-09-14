@@ -82,7 +82,7 @@ int pp1_wrapper(fact_obj_t *fobj)
 {
 	int status;
 
-	mpz_set(pp1_data.gmp_n, fobj->pp1_obj.mpz_n);
+	mpz_set(pp1_data.gmp_n, fobj->pp1_obj.gmp_n);
 
 	pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 	if (VFLAG >= 3)
@@ -98,7 +98,7 @@ int pp1_wrapper(fact_obj_t *fobj)
 	status = ecm_factor(pp1_data.gmp_factor, pp1_data.gmp_n,
 			fobj->pp1_obj.B1, pp1_data.params);
 
-	mpz_set(fobj->pp1_obj.mpz_n, pp1_data.gmp_n);
+	mpz_set(fobj->pp1_obj.gmp_n, pp1_data.gmp_n);
 
 	//NOTE: this required a modification to the GMP-ECM source code in pp1.c
 	//in order to get the automatically computed B2 value out of the
@@ -106,7 +106,7 @@ int pp1_wrapper(fact_obj_t *fobj)
 	//gmp2mp(pp1_data.params->B2,f);
 	//WILL_STG2_MAX = z264(f);
 
-	mpz_set(fobj->pp1_obj.mpz_f, pp1_data.gmp_factor);
+	mpz_set(fobj->pp1_obj.gmp_f, pp1_data.gmp_factor);
 
 	//the return value is the stage the factor was found in, if no error
 	pp1_data.stagefound = status;
@@ -127,16 +127,16 @@ void williams_loop(fact_obj_t *fobj)
 	double tt;
 	z f;
 		
-	mp2gmp(n, fobj->pp1_obj.mpz_n);
+	mp2gmp(n, fobj->pp1_obj.gmp_n);
 
 	//check for trivial cases
-	if ((mpz_cmp_ui(fobj->pp1_obj.mpz_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.mpz_n, 0) == 0))
+	if ((mpz_cmp_ui(fobj->pp1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 0) == 0))
 	{
 		n->type = COMPOSITE;
 		return;
 	}
 
-	if (mpz_cmp_ui(fobj->pp1_obj.mpz_n, 2) == 0)
+	if (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 2) == 0)
 	{
 		n->type = PRIME;
 		return;
@@ -173,17 +173,17 @@ void williams_loop(fact_obj_t *fobj)
 		}
 
 		start = clock();
-		if (mpz_probab_prime_p(fobj->pp1_obj.mpz_n, NUM_WITNESSES))
+		if (mpz_probab_prime_p(fobj->pp1_obj.gmp_n, NUM_WITNESSES))
 		{
-			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->pp1_obj.mpz_n,10),
-				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_n));
+			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->pp1_obj.gmp_n,10),
+				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
-			gmp2mp(fobj->pp1_obj.mpz_n, &f);
+			gmp2mp(fobj->pp1_obj.gmp_n, &f);
 			add_to_factor_list(fobj, &f);
 
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
-			mpz_set_ui(fobj->pp1_obj.mpz_n, 1);
+			mpz_set_ui(fobj->pp1_obj.gmp_n, 1);
 			break;
 		}
 		
@@ -194,42 +194,42 @@ void williams_loop(fact_obj_t *fobj)
 		it = pp1_wrapper(fobj);
 		
 		//check to see if 'f' is non-trivial
-		if ((mpz_cmp_ui(fobj->pp1_obj.mpz_f, 1) > 0)
-			&& (mpz_cmp(fobj->pp1_obj.mpz_f, fobj->pp1_obj.mpz_n) < 0))
+		if ((mpz_cmp_ui(fobj->pp1_obj.gmp_f, 1) > 0)
+			&& (mpz_cmp(fobj->pp1_obj.gmp_f, fobj->pp1_obj.gmp_n) < 0))
 		{				
-			gmp2mp(fobj->pp1_obj.mpz_f, &f);
+			gmp2mp(fobj->pp1_obj.gmp_f, &f);
 
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 			//check if the factor is prime
-			if (mpz_probab_prime_p(fobj->pp1_obj.mpz_f, NUM_WITNESSES))
+			if (mpz_probab_prime_p(fobj->pp1_obj.gmp_f, NUM_WITNESSES))
 			{
 				add_to_factor_list(fobj, &f);
 
 				if (VFLAG > 0)
 					gmp_printf("pp1: found prp%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),fobj->pp1_obj.mpz_f);
+					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),fobj->pp1_obj.gmp_f);
 
 				logprint(flog,"prp%d = %s\n",
-					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),
-					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_f));
+					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			else
 			{
 				add_to_factor_list(fobj, &f);
 				if (VFLAG > 0)
 					gmp_printf("pp1: found c%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),fobj->pp1_obj.mpz_f);
+					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),fobj->pp1_obj.gmp_f);
 
 				logprint(flog,"c%d = %s\n",
-					mpz_sizeinbase(fobj->pp1_obj.mpz_f, 10),
-					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.mpz_f));
+					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),
+					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			start = clock();
 
 			//reduce input
-			mpz_tdiv_q(fobj->pp1_obj.mpz_n, fobj->pp1_obj.mpz_n, fobj->pp1_obj.mpz_f);
+			mpz_tdiv_q(fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_f);
 
 			i++;
 			break;
@@ -241,7 +241,7 @@ void williams_loop(fact_obj_t *fobj)
 	fclose(flog);
 
 	pp1_finalize(fobj);
-	gmp2mp(fobj->pp1_obj.mpz_n, n);
+	gmp2mp(fobj->pp1_obj.gmp_n, n);
 	signal(SIGINT,NULL);
 	mpz_clear(d);
 	mpz_clear(t);
@@ -304,11 +304,11 @@ void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 	if (VFLAG >= 0)
 	{
 		printf("pp1: starting B1 = %s, B2 = %s on C%d"
-			,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.mpz_n, 10));
+			,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
 		fflush(stdout);	
 	}
 	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
-		,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.mpz_n, 10));
+		,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
 
 		//need a new line to make screen output look right, when
 		//using GMP-ECM, because the "processed" status is not printed

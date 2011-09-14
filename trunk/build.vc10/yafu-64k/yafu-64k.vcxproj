@@ -275,6 +275,11 @@
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_postproc.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_sieving.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
     <ClCompile Include="..\..\factor\nfs\winsupport.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
@@ -330,6 +335,7 @@
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\include\nfs.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\soe.h" />
     <ClInclude Include="..\..\include\tfm.h" />

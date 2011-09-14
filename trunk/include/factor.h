@@ -35,6 +35,10 @@ routines and bookkeeping */
 
 #define MAX_FACTORS 10
 
+#ifndef USE_NFS
+	#define USE_NFS
+#endif
+
 // stuff that needs to be visible to the msieve routines and 
 // the yafu sieve routines
 
@@ -232,8 +236,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
-	mpz_t mpz_n;
-	mpz_t mpz_f;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
@@ -247,8 +251,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
-	mpz_t mpz_n;
-	mpz_t mpz_f;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	uint32 B1;
 	uint64 B2;
@@ -263,8 +267,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
-	mpz_t mpz_n;
-	mpz_t mpz_f;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 
 	char ecm_path[1024];
@@ -289,8 +293,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
-	mpz_t mpz_n;
-	mpz_t mpz_f;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	uint32 iterations;
 	uint32 num_poly;

@@ -236,8 +236,8 @@ void free_factobj(fact_obj_t *fobj)
 
 	// free stuff in rho
 	free(fobj->rho_obj.polynomials);
-	mpz_clear(fobj->rho_obj.mpz_n);
-	mpz_clear(fobj->rho_obj.mpz_f);
+	mpz_clear(fobj->rho_obj.gmp_n);
+	mpz_clear(fobj->rho_obj.gmp_f);
 	sFree(&fobj->rho_obj.in);
 	sFree(&fobj->rho_obj.out);
 	zFree(&fobj->rho_obj.n);
@@ -246,15 +246,15 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->pm1_obj.in);
 	sFree(&fobj->pm1_obj.out);
 	zFree(&fobj->pm1_obj.n);
-	mpz_clear(fobj->pm1_obj.mpz_n);
-	mpz_clear(fobj->pm1_obj.mpz_f);
+	mpz_clear(fobj->pm1_obj.gmp_n);
+	mpz_clear(fobj->pm1_obj.gmp_f);
 
 	// free stuff in pp1
 	sFree(&fobj->pp1_obj.in);
 	sFree(&fobj->pp1_obj.out);
 	zFree(&fobj->pp1_obj.n);
-	mpz_clear(fobj->pp1_obj.mpz_n);
-	mpz_clear(fobj->pp1_obj.mpz_f);
+	mpz_clear(fobj->pp1_obj.gmp_n);
+	mpz_clear(fobj->pp1_obj.gmp_f);
 
 	// free any factors found in ecm
 	for (i=0; i<fobj->ecm_obj.num_factors; i++)
@@ -265,8 +265,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->ecm_obj.in);
 	sFree(&fobj->ecm_obj.out);
 	zFree(&fobj->ecm_obj.n);
-	mpz_clear(fobj->ecm_obj.mpz_n);
-	mpz_clear(fobj->ecm_obj.mpz_f);
+	mpz_clear(fobj->ecm_obj.gmp_n);
+	mpz_clear(fobj->ecm_obj.gmp_f);
 
 	// free any factors found in squfof
 	for (i=0; i<fobj->squfof_obj.num_factors; i++)
@@ -328,28 +328,28 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->rho_obj.polynomials[0] = 3;
 	fobj->rho_obj.polynomials[1] = 2;
 	fobj->rho_obj.polynomials[2] = 1;
-	mpz_init(fobj->rho_obj.mpz_n);
-	mpz_init(fobj->rho_obj.mpz_f);
+	mpz_init(fobj->rho_obj.gmp_n);
+	mpz_init(fobj->rho_obj.gmp_f);
 	zInit(&fobj->rho_obj.n);
 	sInit(&fobj->rho_obj.in);
 	sInit(&fobj->rho_obj.out);
 
 	zInit(&fobj->pm1_obj.n);
-	mpz_init(fobj->pm1_obj.mpz_n);
-	mpz_init(fobj->pm1_obj.mpz_f);
+	mpz_init(fobj->pm1_obj.gmp_n);
+	mpz_init(fobj->pm1_obj.gmp_f);
 	sInit(&fobj->pm1_obj.in);
 	sInit(&fobj->pm1_obj.out);
 	
 	zInit(&fobj->pp1_obj.n);
-	mpz_init(fobj->pp1_obj.mpz_n);
-	mpz_init(fobj->pp1_obj.mpz_f);
+	mpz_init(fobj->pp1_obj.gmp_n);
+	mpz_init(fobj->pp1_obj.gmp_f);
 	sInit(&fobj->pp1_obj.in);
 	sInit(&fobj->pp1_obj.out);
 
 	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->ecm_obj.n);
-	mpz_init(fobj->ecm_obj.mpz_n);
-	mpz_init(fobj->ecm_obj.mpz_f);
+	mpz_init(fobj->ecm_obj.gmp_n);
+	mpz_init(fobj->ecm_obj.gmp_f);
 	sInit(&fobj->ecm_obj.in);
 	sInit(&fobj->ecm_obj.out);
 
