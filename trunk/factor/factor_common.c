@@ -297,6 +297,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->div_obj.in);
 	sFree(&fobj->div_obj.out);
 	zFree(&fobj->div_obj.n);
+	mpz_clear(fobj->div_obj.gmp_n);
+	mpz_clear(fobj->div_obj.gmp_f);
 
 	// free any factors found in nfs
 	for (i=0; i<fobj->nfs_obj.num_factors; i++)
@@ -365,6 +367,8 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	fobj->div_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->div_obj.n);
+	mpz_init(fobj->div_obj.gmp_n);
+	mpz_init(fobj->div_obj.gmp_f);
 	sInit(&fobj->div_obj.in);
 	sInit(&fobj->div_obj.out);
 

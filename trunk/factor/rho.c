@@ -106,6 +106,7 @@ void brent_loop(fact_obj_t *fobj)
 		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
 		{				
+			// factor list still uses yafu bigints
 			gmp2mp(fobj->rho_obj.gmp_f, &f);
 
 			//non-trivial factor found

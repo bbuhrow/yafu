@@ -308,6 +308,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	uint32 limit;				//trial div limit
 	uint32 fmtlimit;			//fermat max iterations
@@ -548,7 +550,7 @@ void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
-uint64 sp_shanks_loop(z *N, fact_obj_t *fobj);
+uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 void zTrial(fact_obj_t *fobj);
 void zFermat(fp_digit limit, fact_obj_t *fobj);
 void nfs(fact_obj_t *fobj);

@@ -30,16 +30,6 @@ declarations for types and functions used in ECM and other
 group theoretic factorization routines
 */
 
-#if defined(FORK_ECM)
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
-void *malloc_shared(size_t bytes, int *save_shmid);
-void destroy_shm_segments(int *shmid_list, int num_shmids);
-#endif
-
 enum ecm_thread_command {
 	ECM_COMMAND_INIT,
 	ECM_COMMAND_WAIT,
@@ -50,7 +40,6 @@ enum ecm_thread_command {
 
 typedef struct {
 	mpz_t gmp_n, gmp_factor;
-	z n, factor;
 	ecm_params params;
 	uint32 sigma;
 	int stagefound;

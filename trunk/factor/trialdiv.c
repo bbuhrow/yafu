@@ -21,6 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "factor.h"
 #include "soe.h"
+#include "gmp_xface.h"
 
 void zTrial(fact_obj_t *fobj)
 {
@@ -33,11 +34,12 @@ void zTrial(fact_obj_t *fobj)
 	z tmp;
 
 	zInit(&tmp);
+	mp2gmp(n, fobj->div_obj.gmp_n);
 
 	if (P_MAX < limit)
 		GetPRIMESRange(0,limit);
 
-	while (!(n->size == 1 && n->val[0] <= 1) && (PRIMES[k] < limit))
+	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && (PRIMES[k] < limit))
 	{
 		if (k >= NUM_P)
 		{
@@ -46,13 +48,13 @@ void zTrial(fact_obj_t *fobj)
 		}
 
 		q = (fp_digit)PRIMES[k];
-		r = zShortMod(n,q);
+		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
 		
 		if (r != 0)
 			k++;
 		else
 		{
-			zShortDiv(n,q,n);
+			mpz_tdiv_q_ui(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
 			sp2z(q,&tmp);
 			tmp.type = PRIME;
 			add_to_factor_list(fobj, &tmp);
@@ -65,78 +67,76 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
+	gmp2mp(fobj->div_obj.gmp_n, n);
+
 	zFree(&tmp);
 }
 
 void zFermat(fp_digit limit, fact_obj_t *fobj)
 {
- //	  Fermat's factorization method (wikipedia psuedo-code)
-
-
+	//	  Fermat's factorization method (wikipedia psuedo-code)
 	z *n = &fobj->div_obj.n;
-	z a, b2, tmp, tmp2, tmp3, maxa;
+	mpz_t a, b2, tmp, tmp2, tmp3, maxa;
 	int i;
 	int numChars;
 	fp_digit reportIt, reportInc;
 	fp_digit count;
 
-	if ((n->val[0] & 1) == 0)
+	mp2gmp(n, fobj->div_obj.gmp_n);
+
+	if (mpz_even_p(fobj->div_obj.gmp_n))
 	{
 		zShiftRight(n,n,1);
-		isPrime(&zTwo);
 		add_to_factor_list(fobj, &zTwo);
 		return;
 	}
 
-	zInit(&a);
-
-	if (isSquare(n))
+	if (mpz_perfect_square_p(fobj->div_obj.gmp_n))
 	{
-		zNroot(n,&a,2);	
-		isPrime(&a);
-		add_to_factor_list(fobj, &a);
-		add_to_factor_list(fobj, &a);
-		zCopy(&zOne,n);
-		zFree(&a);
+		z f;
+		zInit(&f);
+
+		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
+		gmp2mp(fobj->div_obj.gmp_n, &f);
+		add_to_factor_list(fobj, &f);
+		add_to_factor_list(fobj, &f);
+		mpz_set_ui(fobj->div_obj.gmp_n, 1);
+		zFree(&f);
+		gmp2mp(fobj->div_obj.gmp_n, n);
 		return;
 	}
 
-	zInit(&b2);
-	zInit(&tmp);
-	zInit(&maxa);
+	mpz_init(a);
+	mpz_init(b2);
+	mpz_init(tmp);
+	mpz_init(maxa);
 
-	zShortAdd(n,1,&maxa);
-	zShiftRight(&maxa,&maxa,1);
+	mpz_add_ui(maxa, fobj->div_obj.gmp_n, 1);
+	mpz_tdiv_q_2exp(maxa, maxa, 1);
 
-	zNroot(n,&a,2);		//floor(sqrt(a))
-	zShortAdd(&a,1,&a); //ceil(sqrt(a))
-	zSqr(&a,&tmp);
-	zSub(&tmp,n,&b2);
+	mpz_sqrt(a, fobj->div_obj.gmp_n);
+	mpz_add_ui(a, a, 1);
+	mpz_mul(tmp, a, a);
+	mpz_sub(b2, tmp, fobj->div_obj.gmp_n);
 
 	count = 0;
 	numChars = 0;
 	reportIt = limit / 100;
 	reportInc = reportIt;
-	while((b2.size > 0) && (!isSquare(&b2)))
+	while((mpz_size(b2) > 0) && (!mpz_perfect_square_p(b2)))
 	{
-		//special case the increment
-		if (a.val[0] < MAX_DIGIT)
-			a.val[0]++;	
-		else
-			zShortAdd(&a,1,&a);
+		// todo: special case this...
+		mpz_add_ui(a, a, 1); 
 
-		if (zCompare(&maxa,&a) > 0)
+		if (mpz_cmp(maxa, a) > 0)
 			break;	//give up
 
 		//b2 = a*a - N = b2 + 2*a - 1
-		zShiftLeft(&tmp,&a,1);
-		zAdd(&b2,&tmp,&b2);
+		mpz_mul_2exp(tmp, a, 1);
+		mpz_add(b2, b2, tmp);
 
-		//special case the decrement
-		if (b2.val[0] > 0)
-			b2.val[0]--;
-		else
-			zShortSub(&b2,1,&b2);
+		// todo: special case this...
+		mpz_sub_ui(b2, b2, 1);
 
 		count++;
 		if (count > limit)
@@ -153,32 +153,44 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		}
 	}
 
-	if ((b2.size > 0) && (isSquare(&b2)))
+	if ((mpz_size(b2) > 0) && mpz_perfect_square_p(b2))
 	{
 		//printf("found square at count = %d: a = %s, b2 = %s",count,
 		//	z2decstr(&a,&gstr1),z2decstr(&b2,&gstr2));
-		zInit(&tmp2);
-		zInit(&tmp3);
-		zNroot(&b2,&tmp,2);
-		zAdd(&a,&tmp,&tmp);
-		isPrime(&tmp);	//sets type property of tmp
-		add_to_factor_list(fobj, &tmp);
-		zDiv(n,&tmp,&tmp2,&tmp3);
-		zCopy(&tmp2,n);
-		zNroot(&b2,&tmp,2);
-		zSub(&a,&tmp,&tmp);
-		isPrime(&tmp);
-		add_to_factor_list(fobj, &tmp);
-		zDiv(n,&tmp,&tmp2,&tmp3);
-		zCopy(&tmp2,n);
-		zFree(&tmp2);
-		zFree(&tmp3);
+		z tmpz;
+		zInit(&tmpz);
+
+		mpz_sqrt(tmp, b2); 
+		mpz_add(tmp, a, tmp);
+		gmp2mp(tmp, &tmpz);
+
+		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+			tmpz.type = PRP;			
+		else
+			tmpz.type = PRP;
+		add_to_factor_list(fobj, &tmpz);
+
+		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
+		mpz_sqrt(tmp, b2);
+		mpz_sub(tmp, a, tmp);
+		gmp2mp(tmp, &tmpz);
+
+		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+			tmpz.type = PRP;			
+		else
+			tmpz.type = PRP;
+		add_to_factor_list(fobj, &tmpz);
+
+		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
+		zFree(&tmpz);
 	}
 
-	zFree(&tmp);
-	zFree(&a);
-	zFree(&b2);
-	zFree(&maxa);
+	mpz_clear(tmp);
+	mpz_clear(a);
+	mpz_clear(b2);
+	mpz_clear(maxa);
+
+	gmp2mp(fobj->div_obj.gmp_n, n);
 
 	return;
 

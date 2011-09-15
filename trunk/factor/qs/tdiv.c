@@ -168,8 +168,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		
 		//try to find a double large prime
 		dconf->attempted_squfof++;
-		sp642z(q64, &dconf->qstmp1);
-		f64 = sp_shanks_loop(&dconf->qstmp1,sconf->obj);
+		//sp642z(q64, &dconf->qstmp1);
+		mpz_set_64(dconf->gmptmp1, q64);
+		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
 		if (f64 > 1 && f64 != q64)
 		{
 			uint32 large_prime[2];

@@ -1358,8 +1358,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in squfof\n");
 			break;
 		}
-		n64 = sp_shanks_loop(&operands[0],fobj);
-		//n64 = (uint64)squfof_jp(&operands[0]);
+		mpz_init(gmpz);
+
+		mp2gmp(&operands[0], gmpz);
+		n64 = sp_shanks_loop(gmpz,fobj);
 		print_factors(fobj);
 		sp642z(n64,&operands[0]);
 		break;
@@ -1472,11 +1474,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//ispow - one argument
 		mpz_init(gmpz);
 
-		mpz_import(gmpz, abs(operands[0].size), -1, sizeof(fp_digit), 
-			0, (size_t)0, operands[0].val);
-		if (operands[0].size < 0)
-			mpz_neg(gmpz, gmpz);
-
+		mp2gmp(&operands[0], gmpz);
 		i = mpz_perfect_power_p(gmpz);
 
 		if (i)
@@ -1771,6 +1769,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			int bits = 115;
 			double sum;
 			fact_obj_t *fobj2;
+			mpz_t gmptmp;
 			//uint32 bcorr, mcorr, b_min,m_min;
 			//int blcorr,bl_min;
 			//int ctune = 0;
@@ -1781,6 +1780,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (i=0; i<numin; i++)
 				zInit(&input[i]);
 
+			mpz_init(gmptmp);
 			/*
 			gettimeofday(&tstart, NULL);
 
@@ -1961,7 +1961,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					zCopy(&input[i],&fobj2->qs_obj.n);		
 					if (test_squfof)
 					{
-						sp_shanks_loop(&fobj2->qs_obj.n, fobj);
+						mp2gmp(&fobj2->qs_obj.n, gmptmp);
+						sp_shanks_loop(gmptmp, fobj);
 					}
 					else
 					{
@@ -1994,6 +1995,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				zFree(&input[i]);
 
 			free(input);
+			mpz_clear(gmptmp);
 		}
 
 		break;
