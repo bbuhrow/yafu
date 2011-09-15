@@ -34,7 +34,7 @@ uint32 tiny_soe(uint32 limit, uint32 *primes)
 	primes[0] = 2;
 	it=1;
 	
-	//sieve using primes less than the sqrt of block1
+	//sieve using primes less than the sqrt of the desired limit
 	//flags are created only for odd numbers (mod2)
 	for (i=1;i<(uint32)(sqrt(limit)/2+1);i++)
 	{
@@ -49,8 +49,7 @@ uint32 tiny_soe(uint32 limit, uint32 *primes)
 		}
 	}
 
-	//now find all the prime flags and compute the sieving primes
-	//the last few will exceed uint16, we can fix this later.
+	//now find the rest of the prime flags and compute the sieving primes
 	for (;i<limit/2;i++)
 	{
 		if (flags[i] == 1)

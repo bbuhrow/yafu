@@ -14,6 +14,8 @@ benefit from your work.
 
 #include "soe.h"
 
+//masks for sieving multiple locations at once: small primes
+//that hit a 64 bit interval more than once.  
 int _64_MOD_P[9] = {4,1,9,12,13,7,18,6,2};
 
 uint64 _5_MASKS[5] = {
@@ -467,7 +469,8 @@ void sieve_line(thread_soedata_t *thread_data)
 				flagblock[(bptr[j + 6].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 6].root & FLAGSIZEm1) & 7];
 				flagblock[(bptr[j + 7].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 7].root & FLAGSIZEm1) & 7];
 				
-				//then compute their next hit
+				//then compute their next hit and update the roots while they are
+				//still fresh in the cache
 				bptr[j + 0].root += bptr[j + 0].prime;	
 				bptr[j + 1].root += bptr[j + 1].prime;		
 				bptr[j + 2].root += bptr[j + 2].prime;	
@@ -544,6 +547,7 @@ void sieve_line(thread_soedata_t *thread_data)
 
 			}
 
+			//finish up those that didn't fit into a group of 8 hits
 			for (;j < nptr[i]; j++)
 			{
 				flagblock[(bptr[j].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j].root & FLAGSIZEm1) & 7];
@@ -559,6 +563,9 @@ void sieve_line(thread_soedata_t *thread_data)
 				
 			}
 
+			// repeat the dumping of bucket primes, this time with very large primes
+			// that only hit the interval once.  thus, we don't need to update the root
+			// with the next hit, and we can do more at once because each bucket hit is smaller
 			if (ddata->largep_offset > 0)
 			{
 				uint32 *large_bptr = ddata->large_sieve_buckets[i];	
@@ -593,7 +600,9 @@ void sieve_line(thread_soedata_t *thread_data)
 		}
 		else
 		{
-			//finish with primes greater than (flagblocklimit >> 2)
+			//didn't need to use a bucket sieve
+			//finish with primes greater than (flagblocklimit >> 2) that we
+			//didn't unroll.
 			for (;j<ddata->pbounds[i];j++)
 			{
 				prime = sdata->sieve_p[j];
