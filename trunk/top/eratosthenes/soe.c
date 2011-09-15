@@ -30,7 +30,6 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	//misc
 	uint64 i,j,k,it=0,num_p=0;
-	uint64 i1,i2,i3;
 	uint32 sp;
 	int pchar;
 	uint64 allocated_bytes = 0;
@@ -40,7 +39,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	//thread data holds all data needed during sieving
 	thread_soedata_t *thread_data;		//an array of thread data objects
-	uint64 *locprimes, *mergeprimes;
+	uint64 *mergeprimes;
 
 	//timing
 	double t;
@@ -114,7 +113,6 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	sdata.pbound = (uint64)(sqrt((int64)(*highlimit)) + 1);
 
 	//give these some initial storage
-	locprimes = (uint64 *)calloc(1,sizeof(uint64));
 	mergeprimes = (uint64 *)calloc(1,sizeof(uint64));
 
 	//get primes to sieve with
@@ -126,9 +124,11 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		// we need a lot of sieving primes... recurse using the fast routine
 		// get temporary 64 bit prime storage
 		// first estimate how many primes we think we'll find
+		uint64 *locprimes;
+
 		j = sdata.pbound;
 		k = (uint64)((double)j/log((double)j)*1.2);
-		locprimes = (uint64 *)realloc(locprimes,k * sizeof(uint64));	
+		locprimes = (uint64 *)malloc(k * sizeof(uint64));	
 		if (locprimes == NULL)
 		{
 			printf("error allocating locprimes\n");
@@ -172,6 +172,8 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 			sdata.sieve_p[k] = (uint32)locprimes[k];
 		}
 
+		free(locprimes);
+
 	}
 	else	
 	{
@@ -192,11 +194,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	}
 
-	if (count)
-	{
-		locprimes = (uint64 *)realloc(locprimes,1 * sizeof(uint64));
-	}
-	else
+	if (!count)
 	{
 		uint64 hi_est, lo_est;
 
@@ -213,13 +211,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		if (VFLAG > 2)
 			printf("allocating merge prime storage for %u primes\n",k);
 		
-		locprimes = (uint64 *)realloc(locprimes,k * sizeof(uint64));
 		mergeprimes = (uint64 *)realloc(mergeprimes,k * sizeof(uint64));
-		if (locprimes == NULL)
-		{
-			printf("could not allocate storage for locprimes\n");
-			exit(-1);
-		}
 		if (mergeprimes == NULL)
 		{
 			printf("could not allocate storage for mergeprimes\n");
@@ -755,43 +747,22 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 					//printf("adding %" PRIu64 " primes from line %d\n",linecount, i);
 					//add the first primes to the mergelist
 					for (index = 0; index < linecount; index++)
-					{
-						//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[index]);
 						mergeprimes[index] = thread_data[i].ddata.primes[index];
-						locprimes[index] = thread_data[i].ddata.primes[index];
-					}
 
 				}
 				else
 				{
 					//merge this lines primes (linecount), with the previous merge (num_p)
 					//this lines primes are ordered, and so is the previous merged list.
+					uint64 *new_merge;
 					//printf("merging %" PRIu64 " primes from line %d\n",linecount, i);
-
-					//increase size of mergeprimes
-					i1 = i2 = i3 = 0;
-					while ((i1 < num_p) && (i2 < linecount)) {
-						if (locprimes[i1] < thread_data[i].ddata.primes[i2])
-							mergeprimes[i3++] = locprimes[i1++];
-						else
-						{
-							//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[i2]);
-							mergeprimes[i3++] = thread_data[i].ddata.primes[i2++];
-						}
-					}
-					while (i1 < num_p)
-						mergeprimes[i3++] = locprimes[i1++];
-					while (i2 < linecount)
-					{
-						//printf("%" PRIu64 "\n", thread_data[i].ddata.primes[i2]);
-						mergeprimes[i3++] = thread_data[i].ddata.primes[i2++];						
-					}
-
-					for (i1=0; i1<(num_p + linecount); i1++)
-					{
-						locprimes[i1] = mergeprimes[i1];
-					}
-
+					//merge primes into new storage
+					new_merge = merge_primes(mergeprimes, thread_data[i].ddata.primes, 
+						num_p, linecount);
+					//get rid of old storage
+					free(mergeprimes);
+					//proceed with new storage
+					mergeprimes = new_merge;					
 				}
 
 				num_p += linecount;
@@ -843,6 +814,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		//the sieve primes are not in the line array, so they must be added
 		//in if necessary
 		int start_index=0, numd = 0;
+		uint64 *new_merge;
 		it=0;
 		
 		//first count them
@@ -862,34 +834,12 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		}
 		//printf("%" PRIu64" primes to be included from sieve primes\n",it);
 
-		//merge the sieve primes (it), with the previous merge (num_p)
-		//this lines primes are ordered, and so is the previous merged list.
-		i1 = i2 = i3 = 0;
-		while ((i1 < num_p) && (i2 < it)) {
-			if (locprimes[i1] < sdata.sieve_p[i2 + start_index])
-				mergeprimes[i3++] = locprimes[i1++];
-			else if (locprimes[i1] == sdata.sieve_p[i2 + start_index])
-			{
-				printf("duplicate prime found: %" PRIu64 "\n", locprimes[i1]);
-				i1++;
-				i2++;
-				numd++;
-			}
-			else
-			{
-				//printf("%u\n", sdata.sieve_p[i2]);
-				mergeprimes[i3++] = sdata.sieve_p[i2 + start_index];
-				i2++;
-			}
-		}
-		while (i1 < num_p)
-			mergeprimes[i3++] = locprimes[i1++];
-		while (i2 < it)
-		{
-			//printf("%u\n", sdata.sieve_p[i2]);
-			mergeprimes[i3++] = sdata.sieve_p[i2 + start_index];
-			i2++;
-		}
+		new_merge = merge_primes32(mergeprimes, sdata.sieve_p + start_index, 
+			num_p, it);
+		//get rid of old storage
+		free(mergeprimes);
+		//proceed with new storage
+		mergeprimes = new_merge;	
 
 		num_p += it;
 		num_p -= numd;
@@ -944,7 +894,6 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	}
 
-	free(locprimes);
 	free(mergeprimes);
 	free(sdata.root);
 	free(sdata.lower_mod_prime);

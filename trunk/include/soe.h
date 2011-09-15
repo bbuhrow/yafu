@@ -146,6 +146,10 @@ void sieve_line(thread_soedata_t *thread_data);
 void count_line(thread_soedata_t *thread_data);
 void count_line_special(thread_soedata_t *thread_data);
 void primes_from_lineflags(thread_soedata_t *thread_data);
+uint64 * merge_primes(uint64 *mergeprimes, uint64 *locprimes, 
+	uint64 num_p, uint64 linecount);
+uint64 * merge_primes32(uint64 *mergeprimes, uint32 *locprimes, 
+	uint64 num_p, uint64 linecount);
 void get_offsets(thread_soedata_t *thread_data);
 void getRoots(soe_staticdata_t *sdata);
 void stop_soe_worker_thread(thread_soedata_t *t, uint32 is_master_thread);
