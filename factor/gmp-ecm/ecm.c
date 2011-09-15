@@ -24,365 +24,11 @@ code to the public domain.
 #include "calc.h"
 #include "yafu_string.h"
 
-#if defined(FORK_ECM)
-
-void *malloc_shared(size_t bytes, int *save_shmid)
-{
-    int shmid = shmget(IPC_PRIVATE, bytes, SHM_R | SHM_W);
-    if (shmid == -1) {
-        printf("Couldn't allocated shared memory segment in ECM\n");
-        exit(1);
-    }
-	*save_shmid = shmid;
-    return shmat(shmid, 0, 0);
-}
-
-void destroy_shm_segments(int *shmid_list, int num_shmids)
-{
-    int i;
-
-    for (i=0; i<num_shmids; i++)
-		shmctl(shmid_list[i], IPC_RMID, NULL);
-}
-
-int ecm_loop(fact_obj_t *fobj)
-{
-	//thread data holds all data needed during sieving
-	ecm_thread_data_t *thread_data, *my_thread_data;
-	z *n = &fobj->ecm_obj.n;
-	z * return_factor, *my_return_factor;
-    int *my_curves_run;
-    int *curves_run, *factor_found;
-	int *shmid_list, num_shmids=0;
-    int master_thread;
-	int total_curves_run;
-	int numcurves = fobj->ecm_obj.num_curves;
-	z d,t,nn;
-	FILE *flog;
-	int i,j;
-	//maybe make this an input option: whether or not to stop after
-	//finding a factor in the middle of running a requested batch of curves
-	int bail_on_factor = 1;
-	int bail = 0;
-	int charcount = 0, charcount2 = 0;
-	int input_digits = ndigits(n);
-
-	if (ecm_check_input(fobj) == 0)
-		return 0;
-
-	//ok, having gotten this far we are now ready to run the requested
-	//curves.  initialize the needed data structures, then split
-	//the curves up over N threads.  The main thread will farm out different
-	//sigmas to the worker threads.
-
-	//initialize the flag to watch for interrupts, and set the
-	//pointer to the function to call if we see a user interrupt
-	ECM_ABORT = 0;
-	signal(SIGINT,ecmexit);
-
-	//init ecm process
-	ecm_process_init(fobj);
-
-	//init local big ints
-	zInit(&d);
-	zInit(&t);
-	zInit(&nn);
-
-	// Allocate room for a list of all shared memory segments -- one per thread plus 4 more
-	// We need this to correctly destroy all the segments on exit
-	shmid_list = (int *)malloc((THREADS + 4) * sizeof(int));
-
-	// Allocate shared memory for a variable saying someone found a factor, and an
-    // array for each thread to record the number of curves it has run.
-    factor_found = (int *)malloc_shared(sizeof(int), &shmid_list[num_shmids++]);
-    curves_run = (int *)malloc_shared(THREADS * sizeof(int), &shmid_list[num_shmids++]);
-
-    // We make the thread_data structures shared so that the master thread can
-    // log a few pieces of information (e.g. the sigma and stage where the factor
-    // was found) correctly. Note that many things in this structure are pointers
-    // which are later dynamically allocated, and those allocations will not be
-    // shared. The master thread must be careful to access only the statically
-    // declared fields in other threads' structures.
-    thread_data = malloc_shared(THREADS * sizeof(ecm_thread_data_t), &shmid_list[num_shmids++]);
-
-    // Allocate shared memory for each thread to return the factor it found.
-    // I don't know how to support dynamic resizing of shared memory, so I
-    // just allocate plenty of space and assume it will never overflow.
-    return_factor = malloc_shared(THREADS * sizeof(z), &shmid_list[num_shmids++]);
-    for (i=0; i<THREADS; i++) {
-        return_factor[i].size = 1;
-        return_factor[i].alloc = 4096;
-        return_factor[i].type = UNKNOWN;
-        return_factor[i].val = (fp_digit *)malloc_shared(4096 * sizeof(fp_digit), &shmid_list[num_shmids++]);
-    }
-
-    // Set things up for the master thread
-    master_thread = 1;
-    my_return_factor = &return_factor[THREADS-1];
-    my_curves_run = &curves_run[THREADS-1];
-    my_thread_data = &thread_data[THREADS-1];
-
-	// Divide the curves among the threads, rounding up so that all threads get the
-    // same number of curves. Also keep track of the total number of curves for logging.
-    numcurves = (numcurves + THREADS - 1) / THREADS;
-    fobj->ecm_obj.num_curves = numcurves * THREADS;
-
-	/* activate the threads one at a time. The last is the
-	   master thread (i.e. not a thread at all). */
-    for (i=0; i < THREADS-1; i++)
-    {
-        // We need to ensure that each child has different RNG state, otherwise they'll
-        // all get the same stream of random numbers. So we have the master thread generate
-        // a number and then copy that into the internal RNG state of the child.
-        uint64 child_lcgstate = spRand(2,MAX_DIGIT);
-
-        int pid = fork();
-        if (pid == 0) {
-            // I am a child thread. Set up pointers to my shared buffers accordingly.
-            master_thread = 0;
-            my_return_factor = &return_factor[i];
-            my_curves_run = &curves_run[i];
-            my_thread_data = &thread_data[i];
-			my_thread_data->thread_num = i;
-			my_thread_data->curves_run = *my_curves_run;
-            LCGSTATE = child_lcgstate;			
-            break;
-        }
-		my_thread_data->thread_num = THREADS - 1;
-		my_thread_data->curves_run = *my_curves_run;
-    }
-
-    // Now we have THREADS number of separate processes running
-	// Initialize the internal pieces of thread_data
-	my_thread_data->fobj = fobj;	
-    ecm_thread_init(my_thread_data);
-
-	// TBD: make this a subroutine
-	if (master_thread && VFLAG >= 0)
-	{
-		for (i=0;i<charcount+charcount2;i++)
-			printf("\b");
-
-        for (i=0, total_curves_run=0; i<THREADS; i++)
-            total_curves_run += curves_run[i];
-
-		charcount = printf("ecm: %d/%d curves on C%d input, at ",
-			total_curves_run, fobj->ecm_obj.num_curves, input_digits);
-		charcount2 = print_B1B2(fobj, NULL);
-		fflush(stdout);
-	}
-
-	// Now each thread runs its assigned number of curves
-	for (j=0; j < numcurves; j++)
-	{
-		//watch for an abort
-		if (ECM_ABORT)
-		{
-            // On an abort, the master thread will wait for all the children to
-            // complete and then log any found factors. The children just exit
-            // right away.
-            if (master_thread) 
-            {
-                for (i=0; i<THREADS-1; i++)
-                    wait(NULL);
-                print_factors(fobj);
-            }
-
-			// We still have to mark shared memory segments for destruction
-            destroy_shm_segments(shmid_list, num_shmids);
-
-            exit(1);
-		}
-
-		ecm_get_sigma(my_thread_data);
-
-        // Run a curve!
-        ecm_do_one_curve(my_thread_data);
-        (*my_curves_run)++;
-		my_thread_data->curves_run = *my_curves_run;
-
-        if (zCompare(&my_thread_data->factor,&zOne) > 0 && zCompare(&my_thread_data->factor,n) < 0) {
-
-            // non-trivial factor found
-            // copy it into the shared return buffer so the master thread can see it, 
-            // and set the shared flag which tells everyone the game is over.
-            zCopy(&my_thread_data->factor, my_return_factor);
-            *factor_found = 1;
-
-            //printf("thread %d found a factor\n", my_thread_data->thread_num);
-		}
-
-        if (*factor_found) {
-
-            // If someone found a factor, the child threads just exit
-            if (!master_thread)
-                exit(0);
-
-            // The master thread waits for all the children to complete
-            for (i=0; i<THREADS-1; i++)
-				wait(NULL);
-
-            // Now that all the children are done, look for and log any factors they found
-            for (i=0; i<THREADS; i++) {
-
-                // Check thread i's return buffer. If it doesn't contain a factor, just move on
-                if (!(zCompare(&return_factor[i],&zOne) > 0 && zCompare(&return_factor[i],n) < 0))
-					continue;
-
-				//since we could be doing many curves in parallel,
-				//it's possible more than one curve found this factor at the
-				//same time.  We divide out factors as we find them, so
-				//just check if this factor still divides n
-				zCopy(n,&nn);
-				zDiv(&nn,&return_factor[i],&t,&d);
-				if (zCompare(&d,&zZero) == 0)
-				{
-					zCopy(&t, n);
-
-					//yes, it does... proceed to record the factor
-					zCopy(&return_factor[i], &thread_data[i].factor);
-					ecm_deal_with_factor(&thread_data[i]);			
-
-					// factor will have been printed with a newline - reset the backspaces.
-					if (VFLAG > 0)
-						charcount = charcount2 = 0;
-
-					//we found a factor and might want to stop,
-					//but should check all threads output first
-					if (bail_on_factor)
-						bail = 1;
-					else if (isPrime(n))
-						bail = 1;
-					else
-					{
-                        // Note: this path no longer works since the child threads have exited.
-
-						//found a factor and the cofactor is composite.
-						//the user has specified to keep going with ECM until the 
-						//curve counts are finished thus:
-						//we need to re-initialize with a different modulus.  this is
-						//independant of the thread data initialization
-						ecm_process_free(fobj);
-						ecm_process_init(fobj);
-					}
-				}
-			}
-
-        }
-
-        // Note that bail can only be set on the master thread, since if a factor was
-        // found all other threads will already have exited.
-        if (bail)
-			goto done;
-
-        // Only the master thread prints updates, otherwise they all step on each other.
-        if (master_thread && VFLAG >= 0)
-        {
-			for (i=0;i<charcount+charcount2;i++)
-			printf("\b");
-
-            for (i=0, total_curves_run=0; i<THREADS; i++)
-				total_curves_run += curves_run[i];
-
-			charcount = printf("ecm: %d/%d curves on C%d input, at ",
-				total_curves_run, fobj->ecm_obj.num_curves, input_digits);
-			charcount2 = print_B1B2(fobj, NULL);
-			fflush(stdout);
-        }
-
-
-	}
-
-done:
-
-    // Either a factor was found, or this thread has completed all of its requested curves.
-    // At this point the child threads can just exit.
-    if (!master_thread)
-        exit(0);
-
-    // The master thread waits for all children to complete
-    for (i=0; i<THREADS-1; i++)
-        wait(NULL);
-
-    // print status message again so it shows any work done after the master thread finished its loop
-    if (VFLAG >= 0)
-    {
-        for (i=0;i<charcount+charcount2;i++)
-            printf("\b");
-
-        for (i=0, total_curves_run=0; i<THREADS; i++)
-            total_curves_run += curves_run[i];
-
-        charcount = printf("ecm: %d/%d curves on C%d input, at ",
-			total_curves_run, fobj->ecm_obj.num_curves, input_digits);
-        charcount2 = print_B1B2(fobj, NULL);
-        fflush(stdout);
-    }
-
-	// clean up after external ecm use, if necessary, since thread_free doesn't get called here.
-	if (fobj->ecm_obj.use_external)
-	{
-		for (i=0; i<THREADS; i++)
-		{
-			char tmpstr[1024];
-			sprintf(tmpstr, "_yafu_ecm_tmp%d.out", i);
-			remove(tmpstr);
-		}
-	}
-
-	if (VFLAG >= 0)
-		printf("\n");
-
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("could not open %s for writing\n",fobj->flogname);
-		fclose(flog);
-		return 0;
-	}
-
-    for (i=0, total_curves_run=0; i<THREADS; i++)
-		total_curves_run += curves_run[i];
-
-	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
-		total_curves_run,input_digits);
-	print_B1B2(fobj, flog);
-	fprintf(flog, "\n");
-
-	fclose(flog);
-
-    // Detach from all shared memory segments allocated above
-    ecm_thread_free(my_thread_data);
-    for (i=0; i<THREADS; i++) {
-        shmdt(return_factor[i].val);
-    }
-    shmdt(return_factor);
-    shmdt(factor_found);
-    shmdt(curves_run);
-    shmdt(thread_data);
-
-	// And mark them for destruction
-    destroy_shm_segments(shmid_list, num_shmids);
-    free(shmid_list);
-
-	zFree(&d);
-	zFree(&t);
-	zFree(&nn);
-	signal(SIGINT,NULL);
-	
-	ecm_process_free(fobj);
-
-	return total_curves_run;
-}
-
-#else
-
-
 int ecm_loop(fact_obj_t *fobj)
 {
 	ecm_thread_data_t *thread_data;		//an array of thread data objects
 	z *n = &fobj->ecm_obj.n;
-	z d,t,nn;
+	mpz_t d,t;
 	FILE *flog;
 	int i,j;
 	//maybe make this an input option: whether or not to stop after
@@ -393,8 +39,13 @@ int ecm_loop(fact_obj_t *fobj)
 	int charcount = 0, charcount2 = 0;
 	int input_digits = ndigits(n);
 
+	mp2gmp(n, fobj->ecm_obj.gmp_n);
+
 	if (ecm_check_input(fobj) == 0)
+	{
+		gmp2mp(fobj->ecm_obj.gmp_n, n);
 		return 0;
+	}
 
 	//ok, having gotten this far we are now ready to run the requested
 	//curves.  initialize the needed data structures, then split
@@ -410,9 +61,8 @@ int ecm_loop(fact_obj_t *fobj)
 	ecm_process_init(fobj);
 
 	//init local big ints
-	zInit(&d);
-	zInit(&t);
-	zInit(&nn);
+	mpz_init(d);
+	mpz_init(t);
 
 	thread_data = (ecm_thread_data_t *)malloc(THREADS * sizeof(ecm_thread_data_t));
 	for (i=0; i<THREADS; i++)
@@ -496,20 +146,19 @@ int ecm_loop(fact_obj_t *fobj)
 		for (i=0; i<THREADS; i++)
 		{
 			//look at the result of each curve and see if we're done
-			if (zCompare(&thread_data[i].factor,&zOne) > 0 && 
-				zCompare(&thread_data[i].factor,n) < 0)
-			{
+			if ((mpz_cmp_ui(thread_data[i].gmp_factor, 1) > 0)
+				&& (mpz_cmp(thread_data[i].gmp_factor, fobj->ecm_obj.gmp_n) < 0))
+			{						
 				//non-trivial factor found
 				//since we could be doing many curves in parallel,
 				//it's possible more than one curve found this factor at the
 				//same time.  We divide out factors as we find them, so
 				//just check if this factor still divides n
-				zCopy(n,&nn);
-				zDiv(&nn,&thread_data[i].factor,&t, &d);
-				if (zCompare(&d,&zZero) == 0)
+				mpz_tdiv_qr(t, d, fobj->ecm_obj.gmp_n, thread_data[i].gmp_factor);
+				if (mpz_cmp_ui(d, 0) == 0)
 				{
 					//yes, it does... proceed to record the factor
-					zCopy(&t, n);
+					mpz_set(fobj->ecm_obj.gmp_n, t);
 					ecm_deal_with_factor(&thread_data[i]);
 					
 					// factor will have been printed with a newline - reset the backspaces.
@@ -520,7 +169,7 @@ int ecm_loop(fact_obj_t *fobj)
 					//but should check all threads output first
 					if (bail_on_factor)
 						bail = 1;
-					else if (isPrime(n))
+					else if (mpz_probab_prime_p(fobj->ecm_obj.gmp_n, NUM_WITNESSES))
 						bail = 1;
 					else
 					{
@@ -550,7 +199,7 @@ int ecm_loop(fact_obj_t *fobj)
 				total_curves_run += thread_data[i].curves_run;
 
 			charcount = printf("ecm: %d/%d curves on C%d input, at ",
-				total_curves_run, fobj->ecm_obj.num_curves, ndigits(n));
+				total_curves_run, fobj->ecm_obj.num_curves, mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10));
 
 			charcount2 = print_B1B2(fobj, NULL);
 			fflush(stdout);
@@ -561,6 +210,9 @@ int ecm_loop(fact_obj_t *fobj)
 done:
 	if (VFLAG >= 0)
 		printf("\n");
+
+	// set the outgoing yafu bigint
+	gmp2mp(fobj->ecm_obj.gmp_n, n);
 
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
@@ -592,9 +244,8 @@ done:
 		ecm_thread_free(&thread_data[i]);
 	free(thread_data);
 
-	zFree(&d);
-	zFree(&t);
-	zFree(&nn);
+	mpz_clear(d);
+	mpz_clear(t);
 	signal(SIGINT,NULL);
 	
 	ecm_process_free(fobj);
@@ -602,20 +253,16 @@ done:
 	return total_curves_run;
 }
 
-#endif
-
 int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 {
 	FILE *flog;
 	fact_obj_t *fobj = thread_data->fobj;
-	z *factor = &thread_data->factor;
-	z *n = &thread_data->n;
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
-	z tmp1, tmp2;
+	z f;
 
-	zInit(&tmp1);
-	zInit(&tmp2);
+	zInit(&f);
+	gmp2mp(thread_data->gmp_factor, &f);
 
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
@@ -624,43 +271,40 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		return 0;
 	}
 
-	if (isPrime(factor))
+	if (mpz_probab_prime_p(thread_data->gmp_factor, NUM_WITNESSES))
 	{
-		factor->type = PRP;
-		add_to_factor_list(fobj, factor);
+		f.type = PRP;
+		add_to_factor_list(fobj, &f);
 
 		if (VFLAG > 0)
-			printf("\necm: found prp%d factor = %s\n",ndigits(factor),z2decstr(factor,&gstr1));
+			gmp_printf("\necm: found prp%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
+			thread_data->gmp_factor);
 
 		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			ndigits(factor),
-			z2decstr(factor,&gstr1),
+			mpz_sizeinbase(thread_data->gmp_factor, 10),
+			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
 	else
 	{
-		factor->type = COMPOSITE;
-		add_to_factor_list(fobj, factor);
+		f.type = COMPOSITE;
+		add_to_factor_list(fobj, &f);
+		
 		if (VFLAG > 0)
-			printf("\necm: found c%d factor = %s\n",ndigits(factor),z2decstr(factor,&gstr1));
+			gmp_printf("\necm: found c%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
+			thread_data->gmp_factor);
 
 		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			ndigits(factor),
-			z2decstr(factor,&gstr1),
+			mpz_sizeinbase(thread_data->gmp_factor, 10),
+			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
 
 	fclose(flog);
-			
-	//reduce input
-	zDiv(n,factor,&tmp1,&tmp2);
-	zCopy(&tmp1,n);
-	zCopy(n,&thread_data->n);
 
-	zFree(&tmp1);
-	zFree(&tmp2);
+	zFree(&f);
 	return 1;
 }
 
@@ -694,7 +338,6 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 int ecm_check_input(fact_obj_t *fobj)
 {
 	FILE *flog;
-	z *n = &fobj->ecm_obj.n;
 
 	//open the log file and annouce we are starting ECM
 	flog = fopen(fobj->flogname,"a");
@@ -706,44 +349,51 @@ int ecm_check_input(fact_obj_t *fobj)
 	}
 
 	//check for trivial cases
-	if (isZero(n))
+	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 0) == 0)
 	{
-		n->type = COMPOSITE;	
 		logprint(flog,"Trivial input == 0 in ECM\n");
 		fclose(flog);
 		return 0;
 	}
-	if (isOne(n))
+
+	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0)
 	{
-		n->type = COMPOSITE;
 		logprint(flog,"Trivial input == 1 in ECM\n");
 		fclose(flog);
 		return 0;
 	}
-	if (zShortMod(n,3) == 0)
+
+	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 3) == 0)
 	{
-		zShortDiv(n,3,n);
+		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3); //zShortDiv(n,3,n);
 		add_to_factor_list(fobj, &zThree);
 		logprint(flog,"Trivial factor of 3 found in ECM\n");
 		fclose(flog);
 		return 0;
 	}
-	if ((n->val[0] & 0x1) != 1)
+
+	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 2) == 0)
 	{
-		zShortDiv(n,2,n);
+		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2); //zShortDiv(n,2,n);
 		add_to_factor_list(fobj, &zTwo);
 		logprint(flog,"Trivial factor of 2 found in ECM\n");
 		fclose(flog);
 		return 0;
 	}
-	if (isPrime(n))
+
+	if (mpz_probab_prime_p(fobj->ecm_obj.gmp_n, NUM_WITNESSES))
 	{
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
-		n->type = PRP;
-		add_to_factor_list(fobj, n);
-		logprint(flog,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-		zCopy(&zOne,n);
+		z n;
+		zInit(&n);
+		gmp2mp(fobj->ecm_obj.gmp_n, &n);
+		n.type = PRP;
+		add_to_factor_list(fobj, &n);
+		logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10), 
+			mpz_get_str(gstr1.s, 10, fobj->ecm_obj.gmp_n));		
+		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
+		zFree(&n);
 		fclose(flog);
 		return 0;
 	}
@@ -859,26 +509,7 @@ void ecm_process_init(fact_obj_t *fobj)
 
 	if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
 		fobj->ecm_obj.use_external = 1;
-
-#if defined(FORK_ECM)
-	// For small curves, or if we're only running one curve, don't
-    // bother spawning multiple threads
-	if (!fobj->ecm_obj.use_external)
-	{
-		if (fobj->ecm_obj.B1 < 10000 || fobj->ecm_obj.num_curves == 1)
-			THREADS = 1;
-	}
-	else
-	{
-		if (fobj->ecm_obj.B1 < 40000 || fobj->ecm_obj.num_curves == 1)
-		{
-			THREADS = 1;
-			fobj->ecm_obj.use_external = 0;
-		}
-	}
-
-#else
-		
+	
 	if (THREADS > 1)
 	{
 		if (!fobj->ecm_obj.use_external)
@@ -902,21 +533,17 @@ void ecm_process_init(fact_obj_t *fobj)
 			fobj->ecm_obj.use_external = 0;
 	}
 
-#endif
-
 	return;
 }
 
 void ecm_thread_init(ecm_thread_data_t *tdata)
 {
 	//initialize everything for all threads using GMP-ECM
-	zInit(&tdata->n);
-	zInit(&tdata->factor);
 	mpz_init(tdata->gmp_n);
 	mpz_init(tdata->gmp_factor);
 	ecm_init(tdata->params);
 	gmp_randseed_ui(tdata->params->rng, get_rand(&g_rand.low, &g_rand.hi));
-	zCopy(&tdata->fobj->ecm_obj.n, &tdata->n);
+	mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
 	tdata->params->method = ECM_ECM;
 	tdata->curves_run = 0;
 		
@@ -928,8 +555,6 @@ void ecm_thread_free(ecm_thread_data_t *tdata)
 	ecm_clear(tdata->params);
 	mpz_clear(tdata->gmp_n);
 	mpz_clear(tdata->gmp_factor);
-	zFree(&tdata->n);
-	zFree(&tdata->factor);
 
 	if (tdata->fobj->ecm_obj.use_external)
 	{
@@ -957,9 +582,6 @@ void *ecm_do_one_curve(void *ptr)
 	if (!fobj->ecm_obj.use_external)
 	{
 		int status;
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-		size_t count;
-#endif
 
 		thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
 		if (VFLAG >= 3)
@@ -967,36 +589,18 @@ void *ecm_do_one_curve(void *ptr)
 		mpz_set_ui(thread_data->params->x, (unsigned long)0);
 		mpz_set_ui(thread_data->params->sigma, thread_data->sigma);
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-		mpz_import(thread_data->gmp_n, (size_t)(abs(thread_data->n.size)), -1, sizeof(uint32), 
-			0, (size_t)0, thread_data->n.val);
-#else
-		//wrapper for YAFU bigints and call to gmp-ecm
-		mp2gmp(&thread_data->n, thread_data->gmp_n);
-#endif
+		// set the thread local copy of n
+		mpz_set(thread_data->gmp_n, fobj->ecm_obj.gmp_n);
 
 		if (fobj->ecm_obj.stg2_is_default == 0)
 		{
 			//not default, tell gmp-ecm to use the requested B2
 			//printf("using requested B2 value\n");
-			sp642z(fobj->ecm_obj.B2,&thread_data->factor);
-			mp2gmp(&thread_data->factor,thread_data->params->B2);
-			zClear(&thread_data->factor);
+			uint64_2gmp(fobj->ecm_obj.B2, thread_data->params->B2);
 		}
 
 		status = ecm_factor(thread_data->gmp_factor, thread_data->gmp_n,
-				fobj->ecm_obj.B1, thread_data->params);
-
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-		zClear(&thread_data->n);
-		mpz_export(thread_data->n.val, &count, -1, sizeof(uint32),
-				0, (size_t)0, thread_data->gmp_n);
-		thread_data->n.size = count;
-#else
-		//update n: not sure if gmp-ecm modifies it
-		gmp2mp(thread_data->gmp_n,&thread_data->n);
-#endif
-
+				fobj->ecm_obj.B1, thread_data->params);		
 
 		//printf ("used B2: ");
 		//mpz_out_str (stdout, 10, thread_data->params->B2);
@@ -1008,39 +612,32 @@ void *ecm_do_one_curve(void *ptr)
 		//gmp2mp(thread_data->params->B2,&thread_data->factor);
 		//ECM_STG2_MAX = z264(&thread_data->factor);
 
-#if defined(_WIN64) && BITS_PER_DIGIT == 32
-		zClear(&thread_data->factor);
-		mpz_export(thread_data->factor.val, &count, -1, sizeof(uint32),
-				0, (size_t)0, thread_data->gmp_factor);
-		thread_data->factor.size = count;
-#else
-		//pull out any factor found
-		gmp2mp(thread_data->gmp_factor,&thread_data->factor);
-#endif
-
 		//the return value is the stage the factor was found in, if no error
 		thread_data->stagefound = status;
 	}
 	else
 	{
 		char cmd[1024];
-		str_t lstr;
 		FILE *fid;
 		char line[1024];
 		char *ptr;
-
-		sInit(&lstr);
+		char tmpstr[1024];
+		int retcode;
 
 		// external executable was specified
 		sprintf(thread_data->tmp_output, "_yafu_ecm_tmp%d.out", thread_data->thread_num);
 
 		// build system command
 		//"echo \042 %s \042 | %s %u >> %s\n",
-		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", z2decstr(&thread_data->n, &lstr),
+		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", mpz_get_str(tmpstr, 10, thread_data->gmp_n),
 			fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, thread_data->tmp_output);
 
 		// run system command
-		system(cmd);
+		retcode = system(cmd);
+
+		// this is what I observed ecm returning on ctrl-c.  hopefully it is portable.
+		if (retcode == 33280)
+			ECM_ABORT = 1;
 		
 		// parse output file
 		fid = fopen(thread_data->tmp_output, "r");
@@ -1067,13 +664,13 @@ void *ecm_do_one_curve(void *ptr)
 
 			strcpy(fact, ptr+1);
 
-			str2hexz(fact, &thread_data->factor);
+			mpz_set_str(thread_data->gmp_factor, fact, 10);
+			//str2hexz(fact, &thread_data->factor);
 
 			break;
 		}
 		fclose(fid);
 
-		sFree(&lstr);
 	}
 
 	return 0;

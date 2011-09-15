@@ -24,6 +24,7 @@ void primes_from_lineflags(thread_soedata_t *t)
 	uint64 current_line = t->current_line;
 	uint64 prime, num_alloc;
 	uint64 i,j,it;
+	//int past_low, k;
 
 	it=0;
 
@@ -39,31 +40,129 @@ void primes_from_lineflags(thread_soedata_t *t)
 
 	//this will find all the primes in the line.  when other lines are appended, the primes
 	//will be out of order and will need to be sorted.
-	for (i=0;i<sdata->numlinebytes;i++)
-	{
-		for (j=0;j<BITSINBYTE;j++)
-		{
-			if (line[i] & nmasks[j])
-			{
-				prime = sdata->prodN * (i*BITSINBYTE + j) + 
-					sdata->rclass[current_line] + sdata->lowlimit;
+	//past_low = 0;
+	//for (i=0;i<sdata->numlinebytes;i++)
+	//{
+	//	for (j = 0; j < 8; j++)
+	//	{
+	//		if (line[i] & nmasks[j])
+	//		{
+	//			prime = sdata->prodN * ((i << 3) + j) + 
+	//				sdata->rclass[current_line] + sdata->lowlimit;
 
-				//only store the prime if it is within our requested bounds
-				if ((prime >= sdata->orig_llimit) &&  (prime <= sdata->orig_hlimit))
-				{
-					//if (it >= num_alloc)
-					//{
-					//	printf("error: did not allocate enough primes!\n");
-					//	fflush(stdout);
-					//}
-					ddata->primes[it] = prime;
-					it++;					
-				}
-				//else
-					//printf("prime %" PRIu64 " is outside of original limits of %" PRIu64 " and %" PRIu64"\n",
-					//prime, sdata->orig_llimit, sdata->orig_hlimit);
+	//			//only store the prime if it is within our requested bounds
+	//			if ((prime >= sdata->orig_llimit))
+	//			{
+	//				past_low = 1;
+	//				ddata->primes[it] = prime;
+	//				it++;					
+	//			}
+	//		}
+	//	}
+	//	if (past_low)
+	//		break;
+	//}
+
+	for (i=0; i < sdata->numlinebytes; i++)
+	{
+		if (line[i] == 0)
+			continue;
+
+		if (line[i] & nmasks[0])
+		{
+			prime = sdata->prodN * ((i << 3) + 0) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
 			}
-			
+		}
+		if (line[i] & nmasks[1])
+		{
+			prime = sdata->prodN * ((i << 3) + 1) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[2])
+		{
+			prime = sdata->prodN * ((i << 3) + 2) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[3])
+		{
+			prime = sdata->prodN * ((i << 3) + 3) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[4])
+		{
+			prime = sdata->prodN * ((i << 3) + 4) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[5])
+		{
+			prime = sdata->prodN * ((i << 3) + 5) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[6])
+		{
+			prime = sdata->prodN * ((i << 3) + 6) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
+		}
+		if (line[i] & nmasks[7])
+		{
+			prime = sdata->prodN * ((i << 3) + 7) + 
+				sdata->rclass[current_line] + sdata->lowlimit;
+
+			//only store the prime if it is within our requested bounds
+			if ((prime >= sdata->orig_llimit) && (prime <= sdata->orig_hlimit))
+			{
+				ddata->primes[it] = prime;
+				it++;					
+			}
 		}
 	}
 

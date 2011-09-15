@@ -46,7 +46,7 @@ typedef struct
 
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
 
-uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
+uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 {
 	//call shanks with multiple small multipliers
 	const int multipliers[NUM_SQUFOF_MULT] = {1, 3, 5, 7, 
@@ -57,23 +57,19 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 				
 	int i, rounds,j;
 	uint64 n64, nn64, f64, big1, big2;
-	mult_t mult_save[NUM_SQUFOF_MULT];//, mult_save2;
-	z tmp1, tmp2;
-	//mpz_t tmp;
-	//struct timeval myTVstart, myTVend;
-	//TIME_DIFF *	difference;
-	//double t_time;	
+	mult_t mult_save[NUM_SQUFOF_MULT];
+	mpz_t gmptmp;
 	
 	big1 = 0xFFFFFFFFFFFFFFFFULL;
 	big2 = 0x3FFFFFFFFFFFFFFFULL;
 
-	if (zBits(N) > 62)
+	if (mpz_sizeinbase(N,2) > 62)
 	{
-		printf("N too big (%d bits), exiting...\n",zBits(N));
+		printf("N too big (%d bits), exiting...\n", mpz_sizeinbase(N,2));
 		return 1;
 	}
 
-	n64 = z264(N);
+	n64 = mpz_get_64(N);
 
 	//default return value
 	f64 = 1;
@@ -81,11 +77,7 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 	if (n64 <= 3)
 		return n64;
 
-	//mpz_init(tmp);
-	zInit(&tmp1);
-	zInit(&tmp2);
-
-	//gettimeofday(&myTVstart, NULL);
+	mpz_init(gmptmp);
 
 	for (i=NUM_SQUFOF_MULT-1;i>=0;i--)
 	{
@@ -105,13 +97,9 @@ uint64 sp_shanks_loop(z *N, fact_obj_t *fobj)
 		mult_save[i].valid = 1;
 
 		//set imax = N^1/4
-		//b0 = (uint32)sqrt((double)(N));
-		//mpz_set_64(tmp, nn64);		
-		//mpz_sqrt(tmp, tmp); 
-		//mult_save[i].b0 = (uint32)mpz_get_ui(tmp); 
-		sp642z(nn64,&tmp1);
-		zNroot(&tmp1,&tmp2,2);				
-		mult_save[i].b0 = tmp2.val[0];
+		mpz_set_64(gmptmp, nn64);
+		mpz_sqrt(gmptmp, gmptmp);	
+		mult_save[i].b0 = mpz_get_ui(gmptmp);
 		mult_save[i].imax = (uint32)sqrt(mult_save[i].b0) / 2;
 
 		//set up recurrence
@@ -200,9 +188,7 @@ done:
 		printf("Total squfof time = %6.6f seconds.\n",t_time);
 		*/
 
-	//mpz_clear(tmp);
-	zFree(&tmp1);
-	zFree(&tmp2);
+	mpz_clear(gmptmp);
 
 	return f64;
 }

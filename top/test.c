@@ -42,10 +42,12 @@ void test_dlp_composites()
 	clock_t start, stop;
 	int i,j,num,correct;
 	z tmp,tmp2,t1,t2,t3;
+	mpz_t gmptmp;
 	//uint64 f64;
 	//int64 queue[100];
 	//fact_obj_t *fobj;
 
+	mpz_init(gmptmp);
 	comp = (uint64 *)malloc(2000000 * sizeof(uint64));
 	f1 = (uint32 *)malloc(2000000 * sizeof(uint32));
 	f2 = (uint32 *)malloc(2000000 * sizeof(uint32));
@@ -97,8 +99,9 @@ void test_dlp_composites()
 				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
 		}
 
-		sp642z(comp[i],&tmp);
-		f64 = sp_shanks_loop(&tmp,NULL);
+		//sp642z(comp[i],&tmp);
+		mpz_set_64(gmptmp, comp[i]);
+		f64 = sp_shanks_loop(gmptmp, NULL);
 
 		if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
 			correct++;
@@ -288,6 +291,7 @@ void test_dlp_composites()
 	zFree(&t2);
 	zFree(&t1);
 	zFree(&t3);
+	mpz_clear(gmptmp);
 	return;
 }
 

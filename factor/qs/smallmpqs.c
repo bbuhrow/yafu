@@ -24,6 +24,7 @@ code to the public domain.
 #include "util.h"
 #include "common.h"
 #include <gmp.h>
+#include "gmp_xface.h"
 
 typedef struct
 {
@@ -536,8 +537,7 @@ void smallmpqs(fact_obj_t *fobj)
 	}
 	*/
 	
-	mpz_import(n, abs(fobj->qs_obj.n.size), -1, sizeof(fp_digit), 
-			0, (size_t)0, fobj->qs_obj.n.val);
+	mp2gmp(&fobj->qs_obj.n, n);
 
 	if (mpz_cmp_ui(n,1) == 0)
 	{
@@ -578,7 +578,7 @@ void smallmpqs(fact_obj_t *fobj)
 		z ztmp;
 		zInit(&ztmp);
 
-		j = sp_shanks_loop(&fobj->qs_obj.n,fobj);	
+		j = sp_shanks_loop(n, fobj);	
 		sp2z(j, &ztmp);
 		add_to_factor_list(fobj, &ztmp);
 
