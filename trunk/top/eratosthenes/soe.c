@@ -198,15 +198,21 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	}
 	else
 	{
+		uint64 hi_est, lo_est;
+
 		//allocate two arrays used for merging together primes found in different lines 
 		//that will be used later.
-		j = *highlimit - lowlimit;
-		k = (uint64)((double)j/log((double)j)*1.2);
+		hi_est = (uint64)(*highlimit/log((double)*highlimit));
+		if (lowlimit > 1)
+			lo_est = (uint64)(lowlimit/log((double)lowlimit));
+		else
+			lo_est = 0;
+
+		k = (uint64)((double)(hi_est - lo_est) * 1.2);
+
 		if (VFLAG > 2)
-		{
-			printf("estimating storage for primes up to %" PRIu64 "\n",j);
 			printf("allocating merge prime storage for %u primes\n",k);
-		}
+		
 		locprimes = (uint64 *)realloc(locprimes,k * sizeof(uint64));
 		mergeprimes = (uint64 *)realloc(mergeprimes,k * sizeof(uint64));
 		if (locprimes == NULL)
@@ -230,7 +236,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		t = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
 
-		printf("elapsed time for seed primes = %6.4f\n",t);
+		printf("elapsed time to find seed primes = %6.4f\n",t);
 	}
 	
 	sdata.pboundi = sp;
@@ -281,6 +287,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	//all this rounding has likely changed the desired high limit.  compute the new highlimit.
 	//the orignial desired high limit is already recorded so the proper count will be returned.
+	//todo... did we round too much?  look into this.
 	*highlimit = (uint64)((uint64)numlinebytes * (uint64)prodN * (uint64)BITSINBYTE + lowlimit);
 	sdata.highlimit = *highlimit;
 	sdata.numlinebytes = numlinebytes;
@@ -294,8 +301,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	sdata.blk_r = FLAGSIZE*prodN;
 	it=0;
 
-	//this could perhaps be multithreaded, but it probably isn't necessary.
-	//find all xGCDs of prime with prodN.  These are used when finding offsets
+	//allocate space for the root of each sieve prime
 	sdata.root = (int *)malloc(sdata.pboundi * sizeof(int));
 	allocated_bytes += sdata.pboundi * sizeof(uint32);
 	if (sdata.root == NULL)
@@ -359,8 +365,8 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		//set the bucket allocation amount
 		bucket_alloc = hits_per_bucket;
 
+		//now count primes that only hit the interval once
 		num_hits = 0;
-		//printf("%u primes above large prime threshold\n",(uint32)(sdata.pboundi - i));
 		for (; i<sdata.pboundi; i++)
 			num_hits++;
 
@@ -370,9 +376,11 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		//add some margin
 		hits_per_bucket = (uint64)((double)hits_per_bucket * 1.1);
 
-		//set the bucket allocation amount, with a minimum of at least 25000
+		//set the bucket allocation amount, with a minimum of at least 50000
 		//because small allocation amounts may violate the uniformity assumption
-		//of hits per bucket
+		//of hits per bucket.  The idea is to set this right once, even if it is too big,
+		//so that we don't have to keep checking for full buckets in the middle of
+		//the bucket sieve (slow)
 		if (num_hits > 0)
 			large_bucket_alloc = MAX(hits_per_bucket,50000);
 		else
@@ -586,6 +594,9 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	}
 
 	gettimeofday (&tstart, NULL);
+
+	//this could perhaps be multithreaded, but it probably isn't necessary.
+	//find all roots of prime with prodN.  These are used when finding offsets.
 	getRoots(&sdata);
 
 	if (VFLAG > 2)
@@ -696,7 +707,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		}
 
 		//printf a progress report if counting
-		if (count && VFLAG >= 0)
+		if (count && (VFLAG >= 0))
 		{
 			//don't print status if computing primes, because lots of routines within
 			//yafu do this and they don't want this side effect
@@ -800,7 +811,7 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	stop_soe_worker_thread(thread_data + i, 1);
 	free(thread_data[i].ddata.offsets);
 
-	if (count && VFLAG >= 0)
+	if (count && (VFLAG >= 0))
 	{
 		//don't print status if computing primes, because lots of routines within
 		//yafu do this and they don't want this side effect

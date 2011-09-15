@@ -46,8 +46,19 @@ void get_offsets(thread_soedata_t *thread_data)
 		if ((prime > BUCKETSTARTP) && (ddata->bucket_depth > BUCKET_BUFFER))
 			break;
 
-		//find the first multiple of the prime which is greater than 'block1' and equal
-		//to the residue class mod 'prodN'.  
+		//find the first multiple of the prime which is greater than the first sieve location 
+		//and also equal to the residue class mod 'prodN'.  
+		//we need to solve the congruence: rclass[current_line] == kp mod prodN for k
+		//xGCD gives r and s such that r*p + s*prodN = gcd(p,prodN).
+		//then k = r*class/gcd(p,prodN) is a solution.
+		//the gcd of p and prodN is always 1 by construction of prodN and choice of p.  
+		//therefore k = r * class is a solution.  furthermore, since the gcd is 1, there
+		//is only one solution.  
+		//xGCD_1((int)prime,(int)prodN,&r,&s,&tmp);
+
+		//To speed things up we solve and store modinv(prodN, prime) for every prime (only
+		//needs to be done once, in roots.c).  Then to get the offset for the current block
+		//we just need to multiply the stored root with the starting sieve location (mod p).	
 
 		//if the prime is greater than the limit at which it is necessary to sieve
 		//a block, start that prime in the next block.
@@ -59,20 +70,12 @@ void get_offsets(thread_soedata_t *thread_data)
 			ddata->ublk_b += sdata->blk_r;
 			ddata->blk_b_sqrt = (uint64)(sqrt((int64)(ddata->ublk_b + prodN))) + 1;
 		}
-
-		//solving the congruence: rclass[current_line] == kp mod prodN for k
-		//eGCD gives r and s such that r*p + s*prodN = gcd(p,prodN).
-		//then k = r*class/gcd(p,prodN) is a solution.
-		//the gcd of p and prodN is always 1 by construction of prodN and choice of p.  
-		//therefore k = r * class is a solution.  furthermore, since the gcd is 1, there
-		//is only one solution.
-		//xGCD_1((int)prime,(int)prodN,&r,&s,&tmp);
+		
 		s = sdata->root[i];
 
 		//the lower block bound (lblk_b) times s can exceed 64 bits for large ranges,
-		//so reduce mod p here as well as when finding the root.
+		//so reduce mod p here as well.
 		tmp2 =  (uint64)s * (ddata->lblk_b % (uint64)prime);
-
 		ddata->offsets[i] = (uint32)(tmp2 % (uint64)prime);
 	}
 
@@ -107,7 +110,7 @@ void get_offsets(thread_soedata_t *thread_data)
 			
 			//we solved for lower_mod_prime while computing the modular inverse of
 			//each prime, for the residue class 1.  add the difference between this
-			//residue class and 1 before multiplying by the modular inverse.
+			//residue class and 1 before multiplying by the modular inverse to find the offset.
 			tmp2 = (uint64)s * (uint64)(sdata->lower_mod_prime[i] + diff);
 			tmp3 = (uint64)s2 * (uint64)(sdata->lower_mod_prime[i+1] + diff);
 			
