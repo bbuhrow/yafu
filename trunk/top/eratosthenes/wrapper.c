@@ -60,7 +60,7 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 	//TODO: manage really large requested blocks by splitting the range up into
 	//blocks of no more than 10B else memory requirements get outragous.
 	uint64 retval, tmpl, tmph,i=0;
-	uint64 maxrange = 1000000000000ULL;
+	uint64 maxrange = 100000000000ULL;
 
 	if (highlimit < lowlimit)
 	{

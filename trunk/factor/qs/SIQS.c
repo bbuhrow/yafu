@@ -21,6 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "util.h"
+#include "gmp_xface.h"
 
 //#define VDEBUG
 // opt debug will print out some info relevant to the process used to 
@@ -115,11 +116,11 @@ void SIQS(fact_obj_t *fobj)
 	//then do a small amount of trial division
 	//which will add anything found to the global factor list
 	//this is only called with the main thread
-	zCopy(n,&fobj->div_obj.n);
+	mp2gmp(n,fobj->div_obj.gmp_n);
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
-	zCopy(&fobj->div_obj.n,n);
+	gmp2mp(fobj->div_obj.gmp_n,n);
 
 	//At this point, we are committed to doing qs on the input
 	//we need to:

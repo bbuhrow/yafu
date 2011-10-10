@@ -25,16 +25,15 @@ code to the public domain.
 
 void zTrial(fact_obj_t *fobj)
 {
-	//trial divide n using primes below limit. optionally, print factors found
+	//trial divide n using primes below limit. optionally, print factors found.
+	//input expected in the gmp_n field of div_obj.
 	uint32 r,k=0;
 	uint32 limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
 	fp_digit q;
-	z *n = &fobj->div_obj.n;
-	z tmp;
+	z tmp;	//interface for adding to the factor list
 
 	zInit(&tmp);
-	mp2gmp(n, fobj->div_obj.gmp_n);
 
 	if (P_MAX < limit)
 		GetPRIMESRange(0,limit);
@@ -67,26 +66,22 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
-	gmp2mp(fobj->div_obj.gmp_n, n);
-
 	zFree(&tmp);
 }
 
 void zFermat(fp_digit limit, fact_obj_t *fobj)
 {
 	//	  Fermat's factorization method (wikipedia psuedo-code)
-	z *n = &fobj->div_obj.n;
+	//input expected in the gmp_n field of div_obj.
 	mpz_t a, b2, tmp, tmp2, tmp3, maxa;
 	int i;
 	int numChars;
 	fp_digit reportIt, reportInc;
 	fp_digit count;
 
-	mp2gmp(n, fobj->div_obj.gmp_n);
-
 	if (mpz_even_p(fobj->div_obj.gmp_n))
 	{
-		zShiftRight(n,n,1);
+		mpz_tdiv_q_2exp(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, 1);
 		add_to_factor_list(fobj, &zTwo);
 		return;
 	}
@@ -102,7 +97,6 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		add_to_factor_list(fobj, &f);
 		mpz_set_ui(fobj->div_obj.gmp_n, 1);
 		zFree(&f);
-		gmp2mp(fobj->div_obj.gmp_n, n);
 		return;
 	}
 
@@ -189,8 +183,6 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 	mpz_clear(a);
 	mpz_clear(b2);
 	mpz_clear(maxa);
-
-	gmp2mp(fobj->div_obj.gmp_n, n);
 
 	return;
 

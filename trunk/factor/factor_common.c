@@ -164,6 +164,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.gbl_override_tf = 0;
 	fobj->qs_obj.gbl_override_time_flag = 0;
 	fobj->qs_obj.gbl_override_time = 0;
+	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
 	fobj->qs_obj.qs_exponent = 0;
 	fobj->qs_obj.qs_multiplier = 0;
@@ -825,11 +826,11 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		if (VFLAG >= 0)
 			printf("div: primes less than %d\n",B1);
 		fobj->prime_threshold = B1 * B1;
-		zCopy(b,&fobj->div_obj.n);
+		mp2gmp(b,fobj->div_obj.gmp_n);
 		fobj->div_obj.print = 1;
 		fobj->div_obj.limit = B1;
 		zTrial(fobj);
-		zCopy(&fobj->div_obj.n,b);		
+		gmp2mp(fobj->div_obj.gmp_n,b);		
 		break;
 
 	case rho_work:
@@ -841,9 +842,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	case fermat_work:
 		if (VFLAG >= 0)
 			printf("fmt: %d iterations\n",B1);
-		zCopy(b,&fobj->div_obj.n);
+		mp2gmp(b,fobj->div_obj.gmp_n);
 		zFermat(B1,fobj);
-		zCopy(&fobj->div_obj.n,b);		
+		gmp2mp(fobj->div_obj.gmp_n,b);
 		break;
 
 	case ecm_curve:
