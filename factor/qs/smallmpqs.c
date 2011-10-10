@@ -579,38 +579,39 @@ void smallmpqs(fact_obj_t *fobj)
 		zInit(&ztmp);
 
 		j = sp_shanks_loop(n, fobj);	
-		sp2z(j, &ztmp);
-		add_to_factor_list(fobj, &ztmp);
-
-		if (fobj->qs_obj.flags != 12345)
+		if (j > 1)
 		{
-			if (fobj->logfile != NULL)
-				logprint(fobj->logfile,
-					"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+			sp2z(j, &ztmp);
+			add_to_factor_list(fobj, &ztmp);
+
+			if (fobj->qs_obj.flags != 12345)
+			{
+				if (fobj->logfile != NULL)
+					logprint(fobj->logfile,
+						"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+			}
+
+			zShortDiv(&fobj->qs_obj.n,j,&ztmp);
+			add_to_factor_list(fobj, &ztmp);
+
+			if (fobj->qs_obj.flags != 12345)
+			{
+				if (fobj->logfile != NULL)
+					logprint(fobj->logfile,
+						"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+			}
+
+			zCopy(&zOne, &fobj->qs_obj.n);
+
+			mpz_clear(n);
+			mpz_clear(tmp);
+			zFree(&ztmp);
+			return;
 		}
-
-		zShortDiv(&fobj->qs_obj.n,j,&ztmp);
-		add_to_factor_list(fobj, &ztmp);
-
-		if (fobj->qs_obj.flags != 12345)
-		{
-			if (fobj->logfile != NULL)
-				logprint(fobj->logfile,
-					"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
-		}
-
-		zCopy(&zOne, &fobj->qs_obj.n);
-
-		mpz_clear(n);
-		mpz_clear(tmp);
-		zFree(&ztmp);
-		return;
 	}
-	else
-	{
-		//empircal tuning of sieve interval based on digits in n
-		sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
-	}
+
+	//empircal tuning of sieve interval based on digits in n
+	sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
 
 	gettimeofday(&tstart, NULL);
 	mpz_init(tmp2);

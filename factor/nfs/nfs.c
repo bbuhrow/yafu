@@ -1,4 +1,5 @@
 #include "nfs.h"
+#include "gmp_xface.h"
 
 #ifdef USE_NFS
 
@@ -57,11 +58,11 @@ void nfs(fact_obj_t *fobj)
 	//this is only called with the main thread
 	if (VFLAG > 0)
 		printf("nfs: commencing trial factoring\n");
-	zCopy(N,&fobj->div_obj.n);	
+	mp2gmp(N, fobj->div_obj.gmp_n); //  zCopy(N,&fobj->div_obj.n);	
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
-	zCopy(&fobj->div_obj.n,N);
+	gmp2mp(fobj->div_obj.gmp_n,N);
 
 	if (isPrime(N))
 	{

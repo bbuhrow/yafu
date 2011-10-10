@@ -1258,20 +1258,20 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//trial - two arguments
 		if (nargs == 2)
 		{
-			zCopy(&operands[0],&fobj->div_obj.n);
+			mp2gmp(&operands[0],fobj->div_obj.gmp_n);
 			fobj->div_obj.print = 0;
 			fobj->div_obj.limit = operands[1].val[0];
 			zTrial(fobj);
-			zCopy(&fobj->div_obj.n,&operands[0]);
+			gmp2mp(fobj->div_obj.gmp_n,&operands[0]);
 		}
 		else if (nargs == 1)
 		{
 			printf("using default trial division bound of 10000\n");
-			zCopy(&operands[1],&fobj->div_obj.n);
+			mp2gmp(&operands[1],fobj->div_obj.gmp_n);
 			fobj->div_obj.print = 0;
 			fobj->div_obj.limit = 10000;
 			zTrial(fobj);
-			zCopy(&fobj->div_obj.n,&operands[1]);
+			gmp2mp(fobj->div_obj.gmp_n,&operands[1]);
 			//apparently this comes in as operand 1, but the calling function
 			//expects the result in operand 0, so put it there.  This should be
 			//cleaner
@@ -2009,7 +2009,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 		zCopy(&operands[0],&fobj->qs_obj.n);
+		fobj->logfile = fopen(fobj->flogname,"a");
 		smallmpqs(fobj);		
+		fclose(fobj->logfile);
 		zCopy(&fobj->qs_obj.n,&operands[0]);
 		print_factors(fobj);
 
@@ -2076,9 +2078,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in fermat\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->div_obj.n);
+		mp2gmp(&operands[0],fobj->div_obj.gmp_n);
 		zFermat(operands[1].val[0], fobj);
-		zCopy(&fobj->div_obj.n,&operands[0]);
+		gmp2mp(fobj->div_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;
 
