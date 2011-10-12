@@ -36,7 +36,7 @@ void SIQS(fact_obj_t *fobj)
 	//the input number to this function.  a copy in different memory
 	//will also be made, and modified by a multiplier.  don't confuse
 	//these two.
-	z *n = &fobj->qs_obj.n;
+	//input expected in fobj->qs_obj->gmp_n
 	z tmp1, tmp2;
 
 	//thread data holds all data needed during sieving
@@ -103,7 +103,7 @@ void SIQS(fact_obj_t *fobj)
 	}
 
 	//check for special cases and bail if there is one
-	if ((i = check_specialcase(n,fobj->logfile,fobj)) > 0)
+	if ((i = check_specialcase(fobj->logfile,fobj)) > 0)
 	{
 		if (i == 1)
 		{
@@ -116,11 +116,11 @@ void SIQS(fact_obj_t *fobj)
 	//then do a small amount of trial division
 	//which will add anything found to the global factor list
 	//this is only called with the main thread
-	mp2gmp(n,fobj->div_obj.gmp_n);
+	mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
-	gmp2mp(fobj->div_obj.gmp_n,n);
+	mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
 
 	//At this point, we are committed to doing qs on the input
 	//we need to:
@@ -144,8 +144,8 @@ void SIQS(fact_obj_t *fobj)
 	zInit(&tmp2);
 
 	//fill in the factorization object
-	fobj->bits = zBits(n);
-	fobj->digits = ndigits(n);
+	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
+	fobj->digits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 10);
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
@@ -210,11 +210,13 @@ void SIQS(fact_obj_t *fobj)
 	gettimeofday(&static_conf->totaltime_start, NULL);
 
 	if (VFLAG >= 0)
-		printf("\nstarting SIQS on c%d: %s\n",fobj->digits,z2decstr(n,&gstr1));
+		printf("\nstarting SIQS on c%d: %s\n",fobj->digits, 
+		mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 
 	if (sieve_log != NULL)
 	{
-		logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,z2decstr(n,&gstr1));
+		logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,
+			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
 		fflush(sieve_log);
 	}
@@ -1525,7 +1527,7 @@ int siqs_static_init(static_conf_t *sconf)
 
 	//allocate space for a copy of input number in the job structure
 	zInit(&sconf->n);
-	zCopy(&obj->qs_obj.n,&sconf->n);
+	gmp2mp(obj->qs_obj.gmp_n, &sconf->n);
 
 	//initialize some constants
 	zInit(&sconf->sqrt_n);
@@ -2507,6 +2509,7 @@ int free_siqs(static_conf_t *sconf)
 	}
 
 	zCopy(&sconf->n,&sconf->obj->qs_obj.n);
+	mp2gmp(&sconf->obj->qs_obj.n, sconf->obj->qs_obj.gmp_n);
 	zFree(&sconf->sqrt_n);
 	zFree(&sconf->n);
 	zFree(&sconf->target_a);

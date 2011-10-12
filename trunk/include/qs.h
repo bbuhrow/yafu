@@ -635,7 +635,7 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB);
 void siqstune(int bits);
 
 //test routines
-int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj);
+int check_specialcase(FILE *sieve_log, fact_obj_t *fobj);
 void test_polya(fb_list *fb, z *n, z *target_a);
 int checkpoly_siqs(siqs_poly *poly, z *n);
 int checkBl(z *n, uint32 *qli, fb_list *fb, z *Bl, int s);

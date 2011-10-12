@@ -3,6 +3,7 @@
 #include "factor.h"
 #include "qs.h"
 #include "gnfs.h"
+#include "gmp_xface.h"
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 9
@@ -102,7 +103,7 @@ void factor_tune(fact_obj_t *inobj)
 		fobj->qs_obj.gbl_override_rel_flag = 1;
 		fobj->qs_obj.gbl_override_rel = 10000;	
 		gettimeofday(&start, NULL);
-		zCopy(&n,&fobj->qs_obj.n);
+		mp2gmp(&n,fobj->qs_obj.gmp_n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
 		difference = my_difftime (&start, &stop);

@@ -118,27 +118,19 @@ void pollard_loop(fact_obj_t *fobj)
 {
 	//run pollard's p-1 algorithm once on the input, using a 
 	//32 bit random base
-	z *n = &fobj->pm1_obj.n;
+	//expects the input in pm1_obj->gmp_n
 	mpz_t d,t;
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
 	z f;
 		
-	mp2gmp(n, fobj->pm1_obj.gmp_n);
-
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->pm1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pm1_obj.gmp_n, 0) == 0))
-	{
-		n->type = COMPOSITE;
 		return;
-	}
 
 	if (mpz_cmp_ui(fobj->pm1_obj.gmp_n, 2) == 0)
-	{
-		n->type = PRIME;
 		return;
-	}	
 		
 	start = clock();
 
@@ -158,12 +150,12 @@ void pollard_loop(fact_obj_t *fobj)
 			mpz_get_str(gstr1.s, 10, fobj->pm1_obj.gmp_n));
 
 		gmp2mp(fobj->pm1_obj.gmp_n, &f);
+		f.type = PRP;
 		add_to_factor_list(fobj, &f);
 
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
 		mpz_set_ui(fobj->pm1_obj.gmp_n, 1);
-		gmp2mp(fobj->pm1_obj.gmp_n, n);
 		
 		zFree(&f);
 		return;
@@ -196,6 +188,7 @@ void pollard_loop(fact_obj_t *fobj)
 		//check if the factor is prime
 		if (mpz_probab_prime_p(fobj->pm1_obj.gmp_f, NUM_WITNESSES))
 		{
+			f.type = PRP;
 			add_to_factor_list(fobj, &f);
 
 			if (VFLAG > 0)
@@ -208,6 +201,7 @@ void pollard_loop(fact_obj_t *fobj)
 		}
 		else
 		{
+			f.type = COMPOSITE;
 			add_to_factor_list(fobj, &f);
 			if (VFLAG > 0)
 				gmp_printf("pm1: found c%d factor = %Zd\n",
@@ -235,7 +229,6 @@ void pollard_loop(fact_obj_t *fobj)
 	}
 
 	signal(SIGINT,NULL);
-	gmp2mp(fobj->pm1_obj.gmp_n, n);
 	mpz_clear(d);
 	mpz_clear(t);
 	zFree(&f);

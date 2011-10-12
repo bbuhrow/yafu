@@ -23,6 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "tfm.h"
 #include "util.h"
+#include "gmp_xface.h"
 
 int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
 {
@@ -74,143 +75,91 @@ int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
 	return retval;
 }
 
-int check_specialcase(z *n, FILE *sieve_log, fact_obj_t *fobj)
+int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 {
-	mpz_t gmpz;
-	int i;
-	z w1,w2;
-
-	zInit(&w1);
-	zInit(&w2);
 	//check for some special cases of input number
 	//sieve_log is passed in already open, and should return open
-	if ((n->val[0] % 2) == 0)
+	if (mpz_even_p(fobj->qs_obj.gmp_n))
 	{
 		printf("input must be odd\n");
-		zFree(&w1);
-		zFree(&w2);
 		return 1;
 	}
 
-	if (isPrime(n))
+	if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, NUM_WITNESSES))
 	{
-		n->type = PRP;
-		add_to_factor_list(fobj, n);
+		z w1;
+		zInit(&w1);
+
+		gmp2mp(fobj->qs_obj.gmp_n, &w1);
+		w1.type = PRP;
+		add_to_factor_list(fobj, &w1);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-		zCopy(&zOne,n);
+			logprint(sieve_log,"prp%d = %s\n", mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		zFree(&w1);
-		zFree(&w2);
 		return 1;
 	}
 
-	if (isSquare(n))
+	if (mpz_perfect_square_p(fobj->qs_obj.gmp_n))
 	{
-		zNroot(n,n,2);
-		n->type = PRP;
-		add_to_factor_list(fobj, n);
+		z w1;
+		zInit(&w1);
+
+		mpz_sqrt(fobj->qs_obj.gmp_n,fobj->qs_obj.gmp_n);
+		gmp2mp(fobj->qs_obj.gmp_n, &w1);
+
+		add_to_factor_list(fobj, &w1);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-		add_to_factor_list(fobj, n);
+			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+		add_to_factor_list(fobj, &w1);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
-		zCopy(&zOne,n);
+			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10),
+			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+
+		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		zFree(&w1);
-		zFree(&w2);
 		return 1;
 	}
 
-	mpz_init(gmpz);
-	mpz_import(gmpz, abs(n->size), -1, sizeof(fp_digit), 
-		0, (size_t)0, n->val);
-	if (n->size < 0)
-		mpz_neg(gmpz, gmpz);
-	i = mpz_perfect_power_p(gmpz);
-	mpz_clear(gmpz);
-
-	if (i)
+	if (mpz_perfect_power_p(fobj->qs_obj.gmp_n))
 	{
 		printf("input is a perfect power\n");
-		add_to_factor_list(fobj, n);
 		if (sieve_log != NULL)
 		{
 			logprint(sieve_log,"input is a perfect power\n");
-			logprint(sieve_log,"c%d = %s\n",ndigits(n),z2decstr(n,&gstr1));
+			logprint(sieve_log,"c%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+				mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		}
-		zFree(&w1);
-		zFree(&w2);
 		return 1;
 	}
 
-	if (zBits(n) < 115)
+	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
 	{
 		//run MPQS, as SIQS doesn't work for smaller inputs
 		//MPQS will take over the log file, so close it now.
 		int i;
-
-		//if (sieve_log != NULL)
-		//	fclose(sieve_log);
 
 		// we've verified that the input is not odd or prime.  also
 		// do some very quick trial division before calling smallmpqs, which
 		// does none of these things.
 		for (i=1; i<25; i++)
 		{
-			if (zShortMod(n, spSOEprimes[i]) == 0)
-				zShortDiv(n, spSOEprimes[i], n);
+			if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
+				mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
 		}
 
-		zCopy(n,&fobj->qs_obj.n);
 		smallmpqs(fobj);
-		zCopy(&fobj->qs_obj.n,n);
-		zFree(&w1);
-		zFree(&w2);
 		return 1;	//tells SIQS to not try to close the logfile
 	}
 
-	if (ndigits(n) > 150)
+	if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 10) > 150)
 	{
 		printf("input too big for SIQS\n");
-		zFree(&w1);
-		zFree(&w2);
 		return 1;
 	}
 
-	zNroot(n,&w1,2);
-	zMul(&w1,&w1,&w2);
-	if (zCompare(&w2,n) == 0)
-	{
-		printf("input is a perfect square\n");
-		if (isPrime(&w1))
-		{
-			if (sieve_log != NULL)
-			{
-				logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-				logprint(sieve_log,"prp%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-			}
-			w1.type = PRP;
-			add_to_factor_list(fobj, &w1);
-			add_to_factor_list(fobj, &w1);
-		}
-		else
-		{
-			if (sieve_log != NULL)
-			{
-				logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-				logprint(sieve_log,"c%d = %s\n",ndigits(&w1),z2decstr(&w1,&gstr1));
-			}
-			w1.type = COMPOSITE;
-			add_to_factor_list(fobj, &w1);
-			add_to_factor_list(fobj, &w1);
-		}
-		zCopy(&zOne,n);
-		zFree(&w1);
-		zFree(&w2);
-		return 1;
-	}
-
-	zFree(&w1);
-	zFree(&w2);
 	return 0;
 }
 
@@ -388,7 +337,7 @@ void siqsbench(fact_obj_t *fobj)
 	for (i=0; i<10; i++)
 	{
 		str2hexz(list[i],&n);
-		zCopy(&n,&fobj->qs_obj.n);
+		mp2gmp(&n,fobj->qs_obj.gmp_n);
 		SIQS(fobj);
 		clear_factor_list(fobj);
 	}
@@ -568,7 +517,7 @@ void siqstune(int bits)
 							i*9 + x*3 + y + 1,5*3*3);
 
 						//run siqs
-						zCopy(&input,&fobj->qs_obj.n);
+						mp2gmp(&input,fobj->qs_obj.gmp_n);
 						SIQS(fobj);
 
 						//get timing from fact_obj

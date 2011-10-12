@@ -493,6 +493,7 @@ void sm_get_params(int bits, uint32 *B, uint32 *M, uint32 *BL)
 
 void smallmpqs(fact_obj_t *fobj)
 {
+	//input expected in fobj->qs_obj.gmp_n
 	sm_mpqs_rlist *full, *partial;
 	fb_list_sm_mpqs *fb;
 	smpqs_sieve_fb *fb_sieve_p,*fb_sieve_n;
@@ -524,20 +525,9 @@ void smallmpqs(fact_obj_t *fobj)
 
 	mpz_init(n);
 	mpz_init(tmp);
-
-	/*
-	mpz_set_ui(n, fobj->qs_obj.n.val[0]);
-	i = 1;
-	while (i < fobj->qs_obj.n.size)
-	{
-		mpz_set_ui(tmp, fobj->qs_obj.n.val[i]);
-		mpz_mul_2exp(tmp, tmp, BITS_PER_DIGIT * i);
-		mpz_add(n, n, tmp);
-		i++;
-	}
-	*/
 	
-	mp2gmp(&fobj->qs_obj.n, n);
+	//copy to local variable
+	mpz_set(n, fobj->qs_obj.gmp_n);
 
 	if (mpz_cmp_ui(n,1) == 0)
 	{
@@ -570,7 +560,7 @@ void smallmpqs(fact_obj_t *fobj)
 	{
 		if (fobj->logfile != NULL)
 			logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
-				ndigits(&fobj->qs_obj.n),z2decstr(&fobj->qs_obj.n,&gstr1));
+				mpz_sizeinbase(n, 10), mpz_get_str(gstr1.s, 10, n));
 	}
 
 	if (bits_n < 60)
@@ -587,21 +577,21 @@ void smallmpqs(fact_obj_t *fobj)
 			if (fobj->qs_obj.flags != 12345)
 			{
 				if (fobj->logfile != NULL)
-					logprint(fobj->logfile,
-						"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+					logprint(fobj->logfile,"prp%d = %u\n",ndigits_1(j), j);
 			}
 
-			zShortDiv(&fobj->qs_obj.n,j,&ztmp);
+			mpz_tdiv_q_ui(n,n,j);
+			gmp2mp(n,&ztmp);
 			add_to_factor_list(fobj, &ztmp);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
 				if (fobj->logfile != NULL)
 					logprint(fobj->logfile,
-						"prp%d = %s\n",ndigits(&ztmp),z2decstr(&ztmp,&gstr1));
+						"prp%d = %s\n",mpz_sizeinbase(n,10),mpz_get_str(gstr1.s, 10, n));
 			}
 
-			zCopy(&zOne, &fobj->qs_obj.n);
+			mpz_set_ui(fobj->qs_obj.gmp_n, 1);
 
 			mpz_clear(n);
 			mpz_clear(tmp);
@@ -888,31 +878,23 @@ done:
 		
 	for(i=0;i<num_factors;i++)
 	{
-		z tmpz, t1, t2;
-		size_t count;
+		z t2;
 
-		zInit(&tmpz);
-		zInit(&t1);
 		zInit(&t2);
 
-		mpz_export(t2.val, &count, -1, sizeof(fp_digit),
-			0, (size_t)0, factors[i]);
-		t2.size = count;
-
+		gmp2mp(factors[i], &t2);
 		add_to_factor_list(fobj, &t2);
 
 		if (fobj->qs_obj.flags != 12345)
 		{
 			if (fobj->logfile != NULL)
 				logprint(fobj->logfile,
-					"prp%d = %s\n",ndigits(&t2),z2decstr(&t2,&gstr1));
+					"prp%d = %s\n", mpz_sizeinbase(factors[i], 10),
+					mpz_get_str(gstr1.s, 10, factors[i]));
 		}
-			
-		zCopy(&fobj->qs_obj.n, &tmpz);
-		zDiv(&tmpz, &t2, &fobj->qs_obj.n, &t1);
+		
+		mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);
 
-		zFree(&tmpz);
-		zFree(&t1);
 		zFree(&t2);
 	}
 

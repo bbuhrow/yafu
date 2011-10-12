@@ -26,11 +26,13 @@ code to the public domain.
 
 int ecm_loop(fact_obj_t *fobj)
 {
+	//expects the input in ecm_obj->gmp_n
 	ecm_thread_data_t *thread_data;		//an array of thread data objects
 	z *n = &fobj->ecm_obj.n;
 	mpz_t d,t;
 	FILE *flog;
 	int i,j;
+
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
 	int total_curves_run;
@@ -39,13 +41,8 @@ int ecm_loop(fact_obj_t *fobj)
 	int charcount = 0, charcount2 = 0;
 	int input_digits = ndigits(n);
 
-	mp2gmp(n, fobj->ecm_obj.gmp_n);
-
 	if (ecm_check_input(fobj) == 0)
-	{
-		gmp2mp(fobj->ecm_obj.gmp_n, n);
 		return 0;
-	}
 
 	//ok, having gotten this far we are now ready to run the requested
 	//curves.  initialize the needed data structures, then split
@@ -87,7 +84,7 @@ int ecm_loop(fact_obj_t *fobj)
             total_curves_run += thread_data[i].curves_run;
 
 		charcount = printf("ecm: %d/%d curves on C%d input, at ",
-			total_curves_run, fobj->ecm_obj.num_curves, ndigits(n));
+			total_curves_run, fobj->ecm_obj.num_curves, mpz_sizeinbase(fobj->ecm_obj.gmp_n,10));
 		charcount2 = print_B1B2(fobj, NULL);
 		fflush(stdout);
 	}
@@ -210,9 +207,6 @@ int ecm_loop(fact_obj_t *fobj)
 done:
 	if (VFLAG >= 0)
 		printf("\n");
-
-	// set the outgoing yafu bigint
-	gmp2mp(fobj->ecm_obj.gmp_n, n);
 
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
@@ -339,7 +333,7 @@ int ecm_check_input(fact_obj_t *fobj)
 {
 	FILE *flog;
 
-	//open the log file and annouce we are starting ECM
+	//open the log file
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{

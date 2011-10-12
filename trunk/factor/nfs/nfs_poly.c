@@ -1,10 +1,10 @@
 #include "nfs.h"
 
-void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list)
+void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
+	mp_t *mpN, factor_list_t *factor_list)
 {
 	FILE *logfile;
 	uint32 flags;
-	z N;
 
 	//an array of thread data objects
 	nfs_threaddata_t *thread_data;		
@@ -37,9 +37,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, m
 	remove(master_polyfile);
 
 	/* figure out how long poly selection should take */
-	zInit(&N);
-	mp_t2z(mpN,&N);
-	i = zBits(&N);
+	i = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2);
 	for (j = 0; j < NUM_TIME_LIMITS; j++) {
 		if (i < time_limits[j].bits)
 			break;
@@ -391,10 +389,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, m
 #endif
 
 	// parse the master .p file and find the best poly	
-	find_best_msieve_poly(fobj, &N, job);
+	find_best_msieve_poly(fobj, job);
 	//also create a .fb file
 	ggnfs_to_msieve(fobj, job);
-	zFree(&N);
 
 	return;
 }
