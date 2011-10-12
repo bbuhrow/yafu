@@ -1214,26 +1214,26 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in pm1\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->pm1_obj.n);
+		mp2gmp(&operands[0],fobj->pm1_obj.gmp_n);
 		pollard_loop(fobj);
-		zCopy(&fobj->pm1_obj.n,&operands[0]);
+		gmp2mp(fobj->pm1_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;
 	case 13:
 		//pp1 - two arguments
 		if (nargs == 2)
 		{
-			zCopy(&operands[0],&fobj->pp1_obj.n);
+			mp2gmp(&operands[0],fobj->pp1_obj.gmp_n);
 			fobj->pp1_obj.numbases = operands[1].val[0];
 			williams_loop(fobj);
-			zCopy(&fobj->pp1_obj.n,&operands[0]);
+			gmp2mp(fobj->pp1_obj.gmp_n,&operands[0]);
 		}
 		else if (nargs == 1)
 		{
-			zCopy(&operands[1],&fobj->pp1_obj.n);
+			mp2gmp(&operands[1],fobj->pp1_obj.gmp_n);
 			fobj->pp1_obj.numbases = 1;
 			williams_loop(fobj);
-			zCopy(&fobj->pp1_obj.n,&operands[1]);
+			gmp2mp(fobj->pp1_obj.gmp_n,&operands[1]);
 		}
 		else
 		{
@@ -1249,9 +1249,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in rho\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->rho_obj.n);
+		mp2gmp(&operands[0],fobj->rho_obj.gmp_n);
 		brent_loop(fobj);
-		zCopy(&fobj->rho_obj.n,&operands[0]);
+		gmp2mp(fobj->rho_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;
 	case 15:
@@ -1427,9 +1427,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in siqs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->qs_obj.n);
+		mp2gmp(&operands[0],fobj->qs_obj.gmp_n);
 		SIQS(fobj);
-		zCopy(&fobj->qs_obj.n,&operands[0]);
+		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;
 
@@ -1526,16 +1526,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		{
 			k = operands[1].val[0];
 			fobj->ecm_obj.num_curves = k;
-			zCopy(&operands[0], &fobj->ecm_obj.n);
+			mp2gmp(&operands[0], fobj->ecm_obj.gmp_n);
 			ecm_loop(fobj);
-			zCopy(&fobj->ecm_obj.n, &operands[0]);
+			gmp2mp(fobj->ecm_obj.gmp_n, &operands[0]);
 		}
 		else if (nargs == 1)
 		{
 			fobj->ecm_obj.num_curves = 1;
-			zCopy(&operands[1], &fobj->ecm_obj.n);
+			mp2gmp(&operands[1], fobj->ecm_obj.gmp_n);
 			ecm_loop(fobj);
-			zCopy(&fobj->ecm_obj.n, &operands[0]);
+			gmp2mp(fobj->ecm_obj.gmp_n, &operands[0]);
 		}
 		else
 		{
@@ -1959,6 +1959,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					zCopy(&input[i],&fobj2->qs_obj.n);		
+					mp2gmp(&input[i], fobj2->qs_obj.gmp_n);
 					if (test_squfof)
 					{
 						mp2gmp(&fobj2->qs_obj.n, gmptmp);
@@ -2008,11 +2009,11 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in smallmpqs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->qs_obj.n);
+		mp2gmp(&operands[0],fobj->qs_obj.gmp_n);
 		fobj->logfile = fopen(fobj->flogname,"a");
 		smallmpqs(fobj);		
 		fclose(fobj->logfile);
-		zCopy(&fobj->qs_obj.n,&operands[0]);
+		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 
 		break;
@@ -2091,9 +2092,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in nfs\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->nfs_obj.n);
+		mp2gmp(&operands[0],fobj->nfs_obj.gmp_n);
 		nfs(fobj);
-		zCopy(&fobj->nfs_obj.n,&operands[0]);
+		gmp2mp(fobj->nfs_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;
 

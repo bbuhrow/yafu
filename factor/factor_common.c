@@ -278,6 +278,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->squfof_obj.in);
 	sFree(&fobj->squfof_obj.out);
 	zFree(&fobj->squfof_obj.n);
+	mpz_clear(fobj->squfof_obj.gmp_n);
+	mpz_clear(fobj->squfof_obj.gmp_f);
 
 	// free any factors found in qs
 	for (i=0; i<fobj->qs_obj.num_factors; i++)
@@ -288,6 +290,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->qs_obj.in);
 	sFree(&fobj->qs_obj.out);
 	zFree(&fobj->qs_obj.n);
+	mpz_clear(fobj->qs_obj.gmp_n);
+	mpz_clear(fobj->qs_obj.gmp_f);
 
 	// free any factors found in div
 	for (i=0; i<fobj->div_obj.num_factors; i++)
@@ -310,6 +314,8 @@ void free_factobj(fact_obj_t *fobj)
 	sFree(&fobj->nfs_obj.in);
 	sFree(&fobj->nfs_obj.out);
 	zFree(&fobj->nfs_obj.n);
+	mpz_clear(fobj->nfs_obj.gmp_n);
+	mpz_clear(fobj->nfs_obj.gmp_f);
 
 	//free general fobj stuff
 	zFree(&fobj->N);
@@ -358,11 +364,15 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	fobj->squfof_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->squfof_obj.n);
+	mpz_init(fobj->squfof_obj.gmp_n);
+	mpz_init(fobj->squfof_obj.gmp_f);
 	sInit(&fobj->squfof_obj.in);
 	sInit(&fobj->squfof_obj.out);
 
 	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->qs_obj.n);
+	mpz_init(fobj->qs_obj.gmp_n);
+	mpz_init(fobj->qs_obj.gmp_f);
 	sInit(&fobj->qs_obj.in);
 	sInit(&fobj->qs_obj.out);
 
@@ -375,6 +385,8 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
 	zInit(&fobj->nfs_obj.n);
+	mpz_init(fobj->nfs_obj.gmp_n);
+	mpz_init(fobj->nfs_obj.gmp_f);
 	sInit(&fobj->nfs_obj.in);
 	sInit(&fobj->nfs_obj.out);
 
@@ -834,9 +846,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		break;
 
 	case rho_work:
-		zCopy(b,&fobj->rho_obj.n);
+		mp2gmp(b,fobj->rho_obj.gmp_n);
 		brent_loop(fobj);
-		zCopy(&fobj->rho_obj.n,b);
+		gmp2mp(fobj->rho_obj.gmp_n,b);
 		break;
 
 	case fermat_work:
@@ -853,9 +865,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		fobj->ecm_obj.B1 = B1;
 		fobj->ecm_obj.B2 = B2;
 		fobj->ecm_obj.num_curves = *work;
-		zCopy(b, &fobj->ecm_obj.n);
+		mp2gmp(b, fobj->ecm_obj.gmp_n);
 		*work = ecm_loop(fobj);
-		zCopy(&fobj->ecm_obj.n, b);
+		gmp2mp(fobj->ecm_obj.gmp_n, b);
 		fobj->ecm_obj.B1 = tmp1;
 		fobj->ecm_obj.B2 = tmp2;
 		break;
@@ -865,10 +877,10 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		tmp2 = fobj->pp1_obj.B2;
 		fobj->pp1_obj.B1 = B1;
 		fobj->pp1_obj.B2 = B2;
-		zCopy(b,&fobj->pp1_obj.n);
+		mp2gmp(b,fobj->pp1_obj.gmp_n);
 		fobj->pp1_obj.numbases = *work;
 		williams_loop(fobj);
-		zCopy(&fobj->pp1_obj.n,b);
+		gmp2mp(fobj->pp1_obj.gmp_n,b);
 		fobj->pp1_obj.B1 = tmp1;
 		fobj->pp1_obj.B2 = tmp2;
 		break;
@@ -878,18 +890,18 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		tmp2 = fobj->pm1_obj.B2;
 		fobj->pm1_obj.B1 = B1;
 		fobj->pm1_obj.B2 = B2;
-		zCopy(b,&fobj->pm1_obj.n);
+		mp2gmp(b,fobj->pm1_obj.gmp_n);
 		pollard_loop(fobj);
-		zCopy(&fobj->pm1_obj.n,b);
+		gmp2mp(fobj->pm1_obj.gmp_n,b);
 		fobj->pm1_obj.B1 = tmp1;
 		fobj->pm1_obj.B2 = tmp2;
 		break;
 
 	case qs_work:
 		//gettimeofday(&start2,NULL);
-		zCopy(b,&fobj->qs_obj.n);
+		mp2gmp(b,fobj->qs_obj.gmp_n);
 		SIQS(fobj);
-		zCopy(&fobj->qs_obj.n,b);
+		gmp2mp(fobj->qs_obj.gmp_n,b);
 		break;
 		//gettimeofday(&stop2,NULL);
 		//difference = my_difftime (&start2, &stop2);
@@ -897,9 +909,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		//free(difference);
 
 	case nfs_work:
-		zCopy(b,&fobj->nfs_obj.n);
+		mp2gmp(b,fobj->nfs_obj.gmp_n);
 		nfs(fobj);
-		zCopy(&fobj->nfs_obj.n,b);
+		gmp2mp(fobj->nfs_obj.gmp_n,b);
 		break;
 
 	default:
@@ -1798,7 +1810,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
-			printf("b = %s\n",z2decstr(b, &gstr1));
+			//printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 
@@ -1807,7 +1819,7 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/NFS ratio was = %f\n",total_time/t_time);
-			printf("b = %s\n",z2decstr(b, &gstr1));
+			//printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 

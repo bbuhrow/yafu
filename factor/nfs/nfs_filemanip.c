@@ -67,7 +67,7 @@ void win_file_concat(char *filein, char *fileout)
 }
 
 
-int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *job)
+int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 {
 	// see if we can resume a factorization based on the combination of input number,
 	// .job file, .fb file, .dat file, and/or .p file.  else, start new job.
@@ -79,7 +79,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 	FILE *in, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
 	int ans;
-	z tmpz;
+	mpz_t tmp;
 	msieve_obj *mobj = fobj->nfs_obj.mobj;
 
 	in = fopen(fobj->nfs_obj.job_infile,"r");
@@ -95,10 +95,9 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 	if (line[0] != 'n')
 		return 0;	// malformed job file.  not a restart.
 
-	zInit(&tmpz);
-	z2decstr(N,&gstr1);
-	str2hexz(line+3,&tmpz);
-	ans = zCompare(&tmpz,N);
+	mpz_init(tmp);
+	mpz_set_str(tmp, line + 3, 16);
+	ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
 	if (ans == 0)
 	{
 		// ok, we have a job file for the current input.  this is a restart of sieving
@@ -139,8 +138,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 
 			//tail isn't good enough, because prior filtering steps could have inserted
 			//free relations, which don't have a special q to read.
-			//our task is to find the last valid line of the file, and then read
-			//the last numeric entry from that line.
+			//our task is to find the last valid line of the file and parse it.
 			//furthermore, the last valid line could be incomplete if a job is interrupted.  so
 			//we must be able to check the next to last valid line as well.
 			//finally, we must be able to parse the special q from the line, which could have
@@ -235,7 +233,7 @@ int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *
 		*last_spq = 0;
 	}
 
-	zFree(&tmpz);
+	mpz_clear(tmp);
 	return ans;
 
 }
@@ -352,7 +350,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
+void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -490,11 +488,10 @@ void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	}
 
 	//copy n into the job file
-	z2decstr(N,&gstr1);
-	fprintf(out, "n: %s\n",gstr1.s);
+	gmp_fprintf(out, "n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	if (VFLAG > 0)
-		printf("n: %s\n",gstr1.s);
+		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	// copy out the poly
 	while (!feof(in))

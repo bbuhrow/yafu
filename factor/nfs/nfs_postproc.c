@@ -1,5 +1,5 @@
 #include "nfs.h"
-
+#include "gmp_xface.h"
 
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN)
 {
@@ -41,31 +41,38 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
 
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 {
-	z tmp1, tmp2, *N = &fobj->nfs_obj.n;
 	int i;
 	FILE *logfile;
 	char c[3];
 
 	// extract the factors
-	zInit(&tmp1);
-	zInit(&tmp2);
-	zCopy(N,&tmp1);
 	for (i=0;i<factor_list->num_factors;i++)
 	{
 		z tmpz;
-		zInit(&tmpz);				
-		
-		mp_t2z(&factor_list->final_factors[i]->factor,&tmpz);
+		mpz_t tmp;
 
-		zDiv(&tmp1,&tmpz,N,&tmp2);
-		if (isPrime(&tmpz))
+		//init locals
+		zInit(&tmpz);
+		mpz_init(tmp);
+		
+		//convert the factor
+		mp_t2gmp(&factor_list->final_factors[i]->factor,tmp);
+
+		//divide it out
+		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, tmp);
+
+		//check if its prime and log accordingly
+		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
 		{
+			//need to convert to yafu bigint to store
+			gmp2mp(tmp, &tmpz);
 			tmpz.type = PRP;
 			add_to_factor_list(fobj, &tmpz);
 			strcpy(c,"prp");
 		}
 		else
 		{
+			gmp2mp(tmp, &tmpz);
 			tmpz.type = COMPOSITE;
 			add_to_factor_list(fobj, &tmpz);
 			strcpy(c,"C");
@@ -76,44 +83,52 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
-			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmpz),z2decstr(&tmpz,&gstr1));
+			logprint(logfile, "%s%d = %s\n",c,
+				mpz_sizeinbase(tmp, 10), mpz_get_str(gstr1.s, 10, tmp));
 			fclose(logfile);
 		}		
 
-		zFree(&tmpz);		
-		zCopy(N,&tmp1);
+		//free locals
+		zFree(&tmpz);
+		mpz_clear(tmp);
 	}
 
-	if (zCompare(&tmp1,&zOne) > 0)
+	//log anything left over
+	if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) > 0) 
 	{
+		z tmpz;
 		char c[3];
-		if (isPrime(&tmp1))
+
+		zInit(&tmpz);
+		if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 		{
-			tmp1.type = PRP;
-			add_to_factor_list(fobj, &tmp1);
-			strcpy(c,"prp");
-			zCopy(&zOne, N);
+			gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
+			tmpz.type = PRP;
+			add_to_factor_list(fobj, &tmpz);
+			strcpy(c,"prp");			
 		}
 		else
 		{
-			tmp1.type = COMPOSITE;
-			add_to_factor_list(fobj, &tmp1);
+			gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
+			tmpz.type = COMPOSITE;
+			add_to_factor_list(fobj, &tmpz);
 			strcpy(c,"C");
-			zCopy(&zOne, N);
 		}
-
+		
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
-			logprint(logfile, "%s%d = %s\n",c,ndigits(&tmp1),z2decstr(&tmp1,&gstr1));
+			logprint(logfile, "%s%d = %s\n",c,
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), 
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 			fclose(logfile);
 		}		
-	}
 
-	zFree(&tmp1);
-	zFree(&tmp2);
+		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
+		zFree(&tmpz);
+	}
 
 	return;
 }

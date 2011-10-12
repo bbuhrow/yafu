@@ -324,6 +324,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
@@ -335,6 +337,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 	qs_savefile_t savefile;		//savefile object
 	char siqs_savefile[1024];
@@ -372,6 +376,8 @@ typedef struct
 {
 	z n;
 	z inz, outz;
+	mpz_t gmp_n;
+	mpz_t gmp_f;
 	str_t in, out;
 
 	char ggnfs_dir[1024];

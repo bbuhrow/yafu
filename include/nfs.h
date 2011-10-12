@@ -100,11 +100,11 @@ typedef struct {
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
 void *polyfind_launcher(void *ptr);
-void find_best_msieve_poly(fact_obj_t *fobj, z *N, ggnfs_job_t *job);
+void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job);
 void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
-void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job);
-int check_existing_files(fact_obj_t *fobj, z *N, uint32 *last_spq, ggnfs_job_t *job);
+void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
+int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);

@@ -49,6 +49,24 @@ static INLINE void gmp2mp(mpz_t src, z *dest) {
 	dest->size = count;
 }
 
+static INLINE void mp_t2gmp(mp_t *src, mpz_t dest) {
+
+	mpz_import(dest, (size_t)(src->nwords), -1, sizeof(uint32), 
+			0, (size_t)0, src->val);
+}
+
+/*--------------------------------------------------------------------*/
+static INLINE void gmp2mp_t(mpz_t src, mp_t *dest) {
+
+	size_t count;
+
+	memset(dest->val, 0, MAX_MP_WORDS * sizeof(uint32)); //mp_clear(dest);
+	mpz_export(dest->val, &count, -1, sizeof(uint32),
+			0, (size_t)0, src);
+	dest->nwords = count;
+}
+
+
 /*--------------------------------------------------------------------*/
 static INLINE void uint64_2gmp(uint64 src, mpz_t dest) {
 

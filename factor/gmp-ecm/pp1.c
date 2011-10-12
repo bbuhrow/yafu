@@ -119,7 +119,7 @@ void williams_loop(fact_obj_t *fobj)
 	//use william's p+1 algorithm 'trials' times on n.
 	//we allow multiple trials since we may not always get a p+1 group
 	//with our random choice of base
-	z *n = &fobj->pp1_obj.n;
+	//expects the input in pp1_obj->gmp_n
 	mpz_t d,t;
 	int i,it,trials = fobj->pp1_obj.numbases;
 	FILE *flog;
@@ -127,20 +127,12 @@ void williams_loop(fact_obj_t *fobj)
 	double tt;
 	z f;
 		
-	mp2gmp(n, fobj->pp1_obj.gmp_n);
-
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->pp1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 0) == 0))
-	{
-		n->type = COMPOSITE;
 		return;
-	}
 
 	if (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 2) == 0)
-	{
-		n->type = PRIME;
 		return;
-	}	
 
 	//open the log file
 	flog = fopen(fobj->flogname,"a");
@@ -179,6 +171,7 @@ void williams_loop(fact_obj_t *fobj)
 				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
 			gmp2mp(fobj->pp1_obj.gmp_n, &f);
+			f.type = PRP;
 			add_to_factor_list(fobj, &f);
 
 			stop = clock();
@@ -205,6 +198,7 @@ void williams_loop(fact_obj_t *fobj)
 			//check if the factor is prime
 			if (mpz_probab_prime_p(fobj->pp1_obj.gmp_f, NUM_WITNESSES))
 			{
+				f.type = PRP;
 				add_to_factor_list(fobj, &f);
 
 				if (VFLAG > 0)
@@ -217,6 +211,7 @@ void williams_loop(fact_obj_t *fobj)
 			}
 			else
 			{
+				f.type = COMPOSITE;
 				add_to_factor_list(fobj, &f);
 				if (VFLAG > 0)
 					gmp_printf("pp1: found c%d factor = %Zd\n",
@@ -241,7 +236,6 @@ void williams_loop(fact_obj_t *fobj)
 	fclose(flog);
 
 	pp1_finalize(fobj);
-	gmp2mp(fobj->pp1_obj.gmp_n, n);
 	signal(SIGINT,NULL);
 	mpz_clear(d);
 	mpz_clear(t);

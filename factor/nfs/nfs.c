@@ -14,7 +14,7 @@ void nfsexit(int sig)
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
 {
-	z *N = &fobj->nfs_obj.n;
+	//expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	str_t input_str;
 	msieve_obj *obj = NULL;
@@ -42,14 +42,13 @@ void nfs(fact_obj_t *fobj)
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
-	mpz_t gmpz;
-	int i;
 
 	//below a certain amount, revert to SIQS
-	if (ndigits(N) < fobj->nfs_obj.min_digits)
+	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->nfs_obj.min_digits)
 	{
-		zCopy(N, &fobj->qs_obj.n);
+		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
+		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 		return;
 	}	
 		
@@ -58,63 +57,74 @@ void nfs(fact_obj_t *fobj)
 	//this is only called with the main thread
 	if (VFLAG > 0)
 		printf("nfs: commencing trial factoring\n");
-	mp2gmp(N, fobj->div_obj.gmp_n); //  zCopy(N,&fobj->div_obj.n);	
+	mpz_set(fobj->div_obj.gmp_n, fobj->nfs_obj.gmp_n);
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
-	gmp2mp(fobj->div_obj.gmp_n,N);
+	mpz_set(fobj->nfs_obj.gmp_n, fobj->div_obj.gmp_n);
 
-	if (isPrime(N))
+	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 	{
-		add_to_factor_list(fobj, N);
-		zCopy(&zOne,N);
-
+		z tmpz;
+		zInit(&tmpz);
+		gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
+		add_to_factor_list(fobj, &tmpz);
+		
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
 			printf("could not open yafu logfile for appending\n");
 		else
 		{
 			if (VFLAG >= 0)
-				printf("PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
-			logprint(logfile, "PRP%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+				gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				fobj->nfs_obj.gmp_n);
+			logprint(logfile, "PRP%d = %s\n",
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 			fclose(logfile);
 		}		
+
+		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
+		zFree(&tmpz);
 		return;
 	}
 
-	if (isSquare(N))
+	if (mpz_perfect_square_p(fobj->nfs_obj.gmp_n))
 	{
-		zNroot(N,N,2);
-		N->type = PRP;
-		add_to_factor_list(fobj, N);
+		z tmpz;
+		zInit(&tmpz);
+
+		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+		gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
+
+		add_to_factor_list(fobj, &tmpz);
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile != NULL)
-			logprint(logfile,"prp%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
-		add_to_factor_list(fobj, N);
+			logprint(logfile,"prp%d = %s\n",
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+		add_to_factor_list(fobj, &tmpz);
 		if (logfile != NULL)
-			logprint(logfile,"prp%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
-		zCopy(&zOne,N);
+			logprint(logfile,"prp%d = %s\n",
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+
+		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
+		zFree(&tmpz);
 		fclose(logfile);
 		return;
 	}
 
-	mpz_init(gmpz);
-	mpz_import(gmpz, abs(N->size), -1, sizeof(fp_digit), 
-		0, (size_t)0, N->val);
-	if (N->size < 0)
-		mpz_neg(gmpz, gmpz);
-	i = mpz_perfect_power_p(gmpz);
-	mpz_clear(gmpz);
-
-	if (i)
+	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
 	{
 		printf("input is a perfect power\n");
-		add_to_factor_list(fobj, N);
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile != NULL)
 		{
 			logprint(logfile,"input is a perfect power\n");
-			logprint(logfile,"c%d = %s\n",ndigits(N),z2decstr(N,&gstr1));
+			logprint(logfile,"c%d = %s\n",
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 		}
 		fclose(logfile);
 		return;
@@ -159,7 +169,7 @@ void nfs(fact_obj_t *fobj)
 	}
 
 	//find best job parameters
-	get_ggnfs_params(fobj, N,&job);			
+	get_ggnfs_params(fobj, &job);			
 
 	//if we are going to be doing sieving, check for the sievers
 	if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
@@ -178,8 +188,9 @@ void nfs(fact_obj_t *fobj)
 				logprint(logfile, "WARNING: could not find %s, reverting to siqs!\n",job.sievername);
 				fclose(logfile);
 			}
-			zCopy(N, &fobj->qs_obj.n);
+			mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 			SIQS(fobj);
+			mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 			return;
 		}
 	}
@@ -207,14 +218,17 @@ void nfs(fact_obj_t *fobj)
 			else
 			{
 				if (VFLAG >= 0)
-					printf("nfs: commencing gnfs on c%d: %s\n",ndigits(N), z2decstr(N,&gstr1));
-				logprint(logfile, "nfs: commencing gnfs on c%d: %s\n",ndigits(N), z2decstr(N,&gstr1));
+					gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
+						mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), fobj->nfs_obj.gmp_n);
+				logprint(logfile, "nfs: commencing gnfs on c%d: %s\n",
+					mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+					mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 				fclose(logfile);
 			}
 
 			//write the input bigint as a string
 			sInit(&input_str);
-			input = z2decstr(N, &input_str);	
+			input = mpz_get_str(input, 10, fobj->nfs_obj.gmp_n);
 
 			//create an msieve_obj
 			//this will initialize the savefile to the outputfile name provided
@@ -225,13 +239,13 @@ void nfs(fact_obj_t *fobj)
 			fobj->nfs_obj.mobj = obj;
 
 			//convert input to msieve bigint notation and initialize a list of factors
-			z2mp_t(N,&mpN);
+			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
 			factor_list_init(&factor_list);
 
 			//see if we can resume a factorization based on the combination of input number,
 			//.job file, .fb file, .dat file, and/or .p file.  else, start new job.
 			job.current_rels = 0;
-			is_continuation = check_existing_files(fobj, N, &last_specialq, &job);						
+			is_continuation = check_existing_files(fobj, &last_specialq, &job);						
 
 			//determine sieving start value and range.
 			if (fobj->nfs_obj.rangeq > 0)
@@ -417,7 +431,7 @@ void nfs(fact_obj_t *fobj)
 			nfs_find_factors(obj, &mpN, &factor_list);
 			
 			extract_factors(&factor_list,fobj);
-			if (zCompare(N,&zOne) == 0)
+			if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
 				statenum = 6;		//completely factored, clean up everything
 			else
 				statenum = 7;		//not factored completely, keep files and stop
@@ -525,7 +539,9 @@ void nfs(fact_obj_t *fobj)
 {
 	printf("gnfs has not been enabled\n");
 
+	mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 	SIQS(fobj);
+	mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 
 	return;
 }
@@ -556,7 +572,7 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 	{155, 30000000, 29, 58, 2.5, 15, 0, 320000}
 };
 
-void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
+void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 {
 	// based on the size/difficulty of the input number, determine "good" parameters
 	// for the following: factor base limits, factor base large prime bound, trial
@@ -565,7 +581,7 @@ void get_ggnfs_params(fact_obj_t *fobj, z *N, ggnfs_job_t *job)
 	// entries.  keep last valid entry off the ends of the table.  This will produce
 	// increasingly poor choices as one goes farther off the table, but you should be
 	// doing things by hand by then anyway.
-	int i, d = ndigits(N);
+	int i, d = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 	double scale;
 	
 	job->min_rels = 0;
