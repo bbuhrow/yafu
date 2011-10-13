@@ -57,6 +57,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			  (double)high->seconds * (i - low->bits)) / dist);
 	}
 
+	// initialize the variable tracking the total time spent (over all threads)
+	// so far in the polynomial selection phase
+	total_time = 0;
+
+	// if we're resuming a job in this phase, this will be non-zero
 	if (job->poly_time > 0)
 	{
 		if (job->poly_time >= deadline)
@@ -86,6 +91,12 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 					job->last_leading_coeff);
 				fclose(logfile);
 			}
+
+			// pick up where we left off.
+			total_time = job->poly_time;
+
+			// also need to pro-rate the deadline, since that is what is used
+			// to determine when to stop
 			deadline -= job->poly_time;
 		}
 	}		
@@ -196,8 +207,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	}	
 
 	estimated_range_time = 0;
-	is_startup = 1;
-	total_time = 0;
+	is_startup = 1;	
 	num_ranges = 0;
 	while (1)
 	{
