@@ -144,7 +144,6 @@ YAFU_SRCS = \
 	factor/nfs/nfs_filemanip.c \
 	factor/nfs/nfs_threading.c \
 	arith/arith0.c \
-	arith/arith0.c \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \

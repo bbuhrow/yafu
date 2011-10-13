@@ -263,7 +263,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			{
 				total_time += this_range_time;
 				num_ranges++;
-				estimated_range_time = (uint32)(total_time / (double)num_ranges);
+				estimated_range_time = this_range_time; //(uint32)(total_time / (double)num_ranges);
 			}			
 
 			if (!is_startup)
