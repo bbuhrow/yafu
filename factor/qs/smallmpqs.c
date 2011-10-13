@@ -565,14 +565,14 @@ void smallmpqs(fact_obj_t *fobj)
 
 	if (bits_n < 60)
 	{
-		z ztmp;
-		zInit(&ztmp);
+		mpz_t ztmp;
+		mpz_init(ztmp);
 
 		j = sp_shanks_loop(n, fobj);	
 		if (j > 1)
 		{
-			sp2z(j, &ztmp);
-			add_to_factor_list(fobj, &ztmp);
+			mpz_set_64(ztmp, j);
+			add_to_factor_list(fobj, ztmp);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -581,8 +581,7 @@ void smallmpqs(fact_obj_t *fobj)
 			}
 
 			mpz_tdiv_q_ui(n,n,j);
-			gmp2mp(n,&ztmp);
-			add_to_factor_list(fobj, &ztmp);
+			add_to_factor_list(fobj, n);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -595,7 +594,6 @@ void smallmpqs(fact_obj_t *fobj)
 
 			mpz_clear(n);
 			mpz_clear(tmp);
-			zFree(&ztmp);
 			return;
 		}
 	}
@@ -878,12 +876,7 @@ done:
 		
 	for(i=0;i<num_factors;i++)
 	{
-		z t2;
-
-		zInit(&t2);
-
-		gmp2mp(factors[i], &t2);
-		add_to_factor_list(fobj, &t2);
+		add_to_factor_list(fobj, factors[i]);
 
 		if (fobj->qs_obj.flags != 12345)
 		{
@@ -894,8 +887,6 @@ done:
 		}
 		
 		mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);
-
-		zFree(&t2);
 	}
 
 	mpz_clear(n);

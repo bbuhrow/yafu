@@ -125,7 +125,6 @@ void williams_loop(fact_obj_t *fobj)
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
-	z f;
 		
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->pp1_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 0) == 0))
@@ -150,7 +149,6 @@ void williams_loop(fact_obj_t *fobj)
 	//initialize some local args
 	mpz_init(d);
 	mpz_init(t);	
-	zInit(&f);
 
 	pp1_init(fobj);
 
@@ -170,9 +168,7 @@ void williams_loop(fact_obj_t *fobj)
 			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->pp1_obj.gmp_n,10),
 				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
-			gmp2mp(fobj->pp1_obj.gmp_n, &f);
-			f.type = PRP;
-			add_to_factor_list(fobj, &f);
+			add_to_factor_list(fobj, fobj->pp1_obj.gmp_n);
 
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
@@ -190,16 +186,14 @@ void williams_loop(fact_obj_t *fobj)
 		if ((mpz_cmp_ui(fobj->pp1_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->pp1_obj.gmp_f, fobj->pp1_obj.gmp_n) < 0))
 		{				
-			gmp2mp(fobj->pp1_obj.gmp_f, &f);
-
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+
 			//check if the factor is prime
 			if (mpz_probab_prime_p(fobj->pp1_obj.gmp_f, NUM_WITNESSES))
 			{
-				f.type = PRP;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, fobj->pp1_obj.gmp_f);
 
 				if (VFLAG > 0)
 					gmp_printf("pp1: found prp%d factor = %Zd\n",
@@ -211,8 +205,8 @@ void williams_loop(fact_obj_t *fobj)
 			}
 			else
 			{
-				f.type = COMPOSITE;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, fobj->pp1_obj.gmp_f);
+
 				if (VFLAG > 0)
 					gmp_printf("pp1: found c%d factor = %Zd\n",
 					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),fobj->pp1_obj.gmp_f);
@@ -239,7 +233,6 @@ void williams_loop(fact_obj_t *fobj)
 	signal(SIGINT,NULL);
 	mpz_clear(d);
 	mpz_clear(t);
-	zFree(&f);
 
 	return;
 }

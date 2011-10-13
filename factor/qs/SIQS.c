@@ -1667,11 +1667,14 @@ int siqs_static_init(static_conf_t *sconf)
 			break;
 		else
 		{
+			mpz_t tmpz;
+			mpz_init(tmpz);
+
 			//i is already divided out of n.  record the factor we found
-			sp2z(i,&tmp1);
-			tmp1.type = PRIME;
-			add_to_factor_list(sconf->obj, &tmp1);
-			tmp1.type = UNKNOWN;
+			uint64_2gmp(i, tmpz);
+			add_to_factor_list(sconf->obj, tmpz);
+			mpz_clear(tmpz);
+
 			//and remove the multiplier we may have added, so that
 			//we can try again to build a factor base.
 			zShortDiv(&sconf->n,sconf->multiplier,&sconf->n);
@@ -2485,31 +2488,22 @@ int free_siqs(static_conf_t *sconf)
 	zCopy(&sconf->n,&tmp1);
 	for (i=0;i<sconf->factor_list.num_factors;i++)
 	{
-		z tmpz;
-		//char buf[32 * MAX_MP_WORDS+1];
-		zInit(&tmpz);		
+		mpz_t tmp;
+		mpz_init(tmp);
 
-		mp_t2z(&sconf->factor_list.final_factors[i]->factor,&tmpz);
-//		printf("extracting z = %s\n",z2decstr(&tmpz,&gstr1));
+		//convert the factor
+		mp_t2gmp(&sconf->factor_list.final_factors[i]->factor,tmp);
 
-		zDiv(&tmp1,&tmpz,&sconf->n,&tmp2);
-		if (isPrime(&tmpz))
-		{
-			tmpz.type = PRP;
-			add_to_factor_list(sconf->obj, &tmpz);
-		}
-		else
-		{
-			tmpz.type = COMPOSITE;
-			add_to_factor_list(sconf->obj, &tmpz);
-		}
-		zFree(&tmpz);
+		//divide it out
+		mpz_tdiv_q(sconf->obj->qs_obj.gmp_n, sconf->obj->qs_obj.gmp_n, tmp);
+
+		//log it
+		add_to_factor_list(sconf->obj, tmp);
+		
+		mpz_clear(tmp);
 		free(sconf->factor_list.final_factors[i]);
-		zCopy(&sconf->n,&tmp1);
 	}
 
-	zCopy(&sconf->n,&sconf->obj->qs_obj.n);
-	mp2gmp(&sconf->obj->qs_obj.n, sconf->obj->qs_obj.gmp_n);
 	zFree(&sconf->sqrt_n);
 	zFree(&sconf->n);
 	zFree(&sconf->target_a);

@@ -63,7 +63,7 @@ this file contains code implementing 3) and 4)
 
 		#define MOD_INIT_8X												\
 			ASM_G (														\
-				"movdqa (%0), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \	
+				"movdqa (%0), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \
 				"movdqa (%1), %%xmm1 \n\t"		/* move in block_loc */ \
 				:														\
 				: "r" (bl_sizes), "r" (bl_locs)							\
@@ -103,7 +103,7 @@ this file contains code implementing 3) and 4)
 				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\		
+				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
 				"psrlw	$8, %%xmm4 \n\t"		/* to get to total shift of 24 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
@@ -132,7 +132,7 @@ this file contains code implementing 3) and 4)
 				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\		
+				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
 				"psrlw	$10, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
@@ -149,7 +149,7 @@ this file contains code implementing 3) and 4)
 #else
 		#define MOD_CMP_8X																		\
 			ASM_G (																				\
-				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \	
+				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \
 				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
@@ -160,7 +160,7 @@ this file contains code implementing 3) and 4)
 				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\		
+				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
 				"psrlw	$8, %%xmm4 \n\t"		/* to get to total shift of 24 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
@@ -176,7 +176,7 @@ this file contains code implementing 3) and 4)
 
 		#define MOD_CMP_BIG_8X																	\
 			ASM_G (																				\
-				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \	
+				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \
 				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
 				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
@@ -187,7 +187,7 @@ this file contains code implementing 3) and 4)
 				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\		
+				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
 				"psrlw	$11, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\

@@ -28,7 +28,6 @@ int ecm_loop(fact_obj_t *fobj)
 {
 	//expects the input in ecm_obj->gmp_n
 	ecm_thread_data_t *thread_data;		//an array of thread data objects
-	z *n = &fobj->ecm_obj.n;
 	mpz_t d,t;
 	FILE *flog;
 	int i,j;
@@ -39,7 +38,7 @@ int ecm_loop(fact_obj_t *fobj)
 	int bail_on_factor = 1;
 	int bail = 0;
 	int charcount = 0, charcount2 = 0;
-	int input_digits = ndigits(n);
+	int input_digits = mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10);
 
 	if (ecm_check_input(fobj) == 0)
 		return 0;
@@ -253,10 +252,6 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	fact_obj_t *fobj = thread_data->fobj;
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
-	z f;
-
-	zInit(&f);
-	gmp2mp(thread_data->gmp_factor, &f);
 
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
@@ -267,8 +262,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 
 	if (mpz_probab_prime_p(thread_data->gmp_factor, NUM_WITNESSES))
 	{
-		f.type = PRP;
-		add_to_factor_list(fobj, &f);
+		add_to_factor_list(fobj, thread_data->gmp_factor);
 
 		if (VFLAG > 0)
 			gmp_printf("\necm: found prp%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
@@ -282,8 +276,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	}
 	else
 	{
-		f.type = COMPOSITE;
-		add_to_factor_list(fobj, &f);
+		add_to_factor_list(fobj, thread_data->gmp_factor);
 		
 		if (VFLAG > 0)
 			gmp_printf("\necm: found c%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
@@ -298,7 +291,6 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 
 	fclose(flog);
 
-	zFree(&f);
 	return 1;
 }
 
@@ -359,19 +351,27 @@ int ecm_check_input(fact_obj_t *fobj)
 
 	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 3) == 0)
 	{
-		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3); //zShortDiv(n,3,n);
-		add_to_factor_list(fobj, &zThree);
+		mpz_t tmp;
+		mpz_init(tmp);
+		mpz_set_ui(tmp, 3);
+		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
+		add_to_factor_list(fobj, tmp);
 		logprint(flog,"Trivial factor of 3 found in ECM\n");
 		fclose(flog);
+		mpz_clear(tmp);
 		return 0;
 	}
 
 	if (mpz_tdiv_ui(fobj->ecm_obj.gmp_n, 2) == 0)
 	{
-		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2); //zShortDiv(n,2,n);
-		add_to_factor_list(fobj, &zTwo);
+		mpz_t tmp;
+		mpz_init(tmp);
+		mpz_set_ui(tmp, 2);
+		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
+		add_to_factor_list(fobj, tmp);
 		logprint(flog,"Trivial factor of 2 found in ECM\n");
 		fclose(flog);
+		mpz_clear(tmp);
 		return 0;
 	}
 
@@ -379,15 +379,10 @@ int ecm_check_input(fact_obj_t *fobj)
 	{
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
-		z n;
-		zInit(&n);
-		gmp2mp(fobj->ecm_obj.gmp_n, &n);
-		n.type = PRP;
-		add_to_factor_list(fobj, &n);
+		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
 		logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10), 
 			mpz_get_str(gstr1.s, 10, fobj->ecm_obj.gmp_n));		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
-		zFree(&n);
 		fclose(flog);
 		return 0;
 	}

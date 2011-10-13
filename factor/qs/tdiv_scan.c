@@ -113,7 +113,7 @@ this file contains code implementing 1)
 			"orq	%%r10,%%r8		\n\t"		/*  */ \
 			"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
 			"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
-			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \			
+			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
 			"1:			\n\t"					/* top of bit scan loop */ \
 			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
 			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \

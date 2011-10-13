@@ -1958,11 +1958,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					if (i % 1000 == 0)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
-					zCopy(&input[i],&fobj2->qs_obj.n);		
 					mp2gmp(&input[i], fobj2->qs_obj.gmp_n);
 					if (test_squfof)
 					{
-						mp2gmp(&fobj2->qs_obj.n, gmptmp);
+						mpz_set(gmptmp, fobj2->qs_obj.gmp_n);
 						sp_shanks_loop(gmptmp, fobj);
 					}
 					else
@@ -1970,9 +1969,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						fobj2->qs_obj.flags = 12345;
 						smallmpqs(fobj2); //SIQS(fobj2);
 
-						if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
+						if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) != 0)
 						{						
-							printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
+							gmp_printf("not fully factored!  residue = %Zd\n", fobj2->qs_obj.gmp_n);
 							print_factors(fobj2);
 						}
 

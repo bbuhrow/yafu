@@ -65,10 +65,7 @@ void nfs(fact_obj_t *fobj)
 
 	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 	{
-		z tmpz;
-		zInit(&tmpz);
-		gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
-		add_to_factor_list(fobj, &tmpz);
+		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
@@ -85,32 +82,26 @@ void nfs(fact_obj_t *fobj)
 		}		
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		zFree(&tmpz);
 		return;
 	}
 
 	if (mpz_perfect_square_p(fobj->nfs_obj.gmp_n))
 	{
-		z tmpz;
-		zInit(&tmpz);
-
 		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-		gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
 
-		add_to_factor_list(fobj, &tmpz);
+		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile != NULL)
 			logprint(logfile,"prp%d = %s\n",
 				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
 				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-		add_to_factor_list(fobj, &tmpz);
+		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		if (logfile != NULL)
 			logprint(logfile,"prp%d = %s\n",
 				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
 				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		zFree(&tmpz);
 		fclose(logfile);
 		return;
 	}
@@ -253,7 +244,7 @@ void nfs(fact_obj_t *fobj)
 			else
 				qrange = job.qrange;
 
-			if (is_continuation > 0)
+			if (is_continuation == 1)
 			{		
 				if (last_specialq == 0)
 				{
@@ -322,6 +313,19 @@ void nfs(fact_obj_t *fobj)
 				}
 				startq = job.fblim / 2;
 				statenum = 1;								
+			}
+			else if (is_continuation > 0)
+			{
+				// resume poly select
+				fobj->nfs_obj.polystart = job.last_leading_coeff;
+				
+				// allow user specified sieving after resumed poly search finishes
+				if (fobj->nfs_obj.startq > 0)
+					startq = fobj->nfs_obj.startq;
+				else
+					startq = job.fblim / 2;
+
+				statenum = 1;
 			}
 			else
 			{
@@ -466,6 +470,8 @@ void nfs(fact_obj_t *fobj)
 			else
 			{
 				logprint(logfile, "NFS elapsed time = %6.4f seconds.\n",t_time);
+				logprint(logfile, "\n");
+				logprint(logfile, "\n");
 				fclose(logfile);
 			}
 
@@ -699,6 +705,12 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
+
+	// just initialize these for now.  check_existing_file will fill them in
+	// if necessary (i.e., on poly resume).  and do_polyselect will read them
+	// to determine how to proceed.
+	job->last_leading_coeff = 0;
+	job->poly_time = 0;
 
 	return;
 }
