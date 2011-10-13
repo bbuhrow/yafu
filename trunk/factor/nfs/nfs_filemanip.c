@@ -76,29 +76,127 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 	// the only time .dat files should be touched is if the user forces us to (with -R)
 	// or if an NFS process completes normally (in which case, we delete the .dat files).
 
+	/*
+	logic:
+
+	job file missing, empty, malformed, or not matching -> check for poly in progress
+	else
+	job file present and matching -> check for data file in progress
+
+	poly check:
+	.p file missing, empty, malformed, or not matching -> start poly search at beginning
+	else
+	.p file present and matching -> get last leading coefficient and time
+		return leading coefficient, put time in *last_spq.  calling routine
+		will know what to do when it sees a large value returned
+
+	data check:
+	no data file -> start sieving at beginning
+	data file present -> get last special q and count relations
+
+	*/
+
 	FILE *in, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
-	int ans;
-	mpz_t tmp;
+	int ans, do_poly_check, do_data_check;
 	msieve_obj *mobj = fobj->nfs_obj.mobj;
+
+	do_data_check = 0;
+	do_poly_check = 0;
+	ans = 0;
 
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)
-		return 0;	// no input job file.  not a restart.
+		do_poly_check = 1;			// no job file.
+	else
+	{
+		ptr = fgets(line,GSTR_MAXSIZE,in);
+		if (ptr == NULL)
+			do_poly_check = 1;		// job file empty.
+		else
+		{
+			fclose(in);
 
-	ptr = fgets(line,GSTR_MAXSIZE,in);
-	if (ptr == NULL)
-		return 0;	// job file is empty.  not a restart.
+			if (line[0] != 'n')
+				do_poly_check = 1;	// malformed job file.
+			else
+			{
+				mpz_t tmp;
+				mpz_init(tmp);
+				mpz_set_str(tmp, line + 3, 16);
+				ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
+				if (ans == 0)
+					do_data_check = 1;		// job file matches: check for data file
+				else
+					do_poly_check = 1;		// no match: check for poly file
+				mpz_clear(tmp);
+			}
+		}
+	}
 
-	fclose(in);
+	if (do_poly_check)
+	{
+		char master_polyfile[80];
+		int do_poly_parse = 0;
 
-	if (line[0] != 'n')
-		return 0;	// malformed job file.  not a restart.
+		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
-	mpz_init(tmp);
-	mpz_set_str(tmp, line + 3, 16);
-	ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
-	if (ans == 0)
+		in = fopen(master_polyfile,"r");
+		if (in == NULL)
+			return 0;			// no .p file.
+		else
+		{
+			ptr = fgets(line,GSTR_MAXSIZE,in);
+			if (ptr == NULL)
+				return 0;		// .p file empty.
+			else
+			{
+				fclose(in);
+
+				if (line[0] != 'n')
+					return 0;	// malformed .p file.
+				else
+				{
+					mpz_t tmp;
+					mpz_init(tmp);
+					mpz_set_str(tmp, line + 3, 0);
+					ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
+					if (ans == 0)
+						do_poly_parse = 1;		// .p file matches: parse .p file
+					mpz_clear(tmp);
+				}
+			}
+		}
+
+		if (do_poly_parse)
+		{
+			if (fobj->nfs_obj.restart_flag)
+			{
+				find_best_msieve_poly(fobj, job, 0);
+				*last_spq = job->poly_time;
+				return job->last_leading_coeff;
+			}
+			else
+			{
+				printf("must specify -R to restart when a polyfile already exists\n");	
+
+				logfile = fopen(fobj->flogname, "a");
+				if (logfile == NULL)
+					printf("could not open yafu logfile for appending\n");
+				else
+				{
+					logprint(logfile, "nfs: refusing to restart poly select without -R option\n");
+					fclose(logfile);
+				}
+
+				*last_spq = 0;
+				ans = -1;
+			}			
+		}
+		else
+			return 0;
+	}
+	else if (do_data_check)
 	{
 		// ok, we have a job file for the current input.  this is a restart of sieving
 		ans = 1;
@@ -233,7 +331,6 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		*last_spq = 0;
 	}
 
-	mpz_clear(tmp);
 	return ans;
 
 }
@@ -350,7 +447,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job)
+void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -358,6 +455,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job)
 	char line[GSTR_MAXSIZE], *ptr;
 	double score, bestscore = 0;
 	int count, bestline = 0, i;
+	uint32 highest_c4 = 0, highest_c5 = 0;
 
 	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
@@ -422,9 +520,48 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job)
 				}
 			}
 		}
-		
+		else if ((line[0] == 'c') && (line[1] == '4'))
+		{
+			uint32 coeff;
+
+			// get the c4 coefficient
+			if (strlen(line) < 5)
+				continue;	// not long enough to hold a line of format "c4: x"
+
+			sscanf(line + 3, "%u", &coeff);
+			if (coeff > highest_c4)
+				highest_c4 = coeff;
+		}
+		else if ((line[0] == 'c') && (line[1] == '5'))
+		{
+			uint32 coeff;
+
+			// get the c5 coefficient
+			if (strlen(line) < 5)
+				continue;	// not long enough to hold a line of format "c5: x"
+
+			sscanf(line + 3, "%u", &coeff);
+			if (coeff > highest_c5)
+				highest_c5 = coeff;
+		}
+		else if (line[0] == 't')
+		{
+			// get the time in seconds
+			if (strlen(line) < 7)
+				continue;	// not long enough to hold a line of format "time: x"
+
+			sscanf(line + 5, "%u", &job->poly_time);
+		}		
 	}
 	fclose(in);
+
+	if (highest_c5 > 0)
+		job->last_leading_coeff = highest_c5;
+	else 
+		job->last_leading_coeff = highest_c4;
+
+	if (!write_jobfile)
+		return;
 
 	//open it again
 	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
@@ -662,3 +799,4 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 
 	return;
 }
+

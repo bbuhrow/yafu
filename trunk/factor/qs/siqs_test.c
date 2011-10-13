@@ -87,39 +87,28 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 	if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, NUM_WITNESSES))
 	{
-		z w1;
-		zInit(&w1);
-
-		gmp2mp(fobj->qs_obj.gmp_n, &w1);
-		w1.type = PRP;
-		add_to_factor_list(fobj, &w1);
+		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n", mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
-		zFree(&w1);
 		return 1;
 	}
 
 	if (mpz_perfect_square_p(fobj->qs_obj.gmp_n))
 	{
-		z w1;
-		zInit(&w1);
-
 		mpz_sqrt(fobj->qs_obj.gmp_n,fobj->qs_obj.gmp_n);
-		gmp2mp(fobj->qs_obj.gmp_n, &w1);
 
-		add_to_factor_list(fobj, &w1);
+		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
-		add_to_factor_list(fobj, &w1);
+		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10),
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
-		zFree(&w1);
 		return 1;
 	}
 

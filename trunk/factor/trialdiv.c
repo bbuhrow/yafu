@@ -31,9 +31,8 @@ void zTrial(fact_obj_t *fobj)
 	uint32 limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
 	fp_digit q;
-	z tmp;	//interface for adding to the factor list
-
-	zInit(&tmp);
+	mpz_t tmp;
+	mpz_init(tmp);
 
 	if (P_MAX < limit)
 		GetPRIMESRange(0,limit);
@@ -52,11 +51,11 @@ void zTrial(fact_obj_t *fobj)
 		if (r != 0)
 			k++;
 		else
-		{
+		{			
 			mpz_tdiv_q_ui(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
-			sp2z(q,&tmp);
-			tmp.type = PRIME;
-			add_to_factor_list(fobj, &tmp);
+			mpz_set_64(tmp, q);
+
+			add_to_factor_list(fobj, tmp);
 			if (print && (VFLAG > 0))
 #if BITS_PER_DIGIT == 64
 				printf("div: found prime factor = %" PRIu64 "\n",q);
@@ -66,14 +65,14 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
-	zFree(&tmp);
+	mpz_clear(tmp);
 }
 
 void zFermat(fp_digit limit, fact_obj_t *fobj)
 {
 	//	  Fermat's factorization method (wikipedia psuedo-code)
 	//input expected in the gmp_n field of div_obj.
-	mpz_t a, b2, tmp, tmp2, tmp3, maxa;
+	mpz_t a, b2, tmp, maxa;
 	int i;
 	int numChars;
 	fp_digit reportIt, reportInc;
@@ -81,23 +80,20 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 
 	if (mpz_even_p(fobj->div_obj.gmp_n))
 	{
+		mpz_init(tmp);
+		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_2exp(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, 1);
-		add_to_factor_list(fobj, &zTwo);
+		add_to_factor_list(fobj, tmp);
+		mpz_clear(tmp);
 		return;
 	}
 
 	if (mpz_perfect_square_p(fobj->div_obj.gmp_n))
 	{
-		z f;
-		zInit(&f);
-
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
-		gmp2mp(fobj->div_obj.gmp_n, &f);
-		add_to_factor_list(fobj, &f);
-		add_to_factor_list(fobj, &f);
-		mpz_set_ui(fobj->div_obj.gmp_n, 1);
-		zFree(&f);
-		return;
+		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
+		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
+		mpz_set_ui(fobj->div_obj.gmp_n, 1);		return;
 	}
 
 	mpz_init(a);
@@ -151,32 +147,18 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 	{
 		//printf("found square at count = %d: a = %s, b2 = %s",count,
 		//	z2decstr(&a,&gstr1),z2decstr(&b2,&gstr2));
-		z tmpz;
-		zInit(&tmpz);
-
 		mpz_sqrt(tmp, b2); 
 		mpz_add(tmp, a, tmp);
-		gmp2mp(tmp, &tmpz);
 
-		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
-			tmpz.type = PRP;			
-		else
-			tmpz.type = PRP;
-		add_to_factor_list(fobj, &tmpz);
+		add_to_factor_list(fobj, tmp);
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 		mpz_sqrt(tmp, b2);
 		mpz_sub(tmp, a, tmp);
-		gmp2mp(tmp, &tmpz);
 
-		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
-			tmpz.type = PRP;			
-		else
-			tmpz.type = PRP;
-		add_to_factor_list(fobj, &tmpz);
+		add_to_factor_list(fobj, tmp);
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
-		zFree(&tmpz);
 	}
 
 	mpz_clear(tmp);

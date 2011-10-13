@@ -221,7 +221,6 @@ int process_rel(char *substr, fb_list *fb, z *n,
 				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel)
 {
 	char *nextstr;
-	char *instr = substr;
 	uint32 lp[2];
 	uint32 this_offset, this_id, this_num_factors, this_parity, this_val;
 	uint32 fb_offsets[MAX_SMOOTH_PRIMES];

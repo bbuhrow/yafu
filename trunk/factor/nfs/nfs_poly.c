@@ -33,10 +33,13 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	//file into which we will combine all of the thread results
 	sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
-	//make sure we are starting from scratch
-	remove(master_polyfile);
+	if (job->last_leading_coeff == 0)
+	{
+		//make sure we are starting from scratch
+		remove(master_polyfile);
+	}
 
-	/* figure out how long poly selection should take */
+	// figure out how long poly selection should take
 	i = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2);
 	for (j = 0; j < NUM_TIME_LIMITS; j++) {
 		if (i < time_limits[j].bits)
@@ -53,6 +56,39 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			 ((double)low->seconds * (high->bits - i) +
 			  (double)high->seconds * (i - low->bits)) / dist);
 	}
+
+	if (job->poly_time > 0)
+	{
+		if (job->poly_time >= deadline)
+		{
+			// we've already spent as much time as we need.  
+			// parse the master .p file and find the best poly	
+			find_best_msieve_poly(fobj, job, 1);
+			//also create a .fb file
+			ggnfs_to_msieve(fobj, job);
+
+			return;
+		}
+		else
+		{
+			if (VFLAG > 0)
+				printf("resuming poly search: reducing deadline by %u seconds\n",
+					job->poly_time);
+
+			logfile = fopen(fobj->flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: resuming poly search, reducing deadline by %u seconds\n",
+					job->poly_time);
+				logprint(logfile, "nfs: resuming poly search, starting at last coefficient %u\n",
+					job->last_leading_coeff);
+				fclose(logfile);
+			}
+			deadline -= job->poly_time;
+		}
+	}		
 
 	if (fobj->nfs_obj.poly_option == 0)
 	{
@@ -200,8 +236,42 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			// pointer to this thread's data
 			t = thread_data + tid;
 
+			//check the total time spent so far
+			gettimeofday(&stopt, NULL);
+			difference = my_difftime (&startt, &stopt);
+
+			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+			free(difference);	
+
+			//update the estimated range time			
+			difference = my_difftime (&t->thread_start_time, &stopt);
+
+			this_range_time = ((double)difference->secs + (double)difference->usecs / 1000000);			
+			free(difference);	
+
 			if (!is_startup)
 			{
+				total_time += this_range_time;
+				num_ranges++;
+				estimated_range_time = (uint32)(total_time / (double)num_ranges);
+			}			
+
+			if (!is_startup)
+			{
+				FILE *fid;
+
+				//if the main poly file doesn't exist yet, put the input number
+				//at the top.  this is used to help restart jobs in the polyfind phase
+				fid = fopen(master_polyfile, "r");
+				if (fid == NULL)
+				{
+					fid = fopen(master_polyfile, "w");
+					gmp_fprintf(fid, "n: %Zd\n", fobj->nfs_obj.gmp_n);
+					fclose(fid);
+				}
+				else
+					fclose(fid);
+
 				// combine thread's output with main file
 #if defined(WIN32)
 				int a;
@@ -221,6 +291,11 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 				sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
 				system(syscmd);
 #endif
+				//then stick on the current total elasped time
+				//this is used to help restart jobs in the polyfind phase
+				fid = fopen(master_polyfile, "a");
+				fprintf(fid, "time: %u\n", total_time);
+				fclose(fid);
 
 			}
 
@@ -236,28 +311,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			free(t->logfilename);
 			free(t->polyfilename);
 			msieve_obj_free(t->obj);			
-
-			//check the time
-			gettimeofday(&stopt, NULL);
-			difference = my_difftime (&startt, &stopt);
-
-			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);	
-
-			//update the estimated range time			
-			difference = my_difftime (&t->thread_start_time, &stopt);
-
-			this_range_time = ((double)difference->secs + (double)difference->usecs / 1000000);			
-			free(difference);	
-
-			if (!is_startup)
-			{
-				total_time += this_range_time;
-				num_ranges++;
-				estimated_range_time = (uint32)(total_time / (double)num_ranges);
-			}
 						
-			// check for an abort
+			// exit the loop without restarting if abort is asserted.
 			if (NFS_ABORT)
 				break;
 
@@ -388,10 +443,13 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 		free(queue_events);
 #endif
 
-	// parse the master .p file and find the best poly	
-	find_best_msieve_poly(fobj, job);
-	//also create a .fb file
-	ggnfs_to_msieve(fobj, job);
+	if (!NFS_ABORT)
+	{
+		// parse the master .p file and find the best poly	
+		find_best_msieve_poly(fobj, job, 1);
+		//also create a .fb file
+		ggnfs_to_msieve(fobj, job);
+	}
 
 	return;
 }

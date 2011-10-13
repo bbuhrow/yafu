@@ -97,11 +97,11 @@ double get_qs_time_estimate(fact_obj_t *fobj, double freq, int bits);
 double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits);
 
 double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
-	z *b, fact_obj_t *fobj);
-int check_if_done(fact_obj_t *fobj, z *N);
+	mpz_t b, fact_obj_t *fobj);
+int check_if_done(fact_obj_t *fobj, mpz_t N);
 enum factorization_state scale_requested_work(method_timing_t *method_times, 
-	enum factorization_state fact_state, int *next_work, double time_available, z *N);
-int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switch);
+	enum factorization_state fact_state, int *next_work, double time_available, mpz_t N);
+int switch_to_qs(fact_obj_t *fobj, mpz_t N, double *time_available, int force_switch);
 
 void init_factobj(fact_obj_t *fobj)
 {
@@ -239,21 +239,12 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->rho_obj.polynomials);
 	mpz_clear(fobj->rho_obj.gmp_n);
 	mpz_clear(fobj->rho_obj.gmp_f);
-	sFree(&fobj->rho_obj.in);
-	sFree(&fobj->rho_obj.out);
-	zFree(&fobj->rho_obj.n);
 
 	// free stuff in pm1
-	sFree(&fobj->pm1_obj.in);
-	sFree(&fobj->pm1_obj.out);
-	zFree(&fobj->pm1_obj.n);
 	mpz_clear(fobj->pm1_obj.gmp_n);
 	mpz_clear(fobj->pm1_obj.gmp_f);
 
 	// free stuff in pp1
-	sFree(&fobj->pp1_obj.in);
-	sFree(&fobj->pp1_obj.out);
-	zFree(&fobj->pp1_obj.n);
 	mpz_clear(fobj->pp1_obj.gmp_n);
 	mpz_clear(fobj->pp1_obj.gmp_f);
 
@@ -263,9 +254,6 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->ecm_obj.factors);
 
 	// then free other stuff in ecm
-	sFree(&fobj->ecm_obj.in);
-	sFree(&fobj->ecm_obj.out);
-	zFree(&fobj->ecm_obj.n);
 	mpz_clear(fobj->ecm_obj.gmp_n);
 	mpz_clear(fobj->ecm_obj.gmp_f);
 
@@ -275,9 +263,6 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->squfof_obj.factors);
 
 	// then free other stuff in squfof
-	sFree(&fobj->squfof_obj.in);
-	sFree(&fobj->squfof_obj.out);
-	zFree(&fobj->squfof_obj.n);
 	mpz_clear(fobj->squfof_obj.gmp_n);
 	mpz_clear(fobj->squfof_obj.gmp_f);
 
@@ -287,11 +272,7 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->qs_obj.factors);
 
 	// then free other stuff in qs
-	sFree(&fobj->qs_obj.in);
-	sFree(&fobj->qs_obj.out);
-	zFree(&fobj->qs_obj.n);
 	mpz_clear(fobj->qs_obj.gmp_n);
-	mpz_clear(fobj->qs_obj.gmp_f);
 
 	// free any factors found in div
 	for (i=0; i<fobj->div_obj.num_factors; i++)
@@ -299,9 +280,6 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->div_obj.factors);
 
 	// then free other stuff in div
-	sFree(&fobj->div_obj.in);
-	sFree(&fobj->div_obj.out);
-	zFree(&fobj->div_obj.n);
 	mpz_clear(fobj->div_obj.gmp_n);
 	mpz_clear(fobj->div_obj.gmp_f);
 
@@ -311,11 +289,7 @@ void free_factobj(fact_obj_t *fobj)
 	free(fobj->nfs_obj.factors);
 
 	// then free other stuff in nfs
-	sFree(&fobj->nfs_obj.in);
-	sFree(&fobj->nfs_obj.out);
-	zFree(&fobj->nfs_obj.n);
 	mpz_clear(fobj->nfs_obj.gmp_n);
-	mpz_clear(fobj->nfs_obj.gmp_f);
 
 	//free general fobj stuff
 	zFree(&fobj->N);
@@ -339,56 +313,30 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->rho_obj.polynomials[2] = 1;
 	mpz_init(fobj->rho_obj.gmp_n);
 	mpz_init(fobj->rho_obj.gmp_f);
-	zInit(&fobj->rho_obj.n);
-	sInit(&fobj->rho_obj.in);
-	sInit(&fobj->rho_obj.out);
 
-	zInit(&fobj->pm1_obj.n);
 	mpz_init(fobj->pm1_obj.gmp_n);
 	mpz_init(fobj->pm1_obj.gmp_f);
-	sInit(&fobj->pm1_obj.in);
-	sInit(&fobj->pm1_obj.out);
 	
-	zInit(&fobj->pp1_obj.n);
 	mpz_init(fobj->pp1_obj.gmp_n);
 	mpz_init(fobj->pp1_obj.gmp_f);
-	sInit(&fobj->pp1_obj.in);
-	sInit(&fobj->pp1_obj.out);
 
 	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->ecm_obj.n);
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
-	sInit(&fobj->ecm_obj.in);
-	sInit(&fobj->ecm_obj.out);
 
 	fobj->squfof_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->squfof_obj.n);
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
-	sInit(&fobj->squfof_obj.in);
-	sInit(&fobj->squfof_obj.out);
 
 	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->qs_obj.n);
 	mpz_init(fobj->qs_obj.gmp_n);
-	mpz_init(fobj->qs_obj.gmp_f);
-	sInit(&fobj->qs_obj.in);
-	sInit(&fobj->qs_obj.out);
 
 	fobj->div_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->div_obj.n);
 	mpz_init(fobj->div_obj.gmp_n);
 	mpz_init(fobj->div_obj.gmp_f);
-	sInit(&fobj->div_obj.in);
-	sInit(&fobj->div_obj.out);
 
 	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
-	zInit(&fobj->nfs_obj.n);
 	mpz_init(fobj->nfs_obj.gmp_n);
-	mpz_init(fobj->nfs_obj.gmp_f);
-	sInit(&fobj->nfs_obj.in);
-	sInit(&fobj->nfs_obj.out);
 
 	fobj->allocated_factors = 256;
 	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
@@ -412,51 +360,7 @@ void reset_factobj(fact_obj_t *fobj)
 	return;
 }
 
-void record_new_factor(fact_obj_t *fobj, char *method, z *n)
-{
-	//switch on 'method'
-	if(strcmp(method,"ecm"))
-	{
-		fobj->ecm_obj.num_factors++;
-		fobj->ecm_obj.factors = (z *)realloc(fobj->ecm_obj.factors,
-			fobj->ecm_obj.num_factors * sizeof(z));
-		zInit(&fobj->ecm_obj.factors[fobj->ecm_obj.num_factors - 1]);
-		zCopy(n,&fobj->ecm_obj.factors[fobj->ecm_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"div"))
-	{
-		fobj->div_obj.num_factors++;
-		fobj->div_obj.factors = (z *)realloc(fobj->div_obj.factors,
-			fobj->div_obj.num_factors * sizeof(z));
-		zInit(&fobj->div_obj.factors[fobj->div_obj.num_factors - 1]);
-		zCopy(n,&fobj->div_obj.factors[fobj->div_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"squfof"))
-	{
-		fobj->squfof_obj.num_factors++;
-		fobj->squfof_obj.factors = (z *)realloc(fobj->squfof_obj.factors,
-			fobj->squfof_obj.num_factors * sizeof(z));
-		zInit(&fobj->squfof_obj.factors[fobj->squfof_obj.num_factors - 1]);
-		zCopy(n,&fobj->squfof_obj.factors[fobj->squfof_obj.num_factors - 1]);
-	}
-	else if(strcmp(method,"qs"))
-	{
-		fobj->qs_obj.num_factors++;
-		fobj->qs_obj.factors = (z *)realloc(fobj->qs_obj.factors,
-			fobj->qs_obj.num_factors * sizeof(z));
-		zInit(&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
-		zCopy(n,&fobj->qs_obj.factors[fobj->qs_obj.num_factors - 1]);
-	}
-	else
-	{
-		printf("error: unknown method specified in record_new_factor\n");
-		return;
-	}
-
-	return;
-}
-
-void add_to_factor_list(fact_obj_t *fobj, z *n)
+void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 {
 	//stick the number n into the global factor list
 	uint32 i;
@@ -472,7 +376,7 @@ void add_to_factor_list(fact_obj_t *fobj, z *n)
 	//look to see if this factor is already in the list
 	for (i=0;i<fobj->num_factors && !found; i++)
 	{
-		if (zCompare(n,&fobj->fobj_factors[i].factor) == 0)
+		if (mpz_cmp(n, fobj->fobj_factors[i].factor) == 0)
 		{
 			found = 1;
 			fobj->fobj_factors[i].count++;
@@ -481,15 +385,25 @@ void add_to_factor_list(fact_obj_t *fobj, z *n)
 	}
 
 	//else, put it in the list
-	zInit(&fobj->fobj_factors[fobj->num_factors].factor);
-	zCopy(n,&fobj->fobj_factors[fobj->num_factors].factor);
+	mpz_init(fobj->fobj_factors[fobj->num_factors].factor);
+	mpz_set(fobj->fobj_factors[fobj->num_factors].factor, n);
 	fobj->fobj_factors[fobj->num_factors].count = 1;
+	if (mpz_probab_prime_p(n, NUM_WITNESSES))
+	{
+		if (mpz_cmp_ui(n, 100000000) <= 0)
+			fobj->fobj_factors[fobj->num_factors].type = PRIME;
+		else
+			fobj->fobj_factors[fobj->num_factors].type = PRP;
+	}
+	else
+		fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
+
 	fobj->num_factors++;
 
 	return;
 }
 
-void delete_from_factor_list(fact_obj_t *fobj, z *n)
+void delete_from_factor_list(fact_obj_t *fobj, mpz_t n)
 {
 	//remove the number n from the global factor list
 	uint32 i;
@@ -497,18 +411,18 @@ void delete_from_factor_list(fact_obj_t *fobj, z *n)
 	//find the factor
 	for (i=0;i<fobj->num_factors; i++)
 	{
-		if (zCompare(n,&fobj->fobj_factors[i].factor) == 0)
+		if (mpz_cmp(n,fobj->fobj_factors[i].factor) == 0)
 		{
 			int j;
 			// copy everything above this in the list back one position
 			for (j=i; j<fobj->num_factors-1; j++)
 			{
-				zCopy(&fobj->fobj_factors[j+1].factor, &fobj->fobj_factors[j].factor);
+				mpz_set(fobj->fobj_factors[j].factor, fobj->fobj_factors[j+1].factor);
 				fobj->fobj_factors[j].count = fobj->fobj_factors[j+1].count;
 			}
 			// remove the last one in the list
 			fobj->fobj_factors[j].count = 0;
-			zFree(&fobj->fobj_factors[j].factor);
+			mpz_clear(fobj->fobj_factors[j].factor);
 
 			fobj->num_factors--;
 			break;
@@ -526,7 +440,7 @@ void clear_factor_list(fact_obj_t *fobj)
 	for (i=0; i<fobj->num_factors; i++)
 	{
 		fobj->fobj_factors[i].count = 0;
-		zFree(&fobj->fobj_factors[i].factor);
+		mpz_clear(fobj->fobj_factors[i].factor);
 	}
 	fobj->num_factors = 0;
 
@@ -537,97 +451,90 @@ void print_factors(fact_obj_t *fobj)
 {
 	uint32 i;
 	int j;
-	z tmp, tmp2, tmp3, tmp4;
+	mpz_t tmp, tmp2;
 
 	//always print factors unless complete silence is requested
 	if (VFLAG >= 0)
 	{
 		printf("\n\n***factors found***\n\n");
-		zInit(&tmp);
-		zCopy(&zOne,&tmp);
+		mpz_init(tmp);
+		mpz_set_ui(tmp, 1);
 
 		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
+			if (fobj->fobj_factors[i].type == COMPOSITE)
 			{
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
-					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
-					printf("C%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
-						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+					gmp_printf("C%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+						fobj->fobj_factors[i].factor);
 				}
 			}
-			else if (fobj->fobj_factors[i].factor.type == PRP)
+			else if (fobj->fobj_factors[i].type == PRP)
 			{
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
-					printf("PRP%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
-						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
-					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+					gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+						fobj->fobj_factors[i].factor);
 				}
 			}
-			else if (fobj->fobj_factors[i].factor.type == PRIME)
+			else if (fobj->fobj_factors[i].type == PRIME)
 			{
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
-					printf("P%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
-						z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
-					zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+					gmp_printf("P%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+						fobj->fobj_factors[i].factor);
 				}
 			}
 			else
 			{
 				//type not set, determine it now
-				if (isPrime(&fobj->fobj_factors[i].factor))
+				if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
-						printf("PRP%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
-							z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
-						zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+						gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+							fobj->fobj_factors[i].factor);
 					}
 				}
 				else
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
-						printf("C%d = %s\n",ndigits(&fobj->fobj_factors[i].factor),
-							z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
-						zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
+						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+						gmp_printf("C%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+							fobj->fobj_factors[i].factor);
 					}
 				}
 			}
 		}
 
-		if (zCompare(&fobj->N, &zOne) > 0)
+		mpz_init(tmp2);
+		mp2gmp(&fobj->N, tmp2);
+		if (mpz_cmp_ui(tmp2, 1) > 0)
 		{
 			// non-trivial N remaining... compute and display the known co-factor
-			zInit(&tmp2);
-			zInit(&tmp3);
-			zInit(&tmp4);
-			zCopy(&fobj->N, &tmp2);
-			zDiv(&tmp2, &tmp, &tmp3, &tmp4);
-			if (zCompare(&tmp3,&zOne) > 0)
+			mpz_tdiv_q(tmp2, tmp2, tmp);
+			if (mpz_cmp_ui(tmp2, 1) > 0)
 			{
-	//			printf("original N = %s\naccumulated value = %s\n",
-		//			z2decstr(&fobj->N, &gstr1),z2decstr(&tmp, &gstr2));
-				if (isPrime(&tmp3))
+				if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
 				{
-					printf("\n***co-factor***\nPRP%d = %s\n",
-						ndigits(&tmp3), z2decstr(&tmp3, &gstr1));
+					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
+						mpz_sizeinbase(tmp2, 10), tmp2);
 				}
 				else
 				{
-					printf("\n***co-factor***\nC%d = %s\n",
-						ndigits(&tmp3), z2decstr(&tmp3, &gstr1));
+					gmp_printf("\n***co-factor***\nC%d = %Zd\n",
+						mpz_sizeinbase(tmp2, 10), tmp2);
 				}
 			}			
-			zFree(&tmp2);
-			zFree(&tmp3);
-			zFree(&tmp4);
 		}
-		zFree(&tmp);
-
+		mpz_clear(tmp);
+		mpz_clear(tmp2);
 	}
 
 	return;
@@ -820,7 +727,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits)
 }
 
 double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
-	z *b, fact_obj_t *fobj)
+	mpz_t b, fact_obj_t *fobj)
 {
 	uint32 tmp1;
 	uint64 tmp2;
@@ -838,25 +745,25 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		if (VFLAG >= 0)
 			printf("div: primes less than %d\n",B1);
 		fobj->prime_threshold = B1 * B1;
-		mp2gmp(b,fobj->div_obj.gmp_n);
+		mpz_set(fobj->div_obj.gmp_n, b);
 		fobj->div_obj.print = 1;
 		fobj->div_obj.limit = B1;
 		zTrial(fobj);
-		gmp2mp(fobj->div_obj.gmp_n,b);		
+		mpz_set(b, fobj->div_obj.gmp_n);
 		break;
 
 	case rho_work:
-		mp2gmp(b,fobj->rho_obj.gmp_n);
+		mpz_set(fobj->rho_obj.gmp_n,b);
 		brent_loop(fobj);
-		gmp2mp(fobj->rho_obj.gmp_n,b);
+		mpz_set(b,fobj->rho_obj.gmp_n);
 		break;
 
 	case fermat_work:
 		if (VFLAG >= 0)
 			printf("fmt: %d iterations\n",B1);
-		mp2gmp(b,fobj->div_obj.gmp_n);
+		mpz_set(fobj->div_obj.gmp_n,b);
 		zFermat(B1,fobj);
-		gmp2mp(fobj->div_obj.gmp_n,b);
+		mpz_set(b,fobj->div_obj.gmp_n);
 		break;
 
 	case ecm_curve:
@@ -865,9 +772,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		fobj->ecm_obj.B1 = B1;
 		fobj->ecm_obj.B2 = B2;
 		fobj->ecm_obj.num_curves = *work;
-		mp2gmp(b, fobj->ecm_obj.gmp_n);
+		mpz_set(fobj->ecm_obj.gmp_n, b);
 		*work = ecm_loop(fobj);
-		gmp2mp(fobj->ecm_obj.gmp_n, b);
+		mpz_set(b, fobj->ecm_obj.gmp_n);
 		fobj->ecm_obj.B1 = tmp1;
 		fobj->ecm_obj.B2 = tmp2;
 		break;
@@ -877,10 +784,10 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		tmp2 = fobj->pp1_obj.B2;
 		fobj->pp1_obj.B1 = B1;
 		fobj->pp1_obj.B2 = B2;
-		mp2gmp(b,fobj->pp1_obj.gmp_n);
+		mpz_set(fobj->pp1_obj.gmp_n,b);
 		fobj->pp1_obj.numbases = *work;
 		williams_loop(fobj);
-		gmp2mp(fobj->pp1_obj.gmp_n,b);
+		mpz_set(b,fobj->pp1_obj.gmp_n);
 		fobj->pp1_obj.B1 = tmp1;
 		fobj->pp1_obj.B2 = tmp2;
 		break;
@@ -890,18 +797,18 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		tmp2 = fobj->pm1_obj.B2;
 		fobj->pm1_obj.B1 = B1;
 		fobj->pm1_obj.B2 = B2;
-		mp2gmp(b,fobj->pm1_obj.gmp_n);
+		mpz_set(fobj->pm1_obj.gmp_n,b);
 		pollard_loop(fobj);
-		gmp2mp(fobj->pm1_obj.gmp_n,b);
+		mpz_set(b,fobj->pm1_obj.gmp_n);
 		fobj->pm1_obj.B1 = tmp1;
 		fobj->pm1_obj.B2 = tmp2;
 		break;
 
 	case qs_work:
 		//gettimeofday(&start2,NULL);
-		mp2gmp(b,fobj->qs_obj.gmp_n);
+		mpz_set(fobj->qs_obj.gmp_n,b);
 		SIQS(fobj);
-		gmp2mp(fobj->qs_obj.gmp_n,b);
+		mpz_set(b,fobj->qs_obj.gmp_n);
 		break;
 		//gettimeofday(&stop2,NULL);
 		//difference = my_difftime (&start2, &stop2);
@@ -909,9 +816,9 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 		//free(difference);
 
 	case nfs_work:
-		mp2gmp(b,fobj->nfs_obj.gmp_n);
+		mpz_set(fobj->nfs_obj.gmp_n,b);
 		nfs(fobj);
-		gmp2mp(fobj->nfs_obj.gmp_n,b);
+		mpz_set(b,fobj->nfs_obj.gmp_n);
 		break;
 
 	default:
@@ -928,21 +835,19 @@ double do_work(enum work_method method, uint32 B1, uint64 B2, int *work,
 	return time_per_unit_work;
 }
 
-int check_if_done(fact_obj_t *fobj, z *N)
+int check_if_done(fact_obj_t *fobj, mpz_t N)
 {
 	int i, done = 0;
-	z tmp;
+	mpz_t tmp;
 
-	zInit(&tmp);
-	zCopy(&zOne,&tmp);
-
-	//printf("checking if prod of factors = %s\n",z2decstr(N,&gstr1));
+	mpz_init(tmp);
+	mpz_set_ui(tmp, 1);
 
 	/* if the user only wants to find one factor, check for that here... */
 	if (fobj->autofact_obj.want_only_1_factor && (fobj->num_factors >= 1))
 	{
 		done = 1;
-		zFree(&tmp);
+		mpz_clear(tmp);
 		return done;
 	}
 
@@ -951,20 +856,16 @@ int check_if_done(fact_obj_t *fobj, z *N)
 	{		
 		int j;
 		for (j=0; j<fobj->fobj_factors[i].count; j++)
-		{
-			zMul(&tmp,&fobj->fobj_factors[i].factor,&tmp);
-			//printf("accumulating factor %s = %s\n",z2decstr(&global_factors[i].factor,&gstr1), 
-				//z2decstr(&tmp,&gstr2));
-		}		
+			mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
 	}
 
-	if (zCompare(N,&tmp) == 0)
+	if (mpz_cmp(N,tmp) == 0)
 	{		
 		// yes, they are equal.  make sure everything is prp or prime.
 		done = 1;
 		for (i=0; i<fobj->num_factors; i++)
 		{
-			if (fobj->fobj_factors[i].factor.type == COMPOSITE)
+			if (!mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 			{
 				refactor_depth++;
 				if (refactor_depth > 3)
@@ -983,20 +884,20 @@ int check_if_done(fact_obj_t *fobj, z *N)
 					// load the new fobj with this number
 					fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 					init_factobj(fobj_refactor);
-					zCopy(&fobj->fobj_factors[i].factor,&fobj_refactor->N);
+					gmp2mp(fobj->fobj_factors[i].factor, &fobj_refactor->N);
 
 					// recurse on factor
 					factor(fobj_refactor);
 
 					// remove the factor from the original list
-					delete_from_factor_list(fobj, &fobj->fobj_factors[i].factor);
+					delete_from_factor_list(fobj, fobj->fobj_factors[i].factor);
 
 					// add all factors found during the refactorization
 					for (j=0; j< fobj_refactor->num_factors; j++)
 					{
 						int k;
 						for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
-							add_to_factor_list(fobj, &fobj_refactor->fobj_factors[j].factor);
+							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
 					}
 
 					// factorization completed if we got to here.  reset the recursion limit.
@@ -1010,20 +911,20 @@ int check_if_done(fact_obj_t *fobj, z *N)
 		}
 	}
 
-	zFree(&tmp);
+	mpz_clear(tmp);
 	return done;
 }
 
-int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switch)
+int switch_to_qs(fact_obj_t *fobj, mpz_t N, double *time_available, int force_switch)
 {
 	// compare the total time spent so far with the estimate of how long it 
 	// would take to finish using qs and decide whether or not to switch over
 	// to qs.
-	int decision, sizeN;
+	int decision, sizeN, digitsN = mpz_sizeinbase(N, 10);
 	double qs_est_time, nfs_est_time;
 	
 	// if the size of N is small enough, always switch to qs
-	sizeN = zBits(N);
+	sizeN = mpz_sizeinbase(N, 2);
 	if (sizeN < 135)
 	{
 		*time_available = 0;
@@ -1031,11 +932,11 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 	}
 	else
 	{
-		qs_est_time = get_qs_time_estimate(fobj, MEAS_CPU_FREQUENCY,ndigits(N));
+		qs_est_time = get_qs_time_estimate(fobj, MEAS_CPU_FREQUENCY, digitsN);
 		if (VFLAG >= 2)
 			printf("***** qs time estimate = %lg seconds\n",qs_est_time);
 
-		nfs_est_time = get_gnfs_time_estimate(fobj, MEAS_CPU_FREQUENCY, ndigits(N));
+		nfs_est_time = get_gnfs_time_estimate(fobj, MEAS_CPU_FREQUENCY, digitsN);
 		if (VFLAG >= 2)
 			printf("***** gnfs time estimate = %lg seconds\n",nfs_est_time);
 
@@ -1045,7 +946,7 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 			if (force_switch)
 			{
 				//calling code is forcing a decision to switch
-				if ((fobj->nfs_obj.gnfs_exponent == 0) && (ndigits(N) > 95))
+				if ((fobj->nfs_obj.gnfs_exponent == 0) && (digitsN > 95))
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
@@ -1069,7 +970,7 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 			{
 				// if the total time we've spent so far is greater than a fraction of the time
 				// we estimate it would take QS to finish, switch to qs.  
-				if ((fobj->nfs_obj.gnfs_exponent == 0) && (ndigits(N) > 95))
+				if ((fobj->nfs_obj.gnfs_exponent == 0) && (digitsN > 95))
 				{
 					//est time decision was to use qs, but the size is high enough and we're using
 					//qs time only because nfs hasn't been tuned, so use nfs instead
@@ -1122,7 +1023,7 @@ int switch_to_qs(fact_obj_t *fobj, z *N, double *time_available, int force_switc
 }
 
 enum factorization_state scale_requested_work(method_timing_t *method_times, 
-	enum factorization_state fact_state, int *next_work, double time_available, z *N)
+	enum factorization_state fact_state, int *next_work, double time_available, mpz_t N)
 {
 	enum factorization_state new_state = fact_state;
 	double base_time_per_curve, time_per_curve;
@@ -1140,7 +1041,7 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 		// don't know how much time is left.  we have to make a decision about how
 		// much and what kind of work to do based on the size of the input and our
 		// current factorization state.
-		int sizeN = zBits(N);
+		int sizeN = mpz_sizeinbase(N, 2);
 
 		switch (fact_state)
 		{
@@ -1305,7 +1206,7 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 			break;
 
 		case state_ecm_auto_increasing:
-			if (ndigits(N) < 120)
+			if (mpz_sizeinbase(N, 10) < 120)
 			{
 				new_state = state_qs;
 				strcpy(state_str,"SIQS");
@@ -1576,9 +1477,7 @@ void factor(fact_obj_t *fobj)
 	//return any composite number left over
 	//the factoring routines will build up a list of factors
 
-	z *b;
-	z origN;
-	z copyN;
+	mpz_t b, origN, copyN;
 	enum factorization_state fact_state = state_idle;
 	method_timing_t method_times;
 	int curves = 1;
@@ -1601,16 +1500,19 @@ void factor(fact_obj_t *fobj)
 	fobj->pp1_obj.stg2_is_default = 1;
 	fobj->pm1_obj.stg2_is_default = 1;
 
-	zInit(&origN);
-	zInit(&copyN);
-	zCopy(&fobj->N,&origN);
-	zCopy(&fobj->N,&copyN);
-	b = &copyN;
+	mpz_init(origN);
+	mpz_init(copyN);
+	mpz_init(b);
 
-	if (zCompare(b,&zOne) <= 0)
+	mp2gmp(&fobj->N, origN);
+	mpz_set(copyN, origN);
+	mpz_set(b, origN);
+
+	if (mpz_cmp_ui(b,1) <= 0)
 	{
-		zFree(&copyN);
-		zFree(&origN);
+		mpz_clear(copyN);
+		mpz_clear(origN);
+		mpz_clear(b);
 		return;
 	}
 	
@@ -1619,7 +1521,7 @@ void factor(fact_obj_t *fobj)
 	flog = fopen(fobj->flogname,"a");
 	logprint(flog,"\n");
 	logprint(flog,"****************************\n");
-	logprint(flog,"Starting factorization of %s\n",z2decstr(b,&gstr1));
+	logprint(flog,"Starting factorization of %s\n",mpz_get_str(gstr1.s, 10, b));
 	logprint(flog,"****************************\n");
 	fclose(flog);
 
@@ -1627,7 +1529,7 @@ void factor(fact_obj_t *fobj)
 
 	if (VFLAG >= 0)
 	{
-		printf("factoring %s\n",z2decstr(b,&gstr2));
+		gmp_printf("factoring %Zd\n",b);
 		printf("using pretesting plan: %s\n\n",fobj->autofact_obj.plan_str);
 	}
 
@@ -1644,15 +1546,18 @@ void factor(fact_obj_t *fobj)
 	if (data != NULL)
 	{	
 		char *substr;
-		z tmpz;
+		mpz_t tmpz;
 
-		zInit(&tmpz);
+		//read in the number from the savefile
+		mpz_init(tmpz);
 		fgets(tmpstr,1024,data);
 		substr = tmpstr + 2;
-		str2hexz(substr,&tmpz);
+		mpz_set_str(tmpz, substr, 0);	//auto detect the base
+
 		// gcd required because the savefile may have a multiplier applied
-		zLEGCD(&tmpz,b,&tmpz);
-		if (zCompare(&tmpz, b) == 0)
+		mpz_gcd(tmpz, tmpz, b);
+
+		if (mpz_cmp(tmpz, b) == 0)
 		{
 			if (VFLAG > 1)
 				printf("found siqs savefile, resuming siqs\n");
@@ -1660,6 +1565,7 @@ void factor(fact_obj_t *fobj)
 			//override default choice
 			fact_state = state_qs;
 		}
+		mpz_clear(tmpz);
 	}
 
 	while (!done)
@@ -1810,7 +1716,6 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
-			//printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 
@@ -1819,7 +1724,6 @@ void factor(fact_obj_t *fobj)
 			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
 			if (VFLAG > 0)
 				printf("ECM/NFS ratio was = %f\n",total_time/t_time);
-			//printf("b = %s\n",z2decstr(b, &gstr1));
 			total_time += t_time * curves;
 			break;
 
@@ -1830,10 +1734,10 @@ void factor(fact_obj_t *fobj)
 		}		
 
 		// first, check if we're done
-		done = check_if_done(fobj, &origN);	
+		done = check_if_done(fobj, origN);	
 
 		// paranoia
-		if (zCompare(b, &zZero) == 0)
+		if (mpz_cmp_ui(b, 0) == 0)
 		{
 			printf("b = 0, exiting\n");
 			done = 1;
@@ -1878,7 +1782,7 @@ void factor(fact_obj_t *fobj)
 	if (fobj->num_factors >= 1) 
 	{
 		//If the only factor in our array == N, then N is prime or prp...
-		if (fobj->autofact_obj.want_output_primes && (zCompare(&fobj->fobj_factors[0].factor,&origN) == 0))
+		if (fobj->autofact_obj.want_output_primes && (mpz_cmp(fobj->fobj_factors[0].factor,origN) == 0))
 		{
 			if ((fobj->autofact_obj.op_file = fopen(fobj->autofact_obj.op_str, "a")) == NULL)
 				printf(" ***Error: unable to open %s\n", fobj->autofact_obj.op_str);
@@ -1887,14 +1791,14 @@ void factor(fact_obj_t *fobj)
 				if (fobj->autofact_obj.want_output_expressions)
 					fprintf(fobj->autofact_obj.op_file, "%s\n", fobj->str_N.s);
 				else
-					fprintf(fobj->autofact_obj.op_file, "%s\n", z2decstr(&origN,&gstr1));
+					gmp_fprintf(fobj->autofact_obj.op_file, "%Zd\n", origN);
 				if (fclose(fobj->autofact_obj.op_file) != 0)
 					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.op_str);
 			}
 		}
 
 		//If the first factor in the array != N, then is composite and we have factors...
-		if (fobj->autofact_obj.want_output_factors && (zCompare(&fobj->fobj_factors[0].factor,&origN) != 0))
+		if (fobj->autofact_obj.want_output_factors && (mpz_cmp(fobj->fobj_factors[0].factor,origN) != 0))
 		{
 			if ((fobj->autofact_obj.of_file = fopen(fobj->autofact_obj.of_str, "a")) == NULL)
 				printf(" ***Error: unable to open %s\n", fobj->autofact_obj.of_str);
@@ -1905,10 +1809,10 @@ void factor(fact_obj_t *fobj)
 				if (fobj->autofact_obj.want_output_expressions)
 					fprintf(fobj->autofact_obj.of_file, "(%s)", fobj->str_N.s);
 				else
-					fprintf(fobj->autofact_obj.of_file, "%s", z2decstr(&origN,&gstr1));
+					gmp_fprintf(fobj->autofact_obj.of_file, "%Zd", origN);
 				for (i=0; i<fobj->num_factors; i++)
 				{
-					fprintf(fobj->autofact_obj.of_file, "/%s", z2decstr(&fobj->fobj_factors[i].factor,&gstr1));
+					gmp_fprintf(fobj->autofact_obj.of_file, "/%Zd", fobj->fobj_factors[i].factor);
 					if (fobj->fobj_factors[i].count > 1)
 						fprintf(fobj->autofact_obj.of_file, "^%d", fobj->fobj_factors[i].count);
 					//fprintf(fobj->autofact_obj.of_file, "\n");
@@ -1930,7 +1834,7 @@ void factor(fact_obj_t *fobj)
 				if (fobj->autofact_obj.want_output_expressions)
 					fprintf(fobj->autofact_obj.ou_file, "%s\n", fobj->str_N.s);
 				else
-					fprintf(fobj->autofact_obj.ou_file, "%s\n", z2decstr(&origN,&gstr1));
+					gmp_fprintf(fobj->autofact_obj.ou_file, "%s\n", origN);
 				if (fclose(fobj->autofact_obj.ou_file) != 0)
 					printf(" ***Error: problem closing file %s\n", fobj->autofact_obj.ou_str);
 			}
@@ -1938,26 +1842,26 @@ void factor(fact_obj_t *fobj)
 	}
 
 		
-	if (!isOne(b))
+	if (mpz_cmp_ui(b, 1) != 0)
 	{
-		if (isPrime(b))
+		if (mpz_probab_prime_p(b, NUM_WITNESSES))
 		{
-			b->type = PRP;
 			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"prp%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
+			logprint(flog,"prp%d cofactor = %s\n",mpz_sizeinbase(b, 10),
+				mpz_get_str(gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 		else
 		{
-			b->type = COMPOSITE;
 			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"c%d cofactor = %s\n",ndigits(b),z2decstr(b,&gstr1));
+			logprint(flog,"c%d cofactor = %s\n",mpz_sizeinbase(b, 10),
+				mpz_get_str(gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 	}
-	zCopy(b,&fobj->N);
+	gmp2mp(b,&fobj->N);
 
 	gettimeofday (&stop, NULL);
 	difference = my_difftime (&start, &stop);
@@ -1983,8 +1887,9 @@ void factor(fact_obj_t *fobj)
 	fobj->pp1_obj.stg2_is_default = user_defined_pp1_b2;
 	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;
 
-	zFree(&origN);
-	zFree(&copyN);
+	mpz_clear(origN);
+	mpz_clear(copyN);
+	mpz_clear(b);
 	return;
 }
 

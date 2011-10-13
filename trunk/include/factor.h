@@ -234,11 +234,8 @@ typedef struct {
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
@@ -249,11 +246,8 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
@@ -265,11 +259,8 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 
 	char ecm_path[1024];
 	int use_external;
@@ -291,11 +282,8 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 	uint32 iterations;
 	uint32 num_poly;
 	uint32 *polynomials;
@@ -306,11 +294,8 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 	uint32 limit;				//trial div limit
 	uint32 fmtlimit;			//fermat max iterations
 	uint32 num_factors;			//number of factors found in this method
@@ -322,11 +307,8 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	str_t in, out;
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
@@ -335,11 +317,7 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
-	mpz_t gmp_f;
-	str_t in, out;
 	qs_savefile_t savefile;		//savefile object
 	char siqs_savefile[1024];
 
@@ -374,12 +352,7 @@ typedef struct
 
 typedef struct
 {
-	z n;
-	z inz, outz;
 	mpz_t gmp_n;
-	mpz_t gmp_f;
-	str_t in, out;
-
 	char ggnfs_dir[1024];
 	uint32 siever;
 	uint32 startq;
@@ -497,7 +470,6 @@ typedef struct
 } fact_obj_t;
 
 void init_factobj(fact_obj_t *fobj);
-void record_new_factor(fact_obj_t *fobj,char *method, z *n);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void alloc_factobj(fact_obj_t *fobj);
@@ -540,11 +512,11 @@ uint32 factor_list_max_composite(factor_list_t *list);
 void factor_list_free(z *n, factor_list_t *list, fact_obj_t *obj);
 
 //yafu
-void add_to_factor_list(fact_obj_t *fobj, z *n);
+void add_to_factor_list(fact_obj_t *fobj, mpz_t n);
 void print_factors(fact_obj_t *fobj);
 void free_factor_list(fact_obj_t *fobj);
 void clear_factor_list(fact_obj_t *fobj);
-void delete_from_factor_list(fact_obj_t *fobj, z *n);
+void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
 
 //common to the QS variants

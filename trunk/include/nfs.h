@@ -55,6 +55,9 @@ typedef struct
 	uint32 startq;
 	uint32 min_rels;
 	uint32 current_rels;
+
+	uint32 poly_time;
+	uint32 last_leading_coeff;
 } ggnfs_job_t;
 
 typedef struct {
@@ -100,7 +103,7 @@ typedef struct {
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
 void *polyfind_launcher(void *ptr);
-void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job);
+void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile);
 void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);

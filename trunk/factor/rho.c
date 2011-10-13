@@ -37,7 +37,6 @@ void brent_loop(fact_obj_t *fobj)
 	FILE *flog;
 	clock_t start, stop;
 	double tt;
-	z f;
 		
 	//check for trivial cases
 	if ((mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) == 0) || (mpz_cmp_ui(fobj->rho_obj.gmp_n, 0) == 0))
@@ -57,7 +56,6 @@ void brent_loop(fact_obj_t *fobj)
 	//initialize some local args
 	mpz_init(d);
 	mpz_init(t);	
-	zInit(&f);
 
 	fobj->rho_obj.curr_poly = 0;
 	while(fobj->rho_obj.curr_poly < 3)
@@ -70,9 +68,7 @@ void brent_loop(fact_obj_t *fobj)
 			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->rho_obj.gmp_n,10),
 				mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_n));
 
-			gmp2mp(fobj->rho_obj.gmp_n, &f);
-			f.type = PRP;
-			add_to_factor_list(fobj, &f);
+			add_to_factor_list(fobj, fobj->rho_obj.gmp_n);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
@@ -97,9 +93,6 @@ void brent_loop(fact_obj_t *fobj)
 		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
 		{				
-			// factor list still uses yafu bigints
-			gmp2mp(fobj->rho_obj.gmp_f, &f);
-
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
@@ -107,8 +100,7 @@ void brent_loop(fact_obj_t *fobj)
 			//check if the factor is prime
 			if (mpz_probab_prime_p(fobj->rho_obj.gmp_f, NUM_WITNESSES))
 			{
-				f.type = PRP;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
 
 				if (VFLAG > 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
@@ -120,8 +112,8 @@ void brent_loop(fact_obj_t *fobj)
 			}
 			else
 			{
-				f.type = COMPOSITE;
-				add_to_factor_list(fobj, &f);
+				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
+
 				if (VFLAG > 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
 					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),fobj->rho_obj.gmp_f);
@@ -150,7 +142,6 @@ void brent_loop(fact_obj_t *fobj)
 	fclose(flog);
 	mpz_clear(d);
 	mpz_clear(t);
-	zFree(&f);
 
 	return;
 }

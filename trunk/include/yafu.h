@@ -97,8 +97,9 @@ typedef struct
 
 typedef struct
 {
-	z factor;
+	mpz_t factor;
 	int count;
+	int type;
 } factor_t;
 
 typedef struct

@@ -48,11 +48,9 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	// extract the factors
 	for (i=0;i<factor_list->num_factors;i++)
 	{
-		z tmpz;
 		mpz_t tmp;
 
 		//init locals
-		zInit(&tmpz);
 		mpz_init(tmp);
 		
 		//convert the factor
@@ -65,16 +63,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
 		{
 			//need to convert to yafu bigint to store
-			gmp2mp(tmp, &tmpz);
-			tmpz.type = PRP;
-			add_to_factor_list(fobj, &tmpz);
+			add_to_factor_list(fobj, tmp);
 			strcpy(c,"prp");
 		}
 		else
 		{
-			gmp2mp(tmp, &tmpz);
-			tmpz.type = COMPOSITE;
-			add_to_factor_list(fobj, &tmpz);
+			add_to_factor_list(fobj, tmp);
 			strcpy(c,"C");
 		}
 
@@ -89,29 +83,22 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		}		
 
 		//free locals
-		zFree(&tmpz);
 		mpz_clear(tmp);
 	}
 
 	//log anything left over
 	if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) > 0) 
 	{
-		z tmpz;
 		char c[3];
 
-		zInit(&tmpz);
 		if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 		{
-			gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
-			tmpz.type = PRP;
-			add_to_factor_list(fobj, &tmpz);
+			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 			strcpy(c,"prp");			
 		}
 		else
 		{
-			gmp2mp(fobj->nfs_obj.gmp_n, &tmpz);
-			tmpz.type = COMPOSITE;
-			add_to_factor_list(fobj, &tmpz);
+			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 			strcpy(c,"C");
 		}
 		
@@ -127,7 +114,6 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		}		
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		zFree(&tmpz);
 	}
 
 	return;
