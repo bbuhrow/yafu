@@ -62,8 +62,8 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root2 = prime - root1; 
 		logp = fb->list->logprime[i];
 
-		amodp = (int)zShortMod(&poly->poly_a,prime);
-		bmodp = (int)zShortMod(&poly->poly_b,prime);
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		inv = modinv_1(amodp,prime);
@@ -312,7 +312,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//unpack stuff from the job data structures
 	siqs_poly *poly = dconf->curr_poly;
 	fb_list *fb = sconf->factor_base;
-	z *Bl = dconf->Bl;
 	uint32 start_prime = 2;
 	int *rootupdates = dconf->rootupdates;
 	update_t update_data = dconf->update_data;
@@ -366,8 +365,8 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = modsqrt[i]; 
 		root2 = prime - root1; 
 
-		amodp = (int)zShortMod(&poly->poly_a,prime);
-		bmodp = (int)zShortMod(&poly->poly_b,prime);
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		inv = modinv_1(amodp,prime);
@@ -423,7 +422,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
-			x = (int)zShortMod(&Bl[j],prime);
+			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
 			
 			// x * inv % prime
 			t2 = (uint64)inv * (uint64)x;
@@ -457,8 +456,8 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			small_inv++;
 		}
 
-		amodp = (int)zShortMod(&poly->poly_a,prime);
-		bmodp = (int)zShortMod(&poly->poly_b,prime);
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		inv = modinv_1(amodp,prime);
@@ -514,7 +513,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
-			x = (int)zShortMod(&Bl[j],prime);
+			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
 
 			// x * inv % prime
 			t2 = (uint64)inv * (uint64)x;
@@ -550,8 +549,8 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//	small_inv++;
 		//}
 
-		amodp = (int)zShortMod(&poly->poly_a,prime);
-		bmodp = (int)zShortMod(&poly->poly_b,prime);
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		inv = modinv_1(amodp,prime);
@@ -604,7 +603,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//Bl[j] now holds 2*Bl
 		for (j=0;j<s;j++)
 		{
-			x = (int)zShortMod(&Bl[j],prime);
+			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
 			x = (int)((int64)x * (int64)inv % (int64)prime);
 
 			//t2 = (uint64)inv * (uint64)x;
@@ -627,8 +626,8 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = modsqrt[i];
 		root2 = prime - root1; 
 
-		amodp = (int)zShortMod(&poly->poly_a,prime);
-		bmodp = (int)zShortMod(&poly->poly_b,prime);
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
 		inv = modinv_1(amodp,prime);
@@ -655,7 +654,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//s is the number of primes in 'a'
 		for (j=0;j<s;j++)
 		{
-			x = (int)zShortMod(&Bl[j],prime);
+			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
 			x = (int)((int64)x * (int64)inv % (int64)prime);
 			rootupdates[(j)*fb->B+i] = x;
 		}

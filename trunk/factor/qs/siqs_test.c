@@ -25,16 +25,14 @@ code to the public domain.
 #include "util.h"
 #include "gmp_xface.h"
 
-int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
+int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 {
 	int offset, lp[2], parity, num_factors;
 	int j,retval;
-	z Q, RHS,t1,t2;
+	mpz_t Q, RHS;
 
-	zInit(&Q);
-	zInit(&RHS);
-	zInit(&t1);
-	zInit(&t2);
+	mpz_init(Q);
+	mpz_init(RHS);
 
 	offset = r->sieve_offset;
 	lp[0] = r->large_prime[0];
@@ -42,36 +40,34 @@ int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n)
 	parity = r->parity;
 	num_factors = r->num_factors;
 
-	RHS.val[0] = lp[0];
-	zShortMul(&RHS,lp[1],&RHS);
+	mpz_set_ui(RHS, lp[0]);
+	mpz_mul_ui(RHS, RHS, lp[1]);
 	for (j=0; j<num_factors; j++)
-	{
-		zShortMul(&RHS,fb->list->prime[r->fb_offsets[j]],&t1);
-		zCopy(&t1,&RHS);
-	}
+		mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
 
 	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-	zShortMul(a,offset,&t1);
+	mpz_mul_ui(Q, a, offset);
 	if (parity)
-		zSub(&t1,b,&t2);
+		mpz_sub(Q, Q, b);
 	else
-		zAdd(&t1,b,&t2);
-	zMul(&t2,&t2,&t1);
-	zSub(&t1,n,&Q);
+		mpz_add(Q, Q, b);
+	mpz_mul(Q, Q, Q);
+	mpz_sub(Q, Q, n);
 
 	retval = 0;
-	Q.size = abs(Q.size);
-	if (zCompare(&Q,&RHS) != 0)
+	if (mpz_sgn(Q) < 0)
+		mpz_neg(Q,Q);
+
+	if (mpz_cmp(Q,RHS) != 0)
 	{
-		//printf("failure to equate relation\n");
-		//printf("Q = %s, RHS = %s\n",z2decstr(&Q,&gstr1),z2decstr(&RHS,&gstr2));
+		printf("failure to equate relation\n");
+		gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
 		retval = 1;
 	}
 
-	zFree(&Q);
-	zFree(&RHS);
-	zFree(&t1);
-	zFree(&t2);
+	mpz_clear(Q);
+	mpz_clear(RHS);
+
 	return retval;
 }
 
@@ -152,65 +148,66 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 	return 0;
 }
 
-int checkpoly_siqs(siqs_poly *poly, z *n)
+int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 {
 	//check that b^2 == N mod a
 	//and that c == (b*b - n)/a
-	z t1,t2,t3,t4;
+	mpz_t t1,t2,t3,t4;
 
-	zInit(&t1);
-	zInit(&t2);
-	zInit(&t3);
-	zInit(&t4);
+	mpz_init(t1);
+	mpz_init(t2);
+	mpz_init(t3);
+	mpz_init(t4);
 
-	zCopy(n,&t1);
-	zDiv(&t1,&poly->poly_a,&t2,&t3);
+	mpz_set(t1, n);
+	mpz_tdiv_r(t3, t1, poly->mpz_poly_a); //zDiv(&t1,&poly->poly_a,&t2,&t3);
 
-	zMul(&poly->poly_b,&poly->poly_b,&t2);
-	zDiv(&t2,&poly->poly_a,&t1,&t4);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
+	mpz_tdiv_r(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
 
-	if (zCompare(&t3,&t4) != 0)
+	if (mpz_cmp(t3,t4) != 0)
 	{
-		printf("\nError in checkpoly: %s^2 !== N mod %s\n",z2decstr(&poly->poly_b,&gstr1),
-			z2decstr(&poly->poly_a,&gstr2));
-		if (poly->poly_b.size < 0)
+		printf("\nError in checkpoly: %s^2 !== N mod %s\n", 
+			mpz_get_str(gstr1.s, 10, poly->mpz_poly_b),
+			mpz_get_str(gstr2.s, 10, poly->mpz_poly_a));
+		if (mpz_sgn(poly->mpz_poly_b) < 0)
 			printf("b is negative\n");
 	}
 
-	if (zJacobi(n,&poly->poly_a) != 1)
+	if (mpz_kronecker(n, poly->mpz_poly_a) != 1)
 		printf("\nError in checkpoly: (a|N) != 1\n");
 
-	zSqr(&poly->poly_b,&t1);
-	zSub(&t1,n,&t2);
-	zDiv(&t2,&poly->poly_a,&t1,&t3);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
+	mpz_sub(t2, t2, n);
+	mpz_tdiv_q(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
 
-	if (zCompare(&t1,&poly->poly_c) != 0)
+	if (mpz_cmp(t4,poly->mpz_poly_c) != 0)
 		printf("\nError in checkpoly: c != (b^2 - n)/a\n");
 	
-	zFree(&t1);
-	zFree(&t2);
-	zFree(&t3);
-	zFree(&t4);
+	mpz_clear(t1);
+	mpz_clear(t2);
+	mpz_clear(t3);
+	mpz_clear(t4);
 	return 0;
 }
 
-int checkBl(z *n, uint32 *qli, fb_list *fb, z *Bl, int s)
+int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
 {
 	//check that Bl^2 == N mod ql and Bl == 0 mod qj for 1<=j<=s, j != l
 	int i,j,p,q;
-	z t1,t2;
+	mpz_t t1,t2;
 
-	zInit(&t1);
-	zInit(&t2);
+	mpz_init(t1);
+	mpz_init(t2);
 
 	for (i=0;i<s;i++)
 	{
 		p = fb->list->prime[qli[i]];
 
-		zShiftRight(&t2,&Bl[i],1);
-		zSqr(&t2,&t1);
-		if (zShortMod(&t1,p)%zShortMod(n,p) != 0)
-			printf("%s^2 mod %u != N mod %u\n",z2decstr(&Bl[i],&gstr1),p,p);
+		mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
+		mpz_mul(t1, t2, t2); //zSqr(&t2,&t1);
+		if (mpz_tdiv_ui(t1,p) % mpz_tdiv_ui(n,p) != 0)
+			printf("%s^2 mod %u != N mod %u\n",mpz_get_str(gstr1.s, 10, Bl[i]),p,p);
 
 		for (j=0;j<s;j++)
 		{
@@ -218,64 +215,15 @@ int checkBl(z *n, uint32 *qli, fb_list *fb, z *Bl, int s)
 				continue;
 
 			q = fb->list->prime[qli[j]];
-			zShiftRight(&t2,&Bl[i],1);
-			if (zShortMod(&t2,q) != 0)
-				printf("%s mod %u != 0\n",z2decstr(&Bl[i],&gstr1),q);
+			mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
+			if (mpz_tdiv_ui(t2,q) != 0)
+				printf("%s mod %u != 0\n",mpz_get_str(gstr1.s, 10, Bl[i]),q);
 		}
 	}
 
-	zFree(&t1);
-	zFree(&t2);
+	mpz_clear(t1);
+	mpz_clear(t2);
 	return 0;
-}
-
-void test_polya(fb_list *fb, z *n, z *target_a)
-{
-	uint32 i, cumulativebits=0;
-	z tmp, tmp2, tmp3, poly_a;
-	clock_t start, stop;
-	double t;
-	//int *qli, s;
-
-	zInit(&tmp);
-	zInit(&tmp2);
-	zInit(&tmp3);
-	zInit(&poly_a);
-
-	start = clock();
-	printf("SIQS poly gen:\n");
-	printf("target_a bits = %d\n",zBits(target_a));
-	for (i=0;i<100;i++)
-	{
-		//new_poly_a(&poly_a,target_a,n,fb,qli,&s);
-
-		//print target_a, poly_a, and their difference
-		//printf("target_a = ");
-		//zHex2Dec(target_a,&tmp);
-		//zPrintDec(&tmp);
-		//printf("\n");
-		//printf("poly_a(%d) = ",zBits(&poly_a));
-		//zHex2Dec(&poly_a,&tmp);
-		//zPrintDec(&tmp);
-		//printf("\n");
-		
-		zSub(target_a,&poly_a,&tmp);
-		printf("error = %d bits = ",zBits(&tmp));
-		cumulativebits += zBits(&tmp);
-		//zHex2Dec(&tmp,&tmp2);
-		//zPrintDec(&tmp2);
-		//printf("\n");
-	}
-	printf("average bit difference: %4.2f\n",(double)cumulativebits/100.0);
-	stop = clock();
-	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("Total elapsed time = %6.4f seconds.\n",t);
-
-	zFree(&tmp);
-	zFree(&tmp2);
-	zFree(&tmp3);
-	zFree(&poly_a);
-	return;
 }
 
 void siqsbench(fact_obj_t *fobj)
@@ -285,11 +233,9 @@ void siqsbench(fact_obj_t *fobj)
 	char list[10][200];
 	char oldflogname[80];
 	enum cpu_type cpu;
-	z n;
 	FILE *log;
 	int i;
 
-	zInit(&n);
 	strcpy(oldflogname,fobj->flogname);
 
 	strcpy(list[0],"405461849292216354219321922871108605045931309");
@@ -325,15 +271,13 @@ void siqsbench(fact_obj_t *fobj)
 
 	for (i=0; i<10; i++)
 	{
-		str2hexz(list[i],&n);
-		mp2gmp(&n,fobj->qs_obj.gmp_n);
+		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10); //str2hexz(list[i],&n);
 		SIQS(fobj);
 		clear_factor_list(fobj);
 	}
 
 	strcpy(fobj->flogname,oldflogname);
 
-	zFree(&n);
 	return;
 }
 

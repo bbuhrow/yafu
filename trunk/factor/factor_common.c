@@ -196,6 +196,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.sieve_only = 0;						//default = no
 	fobj->nfs_obj.poly_only = 0;						//default = no
 	fobj->nfs_obj.post_only = 0;						//default = no
+	fobj->nfs_obj.la_restart = 0;						//default = no
 	fobj->nfs_obj.poly_option = 0;						//default = fast search
 															//1 = wide
 															//2 = deep

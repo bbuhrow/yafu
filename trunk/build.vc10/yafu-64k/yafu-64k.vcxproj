@@ -254,23 +254,6 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\arith\tfm\fp_2expt.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_cmp_mag.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_calc_normalization.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_reduce.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_setup.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_mont_small.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_mul_2.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_mul_comba.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_mul_comba_small_set.c">
-      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Disabled</Optimization>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_generic.c" />
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_small_set.c">
-      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Disabled</Optimization>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\s_fp_sub.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
@@ -338,7 +321,6 @@
     <ClInclude Include="..\..\include\nfs.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\soe.h" />
-    <ClInclude Include="..\..\include\tfm.h" />
     <ClInclude Include="..\..\include\types.h" />
     <ClInclude Include="..\..\include\util.h" />
     <ClInclude Include="..\..\include\yafu.h" />

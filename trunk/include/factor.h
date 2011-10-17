@@ -370,6 +370,7 @@ typedef struct
 	int post_only;
 	int poly_option;
 	int restart_flag;
+	int la_restart;
 	uint32 polybatch;
 
 	double gnfs_exponent;

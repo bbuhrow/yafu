@@ -18,12 +18,12 @@ Purpose:	Port into Yafu-1.14.
 #include "qs.h"
 
 /*--------------------------------------------------------------------*/
-uint32 yafu_find_factors(fact_obj_t *obj, z *n, 
+uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n, 
 		fb_element_siqs *factor_base, uint32 fb_size,
 		qs_la_col_t *vectors, uint32 vsize, 
 		siqs_r *relation_list,
 		uint64 *null_vectors, uint32 multiplier,
-		z *poly_a_list, poly_t *poly_list,
+		mpz_t *poly_a_list, poly_t *poly_list,
 		factor_list_t *factor_list) {
 
 	/* Perform the square root phase of MPQS. null_vectors
@@ -60,7 +60,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 	   and the other dependencies are there for free, why not
 	   use them? */
 
-	z factor, x, y, tmp, tmp2, tmp3, sum, tmpn;
+	mpz_t factor, x, y, tmp, tmp2, sum, tmpn;
 	uint32 i, j, k, m;
 	uint64 mask;
 	uint32 *fb_counts;
@@ -70,31 +70,25 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 	uint32 factor_found = 0;
 	int bits;
 
-	zInit(&factor);
-	zInit(&x);
-	zInit(&y);
-	zInit(&tmp);
-	zInit(&tmp2);
-	zInit(&tmp3);
-	zInit(&sum);
-	zInit(&tmpn);
+	mpz_init(factor);
+	mpz_init(x);
+	mpz_init(y);
+	mpz_init(tmp);
+	mpz_init(tmp2);
+	mpz_init(sum);
+	mpz_init(tmpn);
 	
 	fb_counts = (uint32 *)malloc(fb_size * sizeof(uint32));
-	zClear(&factor);
-	factor.size = 1;
-	zCopy(n, &tmpn);
+	mpz_set(tmpn, n);
 
 	bits = 0;
 	/* For each dependency */
 	for (mask = 1; mask; mask <<= 1) {
 		memset(fb_counts, 0, fb_size * sizeof(uint32));
-		zClear(&x);
-		zClear(&y);
-		x.size = y.size = x.val[0] = y.val[0] = 1;
-		/* For each sieve relation */
+		mpz_set_ui(x, 1);
+		mpz_set_ui(y, 1);
 
-		
-		//printf("dependency %d contains relations:\n",dnum);
+		/* For each sieve relation */
 		for (i = 0; i < vsize; i++) {
 
 			/* If the relation is not scheduled to
@@ -111,7 +105,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 			/* for all sieve values */
 
 			for (j = 0; j < num_relations; j++) {
-				z *a, *b;
+				mpz_ptr a, b;
 				poly_t *poly;
 				uint32 sieve_offset;
 				uint32 sign_of_index;
@@ -123,8 +117,8 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 				   from here on. */
 
 				poly = poly_list + relation->poly_idx;
-				b = &poly->b;
-				a = poly_a_list + poly->a_idx;
+				b = poly->b;
+				a = poly_a_list[poly->a_idx];
 				//sieve_offset = relation->sieve_offset & 
 				//				0x7fffffff;
 				//sign_of_index = relation->sieve_offset >> 31;
@@ -138,22 +132,16 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 				   are an even number of negative values
 				   to multiply together */
 	
-				zShortMul(a,sieve_offset,&sum);
+				mpz_mul_ui(sum, a, sieve_offset); //zShortMul(a,sieve_offset,&sum);
 
 				if (sign_of_index == POSITIVE)
-				{
-					zAdd(&sum,b,&tmp);
-					zCopy(&tmp,&sum);
-				}
+					mpz_add(sum, sum, b); //zAdd(&sum,b,&tmp);
 				else
-				{
-					zSub(&sum,b,&tmp);
-					zCopy(&tmp,&sum);
-				}
+					mpz_sub(sum, sum, b); //zSub(&sum,b,&tmp);
 	
-				/* multiply the sum into x */
-	
-				zModMul(&x,&sum,n,&x);
+				/* multiply the sum into x */	
+				mpz_mul(x, x, sum); //zModMul(&x,&sum,n,&x);
+				mpz_tdiv_r(x, x, n); 
 	
 				/* do not multiply the factors associated 
 				   with this relation into y; instead, just 
@@ -193,8 +181,9 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 
 			for (j = 0; j < num_large_primes; j++) {
 				for (k = 0; k < large_primes[2*j+1]/2; k++) {
-					factor.val[0] = large_primes[2*j];
-					zModMul(&y,&factor,n,&y);  
+					mpz_set_ui(factor, large_primes[2 * j]); //factor.val[0] = large_primes[2*j];
+					mpz_mul(y, y, factor); //zModMul(&y,&factor,n,&y);  
+					mpz_tdiv_r(y, y, n);
 				}
 			}
 		}
@@ -217,22 +206,22 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 			if (exponent == 0)
 				continue;
 
-			zClear(&tmp);
-			tmp.size = 1;
-			tmp.val[0] = factor_base->prime[i]; 
-			factor.val[0] = prime;
+			mpz_set_ui(tmp, prime); 
+			mpz_set_ui(factor, prime);
 
 			while (!(exponent & mask2))
 				mask2 >>= 1;
 			for (mask2 >>= 1; mask2; mask2 >>= 1) {
-				zModMul(&tmp,&tmp,n,&tmp2);
-				zCopy(&tmp2,&tmp);
+				mpz_mul(tmp, tmp, tmp); //zModMul(&tmp,&tmp,n,&tmp2);
+				mpz_tdiv_r(tmp, tmp, n);
 				
 				if (exponent & mask2) {
-					zModMul(&tmp,&factor,n,&tmp); 
+					mpz_mul(tmp, tmp, factor); //zModMul(&tmp,&factor,n,&tmp); 
+					mpz_tdiv_r(tmp, tmp, n);
 				}
 			}
-			zModMul(&tmp,&y,n,&y);  
+			mpz_mul(y, tmp, y); //zModMul(&tmp,&y,n,&y);  
+			mpz_tdiv_r(y, y, n);
 		}
 
 		/* compute gcd(x+y, n). If it's not 1 or n, save it 
@@ -241,48 +230,43 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 		   n). See the comments in Pari's MPQS code for a proof 
 		   that it isn't necessary to also check gcd(x-y, n) */
 
-		zAdd(&x,&y,&tmp);
-		zLEGCD(&tmp,n,&tmp2);
-		zCopy(&tmp2,&tmp);
-		if (zCompare(&tmp, n) != 0 && !isOne(&tmp)) {
+		mpz_add(tmp, x, y); //zAdd(&x,&y,&tmp);
+		mpz_gcd(tmp, tmp, n); //zLEGCD(&tmp,n,&tmp2);
+		if ((mpz_cmp(tmp, n) != 0) && (mpz_cmp_ui(tmp, 1) != 0)) {
 
 			/* remove any factors of the multiplier 
 			   before saving tmp, and don't save at all
 			   if tmp contains *only* multiplier factors */
 			if (multiplier > 1) {
 				uint32 ignore_me = spGCD(multiplier,
-						zShortMod(&tmp, multiplier));
+						mpz_tdiv_ui(tmp, multiplier)); //zShortMod(&tmp, multiplier));
 				if (ignore_me > 1) {
-					zShortDiv(&tmp, ignore_me, &tmp2);
-					zCopy(&tmp2,&tmp);
-					if (isOne(&tmp))
+					mpz_tdiv_q_ui(tmp, tmp, ignore_me); //zShortDiv(&tmp, ignore_me, &tmp2);
+					if (mpz_cmp_ui(tmp, 1) == 0)
 						continue;
 				}
 			}
 
 			//ignore composite factors for now...
-			if (!isPrime(&tmp))
-			{
+			if (!mpz_probab_prime_p(tmp, NUM_WITNESSES))
 				continue;
-				printf("prp%d = %s\n",ndigits(&tmp),z2decstr(&tmp,&gstr1));
-			}
 
 			//add the factor to our global list
-			bits = yafu_factor_list_add(obj, factor_list, &tmp);
+			bits = yafu_factor_list_add(obj, factor_list, tmp);
 
 			//check if only the multiplier remains
 			if (abs(bits) < 8)
 				break;
 
 			//divide the factor out of our number
-			zDiv(&tmpn, &tmp, &tmp2, &tmp3);
+			mpz_tdiv_q(tmp2, tmpn, tmp); //zDiv(&tmpn, &tmp, &tmp2, &tmp3);
 
 			//check if the remaining number is prime
-			if (isPrime(&tmp2))
+			if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
 			{
 				//add it to our global factor list
 				//printf("remaining cofactor is prime\n");
-				bits = yafu_factor_list_add(obj, factor_list, &tmp2);
+				bits = yafu_factor_list_add(obj, factor_list, tmp2);
 
 				//then bail
 				break;
@@ -291,42 +275,33 @@ uint32 yafu_find_factors(fact_obj_t *obj, z *n,
 			//divide out the multiplier from the remaining number
 			if (multiplier > 1) {
 				uint32 ignore_me = spGCD(multiplier,
-						zShortMod(&tmp2, multiplier));
+						mpz_tdiv_ui(tmp2, multiplier));
 				if (ignore_me > 1) {
-					zShortDiv(&tmp2, ignore_me, &tmp);
+					mpz_tdiv_q_ui(tmp, tmp2, ignore_me);
 
 					//check again if the remaining number is prime
-					if (isPrime(&tmp))
+					if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
 					{
 						//add it to our global factor list
 						//printf("remaining cofactor is prime after removing multiplier\n");
-						bits = yafu_factor_list_add(obj, factor_list, &tmp);
+						bits = yafu_factor_list_add(obj, factor_list, tmp);
 
 						//then bail
 						break;
 					}
 				}
 			}
-
-			
-
-			//paranoia
-			if (!isZero(&tmp3))
-				printf("factor doesn't divide n!\n");
-
-
 		}
 	}
 
 	free(fb_counts);
-	zFree(&factor);
-	zFree(&x);
-	zFree(&y);
-	zFree(&tmp);
-	zFree(&tmp2);
-	zFree(&tmp3);
-	zFree(&tmpn);
-	zFree(&sum);
+	mpz_clear(factor);
+	mpz_clear(x);
+	mpz_clear(y);
+	mpz_clear(tmp);
+	mpz_clear(tmp2);
+	mpz_clear(tmpn);
+	mpz_clear(sum);
 	return factor_found;
 }
 

@@ -1,7 +1,7 @@
 #include "nfs.h"
 #include "gmp_xface.h"
 
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN)
+uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
 {
 	FILE *tmp, *logfile;
 	uint32 relations_needed;
@@ -32,8 +32,8 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
 	else
 		fclose(tmp);
 
-	printf("%s\n",mp_print(mpN, 10, NULL, gstr1.s));
-	relations_needed = nfs_filter_relations(obj, mpN);
+	printf("%s\n",obj->input); //mp_print(mpN, 10, NULL, gstr1.s));
+	relations_needed = nfs_filter_relations(obj, fobj->nfs_obj.gmp_n);
 
 	return relations_needed;
 }

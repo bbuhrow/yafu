@@ -27,9 +27,6 @@
     <Filter Include="Source Files\factoring\gmp-ecm">
       <UniqueIdentifier>{2887f7ee-6045-4d89-8d77-deb670485475}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\arith\tfm">
-      <UniqueIdentifier>{48d825d3-6f27-4a8a-b74c-23787a2ee114}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\factoring\qs\msieve">
       <UniqueIdentifier>{5f797720-7e25-4639-81c1-725fb2a0d755}</UniqueIdentifier>
     </Filter>
@@ -76,45 +73,6 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\tune.c">
       <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_2expt.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_cmp_mag.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_mont_small.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_calc_normalization.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_reduce.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_montgomery_setup.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_mul_2.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_mul_comba.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_mul_comba_small_set.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_generic.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\fp_sqr_comba_small_set.c">
-      <Filter>Source Files\arith\tfm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\tfm\s_fp_sub.c">
-      <Filter>Source Files\arith\tfm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\count.c">
       <Filter>Source Files\sieve</Filter>
@@ -263,9 +221,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\soe.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\tfm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\types.h">

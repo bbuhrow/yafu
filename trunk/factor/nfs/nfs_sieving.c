@@ -113,7 +113,6 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 }
 
 void *lasieve_launcher(void *ptr)
-//void process_hypercube(static_conf_t *sconf,dynamic_conf_t *dconf)
 {
 	//top level sieving function which performs all work for a single
 	//new a coefficient.  has pthread calling conventions, meant to be
@@ -147,6 +146,11 @@ void *lasieve_launcher(void *ptr)
 				thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
 	}
 	cmdret = system(syscmd);
+
+	// a ctrl-c abort signal is caught by the system command, and nfsexit never gets called.
+	// so check for abnormal exit from the system command.
+	if (cmdret != 0)
+		nfsexit(cmdret);
 
 	// count the relations produced
 	MySleep(100);

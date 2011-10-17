@@ -123,7 +123,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 			{
 				mpz_t tmp;
 				mpz_init(tmp);
-				mpz_set_str(tmp, line + 3, 16);
+				mpz_set_str(tmp, line + 3, 0);
 				ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
 				if (ans == 0)
 					do_data_check = 1;		// job file matches: check for data file
@@ -178,14 +178,14 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 			}
 			else
 			{
-				printf("must specify -R to restart when a polyfile already exists\n");	
+				printf("must specify -R to resume when a polyfile already exists\n");	
 
 				logfile = fopen(fobj->flogname, "a");
 				if (logfile == NULL)
 					printf("could not open yafu logfile for appending\n");
 				else
 				{
-					logprint(logfile, "nfs: refusing to restart poly select without -R option\n");
+					logprint(logfile, "nfs: refusing to resume poly select without -R option\n");
 					fclose(logfile);
 				}
 
@@ -272,7 +272,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 				// crawl through the entire data file to find the next to last line
 				// TODO: can't we start from the end of the file somehow?
 				line = 0;
-				while (!feof(in))
+				//while (!feof(in))
+				while (1)
 				{
 					// read a line into the next position of the circular buffer
 					savefile_read_line(tmp, GSTR_MAXSIZE, &mobj->savefile);
@@ -308,14 +309,14 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		}
 		else
 		{
-			printf("must specify -R to restart when a savefile already exists\n");	
+			printf("must specify -R to resume when a savefile already exists\n");	
 
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 				printf("could not open yafu logfile for appending\n");
 			else
 			{
-				logprint(logfile, "nfs: refusing to restart without -R option\n");
+				logprint(logfile, "nfs: refusing to resume without -R option\n");
 				fclose(logfile);
 			}
 

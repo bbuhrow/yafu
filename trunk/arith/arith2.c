@@ -27,6 +27,7 @@ for the operations that require a carry.
 #include "yafu.h"
 #include "soe.h"
 #include "arith.h"
+#include "gmp_xface.h"
 
 void zShanksTonelli(z *a, fp_digit p, fp_digit *sq)
 {
@@ -409,204 +410,17 @@ int zPrimorial(uint32 n, z *w)
 int zFactorial(uint32 n, z *w)
 {
 	//return n! = n*(n-1)*(n-2)*...*(1)
-	uint32 i,numbins;
-	int approx_words = (int)(10*n/DEC_DIGIT_PER_WORD);
-	clock_t start, stop;
-	double t;
-	uint16 *bins;
-	z tmp, g;
-	fp_digit test;
+	mpz_t result;
 
-	zInit(&tmp);
-	zInit(&g);
+	mpz_init(result);
+	mpz_fac_ui(result, n);
 
-	//allocate about 10x more digits than n
-	if (w->alloc < approx_words)
-		zGrow(w,approx_words);
+	zGrow(w, result->_mp_size);
+	gmp2mp(result, w);
 
-	if (tmp.alloc < approx_words)
-	{
-		zGrow(&g,approx_words);
-		zGrow(&tmp,approx_words);
-		zClear(&g);
-		zClear(&tmp);
-	}
-
-	start = clock();
-
-	if (n < 100)
-	{
-		w->size = 1;
-		w->val[0] = n;
-		//naive (but simple) method
-		for (i=n-1; i>1; --i)
-			zShortMul(w,i,w);
-	}
-	else
-	{
-		//prime factor method
-		//find factors of each element in product
-
-		//count # of primes <= n
-		for (i=0;(uint32)spSOEprimes[i] <= n;i++) {}
-
-		numbins=i;
-		//allocate bins for each possible prime <= n
-		bins = (uint16 *)calloc(numbins,sizeof(uint16));
-		
-		//compute bins[i] = n/pi + n/pi^k + ... for pi^k < n
-		for (i=0; (uint32)spSOEprimes[i]<=n; i++)
-		{
-			test = (fp_digit)spSOEprimes[i];
-			bins[i] = 0;
-			while (test <= n)
-			{
-				bins[i] += (uint16)(n/test);
-				test *= (fp_digit)spSOEprimes[i];
-			}
-		}
-		
-		w->size = 1;
-		w->val[0] = 1;
-		//now exponentiate all bins but 2, and multiply them together
-		//its faster to start multipling the numbers with smaller powers
-		//together first...
-		
-		for (i=numbins-1;i>3;i--)
-		{
-			//printf("bin[%d] = %d\n",i,bins[i]);
-			sp2z((fp_digit)spSOEprimes[i],&g);
-			zExp(bins[i],&g,&tmp);
-			zMul(&tmp,w,&g);
-			zCopy(&g,w);
-		}
-		
-
-		//strategy: p=2 --> left shift
-		//2 < p <= n/2 --> simultaneaous multiple exponentiation
-		//n/2 < p <= n --> cascade multiply, shortmul.  once asymtotically faster
-		//multiplication is implemented, this would go faster using a method similar
-		//to p-1 stage 1.
-
-		/*
-		for (i=numbins-1;bins[i] == 1;i--) 
-			zShortMul(w,spSOEprimes[i],w);
-		
-		*/
-		test = 3;
-		sim_mul_exp(bins + 1,spSOEprimes + 1,&tmp,(int)test);
-		zMul(w,&tmp,&g);
-		zCopy(&g,w);
-		
-		//now take care of the power of 2: a giant leftshift
-		zShiftLeft(w,w,bins[0]);
-
-		free(bins);
-	}
-		
-	zFree(&tmp);
-	zFree(&g);
-
-	stop = clock();
-	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("Elapsed time = %6.4f seconds.\n",t);
-
+	mpz_clear(result);
 	w->type = COMPOSITE;
 	return 1;
-}
-
-void sim_mul_exp(uint16 *e, uint64 *g, z *A, int k)
-{
-	/*
-	INPUT: group elements g0,g1...gk-1 and non-negative t-bit integers e0,e1,...ek-1.
-	OUTPUT: g0^e0 * g1^e1 * g2^e2 * ... * g{k-1}^e{k-1}
-	1. Precomputation. For i from 0 to (2k -1) Gi = PRODUCT(j=0,j=k-1,gj^ij)
-		where i = (ik-1 . . . i0)2.
-	2. A = 1.
-	3. For i from 1 to t do the following: A = A * A, A = A * GIi .
-		where Ii is the i'th column of ea
-	4. Return(A).
-	*/
-	uint8 **em;
-	z *G, tmp;
-	int i,j,test,nbits,imax = (1 << k);
-
-	zInit(&tmp);
-
-	//write out the exponents in a matrix
-	//first figure out the maximum number of bits to represent the exponents
-	//this assumes the exponents are in decreasing order, so e[0] is the biggest
-	nbits=0;
-	test = e[0];
-	while (test)
-	{
-		test >>= 1;
-		nbits++;
-	}
-
-	//then allocate the exponent matrix
-	em = (uint8 **)malloc(k * sizeof(uint8 *));
-	for (i=0;i<k;i++)
-		em[i] = (uint8 *)calloc(nbits,sizeof(uint8));
-	
-	for (i=0;i<k;i++)
-	{
-		j=0;
-		test = e[i];
-		while (test)
-		{
-			em[i][j] = test & 0x1;
-			test >>= 1;
-			j++;
-		}
-	}
-
-	//do the precomputation
-	G = (z *)malloc(imax * sizeof(z));
-	for (i=0;i<imax;i++)
-		zInit(&G[i]);
-
-	for (i=0;i<imax;i++)
-	{
-		zCopy(&zOne,&G[i]);
-		for (j=0;j<i;j++)
-		{
-			if (i & (1 << j))
-				zShortMul(&G[i],g[j],&G[i]);
-		}
-	}
-
-	//and the main iteration
-	zCopy(&zOne,A);
-	for (i=0;i<nbits;i++)
-	{
-		zSqr(A,&tmp);
-		//get the decimal representation of the ith column of em
-		j = getcolval(em,nbits-1-i,k);
-		zMul(&tmp,&G[j],A);
-	}
-
-	for (i=0;i<imax;i++)
-		zFree(&G[i]);
-	free(G);
-
-	for (i=0;i<k;i++)
-		free(em[i]);
-	free(em);
-	zFree(&tmp);
-
-	return;
-}
-
-int getcolval(uint8 **em, int i, int k)
-{
-	//read the k entries in the ith column of em, and return the base10 representation
-	int j,val=0;
-
-	for (j=0;j<k;j++)
-		val += (em[j][i] << j);
-
-	return val;
 }
 
 void zModExp(z *a, z *b, z *m, z *u)

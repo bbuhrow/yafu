@@ -58,13 +58,10 @@ extern "C" {
 			#define GCC_ASM64A
 			#define GCC_ASM64X
 			#define MSC_ASM64X
-			#define TFM_X86_64
-			#define FP_64BIT
 		#elif defined(__i386__)
 			#define GCC_ASM32A
 			#define GCC_ASM32X
 			#define MSC_ASM32X
-			#define TFM_X86
 		#endif
 	#endif
 
@@ -75,13 +72,10 @@ extern "C" {
 			#define MSC_ASM64A
 			#define MSC_ASM64X
 			#define GCC_ASM64X
-			#define TFM_X86_64
-			#define FP_64BIT
 		#elif defined(_M_IX86)
 			#define MSC_ASM32A
 			#define MSC_ASM32X
 			#define GCC_ASM32X
-			#define TFM_X86
 		#endif
 	#endif
 
@@ -92,12 +86,9 @@ extern "C" {
 	#if defined(__x86_64__) 
 		#define GCC_ASM64A
 		#define GCC_ASM64X
-		#define TFM_X86_64
-		#define FP_64BIT
 	#elif defined(__i386__)
 		#define GCC_ASM32A
 		#define GCC_ASM32X
-		#define TFM_X86
 	#endif
 
 #elif defined(_MSC_VER)
@@ -105,7 +96,6 @@ extern "C" {
 	#define ASM_M __asm
 
 	#if defined(_M_IX86) && !defined(_WIN64)
-		#define TFM_X86_MSVC
 		#define MSC_ASM32A
 		#define MSC_ASM32X
 	#elif defined(_WIN64)	

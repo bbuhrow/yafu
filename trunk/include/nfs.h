@@ -110,7 +110,7 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
 int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN);
+uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job);
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 

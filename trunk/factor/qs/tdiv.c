@@ -142,10 +142,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		uint64 res;
 
 #if BITS_PER_DIGIT == 32
-		sp642z(q64,&dconf->qstmp1);
-		zShortSub(&dconf->qstmp1,1,&dconf->qstmp2);
-		zModExp(&zTwo,&dconf->qstmp2,&dconf->qstmp1,&dconf->qstmp3);
-		res = z264(&dconf->qstmp3);
+		mpz_set_64(dconf->gmptmp1, q64);
+		mpz_set_64(dconf->gmptmp2, 2);
+
+		mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
+		res = mpz_get_64(dconf->gmptmp1);
 #else
 		spModExp(2, q64 - 1, q64, &res);
 #endif

@@ -9,9 +9,12 @@ v 1.28.6
 	instead continue with qs if it does not
 + fixed bug - initialize logfile prior to starting smallmpqs if it is called 
 	directly from the command line (i.e. smallmpqs(#))
-+ improvement to finding primes (faster and less memory)
++ improvement to finding primes in the SoE (faster and less memory)
 + got rid of ecm fork code that only worked on linux, to help streamline 
 	gmp porting
++ linked in newest msieve codebase (SVN 645)
++ support for resuming nfs during poly selection and during linear algebra
++ removed Tom's fast math from the project 
 
 
 v 1.28.5

@@ -223,7 +223,7 @@ uint32 add_free_relations(msieve_obj *obj, factor_base_t *fb,
    the estimated number of relations still needed before filtering
    could succeed is returned */
 
-uint32 nfs_filter_relations(msieve_obj *obj, mp_t *n);
+uint32 nfs_filter_relations(msieve_obj *obj, mpz_t n);
 
 /*---------------------- linear algebra stuff ----------------------------*/
 
@@ -235,7 +235,7 @@ uint32 nfs_filter_relations(msieve_obj *obj, mp_t *n);
 
 /* external interface for NFS linear algebra */
 
-void nfs_solve_linear_system(msieve_obj *obj, mp_t *n);
+void nfs_solve_linear_system(msieve_obj *obj, mpz_t n);
 
 /* The largest prime ideal that is stored in compressed format
    when the matrix is built. Setting this to zero will cause
@@ -245,7 +245,7 @@ void nfs_solve_linear_system(msieve_obj *obj, mp_t *n);
 
 /*------------------------ square root stuff --------------------------*/
 
-uint32 nfs_find_factors(msieve_obj *obj, mp_t *n, 
+uint32 nfs_find_factors(msieve_obj *obj, mpz_t n, 
 			factor_list_t *factor_list);
 
 /*------------------- relation processing stuff --------------------------*/

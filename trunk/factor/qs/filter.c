@@ -48,16 +48,13 @@ uint32 process_poly_a(static_conf_t *sconf)
 
 	//just initialize the stuff needed for processing poly's, namely, 
 	//the curr_poly structure, the Bl array, and a few temp bigints.
-	zInit(&dconf->qstmp1);
-	zInit(&dconf->qstmp2);
+	mpz_init(dconf->gmptmp1);
+	mpz_init(dconf->gmptmp2);
 
 	//this stuff changes with every new poly
 	//allocate a polynomial structure which will hold the current
 	//set of polynomial coefficients (a,b,c) and other info
 	dconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
-	zInit(&dconf->curr_poly->poly_a);
-	zInit(&dconf->curr_poly->poly_b);
-	zInit(&dconf->curr_poly->poly_c);
 	mpz_init(dconf->curr_poly->mpz_poly_a);
 	mpz_init(dconf->curr_poly->mpz_poly_b);
 	mpz_init(dconf->curr_poly->mpz_poly_c);
@@ -66,38 +63,35 @@ uint32 process_poly_a(static_conf_t *sconf)
 	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
 
 	//allocate the Bl array, space for MAX_Bl bigint numbers
-	dconf->Bl = (z *)malloc(MAX_A_FACTORS * sizeof(z));
+	dconf->Bl = (mpz_t *)malloc(MAX_A_FACTORS * sizeof(mpz_t));
 	for (i=0;i<MAX_A_FACTORS;i++)
-		zInit(&dconf->Bl[i]);
+		mpz_init(dconf->Bl[i]);
 
-	zCopy(&sconf->curr_a,&dconf->curr_poly->poly_a);
+	mpz_set(dconf->curr_poly->mpz_poly_a, sconf->curr_a);
 	
 	//then compute all the 'b' poly's for this 'a'
 	//and add them to the b-list
 
 	//first, need to factorize this 'a'
-	j = get_a_offsets(sconf->factor_base,dconf->curr_poly,&dconf->qstmp1);
+	j = get_a_offsets(sconf->factor_base, dconf->curr_poly, dconf->gmptmp1);
 	if (j)
 	{
 		//then this poly a might be corrupted - we couldn't factor it over the factor base
 		free(dconf->curr_poly->gray);
 		free(dconf->curr_poly->nu);
 		free(dconf->curr_poly->qlisort);
-		zFree(&dconf->curr_poly->poly_a);
-		zFree(&dconf->curr_poly->poly_b);
-		zFree(&dconf->curr_poly->poly_c);
 		mpz_clear(dconf->curr_poly->mpz_poly_a);
 		mpz_clear(dconf->curr_poly->mpz_poly_b);
 		mpz_clear(dconf->curr_poly->mpz_poly_c);
 		free(dconf->curr_poly);
 
 		for (i=0;i<MAX_A_FACTORS;i++)
-			zFree(&dconf->Bl[i]);
+			mpz_clear(dconf->Bl[i]);
 		free(dconf->Bl);
 
 		//workspace bigints
-		zFree(&dconf->qstmp1);
-		zFree(&dconf->qstmp2);
+		mpz_clear(dconf->gmptmp1);
+		mpz_clear(dconf->gmptmp2);
 		free(dconf);
 		return 0;
 	}
@@ -107,7 +101,7 @@ uint32 process_poly_a(static_conf_t *sconf)
 
 	//then compute all the Bl's
 	//the first 'b' poly comes with computeBl
-	computeBl(sconf,dconf);
+	computeBl(sconf, dconf);
 
 	//compute how many 'b' values we can get from this 'a'
 	maxB = 1 << (dconf->curr_poly->s - 1);
@@ -119,17 +113,19 @@ uint32 process_poly_a(static_conf_t *sconf)
 	//maxB
 
 	//free any we won't be needing
-	for (j = maxB; (uint32)j < sconf->bpoly_alloc; j++)
-		zFree(&sconf->curr_b[j]);
+	for (j = 0; (uint32)j < sconf->bpoly_alloc; j++)
+		mpz_clear(sconf->curr_b[j]);
+
 	//reallocate the size of the array
-	sconf->curr_b = (z *)realloc(sconf->curr_b, maxB * sizeof(z));
+	sconf->curr_b = (mpz_t *)realloc(sconf->curr_b, maxB * sizeof(mpz_t));
+
 	//allocate any additional we need
-	for (j = sconf->bpoly_alloc; j < maxB; j++)
-		zInit(&sconf->curr_b[j]);
+	for (j = 0; j < maxB; j++)
+		mpz_init(sconf->curr_b[j]);
 	sconf->bpoly_alloc = maxB;
 
 	//generate all the b polys
-	generate_bpolys(sconf,dconf,maxB);
+	generate_bpolys(sconf, dconf, maxB);
 
 	//we'll need to remember some things about the current poly,
 	//so copy those over to sconf first...
@@ -141,37 +137,34 @@ uint32 process_poly_a(static_conf_t *sconf)
 	free(dconf->curr_poly->gray);
 	free(dconf->curr_poly->nu);
 	free(dconf->curr_poly->qlisort);
-	zFree(&dconf->curr_poly->poly_a);
-	zFree(&dconf->curr_poly->poly_b);
-	zFree(&dconf->curr_poly->poly_c);
 	mpz_clear(dconf->curr_poly->mpz_poly_a);
 	mpz_clear(dconf->curr_poly->mpz_poly_b);
 	mpz_clear(dconf->curr_poly->mpz_poly_c);
 	free(dconf->curr_poly);
 
 	for (i=0;i<MAX_A_FACTORS;i++)
-		zFree(&dconf->Bl[i]);
+		mpz_clear(dconf->Bl[i]);
 	free(dconf->Bl);
 
 	//workspace bigints
-	zFree(&dconf->qstmp1);
-	zFree(&dconf->qstmp2);
+	mpz_clear(dconf->gmptmp1);
+	mpz_clear(dconf->gmptmp2);
 	free(dconf);
 
 	return maxB;
 }
 
-int get_a_offsets(fb_list *fb, siqs_poly *poly, z *tmp)
+int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 {
 	int j,k;
 	fp_digit r;
 
-	zCopy(&poly->poly_a,tmp);
+	mpz_set(tmp, poly->mpz_poly_a);
 	k=0;
 	poly->s = 0;
-	while (!(tmp->size == 1 && tmp->val[0] == 1) && (spSOEprimes[k] < 65536))
+	while ((mpz_cmp_ui(tmp, 1) != 0) && (spSOEprimes[k] < 65536))
 	{
-		r = zShortMod(tmp,(fp_digit)spSOEprimes[k]);
+		r = mpz_tdiv_ui(tmp,(fp_digit)spSOEprimes[k]);
 		
 		if (r != 0)
 			k++;
@@ -189,7 +182,7 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, z *tmp)
 			}
 			poly->qlisort[poly->s] = j;
 			poly->s++;
-			zShortDiv(tmp,(fp_digit)spSOEprimes[k],tmp);
+			mpz_tdiv_q_ui(tmp, tmp, (fp_digit)spSOEprimes[k]);
 		}
 	}
 
@@ -209,15 +202,16 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 	//iterate through all b's
 	for ( ; numB < maxB; numB++)
 	{
-		zCopy(&dconf->curr_poly->poly_b,&sconf->curr_b[numB - 1]);
+		//zCopy(&dconf->curr_poly->poly_b,&sconf->curr_b[numB - 1]);
+		mpz_set(sconf->curr_b[numB - 1], dconf->curr_poly->mpz_poly_b);
 		dconf->numB = numB;
-		nextB(dconf,sconf);
+		nextB(dconf, sconf);
 	}
 
 	return;
 }
 
-int process_rel(char *substr, fb_list *fb, z *n,
+int process_rel(char *substr, fb_list *fb, mpz_t n,
 				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel)
 {
 	char *nextstr;
@@ -294,8 +288,8 @@ int process_rel(char *substr, fb_list *fb, z *n,
 	rel->num_factors = this_num_factors  + sconf->curr_poly->s;
 	rel->poly_idx = this_id;
 
-	if (!check_relation(&sconf->curr_a,
-			&sconf->curr_b[rel->poly_idx],rel,fb,n))
+	if (!check_relation(sconf->curr_a,
+			sconf->curr_b[rel->poly_idx], rel, fb, n))
 	{
 		if (lp[0] != lp[1]) {
 			yafu_add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
@@ -331,8 +325,8 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	{	
 		fgets(str,1024,data);
 		substr = str + 2;
-		str2hexz(substr,&dconf->qstmp1);
-		if (zCompare(&dconf->qstmp1,&sconf->n) == 0)
+		mpz_set_str(dconf->gmptmp1, substr, 0); //str2hexz(substr,&dconf->qstmp1);
+		if (mpz_cmp(dconf->gmptmp1, sconf->n) == 0)
 		{
 			if (VFLAG > 1)
 				printf("restarting siqs from saved data set\n");
@@ -724,9 +718,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	sconf->poly_list = (poly_t *)xmalloc(num_poly * sizeof(poly_t));
 	sconf->total_poly_a = total_poly_a;
-	sconf->poly_a_list = (z *)xmalloc(total_poly_a * sizeof(z));
+	sconf->poly_a_list = (mpz_t *)xmalloc(total_poly_a * sizeof(mpz_t));
 	for (i=0; i<total_poly_a; i++)
-		zInit(&sconf->poly_a_list[i]);
+		mpz_init(sconf->poly_a_list[i]);
 
 	final_poly_index = (uint32 *)xmalloc(1024 * 
 						sizeof(uint32));
@@ -768,8 +762,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			/* build all of the 'b' values associated with it */
 			subbuf = buf + 2;	//skip the A and a space
 			curr_a_idx++;
-			str2hexz(subbuf,&sconf->curr_a);
+			mpz_set_str(sconf->curr_a, subbuf, 0); //str2hexz(subbuf,&sconf->curr_a);
 			num_derived_poly = process_poly_a(sconf);
+
 			if (num_derived_poly == 0)
 			{
 				//this is an error indicating a bad poly a.  skip all relations
@@ -780,7 +775,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			else
 				bad_A_val = 0;
 
-			zCopy(&sconf->curr_a,sconf->poly_a_list + curr_a_idx);	
+			mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a); 
+			//zCopy(&sconf->curr_a,sconf->poly_a_list + curr_a_idx);	
 
 			/* all 'b' values start off unused */
 			final_poly_index = (uint32 *)xrealloc(final_poly_index,
@@ -791,7 +787,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			break;
 
 		case 'R':
-			/* handle a new relation. First find the 
+				/* handle a new relation. First find the 
 			   large primes; these will determine
 	     		   if a relation is full or partial */
 			if (bad_A_val)
@@ -832,7 +828,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			r = relation_list + curr_saved;
 			subbuf = buf + 2;	//skip over the R and a space
 			if (process_rel(subbuf, sconf->factor_base,
-				&sconf->n, sconf, sconf->obj, r)) {
+				sconf->n, sconf, sconf->obj, r)) {
 
 					if (obj->logfile != NULL)
 						logprint(obj->logfile, "failed to read relation %d\n", 
@@ -859,9 +855,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				}
 
 				sconf->poly_list[i].a_idx = curr_a_idx;
-				zInit(&(sconf->poly_list[i].b));
-				zCopy(&(sconf->curr_b[r->poly_idx]), 
-					&(sconf->poly_list[i].b));
+				mpz_init(sconf->poly_list[i].b);
+				mpz_set(sconf->poly_list[i].b, sconf->curr_b[r->poly_idx]);
 				sconf->poly_list_alloc++;
 				final_poly_index[r->poly_idx] = i;
 				r->poly_idx = i++;

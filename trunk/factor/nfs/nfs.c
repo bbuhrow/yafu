@@ -3,10 +3,28 @@
 
 #ifdef USE_NFS
 
+msieve_obj *obj_ptr;
+
 void nfsexit(int sig)
 {
-	printf("\nAborting... \n");
+	printf("\nReceived signal %d... please wait\n",sig);
 	NFS_ABORT = 1;
+
+	if (obj_ptr != NULL)
+	{
+		printf("setting flag\n");
+		obj_ptr->flags |= MSIEVE_FLAG_STOP_SIEVING;
+	}
+
+	//if (RERAISE_NFS_ABORT)
+	//{
+	//	// we captured the SIGINT, but other code is running that needs
+	//	// to hear it too
+	//	signal(SIGINT,NULL);
+	//	raise(SIGINT);
+	//	signal(SIGINT,nfsexit);
+	//}
+
 	return;
 }
 
@@ -42,7 +60,9 @@ void nfs(fact_obj_t *fobj)
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
+	char *nfs_logfile, *nfs_fbfile, *nfs_datafile;
 
+	obj_ptr = NULL;
 	//below a certain amount, revert to SIQS
 	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->nfs_obj.min_digits)
 	{
@@ -186,6 +206,10 @@ void nfs(fact_obj_t *fobj)
 		}
 	}
 
+	nfs_logfile = (char *)malloc(80 * sizeof(char));
+	nfs_datafile = (char *)malloc(80 * sizeof(char));
+	nfs_fbfile = (char *)malloc(80 * sizeof(char));
+
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -219,13 +243,18 @@ void nfs(fact_obj_t *fobj)
 
 			//write the input bigint as a string
 			sInit(&input_str);
+			input = input_str.s;
 			input = mpz_get_str(input, 10, fobj->nfs_obj.gmp_n);
 
 			//create an msieve_obj
 			//this will initialize the savefile to the outputfile name provided
-			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-				fobj->nfs_obj.fbfile, seed1, seed2, max_relations, nfs_lower, nfs_upper, cpu, 
-				L1CACHE, L2CACHE, THREADS, mem_mb, which_gpu, 0.0);
+			strcpy(nfs_logfile, fobj->nfs_obj.logfile);
+			strcpy(nfs_datafile, fobj->nfs_obj.outputfile);
+			strcpy(nfs_fbfile, fobj->nfs_obj.fbfile);
+
+			obj = msieve_obj_new(input, flags, nfs_datafile, nfs_logfile, 
+				nfs_fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
 
 			fobj->nfs_obj.mobj = obj;
 
@@ -345,6 +374,8 @@ void nfs(fact_obj_t *fobj)
 				statenum = 2;
 			else if (fobj->nfs_obj.post_only)
 				statenum = 3;
+			else if (fobj->nfs_obj.la_restart)
+				statenum = 4;
 
 			break;
 
@@ -373,7 +404,7 @@ void nfs(fact_obj_t *fobj)
 
 		case 3: //"filter":
 
-			relations_needed = do_msieve_filtering(fobj, obj, &job, &mpN);
+			relations_needed = do_msieve_filtering(fobj, obj, &job);
 			if (relations_needed == 0)
 				statenum = 4;	//proceed to linear algebra
 			else
@@ -393,6 +424,11 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG > 0)
 				flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 			flags = flags | MSIEVE_FLAG_NFS_LA;
+
+			// add restart flag if requested
+			if (fobj->nfs_obj.la_restart)
+				flags |= MSIEVE_FLAG_NFS_LA_RESTART;
+
 			obj->flags = flags;
 
 			if (VFLAG >= 0)
@@ -407,8 +443,16 @@ void nfs(fact_obj_t *fobj)
 				fclose(logfile);
 			}
 
-			nfs_solve_linear_system(obj, &mpN);			
-			statenum = 5;
+			//try this hack - store a pointer to the msieve obj so that
+			//we can change a flag on abort in order to interrupt the LA.
+			obj_ptr = obj;
+			nfs_solve_linear_system(obj, fobj->nfs_obj.gmp_n);
+			if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
+				statenum = 7;
+			else
+				statenum = 5;
+			
+			obj_ptr = NULL;
 			break;
 
 		case 5: //case "sqrt":
@@ -432,7 +476,7 @@ void nfs(fact_obj_t *fobj)
 				logprint(logfile, "nfs: commencing msieve sqrt\n");
 				fclose(logfile);
 			}
-			nfs_find_factors(obj, &mpN, &factor_list);
+			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
 			
 			extract_factors(&factor_list,fobj);
 			if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
@@ -535,7 +579,13 @@ void nfs(fact_obj_t *fobj)
 		if (NFS_ABORT)
 			process_done = 1;
 	}
-	
+
+	//reset signal handler to default (no handler).
+	signal(SIGINT,NULL);
+	free(nfs_logfile);
+	free(nfs_datafile);
+	free(nfs_fbfile);
+
 	return;
 }
 
