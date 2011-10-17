@@ -36,8 +36,7 @@ void SIQS(fact_obj_t *fobj)
 	//the input number to this function.  a copy in different memory
 	//will also be made, and modified by a multiplier.  don't confuse
 	//these two.
-	//input expected in fobj->qs_obj->gmp_n
-	z tmp1, tmp2;
+	//input expected in fobj->qs_obj->gmp_n	
 
 	//thread data holds all data needed during sieving
 	thread_sievedata_t *thread_data;		//an array of thread data objects
@@ -138,10 +137,6 @@ void SIQS(fact_obj_t *fobj)
 		count_polys_using_slice[i] = 0;
 		average_primes_per_slice[i] = 0;
 	}*/
-
-	//init locals
-	zInit(&tmp1);
-	zInit(&tmp2);
 
 	//fill in the factorization object
 	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
@@ -529,13 +524,7 @@ void SIQS(fact_obj_t *fobj)
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-	qs_savefile_close(&static_conf->obj->qs_obj.savefile);	
-
-	//for fun, compute the total number of locations sieved over
-	sp2z(static_conf->tot_poly,&tmp1);					//total number of polys
-	zShortMul(&tmp1,static_conf->num_blocks,&tmp1);	//number of blocks
-	zShiftLeft(&tmp1,&tmp1,1);			//pos and neg sides
-	zShiftLeft(&tmp1,&tmp1,BLOCKBITS);	//sieve locations per block
+	qs_savefile_close(&static_conf->obj->qs_obj.savefile);		
 	
 	update_final(static_conf);
 
@@ -545,7 +534,7 @@ void SIQS(fact_obj_t *fobj)
 	//we don't need the poly_a_list anymore... free it so the other routines
 	//can use it
 	for (i=0;i<static_conf->total_poly_a + 1;i++)
-		zFree(&static_conf->poly_a_list[i]);
+		mpz_clear(static_conf->poly_a_list[i]);
 	free(static_conf->poly_a_list);
 	
 	gettimeofday (&myTVend, NULL);
@@ -573,9 +562,9 @@ void SIQS(fact_obj_t *fobj)
 	
 	//initialize the b list for the current a.  qs_filter_relations
 	//will change this as needed.
-	static_conf->curr_b = (z *)malloc(2 * sizeof(z));
+	static_conf->curr_b = (mpz_t *)malloc(2 * sizeof(mpz_t));
 	for (i = 0; i < 2; i++)
-		zInit(&static_conf->curr_b[i]);
+		mpz_init(static_conf->curr_b[i]);
 	static_conf->bpoly_alloc = 2;
 
 	//load and filter relations and polys.
@@ -597,7 +586,7 @@ void SIQS(fact_obj_t *fobj)
 	if (bitfield != NULL && num_cycles > 0) 
 	{
 	
-		yafu_find_factors(static_conf->obj, &static_conf->n, static_conf->factor_base->list, 
+		yafu_find_factors(static_conf->obj, static_conf->n, static_conf->factor_base->list, 
 			static_conf->factor_base->B, cycle_list, num_cycles, 
 			relation_list, bitfield, static_conf->multiplier, 
 			static_conf->poly_a_list, static_conf->poly_list, 
@@ -657,8 +646,6 @@ done:
 	free(thread_data);
     free(thread_queue);
     free(threads_waiting);
-	zFree(&tmp1);
-	zFree(&tmp2);
 
 #if defined(WIN32) || defined(_WIN64)
 	if (THREADS > 1)
@@ -919,7 +906,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	char buf[1024];
 
 	//save the A value
-	sprintf(buf,"A %s\n",z2hexstr(&dconf->curr_poly->poly_a,&gstr1));
+	gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
 	qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 
 	//save the data and merge into master cycle structure
@@ -980,7 +967,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		//no relations found, get ready for new factorization
 		//we'll be writing to the savefile as we go, so get it ready
 		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
-		sprintf(buf,"N %s\n",z2hexstr(&sconf->n,&gstr1));
+		gmp_sprintf(buf,"N 0x%Zx\n", sconf->n);
 		qs_savefile_write_line(&obj->qs_obj.savefile,buf);
 		qs_savefile_flush(&obj->qs_obj.savefile);
 		qs_savefile_close(&obj->qs_obj.savefile);
@@ -1011,7 +998,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		}
 		printf("sieve interval: %d blocks of size %d\n",
 			sconf->num_blocks,BLOCKSIZE);
-		printf("polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
+		printf("polynomial A has ~ %d factors\n", (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
 		printf("using multiplier of %u\n",sconf->multiplier);
 		printf("using SPV correction of %d bits, starting at offset %d\n",
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
@@ -1106,7 +1093,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		}
 		logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
 			sconf->num_blocks,BLOCKSIZE);
-		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n",zBits(&sconf->target_a)/11);
+		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n", 
+			mpz_sizeinbase(sconf->target_a, 2) / 11);
 		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
 		logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
@@ -1176,11 +1164,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//workspace bigints
-	zInit(&dconf->qstmp1);
-	zInit(&dconf->qstmp2);
-	zInit(&dconf->qstmp3);
-	zInit(&dconf->qstmp4);
-	zInit32(&dconf->qstmp32);
 	mpz_init2(dconf->gmptmp1, sconf->bits);
 	mpz_init2(dconf->gmptmp2, sconf->bits);
 
@@ -1188,9 +1171,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	//allocate a polynomial structure which will hold the current
 	//set of polynomial coefficients (a,b,c) and other info
 	dconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
-	zInit(&dconf->curr_poly->poly_a);
-	zInit(&dconf->curr_poly->poly_b);
-	zInit(&dconf->curr_poly->poly_c);
 	mpz_init(dconf->curr_poly->mpz_poly_a);
 	mpz_init(dconf->curr_poly->mpz_poly_b);
 	mpz_init(dconf->curr_poly->mpz_poly_c);
@@ -1199,8 +1179,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
 	if (VFLAG > 2)
 	{
-		memsize = dconf->curr_poly->poly_a.alloc * sizeof(fp_digit) * 3;
-		memsize += MAX_A_FACTORS*sizeof(int);
+		memsize = MAX_A_FACTORS * sizeof(int);
 		memsize += 65536 * sizeof(char);
 		memsize += 65536 * sizeof(char);
 		printf("\tcurr_poly structure: %d bytes\n",memsize);
@@ -1354,15 +1333,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//allocate the Bl array, space for MAX_Bl bigint numbers
-	dconf->Bl = (z *)malloc(MAX_A_FACTORS * sizeof(z));
+	dconf->Bl = (mpz_t *)malloc(MAX_A_FACTORS * sizeof(mpz_t));
 	for (i=0;i<MAX_A_FACTORS;i++)
-		zInit(&dconf->Bl[i]);
-
-	if (VFLAG > 2)
-	{
-		memsize = MAX_A_FACTORS * dconf->Bl[0].alloc * sizeof(fp_digit);
-		printf("\tBl data: %d bytes\n",memsize);
-	}
+		mpz_init(dconf->Bl[i]);
 
 	//copy the unchanging part to the sieving factor bases
 	for (i = 2; i < sconf->factor_base->med_B; i++)
@@ -1503,16 +1476,11 @@ int siqs_static_init(static_conf_t *sconf)
 	uint32 i, memsize;
 	uint32 closnuf;
 	double sum, avg, sd;
-	z tmp1, tmp2;
 
 	if (VFLAG > 2)
 	{
 		printf("static memory usage:\n");
 	}
-
-	//local bigints
-	zInit(&tmp1);
-	zInit(&tmp2);
 
 	//default parameters
 	sconf->fudge_factor = 1.3;
@@ -1526,12 +1494,12 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->factor_base = (fb_list *)malloc(sizeof(fb_list));
 
 	//allocate space for a copy of input number in the job structure
-	zInit(&sconf->n);
-	gmp2mp(obj->qs_obj.gmp_n, &sconf->n);
+	mpz_init(sconf->n); //zInit(&sconf->n);
+	mpz_set(sconf->n, obj->qs_obj.gmp_n);
 
 	//initialize some constants
-	zInit(&sconf->sqrt_n);
-	zInit(&sconf->target_a);
+	mpz_init(sconf->sqrt_n);
+	mpz_init(sconf->target_a);
 
 	//initialize the bookkeeping for tracking partial relations
 	sconf->components = 0;
@@ -1648,17 +1616,15 @@ int siqs_static_init(static_conf_t *sconf)
 		}
 
 		//find multiplier
-		sconf->multiplier = (uint32)choose_multiplier_siqs(sconf->factor_base->B, &sconf->n);
-
-		zShortMul(&sconf->n,sconf->multiplier,&tmp1);
-		zCopy(&tmp1,&sconf->n);
+		sconf->multiplier = (uint32)choose_multiplier_siqs(sconf->factor_base->B, sconf->n);
+		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
 
 		//sconf holds n*mul, so update its digit count and number of bits
-		sconf->digits_n = ndigits(&sconf->n);
-		sconf->bits = zBits(&sconf->n);
+		sconf->digits_n = mpz_sizeinbase(sconf->n, 10);
+		sconf->bits = mpz_sizeinbase(sconf->n, 2);
 
 		//find sqrt_n
-		zNroot(&sconf->n,&sconf->sqrt_n,2);
+		mpz_sqrt(sconf->sqrt_n, sconf->n);
 
 		//construct the factor base - divide out any primes which 
 		//factor n other than mul
@@ -1677,7 +1643,7 @@ int siqs_static_init(static_conf_t *sconf)
 
 			//and remove the multiplier we may have added, so that
 			//we can try again to build a factor base.
-			zShortDiv(&sconf->n,sconf->multiplier,&sconf->n);
+			mpz_tdiv_q_ui(sconf->n, sconf->n, sconf->multiplier);
 			free(sconf->modsqrt_array);
 			align_free(sconf->factor_base->list->prime);
 			align_free(sconf->factor_base->list->small_inv);
@@ -1884,14 +1850,14 @@ int siqs_static_init(static_conf_t *sconf)
 	}
 
 	//'a' values should be as close as possible to sqrt(2n)/M, 
-	zShiftLeft(&tmp1,&sconf->n,1);
-	zNroot(&tmp1,&tmp2,2);
-	zShortDiv(&tmp2,sconf->sieve_interval,&sconf->target_a);
+	mpz_mul_2exp(sconf->target_a, sconf->n, 1); //zShiftLeft(&tmp1,&sconf->n,1);
+	mpz_sqrt(sconf->target_a, sconf->target_a); //zNroot(&tmp1,&tmp2,2);
+	mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval); 
 
 	//compute the number of bits in M/2*sqrt(N/2), the approximate value
 	//of residues in the sieve interval.  Then subtract some slack.
 	//sieve locations greater than this are worthy of trial dividing
-	closnuf = (uint8)(double)((zBits(&sconf->n) - 1)/2);
+	closnuf = (uint8)(double)((sconf->bits - 1)/2);
 	closnuf += (uint8)(log((double)sconf->sieve_interval/2)/log(2.0));
 	closnuf -= (uint8)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
 	
@@ -1970,11 +1936,8 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->tf_closnuf = closnuf;
 
 	//needed during filtering
-	zInit(&sconf->curr_a);
+	mpz_init(sconf->curr_a);
 	sconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
-	zInit(&sconf->curr_poly->poly_a);
-	zInit(&sconf->curr_poly->poly_b);
-	zInit(&sconf->curr_poly->poly_c);
 	mpz_init2(sconf->curr_poly->mpz_poly_a, sconf->bits);
 	mpz_init2(sconf->curr_poly->mpz_poly_b, sconf->bits);
 	mpz_init2(sconf->curr_poly->mpz_poly_c, sconf->bits);
@@ -1983,7 +1946,7 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
 
 	//initialize a list of all poly_a values used 
-	sconf->poly_a_list = (z *)malloc(sizeof(z));
+	sconf->poly_a_list = (mpz_t *)malloc(sizeof(mpz_t));
 
 	//compute how often to check our list of partial relations and update the gui.
 	sconf->check_inc = sconf->factor_base->B/10;
@@ -2018,8 +1981,6 @@ int siqs_static_init(static_conf_t *sconf)
 	//no factors so far...
 	sconf->factor_list.num_factors = 0;
 
-	zFree(&tmp1);
-	zFree(&tmp2);
 	return 0;
 }
 
@@ -2030,7 +1991,7 @@ int update_check(static_conf_t *sconf)
 	//this happens one of two ways, either we have found more than a 
 	//certain amount of relations since the last time we checked, or if
 	//a certain amount of time has elapsed.
-	z tmp1, *qstmp1;
+	mpz_t tmp1;
 	struct timeval update_stop;
 	TIME_DIFF *	difference;
 	uint32 num_full = sconf->num_relations;
@@ -2038,12 +1999,11 @@ int update_check(static_conf_t *sconf)
 	uint32 check_inc = sconf->check_inc;
 	double update_time = sconf->update_time;
 	double t_update;
-	int tot_poly = sconf->tot_poly, i;
+	int i;
 	fb_list *fb = sconf->factor_base;
 	int retcode = 0;
 
-	zInit(&tmp1);
-	qstmp1 = &tmp1;
+	mpz_init(tmp1);
 
 	gettimeofday(&update_stop, NULL);
 	difference = my_difftime (&sconf->update_start, &update_stop);
@@ -2055,15 +2015,16 @@ int update_check(static_conf_t *sconf)
 		//watch for an abort
 		if (SIQS_ABORT)
 		{
-			sp2z(tot_poly,qstmp1);									
-			zShortMul(qstmp1,sconf->num_blocks,qstmp1);		
-			zShiftLeft(qstmp1,qstmp1,1);							
-			zShiftLeft(qstmp1,qstmp1,BLOCKBITS);				
+			//for fun, compute the total number of locations sieved over
+			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
+			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
+			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
+			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-			printf("trial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(qstmp1,&gstr1));
+			gmp_printf("trial division touched %d sieve locations out of %Zd\n",
+				sconf->num, tmp1);
 			fflush(stdout);
 			fflush(stderr);
 
@@ -2075,15 +2036,15 @@ int update_check(static_conf_t *sconf)
 			((num_full + sconf->num_cycles) > sconf->obj->qs_obj.gbl_override_rel))
 		{
 			printf("\nMax specified relations found\n");
-			sp2z(tot_poly,qstmp1);									
-			zShortMul(qstmp1,sconf->num_blocks,qstmp1);		
-			zShiftLeft(qstmp1,qstmp1,1);							
-			zShiftLeft(qstmp1,qstmp1,BLOCKBITS);	
+			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
+			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
+			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
+			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-			printf("trial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(qstmp1,&gstr1));
+			gmp_printf("trial division touched %d sieve locations out of %Zd\n",
+				sconf->num, tmp1);
 			fflush(stdout);
 			fflush(stderr);
 			
@@ -2099,15 +2060,15 @@ int update_check(static_conf_t *sconf)
 		{
 			printf("\nMax specified time limit reached\n");
 
-			sp2z(tot_poly,qstmp1);									
-			zShortMul(qstmp1,sconf->num_blocks,qstmp1);		
-			zShiftLeft(qstmp1,qstmp1,1);							
-			zShiftLeft(qstmp1,qstmp1,BLOCKBITS);				
+			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
+			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
+			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
+			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block				
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
-			printf("trial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(qstmp1,&gstr1));
+			gmp_printf("trial division touched %d sieve locations out of %Zd\n",
+				sconf->num, tmp1);
 			fflush(stdout);
 			fflush(stderr);
 			
@@ -2154,7 +2115,7 @@ int update_check(static_conf_t *sconf)
 		if (sconf->num_r >= fb->B + sconf->num_extra_relations) 
 		{
 			//we've got enough total relations to stop
-			zFree(&tmp1);
+			mpz_clear(tmp1);
 			return 1;
 		}
 		else
@@ -2187,30 +2148,33 @@ int update_check(static_conf_t *sconf)
 		sconf->last_numpartial = sconf->num_cycles + sconf->components - sconf->vertices;		
 	}
 
-	zFree(&tmp1);
+	mpz_clear(tmp1);
 	return retcode;
 }
 
 int update_final(static_conf_t *sconf)
 {
 	FILE *sieve_log = sconf->obj->logfile;
-	z qstmp1;
+	mpz_t tmp1;
 	struct timeval myTVend;
 	TIME_DIFF *	difference;
 
-	zInit(&qstmp1);
+	mpz_init(tmp1);
 
 	if (VFLAG >= 0)
 	{
-		sp2z(sconf->tot_poly,&qstmp1);									
-		zShortMul(&qstmp1,sconf->num_blocks,&qstmp1);		
-		zShiftLeft(&qstmp1,&qstmp1,1);							
-		zShiftLeft(&qstmp1,&qstmp1,BLOCKBITS);
+		mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
+		mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
+		mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
+		mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
 
 		if (VFLAG > 0)
 		{
-			printf("\n\nsieving required %d total polynomials\ntrial division touched %d sieve locations out of %s\n",
-				sconf->tot_poly, sconf->num,z2decstr(&qstmp1,&gstr1));
+			printf("\n\nsieving required %d total polynomials\n",
+				sconf->tot_poly);
+			gmp_printf("trial division touched %d sieve locations out of %Zd\n",
+				sconf->num, tmp1);
+
 			if (sconf->use_dlp)
 				printf("squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
 					sconf->failed_squfof, sconf->attempted_squfof, 
@@ -2221,7 +2185,7 @@ int update_final(static_conf_t *sconf)
 
 		if (sieve_log != NULL)
 			logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(&qstmp1,&gstr1));
+				sconf->num, mpz_get_str(gstr1.s, 10, tmp1));
 		if (sconf->use_dlp)
 				logprint(sieve_log, "squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
 					sconf->failed_squfof, sconf->attempted_squfof, 
@@ -2296,7 +2260,7 @@ int update_final(static_conf_t *sconf)
 			(double)(sconf->num_relations + sconf->num_cycles) /
 			((double)difference->secs + (double)difference->usecs / 1000000));
 		logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-				sconf->num,z2decstr(&qstmp1,&gstr1));
+				sconf->num, mpz_get_str(gstr1.s, 10, tmp1));
 		logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");
 	}
 
@@ -2307,7 +2271,7 @@ int update_final(static_conf_t *sconf)
 		fflush(sieve_log);
 
 	//sieve_log = fopen(flogname,"a");
-	zFree(&qstmp1);
+	mpz_clear(tmp1);
 	free(difference);
 
 	return 0;
@@ -2359,21 +2323,13 @@ int free_sieve(dynamic_conf_t *dconf)
 	mpz_clear(dconf->curr_poly->mpz_poly_a);
 	mpz_clear(dconf->curr_poly->mpz_poly_b);
 	mpz_clear(dconf->curr_poly->mpz_poly_c);
-	zFree(&dconf->curr_poly->poly_a);
-	zFree(&dconf->curr_poly->poly_b);
-	zFree(&dconf->curr_poly->poly_c);
 	free(dconf->curr_poly);
 
 	for (i=0;i<MAX_A_FACTORS;i++)
-		zFree(&dconf->Bl[i]);
+		mpz_clear(dconf->Bl[i]);
 	free(dconf->Bl);
 
 	//workspace bigints
-	zFree(&dconf->qstmp1);
-	zFree(&dconf->qstmp2);
-	zFree(&dconf->qstmp3);
-	zFree(&dconf->qstmp4);
-	zFree32(&dconf->qstmp32);
 	mpz_clear(dconf->gmptmp1);
 	mpz_clear(dconf->gmptmp2);
 
@@ -2391,11 +2347,6 @@ int free_sieve(dynamic_conf_t *dconf)
 	align_free(dconf->corrections);
 #endif
 
-	//free post-processed relations
-	//for (i=0; (uint32)i < dconf->buffered_rels; i++)
-	//	free(dconf->relation_buf[i].fb_offsets);
-	//free(dconf->relation_buf);
-
 	return 0;
 }
 
@@ -2407,7 +2358,7 @@ void free_filter_vars(static_conf_t *sconf)
 	//generated during sieving for duplication, then used again during
 	//filtering
 	for (i=0; (uint32)i < sconf->total_poly_a; i++)
-		zFree(&sconf->poly_a_list[i]);
+		mpz_clear(sconf->poly_a_list[i]);
 	free(sconf->poly_a_list);
 
 	//cycle table stuff created at the beginning of the factorization
@@ -2418,14 +2369,14 @@ void free_filter_vars(static_conf_t *sconf)
 	if (sconf->curr_b != NULL)
 	{
 		for (i=0;(uint32)i < sconf->bpoly_alloc;i++)
-			zFree(&sconf->curr_b[i]);
+			mpz_clear(sconf->curr_b[i]);
 		free(sconf->curr_b);
 	}
 
 	if (sconf->poly_list != NULL)
 	{
 		for (i=0;(uint32)i < sconf->poly_list_alloc;i++)
-			zFree(&sconf->poly_list[i].b);
+			mpz_clear(sconf->poly_list[i].b);
 		free(sconf->poly_list);
 	}
 
@@ -2453,23 +2404,16 @@ void free_filter_vars(static_conf_t *sconf)
 int free_siqs(static_conf_t *sconf)
 {
 	uint32 i;
-	z tmp1, tmp2;
-
-	zInit(&tmp1);
-	zInit(&tmp2);
 
 	//current poly info used during filtering
 	free(sconf->curr_poly->gray);
 	free(sconf->curr_poly->nu);
 	free(sconf->curr_poly->qlisort);
-	zFree(&sconf->curr_poly->poly_a);
-	zFree(&sconf->curr_poly->poly_b);
-	zFree(&sconf->curr_poly->poly_c);
 	mpz_clear(sconf->curr_poly->mpz_poly_a);
 	mpz_clear(sconf->curr_poly->mpz_poly_b);
 	mpz_clear(sconf->curr_poly->mpz_poly_c);
 	free(sconf->curr_poly);
-	zFree(&sconf->curr_a);	
+	mpz_clear(sconf->curr_a);	
 	free(sconf->modsqrt_array);
 	align_free(sconf->factor_base->list->prime);
 	align_free(sconf->factor_base->list->small_inv);
@@ -2484,8 +2428,6 @@ int free_siqs(static_conf_t *sconf)
 	free(sconf->factor_base);
 
 	//while freeing the list of factors, divide them out of the input
-	zShortDiv(&sconf->n,sconf->multiplier,&sconf->n);
-	zCopy(&sconf->n,&tmp1);
 	for (i=0;i<sconf->factor_list.num_factors;i++)
 	{
 		mpz_t tmp;
@@ -2504,11 +2446,9 @@ int free_siqs(static_conf_t *sconf)
 		free(sconf->factor_list.final_factors[i]);
 	}
 
-	zFree(&sconf->sqrt_n);
-	zFree(&sconf->n);
-	zFree(&sconf->target_a);
-	zFree(&tmp1);
-	zFree(&tmp2);
+	mpz_clear(sconf->sqrt_n);
+	mpz_clear(sconf->n);
+	mpz_clear(sconf->target_a);
 
 	//free(sconf->obj->qs_obj.savefile.name);
 	qs_savefile_free(&sconf->obj->qs_obj.savefile);
@@ -2516,7 +2456,7 @@ int free_siqs(static_conf_t *sconf)
 	return 0;
 }
 
-uint8 choose_multiplier_siqs(uint32 B, z *n) 
+uint8 choose_multiplier_siqs(uint32 B, mpz_t n) 
 {
 	uint32 i, j;
 	uint32 num_primes = MIN(2 * B, NUM_TEST_PRIMES);
@@ -2535,7 +2475,7 @@ uint8 choose_multiplier_siqs(uint32 B, z *n)
 
 	for (i = 0; i < NUM_MULTIPLIERS; i++) {
 		uint8 curr_mult = mult_list[i];
-		uint8 knmod8 = (uint8)((curr_mult * n->val[0]) % 8);
+		uint8 knmod8 = (uint8)((curr_mult * mpz_get_ui(n)) % 8);
 		double logmult = log((double)curr_mult);
 
 		/* only consider multipliers k such than
@@ -2566,7 +2506,7 @@ uint8 choose_multiplier_siqs(uint32 B, z *n)
 	for (i = 1; i < num_primes; i++) {
 		uint32 prime = (uint32)spSOEprimes[i];
 		double contrib = log((double)prime) / (prime - 1);
-		uint32 modp = (uint32)zShortMod(n, prime);
+		uint32 modp = (uint32)mpz_tdiv_ui(n, prime);
 
 		for (j = 0; j < num_multipliers; j++) {
 			uint8 curr_mult = mult_list[j];

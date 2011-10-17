@@ -153,7 +153,8 @@ void zFree32(z32 *num)
 
 void zClear(z *num)
 {
-	memset(num->val, 0, num->alloc * sizeof(fp_digit));
+	if (num->val != NULL)
+		memset(num->val, 0, num->alloc * sizeof(fp_digit));
 	num->size = 1;
 	num->type = UNKNOWN;
 	return;
@@ -187,22 +188,8 @@ char *z2decstr(z *n, str_t *s)
 	s->nchars = 1;
 	zInit(&a);
 
-	/*
-	printf("in z2decstr\n 64 bit hex words: ");
-	for (i=n->size-1;i>=0;i--)
-		printf("%" PRIx64 " ",n->val[i]);
-	printf("\n");
-	*/
-
 	//printf("starting hex 2 dec conversion\n");
 	zHex2Dec(n,&a);
-
-	/*
-	printf("64 bit dec words: ");
-	for (i=a.size-1;i>=0;i--)
-		printf("%" PRIu64 " ",a.val[i]);
-	printf("\n");
-	*/
 
 	sza = abs(a.size);
 
@@ -765,31 +752,6 @@ int ndigits(z *n)
 
 	zFree(&tmp);
 	return nd_est;
-}
-
-int ndigits_old(z *n)
-{
-	int i=1;
-	z nn,tmp;
-	fp_digit r;
-
-	//can get within one digit using zBits and logs, which would
-	//be tons faster.  Any way to 'correct' the +/- 1 error?
-	zInit(&nn);
-	zInit(&tmp);
-	zCopy(n,&nn);
-	zCopy(&nn,&tmp);
-	while (1)
-	{
-		zCopy(&tmp,&nn);
-		r = zShortDiv(&nn,10,&tmp);
-		if (zCompare(&tmp,&zZero) == 0)
-			break;
-		i++;
-	}
-	zFree(&nn);
-	zFree(&tmp);
-	return i;
 }
 
 int zCompare(z *u, z *v)

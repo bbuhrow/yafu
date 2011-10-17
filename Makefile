@@ -80,23 +80,6 @@ CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	
 x86: CFLAGS += -m32
 
-#---------------------------Tom's Fast Math file lists -------------------------
-TFM_SRCS = \
-	arith/tfm/fp_mul_comba.c \
-	arith/tfm/fp_mul_comba_small_set.c \
-	arith/tfm/fp_sqr_comba.c \
-	arith/tfm/fp_sqr_comba_small_set.c \
-	arith/tfm/fp_sqr_comba_generic.c \
-	arith/tfm/fp_2expt.c \
-	arith/tfm/fp_cmp_mag.c \
-	arith/tfm/fp_mont_small.c \
-	arith/tfm/fp_montgomery_calc_normalization.c \
-	arith/tfm/fp_montgomery_reduce.c \
-	arith/tfm/fp_montgomery_setup.c \
-	arith/tfm/fp_mul_2.c \
-	arith/tfm/s_fp_sub.c
-	
-TFM_OBJS = $(TFM_SRCS:.c=.o)
 	
 #---------------------------Msieve file lists -------------------------
 MSIEVE_SRCS = \
@@ -167,7 +150,6 @@ HEAD = include/yafu.h  \
 	include/qs.h  \
 	include/lanczos.h  \
 	include/types.h  \
-	include/tfm.h  \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
@@ -192,15 +174,15 @@ all:
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
-x86: $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) -m32 $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
+x86: $(MSIEVE_OBJS) $(YAFU_OBJS)
+	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
 	
 	
-x86_64: $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) $(CFLAGS) $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
+x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
 	
 clean:
-	rm -f $(TFM_OBJS) $(MSIEVE_OBJS) $(YAFU_OBJS) 
+	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) 
 	
 #---------------------------Build Rules -------------------------
 

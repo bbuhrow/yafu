@@ -220,10 +220,9 @@ typedef struct
 	uint32 num_factors;			//number of factor base factors in the factorization of Q
 } siqs_r;
 
-
 typedef struct poly_t {
 	uint32 a_idx;				// offset into a list of 'a' values 
-	z b;						// the MPQS 'b' value 
+	mpz_t b;					// the MPQS 'b' value 
 } poly_t;
 
 typedef struct
@@ -280,9 +279,6 @@ typedef struct
 
 typedef struct
 {
-	z poly_a;
-	z poly_b;
-	z poly_c;
 	mpz_t mpz_poly_a;
 	mpz_t mpz_poly_b;
 	mpz_t mpz_poly_c;
@@ -319,16 +315,6 @@ typedef struct {
 	uint32 count;
 } qs_cycle_t;
 
-typedef struct
-{
-	int num_apoly;
-	int apoly_alloc;
-	int polys_alloc;
-	int tot_poly;
-	z *apoly;
-	poly_t *polys;
-} poly_info_t;
-
 typedef struct {
 	fact_obj_t *obj;			// passed in with info from 'outside'
 
@@ -341,12 +327,12 @@ typedef struct {
 
 	uint32 *modsqrt_array;		// a square root of n mod each FB prime
 	uint32 multiplier;			// small multiplier for n (may be composite) 
-	z n;						// the number to factor (scaled by multiplier)
-	z sqrt_n;					// sqrt of n
+	mpz_t n;					// the number to factor (scaled by multiplier)
+	mpz_t sqrt_n;				// sqrt of n
 	fb_list *factor_base;       // the factor base to use
 	uint32 num_sieve_blocks;	// number of sieve blocks in sieving interval
 	uint32 sieve_small_fb_start;// starting FB offset for sieving
-	z target_a;					// optimal value of 'a' 
+	mpz_t target_a;				// optimal value of 'a' 
 
 	double fudge_factor;		// used to compute the closnuf value
 	uint32 large_mult;			// used to compute the large prime cutoff
@@ -422,17 +408,17 @@ typedef struct {
 
 	//these are used during linear algebra and sqrt root
 	uint32 total_poly_a;		// total number of polynomial 'a' values 
-	z *poly_a_list;				// list of 'a' values for MPQS polys 
+	mpz_t *poly_a_list;			// list of 'a' values for MPQS polys 
 	poly_t *poly_list;			// list of MPQS polynomials 
 	uint32 poly_list_alloc; 
 	uint32 apoly_alloc;
 
 	//these are used during filtering
-	z curr_a;	  				// the current 'a' value in filtering
-	z *curr_b;					// list of all the 'b' values for that 'a' 
+	mpz_t curr_a;	  			// the current 'a' value in filtering
+	mpz_t *curr_b;				// list of all the 'b' values for that 'a' 
 	uint32 bpoly_alloc;			// size of allocated curr_b
 	siqs_r *relation_list;		// list of relations	
-	qs_la_col_t *cycle_list;		/* cycles derived from relations */
+	qs_la_col_t *cycle_list;	// cycles derived from relations
 	siqs_poly *curr_poly;		// current poly during filtering
 
 } static_conf_t;
@@ -455,11 +441,6 @@ typedef struct {
 	int *rootupdates;			// updates to apply to roots of primes
 	
 	//scratch
-	z qstmp1;					// workspace bigints
-	z qstmp2;
-	z qstmp3;
-	z qstmp4;
-	z32 qstmp32;
 	mpz_t gmptmp1;
 	mpz_t gmptmp2;
 
@@ -479,7 +460,7 @@ typedef struct {
 
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving	
-	z *Bl;						// array of Bl values used to compute new B polys
+	mpz_t *Bl;					// array of Bl values used to compute new B polys
 	uint32 tot_poly, numB, maxB;// polynomial counters
 
 	//storage of relations found during sieving
@@ -599,9 +580,9 @@ void batch_roots(int *rootupdates, int *firstroots1, int *firstroots2,
 
 //data I/O
 uint32 process_poly_a(static_conf_t *sconf);
-int get_a_offsets(fb_list *fb, siqs_poly *poly, z *tmp);
+int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp);
 void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB);
-int process_rel(char *substr, fb_list *fb, z *n,
+int process_rel(char *substr, fb_list *fb, mpz_t n,
 				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel);
 int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf);
 uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
@@ -618,7 +599,7 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 int yafu_sort_cycles(const void *x, const void *y);
 
 //aux
-uint8 choose_multiplier_siqs(uint32 B, z *n);
+uint8 choose_multiplier_siqs(uint32 B, mpz_t n);
 int siqs_static_init(static_conf_t *sconf);
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf);
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf);
@@ -628,7 +609,6 @@ void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);
 void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb);
 void siqsexit(int sig);
-void qs_save(char *buf, FILE *data, int force);
 int qcomp_siqs(const void *x, const void *y);
 uint32 make_fb_siqs(static_conf_t *sconf);
 void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB);
@@ -636,13 +616,11 @@ void siqstune(int bits);
 
 //test routines
 int check_specialcase(FILE *sieve_log, fact_obj_t *fobj);
-void test_polya(fb_list *fb, z *n, z *target_a);
-int checkpoly_siqs(siqs_poly *poly, z *n);
-int checkBl(z *n, uint32 *qli, fb_list *fb, z *Bl, int s);
-void test_polya(fb_list *fb, z *n, z *target_a);
-int check_relation(z *a, z *b, siqs_r *r, fb_list *fb, z *n);
+void test_polya(fb_list *fb, mpz_t n, mpz_t target_a);
+int checkpoly_siqs(siqs_poly *poly, mpz_t n);
+int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s);
+int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n);
 void siqsbench(fact_obj_t *fobj);
-void asm_profile(fact_obj_t *fobj);
 
 /*--------------LINEAR ALGEBRA RELATED DECLARATIONS ---------------------*/
 
@@ -697,16 +675,16 @@ void qs_free_cycle_list(qs_la_col_t *cycle_list, uint32 num_cycles);
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/
 
-uint32 yafu_find_factors(fact_obj_t *obj, z *n, fb_element_siqs *factor_base, 
+uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n, fb_element_siqs *factor_base, 
 			uint32 fb_size, qs_la_col_t *vectors, 
 			uint32 vsize, siqs_r *relation_list,
 			uint64 *null_vectors, uint32 multiplier,
-			z *a_list, poly_t *poly_list, 
+			mpz_t *a_list, poly_t *poly_list, 
 			factor_list_t *factor_list);
 
 uint32 yafu_factor_list_add(fact_obj_t *obj, 
 			factor_list_t *list, 
-			z *new_factor);
+			mpz_t new_factor);
 
 /*-------------- CYCLE FINDING RELATED DECLARATIONS ------------------------*/
 /* pull out the large primes from a relation read from

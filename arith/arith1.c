@@ -26,7 +26,7 @@ for the operations that require a carry.
 
 #include "yafu.h"
 #include "arith.h"
-#include "tfm.h"
+#include "common.h"
 
 int zBits(z *n)
 {
@@ -37,38 +37,61 @@ int zBits(z *n)
 }
 
 // borrowed from jasonp... 
-double zlog(z *x) {
+double zlog(mpz_t x) {
 
-	uint32 i = x->size;
+#if GMP_LIMB_BITS == 32
+	uint32 i = mpz_size(x);
 
 	switch(i) {
 	case 0:
 		return 0;
 	case 1:
-		return log((double)(x->val[0]));
+		return log((double)((uint32)mpz_get_ui(x)));
 	case 2:
-		return log((double)(x->val[0]) + 
-				MP_RADIX * x->val[1]);
+
+		return log((double)(mpz_getlimbn(x,0)) + 
+			MP_RADIX * mpz_getlimbn(x,1));
+
 	default:
+
 		return 32 * (i-3) * LN2 + 
-			log((double)(x->val[i-3]) + MP_RADIX * (
-		     		((double)x->val[i-2] + MP_RADIX * 
-				x->val[i-1])));
+			log((double)(mpz_getlimbn(x,i-3)) + MP_RADIX * (
+		     	((double)mpz_getlimbn(x,i-2) + MP_RADIX * 
+				mpz_getlimbn(x,i-1))));
+
 	}
+
+#else
+
+	uint32 i = mpz_size(x);
+
+	switch(i) {
+
+	case 0:
+		return 0;
+	case 1:
+		return log((double)((uint32)mpz_get_ui(x)));
+	case 2:
+
+		return log((double)(mpz_getlimbn(x,0)) + 
+			18446744073709551616.0 * mpz_getlimbn(x,1));
+
+	default:
+
+		return 64 * (i-3) * LN2 + 
+			log((double)(mpz_getlimbn(x,i-3)) + 18446744073709551616.0 * (
+		     	((double)mpz_getlimbn(x,i-2) + 18446744073709551616.0 * 
+				mpz_getlimbn(x,i-1))));
+
+	}
+
+
+#endif
+
 }
 
 fp_digit spBits(fp_digit n)
-{
-	/*
-	x = x - ((x >> 1) & 0x5555555555555555);
-    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-    x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
-    x = x + (x >> 8);
-    x = x + (x >> 16);
-    x = x + (x >> 32);
-	*/
-
-	
+{	
 	int i = 0;
 	while (n != 0)
 	{
@@ -326,31 +349,6 @@ void zAdd(z *u, z *v, z *w)
 		}
 	}
 
-
-/*
-	gmp mpn assembly.  remarkably, the above loop performs better
-	on the woodcrest's (overhead in the indirect addressing?)
-
-	k=sw;
-	asm("movq	%4, %%rcx					\n\t"
-		"leaq	(%1,%%rcx,8), %%rsi			\n\t"
-		"leaq	(%2,%%rcx,8), %%rdi			\n\t"
-		"leaq	(%3,%%rcx,8), %%rdx			\n\t"
-		"negq	%%rcx						\n\t"
-		"xorq	%%rax, %%rax				\n\t"
-		"0:									\n\t"
-		"movq (%%rsi,%%rcx,8), %%rax		\n\t"
-		"movq (%%rdi,%%rcx,8), %%rbx		\n\t"
-		"adcq %%rbx, %%rax					\n\t"
-		"movq %%rax, (%%rdx,%%rcx,8)		\n\t"
-		"incq %%rcx							\n\t"
-		"jne 0b								\n\t"
-		"adcq $0, %%rcx						\n\t"
-		"movq %%rcx, %0						\n\t"
-		: "=r"(k)
-		: "r"(u->val), "r"(v->val), "r"(w->val), "0"(k)
-		: "%rax", "%rdx", "%rsi", "%rdi", "%rcx", "rbx", "cc", "memory");
-*/
 	w->size = abs(bigger->size);
 
 	//if there is still a carry, add a digit to w.
@@ -363,9 +361,6 @@ void zAdd(z *u, z *v, z *w)
 	//if the inputs are negative, so is the output.
 	if (u->size < 0)
 		w->size *= -1;
-
-	//for (i=0; i<w->size; i++)
-		//printf("w[%d] = %I64x\n",i,w->val[i]);
 
 	w->type = UNKNOWN;
 
@@ -716,9 +711,6 @@ beginsub:
 	if (w->size == 0)
 		w->size = 1;
 
-	//for (i=0; i<w->size; i++)
-		//printf("w[%d] = %I64x\n",i,w->val[i]);
-
 	w->type = UNKNOWN;
 	return 0;	
 }
@@ -791,8 +783,6 @@ fp_digit zShortDiv(z *u, fp_digit v, z *q)
 
 	q->size = su;
 
-	//printf("size u = %d, u val = %I64u, v = %I64u\n",u->size, u->val[0], v);
-
 	//realloc q if necessary
 	if (q->alloc < (su + 1))
 		zGrow(q,su + LIMB_BLKSZ);
@@ -860,9 +850,6 @@ fp_digit zShortDiv(z *u, fp_digit v, z *q)
 		uu[0] = u->val[i];
 
 		spDivide(q->val + i, &rem, uu, v);
-		//fp_word acc = (fp_word)rem << BITS_PER_DIGIT | (fp_word)u->val[i];
-		//q->val[i] = (fp_digit)(acc / v);
-		//rem = (fp_digit)(acc % v);
 		i--;
 	}
 
@@ -874,13 +861,6 @@ fp_digit zShortDiv(z *u, fp_digit v, z *q)
 
 	if (u->size < 0)
 		q->size *= -1;
-
-	//for (i=0;i<q->size;i++)
-		//printf("q[%d] = %" PRIx64 "\n",i,q->val[i]);
-
-	//printf("r = %" PRIx64 "\n",rem);
-
-	//printf("q = %I64u, r = %I64u\n",q->val[0],rem);
 
 	q->type = UNKNOWN;
 	return rem;
@@ -1422,17 +1402,6 @@ void zDiv(z *u, z *v, z *q, z *r)
 		q->size *= -1;
 		r->size *= -1;
 	}
-	if (r->size < 0)
-	{
-		//r->size *= -1;
-		//zSub(q,r,r);
-	}
-
-	//for (i=0;i<q->size;i++)
-		//printf("q[%d] = %" PRIx64 "\n",i,q->val[i]);
-
-	//for (i=0;i<r->size;i++)
-		//printf("r[%d] = %" PRIx64 "\n",i,r->val[i]);
 
 	q->type = UNKNOWN;
 	r->type = UNKNOWN;
@@ -1474,33 +1443,22 @@ void zMul(z *u, z *v, z *w)
 	//schoolbook multiplication, see knuth TAOCP, vol. 2
 	int su, sv;
 	int signu, signv;
-
-	
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-	//nothing
-#else
 	int i,j;
 	fp_digit k=0;
 	fp_digit *wptr;
 	z tmp;
 	zInit(&tmp);
-#endif
 
 	su = abs(u->size);
 	sv = abs(v->size);
 	signu = u->size < 0;
 	signv = v->size < 0;
 
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-	//nothing
-#else
 
 	if (tmp.alloc < (su+sv))
 		zGrow(&tmp,su+sv);
 
 	zClear(&tmp);
-
-#endif
 
 	if (w->alloc < (su+sv))
 		zGrow(w,su+sv);
@@ -1517,11 +1475,8 @@ void zMul(z *u, z *v, z *w)
 		zShortMul(v,u->val[0],w);
 		if (signu)
 			w->size *= -1;
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-	//nothing
-#else
+
 		zFree(&tmp);
-#endif
 		return;
 	}
 
@@ -1531,24 +1486,10 @@ void zMul(z *u, z *v, z *w)
 		zShortMul(u,v->val[0],w);
 		if (signv)
 			w->size *= -1;
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-	//nothing
-#else
+
 		zFree(&tmp);
-#endif
 		return;
 	}
-
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-	//pad the smaller with zeros
-	if (su > sv)
-		memset(v->val+sv,0,(su-sv) * sizeof(fp_digit));
-	else
-		memset(u->val+su,0,(sv-su) * sizeof(fp_digit));
-
-	//do the comba multiply
-	fp_mul_comba_small(u,v,w);
-#else
 	
 	//for each digit of u
 	for (i=0;i<su;++i)
@@ -1564,8 +1505,6 @@ void zMul(z *u, z *v, z *w)
 	fp_clamp(&tmp);
 	zCopy(&tmp,w);
 	zFree(&tmp);	
-
-#endif
 	
 	//set sign
 	if (signu ^ signv)
@@ -1636,50 +1575,6 @@ void zShortMul(z *u, fp_digit v, z *w)
 
 	return;
 }
-
-#if (defined(TFM_X86_64) || defined(TFM_X86) || defined(TFM_X86_MSVC)) && !defined(ASM_ARITH_DEBUG)
-
-void zSqr(z *x, z *y)
-{
-	//w = x * x
-	int t;
-
-	z *w, tmp;
-
-	if (x == y)
-	{
-		zInit(&tmp);
-		w = &tmp;
-	}
-	else
-		w = y;
-
-	t = abs(x->size);
-
-	//output is always positive
-	w->size = 2*t;
-	
-	//initialize w
-	if (w->alloc < w->size)
-		zGrow(w,w->size);
-
-	//do the comba sqr
-	fp_sqr_comba_small(x,w);
-
-	zCopy(w,y);
-
-	if (y->size == 0)
-		y->size = 1;
-
-	y->type = COMPOSITE;
-
-	if (x == y)
-		zFree(&tmp);
-
-	return;
-}
-
-#else
 
 void zSqr(z *x, z *y)
 {
@@ -1782,8 +1677,6 @@ void zSqr(z *x, z *y)
 
 	return;
 }
-
-#endif
 
 void zNeg(z *u)
 {

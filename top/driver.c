@@ -34,7 +34,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 53
+#define NUMOPTIONS 54
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
-	"pbatch", "ecm_path", "siever"};
+	"pbatch", "ecm_path", "siever", "ncr"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -68,7 +68,7 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,0,
 	1,0,0,1,1,
 	2,2,0,1,0,
-	1,1,1};
+	1,1,1,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1754,6 +1754,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		}
 
 		fobj->nfs_obj.siever = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[53]) == 0)
+	{
+		//argument "ncr".  linear algebra restart flag
+		fobj->nfs_obj.la_restart = 1;
 	}
 	else
 	{

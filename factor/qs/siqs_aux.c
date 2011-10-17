@@ -22,6 +22,7 @@ code to the public domain.
 #include "qs.h"
 #include "soe.h"
 #include "util.h"
+#include "gmp_xface.h"
 
 uint32 make_fb_siqs(static_conf_t *sconf)
 {
@@ -42,7 +43,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 
 	//unpack stuff from static data structure
 	fb_list *fb = sconf->factor_base;
-	z *n = &sconf->n;
+	mpz_ptr n = sconf->n;
 	uint32 mul = sconf->multiplier;
 	uint32 *modsqrt = sconf->modsqrt_array;
 
@@ -61,14 +62,14 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 		}
 
 		prime = (uint32)PRIMES[i];
-		r = (uint32)zShortMod(n,(fp_digit)prime);
+		r = mpz_tdiv_ui(n, prime);
 		if (r == 0)
 		{
 			if (mul % prime != 0)
 			{
 				//prime doesn't divide the multiplier, so
 				//this prime divides the input, divide it out and bail
-				zShortDiv(n,(fp_digit)prime,n);
+				mpz_tdiv_q_ui(n, n, prime);
 				return prime;
 			}
 
@@ -77,7 +78,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			//of two.  just divide its logprime in half.
 			//we also can't find the root using shanks-tonelli, but it will be very small
 			//because the multiplier is very small, so just use brute force.
-			b = (uint32)zShortMod(n,prime);
+			b = mpz_tdiv_ui(n, prime);
 			k=0;
 			while (1)
 			{
@@ -411,36 +412,31 @@ void get_gray_code(siqs_poly *poly)
 }
 
 uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
-				z *new_factor) {
+				mpz_t new_factor) {
 
 	uint32 i, bitsleft;
 	int isnew = 1;
-	z tmpz;
+	mpz_t tmpz;
 
-	zInit(&tmpz);
+	mpz_init(tmpz);
 
 	//look to see if we've already included this one
 	for (i=0; i<list->num_factors; i++)
 	{
-		mp_t2z(&list->final_factors[i]->factor, &tmpz);
-		isnew &= (zCompare(&tmpz,new_factor) != 0);
+		mp_t2gmp(&list->final_factors[i]->factor, tmpz);
+		isnew &= (mpz_cmp(tmpz,new_factor) != 0);
 	}
 
 	if (isnew)
 	{
-		//char buf[32 * MAX_MP_WORDS+1];
 		if (obj->logfile != NULL)
 			logprint(obj->logfile,
-				"prp%d = %s\n",ndigits(new_factor),z2decstr(new_factor,&gstr1));
+				"prp%d = %s\n",mpz_sizeinbase(new_factor, 10),
+				mpz_get_str(gstr1.s, 10, new_factor));
+
 		list->final_factors[list->num_factors] = (final_factor_t *)malloc(
 			sizeof(final_factor_t));
-		z2mp_t(new_factor, &list->final_factors[list->num_factors]->factor);
-		//printf("saving mp_t = ");
-		//mp_print(&list->final_factors[list->num_factors]->factor, 10, stdout, buf);
-		//printf("\n");
-		//zInit(&list->final_factors[list->num_factors]->factor);
-		//zCopy(new_factor,&list->final_factors[list->num_factors]->factor);
-		//list->final_factors[list->num_factors]->type = PRIME;
+		gmp2mp_t(new_factor, &list->final_factors[list->num_factors]->factor);
 		list->num_factors++;
 	}
 
@@ -449,31 +445,12 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 	bitsleft = obj->bits;
 	for (i=0; i<list->num_factors; i++)
 	{
-		mp_t2z(&list->final_factors[i]->factor, &tmpz);
-		bitsleft -= zBits(&tmpz);
+		mp_t2gmp(&list->final_factors[i]->factor, tmpz);
+		bitsleft -= mpz_sizeinbase(tmpz, 2);
 	}
 
-	zFree(&tmpz);
+	mpz_clear(tmpz);
 	return bitsleft;
-}
-
-void qs_save(char *buf, FILE *data, int force)
-{
-	//if the input buf can be fit into the global savebuf, do so.
-	//else, dump savebuf to disk and start a new savebuf with buf
-
-	//int len = strlen(savebuf);
-	//int len_in = strlen(buf);
-
-	if ((savefile_buf_off + strlen(buf) + 1 >= SAVEFILE_BUF_SIZE) || force) {
-		fprintf(data, "%s", savebuf);
-		fflush(data);
-		savefile_buf_off = 0;
-	}
-
-	savefile_buf_off += sprintf(savebuf + savefile_buf_off, "%s", buf);
-	
-	return;
 }
 
 void siqsexit(int sig)

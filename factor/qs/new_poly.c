@@ -71,10 +71,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	//unpack stuff from the job data structure
 	siqs_poly *poly = dconf->curr_poly;
-	z *target_a = &sconf->target_a;
+	mpz_ptr target_a = sconf->target_a;
 	fb_list *fb = sconf->factor_base;
 
-	z tmp, tmp2, tmp3, *poly_a = &poly->poly_a;
+	mpz_t tmp, tmp2, tmp3;
+	mpz_ptr poly_a = poly->mpz_poly_a;
 	int j, *qli = poly->qlisort, *s = &poly->s;
 	uint32 i,randindex = 0, mindiff,a1,poly_low_found=0,target_bits;
 	uint32 potential_a_factor = 0, found_a_factor;
@@ -84,9 +85,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	FILE *sieve_log = sconf->obj->logfile;
 	uint32 upper_polypool_index, lower_polypool_index;
 
-	zInit(&tmp);
-	zInit(&tmp2);
-	zInit(&tmp3);
+	mpz_init(tmp);
+	mpz_init(tmp2);
+	mpz_init(tmp3);
 
 	//determine polypool indexes.  
 	//this really should be done once after generating the factor base
@@ -105,11 +106,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		int doover;
 
 		id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
-		sp2z(fb->list->prime[id],poly_a);
+		mpz_set_ui(poly_a, fb->list->prime[id]);
 		qli[0] = id;
 
 		j=1;
-		while (zCompare(poly_a,target_a) < 0)
+		while (mpz_cmp(poly_a,target_a) < 0)
 		{
 			int k = 0;
 			id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
@@ -127,7 +128,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			if (doover)
 				continue;
 
-			zShortMul(poly_a,fb->list->prime[id],poly_a);
+			mpz_mul_ui(poly_a, poly_a, fb->list->prime[id]); 
+			//zShortMul(poly_a,fb->list->prime[id],poly_a);
 			qli[j++] = id;
 		}
 
@@ -163,7 +165,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		upper_polypool_index = fb->small_B - 1;
 
 		//brute force the poly to be somewhat close to the target
-		target_bits = (uint32)((double)zBits(target_a) * target_mul);
+		target_bits = (uint32)((double)mpz_sizeinbase(target_a, 2) * target_mul);
 		too_close = 10;
 		min_ratio = 1000;
 	}
@@ -177,7 +179,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
 		//sp2z(1,poly_a);
-		zCopy(&zOne,poly_a);
+		mpz_set_ui(poly_a, 1); //zCopy(&zOne,poly_a);
 		*s=0;
 		for (;;)
 		{
@@ -203,7 +205,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			
 			//build up poly_a
-			zShortMul(poly_a,potential_a_factor,poly_a);
+			mpz_mul_ui(poly_a, poly_a, potential_a_factor); //zShortMul(poly_a,potential_a_factor,poly_a);
 #ifdef POLYA_DEBUG
 			printf("afactor %d = %u\n",*s,potential_a_factor);
 #endif
@@ -211,14 +213,14 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			qli[*s] = randindex;
 			*s = *s + 1;
 			//compute how close we are to target_a
-			j = zBits(target_a) - zBits(poly_a);
+			j = mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2);
 			if (j < too_close)
 			{
 				//too close, we want the last factor to be between 15 and 10 bits
 #ifdef POLYA_DEBUG
 				printf("target_a too close for last factor\n");
 #endif
-				zCopy(&zOne,poly_a);
+				mpz_set_ui(poly_a, 1); //zCopy(&zOne,poly_a);
 				*s=0;
 				continue;
 			}
@@ -233,11 +235,12 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		//at this point, poly_a is too small by one factor, find the closest factor
-		zCopy(target_a,&tmp);
-		zDiv(&tmp,poly_a,&tmp2,&tmp3);
+		mpz_set(tmp, target_a); //zCopy(target_a,&tmp);
+		mpz_tdiv_q(tmp2, tmp, poly_a);
+		//zDiv(&tmp,poly_a,&tmp2,&tmp3);
 
 		mindiff = 0xffffffff;
-		a1 = tmp2.val[0];
+		a1 = mpz_get_ui(tmp2);
 		if (a1 < min_ratio)
 		{
 #ifdef POLYA_DEBUG
@@ -286,7 +289,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			continue;
 		}
 
-		zShortMul(poly_a,fb->list->prime[randindex],poly_a);
+		mpz_mul_ui(poly_a, poly_a, fb->list->prime[randindex]); 
+		//zShortMul(poly_a,fb->list->prime[randindex],poly_a);
 #ifdef POLYA_DEBUG
 		printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
 #endif
@@ -295,15 +299,16 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		*s = *s + 1;
 
 		//check if 'close enough'
-		zSub(target_a,poly_a,&tmp);
+		mpz_sub(tmp, target_a, poly_a); //zSub(target_a,poly_a,&tmp);
 
-		if ((uint32)zBits(&tmp) < target_bits)
+		if ((uint32)mpz_sizeinbase(tmp, 2) < target_bits)
 		{ 
 			// if not a duplicate
 			found_a_factor = 0;
 			for (j=0; j< (int)sconf->total_poly_a; j++)
 			{
-				if (zCompare(poly_a,&sconf->poly_a_list[j]) == 0)
+				//if (zCompare(poly_a,&sconf->poly_a_list[j]) == 0)
+				if (mpz_cmp(poly_a,sconf->poly_a_list[j]) == 0)
 				{
 					found_a_factor = 1;
 					break;
@@ -325,7 +330,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 				target_bits++;
 				printf("poly %s is a duplicate of #%d = %s\n",
-					z2decstr(poly_a,&gstr1),j,z2decstr(&sconf->poly_a_list[j],&gstr2));
+					mpz_get_str(gstr1.s, 10, poly_a), j, 
+					mpz_get_str(gstr2.s, 10, sconf->poly_a_list[j]));
 				printf("rejecting duplicate poly_a, new target = %d\n",target_bits);
 				printf("primes in a: ");
 				for (i=0;i<*s;i++)
@@ -347,16 +353,15 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 done:
 
-	zFree(&tmp);
-	zFree(&tmp2);
-	zFree(&tmp3);
+	mpz_clear(tmp);
+	mpz_clear(tmp2);
+	mpz_clear(tmp3);
 
 	//record this a in the list
-	sconf->poly_a_list = (z *)realloc(sconf->poly_a_list,
-		(sconf->total_poly_a + 1) * sizeof(z));
-	zInit(&sconf->poly_a_list[sconf->total_poly_a]);
-	zCopy(poly_a,&sconf->poly_a_list[sconf->total_poly_a]);
-	mp2gmp(poly_a, poly->mpz_poly_a);
+	sconf->poly_a_list = (mpz_t *)realloc(sconf->poly_a_list,
+		(sconf->total_poly_a + 1) * sizeof(mpz_t));
+	mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
+	mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
 
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
@@ -381,12 +386,11 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	siqs_poly *poly = dconf->curr_poly;
 	uint32 *modsqrt = sconf->modsqrt_array;
 	fb_list *fb = sconf->factor_base;
-	z *n = &sconf->n;
+	mpz_ptr n = sconf->n;
 	int i, s = poly->s, *qli = poly->qlisort;
-	z *Bl = dconf->Bl;
 
 	//initialize b
-	zCopy(&zZero,&poly->poly_b);
+	mpz_set_ui(poly->mpz_poly_b, 0);
 
 	for (i=0;i<s;i++)
 	{
@@ -394,8 +398,8 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = modsqrt[qli[i]];
 		root2 = prime - root1; 
 		
-		zShortDiv(&poly->poly_a,(fp_digit)prime,&dconf->qstmp1);
-		amodql = (uint32)zShortMod(&dconf->qstmp1,(fp_digit)prime);
+		mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
+		amodql = (uint32)mpz_tdiv_ui(dconf->gmptmp1,(fp_digit)prime);
 		amodql = modinv_1(amodql,prime);
 
 		//the primes will all be < 65536, so we can multiply safely
@@ -406,38 +410,19 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 			gamma = prime-gamma;
 		
 		//qstmp1 holds a/prime
-		zShortMul(&dconf->qstmp1,(fp_digit)gamma,&Bl[i]);
+		mpz_mul_ui(dconf->Bl[i], dconf->gmptmp1, (fp_digit)gamma);
 
 		//build up b
-		zAdd(&poly->poly_b,&Bl[i],&dconf->qstmp1);
+		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[i]);
+
 		//double Bl (the rest of the code wants it that way)
-		zShiftLeft(&Bl[i],&Bl[i],1);
-		zCopy(&dconf->qstmp1,&poly->poly_b);
+		mpz_mul_2exp(dconf->Bl[i], dconf->Bl[i], 1);
 	}
 
 	//now that we have b, compute c = (b*b - n)/a
-	zSqr(&poly->poly_b,&dconf->qstmp1);
-	zSub(&dconf->qstmp1,n,&dconf->qstmp2);
-	dconf->qstmp2.size *= -1;
-	zDiv(&dconf->qstmp2,&poly->poly_a,&poly->poly_c,&dconf->qstmp1);
-	poly->poly_c.size *= -1;
-	mp2gmp(&poly->poly_b, poly->mpz_poly_b);
-	mp2gmp(&poly->poly_c, poly->mpz_poly_c);
-
-	/*
-	// check the mpz representation
-	// b^2 - c * a = n
-	mpz_mul(dconf->gmptmp1, poly->mpz_poly_c, poly->mpz_poly_a);
-	mpz_mul(dconf->gmptmp2, poly->mpz_poly_b, poly->mpz_poly_b);
-	mpz_sub(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp1);
-	gmp2mp(dconf->gmptmp1, &dconf->qstmp1);
-	if (zCompare(&dconf->qstmp1, &sconf->n) != 0)
-	{
-		printf("mpz poly not correct!\n");
-		printf("%s, %s, %s\n", z2decstr(&poly->poly_a, &gstr1), z2decstr(&poly->poly_b, &gstr2), z2decstr(&poly->poly_c, &gstr3));
-		gmp_printf("%Zd, %Zd, %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
-	}
-	*/
+	mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
 
 	return;
 }
@@ -450,50 +435,20 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 	//where 2^v is the highest power of 2 that divides 2*i
 	//notation of polynomials, here and elsewhere, generally follows
 	//contini's notation
-	z *tmp, *tmp2;
 	uint32 Bnum = dconf->numB;
-	z *Bl = dconf->Bl;
 	siqs_poly *poly = dconf->curr_poly;
-	z *n = &sconf->n;
-
-	tmp = &dconf->qstmp1;
-	tmp2 = &dconf->qstmp2;
+	mpz_ptr n = sconf->n;
 
 	//compute the next b
 	if (poly->gray[Bnum] < 0)
-	{
-		zSub(&poly->poly_b,&Bl[poly->nu[Bnum]-1],tmp2);
-		zCopy(tmp2,&poly->poly_b);
-	}
+		mpz_sub(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[poly->nu[Bnum] - 1]); 
 	else
-	{
-		zAdd(&poly->poly_b,&Bl[poly->nu[Bnum]-1],tmp2);
-		zCopy(tmp2,&poly->poly_b);
-	}
+		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[poly->nu[Bnum] - 1]); 
 	
 	//now that we have b, compute c = (b*b - n)/a
-	zSqr(&poly->poly_b,tmp);
-	zSub(tmp,n,tmp2);
-	tmp2->size *= -1;
-	zDiv(tmp2,&poly->poly_a,&poly->poly_c,tmp);
-	poly->poly_c.size *= -1;
-	mp2gmp(&poly->poly_b, poly->mpz_poly_b);
-	mp2gmp(&poly->poly_c, poly->mpz_poly_c);	
-	
-	// check the mpz representation
-	// b^2 - c * a = n
-	/*
-	mpz_mul(dconf->gmptmp1, poly->mpz_poly_c, poly->mpz_poly_a);
-	mpz_mul(dconf->gmptmp2, poly->mpz_poly_b, poly->mpz_poly_b);
-	mpz_sub(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp1);
-	gmp2mp(dconf->gmptmp1, &dconf->qstmp1);
-	if (zCompare(&dconf->qstmp1, &sconf->n) != 0)
-	{
-		printf("mpz poly not correct!\n");
-		printf("%s, %s, %s\n", z2decstr(&poly->poly_a, &gstr1), z2decstr(&poly->poly_b, &gstr2), z2decstr(&poly->poly_c, &gstr3));
-		gmp_printf("%Zd, %Zd, %Zd\n", poly->mpz_poly_a, poly->mpz_poly_b, poly->mpz_poly_c);
-	}
-	*/
+	mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
 
 	return;
 }

@@ -64,17 +64,13 @@ void zShortAdd(z *u, fp_digit v, z *w);
 int zSub(z *u, z *v, z *w);
 int zSubb(z *u, z *v, z *y);
 void zShortSub(z *u, fp_digit v, z *w);
+
 //mul
-void zKaratsuba(z *u, z *v, z *w);
-void zKaratsuba2(z *u, z *v, z *w);
-void zKaraR(uint32 *u, uint32 *v, uint32 *w, int sz);
 void zMul(z *u, z *v, z *w);
 void zSqr(z *x, z *w);
 void zShortMul(z *u, fp_digit v, z *w);
 void zModMul(z *u, z *v, z *n, z *w);
-void zFFTMul(z *u, z *v, z *w);
-void drealft(double *data, uint32 n, int isign);
-void dfour1(double *data, uint32 nn, int isign);
+
 //div
 void zDiv(z *u, z *v, z *q, z *r);
 fp_digit zShortDiv(z *u, fp_digit v, z *q);
@@ -107,8 +103,8 @@ void zModExp_1(z *a, fp_digit b, fp_digit m, fp_digit *u);
 int zBits(z *n);
 void zShanksTonelli(z *n, fp_digit p, fp_digit *sq);
 void ShanksTonelli_1(fp_digit a, fp_digit p, fp_digit *sq);
-double zlog(z *x);
-void sim_mul_exp(uint16 *e, uint64 *g, z *A, int k);
+double zlog(mpz_t x);
+void sim_mul_exp(uint16 *e, uint64 *g, mpz_t A, int k);
 int getcolval(uint8 **em, int i, int k);
 
 //applied arbitrary precision arith routines
