@@ -284,17 +284,19 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 
 				// combine thread's output with main file
 #if defined(WIN32)
-				int a;
-
-				// test for cat
-				sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
-				a = system(syscmd);
-	
-				if (a)		
 				{
-					char tmp[80];
-					sprintf(tmp, "%s.p",t->polyfilename);
-					win_file_concat(tmp, master_polyfile);
+					int a;
+
+					// test for cat
+					sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
+					a = system(syscmd);
+	
+					if (a)		
+					{
+						char tmp[80];
+						sprintf(tmp, "%s.p",t->polyfilename);
+						win_file_concat(tmp, master_polyfile);
+					}
 				}
 
 #else
