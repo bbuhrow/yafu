@@ -883,12 +883,20 @@ void *process_poly(void *ptr)
 			difference = my_difftime (&st, &stop);
 
 			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+			free(difference);
 
 			if (t_time > 5)
 			{
 				// print some status
-				printf("Bpoly %u of %u: buffered %u rels, checked %u\n",
-					dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num);
+				gettimeofday (&stop, NULL);
+				difference = my_difftime (&start, &stop);
+
+				t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+
+				printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
+					dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
+					(double)dconf->buffered_rels / t_time);
 
 				// reset the timer
 				gettimeofday (&st, NULL);
@@ -1832,7 +1840,16 @@ int siqs_static_init(static_conf_t *sconf)
 
 	//a couple limits
 	sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B-1];
-	sconf->large_prime_max = sconf->pmax * sconf->large_mult;
+
+	if ((4294967295 / sconf->large_mult) < sconf->pmax)
+	{
+		// job is so big that pmax * default large_mult won't fit in 32 bits
+		// reduce large_mult accordingly
+		sconf->large_mult = 4294967295 / sconf->pmax;
+		sconf->large_prime_max = sconf->pmax * sconf->large_mult;
+	}
+	else
+		sconf->large_prime_max = sconf->pmax * sconf->large_mult;
 
 	//based on the size of the input, determine how to proceed.
 	if (sconf->digits_n > 81 || sconf->obj->qs_obj.gbl_force_DLP)

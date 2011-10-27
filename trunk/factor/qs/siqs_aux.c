@@ -336,9 +336,9 @@ void get_params(static_conf_t *sconf)
 
 		scale = (double)(param_table[NUM_PARAM_ROWS-1][3] - param_table[NUM_PARAM_ROWS-2][3]) /
 			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
-		sconf->num_blocks = param_table[NUM_PARAM_ROWS-1][3];	//reuse last one
-			//(uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
-			//scale + param_table[NUM_PARAM_ROWS-1][3]);
+		//sconf->num_blocks = param_table[NUM_PARAM_ROWS-1][3];	//reuse last one
+		sconf->num_blocks = (uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
+			scale + param_table[NUM_PARAM_ROWS-1][3]);
 
 	}
 
