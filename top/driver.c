@@ -154,11 +154,9 @@ int main(int argc, char *argv[])
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
 	readINI(fobj);	
-	//printf("%u\n",fobj->ecm_obj.B1);
 
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
-	//printf("%u\n",fobj->ecm_obj.B1);
 	
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
@@ -349,7 +347,6 @@ int main(int argc, char *argv[])
 
 							stop = clock();
 							t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-							//printf("output (including z2decstr) in = %6.4f seconds.\n",t);
 						}
 						else if (OBASE == HEX)
 						{

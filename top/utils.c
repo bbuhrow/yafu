@@ -313,6 +313,49 @@ void logprint(FILE *infile, char *args, ...)
 	return;
 }
 
+void logprint_oc(const char *name, const char *method, char *args, ...)
+{
+	//print formatted string to logfile, given the file name
+	//and access method
+	va_list ap;
+	time_t curtime;
+	struct tm *loctime;
+	char *s;
+	FILE *logfile;
+
+	if (!LOGFLAG)
+		return;
+
+	logfile = fopen(name, method);
+	if (logfile == NULL)
+	{
+		printf("could not open logfile for method %c\n", method[0]);
+		logfile = stdout;
+	}
+
+	s = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
+	curtime = time(NULL);
+	loctime = localtime(&curtime);
+
+	//args has at least one argument, which may be NULL
+	va_start(ap, args);
+
+	//print the date and version stamp
+	strftime(s,256,"%m/%d/%y %H:%M:%S",loctime);
+	//fprintf(infile,"%s v%d.%02d @ %s, ",s,MAJOR_VER,MINOR_VER,sysname);
+	fprintf(logfile,"%s v%s @ %s, ",s,VERSION_STRING,sysname);
+
+	vfprintf(logfile,args,ap);
+
+	va_end(ap);
+	free(s);
+
+	if (logfile != NULL)
+		fclose(logfile);
+
+	return;
+}
+
 char *gettimever(char *s)
 {
 	time_t curtime;

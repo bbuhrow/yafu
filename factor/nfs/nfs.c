@@ -16,15 +16,6 @@ void nfsexit(int sig)
 		obj_ptr->flags |= MSIEVE_FLAG_STOP_SIEVING;
 	}
 
-	//if (RERAISE_NFS_ABORT)
-	//{
-	//	// we captured the SIGINT, but other code is running that needs
-	//	// to hear it too
-	//	signal(SIGINT,NULL);
-	//	raise(SIGINT);
-	//	signal(SIGINT,nfsexit);
-	//}
-
 	return;
 }
 
@@ -34,7 +25,6 @@ void nfs(fact_obj_t *fobj)
 {
 	//expect the input in fobj->nfs_obj.gmp_n
 	char *input;
-	str_t input_str;
 	msieve_obj *obj = NULL;
 	uint32 max_relations = 0;
 	uint32 seed1 = g_rand.low;
@@ -49,7 +39,7 @@ void nfs(fact_obj_t *fobj)
 	uint32 flags = 0;
 	ggnfs_job_t job;
 	uint32 relations_needed = 1;	
-	uint32 startq, qrange;
+	uint32 startq, qrange = 1;
 	int is_continuation;
 	uint32 last_specialq = 0;
 	struct timeval stop;	// stop time of this job
@@ -60,7 +50,6 @@ void nfs(fact_obj_t *fobj)
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
-	char *nfs_logfile, *nfs_fbfile, *nfs_datafile;
 
 	obj_ptr = NULL;
 	//below a certain amount, revert to SIQS
@@ -88,18 +77,14 @@ void nfs(fact_obj_t *fobj)
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		
 		logfile = fopen(fobj->flogname, "a");
-		if (logfile == NULL)
-			printf("could not open yafu logfile for appending\n");
-		else
-		{
-			if (VFLAG >= 0)
-				gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+
+		if (VFLAG >= 0)
+			gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
 				fobj->nfs_obj.gmp_n);
-			logprint(logfile, "PRP%d = %s\n",
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-			fclose(logfile);
-		}		
+		
+		logprint_oc(fobj->flogname, "a", "PRP%d = %s\n",
+			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));	
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
 		return;
@@ -110,34 +95,28 @@ void nfs(fact_obj_t *fobj)
 		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile != NULL)
-			logprint(logfile,"prp%d = %s\n",
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-		if (logfile != NULL)
-			logprint(logfile,"prp%d = %s\n",
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		fclose(logfile);
 		return;
 	}
 
 	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
 	{
 		printf("input is a perfect power\n");
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile != NULL)
-		{
-			logprint(logfile,"input is a perfect power\n");
-			logprint(logfile,"c%d = %s\n",
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-		}
-		fclose(logfile);
+
+		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
+		logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+
 		return;
 	}
 
@@ -191,24 +170,15 @@ void nfs(fact_obj_t *fobj)
 		if (test == NULL)
 		{
 			printf("WARNING: could not find %s, reverting to siqs!\n",job.sievername);
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "WARNING: could not find %s, reverting to siqs!\n",job.sievername);
-				fclose(logfile);
-			}
+			logprint_oc(fobj->flogname, "a", "WARNING: could not find %s, reverting to siqs!\n",
+				job.sievername);
+
 			mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 			SIQS(fobj);
 			mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 			return;
 		}
 	}
-
-	nfs_logfile = (char *)malloc(80 * sizeof(char));
-	nfs_datafile = (char *)malloc(80 * sizeof(char));
-	nfs_fbfile = (char *)malloc(80 * sizeof(char));
 
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
@@ -219,6 +189,7 @@ void nfs(fact_obj_t *fobj)
 	gettimeofday(&start, NULL);
 	
 	//nfs state machine:
+	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	statenum = 0;
 	process_done = 0;
 	while (!process_done)
@@ -226,156 +197,65 @@ void nfs(fact_obj_t *fobj)
 		switch (statenum)
 		{
 		case 0: //"init":
+			if (VFLAG >= 0)
+				gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
+					mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), fobj->nfs_obj.gmp_n);
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				if (VFLAG >= 0)
-					gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
-						mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), fobj->nfs_obj.gmp_n);
-				logprint(logfile, "nfs: commencing gnfs on c%d: %s\n",
-					mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
-					mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-				fclose(logfile);
-			}
+			logprint_oc(fobj->flogname, "a", "nfs: commencing gnfs on c%d: %s\n",
+				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
-			//write the input bigint as a string
-			sInit(&input_str);
-			input = input_str.s;
+			//write the input bigint as a string			
 			input = mpz_get_str(input, 10, fobj->nfs_obj.gmp_n);
 
 			//create an msieve_obj
 			//this will initialize the savefile to the outputfile name provided
-			strcpy(nfs_logfile, fobj->nfs_obj.logfile);
-			strcpy(nfs_datafile, fobj->nfs_obj.outputfile);
-			strcpy(nfs_fbfile, fobj->nfs_obj.fbfile);
-
-			obj = msieve_obj_new(input, flags, nfs_datafile, nfs_logfile, 
-				nfs_fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
 				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
 
 			fobj->nfs_obj.mobj = obj;
+			//printf("output: %s\n", fobj->nfs_obj.mobj->savefile.name);
+			//printf("log: %s\n", fobj->nfs_obj.mobj->logfile_name);
+			//printf("fb: %s\n", fobj->nfs_obj.mobj->nfs_fbfile_name);
 
 			//convert input to msieve bigint notation and initialize a list of factors
 			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
 			factor_list_init(&factor_list);
 
-			//see if we can resume a factorization based on the combination of input number,
-			//.job file, .fb file, .dat file, and/or .p file.  else, start new job.
+			//initialize some job parameters
 			job.current_rels = 0;
-			is_continuation = check_existing_files(fobj, &last_specialq, &job);						
-
-			//determine sieving start value and range.
 			if (fobj->nfs_obj.rangeq > 0)
 				qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
 			else
 				qrange = job.qrange;
 
-			if (is_continuation == 1)
-			{		
-				if (last_specialq == 0)
-				{
-					if (VFLAG >= 0)
-						printf("nfs: continuing job - could not determine last special q; using default startq\n");
+			//determine what to do next based on the state of various files
+			//this will set job.current_rels if it finds any
+			is_continuation = check_existing_files(fobj, &last_specialq, &job);
 
-					logfile = fopen(fobj->flogname, "a");
-					if (logfile == NULL)
-						printf("could not open yafu logfile for appending\n");
-					else
-					{
-						logprint(logfile, "nfs: continuing job - could not determine last special q; using default startq\n");
-						fclose(logfile);
-					}
-
-					if (fobj->nfs_obj.startq > 0)
-						startq = fobj->nfs_obj.startq;
-					else
-						startq = job.fblim / 2;
-
-					// next step is sieving
-					statenum = 2;
-				}
-				else
-				{
-					if (VFLAG >= 0)
-						printf("nfs: found %u relations, continuing job at specialq = %u\n",
-						job.current_rels,last_specialq);
-
-					logfile = fopen(fobj->flogname, "a");
-					if (logfile == NULL)
-						printf("could not open yafu logfile for appending\n");
-					else
-					{
-						logprint(logfile, "nfs: found %u relations, continuing job at specialq = %u\n",
-							job.current_rels,last_specialq);
-						fclose(logfile);
-					}
-
-					if (fobj->nfs_obj.startq > 0)
-					{
-						startq = fobj->nfs_obj.startq;
-						statenum = 2;
-					}
-					else if (fobj->nfs_obj.sieve_only)
-					{
-						startq = last_specialq;
-						statenum = 2;
-					}
-					else
-					{
-						startq = last_specialq;
-
-						// since we apparently found some relations, see if it is enough
-						statenum = 8;
-					}
-				}
-			}
-			else if (is_continuation == 0)
+			if (is_continuation == 0)
 			{
-				// new factorization				
-				if ((fobj->nfs_obj.startq > 0) || fobj->nfs_obj.sieve_only)
-				{
-					printf("no job file exists for this input\n");
-					exit(1);
-				}
-				startq = job.fblim / 2;
-				statenum = 1;								
+				// didn't find a .job file or a .p file.  This is a new job
+				statenum = 9;
 			}
-			else if (is_continuation > 0)
+			else if (is_continuation == 1)
 			{
-				// resume poly select
-				fobj->nfs_obj.polystart = job.last_leading_coeff;
-				
-				// allow user specified sieving after resumed poly search finishes
-				if (fobj->nfs_obj.startq > 0)
-					startq = fobj->nfs_obj.startq;
-				else
-					startq = job.fblim / 2;
-
-				statenum = 1;
+				// found a .job file, so we are resuming a job having already
+				// found a polynomial
+				statenum = 10;
+			}
+			else if (is_continuation > 1)
+			{
+				// didn't find a .job file, but did find and parse a .p file.
+				// resume poly selection
+				statenum = 11;
 			}
 			else
 			{
-				// failed restart
-				process_done = 1;
-				break;
-			}
-
-			//load the job structure with the starting Q.
-			job.startq = startq;
-			job.qrange = qrange;
-
-			//override with custom commands, if applicable
-			if (fobj->nfs_obj.poly_only)
-				statenum = 1;
-			else if (fobj->nfs_obj.sieve_only)
-				statenum = 2;
-			else if (fobj->nfs_obj.post_only)
-				statenum = 3;
-			else if (fobj->nfs_obj.la_restart)
-				statenum = 4;
+				// something went wrong.  bail.
+				process_done = 1;				
+			}						
 
 			break;
 
@@ -433,15 +313,8 @@ void nfs(fact_obj_t *fobj)
 
 			if (VFLAG >= 0)
 				printf("nfs: commencing msieve linear algebra\n");
-	
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "nfs: commencing msieve linear algebra\n");
-				fclose(logfile);
-			}
+
+			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve linear algebra\n");
 
 			//try this hack - store a pointer to the msieve obj so that
 			//we can change a flag on abort in order to interrupt the LA.
@@ -468,14 +341,8 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("nfs: commencing msieve sqrt\n");
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "nfs: commencing msieve sqrt\n");
-				fclose(logfile);
-			}
+			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
+
 			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
 			
 			extract_factors(&factor_list,fobj);
@@ -508,20 +375,11 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "NFS elapsed time = %6.4f seconds.\n",t_time);
-				logprint(logfile, "\n");
-				logprint(logfile, "\n");
-				fclose(logfile);
-			}
+			logprint_oc(fobj->flogname, "a", "NFS elapsed time = %6.4f seconds.\n",t_time);
+			logprint_oc(fobj->flogname, "a", "\n");
+			logprint_oc(fobj->flogname, "a", "\n");
 
-			// free stuff
-			msieve_obj_free(obj);
-			sFree(&input_str);
+			// free stuff			
 			statenum = 7;
 			break;
 
@@ -548,6 +406,189 @@ void nfs(fact_obj_t *fobj)
 			}
 			break;
 
+		case 9:		// new factorization			
+
+			startq = job.fblim / 2;
+			statenum = 1;								
+
+			//load the job structure with the starting Q.
+			job.startq = startq;
+			job.qrange = qrange;
+
+			//deal with custom commands
+			if (fobj->nfs_obj.poly_only)
+				statenum = 1;
+			else if (fobj->nfs_obj.sieve_only || (fobj->nfs_obj.startq > 0))
+			{
+				printf("poly selection must be performed before sieving is possible\n");
+				process_done = 1;
+			}
+			else if (fobj->nfs_obj.post_only)
+			{
+				printf("poly selection must be performed before post processing is possible\n");
+				process_done = 1;
+			}
+			else if (fobj->nfs_obj.la_restart)
+			{
+				printf("poly selection must be performed before post processing is possible\n");
+				process_done = 1;
+			}
+
+			// create a new directory for this job 
+#ifdef _WIN32
+			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			mkdir(tmpstr);
+#else
+			sprintf(tmpstr, "%s/%s", fobj->nfs_obj.ggnfs_dir, 
+				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			mkdir(tmpstr, S_IRWXU);
+#endif
+			
+			// point msieve and ggnfs to the new directory
+//#ifdef _WIN32
+//			sprintf(fobj->nfs_obj.outputfile, "%s\%s", 
+//				tmpstr, fobj->nfs_obj.outputfile);
+//			sprintf(fobj->nfs_obj.logfile, "%s\%s", 
+//				tmpstr, fobj->nfs_obj.logfile);
+//			sprintf(fobj->nfs_obj.fbfile, "%s\%s", 
+//				tmpstr, fobj->nfs_obj.fbfile);
+//#else
+//			sprintf(fobj->nfs_obj.outputfile, "%s%s", 
+//				tmpstr, fobj->nfs_obj.outputfile);
+//			sprintf(fobj->nfs_obj.logfile, "%s%s", 
+//				tmpstr, fobj->nfs_obj.logfile);
+//			sprintf(fobj->nfs_obj.fbfile, "%s%s", 
+//				tmpstr, fobj->nfs_obj.fbfile);
+//
+//#endif
+//
+//			msieve_obj_free(fobj->nfs_obj.mobj);
+//			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+//				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+//				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+//			fobj->nfs_obj.mobj = obj;
+//
+//			printf("output: %s\n", fobj->nfs_obj.mobj->savefile.name);
+//			printf("log: %s\n", fobj->nfs_obj.mobj->logfile_name);
+//			printf("fb: %s\n", fobj->nfs_obj.mobj->nfs_fbfile_name);
+
+			break;
+
+		case 10:	// resume .job
+			if (last_specialq == 0)
+			{				
+				if (fobj->nfs_obj.startq > 0)
+				{
+					startq = fobj->nfs_obj.startq;
+					if (VFLAG >= 0)
+						printf("nfs: continuing with sieving at user specified special-q %u\n",
+							startq);
+
+					logprint_oc(fobj->flogname, "a", "nfs: continuing with sieving at user "
+						"specified special-q %u\n", startq);
+				}
+				else
+				{
+					startq = job.fblim / 2;
+					if (VFLAG >= 0)
+						printf("nfs: continuing with sieving - could not determine "
+							"last special q; using default startq\n");
+
+					logprint_oc(fobj->flogname, "a", "nfs: continuing with sieving "
+						"- could not determine last special q; using default startq\n");
+				}
+
+				// next step is sieving
+				statenum = 2;
+			}
+			else
+			{				
+				if (fobj->nfs_obj.startq > 0)
+				{
+					startq = fobj->nfs_obj.startq;
+					statenum = 2;
+				}
+				else if (fobj->nfs_obj.sieve_only)
+				{
+					startq = last_specialq;
+					statenum = 2;
+				}
+				else
+				{
+					startq = last_specialq;
+
+					// since we apparently found some relations, see if it is enough
+					statenum = 8;
+				}
+
+				if (VFLAG >= 0)
+					printf("nfs: found %u relations, continuing job at specialq = %u\n",
+					job.current_rels, startq);
+
+				logprint_oc(fobj->flogname, "a", "nfs: found %u relations, "
+					"continuing job at specialq = %u\n",
+					job.current_rels, startq);
+
+			}
+
+			//load the job structure with the starting Q.
+			job.startq = startq;
+			job.qrange = qrange;
+
+			//override with custom commands, if applicable
+			if (fobj->nfs_obj.poly_only)
+			{
+				printf("WARNING: .job file exists!  If you really want to redo poly selection,"
+					" delete the .job file.\n");
+				process_done = 1;
+			}
+			else if (fobj->nfs_obj.sieve_only)
+				statenum = 2;
+			else if (fobj->nfs_obj.post_only)
+				statenum = 3;
+			else if (fobj->nfs_obj.la_restart)
+				statenum = 4;
+
+			break;
+
+		case 11:		// resume poly select			
+			fobj->nfs_obj.polystart = job.last_leading_coeff;
+
+			//load the job structure with the starting Q.
+			startq = job.fblim / 2;
+			job.startq = startq;
+			job.qrange = qrange;
+
+			//override with custom commands, if applicable
+			if (fobj->nfs_obj.poly_only)
+				statenum = 1;
+			else if (fobj->nfs_obj.sieve_only)			
+			{
+				printf("poly selection must be performed before sieving is possible\n");
+				process_done = 1;
+			}
+			else if (fobj->nfs_obj.startq > 0)
+			{
+				startq = fobj->nfs_obj.startq;
+				printf("sieving will start at special-q %u when poly selection finishes\n",
+					startq);
+			}
+			else if (fobj->nfs_obj.post_only)
+			{
+				printf("poly selection must be performed before post processing is possible\n");
+				process_done = 1;
+			}
+			else if (fobj->nfs_obj.la_restart)
+			{
+				printf("poly selection must be performed before post processing is possible\n");
+				process_done = 1;
+			}
+
+			statenum = 1;
+
+			break;
+
 		default:
 			printf("unknown state, bailing\n");
 			exit(1);
@@ -565,14 +606,7 @@ void nfs(fact_obj_t *fobj)
 			if (VFLAG >= 0)
 				printf("NFS timeout after %6.4f seconds.\n",t_time);
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-				printf("could not open yafu logfile for appending\n");
-			else
-			{
-				logprint(logfile, "NFS timeout after %6.4f seconds.\n",t_time);
-				fclose(logfile);
-			}
+			logprint_oc(fobj->flogname, "a", "NFS timeout after %6.4f seconds.\n",t_time);
 			process_done = 1;
 		}
 
@@ -582,9 +616,10 @@ void nfs(fact_obj_t *fobj)
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
-	free(nfs_logfile);
-	free(nfs_datafile);
-	free(nfs_fbfile);
+
+	if (obj != NULL)
+		msieve_obj_free(obj);
+	free(input);
 
 	return;
 }

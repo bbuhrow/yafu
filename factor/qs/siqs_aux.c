@@ -53,7 +53,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	j=2; i=1;
 	while (j<fb->B)
 	{
-		if ((uint32)i > NUM_P)
+		if ((uint32)i >= NUM_P)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
@@ -336,8 +336,10 @@ void get_params(static_conf_t *sconf)
 
 		scale = (double)(param_table[NUM_PARAM_ROWS-1][3] - param_table[NUM_PARAM_ROWS-2][3]) /
 			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
-		sconf->num_blocks = (uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
-			scale + param_table[NUM_PARAM_ROWS-1][3]);
+		sconf->num_blocks = param_table[NUM_PARAM_ROWS-1][3];	//reuse last one
+			//(uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
+			//scale + param_table[NUM_PARAM_ROWS-1][3]);
+
 	}
 
 	// minimum factor base - for use with really small inputs.
