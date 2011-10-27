@@ -109,6 +109,7 @@ TIME_DIFF * my_difftime (struct timeval *, struct timeval *);
 
 //routines used all over
 void logprint(FILE *infile, char *args, ...);
+void logprint_oc(const char *name, const char *method, char *args, ...);
 char *gettimever(char *s);
 void dbl2z(double n, z *a);
 //char *strrev(char *str);

@@ -306,11 +306,14 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		}
 	}
 
-	if (dconf->num_reports > MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
+	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
+	//{
+	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+	//	exit(-1);
+	//}
+
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+		dconf->num_reports = MAX_SIEVE_REPORTS-1;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
@@ -366,7 +369,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 #endif
 
 			// log this report
-			dconf->reports[dconf->num_reports++] = thisloc;
+			if (dconf->num_reports < MAX_SIEVE_REPORTS)
+				dconf->reports[dconf->num_reports++] = thisloc;
 		}
 	}
 
@@ -408,7 +412,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -447,7 +452,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -455,11 +461,14 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 #endif
 
-	if (dconf->num_reports > MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
+	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
+	//{
+	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+	//	exit(-1);
+	//}
+
+	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+		dconf->num_reports = MAX_SIEVE_REPORTS-1;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
@@ -514,7 +523,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 #endif
 
 			// log this report
-			dconf->reports[dconf->num_reports++] = thisloc;
+			if (dconf->num_reports < MAX_SIEVE_REPORTS)
+				dconf->reports[dconf->num_reports++] = thisloc;
 		}
 	}
 
@@ -556,7 +566,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -596,7 +607,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -604,11 +616,14 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 #endif
 
+	//if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	//{
+	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+	//	exit(-1);
+	//}
+
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
+		dconf->num_reports = MAX_SIEVE_REPORTS-1;
 
 	//printf("block %d found %d reports\n", blocknum, dconf->num_reports);
 
@@ -667,7 +682,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 #endif
 
 			// log this report
-			dconf->reports[dconf->num_reports++] = thisloc;
+			if (dconf->num_reports < MAX_SIEVE_REPORTS)
+				dconf->reports[dconf->num_reports++] = thisloc;
 		}
 	}
 
@@ -709,7 +725,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -751,7 +768,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 #endif
 
 				// log this report
-				dconf->reports[dconf->num_reports++] = thisloc;
+				if (dconf->num_reports < MAX_SIEVE_REPORTS)
+					dconf->reports[dconf->num_reports++] = thisloc;
 			}
 		}
 	}
@@ -759,11 +777,14 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 #endif	
 
+	//if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	//{
+	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
+	//	exit(-1);
+	//}
+
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	{
-		printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-		exit(-1);
-	}
+		dconf->num_reports = MAX_SIEVE_REPORTS-1;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);

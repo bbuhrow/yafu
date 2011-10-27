@@ -32,6 +32,7 @@ code to the public domain.
 	#include <malloc.h>
 	#include <windows.h>
 	#include <process.h>
+	#include <direct.h>		//directory manipulation in windows
 	
 #else /* !WIN32 */
 

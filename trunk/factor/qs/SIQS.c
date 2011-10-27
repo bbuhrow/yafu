@@ -805,7 +805,7 @@ void *process_poly(void *ptr)
 
 	//to get relations per second
 	double t_time;
-	struct timeval start, stop;
+	struct timeval start, stop, st;
 	TIME_DIFF *	difference;
 
 	//this routine is handed a dconf structure which already has a
@@ -819,6 +819,10 @@ void *process_poly(void *ptr)
 #endif
 
 	gettimeofday (&start, NULL);
+
+	// used to print a little more status info for huge jobs.
+	if (sconf->digits_n > 110)
+		gettimeofday (&st, NULL);
 
 	//update the gray code
 	get_gray_code(dconf->curr_poly);
@@ -872,6 +876,25 @@ void *process_poly(void *ptr)
 
 		}
 
+		// print a little more status info for huge jobs.
+		if (sconf->digits_n > 110)
+		{
+			gettimeofday (&stop, NULL);
+			difference = my_difftime (&st, &stop);
+
+			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+
+			if (t_time > 5)
+			{
+				// print some status
+				printf("Bpoly %u of %u: buffered %u rels, checked %u\n",
+					dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num);
+
+				// reset the timer
+				gettimeofday (&st, NULL);
+			}
+		}
+
 		//next polynomial
 		//use the stored Bl's and the gray code to find the next b
 		nextB(dconf,sconf);
@@ -887,7 +910,7 @@ void *process_poly(void *ptr)
 	free(difference);
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
-	//printf("average utilizaiton of buckets in slices\n");
+	//printf("average utilization of buckets in slices\n");
 	//for (i=0; i<20; i++)
 	//	printf("%d: %1.1f ",i,average_primes_per_slice[i]);
 	//printf("\n");
@@ -1931,6 +1954,12 @@ int siqs_static_init(static_conf_t *sconf)
 		closnuf = sconf->obj->qs_obj.gbl_override_tf;
 		printf("overriding with new closnuf = %d\n",closnuf);
 	}
+
+	// need the highest bit to be clear in order to scan the sieve array efficiently
+	// this means we may check more sieve reports than we otherwise would have, but
+	// only for the very largest of jobs which might actually benefit from doing so anyway.
+	if (closnuf >= 128)
+		closnuf = 127;
 
 	sconf->blockinit = closnuf;
 	sconf->tf_closnuf = closnuf;
