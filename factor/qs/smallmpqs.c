@@ -697,10 +697,6 @@ void smallmpqs(fact_obj_t *fobj)
 	mpz_sqrt(tmp2, tmp); //zNroot(&tmp,&tmp2,2);
 	mpz_tdiv_q_ui(tmp2, tmp2, sieve_interval); //zShortDiv(&tmp2,sieve_interval,&tmp2);
 
-	//make sure the first primes up to 10M are computed
-	if (P_MAX < 10000000)
-		GetPRIMESRange(0,10001000);
-
 	mpz_sqrt(tmp, tmp2); //zNroot(&tmp2,&poly->poly_d,2);
 	if (mpz_even_p(tmp))
 		mpz_add_ui(tmp, tmp, 1); //zAdd(&poly->poly_d,&zOne,&poly->poly_d);
@@ -709,12 +705,11 @@ void smallmpqs(fact_obj_t *fobj)
 	poly->poly_d = (uint64)mpz_get_ui(tmp); //.val[0];
 
 	for (i=0; i<NUM_P; i++)
-		if (poly->poly_d == PRIMES[i])
+		if (poly->poly_d == spSOEprimes[i])
 			break;
 	poly->poly_d_idp = i;
 	poly->poly_d_idn = i;
 	poly->side = 1;
-	//if (i >= 5)
 	poly->use_only_p = 0;
 
 	smpqs_nextD(poly,n);
@@ -1550,7 +1545,7 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 		do 
 		{
 			poly->poly_d_idp++;
-			poly->poly_d = PRIMES[poly->poly_d_idp];
+			poly->poly_d = spSOEprimes[poly->poly_d_idp];
 			r = mpz_tdiv_ui(n,poly->poly_d); //zShortMod(n,*polyd);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
 	}
@@ -1565,7 +1560,7 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 				smpqs_nextD(poly, n);
 				return;
 			}
-			poly->poly_d = PRIMES[poly->poly_d_idn];			
+			poly->poly_d = spSOEprimes[poly->poly_d_idn];			
 			r = mpz_tdiv_ui(n,poly->poly_d); //zShortMod(n,*polyd);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
 	}

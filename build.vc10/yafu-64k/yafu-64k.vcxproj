@@ -295,6 +295,7 @@
     <ClCompile Include="..\..\top\eratosthenes\primes.c" />
     <ClCompile Include="..\..\top\eratosthenes\roots.c" />
     <ClCompile Include="..\..\top\eratosthenes\soe.c" />
+    <ClCompile Include="..\..\top\eratosthenes\soe_util.c" />
     <ClCompile Include="..\..\top\eratosthenes\tiny.c" />
     <ClCompile Include="..\..\top\eratosthenes\worker.c" />
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />

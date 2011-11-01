@@ -14,24 +14,19 @@ benefit from your work.
 
 #include "soe.h"
 
-uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
+uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_ptr offset,
+	uint64 lowlimit, uint64 *highlimit, int count, uint64 *primes)
 {
 	/*
 	if count == 1, then the primes are simply counted, and not 
 	explicitly calculated and saved in *primes.
+
+	otherwise, store primes in the provided *primes array
+
+	in either case, return the number of primes found
 	*/
 
-	//variables used for the wheel
-	uint64 numclasses,prodN,startprime;
-	uint32 bucket_depth;
-
-	//variables for blocking up the line structures
-	uint64 numflags, numbytes, numlinebytes, bucket_alloc, large_bucket_alloc;
-
-	//misc
-	uint64 i,j,k,it=0,num_p=0;
-	uint32 sp;
-	int pchar;
+	//keep track of how much memory we've used
 	uint64 allocated_bytes = 0;
 
 	//structure of static info
@@ -39,587 +34,74 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	//thread data holds all data needed during sieving
 	thread_soedata_t *thread_data;		//an array of thread data objects
-	uint64 *mergeprimes;
-
-	//timing
-	double t;
-	struct timeval tstart, tstop;
-	TIME_DIFF *	difference;
 
 	//*********************** BEGIN ******************************//
-
-	sdata.orig_hlimit = *highlimit;
-	sdata.orig_llimit = lowlimit;
-
-	if (*highlimit - lowlimit < 1000000)
-		*highlimit = lowlimit + 1000000;
-
-	if (*highlimit - lowlimit > 1000000000000ULL)
-	{
-		printf("range too big\n");
+	
+	//sanity check the input
+	sdata.only_count = count;
+	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, &sdata, offset))
 		return 0;
-	}
 
-	//more efficient to sieve using mod210 when the range is big
-	if ((*highlimit - lowlimit) > 400000000000ULL)
-	{
-		numclasses=5760;
-		prodN=30030;
-		startprime=6;
-	}	
-	else if ((*highlimit - lowlimit) > 40000000000ULL)
-	{
-		numclasses=480;
-		prodN=2310;
-		startprime=5;
-	}	
-	else if ((*highlimit - lowlimit) > 4000000000ULL)
-	{
-		numclasses=48;
-		prodN=210;
-		startprime=4;		
-	}
-	else if ((*highlimit - lowlimit) > 100000000)
-	{
-		numclasses=8;
-		prodN=30;
-		startprime=3;
-	}
-	else
-	{
-		numclasses=2;
-		prodN=6;
-		startprime=2;
-	}
+	//determine what kind of sieve to used based on the input
+	get_numclasses(*highlimit, lowlimit, &sdata);
 
-	sdata.numclasses = numclasses;
-	sdata.prodN = prodN;
-	sdata.startprime = startprime;
-
-	//create the selection masks
-	for (i=0;i<BITSINBYTE;i++)
-		nmasks[i] = ~masks[i];
-
-	//store the primes used to sieve the rest of the flags
-	//with the max sieve range set by the size of uint32, the number of primes
-	//needed is fixed.
-	//find the bound of primes we'll need to sieve with to get to limit
-	if (*highlimit > 4000000000000000000ULL)
-	{
-		printf("input too high\n");
-		return 0;
-	}
-
-	sdata.pbound = (uint64)(sqrt((int64)(*highlimit)) + 1);
-
-	//give these some initial storage
-	mergeprimes = (uint64 *)calloc(1,sizeof(uint64));
-
-	//get primes to sieve with
-	if (VFLAG > 2)
-		gettimeofday(&tstart, NULL);
+	//allocate and initialize some stuff
+	allocated_bytes += init_sieve(&sdata);
+	*highlimit = sdata.highlimit;
 	
-	if (sdata.pbound > 1000000)
-	{
-		// we need a lot of sieving primes... recurse using the fast routine
-		// get temporary 64 bit prime storage
-		// first estimate how many primes we think we'll find
-		uint64 *locprimes;
-
-		j = sdata.pbound;
-		k = (uint64)((double)j/log((double)j)*1.2);
-		locprimes = (uint64 *)malloc(k * sizeof(uint64));	
-		if (locprimes == NULL)
-		{
-			printf("error allocating locprimes\n");
-			exit(-1);
-		}
-
-		// recursion
-		sp = (uint32)spSOE(locprimes,0,&j,0);
-
-		//check if we've found too many
-		if (sp > MAXSIEVEPRIMECOUNT)
-		{
-			printf("input too high\n");
-			free(locprimes);
-			free(mergeprimes);
-			return 0;
-		}
-		else
-		{
-			//allocate the sieving prime array
-			sdata.sieve_p = (uint32 *)malloc(sp * sizeof(uint32));
-			allocated_bytes += sp * sizeof(uint32);
-			if (sdata.sieve_p == NULL)
-			{
-				printf("error allocating sieve_p\n");
-				exit(-1);
-			}
-			else
-			{
-				if (VFLAG > 2)
-					printf("allocated %u bytes for sieving primes\n",sp * (uint32)sizeof(uint32));
-			}
-			
-		}
-
-		// copy into the 32 bit sieving prime array
-		for (k=0; k<sp; k++)
-		{
-			if (locprimes[k] == 0)
-				printf("found prime == 0 in locprimes at location %" PRIu64 "\n",k);
-			sdata.sieve_p[k] = (uint32)locprimes[k];
-		}
-
-		free(locprimes);
-
-	}
-	else	
-	{
-		//base case, maxP <= 1000000.  Need at most 78498 primes
-		sdata.sieve_p = (uint32 *)malloc(78498 * sizeof(uint32));
-		allocated_bytes += 78498 * sizeof(uint32);
-		if (sdata.sieve_p == NULL)
-		{
-			printf("error allocating sieve_p\n");
-			exit(-1);
-		}
-		else
-		{
-			if (VFLAG > 2)
-				printf("allocated %u bytes for sieving primes\n",78498 * (uint32)sizeof(uint32));
-		}
-		sp = tiny_soe(sdata.pbound,sdata.sieve_p);
-
-	}
-
-	if (!count)
-	{
-		uint64 hi_est, lo_est;
-
-		//allocate two arrays used for merging together primes found in different lines 
-		//that will be used later.
-		hi_est = (uint64)(*highlimit/log((double)*highlimit));
-		if (lowlimit > 1)
-			lo_est = (uint64)(lowlimit/log((double)lowlimit));
-		else
-			lo_est = 0;
-
-		k = (uint64)((double)(hi_est - lo_est) * 1.2);
-
-		if (VFLAG > 2)
-			printf("allocating merge prime storage for %u primes\n",k);
-		
-		mergeprimes = (uint64 *)realloc(mergeprimes,k * sizeof(uint64));
-		if (mergeprimes == NULL)
-		{
-			printf("could not allocate storage for mergeprimes\n");
-			exit(-1);
-		}
-	
-	}
-
-	if (VFLAG > 2)
-	{
-		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-
-		t = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
-
-		printf("elapsed time to find seed primes = %6.4f\n",t);
-	}
-	
-	sdata.pboundi = sp;
-
-	//allocate the residue classes.  
-	sdata.rclass = (uint32 *)malloc(numclasses * sizeof(uint32));
-	allocated_bytes += numclasses * sizeof(uint32);
-
-	//find the residue classes
-	k=0;
-	for (i=1;i<prodN;i++)
-	{
-		if (spGCD(i,(fp_digit)prodN) == 1)
-		{
-			sdata.rclass[k] = (uint32)i;
-			//printf("%u ",i);
-			k++;
-		}
-	}
-	
-	//temporarily set lowlimit to the first multiple of numclasses*prodN < lowlimit
-	lowlimit = (lowlimit/(numclasses*prodN))*(numclasses*prodN);
-	sdata.lowlimit = lowlimit;
-
-	//reallocate flag structure for wheel and block sieving
-	//starting at lowlimit, we need a flag for every 'numresidues' numbers out of 'prodN' up to 
-	//limit.  round limit up to make this a whole number.
-	numflags = (*highlimit - lowlimit)/prodN;
-	numflags += ((numflags % prodN) != 0);
-	numflags *= numclasses;
-
-	//since we can pack 8 flags in a byte, we need numflags/8 bytes allocated.
-	numbytes = numflags / BITSINBYTE + ((numflags % BITSINBYTE) != 0);
-
-	//since there are N lines to sieve over, each line will contain (numflags/8)/N bytes
-	//so round numflags/8 up to the nearest multiple of N
-	numlinebytes = numbytes/numclasses + ((numbytes % numclasses) != 0);
-
-	//we want an integer number of blocks, so round up to the nearest multiple of blocksize bytes
-	i = 0;
-	while (1)
-	{
-		i += BLOCKSIZE;
-		if (i > numlinebytes)
-			break;
-	}
-	numlinebytes = i;
-
-	//all this rounding has likely changed the desired high limit.  compute the new highlimit.
-	//the orignial desired high limit is already recorded so the proper count will be returned.
-	//todo... did we round too much?  look into this.
-	*highlimit = (uint64)((uint64)numlinebytes * (uint64)prodN * (uint64)BITSINBYTE + lowlimit);
-	sdata.highlimit = *highlimit;
-	sdata.numlinebytes = numlinebytes;
-
-	//a block consists of BLOCKSIZE bytes of flags
-	//which holds FLAGSIZE flags.
-	sdata.blocks = numlinebytes/BLOCKSIZE;
-
-	//each flag in a block is spaced prodN integers apart.  record the resulting size of the 
-	//number line encoded in each block.
-	sdata.blk_r = FLAGSIZE*prodN;
-	it=0;
-
-	//allocate space for the root of each sieve prime
-	sdata.root = (int *)malloc(sdata.pboundi * sizeof(int));
-	allocated_bytes += sdata.pboundi * sizeof(uint32);
-	if (sdata.root == NULL)
-	{
-		printf("error allocating roots\n");
-		exit(-1);
-	}
-	else
-	{
-		if (VFLAG > 2)
-			printf("allocated %u bytes for roots\n",(uint32)(sdata.pboundi * sizeof(uint32)));
-	}
-
-	sdata.lower_mod_prime = (uint32 *)malloc(sdata.pboundi * sizeof(uint32));
-	allocated_bytes += sdata.pboundi * sizeof(uint32);
-	if (sdata.lower_mod_prime == NULL)
-	{
-		printf("error allocating lower mod prime\n");
-		exit(-1);
-	}
-	else
-	{
-		if (VFLAG > 2)
-			printf("allocated %u bytes for lower mod prime\n",
-			(uint32)sdata.pboundi * (uint32)sizeof(uint32));
-	}
-
-	if (sdata.pboundi > BUCKETSTARTI)
-	{
-		//then we have primes bigger than BUCKETSTARTP - need to bucket sieve
-		uint64 flagsperline = numlinebytes * 8;
-		uint64 num_hits = 0;
-		uint64 hits_per_bucket;
-		
-		for (i=BUCKETSTARTI; i<sdata.pboundi; i++)
-		{
-			//condition to see if the current prime only hits the sieve interval once
-			if ((sdata.sieve_p[i] * sdata.prodN) > (sdata.blk_r * sdata.blocks))
-				break;
-			num_hits += ((uint32)flagsperline / sdata.sieve_p[i] + 1);
-		}
-
-		if (0)
-		{
-			uint64 tmphits = 0;
-			int ii;
-			//test of the number of hits in the real number line of
-			//all bucket sieve primes
-			for (ii=BUCKETSTARTI; ii<sdata.pboundi; ii++)			
-				tmphits += ((sdata.highlimit - sdata.lowlimit) / (uint64)sdata.sieve_p[ii] + 1);
-
-			printf("hits in real number line = %" PRIu64 "\n",tmphits);
-		}
-
-		//assume hits are evenly distributed among buckets.
-		hits_per_bucket = num_hits / sdata.blocks;
-
-		//add some margin
-		hits_per_bucket = (uint64)((double)hits_per_bucket * 1.10);
-
-		//set the bucket allocation amount
-		bucket_alloc = hits_per_bucket;
-
-		//now count primes that only hit the interval once
-		num_hits = 0;
-		for (; i<sdata.pboundi; i++)
-			num_hits++;
-
-		//assume hits are evenly distributed among buckets.
-		hits_per_bucket = num_hits / sdata.blocks;
-
-		//add some margin
-		hits_per_bucket = (uint64)((double)hits_per_bucket * 1.1);
-
-		//set the bucket allocation amount, with a minimum of at least 50000
-		//because small allocation amounts may violate the uniformity assumption
-		//of hits per bucket.  The idea is to set this right once, even if it is too big,
-		//so that we don't have to keep checking for full buckets in the middle of
-		//the bucket sieve (slow)
-		if (num_hits > 0)
-			large_bucket_alloc = MAX(hits_per_bucket,50000);
-		else
-			large_bucket_alloc = 0;
-
-		bucket_depth = (uint32)(sdata.pboundi - BUCKETSTARTI);
-	}
-	else
-	{
-		bucket_depth = 0;
-	}
-
-	//uncomment this to disable bucket sieving
-	//bucket_depth = 0;
-
-	thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
-	allocated_bytes += THREADS * sizeof(thread_soedata_t);
-	for (i=0; i<THREADS; i++)
-	{
-		thread_soedata_t *thread = thread_data + i;
-
-		//allocate a bound for each block
-		thread->ddata.pbounds = (uint64 *)malloc(
-			sdata.blocks * sizeof(uint64));
-		allocated_bytes += sdata.blocks * sizeof(uint64);
-
-		thread->ddata.pbounds[0] = sdata.pboundi;
-
-		//we'll need to store the offset into the next block for each prime
-		//actually only need those primes less than BUCKETSTARTP since bucket sieving
-		//doesn't use the offset array.
-		j = MIN(sp,BUCKETSTARTI);
-		thread->ddata.offsets = (uint32 *)malloc(j * sizeof(uint32));
-		allocated_bytes += j * sizeof(uint32);
-		if (thread->ddata.offsets == NULL)
-		{
-			printf("error allocating offsets\n");
-			exit(-1);
-		}
-		else
-		{
-			if (VFLAG > 2)
-				printf("allocated %u bytes for offsets\n",(uint32)(j * sizeof(uint32)));
-		}
-
-		//allocate the line for this thread
-		thread->ddata.line = (uint8 *)malloc(numlinebytes * sizeof(uint8));
-		allocated_bytes += numlinebytes * sizeof(uint8);
-		if (thread->ddata.line == NULL)
-		{
-			printf("error allocating sieve line\n");
-			exit(-1);
-		}
-		else
-		{
-			if (VFLAG > 2)
-				printf("allocated %u bytes for sieve line\n",
-				(uint32)numlinebytes * (uint32)sizeof(uint8));
-		}
-
-#ifdef DO_SPECIAL_COUNT
-		//allocate an array so we can count intervals smaller than the sieve line
-		j = (sdata.orig_hlimit - sdata.orig_llimit) / 1000000000;
-		j += ((sdata.orig_hlimit - sdata.orig_llimit) % 1000000000 > 0);
-		thread->ddata.num_special_bins = j;
-		thread->ddata.special_count = (uint32 *)calloc(j, sizeof(uint32));
-		sdata.num_special_bins = j;
-		sdata.special_count = (uint32 *)calloc(j, sizeof(uint32));
-		allocated_bytes += j * 2 * sizeof(uint32);
-		if (thread->ddata.special_count == NULL)
-		{
-			printf("error allocating special line count\n");
-			exit(-1);
-		}
-		else
-		{
-			if (VFLAG > 2)
-				printf("allocated %u bytes for special line count\n",(uint32)(j * sizeof(uint32)));
-		}
-#endif
-
-		if (bucket_depth > BUCKET_BUFFER)
-		{			
-			//create a bucket for each block
-			thread->ddata.sieve_buckets = (soe_bucket_t **)malloc(
-				sdata.blocks * sizeof(soe_bucket_t *));
-			allocated_bytes += sdata.blocks * sizeof(soe_bucket_t *);
-
-			if (thread->ddata.sieve_buckets == NULL)
-			{
-				printf("error allocating buckets\n");
-				exit(-1);
-			}
-			else
-			{
-				if (VFLAG > 2)
-					printf("allocated %u bytes for bucket bases\n",
-					(uint32)sdata.blocks * (uint32)sizeof(soe_bucket_t *));
-			}
-
-			if (large_bucket_alloc > 0)
-			{
-				thread->ddata.large_sieve_buckets = (uint32 **)malloc(
-					sdata.blocks * sizeof(uint32 *));
-				allocated_bytes += sdata.blocks * sizeof(uint32 *);
-
-				if (thread->ddata.large_sieve_buckets == NULL)
-				{
-					printf("error allocating large buckets\n");
-					exit(-1);
-				}
-				else
-				{
-					if (VFLAG > 2)
-						printf("allocated %u bytes for large bucket bases\n",
-						(uint32)sdata.blocks * (uint32)sizeof(uint32 *));
-				}
-			}
-
-			//create a hit counter for each bucket
-			thread->ddata.bucket_hits = (uint32 *)malloc(
-				sdata.blocks * sizeof(uint32));
-			allocated_bytes += sdata.blocks * sizeof(uint32);
-			if (thread->ddata.bucket_hits == NULL)
-			{
-				printf("error allocating hit counters\n");
-				exit(-1);
-			}
-			else
-			{
-				if (VFLAG > 2)
-					printf("allocated %u bytes for hit counters\n",
-					(uint32)sdata.blocks * (uint32)sizeof(uint32));
-			}
-
-			if (large_bucket_alloc > 0)
-			{
-				thread->ddata.large_bucket_hits = (uint32 *)malloc(
-					sdata.blocks * sizeof(uint32));
-				allocated_bytes += sdata.blocks * sizeof(uint32);
-				if (thread->ddata.large_bucket_hits == NULL)
-				{
-					printf("error allocating large hit counters\n");
-					exit(-1);
-				}
-				else
-				{
-					if (VFLAG > 2)
-						printf("allocated %u bytes for large hit counters\n",
-						(uint32)sdata.blocks * (uint32)sizeof(uint32));
-				}
-			}
-
-			//each bucket must be able to hold a hit from every prime used above BUCKETSTARTP.
-			//this is overkill, because every prime will not hit every bucket when
-			//primes are greater than FLAGSIZE.  but we always write to the end of each
-			//bucket so the depth probably doesn't matter much from a cache access standpoint,
-			//just from a memory capacity standpoint, and we shouldn't be in any danger
-			//of that as long as the input range is managed (should be <= 10B).
-			thread->ddata.bucket_depth = bucket_depth;
-			thread->ddata.bucket_alloc = bucket_alloc;
-			thread->ddata.bucket_alloc_large = large_bucket_alloc;
-
-			for (j = 0; j < sdata.blocks; j++)
-			{
-				thread->ddata.sieve_buckets[j] = (soe_bucket_t *)malloc(
-					bucket_alloc * sizeof(soe_bucket_t));
-				allocated_bytes += bucket_alloc * sizeof(soe_bucket_t);
-
-				if (thread->ddata.sieve_buckets[j] == NULL)
-				{
-					printf("error allocating buckets\n");
-					exit(-1);
-				}			
-
-				thread->ddata.bucket_hits[j] = 0;
-
-				if (large_bucket_alloc > 0)
-				{
-					thread->ddata.large_sieve_buckets[j] = (uint32 *)malloc(
-						large_bucket_alloc * sizeof(uint32));
-					allocated_bytes += large_bucket_alloc * sizeof(uint32);
-
-					if (thread->ddata.large_sieve_buckets[j] == NULL)
-					{
-						printf("error allocating large buckets\n");
-						exit(-1);
-					}	
-
-					thread->ddata.large_bucket_hits[j] = 0;
-				}
-							
-			}
-
-			if (VFLAG > 2)
-				printf("allocated %u bytes for buckets\n",
-				(uint32)sdata.blocks * (uint32)bucket_alloc * (uint32)sizeof(soe_bucket_t));
-
-			if (VFLAG > 2)
-				printf("allocated %u bytes for large buckets\n",
-				(uint32)sdata.blocks * (uint32)large_bucket_alloc * (uint32)sizeof(uint32));
-
-		}	
-		else
-			thread->ddata.bucket_depth = 0;
-
-		//this threads' count of primes in its' line
-		thread->linecount = 0;
-		//share the common static data structure
-		thread->sdata = sdata;
-	}
-
-	gettimeofday (&tstart, NULL);
-
-	//this could perhaps be multithreaded, but it probably isn't necessary.
 	//find all roots of prime with prodN.  These are used when finding offsets.
 	getRoots(&sdata);
 
-	if (VFLAG > 2)
-	{
-		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
+	//init bucket sieving
+	set_bucket_depth(&sdata);
 
-		t = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
-
-		printf("elapsed time for computing roots = %6.4f\n",t);
-	}
+	//allocate and initialize stuff used in thread structures.
+	//this is necessary even if THREADS = 1;
+	thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
+	allocated_bytes += alloc_threaddata(&sdata, thread_data);
 
 	if (VFLAG > 2)
 	{	
+		printf("finding requested range %" PRIu64 " to %" PRIu64 "\n",sdata.orig_llimit,sdata.orig_hlimit);
 		printf("sieving range %" PRIu64 " to %" PRIu64 "\n",lowlimit,*highlimit);
+		if (sdata.sieve_range)
+			gmp_printf("range offset is %Zd\n", sdata.offset);
 		printf("using %" PRIu64 " primes, max prime = %" PRIu64 "  \n",sdata.pboundi,sdata.pbound);
-		printf("using %" PRIu64 " residue classes\n",numclasses);
-		printf("lines have %" PRIu64 " bytes and %" PRIu64 " flags\n",numlinebytes,numlinebytes * 8);
+		printf("using %u residue classes\n",sdata.numclasses);
+		printf("lines have %" PRIu64 " bytes and %" PRIu64 " flags\n",sdata.numlinebytes,sdata.numlinebytes * 8);
 		printf("lines broken into = %" PRIu64 " blocks of size %u\n",sdata.blocks,BLOCKSIZE);
 		printf("blocks contain %u flags and cover %" PRIu64 " primes\n", FLAGSIZE, sdata.blk_r);
-		if (bucket_depth > BUCKET_BUFFER)
+		if (sdata.num_bucket_primes > 0)
 		{
-			printf("bucket sieving %u primes > %u\n",bucket_depth,BUCKETSTARTP);
-			printf("allocating space for %" PRIu64 " hits per bucket\n",bucket_alloc);
+			printf("bucket sieving %u primes > %u\n",
+				sdata.num_bucket_primes,sdata.sieve_p[sdata.bucket_start_id]);
+			printf("allocating space for %u hits per bucket\n",sdata.bucket_alloc);
 #ifdef DO_LARGE_BUCKETS
 			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
 #endif
 		}
+		if (sdata.num_inplace_primes > 0)
+		{
+			printf("inplace sieving %u primes > %u\n",
+				sdata.num_inplace_primes,sdata.sieve_p[sdata.inplace_start_id]);
+		}
 		printf("using %" PRIu64 " bytes for sieving storage\n",allocated_bytes);
 	}
+
+	//get 'r done.
+	do_soe_sieving(&sdata, thread_data, count);
+
+	//finish up
+	finalize_sieve(&sdata, thread_data, count, primes);
+
+	return sdata.num_found;
+}
+
+void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int count)
+{
+	uint64 i,j,k,num_p=0;
+	int pchar;
+	uint64 numclasses = sdata->numclasses;
 
 	/* activate the threads one at a time. The last is the
 	   master thread (i.e. not a thread at all). */
@@ -656,17 +138,15 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 				
 				if (count)
 				{
+					t->sdata.lines[t->current_line] = 
+						(uint8 *)malloc(t->sdata.numlinebytes * sizeof(uint8));
 					sieve_line(t);
-#ifdef DO_SPECIAL_COUNT
-					count_line_special(t);
-#else
-					count_line(t);
-#endif
+					t->linecount = count_line(sdata, t->current_line);
+					free(t->sdata.lines[t->current_line]);
 				}
 				else
 				{
 					sieve_line(t);
-					primes_from_lineflags(t);
 				}
 			}
 			else {
@@ -699,79 +179,36 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 		}
 
 		//printf a progress report if counting
-		if (count && (VFLAG >= 0))
+		if (VFLAG > 0)
 		{
 			//don't print status if computing primes, because lots of routines within
 			//yafu do this and they don't want this side effect
 			for (i = 0; i<pchar; i++)
 				printf("\b");
-			pchar = printf("%d%%",(int)((double)k / (double)(numclasses) * 100.0));
+			pchar = printf("sieving: %d%%",(int)((double)k / (double)(numclasses) * 100.0));
 			fflush(stdout);
 		}
-
 		
+#ifndef INPLACE_BUCKET
 		if (count)
 		{
-#ifdef DO_SPECIAL_COUNT
 			for (i = 0; i < j; i++)
-			{
-				int ix;
 				num_p += thread_data[i].linecount;
-				
-				for (ix=0; ix < sdata.num_special_bins; ix++)
-					sdata.special_count[ix] += thread_data[i].ddata.special_count[ix];
-			}
 
-#else
-			for (i = 0; i < j; i++)
-				num_p += thread_data[i].linecount;
-#endif
 		}
-		else
+
+		for (i = 0; i < j; i++)
 		{
-			//accumulate the primes from each line
-			for (i=0; i< j; i++)
-			{
-				//uint64 start_index = num_p;
-				uint64 linecount = thread_data[i].linecount;
-				uint64 index;
-				
-				if (linecount == 0)
-				{
-					printf("found no primes in line\n");
-					continue;
-				}
-				
-				if (num_p == 0)
-				{
-					//printf("adding %" PRIu64 " primes from line %d\n",linecount, i);
-					//add the first primes to the mergelist
-					for (index = 0; index < linecount; index++)
-						mergeprimes[index] = thread_data[i].ddata.primes[index];
-
-				}
-				else
-				{
-					//merge this lines primes (linecount), with the previous merge (num_p)
-					//this lines primes are ordered, and so is the previous merged list.
-					uint64 *new_merge;
-					//printf("merging %" PRIu64 " primes from line %d\n",linecount, i);
-					//merge primes into new storage
-					new_merge = merge_primes(mergeprimes, thread_data[i].ddata.primes, 
-						num_p, linecount);
-					//get rid of old storage
-					free(mergeprimes);
-					//proceed with new storage
-					mergeprimes = new_merge;					
-				}
-
-				num_p += linecount;
-				//then free the line's primes
-				free(thread_data[i].ddata.primes);
-
-			}
+			if (thread_data[i].ddata.min_sieved_val < sdata->min_sieved_val)
+				sdata->min_sieved_val = thread_data[i].ddata.min_sieved_val;
 		}
+#endif
+
 	}
+
+#ifndef INPLACE_BUCKET
+	sdata->num_found = num_p;
+#endif
 
 	//stop the worker threads and free stuff not needed anymore
 	for (i=0; i<THREADS - 1; i++)
@@ -782,94 +219,258 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 	stop_soe_worker_thread(thread_data + i, 1);
 	free(thread_data[i].ddata.offsets);
 
-	if (count && (VFLAG >= 0))
+#ifdef INPLACE_BUCKET
+	// now sieve with the inplace primes
+	if (sdata->num_inplace_primes > 0)
+	{
+		uint8 *flagblock;
+
+		for (i=0; i<sdata->blocks; i++)
+		{
+			int j;
+			uint32 hitcount;
+
+			for (j=0; j<sdata->numclasses; j++)
+			{
+				//printf a progress report if counting
+				if (VFLAG > 0)
+				{
+					int k;
+					////don't print status if computing primes, because lots of routines within
+					////yafu do this and they don't want this side effect
+					for (k = 0; k < pchar; k++)
+						printf("\b");
+					//pchar = printf("sieving: %d%%",
+					//	(int)(((i * sdata->numclasses + j) / (sdata->blocks * sdata->numclasses)) * 100.0));
+					//fflush(stdout);
+					pchar = printf("block %d, class %d: ",i, j);
+				}
+
+				hitcount = 0;
+				if (sdata->inplace_ptrs[i][j] == -1)
+				{
+					printf("processed %d hits\n",hitcount);
+					continue;
+				}
+				
+				// do stuff while there is still a valid pointer for this block/class
+				flagblock = sdata->lines[j];
+				while (sdata->inplace_data[sdata->inplace_ptrs[i][j]].next_pid != 0)
+				{
+					uint32 nextclassid, presid;
+					uint32 nextblock;
+					uint64 nextbits, loc;
+					int index = sdata->inplace_ptrs[i][j];
+
+					hitcount++;
+
+					loc = sdata->prodN * ((i << FLAGBITS) + sdata->inplace_data[index].bitloc) + 
+						sdata->rclass[j] + sdata->lowlimit;
+
+					if (loc % sdata->sieve_p[sdata->inplace_start_id + index] == 0)
+					{
+						//printf("block %d, class %d, hit by prime %u, at flag %u; confirmed hit...\n",
+						//	i,j,sdata->sieve_p[index],sdata->bitloc[index]);
+					}
+					else
+					{
+						printf("block %d, class %d, hit by prime %u, at flag %u; error!!\n",
+							i,j,sdata->sieve_p[sdata->inplace_start_id + index],sdata->inplace_data[index].bitloc);	
+						printf("computed loc was %" PRIu64 ", error is %u\n",
+							loc,loc % sdata->sieve_p[sdata->inplace_start_id + index]);
+						exit(1);
+					}
+
+					// mark the hit					
+					loc = sdata->inplace_data[index].bitloc;
+					flagblock[((i << FLAGBITS) + loc) >> 3] &= masks[loc & 7];
+
+					//the next hit can be computed from the residue class progression
+					//and the current prime's residue mod prodN
+					//the correct progression is the row of residue_pattern_mod30 corresponding
+					//to the current prime residue.  the current residue class gives the column.
+					//the next column gives the next class hit, while the steps array gives
+					//the next bit offset.
+					presid = resID_mod30[sdata->inplace_data[index].p_mod];
+
+					// the next class is in the lookup given the prime's class and the current class
+					nextclassid = resID_mod30[residue_pattern_mod30[presid][j]];
+				
+					// step the prime
+					nextbits = (i << FLAGBITS) + sdata->inplace_data[index].bitloc + 
+						steps_mod30[presid][j] * sdata->inplace_data[index].p_div; 
+				
+					// increment the error term
+					sdata->inplace_data[index].eacc += 
+						(steps_mod30[presid][j] * sdata->inplace_data[index].p_mod);
+
+					// and roll over the error if necessary
+					while (sdata->inplace_data[index].eacc > sdata->prodN)
+					{
+						nextbits++;
+						sdata->inplace_data[index].eacc -= sdata->prodN;
+					}
+
+					// set the new block and bits
+					nextblock = nextbits >> FLAGBITS;
+					sdata->inplace_data[index].bitloc = nextbits & FLAGSIZEm1;
+					
+					// follow the link to the next prime
+					sdata->inplace_ptrs[i][j] = sdata->inplace_data[index].next_pid;
+
+					// if the next hit is within our interval
+					// insert into the new linked list
+					if (nextblock < sdata->blocks)
+					{
+						//then reassign this prime to its next hit
+						if (sdata->inplace_ptrs[nextblock][nextclassid] == -1)
+						{
+							sdata->inplace_ptrs[nextblock][nextclassid] = index;
+							sdata->inplace_data[index].next_pid = 0;
+						}
+						else
+						{
+							sdata->inplace_data[index].next_pid = sdata->inplace_ptrs[nextblock][nextclassid];
+							sdata->inplace_ptrs[nextblock][nextclassid] = index;						
+						}
+					}					
+				}
+				pchar += printf("processed %d hits",hitcount);
+			}
+			
+		}		
+	}
+
+	for (k = 0; k < pchar; k++)
+		printf("\b");
+	printf("\n");
+	num_p = 0;
+	if (count)
+	{
+		for (i=0; i < sdata->numclasses; i++)
+			num_p += count_line(sdata, i);
+	}
+
+	sdata->num_found = num_p;
+
+#else
+	if (VFLAG > 0)
 	{
 		//don't print status if computing primes, because lots of routines within
 		//yafu do this and they don't want this side effect
 		for (i = 0; i<pchar; i++)
 			printf("\b");
 	}
+#endif
+
+	return;
+}
+
+void finalize_sieve(soe_staticdata_t *sdata, 
+	thread_soedata_t *thread_data, int count, uint64 *primes)
+{
+	uint64 i, j = 0, num_p = sdata->num_found;
+
+	//printf("min sieved value = %" PRIu64 "\n",sdata->min_sieved_val);
 
 	if (count)
 	{
 		//add in relevant sieving primes not captured in the flag arrays
-		if (sdata.pbound >= sdata.orig_llimit)
+		uint64 ui_offset;
+
+		if (sdata->sieve_range)
 		{
-			i=0;
-			while (i<thread_data[0].ddata.pbounds[0])
-			{ 
-				if (sdata.sieve_p[i] >= sdata.orig_llimit)
-				{
-					num_p++;
-#ifdef DO_SPECIAL_COUNT
-					sdata.special_count[0]++;
-#endif
-				}
-				i++;
+			if (mpz_size(sdata->offset) == 1)
+				ui_offset = mpz_get_64(sdata->offset);
+			else
+			{
+				// huge offset, we don't need to add any primes.
+				ui_offset = 0;
+				sdata->min_sieved_val = 0;
 			}
 		}
+		else
+			ui_offset = 0;
+		
+		if (sdata->sieve_range)
+			sdata->min_sieved_val += ui_offset;
+
+		//printf("lowlimit is %" PRIu64 " first sieved value = %" PRIu64 "\n", 
+		//	sdata->lowlimit, sdata->min_sieved_val);
+		//printf("original limits are %" PRIu64 " and %" PRIu64 "\n", 
+		//	sdata->orig_llimit, sdata->orig_hlimit);
+
+		//PRIMES is already sized appropriately by the wrapper
+		//load in the sieve primes that we need
+		i = 0;
+		while (((uint64)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
+		{
+			if (sdata->sieve_p[i] >= (sdata->orig_llimit + ui_offset))		
+				num_p++;
+			i++;
+		}
+		//printf("added %u primes\n", (uint32)(num_p - sdata->num_found));
 	}
 	else
 	{
-		//the sieve primes are not in the line array, so they must be added
-		//in if necessary
-		int start_index=0, numd = 0;
-		uint64 *new_merge;
-		it=0;
-		
-		//first count them
-		if (sdata.pbound >= sdata.orig_llimit)
+		//now we need to raster vertically down the lines and horizontally
+		//across the lines in order to compute the primes in order.
+
+		//first put in any sieve primes if necessary.
+		//if we are in this loop, and we are sieving a range, then offset
+		//is a single precision number and we need to increment the 'prime'
+		//we found above by it.
+		uint64 ui_offset;
+			
+		if (sdata->sieve_range)
 		{
-			i=0;
-			while (i<thread_data[0].ddata.pbounds[0])
-			{ 
-				if (sdata.sieve_p[i] >= sdata.orig_llimit)
-				{
-					if (it == 0)
-						start_index = i;
-					it++;
-				}
-				i++;
+			if (mpz_size(sdata->offset) == 1)
+				ui_offset = mpz_get_64(sdata->offset);
+			else
+			{
+				// huge offset, we don't need to add any primes.
+				ui_offset = 0;
+				sdata->min_sieved_val = 0;
 			}
 		}
-		//printf("%" PRIu64" primes to be included from sieve primes\n",it);
+		else
+			ui_offset = 0;
+			
+		if (sdata->sieve_range)
+			sdata->min_sieved_val += ui_offset;
 
-		new_merge = merge_primes32(mergeprimes, sdata.sieve_p + start_index, 
-			num_p, it);
-		//get rid of old storage
-		free(mergeprimes);
-		//proceed with new storage
-		mergeprimes = new_merge;	
+		//printf("lowlimit is %" PRIu64 " first sieved value = %" PRIu64 "\n", 
+		//	sdata->lowlimit, sdata->min_sieved_val);
+		//printf("original limits are %" PRIu64 " and %" PRIu64 "\n", 
+		//	sdata->orig_llimit, sdata->orig_hlimit);
 
-		num_p += it;
-		num_p -= numd;
+		//PRIMES is already sized appropriately by the wrapper
+		//load in the sieve primes that we need
+		j = 0;
+		i = 0;
+		while (((uint64)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
+		{
+			if (sdata->sieve_p[i] >= (sdata->orig_llimit + ui_offset))					
+				primes[j++] = (uint64)sdata->sieve_p[i];
+			i++;
+		}
+		//printf("added %u primes\n", (uint32)j);
 
-		//copy the local mergeprimes into the output primes array
-		memcpy(primes,mergeprimes,num_p * sizeof(uint64));
+		//and then the primes in the lines
+		num_p = primes_from_lineflags(sdata, j, primes);
 
 	}
 
-	//printf("maximum bucket usage = %u\n",max_bucket_usage);
-#ifdef DO_SPECIAL_COUNT
-	//print the special counts
-	for (i=0; i<sdata.num_special_bins; i++)
-	{
-		if (sdata.special_count[i] > 0)
-			printf("count in range %d = %u\n",(int)i,sdata.special_count[i]);
-	}
-#endif
+	//update count of found primes
+	sdata->num_found = num_p;
 
 	for (i=0; i<THREADS; i++)
 	{
 		thread_soedata_t *thread = thread_data + i;
 		free(thread->ddata.pbounds);
-		free(thread->ddata.line);
-#ifdef DO_SPECIAL_COUNT
-		free(thread->ddata.special_count);
-#endif
 	}
 
-	if (bucket_depth > BUCKET_BUFFER)
+	if (sdata->num_bucket_primes > 0)
 	{
 		for (i=0; i< THREADS; i++)
 		{
@@ -894,19 +495,32 @@ uint64 spSOE(uint64 *primes, uint64 lowlimit, uint64 *highlimit, int count)
 
 	}
 
-	free(mergeprimes);
-	free(sdata.root);
-	free(sdata.lower_mod_prime);
-#ifdef DO_SPECIAL_COUNT
-	free(sdata.special_count);
-#endif
+	if (!sdata->only_count)
+	{
+		for (i=0; i<sdata->numclasses; i++)
+			free(sdata->lines[i]);
+	}
+	free(sdata->lines);
+	free(sdata->root);
+	free(sdata->lower_mod_prime);
 	free(thread_data);
-	free(sdata.sieve_p);
-	free(sdata.rclass);
+	free(sdata->rclass);
 
-	return num_p;
+#if defined(INPLACE_BUCKET)
+	if (sdata->num_inplace_primes > 0)
+	{	
+		free(sdata->inplace_data);
+		for (i=0; i<sdata->numclasses; i++)
+			free(sdata->inplace_ptrs[i]);
+		free(sdata->inplace_ptrs);
+	}
+#endif
+
+	return;
 }
 
+
+#ifdef NOT_DEF
 void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum)
 {
 	z mp1;
@@ -1522,6 +1136,7 @@ void primesum(uint64 lower, uint64 upper)
 	return;
 }
 
+#endif
 
 int residue_pattern_mod30[8][8] = {
 	{1, 7, 11, 13, 17, 19, 23, 29},

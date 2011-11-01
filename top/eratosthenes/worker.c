@@ -90,17 +90,15 @@ void *soe_worker_thread_main(void *thread_data) {
 
 		if (t->command == SOE_COMMAND_SIEVE_AND_COUNT)
 		{
+			t->sdata.lines[t->current_line] = 
+				(uint8 *)malloc(t->sdata.numlinebytes * sizeof(uint8));
 			sieve_line(t);
-#ifdef DO_SPECIAL_COUNT
-			count_line_special(t);
-#else
-			count_line(t);
-#endif
+			t->linecount = count_line(&t->sdata, t->current_line);
+			free(t->sdata.lines[t->current_line]);
 		}
 		else if (t->command == SOE_COMMAND_SIEVE_AND_COMPUTE)
 		{
 			sieve_line(t);
-			primes_from_lineflags(t);
 		}
 		else if (t->command == SOE_COMMAND_END)
 			break;

@@ -173,8 +173,8 @@ int CLSIZE;
 z zZero, zOne, zTwo, zThree, zFive;
 
 //this array holds a global store of prime numbers
-uint64 *spSOEprimes;	//the primes	
-uint64 szSOEp;			//count of primes
+uint32 *spSOEprimes;	//the primes	
+uint32 szSOEp;			//count of primes
 
 //this array holds NUM_P primes in the range P_MIN to P_MAX, and
 //can change as needed - always check the range and size to see

@@ -816,7 +816,7 @@ _MSC_MPIR_VERSION);
 		printf("=======             bbuhrow@gmail.com                   =======\n");
 		printf("=======     Type help at any time, or quit to quit      =======\n");
 		printf("===============================================================\n");
-		printf("cached %" PRIu64 " primes. pmax = %" PRIu64 "\n\n",szSOEp,spSOEprimes[szSOEp-1]);
+		printf("cached %u primes. pmax = %u\n\n",szSOEp,spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
 
 	}
@@ -857,7 +857,7 @@ void get_computer_info(char *idstr)
 void set_default_globals(void)
 {
 	uint64 limit, i;
-	uint32 p_est;
+	uint32 seed_p[6542], num_sp;
 	
 	VFLAG = 0;
 	VERBOSE_PROC_INFO = 0;
@@ -867,6 +867,7 @@ void set_default_globals(void)
 	
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
+	GLOBAL_OFFSET = 0;
 	
 	USEBATCHFILE = 0;
 	USERSEED = 0;
@@ -898,20 +899,21 @@ void set_default_globals(void)
 	OBASE = DEC;
 
 	//find, and hold globally, primes less than some N
-	p_est = (uint32)((double)szSOEp/log((double)szSOEp)*1.2);
-	limit=szSOEp;
-	spSOEprimes = (uint64 *)malloc((size_t) (p_est*sizeof(uint64)));
-	szSOEp = spSOE(spSOEprimes,0,&limit,0);
-	spSOEprimes = (uint64 *)realloc(spSOEprimes,(size_t) (szSOEp*sizeof(uint64)));
+	//bootstrap the process by finding some initial sieve primes.
+	//if the requested offset+range is large we may need to find more - 
+	//we can use these primes to accomplish that.
+	num_sp = tiny_soe(65537, seed_p);
+	PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, 0, szSOEp, &limit);
 
-	//resident chunk of primes
-	PRIMES = (uint64 *)malloc((size_t) (szSOEp*sizeof(uint64)));
-	for (i=0;i<szSOEp;i++)
-		PRIMES[i] = spSOEprimes[i];
+	//save a batch of sieve primes too.
+	spSOEprimes = (uint32 *)malloc((size_t) (limit * sizeof(uint32)));
+	for (i=0;i<limit;i++)
+		spSOEprimes[i] = (uint32)PRIMES[i];
 
-	NUM_P=szSOEp;
-	P_MIN=0; 
-	P_MAX=spSOEprimes[(uint32)NUM_P-1];
+	szSOEp = limit;
+	NUM_P = limit;
+	P_MIN = 0; 
+	P_MAX = PRIMES[(uint32)NUM_P-1];
 
 	// random seeds
 	get_random_seeds(&g_rand);
