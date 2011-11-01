@@ -14,12 +14,10 @@ benefit from your work.
 
 #include "soe.h"
 
-void count_line(thread_soedata_t *thread_data)
+uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 {
 	//extract stuff from the thread data structure
-	soe_staticdata_t *sdata = &thread_data->sdata;
-	uint8 *line = thread_data->ddata.line;
-	uint32 current_line = thread_data->current_line;
+	uint8 *line = sdata->lines[current_line];
 	uint64 numlinebytes = sdata->numlinebytes;
 	uint64 lowlimit = sdata->lowlimit;
 	uint64 prodN = sdata->prodN;
@@ -27,150 +25,97 @@ void count_line(thread_soedata_t *thread_data)
 	uint8 *flagblock;
 	uint64 i, k, it = 0;
 	int ix;
+	int done, kx;
+	uint64 prime;
 
-	if (0)
+	for (i=0;i<(numlinebytes >> 3);i++)
 	{
-		//zero out any bits below the requested range
-		for (i=lowlimit + sdata->rclass[current_line], ix=0; i < sdata->orig_llimit; i += prodN, ix++)
-			line[ix >> 3] &= masks[ix & 7];
-	
-		//and any high bits above the requested range
-		for (i=sdata->highlimit + sdata->rclass[current_line] - prodN, ix=0; i > sdata->orig_hlimit; i -= prodN, ix++)
-			line[numlinebytes - 1 - (ix >> 3)] &= masks[7 - (ix & 7)];
-
-		//then just count em
-		for (i=0;i<(numlinebytes >> 3);i++)
-		{
-			/* Convert to 64-bit unsigned integer */    
-			uint64 x = flagblock64[i];
-	    
-			/*  Employ bit population counter algorithm from Henry S. Warren's
-			 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
-			 *  to accomdate 64 bit values.
-			 */
-			x = x - ((x >> 1) & 0x5555555555555555ULL);
-			x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
-			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-			x = x + (x >> 8);
-			x = x + (x >> 16);
-			x = x + (x >> 32);
-
-			it += (x & 0x000000000000003FULL);
-		}
-
-		//potentially misses the last few bytes
-		//use the simpler baseline method to get these few
-		flagblock = line;
-		for (k=0; k<(numlinebytes & 7);k++)
-		{
-			it += (flagblock[(i<<3)+k] & nmasks[0]) >> 7;
-			it += (flagblock[(i<<3)+k] & nmasks[1]) >> 6;
-			it += (flagblock[(i<<3)+k] & nmasks[2]) >> 5;
-			it += (flagblock[(i<<3)+k] & nmasks[3]) >> 4;
-			it += (flagblock[(i<<3)+k] & nmasks[4]) >> 3;
-			it += (flagblock[(i<<3)+k] & nmasks[5]) >> 2;
-			it += (flagblock[(i<<3)+k] & nmasks[6]) >> 1;
-			it += (flagblock[(i<<3)+k] & nmasks[7]);
-		}
-
-		thread_data->linecount = it;
-	}
-	else
-	{
-		int done, kx;
-		uint64 prime;
-
-		for (i=0;i<(numlinebytes >> 3);i++)
-		{
-			/* Convert to 64-bit unsigned integer */    
-			uint64 x = flagblock64[i];
+		/* Convert to 64-bit unsigned integer */    
+		uint64 x = flagblock64[i];
 		    
-			/*  Employ bit population counter algorithm from Henry S. Warren's
-			 *  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
-			 *  to accomdate 64 bit values.
-			 */
-			x = x - ((x >> 1) & 0x5555555555555555ULL);
-			x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
-			x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-			x = x + (x >> 8);
-			x = x + (x >> 16);
-			x = x + (x >> 32);
+		/*  Employ bit population counter algorithm from Henry S. Warren's
+			*  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
+			*  to accomdate 64 bit values.
+			*/
+		x = x - ((x >> 1) & 0x5555555555555555ULL);
+		x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
+		x = x + (x >> 8);
+		x = x + (x >> 16);
+		x = x + (x >> 32);
 
-			it += (x & 0x000000000000003FULL);
-		}
-
-		//potentially misses the last few bytes
-		//use the simpler baseline method to get these few
-		flagblock = line;
-		for (k=0; k<(numlinebytes & 7);k++)
-		{
-			it += (flagblock[(i<<3)+k] & nmasks[0]) >> 7;
-			it += (flagblock[(i<<3)+k] & nmasks[1]) >> 6;
-			it += (flagblock[(i<<3)+k] & nmasks[2]) >> 5;
-			it += (flagblock[(i<<3)+k] & nmasks[3]) >> 4;
-			it += (flagblock[(i<<3)+k] & nmasks[4]) >> 3;
-			it += (flagblock[(i<<3)+k] & nmasks[5]) >> 2;
-			it += (flagblock[(i<<3)+k] & nmasks[6]) >> 1;
-			it += (flagblock[(i<<3)+k] & nmasks[7]);
-		}
-
-		//eliminate the primes flaged that are above or below the
-		//actual requested limits. as both of these can change to 
-		//facilitate sieving we'll need to compute them, and
-		//decrement the counter if so.
-		//this is a scarily nested loop, but it only should iterate
-		//a few times.
-		done = 0;
-		for (ix=(int)numlinebytes-1;ix>=0 && !done;ix--)
-		{
-			for (kx=BITSINBYTE-1;kx>=0;kx--)
-			{
-				if (line[ix] & nmasks[kx])
-				{
-					prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
-						(uint64)sdata->rclass[current_line] + lowlimit;
-					if (prime > sdata->orig_hlimit)
-						it--;
-					else
-					{
-						done = 1;
-						break;
-					}
-				}
-			}
-		}
-		done = 0;
-		for (ix=0;ix<numlinebytes && !done;ix++)
-		{
-			for (kx=0;kx<8;kx++)
-			{
-				if (line[ix] & nmasks[kx])
-				{
-					prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
-						(uint64)sdata->rclass[current_line] + lowlimit;
-					if (prime < sdata->orig_llimit)
-						it--;
-					else
-					{
-						done = 1;
-						break;
-					}
-				}
-			}
-		}
-
-		thread_data->linecount = it;
+		it += (x & 0x000000000000003FULL);
 	}
 
-	return;
+	//potentially misses the last few bytes
+	//use the simpler baseline method to get these few
+	flagblock = line;
+	for (k=0; k<(numlinebytes & 7);k++)
+	{
+		it += (flagblock[(i<<3)+k] & nmasks[0]) >> 7;
+		it += (flagblock[(i<<3)+k] & nmasks[1]) >> 6;
+		it += (flagblock[(i<<3)+k] & nmasks[2]) >> 5;
+		it += (flagblock[(i<<3)+k] & nmasks[3]) >> 4;
+		it += (flagblock[(i<<3)+k] & nmasks[4]) >> 3;
+		it += (flagblock[(i<<3)+k] & nmasks[5]) >> 2;
+		it += (flagblock[(i<<3)+k] & nmasks[6]) >> 1;
+		it += (flagblock[(i<<3)+k] & nmasks[7]);
+	}
+
+	//eliminate the primes flaged that are above or below the
+	//actual requested limits. as both of these can change to 
+	//facilitate sieving we'll need to compute them, and
+	//decrement the counter if so.
+	//this is a scarily nested loop, but it only should iterate
+	//a few times.
+	done = 0;
+	for (ix=(int)numlinebytes-1;ix>=0 && !done;ix--)
+	{
+		for (kx=BITSINBYTE-1;kx>=0;kx--)
+		{
+			if (line[ix] & nmasks[kx])
+			{
+				prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
+					(uint64)sdata->rclass[current_line] + lowlimit;
+				if (prime > sdata->orig_hlimit)
+					it--;
+				else
+				{
+					done = 1;
+					break;
+				}
+			}
+		}
+	}
+	done = 0;
+	for (ix=0;ix<numlinebytes && !done;ix++)
+	{
+		for (kx=0;kx<8;kx++)
+		{
+			if (line[ix] & nmasks[kx])
+			{
+				prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
+					(uint64)sdata->rclass[current_line] + lowlimit;
+				if (prime < sdata->orig_llimit)
+					it--;
+				else
+				{
+					done = 1;
+					break;
+				}
+			}
+		}
+	}
+
+	return it;
 }
 
 void count_line_special(thread_soedata_t *thread_data)
 {
 	//extract stuff from the thread data structure
 	soe_staticdata_t *sdata = &thread_data->sdata;
-	uint8 *line = thread_data->ddata.line;
 	uint32 current_line = thread_data->current_line;
+	uint8 *line = sdata->lines[current_line];	
 	uint64 numlinebytes = sdata->numlinebytes;
 	uint64 lowlimit = sdata->lowlimit;
 	uint64 prodN = sdata->prodN;

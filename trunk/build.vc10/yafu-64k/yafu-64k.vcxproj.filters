@@ -197,6 +197,9 @@
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\eratosthenes\soe_util.c">
+      <Filter>Source Files\sieve</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">

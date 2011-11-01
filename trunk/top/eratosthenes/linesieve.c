@@ -162,19 +162,17 @@ void sieve_line(thread_soedata_t *thread_data)
 {
 	//extract stuff from the thread data structure
 	soe_dynamicdata_t *ddata = &thread_data->ddata;
-	soe_staticdata_t *sdata = &thread_data->sdata;
-	uint8 *line = thread_data->ddata.line;
+	soe_staticdata_t *sdata = &thread_data->sdata;	
 	uint32 current_line = thread_data->current_line;
+	uint8 *line = thread_data->sdata.lines[current_line];
 	
 	//stuff for bucket sieving
 	soe_bucket_t *bptr;
 	soe_bucket_t **buckets;
 	uint32 *nptr;
 	uint32 linesize = FLAGSIZE * sdata->blocks, bnum;
-	//uint32 *bptr;
 
 	uint8 *flagblock;
-	uint64 startprime = sdata->startprime;
 	uint64 i,j,k;
 	uint32 prime;
 	uint32 maxP;
@@ -183,134 +181,34 @@ void sieve_line(thread_soedata_t *thread_data)
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
 	ddata->blk_b_sqrt = (uint32)(sqrt(ddata->ublk_b + sdata->prodN)) + 1;
 
-	//for the current line, find the offsets past the low limit
+	//for the current line, find the offsets of each small/med prime past the low limit
+	//and bucket sieve large primes
 	get_offsets(thread_data);
 
 	flagblock = line;
 	for (i=0;i<sdata->blocks;i++)
-	{
-		uint64 *flagblock64;
-		int mask_step, mask_step2;
-		int mask_num, mask_num2;
-
-		//sieve the block with each effective prime
+	{			
 		//set all flags for this block, which also puts it into cache for the sieving
 		//to follow
-		memset(flagblock,255,BLOCKSIZE);
-
-		flagblock64 = (uint64 *)flagblock;		
+		memset(flagblock,255,BLOCKSIZE);			
 		
-		//do the smallest primes in predetermined 64 bit batches
-		if (startprime == 2)
-		{
-			for (k=0, mask_step = _64_MOD_P[0], mask_num = ddata->offsets[2],
-				mask_step2 = _64_MOD_P[1], mask_num2 = ddata->offsets[3]; 
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= (_5_MASKS[mask_num] & _7_MASKS[mask_num2]);
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 5 + mask_num;
-				mask_num2 -= mask_step2;
-				if (mask_num2 < 0) mask_num2 = 7 + mask_num2;
-			}
-			ddata->offsets[2]= (uint32)mask_num;
-			ddata->offsets[3]= (uint32)mask_num2;
-
-			for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-				mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 11 + mask_num;
-				mask_num2 -= mask_step2;
-				if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-			}
-			ddata->offsets[4]= (uint32)mask_num;
-			ddata->offsets[5]= (uint32)mask_num2;
-		}
-		else if (startprime == 3)
-		{
-			for (k=0, mask_step = _64_MOD_P[1], mask_num = ddata->offsets[3]; 
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= _7_MASKS[mask_num];
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 7 + mask_num;
-			}
-			ddata->offsets[3]= (uint32)mask_num;
-
-			for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-				mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 11 + mask_num;
-				mask_num2 -= mask_step2;
-				if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-			}
-			ddata->offsets[4]= (uint32)mask_num;
-			ddata->offsets[5]= (uint32)mask_num2;
-		}
-		else if (startprime == 4)
-		{
-
-			for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-				mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 11 + mask_num;
-				mask_num2 -= mask_step2;
-				if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-			}
-			ddata->offsets[4]= (uint32)mask_num;
-			ddata->offsets[5]= (uint32)mask_num2;
-		}
-		else if (startprime == 5)
-		{
-			for (k=0, mask_step = _64_MOD_P[3], mask_num = ddata->offsets[5];
-				k<FLAGSIZE >> 6; k++)
-			{
-				flagblock64[k] &= _13_MASKS[mask_num];
-				mask_num -= mask_step;
-				if (mask_num < 0) mask_num = 13 + mask_num;
-			}
-			ddata->offsets[5]= (uint32)mask_num;
-		}	
-
-		for (k=0, mask_step = _64_MOD_P[4], mask_num = ddata->offsets[6],
-			mask_step2 = _64_MOD_P[5], mask_num2 = ddata->offsets[7]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_17_MASKS[mask_num] & _19_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 17 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 19 + mask_num2;
-		}
-		ddata->offsets[6]= (uint32)mask_num;
-		ddata->offsets[7]= (uint32)mask_num2;
-
-		for (k=0, mask_step = _64_MOD_P[6], mask_num = ddata->offsets[8],
-			mask_step2 = _64_MOD_P[7], mask_num2 = ddata->offsets[9]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_23_MASKS[mask_num] & _29_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 23 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 29 + mask_num2;
-		}
-		ddata->offsets[8]= (uint32)mask_num;
-		ddata->offsets[9]= (uint32)mask_num2;	
+		//smallest primes use special methods
+		pre_sieve(ddata, sdata, flagblock);
 		
 		//one is not a prime
-		if ((sdata->rclass[current_line] == 1) &&
-			(sdata->lowlimit <= 1) && (i == 0))
-			flagblock[0] &= 0xfe;
+		if (sdata->sieve_range == 0)
+		{
+			if ((sdata->rclass[current_line] == 1) &&
+				(sdata->lowlimit <= 1) && (i == 0))
+				flagblock[0] &= 0xfe;
+		}
+		else
+		{
+			if ((sdata->rclass[current_line] == 1) &&
+				(mpz_cmp_ui(sdata->offset,1) <= 0) && (i == 0))
+				flagblock[0] &= 0xfe;
+		}
+
 
 		//unroll the loop: all primes less than this max hit the interval at least 16 times
 		maxP = FLAGSIZE >> 4;
@@ -438,8 +336,10 @@ void sieve_line(thread_soedata_t *thread_data)
 			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
 		}
 		
-		if (ddata->bucket_depth > BUCKET_BUFFER)
+		if (ddata->bucket_depth > 0)
 		{
+			//finish the primes greater than (flagblocklimit >> 2) that we
+			//didn't unroll prior to proceeding with the bucket sieving.
 			for (;j<ddata->pbounds[i];j++)
 			{
 				prime = sdata->sieve_p[j];
@@ -613,8 +513,147 @@ void sieve_line(thread_soedata_t *thread_data)
 			}
 		}
 
+		if (i == 0)
+		{
+			for (j = 0; j < FLAGSIZE; j++)
+			{
+				if (flagblock[j >> 3] & nmasks[j & 7])
+				{
+					ddata->min_sieved_val = sdata->prodN * j + sdata->rclass[current_line] + sdata->lowlimit;
+					break;
+				}
+			}
+		}
+
 		flagblock += BLOCKSIZE;
 	}
 
 	return;
 }
+
+void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock)
+{
+	uint64 startprime = sdata->startprime;
+	uint64 k;
+	int mask_step, mask_step2;
+	int mask_num, mask_num2;		
+	uint64 *flagblock64;	
+
+	//flagblock is always a multiple of 8 bytes
+	flagblock64 = (uint64 *)flagblock;	
+
+	//do the smallest primes in predetermined 64 bit batches
+	if (startprime == 2)
+	{
+		//ToDo: implement using instruction ROR (rotate right).  Then we'd
+		//just need to load in one 64 bit value and repeatedly ROR.  On 64-bit
+		//systems we could probably do all 8 small primes in the same loop, 
+		//one prime mask per r8-15 register, with the other registers for
+		//step counting and loop control...
+		for (k=0, mask_step = _64_MOD_P[0], mask_num = ddata->offsets[2],
+			mask_step2 = _64_MOD_P[1], mask_num2 = ddata->offsets[3]; 
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= (_5_MASKS[mask_num] & _7_MASKS[mask_num2]);
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 5 + mask_num;
+			mask_num2 -= mask_step2;
+			if (mask_num2 < 0) mask_num2 = 7 + mask_num2;
+		}
+		ddata->offsets[2]= (uint32)mask_num;
+		ddata->offsets[3]= (uint32)mask_num2;
+
+		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 11 + mask_num;
+			mask_num2 -= mask_step2;
+			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+		}
+		ddata->offsets[4]= (uint32)mask_num;
+		ddata->offsets[5]= (uint32)mask_num2;
+	}
+	else if (startprime == 3)
+	{
+		for (k=0, mask_step = _64_MOD_P[1], mask_num = ddata->offsets[3]; 
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= _7_MASKS[mask_num];
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 7 + mask_num;
+		}
+		ddata->offsets[3]= (uint32)mask_num;
+
+		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 11 + mask_num;
+			mask_num2 -= mask_step2;
+			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+		}
+		ddata->offsets[4]= (uint32)mask_num;
+		ddata->offsets[5]= (uint32)mask_num2;
+	}
+	else if (startprime == 4)
+	{
+
+		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 11 + mask_num;
+			mask_num2 -= mask_step2;
+			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+		}
+		ddata->offsets[4]= (uint32)mask_num;
+		ddata->offsets[5]= (uint32)mask_num2;
+	}
+	else if (startprime == 5)
+	{
+		for (k=0, mask_step = _64_MOD_P[3], mask_num = ddata->offsets[5];
+			k<FLAGSIZE >> 6; k++)
+		{
+			flagblock64[k] &= _13_MASKS[mask_num];
+			mask_num -= mask_step;
+			if (mask_num < 0) mask_num = 13 + mask_num;
+		}
+		ddata->offsets[5]= (uint32)mask_num;
+	}	
+
+	for (k=0, mask_step = _64_MOD_P[4], mask_num = ddata->offsets[6],
+		mask_step2 = _64_MOD_P[5], mask_num2 = ddata->offsets[7]; 
+		k<FLAGSIZE >> 6; k++)
+	{
+		flagblock64[k] &= (_17_MASKS[mask_num] & _19_MASKS[mask_num2]);
+		mask_num -= mask_step;
+		if (mask_num < 0) mask_num = 17 + mask_num;
+		mask_num2 -= mask_step2;
+		if (mask_num2 < 0) mask_num2 = 19 + mask_num2;
+	}
+	ddata->offsets[6]= (uint32)mask_num;
+	ddata->offsets[7]= (uint32)mask_num2;
+
+	for (k=0, mask_step = _64_MOD_P[6], mask_num = ddata->offsets[8],
+		mask_step2 = _64_MOD_P[7], mask_num2 = ddata->offsets[9]; 
+		k<FLAGSIZE >> 6; k++)
+	{
+		flagblock64[k] &= (_23_MASKS[mask_num] & _29_MASKS[mask_num2]);
+		mask_num -= mask_step;
+		if (mask_num < 0) mask_num = 23 + mask_num;
+		mask_num2 -= mask_step2;
+		if (mask_num2 < 0) mask_num2 = 29 + mask_num2;
+	}
+	ddata->offsets[8]= (uint32)mask_num;
+	ddata->offsets[9]= (uint32)mask_num2;	
+
+	return;
+}
+

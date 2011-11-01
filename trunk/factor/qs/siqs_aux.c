@@ -47,7 +47,9 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 mul = sconf->multiplier;
 	uint32 *modsqrt = sconf->modsqrt_array;
 
-	GetPRIMESRange(lrange,urange);
+	PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
+	P_MIN = PRIMES[0];
+	P_MAX = PRIMES[NUM_P-1];
 
 	//the 0th and 1st elements in the fb are always 1 and 2, so start searching with 3
 	j=2; i=1;
@@ -57,7 +59,9 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
-			GetPRIMESRange(lrange,urange);
+			PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
+			P_MIN = PRIMES[0];
+			P_MAX = PRIMES[NUM_P-1];
 			i=0;
 		}
 

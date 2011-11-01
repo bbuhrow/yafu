@@ -137,6 +137,7 @@ YAFU_SRCS = \
 	top/eratosthenes/soe.c \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
+	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
 
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)

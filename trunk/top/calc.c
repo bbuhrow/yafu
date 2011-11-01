@@ -1014,7 +1014,7 @@ int getFunc(char *s, int *nargs)
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sumpuzzle","smallmpqs","pseudolist","siqstune",
-						"ptable","primesum","fermat","nfs","tune"};
+						"ptable","sieverange","fermat","nfs","tune"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
 					2,2,1,1,1,
@@ -1027,7 +1027,7 @@ int getFunc(char *s, int *nargs)
 					2,2,2,2,2,
 					2,2,2,1,0,
 					0,5,1,2,1,
-					0,2,2,1,0};
+					0,4,2,1,0};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -1441,7 +1441,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			lower = z264(&operands[1]);
 			upper = z264(&operands[2]);
 
-			n64 = soe_wrapper(lower,upper,1);
+			soe_wrapper(spSOEprimes, szSOEp, lower, upper, 1, &n64);
 
 			sp642z(n64,&operands[0]);
 			gettimeofday (&tstop, NULL);
@@ -1465,9 +1465,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		lower = z264(&operands[0]);
 		upper = z264(&operands[1]);
-		n64 = soe_wrapper(lower,upper,operands[2].val[0]);
-
-		sp642z(n64,&operands[0]);
+		PRIMES = soe_wrapper(spSOEprimes, szSOEp, lower, upper, operands[2].val[0], &NUM_P);
+		if (PRIMES != NULL)
+		{
+			P_MIN = PRIMES[0];
+			P_MAX = PRIMES[NUM_P-1];
+		}
+		sp642z(NUM_P,&operands[0]);
 
 		break;
 	case 29:
@@ -2051,8 +2055,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (j = 1; j < k; j++)
 			{
 				upper = lower + inc; 
-				gettimeofday(&tstart, NULL);				
-				n64 = soe_wrapper(lower,upper,1);
+				gettimeofday(&tstart, NULL);	
+				soe_wrapper(spSOEprimes, szSOEp, lower, upper, 1, &n64);
 				count += n64;
 				gettimeofday (&tstop, NULL);
 				difference = my_difftime (&tstart, &tstop);
@@ -2067,7 +2071,50 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 	case 56: 
 
-		primesum(z264(&operands[0]), z264(&operands[1]));
+		//sieverange - 4 arguments
+		if (nargs != 4)
+		{
+			printf("wrong number of arguments in sieverange\n");
+			break;
+		}
+
+		{
+			uint64 num_found;
+			uint64 *primes;
+			uint64 range;
+			uint32 *sieve_p, num_sp;
+			mpz_t lowz, highz;
+			int val1, val2;
+			
+			range = z264(&operands[2]);
+			val1 = PRIMES_TO_SCREEN;
+			val2 = PRIMES_TO_FILE;
+			PRIMES_TO_SCREEN = 0;
+			PRIMES_TO_FILE = 0;
+			primes = soe_wrapper(spSOEprimes, szSOEp, 0, range, 0, &num_found);
+			PRIMES_TO_SCREEN = val1;
+			PRIMES_TO_FILE = val2;
+			sieve_p = (uint32 *)malloc(num_found * sizeof(uint32));
+			for (i=0; i<num_found; i++)
+				sieve_p[i] = (uint32)primes[i];
+			num_sp = (uint32)num_found;
+			free(primes);
+			primes = NULL;
+
+			mpz_init(lowz);
+			mpz_init(highz);
+			mp2gmp(&operands[0], lowz);
+			mp2gmp(&operands[1], highz);
+			primes = sieve_to_depth(sieve_p, num_sp, lowz, highz, operands[3].val[0], &num_found);
+
+			free(sieve_p);
+			if (!NULL)
+				free(primes);
+
+			mpz_clear(lowz);
+			mpz_clear(highz);
+			sp2z(num_found, &operands[0]);
+		}
 		
 		break;
 

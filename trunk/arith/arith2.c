@@ -386,7 +386,9 @@ int zPrimorial(uint32 n, z *w)
 	if (w->alloc < approx_words)
 		zGrow(w,approx_words);
 
-	GetPRIMESRange(0,1000000);
+	PRIMES = soe_wrapper(spSOEprimes, szSOEp, 0, 1000000, 0, &NUM_P);
+	P_MIN = PRIMES[0];
+	P_MAX = PRIMES[NUM_P-1];
 	w->size = 1;
 	w->val[0] = 1;
 	//naive (but simple) method
@@ -395,7 +397,9 @@ int zPrimorial(uint32 n, z *w)
 		if (i >= NUM_P)
 		{
 			//get more primes if we need em.
-			GetPRIMESRange(PRIMES[i-1]-1,PRIMES[i-1]+1000000);
+			PRIMES = soe_wrapper(spSOEprimes, szSOEp, PRIMES[i-1]-1, PRIMES[i-1]+1000000, 0, &NUM_P);
+			P_MIN = PRIMES[0];
+			P_MAX = PRIMES[NUM_P-1];
 			i=0;
 		}
 		q = (fp_digit)PRIMES[i];

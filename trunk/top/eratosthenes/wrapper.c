@@ -14,58 +14,147 @@ benefit from your work.
 
 #include "soe.h"
 
-void GetPRIMESRange(uint64 lowlimit, uint64 highlimit)
+uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp, 
+	mpz_ptr offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p)
 {
 	uint64 i;
 	uint64 hi_est, lo_est;
+	uint64 maxrange = 10000000000ULL;
+	uint64 *primes = NULL;
 	
-	//reallocate array based on conservative estimate of the number of 
+	//reallocate output array based on conservative estimate of the number of 
 	//primes in the interval
-	
-	hi_est = (uint64)(highlimit/log((double)highlimit));
-	if (lowlimit > 1)
-		lo_est = (uint64)(lowlimit/log((double)lowlimit));
-	else
-		lo_est = 0;
-
-	i = (uint64)((double)(hi_est - lo_est) * 1.2);
-
-	PRIMES = (uint64 *)realloc(PRIMES,(size_t) (i*sizeof(uint64)));
-	if (PRIMES == NULL)
+	if (offset != NULL)
 	{
-		printf("unable to allocate %" PRIu64 " bytes for range %" PRIu64 " to %" PRIu64 "\n",
-			(uint64)(i*sizeof(uint64)),lowlimit,highlimit);
-		exit(1);
+		i = (highlimit - lowlimit);
+		primes = (uint64 *)realloc(primes, (size_t) (i * sizeof(uint64)));
+		if (primes == NULL)
+		{
+			if (offset == NULL)
+				printf("unable to allocate %" PRIu64 " bytes for range %" PRIu64 " to %" PRIu64 "\n",
+					(uint64)(i * sizeof(uint64)),lowlimit,highlimit);
+			else
+				printf("unable to allocate %" PRIu64 " bytes \n",
+					(uint64)(i * sizeof(uint64)));
+			exit(1);
+		}
 	}
-	//else
-		//printf("allocating %" PRIu64 " primes, %" PRIu64 " bytes\n",i, i*8);
+	else
+	{
+		hi_est = (uint64)(highlimit/log((double)highlimit));
+		if (lowlimit > 1)
+			lo_est = (uint64)(lowlimit/log((double)lowlimit));
+		else
+			lo_est = 0;
 
-	//reset the global constants
-	P_MIN = lowlimit;
-	P_MAX = highlimit; 
+		i = (uint64)((double)(hi_est - lo_est) * 1.25);
 
-	//find the primes in the interval
-	NUM_P = spSOE(PRIMES,lowlimit,&highlimit,0);
+		if (1) //(!NO_STORE)
+		{
+			primes = (uint64 *)realloc(primes,(size_t) (i * sizeof(uint64)));
+			if (primes == NULL)
+			{
+				printf("unable to allocate %" PRIu64 " bytes for range %" PRIu64 " to %" PRIu64 "\n",
+					(uint64)(i * sizeof(uint64)),lowlimit,highlimit);
+				exit(1);
+			}
+		}
+	}
 
-	return;
+	//check for really big ranges ('big' is different here than when we are counting
+	//primes because there are higher memory demands when computing primes)
+	if ((highlimit - lowlimit) > maxrange)
+	{
+		uint64 tmpl, tmph, tmpcount = 0;
+		uint32 num_ranges = (uint32)((highlimit - lowlimit) / maxrange);
+		uint64 remainder = (highlimit - lowlimit) % maxrange;
+		uint32 j;
+				
+		GLOBAL_OFFSET = 0;
+		tmpl = lowlimit;
+		tmph = lowlimit + maxrange;
+		for (j = 0; j < num_ranges; j++)
+		{
+			tmpcount += spSOE(sieve_p, num_sp, offset, tmpl, &tmph, 0, primes);
+			tmpl += maxrange;
+			tmph = tmpl + maxrange;
+			GLOBAL_OFFSET = tmpcount;
+		}
+				
+		tmph = tmpl + remainder;
+		tmpcount += spSOE(sieve_p, num_sp, offset, tmpl, &tmph, 0, primes);
+		*num_p = tmpcount;
+	}
+	else
+	{
+		//find the primes in the interval
+		GLOBAL_OFFSET = 0;
+		*num_p = spSOE(sieve_p, num_sp, offset, lowlimit, &highlimit, 0, primes);
+	}
+
+	return primes;
 }
 
-uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
+uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp, 
+	uint64 lowlimit, uint64 highlimit, int count, uint64 *num_p)
 {
-	//public interface to the sieve.  necessary because in order to keep the 
-	//sieve efficient it must sieve larger blocks of numbers than a user may want,
-	//and because the program keeps a cache of primes on hand which may or may 
-	//not contain the range of interest.  Manage this on-hand cache and any addition
-	//sieving needed.
-	//TODO: manage really large requested blocks by splitting the range up into
-	//blocks of no more than 10B else memory requirements get outragous.
-	uint64 retval, tmpl, tmph,i=0;
-	uint64 maxrange = 100000000000ULL;
+	//public interface to the sieve.  
+	uint64 retval, tmpl, tmph, i;
+	uint32 max_p;	
+	uint32 *sieve_p;
+	uint64 *primes = NULL;
 
 	if (highlimit < lowlimit)
 	{
 		printf("error: lowlimit must be less than highlimit\n");
-		return 0;
+		*num_p = 0;
+		return primes;
+	}	
+
+	if (highlimit > (seed_p[num_sp-1] * seed_p[num_sp-1]))
+	{
+		//then we need to generate more sieving primes
+		uint32 range_est;
+	
+		//allocate array based on conservative estimate of the number of 
+		//primes in the interval	
+		max_p = (uint32)sqrt((int64)(highlimit)) + 65536;
+		range_est = (uint32)estimate_primes_in_range(0, (uint64)max_p);
+		sieve_p = (uint32 *)malloc((size_t) (range_est * sizeof(uint32)));
+
+		if (sieve_p == NULL)
+		{
+			printf("unable to allocate %u bytes for %u sieving primes\n",
+				range_est * (uint32)sizeof(uint32), range_est);
+			exit(1);
+		}
+
+		//find the sieving primes using the seed primes
+		NO_STORE = 0;
+		primes = GetPRIMESRange(seed_p, num_sp, NULL, 0, max_p, &retval);
+		for (i=0; i<retval; i++)
+			sieve_p[i] = (uint32)primes[i];
+		printf("found %u sieving primes\n",(uint32)retval);
+		num_sp = (uint32)retval;
+		free(primes);
+		primes = NULL;
+		//NO_STORE = 1;
+	}
+	else
+	{
+		//seed primes are enough
+		sieve_p = (uint32 *)malloc((size_t) (num_sp * sizeof(uint32)));
+		//NO_STORE = 1;
+
+		if (sieve_p == NULL)
+		{
+			printf("unable to allocate %u bytes for %u sieving primes\n",
+				num_sp * (uint32)sizeof(uint32), num_sp);
+			exit(1);
+		}
+
+		for (i=0; i<num_sp; i++)
+			sieve_p[i] = seed_p[i];
 	}
 
 	if (count)
@@ -73,107 +162,92 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 		//this needs to be a range of at least 1e6
 		if ((highlimit - lowlimit) < 1000000)
 		{
-			//maybe it is already in our list of cached primes
-			if ((lowlimit >= P_MIN) && (highlimit <= P_MAX))
-			{
-				retval = 0;
-				for (i = 0; i < NUM_P; i++)
-				{
-					if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-						retval++;
-				}
-			}
-			else
-			{
-				//nope, go and get a new range.
-				tmpl = lowlimit;
-				tmph = tmpl + 1000000;
+			//go and get a new range.
+			tmpl = lowlimit;
+			tmph = tmpl + 1000000;
 
-				//since this is a small range, we need to 
-				//find a bigger range and count them.
-				GetPRIMESRange(tmpl,tmph);
-				retval = 0;
-				for (i = 0; i < NUM_P; i++)
-				{
-					if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-						retval++;
-				}
+			//since this is a small range, we need to 
+			//find a bigger range and count them.
+			primes = GetPRIMESRange(sieve_p, num_sp, NULL, tmpl, tmph, &retval);
+
+			*num_p = 0;
+			//count how many are in the original range of interest
+			for (i = 0; i < retval; i++)
+			{
+				if (primes[i] >= lowlimit && primes[i] <= highlimit)
+					(*num_p)++;
 			}
+			free(primes);
+			primes = NULL;
 		}
 		else
 		{
 			//check for really big ranges
+			uint64 maxrange = 100000000000ULL;
+
 			if ((highlimit - lowlimit) > maxrange)
 			{
 				uint32 num_ranges = (uint32)((highlimit - lowlimit) / maxrange);
 				uint64 remainder = (highlimit - lowlimit) % maxrange;
 				uint32 j;
 				
-				retval = 0;
+				*num_p = 0;
 				tmpl = lowlimit;
 				tmph = lowlimit + maxrange;
 				for (j = 0; j < num_ranges; j++)
 				{
-					retval += spSOE(NULL,tmpl,&tmph,1);
+					*num_p += spSOE(sieve_p, num_sp, NULL, tmpl, &tmph, 1, NULL);
+					if (VFLAG > 1)
+						printf("so far, found %" PRIu64 " primes\n",*num_p);
 					tmpl += maxrange;
 					tmph = tmpl + maxrange;
 				}
 				
-				tmph = tmpl + remainder;
-				retval += spSOE(NULL,tmpl,&tmph,1);
+				if (remainder > 0)
+				{
+					tmph = tmpl + remainder;
+					*num_p += spSOE(sieve_p, num_sp, NULL, tmpl, &tmph, 1, NULL);
+				}
+				if (VFLAG > 1)
+					printf("so far, found %" PRIu64 " primes\n",*num_p);
 			}
 			else
 			{
 				//we're in a sweet spot already, just get the requested range
-				retval = spSOE(NULL,lowlimit,&highlimit,1);
+				*num_p = spSOE(sieve_p, num_sp, NULL, lowlimit, &highlimit, 1, NULL);
 			}
 		}
 
 	}
 	else
 	{
-		if (lowlimit < P_MIN || lowlimit > P_MAX || highlimit > P_MAX)
+		tmpl = lowlimit;
+		tmph = highlimit;
+
+		//this needs to be a range of at least 1e6
+		if ((tmph - tmpl) < 1000000)
 		{
-			//requested range is not covered by the current range
-			tmpl = lowlimit;
-			tmph = highlimit;
+			//there is slack built into the sieve limit, so go ahead and increase
+			//the size of the interval to make it at least 1e6.
+			tmph = tmpl + 1000000;
 
-			//this needs to be a range of at least 1e6
-			if (tmph - tmpl < 1000000)
+			//since this is a small range, we need to 
+			//find a bigger range and count them.
+			primes = GetPRIMESRange(sieve_p, num_sp, NULL, tmpl, tmph, &retval);
+			*num_p = 0;
+			for (i = 0; i < retval; i++)
 			{
-				//there is slack built into the sieve limit, so go ahead and increase
-				//the size of the interval to make it at least 1e6.
-				tmph = tmpl + 1000000;
+				if (primes[i] >= lowlimit && primes[i] <= highlimit)
+					(*num_p)++;
+			}
 
-				//since this is a small range, we need to 
-				//find a bigger range and count them.
-				GetPRIMESRange(tmpl,tmph);
-				retval = 0;
-				for (i = 0; i < NUM_P; i++)
-				{
-					if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-						retval++;
-				}
-			}
-			else
-			{
-				//we don't need to mess with the requested range,
-				//so GetPRIMESRange will return the requested range directly
-				//and the count will be in NUM_P
-				GetPRIMESRange(lowlimit,highlimit);
-				retval = NUM_P;
-			}
 		}
 		else
 		{
-			// the requested range is covered by the current range
-			// just count them
-			retval = 0;
-			for (i = 0; i < NUM_P; i++)
-			{
-				if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-					retval++;
-			}
+			//we don't need to mess with the requested range,
+			//so GetPRIMESRange will return the requested range directly
+			//and the count will be in NUM_P
+			primes = GetPRIMESRange(sieve_p, num_sp, NULL, lowlimit, highlimit, num_p);
 		}
 
 		// now dump the requested range of primes to a file, or the
@@ -189,10 +263,10 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 			}
 			else
 			{
-				for (i = 0; i < NUM_P; i++)
+				for (i = 0; i < *num_p; i++)
 				{
-					if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-						fprintf(out,"%" PRIu64 "\n",PRIMES[i]);
+					if (primes[i] >= lowlimit && primes[i] <= highlimit)
+						fprintf(out,"%" PRIu64 "\n",primes[i]);
 				}
 				fclose(out);
 			}
@@ -200,17 +274,183 @@ uint64 soe_wrapper(uint64 lowlimit, uint64 highlimit, int count)
 
 		if (PRIMES_TO_SCREEN)
 		{
-			for (i = 0; i < NUM_P; i++)
+			for (i = 0; i < *num_p; i++)
 			{
-				if (PRIMES[i] >= lowlimit && PRIMES[i] <= highlimit)
-					printf("%" PRIu64 " ",PRIMES[i]);
+				if (primes[i] >= lowlimit && primes[i] <= highlimit)
+					printf("%" PRIu64 " ",primes[i]);
 			}
 			printf("\n");
-		}
-
-			
+		}			
 	}
 
-	return retval;
+	free(sieve_p);
+	return primes;
 }
+
+uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp, 
+	mpz_t lowlimit, mpz_t highlimit, int count, uint64 *num_p)
+{
+	//public interface to a routine which will sieve a range of integers
+	//with the supplied primes and either count or compute the values
+	//that survive.  Basically, it is just the sieve, but with no
+	//guareentees that what survives the sieving is prime.  The idea is to 
+	//remove cheap composites.
+	uint64 retval, i, range, tmpl, tmph;
+	uint64 *values = NULL;
+	mpz_t tmpz;
+	mpz_ptr offset;
+
+	if (mpz_cmp(highlimit, lowlimit) <= 0)
+	{
+		printf("error: lowlimit must be less than highlimit\n");
+		*num_p = 0;
+		return values;
+	}	
+
+	offset = (mpz_ptr)malloc(sizeof(mpz_ptr));
+	mpz_init(tmpz);
+	mpz_init(offset);
+	mpz_set(offset, lowlimit);
+	mpz_sub(tmpz, highlimit, lowlimit);
+	range = mpz_get_64(tmpz);
+
+	if (count)
+	{
+		//this needs to be a range of at least 1e6
+		if (range < 1000000)
+		{
+			//go and get a new range.
+			tmpl = 0;
+			tmph = 1000000;
+
+			//since this is a small range, we need to 
+			//find a bigger range and count them.
+			values = GetPRIMESRange(seed_p, num_sp, offset, tmpl, tmph, &retval);
+
+			*num_p = 0;
+			//count how many are in the original range of interest
+			for (i = 0; i < retval; i++)
+			{
+				mpz_add_ui(tmpz, offset, values[i]);
+				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+					(*num_p)++;
+			}
+			free(values);
+			values = NULL;
+		}
+		else
+		{
+			//check for really big ranges
+			uint64 maxrange = 100000000000ULL;
+
+			if (range > maxrange)
+			{
+				uint32 num_ranges = (uint32)(range / maxrange);
+				uint64 remainder = range % maxrange;
+				uint32 j;
+				
+				*num_p = 0;
+				tmpl = 0;
+				tmph = tmpl + maxrange;
+				for (j = 0; j < num_ranges; j++)
+				{
+					*num_p += spSOE(seed_p, num_sp, offset, tmpl, &tmph, 1, NULL);
+					if (VFLAG > 1)
+						printf("so far, found %" PRIu64 " primes\n",*num_p);
+					tmpl += maxrange;
+					tmph = tmpl + maxrange;
+				}
+				
+				if (remainder > 0)
+				{
+					tmph = tmpl + remainder;
+					*num_p += spSOE(seed_p, num_sp, offset, tmpl, &tmph, 1, NULL);
+				}
+				if (VFLAG > 1)
+					printf("so far, found %" PRIu64 " primes\n",*num_p);
+			}
+			else
+			{
+				//we're in a sweet spot already, just get the requested range
+				*num_p = spSOE(seed_p, num_sp, offset, 0, &range, 1, NULL);
+			}
+		}
+
+	}
+	else
+	{
+		//this needs to be a range of at least 1e6
+		if (range < 1000000)
+		{
+			//there is slack built into the sieve limit, so go ahead and increase
+			//the size of the interval to make it at least 1e6.
+			tmpl = 0;
+			tmph = tmpl + 1000000;
+
+			//since this is a small range, we need to 
+			//find a bigger range and count them.
+			values = GetPRIMESRange(seed_p, num_sp, offset, tmpl, tmph, &retval);
+			*num_p = 0;
+			for (i = 0; i < retval; i++)
+			{
+				mpz_add_ui(tmpz, offset, values[i]);
+				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+					(*num_p)++;
+			}
+
+		}
+		else
+		{
+			//we don't need to mess with the requested range,
+			//so GetPRIMESRange will return the requested range directly
+			//and the count will be in NUM_P
+			values = GetPRIMESRange(seed_p, num_sp, offset, 0, range, num_p);
+		}
+
+		// now dump the requested range of primes to a file, or the
+		// screen, both, or neither, depending on the state of a couple
+		// global configuration variables
+		if (PRIMES_TO_FILE)
+		{
+			FILE *out;
+			out = fopen("sieved_values.dat","w");
+			if (out == NULL)
+			{
+				printf("can't open sieved_values.dat for writing\n");
+			}
+			else
+			{
+				printf("starting with %" PRIu64 " value\n", *num_p);
+				printf("writing values surviving prp with 10 witnesses\n");
+				for (i = 0; i < *num_p; i++)
+				{
+					mpz_add_ui(tmpz, offset, values[i]);
+					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+					{
+						if (mpz_probab_prime_p(tmpz, 10))
+							gmp_fprintf(out,"%Zd\n",tmpz);
+					}
+				}
+				fclose(out);
+			}
+		}
+
+		if (PRIMES_TO_SCREEN)
+		{
+			for (i = 0; i < *num_p; i++)
+			{
+				mpz_add_ui(tmpz, offset, values[i]);
+				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+					gmp_printf("%Zd ",tmpz);
+			}
+			printf("\n");
+		}			
+	}
+
+	mpz_clear(tmpz);
+	mpz_clear(offset);
+	free(offset);
+	return values;
+}
+
 
