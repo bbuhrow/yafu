@@ -187,7 +187,7 @@ uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp,
 uint64 *soe_wrapper(uint32 *sieve_p, uint32 num_sp, 
 	uint64 lowlimit, uint64 highlimit, int count, uint64 *num_p);
 uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp, 
-	mpz_t lowlimit, mpz_t highlimit, int count, uint64 *num_p);
+	mpz_t lowlimit, mpz_t highlimit, int count, int num_witnesses, uint64 *num_p);
 
 // misc and helper functions
 uint64 estimate_primes_in_range(uint64 lowlimit, uint64 highlimit);
