@@ -288,7 +288,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 }
 
 uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp, 
-	mpz_t lowlimit, mpz_t highlimit, int count, uint64 *num_p)
+	mpz_t lowlimit, mpz_t highlimit, int count, int num_witnesses, uint64 *num_p)
 {
 	//public interface to a routine which will sieve a range of integers
 	//with the supplied primes and either count or compute the values
@@ -407,29 +407,70 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			values = GetPRIMESRange(seed_p, num_sp, offset, 0, range, num_p);
 		}
 
+		if (num_witnesses > 0)
+		{
+			int pchar = 0;
+			
+			// conduct PRP tests on all surviving values
+			if (VFLAG > 0)
+				printf("starting PRP tests with %d witnesses on %" PRIu64 " surviving candidates\n", 
+					num_witnesses, *num_p);
+
+			retval = 0;
+			for (i = 0; i < *num_p; i++)
+			{
+				if (((i & 128) == 0) && (VFLAG > 0))
+				{
+					int k;
+					for (k = 0; k<pchar; k++)
+						printf("\b");
+					pchar = printf("progress: %d%%",(int)((double)i / (double)(*num_p) * 100.0));
+					fflush(stdout);
+				}
+
+				mpz_add_ui(tmpz, offset, values[i]);
+				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+				{
+					if (mpz_probab_prime_p(tmpz, num_witnesses))
+						values[retval++] = values[i];
+				}
+			}
+
+			if (VFLAG > 0)
+			{
+				int k;
+				for (k = 0; k<pchar; k++)
+					printf("\b");
+			}
+
+			*num_p = retval;
+			if (VFLAG > 0)
+				printf("found %" PRIu64 " PRPs\n", *num_p);
+			
+		}
+
 		// now dump the requested range of primes to a file, or the
 		// screen, both, or neither, depending on the state of a couple
 		// global configuration variables
 		if (PRIMES_TO_FILE)
 		{
 			FILE *out;
-			out = fopen("sieved_values.dat","w");
+			if (num_witnesses > 0)
+				out = fopen("prp_values.dat", "w");
+			else
+				out = fopen("sieved_values.dat","w");
+
 			if (out == NULL)
 			{
-				printf("can't open sieved_values.dat for writing\n");
+				printf("can't open file for writing\n");
 			}
 			else
 			{
-				printf("starting with %" PRIu64 " value\n", *num_p);
-				printf("writing values surviving prp with 10 witnesses\n");
 				for (i = 0; i < *num_p; i++)
 				{
 					mpz_add_ui(tmpz, offset, values[i]);
 					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
-					{
-						if (mpz_probab_prime_p(tmpz, 10))
-							gmp_fprintf(out,"%Zd\n",tmpz);
-					}
+						gmp_fprintf(out,"%Zd\n",tmpz);
 				}
 				fclose(out);
 			}
@@ -441,7 +482,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			{
 				mpz_add_ui(tmpz, offset, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
-					gmp_printf("%Zd ",tmpz);
+					gmp_printf("%Zd\n",tmpz);
 			}
 			printf("\n");
 		}			
@@ -450,6 +491,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 	mpz_clear(tmpz);
 	mpz_clear(offset);
 	free(offset);
+
 	return values;
 }
 

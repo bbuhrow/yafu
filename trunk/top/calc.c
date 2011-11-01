@@ -1013,7 +1013,7 @@ int getFunc(char *s, int *nargs)
 						"*","/","!","#","==",
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
-						"pullp","sumpuzzle","smallmpqs","pseudolist","siqstune",
+						"pullp","sumpuzzle","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
@@ -1026,7 +1026,7 @@ int getFunc(char *s, int *nargs)
 					2,2,1,1,2,
 					2,2,2,2,2,
 					2,2,2,1,0,
-					0,5,1,2,1,
+					0,5,1,4,1,
 					0,4,2,1,0};
 
 	for (i=0;i<NUM_FUNC;i++)
@@ -2021,9 +2021,53 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		break;
 	case 53:
-		printf("generate_pseudoprime_list not currently supported\n");
-		break;
-		generate_pseudoprime_list(operands[0].val[0],operands[1].val[0]);
+		//testrange - 4 arguments
+		if (nargs != 4)
+		{
+			printf("wrong number of arguments in testrange\n");
+			break;
+		}
+
+		{
+			uint64 num_found;
+			uint64 *primes;
+			uint64 range;
+			uint32 *sieve_p, num_sp;
+			mpz_t lowz, highz;
+			int val1, val2;
+			
+			range = z264(&operands[2]);
+			val1 = PRIMES_TO_SCREEN;
+			val2 = PRIMES_TO_FILE;
+			PRIMES_TO_SCREEN = 0;
+			PRIMES_TO_FILE = 0;
+			primes = soe_wrapper(spSOEprimes, szSOEp, 0, range, 0, &num_found);
+			PRIMES_TO_SCREEN = val1;
+			PRIMES_TO_FILE = val2;
+			sieve_p = (uint32 *)malloc(num_found * sizeof(uint32));
+			for (i=0; i<num_found; i++)
+				sieve_p[i] = (uint32)primes[i];
+			num_sp = (uint32)num_found;
+			free(primes);
+			primes = NULL;
+
+			mpz_init(lowz);
+			mpz_init(highz);
+			mp2gmp(&operands[0], lowz);
+			mp2gmp(&operands[1], highz);
+			//printf("test range with %d witnesses\n", operands[3].val[0]);
+			primes = sieve_to_depth(sieve_p, num_sp, lowz, highz, 
+				0, operands[3].val[0], &num_found);
+
+			free(sieve_p);
+			if (!NULL)
+				free(primes);
+
+			mpz_clear(lowz);
+			mpz_clear(highz);
+			sp2z(num_found, &operands[0]);
+		}
+		
 		break;
 
 	case 54:
@@ -2105,7 +2149,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			mpz_init(highz);
 			mp2gmp(&operands[0], lowz);
 			mp2gmp(&operands[1], highz);
-			primes = sieve_to_depth(sieve_p, num_sp, lowz, highz, operands[3].val[0], &num_found);
+			primes = sieve_to_depth(sieve_p, num_sp, lowz, highz, operands[3].val[0], 0, &num_found);
 
 			free(sieve_p);
 			if (!NULL)

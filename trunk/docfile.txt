@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.28.5
+YAFU Version 1.29
 
 -------------
 Introduction:
@@ -184,8 +184,8 @@ randb			pm1			log
 isprime			pp1			ln
 ispow			rho			gcd
 issquare			trial			jacobi
-			ecm			modinv
-			fermat			fib
+sieverange			ecm			modinv
+testrange			fermat			fib
 						luc
 						llt
 
@@ -592,6 +592,42 @@ enable the same behavior.  It could take a very long time to print if the range 
 If expression 3 is omitted, the behavior defaults to a count of primes.
 expression 1 and expression 2 should both evaluate to numbers less than 4e18.  
 The condition expression 2 > expression 1 is also enforced.
+
+
+[sieverange]
+usage: sieverange(lower, upper, depth, count)
+
+description:
+Sieve an arbitrary range of integers between 'lower' and 'upper' with primes up to a limit of
+'depth'.  'Lower' and 'upper' can be arbitrary precision integers, with lower < upper.  'Depth'
+is currently limited to values less than 4e9.
+The fourth parameter should evaluate to 1 if the range is to only be counted or 0 if printed.
+If the PRIMES_TO_FILE environment variable is set to non-zero, the values that survive the 
+sieve will be output to a file called sieved_values.dat, in the same directory as the executable.
+If the PRIMES_TO_SCREEN environement variable is set to non-zero, the sieved values
+will be printed to the screen.  By default, PRIMES_TO_FILE and
+PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
+enable the same behavior.  It could take a very long time to print if the range is large.
+If expression 4 is omitted, the behavior defaults to a count of surviving values.
+
+
+[testrange]
+usage: testrange(lower, upper, depth, num_witnesses)
+
+description:
+Sieve an arbitrary range of integers between 'lower' and 'upper' with primes up to a limit of
+'depth'.  'Lower' and 'upper' can be arbitrary precision integers, with lower < upper.  'Depth'
+is currently limited to values less than 4e9.  Subject all surviving values to a PRP check
+using 'num_witnesses' witnesses in a Rabin-Miller strong pseudo-prime test.
+If the PRIMES_TO_FILE environment variable is set to non-zero, the values that survive the 
+sieve and prp checks will be output to a file called prp_values.dat, in the same directory 
+as the executable.
+If the PRIMES_TO_SCREEN environement variable is set to non-zero, the sieved values
+will be printed to the screen.  By default, PRIMES_TO_FILE and
+PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
+enable the same behavior.  It could take a very long time to print if the range is large.
+If expression 4 is equal to zero, then no prp checks are run and behavior is similar to 
+sieverange() with count = 0.
 
 
 [nextprime]
