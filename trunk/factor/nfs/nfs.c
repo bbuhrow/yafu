@@ -26,14 +26,9 @@ void nfs(fact_obj_t *fobj)
 	//expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
-	uint32 max_relations = 0;
-	uint32 seed1 = g_rand.low;
-	uint32 seed2 = g_rand.hi;
 	uint64 nfs_lower = 0;
 	uint64 nfs_upper = 0;
 	enum cpu_type cpu = yafu_get_cpu_type();
-	uint32 mem_mb = 0;
-	uint32 which_gpu = 0;
 	mp_t mpN;
 	factor_list_t factor_list;
 	uint32 flags = 0;
@@ -316,6 +311,10 @@ void nfs(fact_obj_t *fobj)
 
 			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve linear algebra\n");
 
+			// use a different number of threads for the LA, if requested
+			if (LATHREADS > 0)
+				obj->num_threads = LATHREADS;
+
 			//try this hack - store a pointer to the msieve obj so that
 			//we can change a flag on abort in order to interrupt the LA.
 			obj_ptr = obj;
@@ -324,6 +323,10 @@ void nfs(fact_obj_t *fobj)
 				statenum = 7;
 			else
 				statenum = 5;
+
+			// reset it back to where it was
+			if (LATHREADS > 0)
+				obj->num_threads = THREADS;
 			
 			obj_ptr = NULL;
 			break;
@@ -343,9 +346,21 @@ void nfs(fact_obj_t *fobj)
 
 			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
 
+			//try this hack - store a pointer to the msieve obj so that
+			//we can change a flag on abort in order to interrupt the LA.
+			obj_ptr = obj;
+
 			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
+
+			if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
+				statenum = 7;
+			else
+				statenum = 5;
+
+			obj_ptr = NULL;
 			
 			extract_factors(&factor_list,fobj);
+
 			if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
 				statenum = 6;		//completely factored, clean up everything
 			else
@@ -364,6 +379,7 @@ void nfs(fact_obj_t *fobj)
 			sprintf(tmpstr, "%s.mat",fobj->nfs_obj.outputfile);	remove(tmpstr);	
 			sprintf(tmpstr, "%s.lp",fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.d",fobj->nfs_obj.outputfile);	remove(tmpstr);
+			sprintf(tmpstr, "%s.mat.chk",fobj->nfs_obj.outputfile);	remove(tmpstr);
 
 			gettimeofday(&stop, NULL);
 
@@ -545,8 +561,12 @@ void nfs(fact_obj_t *fobj)
 			}
 			else if (fobj->nfs_obj.sieve_only)
 				statenum = 2;
-			else if (fobj->nfs_obj.post_only)
+			else if (fobj->nfs_obj.post_only == 1)
 				statenum = 3;
+			else if (fobj->nfs_obj.post_only == 2)
+				statenum = 4;
+			else if (fobj->nfs_obj.post_only == 3)
+				statenum = 5;
 			else if (fobj->nfs_obj.la_restart)
 				statenum = 4;
 

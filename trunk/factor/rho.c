@@ -80,11 +80,11 @@ void brent_loop(fact_obj_t *fobj)
 		if (VFLAG >= 0)
 			printf("rho: x^2 + %u, starting %d iterations on C%u ",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
+			(int)mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
 
 		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%u\n",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
+			(int)mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
 		
 		//call brent's rho algorithm, using montgomery arithmetic.
 		mbrent(fobj);

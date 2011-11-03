@@ -24,7 +24,6 @@ code to the public domain.
 #include "yafu_string.h"
 #include "util.h"
 #include "factor.h"
-#include "tfm.h"
 #include "gmp.h"
 
 #if defined(_MSC_VER)
@@ -34,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 54
+#define NUMOPTIONS 57
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +49,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
-	"pbatch", "ecm_path", "siever", "ncr"};
+	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
+	"nc2", "nc3"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -68,7 +68,8 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,0,
 	1,0,0,1,1,
 	2,2,0,1,0,
-	1,1,1,0};
+	1,1,1,0,1,
+	0,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -796,7 +797,7 @@ _MSC_MPIR_VERSION);
 #endif
 	fflush(stdout);
 
-	fprintf(logfile,"cached %" PRIu64 " primes. pmax = %" PRIu64 "\n",szSOEp,spSOEprimes[szSOEp-1]);
+	fprintf(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
 	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		idstr,L1CACHE,L2CACHE,CLSIZE);
 	fprintf(logfile,"measured cpu frequency ~= %f\n\n",
@@ -872,6 +873,7 @@ void set_default_globals(void)
 	USEBATCHFILE = 0;
 	USERSEED = 0;
 	THREADS = 1;
+	LATHREADS = 0;
 
 	strcpy(sessionname,"session.log");	
 
@@ -1694,7 +1696,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[47]) == 0)
 	{
-		//argument "nc".  nfs post processing only
+		//argument "nc".  nfs post processing only, starting with filtering
 		fobj->nfs_obj.post_only = 1;
 	}
 	else if (strcmp(opt,OptionArray[48]) == 0)
@@ -1758,6 +1760,30 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "ncr".  linear algebra restart flag
 		fobj->nfs_obj.la_restart = 1;
+	}
+	else if (strcmp(opt,OptionArray[54]) == 0)
+	{
+		//argument should be all numeric
+		for (i=0;i<(int)strlen(arg);i++)
+		{
+			if (!isdigit(arg[i]))
+			{
+				printf("expected numeric input for option %s\n",opt);
+				exit(1);
+			}
+		}
+
+		LATHREADS = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[55]) == 0)
+	{
+		//argument "nc2".  nfs post processing only, starting with LA
+		fobj->nfs_obj.post_only = 2;
+	}
+	else if (strcmp(opt,OptionArray[56]) == 0)
+	{
+		//argument "nc3".  nfs post processing only, starting with sqrt
+		fobj->nfs_obj.post_only = 3;
 	}
 	else
 	{

@@ -291,11 +291,11 @@ void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 	if (VFLAG >= 0)
 	{
 		printf("pp1: starting B1 = %s, B2 = %s on C%d"
-			,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
+			,stg1str,stg2str, (int)mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
 		fflush(stdout);	
 	}
 	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
-		,stg1str,stg2str,mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
+		,stg1str,stg2str, (int)mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
 
 		//need a new line to make screen output look right, when
 		//using GMP-ECM, because the "processed" status is not printed

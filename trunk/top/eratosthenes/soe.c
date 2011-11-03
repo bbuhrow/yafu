@@ -14,7 +14,7 @@ benefit from your work.
 
 #include "soe.h"
 
-uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_ptr offset,
+uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 	uint64 lowlimit, uint64 *highlimit, int count, uint64 *primes)
 {
 	/*
@@ -39,7 +39,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_ptr offset,
 	
 	//sanity check the input
 	sdata.only_count = count;
-	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, &sdata, offset))
+	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, &sdata, *offset))
 		return 0;
 
 	//determine what kind of sieve to used based on the input
@@ -76,9 +76,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_ptr offset,
 			printf("bucket sieving %u primes > %u\n",
 				sdata.num_bucket_primes,sdata.sieve_p[sdata.bucket_start_id]);
 			printf("allocating space for %u hits per bucket\n",sdata.bucket_alloc);
-#ifdef DO_LARGE_BUCKETS
-			printf("allocating space for %u hits per large bucket\n",large_bucket_alloc);
-#endif
+			printf("allocating space for %u hits per large bucket\n",sdata.large_bucket_alloc);
 		}
 		if (sdata.num_inplace_primes > 0)
 		{
@@ -380,8 +378,8 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 		if (sdata->sieve_range)
 		{
-			if (mpz_size(sdata->offset) == 1)
-				ui_offset = mpz_get_64(sdata->offset);
+			if (mpz_size(*sdata->offset) == 1)
+				ui_offset = mpz_get_64(*sdata->offset);
 			else
 			{
 				// huge offset, we don't need to add any primes.
@@ -424,8 +422,8 @@ void finalize_sieve(soe_staticdata_t *sdata,
 			
 		if (sdata->sieve_range)
 		{
-			if (mpz_size(sdata->offset) == 1)
-				ui_offset = mpz_get_64(sdata->offset);
+			if (mpz_size(*sdata->offset) == 1)
+				ui_offset = mpz_get_64(*sdata->offset);
 			else
 			{
 				// huge offset, we don't need to add any primes.
@@ -477,20 +475,14 @@ void finalize_sieve(soe_staticdata_t *sdata,
 			thread_soedata_t *thread = thread_data + i;
 
 			free(thread->ddata.bucket_hits);
-#ifdef DO_LARGE_BUCKETS
 			free(thread->ddata.large_bucket_hits);
-#endif
 			for (j=0; j < thread->sdata.blocks; j++)
 			{
 				free(thread->ddata.sieve_buckets[j]);
-#ifdef DO_LARGE_BUCKETS
 				free(thread->ddata.large_sieve_buckets[j]);
-#endif
 			}
 			free(thread->ddata.sieve_buckets);
-#ifdef DO_LARGE_BUCKETS
 			free(thread->ddata.large_sieve_buckets);
-#endif
 		}
 
 	}

@@ -39,7 +39,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 urange = 10000000;
 	uint32 lrange = 0;
 	fp_digit f;
-	uint32 shift = FOGSHIFT;
+	//uint32 shift = FOGSHIFT;
 
 	//unpack stuff from static data structure
 	fb_list *fb = sconf->factor_base;

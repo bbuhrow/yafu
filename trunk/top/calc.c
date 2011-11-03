@@ -1134,8 +1134,20 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in gcd\n");
 			break;
 		}
-		zLEGCD(&operands[0],&operands[1],&mp1);
-		zCopy(&mp1,&operands[0]);
+
+		{
+			mpz_t gmp1, gmp2;
+
+			mpz_init(gmp1);
+			mpz_init(gmp2);
+			mp2gmp(&operands[0], gmp1);
+			mp2gmp(&operands[1], gmp2);
+			mpz_gcd(gmp1, gmp1, gmp2);
+			gmp2mp(gmp1, &operands[0]);
+			mpz_clear(gmp1);
+			mpz_clear(gmp2);
+		}
+
 		break;
 	case 6:
 		//jacobi - two arguments

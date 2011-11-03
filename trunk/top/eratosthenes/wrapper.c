@@ -15,7 +15,7 @@ benefit from your work.
 #include "soe.h"
 
 uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp, 
-	mpz_ptr offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p)
+	mpz_t *offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p)
 {
 	uint64 i;
 	uint64 hi_est, lo_est;
@@ -298,7 +298,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 	uint64 retval, i, range, tmpl, tmph;
 	uint64 *values = NULL;
 	mpz_t tmpz;
-	mpz_ptr offset;
+	mpz_t *offset;
 
 	if (mpz_cmp(highlimit, lowlimit) <= 0)
 	{
@@ -307,10 +307,10 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 		return values;
 	}	
 
-	offset = (mpz_ptr)malloc(sizeof(mpz_ptr));
+	offset = (mpz_t *)malloc(sizeof(mpz_t));
 	mpz_init(tmpz);
-	mpz_init(offset);
-	mpz_set(offset, lowlimit);
+	mpz_init(*offset);
+	mpz_set(*offset, lowlimit);
 	mpz_sub(tmpz, highlimit, lowlimit);
 	range = mpz_get_64(tmpz);
 
@@ -331,7 +331,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			//count how many are in the original range of interest
 			for (i = 0; i < retval; i++)
 			{
-				mpz_add_ui(tmpz, offset, values[i]);
+				mpz_add_ui(tmpz, *offset, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 					(*num_p)++;
 			}
@@ -393,7 +393,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			*num_p = 0;
 			for (i = 0; i < retval; i++)
 			{
-				mpz_add_ui(tmpz, offset, values[i]);
+				mpz_add_ui(tmpz, *offset, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 					(*num_p)++;
 			}
@@ -428,7 +428,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 					fflush(stdout);
 				}
 
-				mpz_add_ui(tmpz, offset, values[i]);
+				mpz_add_ui(tmpz, *offset, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 				{
 					if (mpz_probab_prime_p(tmpz, num_witnesses))
@@ -468,7 +468,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			{
 				for (i = 0; i < *num_p; i++)
 				{
-					mpz_add_ui(tmpz, offset, values[i]);
+					mpz_add_ui(tmpz, *offset, values[i]);
 					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 						gmp_fprintf(out,"%Zd\n",tmpz);
 				}
@@ -480,7 +480,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 		{
 			for (i = 0; i < *num_p; i++)
 			{
-				mpz_add_ui(tmpz, offset, values[i]);
+				mpz_add_ui(tmpz, *offset, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 					gmp_printf("%Zd\n",tmpz);
 			}
@@ -489,7 +489,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 	}
 
 	mpz_clear(tmpz);
-	mpz_clear(offset);
+	mpz_clear(*offset);
 	free(offset);
 
 	return values;
