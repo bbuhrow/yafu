@@ -112,14 +112,10 @@ int getcolval(uint8 **em, int i, int k);
 fp_digit spGCD(fp_digit x, fp_digit y);
 fp_digit spBinGCD(fp_digit x, fp_digit y);
 uint64 gcd64(uint64 x, uint64 y);
+void xGCD(z *a, z *b, z *x, z *y, z *g);
 void dblGCD(double x, double y, double *w);
 int dblFactorA(double *n, long p[], uint32 limit);
 int isPrime(z *n);
-int zGCD(z *u, z *v, z *w);
-void xGCD_1(int a, int b, int *x, int *y, int *g);
-void xGCD(z *a, z *b, z *x, z *y, z *g);
-int zBinGCD(z *u, z *v, z *w);
-int zLEGCD(z *u, z *v, z *w);
 int d_jacobi(double n, double p);
 int zJacobi(z *n, z *p);
 int rec_jacobi_1(uint32 n, uint32 p);
@@ -158,17 +154,12 @@ int zCompare(z *u, z *v);
 int zCompare32(z32 *u, z32 *v);
 void zHex2Dec(z *u, z *v);
 void zDec2Hex(z *u, z *v);
-void z32_to_z64(z32 *a, z *b);
-void z64_to_z32(z *a, z32 *b);
-void z32_to_z32(z *src, z32 *dest);
 void swap(z *a, z *b);
 double rint(double x);
 uint64 mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64 src);
 
 // we need to convert between yafu bigints and msieve bigints occasionally
-void z2mp_t(z *src, mp_t *dest);
-void z2signed_mp_t(z *src, signed_mp_t *dest);
 void mp_t2z(mp_t *src, z *dest);
 
 char * mp_print(mp_t *a, uint32 base, FILE *f, char *scratch);

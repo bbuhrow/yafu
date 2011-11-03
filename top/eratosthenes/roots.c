@@ -94,7 +94,7 @@ void getRoots(soe_staticdata_t *sdata)
 		mpz_t tmpz;
 		mpz_init(tmpz);
 
-		mpz_add_ui(tmpz, sdata->offset, sdata->lowlimit + 1);
+		mpz_add_ui(tmpz, *sdata->offset, sdata->lowlimit + 1);
 		for (; i < sdata->inplace_start_id;i++)
 		{
 			uint32 inv;

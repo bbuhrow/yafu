@@ -83,7 +83,7 @@ int ecm_loop(fact_obj_t *fobj)
             total_curves_run += thread_data[i].curves_run;
 
 		charcount = printf("ecm: %d/%d curves on C%d input, at ",
-			total_curves_run, fobj->ecm_obj.num_curves, mpz_sizeinbase(fobj->ecm_obj.gmp_n,10));
+			total_curves_run, fobj->ecm_obj.num_curves, (int)mpz_sizeinbase(fobj->ecm_obj.gmp_n,10));
 		charcount2 = print_B1B2(fobj, NULL);
 		fflush(stdout);
 	}
@@ -195,7 +195,8 @@ int ecm_loop(fact_obj_t *fobj)
 				total_curves_run += thread_data[i].curves_run;
 
 			charcount = printf("ecm: %d/%d curves on C%d input, at ",
-				total_curves_run, fobj->ecm_obj.num_curves, mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10));
+				total_curves_run, fobj->ecm_obj.num_curves, 
+				(int)mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10));
 
 			charcount2 = print_B1B2(fobj, NULL);
 			fflush(stdout);

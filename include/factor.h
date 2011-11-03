@@ -519,10 +519,6 @@ void free_factor_list(fact_obj_t *fobj);
 void clear_factor_list(fact_obj_t *fobj);
 void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
-
-//common to the QS variants
-uint8 choose_multiplier(z *n, uint32 fbsize);
-
 /*-----------TOP LEVEL ENTRY POINT FOR ALL FACTORING ROUTINES ----------*/
 
 void brent_loop(fact_obj_t *fobj);

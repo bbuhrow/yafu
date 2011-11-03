@@ -295,51 +295,6 @@ void test_dlp_composites()
 	return;
 }
 
-
-void modtest(int it)
-{
-	z res;
-	z32 res32;
-	double t_time;
-	clock_t start, stop;
-	int i;
-	fp_digit p;
-	//test the speed of zMod1 for 64 and 32 bit bases
-
-	//a 300 bit factorization has residues ~ 150 bits
-	//which is 3 64 bit words and 5 32 bit words
-
-	zInit(&res);
-	zInit32(&res32);
-	zRandb(&res,125);
-	z64_to_z32(&res,&res32);
-
-	start = clock();
-	srand(123);
-	for (i=0; i < 100000000; i++)
-	{
-		p = spRand(1000000,10000000);
-		zShortMod(&res,p);
-	}
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("elapsed time for 64 bit mods: %2.2f sec\n",t_time);
-
-
-	start = clock();
-	srand(123);
-	for (i=0; i < 100000000; i++)
-	{
-		p = spRand(1000000,10000000);
-		zShortMod32(&res32,p);
-	}
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("elapsed time for 32 bit mods: %2.2f sec\n",t_time);
-
-	return;
-}
-
 void test_qsort(void)
 {
 	//test the speed of qsort in  sorting a few million lists
@@ -879,51 +834,4 @@ double sqrt_acc(int m, int sz)
 	zFree(&tmp);
 	return t;
 }
-
-double gcd_acc(int m, int sz)
-{
-	int i,j,p;
-	z a,b,c,d,q;
-
-	clock_t start, stop;
-	double t=0.0;
-
-	zInit(&a);
-	zInit(&b);
-	zInit(&c);
-	zInit(&d);
-	zInit(&q);
-
-	printf("\nAccuracy Test, GCD algorithms:\n");
-	start = clock();
-	for (j=1;j<m;++j)
-	{
-		zRand(&a,sz);
-		zRand(&b,sz);
-
-		zLEGCD(&a,&b,&c);
-		zGCD(&a,&b,&d);
-		zBinGCD(&a,&b,&q);
-
-		i = zCompare(&c,&d);
-		p = zCompare(&c,&q);
-		if ((i != 0) || (p != 0))
-		{
-			printf("failure at iteration %d, LEGCD != GCD\na: ",j);
-			break;
-		}
-		
-	}
-	stop = clock();
-	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("%d numbers verified.  Elapsed time = %6.4f seconds.\n", m,t);
-
-	zFree(&a);
-	zFree(&b);
-	zFree(&c);
-	zFree(&d);
-	zFree(&q);
-	return t;
-}
-
 

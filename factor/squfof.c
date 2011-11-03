@@ -65,7 +65,7 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 
 	if (mpz_sizeinbase(N,2) > 62)
 	{
-		printf("N too big (%d bits), exiting...\n", mpz_sizeinbase(N,2));
+		printf("N too big (%d bits), exiting...\n", (int)mpz_sizeinbase(N,2));
 		return 1;
 	}
 

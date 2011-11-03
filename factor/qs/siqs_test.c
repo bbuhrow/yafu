@@ -21,7 +21,6 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "factor.h"
-#include "tfm.h"
 #include "util.h"
 #include "gmp_xface.h"
 

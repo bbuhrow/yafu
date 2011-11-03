@@ -9,12 +9,17 @@ v 1.28.6
 	instead continue with qs if it does not
 + fixed bug - initialize logfile prior to starting smallmpqs if it is called 
 	directly from the command line (i.e. smallmpqs(#))
-+ improvement to finding primes in the SoE (faster and less memory)
 + got rid of ecm fork code that only worked on linux, to help streamline 
 	gmp porting
 + linked in newest msieve codebase (SVN 645)
 + support for resuming nfs during poly selection and during linear algebra
-+ removed Tom's fast math from the project 
++ removed Tom's fast math from the project
++ removed some obsolete code (mostly arith)
++ cleaned up compiler warnings
++ massive updates to sieve of eratosthenes code
++ bug fixes when running siqs on huge inputs
++ 2 new functions: sieverange and testrange.  see docfile for details
++ 3 new options: lathreads, nc2, and nc3.  see docfile for details
 
 
 v 1.28.5

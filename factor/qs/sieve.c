@@ -1176,7 +1176,7 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 	uint32 *bptr;
 
 #if defined(SSE2_ASM_SIEVING) || defined(ASM_SIEVING)
-	sieve_fb_compressed *fbptr;
+	//sieve_fb_compressed *fbptr;
 	helperstruct_t asm_input;
 #endif
 

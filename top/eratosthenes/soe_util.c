@@ -185,9 +185,9 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 
 		//the start of the range of interest is controlled by offset, not lowlimit
 		//figure out how it needs to change to accomodate sieving
-		mpz_tdiv_q_ui(tmpz, sdata->offset, numclasses * prodN);
+		mpz_tdiv_q_ui(tmpz, *sdata->offset, numclasses * prodN);
 		mpz_mul_ui(tmpz, tmpz, numclasses * prodN);		
-		mpz_sub(tmpz2, sdata->offset, tmpz);
+		mpz_sub(tmpz2, *sdata->offset, tmpz);
 
 		//raise the high limit by the amount the offset was lowered, so that
 		//we allocate enough flags to cover the range of interest
@@ -199,7 +199,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 		sdata->orig_llimit += mpz_get_ui(tmpz2);
 
 		//copy the new value to the pointer, which will get passed back to sieve_to_depth
-		mpz_set(sdata->offset, tmpz);
+		mpz_set(*sdata->offset, tmpz);
 		mpz_clear(tmpz);
 		mpz_clear(tmpz2);
 

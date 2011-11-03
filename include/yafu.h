@@ -140,6 +140,7 @@ int VFLAG, LOGFLAG;
 
 // threading - used many places (factoring, SoE)
 int THREADS;
+int LATHREADS;
 
 // input options
 int USEBATCHFILE;

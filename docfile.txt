@@ -28,7 +28,7 @@ depending on the OS.  All expressions supported in the interactive
 environment are supported in this way.  
 
 In addition, when providing arguments to yafu you can specify 
-flags to change program behavior.  Supported flags in v1.26 are:
+flags to change program behavior.  Supported flags are:
 
 -B1pm1	<num>   B1 bound in the pm1 method
 -B1pp1	<num>   B1 bound in the pp1 method
@@ -75,12 +75,16 @@ flags to change program behavior.  Supported flags in v1.26 are:
 				the factor() routine.  Sieve methods (QS/NFS) are not used
 -ns	[X,Y]		Only perform sieving step within nfs() if a valid job file exists for the 
 					input number and if the input number is the same as that specified in
-					an existing data file.
-					Optionally, provide a range of special Q over which to sieve in the format: start,stop
+					an existing data file.  Optionally, provide a range of special Q over which to 
+					sieve in the format: start,stop
 -np	[X,Y]		Only perform poly search step within nfs().  NOTE: any existing poly files will
-					be overwritten.
-					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
--nc				Only perform postprocessing step within nfs()
+					be overwritten.  Optionally, provide a range of leading coefficients over 
+					which to search in the format: start,stop
+-nc				Only perform postprocessing step within nfs(), starting with filtering
+-nc2			Only perform postprocessing step within nfs(), starting with linear algebra
+-nc3			Only perform postprocessing step within nfs(), starting with sqrt
+-lathreads	<num>	Use specified number of threads for linear algebra only.  If not specified
+				'threads' threads are used (which defaults to 1).
 -a				Use special Q on the algebraic side within nfs() (default)
 -r				Use special Q on the rational side within nfs()
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
@@ -236,7 +240,7 @@ the optimal amount of ecm to run when using the factor() function.
 usage: nfs(expression)
 
 description:
-Automated factorization using the general number field sieve.  Polynomial selection is 
+Automated factorization using the general number field sieve.  Multi-threaded polynomial selection is 
 handled via msieve library function calls.  Sieving then proceeds in a multi-thread aware
 fashion using external ggnfs lattic sieve executables.  Post processing (filtering, 
 linear algebra, and sqrt functions) again make use of msieve library calls.
@@ -279,12 +283,15 @@ command line flags effecting nfs:
 					an existing data file.
 					Optionally, provide a range of special Q over which to sieve in the format: start,stop
 -np	[X,Y]		Only perform poly search step within nfs().  NOTE: any existing poly files will
-					be overwritten.
-					Optionally, provide a range of leading coefficients over which to search in the format: start,stop
+					be overwritten. Optionally, provide a range of leading coefficients over which to 
+					search in the format: start,stop
 -nc				Only perform postprocessing step within nfs()
+-nc2			Only perform postprocessing step within nfs(), starting with linear algebra
+-nc3			Only perform postprocessing step within nfs(), starting with sqrt
+-lathreads	<num>	Use specified number of threads for linear algebra only.  If not specified
+				'threads' threads are used (which defaults to 1).
 -a				Use special Q on the algebraic side within nfs() (default)
 -r				Use special Q on the rational side within nfs()
-
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job as the input job file.
 -o <name>		Name of output file in nfs() - use a file other than msieve.dat as the output data file
 -ggnfsT <num>	Timeout to apply to nfs() command, in seconds (default = infinity)
@@ -302,7 +309,8 @@ command line flags effecting nfs:
 
 
 Examples:
-1) perform poly selection only, in parallel, within a custom starting value (default range), with verbose output:
+1) perform poly selection only, in parallel, within a custom starting value (default range), 
+	with verbose output:
 "nfs(number)" -v -threads 4 -np 10000,0
 
 2) perform automated nfs on a 400 bit input, but do a 'deep' polynomial search,

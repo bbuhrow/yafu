@@ -49,7 +49,7 @@ void SIQS(fact_obj_t *fobj)
     int *thread_queue, *threads_waiting;
 #if defined(WIN32) || defined(_WIN64)
 	HANDLE queue_lock;
-	HANDLE *queue_events;
+	HANDLE *queue_events = NULL;
 #else
     pthread_mutex_t queue_lock;
     pthread_cond_t queue_cond;
@@ -1841,11 +1841,11 @@ int siqs_static_init(static_conf_t *sconf)
 	//a couple limits
 	sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B-1];
 
-	if ((4294967295 / sconf->large_mult) < sconf->pmax)
+	if ((4294967295ULL / sconf->large_mult) < sconf->pmax)
 	{
 		// job is so big that pmax * default large_mult won't fit in 32 bits
 		// reduce large_mult accordingly
-		sconf->large_mult = 4294967295 / sconf->pmax;
+		sconf->large_mult = 4294967295ULL / sconf->pmax;
 		sconf->large_prime_max = sconf->pmax * sconf->large_mult;
 	}
 	else

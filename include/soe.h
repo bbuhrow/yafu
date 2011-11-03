@@ -102,7 +102,7 @@ typedef struct
 	int **inplace_ptrs;
 #endif
 	int only_count;
-	mpz_ptr offset;
+	mpz_t *offset;
 	int sieve_range;
 	uint64 min_sieved_val;
 
@@ -157,7 +157,7 @@ typedef struct {
 } thread_soedata_t;
 
 //top level
-uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_ptr offset, 
+uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset, 
 	uint64 lowlimit, uint64 *highlimit, int count, uint64 *primes);
 
 //thread ready sieving functions
@@ -183,7 +183,7 @@ void test_soe(int upper);
 
 //wrapper functions
 uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp, 
-	mpz_ptr offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p);
+	mpz_t *offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p);
 uint64 *soe_wrapper(uint32 *sieve_p, uint32 num_sp, 
 	uint64 lowlimit, uint64 highlimit, int count, uint64 *num_p);
 uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp, 
