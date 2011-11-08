@@ -313,7 +313,12 @@ void nfs(fact_obj_t *fobj)
 
 			// use a different number of threads for the LA, if requested
 			if (LATHREADS > 0)
-				obj->num_threads = LATHREADS;
+			{
+				msieve_obj_free(obj);
+				obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+					fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+					(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, (uint32)0, 0.0);
+			}
 
 			//try this hack - store a pointer to the msieve obj so that
 			//we can change a flag on abort in order to interrupt the LA.
@@ -326,7 +331,12 @@ void nfs(fact_obj_t *fobj)
 
 			// reset it back to where it was
 			if (LATHREADS > 0)
-				obj->num_threads = THREADS;
+			{
+				msieve_obj_free(obj);
+				obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+					fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+					(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+			}
 			
 			obj_ptr = NULL;
 			break;
