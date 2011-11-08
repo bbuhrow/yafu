@@ -27,7 +27,7 @@ uint64 mpz_get_64(mpz_t src)
 	uint64 out = mpz_getlimbn(src, 0);
 #if GMP_LIMB_BITS == 32
 	if (mpz_size(src) >= 2)
-		out |= (uint64)mpz_getlimbn(src, 1) << 32;
+		out |= ((uint64)mpz_getlimbn(src, 1) << 32ULL);
 #endif
 
 	return out;

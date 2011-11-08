@@ -443,6 +443,7 @@ typedef struct {
 	//scratch
 	mpz_t gmptmp1;
 	mpz_t gmptmp2;
+	mpz_t gmptmp3;
 
 	//used in trial division
 	uint16 *mask;

@@ -103,7 +103,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	//check if it completely factored by looking at the unfactored portion in tmp
 	//if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
-	//	(mpz_get_64(dconf->Qvals[report_num]) < (uint64)sconf->large_prime_max))
+		//(mpz_get_64(dconf->Qvals[report_num]) < (uint64)sconf->large_prime_max))
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
@@ -144,8 +144,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #if BITS_PER_DIGIT == 32
 		mpz_set_64(dconf->gmptmp1, q64);
 		mpz_set_64(dconf->gmptmp2, 2);
+		mpz_set_64(dconf->gmptmp3, q64-1);
 
-		mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
+		mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
 		res = mpz_get_64(dconf->gmptmp1);
 #else
 		spModExp(2, q64 - 1, q64, &res);
@@ -169,7 +170,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		
 		//try to find a double large prime
 		dconf->attempted_squfof++;
-		//sp642z(q64, &dconf->qstmp1);
 		mpz_set_64(dconf->gmptmp1, q64);
 		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
 		if (f64 > 1 && f64 != q64)
@@ -190,7 +190,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 				
 		}
 		else
+		{
 			dconf->failed_squfof++;
+			printf("squfof failure: %" PRIu64 "\n", q64);
+		}
+
 	}
 	else
 		dconf->dlp_outside_range++;

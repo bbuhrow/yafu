@@ -100,13 +100,13 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 		mpz_set_64(gmptmp, nn64);
 		mpz_sqrt(gmptmp, gmptmp);	
 		mult_save[i].b0 = mpz_get_ui(gmptmp);
-		mult_save[i].imax = (uint32)sqrt(mult_save[i].b0) / 2;
+		mult_save[i].imax = (uint32)sqrt((double)mult_save[i].b0) / 2;
 
 		//set up recurrence
 		mult_save[i].Q0 = 1;
 		mult_save[i].P = mult_save[i].b0;
 		mult_save[i].Qn = (uint32)(nn64 - 
-			(uint64)mult_save[i].b0*(uint64)mult_save[i].b0);
+			(uint64)mult_save[i].b0 * (uint64)mult_save[i].b0);
 			
 		if (mult_save[i].Qn == 0)
 		{
@@ -268,7 +268,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 			if (t2 == 0 || t2 == 1 || t2 == 4 ||
 				t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)
 			{
-				t1 = (uint32)sqrt((double)Qn);
+				t1 = (uint32)sqrt(Qn);
 				if (Qn == t1 * t1)
 					break;
 			}
