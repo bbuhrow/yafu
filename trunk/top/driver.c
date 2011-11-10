@@ -929,6 +929,7 @@ void free_globals()
 	zFree(&zOne);
 	zFree(&zTwo);
 	zFree(&zThree);
+	zFree(&zFive);
 	free(spSOEprimes);
 	free(PRIMES);
 	sFree(&gstr1);

@@ -643,6 +643,8 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 							(uint32)sdata->blocks * (uint32)sizeof(uint32 *));
 				}
 			}
+			else
+				thread->ddata.large_sieve_buckets = NULL;
 
 			//create a hit counter for each bucket
 			thread->ddata.bucket_hits = (uint32 *)malloc(
@@ -677,6 +679,8 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 							(uint32)sdata->blocks * (uint32)sizeof(uint32));
 				}
 			}
+			else
+				thread->ddata.large_bucket_hits = NULL;
 
 			//each bucket must be able to hold a hit from every prime used above BUCKETSTARTP.
 			//this is overkill, because every prime will not hit every bucket when

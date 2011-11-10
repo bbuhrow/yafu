@@ -1477,6 +1477,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		lower = z264(&operands[0]);
 		upper = z264(&operands[1]);
+		free(PRIMES);
 		PRIMES = soe_wrapper(spSOEprimes, szSOEp, lower, upper, operands[2].val[0], &NUM_P);
 		if (PRIMES != NULL)
 		{

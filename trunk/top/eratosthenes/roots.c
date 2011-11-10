@@ -14,11 +14,13 @@ benefit from your work.
 
 #include "soe.h"
 
-void getRoots(soe_staticdata_t *sdata)
+void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 {
 	int prime, prodN;
 	uint64 startprime;
 	uint64 i;
+	int j;
+	uint32 range, lastid;
 		
 	//timing
 	double t;
@@ -60,67 +62,139 @@ void getRoots(soe_staticdata_t *sdata)
 
 	gettimeofday(&tstart, NULL);
 
-	// bucket sieved primes need more data
-	if (sdata->sieve_range == 0)
+	// start the threads
+	for (i = 0; i < THREADS - 1; i++)
+		start_soe_worker_thread(thread_data + i, 0);
+
+	start_soe_worker_thread(thread_data + i, 1);
+
+	range = (sdata->pboundi - sdata->bucket_start_id) / THREADS;
+	lastid = sdata->bucket_start_id;
+
+	// divvy up the primes
+	for (j = 0; j < THREADS; j++)
 	{
-		for (; i < sdata->inplace_start_id;i++)
+		thread_soedata_t *t = thread_data + j;
+
+		t->sdata = *sdata;
+		t->startid = lastid;
+		t->stopid = t->startid + range; 
+		lastid = t->stopid;
+	}
+
+	// the last one gets any leftover
+	if (thread_data[THREADS-1].stopid != sdata->pboundi)
+		thread_data[THREADS-1].stopid = sdata->pboundi;
+
+	// now run with the threads
+	for (j = 0; j < THREADS; j++)
+	{
+		thread_soedata_t *t = thread_data + j;
+
+		if (j == (THREADS - 1)) 
+		{	
+			if (VFLAG > 2)
+				printf("starting root computation over %u to %u\n", t->startid, t->stopid);
+
+			// run in the current thread
+			// bucket sieved primes need more data
+			if (sdata->sieve_range == 0)
+			{				
+				for (i = t->startid; i < t->stopid; i++)
+				{
+					uint32 inv;
+					prime = t->sdata.sieve_p[i];
+
+					//sieving requires that we find the offset of each sieve prime in each block 
+					//that we sieve.  We are more restricted in choice of offset because we
+					//sieve residue classes.  A good way to find the offset is the extended 
+					//euclidean algorithm, which reads ax + by = gcd(a,b),
+					//where a = prime, b = prodN, and therefore gcd = 1.  
+					//since a and b are coprime, y is the multiplicative inverse of prodN modulo prime.
+					//This value is a constant, so compute it here in order to facilitate 
+					//finding offsets later.
+
+					//solve prodN ^ -1 % p 
+					inv = modinv_1(prodN, prime);
+					t->sdata.root[i] = prime - inv;
+
+					//we can also speed things up by computing and storing the residue
+					//mod p of the first sieve location in the first residue class.  This provides
+					//a speedup by pulling this constant (involving a division) out of a critical loop
+					//when finding offsets of bucket sieved primes.
+					//these are only used by bucket sieved primes.
+					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
+						(t->sdata.lowlimit + 1) % prime;
+				}
+			}
+			else
+			{
+				mpz_t tmpz;
+				mpz_init(tmpz);
+
+				mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
+				for (i = t->startid; i < t->stopid; i++)
+				{
+					uint32 inv;
+					prime = t->sdata.sieve_p[i];
+
+					//sieving requires that we find the offset of each sieve prime in each block 
+					//that we sieve.  We are more restricted in choice of offset because we
+					//sieve residue classes.  A good way to find the offset is the extended 
+					//euclidean algorithm, which reads ax + by = gcd(a,b),
+					//where a = prime, b = prodN, and therefore gcd = 1.  
+					//since a and b are coprime, y is the multiplicative inverse of prodN modulo prime.
+					//This value is a constant, so compute it here in order to facilitate 
+					//finding offsets later.
+
+					//solve prodN ^ -1 % p 
+					inv = modinv_1(prodN,prime);
+					t->sdata.root[i] = prime - inv;
+
+					//we can also speed things up by computing and storing the residue
+					//mod p of the first sieve location in the first residue class.  This provides
+					//a speedup by pulling this constant (involving a division) out of a critical loop
+					//when finding offsets of bucket sieved primes.
+					//these are only used by bucket sieved primes.			
+					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
+						mpz_tdiv_ui(tmpz, prime);
+				}
+			}
+		}
+		else 
 		{
-			uint32 inv;
-			prime = sdata->sieve_p[i];
+			t->command = SOE_COMPUTE_ROOTS;
 
-			//sieving requires that we find the offset of each sieve prime in each block 
-			//that we sieve.  We are more restricted in choice of offset because we
-			//sieve residue classes.  A good way to find the offset is the extended 
-			//euclidean algorithm, which reads ax + by = gcd(a,b),
-			//where a = prime, b = prodN, and therefore gcd = 1.  
-			//since a and b are coprime, y is the multiplicative inverse of prodN modulo prime.
-			//This value is a constant, so compute it here in order to facilitate 
-			//finding offsets later.
+#if defined(WIN32) || defined(_WIN64)
+			SetEvent(t->run_event);
+#else
+			pthread_cond_signal(&t->run_cond);
+			pthread_mutex_unlock(&t->run_lock);
+#endif
+		}		
+	}
 
-			//solve prodN ^ -1 % p 
-			inv = modinv_1(prodN,prime);
-			sdata->root[i] = prime - inv;
 
-			//we can also speed things up by computing and storing the residue
-			//mod p of the first sieve location in the first residue class.  This provides
-			//a speedup by pulling this constant (involving a division) out of a critical loop
-			//when finding offsets of bucket sieved primes.
-			//these are only used by bucket sieved primes.
-			sdata->lower_mod_prime[i-sdata->bucket_start_id] = (sdata->lowlimit + 1) % prime;
+	//wait for each thread to finish
+	for (i = 0; i < THREADS; i++) 
+	{
+		thread_soedata_t *t = thread_data + i;
+
+		if (i < (THREADS - 1)) 
+		{
+#if defined(WIN32) || defined(_WIN64)
+			WaitForSingleObject(t->finish_event, INFINITE);
+#else
+			pthread_mutex_lock(&t->run_lock);
+			while (t->command != SOE_COMMAND_WAIT)
+				pthread_cond_wait(&t->run_cond, &t->run_lock);
+#endif
 		}
 	}
-	else
-	{
-		mpz_t tmpz;
-		mpz_init(tmpz);
 
-		mpz_add_ui(tmpz, *sdata->offset, sdata->lowlimit + 1);
-		for (; i < sdata->inplace_start_id;i++)
-		{
-			uint32 inv;
-			prime = sdata->sieve_p[i];
-
-			//sieving requires that we find the offset of each sieve prime in each block 
-			//that we sieve.  We are more restricted in choice of offset because we
-			//sieve residue classes.  A good way to find the offset is the extended 
-			//euclidean algorithm, which reads ax + by = gcd(a,b),
-			//where a = prime, b = prodN, and therefore gcd = 1.  
-			//since a and b are coprime, y is the multiplicative inverse of prodN modulo prime.
-			//This value is a constant, so compute it here in order to facilitate 
-			//finding offsets later.
-
-			//solve prodN ^ -1 % p 
-			inv = modinv_1(prodN,prime);
-			sdata->root[i] = prime - inv;
-
-			//we can also speed things up by computing and storing the residue
-			//mod p of the first sieve location in the first residue class.  This provides
-			//a speedup by pulling this constant (involving a division) out of a critical loop
-			//when finding offsets of bucket sieved primes.
-			//these are only used by bucket sieved primes.			
-			sdata->lower_mod_prime[i-sdata->bucket_start_id] = mpz_tdiv_ui(tmpz, prime);
-		}
-	}
+	//stop the worker threads
+	for (i=0; i<THREADS - 1; i++)
+		stop_soe_worker_thread(thread_data + i, 0);
 
 	gettimeofday(&tstop, NULL);
 

@@ -36,6 +36,7 @@ void zTrial(fact_obj_t *fobj)
 
 	if (P_MAX < limit)
 	{
+		free(PRIMES);
 		PRIMES = soe_wrapper(spSOEprimes, szSOEp, 0, limit, 0, &NUM_P);
 		P_MIN = PRIMES[0];
 		P_MAX = PRIMES[NUM_P-1];
@@ -43,14 +44,6 @@ void zTrial(fact_obj_t *fobj)
 
 	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && (PRIMES[k] < limit))
 	{
-		if (k >= NUM_P)
-		{
-			PRIMES = soe_wrapper(spSOEprimes, szSOEp, PRIMES[k-1]-1,PRIMES[k-1]+10000000, 0, &NUM_P);
-			P_MIN = PRIMES[0];
-			P_MAX = PRIMES[NUM_P-1];
-			k=0;
-		}
-
 		q = (fp_digit)PRIMES[k];
 		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
 		

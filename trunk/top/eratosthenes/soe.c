@@ -49,15 +49,17 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 	allocated_bytes += init_sieve(&sdata);
 	*highlimit = sdata.highlimit;
 	
+	//allocate thread data structure
+	thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
+
 	//find all roots of prime with prodN.  These are used when finding offsets.
-	getRoots(&sdata);
+	getRoots(&sdata, thread_data);
 
 	//init bucket sieving
 	set_bucket_depth(&sdata);
 
-	//allocate and initialize stuff used in thread structures.
-	//this is necessary even if THREADS = 1;
-	thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
+	//initialize stuff used in thread structures.
+	//this is necessary even if THREADS = 1;	
 	allocated_bytes += alloc_threaddata(&sdata, thread_data);
 
 	if (VFLAG > 2)
@@ -455,7 +457,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 		//printf("added %u primes\n", (uint32)j);
 
 		//and then the primes in the lines
-		num_p = primes_from_lineflags(sdata, j, primes);
+		num_p = primes_from_lineflags(sdata, thread_data, j, primes);
 
 	}
 
@@ -475,14 +477,17 @@ void finalize_sieve(soe_staticdata_t *sdata,
 			thread_soedata_t *thread = thread_data + i;
 
 			free(thread->ddata.bucket_hits);
-			free(thread->ddata.large_bucket_hits);
+			if (thread->ddata.large_bucket_hits != NULL)
+				free(thread->ddata.large_bucket_hits);
 			for (j=0; j < thread->sdata.blocks; j++)
 			{
 				free(thread->ddata.sieve_buckets[j]);
-				free(thread->ddata.large_sieve_buckets[j]);
+				if (thread->ddata.large_sieve_buckets != NULL)
+					free(thread->ddata.large_sieve_buckets[j]);
 			}
 			free(thread->ddata.sieve_buckets);
-			free(thread->ddata.large_sieve_buckets);
+			if (thread->ddata.large_sieve_buckets != NULL)
+				free(thread->ddata.large_sieve_buckets);
 		}
 
 	}

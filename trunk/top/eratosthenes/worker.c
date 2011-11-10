@@ -76,6 +76,7 @@ void *soe_worker_thread_main(void *thread_data) {
 	thread_soedata_t *t = (thread_soedata_t *)thread_data;
 
 	while(1) {
+		uint32 i;
 
 		/* wait forever for work to do */
 #if defined(WIN32) || defined(_WIN64)
@@ -99,6 +100,67 @@ void *soe_worker_thread_main(void *thread_data) {
 		else if (t->command == SOE_COMMAND_SIEVE_AND_COMPUTE)
 		{
 			sieve_line(t);
+		}
+		else if (t->command == SOE_COMPUTE_ROOTS)
+		{
+			if (VFLAG > 2)
+				printf("starting root computation over %u to %u\n", t->startid, t->stopid);
+
+			if (t->sdata.sieve_range == 0)
+			{
+				for (i = t->startid; i < t->stopid; i++)
+				{
+					uint32 inv;
+					uint32 prime = t->sdata.sieve_p[i];
+
+					inv = modinv_1(t->sdata.prodN, prime);
+					t->sdata.root[i] = prime - inv;
+
+					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
+						(t->sdata.lowlimit + 1) % prime;
+				}
+			}
+			else
+			{
+				mpz_t tmpz;
+				mpz_init(tmpz);
+
+				mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
+				for (i = t->startid; i < t->stopid; i++)
+				{
+					uint32 inv;
+					uint32 prime = t->sdata.sieve_p[i];
+
+					inv = modinv_1(t->sdata.prodN, prime);
+					t->sdata.root[i] = prime - inv;
+		
+					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
+						mpz_tdiv_ui(tmpz, prime);
+				}
+			}
+
+		}
+		else if (t->command == SOE_COMPUTE_PRIMES)
+		{
+			t->linecount = 0;
+
+			for (i = t->startid; i < t->stopid; i+=8)
+			{
+				t->linecount = compute_8_bytes(&t->sdata, t->linecount, t->ddata.primes, i, NULL);		
+			}
+		}
+		else if (t->command == SOE_COMPUTE_PRPS)
+		{
+			t->linecount = 0;
+			for (i = t->startid; i < t->stopid; i++)
+			{
+				mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+				{
+					if (mpz_probab_prime_p(t->tmpz, t->current_line))
+						t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+				}
+			}
 		}
 		else if (t->command == SOE_COMMAND_END)
 			break;
