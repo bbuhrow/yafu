@@ -192,7 +192,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		else
 		{
 			dconf->failed_squfof++;
-			printf("squfof failure: %" PRIu64 "\n", q64);
+			//printf("squfof failure: %" PRIu64 "\n", q64);
 		}
 
 	}

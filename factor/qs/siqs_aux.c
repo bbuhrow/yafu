@@ -47,6 +47,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 mul = sconf->multiplier;
 	uint32 *modsqrt = sconf->modsqrt_array;
 
+	free(PRIMES);
 	PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 	P_MIN = PRIMES[0];
 	P_MAX = PRIMES[NUM_P-1];
@@ -59,6 +60,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
+			free(PRIMES);
 			PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 			P_MIN = PRIMES[0];
 			P_MAX = PRIMES[NUM_P-1];

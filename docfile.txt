@@ -609,14 +609,15 @@ description:
 Sieve an arbitrary range of integers between 'lower' and 'upper' with primes up to a limit of
 'depth'.  'Lower' and 'upper' can be arbitrary precision integers, with lower < upper.  'Depth'
 is currently limited to values less than 4e9.
-The fourth parameter should evaluate to 1 if the range is to only be counted or 0 if printed.
+The fourth parameter should evaluate to 1 if the range is to only be counted.  Otherwise,
+primes are actually computed.  Note that this value must be 0 if primes are to be output
+to the screen or to the file, as discussed below.
 If the PRIMES_TO_FILE environment variable is set to non-zero, the values that survive the 
 sieve will be output to a file called sieved_values.dat, in the same directory as the executable.
 If the PRIMES_TO_SCREEN environement variable is set to non-zero, the sieved values
 will be printed to the screen.  By default, PRIMES_TO_FILE and
 PRIMES_TO_SCREEN are inactive (equal to zero).  The -pfile and -pscreen command line flags
 enable the same behavior.  It could take a very long time to print if the range is large.
-If expression 4 is omitted, the behavior defaults to a count of surviving values.
 
 
 [testrange]

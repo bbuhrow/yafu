@@ -410,31 +410,157 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 		if (num_witnesses > 0)
 		{
 			int pchar = 0;
+			thread_soedata_t *thread_data;		//an array of thread data objects
+			uint32 lastid;
+			int j;
+
+			//allocate thread data structure
+			thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
 			
 			// conduct PRP tests on all surviving values
 			if (VFLAG > 0)
 				printf("starting PRP tests with %d witnesses on %" PRIu64 " surviving candidates\n", 
 					num_witnesses, *num_p);
 
-			retval = 0;
-			for (i = 0; i < *num_p; i++)
-			{
-				if (((i & 128) == 0) && (VFLAG > 0))
-				{
-					int k;
-					for (k = 0; k<pchar; k++)
-						printf("\b");
-					pchar = printf("progress: %d%%",(int)((double)i / (double)(*num_p) * 100.0));
-					fflush(stdout);
-				}
+			// start the threads
+			for (i = 0; i < THREADS - 1; i++)
+				start_soe_worker_thread(thread_data + i, 0);
 
-				mpz_add_ui(tmpz, *offset, values[i]);
-				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+			start_soe_worker_thread(thread_data + i, 1);
+
+			range = *num_p / THREADS;
+			lastid = 0;
+
+			// divvy up the range
+			for (j = 0; j < THREADS; j++)
+			{
+				thread_soedata_t *t = thread_data + j;
+				
+				t->startid = lastid;
+				t->stopid = t->startid + range;
+				lastid = t->stopid;
+
+				if (VFLAG > 2)
+					printf("thread %d computing PRPs from %u to %u\n", 
+						(int)i, t->startid, t->stopid);
+			}
+
+			// the last one gets any leftover
+			if (thread_data[THREADS-1].stopid != (uint32)*num_p)
+				thread_data[THREADS-1].stopid = (uint32)*num_p;
+
+			// allocate space for stuff in the threads
+			if (THREADS == 1)
+			{
+				thread_data[0].ddata.primes = values;
+			}
+			else
+			{
+				for (j = 0; j < THREADS; j++)
 				{
-					if (mpz_probab_prime_p(tmpz, num_witnesses))
-						values[retval++] = values[i];
+					thread_soedata_t *t = thread_data + j;
+
+					mpz_init(t->tmpz);
+					mpz_init(t->offset);
+					mpz_init(t->lowlimit);
+					mpz_init(t->highlimit);
+					mpz_set(t->offset, *offset);
+					mpz_set(t->lowlimit, lowlimit);
+					mpz_set(t->highlimit, highlimit);
+					t->current_line = (uint64)num_witnesses;
+
+					t->ddata.primes = (uint64 *)malloc((t->stopid - t->startid) * sizeof(uint64));
+					for (i = t->startid; i < t->stopid; i++)
+						t->ddata.primes[i - t->startid] = values[i];
 				}
 			}
+
+			// now run with the threads
+			for (j = 0; j < THREADS; j++)
+			{
+				thread_soedata_t *t = thread_data + j;
+
+				if (j == (THREADS - 1)) 
+				{	
+					t->linecount = 0;
+					for (i = t->startid; i < t->stopid; i++)
+					{
+						if (((i & 128) == 0) && (VFLAG > 0))
+						{
+							int k;
+							for (k = 0; k<pchar; k++)
+								printf("\b");
+							pchar = printf("progress: %d%%",(int)((double)i / (double)(*num_p) * 100.0));
+							fflush(stdout);
+						}
+
+						mpz_add_ui(tmpz, *offset, t->ddata.primes[i - t->startid]);
+						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
+						{
+							if (mpz_probab_prime_p(tmpz, num_witnesses))
+								t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+						}
+					}
+				}
+				else
+				{
+					t->command = SOE_COMPUTE_PRPS;
+
+#if defined(WIN32) || defined(_WIN64)
+					SetEvent(t->run_event);
+#else
+					pthread_cond_signal(&t->run_cond);
+					pthread_mutex_unlock(&t->run_lock);
+#endif
+
+				}
+			}
+
+			//wait for each thread to finish
+			for (i = 0; i < THREADS; i++) 
+			{
+				thread_soedata_t *t = thread_data + i;
+
+				if (i < (THREADS - 1)) 
+				{
+#if defined(WIN32) || defined(_WIN64)
+					WaitForSingleObject(t->finish_event, INFINITE);
+#else
+					pthread_mutex_lock(&t->run_lock);
+					while (t->command != SOE_COMMAND_WAIT)
+						pthread_cond_wait(&t->run_cond, &t->run_lock);
+#endif
+				}
+			}
+
+			//stop the worker threads
+			for (i=0; i<THREADS - 1; i++)
+				stop_soe_worker_thread(thread_data + i, 0);
+
+			// combine results and free stuff
+			if (THREADS == 1)
+			{
+				retval = thread_data[0].linecount;
+			}
+			else
+			{
+				retval = 0;
+				for (i=0; i<THREADS; i++)
+				{
+					thread_soedata_t *t = thread_data + i;
+
+					for (j=0; j < t->linecount; j++)
+						values[retval++] = t->ddata.primes[j];
+
+					free(t->ddata.primes);
+					mpz_clear(t->tmpz);
+					mpz_clear(t->offset);
+					mpz_clear(t->lowlimit);
+					mpz_clear(t->highlimit);
+				}
+			}
+
+			free(thread_data);
 
 			if (VFLAG > 0)
 			{

@@ -38,6 +38,9 @@ enum soe_command {
 	SOE_COMMAND_WAIT,
 	SOE_COMMAND_SIEVE_AND_COUNT,
 	SOE_COMMAND_SIEVE_AND_COMPUTE,
+	SOE_COMPUTE_ROOTS,
+	SOE_COMPUTE_PRIMES,
+	SOE_COMPUTE_PRPS,
 	SOE_COMMAND_END
 };
 
@@ -137,9 +140,14 @@ typedef struct
 typedef struct {
 	soe_dynamicdata_t ddata;
 	soe_staticdata_t sdata;
-	//uint8 **line;
 	uint64 linecount;
 	uint32 current_line;
+
+	// start and stop for computing roots
+	uint32 startid, stopid;
+
+	// stuff for computing PRPs
+	mpz_t offset, lowlimit, highlimit, tmpz;
 
 	/* fields for thread pool synchronization */
 	volatile enum soe_command command;
@@ -164,10 +172,12 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 void sieve_line(thread_soedata_t *thread_data);
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
-uint64 primes_from_lineflags(soe_staticdata_t *sdata, 
+uint32 compute_8_bytes(soe_staticdata_t *sdata, 
+	uint32 pcount, uint64 *primes, uint64 byte_offset, int *pchar);
+uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_data,
 	uint32 start_count, uint64 *primes);
 void get_offsets(thread_soedata_t *thread_data);
-void getRoots(soe_staticdata_t *sdata);
+void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data);
 void stop_soe_worker_thread(thread_soedata_t *t, uint32 is_master_thread);
 void start_soe_worker_thread(thread_soedata_t *t, uint32 is_master_thread);
 #if defined(WIN32) || defined(_WIN64)
