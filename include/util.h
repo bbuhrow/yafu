@@ -48,6 +48,25 @@ extern "C" {
 #define MIN(a,b) ((a) < (b)? (a) : (b))
 #define MAX(a,b) ((a) > (b)? (a) : (b))
 
+static INLINE void * xmalloc_align(size_t len)
+{
+#if defined (_MSC_VER) || defined(__MINGW32__)
+	void *ptr = _aligned_malloc(len, 64);
+
+#elif defined (__APPLE__)
+	void *ptr = malloc(len);
+
+#elif defined (__GNUC__)
+	void *ptr = memalign(64, len);
+
+#else
+	void *ptr = malloc(len);
+
+#endif
+
+	return ptr;
+}
+
 static INLINE void * xmalloc(size_t len) {
 	void *ptr = malloc(len);
 	if (ptr == NULL) {

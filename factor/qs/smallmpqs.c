@@ -657,12 +657,7 @@ void smallmpqs(fact_obj_t *fobj)
 	fb_sieve_n = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
 	
 	//allocate the sieve
-#if defined (_MSC_VER) || defined(__MINGW32__)
-	sieve = (uint8 *)_aligned_malloc(BLOCKSIZE * sizeof(uint8),64);
-#else
-	sieve = (uint8 *)memalign(64,BLOCKSIZE * sizeof(uint8));
-#endif
-
+	sieve = (uint8 *)xmalloc_align(BLOCKSIZE * sizeof(uint8));
 
 	//allocate the current polynomial
 	poly = (sm_mpqs_poly *)malloc(sizeof(sm_mpqs_poly));

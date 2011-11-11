@@ -200,7 +200,7 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	if (lastid != sdata->numlinebytes)
 		printf("WARNING: not all line bytes accounted for!\n");
 
-	if (VFLAG > 0)
+	if (VFLAG > 1)
 	{
 		//don't print status if computing primes, because lots of routines within
 		//yafu do this and they don't want this side effect
@@ -244,7 +244,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
 		
 	if ((byte_offset & 32767) == 0)
 	{
-		if ((VFLAG > 0) && (pchar != NULL))
+		if ((VFLAG > 1) && (pchar != NULL))
 		{
 			int k;
 			for (k = 0; k < *pchar; k++)

@@ -172,10 +172,11 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		// sieving time.  if doing 8x at once makes things (conservatively) 4x faster, then we can
 		// save 2.4 sec, for approx a 1.5% speedup overall.  meh.
 
-		offsetarray = memalign(64, 4 * sizeof(uint32));
-		mask1 = memalign(64, 4 * sizeof(uint32));
-		mask2 = memalign(64, 4 * sizeof(uint32));
-		offsetarray[0] = offset; offsetarray[1] = offset; offsetarray[2] = offset; offsetarray[3] = offset;
+		offsetarray = xmalloc_align(4 * sizeof(uint32));
+		mask1 = xmalloc_align(4 * sizeof(uint32));
+		mask2 = xmalloc_align(4 * sizeof(uint32));
+		offsetarray[0] = offset; offsetarray[1] = offset; 
+		offsetarray[2] = offset; offsetarray[3] = offset;
 		mask1[0] = 0; mask1[1] = 0xffffffff; mask1[2] = 0; mask1[3] = 0xffffffff;
 		mask2[0] = 0xffffffff; mask2[1] = 0; mask2[2] = 0xffffffff; mask2[3] = 0;
 
