@@ -1229,110 +1229,44 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//allocate the sieving factor bases
-#if defined (_MSC_VER) || defined(__MINGW32__)
 
-#ifdef USE_COMPRESSED_FB
-	dconf->comp_sieve_p = (sieve_fb_compressed *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
-	dconf->comp_sieve_n = (sieve_fb_compressed *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)),64);
-#else
 	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
 	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->root1 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->root2 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_p->logp = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
 
-	dconf->comp_sieve_n->prime = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->root1 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->root2 = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-	dconf->comp_sieve_n->logp = (uint16 *)_aligned_malloc(
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)),64);
-#endif
-	dconf->fb_sieve_p = (sieve_fb *)_aligned_malloc(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
-	dconf->fb_sieve_n = (sieve_fb *)_aligned_malloc(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)),64);
-	//allocate storage for the update data needed when changing polys
-	dconf->update_data.firstroots1 = (int *)_aligned_malloc(
-		sconf->factor_base->B * sizeof(int),64);
-	dconf->update_data.firstroots2 = (int *)_aligned_malloc(
-		sconf->factor_base->B * sizeof(int),64);
-	dconf->update_data.prime = (uint32 *)_aligned_malloc(
-		sconf->factor_base->B * sizeof(uint32),64);
-	dconf->update_data.logp = (uint8 *)_aligned_malloc(
-		sconf->factor_base->B * sizeof(uint8),64);
-	dconf->rootupdates = (int *)_aligned_malloc(
-		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int),64);
+	dconf->comp_sieve_p->prime = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_p->root1 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_p->root2 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_p->logp = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 
-#else
+	dconf->comp_sieve_n->prime = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_n->root1 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_n->root2 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->comp_sieve_n->logp = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 
-#ifdef USE_COMPRESSED_FB
-	dconf->comp_sieve_p = (sieve_fb_compressed *)memalign(64,
-			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-	dconf->comp_sieve_n = (sieve_fb_compressed *)memalign(64,
-			(size_t)(sconf->factor_base->med_B * sizeof(sieve_fb_compressed)));
-#else
-	dconf->comp_sieve_p = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_n = (sieve_fb_compressed *)malloc(sizeof(sieve_fb_compressed));
-	dconf->comp_sieve_p->prime = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_p->root1 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_p->root2 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-#ifdef LOGP_BITS
-	//printf("logp values have 8 bits\n");
-	dconf->comp_sieve_p->logp = (uint8 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
-#else
-	//printf("logp values have 16 bits\n");
-	dconf->comp_sieve_p->logp = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-#endif
+	dconf->fb_sieve_p = (sieve_fb *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
+	dconf->fb_sieve_n = (sieve_fb *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
+	
+	dconf->update_data.firstroots1 = (int *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(int)));
+	dconf->update_data.firstroots2 = (int *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(int)));
+	dconf->update_data.prime = (uint32 *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(uint32)));
+	dconf->update_data.logp = (uint8 *)xmalloc_align(
+		(size_t)(sconf->factor_base->B * sizeof(uint8)));
+	dconf->rootupdates = (int *)xmalloc_align(
+		(size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(int)));
 
-	dconf->comp_sieve_n->prime = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_n->root1 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-	dconf->comp_sieve_n->root2 = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-#ifdef LOGP_BITS
-	//printf("logp values have 8 bits\n");
-	dconf->comp_sieve_n->logp = (uint8 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint8)));
-#else
-	//printf("logp values have 16 bits\n");
-	dconf->comp_sieve_n->logp = (uint16 *)memalign(64,
-		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-#endif
-
-#endif
-	dconf->fb_sieve_p = (sieve_fb *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-	dconf->fb_sieve_n = (sieve_fb *)memalign(64,
-			(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-	//allocate storage for the update data needed when changing polys
-	dconf->update_data.firstroots1 = (int *)memalign(64,
-		sconf->factor_base->B * sizeof(int));
-	dconf->update_data.firstroots2 = (int *)memalign(64,
-		sconf->factor_base->B * sizeof(int));
-	dconf->update_data.prime = (uint32 *)memalign(64,
-		sconf->factor_base->B * sizeof(uint32));
-	dconf->update_data.logp = (uint8 *)memalign(64,
-		sconf->factor_base->B * sizeof(uint8));
-	dconf->rootupdates = (int *)memalign(64,
-		MAX_A_FACTORS * sconf->factor_base->B * sizeof(int));
-
-#endif
 
 	if (VFLAG > 2)
 	{
@@ -1350,13 +1284,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 	
 	//allocate the sieve
-#if defined (_MSC_VER) || defined (__MINGW32__)
-	dconf->sieve = (uint8 *)_aligned_malloc(
-		(size_t) (BLOCKSIZE * sizeof(uint8)),64);
-#else
-	dconf->sieve = (uint8 *)memalign(64,
+	dconf->sieve = (uint8 *)xmalloc_align(
 		(size_t) (BLOCKSIZE * sizeof(uint8)));
-#endif
 
 	if (VFLAG > 2)
 	{
@@ -1375,17 +1304,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		uint32 p = sconf->factor_base->list->prime[i];
 		uint32 lp = sconf->factor_base->list->logprime[i];
 
-#ifdef USE_COMPRESSED_FB
-		dconf->comp_sieve_p[i].prime_and_logp = lp << 16;
-		dconf->comp_sieve_p[i].prime_and_logp |= (uint16)p;
-		dconf->comp_sieve_n[i].prime_and_logp = lp << 16;
-		dconf->comp_sieve_n[i].prime_and_logp |= (uint16)p;
-#else
 		dconf->comp_sieve_p->logp[i] = (uint8)lp;
 		dconf->comp_sieve_p->prime[i] = (uint16)p;
 		dconf->comp_sieve_n->logp[i] = (uint8)lp;
 		dconf->comp_sieve_n->prime[i] = (uint16)p;
-#endif
 
 		dconf->fb_sieve_p[i].prime = p;
 		dconf->fb_sieve_p[i].logprime = lp;
@@ -1394,6 +1316,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->update_data.prime[i] = p;
 		dconf->update_data.logp[i] = lp;
 	}
+
 	for (; i < sconf->factor_base->B; i++)
 	{
 		dconf->fb_sieve_p[i].prime = sconf->factor_base->list->prime[i];
@@ -1422,16 +1345,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets->list_size = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 		
 		//now allocate the buckets
-#if defined(_MSC_VER) || defined (__MINGW32__)
-		dconf->buckets->list = (uint32 *)_aligned_malloc(
-			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
-			BUCKET_ALLOC * sizeof(uint32),64);
-#else
-		dconf->buckets->list = (uint32 *)memalign(64,
+		dconf->buckets->list = (uint32 *)xmalloc_align(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
 			BUCKET_ALLOC * sizeof(uint32));
-#endif
-
 	}
 	else
 	{
@@ -1452,24 +1368,15 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//used in trial division to mask out the fb_index portion of bucket entries, so that
 	//multiple block locations can be searched for in parallel using SSE2 instructions
-#if defined (_MSC_VER) || defined (__MINGW32__)
-	dconf->mask = (uint16 *)_aligned_malloc(8 * sizeof(uint16),16);
-#elif defined (__GNUC__)
-	dconf->mask = (uint16 *)memalign(16,8 * sizeof(uint16));
-//#else
-//	dconf->mask = (uint16 *)malloc(8 * sizeof(uint16));
-#endif
+	dconf->mask = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+
 	dconf->mask[1] = 0xFFFF;
 	dconf->mask[3] = 0xFFFF;
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
 
 #ifdef SSE2_RESIEVING
-	#if defined(_MSC_VER) || defined (__MINGW32__)
-		dconf->corrections = (uint16 *)_aligned_malloc(8 * sizeof(uint16),64);
-	#else
-		dconf->corrections = (uint16 *)memalign(64, 8 * sizeof(uint16));
-	#endif
+	dconf->corrections = (uint16 *)xmalloc_align(8 * sizeof(uint16));
 #endif
 
 	// array of sieve locations scanned from the sieve block that we
@@ -1567,79 +1474,41 @@ int siqs_static_init(static_conf_t *sconf)
 		//computations of root updates
 		sconf->factor_base->B += (16 - (sconf->factor_base->B % 16));
 
-		//if (sconf->factor_base->B & 0x1)
-		//	sconf->factor_base->B++;	//force this to be even for fast root updating
-
 		//allocate the space for the factor base elements
-#if defined(_MSC_VER) || defined (__MINGW32__)
-		sconf->factor_base->list = (fb_element_siqs *)_aligned_malloc(
-			(size_t)(sizeof(fb_element_siqs)),64);
-		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)_aligned_malloc(
-			(size_t)(sizeof(tiny_fb_element_siqs)),64);
-
-		sconf->modsqrt_array = (uint32 *)malloc(
-			sconf->factor_base->B * sizeof(uint32));
-		sconf->factor_base->list->prime = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-
-		sconf->factor_base->tinylist->prime = (uint32 *)_aligned_malloc(
-			(size_t)(256 * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->small_inv = (uint32 *)_aligned_malloc(
-			(size_t)(256 * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->correction = (uint32 *)_aligned_malloc(
-			(size_t)(256 * sizeof(uint32)),64);
-		sconf->factor_base->tinylist->logprime = (uint32 *)_aligned_malloc(
-			(size_t)(256 * sizeof(uint32)),64);
-
-#ifdef USE_8X_MOD
-		sconf->factor_base->list->small_inv = (uint16 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
-		sconf->factor_base->list->correction = (uint16 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint16)),64);
-#else
-		sconf->factor_base->list->small_inv = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-		sconf->factor_base->list->correction = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-#endif
-		
-		sconf->factor_base->list->logprime = (uint32 *)_aligned_malloc(
-			(size_t)(sconf->factor_base->B * sizeof(uint32)),64);
-#else
-		sconf->factor_base->list = (fb_element_siqs *)memalign(64,
+		sconf->factor_base->list = (fb_element_siqs *)xmalloc_align(
 			(size_t)(sizeof(fb_element_siqs)));
-		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)memalign(64,
+		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)xmalloc_align(
 			(size_t)(sizeof(tiny_fb_element_siqs)));
 
 		sconf->modsqrt_array = (uint32 *)malloc(
 			sconf->factor_base->B * sizeof(uint32));
-		sconf->factor_base->list->prime = (uint32 *)memalign(64,
+		sconf->factor_base->list->prime = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 
-		sconf->factor_base->tinylist->prime = (uint32 *)memalign(64,
+		sconf->factor_base->tinylist->prime = (uint32 *)xmalloc_align(
 			(size_t)(256 * sizeof(uint32)));
-		sconf->factor_base->tinylist->logprime = (uint32 *)memalign(64,
+		sconf->factor_base->tinylist->small_inv = (uint32 *)xmalloc_align(
 			(size_t)(256 * sizeof(uint32)));
-		sconf->factor_base->tinylist->small_inv = (uint32 *)memalign(64,
+		sconf->factor_base->tinylist->correction = (uint32 *)xmalloc_align(
 			(size_t)(256 * sizeof(uint32)));
-		sconf->factor_base->tinylist->correction = (uint32 *)memalign(64,
+		sconf->factor_base->tinylist->logprime = (uint32 *)xmalloc_align(
 			(size_t)(256 * sizeof(uint32)));
 
 #ifdef USE_8X_MOD
-		sconf->factor_base->list->small_inv = (uint16 *)memalign(64,
+		sconf->factor_base->list->small_inv = (uint16 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint16)));
-		sconf->factor_base->list->correction = (uint16 *)memalign(64,
+		sconf->factor_base->list->correction = (uint16 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint16)));
 #else
-		sconf->factor_base->list->small_inv = (uint32 *)memalign(64,
+		sconf->factor_base->list->small_inv = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-		sconf->factor_base->list->correction = (uint32 *)memalign(64,
+		sconf->factor_base->list->correction = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
 #endif
 		
-		sconf->factor_base->list->logprime = (uint32 *)memalign(64,
+		sconf->factor_base->list->logprime = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
-#endif
+
 
 		if (VFLAG > 2)
 		{

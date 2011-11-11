@@ -179,7 +179,7 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 		}
 
 		//printf a progress report if counting
-		if (VFLAG > 0)
+		if (VFLAG > 1)
 		{
 			//don't print status if computing primes, because lots of routines within
 			//yafu do this and they don't want this side effect
@@ -354,7 +354,7 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 	sdata->num_found = num_p;
 
 #else
-	if (VFLAG > 0)
+	if (VFLAG > 1)
 	{
 		//don't print status if computing primes, because lots of routines within
 		//yafu do this and they don't want this side effect

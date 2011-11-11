@@ -1134,13 +1134,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	uint16 *bl_sizes;
 	uint16 *bl_locs;
 
-	#ifdef _MSC_VER
-		bl_sizes = (uint16 *)_aligned_malloc(8 * sizeof(uint16), 64);
-		bl_locs = (uint16 *)_aligned_malloc(8 * sizeof(uint16), 64);
-	#else
-		bl_sizes = (uint16 *)memalign(64, 8 * sizeof(uint16));
-		bl_locs = (uint16 *)memalign(64, 8 * sizeof(uint16));
-	#endif
+	bl_sizes = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+	bl_locs = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+
 #endif
 
 	fullfb_ptr = fullfb;

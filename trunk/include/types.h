@@ -213,7 +213,6 @@ code to the public domain.
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
 	#if defined(__MINGW64__)
 		#include <mm_malloc.h>
-		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit _strtoui64
 		#define strto_uint64 _strtoui64
@@ -252,7 +251,6 @@ code to the public domain.
 
 	#elif defined(__MINGW32__)
 		#include <mm_malloc.h>
-		#define memalign _aligned_malloc //_mm_malloc
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit strtoul
 		#define strto_uint64 _strtoui64
@@ -290,7 +288,6 @@ code to the public domain.
 		#endif
 
 	#elif defined(__x86_64__)
-
 		//sleep in milliseconds
 		#define MySleep(x) usleep((x)*1000)
 		#define strto_fpdigit strtoull
