@@ -85,6 +85,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	else
 		fb = dconf->fb_sieve_p;
 
+#ifdef USE_YAFU_TDIV
+	z32_to_mpz(&dconf->tmpz32, dconf->Qvals[report_num]);
+#endif
+
 	//check for additional factors of the a-poly factors
 	//make a separate list then merge it with fb_offsets
 	it=0;	//max 20 factors allocated for - should be overkill

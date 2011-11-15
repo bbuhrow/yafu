@@ -52,6 +52,15 @@ this file contains code implementing 2)
 
 */
 
+#ifdef USE_YAFU_TDIV
+#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
+		bits += logp;	\
+	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+#else
 #define DIVIDE_ONE_PRIME \
 	do	\
 	{	\
@@ -59,7 +68,7 @@ this file contains code implementing 2)
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
 		bits += logp;	\
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
-
+#endif
 //#define DO_4X_SPV 1
 
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
@@ -143,6 +152,20 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		//produce even a partial relation.
 		bits = sieve[dconf->reports[report_num]];
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
+
+#ifdef USE_YAFU_TDIV
+		mpz_to_z32(dconf->Qvals[report_num], &dconf->tmpz32);
+
+		gmp_printf("gmp input:       %Zd\n", dconf->Qvals[report_num]);
+		printf("starting tdiv of %s\n", z2decstr((z *)(&dconf->tmpz32), &gstr1));
+		//take care of powers of two
+		while ((dconf->tmpz32.val[0] & 0x1) == 0)
+		{
+			zShiftRight32_x(&dconf->tmpz32,&dconf->tmpz32,1);
+			dconf->fb_offsets[report_num][++smooth_num] = 1;
+			bits++;
+		}
+#endif
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
