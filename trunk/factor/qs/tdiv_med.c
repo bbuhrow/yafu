@@ -1089,21 +1089,37 @@ this file contains code implementing 3) and 4)
 	#endif
 #endif
 
-
+#ifdef USE_YAFU_TDIV
+#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		fb_offsets[++smooth_num] = i;	\
+		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
+	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+#else
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
 		fb_offsets[++smooth_num] = i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
+#endif
 
+#ifdef USE_YAFU_TDIV
+#define DIVIDE_RESIEVED_PRIME(j) \
+	while (zShortMod32(&dconf->tmp32, fbc->prime[i+j]) == 0)	\
+	{	\
+		fb_offsets[++smooth_num] = i+j;	\
+		zShortDiv32(&dconf->tmpz32, fbc->prime[i+j], &dconf->tmpz32);	\
+	}
+#else
 #define DIVIDE_RESIEVED_PRIME(j) \
 	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
 	{						\
 		fb_offsets[++smooth_num] = i+j;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
 	}
-
+#endif
 
 void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)

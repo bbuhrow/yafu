@@ -49,6 +49,53 @@ void mpz_set_64(mpz_t dest, uint64 src)
 
 }
 
+void mpz_to_z32(mpz_t src, z32 *dest)
+{
+	int i;
+
+#if GMP_LIMB_BITS == 32
+	for (i=0; i < mpz_size(src); i++)
+		dest->val[i] = mpz_getlimbn(src, i);
+
+	dest->size = mpz_size(src);
+#else
+	int j = 0;
+	for (i=0; i < mpz_size(src); i++)
+	{
+		uint64 tmp = mpz_getlimbn(src, i);
+		dest->val[j] = (uint32)tmp;
+		dest->val[j+1] = (uint32)(tmp >> 32);
+		j += 2;
+	}
+	if (dest->val[j-1] == 0)
+		dest->size = j-1;
+	else
+		dest->size = j;
+#endif
+	return;
+}
+
+void z32_to_mpz(z32 *src, mpz_t dest)
+{
+	int i;
+#if GMP_LIMB_BITS == 32
+	for (i=0; i < src->size; i++)
+		dest->_mp_d[i] = src->val[i];
+	dest->_mp_size = src->size;
+#else
+	int j=0;
+	if (src->size & 1)
+		src->val[src->size] = 0;
+
+	for (i=0; i < src->size; i+=2)
+		dest->_mp_d[j++] = (uint64)src->val[i] | ((uint64)src->val[i+1] << 32);
+	dest->_mp_size = j;
+
+#endif
+	return;
+}
+
+
 void zCopy(z *src, z *dest)
 {
 	//physically copy the digits of u into the digits of v

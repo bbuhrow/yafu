@@ -94,6 +94,8 @@ double TF_SPECIAL;
 //	#define USE_8X_MOD_ASM 1
 //#endif
 
+#define USE_YAFU_TDIV 1
+
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
@@ -444,6 +446,7 @@ typedef struct {
 	mpz_t gmptmp1;
 	mpz_t gmptmp2;
 	mpz_t gmptmp3;
+	z32 tmpz32;
 
 	//used in trial division
 	uint16 *mask;

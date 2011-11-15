@@ -254,12 +254,21 @@ this file contains code implementing 5)
 
 #endif
 
+#ifdef USE_YAFU_TDIV
+#define DIVIDE_ONE_PRIME \
+	do	\
+	{	\
+		fb_offsets[++smooth_num] = i;	\
+		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
+	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+#else
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
 		fb_offsets[++smooth_num] = i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
+#endif
 
 void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)

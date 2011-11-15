@@ -1198,6 +1198,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	mpz_init2(dconf->gmptmp1, sconf->bits);
 	mpz_init2(dconf->gmptmp2, sconf->bits);
 	mpz_init2(dconf->gmptmp3, sconf->bits);
+	zInit32(&dconf->tmpz32);
 
 	//this stuff changes with every new poly
 	//allocate a polynomial structure which will hold the current
@@ -2249,6 +2250,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	mpz_clear(dconf->gmptmp1);
 	mpz_clear(dconf->gmptmp2);
 	mpz_clear(dconf->gmptmp3);
+	zFree(&dconf->tmpz32);
 
 	align_free(dconf->mask);
 

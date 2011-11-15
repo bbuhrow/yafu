@@ -158,6 +158,8 @@ void swap(z *a, z *b);
 double rint(double x);
 uint64 mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64 src);
+void mpz_to_z32(mpz_t src, z32 *dest);
+void z32_to_mpz(z32 *src, mpz_t dest);
 
 // we need to convert between yafu bigints and msieve bigints occasionally
 void mp_t2z(mp_t *src, z *dest);
