@@ -950,7 +950,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 			rel->parity, sconf);
 	}
 
-	qs_savefile_flush(&sconf->obj->qs_obj.savefile);
+	//qs_savefile_flush(&sconf->obj->qs_obj.savefile);
 
 	//update some progress indicators
 	sconf->num += dconf->num;
