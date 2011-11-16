@@ -57,9 +57,9 @@ this file contains code implementing 2)
 	do	\
 	{	\
 		dconf->fb_offsets[report_num][++smooth_num] = i;	\
-		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
+		zShortDiv32(tmp32, prime, tmp32);	\
 		bits += logp;	\
-	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+	} while (zShortMod32(tmp32, prime) == 0);
 #else
 #define DIVIDE_ONE_PRIME \
 	do	\
@@ -112,6 +112,9 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 		uint64 q64;
+#ifdef USE_YAFU_TDIV
+		z32 *tmp32 = &dconf->Qvals32[report_num];
+#endif
 
 		//this one qualifies to check further, log that fact.
 		dconf->num++;
@@ -154,18 +157,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
 #ifdef USE_YAFU_TDIV
-		mpz_to_z32(dconf->Qvals[report_num], &dconf->tmpz32);
+		mpz_to_z32(dconf->Qvals[report_num], tmp32);
 
-		gmp_printf("gmp input:       %Zd\n", dconf->Qvals[report_num]);
-		printf("starting tdiv of %s\n", z2decstr((z *)(&dconf->tmpz32), &gstr1));
 		//take care of powers of two
-		while ((dconf->tmpz32.val[0] & 0x1) == 0)
+		while ((tmp32->val[0] & 0x1) == 0)
 		{
-			zShiftRight32_x(&dconf->tmpz32,&dconf->tmpz32,1);
+			zShiftRight32_x(tmp32, tmp32, 1);
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
 			bits++;
 		}
-#endif
+
+#else
+
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
@@ -175,7 +178,8 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
 			bits++;
 		}
-		
+#endif
+
 #ifdef DO_4X_SPV
 		// this won't work because to do the division via multiplication by inverse, the
 		// precomputed inverses need to be 32 bits in order to accomodate values of offset greater than

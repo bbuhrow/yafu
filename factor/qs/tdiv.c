@@ -86,7 +86,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		fb = dconf->fb_sieve_p;
 
 #ifdef USE_YAFU_TDIV
-	z32_to_mpz(&dconf->tmpz32, dconf->Qvals[report_num]);
+	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
 #endif
 
 	//check for additional factors of the a-poly factors

@@ -259,8 +259,8 @@ this file contains code implementing 5)
 	do	\
 	{	\
 		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
-	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+		zShortDiv32(tmp32, prime,tmp32);	\
+	} while (zShortMod32(tmp32, prime) == 0);
 #else
 #define DIVIDE_ONE_PRIME \
 	do \
@@ -281,6 +281,10 @@ void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	sieve_fb *fb;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
+
+#ifdef USE_YAFU_TDIV
+	z32 *tmp32 = &dconf->Qvals32[report_num];
+#endif
 
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
