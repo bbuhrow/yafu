@@ -1597,7 +1597,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
 					if  (nFeatureInfo & nIds)
 					{
 						printf("\t");
-						printf(szFeatures[i]);
+						printf("%s", szFeatures[i]);
 						printf("\n");
 					}
 

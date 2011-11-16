@@ -1094,8 +1094,8 @@ this file contains code implementing 3) and 4)
 	do	\
 	{	\
 		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(&dconf->tmpz32, prime, &dconf->tmpz32);	\
-	} while (zShortMod32(&dconf->tmpz32, prime) == 0);
+		zShortDiv32(tmp32, prime, tmp32);	\
+	} while (zShortMod32(tmp32, prime) == 0);
 #else
 #define DIVIDE_ONE_PRIME \
 	do \
@@ -1107,10 +1107,10 @@ this file contains code implementing 3) and 4)
 
 #ifdef USE_YAFU_TDIV
 #define DIVIDE_RESIEVED_PRIME(j) \
-	while (zShortMod32(&dconf->tmp32, fbc->prime[i+j]) == 0)	\
+	while (zShortMod32(tmp32, fbc->prime[i+j]) == 0)	\
 	{	\
 		fb_offsets[++smooth_num] = i+j;	\
-		zShortDiv32(&dconf->tmpz32, fbc->prime[i+j], &dconf->tmpz32);	\
+		zShortDiv32(tmp32, fbc->prime[i+j], tmp32);	\
 	}
 #else
 #define DIVIDE_RESIEVED_PRIME(j) \
@@ -1169,6 +1169,10 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
+#ifdef USE_YAFU_TDIV
+		z32 *tmp32 = &dconf->Qvals32[report_num];
+#endif
+
 		if (!dconf->valid_Qs[report_num])
 			continue;
 

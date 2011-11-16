@@ -238,7 +238,8 @@ void SIQS(fact_obj_t *fobj)
 	fprintf(optfile,"Optimization Debug File\n");
 	fprintf(optfile,"Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
 		yafu_get_cpu_type(),L1CACHE,L2CACHE);
-	fprintf(optfile,"Starting SIQS on c%d: %s\n\n",fobj->digits,z2decstr(n,&gstr1));
+	gmp_fprintf(optfile,"Starting SIQS on c%d: %s\n\n",
+		fobj->digits, mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 	fprintf(optfile,"Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif
 	gettimeofday(&optstart, NULL);
@@ -1195,10 +1196,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//workspace bigints
-	mpz_init2(dconf->gmptmp1, sconf->bits);
-	mpz_init2(dconf->gmptmp2, sconf->bits);
-	mpz_init2(dconf->gmptmp3, sconf->bits);
-	zInit32(&dconf->tmpz32);
+	mpz_init(dconf->gmptmp1); //, sconf->bits);
+	mpz_init(dconf->gmptmp2); //, sconf->bits);
+	mpz_init(dconf->gmptmp3); //, sconf->bits);	
 
 	//this stuff changes with every new poly
 	//allocate a polynomial structure which will hold the current
@@ -1385,9 +1385,16 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// in the pathological case that every sieve location is a report
 	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
 	dconf->num_reports = 0;
+		
+#ifdef USE_YAFU_TDIV
+	dconf->Qvals32 = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
+		zInit32(&dconf->Qvals32[i]);
+#endif
 	dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		mpz_init2(dconf->Qvals[i], sconf->bits);
+		mpz_init(dconf->Qvals[i]); //, sconf->bits);
+
 	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->failed_squfof = 0;
@@ -1855,9 +1862,9 @@ int siqs_static_init(static_conf_t *sconf)
 	//needed during filtering
 	mpz_init(sconf->curr_a);
 	sconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
-	mpz_init2(sconf->curr_poly->mpz_poly_a, sconf->bits);
-	mpz_init2(sconf->curr_poly->mpz_poly_b, sconf->bits);
-	mpz_init2(sconf->curr_poly->mpz_poly_c, sconf->bits);
+	mpz_init(sconf->curr_poly->mpz_poly_a); //, sconf->bits);
+	mpz_init(sconf->curr_poly->mpz_poly_b); //, sconf->bits);
+	mpz_init(sconf->curr_poly->mpz_poly_c); //, sconf->bits);
 	sconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	sconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
 	sconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
@@ -2250,15 +2257,20 @@ int free_sieve(dynamic_conf_t *dconf)
 	mpz_clear(dconf->gmptmp1);
 	mpz_clear(dconf->gmptmp2);
 	mpz_clear(dconf->gmptmp3);
-	zFree(&dconf->tmpz32);
+	
 
 	align_free(dconf->mask);
 
 	//free sieve scan report stuff
 	free(dconf->reports);
+#ifdef USE_YAFU_TDIV
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
+		zFree32(&dconf->Qvals32[i]);
+	free(dconf->Qvals32);
+#endif
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		mpz_clear(dconf->Qvals[i]);
-	free(dconf->Qvals);
+	free(dconf->Qvals);	
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
 

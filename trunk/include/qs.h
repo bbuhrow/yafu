@@ -94,7 +94,7 @@ double TF_SPECIAL;
 //	#define USE_8X_MOD_ASM 1
 //#endif
 
-#define USE_YAFU_TDIV 1
+//#define USE_YAFU_TDIV 1
 
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
@@ -445,13 +445,15 @@ typedef struct {
 	//scratch
 	mpz_t gmptmp1;
 	mpz_t gmptmp2;
-	mpz_t gmptmp3;
-	z32 tmpz32;
+	mpz_t gmptmp3;	
 
 	//used in trial division
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
-	uint32 num_reports;
+	uint32 num_reports;	
+#ifdef USE_YAFU_TDIV
+	z32 *Qvals32;
+#endif
 	mpz_t *Qvals;
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
