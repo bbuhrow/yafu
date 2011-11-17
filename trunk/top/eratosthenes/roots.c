@@ -130,7 +130,13 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 			else
 			{
 				mpz_t tmpz;
+				//mpz_t t1, t2;
 				mpz_init(tmpz);
+				//uint64 res;
+
+				//experiment for custom ranges that can be expressed as base^exp + range
+				//mpz_init(t1);
+				//mpz_init(t2);
 
 				mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
 				for (i = t->startid; i < t->stopid; i++)
@@ -158,7 +164,17 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 					//these are only used by bucket sieved primes.			
 					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
 						mpz_tdiv_ui(tmpz, prime);
+					//mpz_set_ui(t2,prime);
+					//mpz_set_ui(t1, 1000000000);			
+					//mpz_powm_ui(t1, t1, 111111, t2);
+					//res = mpz_get_64(t1);
+					
+					//t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = (uint32)res;
 				}
+
+				//mpz_clear(t1);
+				//mpz_clear(t2);
+
 			}
 		}
 		else 

@@ -66,8 +66,8 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 	{	
 		printf("finding requested range %" PRIu64 " to %" PRIu64 "\n",sdata.orig_llimit,sdata.orig_hlimit);
 		printf("sieving range %" PRIu64 " to %" PRIu64 "\n",lowlimit,*highlimit);
-		if (sdata.sieve_range)
-			gmp_printf("range offset is %Zd\n", sdata.offset);
+		//if (sdata.sieve_range)
+		//	gmp_printf("range offset is %Zd\n", sdata.offset);
 		printf("using %" PRIu64 " primes, max prime = %" PRIu64 "  \n",sdata.pboundi,sdata.pbound);
 		printf("using %u residue classes\n",sdata.numclasses);
 		printf("lines have %" PRIu64 " bytes and %" PRIu64 " flags\n",sdata.numlinebytes,sdata.numlinebytes * 8);

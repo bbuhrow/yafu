@@ -198,7 +198,17 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	// and finally, get primes from any residual portion of the line arrays
 	// using a direct method
 	if (lastid != sdata->numlinebytes)
-		printf("WARNING: not all line bytes accounted for!\n");
+	{
+		if (VFLAG > 2)
+			printf("adding primes from byte offset %u to %u\n", 
+				lastid, (uint32)sdata->numlinebytes);
+
+		for (i = lastid; i < sdata->numlinebytes; i+=8)
+		{
+			pcount = compute_8_bytes(sdata, pcount, primes, i, NULL);		
+		}
+	}
+
 
 	if (VFLAG > 1)
 	{

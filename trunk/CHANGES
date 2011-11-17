@@ -20,6 +20,9 @@ v 1.28.6
 + bug fixes when running siqs on huge inputs
 + 2 new functions: sieverange and testrange.  see docfile for details
 + 3 new options: lathreads, nc2, and nc3.  see docfile for details
++ fixed a bug: a savefile flush added in 1.28.5 could severely effect speed
+	of smaller factorizations on some systems.
++ builds on mac osx now work (thanks Mathew Steine!)
 
 
 v 1.28.5
