@@ -147,7 +147,6 @@ int main(int argc, char *argv[])
 	// input options in order to make those options stick.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);
-	//printf("%u\n",fobj->ecm_obj.B1);
 
 	//get the computer name, cache sizes, etc.  store in globals
 	get_computer_info(CPU_ID_STR);	
@@ -159,6 +158,10 @@ int main(int argc, char *argv[])
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
 	
+	// now that we've processed arguments, spit out vproc info if requested
+	if (VERBOSE_PROC_INFO)
+		extended_cpuid(CPU_ID_STR, &CLSIZE, VERBOSE_PROC_INFO);
+
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
 	{
@@ -216,6 +219,33 @@ int main(int argc, char *argv[])
 	LCGSTATE = g_rand.low;
 #endif
 
+	if (0)
+	{
+		//experiment to sieve out composites in a search for first megaPRP
+		//see: http://www.mersenneforum.org/showthread.php?goto=newpost&t=15524
+		uint64 num_p;
+		uint64 *primes;
+		uint32 *sp;
+		uint32 num_sp;
+		mpz_t low, high;
+
+		mpz_init(low);
+		mpz_init(high);
+		primes = soe_wrapper(spSOEprimes, szSOEp, 0, 100000000, 0, &num_p);
+		num_sp = num_p;
+		sp = (uint32 *)malloc(num_sp * sizeof(uint32));
+		for (i=0; i < num_sp; i++)
+			sp[i] = (uint32)primes[i];
+		free(primes);
+		printf("found %u sieve primes.  max sieve prime = %u\n", 
+			num_sp, sp[num_sp - 1]);
+		mpz_set_ui(low, 10);
+		mpz_pow_ui(low, low, 999999);
+		mpz_add_ui(high, low, 5000000);
+		sieve_to_depth(sp, num_sp, low, high, 1, 0, &num_p);
+		printf("found %" PRIu64 " candidates in range\n", num_p);
+		free(sp);
+	}
 	
 	//command line
 	while (1)
@@ -838,7 +868,15 @@ void get_computer_info(char *idstr)
 
 	// run an extended cpuid command to get the cache line size, and
 	// optionally print a bunch of info to the screen
+#ifdef __APPLE__
+	// something in extended cpuid causes a segfault on mac builds.
+	// just disable it for now - this information is not critical for
+	// program operation.
+	strcpy(idstr, "N/A");
+	CLSIZE = 0;
+#else
 	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
+#endif
 
 #if defined(WIN32)
 
@@ -1474,7 +1512,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[27]) == 0)
 	{
+#ifdef __APPLE__
+		printf("extended cpuid not supported\n");
+#else
 		VERBOSE_PROC_INFO++;
+#endif
 	}
 	else if (strcmp(opt,OptionArray[28]) == 0)
 	{

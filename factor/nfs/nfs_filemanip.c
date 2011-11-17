@@ -79,10 +79,18 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 	/*
 	logic:
 
-	job file missing, empty, malformed, or not matching -> check for poly in progress
-	else
-	job file present and matching -> check for data file in progress
+	1)
+	.dat exists and no -R -> bail: insist user get rid of .dat or specify -R
+	(this is first in order to prevent the case where there is a stale .dat file
+	that will cause lots of -11 relation errors when a new job finishes, and also
+	to prevent valid .dat files from being overwritten)
 
+	2)
+	job file missing, empty, malformed, or not matching -> check for poly in progress (3)
+	else
+	job file present and matching -> check for data file in progress (4)
+
+	3)
 	poly check:
 	.p file missing, empty, malformed, or not matching -> start poly search at beginning
 	else
@@ -90,6 +98,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		return leading coefficient, put time in *last_spq.  calling routine
 		will know what to do when it sees a large value returned
 
+	4)
 	data check:
 	no data file -> start sieving at beginning
 	data file present -> get last special q and count relations
@@ -100,6 +109,28 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 	char line[GSTR_MAXSIZE], *ptr;
 	int ans, do_poly_check, do_data_check;
 	msieve_obj *mobj = fobj->nfs_obj.mobj;
+
+	// 1) check for .dat file and resume flag
+	if (savefile_exists(&mobj->savefile))
+	{
+		if (!fobj->nfs_obj.restart_flag)
+		{
+			printf("A data file (.dat) exists in the current directory.  It must either be"
+				"removed or -R specified to resume nfs\n");
+			
+			logfile = fopen(fobj->flogname, "a");
+			if (logfile == NULL)
+				printf("could not open yafu logfile for appending\n");
+			else
+			{
+				logprint(logfile, "nfs: refusing to resume without -R option\n");
+				fclose(logfile);
+			}
+
+			*last_spq = 0;
+			return -1;
+		}
+	}
 
 	do_data_check = 0;
 	do_poly_check = 0;
