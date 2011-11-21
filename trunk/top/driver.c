@@ -869,15 +869,15 @@ void get_computer_info(char *idstr)
 
 	// run an extended cpuid command to get the cache line size, and
 	// optionally print a bunch of info to the screen
-//#ifdef __APPLE__
-//	// something in extended cpuid causes a segfault on mac builds.
-//	// just disable it for now - this information is not critical for
-//	// program operation.
-//	strcpy(idstr, "N/A");
-//	CLSIZE = 0;
-//#else
+#ifdef __APPLE__
+	// something in extended cpuid causes a segfault on mac builds.
+	// just disable it for now - this information is not critical for
+	// program operation.
+	strcpy(idstr, "N/A");
+	CLSIZE = 0;
+#else
 	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
-//#endif
+#endif
 
 #if defined(WIN32)
 
