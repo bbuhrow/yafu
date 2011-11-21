@@ -1361,9 +1361,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 
-		mpz_init(gmpz);
-		mp2gmp(&operands[0], gmpz);
-		i = mpz_probab_prime_p(gmpz, NUM_WITNESSES);
+		i = isPrime(&operands[0]);
 
 		if (i)
 			printf("probably prime\n");
@@ -1371,7 +1369,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("not prime\n");
 
 		sp2z(i,&operands[0]);
-		mpz_clear(gmpz);
 
 		break;
 	case 21:

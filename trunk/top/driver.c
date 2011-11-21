@@ -859,42 +859,46 @@ void get_computer_info(char *idstr)
 {
 	int ret;
 
-	//read cache sizes
-	yafu_get_cache_sizes(&L1CACHE,&L2CACHE);
-
 	//figure out cpu freq in order to scale qs time estimations
 	//0.1 seconds won't be very accurate, but hopefully close
 	//enough for the rough scaling we'll be doing anyway.
     MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
-
-	// run an extended cpuid command to get the cache line size, and
-	// optionally print a bunch of info to the screen
+	
 #ifdef __APPLE__
 	// something in extended cpuid causes a segfault on mac builds.
 	// just disable it for now - this information is not critical for
 	// program operation.
 	strcpy(idstr, "N/A");
 	CLSIZE = 0;
+	L1CACHE = DEFAULT_L1_CACHE_SIZE;
+	L2CACHE = DEFAULT_L2_CACHE_SIZE;
+
 #else
+	//read cache sizes
+	yafu_get_cache_sizes(&L1CACHE,&L2CACHE);
+
+	// run an extended cpuid command to get the cache line size, and
+	// optionally print a bunch of info to the screen
 	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
-#endif
 
-#if defined(WIN32)
+	#if defined(WIN32)
 
-	sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
-	GetComputerName(sysname,&sysname_sz);
+		sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
+		GetComputerName(sysname,&sysname_sz);
 	
-#else
+	#else
 
-	sysname_sz = 255;
-	ret = gethostname(sysname,sysname_sz);
-	if (ret != 0)
-	{
-		printf("error occured when getting host name\n");
-		strcpy(sysname, "N/A");
-	}
-	sysname_sz = strlen(sysname);
+		sysname_sz = 255;
+		ret = gethostname(sysname,sysname_sz);
+		if (ret != 0)
+		{
+			printf("error occured when getting host name\n");
+			strcpy(sysname, "N/A");
+		}
+		sysname_sz = strlen(sysname);
 	
+	#endif
+
 #endif
 	return;
 }

@@ -20,6 +20,8 @@ code to the public domain.
 
 #include "yafu.h"
 #include "arith.h"
+#include "gmp.h"
+#include "gmp_xface.h"
 
 /*
 implements some more advanced arithmatic and/or number
@@ -87,120 +89,17 @@ int z_pull_twos(z *n, int *j, z *p)
 
 int isPrime(z *n)
 {
-	/*first check by trial division for the small primes.  if none divide n, 
-	then all small primes checked in this way are relatively prime to n.
-	then use fermat's observation that b^(n-1) mod n = 1 if n is prime and b and n 
-	are relatively prime.  check for several small primes: b1, b2... bn.  if all are 1, 
-	then n is probably a prime, or exceedingly rarely, is a pseudoprime for 
-	bases b1, b2, ... bn
+	// translate into gmp's test
+	mpz_t gmpz;
+	int i;
 
-    see knuth TAOCP Vol 2.
-	*/
-
-	int i,j;
-	fp_digit a;
-	z nn_1, t, d, q;
-	
-	if (zCompare(n,&zOne) <= 0)
-		return 0;
-
-	//trust this info
-	if (n->type == PRIME)
-		return 1;
-
-	if (n->type == PRP)
-		return 1;
-
-	if (n->type == COMPOSITE)
-		return 0;
-
-	//trial divide by the first 100 primes
-	for(i=0;i<100 || i < (int)NUM_WITNESSES ;i++)
-    {
-		if (n->size == 1 && n->val[0] == spSOEprimes[i])
-		{
-			n->type = PRIME;
-			return 1;
-		}
-
-		if (zShortMod(n,(fp_digit)spSOEprimes[i]) == 0)
-		{
-			n->type = COMPOSITE;
-			return 0;
-		}
-    }
-
-	zInit(&d);
-	zInit(&t);
-	zInit(&q);
-	zInit(&nn_1);
-
-	if (t.alloc < n->size)
-	{
-		zGrow(&t,n->size);
-		zGrow(&nn_1,n->size);
-		zGrow(&q,n->size);
-	}
+	mpz_init(gmpz);
 		
-	//knuth's algorithm P: simplified version of the rabin-miller strong
-	//pseudoprime test
+	mp2gmp(n, gmpz);
+	i = mpz_probab_prime_p(gmpz, NUM_WITNESSES);
 
-	zSub(n,&zOne,&nn_1);
-	zCopy(&nn_1,&t);
-	a=0;
-
-	//find t and a satisfying: n-1 = 2^a * t, t odd
-	while (!(t.val[0] & 0x1))
-	{
-		zShiftRight(&t,&t,1);
-		a++;
-	}
-
-	for(j=0;j<(int)NUM_WITNESSES;j++)
-	{
-		//use the first N primes as witnesses
-		d.size = 1;
-		d.val[0] = (fp_digit)spSOEprimes[j];
-
- 		zModExp(&d,&t,n,&q);
-		d.size = 1;
-		d.val[0] = 2;
-		i=0;
-		while (1)
-		{
-			if (i > 0 && q.size == 1 && q.val[0] == 1)
-			{
-				zFree(&d);
-				zFree(&t);
-				zFree(&q);
-				zFree(&nn_1);
-				n->type = COMPOSITE;
-				return 0;
-			}
-			if (i==0 && q.size == 1 && q.val[0] == 1)
-				break;
-			if (zCompare(&q,&nn_1) == 0)
-				break;
-			i++;
-			if ((fp_digit)i >= a)
-			{
-				zFree(&d);
-				zFree(&t);
-				zFree(&q);
-				zFree(&nn_1);
-				n->type = COMPOSITE;
-				return 0;
-			}
-			zModExp(&q,&d,n,&q);
-		}
-	}
-
-	zFree(&d);
-	zFree(&t);
-	zFree(&q);
-	zFree(&nn_1);
-	n->type = PRP;
-	return 1;
+	mpz_clear(gmpz);
+	return (i > 0);
 }
 
 int isSquare(z *n)
