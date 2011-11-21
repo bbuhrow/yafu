@@ -1339,13 +1339,18 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in issquare\n");
 			break;
 		}
-		i = isSquare(&operands[0]);
+		
+		mpz_init(gmpz);
+		mp2gmp(&operands[0], gmpz);
+		i = mpz_perfect_square_p(gmpz);
+
 		if (i)
 			printf("input is square\n");
 		else
 			printf("input is not square\n");
 
 		sp2z(i,&operands[0]);
+		mpz_clear(gmpz);
 
 		break;
 	case 20:
@@ -1355,13 +1360,19 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in isprime\n");
 			break;
 		}
-		i = isPrime(&operands[0]);
+
+		mpz_init(gmpz);
+		mp2gmp(&operands[0], gmpz);
+		i = mpz_probab_prime_p(gmpz);
+
 		if (i)
 			printf("probably prime\n");
 		else
 			printf("not prime\n");
 
 		sp2z(i,&operands[0]);
+		mpz_clear(gmpz);
+
 		break;
 	case 21:
 		//shanks - one argument
