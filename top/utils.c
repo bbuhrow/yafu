@@ -1037,7 +1037,7 @@ void yafu_get_cache_sizes(uint32 *level1_size_out,
 	uint32 cache_size1 = DEFAULT_L1_CACHE_SIZE; 
 	uint32 cache_size2 = DEFAULT_L2_CACHE_SIZE; 
 
-#if defined(HAS_CPUID)
+#if defined(HAS_CPUID) && !defined(__APPLE__)
 
 	/* reading the CPU-specific features of x86
 	   processors is a simple 57-step process.
