@@ -1363,7 +1363,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		mpz_init(gmpz);
 		mp2gmp(&operands[0], gmpz);
-		i = mpz_probab_prime_p(gmpz);
+		i = mpz_probab_prime_p(gmpz, NUM_WITNESSES);
 
 		if (i)
 			printf("probably prime\n");
@@ -2338,6 +2338,8 @@ int set_uvar(const char *name, z *data)
 		PRIMES_TO_FILE = i; return 0;}
 	else if (strcmp(name,"PRIMES_TO_SCREEN") == 0) {
 		PRIMES_TO_SCREEN = i; return 0;}
+	else if (strcmp(name,"NUM_WITNESSES") == 0) {
+		NUM_WITNESSES = i; return 0;}
 
 	for (i=0;i<uvars.num;i++)
 	{

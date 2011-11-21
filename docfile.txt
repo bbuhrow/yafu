@@ -30,6 +30,7 @@ environment are supported in this way.
 In addition, when providing arguments to yafu you can specify 
 flags to change program behavior.  Supported flags are:
 
+-p				run yafu at idle priority
 -B1pm1	<num>   B1 bound in the pm1 method
 -B1pp1	<num>   B1 bound in the pp1 method
 -B1ecm	<num>   B1 bound in the ECM method
