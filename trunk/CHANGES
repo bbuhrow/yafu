@@ -1,4 +1,4 @@
-v 1.28.6
+v 1.29
 + default ggnfs_dir is now the top level yafu directory
 + now require GMP and GMP-ECM header and library availability to compile
 	(thanks Random_Poster)
@@ -11,7 +11,7 @@ v 1.28.6
 	directly from the command line (i.e. smallmpqs(#))
 + got rid of ecm fork code that only worked on linux, to help streamline 
 	gmp porting
-+ linked in newest msieve codebase (SVN 645)
++ linked in msieve codebase SVN 666
 + support for resuming nfs during poly selection and during linear algebra
 + removed Tom's fast math from the project
 + removed some obsolete code (mostly arith)
@@ -19,10 +19,14 @@ v 1.28.6
 + massive updates to sieve of eratosthenes code
 + bug fixes when running siqs on huge inputs
 + 2 new functions: sieverange and testrange.  see docfile for details
-+ 3 new options: lathreads, nc2, and nc3.  see docfile for details
++ 4 new options: p, lathreads, nc2, and nc3.  see docfile for details
 + fixed a bug: a savefile flush added in 1.28.5 could severely effect speed
 	of smaller factorizations on some systems.
 + builds on mac osx now work (thanks Mathew Steine!)
++ isprime function calls now use gmp/mpir mpz_probab_prime_p (thanks Stargate38)
++ added NUM_WITNESSES to the list of globals that can be changed from
+	the yafu command prompt (thanks LaurV and axn!)
+
 
 
 v 1.28.5

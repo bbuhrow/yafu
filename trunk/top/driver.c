@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 57
+#define NUMOPTIONS 58
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
-	"nc2", "nc3"};
+	"nc2", "nc3", "p"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -69,7 +69,7 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	2,2,0,1,0,
 	1,1,1,0,1,
-	0,0};
+	0,0,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -897,6 +897,16 @@ void get_computer_info(char *idstr)
 	
 #endif
 	return;
+}
+
+void yafu_set_idle_priority(void) {
+
+#if defined(WIN32) || defined(_WIN64)
+	SetPriorityClass(GetCurrentProcess(),
+			IDLE_PRIORITY_CLASS);
+#else
+	nice(100);
+#endif
 }
 
 void set_default_globals(void)
@@ -1833,6 +1843,13 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "nc3".  nfs post processing only, starting with sqrt
 		fobj->nfs_obj.post_only = 3;
+	}
+	else if (strcmp(opt, OptionArray[57]) == 0)
+	{
+		//argument "p".  set to idle priority.
+		//TODO: check to see if ggnfs and ecm binaries called through system
+		//retain idle priority
+		yafu_set_idle_priority();
 	}
 	else
 	{
