@@ -24,7 +24,6 @@ CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
-LIBS = -lecm -lgmp
 
 # INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 INC += -I../gmp/include
@@ -75,6 +74,8 @@ endif
 ifeq ($(CC),icc)
 	CFLAGS += -mtune=core2 -march=core2
 endif
+
+LIBS += -lecm -lgmp
 
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	

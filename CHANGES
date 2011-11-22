@@ -25,7 +25,7 @@ v 1.29
 + builds on mac osx now work (thanks Mathew Steine!)
 + isprime function calls now use gmp/mpir mpz_probab_prime_p (thanks Stargate38)
 + added NUM_WITNESSES to the list of globals that can be changed from
-	the yafu command prompt (thanks LaurV and axn!)
+	the yafu command prompt (thanks LaurV and axn)
 
 
 

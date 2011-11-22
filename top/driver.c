@@ -159,8 +159,10 @@ int main(int argc, char *argv[])
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
 	
 	// now that we've processed arguments, spit out vproc info if requested
+#ifndef __APPLE__
 	if (VERBOSE_PROC_INFO)
 		extended_cpuid(CPU_ID_STR, &CLSIZE, VERBOSE_PROC_INFO);
+#endif
 
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
