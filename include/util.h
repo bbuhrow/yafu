@@ -48,6 +48,9 @@ extern "C" {
 #define MIN(a,b) ((a) < (b)? (a) : (b))
 #define MAX(a,b) ((a) > (b)? (a) : (b))
 
+#define DEFAULT_L1_CACHE_SIZE (32 * 1024)
+#define DEFAULT_L2_CACHE_SIZE (512 * 1024)
+
 static INLINE void * xmalloc_align(size_t len)
 {
 #if defined (_MSC_VER) || defined(__MINGW32__)

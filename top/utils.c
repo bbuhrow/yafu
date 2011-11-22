@@ -934,9 +934,6 @@ uint64 yafu_read_clock(void)
 #endif
 }
 
-#define DEFAULT_L1_CACHE_SIZE (32 * 1024)
-#define DEFAULT_L2_CACHE_SIZE (512 * 1024)
-
 /* macro to execute the x86 CPUID instruction. Note that
    this is more verbose than it needs to be; Intel Macs reserve
    the EBX or RBX register for the PIC base address, and so
