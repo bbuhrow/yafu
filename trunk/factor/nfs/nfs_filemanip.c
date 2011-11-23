@@ -672,6 +672,9 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 		if (line[0] == '#')
 			break;		
 		
+		//TODO: prevent a "time" line from being copied into the .job file
+		//ggnfs will ignore it, but it can be prevented here.
+
 		fputs(line,out);
 
 		if (VFLAG > 0)

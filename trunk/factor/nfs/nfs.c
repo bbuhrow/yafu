@@ -461,15 +461,15 @@ void nfs(fact_obj_t *fobj)
 			}
 
 			// create a new directory for this job 
-#ifdef _WIN32
-			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-			mkdir(tmpstr);
-#else
-			sprintf(tmpstr, "%s/%s", fobj->nfs_obj.ggnfs_dir, 
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
-			mkdir(tmpstr, S_IRWXU);
-#endif
+//#ifdef _WIN32
+//			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
+//				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+//			mkdir(tmpstr);
+//#else
+//			sprintf(tmpstr, "%s/%s", fobj->nfs_obj.ggnfs_dir, 
+//				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+//			mkdir(tmpstr, S_IRWXU);
+//#endif
 			
 			// point msieve and ggnfs to the new directory
 //#ifdef _WIN32

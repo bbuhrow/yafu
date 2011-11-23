@@ -25,6 +25,12 @@ code to the public domain.
 #include "arith.h"
 #include "util.h"
 
+#if !defined(NO_ZLIB) && !defined(__MINGW32__) 
+#include <zlib.h>
+#else
+#define NO_ZLIB
+#endif
+
 #if defined(__GNUC__) && !defined(__MINGW32__) 
 #define FORK_ECM
 #endif
@@ -59,17 +65,20 @@ typedef struct {
 
 typedef struct {
 
-#if defined(WIN32) || defined(_WIN64)
+#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
 	HANDLE file_handle;
 	uint32 read_size;
 	uint32 eof;
 #else
-	FILE *fp;
+	gzFile *fp;
+	char isCompressed;
+	char is_a_FILE;
 #endif
 	char *name;
 	char *buf;
 	uint32 buf_off;
 } savefile_t;
+
 
 enum msieve_flags {
 	MSIEVE_DEFAULT_FLAGS = 0,		/* just a placeholder */
