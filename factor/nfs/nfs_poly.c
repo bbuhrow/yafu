@@ -539,15 +539,11 @@ void *polyfind_launcher(void *ptr)
 	if (VFLAG >= 0)
 	{
 		printf("nfs: commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-			//thread_data->poly_lower, thread_data->poly_upper);
 			t->obj->nfs_lower, t->obj->nfs_upper);
 		fflush(stdout);
 	}
 
 	//start polyfind
-	//factor_integer(t->obj->input, t->obj->flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, fobj->nfs_obj.fbfile, 
-	//	&g_rand.low, &g_rand.hi, 0, t->obj->nfs_lower, t->obj->nfs_upper, t->obj->cpu, 
-	//	L1CACHE, L2CACHE, THREADS, 0, 0, 0.0);
 	factor_gnfs(t->obj, t->mpN, t->factor_list);	
 
 	return 0;
