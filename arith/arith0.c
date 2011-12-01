@@ -618,7 +618,7 @@ int ndigits_1(fp_digit n)
 
 int ndigits(z *n)
 {
-	int i=1;
+	int i=0;
 	z nn,tmp;
 	fp_digit r;
 
