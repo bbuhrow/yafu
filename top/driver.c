@@ -95,32 +95,6 @@ void finalize_batchline();
 int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj);
 void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
 unsigned process_flags(int argc, char **argv, fact_obj_t *fobj);
-int bin_search(int idp, int idm, uint64 q);
-
-int bin_search(int idp, int idm, uint64 q)
-{
-	int next = (idp + idm) / 2;
-
-	while ((idp - idm) > 10)
-	{
-		if (PRIMES[next] > q)
-		{
-			idp = next;
-			next = (next + idm) / 2;							
-		}
-		else					
-		{
-			idm = next;
-			next = (idp + next) / 2;							
-		}
-	}
-
-	if (PRIMES[next] < q)
-		next += 10;
-
-	return next;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -938,7 +912,7 @@ void set_default_globals(void)
 	strcpy(sessionname,"session.log");	
 
 	// initial limit of cache of primes.
-	szSOEp = 1000100;	
+	szSOEp = 10000000;	
 
 	//set some useful globals
 	zInit(&zZero);

@@ -25,6 +25,8 @@ code to the public domain.
 #include "arith.h"
 #include "util.h"
 
+//#define NO_ZLIB
+
 #if !defined(NO_ZLIB) && !defined(__MINGW32__) 
 #include <zlib.h>
 #else

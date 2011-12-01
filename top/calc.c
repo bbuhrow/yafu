@@ -1793,6 +1793,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			int numin = 10000;
 			int bits = 115;
 			double sum;
+			int maxsz, minsz;
 			fact_obj_t *fobj2;
 			mpz_t gmptmp;
 			//uint32 bcorr, mcorr, b_min,m_min;
@@ -1951,10 +1952,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (bits=50; bits<=115; bits+=5)
 			{
 				int test_squfof = 0;
-				
+				int nbits;
+
 				gettimeofday(&tstart, NULL);
 
 				sum = 0;
+				maxsz = 0;
+				minsz = 999;
 				for (i=0; i<numin; i++)
 				{
 					fp_digit b;
@@ -1967,7 +1971,12 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					zNextPrime(&mp2, &mp2, 1);
 
 					zMul(&mp1,&mp2,&input[i]);
-					sum += zBits(&input[i]);				
+					nbits = zBits(&input[i]);				
+					sum += nbits;
+					if (nbits < minsz)
+						minsz = nbits;
+					if (nbits > maxsz)
+						maxsz = nbits;
 				}
 
 				gettimeofday (&tstop, NULL);
@@ -1975,12 +1984,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				t = ((double)difference->secs + (double)difference->usecs / 1000000);
 				free(difference);
 				printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
-				printf("average size was %6.4f bits\n",sum/(double)numin);
+				printf("average size was %6.4f bits (max = %d, min = %d)\n",
+					sum/(double)numin, maxsz, minsz);
 
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					if (i % 1000 == 0)
+					if (i % (numin/10) == 0)
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					mp2gmp(&input[i], fobj2->qs_obj.gmp_n);
