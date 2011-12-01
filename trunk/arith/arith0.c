@@ -618,28 +618,25 @@ int ndigits_1(fp_digit n)
 
 int ndigits(z *n)
 {
-	//method which avoids divisions
-	int i;
-	int nb = zBits(n);
-	int nd_est = (int)((double)nb / 3.33);	//approx 3.322 bits/digit.  round slightly up
-											//so our estimate is slightly small.
-	z tmp;
-	
-	//nd_est is either correct or too small.  compute 10^nd_est to see which.
+	int i=1;
+	z nn,tmp;
+	fp_digit r;
+
+	//can get within one digit using zBits and logs, which would
+	//be tons faster.  Any way to 'correct' the +/- 1 error?
+	zInit(&nn);
 	zInit(&tmp);
-	sp2z(1,&tmp);
-
-	for (i = 0; i<nd_est; i++)
-		zShortMul(&tmp,10,&tmp);
-
-	while (zCompare(n,&tmp) >= 0)
+	zCopy(n,&tmp);
+	while (tmp.size > 1)
 	{
-		nd_est++;
-		zShortMul(&tmp,10,&tmp);
+		zCopy(&tmp,&nn);
+		r = zShortDiv(&nn,MAX_DEC_WORD,&tmp);
+		i += DEC_DIGIT_PER_WORD;
 	}
-
+	i += ndigits_1(tmp.val[0]);
+	zFree(&nn);
 	zFree(&tmp);
-	return nd_est;
+	return i;
 }
 
 int zCompare(z *u, z *v)
