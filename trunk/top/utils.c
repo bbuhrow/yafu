@@ -1741,5 +1741,32 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
     return  nRet;
 }
 
+int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input)
+{
+	int next = (idp + idm) / 2;
+
+	while ((idp - idm) > 10)
+	{
+		if (input[next] > q)
+		{
+			idp = next;
+			next = (next + idm) / 2;							
+		}
+		else					
+		{
+			idm = next;
+			next = (idp + next) / 2;							
+		}
+	}
+
+	for (next = idm; next < idm + 10; next++)
+		if (input[next] == q)
+			return next;
+
+	if (input[next] != q)
+		next = -1;
+
+	return next;
+}
 
 

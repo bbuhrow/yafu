@@ -1,3 +1,12 @@
+v 1.29.2
++ fixed a bug in smallmpqs - not getting enough primes
++ fixed an oversight in fermat - didn't write factors to logfile
+
+
+v 1.29.1
++ comply with zlib savefile fields new to msieve
+
+
 v 1.29
 + default ggnfs_dir is now the top level yafu directory
 + now require GMP and GMP-ECM header and library availability to compile

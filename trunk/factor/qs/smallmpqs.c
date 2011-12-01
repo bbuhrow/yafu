@@ -514,7 +514,7 @@ void smallmpqs(fact_obj_t *fobj)
 	uint32 sieve_interval;
 	uint32 start_prime;
 	uint32 num, max_f;
-	int digits_n, bits_n, charcount;
+	int digits_n, bits_n, charcount, pindex;
 	uint32 num_factors;
 	uint8 *sieve;							//sieve values
 	uint8 s_init;							//initial sieve value
@@ -699,11 +699,14 @@ void smallmpqs(fact_obj_t *fobj)
 	mpz_nextprime(tmp, tmp); //zNextPrime_1(polyd, &fpt, &tmp, 1);
 	poly->poly_d = (uint64)mpz_get_ui(tmp); //.val[0];
 
-	for (i=0; i<NUM_P; i++)
-		if (poly->poly_d == spSOEprimes[i])
-			break;
-	poly->poly_d_idp = i;
-	poly->poly_d_idn = i;
+	pindex = bin_search_uint32(NUM_P, 0, poly->poly_d, spSOEprimes);
+	if (pindex < 0)
+	{
+		printf("prime not found in binary search\n");
+		exit(1);
+	}
+	poly->poly_d_idp = pindex;
+	poly->poly_d_idn = pindex;
 	poly->side = 1;
 	poly->use_only_p = 0;
 

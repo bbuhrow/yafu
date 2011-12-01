@@ -76,6 +76,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 	int numChars;
 	fp_digit reportIt, reportInc;
 	fp_digit count;
+	FILE *flog;
 
 	if (mpz_even_p(fobj->div_obj.gmp_n))
 	{
@@ -89,10 +90,39 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 
 	if (mpz_perfect_square_p(fobj->div_obj.gmp_n))
 	{
+		//open the log file
+		flog = fopen(fobj->flogname,"a");
+		if (flog == NULL)
+		{
+			printf("could not open %s for writing\n",fobj->flogname);
+			return;
+		}
+
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
+		if (mpz_probab_prime_p(fobj->div_obj.gmp_n, NUM_WITNESSES))
+		{			
+			logprint(flog, "Fermat method found perfect square factorization:\n");
+			logprint(flog,"prp%d = %s\n",
+				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+			logprint(flog,"prp%d = %s\n",
+				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+		}
+		else
+		{
+			logprint(flog, "Fermat method found perfect square factorization:\n");
+			logprint(flog,"c%d = %s\n",
+				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+			logprint(flog,"c%d = %s\n",
+				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+		}
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
-		mpz_set_ui(fobj->div_obj.gmp_n, 1);		return;
+		mpz_set_ui(fobj->div_obj.gmp_n, 1);		
+		return;
 	}
 
 	mpz_init(a);
@@ -149,13 +179,45 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		mpz_sqrt(tmp, b2); 
 		mpz_add(tmp, a, tmp);
 
+		flog = fopen(fobj->flogname,"a");
+		if (flog == NULL)
+		{
+			printf("could not open %s for writing\n",fobj->flogname);
+			return;
+		}
+		logprint(flog, "Fermat method found factors:\n");
+
 		add_to_factor_list(fobj, tmp);
+		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+		{			
+			logprint(flog,"prp%d = %s\n",
+				mpz_sizeinbase(tmp, 10),
+				mpz_get_str(gstr1.s, 10, tmp));
+		}
+		else
+		{
+			logprint(flog,"c%d = %s\n",
+				mpz_sizeinbase(tmp, 10),
+				mpz_get_str(gstr1.s, 10, tmp));
+		}
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 		mpz_sqrt(tmp, b2);
 		mpz_sub(tmp, a, tmp);
 
 		add_to_factor_list(fobj, tmp);
+		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+		{			
+			logprint(flog,"prp%d = %s\n",
+				mpz_sizeinbase(tmp, 10),
+				mpz_get_str(gstr1.s, 10, tmp));
+		}
+		else
+		{
+			logprint(flog,"c%d = %s\n",
+				mpz_sizeinbase(tmp, 10),
+				mpz_get_str(gstr1.s, 10, tmp));
+		}
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 	}
