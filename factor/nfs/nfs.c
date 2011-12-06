@@ -48,7 +48,7 @@ void nfs(fact_obj_t *fobj)
 
 	obj_ptr = NULL;
 	//below a certain amount, revert to SIQS
-	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->nfs_obj.min_digits)
+	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
 	{
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
@@ -74,11 +74,11 @@ void nfs(fact_obj_t *fobj)
 		logfile = fopen(fobj->flogname, "a");
 
 		if (VFLAG >= 0)
-			gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->nfs_obj.gmp_n),
 				fobj->nfs_obj.gmp_n);
 		
 		logprint_oc(fobj->flogname, "a", "PRP%d = %s\n",
-			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			gmp_base10(fobj->nfs_obj.gmp_n),
 			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));	
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
@@ -91,12 +91,12 @@ void nfs(fact_obj_t *fobj)
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			gmp_base10(fobj->nfs_obj.gmp_n),
 			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			gmp_base10(fobj->nfs_obj.gmp_n),
 			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
@@ -109,7 +109,7 @@ void nfs(fact_obj_t *fobj)
 
 		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
 		logprint_oc(fobj->flogname, "a", "c%d = %s\n",
-			mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+			gmp_base10(fobj->nfs_obj.gmp_n),
 			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		return;
@@ -194,10 +194,10 @@ void nfs(fact_obj_t *fobj)
 		case 0: //"init":
 			if (VFLAG >= 0)
 				gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
-					mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), fobj->nfs_obj.gmp_n);
+					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
 
 			logprint_oc(fobj->flogname, "a", "nfs: commencing gnfs on c%d: %s\n",
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10),
+				gmp_base10(fobj->nfs_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 			//write the input bigint as a string			
@@ -702,7 +702,7 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	// entries.  keep last valid entry off the ends of the table.  This will produce
 	// increasingly poor choices as one goes farther off the table, but you should be
 	// doing things by hand by then anyway.
-	int i, d = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+	int i, d = gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
 	
 	job->min_rels = 0;

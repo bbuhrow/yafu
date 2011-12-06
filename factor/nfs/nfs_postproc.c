@@ -78,7 +78,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		else
 		{
 			logprint(logfile, "%s%d = %s\n",c,
-				mpz_sizeinbase(tmp, 10), mpz_get_str(gstr1.s, 10, tmp));
+				gmp_base10(tmp), mpz_get_str(gstr1.s, 10, tmp));
 			fclose(logfile);
 		}		
 
@@ -108,7 +108,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		else
 		{
 			logprint(logfile, "%s%d = %s\n",c,
-				mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), 
+				gmp_base10(fobj->nfs_obj.gmp_n), 
 				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
 			fclose(logfile);
 		}		

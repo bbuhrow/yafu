@@ -148,6 +148,7 @@ void sp2z(fp_digit sp, z *mp);
 uint64 z264(z *n);
 int ndigits(z *n);
 int ndigits_1(fp_digit n);
+int gmp_base10(mpz_t x);
 char *z2decstr(z *n, str_t *s);
 char *z2hexstr(z *n, str_t *s);
 int zCompare(z *u, z *v);

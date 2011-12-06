@@ -560,7 +560,7 @@ void smallmpqs(fact_obj_t *fobj)
 	{
 		if (fobj->logfile != NULL)
 			logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
-				mpz_sizeinbase(n, 10), mpz_get_str(gstr1.s, 10, n));
+				gmp_base10(n), mpz_get_str(gstr1.s, 10, n));
 	}
 
 	if (bits_n < 60)
@@ -587,7 +587,7 @@ void smallmpqs(fact_obj_t *fobj)
 			{
 				if (fobj->logfile != NULL)
 					logprint(fobj->logfile,
-						"prp%d = %s\n",mpz_sizeinbase(n,10),mpz_get_str(gstr1.s, 10, n));
+						"prp%d = %s\n",gmp_base10(n),mpz_get_str(gstr1.s, 10, n));
 			}
 
 			mpz_set_ui(fobj->qs_obj.gmp_n, 1);
@@ -625,7 +625,7 @@ void smallmpqs(fact_obj_t *fobj)
 		sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
 
 	//compute the number of digits in n 
-	digits_n = mpz_sizeinbase(n,10);
+	digits_n = gmp_base10(n);
 
 	//allocate storage for relations based on the factor base size
 	max_f = fb->B + 3*sm_sieve_params.num_extra_relations;	
@@ -875,7 +875,7 @@ done:
 		{
 			if (fobj->logfile != NULL)
 				logprint(fobj->logfile,
-					"prp%d = %s\n", mpz_sizeinbase(factors[i], 10),
+					"prp%d = %s\n", gmp_base10(factors[i]),
 					mpz_get_str(gstr1.s, 10, factors[i]));
 		}
 		

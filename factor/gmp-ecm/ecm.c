@@ -38,7 +38,7 @@ int ecm_loop(fact_obj_t *fobj)
 	int bail_on_factor = 1;
 	int bail = 0;
 	int charcount = 0, charcount2 = 0;
-	int input_digits = mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10);
+	int input_digits = gmp_base10(fobj->ecm_obj.gmp_n);
 
 	if (ecm_check_input(fobj) == 0)
 		return 0;
@@ -83,7 +83,8 @@ int ecm_loop(fact_obj_t *fobj)
             total_curves_run += thread_data[i].curves_run;
 
 		charcount = printf("ecm: %d/%d curves on C%d input, at ",
-			total_curves_run, fobj->ecm_obj.num_curves, (int)mpz_sizeinbase(fobj->ecm_obj.gmp_n,10));
+			total_curves_run, fobj->ecm_obj.num_curves, 
+			(int)gmp_base10(fobj->ecm_obj.gmp_n));
 		charcount2 = print_B1B2(fobj, NULL);
 		fflush(stdout);
 	}
@@ -196,7 +197,7 @@ int ecm_loop(fact_obj_t *fobj)
 
 			charcount = printf("ecm: %d/%d curves on C%d input, at ",
 				total_curves_run, fobj->ecm_obj.num_curves, 
-				(int)mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10));
+				(int)gmp_base10(fobj->ecm_obj.gmp_n));
 
 			charcount2 = print_B1B2(fobj, NULL);
 			fflush(stdout);
@@ -266,11 +267,12 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 
 		if (VFLAG > 0)
-			gmp_printf("\necm: found prp%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
+			gmp_printf("\necm: found prp%d factor = %Zd\n", 
+			gmp_base10(thread_data->gmp_factor),
 			thread_data->gmp_factor);
 
 		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			mpz_sizeinbase(thread_data->gmp_factor, 10),
+			gmp_base10(thread_data->gmp_factor),
 			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
@@ -280,11 +282,12 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 		
 		if (VFLAG > 0)
-			gmp_printf("\necm: found c%d factor = %Zd\n", mpz_sizeinbase(thread_data->gmp_factor, 10),
+			gmp_printf("\necm: found c%d factor = %Zd\n", 
+			gmp_base10(thread_data->gmp_factor),
 			thread_data->gmp_factor);
 
 		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			mpz_sizeinbase(thread_data->gmp_factor, 10),
+			gmp_base10(thread_data->gmp_factor),
 			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
@@ -381,7 +384,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
 		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
-		logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->ecm_obj.gmp_n, 10), 
+		logprint(flog,"prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), 
 			mpz_get_str(gstr1.s, 10, fobj->ecm_obj.gmp_n));		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
 		fclose(flog);
