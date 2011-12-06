@@ -84,7 +84,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 	{
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n", mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), 
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		return 1;
@@ -96,11 +96,11 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), 
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10),
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n),
 			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
@@ -113,7 +113,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		if (sieve_log != NULL)
 		{
 			logprint(sieve_log,"input is a perfect power\n");
-			logprint(sieve_log,"c%d = %s\n",mpz_sizeinbase(fobj->qs_obj.gmp_n,10), 
+			logprint(sieve_log,"c%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), 
 				mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
 		}
 		return 1;
@@ -138,7 +138,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;	//tells SIQS to not try to close the logfile
 	}
 
-	if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 10) > 150)
+	if (gmp_base10(fobj->qs_obj.gmp_n) > 150)
 	{
 		printf("input too big for SIQS\n");
 		return 1;

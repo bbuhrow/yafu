@@ -140,7 +140,7 @@ void SIQS(fact_obj_t *fobj)
 
 	//fill in the factorization object
 	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
-	fobj->digits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 10);
+	fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
@@ -1030,7 +1030,8 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		}
 		printf("sieve interval: %d blocks of size %d\n",
 			sconf->num_blocks,BLOCKSIZE);
-		printf("polynomial A has ~ %d factors\n", (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
+		printf("polynomial A has ~ %d factors\n", 
+			(int)mpz_sizeinbase(sconf->target_a, 2) / 11);
 		printf("using multiplier of %u\n",sconf->multiplier);
 		printf("using SPV correction of %d bits, starting at offset %d\n",
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
@@ -1529,7 +1530,7 @@ int siqs_static_init(static_conf_t *sconf)
 		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
 
 		//sconf holds n*mul, so update its digit count and number of bits
-		sconf->digits_n = mpz_sizeinbase(sconf->n, 10);
+		sconf->digits_n = gmp_base10(sconf->n);
 		sconf->bits = mpz_sizeinbase(sconf->n, 2);
 
 		//find sqrt_n

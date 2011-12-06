@@ -65,7 +65,7 @@ void brent_loop(fact_obj_t *fobj)
 		start = clock();
 		if (mpz_probab_prime_p(fobj->rho_obj.gmp_n, NUM_WITNESSES))
 		{
-			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->rho_obj.gmp_n,10),
+			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_n));
 
 			add_to_factor_list(fobj, fobj->rho_obj.gmp_n);
@@ -80,11 +80,11 @@ void brent_loop(fact_obj_t *fobj)
 		if (VFLAG >= 0)
 			printf("rho: x^2 + %u, starting %d iterations on C%u ",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			(int)mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
+			(int)gmp_base10(fobj->rho_obj.gmp_n));
 
 		logprint(flog, "rho: x^2 + %u, starting %d iterations on C%u\n",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
-			(int)mpz_sizeinbase(fobj->rho_obj.gmp_n,10));
+			(int)gmp_base10(fobj->rho_obj.gmp_n));
 		
 		//call brent's rho algorithm, using montgomery arithmetic.
 		mbrent(fobj);
@@ -104,10 +104,10 @@ void brent_loop(fact_obj_t *fobj)
 
 				if (VFLAG > 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),fobj->rho_obj.gmp_f);
+					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"prp%d = %s\n",
-					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),
+					gmp_base10(fobj->rho_obj.gmp_f),
 					mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_f));
 			}
 			else
@@ -116,10 +116,10 @@ void brent_loop(fact_obj_t *fobj)
 
 				if (VFLAG > 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),fobj->rho_obj.gmp_f);
+					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"c%d = %s\n",
-					mpz_sizeinbase(fobj->rho_obj.gmp_f, 10),
+					gmp_base10(fobj->rho_obj.gmp_f),
 					mpz_get_str(gstr1.s, 10, fobj->rho_obj.gmp_f));
 			}
 			start = clock();

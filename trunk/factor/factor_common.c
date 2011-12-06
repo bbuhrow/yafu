@@ -468,7 +468,7 @@ void print_factors(fact_obj_t *fobj)
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("C%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+					gmp_printf("C%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
 						fobj->fobj_factors[i].factor);
 				}
 			}
@@ -477,7 +477,7 @@ void print_factors(fact_obj_t *fobj)
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+					gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
 						fobj->fobj_factors[i].factor);
 				}
 			}
@@ -486,7 +486,7 @@ void print_factors(fact_obj_t *fobj)
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
 				{
 					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("P%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+					gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
 						fobj->fobj_factors[i].factor);
 				}
 			}
@@ -498,7 +498,7 @@ void print_factors(fact_obj_t *fobj)
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
 						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-						gmp_printf("PRP%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+						gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
 							fobj->fobj_factors[i].factor);
 					}
 				}
@@ -507,7 +507,7 @@ void print_factors(fact_obj_t *fobj)
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
 						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-						gmp_printf("C%d = %Zd\n",mpz_sizeinbase(fobj->fobj_factors[i].factor, 10),
+						gmp_printf("C%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
 							fobj->fobj_factors[i].factor);
 					}
 				}
@@ -525,12 +525,12 @@ void print_factors(fact_obj_t *fobj)
 				if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
 				{
 					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
-						mpz_sizeinbase(tmp2, 10), tmp2);
+						gmp_base10(tmp2), tmp2);
 				}
 				else
 				{
 					gmp_printf("\n***co-factor***\nC%d = %Zd\n",
-						mpz_sizeinbase(tmp2, 10), tmp2);
+						gmp_base10(tmp2), tmp2);
 				}
 			}			
 		}
@@ -921,7 +921,7 @@ int switch_to_qs(fact_obj_t *fobj, mpz_t N, double *time_available, int force_sw
 	// compare the total time spent so far with the estimate of how long it 
 	// would take to finish using qs and decide whether or not to switch over
 	// to qs.
-	int decision, sizeN, digitsN = mpz_sizeinbase(N, 10);
+	int decision, sizeN, digitsN = gmp_base10(N);
 	double qs_est_time, nfs_est_time;
 	
 	// if the size of N is small enough, always switch to qs
@@ -1207,7 +1207,7 @@ enum factorization_state scale_requested_work(method_timing_t *method_times,
 			break;
 
 		case state_ecm_auto_increasing:
-			if (mpz_sizeinbase(N, 10) < 120)
+			if (gmp_base10(N) < 120)
 			{
 				new_state = state_qs;
 				strcpy(state_str,"SIQS");
@@ -1848,7 +1848,7 @@ void factor(fact_obj_t *fobj)
 		if (mpz_probab_prime_p(b, NUM_WITNESSES))
 		{
 			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"prp%d cofactor = %s\n",mpz_sizeinbase(b, 10),
+			logprint(flog,"prp%d cofactor = %s\n",gmp_base10(b),
 				mpz_get_str(gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
@@ -1856,7 +1856,7 @@ void factor(fact_obj_t *fobj)
 		else
 		{
 			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"c%d cofactor = %s\n",mpz_sizeinbase(b, 10),
+			logprint(flog,"c%d cofactor = %s\n",gmp_base10(b),
 				mpz_get_str(gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);

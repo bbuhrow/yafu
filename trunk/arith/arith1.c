@@ -36,6 +36,18 @@ int zBits(z *n)
 	return BITS_PER_DIGIT*(abs(n->size)-1) + spBits(n->val[abs(n->size)-1]);
 }
 
+int gmp_base10(mpz_t x)
+{
+	mpz_t t;	//temp
+	int g;		//guess: either correct or +1
+
+	mpz_init(t);
+	g = mpz_sizeinbase(x,10);
+	mpz_set_ui(t,10);
+	mpz_pow_ui(t, t, g - 1);
+	return g - (mpz_cmp(t, x) > 0 ? 1 : 0);
+}
+	
 // borrowed from jasonp... 
 double zlog(mpz_t x) {
 

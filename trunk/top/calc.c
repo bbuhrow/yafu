@@ -1329,8 +1329,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in size\n");
 			break;
 		}
-		printf("%d digits, %d bits\n",ndigits(&operands[0]),zBits(&operands[0]));
+		mpz_init(gmpz);
+		mp2gmp(&operands[0], gmpz);
+
+		printf("%d digits, %d bits\n",gmp_base10(gmpz),zBits(&operands[0]));
 		zCopy(&mp3,&operands[0]);
+		mpz_clear(gmpz);
+
 		break;
 	case 19:
 		//issquare

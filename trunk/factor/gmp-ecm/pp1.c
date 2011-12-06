@@ -165,7 +165,7 @@ void williams_loop(fact_obj_t *fobj)
 		start = clock();
 		if (mpz_probab_prime_p(fobj->pp1_obj.gmp_n, NUM_WITNESSES))
 		{
-			logprint(flog,"prp%d = %s\n",mpz_sizeinbase(fobj->pp1_obj.gmp_n,10),
+			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
 			add_to_factor_list(fobj, fobj->pp1_obj.gmp_n);
@@ -197,10 +197,10 @@ void williams_loop(fact_obj_t *fobj)
 
 				if (VFLAG > 0)
 					gmp_printf("pp1: found prp%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),fobj->pp1_obj.gmp_f);
+					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
 
 				logprint(flog,"prp%d = %s\n",
-					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),
+					gmp_base10(fobj->pp1_obj.gmp_f),
 					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			else
@@ -209,10 +209,10 @@ void williams_loop(fact_obj_t *fobj)
 
 				if (VFLAG > 0)
 					gmp_printf("pp1: found c%d factor = %Zd\n",
-					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),fobj->pp1_obj.gmp_f);
+					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
 
 				logprint(flog,"c%d = %s\n",
-					mpz_sizeinbase(fobj->pp1_obj.gmp_f, 10),
+					gmp_base10(fobj->pp1_obj.gmp_f),
 					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			start = clock();
@@ -291,11 +291,11 @@ void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 	if (VFLAG >= 0)
 	{
 		printf("pp1: starting B1 = %s, B2 = %s on C%d"
-			,stg1str,stg2str, (int)mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
+			,stg1str,stg2str, (int)gmp_base10(fobj->pp1_obj.gmp_n));
 		fflush(stdout);	
 	}
 	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
-		,stg1str,stg2str, (int)mpz_sizeinbase(fobj->pp1_obj.gmp_n, 10));
+		,stg1str,stg2str, (int)gmp_base10(fobj->pp1_obj.gmp_n));
 
 		//need a new line to make screen output look right, when
 		//using GMP-ECM, because the "processed" status is not printed

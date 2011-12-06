@@ -103,20 +103,20 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		{			
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"prp%d = %s\n",
-				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				gmp_base10(fobj->div_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
 			logprint(flog,"prp%d = %s\n",
-				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				gmp_base10(fobj->div_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
 		}
 		else
 		{
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"c%d = %s\n",
-				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				gmp_base10(fobj->div_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
 			logprint(flog,"c%d = %s\n",
-				mpz_sizeinbase(fobj->div_obj.gmp_n, 10),
+				gmp_base10(fobj->div_obj.gmp_n),
 				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
 		}
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
@@ -191,13 +191,13 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				mpz_sizeinbase(tmp, 10),
+				gmp_base10(tmp),
 				mpz_get_str(gstr1.s, 10, tmp));
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				mpz_sizeinbase(tmp, 10),
+				gmp_base10(tmp),
 				mpz_get_str(gstr1.s, 10, tmp));
 		}
 
@@ -209,13 +209,13 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				mpz_sizeinbase(tmp, 10),
+				gmp_base10(tmp),
 				mpz_get_str(gstr1.s, 10, tmp));
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				mpz_sizeinbase(tmp, 10),
+				gmp_base10(tmp),
 				mpz_get_str(gstr1.s, 10, tmp));
 		}
 
