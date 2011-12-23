@@ -225,6 +225,14 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	siqs_r *rel;
 	uint32 i, j, k;
 
+#ifdef BLK_REL_COUNT_EXP
+	i = offset >> BLOCKBITS;
+	if (parity)
+		blk_counts_n[i]++;
+	else
+		blk_counts_p[i]++;
+#endif
+
 	//first check that this relation won't overflow the buffer
 	if (conf->buffered_rels >= conf->buffered_rel_alloc)
 	{

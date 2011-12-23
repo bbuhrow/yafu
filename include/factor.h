@@ -253,6 +253,10 @@ typedef struct
 	double ttime;
 	uint32 base;				//we compute base^B1
 
+	// fit parameters to compute time_per_curve as a function of B1
+	double pm1_exponent;
+	double pm1_multiplier;
+	double pm1_tune_freq;
 } pm1_obj_t;
 
 typedef struct
@@ -266,6 +270,11 @@ typedef struct
 	uint32 base;				//we compute base^B1
 	uint32 numbases;
 
+	// fit parameters to compute time_per_curve as a function of B1
+	double pp1_exponent;
+	double pp1_multiplier;
+	double pp1_tune_freq;
+
 } pp1_obj_t;
 
 typedef struct
@@ -278,16 +287,17 @@ typedef struct
 	uint32 B1;
 	uint64 B2;
 	int stg2_is_default;
-#if defined(FORK_ECM)
-	int *curves_run;
-#else
 	int curves_run;
-#endif
 	uint32 num_curves;
 	uint32 sigma;				//sigma value of successful curve
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
+
+	// fit parameters to compute time_per_curve as a function of B1
+	double ecm_exponent;
+	double ecm_multiplier;
+	double ecm_tune_freq;		
 
 } ecm_obj_t;
 
@@ -406,7 +416,8 @@ enum pretest_plan {
 	PRETEST_LIGHT = 2,
 	PRETEST_NORMAL = 3,
 	PRETEST_DEEP = 4,
-	PRETEST_CUSTOM = 5
+	PRETEST_CUSTOM = 5,
+	PRETEST_ONLY = 6
 };
 
 typedef struct
@@ -542,6 +553,10 @@ void zFermat(fp_digit limit, fact_obj_t *fobj);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
+
+int sptestsqr(uint64 n);
+uint64 spfermat(uint64 n, uint64 limit);
+void spfactorlist(uint64 nstart, uint64 nrange);
 
 //auto factor routine
 void factor(fact_obj_t *fobj);

@@ -88,6 +88,14 @@ void SIQS(fact_obj_t *fobj)
 	int orig_value;
 	int	poly_start_num = 0;
 
+#ifdef BLK_REL_COUNT_EXP
+	for (i=0; i<64; i++)
+	{
+		blk_counts_p[i] = 0;
+		blk_counts_n[i] = 0;
+	}
+#endif
+
 	//logfile for this factorization
 	//must ensure it is only written to by main thread
 	if (fobj->qs_obj.flags != 12345)
@@ -1768,9 +1776,10 @@ int siqs_static_init(static_conf_t *sconf)
 		sconf->dlp_upper = spBits(sconf->large_prime_max2);
 	}
 
-	//'a' values should be as close as possible to sqrt(2n)/M, 
-	mpz_mul_2exp(sconf->target_a, sconf->n, 1); //zShiftLeft(&tmp1,&sconf->n,1);
-	mpz_sqrt(sconf->target_a, sconf->target_a); //zNroot(&tmp1,&tmp2,2);
+	//'a' values should be as close as possible to sqrt(2n)/M in order to make
+	//values of g_{a,b}(x) as uniform as possible
+	mpz_mul_2exp(sconf->target_a, sconf->n, 1);
+	mpz_sqrt(sconf->target_a, sconf->target_a);
 	mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval); 
 
 	//compute the number of bits in M/2*sqrt(N/2), the approximate value
@@ -1923,7 +1932,7 @@ int update_check(static_conf_t *sconf)
 	uint32 check_total = sconf->check_total;
 	uint32 check_inc = sconf->check_inc;
 	double update_time = sconf->update_time;
-	double t_update;
+	double t_update;	
 	int i;
 	fb_list *fb = sconf->factor_base;
 	int retcode = 0;
@@ -2006,14 +2015,34 @@ int update_check(static_conf_t *sconf)
 		sconf->num_cycles +
 		sconf->components - sconf->vertices;
 
+#ifdef BLK_REL_COUNT_EXP
+		{
+			uint32 sum;
+			sum = 0;
+			for (i = sconf->num_blocks - 1; i >= 0; i--)
+			{
+				printf("%u ",blk_counts_n[i]);
+				sum += blk_counts_n[i];
+			}
+			for (i = 0; i < sconf->num_blocks; i++)
+			{
+				printf("%u ",blk_counts_p[i]);
+				sum += blk_counts_p[i];
+			}
+			printf("= %u\n", sum);
+		}
+#endif
+
 		//difference = my_difftime (&sconf->update_start, &update_stop);
 		//also change rel sum to update_rels below...
 		difference = my_difftime (&sconf->totaltime_start, &update_stop);
 		if (VFLAG >= 0)
 		{
 			uint32 update_rels;
+#ifndef BLK_REL_COUNT_EXP
 			for (i=0; i < sconf->charcount; i++)
 				printf("\b");
+#endif
 			//in order to keep rels/sec from going mad when relations
 			//are reloaded on a restart, just use the number of
 			//relations we've found since the last update.  don't forget
@@ -2030,6 +2059,10 @@ int update_check(static_conf_t *sconf)
 				((double)difference->secs + (double)difference->usecs / 1000000));
 				//(double)(num_full + sconf->num_cycles) /
 				//((double)(clock() - sconf->totaltime_start)/(double)CLOCKS_PER_SEC));
+
+#ifdef BLK_REL_COUNT_EXP
+			printf("\n");
+#endif
 			fflush(stdout);
 		}
 		free(difference);
@@ -2085,6 +2118,25 @@ int update_final(static_conf_t *sconf)
 	TIME_DIFF *	difference;
 
 	mpz_init(tmp1);
+
+#ifdef BLK_REL_COUNT_EXP
+	{
+		uint32 sum;
+		int i;
+		sum = 0;
+		for (i = sconf->num_blocks - 1; i >= 0; i--)
+		{
+			printf("%u ",blk_counts_n[i]);
+			sum += blk_counts_n[i];
+		}
+		for (i = 0; i < sconf->num_blocks; i++)
+		{
+			printf("%u ",blk_counts_p[i]);
+			sum += blk_counts_p[i];
+		}
+		printf("= %u\n", sum);
+	}
+#endif
 
 	if (VFLAG >= 0)
 	{

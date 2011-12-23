@@ -231,3 +231,52 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 
 }
 
+int sptestsqr(uint64 n)
+{
+	uint64 t;
+	t = n & 31;
+	if (t == 0 || t == 1 || t == 4 ||
+		t == 9 || t == 16 || t == 17 || t == 25)
+	{
+		t = (uint64)sqrt((int64)n);
+		if (n == t * t)
+			return 1;
+	}
+	return 0;
+}
+
+uint64 spfermat(uint64 n, uint64 limit)
+{
+	//	  Fermat's factorization method (wikipedia psuedo-code)
+	int i;
+	uint64 a, b2, tmp, maxa, count;
+
+	maxa = n + 1;
+	maxa >>= 1;
+
+	a = (uint64)ceil(sqrt((int64)n));
+	b2 = a * a - n;
+
+	count = 0;
+	while(!sptestsqr(b2))
+	{
+		// todo: special case this...
+		a++;
+
+		if (a > maxa)
+			break;	//give up
+
+		//b2 = a*a - N = b2 + 2*a - 1
+		b2 = a*a - n;
+
+		count++;
+		if (count > limit)
+			break;
+	}
+
+	if (sptestsqr(b2))
+		return a + (uint64)sqrt(b2);
+	else
+		return 1;
+
+}
