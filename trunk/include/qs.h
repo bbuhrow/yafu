@@ -28,6 +28,8 @@ code to the public domain.
 #include "common.h"
 
 //#define QS_TIMING
+// enable an experiement counting relations found per block
+//#define BLK_REL_COUNT_EXP 1	
 
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
@@ -48,6 +50,11 @@ double SIEVE_STG1;
 double SIEVE_STG2;
 double COUNT;
 double TF_SPECIAL;
+#endif
+
+#ifdef BLK_REL_COUNT_EXP
+uint32 blk_counts_p[64];
+uint32 blk_counts_n[64];
 #endif
 
 /************************* Common types and functions *****************/
@@ -353,6 +360,10 @@ typedef struct {
 	int scan_unrolling;			// how many bytes to unroll the sieve scan
 
 	uint32 tf_small_cutoff;		// bit level to determine whether to bail early from tf
+#ifdef BLK_REL_COUNT_EXP
+	uint32 tmp_tf_small_cutoff;
+	mpz_t tmp_z;
+#endif
 	uint32 tf_closnuf;			// subject anything sieved beyond this to tf
 	
 	uint32 tf_small_recip2_cutoff;
@@ -482,6 +493,8 @@ typedef struct {
 
 	char buf[512];
 	uint32 cutoff;
+
+	uint32 tf_small_cutoff;		// bit level to determine whether to bail early from tf
 	
 } dynamic_conf_t;
 

@@ -1226,6 +1226,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in pm1\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->pm1_obj.gmp_n);
 		pollard_loop(fobj);
 		gmp2mp(fobj->pm1_obj.gmp_n,&operands[0]);
@@ -1233,6 +1234,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 13:
 		//pp1 - two arguments
+		zCopy(&operands[0],&fobj->N);
 		if (nargs == 2)
 		{
 			mp2gmp(&operands[0],fobj->pp1_obj.gmp_n);
@@ -1261,6 +1263,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in rho\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->rho_obj.gmp_n);
 		brent_loop(fobj);
 		gmp2mp(fobj->rho_obj.gmp_n,&operands[0]);
@@ -1268,6 +1271,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 15:
 		//trial - two arguments
+		zCopy(&operands[0],&fobj->N);
 		if (nargs == 2)
 		{
 			mp2gmp(&operands[0],fobj->div_obj.gmp_n);
@@ -1452,6 +1456,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in siqs\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->qs_obj.gmp_n);
 		SIQS(fobj);
 		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);
@@ -1552,6 +1557,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 32:
 		//ecm - two arguments
+		zCopy(&operands[0],&fobj->N);
 		if (nargs == 2)
 		{
 			k = operands[1].val[0];
@@ -2043,11 +2049,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 //#endif
 
 	case 52:
+		//smallmpqs - 1 argument
 		if (nargs != 1)
 		{
 			printf("wrong number of arguments in smallmpqs\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->qs_obj.gmp_n);
 		fobj->logfile = fopen(fobj->flogname,"a");
 		smallmpqs(fobj);		
@@ -2205,6 +2213,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in fermat\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->div_obj.gmp_n);
 		zFermat(operands[1].val[0], fobj);
 		gmp2mp(fobj->div_obj.gmp_n,&operands[0]);
@@ -2218,6 +2227,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in nfs\n");
 			break;
 		}
+		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->nfs_obj.gmp_n);
 		nfs(fobj);
 		gmp2mp(fobj->nfs_obj.gmp_n,&operands[0]);

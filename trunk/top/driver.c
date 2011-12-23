@@ -193,36 +193,14 @@ int main(int argc, char *argv[])
 	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
 #else
 	LCGSTATE = g_rand.low;
-#endif
+#endif	
 
 	if (0)
 	{
-		//experiment to sieve out composites in a search for first megaPRP
-		//see: http://www.mersenneforum.org/showthread.php?goto=newpost&t=15524
-		uint64 num_p;
-		uint64 *primes;
-		uint32 *sp;
-		uint32 num_sp;
-		mpz_t low, high;
-
-		mpz_init(low);
-		mpz_init(high);
-		primes = soe_wrapper(spSOEprimes, szSOEp, 0, 100000000, 0, &num_p);
-		num_sp = num_p;
-		sp = (uint32 *)malloc(num_sp * sizeof(uint32));
-		for (i=0; i < num_sp; i++)
-			sp[i] = (uint32)primes[i];
-		free(primes);
-		printf("found %u sieve primes.  max sieve prime = %u\n", 
-			num_sp, sp[num_sp - 1]);
-		mpz_set_ui(low, 10);
-		mpz_pow_ui(low, low, 999999);
-		mpz_add_ui(high, low, 5000000);
-		sieve_to_depth(sp, num_sp, low, high, 1, 0, &num_p);
-		printf("found %" PRIu64 " candidates in range\n", num_p);
-		free(sp);
+		// just a test
+		spfactorlist(10000000000ULL, 10000000);
 	}
-	
+
 	//command line
 	while (1)
 	{		
@@ -912,7 +890,7 @@ void set_default_globals(void)
 	strcpy(sessionname,"session.log");	
 
 	// initial limit of cache of primes.
-	szSOEp = 10000000;	
+	szSOEp = 1000000;	
 
 	//set some useful globals
 	zInit(&zZero);
@@ -1609,6 +1587,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	else if (strcmp(opt,OptionArray[38]) == 0)
 	{
 		fobj->autofact_obj.only_pretest = 1;
+		fobj->autofact_obj.yafu_pretest_plan = PRETEST_ONLY;
 	}
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{

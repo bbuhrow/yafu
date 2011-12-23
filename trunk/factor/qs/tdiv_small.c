@@ -104,7 +104,22 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		fbc = dconf->comp_sieve_p;
 	}
 
-	
+	//the minimum value for the current poly_a and poly_b occur at offset (-b + sqrt(N))/a
+	//make it slightly easier for a number to go through full trial division for
+	//nearby blocks, since these offsets are more likely to factor over the FB.
+	mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
+	mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+	if (mpz_sgn(dconf->gmptmp1) < 0)
+		mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+
+	mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, BLOCKBITS);
+	if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 0)
+		dconf->tf_small_cutoff = sconf->tf_small_cutoff - 5;
+	else if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 1)
+		dconf->tf_small_cutoff = sconf->tf_small_cutoff - 3;
+	else 
+		dconf->tf_small_cutoff = sconf->tf_small_cutoff;
+
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
@@ -497,7 +512,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
-		if (bits < (sconf->tf_closnuf + sconf->tf_small_cutoff))
+		if (bits < (sconf->tf_closnuf + dconf->tf_small_cutoff))
 			dconf->valid_Qs[report_num] = 0;
 		else
 			dconf->valid_Qs[report_num] = 1;

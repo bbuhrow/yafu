@@ -35,11 +35,19 @@ code to the public domain.
 // immediately taken into account by the library to determine the next optimal 
 // factorization step.  a centralized repository (factordb) could then merge
 // work files to facilitate large scale contributions for difficult numbers.
+
 typedef struct
-{
+{	
+	// total effort so far
+	double total_time;
+	double qs_time;
+	double nfs_time;
 	double trialdiv_time;
 	double fermat_time;
 	double rho_time;
+	double pp1_time;
+	double pm1_time;
+	double ecm_time;
 	double pp1_lvl1_time_per_curve;
 	double pp1_lvl2_time_per_curve;
 	double pp1_lvl3_time_per_curve;
@@ -51,19 +59,67 @@ typedef struct
 	double ecm_25digit_time_per_curve;
 	double ecm_30digit_time_per_curve;
 	double ecm_35digit_time_per_curve;
-	double ecm_autoinc_time_per_curve;
-} method_timing_t;
+	double ecm_40digit_time_per_curve;
+	double ecm_45digit_time_per_curve;
+	double ecm_50digit_time_per_curve;
+	double ecm_55digit_time_per_curve;
+	double ecm_60digit_time_per_curve;
+	double ecm_65digit_time_per_curve;
 
-enum work_method {
-	trialdiv_work,
-	fermat_work,
-	rho_work,
-	ecm_curve,
-	pp1_curve,
-	pm1_curve,
-	qs_work,
-	nfs_work
-};
+	// amount of work we've done in various areas
+	uint32 tdiv_limit;
+	uint32 fermat_iterations;
+	uint32 rho_iterations;
+	uint32 rho_bases;
+	uint32 pp1_lvl1_curves;
+	uint32 pm1_lvl1_curves;
+	uint32 pp1_lvl2_curves;
+	uint32 pm1_lvl2_curves;
+	uint32 pp1_lvl3_curves;
+	uint32 pm1_lvl3_curves;
+	uint32 ecm_15digit_curves;
+	uint32 ecm_20digit_curves;
+	uint32 ecm_25digit_curves;
+	uint32 ecm_30digit_curves;
+	uint32 ecm_35digit_curves;
+	uint32 ecm_40digit_curves;
+	uint32 ecm_45digit_curves;
+	uint32 ecm_50digit_curves;
+	uint32 ecm_55digit_curves;
+	uint32 ecm_60digit_curves;
+	uint32 ecm_65digit_curves;
+	int min_pretest_done;
+
+	// max amount of work we'll allow in various areas.
+	// to be filled in during init, or overriden by user
+	uint32 tdiv_max_limit;
+	uint32 fermat_max_iterations;
+	uint32 rho_max_iterations;
+	uint32 rho_max_bases;
+	uint32 pp1_max_lvl1_curves;
+	uint32 pm1_max_lvl1_curves;
+	uint32 pp1_max_lvl2_curves;
+	uint32 pm1_max_lvl2_curves;
+	uint32 pp1_max_lvl3_curves;
+	uint32 pm1_max_lvl3_curves;
+	uint32 ecm_max_15digit_curves;
+	uint32 ecm_max_20digit_curves;
+	uint32 ecm_max_25digit_curves;
+	uint32 ecm_max_30digit_curves;
+	uint32 ecm_max_35digit_curves;
+	uint32 ecm_max_40digit_curves;
+	uint32 ecm_max_45digit_curves;
+	uint32 ecm_max_50digit_curves;	
+	uint32 ecm_max_55digit_curves;	
+	uint32 ecm_max_60digit_curves;	
+	uint32 ecm_max_65digit_curves;	
+
+	// current parameters
+	uint32 B1;
+	uint64 B2;
+	uint32 curves;
+
+} factor_work_t;
 
 enum factorization_state {
 	state_idle,
@@ -71,37 +127,45 @@ enum factorization_state {
 	state_fermat,
 	state_rho,
 	state_pp1_lvl1,
-	state_pp1_lvl2,
-	state_pp1_lvl3,
 	state_pm1_lvl1,
+	state_pp1_lvl2,
 	state_pm1_lvl2,
+	state_pp1_lvl3,
 	state_pm1_lvl3,
 	state_ecm_15digit,
 	state_ecm_20digit,
 	state_ecm_25digit,
 	state_ecm_30digit,
 	state_ecm_35digit,
-	state_ecm_auto_increasing,
+	state_ecm_40digit,
+	state_ecm_45digit,
+	state_ecm_50digit,
+	state_ecm_55digit,
+	state_ecm_60digit,
+	state_ecm_65digit,
 	state_qs,
-	state_nfs
+	state_nfs,
+	state_done
 };
 
 static int refactor_depth = 0;
-double total_time = 0;
-uint32 auto_increasing_curves = 3000;
-uint32 auto_increasing_B1 = 10000000;
-uint64 auto_increasing_B2 = 1000000000;
 
 // local function to do requested curve based factorization
-double get_qs_time_estimate(fact_obj_t *fobj, double freq, int bits);
-double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits);
-
-double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
-	mpz_t b, fact_obj_t *fobj);
+double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
+double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b);
+double get_ecm_time_estimate(fact_obj_t *fobj, uint32 B1, enum factorization_state state);
+void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
+enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
 int check_if_done(fact_obj_t *fobj, mpz_t N);
-enum factorization_state scale_requested_work(method_timing_t *method_times, 
-	enum factorization_state fact_state, int *next_work, double time_available, mpz_t N);
-int switch_to_qs(fact_obj_t *fobj, mpz_t N, double *time_available, int force_switch);
+uint32 get_ecm_curves_done(factor_work_t *fwork, enum factorization_state state);
+uint32 set_ecm_curves_done(factor_work_t *fwork, enum factorization_state state, uint32 curves_done);
+uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
+void set_work_params(factor_work_t *fwork, enum factorization_state state);
+int check_tune_params(fact_obj_t *fobj);
+enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
+double compute_pretesting_level_done(factor_work_t *fwork, int disp);
+void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
+
 
 void init_factobj(fact_obj_t *fobj)
 {
@@ -123,12 +187,18 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for pm1	
 	fobj->pm1_obj.B1 = 100000;
 	fobj->pm1_obj.B2 = 10000000;
-	fobj->pm1_obj.stg2_is_default = 1;	
+	fobj->pm1_obj.stg2_is_default = 1;		
+	fobj->pm1_obj.pm1_exponent = 0;
+	fobj->pm1_obj.pm1_multiplier = 0;
+	fobj->pm1_obj.pm1_tune_freq = 0;
 
 	// initialize stuff for pp1	
 	fobj->pp1_obj.B1 = 20000;
 	fobj->pp1_obj.B2 = 1000000;
 	fobj->pp1_obj.stg2_is_default = 1;	
+	fobj->pp1_obj.pp1_exponent = 0;
+	fobj->pp1_obj.pp1_multiplier = 0;
+	fobj->pp1_obj.pp1_tune_freq = 0;
 
 	// initialize stuff for ecm	
 	fobj->ecm_obj.B1 = 11000;
@@ -136,11 +206,11 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->ecm_obj.stg2_is_default = 1;
 	fobj->ecm_obj.sigma = 0;
 	fobj->ecm_obj.num_curves = 90;
-#ifdef FORK_ECM
-	fobj->ecm_obj.curves_run = NULL;
-#else
 	fobj->ecm_obj.curves_run = 0;
-#endif	
+	fobj->ecm_obj.ecm_exponent = 0;
+	fobj->ecm_obj.ecm_multiplier = 0;
+	fobj->ecm_obj.ecm_tune_freq = 0;
+
 	// unlike ggnfs, ecm does not *require* external binaries.  
 	// an empty string indicates the use of the built-in GMP-ECM hooks, while
 	// a non-empty string (filled in by the user) will indicate the use of
@@ -493,7 +563,16 @@ void print_factors(fact_obj_t *fobj)
 			else
 			{
 				//type not set, determine it now
-				if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
+				if (mpz_cmp_ui(fobj->fobj_factors[i].factor, 100000000) < 0)
+				{
+					for (j=0;j<fobj->fobj_factors[i].count;j++)
+					{
+						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+						gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+							fobj->fobj_factors[i].factor);
+					}
+				}
+				else if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
@@ -541,105 +620,20 @@ void print_factors(fact_obj_t *fobj)
 	return;
 }
 
-double get_qs_time_estimate(fact_obj_t *fobj, double freq, int digits)
+double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 {
 	//using rough empirical scaling equations, number size, information
 	//on cpu type, architecture, speed, and compilation options, 
 	//compute how long we think siqs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
+	double freq = MEAS_CPU_FREQUENCY;
+	int digits = gmp_base10(b);
 
 	cpu = yafu_get_cpu_type();
-	//if we have tuning info, use that instead
-	if (fobj->qs_obj.qs_multiplier != 0 && fobj->qs_obj.qs_exponent != 0 && fobj->qs_obj.qs_tune_freq != 0)
-	{
-		if (VFLAG >= 2)
-			printf("***** using tuning data for QS time estimation\n");
-		estimate = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
 
-		//scale with frequency
-		estimate = estimate * fobj->qs_obj.qs_tune_freq / freq; 
-	}
-	else
-	{		
-		switch (cpu)
-		{
-			case 0:
-			case 1:
-			case 2:
-			case 3:
-				if (VFLAG >= 2)
-					printf("***** using 32bit windows p3 data for QS time estimation\n");
-				//use p3 windows 32 bit @ 3.4 GHz estimate
-				estimate = 0.0000967708 * exp(0.1981730566 * digits);
-				//scale with frequency
-				estimate = estimate * 3400.0 / freq; 
-
-				break;
-			case 4:
-			
-			case 5:
-				if (VFLAG >= 2)
-					printf("***** using 32bit windows p4 data for QS time estimation\n");
-				//use p4 windows 32 bit @ 3.8 GHz estimate
-				estimate = 0.0000836146 * exp(0.1984945754 * digits);
-				//scale with frequency
-				estimate = estimate * 3800.0 / freq; 
-			 
-				break;
-			case 6:
-				//subdivide into 32bit or 64bit architecture
-				if (BITS_PER_DIGIT == 32)
-				{
-					if (VFLAG >= 2)
-						printf("***** using 64bit windows core2 data for QS time estimation\n");
-					estimate = 0.0000338875 * exp(0.2004412754 * digits);
-				}
-				else
-				{
-					if (VFLAG >= 2)
-						printf("***** using 64bit linux core2 data for QS time estimation\n");
-					estimate = 0.0000245199 * exp(0.2030407751 * digits);
-				}
-
-				//scale with frequency
-				estimate = estimate * 3000.0 / freq; 
-
-				break;
-			case 7:		
-			case 8:
-			case 9:
-				//subdivide into 32bit or 64bit architecture
-				if (VFLAG >= 2)
-					printf("***** using 64bit linux opteron data for QS time estimation\n");
-				if (BITS_PER_DIGIT == 32)
-					estimate = 0.0000213524 * exp(0.2066333088 * digits);
-				else
-					estimate = 0.0000213524 * exp(0.2066333088 * digits);
-
-				//scale with frequency
-				estimate = estimate * 2800.0 / freq; 
-
-				break;
-			case 10:
-				//nehalem
-				if (VFLAG >= 2)
-					printf("***** using 64bit linux nehalem data for QS time estimation\n");
-
-				estimate = 0.00002307333 * exp(0.2011087 * digits);
-
-				//scale with frequency
-				estimate = estimate * 2930.0 / freq; 
-
-				break;
-
-			default:
-				if (VFLAG >= 2)
-					printf("***** cpu type not found, ecm runtime will not be optimized\n");
-				estimate = DBL_MAX;
-				break;
-		}
-	}
+	estimate = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
+	estimate = estimate * fobj->qs_obj.qs_tune_freq / freq; 	
 
 	//adjust for multi-threaded qs
 	//if we assume threading is perfect, we'll get a smaller estimate for
@@ -670,30 +664,26 @@ double get_qs_time_estimate(fact_obj_t *fobj, double freq, int digits)
 		}
 	}
 
+	if (VFLAG >= 2)
+		printf("***** QS time estimation from tune data = %1.2f sec\n", estimate);
+
 	return estimate;
 }
 
-double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits)
+double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 {
 	//using rough empirical scaling equations, number size, information
 	//on cpu type, architecture, speed, and compilation options, 
 	//compute how long we think gnfs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
+	double freq = MEAS_CPU_FREQUENCY;
+	int digits = gmp_base10(b);
 
 	cpu = yafu_get_cpu_type();
-	//if we have tuning info, use that instead
-	if (fobj->nfs_obj.gnfs_multiplier != 0 && fobj->nfs_obj.gnfs_exponent != 0 && fobj->nfs_obj.gnfs_tune_freq != 0)
-	{
-		if (VFLAG >= 2)
-			printf("***** using tuning data for GNFS time estimation\n");
-		estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
-
-		//scale with frequency
-		estimate = estimate * fobj->nfs_obj.gnfs_tune_freq / freq; 
-	}
-	else
-		estimate = DBL_MAX;
+	
+	estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
+	estimate = estimate * fobj->nfs_obj.gnfs_tune_freq / freq; 
 
 	//adjust for multi-threaded nfs
 	//if we assume threading is perfect, we'll get a smaller estimate for
@@ -724,116 +714,277 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, double freq, int digits)
 		}
 	}
 
+	if (VFLAG >= 2)
+		printf("***** GNFS time estimation from tune data = %1.2f sec\n", estimate);
+
 	return estimate;
 }
 
-double do_work(enum work_method method, uint32 B1, uint64 B2, int *work, 
-	mpz_t b, fact_obj_t *fobj)
+double get_ecm_time_estimate(fact_obj_t *fobj, uint32 B1, enum factorization_state state)
+{
+	//compute the time per curve for the given method and B1 bound
+	double estimate;
+	double freq = MEAS_CPU_FREQUENCY;
+	char method[10];
+	
+	switch (state)
+	{
+	case state_pp1_lvl1:
+	case state_pp1_lvl2:
+	case state_pp1_lvl3:
+		estimate = fobj->pp1_obj.pp1_multiplier * exp(fobj->pp1_obj.pp1_exponent * B1);
+		estimate = estimate * fobj->pp1_obj.pp1_tune_freq / freq; 
+		strcpy(method, "P+1");
+
+		break;
+
+	case state_pm1_lvl1:
+	case state_pm1_lvl2:
+	case state_pm1_lvl3:
+		estimate = fobj->pm1_obj.pm1_multiplier * exp(fobj->pm1_obj.pm1_exponent * B1);
+		estimate = estimate * fobj->pm1_obj.pm1_tune_freq / freq; 
+		strcpy(method, "P-1");
+
+		break;
+
+	default:
+		// ecm
+		estimate = fobj->ecm_obj.ecm_multiplier * exp(fobj->ecm_obj.ecm_exponent * B1);
+		estimate = estimate * fobj->ecm_obj.ecm_tune_freq / freq; 
+		strcpy(method, "ECM");
+		
+		break;
+	}
+	
+	//adjust for multi-threadedness
+	if (THREADS > 1)
+		estimate = estimate / ((double)THREADS * 0.90);
+
+	if (VFLAG >= 2)
+		printf("***** %s time-per-curve estimation from tune data = %1.2f sec\n", 
+			method, estimate);
+
+	return estimate;
+}
+
+void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
 {
 	uint32 tmp1;
-	uint64 tmp2;
-	uint64 startticks, endticks;
-	double time_per_unit_work;		
-	//struct timeval start2, stop2;
-	//double t_time;
-	//TIME_DIFF *	difference;
-	
-	startticks = yafu_read_clock();		
+	uint64 tmp2;	
+	struct timeval tstart, tstop;
+	double t_time;
+	TIME_DIFF *	difference;
+	uint32 curves_done;
+		
+	gettimeofday(&tstart, NULL);
 
 	switch (method)
 	{
-	case trialdiv_work:		
+	case state_trialdiv:
+		// do all of the tdiv work requested
 		if (VFLAG >= 0)
-			printf("div: primes less than %d\n",B1);
-		fobj->prime_threshold = B1 * B1;
+			printf("div: primes less than %d\n", fwork->tdiv_max_limit);
+		fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
 		mpz_set(fobj->div_obj.gmp_n, b);
 		fobj->div_obj.print = 1;
-		fobj->div_obj.limit = B1;
+		fobj->div_obj.limit = fwork->tdiv_max_limit;
 		zTrial(fobj);
 		mpz_set(b, fobj->div_obj.gmp_n);
+
+		// record the work done
+		fwork->tdiv_limit = fwork->tdiv_max_limit;
+		
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->trialdiv_time = t_time;
+		fwork->total_time += t_time;
+
 		break;
 
-	case rho_work:
+	case state_rho:
+		// do all of the rho work requested
 		mpz_set(fobj->rho_obj.gmp_n,b);
 		brent_loop(fobj);
 		mpz_set(b,fobj->rho_obj.gmp_n);
+
+		// record the work done
+		fwork->rho_bases = fwork->rho_max_bases;
+		fwork->rho_iterations = fwork->rho_max_iterations;
+
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->rho_time = t_time;
+		fwork->total_time += t_time;
 		break;
 
-	case fermat_work:
+	case state_fermat:
+		// do all of the fermat work requested
 		if (VFLAG >= 0)
-			printf("fmt: %d iterations\n",B1);
+			printf("fmt: %d iterations\n", fwork->fermat_max_iterations);
 		mpz_set(fobj->div_obj.gmp_n,b);
-		zFermat(B1,fobj);
+		zFermat(fwork->fermat_max_iterations, fobj);
 		mpz_set(b,fobj->div_obj.gmp_n);
+
+		// record the work done
+		fwork->fermat_iterations = fwork->fermat_max_iterations;
+
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->fermat_time = t_time;
+		fwork->total_time += t_time;
+
 		break;
 
-	case ecm_curve:
+	case state_ecm_15digit:
+	case state_ecm_20digit:
+	case state_ecm_25digit:
+	case state_ecm_30digit:
+	case state_ecm_35digit:
+	case state_ecm_40digit:
+	case state_ecm_45digit:
+	case state_ecm_50digit:
+	case state_ecm_55digit:
+	case state_ecm_60digit:
+	case state_ecm_65digit:
 		tmp1 = fobj->ecm_obj.B1;
 		tmp2 = fobj->ecm_obj.B2;
-		fobj->ecm_obj.B1 = B1;
-		fobj->ecm_obj.B2 = B2;
-		fobj->ecm_obj.num_curves = *work;
+		fobj->ecm_obj.B1 = fwork->B1;
+		fobj->ecm_obj.B2 = fwork->B2;
+		fobj->ecm_obj.num_curves = fwork->curves;
 		mpz_set(fobj->ecm_obj.gmp_n, b);
-		*work = ecm_loop(fobj);
+		curves_done = ecm_loop(fobj);
 		mpz_set(b, fobj->ecm_obj.gmp_n);
 		fobj->ecm_obj.B1 = tmp1;
 		fobj->ecm_obj.B2 = tmp2;
+
+		// record the work done
+		set_ecm_curves_done(fwork, method, curves_done);
+		
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->ecm_time += t_time;
+		fwork->total_time += t_time;
 		break;
 
-	case pp1_curve:
+	case state_pp1_lvl1:
+	case state_pp1_lvl2:
+	case state_pp1_lvl3:
 		tmp1 = fobj->pp1_obj.B1;
 		tmp2 = fobj->pp1_obj.B2;
-		fobj->pp1_obj.B1 = B1;
-		fobj->pp1_obj.B2 = B2;
+		fobj->pp1_obj.B1 = fwork->B1;
+		fobj->pp1_obj.B2 = fwork->B2;
 		mpz_set(fobj->pp1_obj.gmp_n,b);
-		fobj->pp1_obj.numbases = *work;
+		fobj->pp1_obj.numbases = fwork->curves;
 		williams_loop(fobj);
 		mpz_set(b,fobj->pp1_obj.gmp_n);
 		fobj->pp1_obj.B1 = tmp1;
 		fobj->pp1_obj.B2 = tmp2;
+
+		// record the work done
+		if (method == state_pp1_lvl1)
+			fwork->pp1_lvl1_curves = fwork->curves;
+		else if (method == state_pp1_lvl2)
+			fwork->pp1_lvl2_curves = fwork->curves;
+		else if (method == state_pp1_lvl3)
+			fwork->pp1_lvl3_curves = fwork->curves;
+
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->pp1_time += t_time;
+		fwork->total_time += t_time;
 		break;
 
-	case pm1_curve:
+	case state_pm1_lvl1:
+	case state_pm1_lvl2:
+	case state_pm1_lvl3:
 		tmp1 = fobj->pm1_obj.B1;
 		tmp2 = fobj->pm1_obj.B2;
-		fobj->pm1_obj.B1 = B1;
-		fobj->pm1_obj.B2 = B2;
+		fobj->pm1_obj.B1 = fwork->B1;
+		fobj->pm1_obj.B2 = fwork->B2;
 		mpz_set(fobj->pm1_obj.gmp_n,b);
 		pollard_loop(fobj);
 		mpz_set(b,fobj->pm1_obj.gmp_n);
 		fobj->pm1_obj.B1 = tmp1;
 		fobj->pm1_obj.B2 = tmp2;
+
+		// record the work done
+		if (method == state_pm1_lvl1)
+			fwork->pm1_lvl1_curves = fwork->curves;
+		else if (method == state_pm1_lvl2)
+			fwork->pm1_lvl2_curves = fwork->curves;
+		else if (method == state_pm1_lvl3)
+			fwork->pm1_lvl3_curves = fwork->curves;
+		
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->pm1_time += t_time;
+		fwork->total_time += t_time;
 		break;
 
-	case qs_work:
-		//gettimeofday(&start2,NULL);
+	case state_qs:
 		mpz_set(fobj->qs_obj.gmp_n,b);
 		SIQS(fobj);
 		mpz_set(b,fobj->qs_obj.gmp_n);
-		break;
-		//gettimeofday(&stop2,NULL);
-		//difference = my_difftime (&start2, &stop2);
-		//t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		//free(difference);
 
-	case nfs_work:
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->qs_time = t_time;
+		if (VFLAG > 0)
+			printf("pretesting / qs ratio was %1.2f\n", 
+				fwork->total_time / t_time); 
+		break;
+
+	case state_nfs:
 		mpz_set(fobj->nfs_obj.gmp_n,b);
 		nfs(fobj);
 		mpz_set(b,fobj->nfs_obj.gmp_n);
+
+		// measure time for this completed work
+		gettimeofday (&tstop, NULL);
+		difference = my_difftime (&tstart, &tstop);
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+
+		fwork->nfs_time = t_time;
+		if (VFLAG > 0)
+			printf("pretesting / nfs ratio was %1.2f\n", 
+				fwork->total_time / t_time); 
 		break;
 
 	default:
-		printf("nothing to do for method %d\n",method);
+		printf("nothing to do for method %d\n", method);
 		break;
 	}
 
-	endticks = yafu_read_clock();
-
-	//estimate time per curve for these completed curves
-	time_per_unit_work = (double)(endticks - startticks) 
-		/ (MEAS_CPU_FREQUENCY * 1e6) / (double)(*work);
-
-	return time_per_unit_work;
+	return;
 }
 
 int check_if_done(fact_obj_t *fobj, mpz_t N)
@@ -863,51 +1014,59 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 	if (mpz_cmp(N,tmp) == 0)
 	{		
 		// yes, they are equal.  make sure everything is prp or prime.
-		done = 1;
-		for (i=0; i<fobj->num_factors; i++)
+		done = 0;
+		while (!done)
 		{
-			if (!mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
+			done = 1;
+			for (i=0; i<fobj->num_factors; i++)
 			{
-				refactor_depth++;
-				if (refactor_depth > 3)
+				if (!mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
-					printf("too many refactorization attempts, aborting\n");
-					break;
+					refactor_depth++;
+					if (refactor_depth > 3)
+					{
+						printf("too many refactorization attempts, aborting\n");
+						done = 1;
+						break;
+					}
+					else
+					{
+						//printf("ignoring refactorization of composite factor\n");
+						fact_obj_t *fobj_refactor;
+						int j;
+
+						printf("\nComposite result found, starting re-factorization\n");
+
+						// load the new fobj with this number
+						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+						init_factobj(fobj_refactor);
+						gmp2mp(fobj->fobj_factors[i].factor, &fobj_refactor->N);
+
+						// recurse on factor
+						factor(fobj_refactor);
+
+						// remove the factor from the original list
+						delete_from_factor_list(fobj, fobj->fobj_factors[i].factor);
+
+						// add all factors found during the refactorization
+						for (j=0; j< fobj_refactor->num_factors; j++)
+						{
+							int k;
+							for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
+								add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
+						}
+
+						// free temps
+						free_factobj(fobj_refactor);
+						free(fobj_refactor);
+
+						// check again, since this factorization could have added new
+						// composite factors
+						done = 0;
+					}
 				}
 				else
-				{
-					//printf("ignoring refactorization of composite factor\n");
-					fact_obj_t *fobj_refactor;
-					int j;
-
-					printf("\nComposite result found, starting re-factorization\n");
-
-					// load the new fobj with this number
-					fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-					init_factobj(fobj_refactor);
-					gmp2mp(fobj->fobj_factors[i].factor, &fobj_refactor->N);
-
-					// recurse on factor
-					factor(fobj_refactor);
-
-					// remove the factor from the original list
-					delete_from_factor_list(fobj, fobj->fobj_factors[i].factor);
-
-					// add all factors found during the refactorization
-					for (j=0; j< fobj_refactor->num_factors; j++)
-					{
-						int k;
-						for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
-							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
-					}
-
-					// factorization completed if we got to here.  reset the recursion limit.
-					refactor_depth = 0;
-
-					// free temps
-					free_factobj(fobj_refactor);
-					free(fobj_refactor);
-				}
+					fobj->fobj_factors[i].type = PRP;
 			}
 		}
 	}
@@ -916,575 +1075,640 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 	return done;
 }
 
-int switch_to_qs(fact_obj_t *fobj, mpz_t N, double *time_available, int force_switch)
+enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 {
-	// compare the total time spent so far with the estimate of how long it 
-	// would take to finish using qs and decide whether or not to switch over
-	// to qs.
-	int decision, sizeN, digitsN = gmp_base10(N);
-	double qs_est_time, nfs_est_time;
-	
-	// if the size of N is small enough, always switch to qs
-	sizeN = mpz_sizeinbase(N, 2);
-	if (sizeN < 135)
-	{
-		*time_available = 0;
-		decision = 1;
-	}
+	enum factorization_state next_state;
+
+	if (fwork->tdiv_limit < fwork->tdiv_max_limit)
+		next_state = state_trialdiv;
+	else if (fwork->fermat_iterations < fwork->fermat_max_iterations)
+		next_state = state_fermat;
+	else if (fwork->rho_bases < fwork->rho_max_bases)
+		next_state = state_rho;
+	else if (fwork->pp1_lvl1_curves < fwork->pp1_max_lvl1_curves)
+		next_state = state_pp1_lvl1;
+	else if (fwork->pm1_lvl1_curves < fwork->pm1_max_lvl1_curves)
+		next_state = state_pm1_lvl1;
+	else if (fwork->ecm_15digit_curves < fwork->ecm_max_15digit_curves)
+		next_state = state_ecm_15digit;
+	else if (fwork->ecm_20digit_curves < fwork->ecm_max_20digit_curves)
+		next_state = state_ecm_20digit;
+	else if (fwork->ecm_25digit_curves < fwork->ecm_max_25digit_curves)
+		next_state = state_ecm_25digit;
+	else if (fwork->pp1_lvl2_curves < fwork->pp1_max_lvl2_curves)
+		next_state = state_pp1_lvl2;
+	else if (fwork->pm1_lvl2_curves < fwork->pm1_max_lvl2_curves)
+		next_state = state_pm1_lvl2;
+	else if (fwork->ecm_30digit_curves < fwork->ecm_max_30digit_curves)
+		next_state = state_ecm_30digit;
+	else if (fwork->pp1_lvl3_curves < fwork->pp1_max_lvl3_curves)
+		next_state = state_pp1_lvl3;
+	else if (fwork->pm1_lvl3_curves < fwork->pm1_max_lvl3_curves)
+		next_state = state_pm1_lvl3;
+	else if (fwork->ecm_35digit_curves < fwork->ecm_max_35digit_curves)
+		next_state = state_ecm_35digit;
+	else if (fwork->ecm_40digit_curves < fwork->ecm_max_40digit_curves)
+		next_state = state_ecm_40digit;
+	else if (fwork->ecm_45digit_curves < fwork->ecm_max_45digit_curves)
+		next_state = state_ecm_45digit;
+	else if (fwork->ecm_50digit_curves < fwork->ecm_max_50digit_curves)
+		next_state = state_ecm_50digit;
 	else
+		next_state = state_nfs;
+
+	switch (next_state)
 	{
-		qs_est_time = get_qs_time_estimate(fobj, MEAS_CPU_FREQUENCY, digitsN);
-		if (VFLAG >= 2)
-			printf("***** qs time estimate = %lg seconds\n",qs_est_time);
+		case state_ecm_15digit:
+		case state_ecm_20digit:
+		case state_ecm_25digit:
+		case state_ecm_30digit:
+		case state_ecm_35digit:
+		case state_ecm_40digit:
+		case state_ecm_45digit:
+		case state_ecm_50digit:
+		case state_ecm_55digit:
+		case state_ecm_60digit:
+		case state_ecm_65digit:
+			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NOECM)
+				next_state = state_nfs;
+			break;
+			
+		default:
 
-		nfs_est_time = get_gnfs_time_estimate(fobj, MEAS_CPU_FREQUENCY, digitsN);
-		if (VFLAG >= 2)
-			printf("***** gnfs time estimate = %lg seconds\n",nfs_est_time);
+			break;
+	}
 
-		//proceed with whichever estimate is smaller
-		if (qs_est_time <= nfs_est_time)
-		{		
-			if (force_switch)
+	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NONE)
+		next_state = state_nfs;
+
+	return next_state;
+}
+
+int check_tune_params(fact_obj_t *fobj)
+{
+	if (fobj->qs_obj.qs_multiplier == 0 || 
+		fobj->qs_obj.qs_exponent == 0 || 
+		fobj->qs_obj.qs_tune_freq == 0 ||
+		fobj->nfs_obj.gnfs_multiplier == 0 || 
+		fobj->nfs_obj.gnfs_exponent == 0 || 
+		fobj->nfs_obj.gnfs_tune_freq == 0 ||
+		fobj->ecm_obj.ecm_multiplier == 0 ||
+		fobj->ecm_obj.ecm_exponent == 0 ||
+		fobj->ecm_obj.ecm_tune_freq == 0 ||
+		fobj->pp1_obj.pp1_multiplier == 0 ||
+		fobj->pp1_obj.pp1_exponent == 0 ||
+		fobj->pp1_obj.pp1_tune_freq == 0 ||
+		fobj->pm1_obj.pm1_multiplier == 0 ||
+		fobj->pm1_obj.pm1_exponent == 0 ||
+		fobj->pm1_obj.pm1_tune_freq == 0)
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
+void set_work_params(factor_work_t *fwork, enum factorization_state state)
+{
+	switch (state)
+	{
+	case state_pp1_lvl1:
+		fwork->B1 = 20000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 3;
+		break;
+
+	case state_pp1_lvl2:
+		fwork->B1 = 1250000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 3;
+		break;
+
+	case state_pp1_lvl3:
+		fwork->B1 = 5000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 3;
+		break;
+
+	case state_pm1_lvl1:
+		fwork->B1 = 100000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 1;
+		break;
+
+	case state_pm1_lvl2:
+		fwork->B1 = 2500000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 1;
+		break;
+
+	case state_pm1_lvl3:
+		fwork->B1 = 10000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = 1;
+		break;
+
+	case state_ecm_15digit:
+		fwork->B1 = 2000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_15digit_curves;
+		break;
+
+	case state_ecm_20digit:
+		fwork->B1 = 11000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_20digit_curves;
+		break;
+
+	case state_ecm_25digit:
+		fwork->B1 = 50000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_25digit_curves;
+		break;
+
+	case state_ecm_30digit:
+		fwork->B1 = 250000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_30digit_curves;
+		break;
+
+	case state_ecm_35digit:
+		fwork->B1 = 1000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_35digit_curves;
+		break;
+
+	case state_ecm_40digit:
+		fwork->B1 = 3000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_40digit_curves;
+		break;
+
+	case state_ecm_45digit:
+		fwork->B1 = 11000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_45digit_curves;
+		break;
+
+	case state_ecm_50digit:
+		fwork->B1 = 43000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_50digit_curves;
+		break;
+
+	case state_ecm_55digit:
+		fwork->B1 = 110000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_55digit_curves;
+		break;
+
+	case state_ecm_60digit:
+		fwork->B1 = 260000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_60digit_curves;
+		break;
+
+	case state_ecm_65digit:
+		fwork->B1 = 850000000;
+		fwork->B2 = 0;	//gmp-ecm default
+		fwork->curves = fwork->ecm_max_65digit_curves;
+		break;
+
+	default:
+		fwork->B1 = 0;	//error condition
+		fwork->B2 = 0;
+		fwork->curves = 0;
+		break;
+
+	}
+
+	return;
+}
+
+uint32 get_ecm_curves_done(factor_work_t *fwork, enum factorization_state state)
+{
+	uint32 curves_done;
+
+	switch (state)
+	{
+	case state_ecm_15digit:
+		curves_done = fwork->ecm_15digit_curves;
+		break;
+	case state_ecm_20digit:
+		curves_done = fwork->ecm_20digit_curves;
+		break;
+	case state_ecm_25digit:
+		curves_done = fwork->ecm_25digit_curves;
+		break;
+	case state_ecm_30digit:
+		curves_done = fwork->ecm_30digit_curves;
+		break;
+	case state_ecm_35digit:
+		curves_done = fwork->ecm_35digit_curves;
+		break;
+	case state_ecm_40digit:
+		curves_done = fwork->ecm_40digit_curves;
+		break;
+	case state_ecm_45digit:
+		curves_done = fwork->ecm_45digit_curves;
+		break;
+	case state_ecm_50digit:
+		curves_done = fwork->ecm_50digit_curves;
+		break;
+	case state_ecm_55digit:
+		curves_done = fwork->ecm_55digit_curves;
+		break;
+	case state_ecm_60digit:
+		curves_done = fwork->ecm_60digit_curves;
+		break;
+	case state_ecm_65digit:
+		curves_done = fwork->ecm_65digit_curves;
+		break;
+	default:
+		curves_done = 0;
+		break;
+	}
+
+	return curves_done;
+}
+
+uint32 set_ecm_curves_done(factor_work_t *fwork, enum factorization_state state, uint32 curves_done)
+{
+	switch (state)
+	{
+	case state_ecm_15digit:
+		fwork->ecm_15digit_curves = curves_done;
+		break;
+	case state_ecm_20digit:
+		fwork->ecm_20digit_curves = curves_done;
+		break;
+	case state_ecm_25digit:
+		fwork->ecm_25digit_curves = curves_done;
+		break;
+	case state_ecm_30digit:
+		fwork->ecm_30digit_curves = curves_done;
+		break;
+	case state_ecm_35digit:
+		fwork->ecm_35digit_curves = curves_done;
+		break;
+	case state_ecm_40digit:
+		fwork->ecm_40digit_curves = curves_done;
+		break;
+	case state_ecm_45digit:
+		fwork->ecm_45digit_curves = curves_done;
+		break;
+	case state_ecm_50digit:
+		fwork->ecm_50digit_curves = curves_done;
+		break;
+	case state_ecm_55digit:
+		fwork->ecm_55digit_curves = curves_done;
+		break;
+	case state_ecm_60digit:
+		fwork->ecm_60digit_curves = curves_done;
+		break;
+	case state_ecm_65digit:
+		fwork->ecm_65digit_curves = curves_done;
+		break;
+	default:
+		printf("don't know how to set curves for state %d\n", state);
+		exit(1);
+		break;
+	}
+
+	return curves_done;
+}
+
+uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
+{
+	uint32 max_curves;
+
+	switch (state)
+	{
+	case state_ecm_15digit:
+		max_curves = fwork->ecm_max_15digit_curves;
+		break;
+	case state_ecm_20digit:
+		max_curves = fwork->ecm_max_20digit_curves;
+		break;
+	case state_ecm_25digit:
+		max_curves = fwork->ecm_max_25digit_curves;
+		break;
+	case state_ecm_30digit:
+		max_curves = fwork->ecm_max_30digit_curves;
+		break;
+	case state_ecm_35digit:
+		max_curves = fwork->ecm_max_35digit_curves;
+		break;
+	case state_ecm_40digit:
+		max_curves = fwork->ecm_max_40digit_curves;
+		break;
+	case state_ecm_45digit:
+		max_curves = fwork->ecm_max_45digit_curves;
+		break;
+	case state_ecm_50digit:
+		max_curves = fwork->ecm_max_50digit_curves;
+		break;
+	case state_ecm_55digit:
+		max_curves = fwork->ecm_max_55digit_curves;
+		break;
+	case state_ecm_60digit:
+		max_curves = fwork->ecm_max_60digit_curves;
+		break;
+	case state_ecm_65digit:
+		max_curves = fwork->ecm_max_65digit_curves;
+		break;
+	default:
+		max_curves = 0;
+		break;
+	}
+
+	return max_curves;
+}
+
+/* produced using ecm -v -v -v for the various B1 bounds (default B2).
+/	Thanks A. Schindel !
+/
+/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
+#define NUM_ECM_LEVELS 11
+int ecm_levels[NUM_ECM_LEVELS] = {
+	15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
+double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {	
+	/*t15, 2000,	*/	{30,		12,			7,			5,			3,			2,			2,			2,			2,		1,		1},
+	/*t20, 11000,	*/	{844,		74,			21,			8,			5,			3,			2,			2,			2,		2,		1},
+	/*t25, 50000,	*/	{58129,		1539,		214,		50,			20,			11,			7,			5,			4,		3,		3},
+	/*t30, 250000,	*/	{6711967,	49962,		3288,		430,		118,		54,			26,			14,			10,		8,		6},
+	/*t35, 1E+06,	*/	{1.20E+09,	2292278,	68422,		4914,		904,		322,		122,		54,			34,		23,		15},
+	/*t40, 3E+06,	*/	{2.90E+12,	1.40E+08,	1849287,	70293,		8613,		2350,		681,		242,		135,	82,		47},
+	/*t45, 11E+06,	*/	{9.00E+99,	1.10E+10,	6.10E+07,	1214949,	97057,		20265,		4480,		1263,		613,	333,	168},
+	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	2.50E+09,	2.50E+07,	1270662,	199745,		33652,		7404,		3133,	1512,	661},
+	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	1.30E+11,	5.90E+08,	1.90E+07,	2246256,	283939,		48714,		17769,	7643,	2865},
+	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	5.80E+16,	1.60E+10,	3.20E+08,	2.80E+07,	2655154,	350439,		111196,	42017,	13611},
+	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	8.20E+21,	2.70E+13,	6.10E+09,	4.00E+08,	2.70E+07,	2768535,	751771,	250214,	69408}};
+
+
+double compute_pretesting_level_done(factor_work_t *fwork, int disp_levels)
+{
+	// there is probably a more elegant way to do this involving dickman's function
+	// or something, but we can get a reasonable estimate using empirical data.
+	double tlevels[NUM_ECM_LEVELS];
+	uint32 curves_done;
+	int i, j;
+
+	// compute the %done of each tlevel
+	for (i=0; i < NUM_ECM_LEVELS; i++)
+	{
+		tlevels[i] = 0;
+		for (j=0; j < NUM_ECM_LEVELS; j++)
+		{
+			switch (j)
 			{
-				//calling code is forcing a decision to switch
-				if ((fobj->nfs_obj.gnfs_exponent == 0) && (digitsN > 95))
-				{
-					//est time decision was to use qs, but the size is high enough and we're using
-					//qs time only because nfs hasn't been tuned, so use nfs instead
-					decision = 2;
-					*time_available = 0;
-				}
-				else
-				{
-					decision = 1;
-					*time_available = 0;
-				}
+			case 0: curves_done = get_ecm_curves_done(fwork, state_ecm_15digit); break;
+			case 1: curves_done = get_ecm_curves_done(fwork, state_ecm_20digit); break;
+			case 2: curves_done = get_ecm_curves_done(fwork, state_ecm_25digit); break;
+			case 3: curves_done = get_ecm_curves_done(fwork, state_ecm_30digit); break;
+			case 4: curves_done = get_ecm_curves_done(fwork, state_ecm_35digit); break;
+			case 5: curves_done = get_ecm_curves_done(fwork, state_ecm_40digit); break;
+			case 6: curves_done = get_ecm_curves_done(fwork, state_ecm_45digit); break;
+			case 7: curves_done = get_ecm_curves_done(fwork, state_ecm_50digit); break;
+			case 8: curves_done = get_ecm_curves_done(fwork, state_ecm_55digit); break;
+			case 9: curves_done = get_ecm_curves_done(fwork, state_ecm_60digit); break;
+			case 10: curves_done = get_ecm_curves_done(fwork, state_ecm_65digit); break;
+			default: curves_done = 0; break;
 			}
-			else if (qs_est_time > 1000000000.0)
-			{
-				// if qs_est_time is very large, then we don't have a good estimate.  flag the caller 
-				// of this fact
-				decision = 0;
-				*time_available = -1;
-			}		
-			else if (total_time > (fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time))
-			{
-				// if the total time we've spent so far is greater than a fraction of the time
-				// we estimate it would take QS to finish, switch to qs.  
-				if ((fobj->nfs_obj.gnfs_exponent == 0) && (digitsN > 95))
-				{
-					//est time decision was to use qs, but the size is high enough and we're using
-					//qs time only because nfs hasn't been tuned, so use nfs instead
-					decision = 2;
-					*time_available = 0;
-				}
-				else
-				{
-					decision = 1;
-					*time_available = 0;
-				}
-			}
+			
+			tlevels[i] += (double)curves_done / ecm_data[i][j];			
+		}
+		if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
+			printf("***** t%d: %1.2f\n", ecm_levels[i], tlevels[i]);		
+	}
+
+	// find the first one less than 1
+	for (i=0; i < NUM_ECM_LEVELS; i++)
+		if (tlevels[i] < 1)
+			break;
+
+	// estimate the t level done by extrapolating between this and the previous one
+	// assuming they are all spaced 5 digits apart.
+	if (i == 0)
+		return 0;
+	else
+		return ecm_levels[i-1] + 5 * tlevels[i];
+
+}
+
+enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
+{
+	int have_tune;
+	enum factorization_state next_state;
+	int numdigits = gmp_base10(b);
+	double target_digits;
+	double work, work_low, work_high;
+	uint32 tmp_curves;
+
+	// get the next factorization state that hasn't been completed
+	next_state = get_next_state(fwork, fobj);
+
+	// make sure a minimum amount of work is done
+	if (next_state == state_trialdiv ||
+		next_state == state_fermat ||
+		next_state == state_rho)
+	{
+		return next_state;
+	}
+
+	// after that, what we do next depends on whether 'tune' has been run or not
+	have_tune = check_tune_params(fobj);		
+
+	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
+		target_digits = 1. * (double)numdigits / 3.;
+	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
+		target_digits = 2. * (double)numdigits / 9.;
+	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+		target_digits = (double)numdigits * fobj->autofact_obj.target_ecm_qs_ratio;
+	else
+		target_digits = 4. * (double)numdigits / 13.;	
+
+	// get the current amount of work done.
+	// try to control when this info is printed
+	switch (next_state)
+	{
+		case state_ecm_15digit:
+		case state_ecm_20digit:
+		case state_ecm_25digit:
+		case state_ecm_30digit:
+		case state_ecm_35digit:
+		case state_ecm_40digit:
+		case state_ecm_45digit:
+		case state_ecm_50digit:
+		case state_ecm_55digit:
+		case state_ecm_60digit:
+		case state_ecm_65digit:
+			if (VFLAG >= 1)
+				printf("***** setting target pretesting digits to %1.2f\n", target_digits);
+			
+			work = compute_pretesting_level_done(fwork, 1);
+			
+			if (VFLAG >= 1)
+				printf("***** sum: have completed work to t%1.2f\n", work);
+			break;
+
+		default:
+			work = compute_pretesting_level_done(fwork, 0);
+			break;
+	}
+	
+	// handle the case where the next state is a sieve method
+	if ((next_state == state_nfs) || (work > target_digits))
+	{
+		if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_ONLY)
+			return state_done;
+
+		if (have_tune)
+		{
+			double qs_time_est, gnfs_time_est;
+		
+			// compute the time to factor using estimates derived during 'tune'.
+			qs_time_est = get_qs_time_estimate(fobj, b);
+			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
+
+			if (qs_time_est < gnfs_time_est)
+				return state_qs;
 			else
-			{
-				// otherwise, return the amount of time we have left before the switchover.
-				decision = 0;
-				*time_available = (fobj->autofact_obj.target_ecm_qs_ratio * qs_est_time) - total_time;
-			}
+				return state_nfs;
 		}
 		else
 		{
-			if (force_switch)
-			{
-				decision = 2;
-				*time_available = 0;				
-			}
-			else if (nfs_est_time > 1e9)
-			{
-				decision = 0;
-				*time_available = -1;
-			}		
-			else if (total_time > fobj->autofact_obj.target_ecm_gnfs_ratio * nfs_est_time)
-			{
-				// if the total time we've spent so far is greater than a fraction of the time
-				// we estimate it would take gnfs to finish, switch to gnfs.  
-				decision = 2;
-				*time_available = 0;
-			}
+			// just use a hard cutoff (need parameter in .ini for this...)
+			if (numdigits > 95)
+				return state_nfs;
 			else
-			{
-				// otherwise, return the amount of time we have left before the switchover.
-				decision = 0;
-				*time_available = (fobj->autofact_obj.target_ecm_gnfs_ratio * nfs_est_time) - total_time;
-			}
+				return state_qs;
 		}
-
 	}
 
-	return decision;
+	// set the work parameters for the current state
+	set_work_params(fwork, next_state);
+
+	switch (next_state)
+	{
+		case state_ecm_15digit:
+		case state_ecm_20digit:
+		case state_ecm_25digit:
+		case state_ecm_30digit:
+		case state_ecm_35digit:
+		case state_ecm_40digit:
+		case state_ecm_45digit:
+		case state_ecm_50digit:
+		case state_ecm_55digit:
+		case state_ecm_60digit:
+		case state_ecm_65digit:
+			// figure out how many curves at this level need to be done to get to the target level
+			// do a binary search on the target state's amount of work
+			work_low = get_ecm_curves_done(fwork, next_state);
+			work_high = get_max_ecm_curves(fwork, next_state);		
+			work = (work_low + work_high) / 2;
+
+			if (VFLAG >= 1)
+				printf("***** work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
+					fwork->B1, work_low, work_high);
+
+			tmp_curves = work_low;		
+			while ((work_high - work_low) > 1)
+			{
+				set_ecm_curves_done(fwork, next_state, (uint32)work);
+				if (compute_pretesting_level_done(fwork, 0) > target_digits)
+				{
+					work_high = work;
+					work = (work_high + work_low) / 2;							
+				}
+				else					
+				{
+					work_low = work;
+					work = (work_high + work_low) / 2;							
+				}
+			}
+			set_ecm_curves_done(fwork, next_state, tmp_curves);
+			fwork->curves = (uint32)ceil(work);				
+
+			if (VFLAG >= 1)
+				printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
+					fwork->curves, fwork->B1, target_digits);
+
+			break;
+
+		default:
+			// curves are set with set_work_params
+			break;
+	}
+
+	return next_state;
 }
 
-enum factorization_state scale_requested_work(method_timing_t *method_times, 
-	enum factorization_state fact_state, int *next_work, double time_available, mpz_t N)
+void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
-	enum factorization_state new_state = fact_state;
-	double base_time_per_curve, time_per_curve;
-	int default_curves_15digit = 25;
-	int default_curves_20digit = 90;
-	int default_curves_25digit = 200;
-	int default_curves_30digit = 400;
-	int default_curves_35digit = 1000;
-	char state_str[100];
-
-	if (time_available < 0)
-	{
-		// this is a flag from the switch_to_qs function indicating that we
-		// can't make a good estimate about how long qs will take.  thus we also
-		// don't know how much time is left.  we have to make a decision about how
-		// much and what kind of work to do based on the size of the input and our
-		// current factorization state.
-		int sizeN = mpz_sizeinbase(N, 2);
-
-		switch (fact_state)
-		{
-		case state_trialdiv:			
-			strcpy(state_str,"trial division");
-			break;
-
-		case state_fermat:
-			strcpy(state_str,"Fermat");
-			break;
-
-		case state_rho:
-			strcpy(state_str,"Rho");
-			break;
-
-		case state_pp1_lvl1:
-			strcpy(state_str,"P+1");
-			break;
-		
-		case state_pp1_lvl2:
-			// equivalent to ecm @ 30 digits			
-			if (sizeN < 300)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = 3;
-				strcpy(state_str,"P+1");			
-			}
-
-			break;
-
-		case state_pp1_lvl3:
-			// equivalent to ecm @ 35 digits
-			if (sizeN < 330)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = 3;
-				strcpy(state_str,"P+1");		
-			}
-
-			break;
-
-		case state_pm1_lvl1:
-			if (sizeN < 160)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = 1;
-				strcpy(state_str,"P-1");		
-			}
-
-			break;
-
-		case state_pm1_lvl2:
-			// equivalent to ecm @ 30 digits
-			if (sizeN < 300)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = 1;
-				strcpy(state_str,"P-1");		
-			}
-
-			break;
-
-		case state_pm1_lvl3:
-			// equivalent to ecm @ 35 digits
-			if (sizeN < 330)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = 1;
-				strcpy(state_str,"P-1");		
-			}
-
-			break;
-
-		case state_ecm_15digit:
-			if (sizeN < 180)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = default_curves_15digit;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		case state_ecm_20digit:
-			if (sizeN < 220)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = default_curves_20digit;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		case state_ecm_25digit:
-			if (sizeN < 260)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = default_curves_25digit;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		case state_ecm_30digit:
-			if (sizeN < 300)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = default_curves_30digit;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		case state_ecm_35digit:
-			if (sizeN < 330)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = default_curves_35digit;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		case state_ecm_auto_increasing:
-			if (gmp_base10(N) < 120)
-			{
-				new_state = state_qs;
-				strcpy(state_str,"SIQS");
-			}
-			else
-			{
-				*next_work = auto_increasing_curves;
-				strcpy(state_str,"ECM");		
-			}
-
-			break;
-
-		default:
-			printf("unknown factorization state\n");
-			exit(-1);
-
-		}
-
-		if (VFLAG >= 2)
-			printf("***** qs/nfs time estimate too high or not available, proceeding to %s\n",state_str);
-	}
-	else
-	{
-		// use the timing information recorded for previous states to decide how much
-		// work we can do in the requested state		
-
-		switch (fact_state)
-		{
-		case state_trialdiv:			
-		case state_fermat:
-		case state_rho:
-		case state_pp1_lvl1:		
-		case state_pm1_lvl1:
-		default:
-			// any of these states requested: just do it
-			break;
-
-		case state_pp1_lvl2:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->pp1_lvl1_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 10;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > 3)
-				*next_work = 3;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at p+1 level 2\n",*next_work);
-			break;
-
-		case state_pp1_lvl3:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->pp1_lvl2_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 10;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > 3)
-				*next_work = 3;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at p+1 level 3\n",*next_work);
-			break;
-
-		case state_pm1_lvl2:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->pm1_lvl1_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 10;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > 1)
-				*next_work = 1;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curve can "
-					"be run at p-1 level 2\n",*next_work);
-			break;
-
-		case state_pm1_lvl3:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->pm1_lvl2_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 10;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > 1)
-				*next_work = 1;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curve can "
-					"be run at p-1 level 3\n",*next_work);
-			break;
-
-		case state_ecm_15digit:
-			*next_work = default_curves_15digit;
-			break;
-
-		case state_ecm_20digit:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->ecm_15digit_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 11000 / 2000;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > default_curves_20digit)
-				*next_work = default_curves_20digit;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at 20 digit level\n",*next_work);
-
-			break;
-
-		case state_ecm_25digit:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->ecm_20digit_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 50000 / 11000;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > default_curves_25digit)
-				*next_work = default_curves_25digit;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at 25 digit level\n",*next_work);
-
-			break;
-
-		case state_ecm_30digit:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->ecm_25digit_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 250000 / 50000;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > default_curves_30digit)
-				*next_work = default_curves_30digit;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at 30 digit level\n",*next_work);
-
-			break;
-
-		case state_ecm_35digit:
-			//estimate time per curve for this ecm level
-			base_time_per_curve = method_times->ecm_30digit_time_per_curve;
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 1000000 / 250000;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > default_curves_35digit)
-				*next_work = default_curves_35digit;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at 35 digit level\n",*next_work);
-
-			break;
-
-		case state_ecm_auto_increasing:
-			//estimate time per curve for this ecm level
-			if (method_times->ecm_autoinc_time_per_curve == 0)
-			{
-				base_time_per_curve = method_times->ecm_35digit_time_per_curve;
-				auto_increasing_curves = default_curves_35digit * 3;
-				auto_increasing_B1 = 10000000;
-				auto_increasing_B2 = 1000000000;
-			}
-			else
-			{
-				base_time_per_curve = method_times->ecm_autoinc_time_per_curve;
-				auto_increasing_curves *= 3;
-				auto_increasing_B1 *= 10;
-				auto_increasing_B2 *= 10;
-			}
-					
-			//first scale the base time by the next level ECM
-			//curve size
-			time_per_curve = base_time_per_curve * 10;
-
-			// estimate curves we can do
-			*next_work = (int)(time_available / time_per_curve);
-
-			// sanity check
-			if (*next_work <= 0)
-				*next_work = 1;
-			else if (*next_work > auto_increasing_curves)
-				*next_work = auto_increasing_curves;
-
-			if (VFLAG >= 2)
-				printf("***** estimating %d more curves can "
-					"be run at auto increasing level\n",*next_work);
-
-			break;
-
-		}
-
-	}
-
-	return new_state;
+	// initialize max allowed work fields (note: eventually this structure should
+	// be visible to the top level driver so that the user can edit values in it).
+	// default values taken from gmp-ecm README, version 6.3
+	fwork->ecm_max_15digit_curves = 30;		//2k
+	fwork->ecm_max_20digit_curves = 74;		//11k
+	fwork->ecm_max_25digit_curves = 214;	//50k
+	fwork->ecm_max_30digit_curves = 430;	//250k
+	fwork->ecm_max_35digit_curves = 904;	//1M
+	fwork->ecm_max_40digit_curves = 2350;	//3M
+	fwork->ecm_max_45digit_curves = 4480;	//11M
+	fwork->ecm_max_50digit_curves = 7553;	//43M
+	fwork->ecm_max_55digit_curves = 17769;	//110M
+	fwork->ecm_max_60digit_curves = 42017;	//260M
+	fwork->ecm_max_65digit_curves = 69408;	//850M
+	fwork->tdiv_max_limit = fobj->div_obj.limit;
+	fwork->fermat_max_iterations = fobj->div_obj.fmtlimit;
+	fwork->rho_max_bases = 3;
+	fwork->rho_max_iterations = fobj->rho_obj.iterations;
+	fwork->pp1_max_lvl1_curves = 3;
+	fwork->pp1_max_lvl2_curves = 3;
+	fwork->pp1_max_lvl3_curves = 3;
+	fwork->pm1_max_lvl1_curves = 1;
+	fwork->pm1_max_lvl2_curves = 1;
+	fwork->pm1_max_lvl3_curves = 1;	
+	fwork->total_time = 0;	
+	fwork->trialdiv_time = 0;
+	fwork->rho_time = 0;
+	fwork->pp1_time = 0;
+	fwork->pm1_time = 0;
+	fwork->ecm_time = 0;
+	fwork->qs_time = 0;
+	fwork->nfs_time = 0;
+
+	fwork->pp1_lvl1_curves = 0;
+	fwork->pp1_lvl2_curves = 0;
+	fwork->pp1_lvl3_curves = 0;
+	fwork->pm1_lvl1_curves = 0;
+	fwork->pm1_lvl2_curves = 0;
+	fwork->pm1_lvl3_curves = 0;
+	fwork->ecm_15digit_curves = 0;
+	fwork->ecm_20digit_curves = 0;
+	fwork->ecm_25digit_curves = 0;
+	fwork->ecm_30digit_curves = 0;
+	fwork->ecm_35digit_curves = 0;
+	fwork->ecm_40digit_curves = 0;
+	fwork->ecm_45digit_curves = 0;
+	fwork->ecm_50digit_curves = 0;
+	fwork->ecm_55digit_curves = 0;
+	fwork->ecm_60digit_curves = 0;
+	fwork->ecm_65digit_curves = 0;
+
+	return;
 }
 
 void factor(fact_obj_t *fobj)
 {
-	//run a varity of factoring algorithms on b
-	//return any composite number left over
-	//the factoring routines will build up a list of factors
+	//run a varity of factoring algorithms on b.
+	//return any composite number left over.
+	//the factoring routines will build up a list of factors.
 
 	mpz_t b, origN, copyN;
-	enum factorization_state fact_state = state_idle;
-	method_timing_t method_times;
-	int curves = 1;
-	int decision = 0;
-	int min_pretest_done = 0;
-	int done = 0;	
+	enum factorization_state fact_state;
+	factor_work_t fwork;
 	FILE *flog;
 	struct timeval start, stop;
 	double t_time;
@@ -1492,7 +1716,6 @@ void factor(fact_obj_t *fobj)
 	int user_defined_ecm_b2 = fobj->ecm_obj.stg2_is_default;
 	int user_defined_pp1_b2 = fobj->pp1_obj.stg2_is_default;
 	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
-	int force_switch = 0;
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
 
@@ -1534,11 +1757,9 @@ void factor(fact_obj_t *fobj)
 		printf("using pretesting plan: %s\n\n",fobj->autofact_obj.plan_str);
 	}
 
-	// initialize time per curve
-	method_times.ecm_autoinc_time_per_curve = 0;
-	total_time = 0;
+	init_factor_work(&fwork, fobj);
 
-	//default choice
+	//starting point of factorization effort
 	fact_state = state_trialdiv;
 
 	//check to see if a siqs savefile exists for this input	
@@ -1569,215 +1790,16 @@ void factor(fact_obj_t *fobj)
 		mpz_clear(tmpz);
 	}
 
-	while (!done)
-	{
-		switch (fact_state)
-		{
-		case state_trialdiv:
-			curves = 1;
-			t_time = do_work(trialdiv_work, 10000, -1, &curves, b, fobj);
-			method_times.trialdiv_time = t_time;
-			total_time += t_time * curves;
-			fact_state = state_fermat;
-			break;
+	// factor the number using a variety of methods
+	while (fact_state != state_done)
+	{	
+		do_work(fact_state, &fwork, b, fobj);
+		
+		if (check_if_done(fobj, origN))
+			fact_state = state_done;
 
-		case state_fermat:
-			curves = 1;
-			t_time = do_work(fermat_work, fobj->div_obj.fmtlimit, -1, &curves, b, fobj);
-			method_times.fermat_time = t_time;
-			total_time += t_time * curves;
-			fact_state = state_rho;
-			break;
-
-		case state_rho:
-			curves = 1;
-			t_time = do_work(rho_work, -1, -1, &curves, b, fobj);
-			method_times.rho_time = t_time;
-			total_time += t_time * curves;
-			
-			//after trial division, fermat, and rho, we're ready to 
-			//consider qs methods.  all pretest plans do at least this much work.
-			min_pretest_done = 1;
-
-			//where to go from here depends on the pretest plan in place
-			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NONE)
-				force_switch = 1;
-			else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
-				fact_state = state_ecm_25digit;
-			else
-				fact_state = state_pp1_lvl1;			
-
-			break;
-
-		case state_pp1_lvl1:
-			curves = 3;
-			t_time = do_work(pp1_curve, 20000, 2000000, &curves, b, fobj);
-			method_times.pp1_lvl1_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_pm1_lvl1;
-			break;
-
-		case state_pp1_lvl2:
-			t_time = do_work(pp1_curve, 1250000, 125000000, &curves, b, fobj);
-			method_times.pp1_lvl2_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_pm1_lvl2;
-			break;
-
-		case state_pp1_lvl3:
-			t_time = do_work(pp1_curve, 5000000, 500000000, &curves, b, fobj);
-			method_times.pp1_lvl3_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_pm1_lvl3;
-			break;
-
-		case state_pm1_lvl1:
-			curves = 1;
-			t_time = do_work(pm1_curve, 100000, 10000000, &curves, b, fobj);
-			method_times.pm1_lvl1_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_15digit;
-
-			//if we are not doing any ecm, force a switch to a sieve method
-			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_NOECM)
-				force_switch = 1;
-				
-			break;
-
-		case state_pm1_lvl2:
-			t_time = do_work(pm1_curve, 2500000, 250000000, &curves, b, fobj);
-			method_times.pm1_lvl2_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_30digit;
-
-			//if we are doing light pretesting, force a switch to a sieve method
-			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
-				force_switch = 1;
-
-			break;
-
-		case state_pm1_lvl3:
-			t_time = do_work(pm1_curve, 10000000, 1000000000, &curves, b, fobj);
-			method_times.pm1_lvl3_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_35digit;
-			break;
-
-		case state_ecm_15digit:
-			t_time = do_work(ecm_curve, 2000, 200000, &curves, b, fobj);
-			method_times.ecm_15digit_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_20digit;			
-			break;
-
-		case state_ecm_20digit:
-			t_time = do_work(ecm_curve, 11000, 1100000, &curves, b, fobj);
-			method_times.ecm_20digit_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_25digit;
-			break;
-
-		case state_ecm_25digit:
-			t_time = do_work(ecm_curve, 50000, 5000000, &curves, b, fobj);
-			method_times.ecm_25digit_time_per_curve = t_time;
-			total_time += t_time * curves;
-
-			//for deep pretesting, skip the pp1/pm1 and go right to 30 digit
-			//ecm, after doing this curve at 25 digits to get timing info.
-			if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
-				fact_state = state_ecm_30digit;
-			else
-				fact_state = state_pp1_lvl2;
-
-			break;
-
-		case state_ecm_30digit:
-			t_time = do_work(ecm_curve, 250000, 25000000, &curves, b, fobj);
-			method_times.ecm_30digit_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_pp1_lvl3;
-			break;
-
-		case state_ecm_35digit:
-			t_time = do_work(ecm_curve, 1000000, 100000000, &curves, b, fobj);
-			method_times.ecm_35digit_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_auto_increasing;
-			break;
-
-		case state_ecm_auto_increasing:
-			t_time = do_work(ecm_curve, auto_increasing_B1, auto_increasing_B2, &curves, b, fobj);
-			method_times.ecm_autoinc_time_per_curve = t_time;
-			total_time += t_time * curves;
-			fact_state = state_ecm_auto_increasing;
-			break;
-
-		case state_qs:
-			curves = 1;
-			t_time = do_work(qs_work, -1, -1, &curves, b, fobj);
-			if (VFLAG > 0)
-				printf("ECM/SIQS ratio was = %f\n",total_time/t_time);
-			total_time += t_time * curves;
-			break;
-
-		case state_nfs:			
-			curves = 1;
-			t_time = do_work(nfs_work, -1, -1, &curves, b, fobj);
-			if (VFLAG > 0)
-				printf("ECM/NFS ratio was = %f\n",total_time/t_time);
-			total_time += t_time * curves;
-			break;
-
-		default:
-			printf("unknown factorization state\n");
-			exit(-1);
-
-		}		
-
-		// first, check if we're done
-		done = check_if_done(fobj, origN);	
-
-		// paranoia
-		if (mpz_cmp_ui(b, 0) == 0)
-		{
-			printf("b = 0, exiting\n");
-			done = 1;
-		}
-
-		if ((!done && min_pretest_done) || force_switch)
-		{
-			// if we're not done, decide what to do next: either the default next state or
-			// switch to qs.
-			decision = switch_to_qs(fobj, b, &t_time, force_switch);
-			//printf("total time = %f\n",total_time);
-			//printf("time available = %f\n",t_time);
-			if (decision)
-			{
-				// either the number is small enough to finish off, or it would be better, 
-				// timewise, to switch
-				if (fobj->autofact_obj.only_pretest)
-				{
-					// we're ready to go to a sieve method, but we only want to 
-					// pretest.  so we bail.
-					done = 1;
-				}
-				else
-				{
-					if (decision == 2)
-						fact_state = state_nfs;
-					else
-						fact_state = state_qs;
-				}
-			}
-			else
-			{
-				// continue with the next default state.
-				// use the amount of time available to determine how much work to schedule
-				// for the next state
-				fact_state = scale_requested_work(&method_times, fact_state, &curves, t_time, b);
-
-			}
-		}
+		if (fact_state != state_done)
+			fact_state = schedule_work(&fwork, b, fobj);		
 	}
 
 	if (fobj->num_factors >= 1) 
@@ -1891,6 +1913,133 @@ void factor(fact_obj_t *fobj)
 	mpz_clear(origN);
 	mpz_clear(copyN);
 	mpz_clear(b);
+	return;
+}
+
+void spfactorlist(uint64 nstart, uint64 nrange)
+{
+	int i, c, s, e, m;
+	double t;
+	struct timeval tstart, tstop;
+	TIME_DIFF *	difference;
+	mpz_t tmp;
+	fact_obj_t f;
+	uint64 sf;
+	uint64 tflimit = (uint64)sqrt(sqrt(nstart + nrange));
+
+	mpz_init(tmp);
+	init_factobj(&f);
+
+	gettimeofday (&tstart, NULL);
+	c = 0;
+	s = 0;
+	e = 0;
+	m = 0;
+
+	for (i=0; i<nrange; i++)
+	{
+		uint64 n = nstart + i;
+		int j;
+			
+		// factors of 2
+		while (!(n & 0x1))
+			n >>= 1;
+
+		j = 1;
+		while ((n > 1) && (j < NUM_P) && (PRIMES[j] < tflimit))
+		{
+			if (n % PRIMES[j] == 0)
+				n /= PRIMES[j];
+			else
+				j++;
+		}
+
+		if (n == 1)
+		{ 
+			c++;
+			continue;
+		}
+			
+		mpz_set_64(tmp, n);
+		if (mpz_probab_prime_p(tmp, 3))
+		{
+			c++;
+			continue;
+		}
+
+		sf = sp_shanks_loop(tmp, &f);
+			
+		if (sf > 1)
+		{
+			// squfof found a factor, divide it out
+			n /= sf;
+
+			if (n > 1)
+			{
+				// check to see if residue is prime
+				mpz_set_64(tmp, n);
+				if (mpz_probab_prime_p(tmp, 3))
+				{
+					c++;
+					s++;
+					continue;
+				}
+				else
+				{
+					// n is still composite.  try squfof again.
+					mpz_set_64(tmp, n);
+					n /= sp_shanks_loop(tmp, &f);
+					if (n > 1)
+					{
+						mpz_set_64(tmp, n);
+						if (mpz_probab_prime_p(tmp, 3))
+						{
+							c++;
+							s++;
+							continue;
+						}
+					}
+				}
+			}			
+		}
+		// else, try fermat
+		sf = spfermat(n, tflimit);
+
+		if (sf > 1)
+		{ 
+			n /= sf;
+
+			if (n > 1)
+			{
+				// check to see if residue is prime
+				mpz_set_64(tmp, n);
+				if (mpz_probab_prime_p(tmp, 3))
+				{
+					m++;
+					c++;
+					continue;
+				}
+			}			
+		}
+
+		// else, try rho
+		mpz_set_64(f.rho_obj.gmp_n, n);
+		brent_loop(&f);
+		e++;
+		c++;
+		clear_factor_list(&f);
+	}
+
+	free_factobj(&f);
+	mpz_clear(tmp);
+	gettimeofday (&tstop, NULL);
+	difference = my_difftime (&tstart, &tstop);
+	t = ((double)difference->secs + (double)difference->usecs / 1000000);
+	free(difference);
+
+	printf("completed %d factorizations (%d SQUFOF, %d fermat, %d rho) "
+		"in %6.4f seconds\n", c, s, m, e, t);
+
 	return;
 }
 

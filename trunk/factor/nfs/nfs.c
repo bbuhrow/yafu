@@ -362,11 +362,6 @@ void nfs(fact_obj_t *fobj)
 
 			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
 
-			if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
-				statenum = 7;
-			else
-				statenum = 5;
-
 			obj_ptr = NULL;
 			
 			extract_factors(&factor_list,fobj);
