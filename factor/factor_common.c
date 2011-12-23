@@ -870,7 +870,8 @@ void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fac
 		fobj->ecm_obj.B2 = tmp2;
 
 		// record the work done
-		set_ecm_curves_done(fwork, method, curves_done);
+		set_ecm_curves_done(fwork, method, 
+			get_ecm_curves_done(fwork, method) + curves_done);
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
@@ -1627,8 +1628,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 					work = (work_high + work_low) / 2;							
 				}
 			}
-			set_ecm_curves_done(fwork, next_state, tmp_curves);
+			set_ecm_curves_done(fwork, next_state, tmp_curves);			
 			fwork->curves = (uint32)ceil(work);				
+			if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, next_state))
+				fwork->curves = get_max_ecm_curves(fwork, next_state) - tmp_curves;
 
 			if (VFLAG >= 1)
 				printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
@@ -1761,6 +1764,13 @@ void factor(fact_obj_t *fobj)
 
 	//starting point of factorization effort
 	fact_state = state_trialdiv;
+
+	//TEST (success):
+	// seed the work done with some bogus values, to test restarting
+	// with ecm work recorded
+	//fwork.ecm_15digit_curves = 30;
+	//fwork.ecm_20digit_curves = 74;
+	//fwork.ecm_25digit_curves = 20;
 
 	//check to see if a siqs savefile exists for this input	
 	data = fopen(fobj->qs_obj.siqs_savefile,"r");
