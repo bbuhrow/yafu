@@ -81,6 +81,139 @@ typedef struct {
 	uint32 buf_off;
 } savefile_t;
 
+/* produced using ecm -v -v -v for the various B1 bounds (default B2).
+/	Thanks A. Schindel !
+/
+/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
+#define NUM_ECM_LEVELS 11
+static int ecm_levels[NUM_ECM_LEVELS] = {
+	15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
+double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {	
+	/*t15, 2000,	*/	{30,		12,			7,			5,			3,			2,			2,			2,			2,		1,		1},
+	/*t20, 11000,	*/	{844,		74,			21,			8,			5,			3,			2,			2,			2,		2,		1},
+	/*t25, 50000,	*/	{58129,		1539,		214,		50,			20,			11,			7,			5,			4,		3,		3},
+	/*t30, 250000,	*/	{6711967,	49962,		3288,		430,		118,		54,			26,			14,			10,		8,		6},
+	/*t35, 1E+06,	*/	{1.20E+09,	2292278,	68422,		4914,		904,		322,		122,		54,			34,		23,		15},
+	/*t40, 3E+06,	*/	{2.90E+12,	1.40E+08,	1849287,	70293,		8613,		2350,		681,		242,		135,	82,		47},
+	/*t45, 11E+06,	*/	{9.00E+99,	1.10E+10,	6.10E+07,	1214949,	97057,		20265,		4480,		1263,		613,	333,	168},
+	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	2.50E+09,	2.50E+07,	1270662,	199745,		33652,		7404,		3133,	1512,	661},
+	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	1.30E+11,	5.90E+08,	1.90E+07,	2246256,	283939,		48714,		17769,	7643,	2865},
+	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	5.80E+16,	1.60E+10,	3.20E+08,	2.80E+07,	2655154,	350439,		111196,	42017,	13611},
+	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	8.20E+21,	2.70E+13,	6.10E+09,	4.00E+08,	2.70E+07,	2768535,	751771,	250214,	69408}};
+
+
+
+typedef struct
+{	
+	// total effort so far
+	double total_time;
+	double qs_time;
+	double nfs_time;
+	double trialdiv_time;
+	double fermat_time;
+	double rho_time;
+	double pp1_time;
+	double pm1_time;
+	double ecm_time;
+	double pp1_lvl1_time_per_curve;
+	double pp1_lvl2_time_per_curve;
+	double pp1_lvl3_time_per_curve;
+	double pm1_lvl1_time_per_curve;
+	double pm1_lvl2_time_per_curve;
+	double pm1_lvl3_time_per_curve;
+	double ecm_15digit_time_per_curve;
+	double ecm_20digit_time_per_curve;
+	double ecm_25digit_time_per_curve;
+	double ecm_30digit_time_per_curve;
+	double ecm_35digit_time_per_curve;
+	double ecm_40digit_time_per_curve;
+	double ecm_45digit_time_per_curve;
+	double ecm_50digit_time_per_curve;
+	double ecm_55digit_time_per_curve;
+	double ecm_60digit_time_per_curve;
+	double ecm_65digit_time_per_curve;
+
+	// amount of work we've done in various areas
+	uint32 tdiv_limit;
+	uint32 fermat_iterations;
+	uint32 rho_iterations;
+	uint32 rho_bases;
+	uint32 pp1_lvl1_curves;
+	uint32 pm1_lvl1_curves;
+	uint32 pp1_lvl2_curves;
+	uint32 pm1_lvl2_curves;
+	uint32 pp1_lvl3_curves;
+	uint32 pm1_lvl3_curves;
+	uint32 ecm_15digit_curves;
+	uint32 ecm_20digit_curves;
+	uint32 ecm_25digit_curves;
+	uint32 ecm_30digit_curves;
+	uint32 ecm_35digit_curves;
+	uint32 ecm_40digit_curves;
+	uint32 ecm_45digit_curves;
+	uint32 ecm_50digit_curves;
+	uint32 ecm_55digit_curves;
+	uint32 ecm_60digit_curves;
+	uint32 ecm_65digit_curves;
+	int min_pretest_done;
+
+	// max amount of work we'll allow in various areas.
+	// to be filled in during init, or overriden by user
+	uint32 tdiv_max_limit;
+	uint32 fermat_max_iterations;
+	uint32 rho_max_iterations;
+	uint32 rho_max_bases;
+	uint32 pp1_max_lvl1_curves;
+	uint32 pm1_max_lvl1_curves;
+	uint32 pp1_max_lvl2_curves;
+	uint32 pm1_max_lvl2_curves;
+	uint32 pp1_max_lvl3_curves;
+	uint32 pm1_max_lvl3_curves;
+	uint32 ecm_max_15digit_curves;
+	uint32 ecm_max_20digit_curves;
+	uint32 ecm_max_25digit_curves;
+	uint32 ecm_max_30digit_curves;
+	uint32 ecm_max_35digit_curves;
+	uint32 ecm_max_40digit_curves;
+	uint32 ecm_max_45digit_curves;
+	uint32 ecm_max_50digit_curves;	
+	uint32 ecm_max_55digit_curves;	
+	uint32 ecm_max_60digit_curves;	
+	uint32 ecm_max_65digit_curves;	
+
+	// current parameters
+	uint32 B1;
+	uint64 B2;
+	uint32 curves;
+
+} factor_work_t;
+
+enum factorization_state {
+	state_idle,
+	state_trialdiv,
+	state_fermat,
+	state_rho,
+	state_pp1_lvl1,
+	state_pm1_lvl1,
+	state_pp1_lvl2,
+	state_pm1_lvl2,
+	state_pp1_lvl3,
+	state_pm1_lvl3,
+	state_ecm_15digit,
+	state_ecm_20digit,
+	state_ecm_25digit,
+	state_ecm_30digit,
+	state_ecm_35digit,
+	state_ecm_40digit,
+	state_ecm_45digit,
+	state_ecm_50digit,
+	state_ecm_55digit,
+	state_ecm_60digit,
+	state_ecm_65digit,
+	state_qs,
+	state_nfs,
+	state_done
+};
 
 enum msieve_flags {
 	MSIEVE_DEFAULT_FLAGS = 0,		/* just a placeholder */
@@ -417,18 +550,18 @@ enum pretest_plan {
 	PRETEST_NORMAL = 3,
 	PRETEST_DEEP = 4,
 	PRETEST_CUSTOM = 5,
-	PRETEST_ONLY = 6
 };
 
 typedef struct
 {
 	//crossover between qs and gnfs
 	double qs_gnfs_xover;
+	int prefer_xover;
 
 	//balance of ecm and various sieve methods
-	double target_ecm_qs_ratio;
-	double target_ecm_gnfs_ratio;
-	double target_ecm_snfs_ratio;
+	double target_pretest_ratio;
+	//double target_ecm_gnfs_ratio;
+	//double target_ecm_snfs_ratio;
 
 	int no_ecm;
 

@@ -45,7 +45,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"batchfile", "seed", "sigma", "session", "threads",
 	"v", "silent", "pfile", "pscreen", "forceDLP",
 	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
-	"tune_info", "ecm_qs_ratio", "ecm_gnfs_ratio", "one", "op",
+	"tune_info", "pretest_ratio", "xover", "one", "op",
 	"of", "ou", "plan", "pretest", "no_expr",
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
@@ -1512,19 +1512,23 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[31]) == 0)
 	{
-		sscanf(arg, "%lf", &fobj->autofact_obj.target_ecm_qs_ratio);
+		//argument "pretest_ratio"
+		sscanf(arg, "%lf", &fobj->autofact_obj.target_pretest_ratio);
 	}
 	else if (strcmp(opt,OptionArray[32]) == 0)
 	{
-		sscanf(arg, "%lf", &fobj->autofact_obj.target_ecm_gnfs_ratio);
+		//argument "xover"
+		sscanf(arg, "%lf", &fobj->autofact_obj.qs_gnfs_xover);
+		fobj->autofact_obj.prefer_xover = 1;
 	}
 	else if (strcmp(opt,OptionArray[33]) == 0)
 	{
+		//argument "one"
 		fobj->autofact_obj.want_only_1_factor = 1;
 	}
 	else if (strcmp(opt,OptionArray[34]) == 0)
 	{
-		//argument is a string
+		//argument "op".  argument is a string
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->autofact_obj.op_str,arg);
@@ -1535,7 +1539,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[35]) == 0)
 	{
-		//argument is a string
+		//argument "of".  argument is a string
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->autofact_obj.of_str,arg);
@@ -1546,7 +1550,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[36]) == 0)
 	{
-		//argument is a string
+		//argument "out".  argument is a string
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->autofact_obj.ou_str,arg);
@@ -1557,7 +1561,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[37]) == 0)
 	{
-		//argument is a string
+		//argument "plan".  argument is a string
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->autofact_obj.plan_str,arg);
@@ -1575,6 +1579,8 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 				fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
 			else if (strcmp(fobj->autofact_obj.plan_str, "normal") == 0)
 				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+			else if (strcmp(fobj->autofact_obj.plan_str, "custom") == 0)
+				fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
 			else			
 			{
 				printf("*** unknown plan option, ignoring ***\n");
@@ -1586,11 +1592,12 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[38]) == 0)
 	{
+		//argument "pretest"
 		fobj->autofact_obj.only_pretest = 1;
-		fobj->autofact_obj.yafu_pretest_plan = PRETEST_ONLY;
 	}
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{
+		//argument "no_expr"
 		fobj->autofact_obj.want_output_expressions = 0;
 	}	
 	else if (strcmp(opt,OptionArray[40]) == 0)
