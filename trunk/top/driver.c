@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 58
+#define NUMOPTIONS 59
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
-	"nc2", "nc3", "p"};
+	"nc2", "nc3", "p", "work"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -69,7 +69,7 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	2,2,0,1,0,
 	1,1,1,0,1,
-	0,0,0};
+	0,0,0,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1816,6 +1816,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//TODO: check to see if ggnfs and ecm binaries called through system
 		//retain idle priority
 		yafu_set_idle_priority();
+	}
+	else if (strcmp(opt,OptionArray[58]) == 0)
+	{
+		//argument "work"
+		sscanf(arg, "%lf", &fobj->autofact_obj.initial_work);
 	}
 	else
 	{
