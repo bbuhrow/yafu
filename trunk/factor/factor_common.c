@@ -177,6 +177,9 @@ int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
 double compute_ecm_work_done(factor_work_t *fwork, int disp);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
+void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
+	enum factorization_state state, double work_done,
+	double target_digits, int log_results);
 
 
 void init_factobj(fact_obj_t *fobj)
@@ -306,6 +309,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.target_pretest_ratio = 4.0 / 13.0;
 	//fobj->autofact_obj.target_ecm_gnfs_ratio = 0.25;
 	//fobj->autofact_obj.target_ecm_snfs_ratio = 0.20;
+	fobj->autofact_obj.initial_work = 0.0;
 
 	//pretesting plan used by factor()
 	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
@@ -1478,8 +1482,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	enum factorization_state next_state;
 	int numdigits = gmp_base10(b);
 	double target_digits;
-	double work, work_done, work_low, work_high;
-	uint32 tmp_curves;
+	double work_done;
 	FILE *flog;
 
 	// get the next factorization state that hasn't been completed
@@ -1591,47 +1594,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_55digit:
 		case state_ecm_60digit:
 		case state_ecm_65digit:
-			// figure out how many curves at this level need to be done to get to the target level
-			// do a binary search on the target state's amount of work.
-			// probably there is a more elegant way to compute this, but this seems
-			// to work.
-			work_low = get_ecm_curves_done(fwork, next_state);
-			work_high = get_max_ecm_curves(fwork, next_state);		
-			work = (work_low + work_high) / 2;
-
-			if (VFLAG >= 1)
-				printf("***** work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
-					fwork->B1, work_low, work_high);
-
-			tmp_curves = work_low;		
-			while ((work_high - work_low) > 1)
-			{
-				set_ecm_curves_done(fwork, next_state, (uint32)work);
-				if (compute_ecm_work_done(fwork, 0) > target_digits)
-				{
-					work_high = work;
-					work = (work_high + work_low) / 2;							
-				}
-				else					
-				{
-					work_low = work;
-					work = (work_high + work_low) / 2;							
-				}
-			}
-			set_ecm_curves_done(fwork, next_state, tmp_curves);			
-			fwork->curves = (uint32)ceil(work);				
-			if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, next_state))
-				fwork->curves = get_max_ecm_curves(fwork, next_state) - tmp_curves;
-
-			if (VFLAG >= 1)
-				printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
-					fwork->curves, fwork->B1, target_digits);
-
-			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"current ECM pretesting depth: %1.2f\n", work_done);
-			logprint(flog,"scheduled %u curves at B1=%u toward target "
-				"pretesting depth of %1.2f\n", fwork->curves, fwork->B1, target_digits);
-			fclose(flog);
+			// figure out how many curves at this level need to be done 
+			// to get to the target level
+			interp_and_set_curves(fwork, fobj, next_state, work_done,
+				target_digits, 1);
 
 			break;
 
@@ -1643,9 +1609,65 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	return next_state;
 }
 
+void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
+	enum factorization_state state, double work_done,
+	double target_digits, int log_results)
+{
+	// do a binary search on the target state's amount of work.
+	// probably there is a more elegant way to compute this, but this seems
+	// to work.
+	double work_low, work_high, work;
+	uint32 tmp_curves;
+
+	work_low = get_ecm_curves_done(fwork, state);
+	work_high = get_max_ecm_curves(fwork, state);		
+	work = (work_low + work_high) / 2;
+
+	if ((VFLAG >= 1) && log_results)
+		printf("***** work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
+			fwork->B1, work_low, work_high);
+
+	tmp_curves = work_low;		
+	while ((work_high - work_low) > 1)
+	{
+		set_ecm_curves_done(fwork, state, (uint32)work);
+		if (compute_ecm_work_done(fwork, 0) > target_digits)
+		{
+			work_high = work;
+			work = (work_high + work_low) / 2;							
+		}
+		else					
+		{
+			work_low = work;
+			work = (work_high + work_low) / 2;							
+		}
+	}
+	set_ecm_curves_done(fwork, state, tmp_curves);			
+	fwork->curves = (uint32)ceil(work);				
+	if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, state))
+		fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
+
+	if ((VFLAG >= 1) && log_results)
+		printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
+			fwork->curves, fwork->B1, target_digits);
+
+	if (log_results)
+	{
+		FILE *flog;
+		flog = fopen(fobj->flogname,"a");
+		logprint(flog,"current ECM pretesting depth: %1.2f\n", work_done);
+		logprint(flog,"scheduled %u curves at B1=%u toward target "
+			"pretesting depth of %1.2f\n", fwork->curves, fwork->B1, target_digits);
+		fclose(flog);
+	}
+
+	return;
+}
+
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 {
-	// initialize max allowed work fields (note: eventually this structure should
+	enum factorization_state interp_state = state_idle;
+	// initialize max allowed work fields (note: maybe this structure should
 	// be visible to the top level driver so that the user can edit values in it).
 	// default values taken from gmp-ecm README, version 6.3
 	fwork->ecm_max_15digit_curves = 30;		//2k
@@ -1678,110 +1700,169 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->qs_time = 0;
 	fwork->nfs_time = 0;
 
-	if (fobj->autofact_obj.initial_work >= 15.0)
-	{
-		fwork->pp1_lvl1_curves = 3;
-		fwork->pm1_lvl1_curves = 1;
-		fwork->ecm_15digit_curves = get_max_ecm_curves(fwork, state_ecm_15digit);
-	}
-	else
-	{
-		fwork->pp1_lvl1_curves = 0;
-		fwork->pm1_lvl1_curves = 0;
-		fwork->ecm_15digit_curves = 0;
-	}
+	fwork->pp1_lvl1_curves = 0;
+	fwork->pp1_lvl2_curves = 0;
+	fwork->pp1_lvl3_curves = 0;
 
-	if (fobj->autofact_obj.initial_work >= 20.0)
-	{
-		fwork->ecm_20digit_curves = get_max_ecm_curves(fwork, state_ecm_20digit);
-	}
-	else
-	{
-		fwork->ecm_20digit_curves = 0;
-	}
+	fwork->pm1_lvl1_curves = 0;
+	fwork->pm1_lvl2_curves = 0;
+	fwork->pm1_lvl3_curves = 0;
 
-	if (fobj->autofact_obj.initial_work >= 25.0)
-	{
-		fwork->ecm_25digit_curves = get_max_ecm_curves(fwork, state_ecm_25digit);
-	}
-	else
-	{
-		fwork->ecm_25digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 30.0)
-	{
-		fwork->pp1_lvl2_curves = 3;
-		fwork->pm1_lvl2_curves = 1;
-		fwork->ecm_30digit_curves = get_max_ecm_curves(fwork, state_ecm_30digit);
-	}
-	else
-	{
-		fwork->pp1_lvl2_curves = 0;
-		fwork->pm1_lvl2_curves = 0;
-		fwork->ecm_30digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 35.0)
-	{
-		fwork->pp1_lvl3_curves = 3;
-		fwork->pm1_lvl3_curves = 1;
-		fwork->ecm_35digit_curves = get_max_ecm_curves(fwork, state_ecm_35digit);
-	}
-	else
-	{
-		fwork->pp1_lvl3_curves = 0;
-		fwork->pm1_lvl3_curves = 0;
-		fwork->ecm_35digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 40.0)
-	{
-		fwork->ecm_40digit_curves = get_max_ecm_curves(fwork, state_ecm_40digit);
-	}
-	else
-	{
-		fwork->ecm_40digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 45.0)
-	{
-		fwork->ecm_45digit_curves = get_max_ecm_curves(fwork, state_ecm_45digit);
-	}
-	else
-	{
-		fwork->ecm_45digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 50.0)
-	{
-		fwork->ecm_50digit_curves = get_max_ecm_curves(fwork, state_ecm_50digit);
-	}
-	else
-	{
-		fwork->ecm_50digit_curves = 0;
-	}
-
-	if (fobj->autofact_obj.initial_work >= 55.0)
-	{
-		fwork->ecm_55digit_curves = get_max_ecm_curves(fwork, state_ecm_55digit);
-	}
-	else
-	{
-		fwork->ecm_55digit_curves = 0;
-	}
-
+	fwork->ecm_15digit_curves = 0;
+	fwork->ecm_20digit_curves = 0;
+	fwork->ecm_25digit_curves = 0;
+	fwork->ecm_30digit_curves = 0;
+	fwork->ecm_35digit_curves = 0;
+	fwork->ecm_40digit_curves = 0;
+	fwork->ecm_45digit_curves = 0;
+	fwork->ecm_50digit_curves = 0;
+	fwork->ecm_55digit_curves = 0;
+	fwork->ecm_60digit_curves = 0;
+	fwork->ecm_65digit_curves = 0;
+	
+	// preload work structure with curves appropriate to the amount
+	// of specified initial work
 	if (fobj->autofact_obj.initial_work >= 60.0)
 	{
-		fwork->ecm_60digit_curves = get_max_ecm_curves(fwork, state_ecm_60digit);
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_max_35digit_curves = 0;
+		fwork->ecm_max_40digit_curves = 0;
+		fwork->ecm_max_45digit_curves = 0;
+		fwork->ecm_max_50digit_curves = 0;
+		fwork->ecm_max_55digit_curves = 0;
+		fwork->ecm_60digit_curves = get_max_ecm_curves(fwork, state_ecm_60digit);				
+		interp_state = state_ecm_65digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 55.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_max_35digit_curves = 0;
+		fwork->ecm_max_40digit_curves = 0;
+		fwork->ecm_max_45digit_curves = 0;
+		fwork->ecm_max_50digit_curves = 0;
+		fwork->ecm_55digit_curves = get_max_ecm_curves(fwork, state_ecm_55digit);				
+		interp_state = state_ecm_60digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 50.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_max_35digit_curves = 0;
+		fwork->ecm_max_40digit_curves = 0;
+		fwork->ecm_max_45digit_curves = 0;
+		fwork->ecm_50digit_curves = get_max_ecm_curves(fwork, state_ecm_50digit);			
+		interp_state = state_ecm_55digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 45.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_max_35digit_curves = 0;
+		fwork->ecm_max_40digit_curves = 0;
+		fwork->ecm_45digit_curves = get_max_ecm_curves(fwork, state_ecm_45digit);				
+		interp_state = state_ecm_50digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 40.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_max_35digit_curves = 0;
+		fwork->ecm_40digit_curves = get_max_ecm_curves(fwork, state_ecm_40digit);		
+		interp_state = state_ecm_45digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 35.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pp1_max_lvl3_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl3_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;		
+		fwork->ecm_max_30digit_curves = 0;
+		fwork->ecm_35digit_curves = get_max_ecm_curves(fwork, state_ecm_35digit);
+		interp_state = state_ecm_40digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 30.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pp1_max_lvl2_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl2_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_max_25digit_curves = 0;
+		fwork->ecm_30digit_curves = get_max_ecm_curves(fwork, state_ecm_30digit);
+		interp_state = state_ecm_35digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 25.0)
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_max_20digit_curves = 0;
+		fwork->ecm_25digit_curves = get_max_ecm_curves(fwork, state_ecm_25digit);
+		interp_state = state_ecm_30digit;
+	}
+	else if (fobj->autofact_obj.initial_work >= 20.0) 
+	{
+		fwork->pp1_max_lvl1_curves = 0;
+		fwork->pm1_max_lvl1_curves = 0;
+		fwork->ecm_max_15digit_curves = 0;
+		fwork->ecm_20digit_curves = get_max_ecm_curves(fwork, state_ecm_20digit);
+		interp_state = state_ecm_25digit;
 	}
 	else
-	{
-		fwork->ecm_60digit_curves = 0;
-	}
-	
-	fwork->ecm_65digit_curves = 0;
+		interp_state = state_idle;
 
+	if (interp_state != state_idle)
+		interp_and_set_curves(fwork, fobj, interp_state, 0, 
+			fobj->autofact_obj.initial_work, 0);
+	
 	return;
 }
 
@@ -1884,13 +1965,6 @@ void factor(fact_obj_t *fobj)
 
 	//starting point of factorization effort
 	fact_state = state_trialdiv;
-
-	//TEST (success):
-	// seed the work done with some bogus values, to test restarting
-	// with ecm work recorded
-	//fwork.ecm_15digit_curves = 50000;
-	//fwork.ecm_20digit_curves = 74;
-	//fwork.ecm_25digit_curves = 20;
 
 	//check to see if a siqs savefile exists for this input	
 	data = fopen(fobj->qs_obj.siqs_savefile,"r");
