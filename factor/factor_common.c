@@ -36,118 +36,6 @@ code to the public domain.
 // factorization step.  a centralized repository (factordb) could then merge
 // work files to facilitate large scale contributions for difficult numbers.
 
-typedef struct
-{	
-	// total effort so far
-	double total_time;
-	double qs_time;
-	double nfs_time;
-	double trialdiv_time;
-	double fermat_time;
-	double rho_time;
-	double pp1_time;
-	double pm1_time;
-	double ecm_time;
-	double pp1_lvl1_time_per_curve;
-	double pp1_lvl2_time_per_curve;
-	double pp1_lvl3_time_per_curve;
-	double pm1_lvl1_time_per_curve;
-	double pm1_lvl2_time_per_curve;
-	double pm1_lvl3_time_per_curve;
-	double ecm_15digit_time_per_curve;
-	double ecm_20digit_time_per_curve;
-	double ecm_25digit_time_per_curve;
-	double ecm_30digit_time_per_curve;
-	double ecm_35digit_time_per_curve;
-	double ecm_40digit_time_per_curve;
-	double ecm_45digit_time_per_curve;
-	double ecm_50digit_time_per_curve;
-	double ecm_55digit_time_per_curve;
-	double ecm_60digit_time_per_curve;
-	double ecm_65digit_time_per_curve;
-
-	// amount of work we've done in various areas
-	uint32 tdiv_limit;
-	uint32 fermat_iterations;
-	uint32 rho_iterations;
-	uint32 rho_bases;
-	uint32 pp1_lvl1_curves;
-	uint32 pm1_lvl1_curves;
-	uint32 pp1_lvl2_curves;
-	uint32 pm1_lvl2_curves;
-	uint32 pp1_lvl3_curves;
-	uint32 pm1_lvl3_curves;
-	uint32 ecm_15digit_curves;
-	uint32 ecm_20digit_curves;
-	uint32 ecm_25digit_curves;
-	uint32 ecm_30digit_curves;
-	uint32 ecm_35digit_curves;
-	uint32 ecm_40digit_curves;
-	uint32 ecm_45digit_curves;
-	uint32 ecm_50digit_curves;
-	uint32 ecm_55digit_curves;
-	uint32 ecm_60digit_curves;
-	uint32 ecm_65digit_curves;
-	int min_pretest_done;
-
-	// max amount of work we'll allow in various areas.
-	// to be filled in during init, or overriden by user
-	uint32 tdiv_max_limit;
-	uint32 fermat_max_iterations;
-	uint32 rho_max_iterations;
-	uint32 rho_max_bases;
-	uint32 pp1_max_lvl1_curves;
-	uint32 pm1_max_lvl1_curves;
-	uint32 pp1_max_lvl2_curves;
-	uint32 pm1_max_lvl2_curves;
-	uint32 pp1_max_lvl3_curves;
-	uint32 pm1_max_lvl3_curves;
-	uint32 ecm_max_15digit_curves;
-	uint32 ecm_max_20digit_curves;
-	uint32 ecm_max_25digit_curves;
-	uint32 ecm_max_30digit_curves;
-	uint32 ecm_max_35digit_curves;
-	uint32 ecm_max_40digit_curves;
-	uint32 ecm_max_45digit_curves;
-	uint32 ecm_max_50digit_curves;	
-	uint32 ecm_max_55digit_curves;	
-	uint32 ecm_max_60digit_curves;	
-	uint32 ecm_max_65digit_curves;	
-
-	// current parameters
-	uint32 B1;
-	uint64 B2;
-	uint32 curves;
-
-} factor_work_t;
-
-enum factorization_state {
-	state_idle,
-	state_trialdiv,
-	state_fermat,
-	state_rho,
-	state_pp1_lvl1,
-	state_pm1_lvl1,
-	state_pp1_lvl2,
-	state_pm1_lvl2,
-	state_pp1_lvl3,
-	state_pm1_lvl3,
-	state_ecm_15digit,
-	state_ecm_20digit,
-	state_ecm_25digit,
-	state_ecm_30digit,
-	state_ecm_35digit,
-	state_ecm_40digit,
-	state_ecm_45digit,
-	state_ecm_50digit,
-	state_ecm_55digit,
-	state_ecm_60digit,
-	state_ecm_65digit,
-	state_qs,
-	state_nfs,
-	state_done
-};
-
 static int refactor_depth = 0;
 
 // local function to do requested curve based factorization
@@ -163,7 +51,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
 void set_work_params(factor_work_t *fwork, enum factorization_state state);
 int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
-double compute_pretesting_level_done(factor_work_t *fwork, int disp);
+double compute_ecm_work_done(factor_work_t *fwork, int disp);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 
 
@@ -286,12 +174,14 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.want_output_factors = 0;
 	fobj->autofact_obj.want_output_unfactored = 0;
 	fobj->autofact_obj.want_output_expressions = 1;
-	fobj->autofact_obj.qs_gnfs_xover = 0;
+	fobj->autofact_obj.qs_gnfs_xover = 95;
+	// use xover even when timing info is available
+	fobj->autofact_obj.prefer_xover = 0;			
 	fobj->autofact_obj.want_only_1_factor = 0;
 	fobj->autofact_obj.no_ecm = 0;
-	fobj->autofact_obj.target_ecm_qs_ratio = 0.25;
-	fobj->autofact_obj.target_ecm_gnfs_ratio = 0.25;
-	fobj->autofact_obj.target_ecm_snfs_ratio = 0.20;
+	fobj->autofact_obj.target_pretest_ratio = 4.0 / 13.0;
+	//fobj->autofact_obj.target_ecm_gnfs_ratio = 0.25;
+	//fobj->autofact_obj.target_ecm_snfs_ratio = 0.20;
 
 	//pretesting plan used by factor()
 	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
@@ -1080,12 +970,14 @@ enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 {
 	enum factorization_state next_state;
 
+	// check each state's completed work against the maximum.
+	// return the first one not complete.
 	if (fwork->tdiv_limit < fwork->tdiv_max_limit)
-		next_state = state_trialdiv;
+		return state_trialdiv;	// always do this state if not done
 	else if (fwork->fermat_iterations < fwork->fermat_max_iterations)
-		next_state = state_fermat;
+		return state_fermat;	// always do this state if not done
 	else if (fwork->rho_bases < fwork->rho_max_bases)
-		next_state = state_rho;
+		return state_rho;		// always do this state if not done
 	else if (fwork->pp1_lvl1_curves < fwork->pp1_max_lvl1_curves)
 		next_state = state_pp1_lvl1;
 	else if (fwork->pm1_lvl1_curves < fwork->pm1_max_lvl1_curves)
@@ -1117,6 +1009,7 @@ enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 	else
 		next_state = state_nfs;
 
+	// modify according to user preferences if necessary
 	switch (next_state)
 	{
 		case state_ecm_15digit:
@@ -1152,16 +1045,7 @@ int check_tune_params(fact_obj_t *fobj)
 		fobj->qs_obj.qs_tune_freq == 0 ||
 		fobj->nfs_obj.gnfs_multiplier == 0 || 
 		fobj->nfs_obj.gnfs_exponent == 0 || 
-		fobj->nfs_obj.gnfs_tune_freq == 0 ||
-		fobj->ecm_obj.ecm_multiplier == 0 ||
-		fobj->ecm_obj.ecm_exponent == 0 ||
-		fobj->ecm_obj.ecm_tune_freq == 0 ||
-		fobj->pp1_obj.pp1_multiplier == 0 ||
-		fobj->pp1_obj.pp1_exponent == 0 ||
-		fobj->pp1_obj.pp1_tune_freq == 0 ||
-		fobj->pm1_obj.pm1_multiplier == 0 ||
-		fobj->pm1_obj.pm1_exponent == 0 ||
-		fobj->pm1_obj.pm1_tune_freq == 0)
+		fobj->nfs_obj.gnfs_tune_freq == 0)
 	{
 		return 0;
 	}
@@ -1426,31 +1310,11 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
 	return max_curves;
 }
 
-/* produced using ecm -v -v -v for the various B1 bounds (default B2).
-/	Thanks A. Schindel !
-/
-/					2k			11k			50k			250k		1M			3M			11M			43M			110M	260M	850M */
-#define NUM_ECM_LEVELS 11
-int ecm_levels[NUM_ECM_LEVELS] = {
-	15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65};
-double ecm_data[NUM_ECM_LEVELS][NUM_ECM_LEVELS] = {	
-	/*t15, 2000,	*/	{30,		12,			7,			5,			3,			2,			2,			2,			2,		1,		1},
-	/*t20, 11000,	*/	{844,		74,			21,			8,			5,			3,			2,			2,			2,		2,		1},
-	/*t25, 50000,	*/	{58129,		1539,		214,		50,			20,			11,			7,			5,			4,		3,		3},
-	/*t30, 250000,	*/	{6711967,	49962,		3288,		430,		118,		54,			26,			14,			10,		8,		6},
-	/*t35, 1E+06,	*/	{1.20E+09,	2292278,	68422,		4914,		904,		322,		122,		54,			34,		23,		15},
-	/*t40, 3E+06,	*/	{2.90E+12,	1.40E+08,	1849287,	70293,		8613,		2350,		681,		242,		135,	82,		47},
-	/*t45, 11E+06,	*/	{9.00E+99,	1.10E+10,	6.10E+07,	1214949,	97057,		20265,		4480,		1263,		613,	333,	168},
-	/*t50, 44E+06,	*/	{9.00E+99,	9.00E+99,	2.50E+09,	2.50E+07,	1270662,	199745,		33652,		7404,		3133,	1512,	661},
-	/*t55, 110E+06,	*/	{9.00E+99,	9.00E+99,	1.30E+11,	5.90E+08,	1.90E+07,	2246256,	283939,		48714,		17769,	7643,	2865},
-	/*t60, 260E+06,	*/	{9.00E+99,	9.00E+99,	5.80E+16,	1.60E+10,	3.20E+08,	2.80E+07,	2655154,	350439,		111196,	42017,	13611},
-	/*t65, 850E+06,	*/	{9.00E+99,	9.00E+99,	8.20E+21,	2.70E+13,	6.10E+09,	4.00E+08,	2.70E+07,	2768535,	751771,	250214,	69408}};
-
-
-double compute_pretesting_level_done(factor_work_t *fwork, int disp_levels)
+double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 {
 	// there is probably a more elegant way to do this involving dickman's function
-	// or something, but we can get a reasonable estimate using empirical data.
+	// or something, but we can get a reasonable estimate using empirical data
+	// for our fixed set of B1/B2 values.
 	double tlevels[NUM_ECM_LEVELS];
 	uint32 curves_done;
 	int i, j;
@@ -1459,26 +1323,13 @@ double compute_pretesting_level_done(factor_work_t *fwork, int disp_levels)
 	for (i=0; i < NUM_ECM_LEVELS; i++)
 	{
 		tlevels[i] = 0;
-		for (j=0; j < NUM_ECM_LEVELS; j++)
+		enum factorization_state k;
+		for (k=state_ecm_15digit, j=0; k <= state_ecm_65digit; k++, j++)
 		{
-			switch (j)
-			{
-			case 0: curves_done = get_ecm_curves_done(fwork, state_ecm_15digit); break;
-			case 1: curves_done = get_ecm_curves_done(fwork, state_ecm_20digit); break;
-			case 2: curves_done = get_ecm_curves_done(fwork, state_ecm_25digit); break;
-			case 3: curves_done = get_ecm_curves_done(fwork, state_ecm_30digit); break;
-			case 4: curves_done = get_ecm_curves_done(fwork, state_ecm_35digit); break;
-			case 5: curves_done = get_ecm_curves_done(fwork, state_ecm_40digit); break;
-			case 6: curves_done = get_ecm_curves_done(fwork, state_ecm_45digit); break;
-			case 7: curves_done = get_ecm_curves_done(fwork, state_ecm_50digit); break;
-			case 8: curves_done = get_ecm_curves_done(fwork, state_ecm_55digit); break;
-			case 9: curves_done = get_ecm_curves_done(fwork, state_ecm_60digit); break;
-			case 10: curves_done = get_ecm_curves_done(fwork, state_ecm_65digit); break;
-			default: curves_done = 0; break;
-			}
-			
+			curves_done = get_ecm_curves_done(fwork, k);			
 			tlevels[i] += (double)curves_done / ecm_data[i][j];			
 		}
+
 		if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
 			printf("***** t%d: %1.2f\n", ecm_levels[i], tlevels[i]);		
 	}
@@ -1503,8 +1354,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	enum factorization_state next_state;
 	int numdigits = gmp_base10(b);
 	double target_digits;
-	double work, work_low, work_high;
+	double work, work_done, work_low, work_high;
 	uint32 tmp_curves;
+	FILE *flog;
 
 	// get the next factorization state that hasn't been completed
 	next_state = get_next_state(fwork, fobj);
@@ -1517,20 +1369,21 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		return next_state;
 	}
 
-	// after that, what we do next depends on whether 'tune' has been run or not
+	// check to see if 'tune' has been run or not
 	have_tune = check_tune_params(fobj);		
 
+	// set target pretesting depth
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
 		target_digits = 1. * (double)numdigits / 3.;
 	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
 		target_digits = 2. * (double)numdigits / 9.;
 	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		target_digits = (double)numdigits * fobj->autofact_obj.target_ecm_qs_ratio;
+		target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
 	else
 		target_digits = 4. * (double)numdigits / 13.;	
 
-	// get the current amount of work done.
-	// try to control when this info is printed
+	// get the current amount of work done - only print status prior to 
+	// ecm steps
 	switch (next_state)
 	{
 		case state_ecm_15digit:
@@ -1547,24 +1400,43 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			if (VFLAG >= 1)
 				printf("***** setting target pretesting digits to %1.2f\n", target_digits);
 			
-			work = compute_pretesting_level_done(fwork, 1);
+			work_done = compute_ecm_work_done(fwork, 1);
 			
 			if (VFLAG >= 1)
-				printf("***** sum: have completed work to t%1.2f\n", work);
+				printf("***** sum: have completed work to t%1.2f\n", work_done);
+
 			break;
 
 		default:
-			work = compute_pretesting_level_done(fwork, 0);
+			work_done = compute_ecm_work_done(fwork, 0);
 			break;
 	}
 	
 	// handle the case where the next state is a sieve method
-	if ((next_state == state_nfs) || (work > target_digits))
+	if ((next_state == state_nfs) || (work_done > target_digits))
 	{
-		if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_ONLY)
+		flog = fopen(fobj->flogname,"a");
+		logprint(flog,"final ECM pretested depth: %1.2f\n", work_done);		
+		
+		if (fobj->autofact_obj.only_pretest)
+		{
+			fclose(flog);
 			return state_done;
+		}
 
-		if (have_tune)
+		logprint(flog,"scheduler: switching to sieve method\n");
+		fclose(flog);
+
+		if (!have_tune || fobj->autofact_obj.prefer_xover)
+		{
+			// use a hard cutoff - within reason
+			if ((numdigits > fobj->autofact_obj.qs_gnfs_xover) &&
+				(numdigits >= 80))
+				return state_nfs;
+			else
+				return state_qs;			
+		}
+		else
 		{
 			double qs_time_est, gnfs_time_est;
 		
@@ -1576,14 +1448,6 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 				return state_qs;
 			else
 				return state_nfs;
-		}
-		else
-		{
-			// just use a hard cutoff (need parameter in .ini for this...)
-			if (numdigits > 95)
-				return state_nfs;
-			else
-				return state_qs;
 		}
 	}
 
@@ -1604,7 +1468,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_60digit:
 		case state_ecm_65digit:
 			// figure out how many curves at this level need to be done to get to the target level
-			// do a binary search on the target state's amount of work
+			// do a binary search on the target state's amount of work.
+			// probably there is a more elegant way to compute this, but this seems
+			// to work.
 			work_low = get_ecm_curves_done(fwork, next_state);
 			work_high = get_max_ecm_curves(fwork, next_state);		
 			work = (work_low + work_high) / 2;
@@ -1617,7 +1483,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			while ((work_high - work_low) > 1)
 			{
 				set_ecm_curves_done(fwork, next_state, (uint32)work);
-				if (compute_pretesting_level_done(fwork, 0) > target_digits)
+				if (compute_ecm_work_done(fwork, 0) > target_digits)
 				{
 					work_high = work;
 					work = (work_high + work_low) / 2;							
@@ -1637,10 +1503,16 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 				printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
 					fwork->curves, fwork->B1, target_digits);
 
+			flog = fopen(fobj->flogname,"a");
+			logprint(flog,"current ECM pretesting depth: %1.2f\n", work_done);
+			logprint(flog,"scheduled %u curves at B1=%u toward target "
+				"pretesting depth of %1.2f\n", fwork->curves, fwork->B1, target_digits);
+			fclose(flog);
+
 			break;
 
 		default:
-			// curves are set with set_work_params
+			// non-ecm curves are set with set_work_params above
 			break;
 	}
 
@@ -1749,6 +1621,21 @@ void factor(fact_obj_t *fobj)
 	logprint(flog,"\n");
 	logprint(flog,"****************************\n");
 	logprint(flog,"Starting factorization of %s\n",mpz_get_str(gstr1.s, 10, b));
+	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
+	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+		logprint(flog,"custom pretest ratio is: %1.2f\n",fobj->autofact_obj.target_pretest_ratio);
+	if (check_tune_params(fobj))
+	{
+		if (fobj->autofact_obj.prefer_xover)
+			logprint(flog,"overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+				fobj->autofact_obj.qs_gnfs_xover);
+		else
+			logprint(flog,"using tune info for qs/gnfs crossover\n");
+	}
+	else
+		logprint(flog,"no tune info: using qs/gnfs crossover of %1.0f digits\n",
+			fobj->autofact_obj.qs_gnfs_xover);
+
 	logprint(flog,"****************************\n");
 	fclose(flog);
 
@@ -1768,7 +1655,7 @@ void factor(fact_obj_t *fobj)
 	//TEST (success):
 	// seed the work done with some bogus values, to test restarting
 	// with ecm work recorded
-	//fwork.ecm_15digit_curves = 30;
+	//fwork.ecm_15digit_curves = 50000;
 	//fwork.ecm_20digit_curves = 74;
 	//fwork.ecm_25digit_curves = 20;
 
@@ -1800,7 +1687,7 @@ void factor(fact_obj_t *fobj)
 		mpz_clear(tmpz);
 	}
 
-	// factor the number using a variety of methods
+	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	
 		do_work(fact_state, &fwork, b, fobj);
@@ -1812,6 +1699,7 @@ void factor(fact_obj_t *fobj)
 			fact_state = schedule_work(&fwork, b, fobj);		
 	}
 
+	// optionally record output in one or more file formats
 	if (fobj->num_factors >= 1) 
 	{
 		//If the only factor in our array == N, then N is prime or prp...
