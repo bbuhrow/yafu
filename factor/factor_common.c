@@ -1450,8 +1450,9 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 	// compute the %done of each tlevel
 	for (i=0; i < NUM_ECM_LEVELS; i++)
 	{
-		tlevels[i] = 0;
 		enum factorization_state k;
+		tlevels[i] = 0;
+		
 		for (k=state_ecm_15digit, j=0; k <= state_ecm_65digit; k++, j++)
 		{
 			curves_done = get_ecm_curves_done(fwork, k);			

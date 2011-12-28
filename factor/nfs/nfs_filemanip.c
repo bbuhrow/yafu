@@ -115,7 +115,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 	{
 		if (!fobj->nfs_obj.restart_flag)
 		{
-			printf("A data file (.dat) exists in the current directory.  It must either be"
+			printf("A data file (.dat) exists in the current directory.  It must either be "
 				"removed or -R specified to resume nfs\n");
 			
 			logfile = fopen(fobj->flogname, "a");

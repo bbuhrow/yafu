@@ -120,36 +120,42 @@ void nfs(fact_obj_t *fobj)
 		(!(fobj->nfs_obj.startq > 0) && (fobj->nfs_obj.rangeq > 0)))
 	{
 		printf("-f and -c must be specified together\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
 	if (((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0)) && fobj->nfs_obj.poly_only)
 	{
 		printf("bad options: -np with -f or -c\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
 	if (((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0)) && fobj->nfs_obj.post_only)
 	{
 		printf("bad options: -nc with -f or -c\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
 	if (fobj->nfs_obj.sieve_only && fobj->nfs_obj.post_only)
 	{
 		printf("bad options: -nc with -ns\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
 	if (fobj->nfs_obj.sieve_only && fobj->nfs_obj.poly_only)
 	{
 		printf("bad options: -np with -ns\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
 	if (fobj->nfs_obj.poly_only && fobj->nfs_obj.post_only)
 	{
 		printf("bad options: -nc with -np\n");
+		print_factors(fobj);
 		exit(1);
 	}
 
@@ -249,6 +255,9 @@ void nfs(fact_obj_t *fobj)
 			else
 			{
 				// something went wrong.  bail.
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;				
 			}						
 
@@ -442,16 +451,25 @@ void nfs(fact_obj_t *fobj)
 			else if (fobj->nfs_obj.sieve_only || (fobj->nfs_obj.startq > 0))
 			{
 				printf("poly selection must be performed before sieving is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.post_only)
 			{
 				printf("poly selection must be performed before post processing is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.la_restart)
 			{
 				printf("poly selection must be performed before post processing is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 
@@ -562,6 +580,9 @@ void nfs(fact_obj_t *fobj)
 			{
 				printf("WARNING: .job file exists!  If you really want to redo poly selection,"
 					" delete the .job file.\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.sieve_only)
@@ -591,6 +612,9 @@ void nfs(fact_obj_t *fobj)
 			else if (fobj->nfs_obj.sieve_only)			
 			{
 				printf("poly selection must be performed before sieving is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.startq > 0)
@@ -602,11 +626,17 @@ void nfs(fact_obj_t *fobj)
 			else if (fobj->nfs_obj.post_only)
 			{
 				printf("poly selection must be performed before post processing is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.la_restart)
 			{
 				printf("poly selection must be performed before post processing is possible\n");
+				// non ideal solution to infinite loop in factor() if we return without factors
+				// (should return error code instead)
+				NFS_ABORT = 1;
 				process_done = 1;
 			}
 
@@ -616,7 +646,10 @@ void nfs(fact_obj_t *fobj)
 
 		default:
 			printf("unknown state, bailing\n");
-			exit(1);
+			// non ideal solution to infinite loop in factor() if we return without factors
+			// (should return error code instead)
+			NFS_ABORT = 1;
+			break;
 
 		}
 
@@ -636,7 +669,10 @@ void nfs(fact_obj_t *fobj)
 		}
 
 		if (NFS_ABORT)
-			process_done = 1;
+		{
+			print_factors(fobj);
+			exit(1);
+		}
 	}
 
 	//reset signal handler to default (no handler).
