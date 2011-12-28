@@ -28,12 +28,12 @@ INC = -I. -Iinclude
 # INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 INC += -I../gmp/include
 # LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/
-LIBS += -L../gmp/lib/mingw
+LIBS += -L../gmp/lib/mingw/x86_64
 
 # INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
 INC += -I../gmp-ecm/include
 # LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/
-LIBS += -L../gmp-ecm/lib/mingw
+LIBS += -L../gmp-ecm/lib/mingw/x86_64
 
 ifeq ($(BLOCK),64)
 	CFLAGS += -DYAFU_64K
@@ -56,7 +56,7 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/mingw -lecm -lmsieve -lgmp
+	LIBS += -L../msieve/lib/mingw/x86_64 -lecm -lmsieve -lgmp
 else
 	LIBS += -lecm -lgmp
 endif

@@ -1,3 +1,6 @@
+v 1.30
+
+
 v 1.29.2
 + fixed a bug in smallmpqs - not getting enough primes
 + fixed an oversight in fermat - didn't write factors to logfile
