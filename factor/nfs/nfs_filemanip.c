@@ -136,32 +136,60 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 	do_poly_check = 0;
 	ans = 0;
 
+	if (VFLAG > 0) printf("nfs: checking for job file - ");
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)
+	{
 		do_poly_check = 1;			// no job file.
+		if (VFLAG > 0) printf("no job file found\n");
+	}
 	else
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
 		if (ptr == NULL)
+		{
 			do_poly_check = 1;		// job file empty.
+			if (VFLAG > 0) printf("job file empty\n");
+			fclose(in);
+		}
 		else
 		{
-			fclose(in);
-
-			if (line[0] != 'n')
-				do_poly_check = 1;	// malformed job file.
-			else
+			while (ptr != NULL)
 			{
-				mpz_t tmp;
-				mpz_init(tmp);
-				mpz_set_str(tmp, line + 3, 0);
-				ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
-				if (ans == 0)
-					do_data_check = 1;		// job file matches: check for data file
+				if (line[0] == '#')
+					ptr = fgets(line,GSTR_MAXSIZE,in);
+				else if (line[0] != 'n')
+				{
+					do_poly_check = 1;	// malformed job file.
+					if (VFLAG > 0) printf("malformed job file, first non-comment "
+						"line should contain n: \n");
+					break;
+				}
 				else
-					do_poly_check = 1;		// no match: check for poly file
-				mpz_clear(tmp);
+				{
+					// check to see if the n in the file matches
+					mpz_t tmp;
+					mpz_init(tmp);
+					mpz_set_str(tmp, line + 3, 0);
+					ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
+					if (ans == 0)
+					{
+						do_data_check = 1;		// job file matches: check for data file
+						if (VFLAG > 0) printf("number in job file matches input\n");
+					}
+					else
+					{
+						if (VFLAG > 0) printf("number in job file does not match input\n");
+						do_poly_check = 1;		// no match: check for poly file
+					}
+					mpz_clear(tmp);
+					break;
+				}
 			}
+			if (ptr == NULL)
+				do_poly_check = 1;		// malformed job file (empty)
+
+			fclose(in);
 		}
 	}
 
@@ -170,22 +198,32 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		char master_polyfile[80];
 		int do_poly_parse = 0;
 
+		if (VFLAG > 0) printf("nfs: checking for poly file - ");
 		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
 		in = fopen(master_polyfile,"r");
 		if (in == NULL)
+		{
+			if (VFLAG > 0) printf("no poly file found\n");
 			return 0;			// no .p file.
+		}
 		else
 		{
 			ptr = fgets(line,GSTR_MAXSIZE,in);
 			if (ptr == NULL)
+			{
+				if (VFLAG > 0) printf("poly file empty\n");
 				return 0;		// .p file empty.
+			}
 			else
 			{
 				fclose(in);
 
 				if (line[0] != 'n')
+				{
+					if (VFLAG > 0) printf("malformed poly file, first line should contain n: \n");
 					return 0;	// malformed .p file.
+				}
 				else
 				{
 					mpz_t tmp;
@@ -193,7 +231,10 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 					mpz_set_str(tmp, line + 3, 0);
 					ans = mpz_cmp(tmp,fobj->nfs_obj.gmp_n);
 					if (ans == 0)
+					{
+						if (VFLAG > 0) printf("poly file matches input\n");
 						do_poly_parse = 1;		// .p file matches: parse .p file
+					}
 					mpz_clear(tmp);
 				}
 			}
@@ -203,6 +244,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		{
 			if (fobj->nfs_obj.restart_flag)
 			{
+				if (VFLAG > 0) printf("nfs: finding best poly in poly file\n");
 				find_best_msieve_poly(fobj, job, 0);
 				*last_spq = job->poly_time;
 				return job->last_leading_coeff;
@@ -232,6 +274,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		// ok, we have a job file for the current input.  this is a restart of sieving
 		ans = 1;
 
+		printf("nfs: checking for data file\n");
 		if (VFLAG > 0)
 			printf("nfs: commencing NFS restart\n");
 
@@ -248,11 +291,23 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		if (!savefile_exists(&mobj->savefile))
 		{
 			// data file doesn't exist, return flag to start sieving from the beginning
+			if (VFLAG > 0)
+				printf("nfs: no data file found\n");
 			*last_spq = 0;
 		}
 		else if (fobj->nfs_obj.restart_flag)
 		{
-			// found it.  read the last specialq
+			// either restart from the end of the data file or from the specified 
+			// sieve range
+			if (fobj->nfs_obj.sieve_only)
+			{
+				if (VFLAG > 0)
+					printf("nfs: previous data file found - skipping search for last special-q\n");
+				
+				*last_spq = 0;
+				return ans;
+			}
+
 			if (VFLAG > 0)
 				printf("nfs: previous data file found - commencing search for last special-q\n");
 
