@@ -162,7 +162,7 @@ enum factorization_state {
 
 static int refactor_depth = 0;
 
-// local function to do requested curve based factorization
+// local functions to do state based factorization
 double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b);
 double get_ecm_time_estimate(fact_obj_t *fobj, uint32 B1, enum factorization_state state);
@@ -393,6 +393,8 @@ void free_factobj(fact_obj_t *fobj)
 
 void alloc_factobj(fact_obj_t *fobj)
 {
+	int i;
+	
 	zInit(&fobj->N);
 	sInit(&fobj->str_N);	
 
@@ -430,6 +432,11 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	fobj->allocated_factors = 256;
 	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
+	for (i=0; i < fobj->allocated_factors; i++)
+	{
+		fobj->fobj_factors[i].type = UNKNOWN;
+		fobj->fobj_factors[i].count = 0;
+	}
 
 	fobj->ecm_obj.num_factors = 0;	
 	fobj->qs_obj.num_factors = 0;	
@@ -480,7 +487,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 	fobj->fobj_factors[fobj->num_factors].count = 1;
 	if (mpz_probab_prime_p(n, NUM_WITNESSES))
 	{
-		if (mpz_cmp_ui(n, 100000000) <= 0)
+		if (mpz_cmp_ui(n, 100000000) < 0)
 			fobj->fobj_factors[fobj->num_factors].type = PRIME;
 		else
 			fobj->fobj_factors[fobj->num_factors].type = PRP;
@@ -552,6 +559,7 @@ void print_factors(fact_obj_t *fobj)
 
 		for (i=0; i<fobj->num_factors; i++)
 		{
+
 			if (fobj->fobj_factors[i].type == COMPOSITE)
 			{
 				for (j=0;j<fobj->fobj_factors[i].count;j++)
@@ -582,22 +590,17 @@ void print_factors(fact_obj_t *fobj)
 			else
 			{
 				//type not set, determine it now
-				if (mpz_cmp_ui(fobj->fobj_factors[i].factor, 100000000) < 0)
+				if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
 						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-						gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-							fobj->fobj_factors[i].factor);
-					}
-				}
-				else if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
-				{
-					for (j=0;j<fobj->fobj_factors[i].count;j++)
-					{
-						mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-						gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-							fobj->fobj_factors[i].factor);
+						if (mpz_cmp_ui(fobj->fobj_factors[i].factor, 100000000) < 0)
+							gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+								fobj->fobj_factors[i].factor);
+						else
+							gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+								fobj->fobj_factors[i].factor);
 					}
 				}
 				else
@@ -1085,8 +1088,6 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						done = 0;
 					}
 				}
-				else
-					fobj->fobj_factors[i].type = PRP;
 			}
 		}
 	}

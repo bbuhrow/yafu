@@ -195,12 +195,6 @@ int main(int argc, char *argv[])
 	LCGSTATE = g_rand.low;
 #endif	
 
-	if (0)
-	{
-		// just a test
-		spfactorlist(10000000000ULL, 10000000);
-	}
-
 	//command line
 	while (1)
 	{		
@@ -930,7 +924,7 @@ void set_default_globals(void)
 	P_MAX = PRIMES[(uint32)NUM_P-1];
 
 	// random seeds
-	get_random_seeds(&g_rand);
+	get_random_seeds(&g_rand);	
 
 	return;
 }
