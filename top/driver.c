@@ -1560,9 +1560,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		{
 			strcpy(fobj->autofact_obj.plan_str,arg);
 
-			// test for recognized options.  for now, ignore "custom" even though
-			// it is in the enum, because it is too complicated to implement right now.
-			// that's a task for another day.
+			// test for recognized options.  
 			if (strcmp(fobj->autofact_obj.plan_str, "none") == 0)
 				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NONE;
 			else if (strcmp(fobj->autofact_obj.plan_str, "noecm") == 0)
