@@ -165,7 +165,6 @@ static int refactor_depth = 0;
 // local functions to do state based factorization
 double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b);
-double get_ecm_time_estimate(fact_obj_t *fobj, uint32 B1, enum factorization_state state);
 void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj);
 int check_if_done(fact_obj_t *fobj, mpz_t N);
@@ -308,8 +307,6 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.want_only_1_factor = 0;
 	fobj->autofact_obj.no_ecm = 0;
 	fobj->autofact_obj.target_pretest_ratio = 4.0 / 13.0;
-	//fobj->autofact_obj.target_ecm_gnfs_ratio = 0.25;
-	//fobj->autofact_obj.target_ecm_snfs_ratio = 0.20;
 	fobj->autofact_obj.initial_work = 0.0;
 
 	//pretesting plan used by factor()
@@ -738,53 +735,6 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 
 	if (VFLAG >= 2)
 		printf("***** GNFS time estimation from tune data = %1.2f sec\n", estimate);
-
-	return estimate;
-}
-
-double get_ecm_time_estimate(fact_obj_t *fobj, uint32 B1, enum factorization_state state)
-{
-	//compute the time per curve for the given method and B1 bound
-	double estimate;
-	double freq = MEAS_CPU_FREQUENCY;
-	char method[10];
-	
-	switch (state)
-	{
-	case state_pp1_lvl1:
-	case state_pp1_lvl2:
-	case state_pp1_lvl3:
-		estimate = fobj->pp1_obj.pp1_multiplier * exp(fobj->pp1_obj.pp1_exponent * B1);
-		estimate = estimate * fobj->pp1_obj.pp1_tune_freq / freq; 
-		strcpy(method, "P+1");
-
-		break;
-
-	case state_pm1_lvl1:
-	case state_pm1_lvl2:
-	case state_pm1_lvl3:
-		estimate = fobj->pm1_obj.pm1_multiplier * exp(fobj->pm1_obj.pm1_exponent * B1);
-		estimate = estimate * fobj->pm1_obj.pm1_tune_freq / freq; 
-		strcpy(method, "P-1");
-
-		break;
-
-	default:
-		// ecm
-		estimate = fobj->ecm_obj.ecm_multiplier * exp(fobj->ecm_obj.ecm_exponent * B1);
-		estimate = estimate * fobj->ecm_obj.ecm_tune_freq / freq; 
-		strcpy(method, "ECM");
-		
-		break;
-	}
-	
-	//adjust for multi-threadedness
-	if (THREADS > 1)
-		estimate = estimate / ((double)THREADS * 0.90);
-
-	if (VFLAG >= 2)
-		printf("***** %s time-per-curve estimation from tune data = %1.2f sec\n", 
-			method, estimate);
 
 	return estimate;
 }

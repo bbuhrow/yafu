@@ -1,4 +1,21 @@
 v 1.30
++ fixed counting of decimal digits for logging purposes
++ massive overhaul of factor(): pretesting to (customizable) digit level instead of 
+	timed ecm pretesting, more ecm pretesting levels, better usage of ecm levels, 
+	printing of computed t levels
++ removed -qs_ecm_ratio and -gnfs_ecm_ratio, added -pretest_ratio and -xover options -
+see docfile for more info
++ added some logging info of new factor() state machine
++ added -work option to make factor() aware of prior pretesting work (specified as a t-level)
++ handle aborts and errors within nfs the same as with other factoring routines 
+	(print_factors and exit), to avoid infinite loops in the new factor() state machine
++ a little bit more verbose when resuming nfs (with vflag > 0)
++ skip looking for last special-q if argument -ns is given
++ prevent "time=x" lines from being written to .job files
++ incorporated code contributed by Warren Smith implementing an optimized version of Lehman's 
+	factoring algorithm
++ changes to assembly routines for compiling on linux and mingw 32 bit systems
++ keep primes from being marked as prp in factor()
 
 
 v 1.29.2
