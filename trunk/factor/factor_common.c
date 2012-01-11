@@ -255,7 +255,8 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.qs_multiplier = 0;
 	fobj->qs_obj.qs_tune_freq = 0;
 	fobj->qs_obj.no_small_cutoff_opt = 0;
-	strcpy(fobj->qs_obj.siqs_savefile,"siqs.dat");	
+	strcpy(fobj->qs_obj.siqs_savefile,"siqs.dat");
+	init_lehman();
 
 	// initialize stuff for trial division	
 	fobj->div_obj.print = 0;

@@ -1013,7 +1013,7 @@ int getFunc(char *s, int *nargs)
 						"*","/","!","#","==",
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
-						"pullp","sumpuzzle","smallmpqs","testrange","siqstune",
+						"pullp","sftest","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
@@ -1797,19 +1797,75 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//pull_large_primes();
 		break;
 	case 51: 
-		
-//#ifdef NOT_DEFINED
+		// small factorization test routine
+		// 5 inputs
+
 		{
 			z *input;
-			int numin = 10000;
+			int test_squfof = 0;
+			int test_lehman = 1;
+			int test_squfof_tf = 0;
+			int force_hard = 1;
+			int do_tf = 0;
+			int use_hartolf = 0;
+			double lehTune = 2.5;
+			int numin = 100000;
+			uint64 *outputs;
 			int bits = 115;
 			double sum;
 			int maxsz, minsz;
 			fact_obj_t *fobj2;
 			mpz_t gmptmp;
-			//uint32 bcorr, mcorr, b_min,m_min;
-			//int blcorr,bl_min;
-			//int ctune = 0;
+			int startbits = 25, stopbits = 44, stepbits = 2;
+			//int startbits = 40, stopbits = 60, stepbits = 5;
+
+			// get numin
+			numin = operands[0].val[0];
+
+			// get method
+			if (operands[1].val[0] == 1)
+			{ 
+				printf("commencing %d tests of squfof method\n",numin);
+				test_squfof = 1;
+				test_lehman = 0;
+			}
+			else if (operands[1].val[0] == 2)
+			{ 
+				printf("commencing %d tests of lehman method\n",numin);
+				test_squfof = 0;
+				test_lehman = 1;
+				//init_lehman();
+			}
+			else if (operands[1].val[0] == 3)
+			{ 
+				printf("commencing %d tests of squfof + tf method\n",numin);
+				test_squfof = 0;
+				test_lehman = 0;
+				test_squfof_tf = 1;
+				//init_lehman();
+			}
+			else
+			{ 
+				test_squfof = 0;
+				test_lehman = 0;
+			}
+
+			// get other parameters
+			if (nargs >= 3)
+				do_tf = operands[2].val[0];
+
+			if (nargs >= 4)
+				lehTune = operands[3].val[0];
+			
+			if (nargs == 5)
+				use_hartolf = operands[4].val[0];
+
+			printf("sweeping inputs with bit sizes from %d to %d in steps of %d\n",
+				startbits, stopbits, stepbits);
+
+			if (test_lehman)
+				printf("lehman parameters:\n  do TF = %d\n  LehTune = %1.0f\n  Use Hart_OLF = %d\n",
+				do_tf, lehTune, use_hartolf);
 
 			fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 			init_factobj(fobj2);
@@ -1817,153 +1873,14 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			for (i=0; i<numin; i++)
 				zInit(&input[i]);
 
+			outputs = (uint64 *)malloc(numin * sizeof(uint64));
+
 			mpz_init(gmptmp);
-			/*
-			gettimeofday(&tstart, NULL);
 
-			sum = 0;
-			for (i=0; i<numin; i++)
-			{
-				fp_digit a, b, c, d;
-
-				b = bits-2;
-				zRandb(&mp1, b/2 - 1);
-				zRandb(&mp2, b/2 + 1);
-					
-				zNextPrime(&mp1, &mp1, 1);
-				zNextPrime(&mp2, &mp2, 1);
-
-				zMul(&mp1,&mp2,&input[i]);
-				sum += zBits(&input[i]);				
-			}
-
-			gettimeofday (&tstop, NULL);
-			difference = my_difftime (&tstart, &tstop);
-			t = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);
-			printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
-			printf("average size was %6.4f bits\n",sum/(double)numin);
-
-			printf("\nwarmups\n");
-			for (blcorr=0; blcorr<3; blcorr++)
-			{
-				gettimeofday(&tstart, NULL);
-				for (i=0; i<numin; i++)
-				{
-					zCopy(&input[i],&fobj2->qs_obj.n);					
-					fobj2->qs_obj.flags = 12345;
-					fobj2->qs_obj.override1 = 0;
-					fobj2->qs_obj.override2 = 0;
-					fobj2->qs_obj.override3 = 0;
-					SIQS(fobj2);
-
-					if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
-					{						
-						printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
-						print_factors(fobj2);
-					}
-
-					clear_factor_list(fobj2);
-				}
-			
-				gettimeofday (&tstop, NULL);
-				difference = my_difftime (&tstart, &tstop);
-				t = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
-				printf("factoring %d %d bit inputs took = %6.4f\n",numin,bits,t);
-			}
-
-			ctune = 1;
-			t_min = 1000000000;
-			b_min = 0;
-			m_min = 0;
-			bl_min = 0;
-			if (ctune)
-			{
-				for (mcorr = 0; mcorr <= 20; mcorr += 5)
-				{		
-					for (bcorr = 0; bcorr <= 100; bcorr += 25)
-					{				
-						for (blcorr = 2; blcorr <=4; blcorr += 1)
-						{
-							gettimeofday(&tstart, NULL);
-							for (i=0; i<numin; i++)
-							{
-								zCopy(&input[i],&fobj2->qs_obj.n);					
-								fobj2->qs_obj.flags = 12345;
-								fobj2->qs_obj.override1 = 225 + bcorr;
-								fobj2->qs_obj.override2 = 40 + mcorr;
-								fobj2->qs_obj.override3 = blcorr;
-								SIQS(fobj2);
-
-								if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
-								{						
-									printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
-									print_factors(fobj2);
-								}
-
-								clear_factor_list(fobj2);
-							}
-			
-							gettimeofday (&tstop, NULL);
-							difference = my_difftime (&tstart, &tstop);
-							t = ((double)difference->secs + (double)difference->usecs / 1000000);
-							free(difference);
-							if (t < t_min)
-							{
-								t_min = t;
-								b_min = fobj2->qs_obj.override1;
-								m_min = fobj2->qs_obj.override2;
-								bl_min = fobj2->qs_obj.override3;
-							}
-							printf("factoring %d %d bit inputs with B=%u, M=%u, BL=%d took on avg %6.0f us\n",
-								numin,bits,fobj2->qs_obj.override1,fobj2->qs_obj.override2,
-								fobj2->qs_obj.override3,t/numin*1000000);
-						}
-					}
-				}
-				printf("min time = %6.0f us at B = %u, M = %u, BL = %d\n",
-					t_min/numin*1000000,b_min,m_min,bl_min);
-			}
-			else
-			{
-				for (blcorr = 0; blcorr < 9; blcorr += 2)
-				{
-					gettimeofday(&tstart, NULL);
-					for (i=0; i<numin; i++)
-					{
-						zCopy(&input[i],&fobj2->qs_obj.n);					
-						fobj2->qs_obj.flags = 12345;
-						fobj2->qs_obj.override1 = 59;
-						fobj2->qs_obj.override2 = 55;
-						fobj2->qs_obj.override3 = blcorr;
-						SIQS(fobj2);
-
-						if (zCompare(&zOne,&fobj2->qs_obj.n) != 0)
-						{						
-							printf("not fully factored!  residue = %s\n",z2decstr(&fobj2->qs_obj.n,&gstr1));
-							print_factors(fobj2);
-						}
-
-						clear_factor_list(fobj2);
-					}
-			
-					gettimeofday (&tstop, NULL);
-					difference = my_difftime (&tstart, &tstop);
-					t = ((double)difference->secs + (double)difference->usecs / 1000000);
-					free(difference);
-					printf("factoring %d %d bit inputs with B=%u, M=%u, C=%d took on avg %6.0f us\n",
-						numin,bits,fobj2->qs_obj.override1,fobj2->qs_obj.override2,
-						fobj2->qs_obj.override3,t/numin*1000000);
-				}
-			}
-			exit(1);
-			*/
-
-			for (bits=50; bits<=115; bits+=5)
-			{
-				int test_squfof = 0;
+			for (bits=startbits; bits<=stopbits; bits+=stepbits)
+			{				
 				int nbits;
+				int proper_factors;
 
 				gettimeofday(&tstart, NULL);
 
@@ -1975,8 +1892,12 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 					fp_digit b;
 
 					b = bits-2;
-					zRandb(&mp1, b/2 - 1);
-					zRandb(&mp2, b/2 + 1);
+					zRandb(&mp1, b/2);
+					if (force_hard) 
+						mp1.val[(b/2)/BITS_PER_DIGIT] |= (fp_digit)(1 << ((b/2) % BITS_PER_DIGIT));
+					zRandb(&mp2, b/2);
+					if (force_hard) 
+						mp2.val[(b/2)/BITS_PER_DIGIT] |= (fp_digit)(1 << ((b/2) % BITS_PER_DIGIT));
 					
 					zNextPrime(&mp1, &mp1, 1);
 					zNextPrime(&mp2, &mp2, 1);
@@ -1994,21 +1915,71 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				difference = my_difftime (&tstart, &tstop);
 				t = ((double)difference->secs + (double)difference->usecs / 1000000);
 				free(difference);
-				printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
-				printf("average size was %6.4f bits (max = %d, min = %d)\n",
-					sum/(double)numin, maxsz, minsz);
-
+				if (VFLAG > 0)
+				{
+					printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
+					printf("average size was %6.4f bits (max = %d, min = %d)\n",
+						sum/(double)numin, maxsz, minsz);
+				}
+		
 				gettimeofday(&tstart, NULL);
 				for (i=0; i<numin; i++)
 				{
-					if (i % (numin/10) == 0)
+					if ((i % (numin/10) == 0) && (VFLAG > 0))
 						printf("input %d\n",i); //, %d correct\n",i,correct);
 				
 					mp2gmp(&input[i], fobj2->qs_obj.gmp_n);
 					if (test_squfof)
 					{
 						mpz_set(gmptmp, fobj2->qs_obj.gmp_n);
-						sp_shanks_loop(gmptmp, fobj);
+						outputs[i] = sp_shanks_loop(gmptmp, fobj);
+					}
+					else if (test_lehman)
+					{
+						uint64 N = z264(&input[i]);
+						outputs[i] = LehmanFactor(N, lehTune, do_tf, 0.1);
+					}
+					else if (test_squfof_tf)
+					{
+						int k = 1;
+						mpz_set(gmptmp, fobj2->qs_obj.gmp_n);
+
+						// tf
+						outputs[i] = 0;
+						while (PRIMES[k] < 50)
+						{
+							uint64 q = (uint64)PRIMES[k];
+							uint64 r = mpz_tdiv_ui(gmptmp, q);
+		
+							if (r != 0)
+								k++;
+							else	
+							{
+								outputs[i] = q;
+								break;
+							}
+						}
+
+						if (outputs[i] == 0)
+							outputs[i] = sp_shanks_loop(gmptmp, fobj);
+
+						if (outputs[i] == 0)
+						{
+							while (PRIMES[k] < 65536)
+							{
+								uint64 q = (uint64)PRIMES[k];
+								uint64 r = mpz_tdiv_ui(gmptmp, q);
+		
+								if (r != 0)
+									k++;
+								else	
+								{
+									outputs[i] = q;
+									break;
+								}
+							}
+						}
+
 					}
 					else
 					{
@@ -2030,7 +2001,31 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				difference = my_difftime (&tstart, &tstop);
 				t = ((double)difference->secs + (double)difference->usecs / 1000000);
 				free(difference);
-				printf("factoring %d %d bit inputs took = %6.4f\n",numin,bits,t);
+
+				if (test_lehman || test_squfof || test_squfof_tf)
+				{
+					proper_factors = 0;
+					for (i=0; i<numin; i++)
+					{
+						if ((z264(&input[i]) % outputs[i] == 0) && 
+							(outputs[i] > 1) &&
+							(z264(&input[i]) != outputs[i]))
+							proper_factors++;
+					}
+					if (VFLAG > 0)
+						printf("factoring %d %d bit inputs took = %6.4f, found %d proper factors\n",
+							numin,bits,t,proper_factors);
+					else
+						printf("%6.2f %6.4f %d\n", sum / (double)numin, t, proper_factors);
+				}
+				else
+				{
+					if (VFLAG > 0)
+						printf("factoring %d %d bit inputs took = %6.4f\n",numin,bits,t);
+					else
+						printf("%6.2f %6.4f\n", sum / (double)numin, t);
+				}
+					
 			}
 
 			// free temps
@@ -2041,12 +2036,11 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				zFree(&input[i]);
 
 			free(input);
+			free(outputs);
 			mpz_clear(gmptmp);
 		}
 
 		break;
-
-//#endif
 
 	case 52:
 		//smallmpqs - 1 argument

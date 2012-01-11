@@ -28,12 +28,14 @@ INC = -I. -Iinclude
 # INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 INC += -I../gmp/include
 # LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/
-LIBS += -L../gmp/lib/linux
+LIBS += -L../gmp/lib/linux/x86_64
+#LIBS += -L../gmp/lib/linux/x86
 
 # INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
 INC += -I../gmp-ecm/include
 # LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/
-LIBS += -L../gmp-ecm/lib/linux
+LIBS += -L../gmp-ecm/lib/linux/x86_64
+#LIBS += -L../gmp-ecm/lib/linux/x86
 
 ifeq ($(STATIC),1)
 	CFLAGS += -static
@@ -60,7 +62,8 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/linux -lmsieve
+	LIBS += -L../msieve/lib/linux/x86_64 -lmsieve
+#	LIBS += -L../msieve/lib/linux/x86 -lmsieve
 endif
 
 #MINGW builds don't need -pthread

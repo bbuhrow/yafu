@@ -55,7 +55,8 @@ this file contains code implementing 1)
 */
 
 
-#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+
+#if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SCAN_CLEAN asm volatile("emms");	
 
 	//top level sieve scanning with SSE2
@@ -128,6 +129,45 @@ this file contains code implementing 1)
 			: "=r"(result)						\
 			: "r"(sieveblock + j), "r"(buffer)	\
 			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+#elif defined(GCC_ASM32X) || defined(__MINGW32__)
+	#define SCAN_CLEAN asm volatile("emms");	
+
+	#define SIEVE_SCAN_32	\
+		asm volatile (		\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
+	#define SIEVE_SCAN_64		\
+		asm volatile (							\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"orpd 32(%1), %%xmm0    \n\t"		\
+			"orpd 48(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
+	#define SIEVE_SCAN_128		\
+		asm volatile (			\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"orpd 32(%1), %%xmm0    \n\t"		\
+			"orpd 48(%1), %%xmm0    \n\t"		\
+			"orpd 64(%1), %%xmm0    \n\t"		\
+			"orpd 80(%1), %%xmm0    \n\t"		\
+			"orpd 96(%1), %%xmm0    \n\t"		\
+			"orpd 112(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
 
 #elif defined(MSC_ASM32A)
 	#define SCAN_CLEAN ASM_M {emms};
