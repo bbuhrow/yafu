@@ -545,11 +545,15 @@ void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
 /*-----------TOP LEVEL ENTRY POINT FOR ALL FACTORING ROUTINES ----------*/
 
+uint32 test_qn_res[128];
+
 void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
+uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
+void init_lehman();
 void zTrial(fact_obj_t *fobj);
 void zFermat(fp_digit limit, fact_obj_t *fobj);
 void nfs(fact_obj_t *fobj);

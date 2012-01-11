@@ -131,125 +131,108 @@ __inline void sm_zcopy(mpz_t src, mpz_t dest)
 void sm_get_params(int bits, uint32 *B, uint32 *M, uint32 *BL);
 int qcomp_smpqs(const void *x, const void *y);
 
-#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
-	//these compilers support SIMD 
-	#define SM_SIMD_SIEVE_SCAN 1
+
+#if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
 
-	#if defined(HAS_SSE2)
-		#define SM_SIMD_SIEVE_SCAN_VEC 1
+	#define SM_SIEVE_SCAN_64_VEC					\
+		asm volatile (							\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"por 16(%1), %%xmm0    \n\t"		\
+			"por 32(%1), %%xmm0    \n\t"		\
+			"por 48(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %%r11   \n\t"		/* output results to 64 bit register */		\
+			"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
+			"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+			"movdqa (%1), %%xmm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
+			"movdqa 16(%1), %%xmm1   \n\t"		/* there are 16 bytes in each section */ \
+			"movdqa 32(%1), %%xmm2   \n\t"		/* extract high bit masks from each byte */ \
+			"movdqa 48(%1), %%xmm3   \n\t"		/* and combine into one 64 bit register */ \
+			"pmovmskb %%xmm1, %%r9d   \n\t"		/*  */		\
+			"pmovmskb %%xmm3, %%r11d   \n\t"	/*  */		\
+			"salq $16, %%r9		\n\t"			/*  */ \
+			"pmovmskb %%xmm2, %%r10d   \n\t"	/*  */		\
+			"salq $48, %%r11		\n\t"		/*  */ \
+			"pmovmskb %%xmm0, %%r8d   \n\t"		/*  */		\
+			"salq $32, %%r10		\n\t"		/*  */ \
+			"orq	%%r11,%%r9		\n\t"		/*  */ \
+			"orq	%%r10,%%r8		\n\t"		/*  */ \
+			"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+			"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+			"1:			\n\t"					/* top of bit scan loop */ \
+			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+			"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
+			"jnz 1b		\n\t"					/* loop if so */ \
+			"2:		\n\t"						/*  */ \
+			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "r"(buffer)	\
+			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
-		//top level sieve scanning with SSE2
-		#define SM_SIEVE_SCAN_64		\
-			asm volatile (							\
-				"movdqa (%1), %%xmm0   \n\t"		\
-				"por 16(%1), %%xmm0    \n\t"		\
-				"por 32(%1), %%xmm0    \n\t"		\
-				"por 48(%1), %%xmm0    \n\t"		\
-				"pmovmskb %%xmm0, %0   \n\t"		\
-				: "=r"(result)						\
-				: "r"(sieveblock + j) \
-				: "%xmm0");
+#elif defined(GCC_ASM32X) || defined(__MINGW32__)
+	#define SM_SCAN_CLEAN asm volatile("emms");	
 
-		#define SIEVE_SCAN_64_VEC					\
-			asm volatile (							\
-				"movdqa (%1), %%xmm0   \n\t"		\
-				"por 16(%1), %%xmm0    \n\t"		\
-				"por 32(%1), %%xmm0    \n\t"		\
-				"por 48(%1), %%xmm0    \n\t"		\
-				"pmovmskb %%xmm0, %%r11   \n\t"		/* output results to 64 bit register */		\
-				"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
-				"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
-				"movdqa (%1), %%xmm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
-				"movdqa 16(%1), %%xmm1   \n\t"		/* there are 16 bytes in each section */ \
-				"movdqa 32(%1), %%xmm2   \n\t"		/* extract high bit masks from each byte */ \
-				"movdqa 48(%1), %%xmm3   \n\t"		/* and combine into one 64 bit register */ \
-				"pmovmskb %%xmm1, %%r9d   \n\t"		/*  */		\
-				"pmovmskb %%xmm3, %%r11d   \n\t"	/*  */		\
-				"salq $16, %%r9		\n\t"			/*  */ \
-				"pmovmskb %%xmm2, %%r10d   \n\t"	/*  */		\
-				"salq $48, %%r11		\n\t"		/*  */ \
-				"pmovmskb %%xmm0, %%r8d   \n\t"		/*  */		\
-				"salq $32, %%r10		\n\t"		/*  */ \
-				"orq	%%r11,%%r9		\n\t"		/*  */ \
-				"orq	%%r10,%%r8		\n\t"		/*  */ \
-				"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
-				"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
-				"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
-				"1:			\n\t"					/* top of bit scan loop */ \
-				"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
-				"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
-				"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
-				"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
-				"incq	%%r11		\n\t"			/* increment the count of set bits */ \
-				"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
-				"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
-				"jnz 1b		\n\t"					/* loop if so */ \
-				"2:		\n\t"						/*  */ \
-				"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
-				: "=r"(result)						\
-				: "r"(sieveblock + j), "r"(buffer)	\
-				: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+	#define SM_SIEVE_SCAN_64		\
+		asm volatile (							\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"orpd 32(%1), %%xmm0    \n\t"		\
+			"orpd 48(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
 
-	#else
-
-		#undef SM_SIMD_SIEVE_SCAN
-	#endif
 
 #elif defined(MSC_ASM32A)
-	#define SM_SIMD_SIEVE_SCAN 1
 	#define SM_SCAN_CLEAN ASM_M {emms};
 
-	#if defined(HAS_SSE2)
-		//top level sieve scanning with SSE2
-		#define SM_SIEVE_SCAN_64	\
-			do	{						\
-				uint64 *localblock = sieveblock + j;	\
-				ASM_M  {			\
-					ASM_M mov edi, localblock			\
-					ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-					ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-					ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
-					ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
-					ASM_M pmovmskb ecx, xmm0			\
-					ASM_M mov result, ecx};			\
-			} while (0);
-
-		#define SIEVE_SCAN_64_VEC
-
-	#else
-		#undef SM_SIMD_SIEVE_SCAN
-	#endif
+	#define SM_SIEVE_SCAN_64	\
+		do	{						\
+			uint64 *localblock = sieveblock + j;	\
+			ASM_M  {			\
+				ASM_M mov edi, localblock			\
+				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
+				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
+				ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
+				ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
+				ASM_M pmovmskb ecx, xmm0			\
+				ASM_M mov result, ecx};			\
+		} while (0);
 
 #elif defined(_WIN64)
-
-	#define SM_SIMD_SIEVE_SCAN 1
 	#define SM_SCAN_CLEAN /*nothing*/
 
-	#if defined(HAS_SSE2)
-		//top level sieve scanning with SSE2
-		#define SM_SIEVE_SCAN_64	\
-			do	{				  		\
-				__m128i local_block;	\
-				__m128i local_block2;	\
-				__m128i local_block3;	\
-				__m128i local_block4;	\
-				local_block = _mm_load_si128(sieveblock + j); \
-				local_block2 = _mm_load_si128(sieveblock + j + 2); \
-				local_block3 = _mm_load_si128(sieveblock + j + 4); \
-				local_block = _mm_or_si128(local_block, local_block2); \
-				local_block = _mm_or_si128(local_block, local_block3); \
-				local_block4 = _mm_load_si128(sieveblock + j + 6); \
-				local_block = _mm_or_si128(local_block, local_block4); \
-				result = _mm_movemask_epi8(local_block); \
-			} while (0);
+	#define SM_SIEVE_SCAN_64	\
+		do	{				  		\
+			__m128i local_block;	\
+			__m128i local_block2;	\
+			__m128i local_block3;	\
+			__m128i local_block4;	\
+			local_block = _mm_load_si128(sieveblock + j); \
+			local_block2 = _mm_load_si128(sieveblock + j + 2); \
+			local_block3 = _mm_load_si128(sieveblock + j + 4); \
+			local_block = _mm_or_si128(local_block, local_block2); \
+			local_block = _mm_or_si128(local_block, local_block3); \
+			local_block4 = _mm_load_si128(sieveblock + j + 6); \
+			local_block = _mm_or_si128(local_block, local_block4); \
+			result = _mm_movemask_epi8(local_block); \
+		} while (0);
 
-	#else
-		#undef SM_SIMD_SIEVE_SCAN
-	#endif
+
+#else	/* compiler not recognized*/
+
+	#define SM_SCAN_CLEAN /*nothing*/
+	#undef SM_SIMD_SIEVE_SCAN
+	#undef SM_SIMD_SIEVE_SCAN_VEC
 
 #endif
-
 #define SM_SCAN_MASK 0x8080808080808080ULL
 
 //uint64 total_locs;
@@ -1073,7 +1056,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 		uint32 result;
 		uint8 buffer[64];
 		
-		SIEVE_SCAN_64_VEC;
+		SM_SIEVE_SCAN_64_VEC;
 
 		if (result == 0)
 			continue;

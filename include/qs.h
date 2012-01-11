@@ -143,16 +143,24 @@ uint32 blk_counts_n[64];
 	#define FOGSHIFT_2 40
 #endif
 
-#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
+#if defined(GCC_ASM64X) || defined(__MINGW64__)
 	//assume we have sse2, set defines to use the sse2 code available
 	#define SIMD_SIEVE_SCAN 1
 	#define SIMD_SIEVE_SCAN_VEC 1
+	#define SM_SIMD_SIEVE_SCAN 1
+	#define SM_SIMD_SIEVE_SCAN_VEC 1
+
+#elif defined(GCC_ASM32X) || defined(__MINGW32__)
+	#define SIMD_SIEVE_SCAN 1
+	#define SM_SIMD_SIEVE_SCAN 1
 
 #elif defined(MSC_ASM32A)
 	#define SIMD_SIEVE_SCAN 1
+	#define SM_SIMD_SIEVE_SCAN 1
 
 #elif defined(_WIN64)
 	#define SIMD_SIEVE_SCAN 1
+	#define SM_SIMD_SIEVE_SCAN 1
 
 #endif
 
