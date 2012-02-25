@@ -412,7 +412,11 @@ int zFactorial(uint32 n, z *w)
 	mpz_init(result);
 	mpz_fac_ui(result, n);
 
-	zGrow(w, result->_mp_size);
+#if GMP_LIMB_BITS == 64
+    zGrow(w, 2 * result->_mp_size);
+#else
+    zGrow(w, result->_mp_size);
+#endif
 	gmp2mp(result, w);
 
 	mpz_clear(result);
