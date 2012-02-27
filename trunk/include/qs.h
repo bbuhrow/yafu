@@ -97,7 +97,6 @@ uint32 blk_counts_n[64];
 #endif
 
 //#if defined(_MSC_VER) && !defined(_WIN64)
-//	#define USE_8X_MOD 1
 //	#define USE_8X_MOD_ASM 1
 //#endif
 
@@ -107,11 +106,7 @@ uint32 blk_counts_n[64];
 	#define USE_POLY_SSE2_ASM 1
 	//#define SSE2_ASM_SIEVING 1
 	#define ASM_SIEVING 1
-
-	//#if BLOCKSIZE == 32768
-	//	#define USE_8X_MOD 1
-	//	#define USE_8X_MOD_ASM 1
-	//#endif
+	#define USE_8X_MOD_ASM 1
 
 #elif (defined(__GNUC__) && defined(__x86_64__))
 	#define USE_POLY_SSE2_ASM 1
@@ -120,8 +115,7 @@ uint32 blk_counts_n[64];
 		#define ASM_SIEVING 1
 	#endif
 
-	//#define USE_8X_MOD 1
-	//#define USE_8X_MOD_ASM 1
+	#define USE_8X_MOD_ASM 1
 #endif
 
 #if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
@@ -135,9 +129,9 @@ uint32 blk_counts_n[64];
 	#undef SSE2_RESIEVING
 #endif
 
-#ifdef USE_8X_MOD
+#ifdef USE_8X_MOD_ASM
 	#define FOGSHIFT 24
-	#define FOGSHIFT_2 27
+	#define FOGSHIFT_2 40
 #else
 	#define FOGSHIFT 40
 	#define FOGSHIFT_2 40
@@ -252,7 +246,7 @@ typedef struct
 
 typedef struct
 {
-#ifdef USE_8X_MOD
+#ifdef USE_8X_MOD_ASM
 	uint16 *correction;
 	uint16 *small_inv;
 #else
@@ -309,8 +303,10 @@ typedef struct
 {
 	uint32 B;					//number of primes in the entire factor base
 	uint32 small_B;				//index 1024
+	uint32 fb_10bit_B;			//index at which primes are bigger than 10 bits (and a multiple of 8)
 	uint32 fb_11bit_B;			//index at which primes are bigger than 11 bits (and a multiple of 8)
-	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 8)
+	uint32 fb_12bit_B;			//index at which primes are bigger than 12 bits (and a multiple of 8)
+	uint32 fb_13bit_B;			//index at which primes are bigger than 12 bits (and a multiple of 8)
 	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 8)
 	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 8)
 	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)

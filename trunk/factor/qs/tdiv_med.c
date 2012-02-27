@@ -88,118 +88,71 @@ this file contains code implementing 3) and 4)
 			// does not hurt.
 
 #ifdef YAFU_64K
-		#define MOD_CMP_8X																		\
+		#define MOD_CMP_8X(xtra_bits)															\
 			ASM_G (																				\
-				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
+				"movdqa %%xmm0, %%xmm4 \n\t"	/* copy BLOCKSIZE */							\
+				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */							\
 				"pcmpeqw	%%xmm6, %%xmm6 \n\t"	/* create an array of 1's */				\
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
-				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
-				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */						\
+				"psubw	%%xmm1, %%xmm4 \n\t"	/* BLOCKSIZE - block_loc */						\
 				"psrlw	$15, %%xmm6 \n\t"		/* create an array of 1's */					\
-				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */							\
-				"paddw	%%xmm6, %%xmm2 \n\t"	/* add in 1's */								\
+				"paddw	%%xmm6, %%xmm4 \n\t"	/* add in 1's */								\
 				"psubw	%%xmm6, %%xmm7 \n\t"	/* substract 1's */								\
-				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */							\
-				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
+				"paddw	(%2), %%xmm4 \n\t"		/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
-				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
+				"pmulhuw	(%3), %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
 				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
-				"psrlw	$8, %%xmm4 \n\t"		/* to get to total shift of 24 bits */			\
+				"psrlw	$" xtra_bits ", %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
-				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes */					\
-				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */						\
+				"psubw	%%xmm0, %%xmm7 \n\t"	/* substract blocksize */						\
+				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes - blocksize */		\
 				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */						\
 				"pcmpeqw	%%xmm4, %%xmm2 \n\t"	/* compare to root2s */						\
 				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */							\
 				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
 				: "=r" (tmp3)																		\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)	\
-				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
-
-		#define MOD_CMP_BIG_8X																		\
-			ASM_G (																				\
-				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
-				"pcmpeqw	%%xmm6, %%xmm6 \n\t"	/* create an array of 1's */				\
-				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
-				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
-				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */						\
-				"psrlw	$15, %%xmm6 \n\t"		/* create an array of 1's */					\
-				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */							\
-				"paddw	%%xmm6, %%xmm2 \n\t"	/* add in 1's */								\
-				"psubw	%%xmm6, %%xmm7 \n\t"	/* substract 1's */								\
-				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */							\
-				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
-				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
-				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
-				"psrlw	$10, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
-				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
-				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
-				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes */					\
-				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */						\
-				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */						\
-				"pcmpeqw	%%xmm4, %%xmm2 \n\t"	/* compare to root2s */						\
-				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */							\
-				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
-				: "=r" (tmp3)																		\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i)	\
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
+					"r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
+						"r" (fbc->root2 + i)	\
 				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
 #else
-		#define MOD_CMP_8X																		\
-			ASM_G (																				\
-				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \
-				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
-				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
-				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
-				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
-				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */							\
-				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */							\
-				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */							\
-				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
-				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
-				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
-				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
-				"psrlw	$8, %%xmm4 \n\t"		/* to get to total shift of 24 bits */			\
-				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
-				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
-				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes */					\
-				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */						\
-				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */						\
-				"pcmpeqw	%%xmm4, %%xmm2 \n\t"	/* compare to root2s */						\
-				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */								\
-				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
-				: "=r" (tmp3)																	\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i), "r" (bl_sizes), "r" (bl_locs)	\
-				: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
-		#define MOD_CMP_BIG_8X																	\
+		// will miss cases like this:
+		//	index = 56, prime = 587, inv = 28581, corr = 1, root1 = 0, root2 = 322, 
+		// loc = 1070, result = 0
+		// which we can catch by comparing to prime as well as root1/2; but it probably isn't
+		// worth it.
+
+				/*"movdqa (%6), %%xmm0 \n\t"		 move in BLOCKSIZE */ \
+				/*"movdqa (%7), %%xmm1 \n\t"		 move in block_loc */ \
+
+		#define MOD_CMP_8X(xtra_bits)																		\
 			ASM_G (																				\
-				"movdqa (%6), %%xmm0 \n\t"		/* move in BLOCKSIZE */ \
-				"movdqa (%7), %%xmm1 \n\t"		/* move in block_loc */ \
-				"movdqa %%xmm0, %%xmm2 \n\t"	/* copy BLOCKSIZE */							\
+				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */ \
+				"movdqa	%%xmm0, %%xmm4 \n\t"	/* copy BLOCKSIZE */ \
 				"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
-				"psubw	%%xmm1, %%xmm2 \n\t"	/* BLOCKSIZE - block_loc */						\
-				"movdqa (%2), %%xmm4 \n\t"		/* move in corrections */							\
-				"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */							\
-				"movdqa (%3), %%xmm5 \n\t"		/* move in inverses */							\
-				"paddw	%%xmm2, %%xmm4 \n\t"	/* apply corrections */							\
+				"psubw	%%xmm1, %%xmm4 \n\t"	/* BLOCKSIZE - block_loc */						\
+				"paddw	(%2), %%xmm4 \n\t"		/* apply corrections */							\
 				"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
-				"pmulhuw	%%xmm5, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
+				"pmulhuw	(%3), %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
 				"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
-				"psrlw	$11, %%xmm4 \n\t"		/* to get to total shift of 26 bits */			\
+				"psrlw	$" xtra_bits ", %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
 				"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
 				"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
-				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes */					\
-				"psubw	%%xmm0, %%xmm4 \n\t"	/* substract blocksize */						\
+				"psubw	%%xmm0, %%xmm7 \n\t"	/* substract blocksize */						\
+				"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes - blocksize */		\
 				"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */						\
 				"pcmpeqw	%%xmm4, %%xmm2 \n\t"	/* compare to root2s */						\
-				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */								\
+				"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */							\
 				"pmovmskb %%xmm2, %0 \n\t"		/* export to result */							\
 				: "=r" (tmp3)																	\
-				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), "r" (fbc->root2 + i), "r" (bl_sizes), "r" (bl_locs)	\
-				: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+				: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
+					"r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
+						"r" (fbc->root2 + i) \
+				: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+
 #endif
 
 
@@ -365,46 +318,6 @@ this file contains code implementing 3) and 4)
 				tmp3 = _mm_movemask_epi8(lr2); \
 			} while (0);
 
-
-		#define MOD_CMP_BIG_8X																		\
-			do { \
-					__m128i one;	\
-					__m128i t1; \
-					__m128i t2;	\
-					__m128i lr1;	\
-					__m128i lr2;	\
-					__m128i lp;	\
-					__m128i c;	\
-					__m128i sinv; \
-					__m128i blksz; \
-					__m128i blkloc; \
-				blksz = _mm_load_si128((__m128i *)(bl_sizes)); \
-				blkloc = _mm_load_si128((__m128i *)(bl_locs)); \
-				t1 = blksz; \
-				one = _mm_cmpeq_epi16(one, one); \
-				lp = _mm_load_si128((__m128i *)(fbc->prime + i)); \
-				t1 = _mm_sub_epi16(t1, blkloc); \
-				c = _mm_load_si128((__m128i *)(fullfb_ptr->correction + i));	\
-				one = _mm_srli_epi16(one, 15); \
-				t2 = blkloc; \
-				t1 = _mm_add_epi16(t1, one); \
-				t2 = _mm_sub_epi16(t2, one); \
-				sinv = _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i));	\
-				c = _mm_add_epi16(c, t1); \
-				lr1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-				c = _mm_mulhi_epu16(c, sinv); \
-				lr2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-				c = _mm_srli_epi16(c, 8); \
-				t2 = _mm_add_epi16(t2, lp); \
-				c = _mm_mullo_epi16(c, lp); \
-				c = _mm_add_epi16(c, t2); \
-				c = _mm_sub_epi16(c, blksz); \
-				lr1 = _mm_cmpeq_epi16(lr1, c); \
-				lr2 = _mm_cmpeq_epi16(lr2, c); \
-				lr2 = _mm_or_si128(lr2, lr1); \
-				tmp3 = _mm_movemask_epi8(lr2); \
-			} while (0);
-
 #else
 		#define MOD_CMP_8X																		\
 			do { \
@@ -447,46 +360,6 @@ this file contains code implementing 3) and 4)
 				ASM_M mov tmp3, eax } \
 			} while (0);
 
-		#define MOD_CMP_BIG_8X																		\
-			do { \
-				uint16 *localprime = (uint16 *)(fbc->prime + i);	\
-				uint16 *localsmall_inv = (uint16 *)(fullfb_ptr->small_inv + i);	\
-				uint16 *localcorrections = (uint16 *)(fullfb_ptr->correction + i);	\
-				uint16 *localroot1 = (uint16 *)(fbc->root1 + i);	\
-				uint16 *localroot2 = (uint16 *)(fbc->root2 + i);	\
-				uint16 *local_blksz = (uint16 *)bl_sizes; \
-				uint16 *local_blkloc = (uint16 *)bl_locs; \
-				ASM_M { \
-				ASM_M mov eax, localprime \
-				ASM_M mov ebx, local_blksz \
-				ASM_M mov ecx, local_blkloc \
-				ASM_M mov edx, localsmall_inv \
-				ASM_M mov edi, localcorrections \
-				ASM_M movdqa xmm0, XMMWORD PTR [ebx] \
-				ASM_M movdqa xmm1, XMMWORD PTR [ecx] \
-				ASM_M mov ebx, localroot1 \
-				ASM_M mov ecx, localroot2 \
-				ASM_M movdqa xmm2, xmm0 \
-				ASM_M movdqa xmm3, XMMWORD PTR [eax] \
-				ASM_M psubw xmm2, xmm1 \
-				ASM_M movdqa xmm4, XMMWORD PTR [edi] \
-				ASM_M movdqa xmm7, xmm1 \
-				ASM_M movdqa xmm5, XMMWORD PTR [edx] \
-				ASM_M paddw xmm4, xmm2 \
-				ASM_M movdqa xmm6, XMMWORD PTR [ebx] \
-				ASM_M pmulhuw xmm4, xmm5 \
-				ASM_M movdqa xmm2, XMMWORD PTR [ecx] \
-				ASM_M psrlw xmm4, 10 \
-				ASM_M paddw xmm7, xmm3 \
-				ASM_M pmullw xmm4, xmm3 \
-				ASM_M paddw xmm4, xmm7 \
-				ASM_M psubw xmm4, xmm0 \
-				ASM_M pcmpeqw xmm6, xmm4 \
-				ASM_M pcmpeqw xmm2, xmm4 \
-				ASM_M por xmm2, xmm6 \
-				ASM_M pmovmskb eax, xmm2 \
-				ASM_M mov tmp3, eax } \
-			} while (0);
 #endif
 
 		#define STEP_COMPARE_COMBINE \
@@ -1135,11 +1008,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
-#if defined(USE_8X_MOD) && !defined(USE_8X_MOD_ASM)
-	uint16 tmp1, tmp2, tmp3, tmp4;
-#else
 	uint32 tmp1, tmp2, tmp3, tmp4;
-#endif
 
 	uint16 *corrections = dconf->corrections;
 #ifdef USE_COMPRESSED_FB
@@ -1199,7 +1068,7 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #if !defined(USE_RESIEVING)
 		bound = sconf->factor_base->small_B;
 #else
-		bound = sconf->factor_base->fb_11bit_B;
+		bound = sconf->factor_base->fb_10bit_B;
 #endif
 		
 		// single-up test until i is a multiple of 8
@@ -1238,9 +1107,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #ifdef USE_8X_MOD_ASM
 
-		tmp1 = (BLOCKSIZE << 16) | BLOCKSIZE;
-		tmp2 = (block_loc << 16) | block_loc;
-
 #ifdef YAFU_64K
 		// the 64k blocksize will overflow the 16 bit word
 		// so we use blocksize-1 and then compensate in 
@@ -1272,13 +1138,139 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bl_locs[6] = block_loc;
 		bl_locs[7] = block_loc;
 		
-		//MOD_INIT_8X;
+		MOD_INIT_8X;
 
 		while ((uint32)i < bound)
 		{
-			tmp3 = 0;
+			uint32 tmp3 = 0;
 
-			MOD_CMP_8X;
+			MOD_CMP_8X("8");
+
+			//if ((((((uint32)fbc->root1[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0) ||
+			//	((((uint32)fbc->root2[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0)) &&
+			//	((tmp3 & 0x2) == 0))
+			//	printf("index = %d, prime = %u, inv = %u, corr = %u, root1 = %u, root2 = %u, "
+			//	"loc = %u, result = %u\n",
+			//		i, fbc->prime[i], fullfb_ptr->small_inv[i], 
+			//		fullfb_ptr->correction[i], fbc->root1[i], fbc->root2[i], block_loc, tmp3);
+
+			if (tmp3 == 0)
+			{
+				i += 8;
+				continue;
+			}
+			
+			if (tmp3 & 0x2)
+			{
+				DIVIDE_RESIEVED_PRIME(0);
+			}
+
+			if (tmp3 & 0x8)
+			{
+				DIVIDE_RESIEVED_PRIME(1);
+			}
+
+			if (tmp3 & 0x20)
+			{
+				DIVIDE_RESIEVED_PRIME(2);
+			}
+
+			if (tmp3 & 0x80)
+			{
+				DIVIDE_RESIEVED_PRIME(3);
+			}
+
+			if (tmp3 & 0x200)
+			{
+				DIVIDE_RESIEVED_PRIME(4);
+			}
+
+			if (tmp3 & 0x800)
+			{
+				DIVIDE_RESIEVED_PRIME(5);
+			}
+
+			if (tmp3 & 0x2000)
+			{
+				DIVIDE_RESIEVED_PRIME(6);
+			}
+
+			if (tmp3 & 0x8000)
+			{
+				DIVIDE_RESIEVED_PRIME(7);
+			}
+
+			i += 8;			
+
+		}
+
+		bound = sconf->factor_base->fb_12bit_B;
+		while ((uint32)i < bound)
+		{
+			uint32 tmp3 = 0;
+
+			MOD_CMP_8X("10");
+
+			if (tmp3 == 0)
+			{
+				i += 8;
+				continue;
+			}
+			
+			if (tmp3 & 0x2)
+			{
+				DIVIDE_RESIEVED_PRIME(0);
+			}
+
+			if (tmp3 & 0x8)
+			{
+				DIVIDE_RESIEVED_PRIME(1);
+			}
+
+			if (tmp3 & 0x20)
+			{
+				DIVIDE_RESIEVED_PRIME(2);
+			}
+
+			if (tmp3 & 0x80)
+			{
+				DIVIDE_RESIEVED_PRIME(3);
+			}
+
+			if (tmp3 & 0x200)
+			{
+				DIVIDE_RESIEVED_PRIME(4);
+			}
+
+			if (tmp3 & 0x800)
+			{
+				DIVIDE_RESIEVED_PRIME(5);
+			}
+
+			if (tmp3 & 0x2000)
+			{
+				DIVIDE_RESIEVED_PRIME(6);
+			}
+
+			if (tmp3 & 0x8000)
+			{
+				DIVIDE_RESIEVED_PRIME(7);
+			}
+
+			i += 8;			
+
+		}
+
+#if defined(YAFU_64K)
+		bound = sconf->factor_base->fb_14bit_B;
+#else
+		bound = sconf->factor_base->fb_13bit_B;
+#endif				
+		while ((uint32)i < bound)
+		{
+			uint32 tmp3 = 0;
+
+			MOD_CMP_8X("12");
 
 			if (tmp3 == 0)
 			{
@@ -1339,7 +1331,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		while ((uint32)i < bound)
 		{
 
-#if USE_8X_MOD
 			tmp1 = BLOCKSIZE - block_loc;
 			tmp2 = BLOCKSIZE - block_loc;
 			tmp3 = BLOCKSIZE - block_loc;
@@ -1373,45 +1364,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			tmp2 = tmp2 - BLOCKSIZE;
 			tmp3 = tmp3 - BLOCKSIZE;
 			tmp4 = tmp4 - BLOCKSIZE;
-
-#else
-
-			tmp1 = BLOCKSIZE - block_loc;
-			tmp2 = BLOCKSIZE - block_loc;
-			tmp3 = BLOCKSIZE - block_loc;
-			tmp4 = BLOCKSIZE - block_loc;
-
-			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> FOGSHIFT; 
-			tmp1 = tmp1 + 1;
-			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-			
-			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> FOGSHIFT; 
-			tmp2 = tmp2 + 1;
-			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
-
-			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> FOGSHIFT; 
-			tmp3 = tmp3 + 1;
-			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
-
-			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >>  FOGSHIFT; 
-			tmp4 = tmp4 + 1;
-			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
-
-			tmp1 = tmp1 - BLOCKSIZE;
-			tmp2 = tmp2 - BLOCKSIZE;
-			tmp3 = tmp3 - BLOCKSIZE;
-			tmp4 = tmp4 - BLOCKSIZE;
-
-#endif
-
 
 #ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
@@ -1526,102 +1478,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bound = sconf->factor_base->fb_13bit_B;
 #endif				
 
-#ifdef USE_8X_MOD_ASM
-
-		tmp1 = (BLOCKSIZE << 16) | BLOCKSIZE;
-		tmp2 = (block_loc << 16) | block_loc;
-#ifdef YAFU_64K
-		bl_sizes[0] = BLOCKSIZEm1;
-		bl_sizes[1] = BLOCKSIZEm1;
-		bl_sizes[2] = BLOCKSIZEm1;
-		bl_sizes[3] = BLOCKSIZEm1;
-		bl_sizes[4] = BLOCKSIZEm1;
-		bl_sizes[5] = BLOCKSIZEm1;
-		bl_sizes[6] = BLOCKSIZEm1;
-		bl_sizes[7] = BLOCKSIZEm1;
-#else
-		bl_sizes[0] = BLOCKSIZE;
-		bl_sizes[1] = BLOCKSIZE;
-		bl_sizes[2] = BLOCKSIZE;
-		bl_sizes[3] = BLOCKSIZE;
-		bl_sizes[4] = BLOCKSIZE;
-		bl_sizes[5] = BLOCKSIZE;
-		bl_sizes[6] = BLOCKSIZE;
-		bl_sizes[7] = BLOCKSIZE;
-#endif
-		bl_locs[0] = block_loc;
-		bl_locs[1] = block_loc;
-		bl_locs[2] = block_loc;
-		bl_locs[3] = block_loc;
-		bl_locs[4] = block_loc;
-		bl_locs[5] = block_loc;
-		bl_locs[6] = block_loc;
-		bl_locs[7] = block_loc;
-
-		//MOD_INIT_8X;
-
-		while ((uint32)i < bound)
-		{
-			tmp3 = 0;
-
-			MOD_CMP_BIG_8X;
-
-			if (tmp3 == 0)
-			{
-				i += 8;
-				continue;
-			}
-			
-			if (tmp3 & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (tmp3 & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (tmp3 & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (tmp3 & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (tmp3 & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (tmp3 & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (tmp3 & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (tmp3 & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
-
-			i += 8;			
-
-		}
-
-#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
-		asm volatile("emms");
-#endif
-
-#else
-
 		// single-up test until i is a multiple of 8
 		while ((uint32)i < bound && ((i & 7) != 0))
 		{
@@ -1659,45 +1515,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
 		while ((uint32)i < bound)
 		{
-
-#if USE_8X_MOD
-
-			tmp1 = BLOCKSIZE - block_loc;
-			tmp2 = BLOCKSIZE - block_loc;
-			tmp3 = BLOCKSIZE - block_loc;
-			tmp4 = BLOCKSIZE - block_loc;
-
-			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> FOGSHIFT_2; 
-			tmp1 = tmp1 + 1;
-			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-			
-			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> FOGSHIFT_2; 
-			tmp2 = tmp2 + 1;
-			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
-
-			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> FOGSHIFT_2; 
-			tmp3 = tmp3 + 1;
-			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
-
-			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >>  FOGSHIFT_2; 
-			tmp4 = tmp4 + 1;
-			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
-
-			tmp1 = tmp1 - BLOCKSIZE;
-			tmp2 = tmp2 - BLOCKSIZE;
-			tmp3 = tmp3 - BLOCKSIZE;
-			tmp4 = tmp4 - BLOCKSIZE;
-
-#else
-
 			tmp1 = BLOCKSIZE - block_loc;
 			tmp2 = BLOCKSIZE - block_loc;
 			tmp3 = BLOCKSIZE - block_loc;
@@ -1731,9 +1548,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			tmp2 = tmp2 - BLOCKSIZE;
 			tmp3 = tmp3 - BLOCKSIZE;
 			tmp4 = tmp4 - BLOCKSIZE;
-
-#endif
-
 
 #ifdef USE_COMPRESSED_FB
 			fbptr = fbc + i;
@@ -1808,7 +1622,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i++;
 
 		}
-#endif
 
 		//now cleanup any that don't fit in the last batch
 		while ((uint32)i < bound)

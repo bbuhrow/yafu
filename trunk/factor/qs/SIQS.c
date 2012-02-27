@@ -1501,7 +1501,7 @@ int siqs_static_init(static_conf_t *sconf)
 		sconf->factor_base->tinylist->logprime = (uint32 *)xmalloc_align(
 			(size_t)(256 * sizeof(uint32)));
 
-#ifdef USE_8X_MOD
+#ifdef USE_8X_MOD_ASM
 		sconf->factor_base->list->small_inv = (uint16 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint16)));
 		sconf->factor_base->list->correction = (uint16 *)xmalloc_align(
@@ -1605,10 +1605,34 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > 1024)  &&
+			(i % 8 == 0)) break;
+	}
+	sconf->factor_base->fb_10bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 13 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 2048)  &&
 			(i % 8 == 0)) break;
 	}
 	sconf->factor_base->fb_11bit_B = i;
+
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 13 bits.  
+		//wait until the index is a multiple of 4 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		//don't let med_B grow larger than 1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > 4096)  &&
+			(i % 8 == 0)) break;
+	}
+	sconf->factor_base->fb_12bit_B = i;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1694,10 +1718,13 @@ int siqs_static_init(static_conf_t *sconf)
 
 	if (VFLAG > 1)
 	{
-		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t11bit: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
+			"13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
 			sconf->sieve_small_fb_start,
+			sconf->factor_base->fb_10bit_B,
 			sconf->factor_base->fb_11bit_B,
+			sconf->factor_base->fb_12bit_B,
 			sconf->factor_base->fb_13bit_B,
 			sconf->factor_base->fb_14bit_B,
 			sconf->factor_base->fb_15bit_B,
@@ -1705,9 +1732,12 @@ int siqs_static_init(static_conf_t *sconf)
 			sconf->factor_base->large_B,
 			sconf->factor_base->B);
 
-		printf("start primes\n\tSPV: %u\n\t11bit: %u\n\t13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
+			"13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
 			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_12bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
