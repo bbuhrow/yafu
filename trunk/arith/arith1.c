@@ -45,7 +45,9 @@ int gmp_base10(mpz_t x)
 	g = mpz_sizeinbase(x,10);
 	mpz_set_ui(t,10);
 	mpz_pow_ui(t, t, g - 1);
-	return g - (mpz_cmp(t, x) > 0 ? 1 : 0);
+	g = g - (mpz_cmp(t, x) > 0 ? 1 : 0);
+	mpz_clear(t);
+	return g;
 }
 	
 // borrowed from jasonp... 

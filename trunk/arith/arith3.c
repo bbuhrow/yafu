@@ -540,40 +540,41 @@ void dblGCD(double x, double y, double *w)
 
 int llt(uint32 exp)
 {
-	z tmp,tmp2,n;
+	mpz_t tmp,tmp2,n;
 	clock_t start, stop;
 	double t;
 	uint32 i,j,nchars;
 	fp_digit d;
 
-	zInit(&tmp);
-	sp2z(exp,&tmp);
-	if (!isPrime(&tmp))
+	mpz_init(tmp);
+	mpz_set_ui(tmp, exp); //sp2z(exp,&tmp);
+	if (!mpz_probab_prime_p(tmp, NUM_WITNESSES))
 	{
-		zFree(&tmp);
+		mpz_clear(tmp);
+		printf("exponent is not prime\n");
 		return 0;
 	}
 
 	start = clock();
-	zInit(&n);
-	sp2z(4,&tmp);
-	zShiftLeft(&n,&zOne,exp);
-	zShortSub(&n,1,&n);
-	i = (uint32)n.val[0];
+	mpz_init(n);
+	mpz_set_ui(tmp, 4); //sp2z(4,&tmp);
+	mpz_set_ui(n, 1);
+	mpz_mul_2exp(n, n, exp); //zShiftLeft(&n,&zOne,exp);
+	mpz_sub_ui(n, n, 1); //zShortSub(&n,1,&n);
 	//should vary the depth depending on the size of p
-	for (i = 1; i< 100000; i++)
+	for (i = 1; i< 1000000; i++)
 	{
 		d = 2*i*(fp_digit)exp + 1;
-		if (zShortMod(&n,d) == 0)
+		if (mpz_tdiv_ui(n,d) == 0)
 		{
-			zFree(&n);
-			zFree(&tmp);
+			mpz_clear(n);
+			mpz_clear(tmp);
 			printf("2*%d*p+1 is a factor\n",i);
 			return 0;
 		}
 	}
 	printf("trial division to %u bits is complete\n",
-		(uint32)spBits(2*100000*exp+1));
+		(uint32)spBits(2*1000000*exp+1));
 
 	/*
 	t1 = POLLARD_STG1_MAX;
@@ -595,18 +596,21 @@ int llt(uint32 exp)
 	}
 	*/
 	
-	zInit(&tmp2);
+	mpz_init(tmp2);
 	nchars=0;
 	//else do the ll test
 	for (i=0;i<exp-2;i++)
 	{
-		zSqr(&tmp,&tmp);
-		zShortSub(&tmp,2,&tmp);
-		zDiv(&tmp,&n,&tmp2,&tmp);
-		for (j=0;j<nchars;j++)
-			printf("\b");
-		nchars = printf("llt iteration %d",i);
-		fflush(stdout);
+		mpz_mul(tmp, tmp, tmp); //zSqr(&tmp,&tmp);
+		mpz_sub_ui(tmp, tmp, 2); //zShortSub(&tmp,2,&tmp);
+		mpz_tdiv_r(tmp, tmp, n); //zDiv(&tmp,&n,&tmp2,&tmp);
+		if ((i & 511) == 0)
+		{
+			for (j=0;j<nchars;j++)
+				printf("\b");
+			nchars = printf("llt iteration %d",i);
+			fflush(stdout);
+		}
 	}
 	printf("\n");
 	
@@ -614,17 +618,17 @@ int llt(uint32 exp)
 	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 	printf("elapsed time = %6.4f\n",t);
 
-	zFree(&tmp2);
-	zFree(&n);
+	mpz_clear(tmp2);
+	mpz_clear(n);
 
-	if (zCompare(&tmp,&zZero) == 0)
+	if (mpz_cmp_ui(tmp, 0) == 0)
 	{
-		zFree(&tmp);
+		mpz_clear(tmp);
 		return 1;
 	}
 	else
 	{
-		zFree(&tmp);
+		mpz_clear(tmp);
 		return 0;
 	}
 }

@@ -248,8 +248,7 @@ int sptestsqr(uint64 n)
 uint64 spfermat(uint64 n, uint64 limit)
 {
 	//	  Fermat's factorization method (wikipedia psuedo-code)
-	int i;
-	uint64 a, b2, tmp, maxa, count;
+	uint64 a, b2, maxa, count;
 
 	maxa = n + 1;
 	maxa >>= 1;
