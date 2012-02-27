@@ -39,7 +39,9 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 urange = 10000000;
 	uint32 lrange = 0;
 	fp_digit f;
-	//uint32 shift = FOGSHIFT;
+#ifdef USE_8X_MOD_ASM
+	uint32 shift = 24;
+#endif
 
 	//unpack stuff from static data structure
 	fb_list *fb = sconf->factor_base;
@@ -126,9 +128,16 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			}
 			else
 			{
-#ifdef USE_8X_MOD
-				if ((prime > 2048) && (j % 8 == 0))
-					shift = FOGSHIFT_2;
+#ifdef USE_8X_MOD_ASM
+				if ((shift == 24) && 
+					(prime > 1024) && 
+					(j % 8 == 0))
+					shift = 26;
+
+				if ((shift == 26) && 
+					(prime > 4096) && 
+					(j % 8 == 0))
+					shift = 28;
 
 				fb->list->small_inv[j] = (uint16)(((uint32)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==
@@ -193,10 +202,17 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			}
 			else
 			{
-#ifdef USE_8X_MOD
+#ifdef USE_8X_MOD_ASM
 
-				if ((prime > 2048) && (j % 8 == 0))
-					shift = FOGSHIFT_2;
+				if ((shift == 24) && 
+					(prime > 1024) && 
+					(j % 8 == 0))
+					shift = 26;
+
+				if ((shift == 26) && 
+					(prime > 4096) && 
+					(j % 8 == 0))
+					shift = 28;
 
 				fb->list->small_inv[j] = (uint16)(((uint32)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==

@@ -130,6 +130,41 @@ this file contains code implementing 1)
 			: "r"(sieveblock + j), "r"(buffer)	\
 			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
+	#define SIEVE_SCAN_32	\
+		asm volatile (		\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
+	#define SIEVE_SCAN_64		\
+		asm volatile (							\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"orpd 32(%1), %%xmm0    \n\t"		\
+			"orpd 48(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
+	#define SIEVE_SCAN_128		\
+		asm volatile (			\
+			"movdqa (%1), %%xmm0   \n\t"		\
+			"orpd 16(%1), %%xmm0    \n\t"		\
+			"orpd 32(%1), %%xmm0    \n\t"		\
+			"orpd 48(%1), %%xmm0    \n\t"		\
+			"orpd 64(%1), %%xmm0    \n\t"		\
+			"orpd 80(%1), %%xmm0    \n\t"		\
+			"orpd 96(%1), %%xmm0    \n\t"		\
+			"orpd 112(%1), %%xmm0    \n\t"		\
+			"pmovmskb %%xmm0, %0   \n\t"		\
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "0"(result)	\
+			: "%xmm0");
+
 #elif defined(GCC_ASM32X) || defined(__MINGW32__)
 	#define SCAN_CLEAN asm volatile("emms");	
 
@@ -307,6 +342,14 @@ this file contains code implementing 1)
 	//throwing away block location 65535 - NO, empirically it is much better to just
 	//always bail for location 65535 when the blocksize is 65536.
 
+	// also need to bail on location 65534, because otherwise the 8x sse2 asm division
+	// can fail.  this is because we add 1 to the block loc and then add the correction
+	// factor on top of that, which can overflow if blockloc >= 65534.
+
+	// I think that throwing away 3/1000th of 1 percent of the sieve hits in exchange
+	// for the speedups associated with 8x sse2 asm division and compression of
+	// small primes is worth it (on 64k builds only).
+
 int check_relations_siqs_1(uint32 blocknum, uint8 parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
@@ -336,8 +379,8 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 				continue;
 
 #ifdef YAFU_64K
-			//see discussion near line 377
-			if (thisloc ==	65535)
+			//see discussion near line 323
+			if (thisloc >=	65534)
 				continue;
 #endif
 			// log this report
@@ -349,7 +392,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
 	//{
 	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	//	exit(-1);
+	////	exit(-1);
 	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
@@ -403,8 +446,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				continue;
 
 #ifdef YAFU_64K
-			//see discussion near line 377
-			if (thisloc == 65535)
+			//see discussion near line 323
+			if (thisloc >=	65534)
 				continue;
 #endif
 
@@ -446,8 +489,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
@@ -486,8 +529,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
@@ -504,7 +547,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
 	//{
 	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	//	exit(-1);
+	////	exit(-1);
 	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
@@ -557,8 +600,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 				continue;
 
 #ifdef YAFU_64K
-			//see discussion near line 377
-			if (thisloc == 65535)
+			//see discussion near line 323
+			if (thisloc >=	65534)
 				continue;
 #endif
 
@@ -600,8 +643,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
@@ -641,8 +684,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
@@ -656,10 +699,10 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 #endif
 
-	//if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
 	//{
 	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	//	exit(-1);
+	////	exit(-1);
 	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
@@ -716,8 +759,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				continue;
 
 #ifdef YAFU_64K
-			//see discussion near line 377
-			if (thisloc == 65535)
+			//see discussion near line 323
+			if (thisloc >=	65534)
 				continue;
 #endif
 
@@ -759,8 +802,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
@@ -802,8 +845,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 					continue;
 
 #ifdef YAFU_64K
-				//see discussion near line 377
-				if (thisloc == 65535)
+				//see discussion near line 323
+				if (thisloc >=	65534)
 					continue;
 #endif
 
