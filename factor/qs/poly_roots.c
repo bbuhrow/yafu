@@ -106,6 +106,10 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
+	// extra cushion - may increase the memory usage a bit, but in very
+	// rare circumstances not enough slices allocated causes crashes.
+	lp_bucket_p->alloc_slices++;
+
 	return;
 }
 
