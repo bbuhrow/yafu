@@ -42,7 +42,9 @@ void zTrial(fact_obj_t *fobj)
 		P_MAX = PRIMES[NUM_P-1];
 	}
 
-	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && (PRIMES[k] < limit))
+	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && 
+		(PRIMES[k] < limit) && 
+		(k < (uint32)NUM_P))
 	{
 		q = (fp_digit)PRIMES[k];
 		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
