@@ -270,7 +270,7 @@ this file contains code implementing 5)
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
 #endif
 
-void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
+void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	int i,j,k;

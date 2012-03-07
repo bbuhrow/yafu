@@ -84,9 +84,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
 	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
-#ifdef USE_COMPRESSED_FB
-	sieve_fb_compressed *fbptr;
-#endif
 
 #ifdef DO_4X_SPV
 	uint32 *offsetarray, *mask1, *mask2;
@@ -395,18 +392,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			
 			i -= 3;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-			logp = fbptr->prime_and_logp >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
-#endif
 
 			if (tmp1 == root1 || tmp1 == root2)
 			{
@@ -415,18 +404,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-			logp = fbptr->prime_and_logp >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
-#endif
 
 			if (tmp2 == root1 || tmp2 == root2)
 			{
@@ -435,18 +416,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-			logp = fbptr->prime_and_logp >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
-#endif
 
 			if (tmp3 == root1 || tmp3 == root2)
 			{
@@ -455,18 +428,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-			logp = fbptr->prime_and_logp >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
-#endif
 
 			if (tmp4 == root1 || tmp4 == root2)
 			{
@@ -482,18 +447,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		{
 			uint64 q64;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-			logp = fbptr->prime_and_logp >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
-#endif
 			
 			//this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];

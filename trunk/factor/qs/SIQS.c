@@ -2282,10 +2282,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	align_free(dconf->sieve);
 	align_free(dconf->fb_sieve_p);
 	align_free(dconf->fb_sieve_n);
-#ifdef USE_COMPRESSED_FB
-	align_free(dconf->comp_sieve_p);
-	align_free(dconf->comp_sieve_n);
-#else
+
 	align_free(dconf->comp_sieve_p->prime);
 	align_free(dconf->comp_sieve_p->root1);
 	align_free(dconf->comp_sieve_p->root2);
@@ -2296,7 +2293,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	align_free(dconf->comp_sieve_n->logp);
 	free(dconf->comp_sieve_p);
 	free(dconf->comp_sieve_n);
-#endif
+
 	align_free(dconf->rootupdates);
 
 	align_free(dconf->update_data.firstroots1);

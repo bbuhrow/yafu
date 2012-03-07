@@ -614,6 +614,9 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
+		// TODO:
+		// looks easy to 8x parallelize, but these don't fall nicely
+		// into 8x chunks (there are usually < 40 or them, as well).
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -625,17 +628,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			//we don't sieve these, so ordering doesn't matter
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
-#ifdef USE_COMPRESSED_FB
-			fb_p[j].roots = (uint32)((root1 << 16) | root2);
-			if (root2 == 0)
-				fb_n[j].roots = 0;
-			else
-				fb_n[j].roots = (uint32)((prime - root2) << 16);
-			if (root1 == 0)
-				fb_n[j].roots |= 0;
-			else
-				fb_n[j].roots |= (uint32)(prime - root2);
-#else
+
 			fb_p->root1[j] = (uint16)root1;
 			fb_p->root2[j] = (uint16)root2;
 			fb_n->root1[j] = (uint16)(prime - root2);
@@ -644,10 +637,14 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root1[j] = 0;
 			if (fb_n->root2[j] == prime)
 				fb_n->root2[j] = 0;
-#endif
 
 		}
 
+		// TODO:
+		// looks easy to 8x parallelize using SIMD, taking advantage
+		// of the fact that these are all (or could be) aligned
+		// arrays of size equal to a multiple of 8.  
+		// here, on the negative side, and in firstRoots.
 		for (j=sconf->sieve_small_fb_start;j<med_B;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -660,29 +657,21 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			{
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
-#ifdef USE_COMPRESSED_FB
-				fb_p[j].roots = (uint32)((root1 << 16) | root2);
-				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
-#else
+
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
 				fb_n->root1[j] = (uint16)(prime - root1);
 				fb_n->root2[j] = (uint16)(prime - root2);
-#endif
 			}
 			else
 			{
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
-#ifdef USE_COMPRESSED_FB
-				fb_p[j].roots = (uint32)((root2 << 16) | root1);
-				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
-#else
+
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
 				fb_n->root1[j] = (uint16)(prime - root2);
 				fb_n->root2[j] = (uint16)(prime - root1);
-#endif
 			}
 		}
 
@@ -1605,17 +1594,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			//we don't sieve these, so ordering doesn't matter
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
-#ifdef USE_COMPRESSED_FB
-			fb_p[j].roots = (uint32)((root1 << 16) | root2);
-			if (root2 == 0)
-				fb_n[j].roots = 0;
-			else
-				fb_n[j].roots = (uint32)((prime - root2) << 16);
-			if (root1 == 0)
-				fb_n[j].roots |= 0;
-			else
-				fb_n[j].roots |= (uint32)(prime - root2);
-#else
+
 			fb_p->root1[j] = (uint16)root1;
 			fb_p->root2[j] = (uint16)root2;
 			fb_n->root1[j] = (uint16)(prime - root2);
@@ -1624,7 +1603,6 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root1[j] = 0;
 			if (fb_n->root2[j] == prime)
 				fb_n->root2[j] = 0;
-#endif
 
 		}
 
@@ -1640,29 +1618,21 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			{
 				update_data.firstroots1[j] = root2;
 				update_data.firstroots2[j] = root1;
-#ifdef USE_COMPRESSED_FB
-				fb_p[j].roots = (uint32)((root1 << 16) | root2);
-				fb_n[j].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
-#else
+
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
 				fb_n->root1[j] = (uint16)(prime - root1);
 				fb_n->root2[j] = (uint16)(prime - root2);
-#endif
 			}
 			else
 			{
 				update_data.firstroots1[j] = root1;
 				update_data.firstroots2[j] = root2;
-#ifdef USE_COMPRESSED_FB
-				fb_p[j].roots = (uint32)((root2 << 16) | root1);
-				fb_n[j].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
-#else
+
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
 				fb_n->root1[j] = (uint16)(prime - root2);
 				fb_n->root2[j] = (uint16)(prime - root1);
-#endif
 			}
 		}
 

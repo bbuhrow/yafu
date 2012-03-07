@@ -396,17 +396,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//we don't sieve these primes, so ordering doesn't matter
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
-#ifdef USE_COMPRESSED_FB
-		fb_p[i].roots = (uint32)((root1 << 16) | root2);
-		if (root2 == 0)
-			fb_n[i].roots = 0;
-		else
-			fb_n[i].roots = (uint32)((prime - root2) << 16);
-		if (root1 == 0)
-			fb_n[i].roots |= 0;
-		else
-			fb_n[i].roots |= (uint32)(prime - root1);
-#else
+
 		fb_p->root1[i] = (uint16)root1;
 		fb_p->root2[i] = (uint16)root2;
 		fb_n->root1[i] = (uint16)(prime - root2);
@@ -418,7 +408,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			fb_n->root1[i] = 0;
 		if (fb_n->root2[i] == prime)
 			fb_n->root2[i] = 0;
-#endif
 
 		//for this factor base prime, compute the rootupdate value for all s
 		//Bl values.  amodp holds a^-1 mod p
@@ -486,29 +475,21 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		{
 			update_data.firstroots1[i] = root2;
 			update_data.firstroots2[i] = root1;
-#ifdef USE_COMPRESSED_FB
-			fb_p[i].roots = (uint32)((root1 << 16) | root2);
-			fb_n[i].roots = (uint32)(((prime - root2) << 16) | (prime - root1));
-#else
+
 			fb_p->root1[i] = (uint16)root2;
 			fb_p->root2[i] = (uint16)root1;
 			fb_n->root1[i] = (uint16)(prime - root1);
 			fb_n->root2[i] = (uint16)(prime - root2);
-#endif
 		}
 		else
 		{
 			update_data.firstroots1[i] = root1;
 			update_data.firstroots2[i] = root2;
-#ifdef USE_COMPRESSED_FB
-			fb_p[i].roots = (uint32)((root2 << 16) | root1);
-			fb_n[i].roots = (uint32)(((prime - root1) << 16) | (prime - root2));
-#else
+
 			fb_p->root1[i] = (uint16)root1;
 			fb_p->root2[i] = (uint16)root2;
 			fb_n->root1[i] = (uint16)(prime - root2);
 			fb_n->root2[i] = (uint16)(prime - root1);
-#endif
 		}
 
 		//for this factor base prime, compute the rootupdate value for all s

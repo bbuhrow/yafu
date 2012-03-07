@@ -114,6 +114,7 @@ YAFU_SRCS = \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
 	factor/qs/tdiv_med.c \
+	factor/qs/tdiv_resieve.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
 	factor/qs/sieve.c \

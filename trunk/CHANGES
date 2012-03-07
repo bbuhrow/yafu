@@ -1,3 +1,19 @@
+v 1.31
++ bugfixes (thanks volmike, kar_bon, StarGate38, and Brian Gladman!)
++ 8x sse2 asm division 
++ removed obsolete pre-processor directives and code (e.g. USE_COMPRESSED_FB)
++ cleanup of tdiv_med.c: separate division and resieving stuff
+
+TODO for 1.31:
++ change to factor(): remove pp1 and increase pm1 bound by 1.5x to compensate
++ create a yafu.ini file if one doesn't exist
++ more robust restarting
++ re-factorizations and detecting composites
++ perfect power test up front in factor()
++ SIMD of small prime initialization in nextRoots/firstRoots
++ 8x SIMD asm division for other platforms: win32, linux32, and VC x64.
+
+
 v 1.30
 + fixed counting of decimal digits for logging purposes
 + massive overhaul of factor(): pretesting to (customizable) digit level instead of 
