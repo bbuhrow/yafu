@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
 	LCGSTATE = g_rand.low;
 #endif	
 
+
 	//command line
 	while (1)
 	{		

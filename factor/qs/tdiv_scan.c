@@ -400,14 +400,15 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		if (dconf->valid_Qs[j])
 		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
+			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -555,14 +556,15 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		if (dconf->valid_Qs[j])
 		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
+			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -712,14 +714,15 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		if (dconf->valid_Qs[j])
 		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
+			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -871,14 +874,15 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	filter_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
 	{
 		if (dconf->valid_Qs[j])
 		{
-			filter_LP(j, parity, blocknum, sconf, dconf);
+			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}

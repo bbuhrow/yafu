@@ -1595,18 +1595,10 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 	{	
 		uint8 *s2;		
 
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
-#endif
 
 		//if we are past the blocksize, bail out because there are faster methods
 		if (prime > p16)
@@ -1644,29 +1636,17 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 			root1 = tmp;
 		}
 			
-#ifdef USE_COMPRESSED_FB
-		fbptr->roots = (uint32)(((root2 - BLOCKSIZE) << 16) | (root1 - BLOCKSIZE));
-#else
 		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
 		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
-#endif
 
 	}
 
 	for (;i<med_B;i++)
 	{	
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
-#endif
 
 		//if we are past the blocksize, bail out because there are faster methods
 		if (prime > BLOCKSIZE)
@@ -1691,30 +1671,18 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 			root1 = tmp;
 		}
 			
-#ifdef USE_COMPRESSED_FB
-		fbptr->roots = (uint32)(((root2 - BLOCKSIZE) << 16) | (root1 - BLOCKSIZE));
-#else
 		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
 		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
-#endif
 	}
 
 	//if there are primes left bigger than the blocksize, this will take
 	//care of them.  if not, it doesn't run at all.
 	for (;i<med_B;i++)
 	{	
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
-#endif
 
 		if (root1 < BLOCKSIZE)
 		{
@@ -1734,16 +1702,8 @@ void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint
 			}
 		}
 
-#ifdef USE_COMPRESSED_FB
-		fbptr = fb + i;
-		prime = fbptr->prime_and_logp & 0xFFFF;
-		root1 = fbptr->roots & 0xFFFF;
-		root2 = fbptr->roots >> 16;
-		logp = fbptr->prime_and_logp >> 16;
-#else
 		fb->root1[i] = (uint16)(root1 - BLOCKSIZE);
 		fb->root2[i] = (uint16)(root2 - BLOCKSIZE);
-#endif
 
 	}
 

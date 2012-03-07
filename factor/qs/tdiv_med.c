@@ -49,15 +49,13 @@ by scanning the buckets for sieve hits equal to the current block location.
 
 6) If applicable/appropriate, factor a remaining composite with squfof
 
-this file contains code implementing 3) and 4)
+this file contains code implementing 3)
 
 
 */
 
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
-	//these compilers support SIMD 
-	#define SSE2_RESIEVING 1
 
 	#if defined(HAS_SSE2)
 
@@ -155,117 +153,9 @@ this file contains code implementing 3) and 4)
 
 #endif
 
-
-		#define STEP_COMPARE_COMBINE \
-			"psubw %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
-			"psubw %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
-			"pcmpeqw %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
-			"pcmpeqw %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
-			"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-			"por %%xmm6, %%xmm8 \n\t"		/* combine results */
-
-		#define INIT_RESIEVE \
-			"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-			"pxor %%xmm8, %%xmm8 \n\t"		/* zero xmm8 */ \
-			"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
-			"paddw %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
-			"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
-			"paddw %%xmm4, %%xmm3 \n\t"		/* correct root2s */ \
-			"movdqa (%1), %%xmm1 \n\t"		/* bring in 8 primes */ \
-			"pxor %%xmm7, %%xmm7 \n\t"		/* zero xmm7 */ \
-			"pxor %%xmm5, %%xmm5 \n\t"		/* zero xmm5 */ \
-			"pxor %%xmm6, %%xmm6 \n\t"		/* zero xmm6 */
-
-		#ifdef YAFU_64K
-			#define RESIEVE_8X_14BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-		#else
-			#define RESIEVE_8X_14BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				asm ( \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					"por	%%xmm8, %%xmm7 \n\t" \
-					"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-					: "=r"(result) \
-					: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-					: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
-					);
-		#endif
-
-	#else
-		#error SSE2 is required
 	#endif
 
-
 #elif defined(MSC_ASM32A)
-	#define SSE2_RESIEVING 1
 
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
@@ -362,604 +252,15 @@ this file contains code implementing 3) and 4)
 
 #endif
 
-		#define STEP_COMPARE_COMBINE \
-			ASM_M psubw xmm2, xmm1 \
-			ASM_M psubw xmm3, xmm1 \
-			ASM_M pcmpeqw xmm5, xmm2 \
-			ASM_M pcmpeqw xmm6, xmm3 \
-			ASM_M por xmm7, xmm5 \
-			ASM_M por xmm8, xmm6
-
-
-		#define INIT_RESIEVE \
-			ASM_M movdqa xmm4, XMMWORD PTR [edx] \
-			ASM_M pxor xmm8, xmm8 \
-			ASM_M movdqa xmm2, XMMWORD PTR [ebx] \
-			ASM_M paddw xmm2, xmm4 \
-			ASM_M movdqa xmm3, XMMWORD PTR [ecx] \
-			ASM_M paddw xmm3, xmm4 \
-			ASM_M movdqa xmm1, XMMWORD PTR [eax] \
-			ASM_M pxor xmm7, xmm7 \
-			ASM_M pxor xmm6, xmm6 \
-			ASM_M pxor xmm5, xmm5
-
-		#ifdef YAFU_64K
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#endif
-
-	#elif defined(HAS_MMX)
-
-
-
-	#else
-		#error SSE2 is required
 	#endif
 
 #elif defined(_WIN64)
 
-	#define SSE2_RESIEVING 1
 
-	#if defined(HAS_SSE2)
-
-		#define STEP_COMPARE_COMBINE \
-			root1s = _mm_sub_epi16(root1s, primes); \
-			root2s = _mm_sub_epi16(root2s, primes); \
-			tmp1 = _mm_cmpeq_epi16(tmp1, root1s); \
-			tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
-			combine = _mm_xor_si128(combine, tmp1); \
-			combine = _mm_xor_si128(combine, tmp2);
-
-		#define INIT_RESIEVE \
-			c = _mm_load_si128((__m128i *)corrections); \
-			root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-			root1s = _mm_add_epi16(root1s, c); \
-			root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-			root2s = _mm_add_epi16(root2s, c); \
-			primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
-			combine = _mm_xor_si128(combine, combine); \
-			tmp1 = _mm_xor_si128(tmp1, tmp1); \
-			tmp2 = _mm_xor_si128(tmp2, tmp2);
-
-		#ifdef YAFU_64K
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#endif
-
-	#endif
 
 #else	/* compiler not recognized*/
 
-	#define COMPARE_RESIEVE_VALS(x)	\
-		if (r1 == 0) result |= x; \
-		if (r2 == 0) result |= x;
 
-	#define STEP_RESIEVE \
-		r1 -= p;	\
-		r2 -= p;
-
-	#define RESIEVE_1X_14BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#define RESIEVE_1X_15BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);			\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#define RESIEVE_1X_16BIT_MAX(x)	\
-		STEP_RESIEVE;						\
-		COMPARE_RESIEVE_VALS(x);
-
-	#ifdef YAFU_64K
-		#define RESIEVE_8X_14BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_8X_15BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_8X_16BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-			} while (0); 
-	#else
-		#define RESIEVE_8X_14BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_14BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_14BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_8X_15BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_15BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_15BIT_MAX(0x8000);									\
-			} while (0); 
-
-		#define RESIEVE_8X_16BIT_MAX \
-			do { \
-				int p = (int)fbc->prime[i];										\
-				int r1 = (int)fbc->root1[i] + BLOCKSIZE - block_loc;			\
-				int r2 = (int)fbc->root2[i] + BLOCKSIZE - block_loc;			\
-				RESIEVE_1X_16BIT_MAX(0x2);										\
-				\
-				p = (int)fbc->prime[i+1];										\
-				r1 = (int)fbc->root1[i+1] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+1] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8);										\
-				\
-				p = (int)fbc->prime[i+2];										\
-				r1 = (int)fbc->root1[i+2] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+2] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x20);									\
-				\
-				p = (int)fbc->prime[i+3];										\
-				r1 = (int)fbc->root1[i+3] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+3] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x80);									\
-				\
-				p = (int)fbc->prime[i+4];										\
-				r1 = (int)fbc->root1[i+4] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+4] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x200);									\
-				\
-				p = (int)fbc->prime[i+5];										\
-				r1 = (int)fbc->root1[i+5] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+5] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x800);									\
-				\
-				p = (int)fbc->prime[i+6];										\
-				r1 = (int)fbc->root1[i+6] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+6] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x2000);									\
-				\
-				p = (int)fbc->prime[i+7];										\
-				r1 = (int)fbc->root1[i+7] + BLOCKSIZE - block_loc;				\
-				r2 = (int)fbc->root2[i+7] + BLOCKSIZE - block_loc;				\
-				RESIEVE_1X_16BIT_MAX(0x8000);									\
-			} while (0); 
-		
-	#endif
 #endif
 
 #ifdef USE_YAFU_TDIV
@@ -994,12 +295,12 @@ this file contains code implementing 3) and 4)
 	}
 #endif
 
-void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+
+void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
-	uint64 q64;
 	int i;
 	uint32 bound, tmp, prime, root1, root2, report_num;
 	int smooth_num;
@@ -1008,12 +309,6 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
-	uint32 tmp1, tmp2, tmp3, tmp4;
-
-	uint16 *corrections = dconf->corrections;
-#ifdef USE_COMPRESSED_FB
-	sieve_fb_compressed *fbptr;
-#endif
 
 #ifdef USE_8X_MOD_ASM
 	uint16 *bl_sizes;
@@ -1036,6 +331,10 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		fbc = dconf->comp_sieve_p;
 	}
 
+#ifdef QS_TIMING
+	gettimeofday(&qs_timing_start, NULL);
+#endif
+
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 #ifdef USE_YAFU_TDIV
@@ -1045,13 +344,45 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		if (!dconf->valid_Qs[report_num])
 			continue;
 
+		// for each report, we trial divide, and then either trial divide or
+		// resieve.  for the first trial division step, we have either
+		// unrolled C routines or SIMD assembly routines to choose from.  The
+		// second trial division step only has a C routine - the more optimized
+		// path is resieving.
+		//
+		// the basic idea of trial division is to test if the block location
+		// in question lies on the arithmetic progression of a prime.  By the time
+		// we get to this routine, the arithmetic progression has been reset for
+		// the next sieve block, so we have to do a few manipulations to revert
+		// to the "real" progression (add the blocksize back to the roots).  
+		// there are various methods for doing the test depending on the size of
+		// the primes (and therefore how many times it could have possibly landed
+		// in the sieve block).  The most straightforward, and the method the SIMD
+		// assembly uses, is to see if the roots (adjusted for the "real" progression)
+		// minus the block location in question, divided by the prime, is zero.  if
+		// so, this block location is on the arithmetic progression of that prime,
+		// and we can proceed to trial divide the prime into Q(x) for this sieve hit.
+		// 
+		// the basic idea of resieving is to start from the end of the "real"
+		// arithmetic progression, repeatedly subtract each prime, and test after
+		// each subtraction if we've hit the sieve location in question.  if so,
+		// we know this location is on the prime's arithmetic progression and can 
+		// proceed to trial divide.  For "large enough" primes, this is very efficient
+		// because we only need to do a few subtractions and tests instead of a 
+		// division.  Since we are not really doing division tests, and instead are
+		// doing multiplication by inverses, and futhermore since we might be doing those
+		// multiplications 8 at a time using SIMD, resieving is only a win for the 
+		// very largest primes less than 16 bits in size.  
+		//
+		// for OS/architecture/compilers where resieving isn't implemented, there are
+		// further trial division steps instead.  These are more efficient than
+		// the "check for exact division of a difference" method described above,
+		// but are only implemented in portable C.  See code below for more detail.
+
+		// pull the details of this report to get started.
 		fb_offsets = &dconf->fb_offsets[report_num][0];
 		smooth_num = dconf->smooth_num[report_num];
 		block_loc = dconf->reports[report_num];
-
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
 
 		//do the primes less than the blocksize.  primes bigger than the blocksize can be handled
 		//even more efficiently.
@@ -1065,25 +396,26 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 		i=sconf->sieve_small_fb_start;
 
-#if !defined(USE_RESIEVING)
-		bound = sconf->factor_base->small_B;
+		// the bound before resieving takes over
+#if defined(YAFU_64K)
+		bound = sconf->factor_base->fb_14bit_B;
 #else
+		bound = sconf->factor_base->fb_13bit_B;
+#endif
+
+		// although if we are using 8x ASM division,
+		// use a lower bound for a while first
+#ifdef USE_8X_MOD_ASM
 		bound = sconf->factor_base->fb_10bit_B;
 #endif
 		
 		// single-up test until i is a multiple of 8
 		while ((uint32)i < bound && ((i & 7) != 0))
 		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
+
 			//tmp = distance from this sieve block offset to the end of the block
 			tmp = BLOCKSIZE - block_loc;
 	
@@ -1330,11 +662,11 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
 		while ((uint32)i < bound)
 		{
-
-			tmp1 = BLOCKSIZE - block_loc;
-			tmp2 = BLOCKSIZE - block_loc;
-			tmp3 = BLOCKSIZE - block_loc;
-			tmp4 = BLOCKSIZE - block_loc;
+			uint64 q64;
+			uint32 tmp1 = BLOCKSIZE - block_loc;
+			uint32 tmp2 = BLOCKSIZE - block_loc;
+			uint32 tmp3 = BLOCKSIZE - block_loc;
+			uint32 tmp4 = BLOCKSIZE - block_loc;
 
 			tmp1 = tmp1 + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
@@ -1365,16 +697,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			tmp3 = tmp3 - BLOCKSIZE;
 			tmp4 = tmp4 - BLOCKSIZE;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp1 == root1 || tmp1 == root2)
 			{
@@ -1383,16 +708,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp2 == root1 || tmp2 == root2)
 			{
@@ -1401,16 +719,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp3 == root1 || tmp3 == root2)
 			{
@@ -1419,16 +730,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp4 == root1 || tmp4 == root2)
 			{
@@ -1442,16 +746,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now cleanup any that don't fit in the last batch
 		while ((uint32)i < bound)
 		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			tmp = BLOCKSIZE - block_loc;
 			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
@@ -1467,30 +764,13 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
-#endif
-
-		
-#if !defined(USE_RESIEVING)
-		bound = sconf->factor_base->small_B;
-#elif defined(YAFU_64K)
-		bound = sconf->factor_base->fb_14bit_B;
-#else
-		bound = sconf->factor_base->fb_13bit_B;
-#endif				
-
 		// single-up test until i is a multiple of 8
 		while ((uint32)i < bound && ((i & 7) != 0))
 		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
+
 			//tmp = distance from this sieve block offset to the end of the block
 			tmp = BLOCKSIZE - block_loc;
 	
@@ -1515,10 +795,11 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
 		while ((uint32)i < bound)
 		{
-			tmp1 = BLOCKSIZE - block_loc;
-			tmp2 = BLOCKSIZE - block_loc;
-			tmp3 = BLOCKSIZE - block_loc;
-			tmp4 = BLOCKSIZE - block_loc;
+			uint64 q64;
+			uint32 tmp1 = BLOCKSIZE - block_loc;
+			uint32 tmp2 = BLOCKSIZE - block_loc;
+			uint32 tmp3 = BLOCKSIZE - block_loc;
+			uint32 tmp4 = BLOCKSIZE - block_loc;
 
 			tmp1 = tmp1 + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
@@ -1549,16 +830,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			tmp3 = tmp3 - BLOCKSIZE;
 			tmp4 = tmp4 - BLOCKSIZE;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp1 == root1 || tmp1 == root2)
 			{
@@ -1567,16 +841,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp2 == root1 || tmp2 == root2)
 			{
@@ -1585,16 +852,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp3 == root1 || tmp3 == root2)
 			{
@@ -1603,16 +863,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			}
 			i++;
 
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			if (tmp4 == root1 || tmp4 == root2)
 			{
@@ -1626,16 +879,9 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//now cleanup any that don't fit in the last batch
 		while ((uint32)i < bound)
 		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-#endif
 
 			tmp = BLOCKSIZE - block_loc;
 			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
@@ -1651,339 +897,21 @@ void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
-		gettimeofday(&qs_timing_start, NULL);
 #endif
 
-#ifdef USE_RESIEVING
-
-#if defined(SSE2_RESIEVING)
-		corrections[0] = BLOCKSIZE - block_loc;
-		corrections[1] = BLOCKSIZE - block_loc;
-		corrections[2] = BLOCKSIZE - block_loc;
-		corrections[3] = BLOCKSIZE - block_loc;		
-		corrections[4] = BLOCKSIZE - block_loc;
-		corrections[5] = BLOCKSIZE - block_loc;
-		corrections[6] = BLOCKSIZE - block_loc;
-		corrections[7] = BLOCKSIZE - block_loc;		
-#endif
-		
-#ifndef YAFU_64K
-		// since the blocksize is bigger for YAFU_64K, skip resieving of primes
-		// up to 14 bits in size and instead use standard normal trial division.
-
-		bound = sconf->factor_base->fb_14bit_B;
-		while ((uint32)i < bound)
-		{
-			//minimum prime > blocksize / 2
-			//maximum correction = blocksize
-			//maximum starting value > blocksize * 3/2
-			//max steps = 2
-			//this misses all reports at block_loc = 0.  would need to check
-			//for equality to blocksize in that case
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i],fbc->root1[i],fbc->root2[i],
-			//	(fbc->prime[i] - 1 + BLOCKSIZE) / fbc->prime[i]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+1],fbc->root1[i+1],fbc->root2[i+1],
-			//	(fbc->prime[i+1] - 1 + BLOCKSIZE) / fbc->prime[i+1]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+2],fbc->root1[i+2],fbc->root2[i+2],
-			//	(fbc->prime[i+2] - 1 + BLOCKSIZE) / fbc->prime[i+2]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+3],fbc->root1[i+3],fbc->root2[i+3],
-			//	(fbc->prime[i+3] - 1 + BLOCKSIZE) / fbc->prime[i+3]);
-
-			uint32 result = 0;
-			RESIEVE_8X_14BIT_MAX;
-			
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
-
-			i += 8;
-		}
-#endif
-		bound = sconf->factor_base->fb_15bit_B;
-
-		while ((uint32)i < bound)
-		{
-			uint32 result = 0;
-			RESIEVE_8X_15BIT_MAX;
-
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
-
-			i += 8;
-		}
-
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-
-			uint32 result = 0;
-			RESIEVE_8X_16BIT_MAX;
-
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
-
-			i += 8;
-		}
-		
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-#endif
-
+		// either after 8x SSE2 ASM, or standard trial division, record
+		// how many factors we've found so far
 		dconf->smooth_num[report_num] = smooth_num;	
-
-#else
-		// standard trial division methods, for when either the compiler or the OS or both
-		// cause resieving to be slower.
-
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			//after sieving a block, the root is updated for the start of the next block
-			//get it back on the current block's progression
-			root1 = root1 + BLOCKSIZE - block_loc;		
-			root2 = root2 + BLOCKSIZE - block_loc;	
-
-			//there are faster methods if this is the case
-			if (prime > BLOCKSIZE)
-				break;
-
-			//the difference root - blockoffset is less than prime about 20% of the time
-			//and thus we don't have to divide at all in those cases.
-			if (root2 >= prime)
-			{
-				//r2 is bigger than prime, it could be on the progression, check it.
-				tmp = root2 + fullfb_ptr->correction[i];
-				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-				tmp = q64 >> 40; 
-				tmp = root2 - tmp * prime;
-
-				if (tmp == 0)
-				{
-					//it is, so it will divide Q(x).  do so as many times as we can.
-					DIVIDE_ONE_PRIME;
-				}
-				else if (root1 >= prime)
-				{			
-					tmp = root1 + fullfb_ptr->correction[i];
-					q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
-					tmp = q64 >> 40; 
-					tmp = root1 - tmp * prime;
-
-					if (tmp == 0)
-					{
-						//r2 was a bust, but root1 met the criteria.  divide Q(x).	
-						DIVIDE_ONE_PRIME;
-					}
-				}
-			}
-			i++;
-		}
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-		//for primes bigger than the blocksize, we don't need to divide at all since
-		//there can be at most one instance of the prime in the block.  thus the 
-		//distance to the next one is equal to 'prime', rather than a multiple of it.
-		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
-		{
-#ifdef USE_COMPRESSED_FB
-			fbptr = fbc + i;
-			prime = fbptr->prime_and_logp & 0xFFFF;
-			root1 = fbptr->roots & 0xFFFF;
-			root2 = fbptr->roots >> 16;
-#else
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-#endif
-
-			//the fbptr roots currently point to the next block
-			//so adjust the current index
-			tmp = block_loc + prime - BLOCKSIZE;
-			if ((root1 == tmp) || (root2 == tmp))
-			{
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-		dconf->smooth_num[report_num] = smooth_num;	
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-#endif
-
-#endif
 
 	}
+
+#ifdef QS_TIMING
+	gettimeofday (&qs_timing_stop, NULL);
+	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+
+	TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+	free(qs_timing_diff);
+#endif
 
 #ifdef USE_8X_MOD_ASM
 	align_free(bl_sizes);

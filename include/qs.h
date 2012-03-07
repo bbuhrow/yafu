@@ -72,9 +72,6 @@ uint32 blk_counts_n[64];
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
 
-//turn on/off usage of a compressed factor base for smallish primes
-//#define USE_COMPRESSED_FB
-
 //compile time definition of sieve block size.  should be equal to the size of L1 cache.
 #ifdef YAFU_64K
 #define BLOCKSIZE 65536
@@ -198,14 +195,6 @@ typedef struct
 	uint8 logprime;
 } sieve_fb;
 
-#ifdef USE_COMPRESSED_FB
-//#define LOGP_BITS 8
-typedef struct
-{
-	uint32 prime_and_logp;
-	uint32 roots;					//root1 is stored in the lower 16 bits, root2 in the upper 16
-} sieve_fb_compressed;
-#else
 typedef struct
 {
 	uint16 *prime;			
@@ -217,7 +206,6 @@ typedef struct
 	uint16 *logp;
 #endif
 } sieve_fb_compressed;
-#endif
 
 /************************* SIQS types and functions *****************/
 typedef struct
@@ -558,17 +546,25 @@ int (*scan_ptr)(uint32, uint8, static_conf_t *, dynamic_conf_t *);
 
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf);
-void filter_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
+
+void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf);
-void filter_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+
+void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+
+void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf);
+
 void trial_divide_Q_siqs(uint32 report_num, 
 						  uint8 parity, uint32 poly_id, uint32 blocknum, 
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
+
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  dynamic_conf_t *conf, uint32 *polya_factors, 
 						  uint32 num_polya_factors);
+
 void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  static_conf_t *conf);

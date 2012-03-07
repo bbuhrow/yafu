@@ -117,6 +117,7 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n);
 void smpqs_computeRoots(sm_mpqs_poly *poly, fb_list_sm_mpqs *fb, uint32 *modsqrt, 
 	smpqs_sieve_fb *fbp, smpqs_sieve_fb *fbn, uint32 start_prime);
 
+void smpqs_get_more_primes(sm_mpqs_poly *poly);
 uint8 smpqs_choose_multiplier(mpz_t n, uint32 fb_size);
 int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64 *apoly, uint64 *bpoly,
 			fb_list_sm_mpqs *fb, mpz_t n, int mul, 
@@ -683,27 +684,7 @@ void smallmpqs(fact_obj_t *fobj)
 	poly->poly_d = (uint64)mpz_get_ui(tmp); //.val[0];
 
 	if (spSOEprimes[szSOEp - 1] <= poly->poly_d)
-	{
-		uint64 num_p;
-		if (VFLAG > 1)
-			printf("smallmpqs getting more primes: poly_d = %u\n",
-			poly->poly_d);
-
-		PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL, 0, 
-			(uint64)((double)poly->poly_d * 1.25), &num_p);
-
-		//save a batch of sieve primes too.
-		spSOEprimes = (uint32 *)realloc(spSOEprimes, 
-			(size_t) (num_p * sizeof(uint32)));
-
-		for (i=0;i<num_p;i++)
-			spSOEprimes[i] = (uint32)PRIMES[i];
-
-		szSOEp = num_p;
-		NUM_P = num_p;
-		P_MIN = 0; 
-		P_MAX = PRIMES[(uint32)NUM_P-1];
-	}
+		smpqs_get_more_primes(poly);
 
 	pindex = bin_search_uint32(NUM_P, 0, poly->poly_d, spSOEprimes);
 	if (pindex < 0)
@@ -923,6 +904,33 @@ done:
 	free(fb->list->small_inv);
 	free(fb->list);
 	free(fb);
+
+	return;
+}
+
+void smpqs_get_more_primes(sm_mpqs_poly *poly)
+{
+	uint64 num_p;
+	int i;
+
+	if (VFLAG > 1)
+		printf("smallmpqs getting more primes: poly_d = %u\n",
+		poly->poly_d);
+
+	PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL, 0, 
+		(uint64)((double)poly->poly_d * 1.25), &num_p);
+
+	//save a batch of sieve primes too.
+	spSOEprimes = (uint32 *)realloc(spSOEprimes, 
+		(size_t) (num_p * sizeof(uint32)));
+
+	for (i=0;i<num_p;i++)
+		spSOEprimes[i] = (uint32)PRIMES[i];
+
+	szSOEp = num_p;
+	NUM_P = num_p;
+	P_MIN = 0; 
+	P_MAX = PRIMES[(uint32)NUM_P-1];
 
 	return;
 }
@@ -1549,6 +1557,8 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 		do 
 		{
 			poly->poly_d_idp++;
+			if (poly->poly_d_idp >= szSOEp)
+				smpqs_get_more_primes(poly);
 			poly->poly_d = spSOEprimes[poly->poly_d_idp];
 			r = mpz_tdiv_ui(n,poly->poly_d); //zShortMod(n,*polyd);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
