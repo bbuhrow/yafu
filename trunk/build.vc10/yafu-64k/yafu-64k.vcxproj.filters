@@ -200,6 +200,9 @@
     <ClCompile Include="..\..\top\eratosthenes\soe_util.c">
       <Filter>Source Files\sieve</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
