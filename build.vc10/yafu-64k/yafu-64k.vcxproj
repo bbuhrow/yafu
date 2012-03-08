@@ -286,6 +286,7 @@
     <ClCompile Include="..\..\factor\qs\tdiv.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots.c" />
