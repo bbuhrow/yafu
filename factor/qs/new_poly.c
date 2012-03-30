@@ -330,8 +330,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 				target_bits++;
 				printf("poly %s is a duplicate of #%d = %s\n",
-					mpz_get_str(gstr1.s, 10, poly_a), j, 
-					mpz_get_str(gstr2.s, 10, sconf->poly_a_list[j]));
+					mpz_conv2str(&gstr1.s, 10, poly_a), j, 
+					mpz_conv2str(&gstr2.s, 10, sconf->poly_a_list[j]));
 				printf("rejecting duplicate poly_a, new target = %d\n",target_bits);
 				printf("primes in a: ");
 				for (i=0;i<*s;i++)

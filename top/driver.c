@@ -159,6 +159,7 @@ int main(int argc, char *argv[])
 	logfile = fopen(sessionname,"a");
 	if (logfile == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("couldn't open %s for appending\n",sessionname);
 		slog = 0;
 	}
@@ -482,6 +483,7 @@ void helpfunc(char *s)
 	doc = fopen("docfile.txt","r");
 	if (doc == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("documentation file not found\n");
 		return;
 	}
@@ -967,6 +969,7 @@ int process_batchline(char *input_exp, char *indup)
 
 	if (batchfile == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("couldn't open %s for reading\n",batchfilename);
 		exit(-1);
 	}	
@@ -1019,6 +1022,13 @@ int process_batchline(char *input_exp, char *indup)
 	// the temporary file will become the batch file (effectively 
 	// eliminating the expression from the batch file).
 	tmpfile = fopen("__tmpbatchfile", "w");
+	
+	if (tmpfile == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
+		printf("couldn't open __tmpbatchfile for reading\n");
+		exit(-1);
+	}	
 
 	while (!feof(batchfile))
 	{
@@ -1767,7 +1777,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		{
 			if (!isdigit(arg[i]))
 			{
-				printf("expected numeric input for option %s\n",opt);
+				printf("expected numeric input for option %s\n",opt);				
 				exit(1);
 			}
 		}

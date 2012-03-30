@@ -168,287 +168,129 @@ this file contains code implementing 4)
 	#endif
 
 
-#elif defined(MSC_ASM32A)
-	
+#elif defined(_MSC_VER)
 
-	#if defined(HAS_SSE2)
-		#define SSE2_RESIEVING 1
+	#define STEP_COMPARE_COMBINE \
+		root1s = _mm_sub_epi16(root1s, primes); \
+		root2s = _mm_sub_epi16(root2s, primes); \
+		tmp1 = _mm_cmpeq_epi16(tmp1, root1s); \
+		tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
+		combine = _mm_xor_si128(combine, tmp1); \
+		combine = _mm_xor_si128(combine, tmp2);
 
-		#define STEP_COMPARE_COMBINE \
-			ASM_M psubw xmm2, xmm1 \
-			ASM_M psubw xmm3, xmm1 \
-			ASM_M pcmpeqw xmm5, xmm2 \
-			ASM_M pcmpeqw xmm6, xmm3 \
-			ASM_M por xmm7, xmm5 \
-			ASM_M por xmm8, xmm6
+	#define INIT_RESIEVE \
+		c = _mm_load_si128((__m128i *)corrections); \
+		root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+		root1s = _mm_add_epi16(root1s, c); \
+		root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+		root2s = _mm_add_epi16(root2s, c); \
+		primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+		combine = _mm_xor_si128(combine, combine); \
+		tmp1 = _mm_xor_si128(tmp1, tmp1); \
+		tmp2 = _mm_xor_si128(tmp2, tmp2);
 
-		#define INIT_RESIEVE \
-			ASM_M movdqa xmm4, XMMWORD PTR [edx] \
-			ASM_M pxor xmm8, xmm8 \
-			ASM_M movdqa xmm2, XMMWORD PTR [ebx] \
-			ASM_M paddw xmm2, xmm4 \
-			ASM_M movdqa xmm3, XMMWORD PTR [ecx] \
-			ASM_M paddw xmm3, xmm4 \
-			ASM_M movdqa xmm1, XMMWORD PTR [eax] \
-			ASM_M pxor xmm7, xmm7 \
-			ASM_M pxor xmm6, xmm6 \
-			ASM_M pxor xmm5, xmm5
+	#ifdef YAFU_64K
 
-		#ifdef YAFU_64K
+		#define RESIEVE_8X_14BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
+		#define RESIEVE_8X_15BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					uint32 *localprime = (uint32 *)(fbc->prime + i);	\
-					uint32 *localroot1 = (uint32 *)(fbc->root1 + i);	\
-					uint32 *localroot2 = (uint32 *)(fbc->root2 + i);	\
-					uint32 *localcorrect = (uint32 *)(corrections);	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					ASM_M mov edx, localcorrect \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					uint16 *localprime = fbc->prime + i;	\
-					uint16 *localroot1 = fbc->root1 + i;	\
-					uint16 *localroot2 = fbc->root2 + i;	\
-					ASM_M { \
-					ASM_M mov eax, localprime \
-					ASM_M mov ebx, localroot1 \
-					ASM_M mov ecx, localroot2 \
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					ASM_M por xmm7, xmm8 \
-					ASM_M pmovmskb eax, xmm7	\
-					ASM_M mov result, eax } \
-				} while (0);
-
-		#endif
+		#define RESIEVE_8X_16BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
 	#else
-		#error SSE2 is required
-	#endif
 
-#elif defined(_WIN64)
+		#define RESIEVE_8X_14BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
-	#if defined(HAS_SSE2)
-		#define SSE2_RESIEVING 1
+		#define RESIEVE_8X_15BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
-		#define STEP_COMPARE_COMBINE \
-			root1s = _mm_sub_epi16(root1s, primes); \
-			root2s = _mm_sub_epi16(root2s, primes); \
-			tmp1 = _mm_cmpeq_epi16(tmp1, root1s); \
-			tmp2 = _mm_cmpeq_epi16(tmp2, root2s); \
-			combine = _mm_xor_si128(combine, tmp1); \
-			combine = _mm_xor_si128(combine, tmp2);
-
-		#define INIT_RESIEVE \
-			c = _mm_load_si128((__m128i *)corrections); \
-			root1s = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-			root1s = _mm_add_epi16(root1s, c); \
-			root2s = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-			root2s = _mm_add_epi16(root2s, c); \
-			primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
-			combine = _mm_xor_si128(combine, combine); \
-			tmp1 = _mm_xor_si128(tmp1, tmp1); \
-			tmp2 = _mm_xor_si128(tmp2, tmp2);
-
-		#ifdef YAFU_64K
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#else
-
-			#define RESIEVE_8X_14BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_15BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-			#define RESIEVE_8X_16BIT_MAX \
-				do { \
-					__m128i tmp1;	\
-					__m128i tmp2;	\
-					__m128i root1s;	\
-					__m128i root2s;	\
-					__m128i primes;	\
-					__m128i c;	\
-					__m128i combine;	\
-					INIT_RESIEVE \
-					STEP_COMPARE_COMBINE	\
-					result = _mm_movemask_epi8(combine); \
-				} while (0);
-
-		#endif
+		#define RESIEVE_8X_16BIT_MAX \
+			do { \
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i primes;	\
+				__m128i c;	\
+				__m128i combine;	\
+				INIT_RESIEVE \
+				STEP_COMPARE_COMBINE	\
+				result = _mm_movemask_epi8(combine); \
+			} while (0);
 
 	#endif
 
@@ -810,6 +652,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	sieve_fb *fb;
+	uint64 q64;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;

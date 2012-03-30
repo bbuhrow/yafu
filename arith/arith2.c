@@ -305,72 +305,25 @@ int zExp(uint32 e, z *u, z *w)
 {
 	//return u^e = w
 
-	/*
-	right to left binary exponentiation
-	from the handbook of applied cryptography:
-	1. A=1, S=g.
-	2. While e != 0 do the following:
-	2.1 If e is odd then A=A * S.
-	2.2 e = e/2.
-	2.3 If e != 0 then S=S*S.
-	3. Return(A).
-	*/
+	mpz_t result, base;
 
-	z s,tmp;
-	int maxd=((ndigits(u) + 1) * e)/DEC_DIGIT_PER_WORD;
-	int it;
+	mpz_init(result);
+	mpz_init(base);
 
-	zInit(&s);
-	zInit(&tmp);
+	mp2gmp(u, base);
+	mpz_pow_ui(result, base, e);
 
-	if (w->alloc < maxd)
-		zGrow(w,maxd);
-	zClear(w);
 
-	if (s.alloc < maxd)
-	{
-		zGrow(&tmp,maxd);
-		zGrow(&s,maxd);
-		zClear(&tmp);
-		zClear(&s);
-	}
+#if ((GMP_LIMB_BITS == 64) && (BITS_PER_DIGIT == 32))
+    zGrow(w, 2 * result->_mp_size);
+#else
+    zGrow(w, result->_mp_size);
+#endif
+	gmp2mp(result, w);
 
-	w->size=1;
-	w->val[0]=1;
-	zCopy(u,&s);
-
-	while (e != 0)
-	{
-		if (e & 0x1)
-		{
-			zMul(w,&s,&tmp);
-			zCopy(&tmp,w);
-		}
-
-		e >>= 1;
-
-		if (e != 0)
-		{
-			zSqr(&s,&tmp);
-			zCopy(&tmp,&s);
-		}
-	}
-
-	//paranoia
-	for (it = w->size-1; it>=0; it--)
-	{
-		if (w->val[it] != 0) 
-			break;
-	}
-	w->size = it+1;
-
-	if ((u->size < 0) && (e & 0x1))
-		w->size *= -1;
-
-	zFree(&s);
-	zFree(&tmp);
-
-	w->type = UNKNOWN;
+	mpz_clear(result);
+	mpz_clear(base);
+	w->type = COMPOSITE;
 	return 1;
 }
 
@@ -412,7 +365,7 @@ int zFactorial(uint32 n, z *w)
 	mpz_init(result);
 	mpz_fac_ui(result, n);
 
-#if GMP_LIMB_BITS == 64
+#if ((GMP_LIMB_BITS == 64) && (BITS_PER_DIGIT == 32))
     zGrow(w, 2 * result->_mp_size);
 #else
     zGrow(w, result->_mp_size);
@@ -527,138 +480,33 @@ void spModExp(fp_digit a, fp_digit b, fp_digit m, fp_digit *u)
 	return;
 }
 
+
 int zNroot(z *u, z *w, int n)
 {
-	//w = sqrt(u), u positive
-	//Newton's method for integer square root
+	mpz_t result, base;
 
-	//in general, x_k+1 = 1/n[(n-1)x_k + N/(x_k^(n-1))]
-	//for n=2, this reduces to the sqrt iteration:
-	//x_k+1 = 1/2[x_k + N/x_k]
+	mpz_init(result);
+	mpz_init(base);
 
-	z c, g, uu,t1,t2;
-	long i; //, j, q;
-	uint64 n64;
-	//double d, p;
-
-	//check signage
-	if ((u->size < 0) && (n % 2 == 0))
-	{
-		printf("I can't handle imaginary roots!\n");
-		zClear(w);
-		return 2;
-	}
-
-	//special case, u small
-	if (zBits(u) < 53)
-	{
-		n64 = z264(u);
-		w->size = 1;
-		w->val[0] = (fp_digit)pow((double)n64,1.0/n);
-		w->type = UNKNOWN;
-		return 1;
-	}
-
-	//allocate w, which will be ~size(u)/n.  add a block for margin.
-	if (w->alloc < u->size/n)
-		zGrow(w,u->size/n + LIMB_BLKSZ);
-
-	zInit(&c);
-	zInit(&g);
-	zInit(&uu);
-	zInit(&t1);
-	zInit(&t2);
-
-	//for now, make these all as big as the input
-	if (uu.alloc < u->size)
-	{
-		zGrow(&uu,u->size);
-		zGrow(&c,u->size);
-		zGrow(&g,u->size);
-	}
-
-	// form initial guess - don't worry about being too exact, just ensure that the guess
-	// is bigger than the real root.
-	zCopy(&zOne,&g);
-	zShiftLeft(&g,&g,ceil((double)zBits(u) / (double)n));
-
-	//Newton's method
-	//special case n = 2 (sqrt)
-	if (n==2)
-	{
-		//x_k+1 = 1/2[x_k + N/x_k]
-		for (i=0;i<10000;++i)
-		{
-			zCopy(u,&uu);
-			zDiv(&uu,&g,w,&c);
-
-			zAdd(&g,w,&c);
-			zShiftRight(&c,&c,1);
-
-			if (zCompare(&g,&c) == 0)
-			{
-				zCopy(&g,w);
-				break;
-			}
-			else if (zCompare(&c,&g) > 0)
-			{
-				//if the new estimate is higher, we are going the 
-				//wrong way.  Our initial guess should be too high, if
-				//anything, thus the recurrence should be strictly
-				//decreasing
-				zCopy(&g,w);
-				break;
-			}
-
-			zCopy(&c,&g);
-		} 
-	}
+	mp2gmp(u, base);
+	if (n == 2)
+		mpz_sqrt(result, base);
 	else
-	{
-		//x_k+1 = 1/n[(n-1)x_k + N/(x_k^(n-1))]
-		for (i=0;i<10000;++i)
-		{
-			zCopy(u,&uu);
+		mpz_root(result, base, n);
 
-			zExp(n-1,&g,&t1);
-			zShortMul(&g,n-1,&t2);
-			
-			zDiv(&uu,&t1,w,&c);
+#if ((GMP_LIMB_BITS == 64) && (BITS_PER_DIGIT == 32))
+    zGrow(w, 2 * result->_mp_size);
+#else
+    zGrow(w, result->_mp_size);
+#endif
+	gmp2mp(result, w);
 
-			zAdd(&t2,w,&c);
-			zShortDiv(&c,n,&c);
+	mpz_clear(result);
+	mpz_clear(base);
+	w->type = COMPOSITE;
 
-			if (zCompare(&g,&c) == 0)
-			{
-				zCopy(&g,w);
-				break;
-			}
-			else if (zCompare(&c,&g) > 0)
-			{
-				//if the new estimate is higher, we are going the 
-				//wrong way.  Our initial guess should be too high, if
-				//anything, thus the recurrence should be strictly
-				//decreasing
-				zCopy(&g,w);
-				break;
-			}
-
-			zCopy(&c,&g);
-		} 
-	}
-	
-	if (i >= 10000)
-		printf("nroot did not converge\n");
-
-	zFree(&c);
-	zFree(&g);
-	zFree(&uu);
-	zFree(&t1);
-	zFree(&t2);
-	w->type = UNKNOWN;
-	return i;
+	return 1;
 }
-
 
 void lucas(uint32 n, z *L)
 {

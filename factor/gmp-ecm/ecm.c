@@ -212,8 +212,8 @@ done:
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->flogname);
-		fclose(flog);
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for appending\n",fobj->flogname);
 		return 0;
 	}
 
@@ -258,7 +258,8 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->flogname);
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for appending\n",fobj->flogname);
 		return 0;
 	}
 
@@ -273,7 +274,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 
 		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			gmp_base10(thread_data->gmp_factor),
-			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
+			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
@@ -288,7 +289,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 
 		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			gmp_base10(thread_data->gmp_factor),
-			mpz_get_str(gstr1.s, 10, thread_data->gmp_factor),
+			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
 			curves_run+1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
@@ -333,8 +334,8 @@ int ecm_check_input(fact_obj_t *fobj)
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->flogname);
-		fclose(flog);
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for appending\n",fobj->flogname);
 		return 0;
 	}
 
@@ -385,7 +386,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		//PRP testing (useful for really big inputs)
 		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
 		logprint(flog,"prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), 
-			mpz_get_str(gstr1.s, 10, fobj->ecm_obj.gmp_n));		
+			mpz_conv2str(&gstr1.s, 10, fobj->ecm_obj.gmp_n));		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
 		fclose(flog);
 		return 0;
@@ -614,19 +615,24 @@ void *ecm_do_one_curve(void *ptr)
 		FILE *fid;
 		char line[1024];
 		char *ptr;
-		char tmpstr[1024];
+		char *tmpstr;
 		int retcode;
 
+		tmpstr = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 		// external executable was specified
 		sprintf(thread_data->tmp_output, "_yafu_ecm_tmp%d.out", thread_data->thread_num);
 
 		// build system command
 		//"echo \042 %s \042 | %s %u >> %s\n",
-		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", mpz_get_str(tmpstr, 10, thread_data->gmp_n),
-			fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, thread_data->tmp_output);
+		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", 
+			mpz_conv2str(&tmpstr, 10, thread_data->gmp_n),
+			fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, 
+			thread_data->tmp_output);
 
 		// run system command
 		retcode = system(cmd);
+
+		free(tmpstr);
 
 		// this is what I observed ecm returning on ctrl-c.  hopefully it is portable.
 		if (retcode == 33280)

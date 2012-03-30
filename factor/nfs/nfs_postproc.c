@@ -19,7 +19,10 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
 
 	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("could not open yafu logfile for appending\n");
+	}
 	else
 	{
 		logprint(logfile, "nfs: commencing msieve filtering\n");
@@ -74,11 +77,14 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
 			printf("could not open yafu logfile for appending\n");
+		}
 		else
 		{
 			logprint(logfile, "%s%d = %s\n",c,
-				gmp_base10(tmp), mpz_get_str(gstr1.s, 10, tmp));
+				gmp_base10(tmp), mpz_conv2str(&gstr1.s, 10, tmp));
 			fclose(logfile);
 		}		
 
@@ -104,12 +110,15 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
 			printf("could not open yafu logfile for appending\n");
+		}
 		else
 		{
 			logprint(logfile, "%s%d = %s\n",c,
 				gmp_base10(fobj->nfs_obj.gmp_n), 
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 			fclose(logfile);
 		}		
 

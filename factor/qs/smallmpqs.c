@@ -544,7 +544,7 @@ void smallmpqs(fact_obj_t *fobj)
 	{
 		if (fobj->logfile != NULL)
 			logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
-				gmp_base10(n), mpz_get_str(gstr1.s, 10, n));
+				gmp_base10(n), mpz_conv2str(&gstr1.s, 10, n));
 	}
 
 	if (bits_n < 60)
@@ -571,7 +571,7 @@ void smallmpqs(fact_obj_t *fobj)
 			{
 				if (fobj->logfile != NULL)
 					logprint(fobj->logfile,
-						"prp%d = %s\n",gmp_base10(n),mpz_get_str(gstr1.s, 10, n));
+						"prp%d = %s\n",gmp_base10(n),mpz_conv2str(&gstr1.s, 10, n));
 			}
 
 			mpz_set_ui(fobj->qs_obj.gmp_n, 1);
@@ -863,7 +863,7 @@ done:
 			if (fobj->logfile != NULL)
 				logprint(fobj->logfile,
 					"prp%d = %s\n", gmp_base10(factors[i]),
-					mpz_get_str(gstr1.s, 10, factors[i]));
+					mpz_conv2str(&gstr1.s, 10, factors[i]));
 		}
 		
 		mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);

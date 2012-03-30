@@ -449,7 +449,7 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 		if (obj->logfile != NULL)
 			logprint(obj->logfile,
 				"prp%d = %s\n",gmp_base10(new_factor),
-				mpz_get_str(gstr1.s, 10, new_factor));
+				mpz_conv2str(&gstr1.s, 10, new_factor));
 
 		list->final_factors[list->num_factors] = (final_factor_t *)malloc(
 			sizeof(final_factor_t));

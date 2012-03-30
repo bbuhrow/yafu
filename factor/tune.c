@@ -58,9 +58,6 @@ void factor_tune(fact_obj_t *inobj)
 	uint32 count;
 	char tmpbuf[GSTR_MAXSIZE];
 
-	//update_INI(0,1,2,3,4);
-	//return;
-
 	zInit(&n);	
 
 	tmpT = THREADS;
@@ -262,6 +259,7 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 	out = fopen("tune.job","w");
 	if (out == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("could not open tune.job for writing!\n");
 		exit(1);
 	}
@@ -450,6 +448,7 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 	test = fopen(sname, "rb");
 	if (test == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("could not find %s, bailing\n",sname);
 		exit(-1);
 	}
@@ -473,14 +472,21 @@ void update_INI(double mult, double exponent, double mult2, double exponent2, do
 	in = fopen("yafu.ini","r");
 	if (in == NULL)
 	{
-		printf("could not open yafu.ini for reading!");
-		exit(-1);
+		printf("could not open yafu.ini for reading!\n");
+		printf("creating yafu.ini...\n");
+		in = fopen("yafu.ini", "w");
+		if (in == NULL)
+		{
+			printf("could not open yafu.ini for writing either - bailing\n");
+			exit(1);
+		}
+		in = freopen("yafu.ini", "r", in);
 	}
 
 	out = fopen("_tmp.ini","w");
 	if (out == NULL)
 	{
-		printf("could not open _tmp.ini for writting!");
+		printf("could not open _tmp.ini for writing!");
 		exit(-1);
 	}
 
@@ -498,10 +504,9 @@ void update_INI(double mult, double exponent, double mult2, double exponent2, do
 			fputs(str, out);
 			continue;
 		}
-		{
-			//remember original line
-			strcpy(str2, str);
-		}
+
+		//remember original line
+		strcpy(str2, str);
 
 		//if last character of line is newline, remove it
 		do 

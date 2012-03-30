@@ -329,6 +329,7 @@ void logprint_oc(const char *name, const char *method, char *args, ...)
 	logfile = fopen(name, method);
 	if (logfile == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("could not open logfile for method %c\n", method[0]);
 		logfile = stdout;
 	}

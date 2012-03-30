@@ -45,7 +45,10 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 
 	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("could not open yafu logfile for appending\n");
+	}
 	else
 	{
 		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);

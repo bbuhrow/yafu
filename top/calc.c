@@ -2052,6 +2052,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		zCopy(&operands[0],&fobj->N);
 		mp2gmp(&operands[0],fobj->qs_obj.gmp_n);
 		fobj->logfile = fopen(fobj->flogname,"a");
+		if (fobj->logfile == NULL)
+			printf("fopen error: %s\n", strerror(errno));
 		smallmpqs(fobj);		
 		fclose(fobj->logfile);
 		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);

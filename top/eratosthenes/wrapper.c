@@ -259,6 +259,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 			out = fopen("primes.dat","w");
 			if (out == NULL)
 			{
+				printf("fopen error: %s\n", strerror(errno));
 				printf("can't open primes.dat for writing\n");
 			}
 			else
@@ -588,6 +589,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 
 			if (out == NULL)
 			{
+				printf("fopen error: %s\n", strerror(errno));
 				printf("can't open file for writing\n");
 			}
 			else
