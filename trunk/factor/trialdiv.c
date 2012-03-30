@@ -69,6 +69,82 @@ void zTrial(fact_obj_t *fobj)
 	mpz_clear(tmp);
 }
 
+void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
+{
+	// check if (b^1/i)^i == b for i = 2 to bitlen(b)
+	uint32 bits = mpz_sizeinbase(b,2);
+	uint32 i;
+	mpz_t base, ans;
+
+	mpz_init(base);
+	mpz_init(ans);
+
+	for (i=2; i<bits; i++)
+	{
+		mpz_root(base, b, i);
+		mpz_pow_ui(ans, base, i);
+		if (mpz_cmp(ans, b) == 0)
+		{
+			// found a base.  				
+			if (mpz_probab_prime_p(base, NUM_WITNESSES))
+			{
+				uint32 j;
+				//gmp_printf("\nAdding prime base %Zd to factor list...\n", base);
+				for (j=0; j<i; j++)
+				{
+					add_to_factor_list(fobj, base);
+					mpz_tdiv_q(b, b, base);
+				}
+			}
+			else
+			{
+				// if composite, factor it and then multiply
+				// all factors by i (the exponent).
+				fact_obj_t *fobj_refactor;
+				uint32 j;
+
+				gmp_printf("\nFactoring composite base %Zd...\n", base);
+
+				// load the new fobj with this number
+				fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+				init_factobj(fobj_refactor);
+				gmp2mp(base, &fobj_refactor->N);
+
+				// recurse on factor
+				factor(fobj_refactor);
+
+				// add all factors found during the refactorization
+				for (j=0; j< fobj_refactor->num_factors; j++)
+				{
+					int k, c;
+					//gmp_printf("\nAdding prime base %Zd to factor list...\n", 
+					//	fobj_refactor->fobj_factors[j].factor);
+
+					for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
+					{
+						// add i copies of it, since this was a perfect power
+						for (c = 0; c < i; c++)
+						{
+							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
+							mpz_tdiv_q(b, b, fobj_refactor->fobj_factors[j].factor);
+						}
+					}
+				}
+
+				// free temps
+				free_factobj(fobj_refactor);
+				free(fobj_refactor);
+			}
+			break;
+		}
+	}
+
+	mpz_clear(base);
+	mpz_clear(ans);
+
+	return;
+}
+
 void zFermat(fp_digit limit, fact_obj_t *fobj)
 {
 	//	  Fermat's factorization method (wikipedia psuedo-code)
@@ -96,6 +172,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		flog = fopen(fobj->flogname,"a");
 		if (flog == NULL)
 		{
+			printf("fopen error: %s\n", strerror(errno));
 			printf("could not open %s for writing\n",fobj->flogname);
 			return;
 		}
@@ -106,20 +183,20 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
 		}
 		else
 		{
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"c%d = %s\n",
 				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
 			logprint(flog,"c%d = %s\n",
 				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->div_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
 		}
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
@@ -184,6 +261,7 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		flog = fopen(fobj->flogname,"a");
 		if (flog == NULL)
 		{
+			printf("fopen error: %s\n", strerror(errno));
 			printf("could not open %s for writing\n",fobj->flogname);
 			return;
 		}
@@ -194,13 +272,13 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		{			
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(tmp),
-				mpz_get_str(gstr1.s, 10, tmp));
+				mpz_conv2str(&gstr1.s, 10, tmp));
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
 				gmp_base10(tmp),
-				mpz_get_str(gstr1.s, 10, tmp));
+				mpz_conv2str(&gstr1.s, 10, tmp));
 		}
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
@@ -212,13 +290,13 @@ void zFermat(fp_digit limit, fact_obj_t *fobj)
 		{			
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(tmp),
-				mpz_get_str(gstr1.s, 10, tmp));
+				mpz_conv2str(&gstr1.s, 10, tmp));
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
 				gmp_base10(tmp),
-				mpz_get_str(gstr1.s, 10, tmp));
+				mpz_conv2str(&gstr1.s, 10, tmp));
 		}
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);

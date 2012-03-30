@@ -556,6 +556,7 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();
 void zTrial(fact_obj_t *fobj);
 void zFermat(fp_digit limit, fact_obj_t *fobj);
+void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
@@ -567,6 +568,8 @@ void spfactorlist(uint64 nstart, uint64 nrange);
 //auto factor routine
 void factor(fact_obj_t *fobj);
 
+// factoring related utility
+int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact);
 
 /* Factor a number using GNFS. Returns
    1 if any factors were found and 0 if not */

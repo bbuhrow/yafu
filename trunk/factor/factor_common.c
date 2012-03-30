@@ -541,6 +541,35 @@ void clear_factor_list(fact_obj_t *fobj)
 	return;
 }
 
+int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact)
+{
+	// see if the value we
+	// read from the file is really the same as the input number.
+	// if the gcd of the two is a divisor of the file, then
+	// this is a resume.  if the gcd is non-trival,
+	// set the input to the value found in the file.
+
+	mpz_t r;
+	int retval;
+
+	mpz_init(r);
+	if (VFLAG > 1)
+	{
+		gmp_printf("input from file = %Zd\n", file_n);
+		gmp_printf("input to yafu = %Zd\n", input_n);
+	}
+
+	mpz_gcd(common_fact, file_n, input_n);
+	mpz_tdiv_q(r, input_n, common_fact);
+	if (mpz_cmp(r, file_n) == 0)
+		retval = 1;
+	else 
+		retval = 0;
+		
+	mpz_clear(r);
+	return retval;
+}
+
 void print_factors(fact_obj_t *fobj)
 {
 	uint32 i;
@@ -557,34 +586,34 @@ void print_factors(fact_obj_t *fobj)
 		for (i=0; i<fobj->num_factors; i++)
 		{
 
-			if (fobj->fobj_factors[i].type == COMPOSITE)
-			{
-				for (j=0;j<fobj->fobj_factors[i].count;j++)
-				{
-					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("C%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-						fobj->fobj_factors[i].factor);
-				}
-			}
-			else if (fobj->fobj_factors[i].type == PRP)
-			{
-				for (j=0;j<fobj->fobj_factors[i].count;j++)
-				{
-					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-						fobj->fobj_factors[i].factor);
-				}
-			}
-			else if (fobj->fobj_factors[i].type == PRIME)
-			{
-				for (j=0;j<fobj->fobj_factors[i].count;j++)
-				{
-					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-					gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-						fobj->fobj_factors[i].factor);
-				}
-			}
-			else
+			//if (fobj->fobj_factors[i].type == COMPOSITE)
+			//{
+			//	for (j=0;j<fobj->fobj_factors[i].count;j++)
+			//	{
+			//		mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+			//		gmp_printf("C%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+			//			fobj->fobj_factors[i].factor);
+			//	}
+			//}
+			//else if (fobj->fobj_factors[i].type == PRP)
+			//{
+			//	for (j=0;j<fobj->fobj_factors[i].count;j++)
+			//	{
+			//		mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+			//		gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+			//			fobj->fobj_factors[i].factor);
+			//	}
+			//}
+			//else if (fobj->fobj_factors[i].type == PRIME)
+			//{
+			//	for (j=0;j<fobj->fobj_factors[i].count;j++)
+			//	{
+			//		mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+			//		gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+			//			fobj->fobj_factors[i].factor);
+			//	}
+			//}
+			//else
 			{
 				//type not set, determine it now
 				if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
@@ -1156,19 +1185,19 @@ void set_work_params(factor_work_t *fwork, enum factorization_state state)
 		break;
 
 	case state_pm1_lvl1:
-		fwork->B1 = 100000;
+		fwork->B1 = 150000;
 		fwork->B2 = 0;	//gmp-ecm default
 		fwork->curves = 1;
 		break;
 
 	case state_pm1_lvl2:
-		fwork->B1 = 2500000;
+		fwork->B1 = 3750000;
 		fwork->B2 = 0;	//gmp-ecm default
 		fwork->curves = 1;
 		break;
 
 	case state_pm1_lvl3:
-		fwork->B1 = 10000000;
+		fwork->B1 = 15000000;
 		fwork->B2 = 0;	//gmp-ecm default
 		fwork->curves = 1;
 		break;
@@ -1638,9 +1667,9 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->fermat_max_iterations = fobj->div_obj.fmtlimit;
 	fwork->rho_max_bases = 3;
 	fwork->rho_max_iterations = fobj->rho_obj.iterations;
-	fwork->pp1_max_lvl1_curves = 3;
-	fwork->pp1_max_lvl2_curves = 3;
-	fwork->pp1_max_lvl3_curves = 3;
+	fwork->pp1_max_lvl1_curves = 0;
+	fwork->pp1_max_lvl2_curves = 0;
+	fwork->pp1_max_lvl3_curves = 0;
 	fwork->pm1_max_lvl1_curves = 1;
 	fwork->pm1_max_lvl2_curves = 1;
 	fwork->pm1_max_lvl3_curves = 1;	
@@ -1652,6 +1681,8 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_time = 0;
 	fwork->qs_time = 0;
 	fwork->nfs_time = 0;
+
+	fwork->rho_bases = 0;
 
 	fwork->pp1_lvl1_curves = 0;
 	fwork->pp1_lvl2_curves = 0;
@@ -1857,14 +1888,14 @@ void factor(fact_obj_t *fobj)
 		mpz_clear(origN);
 		mpz_clear(b);
 		return;
-	}
+	}	
 	
 	gettimeofday(&start, NULL);
 
 	flog = fopen(fobj->flogname,"a");
 	logprint(flog,"\n");
 	logprint(flog,"****************************\n");
-	logprint(flog,"Starting factorization of %s\n",mpz_get_str(gstr1.s, 10, b));
+	logprint(flog,"Starting factorization of %s\n",mpz_conv2str(&gstr1.s, 10, b));
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
 		logprint(flog,"custom pretest ratio is: %1.2f\n",fobj->autofact_obj.target_pretest_ratio);
@@ -1914,6 +1945,38 @@ void factor(fact_obj_t *fobj)
 		printf("\n");
 	}
 
+	if (mpz_perfect_power_p(b))
+	{
+		if (VFLAG > 0)
+			printf("input is a perfect power\n");
+
+		factor_perfect_power(fobj, b);
+
+		flog = fopen(fobj->flogname,"a");
+		if (flog != NULL)
+		{
+			uint32 j;
+			logprint(flog,"input is a perfect power\n");
+			
+			for (j=0; j<fobj->num_factors; j++)
+			{
+				uint32 k;
+				for (k=0; k<fobj->fobj_factors[j].count; k++)
+				{
+					logprint(flog,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
+						mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
+				}
+			}
+		}
+		fclose(flog);
+
+		gmp2mp(b, &fobj->N);
+		mpz_clear(copyN);
+		mpz_clear(origN);
+		mpz_clear(b);
+		return;
+	}
+
 	init_factor_work(&fwork, fobj);
 
 	//starting point of factorization effort
@@ -1926,25 +1989,33 @@ void factor(fact_obj_t *fobj)
 	{	
 		char *substr;
 		mpz_t tmpz;
+		mpz_t g;
 
 		//read in the number from the savefile
 		mpz_init(tmpz);
+		mpz_init(g);
+
 		fgets(tmpstr,1024,data);
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
-		// gcd required because the savefile may have a multiplier applied
-		mpz_gcd(tmpz, tmpz, b);
-
-		if (mpz_cmp(tmpz, b) == 0)
+		if (resume_check_input_match(tmpz, b, g))
 		{
 			if (VFLAG > 1)
 				printf("found siqs savefile, resuming siqs\n");
+
+			// remove any common factor so the input exactly matches
+			// the file
+			mpz_tdiv_q(b, b, g);
+			gmp2mp(b, &fobj->N);
+			mpz_set(origN, b);
+			mpz_set(copyN, b);
 
 			//override default choice
 			fact_state = state_qs;
 		}
 		mpz_clear(tmpz);
+		mpz_clear(g);
 	}
 
 	// state machine to factor the number using a variety of methods
@@ -2029,7 +2100,7 @@ void factor(fact_obj_t *fobj)
 		{
 			flog = fopen(fobj->flogname,"a");
 			logprint(flog,"prp%d cofactor = %s\n",gmp_base10(b),
-				mpz_get_str(gstr1.s, 10, b));
+				mpz_conv2str(&gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
@@ -2037,7 +2108,7 @@ void factor(fact_obj_t *fobj)
 		{
 			flog = fopen(fobj->flogname,"a");
 			logprint(flog,"c%d cofactor = %s\n",gmp_base10(b),
-				mpz_get_str(gstr1.s, 10, b));
+				mpz_conv2str(&gstr1.s, 10, b));
 			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
@@ -2054,7 +2125,10 @@ void factor(fact_obj_t *fobj)
 
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("Could not open %s for appending\n",fobj->flogname);
+	}
 	else
 	{
 		logprint(flog,"Total factoring time = %6.4f seconds\n",t_time);

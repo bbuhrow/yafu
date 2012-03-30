@@ -137,7 +137,8 @@ void williams_loop(fact_obj_t *fobj)
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{
-		printf("could not open %s for writing\n",fobj->flogname);
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for appending\n",fobj->flogname);
 		return;
 	}
 
@@ -166,7 +167,7 @@ void williams_loop(fact_obj_t *fobj)
 		if (mpz_probab_prime_p(fobj->pp1_obj.gmp_n, NUM_WITNESSES))
 		{
 			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_n));
+				mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
 			add_to_factor_list(fobj, fobj->pp1_obj.gmp_n);
 
@@ -201,7 +202,7 @@ void williams_loop(fact_obj_t *fobj)
 
 				logprint(flog,"prp%d = %s\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),
-					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
+					mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			else
 			{
@@ -213,7 +214,7 @@ void williams_loop(fact_obj_t *fobj)
 
 				logprint(flog,"c%d = %s\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),
-					mpz_get_str(gstr1.s, 10, fobj->pp1_obj.gmp_f));
+					mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
 			start = clock();
 

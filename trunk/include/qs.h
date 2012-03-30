@@ -99,32 +99,30 @@ uint32 blk_counts_n[64];
 
 //#define USE_YAFU_TDIV 1
 
+#define USE_8X_MOD_ASM 1
+#define USE_RESIEVING
+#define SSE2_RESIEVING 1
+
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
-	//#define SSE2_ASM_SIEVING 1
 	#define ASM_SIEVING 1
-	#define USE_8X_MOD_ASM 1
-
 #elif (defined(__GNUC__) && defined(__x86_64__))
 	#define USE_POLY_SSE2_ASM 1
 	#if (__GNUC__ > 3)
-		//#define SSE2_ASM_SIEVING 1
 		#define ASM_SIEVING 1
 	#endif
-
-	#define USE_8X_MOD_ASM 1
 #endif
 
-#if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
-	//64 bit gcc, msvc, or mingw builds
-	#define USE_RESIEVING
-	#ifdef HAS_SSE2
-		#define SSE2_RESIEVING 1
-	#endif
-#else
-	#undef USE_RESIEVING
-	#undef SSE2_RESIEVING
-#endif
+////#if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
+//	//64 bit gcc, msvc, or mingw builds
+//	
+//	#ifdef HAS_SSE2
+//		
+//	#endif
+//#else
+//	#undef USE_RESIEVING
+//	#undef SSE2_RESIEVING
+//#endif
 
 #ifdef USE_8X_MOD_ASM
 	#define FOGSHIFT 24
@@ -245,9 +243,10 @@ typedef struct
 	uint32 *logprime;
 } fb_element_siqs;
 
-// similarly to sieve_fb_compressed, we trade a few bit operations per prime to be able to load
-// both the fb_index and the sieve location in a single 32bit load.  A bucket element is now stored using
-// a uint32.  The bottom 16 bits hold the fb_index and the top 16 bits hold the sieve hit index (loc)
+// we trade a few bit operations per prime 
+// to be able to load both the fb_index and the sieve location in a single 
+// 32bit load.  A bucket element is now stored using a uint32.  The top 16 bits 
+// hold the fb_index and the bottom 16 bits hold the sieve hit index (loc)
 #ifdef USEBUCKETSTRUCT
 //used when bucket sieving
 typedef struct
@@ -262,6 +261,8 @@ typedef struct
 	uint32 *prime;
 	int *firstroots1;
 	int *firstroots2;
+	uint16 *sm_firstroots1;
+	uint16 *sm_firstroots2;
 	uint8 *logp;
 } update_t;
 
@@ -444,6 +445,7 @@ typedef struct {
 	update_t update_data;		// data for updating root values
 	lp_bucket *buckets;			// bins holding sieve updates
 	int *rootupdates;			// updates to apply to roots of primes
+	uint16 *sm_rootupdates;			// updates to apply to roots of primes
 	
 	//scratch
 	mpz_t gmptmp1;

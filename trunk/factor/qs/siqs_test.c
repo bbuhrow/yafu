@@ -85,7 +85,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), 
-			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		return 1;
 	}
@@ -97,11 +97,11 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), 
-			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n),
-			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		return 1;
@@ -109,12 +109,25 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 	if (mpz_perfect_power_p(fobj->qs_obj.gmp_n))
 	{
-		printf("input is a perfect power\n");
+		if (VFLAG > 0)
+			printf("input is a perfect power\n");
+		
+		factor_perfect_power(fobj, fobj->qs_obj.gmp_n);
+
 		if (sieve_log != NULL)
 		{
+			uint32 j;
 			logprint(sieve_log,"input is a perfect power\n");
-			logprint(sieve_log,"c%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), 
-				mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+
+			for (j=0; j<fobj->num_factors; j++)
+			{
+				uint32 k;
+				for (k=0; k<fobj->fobj_factors[j].count; k++)
+				{
+					logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
+						mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
+				}
+			}
 		}
 		return 1;
 	}
@@ -167,8 +180,8 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	if (mpz_cmp(t3,t4) != 0)
 	{
 		printf("\nError in checkpoly: %s^2 !== N mod %s\n", 
-			mpz_get_str(gstr1.s, 10, poly->mpz_poly_b),
-			mpz_get_str(gstr2.s, 10, poly->mpz_poly_a));
+			mpz_conv2str(&gstr1.s, 10, poly->mpz_poly_b),
+			mpz_conv2str(&gstr2.s, 10, poly->mpz_poly_a));
 		if (mpz_sgn(poly->mpz_poly_b) < 0)
 			printf("b is negative\n");
 	}
@@ -206,7 +219,7 @@ int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
 		mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 		mpz_mul(t1, t2, t2); //zSqr(&t2,&t1);
 		if (mpz_tdiv_ui(t1,p) % mpz_tdiv_ui(n,p) != 0)
-			printf("%s^2 mod %u != N mod %u\n",mpz_get_str(gstr1.s, 10, Bl[i]),p,p);
+			printf("%s^2 mod %u != N mod %u\n",mpz_conv2str(&gstr1.s, 10, Bl[i]),p,p);
 
 		for (j=0;j<s;j++)
 		{
@@ -216,7 +229,7 @@ int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
 			q = fb->list->prime[qli[j]];
 			mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 			if (mpz_tdiv_ui(t2,q) != 0)
-				printf("%s mod %u != 0\n",mpz_get_str(gstr1.s, 10, Bl[i]),q);
+				printf("%s mod %u != 0\n",mpz_conv2str(&gstr1.s, 10, Bl[i]),q);
 		}
 	}
 
@@ -252,6 +265,7 @@ void siqsbench(fact_obj_t *fobj)
 	log = fopen(fobj->flogname,"a");
 	if (log == NULL)
 	{
+		printf("fopen error: %s\n", strerror(errno));
 		printf("couldn't open %s for writing\n",fobj->flogname);
 		exit(1);
 	}

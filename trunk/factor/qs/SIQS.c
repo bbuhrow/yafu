@@ -88,6 +88,10 @@ void SIQS(fact_obj_t *fobj)
 	int orig_value;
 	int	poly_start_num = 0;
 
+	// checking savefile
+	FILE *data;
+	char tmpstr[GSTR_MAXSIZE];
+
 #ifdef BLK_REL_COUNT_EXP
 	for (i=0; i<64; i++)
 	{
@@ -128,6 +132,34 @@ void SIQS(fact_obj_t *fobj)
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
 	mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
+
+	//check to see if a siqs savefile exists for this input	
+	data = fopen(fobj->qs_obj.siqs_savefile,"r");
+
+	if (data != NULL)
+	{	
+		char *substr;
+		mpz_t tmpz;
+		mpz_t g;
+
+		//read in the number from the savefile
+		mpz_init(tmpz);
+		mpz_init(g);
+
+		fgets(tmpstr, GSTR_MAXSIZE, data);
+		substr = tmpstr + 2;
+		mpz_set_str(tmpz, substr, 0);	//auto detect the base
+
+		if (resume_check_input_match(tmpz, fobj->qs_obj.gmp_n, g))
+		{
+			// remove any common factor so the input exactly matches
+			// the file
+			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, g);
+			gmp2mp(fobj->qs_obj.gmp_n, &fobj->N);
+		}
+		mpz_clear(tmpz);
+		mpz_clear(g);
+	}
 
 	//At this point, we are committed to doing qs on the input
 	//we need to:
@@ -204,12 +236,12 @@ void SIQS(fact_obj_t *fobj)
 
 	if (VFLAG >= 0)
 		printf("\nstarting SIQS on c%d: %s\n",fobj->digits, 
-		mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+		mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 
 	if (sieve_log != NULL)
 	{
 		logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,
-			mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 		logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
 		fflush(sieve_log);
 	}
@@ -237,7 +269,7 @@ void SIQS(fact_obj_t *fobj)
 	fprintf(optfile,"Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
 		yafu_get_cpu_type(),L1CACHE,L2CACHE);
 	gmp_fprintf(optfile,"Starting SIQS on c%d: %s\n\n",
-		fobj->digits, mpz_get_str(gstr1.s, 10, fobj->qs_obj.gmp_n));
+		fobj->digits, mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
 	fprintf(optfile,"Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
 #endif
 	gettimeofday(&optstart, NULL);
@@ -1256,6 +1288,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->fb_sieve_n = (sieve_fb *)xmalloc_align(
 		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	
+	dconf->update_data.sm_firstroots1 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
+	dconf->update_data.sm_firstroots2 = (uint16 *)xmalloc_align(
+		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->update_data.firstroots1 = (int *)xmalloc_align(
 		(size_t)(sconf->factor_base->B * sizeof(int)));
 	dconf->update_data.firstroots2 = (int *)xmalloc_align(
@@ -1266,6 +1302,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->B * sizeof(uint8)));
 	dconf->rootupdates = (int *)xmalloc_align(
 		(size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(int)));
+	dconf->sm_rootupdates = (uint16 *)xmalloc_align(
+		(size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(uint16)));
 
 
 	if (VFLAG > 2)
@@ -2182,7 +2220,7 @@ int update_final(static_conf_t *sconf)
 
 		if (sieve_log != NULL)
 			logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-				sconf->num, mpz_get_str(gstr1.s, 10, tmp1));
+				sconf->num, mpz_conv2str(&gstr1.s, 10, tmp1));
 		if (sconf->use_dlp)
 				logprint(sieve_log, "squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
 					sconf->failed_squfof, sconf->attempted_squfof, 
@@ -2257,7 +2295,7 @@ int update_final(static_conf_t *sconf)
 			(double)(sconf->num_relations + sconf->num_cycles) /
 			((double)difference->secs + (double)difference->usecs / 1000000));
 		logprint(sieve_log,"trial division touched %d sieve locations out of %s\n",
-				sconf->num, mpz_get_str(gstr1.s, 10, tmp1));
+				sconf->num, mpz_conv2str(&gstr1.s, 10, tmp1));
 		logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");
 	}
 
@@ -2295,7 +2333,10 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->comp_sieve_n);
 
 	align_free(dconf->rootupdates);
+	align_free(dconf->sm_rootupdates);
 
+	align_free(dconf->update_data.sm_firstroots1);
+	align_free(dconf->update_data.sm_firstroots2);
 	align_free(dconf->update_data.firstroots1);
 	align_free(dconf->update_data.firstroots2);
 	align_free(dconf->update_data.prime);

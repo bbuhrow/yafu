@@ -21,6 +21,27 @@ code to the public domain.
 #include "yafu.h"
 #include "arith.h"
 
+
+char * mpz_conv2str(char **in, int base, mpz_t n)
+{
+	// a wrapper for mpz_get_str that will grow the
+	// input string if necessary to hold n, when 'in' is
+	// not null (in which case mpz_get_str will create
+	// a string of the appropriate size)
+
+	if (*in == NULL)
+	{
+		return mpz_get_str(*in, base, n);
+	}
+	else
+	{
+		int nchars = mpz_sizeinbase(n, base) + 2;
+		if (nchars >= GSTR_MAXSIZE)
+			*in = (char *)realloc(*in, nchars * sizeof(char));
+		return mpz_get_str(*in, base, n);	
+	}
+}
+
 uint64 mpz_get_64(mpz_t src)
 {
 

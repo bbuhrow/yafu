@@ -71,15 +71,13 @@ void nfs(fact_obj_t *fobj)
 	{
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		
-		logfile = fopen(fobj->flogname, "a");
-
 		if (VFLAG >= 0)
 			gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->nfs_obj.gmp_n),
 				fobj->nfs_obj.gmp_n);
 		
 		logprint_oc(fobj->flogname, "a", "PRP%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));	
+			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));	
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
 		return;
@@ -92,12 +90,12 @@ void nfs(fact_obj_t *fobj)
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
 		return;
@@ -105,13 +103,35 @@ void nfs(fact_obj_t *fobj)
 
 	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
 	{
-		printf("input is a perfect power\n");
+		FILE *flog;
+		uint32 j;
 
-		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
-		logprint_oc(fobj->flogname, "a", "c%d = %s\n",
-			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+		if (VFLAG > 0)
+			printf("input is a perfect power\n");
+		
+		factor_perfect_power(fobj, fobj->nfs_obj.gmp_n);
 
+		flog = fopen(fobj->flogname, "a");
+		if (flog == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("could not open %s for appending\n", fobj->flogname);
+			exit(1);
+		}
+		
+		logprint(flog,"input is a perfect power\n");
+
+		for (j=0; j<fobj->num_factors; j++)
+		{
+			uint32 k;
+			for (k=0; k<fobj->fobj_factors[j].count; k++)
+			{
+				logprint(flog,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
+					mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
+			}
+		}
+
+		fclose(flog);
 		return;
 	}
 
@@ -159,28 +179,6 @@ void nfs(fact_obj_t *fobj)
 		exit(1);
 	}
 
-	//find best job parameters
-	get_ggnfs_params(fobj, &job);			
-
-	//if we are going to be doing sieving, check for the sievers
-	if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
-	{
-		FILE *test;
-		// test for existence of the siever
-		test = fopen(job.sievername, "rb");
-		if (test == NULL)
-		{
-			printf("WARNING: could not find %s, reverting to siqs!\n",job.sievername);
-			logprint_oc(fobj->flogname, "a", "WARNING: could not find %s, reverting to siqs!\n",
-				job.sievername);
-
-			mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-			SIQS(fobj);
-			mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-			return;
-		}
-	}
-
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -198,42 +196,63 @@ void nfs(fact_obj_t *fobj)
 		switch (statenum)
 		{
 		case 0: //"init":
-			if (VFLAG >= 0)
-				gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
-					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
-
-			logprint_oc(fobj->flogname, "a", "nfs: commencing gnfs on c%d: %s\n",
-				gmp_base10(fobj->nfs_obj.gmp_n),
-				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			//initialize some job parameters
+			job.current_rels = 0;
 
 			//write the input bigint as a string			
-			input = mpz_get_str(input, 10, fobj->nfs_obj.gmp_n);
+			input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
 
 			//create an msieve_obj
 			//this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
 				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
 				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
-
 			fobj->nfs_obj.mobj = obj;
-			//printf("output: %s\n", fobj->nfs_obj.mobj->savefile.name);
-			//printf("log: %s\n", fobj->nfs_obj.mobj->logfile_name);
-			//printf("fb: %s\n", fobj->nfs_obj.mobj->nfs_fbfile_name);
-
-			//convert input to msieve bigint notation and initialize a list of factors
-			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
-			factor_list_init(&factor_list);
-
-			//initialize some job parameters
-			job.current_rels = 0;
-			if (fobj->nfs_obj.rangeq > 0)
-				qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
-			else
-				qrange = job.qrange;
 
 			//determine what to do next based on the state of various files
 			//this will set job.current_rels if it finds any
 			is_continuation = check_existing_files(fobj, &last_specialq, &job);
+
+			//get best parameters for the job - call this after checking the input
+			//against the savefile because the input could be changed (i.e., reduced
+			// by a GCD).
+			get_ggnfs_params(fobj, &job);			
+
+			//if we are going to be doing sieving, check for the sievers
+			if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
+			{
+				FILE *test;
+				// test for existence of the siever
+				test = fopen(job.sievername, "rb");
+				if (test == NULL)
+				{
+					printf("WARNING: could not find %s, reverting to siqs!\n",job.sievername);
+					logprint_oc(fobj->flogname, "a", "WARNING: could not find %s, reverting to siqs!\n",
+						job.sievername);
+
+					mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+					SIQS(fobj);
+					mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+					return;
+				}
+			}
+
+			if (VFLAG >= 0)
+				gmp_printf("nfs: commencing gnfs on c%d: %Zd\n",
+					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+
+			logprint_oc(fobj->flogname, "a", "nfs: commencing gnfs on c%d: %s\n",
+				gmp_base10(fobj->nfs_obj.gmp_n),
+				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+
+			//convert input to msieve bigint notation and initialize a list of factors
+			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
+			factor_list_init(&factor_list);
+			
+			if (fobj->nfs_obj.rangeq > 0)
+				qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+			else
+				qrange = job.qrange;
 
 			if (is_continuation == 0)
 			{
@@ -476,11 +495,11 @@ void nfs(fact_obj_t *fobj)
 			// create a new directory for this job 
 //#ifdef _WIN32
 //			sprintf(tmpstr, "%s\%s", fobj->nfs_obj.ggnfs_dir, 
-//				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+//				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 //			mkdir(tmpstr);
 //#else
 //			sprintf(tmpstr, "%s/%s", fobj->nfs_obj.ggnfs_dir, 
-//				mpz_get_str(gstr1.s, 10, fobj->nfs_obj.gmp_n));
+//				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 //			mkdir(tmpstr, S_IRWXU);
 //#endif
 			
@@ -735,7 +754,9 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	// doing things by hand by then anyway.
 	int i, d = gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
-	
+	double fudge;
+	int found = 0;
+
 	job->min_rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
 	{
@@ -772,15 +793,15 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 			else
 				job->siever = ggnfs_table[i+1][5];
 
-			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
-
 			//interp
 			job->qrange = ggnfs_table[i+1][7] - 
 				(uint32)(scale * (double)(ggnfs_table[i+1][7] - ggnfs_table[i][7]));
+
+			found = 1;
 		}
 	}
 
-	if (job->min_rels == 0)
+	if (found == 0)
 	{
 		//couldn't find a table entry
 		if (d <= ggnfs_table[0][0])
@@ -790,7 +811,6 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 			job->mfb = ggnfs_table[0][3];
 			job->lambda = ggnfs_table[0][4];
 			job->siever = ggnfs_table[0][5];
-			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
 			job->qrange = ggnfs_table[0][7];
 		}
 		else
@@ -800,10 +820,47 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 			job->mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
 			job->lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
 			job->siever = ggnfs_table[GGNFS_TABLE_ROWS-1][5];
-			job->min_rels = pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb));
 			job->qrange = ggnfs_table[GGNFS_TABLE_ROWS-1][7];
 		}
 	}
+
+	// appoximate min_rels.  factMsieve.pl resource, except we always
+	// use LPBR == LPBA (for now... need to change to allow independent)
+	// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
+	// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
+	switch (job->lpb)
+	{
+	case 24:
+		fudge = 0.2;
+		break;
+	case 25:
+		fudge = 0.35;
+		break;
+	case 26:
+		fudge = 0.54;
+		break;
+	case 27:
+		fudge = 0.63;
+		break;
+	case 28:
+		fudge = 0.69;
+		break;
+	case 29:
+		fudge = 0.84;
+		break;
+	case 30:
+		fudge = 0.89;
+		break;
+	case 31:
+		fudge = 0.91;
+		break;
+	default:
+		fudge = 0.2;
+		break;
+	}
+
+	job->min_rels = (uint32)(fudge * (
+		pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb))));
 
 	if (fobj->nfs_obj.siever > 0)
 	{

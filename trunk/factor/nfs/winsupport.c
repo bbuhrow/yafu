@@ -106,6 +106,7 @@ void logprintf(msieve_obj *obj, char *fmt, ...) {
 #endif
 
 		if (logfile == NULL) {
+			printf("fopen error: %s\n", strerror(errno));
 			fprintf(stderr, "cannot open logfile\n");
 			exit(-1);
 		}

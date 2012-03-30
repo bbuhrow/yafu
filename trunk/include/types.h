@@ -51,6 +51,7 @@ code to the public domain.
 
 #include <stddef.h>
 #include <stdio.h>
+#include <errno.h>
 #include <math.h>
 #include <time.h>
 #include <sys/timeb.h>

@@ -160,16 +160,11 @@ this file contains code implementing 3)
 	#if defined(HAS_SSE2)
 		//top level sieve scanning with SSE2
 
-		#define MOD_INIT_8X												\
-			do { \
-				ASM_M { \
-				ASM_M movdqa xmm0, bl_sizes \
-				ASM_M movdqa xmm1, bl_locs } \
-			} while (0) ;
+		#define MOD_INIT_8X	
 
 #ifdef YAFU_64K
 
-		#define MOD_CMP_8X																		\
+		#define MOD_CMP_8X(xtra_bits)						\
 			do { \
 					__m128i one;	\
 					__m128i t1; \
@@ -197,7 +192,7 @@ this file contains code implementing 3)
 				lr1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
 				c = _mm_mulhi_epu16(c, sinv); \
 				lr2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-				c = _mm_srli_epi16(c, 8); \
+				c = _mm_srli_epi16(c, xtra_bits); \
 				t2 = _mm_add_epi16(t2, lp); \
 				c = _mm_mullo_epi16(c, lp); \
 				c = _mm_add_epi16(c, t2); \
@@ -209,45 +204,39 @@ this file contains code implementing 3)
 			} while (0);
 
 #else
-		#define MOD_CMP_8X																		\
+
+		#define MOD_CMP_8X(xtra_bits)						\
 			do { \
-				uint16 *localprime = (uint16 *)(fbc->prime + i);	\
-				uint16 *localsmall_inv = (uint16 *)(fullfb_ptr->small_inv + i);	\
-				uint16 *localcorrections = (uint16 *)(fullfb_ptr->correction + i);	\
-				uint16 *localroot1 = (uint16 *)(fbc->root1 + i);	\
-				uint16 *localroot2 = (uint16 *)(fbc->root2 + i);	\
-				uint16 *local_blksz = (uint16 *)bl_sizes; \
-				uint16 *local_blkloc = (uint16 *)bl_locs; \
-				ASM_M { \
-				ASM_M mov eax, localprime \
-				ASM_M mov ebx, local_blksz \
-				ASM_M mov ecx, local_blkloc \
-				ASM_M mov edx, localsmall_inv \
-				ASM_M mov edi, localcorrections \
-				ASM_M movdqa xmm0, XMMWORD PTR [ebx] \
-				ASM_M movdqa xmm1, XMMWORD PTR [ecx] \
-				ASM_M mov ebx, localroot1 \
-				ASM_M mov ecx, localroot2 \
-				ASM_M movdqa xmm2, xmm0 \
-				ASM_M movdqa xmm3, XMMWORD PTR [eax] \
-				ASM_M psubw xmm2, xmm1 \
-				ASM_M movdqa xmm4, XMMWORD PTR [edi] \
-				ASM_M movdqa xmm7, xmm1 \
-				ASM_M movdqa xmm5, XMMWORD PTR [edx] \
-				ASM_M paddw xmm4, xmm2 \
-				ASM_M movdqa xmm6, XMMWORD PTR [ebx] \
-				ASM_M pmulhuw xmm4, xmm5 \
-				ASM_M movdqa xmm2, XMMWORD PTR [ecx] \
-				ASM_M psrlw xmm4, 8 \
-				ASM_M paddw xmm7, xmm3 \
-				ASM_M pmullw xmm4, xmm3 \
-				ASM_M paddw xmm4, xmm7 \
-				ASM_M psubw xmm4, xmm0 \
-				ASM_M pcmpeqw xmm6, xmm4 \
-				ASM_M pcmpeqw xmm2, xmm4 \
-				ASM_M por xmm2, xmm6 \
-				ASM_M pmovmskb eax, xmm2 \
-				ASM_M mov tmp3, eax } \
+					__m128i t1; \
+					__m128i t2;	\
+					__m128i lr1;	\
+					__m128i lr2;	\
+					__m128i lp;	\
+					__m128i c;	\
+					__m128i sinv; \
+					__m128i blksz; \
+					__m128i blkloc; \
+				blksz = _mm_load_si128((__m128i *)(bl_sizes)); \
+				blkloc = _mm_load_si128((__m128i *)(bl_locs)); \
+				t1 = blksz; \
+				lp = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+				t1 = _mm_sub_epi16(t1, blkloc); \
+				c = _mm_load_si128((__m128i *)(fullfb_ptr->correction + i));	\
+				t2 = blkloc; \
+				sinv = _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i));	\
+				c = _mm_add_epi16(c, t1); \
+				lr1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+				c = _mm_mulhi_epu16(c, sinv); \
+				lr2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+				c = _mm_srli_epi16(c, xtra_bits); \
+				t2 = _mm_add_epi16(t2, lp); \
+				c = _mm_mullo_epi16(c, lp); \
+				c = _mm_add_epi16(c, t2); \
+				c = _mm_sub_epi16(c, blksz); \
+				lr1 = _mm_cmpeq_epi16(lr1, c); \
+				lr2 = _mm_cmpeq_epi16(lr2, c); \
+				lr2 = _mm_or_si128(lr2, lr1); \
+				tmp3 = _mm_movemask_epi8(lr2); \
 			} while (0);
 
 #endif
@@ -256,7 +245,91 @@ this file contains code implementing 3)
 
 #elif defined(_WIN64)
 
+#if defined(HAS_SSE2)
+		//top level sieve scanning with SSE2
 
+		#define MOD_INIT_8X	
+
+#ifdef YAFU_64K
+
+		#define MOD_CMP_8X(xtra_bits)						\
+			do { \
+					__m128i one;	\
+					__m128i t1; \
+					__m128i t2;	\
+					__m128i lr1;	\
+					__m128i lr2;	\
+					__m128i lp;	\
+					__m128i c;	\
+					__m128i sinv; \
+					__m128i blksz; \
+					__m128i blkloc; \
+				blksz = _mm_load_si128((__m128i *)(bl_sizes)); \
+				blkloc = _mm_load_si128((__m128i *)(bl_locs)); \
+				t1 = blksz; \
+				one = _mm_cmpeq_epi16(blksz, blksz); \
+				lp = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+				t1 = _mm_sub_epi16(t1, blkloc); \
+				c = _mm_load_si128((__m128i *)(fullfb_ptr->correction + i));	\
+				one = _mm_srli_epi16(one, 15); \
+				t2 = blkloc; \
+				t1 = _mm_add_epi16(t1, one); \
+				t2 = _mm_sub_epi16(t2, one); \
+				sinv = _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i));	\
+				c = _mm_add_epi16(c, t1); \
+				lr1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+				c = _mm_mulhi_epu16(c, sinv); \
+				lr2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+				c = _mm_srli_epi16(c, xtra_bits); \
+				t2 = _mm_add_epi16(t2, lp); \
+				c = _mm_mullo_epi16(c, lp); \
+				c = _mm_add_epi16(c, t2); \
+				c = _mm_sub_epi16(c, blksz); \
+				lr1 = _mm_cmpeq_epi16(lr1, c); \
+				lr2 = _mm_cmpeq_epi16(lr2, c); \
+				lr2 = _mm_or_si128(lr2, lr1); \
+				tmp3 = _mm_movemask_epi8(lr2); \
+			} while (0);
+
+#else
+
+		#define MOD_CMP_8X(xtra_bits)						\
+			do { \
+					__m128i t1; \
+					__m128i t2;	\
+					__m128i lr1;	\
+					__m128i lr2;	\
+					__m128i lp;	\
+					__m128i c;	\
+					__m128i sinv; \
+					__m128i blksz; \
+					__m128i blkloc; \
+				blksz = _mm_load_si128((__m128i *)(bl_sizes)); \
+				blkloc = _mm_load_si128((__m128i *)(bl_locs)); \
+				t1 = blksz; \
+				lp = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+				t1 = _mm_sub_epi16(t1, blkloc); \
+				c = _mm_load_si128((__m128i *)(fullfb_ptr->correction + i));	\
+				t2 = blkloc; \
+				sinv = _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i));	\
+				c = _mm_add_epi16(c, t1); \
+				lr1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+				c = _mm_mulhi_epu16(c, sinv); \
+				lr2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+				c = _mm_srli_epi16(c, xtra_bits); \
+				t2 = _mm_add_epi16(t2, lp); \
+				c = _mm_mullo_epi16(c, lp); \
+				c = _mm_add_epi16(c, t2); \
+				c = _mm_sub_epi16(c, blksz); \
+				lr1 = _mm_cmpeq_epi16(lr1, c); \
+				lr2 = _mm_cmpeq_epi16(lr2, c); \
+				lr2 = _mm_or_si128(lr2, lr1); \
+				tmp3 = _mm_movemask_epi8(lr2); \
+			} while (0);
+
+#endif
+
+#endif
 
 #else	/* compiler not recognized*/
 
@@ -476,7 +549,11 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		{
 			uint32 tmp3 = 0;
 
+#ifdef _MSC_VER
+			MOD_CMP_8X(8);
+#else
 			MOD_CMP_8X("8");
+#endif
 
 			//if ((((((uint32)fbc->root1[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0) ||
 			//	((((uint32)fbc->root2[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0)) &&
@@ -541,7 +618,11 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		{
 			uint32 tmp3 = 0;
 
+#ifdef _MSC_VER
+			MOD_CMP_8X(10);
+#else
 			MOD_CMP_8X("10");
+#endif
 
 			if (tmp3 == 0)
 			{
@@ -602,7 +683,11 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		{
 			uint32 tmp3 = 0;
 
+#ifdef _MSC_VER
+			MOD_CMP_8X(12);
+#else
 			MOD_CMP_8X("12");
+#endif
 
 			if (tmp3 == 0)
 			{

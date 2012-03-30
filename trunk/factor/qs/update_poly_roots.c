@@ -294,6 +294,26 @@ typedef struct
 			: "g"(*ptr), "g"(prime)		\
 			: "r8", "r9", "cc");	
 
+	//#define COMPUTE_NEXT_ROOTS_P_sm						\
+	//	ASM_G (											\
+	//		"xorw %%r8w, %%r8w		\n\t"	/*r8d = 0*/	\
+	//		"xorw %%r9w, %%r9w		\n\t"	/*r9d = 0*/	\
+	//		"subw %2, %%ax			\n\t"	/*root1 - ptr*/	\
+	//		"cmovc %3, %%r8w		\n\t"	/*prime into r8 if overflow*/	\
+	//		"subw %2, %%dx			\n\t"	/*root2 - ptr*/	\
+	//		"cmovc %3, %%r9w		\n\t"	/*prime into r9 if overflow*/	\
+	//		"addw %%r8w, %%ax		\n\t"		\
+	//		"addw %%r9w, %%dx		\n\t"		\
+	//		: "+a"(root1), "+d"(root2)			\
+	//		: "g"(*sm_ptr), "g"(prime)		\
+	//		: "r8", "r9", "cc");	
+
+	#define COMPUTE_NEXT_ROOTS_P_sm		\
+		root1 = (int)root1 - *sm_ptr;		\
+		root2 = (int)root2 - *sm_ptr;		\
+		root1 += ((root1 >> 31) * prime);			\
+		root2 += ((root2 >> 31) * prime);		
+
 	#define COMPUTE_4_PROOTS(j)								\
 		ASM_G (											\
 			"movdqa (%%rax), %%xmm3 \n\t"			/* xmm3 = next 4 values of rootupdates */ \
@@ -350,6 +370,22 @@ typedef struct
 			"cmovae %%r8d, %%eax	\n\t"	/*other caluclation if no overflow*/	\
 			"addl %2, %%edx			\n\t"	/*root2 + ptr*/							\
 			"cmovae %%r9d, %%edx	\n\t"	/*other caluclation if no overflow*/	\
+			: "+a"(root1), "+d"(root2)		\
+			: "g"(*ptr), "g"(prime)			\
+			: "r8", "r9", "cc");
+
+	#define COMPUTE_NEXT_ROOTS_N_sm		\
+		ASM_G (							\
+			"movw %%ax, %%r8w		\n\t"	\
+			"addw %2, %%r8w			\n\t"	/*r8d = root1 + ptr - potential overflow */		\
+			"movw %%dx, %%r9w		\n\t"								\
+			"addw %2, %%r9w			\n\t"	/*r9d = root2 + ptr - potential overflow */		\
+			"subw %3, %%ax			\n\t"	/*root1 = root1 - prime*/	\
+			"subw %3, %%dx			\n\t"	/*root2 = root2 - prime*/	\
+			"addw %2, %%ax			\n\t"	/*root1 + ptr*/				\
+			"cmovae %%r8w, %%ax	\n\t"		/*other caluclation if no overflow*/	\
+			"addw %2, %%dx			\n\t"	/*root2 + ptr*/							\
+			"cmovae %%r9w, %%dx	\n\t"		/*other caluclation if no overflow*/	\
 			: "+a"(root1), "+d"(root2)		\
 			: "g"(*ptr), "g"(prime)			\
 			: "r8", "r9", "cc");
@@ -552,6 +588,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	char v = dconf->curr_poly->nu[dconf->numB];
 	char sign = dconf->curr_poly->gray[dconf->numB];
 	int *ptr;
+	uint16 *sm_ptr;
 
 	lp_bucket *lp_bucket_p = dconf->buckets;
 	uint32 med_B = sconf->factor_base->med_B;
@@ -606,7 +643,7 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
 
 	k=0;
-	ptr = &rootupdates[(v-1) * bound + startprime];
+	ptr = &rootupdates[(v-1) * bound + startprime];	
 
 	if (sign > 0)
 	{
@@ -614,9 +651,6 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
-		// TODO:
-		// looks easy to 8x parallelize, but these don't fall nicely
-		// into 8x chunks (there are usually < 40 or them, as well).
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -640,23 +674,22 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		}
 
-		// TODO:
-		// looks easy to 8x parallelize using SIMD, taking advantage
-		// of the fact that these are all (or could be) aligned
-		// arrays of size equal to a multiple of 8.  
-		// here, on the negative side, and in firstRoots.
-		for (j=sconf->sieve_small_fb_start;j<med_B;j++,ptr++)
+		// do one at a time up to the 10bit boundary, where
+		// we can start doing things 8 at a time and be
+		// sure we can use aligned moves (static_data_init).		
+		for (j=sconf->sieve_small_fb_start; 
+			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = (uint32)update_data.sm_firstroots1[j];
+			root2 = (uint32)update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
-			
+
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -665,8 +698,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
@@ -674,6 +707,119 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
+
+		// update 8 at a time using SSE2 and no branching
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
+		for (j=sconf->factor_base->fb_10bit_B; j < med_B; j++, sm_ptr++)
+		{
+			uint16 prime = (uint16)update_data.prime[j];
+			uint16 root1 = update_data.sm_firstroots1[j];
+			uint16 root2 = update_data.sm_firstroots2[j];
+			uint16 tmp;
+
+			tmp = root1 - *sm_ptr;
+			
+			// modular subtraction amounts to checking for overflow
+			if (tmp > root1) 
+				root1 = tmp + prime;
+			else
+				root1 = tmp;
+
+			tmp = root2 - *sm_ptr;
+			
+			// modular subtraction amounts to checking for overflow
+			if (tmp > root2) 
+				root2 = tmp + prime;
+			else
+				root2 = tmp;
+			
+			// this is probably pretty close to doing 4x root updates
+			// in parallel with SSE2 - and uses only x86 SSE2 registers so should
+			// be portable to x64/Win32
+			// the only thing in the way of doing 8x parallelization is the fact
+			// that rootupdates/firstroots are ints.
+			// in fact, that means I need to add conversions from the dword calculations
+			// to the words before writing to the uint16 data structures root1p, root2p,
+			// root1n, and root2n.
+			// unless we create special 16 bit versions of firstroots/rootupdates... uggh.
+			// they are only used here and in firstroots() - not in trial division 
+			// or sieving.
+			// still can't use PMAXSW/PMINSW though, because the roots will need to be
+			// unsigned (they need all 16 bits).
+			//ASM_G (
+			//	/* unsigned gteq test - requires a "0" register (xmm0) */
+			//	"psubusw	%%xmm1, %%xmm2 \n\t"	/* xmm2 := b - a */
+			//	"pcmpeqw	%%xmm0, %%xmm2 \n\t"	/* xmm2 := a >= b ? 1 : 0 */
+
+			//	/* compute 8 new roots on the P side */
+			//	"movdqa (%%eax), %%xmm3 \n\t"			/* xmm3 = next 8 values of rootupdates */ \
+			//	"movdqa (%%ecx), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */ \
+			//	"movdqa %%xmm1, %%xmm4 \n\t"			/* copy root1 */ \
+			//	"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
+			//	"movdqa (%%edx), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */ \
+			//	"movdqa %%xmm2, %%xmm5 \n\t"			/* copy root2 */ \
+			//	"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
+			//	"movdqa (%%ebx), %%xmm0 \n\t"			/* xmm0 = next 8 primes */ \
+			//	/* check for overflow of 16 bits, if so, need to modular subtract */
+			//	"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* res > root1? if so, set xmm4 dword to 1's */ \
+			//	"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* res > root2? if so, set xmm5 dword to 1's */ \
+			//	"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			//	"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
+			//	"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
+			//	"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			//	/* start 4x MIN/MAX swap in SSE2 */
+			//	"movdqa	%%xmm2, %%xmm4 \n\t"			/* copy root2 */
+			//	"pcmpltd	%%xmm1, %%xmm4 \n\t"		/* root2 < root1? root2 --> 1's:root2 --> 0 */ \
+			//	"movdqa	%%xmm4, %%xmm5 \n\t"			/* copy ans */
+			//	"movdqa	%%xmm4, %%xmm6 \n\t"			/* copy ans */
+			//	"movdqa	%%xmm4, %%xmm7 \n\t"			/* copy ans */
+			//	"pand	%%xmm1, %%xmm4 \n\t"			/* copy root1 to where root1 is GT */
+			//	"pandn	%%xmm2, %%xmm5 \n\t"			/* copy root2 to where root2 is GT */
+			//	"pandn	%%xmm1, %%xmm6 \n\t"			/* copy root1 to where root1 is LT */
+			//	"pand	%%xmm2, %%xmm7 \n\t"			/* copy root2 to where root2 is LT */
+			//	"por	%%xmm4, %%xmm5 \n\t"			/* combine GT */
+			//	"por	%%xmm6, %%xmm7 \n\t"			/* combine LT */
+			//	/* now copy results to appropriate data structures */
+			//	"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */
+			//	/* root1p always gets the smaller roots (LT) */
+			//	"movdqa	%%xmm7, (%0) \n\t"				/* update root1p */
+			//	"psubd	%%xmm7, %%xmm0 \n\t"			/* prime - LT roots */
+			//	"movdqa	%%xmm7, (%1) \n\t"				/* update firstroots1 */
+			//	/* root2p always gets the bigger roots (GT) */
+			//	"movdqa	%%xmm5, (%2) \n\t"				/* update root1p */
+			//	"psubd	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */
+			//	"movdqa	%%xmm5, (%3) \n\t"				/* update firstroots2 */
+			//	/* root1n always gets prime - bigger roots (LT) */
+			//	"movdqa	%%xmm2, (%4) \n\t"				/* update root1n */
+			//	/* root2n always gets prime - smaller roots (GT) */
+			//	"movdqa	%%xmm4, (%5) \n\t"				/* update root2n */
+			//	:
+			//	:
+			//	:       );
+
+			if (root2 < root1)
+			{
+				update_data.sm_firstroots1[j] = root2;
+				update_data.sm_firstroots2[j] = root1;
+
+				fb_p->root1[j] = root2;
+				fb_p->root2[j] = root1;
+				fb_n->root1[j] = (prime - root1);
+				fb_n->root2[j] = (prime - root2);
+			}
+			else
+			{
+				update_data.sm_firstroots1[j] = root1;
+				update_data.sm_firstroots2[j] = root2;
+
+				fb_p->root1[j] = root1;
+				fb_p->root2[j] = root2;
+				fb_n->root1[j] = (prime - root2);
+				fb_n->root2[j] = (prime - root1);
+			}
+		}
+		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->med_B];
+
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -1606,18 +1752,22 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		}
 
-		for (j=sconf->sieve_small_fb_start;j<med_B;j++,ptr++)
+		// do one at a time up to the 10bit boundary, where
+		// we can start doing things 8 at a time and be
+		// sure we can use aligned moves (static_data_init).	
+		for (j=sconf->sieve_small_fb_start; 
+			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+			root1 = (uint32)update_data.sm_firstroots1[j];
+			root2 = (uint32)update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -1626,8 +1776,8 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
@@ -1635,6 +1785,56 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
+
+		// update 8 at a time using SSE2 and no branching
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
+		for (j=sconf->factor_base->fb_10bit_B; j < med_B; j++, sm_ptr++)
+		{
+			uint16 prime = (uint16)update_data.prime[j];
+			uint16 root1 = update_data.sm_firstroots1[j];
+			uint16 root2 = update_data.sm_firstroots2[j];
+			uint16 tmp;
+
+			tmp = root1 + *sm_ptr;
+			
+			// modular addition needs to check for overflow 
+			// w.r.t 2^16 and w.r.t prime
+			if (tmp < root1 || tmp > prime) 
+				root1 = tmp - prime;
+			else
+				root1 = tmp;
+
+			tmp = root2 + *sm_ptr;
+			
+			// modular addition needs to check for overflow 
+			// w.r.t 2^16 and w.r.t prime
+			if (tmp < root2 || tmp > prime) 
+				root2 = tmp - prime;
+			else
+				root2 = tmp;
+
+			if (root2 < root1)
+			{
+				update_data.sm_firstroots1[j] = root2;
+				update_data.sm_firstroots2[j] = root1;
+
+				fb_p->root1[j] = root2;
+				fb_p->root2[j] = root1;
+				fb_n->root1[j] = (prime - root1);
+				fb_n->root2[j] = (prime - root2);
+			}
+			else
+			{
+				update_data.sm_firstroots1[j] = root1;
+				update_data.sm_firstroots2[j] = root2;
+
+				fb_p->root1[j] = root1;
+				fb_p->root2[j] = root2;
+				fb_n->root1[j] = (prime - root2);
+				fb_n->root2[j] = (prime - root1);
+			}
+		}
+		ptr = &dconf->rootupdates[(v-1) * bound + med_B];
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
