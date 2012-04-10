@@ -2,6 +2,7 @@ v 1.31
 + bugfixes (thanks volmike, kar_bon, StarGate38, jwes, and Brian Gladman for
 	reports and fixes)
 + 8x sse2 asm division 
++ 8x small prime poly updating
 + removed obsolete pre-processor directives and code (e.g. USE_COMPRESSED_FB)
 + replaced zNroot and zExp code with gmp equivalents
 + added wrapper for mpz_get_str that will reallocate the destination string to fit
@@ -13,13 +14,8 @@ v 1.31
 + printing factors should now get the type correct (i.e., prime, prp, or composite)
 + more robust restarting
 + better min_rels estimation
-
-
-TODO for 1.31:
-
-+ SIMD of small prime initialization in nextRoots/firstRoots
-+ bugfix?: file I/O debug: check return value and see if any additional info
-	can be printed on failure.
++ added "nprp" command line option to specify the number of witnesses in 
+	PRP checks
 
 
 v 1.30

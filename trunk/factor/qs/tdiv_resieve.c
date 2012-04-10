@@ -652,7 +652,6 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	sieve_fb *fb;
-	uint64 q64;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
@@ -905,6 +904,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		bound = sconf->factor_base->med_B;
 		while ((uint32)i < bound)
 		{
+			uint64 q64;
 			uint32 tmp;
 			uint32 prime = fbc->prime[i];
 			uint32 root1 = fbc->root1[i];

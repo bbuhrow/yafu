@@ -1106,6 +1106,10 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			printf("using inline ASM to sieve primes up to 16 bits\n");
 #endif
 
+#if defined(HAS_SSE2)
+			printf("using SSE2 for poly updating up to 15 bits\n");
+#endif
+
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
 		printf("using 64 byte cache line prefetching\n");
 #elif defined(MANUAL_PREFETCH)

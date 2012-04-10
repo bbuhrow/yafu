@@ -41,7 +41,7 @@ void nfs(fact_obj_t *fobj)
 	struct timeval start;	// start time of this job
 	TIME_DIFF *	difference;
 	double t_time;
-	FILE *logfile;
+	//FILE *logfile;
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
