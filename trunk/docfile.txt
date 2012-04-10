@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.30
+YAFU Version 1.31
 
 --------------------------------------------------------------------------------
 Introduction:
@@ -132,6 +132,7 @@ flags to change program behavior.  Supported flags are:
 				the integer in the default ggnfs siever name.  I.e, 
 				ggnfs-lasieve4I<num>e.exe		
 -ecm_path <path>	full path to ecm binary
+-nprp <num>			Specify the number of witnesses to every Rabin-				Miller test in yafu
 
 
 These flags are ignored when redirecting input to yafu.
