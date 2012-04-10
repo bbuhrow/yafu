@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 59
+#define NUMOPTIONS 60
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
-	"nc2", "nc3", "p", "work"};
+	"nc2", "nc3", "p", "work", "nprp"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -69,7 +69,7 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	2,2,0,1,0,
 	1,1,1,0,1,
-	0,0,0,1};
+	0,0,0,1,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -781,8 +781,10 @@ _MSC_MPIR_VERSION);
 	fprintf(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
 	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		idstr,L1CACHE,L2CACHE,CLSIZE);
-	fprintf(logfile,"measured cpu frequency ~= %f\n\n",
+	fprintf(logfile,"measured cpu frequency ~= %f\n",
 		MEAS_CPU_FREQUENCY);
+	fprintf(logfile,"using %u random witnesses for Rabin-Miller PRP checks\n\n",
+			NUM_WITNESSES);
 
 	fflush(logfile);
 
@@ -790,8 +792,10 @@ _MSC_MPIR_VERSION);
 	{		
 		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 			idstr,L1CACHE,L2CACHE,CLSIZE);
-		printf("measured cpu frequency ~= %f\n\n",
+		printf("measured cpu frequency ~= %f\n",
 			MEAS_CPU_FREQUENCY);
+		printf("using %u random witnesses for Rabin-Miller PRP checks\n\n",
+			NUM_WITNESSES);
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
@@ -1824,6 +1828,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "work"
 		sscanf(arg, "%lf", &fobj->autofact_obj.initial_work);
+	}
+	else if (strcmp(opt,OptionArray[59]) == 0)
+	{
+		//argument "nprp"
+		NUM_WITNESSES = strtoul(arg,NULL,10);
 	}
 	else
 	{

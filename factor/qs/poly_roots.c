@@ -428,7 +428,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
-	for (i=sconf->sieve_small_fb_start;i<fb->med_B;i++)
+	for (i=sconf->sieve_small_fb_start;i<fb->fb_15bit_B;i++)
 	{
 		uint64 small_inv, correction;
 		uint64 q64, tmp, t2;
@@ -512,6 +512,90 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 	}
 
+	//printf("prime[15bit-1] = %u\n", fb_p->prime[fb->fb_15bit_B-1]);
+	for (i=fb->fb_15bit_B;i<fb->med_B;i++)
+	{
+		uint64 small_inv, correction;
+		uint64 q64, tmp, t2;
+
+		prime = fb->list->prime[i];
+		root1 = modsqrt[i]; 
+		root2 = prime - root1; 
+
+		// compute integer inverse of prime for use in mod operations in this
+		// function.
+		small_inv = ((uint64)1 << 48) / (uint64)prime;
+		if (floor((double)((uint64)1 << 48) / (double)prime + 0.5) ==
+						(double)small_inv) {
+			correction = 1;
+		}
+		else {
+			correction = 0;
+			small_inv++;
+		}
+
+		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
+		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
+
+		//find a^-1 mod p = inv(a mod p) mod p
+		inv = modinv_1(amodp,prime);
+
+		COMPUTE_FIRST_ROOTS
+
+		// inv * root1 % prime
+		t2 = (uint64)inv * (uint64)root1;
+		tmp = t2 + correction;
+		q64 = tmp * small_inv;
+		tmp = q64 >> 48; 
+		root1 = t2 - tmp * prime;
+
+		// inv * root2 % prime
+		t2 = (uint64)inv * (uint64)root2;
+		tmp = t2 + correction;
+		q64 = tmp * small_inv;
+		tmp = q64 >> 48; 
+		root2 = t2 - tmp * prime;
+
+		if (root2 < root1)
+		{
+			update_data.firstroots1[i] = root2;
+			update_data.firstroots2[i] = root1;
+
+			fb_p->root1[i] = (uint16)root2;
+			fb_p->root2[i] = (uint16)root1;
+			fb_n->root1[i] = (uint16)(prime - root1);
+			fb_n->root2[i] = (uint16)(prime - root2);
+		}
+		else
+		{
+			update_data.firstroots1[i] = root1;
+			update_data.firstroots2[i] = root2;
+
+			fb_p->root1[i] = (uint16)root1;
+			fb_p->root2[i] = (uint16)root2;
+			fb_n->root1[i] = (uint16)(prime - root2);
+			fb_n->root2[i] = (uint16)(prime - root1);
+		}
+
+		//for this factor base prime, compute the rootupdate value for all s
+		//Bl values.  amodp holds a^-1 mod p
+		//the rootupdate value is given by 2*Bj*amodp
+		//Bl[j] now holds 2*Bl
+		for (j=0;j<s;j++)
+		{
+			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
+
+			// x * inv % prime
+			t2 = (uint64)inv * (uint64)x;
+			tmp = t2 + correction;
+			q64 = tmp * small_inv;
+			tmp = q64 >> 48; 
+			x = t2 - tmp * prime;
+
+			rootupdates[(j)*fb->B+i] = x;
+		}
+	}
+
 	check_bound = fb->med_B + BUCKET_ALLOC/2;
 	logp = fb->list->logprime[fb->med_B-1];
 	for (i=fb->med_B;i<fb->large_B;i++)
@@ -525,16 +609,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root1 = modsqrt[i];
 		root2 = prime - root1; 
 
-		//small_inv = ((uint64)1 << 40) / (uint64)prime;
-		//if (floor((double)((uint64)1 << 40) / (double)prime + 0.5) ==
-		//				(double)small_inv) {
-		//	correction = 1;
-		//}
-		//else {
-		//	correction = 0;
-		//	small_inv++;
-		//}
-
 		amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a,prime);
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
@@ -542,34 +616,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		inv = modinv_1(amodp,prime);
 
 		COMPUTE_FIRST_ROOTS
-	
-		//t2 = (uint64)inv * (uint64)root1;
-		//tmp = t2 + correction;
-		//q64 = tmp * small_inv;
-		//tmp = q64 >> 40; 
-		//root1 = t2 - tmp * prime;
 
-		//if ((t2 % (uint64)prime) != root1)
-		//{
-		//	printf("failed for prime = %u, amodpinv = %u\n",
-		//		prime, inv);
-		//	exit(1);
-		//}
-
-		//t2 = (uint64)inv * (uint64)root2;
-		//tmp = t2 + correction;
-		//q64 = tmp * small_inv;
-		//tmp = q64 >> 40; 
-		//root2 = t2 - tmp * prime;
-
-		//if ((t2 % (uint64)prime) != root2)
-		//{
-		//	printf("failed for prime = %u, amodpinv = %u\n",
-		//		prime, inv);
-		//	exit(1);
-		//}
-
-		//fb_offset = (i - bound_val) << 16;
 		root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
 		root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
 		
@@ -591,12 +638,6 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
 			x = (int)((int64)x * (int64)inv % (int64)prime);
-
-			//t2 = (uint64)inv * (uint64)x;
-			//tmp = t2 + correction;
-			//q64 = tmp * small_inv;
-			//tmp = q64 >> 48; 
-			//x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
 		}

@@ -51,6 +51,19 @@ typedef struct
 
 } polysieve_t;
 
+typedef struct 
+{
+	uint16 *first_r1;
+	uint16 *first_r2;
+	uint16 *fbp1;
+	uint16 *fbp2;
+	uint16 *fbn1;
+	uint16 *fbn2;
+	uint16 *primes;
+	uint16 *updates;
+	uint32 start;
+	uint32 stop;
+} small_update_t;
 
 #define FILL_ONE_PRIME_P(i)					\
 	if (root1 < interval)					\
@@ -236,6 +249,86 @@ typedef struct
 				_mm_store_si128((__m128i *)(update_data.firstroots2 + j),root2s); 		/* save new root2 values */ \
 			} while (0);
 
+	#define COMPUTE_8X_SMALL_PROOTS	\
+		do {	\
+				__m128i primes;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i ptrs;	\
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				for (j = h.start; j < h.stop; j += 8) \
+				{	\
+					ptrs = _mm_load_si128((__m128i *)(h.updates + j)); \
+					root1s = _mm_load_si128((__m128i *)(h.first_r1 + j)); \
+					root2s = _mm_load_si128((__m128i *)(h.first_r2 + j)); \
+					primes = _mm_load_si128((__m128i *)(h.primes + j)); \
+					root1s = _mm_sub_epi16(root1s, ptrs); \
+					root2s = _mm_sub_epi16(root2s, ptrs); \
+					tmp1 = _mm_xor_si128(tmp1, tmp1); \
+					tmp2 = _mm_xor_si128(tmp2, tmp2); \
+					tmp1 = _mm_cmpgt_epi16(tmp1,root1s);	\
+					tmp2 = _mm_cmpgt_epi16(tmp2,root2s);	\
+					tmp1 = _mm_and_si128(tmp1, primes);	\
+					tmp2 = _mm_and_si128(tmp2, primes);	\
+					root1s = _mm_add_epi16(root1s, tmp1);	\
+					root2s = _mm_add_epi16(root2s, tmp2);	\
+					tmp1 = root2s;	\
+					tmp1 = _mm_max_epi16(tmp1, root1s); \
+					root2s = _mm_min_epi16(root2s, root1s); \
+					tmp2 = primes; \
+					_mm_store_si128((__m128i *)(h.fbp1 + j), root2s);	\
+					primes = _mm_sub_epi16(primes, root2s); \
+					_mm_store_si128((__m128i *)(h.first_r1 + j), root2s);	\
+					_mm_store_si128((__m128i *)(h.fbp2 + j), tmp1);	\
+					tmp2 = _mm_sub_epi16(tmp2, tmp1); \
+					_mm_store_si128((__m128i *)(h.first_r2 + j), tmp1);	\
+					_mm_store_si128((__m128i *)(h.fbn1 + j), tmp2);	\
+					_mm_store_si128((__m128i *)(h.fbn2 + j), primes);	\
+				}	\
+			} while(0);
+
+	#define COMPUTE_8X_SMALL_NROOTS	\
+		do {	\
+				__m128i primes;	\
+				__m128i root1s;	\
+				__m128i root2s;	\
+				__m128i ptrs;	\
+				__m128i tmp1;	\
+				__m128i tmp2;	\
+				for (j = h.start; j < h.stop; j += 8) \
+				{	\
+					ptrs = _mm_load_si128((__m128i *)(h.updates + j)); \
+					root1s = _mm_load_si128((__m128i *)(h.first_r1 + j)); \
+					root2s = _mm_load_si128((__m128i *)(h.first_r2 + j)); \
+					primes = _mm_load_si128((__m128i *)(h.primes + j)); \
+					root1s = _mm_add_epi16(root1s, ptrs); \
+					root2s = _mm_add_epi16(root2s, ptrs); \
+					tmp1 = _mm_xor_si128(tmp1, tmp1); \
+					tmp2 = _mm_xor_si128(tmp2, tmp2); \
+					root1s = _mm_sub_epi16(root1s, primes); \
+					root2s = _mm_sub_epi16(root2s, primes); \
+					tmp1 = _mm_cmpgt_epi16(tmp1,root1s);	\
+					tmp2 = _mm_cmpgt_epi16(tmp2,root2s);	\
+					tmp1 = _mm_and_si128(tmp1, primes);	\
+					tmp2 = _mm_and_si128(tmp2, primes);	\
+					root1s = _mm_add_epi16(root1s, tmp1);	\
+					root2s = _mm_add_epi16(root2s, tmp2);	\
+					tmp1 = root2s;	\
+					tmp1 = _mm_max_epi16(tmp1, root1s); \
+					root2s = _mm_min_epi16(root2s, root1s); \
+					tmp2 = primes; \
+					_mm_store_si128((__m128i *)(h.fbp1 + j), root2s);	\
+					primes = _mm_sub_epi16(primes, root2s); \
+					_mm_store_si128((__m128i *)(h.first_r1 + j), root2s);	\
+					_mm_store_si128((__m128i *)(h.fbp2 + j), tmp1);	\
+					tmp2 = _mm_sub_epi16(tmp2, tmp1); \
+					_mm_store_si128((__m128i *)(h.first_r2 + j), tmp1);	\
+					_mm_store_si128((__m128i *)(h.fbn1 + j), tmp2);	\
+					_mm_store_si128((__m128i *)(h.fbn2 + j), primes);	\
+				}	\
+			} while(0);
+
 #endif
 
 #if defined(MSC_ASM32A)
@@ -294,25 +387,125 @@ typedef struct
 			: "g"(*ptr), "g"(prime)		\
 			: "r8", "r9", "cc");	
 
-	//#define COMPUTE_NEXT_ROOTS_P_sm						\
-	//	ASM_G (											\
-	//		"xorw %%r8w, %%r8w		\n\t"	/*r8d = 0*/	\
-	//		"xorw %%r9w, %%r9w		\n\t"	/*r9d = 0*/	\
-	//		"subw %2, %%ax			\n\t"	/*root1 - ptr*/	\
-	//		"cmovc %3, %%r8w		\n\t"	/*prime into r8 if overflow*/	\
-	//		"subw %2, %%dx			\n\t"	/*root2 - ptr*/	\
-	//		"cmovc %3, %%r9w		\n\t"	/*prime into r9 if overflow*/	\
-	//		"addw %%r8w, %%ax		\n\t"		\
-	//		"addw %%r9w, %%dx		\n\t"		\
-	//		: "+a"(root1), "+d"(root2)			\
-	//		: "g"(*sm_ptr), "g"(prime)		\
-	//		: "r8", "r9", "cc");	
+	#define COMPUTE_8X_SMALL_PROOTS	\
+		ASM_G (	\
+			"movq   %0, %%rsi \n\t"	\
+			"xorq	%%r15, %%r15 \n\t"	\
+			"xorq	%%rax, %%rax \n\t"	\
+			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"cmpl	%%r15d, %%eax \n\t"	\
+			"jge	1f \n\t"	\
+			"0: \n\t"	\
+			/* compute 8 new roots on the P side */	\
+			"movdqa	(%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = ptr */	\
+			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
+			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
+			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
+			"psubw	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */	\
+			"psubw	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */	\
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */	\
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */	\
+			"pcmpgtw	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
+			"pcmpgtw	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
+			"paddw	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */	\
+			"paddw	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */	\
+			"movdqa %%xmm2, %%xmm5 \n\t"			/* xmm5 = root2 copy */	\
+			"pmaxsw	%%xmm1, %%xmm5 \n\t"		/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"pminsw	%%xmm1, %%xmm2 \n\t"		/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			/* now copy results to appropriate data structures */	\
+			"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */	\
+			/* root1p always gets the smaller roots (LT) */	\
+			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"				/* update root1p */	\
+			"psubw	%%xmm2, %%xmm0 \n\t"			/* prime - LT roots */	\
+			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"				/* update firstroots1 */	\
+			/* root2p always gets the bigger roots (GT) */	\
+			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"				/* update root2p */	\
+			"psubw	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */	\
+			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"				/* update firstroots2 */	\
+			/* root1n always gets prime - bigger roots (LT) */	\
+			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"				/* update root1n */	\
+			/* root2n always gets prime - smaller roots (GT) */	\
+			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"				/* update root2n */	\
+			"addl	$8, %%eax \n\t"	\
+			"cmpl	%%r15d, %%eax \n\t"	\
+			"jb		0b \n\t"	\
+			"1: \n\t"	\
+			:	\
+			: "g"(&h)	\
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "rax", "rsi", "rbx", "rcx", "rdx",	\
+			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
 
-	#define COMPUTE_NEXT_ROOTS_P_sm		\
-		root1 = (int)root1 - *sm_ptr;		\
-		root2 = (int)root2 - *sm_ptr;		\
-		root1 += ((root1 >> 31) * prime);			\
-		root2 += ((root2 >> 31) * prime);		
+#define COMPUTE_8X_SMALL_NROOTS	\
+		ASM_G (	\
+			"movq   %0, %%rsi \n\t"	\
+			"xorq	%%r15, %%r15 \n\t"	\
+			"xorq	%%rax, %%rax \n\t"	\
+			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"cmpl	%%r15d, %%eax \n\t"	\
+			"jge	1f \n\t"	\
+			"0: \n\t"	\
+			/* compute 8 new roots on the N side */	\
+			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\
+			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
+			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
+			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
+			"paddw	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */	\
+			"paddw	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */	\
+			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */	\
+			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */	\
+			"psubw	%%xmm0, %%xmm1 \n\t"			/* (modular subtract) */		\
+			"psubw	%%xmm0, %%xmm2 \n\t"			/* (modular subtract) */	\
+			"pcmpgtw	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
+			"pcmpgtw	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
+			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
+			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
+			"paddw	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */	\
+			"paddw	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */	\
+			"movdqa %%xmm2, %%xmm5 \n\t"			/* xmm5 = root2 copy */	\
+			"pmaxsw	%%xmm1, %%xmm5 \n\t"		/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"pminsw	%%xmm1, %%xmm2 \n\t"		/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			/* now copy results to appropriate data structures */	\
+			"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */	\
+			/* root1p always gets the smaller roots (LT) */	\
+			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"				/* update root1p */	\
+			"psubw	%%xmm2, %%xmm0 \n\t"			/* prime - LT roots */	\
+			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"				/* update firstroots1 */	\
+			/* root2p always gets the bigger roots (GT) */	\
+			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"				/* update root2p */	\
+			"psubw	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */	\
+			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"				/* update firstroots2 */	\
+			/* root1n always gets prime - bigger roots (LT) */	\
+			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"				/* update root1n */	\
+			/* root2n always gets prime - smaller roots (GT) */	\
+			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"				/* update root2n */	\
+			"addl	$8, %%eax \n\t"	\
+			"cmpl	%%r15d, %%eax \n\t"	\
+			"jb		0b \n\t"	\
+			"1: \n\t"	\
+			:	\
+			: "g"(&h)	\
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "rax", "rsi", "rbx", "rcx", "rdx",	\
+			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
 
 	#define COMPUTE_4_PROOTS(j)								\
 		ASM_G (											\
@@ -373,23 +566,6 @@ typedef struct
 			: "+a"(root1), "+d"(root2)		\
 			: "g"(*ptr), "g"(prime)			\
 			: "r8", "r9", "cc");
-
-	#define COMPUTE_NEXT_ROOTS_N_sm		\
-		ASM_G (							\
-			"movw %%ax, %%r8w		\n\t"	\
-			"addw %2, %%r8w			\n\t"	/*r8d = root1 + ptr - potential overflow */		\
-			"movw %%dx, %%r9w		\n\t"								\
-			"addw %2, %%r9w			\n\t"	/*r9d = root2 + ptr - potential overflow */		\
-			"subw %3, %%ax			\n\t"	/*root1 = root1 - prime*/	\
-			"subw %3, %%dx			\n\t"	/*root2 = root2 - prime*/	\
-			"addw %2, %%ax			\n\t"	/*root1 + ptr*/				\
-			"cmovae %%r8w, %%ax	\n\t"		/*other caluclation if no overflow*/	\
-			"addw %2, %%dx			\n\t"	/*root2 + ptr*/							\
-			"cmovae %%r9w, %%dx	\n\t"		/*other caluclation if no overflow*/	\
-			: "+a"(root1), "+d"(root2)		\
-			: "g"(*ptr), "g"(prime)			\
-			: "r8", "r9", "cc");
-
 
 	// The assembly for putting a prime into a bucket is fairly regular, so we break 
 	// macros out to make the inline loop shorter within nextRoots().  The only things
@@ -707,119 +883,149 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
-
+		
+#if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
+		
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
-		for (j=sconf->factor_base->fb_10bit_B; j < med_B; j++, sm_ptr++)
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
-			uint16 prime = (uint16)update_data.prime[j];
-			uint16 root1 = update_data.sm_firstroots1[j];
-			uint16 root2 = update_data.sm_firstroots2[j];
-			uint16 tmp;
-
-			tmp = root1 - *sm_ptr;
+			// 8x root updates in parallel with SSE2, for use only with 32k
+			// versions because of the signed comparisons.
+			// stuff of potential use for full 16 bit updates
+			// 8x unsigned gteq emulation
+			// "psubusw	%%xmm1, %%xmm4 \n\t"	/* xmm2 := orig root - new root */
+			// "pcmpeqw	%%xmm0, %%xmm4 \n\t"	/* xmm2 := a >= b ? 1 : 0 */
+			// 8x MIN/MAX swap in SSE2 */
+			// "movdqa	%%xmm2, %%xmm4 \n\t"			/* copy root2 */
+			// "pcmpltd	%%xmm1, %%xmm4 \n\t"		/* root2 < root1? root2 --> 1's:root2 --> 0 */
+			// "movdqa	%%xmm4, %%xmm5 \n\t"			/* copy ans */
+			// "movdqa	%%xmm4, %%xmm6 \n\t"			/* copy ans */
+			// "movdqa	%%xmm4, %%xmm7 \n\t"			/* copy ans */
+			// "pand	%%xmm1, %%xmm4 \n\t"			/* copy root1 to where root1 is GT */
+			// "pandn	%%xmm2, %%xmm5 \n\t"			/* copy root2 to where root2 is GT */
+			// "pandn	%%xmm1, %%xmm6 \n\t"			/* copy root1 to where root1 is LT */
+			// "pand	%%xmm2, %%xmm7 \n\t"			/* copy root2 to where root2 is LT */
+			// "por	%%xmm4, %%xmm5 \n\t"			/* combine GT */
+			// "por	%%xmm6, %%xmm7 \n\t"			/* combine LT */
+			small_update_t h;
 			
-			// modular subtraction amounts to checking for overflow
-			if (tmp > root1) 
-				root1 = tmp + prime;
-			else
-				root1 = tmp;
+			h.first_r1 = update_data.sm_firstroots1;		// 0
+			h.first_r2 = update_data.sm_firstroots2;		// 8
+			h.fbp1 = fb_p->root1;							// 16
+			h.fbp2 = fb_p->root2;							// 24
+			h.fbn1 = fb_n->root1;							// 32
+			h.fbn2 = fb_n->root2;							// 40
+			h.primes = fb_p->prime;							// 48
+			h.updates = sm_ptr;								// 56
+			h.start = sconf->factor_base->fb_10bit_B;		// 64
+			h.stop = sconf->factor_base->fb_15bit_B;		// 68
+			if ((h.stop - 8) > h.start)
+				h.stop -= 8;
 
-			tmp = root2 - *sm_ptr;
+			COMPUTE_8X_SMALL_PROOTS;
 			
-			// modular subtraction amounts to checking for overflow
-			if (tmp > root2) 
-				root2 = tmp + prime;
-			else
-				root2 = tmp;
-			
-			// this is probably pretty close to doing 4x root updates
-			// in parallel with SSE2 - and uses only x86 SSE2 registers so should
-			// be portable to x64/Win32
-			// the only thing in the way of doing 8x parallelization is the fact
-			// that rootupdates/firstroots are ints.
-			// in fact, that means I need to add conversions from the dword calculations
-			// to the words before writing to the uint16 data structures root1p, root2p,
-			// root1n, and root2n.
-			// unless we create special 16 bit versions of firstroots/rootupdates... uggh.
-			// they are only used here and in firstroots() - not in trial division 
-			// or sieving.
-			// still can't use PMAXSW/PMINSW though, because the roots will need to be
-			// unsigned (they need all 16 bits).
-			//ASM_G (
-			//	/* unsigned gteq test - requires a "0" register (xmm0) */
-			//	"psubusw	%%xmm1, %%xmm2 \n\t"	/* xmm2 := b - a */
-			//	"pcmpeqw	%%xmm0, %%xmm2 \n\t"	/* xmm2 := a >= b ? 1 : 0 */
+			j = h.stop;
+		}	
 
-			//	/* compute 8 new roots on the P side */
-			//	"movdqa (%%eax), %%xmm3 \n\t"			/* xmm3 = next 8 values of rootupdates */ \
-			//	"movdqa (%%ecx), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */ \
-			//	"movdqa %%xmm1, %%xmm4 \n\t"			/* copy root1 */ \
-			//	"psubd	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */ \
-			//	"movdqa (%%edx), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */ \
-			//	"movdqa %%xmm2, %%xmm5 \n\t"			/* copy root2 */ \
-			//	"psubd	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */ \
-			//	"movdqa (%%ebx), %%xmm0 \n\t"			/* xmm0 = next 8 primes */ \
-			//	/* check for overflow of 16 bits, if so, need to modular subtract */
-			//	"pcmpgtd	%%xmm1, %%xmm4 \n\t"		/* res > root1? if so, set xmm4 dword to 1's */ \
-			//	"pcmpgtd	%%xmm2, %%xmm5 \n\t"		/* res > root2? if so, set xmm5 dword to 1's */ \
-			//	"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
-			//	"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
-			//	"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
-			//	"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
-			//	/* start 4x MIN/MAX swap in SSE2 */
-			//	"movdqa	%%xmm2, %%xmm4 \n\t"			/* copy root2 */
-			//	"pcmpltd	%%xmm1, %%xmm4 \n\t"		/* root2 < root1? root2 --> 1's:root2 --> 0 */ \
-			//	"movdqa	%%xmm4, %%xmm5 \n\t"			/* copy ans */
-			//	"movdqa	%%xmm4, %%xmm6 \n\t"			/* copy ans */
-			//	"movdqa	%%xmm4, %%xmm7 \n\t"			/* copy ans */
-			//	"pand	%%xmm1, %%xmm4 \n\t"			/* copy root1 to where root1 is GT */
-			//	"pandn	%%xmm2, %%xmm5 \n\t"			/* copy root2 to where root2 is GT */
-			//	"pandn	%%xmm1, %%xmm6 \n\t"			/* copy root1 to where root1 is LT */
-			//	"pand	%%xmm2, %%xmm7 \n\t"			/* copy root2 to where root2 is LT */
-			//	"por	%%xmm4, %%xmm5 \n\t"			/* combine GT */
-			//	"por	%%xmm6, %%xmm7 \n\t"			/* combine LT */
-			//	/* now copy results to appropriate data structures */
-			//	"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */
-			//	/* root1p always gets the smaller roots (LT) */
-			//	"movdqa	%%xmm7, (%0) \n\t"				/* update root1p */
-			//	"psubd	%%xmm7, %%xmm0 \n\t"			/* prime - LT roots */
-			//	"movdqa	%%xmm7, (%1) \n\t"				/* update firstroots1 */
-			//	/* root2p always gets the bigger roots (GT) */
-			//	"movdqa	%%xmm5, (%2) \n\t"				/* update root1p */
-			//	"psubd	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */
-			//	"movdqa	%%xmm5, (%3) \n\t"				/* update firstroots2 */
-			//	/* root1n always gets prime - bigger roots (LT) */
-			//	"movdqa	%%xmm2, (%4) \n\t"				/* update root1n */
-			//	/* root2n always gets prime - smaller roots (GT) */
-			//	"movdqa	%%xmm4, (%5) \n\t"				/* update root2n */
-			//	:
-			//	:
-			//	:       );
+#else
+		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
+		for (j=sconf->factor_base->fb_10bit_B; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_P;
 
 			if (root2 < root1)
 			{
-				update_data.sm_firstroots1[j] = root2;
-				update_data.sm_firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
-				fb_p->root1[j] = root2;
-				fb_p->root2[j] = root1;
-				fb_n->root1[j] = (prime - root1);
-				fb_n->root2[j] = (prime - root2);
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
 			}
 			else
 			{
-				update_data.sm_firstroots1[j] = root1;
-				update_data.sm_firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
-				fb_p->root1[j] = root1;
-				fb_p->root2[j] = root2;
-				fb_n->root1[j] = (prime - root2);
-				fb_n->root2[j] = (prime - root1);
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
-		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->med_B];
+#endif		
 
+		// assembly code may not get all the way to 15 bits since we 
+		// do things in blocks of 8 there.  Make sure we are at the 15 bit
+		// boundary before we switch to using update_data.firstroots1/2.
+		// this should only run a few iterations, if any.
+		ptr = &dconf->rootupdates[(v-1) * bound + j];
+		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = (uint16)update_data.sm_firstroots1[j];
+			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_P;
+
+			if (root2 < root1)
+			{
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
+
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+			}
+			else
+			{
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
+
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+			}
+		}	
+
+		// continue one at a time once we exceed 15 bits, because the 8x SSE2
+		// code has a hard time with unsigned 16 bit comparisons
+		for ( ; j < med_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_P;
+
+			if (root2 < root1)
+			{
+				update_data.firstroots1[j] = root2;
+				update_data.firstroots2[j] = root1;
+
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+			}
+			else
+			{
+				update_data.firstroots1[j] = root1;
+				update_data.firstroots2[j] = root2;
+
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+			}
+		}	
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -1785,56 +1991,132 @@ void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
-
-		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
-		for (j=sconf->factor_base->fb_10bit_B; j < med_B; j++, sm_ptr++)
+		
+#if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
+		// update 8 at a time using SSE2 and no branching		
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
-			uint16 prime = (uint16)update_data.prime[j];
-			uint16 root1 = update_data.sm_firstroots1[j];
-			uint16 root2 = update_data.sm_firstroots2[j];
-			uint16 tmp;
-
-			tmp = root1 + *sm_ptr;
+			small_update_t h;
 			
-			// modular addition needs to check for overflow 
-			// w.r.t 2^16 and w.r.t prime
-			if (tmp < root1 || tmp > prime) 
-				root1 = tmp - prime;
-			else
-				root1 = tmp;
+			h.first_r1 = update_data.sm_firstroots1;		// 0
+			h.first_r2 = update_data.sm_firstroots2;		// 8
+			h.fbp1 = fb_p->root1;							// 16
+			h.fbp2 = fb_p->root2;							// 24
+			h.fbn1 = fb_n->root1;							// 32
+			h.fbn2 = fb_n->root2;							// 40
+			h.primes = fb_p->prime;							// 48
+			h.updates = sm_ptr;								// 56
+			h.start = sconf->factor_base->fb_10bit_B;		// 64
+			h.stop = sconf->factor_base->fb_15bit_B;		// 68
+			if ((h.stop - 8) > h.start)
+				h.stop -= 8;
 
-			tmp = root2 + *sm_ptr;
+			COMPUTE_8X_SMALL_NROOTS;
 			
-			// modular addition needs to check for overflow 
-			// w.r.t 2^16 and w.r.t prime
-			if (tmp < root2 || tmp > prime) 
-				root2 = tmp - prime;
-			else
-				root2 = tmp;
+			j = h.stop;
+		}
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		
+
+#else
+		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
+		for (j=sconf->factor_base->fb_10bit_B; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-				update_data.sm_firstroots1[j] = root2;
-				update_data.sm_firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
-				fb_p->root1[j] = root2;
-				fb_p->root2[j] = root1;
-				fb_n->root1[j] = (prime - root1);
-				fb_n->root2[j] = (prime - root2);
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
 			}
 			else
 			{
-				update_data.sm_firstroots1[j] = root1;
-				update_data.sm_firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
-				fb_p->root1[j] = root1;
-				fb_p->root2[j] = root2;
-				fb_n->root1[j] = (prime - root2);
-				fb_n->root2[j] = (prime - root1);
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
-		ptr = &dconf->rootupdates[(v-1) * bound + med_B];
+#endif		
+
+		// assembly code may not get all the way to 15 bits since we 
+		// do things in blocks of 8 there.  Make sure we are at the 15 bit
+		// boundary before we switch to using update_data.firstroots1/2.
+		// this should only run a few iterations, if any.
+		ptr = &dconf->rootupdates[(v-1) * bound + j];
+		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = (uint16)update_data.sm_firstroots1[j];
+			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_N;
+
+			if (root2 < root1)
+			{
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
+
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+			}
+			else
+			{
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
+
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+			}
+		}	
+
+		// continue one at a time once we exceed 15 bits, because the 8x SSE2
+		// code has a hard time with unsigned 16 bit comparisons
+		for ( ; j < med_B; j++, ptr++)
+		{
+			prime = update_data.prime[j];
+			root1 = update_data.firstroots1[j];
+			root2 = update_data.firstroots2[j];
+
+			COMPUTE_NEXT_ROOTS_N;
+
+			if (root2 < root1)
+			{
+				update_data.firstroots1[j] = root2;
+				update_data.firstroots2[j] = root1;
+
+				fb_p->root1[j] = (uint16)root2;
+				fb_p->root2[j] = (uint16)root1;
+				fb_n->root1[j] = (uint16)(prime - root1);
+				fb_n->root2[j] = (uint16)(prime - root2);
+			}
+			else
+			{
+				update_data.firstroots1[j] = root1;
+				update_data.firstroots2[j] = root2;
+
+				fb_p->root1[j] = (uint16)root1;
+				fb_p->root2[j] = (uint16)root2;
+				fb_n->root1[j] = (uint16)(prime - root2);
+				fb_n->root2[j] = (uint16)(prime - root1);
+			}
+		}	
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
