@@ -148,6 +148,8 @@ void *lasieve_launcher(void *ptr)
 			printf("nfs: commencing rational side lattice sieving over range: %u - %u\n",
 				thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
 	}
+	if (VFLAG > 1) printf("syscmd: %s\n", syscmd);
+	if (VFLAG > 1) fflush(stdout);
 	cmdret = system(syscmd);
 
 	// a ctrl-c abort signal is caught by the system command, and nfsexit never gets called.
