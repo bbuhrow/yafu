@@ -1,3 +1,11 @@
+v 1.31.1
+ 
++ fixed issues with resuming sieve based methods
++ fixed issue with min_rels
++ lowered q-range for all sieve jobs because min_rels in now (hopefully)
+	more accurate
+
+
 v 1.31
 + bugfixes (thanks volmike, kar_bon, StarGate38, jwes, and Brian Gladman for
 	reports and fixes)
