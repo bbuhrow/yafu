@@ -181,8 +181,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 					mpz_set_str(tmp, line + 3, 0);
 					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g))
 					{
-						// input potentially changed, copy change to other
-						// places that need to know about it
+						// divide out any common factor and copy the result to
+						// other data structures
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
@@ -246,8 +246,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 					mpz_set_str(tmp, line + 3, 0);
 					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g))
 					{
-						// input potentially changed, copy change to other
-						// places that need to know about it
+						// divide out any common factor and copy the result to
+						// other data structures
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
@@ -268,6 +268,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 				if (VFLAG > 0) printf("nfs: finding best poly in poly file\n");
 				find_best_msieve_poly(fobj, job, 0);
 				*last_spq = job->poly_time;
+				if (VFLAG > 0) printf("nfs: last leading coefficient was %u\n", 
+					job->last_leading_coeff);
 				return job->last_leading_coeff;
 			}
 			else
@@ -666,6 +668,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 			if (strlen(line) < 7)
 				continue;	// not long enough to hold a line of format "time: x"
 
+			printf("found time record: %s",line);
 			sscanf(line + 5, "%u", &job->poly_time);
 		}		
 	}

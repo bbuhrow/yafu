@@ -326,7 +326,9 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 		fgets(str,1024,data);
 		substr = str + 2;
 		mpz_set_str(dconf->gmptmp1, substr, 0); //str2hexz(substr,&dconf->qstmp1);
-		if (mpz_cmp(dconf->gmptmp1, sconf->n) == 0)
+		// check against the input to SIQS, i.e., does not have a 
+		// multiplier applied (the file saved N does not include the multiplier).
+		if (mpz_cmp(dconf->gmptmp1, sconf->obj->qs_obj.gmp_n) == 0)
 		{
 			if (VFLAG > 1)
 				printf("restarting siqs from saved data set\n");

@@ -77,7 +77,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 		else
 		{
 			if (VFLAG > 0)
-				printf("resuming poly search: reducing deadline by %u seconds\n",
+				printf("nfs: resuming poly search: reducing deadline by %u seconds\n",
 					job->poly_time);
 
 			logfile = fopen(fobj->flogname, "a");
@@ -111,7 +111,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	}
 
 	if (VFLAG > 0)
-		printf("setting deadline of %u seconds\n",deadline);
+		printf("nfs: setting deadline of %u seconds\n",deadline);
 
 	//start a counter for the poly selection
 	gettimeofday(&startt, NULL);

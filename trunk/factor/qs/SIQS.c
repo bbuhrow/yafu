@@ -122,16 +122,7 @@ void SIQS(fact_obj_t *fobj)
 				fclose(sieve_log);
 		}
 		return;
-	}
-
-	//then do a small amount of trial division
-	//which will add anything found to the global factor list
-	//this is only called with the main thread
-	mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
-	fobj->div_obj.print = 0;
-	fobj->div_obj.limit = 10000;
-	zTrial(fobj);
-	mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
+	}	
 
 	//check to see if a siqs savefile exists for this input	
 	data = fopen(fobj->qs_obj.siqs_savefile,"r");
@@ -160,6 +151,15 @@ void SIQS(fact_obj_t *fobj)
 		mpz_clear(tmpz);
 		mpz_clear(g);
 	}
+
+	//then do a small amount of trial division
+	//which will add anything found to the global factor list
+	//this is only called with the main thread
+	mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
+	fobj->div_obj.print = 0;
+	fobj->div_obj.limit = 10000;
+	zTrial(fobj);
+	mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
 
 	//At this point, we are committed to doing qs on the input
 	//we need to:
@@ -1029,7 +1029,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		//no relations found, get ready for new factorization
 		//we'll be writing to the savefile as we go, so get it ready
 		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
-		gmp_sprintf(buf,"N 0x%Zx\n", sconf->n);
+		gmp_sprintf(buf,"N 0x%Zx\n", sconf->obj->qs_obj.gmp_n);
 		qs_savefile_write_line(&obj->qs_obj.savefile,buf);
 		qs_savefile_flush(&obj->qs_obj.savefile);
 		qs_savefile_close(&obj->qs_obj.savefile);

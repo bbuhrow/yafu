@@ -559,12 +559,22 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact)
 		gmp_printf("input to yafu = %Zd\n", input_n);
 	}
 
-	mpz_gcd(common_fact, file_n, input_n);
-	mpz_tdiv_q(r, input_n, common_fact);
-	if (mpz_cmp(r, file_n) == 0)
+	//mpz_gcd(common_fact, file_n, input_n);	
+	mpz_tdiv_qr(common_fact, r, input_n, file_n);	
+
+	if (mpz_cmp_ui(r, 0) == 0)
+	{
 		retval = 1;
+		if (VFLAG > 1)
+		{
+			gmp_printf("input matches with multiple of %Zd\n", common_fact);
+		}
+	}
 	else 
+	{
 		retval = 0;
+		mpz_set_ui(common_fact, 1);
+	}
 		
 	mpz_clear(r);
 	return retval;

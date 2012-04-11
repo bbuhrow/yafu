@@ -56,16 +56,18 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}	
 		
-	//first a small amount of trial division
-	//which will add anything found to the global factor list
-	//this is only called with the main thread
-	if (VFLAG > 0)
-		printf("nfs: commencing trial factoring\n");
-	mpz_set(fobj->div_obj.gmp_n, fobj->nfs_obj.gmp_n);
-	fobj->div_obj.print = 0;
-	fobj->div_obj.limit = 10000;
-	zTrial(fobj);
-	mpz_set(fobj->nfs_obj.gmp_n, fobj->div_obj.gmp_n);
+	// remove this - it messes with detecting whether or not 
+	// this is a restart of a job.
+	////first a small amount of trial division
+	////which will add anything found to the global factor list
+	////this is only called with the main thread
+	//if (VFLAG > 0)
+	//	printf("nfs: commencing trial factoring\n");
+	//mpz_set(fobj->div_obj.gmp_n, fobj->nfs_obj.gmp_n);
+	//fobj->div_obj.print = 0;
+	//fobj->div_obj.limit = 10000;
+	//zTrial(fobj);
+	//mpz_set(fobj->nfs_obj.gmp_n, fobj->div_obj.gmp_n);
 
 	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 	{
@@ -209,13 +211,18 @@ void nfs(fact_obj_t *fobj)
 				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
 			fobj->nfs_obj.mobj = obj;
 
+			// initialize these before checking existing files.  If poly
+			// select is resumed they will be changed by check_existing_files.
+			job.last_leading_coeff = 0;
+			job.poly_time = 0;
+
 			//determine what to do next based on the state of various files
 			//this will set job.current_rels if it finds any
 			is_continuation = check_existing_files(fobj, &last_specialq, &job);
 
 			//get best parameters for the job - call this after checking the input
 			//against the savefile because the input could be changed (i.e., reduced
-			// by a GCD).
+			// by some factor).
 			get_ggnfs_params(fobj, &job);			
 
 			//if we are going to be doing sieving, check for the sievers
@@ -618,6 +625,7 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case 11:		// resume poly select			
+			if (VFLAG > 1) printf("nfs: resuming poly select\n");
 			fobj->nfs_obj.polystart = job.last_leading_coeff;
 
 			//load the job structure with the starting Q.
@@ -908,13 +916,7 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
-
-	// just initialize these for now.  check_existing_file will fill them in
-	// if necessary (i.e., on poly resume).  and do_polyselect will read them
-	// to determine how to proceed.
-	job->last_leading_coeff = 0;
-	job->poly_time = 0;
-
+	
 	return;
 }
 	
