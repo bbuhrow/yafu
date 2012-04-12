@@ -727,13 +727,15 @@ void nfs(fact_obj_t *fobj)
 
 #endif
 
-
-//digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, rels
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
 #define GGNFS_TABLE_ROWS 15
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
+/* note: min_rels column is no longer used - it is equation based and	*/
+/* is filled in by get_ggnfs_params										*/
+/* columns:																*/
+/* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
 	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
 	{90,  1200000,  25, 50, 2.3, 11, 0, 10000},
 	{95,  1500000,  25, 50, 2.5, 12, 0, 10000},
