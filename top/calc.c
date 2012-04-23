@@ -1014,7 +1014,8 @@ int getFunc(char *s, int *nargs)
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sftest","smallmpqs","testrange","siqstune",
-						"ptable","sieverange","fermat","nfs","tune"};
+						"ptable","sieverange","fermat","nfs","tune",
+						"xor", "and", "or", "not"};
 
 	int args[NUM_FUNC] = {1,1,1,1,1,
 					2,2,1,1,1,
@@ -1027,7 +1028,8 @@ int getFunc(char *s, int *nargs)
 					2,2,2,2,2,
 					2,2,2,1,0,
 					0,5,1,4,1,
-					0,4,2,1,0};
+					0,4,2,1,0,
+					2,2,2,1};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -2233,6 +2235,68 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	case 59:
 		//tune, no arguments
 		factor_tune(fobj);
+		break;
+
+	case 60:
+		// xor
+		{
+			mpz_t a,b;
+
+			mpz_init(a);
+			mpz_init(b);
+			mp2gmp(&operands[0], a);
+			mp2gmp(&operands[1], b);
+			mpz_xor(a, a, b);
+			gmp2mp(a, &operands[0]);
+			mpz_clear(a);
+			mpz_clear(b);
+		}
+
+		break;
+	case 61:
+		// and
+		{
+			mpz_t a,b;
+
+			mpz_init(a);
+			mpz_init(b);
+			mp2gmp(&operands[0], a);
+			mp2gmp(&operands[1], b);
+			mpz_and(a, a, b);
+			gmp2mp(a, &operands[0]);
+			mpz_clear(a);
+			mpz_clear(b);
+		}
+
+		break;
+	case 62:
+		// or
+		{
+			mpz_t a,b;
+
+			mpz_init(a);
+			mpz_init(b);
+			mp2gmp(&operands[0], a);
+			mp2gmp(&operands[1], b);
+			mpz_ior(a, a, b);
+			gmp2mp(a, &operands[0]);
+			mpz_clear(a);
+			mpz_clear(b);
+		}
+
+		break;
+	case 63:
+		// not
+		{
+			mpz_t a;
+
+			mpz_init(a);
+			mp2gmp(&operands[0], a);
+			mpz_com(a, a);
+			gmp2mp(a, &operands[0]);
+			mpz_clear(a);
+		}
+
 		break;
 
 	default:

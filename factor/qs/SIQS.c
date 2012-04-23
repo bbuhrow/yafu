@@ -145,6 +145,8 @@ void SIQS(fact_obj_t *fobj)
 		{
 			// remove any common factor so the input exactly matches
 			// the file
+			if (mpz_cmp_ui(g, 1) > 0)
+				add_to_factor_list(fobj, g);
 			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, g);
 			gmp2mp(fobj->qs_obj.gmp_n, &fobj->N);
 		}
