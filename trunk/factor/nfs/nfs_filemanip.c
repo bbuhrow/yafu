@@ -183,6 +183,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 					{
 						// divide out any common factor and copy the result to
 						// other data structures
+						if (mpz_cmp_ui(g, 1) > 0)
+							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
@@ -248,6 +250,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 					{
 						// divide out any common factor and copy the result to
 						// other data structures
+						if (mpz_cmp_ui(g, 1) > 0)
+							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);

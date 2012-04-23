@@ -778,7 +778,8 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	return estimate;
 }
 
-void do_work(enum factorization_state method, factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
+void do_work(enum factorization_state method, factor_work_t *fwork, 
+	mpz_t b, fact_obj_t *fobj)
 {
 	uint32 tmp1;
 	uint64 tmp2;	
