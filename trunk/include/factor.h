@@ -555,11 +555,12 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();
 void zTrial(fact_obj_t *fobj);
-void zFermat(fp_digit limit, fact_obj_t *fobj);
+void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj);
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
+void tinySIQS(fact_obj_t *fobj);
 
 int sptestsqr(uint64 n);
 uint64 spfermat(uint64 n, uint64 limit);

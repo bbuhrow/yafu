@@ -1,8 +1,37 @@
+
+v 1.32
++ fixed restart-with-factor bug by logging factors removed during
+	restart with add_to_factor_list (thanks 10_metreh)
++ fiddled with q-range table again, and changed multi-threaded nfs sieving
+	so that q-ranges are split over the threads, instead of each
+	thread getting its own range.  
++ split blocksize dependent code in siqs into separate functions; runtime
+	decisions are made based on cpu architecture as to which function to use.
+	This eliminates the need for separate 32k/64k executables.
++ much improved fermat factorization routine: 50x+ faster and accepts
+	user supplied multipliers (thanks neonsignal!)
++ watch for ggnfs siever crash error code (thanks WraithX)
++ added ETA estimate to ecm for larger B1 values
++ added ETA estimate to the filtering stage of NFS, while sieving
++ cosmetic changes to factor() messages
++ resume nfs in factor() if input matches .job file
++ -ns bug fix and small changes to nfs state machine
+
+
+TODO
+
+* update myfu
+* start yafu from a different location
+* bug: driving ggnfs on mac
+* snfs poly generation
+* mpz_td vs. yafu-td vs. mpn_td - which is fastest?
+* ggnfs/ecm in better threadpool
+
 v 1.31.1
  
 + fixed issues with resuming sieve based methods
 + fixed issue with min_rels
-+ lowered q-range for all sieve jobs because min_rels in now (hopefully)
++ lowered q-range for all sieve jobs because min_rels is now (hopefully)
 	more accurate
 
 

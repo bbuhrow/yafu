@@ -240,7 +240,6 @@ int qcomp_smpqs(const void *x, const void *y);
 //uint64 td_locs;
 
 sm_mpqs_params sm_sieve_params;
-#define SM_BLOCKBITS 15
 #define SM_MAX_SMOOTH_PRIMES 100
 
 void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32 *modsqrt, mpz_t n)
@@ -628,7 +627,7 @@ void smallmpqs(fact_obj_t *fobj)
 
 	//set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
 	//is gathered, use some sort of table lookup.
-	sieve_interval = BLOCKSIZE*sm_sieve_params.num_blocks;
+	sieve_interval = 32768*sm_sieve_params.num_blocks;
 
 	//allocate the space for the factor base
 	modsqrt = (uint32 *)malloc(fb->B * sizeof(uint32));
@@ -641,7 +640,7 @@ void smallmpqs(fact_obj_t *fobj)
 	fb_sieve_n = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
 	
 	//allocate the sieve
-	sieve = (uint8 *)xmalloc_align(BLOCKSIZE * sizeof(uint8));
+	sieve = (uint8 *)xmalloc_align(32768 * sizeof(uint8));
 
 	//allocate the current polynomial
 	poly = (sm_mpqs_poly *)malloc(sizeof(sm_mpqs_poly));
@@ -741,7 +740,7 @@ void smallmpqs(fact_obj_t *fobj)
 		printf("==== sieve params ====\n");
 		printf("factor base: %d primes (max prime = %u)\n",fb->B,pmax);
 		printf("large prime cutoff: %u (%d * pmax)\n",cutoff,sm_sieve_params.large_mult);
-		printf("sieve interval: %d blocks of size %d\n",sieve_interval/BLOCKSIZE,BLOCKSIZE);
+		printf("sieve interval: %d blocks of size %d\n",sieve_interval/32768,32768);
 		printf("multiplier is %u\n",mul);
 		printf("trial factoring cutoff at %d bits\n",closnuf);
 		printf("==== sieving in progress ====\n");
@@ -1047,7 +1046,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 	uint32 offset,i,j;
 	uint32 neg;
 	uint64 *sieveblock;
-	uint32 limit = BLOCKSIZE >> 3;
+	uint32 limit = 32768 >> 3;
 		
 	sieveblock = (uint64 *)sieve;
 	mpz_init(Q);
@@ -1080,7 +1079,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 
 			(*num)++;
 
-			offset = (blocknum<<SM_BLOCKBITS) + thisloc;
+			offset = (blocknum<<15) + thisloc;
 			mpz_set_64(t2, poly->poly_b);
 			mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
@@ -1136,7 +1135,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 
 				(*num)++;
 
-				offset = (blocknum<<SM_BLOCKBITS) + thisloc;
+				offset = (blocknum<<15) + thisloc;
 				mpz_set_64(t2, poly->poly_b);
 				mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
@@ -1194,7 +1193,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 
 				(*num)++;
 
-				offset = (blocknum<<SM_BLOCKBITS) + thisloc;
+				offset = (blocknum<<15) + thisloc;
 				mpz_set_64(t2, poly->poly_b);
 				mpz_mul_2exp(t2, t2, 1); //zShiftLeft_1(&t2,&poly->poly_b);
 
@@ -1405,8 +1404,8 @@ static void smpqs_trial_divide_Q(mpz_t Q, smpqs_sieve_fb *fb, sm_mpqs_rlist *ful
 		uint64 q64;
 
 		fbptr = fb + i;
-		root1 = (fbptr->roots >> 16); // + BLOCKSIZE - j;	
-		root2 = (fbptr->roots & 0xffff); // + BLOCKSIZE - j;
+		root1 = (fbptr->roots >> 16); // + 32768 - j;	
+		root2 = (fbptr->roots & 0xffff); // + 32768 - j;
 		prime = fbptr->prime_and_logp >> 16;
 
 		if (prime > 256)
@@ -1430,8 +1429,8 @@ static void smpqs_trial_divide_Q(mpz_t Q, smpqs_sieve_fb *fb, sm_mpqs_rlist *ful
 		uint64 q64;
 
 		fbptr = fb + i;
-		root1 = (fbptr->roots >> 16); // + BLOCKSIZE - j;		
-		root2 = (fbptr->roots & 0xffff); // + BLOCKSIZE - j;
+		root1 = (fbptr->roots >> 16); // + 32768 - j;		
+		root2 = (fbptr->roots & 0xffff); // + 32768 - j;
 		prime = fbptr->prime_and_logp >> 16;
 
 		tmp = offset + fullfb->list->correction[i];
@@ -1504,7 +1503,7 @@ static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_pri
 	smpqs_sieve_fb *fbptr;
 
 	//initialize block
-	memset(sieve,s_init,BLOCKSIZE);
+	memset(sieve,s_init,32768);
 	
 	//we've now filled the entire block with the small fb primes, proceed with the rest
 	for (i=start_prime;i<B;i++)
@@ -1516,7 +1515,7 @@ static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_pri
 		logp = fbptr->prime_and_logp & 0xff;
 
 		fourp = prime << 2;
-		stop = BLOCKSIZE - fourp + prime; //stop = BLOCKSIZE - prime;
+		stop = 32768 - fourp + prime; //stop = 32768 - prime;
 		s2 = sieve + prime;
 		s3 = s2 + prime;
 		s4 = s3 + prime;
@@ -1535,7 +1534,7 @@ static void smpqs_sieve_block(uint8 *sieve, smpqs_sieve_fb *fb, uint32 start_pri
 			root2 += fourp; //(prime << 1);
 		}
 
-		while (root2 < BLOCKSIZE)
+		while (root2 < 32768)
 		{
 			sieve[root1] -= logp;
 			sieve[root2] -= logp;

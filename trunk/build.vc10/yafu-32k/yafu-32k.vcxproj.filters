@@ -30,6 +30,15 @@
     <Filter Include="Source Files\factoring\qs\msieve">
       <UniqueIdentifier>{5f797720-7e25-4639-81c1-725fb2a0d755}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\factoring\qs\poly">
+      <UniqueIdentifier>{94bed321-2fb4-481b-b044-f4e69305014d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\factoring\qs\tdiv">
+      <UniqueIdentifier>{3a752e60-5f99-489f-a76b-38041719a44c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\factoring\qs\sieve">
+      <UniqueIdentifier>{b323f02c-6a6e-4b2a-8a4c-ad59a46f7cb8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\top\calc.c">
@@ -143,15 +152,6 @@
     <ClCompile Include="..\..\factor\qs\filter.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\new_poly.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\poly_roots.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\sieve.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\SIQS.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
@@ -162,24 +162,6 @@
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\smallmpqs.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_large.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_med.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_scan.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_small.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\update_poly_roots.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c">
@@ -200,7 +182,55 @@
     <ClCompile Include="..\..\top\eratosthenes\soe_util.c">
       <Filter>Source Files\sieve</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c">
+    <ClCompile Include="..\..\factor\qs\tdiv.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_small.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_large.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_scan.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\new_poly.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\poly_roots_32k.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\poly_roots_64k.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\large_sieve.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_64k.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_64k.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_64k.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
   </ItemGroup>
@@ -252,6 +282,30 @@
     </ClInclude>
     <ClInclude Include="..\..\include\nfs.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_64k.h">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common.h">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_64k.h">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_64k.h">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -109,7 +109,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	if (mpz_sgn(dconf->gmptmp1) < 0)
 		mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
 
-	mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, BLOCKBITS);
+	mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
 	if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 0)
 		dconf->tf_small_cutoff = sconf->tf_small_cutoff - 5;
 	else if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 1)
@@ -136,7 +136,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		//this one is close enough, compute 
 		//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
 		//Q(x)/a = (ax + 2b)x + c;	
-		offset = (bnum << BLOCKBITS) + dconf->reports[report_num];
+		offset = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
 
 		//multiple precision arithmetic.  all the qstmp's are a global hack
 		//but I don't want to Init/Free millions of times if I don't have to.

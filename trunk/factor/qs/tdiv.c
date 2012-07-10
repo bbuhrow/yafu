@@ -78,7 +78,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	offset = (bnum << BLOCKBITS) + block_loc;
+	offset = (bnum << sconf->qs_blockbits) + block_loc;
 
 	if (parity)
 		fb = dconf->fb_sieve_n;
@@ -226,7 +226,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	uint32 i, j, k;
 
 #ifdef BLK_REL_COUNT_EXP
-	i = offset >> BLOCKBITS;
+	i = offset >> sconf->qs_blockbits;
 	if (parity)
 		blk_counts_n[i]++;
 	else
@@ -292,29 +292,65 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	fact_obj_t *obj = conf->obj;
 	uint32 i, k;
 
-	//store to file
-	i = sprintf(buf, "R ");
+	if (conf->in_mem)
+	{
+		// copy info to sconf relation structure
+		siqs_r *r;
 
-	if (parity)
-		i += sprintf(buf + i, "-%x ", offset);
+		//first check that this relation won't overflow the buffer
+		if (conf->buffered_rels >= conf->buffered_rel_alloc)
+		{
+			printf("reallocating in-mem relation storage...\n");
+			conf->in_mem_relations = (siqs_r *)realloc(conf->in_mem_relations, 
+				conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
+			if (conf->in_mem_relations == NULL)
+			{
+				printf("error re-allocating in-memory storage of relations\n");
+				exit(-1);
+			}
+			conf->buffered_rel_alloc *= 2;
+		}
+
+		r = conf->in_mem_relations + conf->buffered_rels++;
+
+		r->large_prime[0] = large_prime[0];
+		r->large_prime[1] = large_prime[1];
+		r->num_factors = num_factors;
+		r->poly_idx = poly_id;
+		r->parity = parity;
+		r->sieve_offset = offset;
+		r->fb_offsets = (uint32 *)malloc(num_factors * sizeof(uint32));
+		for (i=0; i<num_factors; i++)
+			r->fb_offsets[i] = fb_offsets[i];
+
+	}
 	else
-		i += sprintf(buf + i, "%x ", offset);
-	
-	i += sprintf(buf + i, "%x ", poly_id);
-	
-	k = 0;
-	while (k < num_factors)
-		i += sprintf(buf + i, "%x ", fb_offsets[k++]);
+	{
 
-	if (large_prime[0] < large_prime[1])
-		i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
-	else
-		i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
+		//store to file
+		i = sprintf(buf, "R ");
 
-	qs_savefile_write_line(&obj->qs_obj.savefile, buf);
+		if (parity)
+			i += sprintf(buf + i, "-%x ", offset);
+		else
+			i += sprintf(buf + i, "%x ", offset);
+	
+		i += sprintf(buf + i, "%x ", poly_id);
+	
+		k = 0;
+		while (k < num_factors)
+			i += sprintf(buf + i, "%x ", fb_offsets[k++]);
+
+		if (large_prime[0] < large_prime[1])
+			i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
+		else
+			i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
+
+		qs_savefile_write_line(&obj->qs_obj.savefile, buf);		
+	}
 
 	/* for partial relations, also update the bookeeping for
-	   tracking the number of fundamental cycles */
+		   tracking the number of fundamental cycles */
 
 	if (large_prime[0] != large_prime[1]) {
 		yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);

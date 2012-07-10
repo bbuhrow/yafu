@@ -72,36 +72,13 @@ uint32 blk_counts_n[64];
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
 
-//compile time definition of sieve block size.  should be equal to the size of L1 cache.
-#ifdef YAFU_64K
-#define BLOCKSIZE 65536
-#define BLOCKSIZEm1 65535
-#define INNER_BLOCKSIZE 32768
-#define BLOCKBITS 16
-#define BLOCKSIZEm1txt "0xffff"
-#define BLOCKSIZEtxt "0x10000"
-#define negBLOCKSIZE "0xffffffffffff0000"
-#define BLOCKBITStxt "16"
-#else
-#define BLOCKSIZE 32768
-#define BLOCKSIZEm1 32767
-#define INNER_BLOCKSIZE 16384
-#define BLOCKBITS 15
-#define BLOCKSIZEm1txt "0x7fff"
-#define BLOCKSIZEtxt "0x8000"
-#define negBLOCKSIZE "0xffffffffffff8000"
-#define BLOCKBITStxt "15"
-#endif
-
-//#if defined(_MSC_VER) && !defined(_WIN64)
-//	#define USE_8X_MOD_ASM 1
-//#endif
-
 //#define USE_YAFU_TDIV 1
 
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
 #define SSE2_RESIEVING 1
+#define FOGSHIFT 24
+#define FOGSHIFT_2 40
 
 #if defined (__MINGW64__)
 	#define USE_POLY_SSE2_ASM 1
@@ -111,25 +88,6 @@ uint32 blk_counts_n[64];
 	#if (__GNUC__ > 3)
 		#define ASM_SIEVING 1
 	#endif
-#endif
-
-////#if defined(_WIN64) || defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
-//	//64 bit gcc, msvc, or mingw builds
-//	
-//	#ifdef HAS_SSE2
-//		
-//	#endif
-//#else
-//	#undef USE_RESIEVING
-//	#undef SSE2_RESIEVING
-//#endif
-
-#ifdef USE_8X_MOD_ASM
-	#define FOGSHIFT 24
-	#define FOGSHIFT_2 40
-#else
-	#define FOGSHIFT 40
-	#define FOGSHIFT_2 40
 #endif
 
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
@@ -346,7 +304,8 @@ typedef struct {
 	uint32 dlp_upper;			// upper bit range for dlp factorization attempts
 
 	uint32 sieve_interval;		// one side of the sieve interval
-
+	uint32 qs_blocksize;		// blocksize of the sieve - only to be used
+	uint32 qs_blockbits;		// in non speed critical areas of the code	
 	uint8 blockinit;			// initial sieve value
 	
 	uint32 pmax;				// largest prime in factor base
@@ -426,6 +385,14 @@ typedef struct {
 	siqs_r *relation_list;		// list of relations	
 	qs_la_col_t *cycle_list;	// cycles derived from relations
 	siqs_poly *curr_poly;		// current poly during filtering
+
+	int is_tiny;
+	int in_mem;
+
+	//storage of relations found during in-mem sieving
+	uint32 buffered_rels;
+	uint32 buffered_rel_alloc;
+	siqs_r *in_mem_relations;
 
 } static_conf_t;
 
@@ -531,11 +498,17 @@ static const uint8 mult_list[] =
 	 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59, 
 	 61, 62, 65, 66, 67, 69, 70, 71, 73};
 
-//sieving
-void lp_sieveblock(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, uint32 bnum, uint32 numblocks,
-							 lp_bucket *lp, uint32 start_prime, uint8 s_init, int side);
-void test_block_siqs(uint8 *sieve, sieve_fb *fb, uint32 start_prime);
+// sieving
+void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+		uint32 start_prime, uint8 s_init);
+void med_sieveblock_64k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+		uint32 start_prime, uint8 s_init);
+void (*med_sieve_ptr)(uint8 *, sieve_fb_compressed *, fb_list *, uint32 , uint8 );
 
+void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
+		lp_bucket *lp, int side);
+
+// trial division
 int check_relations_siqs_1(uint32 blocknum, uint8 parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf);
 int check_relations_siqs_4(uint32 blocknum, uint8 parity, 
@@ -552,11 +525,19 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf);
 
-void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void tdiv_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void (*tdiv_med_ptr)(uint8 , uint32 , uint32 , 
+						 static_conf_t *, dynamic_conf_t *);
 
-void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void (*resieve_med_ptr)(uint8 , uint32 , uint32 , 
+						 static_conf_t *, dynamic_conf_t *);
 
 void trial_divide_Q_siqs(uint32 report_num, 
 						  uint8 parity, uint32 poly_id, uint32 blocknum, 
@@ -592,10 +573,18 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf);
 void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextB(dynamic_conf_t *dconf, static_conf_t *sconf);
 
-void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf);
-void nextRoots(static_conf_t *sconf, dynamic_conf_t *dconf);
+void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void firstRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
+
+void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   
-void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf);
+void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void testfirstRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void (*testRoots_ptr)(static_conf_t *, dynamic_conf_t *);
+
 void batch_roots(int *rootupdates, int *firstroots1, int *firstroots2,
 				 siqs_poly *poly, uint32 start_prime, fb_list *fb, uint32 *primes);
 
@@ -621,7 +610,7 @@ int yafu_sort_cycles(const void *x, const void *y);
 
 //aux
 uint8 choose_multiplier_siqs(uint32 B, mpz_t n);
-int siqs_static_init(static_conf_t *sconf);
+int siqs_static_init(static_conf_t *sconf, int is_tiny);
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf);
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf);
 uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf);
@@ -634,6 +623,12 @@ int qcomp_siqs(const void *x, const void *y);
 uint32 make_fb_siqs(static_conf_t *sconf);
 void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB);
 void siqstune(int bits);
+void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf);
+
+// tiny variants of a few routines, that live in tinySIQS.c
+int tiny_update_final(static_conf_t *sconf);
+int tiny_update_check(static_conf_t *sconf);
+void *tiny_process_poly(void *ptr);
 
 //test routines
 int check_specialcase(FILE *sieve_log, fact_obj_t *fobj);

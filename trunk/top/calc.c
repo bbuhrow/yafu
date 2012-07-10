@@ -1805,7 +1805,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		{
 			z *input;
 			int test_squfof = 0;
-			int test_lehman = 1;
+			int test_lehman = 0;
+			int test_tinysiqs = 0;
 			int test_squfof_tf = 0;
 			int force_hard = 1;
 			int do_tf = 0;
@@ -1818,7 +1819,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			int maxsz, minsz;
 			fact_obj_t *fobj2;
 			mpz_t gmptmp;
-			int startbits = 25, stopbits = 44, stepbits = 2;
+			int tmpv;
+			int startbits = 90, stopbits = 110, stepbits = 5;
 			//int startbits = 40, stopbits = 60, stepbits = 5;
 
 			// get numin
@@ -1830,12 +1832,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				printf("commencing %d tests of squfof method\n",numin);
 				test_squfof = 1;
 				test_lehman = 0;
+				test_tinysiqs = 0;
+				test_squfof_tf = 0;
 			}
 			else if (operands[1].val[0] == 2)
 			{ 
 				printf("commencing %d tests of lehman method\n",numin);
 				test_squfof = 0;
 				test_lehman = 1;
+				test_tinysiqs = 0;
+				test_squfof_tf = 0;
 				//init_lehman();
 			}
 			else if (operands[1].val[0] == 3)
@@ -1844,12 +1850,25 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				test_squfof = 0;
 				test_lehman = 0;
 				test_squfof_tf = 1;
+				test_tinysiqs = 0;
+				//init_lehman();
+			}
+			else if (operands[1].val[0] == 4)
+			{ 
+				printf("commencing %d tests of tinySIQS method\n",numin);
+				test_squfof = 0;
+				test_lehman = 0;
+				test_squfof_tf = 0;
+				test_tinysiqs = 1;
 				//init_lehman();
 			}
 			else
 			{ 
+				printf("commencing %d tests of smallmpqs method\n",numin);
 				test_squfof = 0;
 				test_lehman = 0;
+				test_squfof_tf = 0;
+				test_tinysiqs = 0;
 			}
 
 			// get other parameters
@@ -1983,6 +2002,21 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						}
 
 					}
+					else if (test_tinysiqs)
+					{
+						fobj2->qs_obj.flags = 12345;
+						tmpv = VFLAG;
+						VFLAG = -1;
+						//tinySIQS(fobj2); //SIQS(fobj2);
+
+						if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) != 0)
+						{						
+							gmp_printf("not fully factored!  residue = %Zd\n", fobj2->qs_obj.gmp_n);
+							print_factors(fobj2);
+						}
+						VFLAG = tmpv;
+						clear_factor_list(fobj2);
+					}
 					else
 					{
 						fobj2->qs_obj.flags = 12345;
@@ -2057,7 +2091,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		if (fobj->logfile == NULL)
 			printf("fopen error: %s\n", strerror(errno));
 		smallmpqs(fobj);		
-		fclose(fobj->logfile);
+		//tinySIQS(fobj);
+		if (fobj->logfile != NULL)
+			fclose(fobj->logfile);
 		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 
@@ -2115,7 +2151,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	case 54:
 		printf("siqstune not currently supported\n");
 		break;
-		siqstune(operands[0].val[0]);
+		//siqstune(operands[0].val[0]);
 		break;
 
 	case 55:
@@ -2205,15 +2241,28 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 
 	case 57:
-		//fermat - two arguments
-		if (nargs != 2)
+		//fermat - three arguments
+		if (nargs == 2)
+		{
+			zCopy(&operands[1],&fobj->N);
+			mp2gmp(&operands[1],fobj->div_obj.gmp_n);
+			n64 = z264(&operands[2]);
+			j = 1;
+		}
+		else if (nargs == 3)
+		{			
+			zCopy(&operands[0],&fobj->N);
+			mp2gmp(&operands[0],fobj->div_obj.gmp_n);
+			n64 = z264(&operands[1]);
+			j = operands[2].val[0];
+		}
+		else
 		{
 			printf("wrong number of arguments in fermat\n");
 			break;
 		}
-		zCopy(&operands[0],&fobj->N);
-		mp2gmp(&operands[0],fobj->div_obj.gmp_n);
-		zFermat(operands[1].val[0], fobj);
+		
+		zFermat(n64, j, fobj);
 		gmp2mp(fobj->div_obj.gmp_n,&operands[0]);
 		print_factors(fobj);
 		break;

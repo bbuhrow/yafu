@@ -31,6 +31,15 @@ int ecm_loop(fact_obj_t *fobj)
 	mpz_t d,t;
 	FILE *flog;
 	int i,j;
+	double est_time;
+	double batch_time;
+	double avg_batch_time;
+	int num_batches;
+
+	struct timeval stop;	
+	struct timeval start;	
+	TIME_DIFF *	difference;
+	double t_time;
 
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
@@ -98,6 +107,8 @@ int ecm_loop(fact_obj_t *fobj)
 	ecm_start_worker_thread(thread_data + i, 1);
 
 	//split the requested curves up among the specified number of threads. 
+	num_batches = 0;
+	t_time = 0.0;
 	for (j=0; j < fobj->ecm_obj.num_curves / THREADS; j++)
 	{
 		//watch for an abort
@@ -106,6 +117,11 @@ int ecm_loop(fact_obj_t *fobj)
 			print_factors(fobj);
 			exit(1);
 		}
+
+		// start a counter for this batch of curves
+		// for larger B1s
+		if (fobj->ecm_obj.B1 > 48000)
+			gettimeofday(&start, NULL);
 
 		//do work on different sigmas
 		for (i=0; i<THREADS; i++)
@@ -193,13 +209,31 @@ int ecm_loop(fact_obj_t *fobj)
 				printf("\b");
 
 			for (i=0, total_curves_run=0; i<THREADS; i++)
-				total_curves_run += thread_data[i].curves_run;
+				total_curves_run += thread_data[i].curves_run;			
 
 			charcount = printf("ecm: %d/%d curves on C%d input, at ",
 				total_curves_run, fobj->ecm_obj.num_curves, 
 				(int)gmp_base10(fobj->ecm_obj.gmp_n));
 
 			charcount2 = print_B1B2(fobj, NULL);
+
+			// stop counter for this batch of curves
+			// for larger B1s
+			if (fobj->ecm_obj.B1 > 48000)
+			{
+				gettimeofday(&stop, NULL);
+				difference = my_difftime (&start, &stop);
+				batch_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+				num_batches++;
+				t_time += batch_time;
+				avg_batch_time = t_time / (double)num_batches;
+				est_time = (double)(fobj->ecm_obj.num_curves / THREADS - j) * avg_batch_time;
+
+				charcount += charcount2;
+				charcount2 = printf(" ETA: %1.0f sec", est_time);
+			}
+
 			fflush(stdout);
 		}
 

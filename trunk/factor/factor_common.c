@@ -560,6 +560,9 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact)
 	}
 
 	//mpz_gcd(common_fact, file_n, input_n);	
+	if (mpz_cmp_ui(file_n, 0) == 0)
+		return 0;
+
 	mpz_tdiv_qr(common_fact, r, input_n, file_n);	
 
 	if (mpz_cmp_ui(r, 0) == 0)
@@ -723,7 +726,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	}
 
 	if (VFLAG >= 2)
-		printf("***** QS time estimation from tune data = %1.2f sec\n", estimate);
+		printf("fac: QS time estimation from tune data = %1.2f sec\n", estimate);
 
 	return estimate;
 }
@@ -773,7 +776,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	}
 
 	if (VFLAG >= 2)
-		printf("***** GNFS time estimation from tune data = %1.2f sec\n", estimate);
+		printf("fac: GNFS time estimation from tune data = %1.2f sec\n", estimate);
 
 	return estimate;
 }
@@ -842,7 +845,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		if (VFLAG >= 0)
 			printf("fmt: %d iterations\n", fwork->fermat_max_iterations);
 		mpz_set(fobj->div_obj.gmp_n,b);
-		zFermat(fwork->fermat_max_iterations, fobj);
+		zFermat(fwork->fermat_max_iterations, 1, fobj);
 		mpz_set(b,fobj->div_obj.gmp_n);
 
 		// record the work done
@@ -1452,7 +1455,7 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 		}
 
 		if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
-			printf("***** t%d: %1.2f\n", ecm_levels[i], tlevels[i]);		
+			printf("fac: t%d: %1.2f\n", ecm_levels[i], tlevels[i]);		
 	}
 
 	// find the first one less than 1
@@ -1518,12 +1521,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_60digit:
 		case state_ecm_65digit:
 			if (VFLAG >= 1)
-				printf("***** setting target pretesting digits to %1.2f\n", target_digits);
+				printf("fac: setting target pretesting digits to %1.2f\n", target_digits);
 			
 			work_done = compute_ecm_work_done(fwork, 1);
 			
 			if (VFLAG >= 1)
-				printf("***** sum: have completed work to t%1.2f\n", work_done);
+				printf("fac: sum of completed work is t%1.2f\n", work_done);
 
 			break;
 
@@ -1617,7 +1620,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	work = (work_low + work_high) / 2;
 
 	if ((VFLAG >= 1) && log_results)
-		printf("***** work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
+		printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
 			fwork->B1, work_low, work_high);
 
 	tmp_curves = work_low;		
@@ -1641,7 +1644,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 		fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
 
 	if ((VFLAG >= 1) && log_results)
-		printf("***** %u more curves at B1=%u needed to get to t%1.2f\n", 
+		printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n", 
 			fwork->curves, fwork->B1, target_digits);
 
 	if (log_results)
@@ -1879,6 +1882,7 @@ void factor(fact_obj_t *fobj)
 	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
+	int quit_after_sieve_method = 0;
 
 	//factor() always ignores user specified B2 values
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -1909,7 +1913,8 @@ void factor(fact_obj_t *fobj)
 	logprint(flog,"Starting factorization of %s\n",mpz_conv2str(&gstr1.s, 10, b));
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		logprint(flog,"custom pretest ratio is: %1.2f\n",fobj->autofact_obj.target_pretest_ratio);
+		logprint(flog,"custom pretest ratio is: %1.2f\n",
+		fobj->autofact_obj.target_pretest_ratio);
 	if (check_tune_params(fobj))
 	{
 		if (fobj->autofact_obj.prefer_xover)
@@ -1933,33 +1938,33 @@ void factor(fact_obj_t *fobj)
 
 	if (VFLAG >= 0)
 	{
-		gmp_printf("factoring %Zd\n",b);
-		printf("using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
+		gmp_printf("fac: factoring %Zd\n",b);
+		printf("fac: using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 		if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
 			printf("custom pretest ratio is: %1.2f\n",fobj->autofact_obj.target_pretest_ratio);
 		if (check_tune_params(fobj))
 		{
 			if (fobj->autofact_obj.prefer_xover)
-				printf("overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+				printf("fac: overriding tune info with qs/gnfs crossover of %1.0f digits\n",
 					fobj->autofact_obj.qs_gnfs_xover);
 			else
-				printf("using tune info for qs/gnfs crossover\n");
+				printf("fac: using tune info for qs/gnfs crossover\n");
 		}
 		else
-			printf("no tune info: using qs/gnfs crossover of %1.0f digits\n",
+			printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
 				fobj->autofact_obj.qs_gnfs_xover);
 
 		if (fobj->autofact_obj.initial_work > 0.0)
-			printf("input indicated to have been pretested to t%1.2f\n",
+			printf("fac: input indicated to have been pretested to t%1.2f\n",
 				fobj->autofact_obj.initial_work);
 
-		printf("\n");
+		//printf("\n");
 	}
 
 	if (mpz_perfect_power_p(b))
 	{
 		if (VFLAG > 0)
-			printf("input is a perfect power\n");
+			printf("fac: input is a perfect power\n");
 
 		factor_perfect_power(fobj, b);
 
@@ -2012,8 +2017,8 @@ void factor(fact_obj_t *fobj)
 
 		if (resume_check_input_match(tmpz, b, g))
 		{
-			if (VFLAG > 1)
-				printf("found siqs savefile, resuming siqs\n");
+			if (VFLAG > 0)
+				printf("fac: found siqs savefile, resuming siqs\n");
 
 			// remove any common factor so the input exactly matches
 			// the file
@@ -2024,6 +2029,51 @@ void factor(fact_obj_t *fobj)
 
 			//override default choice
 			fact_state = state_qs;
+
+			// if for some reason qs doesn't find factors (such as
+			// a user specified time out), don't continue ecm-ing, etc.
+			quit_after_sieve_method = 1;
+		}
+		mpz_clear(tmpz);
+		mpz_clear(g);
+	}
+
+	//check to see if a nfs job file exists for this input	
+	data = fopen(fobj->nfs_obj.job_infile,"r");
+
+	if (data != NULL)
+	{	
+		char *substr;
+		mpz_t tmpz;
+		mpz_t g;
+
+		//read in the number from the job file
+		mpz_init(tmpz);
+		mpz_init(g);
+
+		fgets(tmpstr,1024,data);
+		substr = tmpstr + 2;
+		mpz_set_str(tmpz, substr, 0);	//auto detect the base
+
+		if (resume_check_input_match(tmpz, b, g))
+		{
+			if (VFLAG > 0)
+				printf("fac: found nfs job file, resuming nfs\n");
+
+			// remove any common factor so the input exactly matches
+			// the file
+			mpz_tdiv_q(b, b, g);
+			gmp2mp(b, &fobj->N);
+			mpz_set(origN, b);
+			mpz_set(copyN, b);
+
+			//override default choice
+			fact_state = state_nfs;
+
+			// if for some reason nfs doesn't find factors (such as
+			// a user specified time out or -ns, -nc, etc.), 
+			// don't continue ecm-ing, etc.
+			quit_after_sieve_method = 1;
 		}
 		mpz_clear(tmpz);
 		mpz_clear(g);
@@ -2034,7 +2084,10 @@ void factor(fact_obj_t *fobj)
 	{	
 		do_work(fact_state, &fwork, b, fobj);
 		
-		if (check_if_done(fobj, origN))
+		if (check_if_done(fobj, origN) || 
+			(quit_after_sieve_method && 
+			((fact_state == state_qs) ||
+			(fact_state == state_nfs))))
 			fact_state = state_done;
 
 		if (fact_state != state_done)

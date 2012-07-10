@@ -250,7 +250,13 @@ void SIQS(fact_obj_t *fobj)
 
 	//get best parameters, multiplier, and factor base for the job
 	//initialize and fill out the static part of the job data structure
-	siqs_static_init(static_conf);
+	siqs_static_init(static_conf, 0);
+
+	// test
+	static_conf->in_mem = 0;
+	//static_conf->in_mem_relations = (siqs_r *)malloc(32768 * sizeof(siqs_r));
+	//static_conf->buffered_rel_alloc = 32768;
+	//static_conf->buffered_rels = 0;
 
 	//allocate structures for use in sieving with threads
 	for (i=0; i<THREADS; i++)
@@ -259,6 +265,7 @@ void SIQS(fact_obj_t *fobj)
 	//check if a savefile exists for this number, and if so load the data
 	//into the master data structure
 	alldone = siqs_check_restart(thread_data[0].dconf, static_conf);
+	print_siqs_splash(thread_data[0].dconf, static_conf);
 
 	//start the process
 	num_needed = static_conf->factor_base->B + static_conf->num_extra_relations;
@@ -565,10 +572,13 @@ void SIQS(fact_obj_t *fobj)
 		goto done;
 
 	//we don't need the poly_a_list anymore... free it so the other routines
-	//can use it
-	for (i=0;i<static_conf->total_poly_a + 1;i++)
-		mpz_clear(static_conf->poly_a_list[i]);
-	free(static_conf->poly_a_list);
+	//can use it (unless we are doing in-mem)
+	if (!static_conf->in_mem)
+	{
+		for (i=0;i<static_conf->total_poly_a + 1;i++)
+			mpz_clear(static_conf->poly_a_list[i]);
+		free(static_conf->poly_a_list);
+	}
 	
 	gettimeofday (&myTVend, NULL);
 	difference = my_difftime (&static_conf->totaltime_start, &myTVend);
@@ -865,7 +875,7 @@ void *process_poly(void *ptr)
 	dconf->numB = 1;
 	computeBl(sconf,dconf);
 
-	firstRoots(sconf,dconf);
+	firstRoots_ptr(sconf,dconf);
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -888,8 +898,8 @@ void *process_poly(void *ptr)
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
 			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
-			lp_sieveblock(sieve,fb_sieve_p,fb, i, num_blocks, buckets,
-				start_prime,blockinit,0);
+			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
@@ -899,8 +909,8 @@ void *process_poly(void *ptr)
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
 			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
-			lp_sieveblock(sieve,fb_sieve_n,fb, i, num_blocks, buckets,
-				start_prime,blockinit,1);
+			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
@@ -940,7 +950,7 @@ void *process_poly(void *ptr)
 		//use the stored Bl's and the gray code to find the next b
 		nextB(dconf,sconf);
 		//and update the roots
-		nextRoots(sconf, dconf);
+		nextRoots_ptr(sconf, dconf);
 
 	}
 
@@ -969,9 +979,16 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	siqs_r *rel;
 	char buf[1024];
 
-	//save the A value
-	gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
-	qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
+	//save the A value.
+	// if we are doing an in-memory factorization, then instead
+	// of writing an 'A' line, we write a specially formatted 
+	// relation, so that filtering will know that we've switched
+	// polys (and have the new A value).
+	if (!sconf->in_mem)
+	{
+		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
+		qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
+	}
 
 	//save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
@@ -981,8 +998,6 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 			rel->num_factors, rel->fb_offsets, rel->poly_idx, 
 			rel->parity, sconf);
 	}
-
-	//qs_savefile_flush(&sconf->obj->qs_obj.savefile);
 
 	//update some progress indicators
 	sconf->num += dconf->num;
@@ -1006,6 +1021,12 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	fact_obj_t *obj = sconf->obj;
 	char buf[1024];
 	int state = 0;
+
+	// if we want to do an in-memory factorization, then 
+	// ignore the current state of the savefile and don't
+	// prepare it for use.
+	if (sconf->in_mem)
+		return 0;
 
 	//we're now almost ready to start, but first
 	//check if this number has had work done
@@ -1039,6 +1060,11 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 	}
 
+	return state;
+}
+
+void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
+{
 	//print some info to the screen and the log file
 	if (VFLAG > 0)
 	{	
@@ -1060,8 +1086,12 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 				dconf->buckets->alloc_slices);
 			printf("buckets hold %d elements\n",BUCKET_ALLOC);
 		}
+		if (sconf->qs_blocksize == 65536)
+			printf("using 64k sieve core\n");
+		else
+			printf("using 32k sieve core\n");
 		printf("sieve interval: %d blocks of size %d\n",
-			sconf->num_blocks,BLOCKSIZE);
+			sconf->num_blocks,sconf->qs_blocksize);
 		printf("polynomial A has ~ %d factors\n", 
 			(int)mpz_sizeinbase(sconf->target_a, 2) / 11);
 		printf("using multiplier of %u\n",sconf->multiplier);
@@ -1160,8 +1190,12 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 				dconf->buckets->alloc_slices);
 			logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
 		}
+		if (sconf->qs_blocksize == 65536)
+			logprint(sconf->obj->logfile,"using 64k sieve core\n");
+		else
+			logprint(sconf->obj->logfile,"using 32k sieve core\n");
 		logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
-			sconf->num_blocks,BLOCKSIZE);
+			sconf->num_blocks,sconf->qs_blocksize);
 		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n", 
 			mpz_sizeinbase(sconf->target_a, 2) / 11);
 		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
@@ -1217,8 +1251,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 			logprint(sconf->obj->logfile,"==== sieving started (%2d threads) ====\n",THREADS);
 	}
 
-
-	return state;
+	return;
 }
 
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
@@ -1329,11 +1362,11 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	
 	//allocate the sieve
 	dconf->sieve = (uint8 *)xmalloc_align(
-		(size_t) (BLOCKSIZE * sizeof(uint8)));
+		(size_t) (sconf->qs_blocksize * sizeof(uint8)));
 
 	if (VFLAG > 2)
 	{
-		memsize = BLOCKSIZE * sizeof(uint8);
+		memsize = sconf->qs_blocksize * sizeof(uint8);
 		printf("\tsieve: %d bytes\n",memsize);
 	}
 
@@ -1377,7 +1410,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets = (lp_bucket *)malloc(sizeof(lp_bucket));
 
 		//test to see how many slices we'll need.
-		testfirstRoots(sconf,dconf);
+		testRoots_ptr(sconf,dconf);
 
 		//initialize the bucket lists and auxilary info.
 		dconf->buckets->num = (uint32 *)malloc(
@@ -1453,7 +1486,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	return 0;
 }
 
-int siqs_static_init(static_conf_t *sconf)
+int siqs_static_init(static_conf_t *sconf, int is_tiny)
 {
 	//find the best parameters, multiplier, and factor base
 	//for the input.  This is an iterative job because we may find
@@ -1472,6 +1505,9 @@ int siqs_static_init(static_conf_t *sconf)
 		printf("static memory usage:\n");
 	}
 
+	// some things work different if the input is tiny
+	sconf->is_tiny = is_tiny;
+
 	//default parameters
 	sconf->fudge_factor = 1.3;
 	sconf->large_mult = 30;
@@ -1479,6 +1515,42 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->num_extra_relations = 64;
 	sconf->small_limit = 256;
 	sconf->use_dlp = 0;
+
+	// sieve core functions
+	switch (yafu_get_cpu_type())
+	{
+	case cpu_generic:
+	case cpu_pentium:
+	case cpu_pentium2:
+	case cpu_pentium3:
+	case cpu_pentium4:
+	case cpu_pentium_m:
+	case cpu_athlon:
+	case cpu_athlon_xp:
+	case cpu_opteron:
+		firstRoots_ptr = &firstRoots_64k;
+		nextRoots_ptr = &nextRoots_64k;
+		testRoots_ptr = &testfirstRoots_64k;
+		med_sieve_ptr = &med_sieveblock_64k;
+		tdiv_med_ptr = &tdiv_medprimes_64k;
+		resieve_med_ptr = &resieve_medprimes_64k;
+		sconf->qs_blocksize = 65536;
+		sconf->qs_blockbits = 16;
+		break;
+
+	case cpu_core:
+	default:
+		firstRoots_ptr = &firstRoots_32k;
+		nextRoots_ptr = &nextRoots_32k;
+		testRoots_ptr = &testfirstRoots_32k;
+		med_sieve_ptr = &med_sieveblock_32k;
+		tdiv_med_ptr = &tdiv_medprimes_32k;
+		resieve_med_ptr = &resieve_medprimes_32k;
+		sconf->qs_blocksize = 32768;
+		sconf->qs_blockbits = 15;
+		break;
+		
+	}
 
 	//allocate the space for the factor base structure
 	sconf->factor_base = (fb_list *)malloc(sizeof(fb_list));
@@ -1615,10 +1687,15 @@ int siqs_static_init(static_conf_t *sconf)
 	sconf->factor_base->list->prime[1] = 2;
 
 	//adjust for various architectures
-	if (BLOCKSIZE == 32768)
+	if (sconf->qs_blocksize == 32768)
 		sconf->num_blocks *= 2;
-	if (BLOCKSIZE == 16384)
-		sconf->num_blocks *= 4;
+	else if (sconf->qs_blocksize == 65536)
+		sconf->num_blocks *= 1;
+	else
+	{
+		printf("unknown block size!\n");
+		exit(1);
+	}
 
 	if (sconf->num_blocks < 1)
 		sconf->num_blocks = 1;
@@ -1628,7 +1705,7 @@ int siqs_static_init(static_conf_t *sconf)
 		sconf->num_blocks = 1;
 
 	//set the sieve interval.  this many blocks on each side of 0
-	sconf->sieve_interval = BLOCKSIZE * sconf->num_blocks;
+	sconf->sieve_interval = sconf->qs_blocksize * sconf->num_blocks;
 
 	//compute sieving limits
 	sconf->factor_base->small_B = MIN(
@@ -1723,7 +1800,7 @@ int siqs_static_init(static_conf_t *sconf)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)BLOCKSIZE))  &&
+		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)sconf->qs_blocksize))  &&
 			(i % 16 == 0))
 			break;
 
@@ -1901,9 +1978,9 @@ int siqs_static_init(static_conf_t *sconf)
 		uint32 prime = sconf->factor_base->list->prime[i];
 
 		sum += (double)sconf->factor_base->list->logprime[i] * 
-			(double)BLOCKSIZE / (double)prime;
+			(double)sconf->qs_blocksize / (double)prime;
 	}
-	avg = 2*sum/BLOCKSIZE;
+	avg = 2*sum/sconf->qs_blocksize;
 	//this was observed to be the typical standard dev. for one block of 
 	//test sieving... wrap this magic number along with several others into
 	//one empirically determined fudge factor...
@@ -2017,7 +2094,7 @@ int update_check(static_conf_t *sconf)
 			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
 			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
 			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
-			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
+			mpz_mul_2exp(tmp1, tmp1, sconf->qs_blockbits);	//sieve locations per block	
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
@@ -2037,7 +2114,7 @@ int update_check(static_conf_t *sconf)
 			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
 			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
 			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
-			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
+			mpz_mul_2exp(tmp1, tmp1, sconf->qs_blockbits);	//sieve locations per block	
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
@@ -2061,7 +2138,7 @@ int update_check(static_conf_t *sconf)
 			mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
 			mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
 			mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
-			mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block				
+			mpz_mul_2exp(tmp1, tmp1, sconf->qs_blockbits);	//sieve locations per block				
 
 			printf("\nsieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
 				sconf->t_time1,sconf->t_time2,sconf->t_time3);
@@ -2207,7 +2284,7 @@ int update_final(static_conf_t *sconf)
 		mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
 		mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
 		mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
-		mpz_mul_2exp(tmp1, tmp1, BLOCKBITS);	//sieve locations per block	
+		mpz_mul_2exp(tmp1, tmp1, sconf->qs_blockbits);	//sieve locations per block	
 
 		if (VFLAG > 0)
 		{

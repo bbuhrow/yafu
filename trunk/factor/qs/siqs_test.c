@@ -132,7 +132,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
+	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 60)
 	{
 		//run MPQS, as SIQS doesn't work for smaller inputs
 		//MPQS will take over the log file, so close it now.
@@ -374,6 +374,7 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 	return;
 }
 
+/*
 void siqstune(int bits)
 {
 	FILE *res;
@@ -491,18 +492,18 @@ void siqstune(int bits)
 			{
 				for (w=0; w<3; w++)
 				{
-					/*
-					fprintf(res,"%d,%d,%d,%f,%f,%f,%f,%f,%f\n",
-						Bvec[x],
-						NBvec[y],
-						Mvec[w],
-						rels_per_sec_norm[x*9 + y*3 + w],
-						qs_time_norm[x*9 + y*3 + w],
-						tot_time_norm[x*9 + y*3 + w],
-						rels_per_sec_norm[x*9 + y*3 + w] / rels_per_sec_norm[2*9 + 1*3 + 1],
-						qs_time_norm[x*9 + y*3 + w] / qs_time_norm[2*9 + 1*3 + 1],
-						tot_time_norm[x*9 + y*3 + w] / tot_time_norm[2*9 + 1*3 + 1]);
-						*/
+					
+					//fprintf(res,"%d,%d,%d,%f,%f,%f,%f,%f,%f\n",
+					//	Bvec[x],
+					//	NBvec[y],
+					//	Mvec[w],
+					//	rels_per_sec_norm[x*9 + y*3 + w],
+					//	qs_time_norm[x*9 + y*3 + w],
+					//	tot_time_norm[x*9 + y*3 + w],
+					//	rels_per_sec_norm[x*9 + y*3 + w] / rels_per_sec_norm[2*9 + 1*3 + 1],
+					//	qs_time_norm[x*9 + y*3 + w] / qs_time_norm[2*9 + 1*3 + 1],
+					//	tot_time_norm[x*9 + y*3 + w] / tot_time_norm[2*9 + 1*3 + 1]);
+						
 					fprintf(res,"%d,%d,%f,%f,%f,%f,%f,%f\n",
 						Bvec[y],
 						NBvec[w],
@@ -549,4 +550,5 @@ void siqstune(int bits)
 	zFree(&input);
 	return;
 }
+*/
 
