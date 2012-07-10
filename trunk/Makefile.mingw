@@ -35,10 +35,6 @@ INC += -I../gmp-ecm/include
 # LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/
 LIBS += -L../gmp-ecm/lib/mingw/x86_64
 
-ifeq ($(BLOCK),64)
-	CFLAGS += -DYAFU_64K
-endif
-
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
@@ -105,14 +101,20 @@ YAFU_SRCS = \
 	factor/qs/filter.c \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_med.c \
-	factor/qs/tdiv_resieve.c \
+	factor/qs/tdiv_med_32k.c \
+	factor/qs/tdiv_med_64k.c \
+	factor/qs/tdiv_resieve_32k.c \
+	factor/qs/tdiv_resieve_64k.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
-	factor/qs/sieve.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/med_sieve_64k.c \
+	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
-	factor/qs/poly_roots.c \
-	factor/qs/update_poly_roots.c \
+	factor/qs/poly_roots_32k.c \
+	factor/qs/poly_roots_64k.c \
+	factor/qs/update_poly_roots_32k.c \
+	factor/qs/update_poly_roots_64k.c \
 	factor/qs/siqs_test.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
@@ -141,6 +143,7 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
 
+
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
 #---------------------------Header file lists -------------------------
@@ -168,7 +171,6 @@ all:
 	@echo "pick a target:"
 	@echo "x86       32-bit Intel/AMD systems (required if gcc used)"
 	@echo "x86_64    64-bit Intel/AMD systems (required if gcc used)"
-	@echo "add 'BLOCK=64' to make with 64kB QS blocksize "
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 

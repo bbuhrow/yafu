@@ -41,10 +41,6 @@ ifeq ($(STATIC),1)
 	CFLAGS += -static
 endif
 
-ifeq ($(BLOCK),64)
-	CFLAGS += -DYAFU_64K
-endif
-
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
@@ -190,7 +186,6 @@ all:
 	@echo "pick a target:"
 	@echo "x86       32-bit Intel/AMD systems (required if gcc used)"
 	@echo "x86_64    64-bit Intel/AMD systems (required if gcc used)"
-	@echo "add 'BLOCK=64' to make with 64kB QS blocksize "
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 

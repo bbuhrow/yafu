@@ -153,7 +153,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	// Fermat's factorization method with a sieve-based improvement
 	// provided by 'neonsignal'
 	mpz_t a, b2, tmp, multN, a2;
-	int i, j;
+	int i;
 	int numChars;
 	uint64 reportIt, reportInc;
 	uint64 count;
@@ -233,13 +233,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	mpz_mul(b2, a, a);
 	mpz_sub(b2, b2, multN);
 
-	// test it.  This will be good enough if |u*p-v*q| < 2 * N^(1/4), where
-	// mult = u*v
-	count = 0;
-	if (mpz_perfect_square_p(b2))
-		goto found;
-
-	// otherwise, test successive 'a' values using a sieve-based approach.
+	// test successive 'a' values using a sieve-based approach.
 	// the idea is that not all 'a' values allow a^2 or b^2 to be square.  
 	// we pre-compute allowable 'a' values modulo various smooth numbers and 
 	// build tables to allow us to quickly iterate over 'a' values that are 
@@ -252,6 +246,12 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	mod1 = (uint8 *)calloc((M1 / 8 + 1) , sizeof(uint8));
 	mod2 = (uint8 *)calloc((M2 / 8 + 1) , sizeof(uint8));
 	skip = (uint16 *)malloc(M * sizeof(uint16));
+
+	// test it.  This will be good enough if |u*p-v*q| < 2 * N^(1/4), where
+	// mult = u*v
+	count = 0;
+	if (mpz_perfect_square_p(b2))
+		goto found;
 
 	for (i=0; i<8; i++)
 		nmasks[i] = ~masks[i];

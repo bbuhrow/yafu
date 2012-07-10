@@ -14,7 +14,7 @@
   		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
 		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
 		"jae    9f \n\t"						/* jump to exit if so */ \
-		"7: \n\t"								/* start of 2x sieving loop */  		
+		"7: \n\t"								/* start of 2x sieving loop */  	\	
   		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
 		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
 		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
@@ -166,15 +166,13 @@
  		"movl   %%edi,%%edx \n\t" \
  		"movl   %%r9d,%%edi \n\t" \
  		"movl   %%edx,%%r9d \n\t" \
- 		"jmp    3b \n\t"						/* jump to update roots */
+ 		"jmp    3b \n\t"						/* jump to update roots */ \
  		"9: \n\t"								/* exit flag */ \
 		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
 		:																\
 		: "g"(&asm_input)												\
 		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
 	
-	i = asm_input.startprime;
-
 
 #else
 
