@@ -654,7 +654,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	char buf[LINE_BUF_SIZE];
 	char *subbuf;
 	uint32 last_id;
-	int first;
+	int first, last_poly;
+	uint32 this_rel = 0;
 
  	/* Rather than reading all the relations in and 
 	   then removing singletons, read only the large 
@@ -667,46 +668,61 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	i = 0;
 	total_poly_a = 0;
 
-	/* skip over the first line */
-	qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
-	qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
-
-	//we don't know beforehand how many rels to expect, so start
-	//with some amount and allow it to increase as we read them
-	relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
-	curr_rel = 10000;
-	while (!qs_savefile_eof(&obj->qs_obj.savefile)) {
-		char *start;
-
-		switch (buf[0]) {
-		case 'A':
-			total_poly_a++;
-			break;
-
-		case 'R':
-			start = strchr(buf, 'L');
-			if (start != NULL) {
-				uint32 prime1, prime2;
-				yafu_read_large_primes(start, &prime1, &prime2);
-				if (i == curr_rel) {
-					curr_rel = 3 * curr_rel / 2;
-					relation_list = (siqs_r *)xrealloc(
-							relation_list,
-							curr_rel *
-							sizeof(siqs_r));
-				}
-				relation_list[i].poly_idx = i;
-				relation_list[i].large_prime[0] = prime1;
-				relation_list[i].large_prime[1] = prime2;
-				i++;
-			}
-			break;
-		}
-
+	if (!sconf->in_mem)
+	{
+		/* skip over the first line */
+		qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
 		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+
+		//we don't know beforehand how many rels to expect, so start
+		//with some amount and allow it to increase as we read them
+		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
+		curr_rel = 10000;
+		while (!qs_savefile_eof(&obj->qs_obj.savefile)) {
+			char *start;
+
+			switch (buf[0]) {
+			case 'A':
+				total_poly_a++;
+				break;
+
+			case 'R':
+				start = strchr(buf, 'L');
+				if (start != NULL) {
+					uint32 prime1, prime2;
+					yafu_read_large_primes(start, &prime1, &prime2);
+					if (i == curr_rel) {
+						curr_rel = 3 * curr_rel / 2;
+						relation_list = (siqs_r *)xrealloc(
+								relation_list,
+								curr_rel *
+								sizeof(siqs_r));
+					}
+					relation_list[i].poly_idx = i;
+					relation_list[i].large_prime[0] = prime1;
+					relation_list[i].large_prime[1] = prime2;
+					i++;
+				}
+				break;
+			}
+
+			qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		}
+		num_relations = i;
 	}
-	
-	num_relations = i;
+	else
+	{
+		relation_list = (siqs_r *)xmalloc(sconf->buffered_rels * sizeof(siqs_r));
+		for (i=0; i<sconf->buffered_rels; i++)
+		{
+			relation_list[i].poly_idx = i;
+			relation_list[i].large_prime[0] = sconf->in_mem_relations[i].large_prime[0];
+			relation_list[i].large_prime[1] = sconf->in_mem_relations[i].large_prime[1];
+		}
+		total_poly_a = sconf->total_poly_a;
+		num_relations = sconf->buffered_rels;
+	}
+		
 	num_relations = qs_purge_singletons(obj, relation_list, num_relations,
 					table, hashtable);
 
@@ -719,10 +735,15 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	num_poly = 10000;
 
 	sconf->poly_list = (poly_t *)xmalloc(num_poly * sizeof(poly_t));
-	sconf->total_poly_a = total_poly_a;
-	sconf->poly_a_list = (mpz_t *)xmalloc(total_poly_a * sizeof(mpz_t));
-	for (i=0; i<total_poly_a; i++)
-		mpz_init(sconf->poly_a_list[i]);
+
+	// if in-mem, don't need a new a_list
+	if (!sconf->in_mem)
+	{		
+		sconf->total_poly_a = total_poly_a;
+		sconf->poly_a_list = (mpz_t *)xmalloc(total_poly_a * sizeof(mpz_t));
+		for (i=0; i<total_poly_a; i++)
+			mpz_init(sconf->poly_a_list[i]);
+	}
 
 	final_poly_index = (uint32 *)xmalloc(1024 * 
 						sizeof(uint32));
@@ -731,7 +752,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   polynomials */
 
 	i = 0;
-	last_id = 0;
+	last_id = 999;
+	last_poly = -1;
 	curr_expected = 0;
 	curr_saved = 0;
 	curr_rel = (uint32)(-1);
@@ -745,26 +767,61 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	/* Read in the relations and the polynomials they use
 	   at the same time. */
 
-	qs_savefile_rewind(&obj->qs_obj.savefile);
+	if (!sconf->in_mem)
+		qs_savefile_rewind(&obj->qs_obj.savefile);
+	else
+		this_rel = 0;
 
 	first = 1;
 	while (curr_expected < num_relations) {
 		char *tmp;
 		uint32 bad_A_val = 0;
 		siqs_r *r;
+		siqs_r *rel;
 
 		/* read in the next entity */
-		if (qs_savefile_eof(&obj->qs_obj.savefile))
-			break;
-		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		if (!sconf->in_mem)
+		{
+			if (qs_savefile_eof(&obj->qs_obj.savefile))
+				break;
+			qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		}
+		else
+		{
+			//printf("this rel: %u, curr_rel: %u, curr_expected: %u, "
+			//	"curr_saved: %u, num_relations: %u, buffered_rels: %u, i: %u\n",
+			//	this_rel, curr_rel, curr_expected, curr_saved, num_relations, 
+			//	sconf->buffered_rels, i);
+
+			if (this_rel == sconf->buffered_rels)
+				break;
+
+			rel = sconf->in_mem_relations + this_rel++;
+			if (rel->poly_idx < last_id)
+				buf[0] = 'A';
+			else
+				buf[0] = 'R';
+
+			last_id = rel->poly_idx;
+		}
 
 		switch (buf[0]) {
 		case 'A':
 			/* Read in a new 'a' value */
 			/* build all of the 'b' values associated with it */
-			subbuf = buf + 2;	//skip the A and a space
-			curr_a_idx++;
-			mpz_set_str(sconf->curr_a, subbuf, 0); //str2hexz(subbuf,&sconf->curr_a);
+			if (!sconf->in_mem)
+			{
+				subbuf = buf + 2;	//skip the A and a space
+				mpz_set_str(sconf->curr_a, subbuf, 0);
+			}
+			else
+			{
+				last_poly++;
+				this_rel--;
+				mpz_set(sconf->curr_a, sconf->poly_a_list[last_poly]);
+			}
+
+			curr_a_idx++;			
 			num_derived_poly = process_poly_a(sconf);
 
 			if (num_derived_poly == 0)
@@ -778,7 +835,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				bad_A_val = 0;
 
 			mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a); 
-			//zCopy(&sconf->curr_a,sconf->poly_a_list + curr_a_idx);	
 
 			/* all 'b' values start off unused */
 			final_poly_index = (uint32 *)xrealloc(final_poly_index,
@@ -795,9 +851,18 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			if (bad_A_val)
 				continue;
 
-			tmp = strchr(buf, 'L');
-			if (tmp == NULL)
-				break;
+			// corrupted rel?
+			if (!sconf->in_mem)
+			{
+				tmp = strchr(buf, 'L');
+				if (tmp == NULL)
+					break;
+			}
+			else
+			{
+				if (rel->large_prime[0] == 0)
+					break;
+			}
 
 			/* Check if this relation is needed. If it
 			   survived singleton removal then its 
@@ -808,7 +873,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			   until the relation index to check is >= 
 			   the one we have (it may have gotten behind 
 			   because relations were corrupted) */
-
+			
 			curr_rel++;
 
 			while (curr_expected < num_relations &&
@@ -825,20 +890,76 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 			curr_expected++;
 
-			/* convert the ASCII text of the relation to a
-		    relation_t, verifying correctness in the process */
-			r = relation_list + curr_saved;
-			subbuf = buf + 2;	//skip over the R and a space
-			if (process_rel(subbuf, sconf->factor_base,
-				sconf->n, sconf, sconf->obj, r)) {
+			if (!sconf->in_mem)
+			{
+				/* convert the ASCII text of the relation to a
+				relation_t, verifying correctness in the process */
+				r = relation_list + curr_saved;
+				subbuf = buf + 2;	//skip over the R and a space
+				if (process_rel(subbuf, sconf->factor_base,
+					sconf->n, sconf, sconf->obj, r)) {
 
-					if (obj->logfile != NULL)
-						logprint(obj->logfile, "failed to read relation %d\n", 
-							curr_expected - 1);
-					if (VFLAG > 0)
-						printf("failed to read relation %d\n", 
-							curr_expected - 1);
-				break;
+						if (obj->logfile != NULL)
+							logprint(obj->logfile, "failed to read relation %d\n", 
+								curr_expected - 1);
+						if (VFLAG > 0)
+							printf("failed to read relation %d\n", 
+								curr_expected - 1);
+					break;
+				}
+			}
+			else
+			{
+				//combine the factors of the sieve value with
+				//  the factors of the polynomial 'a' value; the 
+				//  linear algebra code has to know about both.
+				//  Because both lists are sorted, this is just
+				//  a merge operation 
+				int ii,jj,kk;				
+				r = relation_list + curr_saved;
+
+				r->fb_offsets = (uint32 *)xmalloc(
+					(rel->num_factors + sconf->curr_poly->s) * sizeof(uint32));
+
+				ii = jj = kk = 0;
+				while (ii < (int)rel->num_factors && jj < sconf->curr_poly->s) {
+					if (rel->fb_offsets[ii] < sconf->curr_poly->qlisort[jj]) {
+						r->fb_offsets[kk++] = rel->fb_offsets[ii++];
+					}
+					else if (rel->fb_offsets[ii] > sconf->curr_poly->qlisort[jj]) {
+						r->fb_offsets[kk++] = sconf->curr_poly->qlisort[jj++];
+					}
+					else {
+						r->fb_offsets[kk] = rel->fb_offsets[ii++];
+						r->fb_offsets[kk+1] = sconf->curr_poly->qlisort[jj++];
+						kk += 2;
+					}
+				}
+				while (ii < (int)rel->num_factors)
+					r->fb_offsets[kk++] = rel->fb_offsets[ii++];
+				while (jj < sconf->curr_poly->s)
+					r->fb_offsets[kk++] = sconf->curr_poly->qlisort[jj++];
+	
+				r->num_factors = rel->num_factors + sconf->curr_poly->s;
+				r->large_prime[0] = rel->large_prime[0];
+				r->large_prime[1] = rel->large_prime[1];
+				r->parity = rel->parity;
+				r->sieve_offset = rel->sieve_offset;
+				r->poly_idx = rel->poly_idx;
+
+				if (!check_relation(sconf->curr_a,
+						sconf->curr_b[r->poly_idx], r, sconf->factor_base, sconf->n))
+				{
+					if (r->large_prime[0] != r->large_prime[1]) {
+						yafu_add_to_cycles(sconf, obj->flags, 
+							r->large_prime[0], r->large_prime[1]);
+						sconf->num_cycles++;
+					}
+					else {
+						sconf->num_relations++;
+					}
+				}
+
 			}
 
 			curr_saved++;
@@ -868,6 +989,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			}
 
 			break;  /* done with this relation */
+
 		}
 	}
 
@@ -886,7 +1008,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		printf("recovered %u polynomials\n", i);
 	}
 
-	qs_savefile_close(&obj->qs_obj.savefile);
+	if (!sconf->in_mem)
+		qs_savefile_close(&obj->qs_obj.savefile);
+
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,
 					   i * sizeof(poly_t));

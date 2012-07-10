@@ -95,7 +95,138 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	lower_polypool_index = 2;
 	upper_polypool_index = fb->small_B - 1;
 
-	if (sconf->bits < 130)
+	if (sconf->bits < 115)
+	{
+		uint32 hi = fb->B-1;
+		uint32 lo = sconf->sieve_small_fb_start; //(fb->B-1) / 4;
+		uint32 id;
+		uint64 diff, p;
+		int doover, k;
+
+		// we have to be careful not to pick primes that fall into the
+		// SPV region.  This is because polya roots are not computed correctly
+		// but we rely on special signals to the trial division engine to
+		// not attempt the fast trial division methods on these primes, or
+		// at least to guareentee that they will fail.  These special signals
+		// only work on primes outside the SPV region, however, so we have
+		// to limit our prime pool to those larger than the SPV cutoff.
+
+		*s = 3;
+		do {		
+			// pick two factors randomly
+			j = 0;
+			mpz_set_ui(poly->mpz_poly_a, 1);
+			for (i=0; i<2; i++)
+			{
+				id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+
+				// make sure they are unique
+				doover = 0;
+				for (k=0; k < j; k++)
+				{
+					if (id == qli[k])
+					{
+						doover = 1;
+						break;
+					}
+				}
+
+				if (doover)
+					break;
+
+				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, fb->list->prime[id]);
+				qli[j++] = id;
+			}
+
+			if (doover)
+				continue;
+
+			// then a 3rd to try to get close to target_a
+			mpz_tdiv_q(tmp, target_a, poly->mpz_poly_a);
+			p = mpz_get_ui(tmp);
+			if (p > fb->list->prime[fb->B - 1])
+			{
+				id = 0 + (uint32)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
+				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+					fb->list->prime[fb->B - 1 - id]);
+			}
+			else if (p < 32)
+			{
+				id = lo + (uint32)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
+				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+					fb->list->prime[id]);				
+			}
+			else
+			{
+				// quarter the rest of the fb and pick one randomly from the 
+				// best region
+				uint32 q = (fb->list->prime[hi] - fb->list->prime[lo]) / 4;
+				if ((p > fb->list->prime[lo]) && 
+					(p < fb->list->prime[lo + q-1]))
+				{
+					id = lo + 
+						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+						fb->list->prime[id]);
+				}
+				else if ((p > fb->list->prime[lo + q]) && 
+					(p < fb->list->prime[lo + q+q-1]))
+				{
+					id = lo + q + 
+						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+						fb->list->prime[id]);
+				}
+				else if ((p > fb->list->prime[lo + q+q]) && 
+					(p < fb->list->prime[lo + q+q+q-1]))
+				{
+					id = lo + (q+q) + 
+						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+						fb->list->prime[id]);
+				}
+				else if (p > fb->list->prime[lo + q+q+q])
+				{
+					id = lo + (q+q+q) + 
+						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
+						fb->list->prime[id]);
+				}
+			}
+
+			// make sure it is unique
+			doover = 0;
+			for (k=0; k < j; k++)
+			{
+				if (id == qli[k])
+				{
+					doover = 1;
+					break;
+				}
+			}
+			if (doover)
+				continue;
+
+			qli[j++] = id;
+
+			mpz_sub(tmp, target_a, poly->mpz_poly_a);
+			if (mpz_sgn(tmp) < 0)
+				mpz_neg(tmp, tmp);
+
+		} while ( mpz_cmp(tmp, target_a) > 0);
+
+#ifdef POLYA_DEBUG
+		printf("A factors = %u, %u, %u, A = %" PRIu64 "\n", 
+			fb->list->prime[poly->qlisort[0]], 
+			fb->list->prime[poly->qlisort[1]], 
+			fb->list->prime[poly->qlisort[2]], 
+			poly->poly_a);
+#endif
+
+		goto done;
+
+	}
+	else if (sconf->bits < 130)
 	{
 		// don't worry so much about generating a poly close to the target,
 		// just make sure the factors of poly_a are all relatively large and
@@ -129,7 +260,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				continue;
 
 			mpz_mul_ui(poly_a, poly_a, fb->list->prime[id]); 
-			//zShortMul(poly_a,fb->list->prime[id],poly_a);
 			qli[j++] = id;
 		}
 
@@ -299,7 +429,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		*s = *s + 1;
 
 		//check if 'close enough'
-		mpz_sub(tmp, target_a, poly_a); //zSub(target_a,poly_a,&tmp);
+		mpz_sub(tmp, target_a, poly_a); 
 
 		if ((uint32)mpz_sizeinbase(tmp, 2) < target_bits)
 		{ 
@@ -307,7 +437,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			found_a_factor = 0;
 			for (j=0; j< (int)sconf->total_poly_a; j++)
 			{
-				//if (zCompare(poly_a,&sconf->poly_a_list[j]) == 0)
 				if (mpz_cmp(poly_a,sconf->poly_a_list[j]) == 0)
 				{
 					found_a_factor = 1;

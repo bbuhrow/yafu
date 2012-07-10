@@ -355,7 +355,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 {
 	//not unrolled; for small inputs
 
-	uint32 j,k,it=BLOCKSIZE>>3;
+	uint32 j,k,it=sconf->qs_blocksize>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 	uint64 mask = SCAN_MASK;
@@ -378,11 +378,10 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 			if ((dconf->sieve[thisloc] & 0x80) == 0)			
 				continue;
 
-#ifdef YAFU_64K
 			//see discussion near line 323
 			if (thisloc >=	65534)
 				continue;
-#endif
+
 			// log this report
 			if (dconf->num_reports < MAX_SIEVE_REPORTS)
 				dconf->reports[dconf->num_reports++] = thisloc;			
@@ -400,8 +399,8 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -421,7 +420,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 {
 	//unrolled x32; for medium inputs
 
-	uint32 i,j,it=BLOCKSIZE>>3;
+	uint32 i,j,it=sconf->qs_blocksize>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -446,11 +445,9 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
-#ifdef YAFU_64K
 			//see discussion near line 323
 			if (thisloc >=	65534)
 				continue;
-#endif
 
 			// log this report
 			if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -489,11 +486,9 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -529,11 +524,9 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -556,8 +549,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
-	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -576,7 +569,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x64; for large inputs
-	uint32 i,j,it=BLOCKSIZE>>3;
+	uint32 i,j,it=sconf->qs_blocksize>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -601,11 +594,9 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
-#ifdef YAFU_64K
 			//see discussion near line 323
 			if (thisloc >=	65534)
 				continue;
-#endif
 
 			// log this report
 			if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -644,11 +635,9 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -685,11 +674,9 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -714,8 +701,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
-	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)
@@ -735,7 +722,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x128; for large inputs
-	uint32 i,j,it=BLOCKSIZE>>3;
+	uint32 i,j,it=sconf->qs_blocksize>>3;
 	uint32 thisloc;
 	uint64 *sieveblock;
 
@@ -761,11 +748,9 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 			if ((dconf->sieve[thisloc] & 0x80) == 0)
 				continue;
 
-#ifdef YAFU_64K
 			//see discussion near line 323
 			if (thisloc >=	65534)
 				continue;
-#endif
 
 			// log this report
 			if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -804,11 +789,9 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -847,11 +830,9 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				if ((dconf->sieve[thisloc] & 0x80) == 0)
 					continue;
 
-#ifdef YAFU_64K
 				//see discussion near line 323
 				if (thisloc >=	65534)
 					continue;
-#endif
 
 				// log this report
 				if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -874,8 +855,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	tdiv_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
-	resieve_medprimes(parity, dconf->numB-1,blocknum,sconf,dconf);
+	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
+	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
 
 	// factor all reports in this block
 	for (j=0; j<dconf->num_reports; j++)

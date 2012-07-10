@@ -17,7 +17,7 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 		if (fobj->nfs_obj.rangeq > 0)
 			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
 		else
-			thread_data[i].job.qrange = job->qrange;
+			thread_data[i].job.qrange = ceil((double)job->qrange / (double)THREADS);
 		thread_data[i].job.min_rels = job->min_rels;
 		thread_data[i].job.current_rels = job->current_rels;
 		thread_data[i].job.siever = job->siever;
@@ -154,7 +154,9 @@ void *lasieve_launcher(void *ptr)
 
 	// a ctrl-c abort signal is caught by the system command, and nfsexit never gets called.
 	// so check for abnormal exit from the system command.
-	if (cmdret != 0)
+	// -1073741819 is apparently what ggnfs returns when it crashes, which
+	// we don't want to interpret as an abort.
+	if (!((cmdret == 0) || cmdret == -1073741819))
 		nfsexit(cmdret);
 
 	// count the relations produced

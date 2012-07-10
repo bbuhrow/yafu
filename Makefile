@@ -113,14 +113,20 @@ YAFU_SRCS = \
 	factor/qs/filter.c \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_med.c \
-	factor/qs/tdiv_resieve.c \
+	factor/qs/tdiv_med_32k.c \
+	factor/qs/tdiv_med_64k.c \
+	factor/qs/tdiv_resieve_32k.c \
+	factor/qs/tdiv_resieve_64k.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
-	factor/qs/sieve.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/med_sieve_64k.c \
+	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
-	factor/qs/poly_roots.c \
-	factor/qs/update_poly_roots.c \
+	factor/qs/poly_roots_32k.c \
+	factor/qs/poly_roots_64k.c \
+	factor/qs/update_poly_roots_32k.c \
+	factor/qs/update_poly_roots_64k.c \
 	factor/qs/siqs_test.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
@@ -154,6 +160,14 @@ YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 #---------------------------Header file lists -------------------------
 HEAD = include/yafu.h  \
 	include/qs.h  \
+	factor/qs/poly_macros_32k.h \
+	factor/qs/poly_macros_64k.h \
+	factor/qs/poly_macros_common.h \
+	factor/qs/sieve_macros_32k.h \
+	factor/qs/sieve_macros_64k.h \
+	factor/qs/tdiv_macros_32k.h \
+	factor/qs/tdiv_macros_64k.h \
+	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
 	include/types.h  \
 	include/calc.h  \

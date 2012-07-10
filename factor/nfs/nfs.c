@@ -39,8 +39,11 @@ void nfs(fact_obj_t *fobj)
 	uint32 last_specialq = 0;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
+	struct timeval bstop;	// stop time of sieving batch
+	struct timeval bstart;	// start time of sieving batch
 	TIME_DIFF *	difference;
 	double t_time;
+	uint32 pre_batch_rels = 0;
 	//FILE *logfile;
 	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
@@ -300,15 +303,17 @@ void nfs(fact_obj_t *fobj)
 
 		case 2: //"sieve":
 
+			pre_batch_rels = job.current_rels;
+			gettimeofday(&bstart, NULL);
 			do_sieving(fobj, &job);
 
-			//see how we're doing
-			if (fobj->nfs_obj.sieve_only || (fobj->nfs_obj.rangeq > 0))
+			// see how we're doing - force quit if user
+			// specified -ns with a fixed start and range,
+			// else see if we're ready for filtering
+			if (fobj->nfs_obj.rangeq > 0)
 				process_done = 1;
 			else
-			{
 				statenum = 8;
-			}
 
 			break;
 
@@ -450,13 +455,34 @@ void nfs(fact_obj_t *fobj)
 					printf("found %u relations, need at least %u, proceeding with filtering ...\n",
 					job.current_rels, job.min_rels);
 				
-				statenum = 3;
+				// if user specified -ns with no arguments, then
+				// quit once we are ready for filtering
+				if (fobj->nfs_obj.sieve_only)
+					process_done = 1;
+				else
+					statenum = 3;
 			}
 			else
 			{
+				// compute eta by dividing how many rels we have left to find
+				// by the average time per relation.  we have average time
+				// per relation because we've saved the time it took to do 
+				// the last batch of sieving and we know how many relations we
+				// found in that batch.
+				uint32 est_time;
+
+				gettimeofday(&bstop, NULL);
+				difference = my_difftime (&bstart, &bstop);
+				t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+				free(difference);
+
+				est_time = (uint32)((job.min_rels - job.current_rels) * 
+					(t_time / (job.current_rels - pre_batch_rels)));
+
 				if (VFLAG > 0)
-					printf("found %u relations, need at least %u, continuing with sieving ...\n",
-					job.current_rels, job.min_rels);
+					printf("found %u relations, need at least %u "
+						"(filtering ETA: %uh %um), continuing with sieving ...\n",
+					job.current_rels, job.min_rels, est_time / 3600, (est_time % 3600) / 60);
 
 				statenum = 2;
 			}
@@ -588,12 +614,13 @@ void nfs(fact_obj_t *fobj)
 				}
 
 				if (VFLAG >= 0)
-					printf("nfs: found %u relations, continuing job at specialq = %u\n",
-					job.current_rels, startq);
+					printf("nfs: found %u relations, need at least %u, "
+					"continuing job at specialq = %u\n",
+					job.current_rels, job.min_rels, startq);
 
 				logprint_oc(fobj->flogname, "a", "nfs: found %u relations, "
-					"continuing job at specialq = %u\n",
-					job.current_rels, startq);
+					"need at least %u, continuing job at specialq = %u\n",
+					job.current_rels, job.min_rels, startq);
 
 			}
 
@@ -737,21 +764,22 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* columns:																*/
 /* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
 	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
-	{90,  1200000,  25, 50, 2.3, 11, 0, 10000},
-	{95,  1500000,  25, 50, 2.5, 12, 0, 10000},
-	{100, 1800000,  26, 52, 2.5, 12, 0, 20000},
-	{105, 2500000,  26, 52, 2.5, 12, 0, 20000},
-	{110, 3200000,  26, 52, 2.5, 13, 0, 20000},
-	{115, 4500000,  27, 54, 2.5, 13, 0, 20000},
-	{120, 5000000,  27, 54, 2.5, 13, 0, 20000},
-	{125, 5500000,  27, 54, 2.5, 13, 0, 40000},
-	{130, 6000000,  27, 54, 2.5, 13, 0, 40000},
-	{135, 8000000,  27, 54, 2.5, 14, 0, 40000},
-	{140, 12000000, 28, 56, 2.5, 14, 0, 40000},
-	{145, 15000000, 28, 56, 2.5, 14, 0, 40000},
-	{150, 20000000, 29, 58, 2.5, 14, 0, 80000},
-	{155, 30000000, 29, 58, 2.5, 15, 0, 80000}
+	{90,  1200000,  25, 50, 2.3, 11, 0, 20000},
+	{95,  1500000,  25, 50, 2.5, 12, 0, 40000},
+	{100, 1800000,  26, 52, 2.5, 12, 0, 40000},
+	{105, 2500000,  26, 52, 2.5, 12, 0, 80000},
+	{110, 3200000,  26, 52, 2.5, 13, 0, 80000},
+	{115, 4500000,  27, 54, 2.5, 13, 0, 160000},
+	{120, 5000000,  27, 54, 2.5, 13, 0, 160000},
+	{125, 5500000,  27, 54, 2.5, 13, 0, 160000},
+	{130, 6000000,  27, 54, 2.5, 13, 0, 320000},
+	{135, 8000000,  27, 54, 2.5, 14, 0, 320000},
+	{140, 12000000, 28, 56, 2.5, 14, 0, 320000},
+	{145, 15000000, 28, 56, 2.5, 14, 0, 640000},
+	{150, 20000000, 29, 58, 2.5, 14, 0, 640000},
+	{155, 30000000, 29, 58, 2.5, 15, 0, 640000}
 };
+
 
 void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 {

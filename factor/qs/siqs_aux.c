@@ -246,7 +246,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	return 0;
 }
 
-#define NUM_PARAM_ROWS 22
+#define NUM_PARAM_ROWS 30
 void get_params(static_conf_t *sconf)
 {
 	int bits,i;
@@ -259,8 +259,17 @@ void get_params(static_conf_t *sconf)
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
 	int param_table[NUM_PARAM_ROWS][4] = {
-		{140,	828,	40,	1},
-		{149,	1028,	40,	1},
+		{50,	30,	30,	1},
+		{60,	36,	40,	1},
+		{70,	50,	40,	1},
+		{80,	80,	40,	1},
+		{90,	120,	40,	1},
+		{100,	175,	50,	1},
+		{110,	275,	50,	1},	
+		{120,	375,	50,	1},
+
+		{140,	828,	50,	1},
+		{149,	1028,	50,	1},
 		{165,	1228,	50,	1},
 		{181,	2247,	50,	1},
 		{198,	3485,	60,	2},
@@ -366,8 +375,8 @@ void get_params(static_conf_t *sconf)
 
 	// minimum factor base - for use with really small inputs.
 	// not efficient, but needed for decent poly selection
-	if (fb->B < 250)
-		fb->B = 250;
+	//if (fb->B < 250)
+//		fb->B = 250;
 
 	if (sconf->obj->qs_obj.gbl_override_B_flag)
 		fb->B = sconf->obj->qs_obj.gbl_override_B;

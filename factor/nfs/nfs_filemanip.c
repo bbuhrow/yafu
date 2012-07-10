@@ -332,17 +332,30 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		{
 			// either restart from the end of the data file or from the specified 
 			// sieve range
-			if (fobj->nfs_obj.sieve_only)
+			if (fobj->nfs_obj.sieve_only && (fobj->nfs_obj.startq > 0))
 			{
 				if (VFLAG > 0)
-					printf("nfs: previous data file found - skipping search for last special-q\n");
+					printf("nfs: user specified special-q range of %u-%u, "
+					"skipping search for last special-q\n", 
+					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq);
+				
+				*last_spq = 0;
+				return ans;
+			}
+
+			if (fobj->nfs_obj.la_restart || fobj->nfs_obj.post_only)
+			{
+				if (VFLAG > 0)
+					printf("nfs: user specified post processing only, "
+					"skipping search for last special-q\n");
 				
 				*last_spq = 0;
 				return ans;
 			}
 
 			if (VFLAG > 0)
-				printf("nfs: previous data file found - commencing search for last special-q\n");
+				printf("nfs: previous data file found - "
+				"commencing search for last special-q\n");
 
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
@@ -352,7 +365,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 			}
 			else
 			{
-				logprint(logfile, "nfs: previous data file found - commencing search for last special-q\n");
+				logprint(logfile, "nfs: previous data file found - "
+					"commencing search for last special-q\n");
 				fclose(logfile);
 			}
 

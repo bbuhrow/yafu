@@ -268,6 +268,9 @@
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
     <ClCompile Include="..\..\factor\nfs\winsupport.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
+    <ClCompile Include="..\..\factor\qs\large_sieve.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_64k.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
     <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
     <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul0.c" />
@@ -277,19 +280,23 @@
     <ClCompile Include="..\..\factor\qs\msieve\savefile.c" />
     <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
     <ClCompile Include="..\..\factor\qs\new_poly.c" />
-    <ClCompile Include="..\..\factor\qs\poly_roots.c" />
-    <ClCompile Include="..\..\factor\qs\sieve.c" />
+    <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\poly_roots_64k.c" />
     <ClCompile Include="..\..\factor\qs\SIQS.c" />
     <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
     <ClCompile Include="..\..\factor\qs\siqs_test.c" />
     <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
     <ClCompile Include="..\..\factor\qs\tdiv.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_64k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_64k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c" />
+    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
@@ -316,6 +323,14 @@
     <ClCompile Include="..\..\arith\arith3.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\calc.h" />
     <ClInclude Include="..\..\include\common.h" />
