@@ -486,7 +486,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 	char *ptr;
 
 	if (VFLAG > 0)
-		printf("nfs: parsing special-q\n");
+		printf("nfs: parsing special-q from .dat file\n");
 
 	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
@@ -496,7 +496,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 	}
 	else
 	{
-		logprint(logfile, "nfs: parsing special-q\n");
+		logprint(logfile, "nfs: parsing special-q from .dat file\n");
 		fclose(logfile);
 	}
 
@@ -529,18 +529,23 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 			if (lines[line][i] == ',')
 				break;
 
-		printf("parsing rat side spq from %s\n",lines[line]);
+		if (VFLAG > 1)
+			printf("parsing rat side spq from %s\n",lines[line]);
 		sscanf(lines[line] + i + 1, "%x", &rat[count]);
-		printf("found %x\n", rat[count]);
+		
+		if (VFLAG > 1)
+			printf("found %x\n", rat[count]);
 
 		// grab alg side entry
 		for (i= strlen(lines[line]) - 1; i >= 0; i--)
 			if (lines[line][i] == ',')
 				break;
 
-		printf("parsing alg side spq from %s\n",lines[line]);
+		if (VFLAG > 1)
+			printf("parsing alg side spq from %s\n",lines[line]);
 		sscanf(lines[line] + i + 1, "%x", &alg[count]);
-		printf("found %x\n", alg[count]);
+		if (VFLAG > 1)
+			printf("found %x\n", alg[count]);
 	}
 
 	// now we gotta make a decision.
@@ -686,7 +691,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 			if (strlen(line) < 7)
 				continue;	// not long enough to hold a line of format "time: x"
 
-			printf("found time record: %s",line);
+			//printf("found time record: %s",line);
 			sscanf(line + 5, "%u", &job->poly_time);
 		}		
 	}

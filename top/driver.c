@@ -843,8 +843,8 @@ void get_computer_info(char *idstr)
 	
 	#else
 
-		sysname_sz = 255;
-		ret = gethostname(sysname,sysname_sz);
+		ret = gethostname(sysname,sizeof(sysname) / sizeof(*sysname));
+		sysname[(sizeof(sysname)-1)/sizeof(*sysname)] = 0;	// null terminate
 		if (ret != 0)
 		{
 			printf("error occured when getting host name\n");

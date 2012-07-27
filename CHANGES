@@ -1,4 +1,13 @@
 
+v 1.32.1
++ added fclose's and fixed gethostname alloc problem
+	(thanks jcrombie and chalsall)
++ removed the "found time record" messages from poly select
++ remove the printing of rels during .dat parsing (available with
+	verbose mode -v -v)
++ changed siqs cutoff back to 115 bits
+
+
 v 1.32
 + fixed restart-with-factor bug by logging factors removed during
 	restart with add_to_factor_list (thanks 10_metreh)
@@ -17,15 +26,6 @@ v 1.32
 + resume nfs in factor() if input matches .job file
 + -ns bug fix and small changes to nfs state machine
 
-
-TODO
-
-* update myfu
-* start yafu from a different location
-* bug: driving ggnfs on mac
-* snfs poly generation
-* mpz_td vs. yafu-td vs. mpn_td - which is fastest?
-* ggnfs/ecm in better threadpool
 
 v 1.31.1
  

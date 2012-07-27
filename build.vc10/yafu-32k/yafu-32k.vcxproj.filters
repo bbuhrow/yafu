@@ -233,6 +233,9 @@
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gpu_squfof.c">
+      <Filter>Source Files\factoring</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -315,5 +318,10 @@
     <YASM Include="..\..\arith\mod64.asm">
       <Filter>Source Files\arith</Filter>
     </YASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\factor\gpu_squfof.cu">
+      <Filter>Source Files\factoring</Filter>
+    </None>
   </ItemGroup>
 </Project>
