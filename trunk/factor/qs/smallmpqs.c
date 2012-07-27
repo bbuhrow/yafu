@@ -393,7 +393,7 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32 *modsqrt, mpz_t n)
 	return;
 }
 
-#define SM_NUM_PARAM_ROWS 8
+#define SM_NUM_PARAM_ROWS 10
 void sm_get_params(int bits, uint32 *B, uint32 *M, uint32 *BL)
 {
 	int i;
@@ -412,7 +412,8 @@ void sm_get_params(int bits, uint32 *B, uint32 *M, uint32 *BL)
 		{90,	120,	50,	1},
 		{100,	175,	50,	1},
 		{110,	275,	50,	1},	
-		{120,	375,	50,	1},
+		{120,	375,	60,	1},
+		{130,	550,	80,	1},
 	};
 
 	//linear interpolation according to bit size to determine
@@ -530,7 +531,7 @@ void smallmpqs(fact_obj_t *fobj)
 	// factor base bound
 	bits_n = mpz_sizeinbase(n,2);
 
-	if (bits_n > 115)
+	if (bits_n > 130)
 	{
 		printf("input too big\n");
 		mpz_clear(n);
@@ -930,6 +931,10 @@ void smpqs_get_more_primes(sm_mpqs_poly *poly)
 	NUM_P = num_p;
 	P_MIN = 0; 
 	P_MAX = PRIMES[(uint32)NUM_P-1];
+
+	if (VFLAG > 1)
+		printf("prime finding complete, cached %u primes. pmax = %u\n",
+		(uint32)NUM_P, (uint32)P_MAX);
 
 	return;
 }

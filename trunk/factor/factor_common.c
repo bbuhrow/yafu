@@ -2036,6 +2036,7 @@ void factor(fact_obj_t *fobj)
 		}
 		mpz_clear(tmpz);
 		mpz_clear(g);
+		fclose(data);
 	}
 
 	//check to see if a nfs job file exists for this input	
@@ -2077,8 +2078,9 @@ void factor(fact_obj_t *fobj)
 		}
 		mpz_clear(tmpz);
 		mpz_clear(g);
+		fclose(data);
 	}
-
+	
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	

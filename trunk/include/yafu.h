@@ -166,7 +166,7 @@ int CLSIZE;
 	char sysname[MAX_COMPUTERNAME_LENGTH + 1];
 	int sysname_sz;
 #else
-	char sysname[80];
+	char sysname[256];
 	int sysname_sz;
 #endif
 

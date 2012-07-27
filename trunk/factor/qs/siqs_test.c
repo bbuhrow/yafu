@@ -132,7 +132,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 60)
+	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
 	{
 		//run MPQS, as SIQS doesn't work for smaller inputs
 		//MPQS will take over the log file, so close it now.
