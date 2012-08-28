@@ -91,7 +91,7 @@ int ecm_loop(fact_obj_t *fobj)
 		for (i=0, total_curves_run=0; i<THREADS; i++)
             total_curves_run += thread_data[i].curves_run;
 
-		charcount = printf("ecm: %d/%d curves on C%d input, at ",
+		charcount = printf("ecm: %d/%d curves on C%d, ",
 			total_curves_run, fobj->ecm_obj.num_curves, 
 			(int)gmp_base10(fobj->ecm_obj.gmp_n));
 		charcount2 = print_B1B2(fobj, NULL);
@@ -205,13 +205,13 @@ int ecm_loop(fact_obj_t *fobj)
 
 		if (VFLAG >= 0)
 		{
-			for (i=0;i<charcount+charcount2;i++)
+			for (i=0;i<=charcount+charcount2;i++)
 				printf("\b");
 
 			for (i=0, total_curves_run=0; i<THREADS; i++)
 				total_curves_run += thread_data[i].curves_run;			
 
-			charcount = printf("ecm: %d/%d curves on C%d input, at ",
+			charcount = printf("ecm: %d/%d curves on C%d, ",
 				total_curves_run, fobj->ecm_obj.num_curves, 
 				(int)gmp_base10(fobj->ecm_obj.gmp_n));
 
@@ -231,7 +231,7 @@ int ecm_loop(fact_obj_t *fobj)
 				est_time = (double)(fobj->ecm_obj.num_curves / THREADS - j) * avg_batch_time;
 
 				charcount += charcount2;
-				charcount2 = printf(" ETA: %1.0f sec", est_time);
+				charcount2 = printf(", ETA: %1.0f sec ", est_time);
 			}
 
 			fflush(stdout);
@@ -770,9 +770,9 @@ int print_B1B2(fact_obj_t *fobj, FILE *fid)
 		sprintf(stg2str, "gmp-ecm default");
 
 	if (fid == NULL)
-		i = printf("B1 = %s, B2 = %s",stg1str,stg2str);
+		i = printf("B1=%s, B2=%s",stg1str,stg2str);
 	else
-		i = fprintf(fid,"B1 = %s, B2 = %s",stg1str,stg2str);
+		i = fprintf(fid,"B1=%s, B2=%s",stg1str,stg2str);
 
 	return i;
 }
