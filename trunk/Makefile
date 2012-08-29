@@ -80,7 +80,6 @@ CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	
 x86: CFLAGS += -m32
 
-	
 #---------------------------Msieve file lists -------------------------
 MSIEVE_SRCS = \
 	factor/qs/msieve/lanczos.c \
@@ -131,11 +130,6 @@ YAFU_SRCS = \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
 	factor/nfs/nfs.c \
-	factor/nfs/nfs_sieving.c \
-	factor/nfs/nfs_poly.c \
-	factor/nfs/nfs_postproc.c \
-	factor/nfs/nfs_filemanip.c \
-	factor/nfs/nfs_threading.c \
 	arith/arith0.c \
 	arith/arith1.c \
 	arith/arith2.c \
@@ -152,6 +146,20 @@ YAFU_SRCS = \
 	top/eratosthenes/wrapper.c
 	
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
+
+#---------------------------YAFU NFS file lists -----------------------
+ifeq ($(NFS),1)
+
+YAFU_NFS_SRCS = \
+	factor/nfs/nfs_sieving.c \
+	factor/nfs/nfs_poly.c \
+	factor/nfs/nfs_postproc.c \
+	factor/nfs/nfs_filemanip.c \
+	factor/nfs/nfs_threading.c
+
+YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=.o)
+
+endif
 
 #---------------------------Header file lists -------------------------
 HEAD = include/yafu.h  \
@@ -189,16 +197,27 @@ all:
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
+ifeq ($(NFS),1)
+
+x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
+
+x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
+
+else
+
 x86: $(MSIEVE_OBJS) $(YAFU_OBJS)
 	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
-	
-	
+
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS)
 	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
-	
+
+endif
+
 clean:
-	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) 
-	
+	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+
 #---------------------------Build Rules -------------------------
 
 	
