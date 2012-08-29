@@ -117,15 +117,24 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		large_prime[1] = 1;
 
 		//add this one
-		buffer_relation(offset,large_prime,smooth_num+1,
-			fb_offsets,poly_id,parity,dconf,polya_factors,it);
+		if (sconf->is_tiny)
+		{	
+			// we need to encode both the a_poly and b_poly index
+			// in poly_id
+			poly_id |= (sconf->total_poly_a << 16);
+			buffer_relation(offset,large_prime,smooth_num+1,
+				fb_offsets,poly_id,parity,dconf,polya_factors,it);
+		}
+		else
+			buffer_relation(offset,large_prime,smooth_num+1,
+				fb_offsets,poly_id,parity,dconf,polya_factors,it);
 
 #ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+		gettimeofday (&qs_timing_stop, NULL);
+		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
 
-	TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+		TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+		free(qs_timing_diff);
 #endif
 
 		return;
@@ -144,6 +153,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	{	
 		//quick prime check: compute 2^(residue-1) mod residue.  
 		uint64 res;
+		//printf("%llu\n",q64);
 
 #if BITS_PER_DIGIT == 32
 		mpz_set_64(dconf->gmptmp1, q64);
@@ -173,6 +183,20 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		}
 		
 		//try to find a double large prime
+#ifdef HAVE_CUDA
+		{
+			uint32 large_prime[2] = {1,1};
+		
+			// remember the residue and the relation it is associated with
+			dconf->buf_id[dconf->num_squfof_cand] = dconf->buffered_rels;
+			dconf->squfof_candidates[dconf->num_squfof_cand++] = q64;
+
+			// buffer the relation
+			buffer_relation(offset,large_prime,smooth_num+1,
+				fb_offsets,poly_id,parity,dconf,polya_factors,it);
+		}
+#else
+
 		dconf->attempted_squfof++;
 		mpz_set_64(dconf->gmptmp1, q64);
 		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
@@ -198,6 +222,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			dconf->failed_squfof++;
 			//printf("squfof failure: %" PRIu64 "\n", q64);
 		}
+#endif
 
 	}
 	else
@@ -225,20 +250,18 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	siqs_r *rel;
 	uint32 i, j, k;
 
-#ifdef BLK_REL_COUNT_EXP
-	i = offset >> sconf->qs_blockbits;
-	if (parity)
-		blk_counts_n[i]++;
-	else
-		blk_counts_p[i]++;
-#endif
-
 	//first check that this relation won't overflow the buffer
 	if (conf->buffered_rels >= conf->buffered_rel_alloc)
 	{
 		printf("reallocating relation buffer\n");
 		conf->relation_buf = (siqs_r *)realloc(conf->relation_buf, 
 			conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
+#ifdef HAVE_CUDA
+		conf->buf_id = (uint32 *)realloc(conf->buf_id, 
+			conf->buffered_rel_alloc * 2 * sizeof(uint32));
+		conf->squfof_candidates = (uint64 *)realloc(conf->squfof_candidates, 
+			conf->buffered_rel_alloc * 2 * sizeof(uint64));
+#endif
 		if (conf->relation_buf == NULL)
 		{
 			printf("error re-allocating temporary storage of relations\n");

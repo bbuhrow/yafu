@@ -1802,6 +1802,35 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		// small factorization test routine
 		// 5 inputs
 
+		//if (0)
+		//{
+		//	FILE *test;
+		//	test = fopen("res.dat", "r");
+		//	char str[100];
+		//	fp_digit *n,r;
+
+		//	n = (fp_digit *)malloc(500000 * sizeof(fp_digit));
+		//	while (!feof(test))
+		//	{
+		//		if (fgets(str, 100, test) == NULL)
+		//			break;
+
+		//		sscanf(str, "%llu", &n[i++]);				
+		//	}
+
+		//	gettimeofday(&tstart, NULL);
+		//	for (i=0; i<500000; i++)
+		//		spModExp(2, n[i] - 1, n[i], &r);
+		//	fclose(test);
+		//	gettimeofday (&tstop, NULL);
+		//	difference = my_difftime (&tstart, &tstop);
+		//	t = ((double)difference->secs + (double)difference->usecs / 1000000);
+		//	free(difference);
+		//	printf("%1.4f sec to test 500000 inputs from a c85\n", t);
+
+		//	free(n);
+		//}
+
 		{
 			z *input;
 			int test_squfof = 0;
@@ -1820,7 +1849,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			fact_obj_t *fobj2;
 			mpz_t gmptmp;
 			int tmpv;
-			int startbits = 90, stopbits = 110, stepbits = 5;
+			int startbits = 90, stopbits = 120, stepbits = 5;
 			//int startbits = 40, stopbits = 60, stepbits = 5;
 
 			// get numin
@@ -2007,15 +2036,15 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						fobj2->qs_obj.flags = 12345;
 						tmpv = VFLAG;
 						VFLAG = -1;
-						//tinySIQS(fobj2); //SIQS(fobj2);
+						tinySIQS(fobj2->qs_obj.gmp_n, NULL, NULL);
 
-						if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) != 0)
-						{						
-							gmp_printf("not fully factored!  residue = %Zd\n", fobj2->qs_obj.gmp_n);
-							print_factors(fobj2);
-						}
+						//if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) != 0)
+						//{						
+						//	gmp_printf("not fully factored!  residue = %Zd\n", fobj2->qs_obj.gmp_n);
+						//	print_factors(fobj2);
+						//}
 						VFLAG = tmpv;
-						clear_factor_list(fobj2);
+						//clear_factor_list(fobj2);
 					}
 					else
 					{
@@ -2090,8 +2119,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		fobj->logfile = fopen(fobj->flogname,"a");
 		if (fobj->logfile == NULL)
 			printf("fopen error: %s\n", strerror(errno));
-		smallmpqs(fobj);		
-		//tinySIQS(fobj);
+		//smallmpqs(fobj);		
+		tinySIQS(fobj->qs_obj.gmp_n, NULL, NULL);
 		if (fobj->logfile != NULL)
 			fclose(fobj->logfile);
 		gmp2mp(fobj->qs_obj.gmp_n,&operands[0]);

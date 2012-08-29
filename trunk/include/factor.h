@@ -556,7 +556,8 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
-void tinySIQS(fact_obj_t *fobj);
+//void tinySIQS(fact_obj_t *fobj);
+void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);
 
 int sptestsqr(uint64 n);
 uint64 spfermat(uint64 n, uint64 limit);

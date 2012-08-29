@@ -1,3 +1,15 @@
+v 1.32.2
++ made "found poly" messages much less verbose
++ using /r instead of printing backspaces now in ecm.c and SIQS.c
++ ggnfs jobs launched by yafu will now print out individual .last_spq files 
+	per thread, although they are still not used for anything
++ get rid of blk_rel_count experiment code in siqs
++ add the beginnings of CUDA squfof support - although it is far from working 
+	and probably not even beneficial at this point.  currently protected by 
+	HAVE_CUDA definition
++ more work on tinySIQS, but still not fully operational.
++ added another fclose in SIQS
+
 
 v 1.32.1
 + added fclose's and fixed gethostname alloc problem

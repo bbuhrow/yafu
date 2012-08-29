@@ -25,17 +25,11 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
-# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 INC += -I../gmp/include
-# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/
 LIBS += -L../gmp/lib/linux/x86_64
-#LIBS += -L../gmp/lib/linux/x86
 
-# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
 INC += -I../gmp-ecm/include
-# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/
 LIBS += -L../gmp-ecm/lib/linux/x86_64
-#LIBS += -L../gmp-ecm/lib/linux/x86
 
 ifeq ($(STATIC),1)
 	CFLAGS += -static
@@ -59,11 +53,17 @@ endif
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 	LIBS += -L../msieve/lib/linux/x86_64 -lmsieve
-#	LIBS += -L../msieve/lib/linux/x86 -lmsieve
+endif
+
+ifeq ($(CUDA),1)
+	CFLAGS += -DHAVE_CUDA
+#	INC += -I/users/buhrow/NVIDIA_GPU_Computing_SDK/C/common/inc
+	INC += -I/usr/local/cuda/include/
+	LIBS += -L/usr/lib64 -lcuda
+#	LIBS += /users/buhrow/NVIDIA_GPU_Computing_SDK/C/lib/libcutil_x86_64.a
 endif
 
 #MINGW builds don't need -pthread
-#LIBS += -lm 
 LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
@@ -123,6 +123,7 @@ YAFU_SRCS = \
 	factor/qs/update_poly_roots_32k.c \
 	factor/qs/update_poly_roots_64k.c \
 	factor/qs/siqs_test.c \
+	factor/tinyqs/tinySIQS.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
 	factor/qs/SIQS.c \
@@ -158,6 +159,10 @@ YAFU_NFS_SRCS = \
 	factor/nfs/nfs_threading.c
 
 YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=.o)
+
+else
+
+YAFU_NFS_OBJS =
 
 endif
 
@@ -197,23 +202,12 @@ all:
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
-ifeq ($(NFS),1)
-
 x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
 
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
 
-else
-
-x86: $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
-
-x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu $(LIBS)
-
-endif
 
 clean:
 	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)

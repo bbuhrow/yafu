@@ -261,7 +261,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
-    <ClCompile Include="..\..\factor\gpu_squfof.c" />
+    <ClCompile Include="..\..\factor\gpu_squfof.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />

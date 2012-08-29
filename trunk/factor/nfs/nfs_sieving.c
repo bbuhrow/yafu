@@ -24,6 +24,7 @@ void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 		thread_data[i].job.startq = job->startq;
 		strcpy(thread_data[i].job.sievername, job->sievername);
 
+		thread_data[i].tindex = i;
 		thread_data[i].is_poly_select = 0;
 		thread_data[i].fobj = fobj;
 	}
@@ -131,13 +132,13 @@ void *lasieve_launcher(void *ptr)
 		
 	//start ggnfs binary
 	if (fobj->nfs_obj.sq_side)
-		sprintf(syscmd,"%s -a %s -f %u -c %u -o %s",
+		sprintf(syscmd,"%s -a %s -f %u -c %u -o %s -n %d",
 			thread_data->job.sievername, fobj->nfs_obj.job_infile, thread_data->job.startq, 
-			thread_data->job.qrange, thread_data->outfilename);
+			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
 	else
-		sprintf(syscmd,"%s -r %s -f %u -c %u -o %s",
+		sprintf(syscmd,"%s -r %s -f %u -c %u -o %s -n %d",
 			thread_data->job.sievername, fobj->nfs_obj.job_infile, thread_data->job.startq, 
-			thread_data->job.qrange, thread_data->outfilename);
+			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
 
 	if (VFLAG >= 0)
 	{
