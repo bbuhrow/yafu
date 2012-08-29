@@ -43,10 +43,6 @@ routines and bookkeeping */
 
 #define MAX_FACTORS 10
 
-#ifndef USE_NFS
-	#define USE_NFS
-#endif
-
 // stuff that needs to be visible to the msieve routines and 
 // the yafu sieve routines
 
