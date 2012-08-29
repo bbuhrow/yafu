@@ -33,8 +33,8 @@ code to the public domain.
 #define NO_ZLIB
 #endif
 
-#if defined(__GNUC__) && !defined(__MINGW32__) 
-#define FORK_ECM
+#ifdef _MSC_VER
+#define USE_NFS
 #endif
 
 /* declarations of factorization routines not grouped in with QS methods
