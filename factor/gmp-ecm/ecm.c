@@ -46,7 +46,6 @@ int ecm_loop(fact_obj_t *fobj)
 	int total_curves_run;
 	int bail_on_factor = 1;
 	int bail = 0;
-	int charcount = 0, charcount2 = 0;
 	int input_digits = gmp_base10(fobj->ecm_obj.gmp_n);
 
 	if (ecm_check_input(fobj) == 0)
@@ -85,16 +84,14 @@ int ecm_loop(fact_obj_t *fobj)
 
 	if (VFLAG >= 0)
 	{
-		for (i=0;i<charcount+charcount2;i++)
-			printf("\b");
-
 		for (i=0, total_curves_run=0; i<THREADS; i++)
             total_curves_run += thread_data[i].curves_run;
 
-		charcount = printf("ecm: %d/%d curves on C%d, ",
+		printf("ecm: %d/%d curves on C%d, ",
 			total_curves_run, fobj->ecm_obj.num_curves, 
 			(int)gmp_base10(fobj->ecm_obj.gmp_n));
-		charcount2 = print_B1B2(fobj, NULL);
+		print_B1B2(fobj, NULL);
+		printf("\r");
 		fflush(stdout);
 	}
 
@@ -173,10 +170,6 @@ int ecm_loop(fact_obj_t *fobj)
 					//yes, it does... proceed to record the factor
 					mpz_set(fobj->ecm_obj.gmp_n, t);
 					ecm_deal_with_factor(&thread_data[i]);
-					
-					// factor will have been printed with a newline - reset the backspaces.
-					if (VFLAG > 0)
-						charcount = charcount2 = 0;
 
 					//we found a factor and might want to stop,
 					//but should check all threads output first
@@ -205,18 +198,15 @@ int ecm_loop(fact_obj_t *fobj)
 
 		if (VFLAG >= 0)
 		{
-			for (i=0;i<=charcount+charcount2;i++)
-				printf("\b");
-
 			for (i=0, total_curves_run=0; i<THREADS; i++)
 				total_curves_run += thread_data[i].curves_run;			
 
-			charcount = printf("ecm: %d/%d curves on C%d, ",
+			printf("ecm: %d/%d curves on C%d, ",
 				total_curves_run, fobj->ecm_obj.num_curves, 
 				(int)gmp_base10(fobj->ecm_obj.gmp_n));
 
-			charcount2 = print_B1B2(fobj, NULL);
-
+			print_B1B2(fobj, NULL);
+			
 			// stop counter for this batch of curves
 			// for larger B1s
 			if (fobj->ecm_obj.B1 > 48000)
@@ -230,10 +220,9 @@ int ecm_loop(fact_obj_t *fobj)
 				avg_batch_time = t_time / (double)num_batches;
 				est_time = (double)(fobj->ecm_obj.num_curves / THREADS - j) * avg_batch_time;
 
-				charcount += charcount2;
-				charcount2 = printf(", ETA: %1.0f sec ", est_time);
+				printf(", ETA: %1.0f sec ", est_time);
 			}
-
+			printf("\r");
 			fflush(stdout);
 		}
 

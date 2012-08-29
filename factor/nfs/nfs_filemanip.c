@@ -628,7 +628,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 		if (line[0] == '#')
 		{
 			count++;
-			if (VFLAG > 0)
+			if (VFLAG > 2)
 				printf("found poly: %s",line);
 			// the comment line for a new polynomial.  read characters until we 
 			// find the e-score designator

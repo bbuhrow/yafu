@@ -25,14 +25,10 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
-# INC += -I/sppdg/scratch/buhrow/gmp-4.2.3/install/include/
 INC += -I../gmp/include
-# LIBS += -L/sppdg/scratch/buhrow/gmp-4.2.3/install/lib/
 LIBS += -L../gmp/lib/mingw/x86_64
 
-# INC += -I/sppdg/scratch/buhrow/ecm-6.2.3/install/include/
 INC += -I../gmp-ecm/include
-# LIBS += -L/sppdg/scratch/buhrow/ecm-6.2.3/install/lib/
 LIBS += -L../gmp-ecm/lib/mingw/x86_64
 
 ifeq ($(PROFILE),1)
@@ -59,7 +55,6 @@ endif
 
 #MINGW builds don't need -pthread
 LIBS += -lm 
-#LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
@@ -118,6 +113,7 @@ YAFU_SRCS = \
 	factor/qs/siqs_test.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
+	factor/tinyqs/tinySIQS.c \
 	factor/qs/SIQS.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
@@ -152,6 +148,10 @@ YAFU_NFS_SRCS = \
 
 YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=.o)
 
+else
+
+YAFU_NFS_OBJS = 
+
 endif
 
 #---------------------------Header file lists -------------------------
@@ -182,23 +182,12 @@ all:
 	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
-ifeq ($(NFS),1)
-
 x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-win32 $(LIBS)
 
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-x64 $(LIBS)
 
-else
-
-x86: $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu-win32 $(LIBS)
-
-x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) -o yafu-x64 $(LIBS)
-
-endif
 
 clean:
 	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)

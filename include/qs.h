@@ -27,9 +27,15 @@ code to the public domain.
 #include "lanczos.h"
 #include "common.h"
 
+#ifdef HAVE_CUDA
+#include <cuda.h>
+#include <builtin_types.h>
+//#include <drvapi_error_string.h>
+#endif
+
+//#define HAVE_CUDA
+
 //#define QS_TIMING
-// enable an experiement counting relations found per block
-//#define BLK_REL_COUNT_EXP 1	
 
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
@@ -52,10 +58,6 @@ double COUNT;
 double TF_SPECIAL;
 #endif
 
-#ifdef BLK_REL_COUNT_EXP
-uint32 blk_counts_p[64];
-uint32 blk_counts_n[64];
-#endif
 
 /************************* Common types and functions *****************/
 
@@ -312,10 +314,6 @@ typedef struct {
 	int scan_unrolling;			// how many bytes to unroll the sieve scan
 
 	uint32 tf_small_cutoff;		// bit level to determine whether to bail early from tf
-#ifdef BLK_REL_COUNT_EXP
-	uint32 tmp_tf_small_cutoff;
-	mpz_t tmp_z;
-#endif
 	uint32 tf_closnuf;			// subject anything sieved beyond this to tf
 	
 	uint32 tf_small_recip2_cutoff;
@@ -394,6 +392,13 @@ typedef struct {
 	uint32 buffered_rel_alloc;
 	siqs_r *in_mem_relations;
 
+#ifdef HAVE_CUDA
+	CUdevice cuDevice;
+	CUcontext cuContext;
+	CUmodule cuModule;
+	CUfunction cu_squfof;
+#endif
+
 } static_conf_t;
 
 typedef struct {
@@ -445,6 +450,12 @@ typedef struct {
 	uint32 buffered_rels;
 	uint32 buffered_rel_alloc;
 	siqs_r *relation_buf;
+
+#ifdef HAVE_CUDA
+	uint64 *squfof_candidates;
+	uint32 *buf_id;
+	uint32 num_squfof_cand;
+#endif
 
 	uint16 *corrections;
 
@@ -615,6 +626,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf);
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf);
 uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf);
 
+#ifdef HAVE_CUDA
+int InitCUDA(static_conf_t *sconf);
+double gpu_squfof_batch(uint64 *batch, uint32 numin, uint32 *factors, 
+	static_conf_t *sconf);
+#endif
+
 void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);
 void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb);
@@ -626,7 +643,6 @@ void siqstune(int bits);
 void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf);
 
 // tiny variants of a few routines, that live in tinySIQS.c
-int tiny_update_final(static_conf_t *sconf);
 int tiny_update_check(static_conf_t *sconf);
 void *tiny_process_poly(void *ptr);
 

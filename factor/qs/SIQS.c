@@ -92,14 +92,6 @@ void SIQS(fact_obj_t *fobj)
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
 
-#ifdef BLK_REL_COUNT_EXP
-	for (i=0; i<64; i++)
-	{
-		blk_counts_p[i] = 0;
-		blk_counts_n[i] = 0;
-	}
-#endif
-
 	//logfile for this factorization
 	//must ensure it is only written to by main thread
 	if (fobj->qs_obj.flags != 12345)
@@ -152,6 +144,7 @@ void SIQS(fact_obj_t *fobj)
 		}
 		mpz_clear(tmpz);
 		mpz_clear(g);
+		fclose(data);
 	}
 
 	//then do a small amount of trial division
@@ -247,6 +240,14 @@ void SIQS(fact_obj_t *fobj)
 		logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
 		fflush(sieve_log);
 	}
+
+#ifdef HAVE_CUDA
+	// look for a card and properties
+	if(!InitCUDA(static_conf))
+	{
+		exit(0);
+	} 
+#endif
 
 	//get best parameters, multiplier, and factor base for the job
 	//initialize and fill out the static part of the job data structure
@@ -468,6 +469,10 @@ void SIQS(fact_obj_t *fobj)
 				thread_data[tid].dconf->dlp_prp = 0;
 				thread_data[tid].dconf->dlp_useful = 0;
 
+#ifdef HAVE_CUDA
+				thread_data[tid].dconf->num_squfof_cand = 0;
+#endif
+
 				//check whether to continue or not, and update the screen
 				updatecode = update_check(static_conf);
 
@@ -560,7 +565,15 @@ void SIQS(fact_obj_t *fobj)
 			stop_worker_thread(thread_data + i);
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
+#ifdef HAVE_CUDA
+		free(thread_data[i].dconf->squfof_candidates);
+		free(thread_data[i].dconf->buf_id);
+#endif
 	}
+
+#ifdef HAVE_CUDA
+	cuCtxDetach(static_conf->cuContext);
+#endif
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
@@ -978,26 +991,131 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	uint32 i;
 	siqs_r *rel;
 	char buf[1024];
+	//uint32 ndp=0;
 
-	//save the A value.
-	// if we are doing an in-memory factorization, then instead
-	// of writing an 'A' line, we write a specially formatted 
-	// relation, so that filtering will know that we've switched
-	// polys (and have the new A value).
+	// save the A value.
 	if (!sconf->in_mem)
 	{
 		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
 		qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
 
+#ifdef HAVE_CUDA
+	//printf("%u buffered relations, doing squfof on %u\n",
+	//	dconf->buffered_rels, dconf->num_squfof_cand);
+
+	{
+		uint32 *results;
+		double t;
+
+		results = (uint32 *)malloc(dconf->num_squfof_cand * sizeof(uint32));
+		for (i=0; i<dconf->num_squfof_cand; i++)
+			results[i] = 1;
+
+		t = gpu_squfof_batch(dconf->squfof_candidates, 
+			dconf->num_squfof_cand, results, sconf);
+
+		//printf("gpu batch done in %1.4f milliseconds\n", t);
+		dconf->attempted_squfof += dconf->num_squfof_cand;
+
+		for (i=0; i<dconf->num_squfof_cand; i++)
+		{
+			uint32 bid = dconf->buf_id[i];
+
+			if (results[i] > 1) // && results[i] != q64)
+			{
+				uint32 large_prime[2];
+
+				large_prime[0] = (uint32)results[i];
+				large_prime[1] = (uint32)(dconf->squfof_candidates[i] 
+					/ results[i]);
+
+				if ((dconf->squfof_candidates[i] % results[i]) != 0)
+				{
+					dconf->relation_buf[bid].num_factors = 0;
+					dconf->failed_squfof++;
+				}
+				else
+				{
+					if (large_prime[0] < sconf->large_prime_max 
+						&& large_prime[1] < sconf->large_prime_max)
+					{
+						//add this one
+						dconf->dlp_useful++;
+						dconf->relation_buf[bid].large_prime[0] = large_prime[0];
+						dconf->relation_buf[bid].large_prime[1] = large_prime[1];
+					}
+					else
+						dconf->relation_buf[bid].num_factors = 0;
+				}
+				
+			}
+			else
+			{
+				dconf->relation_buf[bid].num_factors = 0;
+				dconf->failed_squfof++;
+			}
+		}
+	}
+
+
+
+	/*
+	for (i=0; i<dconf->num_squfof_cand; i++)
+	{
+		uint64 q64 = dconf->squfof_candidates[i];
+		uint64 f64;
+		uint32 bid = dconf->buf_id[i];		
+
+		dconf->attempted_squfof++;
+		mpz_set_64(dconf->gmptmp1, q64);
+		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+		if (f64 > 1 && f64 != q64)
+		{
+			uint32 large_prime[2];
+
+			large_prime[0] = (uint32)f64;
+			large_prime[1] = (uint32)(q64 / f64);
+
+			if (large_prime[0] < sconf->large_prime_max 
+				&& large_prime[1] < sconf->large_prime_max)
+			{
+				//add this one
+				dconf->dlp_useful++;
+				dconf->relation_buf[bid].large_prime[0] = large_prime[0];
+				dconf->relation_buf[bid].large_prime[1] = large_prime[1];
+			}
+			else
+				dconf->relation_buf[bid].num_factors = 0;
+				
+		}
+		else
+		{
+			dconf->relation_buf[bid].num_factors = 0;
+			dconf->failed_squfof++;
+		}
+	}
+	*/
+
+
+#endif
+
 	//save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
 	{
+#ifdef HAVE_CUDA
+		if (dconf->relation_buf[i].num_factors == 0)
+			continue;
+#endif
 		rel = dconf->relation_buf + i;
+		//if ((rel->large_prime[0]) > 1 && (rel->large_prime[1] > 1))
+		//	ndp++;
 		save_relation_siqs(rel->sieve_offset,rel->large_prime,
 			rel->num_factors, rel->fb_offsets, rel->poly_idx, 
 			rel->parity, sconf);
 	}
+
+	//printf("%u dlp's for polyA\n",ndp);
 
 	//update some progress indicators
 	sconf->num += dconf->num;
@@ -1292,6 +1410,11 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->relation_buf = (siqs_r *)malloc(32768 * sizeof(siqs_r));
 	dconf->buffered_rel_alloc = 32768;
 	dconf->buffered_rels = 0;
+#ifdef HAVE_CUDA
+	dconf->squfof_candidates = (uint64 *)malloc(32768 * sizeof(uint64));
+	dconf->buf_id = (uint32 *)malloc(32768 * sizeof(uint32));
+	dconf->num_squfof_cand = 0;
+#endif
 
 	if (VFLAG > 2)
 	{
@@ -2156,34 +2279,13 @@ int update_check(static_conf_t *sconf)
 		sconf->num_cycles +
 		sconf->components - sconf->vertices;
 
-#ifdef BLK_REL_COUNT_EXP
-		{
-			uint32 sum;
-			sum = 0;
-			for (i = sconf->num_blocks - 1; i >= 0; i--)
-			{
-				printf("%u ",blk_counts_n[i]);
-				sum += blk_counts_n[i];
-			}
-			for (i = 0; i < sconf->num_blocks; i++)
-			{
-				printf("%u ",blk_counts_p[i]);
-				sum += blk_counts_p[i];
-			}
-			printf("= %u\n", sum);
-		}
-#endif
-
 		//difference = my_difftime (&sconf->update_start, &update_stop);
 		//also change rel sum to update_rels below...
 		difference = my_difftime (&sconf->totaltime_start, &update_stop);
 		if (VFLAG >= 0)
 		{
 			uint32 update_rels;
-#ifndef BLK_REL_COUNT_EXP
-			for (i=0; i < sconf->charcount; i++)
-				printf("\b");
-#endif
+
 			//in order to keep rels/sec from going mad when relations
 			//are reloaded on a restart, just use the number of
 			//relations we've found since the last update.  don't forget
@@ -2191,19 +2293,14 @@ int update_check(static_conf_t *sconf)
 			update_rels = sconf->num_relations + sconf->num_cycles - 
 				sconf->last_numfull - sconf->last_numcycles;
 			sconf->charcount = printf("%d rels found: %d full + "
-				"%d from %d partial, (%6.2f rels/sec)",
+				"%d from %d partial, (%6.2f rels/sec)\r",
 				sconf->num_r,sconf->num_relations,
 				sconf->num_cycles +
 				sconf->components - sconf->vertices,
 				sconf->num_cycles,
 				(double)(sconf->num_relations + sconf->num_cycles) /
 				((double)difference->secs + (double)difference->usecs / 1000000));
-				//(double)(num_full + sconf->num_cycles) /
-				//((double)(clock() - sconf->totaltime_start)/(double)CLOCKS_PER_SEC));
 
-#ifdef BLK_REL_COUNT_EXP
-			printf("\n");
-#endif
 			fflush(stdout);
 		}
 		free(difference);
@@ -2259,25 +2356,6 @@ int update_final(static_conf_t *sconf)
 	TIME_DIFF *	difference;
 
 	mpz_init(tmp1);
-
-#ifdef BLK_REL_COUNT_EXP
-	{
-		uint32 sum;
-		int i;
-		sum = 0;
-		for (i = sconf->num_blocks - 1; i >= 0; i--)
-		{
-			printf("%u ",blk_counts_n[i]);
-			sum += blk_counts_n[i];
-		}
-		for (i = 0; i < sconf->num_blocks; i++)
-		{
-			printf("%u ",blk_counts_p[i]);
-			sum += blk_counts_p[i];
-		}
-		printf("= %u\n", sum);
-	}
-#endif
 
 	if (VFLAG >= 0)
 	{
