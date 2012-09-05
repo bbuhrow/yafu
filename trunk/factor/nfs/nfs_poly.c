@@ -294,7 +294,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 					int a;
 
 					// test for cat
-					sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
+					sprintf(syscmd,"cat %s.p >> %s 2> nul",t->polyfilename,master_polyfile);
 					a = system(syscmd);
 	
 					if (a)		
