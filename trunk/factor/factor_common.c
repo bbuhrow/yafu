@@ -790,7 +790,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	double t_time;
 	TIME_DIFF *	difference;
 	uint32 curves_done;
-		
+
 	gettimeofday(&tstart, NULL);
 
 	switch (method)
@@ -1534,13 +1534,19 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			work_done = compute_ecm_work_done(fwork, 0);
 			break;
 	}
-	
+
 	// handle the case where the next state is a sieve method
 	if ((next_state == state_nfs) || (work_done > target_digits))
 	{
 		flog = fopen(fobj->flogname,"a");
+		if (flog == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("could not open %s for writing\n",fobj->flogname);
+			return;
+		}
 		logprint(flog,"final ECM pretested depth: %1.2f\n", work_done);		
-		
+
 		if (fobj->autofact_obj.only_pretest)
 		{
 			fclose(flog);
@@ -1983,8 +1989,8 @@ void factor(fact_obj_t *fobj)
 						mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
 				}
 			}
+			fclose(flog);
 		}
-		fclose(flog);
 
 		gmp2mp(b, &fobj->N);
 		mpz_clear(copyN);
@@ -2080,12 +2086,12 @@ void factor(fact_obj_t *fobj)
 		mpz_clear(g);
 		fclose(data);
 	}
-	
+
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	
 		do_work(fact_state, &fwork, b, fobj);
-		
+
 		if (check_if_done(fobj, origN) || 
 			(quit_after_sieve_method && 
 			((fact_state == state_qs) ||

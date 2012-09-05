@@ -152,7 +152,7 @@ void pollard_loop(fact_obj_t *fobj)
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
 		mpz_set_ui(fobj->pm1_obj.gmp_n, 1);
-		
+		fclose(flog);
 		return;
 	}
 

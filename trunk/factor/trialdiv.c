@@ -30,9 +30,19 @@ void zTrial(fact_obj_t *fobj)
 	uint32 r,k=0;
 	uint32 limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
+	FILE *flog;
 	fp_digit q;
 	mpz_t tmp;
 	mpz_init(tmp);
+
+	//open the log file
+	flog = fopen(fobj->flogname,"a");
+	if (flog == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for writing\n",fobj->flogname);
+		return;
+	}
 
 	if (P_MAX < limit)
 	{
@@ -57,6 +67,13 @@ void zTrial(fact_obj_t *fobj)
 			mpz_set_64(tmp, q);
 
 			add_to_factor_list(fobj, tmp);
+
+#if BITS_PER_DIGIT == 64
+			logprint(flog,"div: found prime factor = %" PRIu64 "\n",q);
+#else
+			logprint(flog,"div: found prime factor = %u\n",q);
+#endif
+
 			if (print && (VFLAG > 0))
 #if BITS_PER_DIGIT == 64
 				printf("div: found prime factor = %" PRIu64 "\n",q);
@@ -66,6 +83,7 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
+	fclose(flog);
 	mpz_clear(tmp);
 }
 
@@ -74,10 +92,20 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 	// check if (b^1/i)^i == b for i = 2 to bitlen(b)
 	uint32 bits = mpz_sizeinbase(b,2);
 	uint32 i;
+	FILE *flog;
 	mpz_t base, ans;
 
 	mpz_init(base);
 	mpz_init(ans);
+
+	//open the log file
+	flog = fopen(fobj->flogname,"a");
+	if (flog == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open %s for writing\n",fobj->flogname);
+		return;
+	}
 
 	for (i=2; i<bits; i++)
 	{
@@ -94,6 +122,9 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				{
 					add_to_factor_list(fobj, base);
 					mpz_tdiv_q(b, b, base);
+					logprint(flog,"prp%d = %s\n",
+						gmp_base10(base),
+						mpz_conv2str(&gstr1.s, 10, base));
 				}
 			}
 			else
@@ -127,6 +158,9 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 						{
 							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
 							mpz_tdiv_q(b, b, fobj_refactor->fobj_factors[j].factor);
+							logprint(flog,"prp%d = %s\n",
+								gmp_base10(fobj_refactor->fobj_factors[j].factor),
+								mpz_conv2str(&gstr1.s, 10, fobj_refactor->fobj_factors[j].factor));
 						}
 					}
 				}
@@ -141,6 +175,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 
 	mpz_clear(base);
 	mpz_clear(ans);
+	fclose(flog);
 
 	return;
 }
@@ -213,7 +248,8 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		}
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
-		mpz_set_ui(fobj->div_obj.gmp_n, 1);		
+		mpz_set_ui(fobj->div_obj.gmp_n, 1);
+		fclose(flog);
 		return;
 	}
 
@@ -449,6 +485,8 @@ done:
 	free(mod1);
 	free(mod2);
 	free(skip);
+	if (flog != NULL)
+		fclose(flog);
 	return;
 
 }
