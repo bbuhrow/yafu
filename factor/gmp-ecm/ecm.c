@@ -638,14 +638,14 @@ void *ecm_do_one_curve(void *ptr)
 		FILE *fid;
 		char line[1024];
 		char *ptr;
-		char *tmpstr;
+		char *tmpstr = NULL;
 		int retcode;
 
 		// let mpz figure out and allocate the string
 		tmpstr = mpz_get_str(tmpstr, 10, thread_data->gmp_n);
 
 		// allocate the appropriately sized command string
-		cmd = (char *)malloc((strlen(tmpstr) + strlen(fobj->ecm_obj.ecm_path) + 100) 
+		cmd = (char *)malloc((strlen(tmpstr) + strlen(fobj->ecm_obj.ecm_path) + 256) 
 			* sizeof(char));
 
 		// external executable was specified
