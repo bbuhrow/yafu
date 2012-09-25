@@ -634,28 +634,34 @@ void *ecm_do_one_curve(void *ptr)
 	}
 	else
 	{
-		char cmd[1024];
+		char *cmd;
 		FILE *fid;
 		char line[1024];
 		char *ptr;
 		char *tmpstr;
 		int retcode;
 
-		tmpstr = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+		// let mpz figure out and allocate the string
+		tmpstr = mpz_get_str(tmpstr, 10, thread_data->gmp_n);
+
+		// allocate the appropriately sized command string
+		cmd = (char *)malloc((strlen(tmpstr) + strlen(fobj->ecm_obj.ecm_path) + 100) 
+			* sizeof(char));
+
 		// external executable was specified
 		sprintf(thread_data->tmp_output, "_yafu_ecm_tmp%d.out", thread_data->thread_num);
 
 		// build system command
 		//"echo \042 %s \042 | %s %u >> %s\n",
 		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", 
-			mpz_conv2str(&tmpstr, 10, thread_data->gmp_n),
-			fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, 
+			tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, 
 			thread_data->tmp_output);
 
 		// run system command
 		retcode = system(cmd);
 
 		free(tmpstr);
+		free(cmd);
 
 		// this is what I observed ecm returning on ctrl-c.  hopefully it is portable.
 		if (retcode == 33280)
