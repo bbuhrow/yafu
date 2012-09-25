@@ -88,7 +88,7 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
 void prepare_batchfile(char *input_exp);
-int process_batchline(char *input_exp, char *indup);
+char * process_batchline(char *input_exp, char *indup, int *code);
 void finalize_batchline();
 
 // functions to process all incoming arguments
@@ -98,7 +98,7 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj);
 
 int main(int argc, char *argv[])
 {
-	uint32 i=0,insize = GSTR_MAXSIZE;
+	uint32 insize = GSTR_MAXSIZE;
 	char *input_exp, *ptr, *indup;
 	str_t str;
 	z tmp;
@@ -205,13 +205,14 @@ int main(int argc, char *argv[])
 		//handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
-			i = process_batchline(input_exp, indup);
-			if (i == 1)
+			int code;
+			input_exp = process_batchline(input_exp, indup, &code);
+			if (code == 1)
 			{
 				finalize_batchline();
 				break;
 			}
-			else if (i == 2)
+			else if (code == 2)
 				continue;
 		}
 		else if (!is_cmdline_run)
@@ -962,7 +963,7 @@ void finalize_batchline()
 	return;
 }
 
-int process_batchline(char *input_exp, char *indup)
+char * process_batchline(char *input_exp, char *indup, int *code)
 {
 	int nChars, j, i;
 	char line[GSTR_MAXSIZE], tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
@@ -992,7 +993,8 @@ int process_batchline(char *input_exp, char *indup)
 		{
 			printf("eof; done processing batchfile\n");
 			fclose(batchfile);
-			return 1;
+			*code = 1;
+			return input_exp;
 		}
 
 		// check the line we read
@@ -1000,7 +1002,8 @@ int process_batchline(char *input_exp, char *indup)
 		{
 			printf("fgets returned null; done processing batchfile\n");		
 			fclose(batchfile);
-			return 1;
+			*code = 1;
+			return input_exp;
 		}
 
 		// remove LF an CRs from line
@@ -1054,11 +1057,15 @@ int process_batchline(char *input_exp, char *indup)
 	if (strlen(line) == 0)
 	{
 		printf("skipping blank line\n");
-		return 2;
+		*code = 2;
+		return input_exp;
 	}
 
 	//substitute the batchfile line into the '@' symbol in the input expression
 	nChars = 0;
+	if ((strlen(indup) + strlen(line)) >= GSTR_MAXSIZE)
+		input_exp = (char *)realloc(input_exp, strlen(indup) + strlen(line) + 2);
+
 	for (i=0; i<strlen(indup); i++)
 	{
 		if (indup[i] == '@')
@@ -1068,17 +1075,16 @@ int process_batchline(char *input_exp, char *indup)
 		}
 		else				
 			input_exp[nChars++] = indup[i];
-
-		if (nChars > GSTR_MAXSIZE)
-			input_exp = (char *)realloc(input_exp,strlen(indup) + strlen(line) + 2);
 	}
 	input_exp[nChars++] = '\0';
 
 	printf("=== Starting work on batchfile expression ===\n");
 	printf("%s\n",input_exp);
 	printf("=============================================\n");
+	fflush(stdout);
 
-	return 0;
+	*code = 0;
+	return input_exp;;
 }
 
 unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)

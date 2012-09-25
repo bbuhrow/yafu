@@ -241,6 +241,7 @@ void toStr(char *src, str_t *dest)
 
 void sGrow(str_t *str, int size)
 {
+	//printf("growing str_t size...\n");
 	str->s = (char *)realloc(str->s,size * sizeof(char));
 	if (str->s == NULL)
 	{
@@ -254,7 +255,7 @@ void sGrow(str_t *str, int size)
 
 void sAppend(const char *src, str_t *dest)
 {
-	if (((int)strlen(src) + dest->nchars) > dest->alloc)
+	if (((int)strlen(src) + dest->nchars) >= dest->alloc)
 	{
 		sGrow(dest,strlen(src) + dest->nchars + 10);
 		dest->alloc = strlen(src) + dest->nchars + 10;
@@ -273,6 +274,7 @@ void sCopy(str_t *dest, str_t *src)
 	{
 		//free(dest->s);
 		//dest->s = (char *)malloc((src->nchars+2) * sizeof(char));
+		//printf("growing str in sCopy...\n");
 		dest->s = (char *)realloc(dest->s, (src->nchars+2) * sizeof(char));
 		dest->alloc = src->nchars+2;
 	}
