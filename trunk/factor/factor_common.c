@@ -1536,17 +1536,23 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	}
 
 	// handle the case where the next state is a sieve method
-	if ((next_state == state_nfs) || (work_done > target_digits))
+	if ((next_state == state_nfs) || (work_done > target_digits) ||
+		((work_done > fobj->autofact_obj.only_pretest) && 
+		(fobj->autofact_obj.only_pretest != 0)))
 	{
 		flog = fopen(fobj->flogname,"a");
 		if (flog == NULL)
 		{
 			printf("fopen error: %s\n", strerror(errno));
 			printf("could not open %s for writing\n",fobj->flogname);
-			return;
+			flog = stderr;
 		}
 		logprint(flog,"final ECM pretested depth: %1.2f\n", work_done);		
 
+		// if the user specified -pretest, with or without arguments,
+		// we should stop factoring now that ecm is done.  this covers the
+		// case where the user specified a pretest work amount that was
+		// too large as determined by factor
 		if (fobj->autofact_obj.only_pretest)
 		{
 			fclose(flog);
@@ -1554,7 +1560,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		}
 
 		logprint(flog,"scheduler: switching to sieve method\n");
-		fclose(flog);
+		if (flog != stderr)
+			fclose(flog);
 
 		if (!have_tune || fobj->autofact_obj.prefer_xover)
 		{
@@ -1620,6 +1627,10 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	// to work.
 	double work_low, work_high, work;
 	uint32 tmp_curves;
+
+	// choose the max of target_digits or any user specified pretest ceiling
+	if (fobj->autofact_obj.only_pretest > 1)
+		target_digits = MIN(target_digits, fobj->autofact_obj.only_pretest);
 
 	work_low = get_ecm_curves_done(fwork, state);
 	work_high = get_max_ecm_curves(fwork, state);		

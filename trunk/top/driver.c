@@ -65,7 +65,7 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,0,0,
 	1,0,0,0,1,
 	1,1,1,0,1,
-	1,1,1,0,0,
+	1,1,1,2,0,
 	1,0,0,1,1,
 	2,2,0,1,0,
 	1,1,1,0,1,
@@ -1606,7 +1606,22 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	else if (strcmp(opt,OptionArray[38]) == 0)
 	{
 		//argument "pretest"
-		fobj->autofact_obj.only_pretest = 1;
+		if (arg == NULL)
+		{
+			// no argument, use the value "1" to signify doing 
+			// pretesting to the bounds computed by factor()
+			fobj->autofact_obj.only_pretest = 1;
+		}
+		else
+		{
+			// an optional argument to pretest is interpreted as
+			// a maximum t-level to pretest to
+			fobj->autofact_obj.only_pretest = strtoul(arg,NULL,10);
+			
+			// default behavior
+			if (fobj->autofact_obj.only_pretest == 0)
+				fobj->autofact_obj.only_pretest = 1;
+		}
 	}
 	else if (strcmp(opt,OptionArray[39]) == 0)
 	{
