@@ -354,7 +354,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			{
 				//create a new token
 				tmp[i] = '\0';
-				tokens[*num_tokens] = (char *)malloc((strlen(tmp) + 1) * sizeof(char));
+				tokens[*num_tokens] = (char *)malloc((strlen(tmp) + 2) * sizeof(char));
 				strcpy(tokens[*num_tokens],tmp);
 				token_types[*num_tokens] = el_type;
 				*num_tokens = *num_tokens + 1;
@@ -376,6 +376,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 		{
 			if (i == (tmpsize - 1))
 			{
+				//printf("growing tmpsize in tokenize...\n");
 				tmpsize += GSTR_MAXSIZE;
 				tmp = (char *)realloc(tmp,tmpsize * sizeof(char));
 			}

@@ -193,7 +193,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	uint64 reportIt, reportInc;
 	uint64 count;
 	uint64 i64;
-	FILE *flog;
+	FILE *flog = NULL;
 	uint32 M = 2 * 2 * 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7; //176400u
 	uint32 M1 = 11 * 17 * 23 * 31; //133331u
 	uint32 M2 = 13 * 19 * 29 * 37; //265031u
