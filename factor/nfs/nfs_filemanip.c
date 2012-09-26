@@ -70,7 +70,7 @@ void win_file_concat(char *filein, char *fileout)
 }
 
 
-int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 {
 	// see if we can resume a factorization based on the combination of input number,
 	// .job file, .fb file, .dat file, and/or .p file.  else, start new job.
@@ -110,7 +110,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 
 	FILE *in, *logfile;
 	char line[GSTR_MAXSIZE], *ptr;
-	int ans, do_poly_check, do_data_check;
+	int do_poly_check, do_data_check;
+	enum nfs_state_e ans;
 	msieve_obj *mobj = fobj->nfs_obj.mobj;
 
 	// 1) check for .dat file and resume flag
@@ -134,13 +135,13 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 			}
 
 			*last_spq = 0;
-			return -1;
+			return NFS_STATE_DONE;
 		}
 	}
 
 	do_data_check = 0;
 	do_poly_check = 0;
-	ans = 0;
+	ans = NFS_STATE_STARTNEW;
 
 	if (VFLAG > 0) printf("nfs: checking for job file - ");
 	in = fopen(fobj->nfs_obj.job_infile,"r");
@@ -190,11 +191,13 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
 
 						do_data_check = 1;		// job file matches: check for data file
-						if (VFLAG > 0) printf("number in job file matches input\n");
+						if (VFLAG > 0) 
+							printf("nfs: number in job file matches input\n");
 					}
 					else
 					{
-						if (VFLAG > 0) printf("number in job file does not match input\n");
+						if (VFLAG > 0)
+							printf("nfs: number in job file does not match input\n");
 						do_poly_check = 1;		// no match: check for poly file
 					}
 					mpz_clear(tmp);
@@ -214,22 +217,25 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 		char master_polyfile[80];
 		int do_poly_parse = 0;
 
-		if (VFLAG > 0) printf("nfs: checking for poly file - ");
+		if (VFLAG > 0) 
+			printf("nfs: checking for poly file - ");
 		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
 		in = fopen(master_polyfile,"r");
 		if (in == NULL)
 		{
-			if (VFLAG > 0) printf("no poly file found\n");
-			return 0;			// no .p file.
+			if (VFLAG > 0) 
+				printf("nfs: no poly file found\n");
+			return NFS_STATE_STARTNEW;			// no .p file.
 		}
 		else
 		{
 			ptr = fgets(line,GSTR_MAXSIZE,in);
 			if (ptr == NULL)
 			{
-				if (VFLAG > 0) printf("poly file empty\n");
-				return 0;		// .p file empty.
+				if (VFLAG > 0) 
+					printf("nfs: poly file empty\n");
+				return NFS_STATE_STARTNEW;		// .p file empty.
 			}
 			else
 			{
@@ -237,8 +243,9 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 
 				if (line[0] != 'n')
 				{
-					if (VFLAG > 0) printf("malformed poly file, first line should contain n: \n");
-					return 0;	// malformed .p file.
+					if (VFLAG > 0) 
+						printf("nfs: malformed poly file, first line should contain n: \n");
+					return NFS_STATE_STARTNEW;	// malformed .p file.
 				}
 				else
 				{
@@ -256,7 +263,8 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
 
-						if (VFLAG > 0) printf("poly file matches input\n");
+						if (VFLAG > 0) 
+							printf("nfs: poly file matches input\n");
 						do_poly_parse = 1;		// .p file matches: parse .p file
 					}
 					mpz_clear(tmp);
@@ -274,7 +282,7 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 				*last_spq = job->poly_time;
 				if (VFLAG > 0) printf("nfs: last leading coefficient was %u\n", 
 					job->last_leading_coeff);
-				return job->last_leading_coeff;
+				return NFS_STATE_RESUMEPOLY;
 			}
 			else
 			{
@@ -293,16 +301,16 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 				}
 
 				*last_spq = 0;
-				ans = -1;
+				return NFS_STATE_DONE;
 			}			
 		}
 		else
-			return 0;
+			return NFS_STATE_STARTNEW;
 	}
 	else if (do_data_check)
 	{
 		// ok, we have a job file for the current input.  this is a restart of sieving
-		ans = 1;
+		ans = NFS_STATE_RESUMESIEVE;
 
 		printf("nfs: checking for data file\n");
 		if (VFLAG > 0)
@@ -460,14 +468,14 @@ int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
 			}
 
 			*last_spq = 0;
-			ans = -1;
+			ans = NFS_STATE_DONE;
 		}
 
 	}
 	else
 	{
 		// job file is for a different input.  not a restart.
-		ans = 0;
+		ans = NFS_STATE_STARTNEW;
 		*last_spq = 0;
 	}
 

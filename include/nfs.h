@@ -43,6 +43,22 @@ enum nfs_thread_command {
 	NFS_COMMAND_END
 };
 
+enum nfs_state_e
+{
+	NFS_STATE_INIT,
+	NFS_STATE_POLY,
+	NFS_STATE_SIEVE,
+	NFS_STATE_FILTER,
+	NFS_STATE_LINALG,
+	NFS_STATE_SQRT,
+	NFS_STATE_CLEANUP,
+	NFS_STATE_FILTCHECK,
+	NFS_STATE_STARTNEW,
+	NFS_STATE_RESUMESIEVE,
+	NFS_STATE_RESUMEPOLY,
+	NFS_STATE_DONE
+};
+
 typedef struct
 {
 	uint32 fblim;
@@ -107,7 +123,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
-int check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
+void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job);
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job);

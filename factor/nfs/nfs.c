@@ -19,7 +19,6 @@ void nfsexit(int sig)
 	return;
 }
 
-
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
 {
@@ -34,7 +33,6 @@ void nfs(fact_obj_t *fobj)
 	uint32 flags = 0;
 	ggnfs_job_t job;
 	uint32 relations_needed = 1;	
-	uint32 startq, qrange = 1;
 	int is_continuation;
 	uint32 last_specialq = 0;
 	struct timeval stop;	// stop time of this job
@@ -44,10 +42,9 @@ void nfs(fact_obj_t *fobj)
 	TIME_DIFF *	difference;
 	double t_time;
 	uint32 pre_batch_rels = 0;
-	//FILE *logfile;
-	int statenum;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
+	enum nfs_state_e nfs_state;
 
 	obj_ptr = NULL;
 	//below a certain amount, revert to SIQS
@@ -59,19 +56,6 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}	
 		
-	// remove this - it messes with detecting whether or not 
-	// this is a restart of a job.
-	////first a small amount of trial division
-	////which will add anything found to the global factor list
-	////this is only called with the main thread
-	//if (VFLAG > 0)
-	//	printf("nfs: commencing trial factoring\n");
-	//mpz_set(fobj->div_obj.gmp_n, fobj->nfs_obj.gmp_n);
-	//fobj->div_obj.print = 0;
-	//fobj->div_obj.limit = 10000;
-	//zTrial(fobj);
-	//mpz_set(fobj->nfs_obj.gmp_n, fobj->div_obj.gmp_n);
-
 	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
@@ -194,21 +178,21 @@ void nfs(fact_obj_t *fobj)
 	
 	//nfs state machine:
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
-	statenum = 0;
+	nfs_state = NFS_STATE_INIT;
 	process_done = 0;
 	while (!process_done)
 	{
-		switch (statenum)
+		switch (nfs_state)
 		{
-		case 0: //"init":
-			//initialize some job parameters
+		case NFS_STATE_INIT:
+			// initialize some job parameters
 			job.current_rels = 0;
 
-			//write the input bigint as a string			
+			// write the input bigint as a string			
 			input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
 
-			//create an msieve_obj
-			//this will initialize the savefile to the outputfile name provided
+			// create an msieve_obj
+			// this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
 				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
 				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
@@ -219,16 +203,21 @@ void nfs(fact_obj_t *fobj)
 			job.last_leading_coeff = 0;
 			job.poly_time = 0;
 
-			//determine what to do next based on the state of various files
-			//this will set job.current_rels if it finds any
-			is_continuation = check_existing_files(fobj, &last_specialq, &job);
+			// determine what to do next based on the state of various files.
+			// this will set job.current_rels if it finds any
+			nfs_state = check_existing_files(fobj, &last_specialq, &job);
 
-			//get best parameters for the job - call this after checking the input
-			//against the savefile because the input could be changed (i.e., reduced
+			// get best parameters for the job - call this after checking the input
+			// against the savefile because the input could be changed (i.e., reduced
 			// by some factor).
-			get_ggnfs_params(fobj, &job);			
+			get_ggnfs_params(fobj, &job);
 
-			//if we are going to be doing sieving, check for the sievers
+			// override the table-driven parameters with the supplied parameters,
+			// if the user has supplied their own .job file
+			if (fobj->nfs_obj.user_job)
+				parse_job_file(fobj, &job);
+
+			// if we are going to be doing sieving, check for the sievers
 			if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
 			{
 				FILE *test;
@@ -255,53 +244,25 @@ void nfs(fact_obj_t *fobj)
 				gmp_base10(fobj->nfs_obj.gmp_n),
 				mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
-			//convert input to msieve bigint notation and initialize a list of factors
+			// convert input to msieve bigint notation and initialize a list of factors
 			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
 			factor_list_init(&factor_list);
 			
 			if (fobj->nfs_obj.rangeq > 0)
-				qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
-			else
-				qrange = job.qrange;
-
-			if (is_continuation == 0)
-			{
-				// didn't find a .job file or a .p file.  This is a new job
-				statenum = 9;
-			}
-			else if (is_continuation == 1)
-			{
-				// found a .job file, so we are resuming a job having already
-				// found a polynomial
-				statenum = 10;
-			}
-			else if (is_continuation > 1)
-			{
-				// didn't find a .job file, but did find and parse a .p file.
-				// resume poly selection
-				statenum = 11;
-			}
-			else
-			{
-				// something went wrong.  bail.
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;				
-			}						
+				job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);		
 
 			break;
 
-		case 1: //"polysearch":
+		case NFS_STATE_POLY:
 			
 			do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 			
 			if (fobj->nfs_obj.poly_only)
 				process_done = 1;
-			statenum = 2;
+			nfs_state = NFS_STATE_SIEVE;
 			break;
 
-		case 2: //"sieve":
+		case NFS_STATE_SIEVE:
 
 			pre_batch_rels = job.current_rels;
 			gettimeofday(&bstart, NULL);
@@ -313,27 +274,27 @@ void nfs(fact_obj_t *fobj)
 			if (fobj->nfs_obj.rangeq > 0)
 				process_done = 1;
 			else
-				statenum = 8;
+				nfs_state = NFS_STATE_FILTCHECK;
 
 			break;
 
-		case 3: //"filter":
+		case NFS_STATE_FILTER:
 
 			relations_needed = do_msieve_filtering(fobj, obj, &job);
 			if (relations_needed == 0)
-				statenum = 4;	//proceed to linear algebra
+				nfs_state = NFS_STATE_LINALG;
 			else
 			{
 				if (fobj->nfs_obj.post_only)
 					process_done = 1;
 				else
-					statenum = 2;	//more sieving
+					nfs_state = NFS_STATE_SIEVE;
 			}
 			break;
 
-		case 4: //case "linalg":
+		case NFS_STATE_LINALG:
 
-			//msieve: build matrix
+			// msieve: build matrix
 			flags = 0;
 			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
 			if (VFLAG > 0)
@@ -360,16 +321,17 @@ void nfs(fact_obj_t *fobj)
 					(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, (uint32)0, 0.0);
 			}
 
-			//try this hack - store a pointer to the msieve obj so that
-			//we can change a flag on abort in order to interrupt the LA.
+			// try this hack - store a pointer to the msieve obj so that
+			// we can change a flag on abort in order to interrupt the LA.
 			obj_ptr = obj;
 			nfs_solve_linear_system(obj, fobj->nfs_obj.gmp_n);
 			if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
-				statenum = 7;
+				nfs_state = NFS_STATE_DONE;
 			else
-				statenum = 5;
+				nfs_state = NFS_STATE_SQRT;
 
-			// reset it back to where it was
+			// set the msieve threads back to where it was if we used
+			// a different amount for linalg
 			if (LATHREADS > 0)
 			{
 				msieve_obj_free(obj);
@@ -381,9 +343,9 @@ void nfs(fact_obj_t *fobj)
 			obj_ptr = NULL;
 			break;
 
-		case 5: //case "sqrt":
+		case NFS_STATE_SQRT:
 
-			//msieve: find factors
+			// msieve: find factors
 			flags = 0;
 			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
 			if (VFLAG > 0)
@@ -396,8 +358,8 @@ void nfs(fact_obj_t *fobj)
 
 			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
 
-			//try this hack - store a pointer to the msieve obj so that
-			//we can change a flag on abort in order to interrupt the LA.
+			// try this hack - store a pointer to the msieve obj so that
+			// we can change a flag on abort in order to interrupt the LA.
 			obj_ptr = obj;
 
 			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
@@ -407,12 +369,12 @@ void nfs(fact_obj_t *fobj)
 			extract_factors(&factor_list,fobj);
 
 			if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
-				statenum = 6;		//completely factored, clean up everything
+				nfs_state = NFS_STATE_CLEANUP;		//completely factored, clean up everything
 			else
-				statenum = 7;		//not factored completely, keep files and stop
+				nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
 			break;
 
-		case 6: //case "cleanup":
+		case NFS_STATE_CLEANUP:
 			
 			remove(fobj->nfs_obj.outputfile);
 			remove(fobj->nfs_obj.fbfile);
@@ -441,14 +403,14 @@ void nfs(fact_obj_t *fobj)
 			logprint_oc(fobj->flogname, "a", "\n");
 
 			// free stuff			
-			statenum = 7;
+			nfs_state = NFS_STATE_DONE;
 			break;
 
-		case 7:
+		case NFS_STATE_DONE:
 			process_done = 1;
 			break;
 
-		case 8:		// check to see if we should try filtering
+		case NFS_STATE_FILTCHECK:
 			if (job.current_rels >= job.min_rels)
 			{
 				if (VFLAG > 0)
@@ -460,7 +422,7 @@ void nfs(fact_obj_t *fobj)
 				if (fobj->nfs_obj.sieve_only)
 					process_done = 1;
 				else
-					statenum = 3;
+					nfs_state = NFS_STATE_FILTER;
 			}
 			else
 			{
@@ -484,22 +446,18 @@ void nfs(fact_obj_t *fobj)
 						"(filtering ETA: %uh %um), continuing with sieving ...\n",
 					job.current_rels, job.min_rels, est_time / 3600, (est_time % 3600) / 60);
 
-				statenum = 2;
+				nfs_state = NFS_STATE_SIEVE;
 			}
 			break;
 
-		case 9:		// new factorization			
+		case NFS_STATE_STARTNEW:
 
-			startq = job.fblim / 2;
-			statenum = 1;								
-
-			//load the job structure with the starting Q.
-			job.startq = startq;
-			job.qrange = qrange;
+			job.startq = job.fblim / 2;
+			nfs_state = NFS_STATE_POLY;
 
 			//deal with custom commands
 			if (fobj->nfs_obj.poly_only)
-				statenum = 1;
+				nfs_state = NFS_STATE_POLY;
 			else if (fobj->nfs_obj.sieve_only || (fobj->nfs_obj.startq > 0))
 			{
 				printf("poly selection must be performed before sieving is possible\n");
@@ -566,22 +524,22 @@ void nfs(fact_obj_t *fobj)
 
 			break;
 
-		case 10:	// resume .job
+		case NFS_STATE_RESUMESIEVE:
 			if (last_specialq == 0)
 			{				
 				if (fobj->nfs_obj.startq > 0)
 				{
-					startq = fobj->nfs_obj.startq;
+					job.startq = fobj->nfs_obj.startq;
 					if (VFLAG >= 0)
 						printf("nfs: continuing with sieving at user specified special-q %u\n",
-							startq);
+							job.startq);
 
 					logprint_oc(fobj->flogname, "a", "nfs: continuing with sieving at user "
-						"specified special-q %u\n", startq);
+						"specified special-q %u\n", job.startq);
 				}
 				else
 				{
-					startq = job.fblim / 2;
+					job.startq = job.fblim / 2;
 					if (VFLAG >= 0)
 						printf("nfs: continuing with sieving - could not determine "
 							"last special q; using default startq\n");
@@ -591,42 +549,40 @@ void nfs(fact_obj_t *fobj)
 				}
 
 				// next step is sieving
-				statenum = 2;
+				nfs_state = NFS_STATE_SIEVE;
 			}
 			else
 			{				
 				if (fobj->nfs_obj.startq > 0)
 				{
-					startq = fobj->nfs_obj.startq;
-					statenum = 2;
+					job.startq = fobj->nfs_obj.startq;
+					nfs_state = NFS_STATE_SIEVE;
 				}
 				else if (fobj->nfs_obj.sieve_only)
 				{
-					startq = last_specialq;
-					statenum = 2;
+					job.startq = last_specialq;
+					nfs_state = NFS_STATE_SIEVE;
 				}
 				else
 				{
-					startq = last_specialq;
+					job.startq = last_specialq;
 
-					// since we apparently found some relations, see if it is enough
-					statenum = 8;
+					// since we apparently found some relations, and we done
+					// have any special plan in place from the user,
+					// see if we have enough to finish
+					nfs_state = NFS_STATE_FILTCHECK;
 				}
 
 				if (VFLAG >= 0)
 					printf("nfs: found %u relations, need at least %u, "
 					"continuing job at specialq = %u\n",
-					job.current_rels, job.min_rels, startq);
+					job.current_rels, job.min_rels, job.startq);
 
 				logprint_oc(fobj->flogname, "a", "nfs: found %u relations, "
 					"need at least %u, continuing job at specialq = %u\n",
-					job.current_rels, job.min_rels, startq);
+					job.current_rels, job.min_rels, job.startq);
 
 			}
-
-			//load the job structure with the starting Q.
-			job.startq = startq;
-			job.qrange = qrange;
 
 			//override with custom commands, if applicable
 			if (fobj->nfs_obj.poly_only)
@@ -639,30 +595,28 @@ void nfs(fact_obj_t *fobj)
 				process_done = 1;
 			}
 			else if (fobj->nfs_obj.sieve_only)
-				statenum = 2;
+				nfs_state = NFS_STATE_SIEVE;
 			else if (fobj->nfs_obj.post_only == 1)
-				statenum = 3;
+				nfs_state = NFS_STATE_FILTER;
 			else if (fobj->nfs_obj.post_only == 2)
-				statenum = 4;
+				nfs_state = NFS_STATE_LINALG;
 			else if (fobj->nfs_obj.post_only == 3)
-				statenum = 5;
+				nfs_state = NFS_STATE_SQRT;
 			else if (fobj->nfs_obj.la_restart)
-				statenum = 4;
+				nfs_state = NFS_STATE_LINALG;
 
 			break;
 
-		case 11:		// resume poly select			
+		case NFS_STATE_RESUMEPOLY:
 			if (VFLAG > 1) printf("nfs: resuming poly select\n");
 			fobj->nfs_obj.polystart = job.last_leading_coeff;
 
 			//load the job structure with the starting Q.
-			startq = job.fblim / 2;
-			job.startq = startq;
-			job.qrange = qrange;
+			job.startq = job.fblim / 2;
 
 			//override with custom commands, if applicable
 			if (fobj->nfs_obj.poly_only)
-				statenum = 1;
+				nfs_state = NFS_STATE_POLY;
 			else if (fobj->nfs_obj.sieve_only)			
 			{
 				printf("poly selection must be performed before sieving is possible\n");
@@ -673,9 +627,9 @@ void nfs(fact_obj_t *fobj)
 			}
 			else if (fobj->nfs_obj.startq > 0)
 			{
-				startq = fobj->nfs_obj.startq;
+				job.startq = fobj->nfs_obj.startq;
 				printf("sieving will start at special-q %u when poly selection finishes\n",
-					startq);
+					job.startq);
 			}
 			else if (fobj->nfs_obj.post_only)
 			{
@@ -694,7 +648,7 @@ void nfs(fact_obj_t *fobj)
 				process_done = 1;
 			}
 
-			statenum = 1;
+			nfs_state = NFS_STATE_POLY;
 
 			break;
 
@@ -792,8 +746,9 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	// doing things by hand by then anyway.
 	int i, d = gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
-	double fudge;
+	double fudge; // sundae :)
 	int found = 0;
+	uint32 lpb;
 
 	job->min_rels = 0;
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
@@ -862,44 +817,63 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 		}
 	}
 
-	// appoximate min_rels.  factMsieve.pl resource, except we always
-	// use LPBR == LPBA (for now... need to change to allow independent)
-	// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
-	// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
-	switch (job->lpb)
+	job->min_rels = 0;
+	for (i = 0; i < 2; i++)
 	{
-	case 24:
-		fudge = 0.2;
-		break;
-	case 25:
-		fudge = 0.35;
-		break;
-	case 26:
-		fudge = 0.54;
-		break;
-	case 27:
-		fudge = 0.63;
-		break;
-	case 28:
-		fudge = 0.69;
-		break;
-	case 29:
-		fudge = 0.84;
-		break;
-	case 30:
-		fudge = 0.89;
-		break;
-	case 31:
-		fudge = 0.91;
-		break;
-	default:
-		fudge = 0.2;
-		break;
+		// these are always the same now... but someday maybe they won't be.  this
+		// routine will handle that when we get there.
+		if (i == 0)
+			lpb = job->lpb;
+		else
+			lpb = job->lpb;
+
+		// appoximate min_rels:
+		// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
+		// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
+		switch (lpb)
+		{
+		case 24:
+			fudge = 0.35;
+			break;
+		case 25:
+			fudge = 0.50;
+			break;
+		case 26:
+			fudge = 0.60;
+			break;
+		case 27:
+			fudge = 0.70;
+			break;
+		case 28:
+			fudge = 0.76;
+			break;
+		case 29:
+			fudge = 0.84;
+			break;
+		case 30:
+			fudge = 0.89;
+			break;
+		case 31:
+			fudge = 0.91;
+			break;
+		case 32:
+			fudge = 0.95;
+			break;
+		case 33:
+			fudge = 0.98;
+			break;
+		default:
+			fudge = 0.2;
+			break;
+		}
+
+		job->min_rels += (uint32)(fudge * (
+			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
 
-	job->min_rels = (uint32)(2 * fudge * (
-		pow(2.0,(double)job->lpb) / log(pow(2.0,(double)job->lpb))));
 
+	// if the user specified a siever, use that one, else use the one
+	// determined from the lookup table
 	if (fobj->nfs_obj.siever > 0)
 	{
 		switch (fobj->nfs_obj.siever)
@@ -947,6 +921,117 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
 	
+	return;
+}
+
+void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job)
+{
+	FILE *in;
+	uint32 lpbr = 0, lpba = 0;
+	char line[1024];
+	double fudge; // brownie :)
+
+	// the only thing yafu really needs to know about a user supplied
+	// job file is the large prime bounds, since these influence
+	// the minimum rels boundary.  The rest of it goes directly to
+	// ggnfs and yafu doesn't care about it.
+
+	in = fopen(fobj->nfs_obj.job_infile, "r");
+	if (in == NULL)
+	{
+		printf("nfs: couldn't parse job file, using default min_rels\n");
+		return;
+	}
+
+	while (!feof(in))
+	{
+		char *substr, *ptr;
+		
+		ptr = fgets(line, 1024, in);
+
+		// bail if we couldn't read anything
+		if (ptr == NULL)
+		{
+			printf("nfs: couldn't parse job file, using default min_rels\n");
+			break;
+		}
+
+		substr = strstr(line, "lpbr:");
+
+		if (substr != NULL)
+		{
+			lpbr = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+
+		substr = strstr(line, "lpba:");
+
+		if (substr != NULL)
+			lpba = strtoul(substr + 5, NULL, 10);
+
+		if ((lpba > 0) && (lpbr > 0))
+		{
+			uint32 lpb;
+			int i;
+			job->min_rels = 0;
+
+			for (i = 0; i < 2; i++)
+			{
+				if (i == 0)
+					lpb = lpbr;
+				else
+					lpb = lpba;
+
+				// appoximate min_rels:
+				// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
+				// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
+				switch (lpb)
+				{
+				case 24:
+					fudge = 0.35;
+					break;
+				case 25:
+					fudge = 0.50;
+					break;
+				case 26:
+					fudge = 0.60;
+					break;
+				case 27:
+					fudge = 0.70;
+					break;
+				case 28:
+					fudge = 0.76;
+					break;
+				case 29:
+					fudge = 0.84;
+					break;
+				case 30:
+					fudge = 0.89;
+					break;
+				case 31:
+					fudge = 0.91;
+					break;
+				case 32:
+					fudge = 0.95;
+					break;
+				case 33:
+					fudge = 0.98;
+					break;
+				default:
+					fudge = 0.2;
+					break;
+				}
+
+				job->min_rels += (uint32)(fudge * (
+					pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
+			}
+
+			printf("nfs: parsed lpbr = %u, lpba = %u; setting min_rels = %u\n",
+				lpbr, lpba, job->min_rels);
+			break;
+		}			
+	}
+
 	return;
 }
 	
