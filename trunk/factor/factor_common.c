@@ -1538,7 +1538,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	// handle the case where the next state is a sieve method
 	if ((next_state == state_nfs) || (work_done > target_digits) ||
 		((work_done > fobj->autofact_obj.only_pretest) && 
-		(fobj->autofact_obj.only_pretest != 0)))
+		(fobj->autofact_obj.only_pretest > 1)))
 	{
 		flog = fopen(fobj->flogname,"a");
 		if (flog == NULL)

@@ -966,7 +966,7 @@ void finalize_batchline()
 char * process_batchline(char *input_exp, char *indup, int *code)
 {
 	int nChars, j, i;
-	char line[GSTR_MAXSIZE], tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
+	char *line, tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
 	FILE *batchfile, *tmpfile;
 
 	//try to open the file
@@ -981,30 +981,45 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 
 	//load the next line of the batch file and get the expression
 	//ready for processing
+	line = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	strcpy(line,"");
 	strcpy(input_exp,"");
 
 	// read a line - skipping blank lines
 	do
 	{
-		ptr = fgets(line,GSTR_MAXSIZE,batchfile);	
-
-		if (feof(batchfile))
+		while (1)
 		{
-			printf("eof; done processing batchfile\n");
-			fclose(batchfile);
-			*code = 1;
-			return input_exp;
-		}
+			ptr = fgets(tmpline,GSTR_MAXSIZE,batchfile);
+			strcpy(line + strlen(line), tmpline);
+			
+			// stop if we didn't read anything
+			if (feof(batchfile))
+			{
+				printf("eof; done processing batchfile\n");
+				fclose(batchfile);
+				*code = 1;
+				free(line);
+				return input_exp;
+			}
 
-		// check the line we read
-		if (ptr == NULL)
-		{
-			printf("fgets returned null; done processing batchfile\n");		
-			fclose(batchfile);
-			*code = 1;
-			return input_exp;
-		}
+			if (ptr == NULL)
+			{
+				printf("fgets returned null; done processing batchfile\n");		
+				fclose(batchfile);
+				*code = 1;
+				free(line);
+				return input_exp;
+			}
+
+			// if we got the end of the line, stop reading
+			if ((line[strlen(line)-1] == 0xa) ||
+				(line[strlen(line)-1] == 0xd))
+				break;
+
+			// else reallocate the buffer and get some more
+			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE) * sizeof(char));
+		} 
 
 		// remove LF an CRs from line
 		nChars = 0;
@@ -1058,6 +1073,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	{
 		printf("skipping blank line\n");
 		*code = 2;
+		free(line);
 		return input_exp;
 	}
 
@@ -1083,6 +1099,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	printf("=============================================\n");
 	fflush(stdout);
 
+	free(line);
 	*code = 0;
 	return input_exp;;
 }
