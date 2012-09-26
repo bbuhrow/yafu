@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.32.1"
+#define VERSION_STRING "1.32.2"
 
 //basics
 #define POSITIVE 0

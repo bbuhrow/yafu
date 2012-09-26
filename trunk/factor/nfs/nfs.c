@@ -1031,6 +1031,7 @@ void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job)
 			break;
 		}			
 	}
+	fclose(in);
 
 	return;
 }

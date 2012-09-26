@@ -25,6 +25,7 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
+# modify these for your particular gmp/gmp-ecm installation
 INC += -I../gmp/include
 LIBS += -L../gmp/lib/linux/x86_64
 
@@ -50,11 +51,13 @@ ifeq ($(TIMING),1)
 	CFLAGS += -DQS_TIMING
 endif
 
+# modify this for your particular msieve installation
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 	LIBS += -L../msieve/lib/linux/x86_64 -lmsieve
 endif
 
+# modify these for your particular cuda installation
 ifeq ($(CUDA),1)
 	CFLAGS += -DHAVE_CUDA
 #	INC += -I/users/buhrow/NVIDIA_GPU_Computing_SDK/C/common/inc
@@ -63,7 +66,7 @@ ifeq ($(CUDA),1)
 #	LIBS += /users/buhrow/NVIDIA_GPU_Computing_SDK/C/lib/libcutil_x86_64.a
 endif
 
-#MINGW builds don't need -pthread
+# use Makefile.mingw for mingw builds
 LIBS += -lm -lpthread
 
 ifeq ($(FORCE_MODERN),1)
