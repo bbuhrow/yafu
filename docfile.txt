@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.31
+YAFU Version 1.32.2
 
 --------------------------------------------------------------------------------
 Introduction:
@@ -95,8 +95,9 @@ flags to change program behavior.  Supported flags are:
 				should be used instead of qs.  Specifying this option overrides
 				any crossover point computed from tuning data.  May be entered
 				as a floating point number.
--pretest			Use this switch to do only pretesting of the input number to
-				the factor() routine.  Sieve methods (QS/NFS) are not used
+-pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
+				Optionally provide an integer value specifing the maximum level of
+				pretesting to do (up to "num" digits, or a t-level of "num")
 -ns	[X,Y]			Only perform sieving step within nfs() if a valid job file exists 
 				for the input number and if the input number is the same as 
 				that specified in an existing data file.  Optionally, provide 

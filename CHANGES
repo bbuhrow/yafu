@@ -1,3 +1,5 @@
+
+
 v 1.32.2
 + made "found poly" messages much less verbose
 + using /r instead of printing backspaces now in ecm.c and SIQS.c
@@ -9,6 +11,16 @@ v 1.32.2
 	HAVE_CUDA definition
 + more work on tinySIQS, but still not fully operational.
 + added another fclose in SIQS
++ fixed bugs that caused crashes when inputs numbers approached or exceeded
+	1024 characters in batchfiles.
++ updates to text output of factor() to prevent window scrolling
+	(thanks WraithX)
++ (re)support builds without NFS=1
++ got rid of cat.exe warning messages in windows that don't have unxutils
+	(thanks WraithX)
++ slight cleanup of nfs state machine
++ improved min_rels calculation (thanks Dubslow!)
++ added ability to parse user supplied job files for actual lpbr/a values
 
 
 v 1.32.1
