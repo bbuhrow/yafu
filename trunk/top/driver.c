@@ -1693,6 +1693,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->nfs_obj.job_infile,arg);
+			fobj->nfs_obj.user_job = 1;
 		}
 		else
 			printf("*** argument to -job too long, ignoring ***\n");

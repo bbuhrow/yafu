@@ -387,6 +387,7 @@ typedef struct
 	int poly_option;
 	int restart_flag;
 	int la_restart;
+	int user_job;
 	uint32 polybatch;
 
 	double gnfs_exponent;

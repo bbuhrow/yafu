@@ -278,6 +278,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.sq_side = 1;							//default = algebraic
 	fobj->nfs_obj.timeout = 0;							//default, not used
 	strcpy(fobj->nfs_obj.job_infile,"nfs.job");			//default
+	fobj->nfs_obj.user_job = 0;							//user supplied job file? no.
 	fobj->nfs_obj.sieve_only = 0;						//default = no
 	fobj->nfs_obj.poly_only = 0;						//default = no
 	fobj->nfs_obj.post_only = 0;						//default = no
@@ -1930,8 +1931,11 @@ void factor(fact_obj_t *fobj)
 	logprint(flog,"Starting factorization of %s\n",mpz_conv2str(&gstr1.s, 10, b));
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		logprint(flog,"custom pretest ratio is: %1.2f\n",
+		logprint(flog,"custom pretest ratio is: %1.4f\n",
 		fobj->autofact_obj.target_pretest_ratio);
+	if (fobj->autofact_obj.only_pretest > 1)
+		logprint(flog, "custom pretesting limit is: %d\n",
+		fobj->autofact_obj.only_pretest);
 	if (check_tune_params(fobj))
 	{
 		if (fobj->autofact_obj.prefer_xover)
@@ -1958,7 +1962,9 @@ void factor(fact_obj_t *fobj)
 		gmp_printf("fac: factoring %Zd\n",b);
 		printf("fac: using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 		if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-			printf("custom pretest ratio is: %1.2f\n",fobj->autofact_obj.target_pretest_ratio);
+			printf("fac: custom pretest ratio is: %1.4f\n",fobj->autofact_obj.target_pretest_ratio);
+		if (fobj->autofact_obj.only_pretest > 1)
+			printf("fac: custom pretesting limit is: %d\n",fobj->autofact_obj.only_pretest);
 		if (check_tune_params(fobj))
 		{
 			if (fobj->autofact_obj.prefer_xover)
