@@ -231,6 +231,7 @@ void init_factobj(fact_obj_t *fobj)
 	// an external binary
 	strcpy(fobj->ecm_obj.ecm_path,"");
 	fobj->ecm_obj.use_external = 0;
+	fobj->ecm_obj.ecm_ext_xover = 40000;
 
 	// initialize stuff for squfof
 	fobj->squfof_obj.num_factors = 0;	

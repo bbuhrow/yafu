@@ -537,7 +537,7 @@ void ecm_process_init(fact_obj_t *fobj)
 		}
 		else
 		{
-			if (fobj->ecm_obj.B1 < 40000 || fobj->ecm_obj.num_curves == 1)
+			if (fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover || fobj->ecm_obj.num_curves == 1)
 			{
 				THREADS = 1;
 				fobj->ecm_obj.use_external = 0;
@@ -546,7 +546,7 @@ void ecm_process_init(fact_obj_t *fobj)
 	}
 	else
 	{
-		if (fobj->ecm_obj.B1 < 40000)
+		if (fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover)
 			fobj->ecm_obj.use_external = 0;
 	}
 

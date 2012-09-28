@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 60
+#define NUMOPTIONS 61
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -50,7 +50,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"o", "a", "r", "ggnfsT", "job", 
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
-	"nc2", "nc3", "p", "work", "nprp"};
+	"nc2", "nc3", "p", "work", "nprp",
+	"ext_ecm"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -69,7 +70,8 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	2,2,0,1,0,
 	1,1,1,0,1,
-	0,0,0,1,1};
+	0,0,0,1,1,
+	1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1872,6 +1874,21 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "nprp"
 		NUM_WITNESSES = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[60]) == 0)
+	{
+		// argument "ecm_ext"
+		//argument should be all numeric
+		for (i=0;i<(int)strlen(arg);i++)
+		{
+			if (!isdigit(arg[i]))
+			{
+				printf("expected numeric input for option %s\n",opt);				
+				exit(1);
+			}
+		}
+
+		fobj->ecm_obj.ecm_ext_xover = strtoul(arg,NULL,10);
 	}
 	else
 	{
