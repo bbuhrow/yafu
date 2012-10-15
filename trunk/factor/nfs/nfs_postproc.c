@@ -32,8 +32,39 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
 	tmp = fopen(fobj->nfs_obj.fbfile,"r");
 	if (tmp == NULL)
 		ggnfs_to_msieve(fobj, job);
-	else
-		fclose(tmp);
+	//else
+	//	fclose(tmp);
+	else // test if the fb file is for this job
+	{
+		mpz_t num, r;
+		mpz_init(num);
+		mpz_init(r);
+		char line[GSTR_MAXSIZE];
+
+		while (fgets(line,GSTR_MAXSIZE,tmp))
+		{
+			if (line[0] == 'N')
+			{
+				mpz_set_str(num, line + 2, 0);
+				mpz_tdiv_r(r, fobj->nfs_obj.gmp_n, num);
+				if (mpz_cmp_ui(r, 0) == 0) // match, do nothing
+				{	
+					fclose(tmp);
+					break;
+				}
+				else
+				{
+					if (VFLAG > 0)
+						printf("nfs: warning: .fb file didn't match current job, overwriting\n");
+					fclose(tmp);
+					ggnfs_to_msieve(fobj, job);
+					break;
+				}
+			}
+		}
+		mpz_clear(r);
+		mpz_clear(num);
+	}
 
 	printf("%s\n",obj->input); //mp_print(mpN, 10, NULL, gstr1.s));
 	relations_needed = nfs_filter_relations(obj, fobj->nfs_obj.gmp_n);

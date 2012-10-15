@@ -276,7 +276,7 @@ void init_factobj(fact_obj_t *fobj)
 	strcpy(fobj->nfs_obj.outputfile,"nfs.dat");			//default
 	strcpy(fobj->nfs_obj.logfile,"nfs.log");			//default
 	strcpy(fobj->nfs_obj.fbfile,"nfs.fb");				//default
-	fobj->nfs_obj.sq_side = 1;							//default = algebraic
+	fobj->nfs_obj.sq_side = 0;							//default = algebraic
 	fobj->nfs_obj.timeout = 0;							//default, not used
 	strcpy(fobj->nfs_obj.job_infile,"nfs.job");			//default
 	fobj->nfs_obj.user_job = 0;							//user supplied job file? no.

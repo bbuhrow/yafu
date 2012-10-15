@@ -100,7 +100,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		uint32 hi = fb->B-1;
 		uint32 lo = sconf->sieve_small_fb_start; //(fb->B-1) / 4;
 		uint32 id;
-		uint64 diff, p;
+		uint64 p;
 		int doover, k;
 
 		// we have to be careful not to pick primes that fall into the

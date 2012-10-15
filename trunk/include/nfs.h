@@ -59,6 +59,14 @@ enum nfs_state_e
 	NFS_STATE_DONE
 };
 
+enum param_flag_e {
+	PARAM_FLAG_NONE = 0,
+	PARAM_FLAG_FBLIM = 0x1,
+	PARAM_FLAG_LPB = 0x2,
+	PARAM_FLAG_MFB = 0x4,
+	PARAM_FLAG_LAMBDA = 0x8
+};
+
 typedef struct
 {
 	uint32 fblim;
@@ -71,7 +79,8 @@ typedef struct
 	uint32 startq;
 	uint32 min_rels;
 	uint32 current_rels;
-
+	uint32 type;			// 0==GNFS, 1==SNFS
+	uint32 size;			// used for SNFS difficulty
 	uint32 poly_time;
 	uint32 last_leading_coeff;
 } ggnfs_job_t;
@@ -123,7 +132,11 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
-void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job);
+int check_for_sievers(fact_obj_t *fobj);
+//void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job);
+void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32* missing_params);
+void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params);
+
 enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);

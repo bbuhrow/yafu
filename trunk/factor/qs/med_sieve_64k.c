@@ -42,9 +42,10 @@ void med_sieveblock_64k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 {
 	uint32 i;
 	uint32 med_B;
-	uint8 logp;
+	
 #if !defined(SSE2_ASM_SIEVING) && !defined(ASM_SIEVING)	
 	uint32 prime, root1, root2, tmp, stop;
+	uint8 logp;
 #endif
 
 #if defined(SSE2_ASM_SIEVING) || defined(ASM_SIEVING)

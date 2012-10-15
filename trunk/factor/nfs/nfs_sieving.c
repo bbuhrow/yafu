@@ -131,7 +131,7 @@ void *lasieve_launcher(void *ptr)
 	remove(thread_data->outfilename);
 		
 	//start ggnfs binary
-	if (fobj->nfs_obj.sq_side)
+	if (fobj->nfs_obj.sq_side >= 0)
 		sprintf(syscmd,"%s -a %s -f %u -c %u -o %s -n %d",
 			thread_data->job.sievername, fobj->nfs_obj.job_infile, thread_data->job.startq, 
 			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
@@ -142,7 +142,7 @@ void *lasieve_launcher(void *ptr)
 
 	if (VFLAG >= 0)
 	{
-		if (fobj->nfs_obj.sq_side)
+		if (fobj->nfs_obj.sq_side >= 0)
 			printf("nfs: commencing algebraic side lattice sieving over range: %u - %u\n",
 				thread_data->job.startq, thread_data->job.startq + thread_data->job.qrange);
 		else

@@ -286,7 +286,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 			}
 			else
 			{
-				printf("must specify -R to resume when a polyfile already exists\n");	
+				printf("nfs: must specify -R to resume when a polyfile already exists\n");	
 
 				logfile = fopen(fobj->flogname, "a");
 				if (logfile == NULL)
@@ -311,10 +311,9 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 	{
 		// ok, we have a job file for the current input.  this is a restart of sieving
 		ans = NFS_STATE_RESUMESIEVE;
-
-		printf("nfs: checking for data file\n");
-		if (VFLAG > 0)
-			printf("nfs: commencing NFS restart\n");
+		
+		//if (VFLAG > 0)
+		//	printf("nfs: commencing NFS restart\n");
 
 		logfile = fopen(fobj->flogname, "a");
 		if (logfile == NULL)
@@ -328,6 +327,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 			fclose(logfile);
 		}
 
+		printf("nfs: checking for data file\n");
 		// attempt to open data file
 		if (!savefile_exists(&mobj->savefile))
 		{
@@ -723,6 +723,9 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 		exit(1);
 	}
 
+	get_ggnfs_params(fobj, job);
+	job->startq = job->fblim / 2;
+
 	//always overwrites previous job files!
 	out = fopen(fobj->nfs_obj.job_infile,"w");
 	if (out == NULL)
@@ -801,8 +804,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 	fprintf(out,"lpba: %u\n",job->lpb);
 	fprintf(out,"mfbr: %u\n",job->mfb);
 	fprintf(out,"mfba: %u\n",job->mfb);
-	fprintf(out,"rlambda: %f\n",job->lambda);
-	fprintf(out,"alambda: %f\n",job->lambda);
+	fprintf(out,"rlambda: %.1f\n",job->lambda);
+	fprintf(out,"alambda: %.1f\n",job->lambda);
 
 	fclose(in);
 	fclose(out);
@@ -861,8 +864,8 @@ void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
 	fprintf(out,"lpba: %u\n",job->lpb);
 	fprintf(out,"mfbr: %u\n",job->mfb);
 	fprintf(out,"mfba: %u\n",job->mfb);
-	fprintf(out,"rlambda: %f\n",job->lambda);
-	fprintf(out,"alambda: %f\n",job->lambda);
+	fprintf(out,"rlambda: %.1f\n",job->lambda);
+	fprintf(out,"alambda: %.1f\n",job->lambda);
 
 	fclose(in);
 	fclose(out);
@@ -908,6 +911,8 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 			sprintf(outline, "R%c %s",line[1], line + 4);
 		else if (line[0] == 'c')
 			sprintf(outline, "A%c %s",line[1], line + 4);
+		else if (line[0] == 'm' && line[1] == ':')
+			sprintf(outline, "R1 1\nR0 -%s", line + 3);
 		else
 			strcpy(outline, "");
 

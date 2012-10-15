@@ -14,7 +14,7 @@
   		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
 		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
 		"jae    9f \n\t"						/* jump to exit if so */ \
-		"7: \n\t"								/* start of 2x sieving loop */  	\	
+		"7: \n\t"								/* start of 2x sieving loop */  	\
   		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
 		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
 		"movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
