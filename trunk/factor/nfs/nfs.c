@@ -124,50 +124,6 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
-	//check for inconsistent options
-	if (((fobj->nfs_obj.startq > 0) && !(fobj->nfs_obj.rangeq > 0)) ||
-		(!(fobj->nfs_obj.startq > 0) && (fobj->nfs_obj.rangeq > 0)))
-	{
-		printf("-f and -c must be specified together\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
-	if (((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0)) && fobj->nfs_obj.poly_only)
-	{
-		printf("bad options: -np with -f or -c\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
-	if (((fobj->nfs_obj.startq > 0) || (fobj->nfs_obj.rangeq > 0)) && fobj->nfs_obj.post_only)
-	{
-		printf("bad options: -nc with -f or -c\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
-	if (fobj->nfs_obj.sieve_only && fobj->nfs_obj.post_only)
-	{
-		printf("bad options: -nc with -ns\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
-	if (fobj->nfs_obj.sieve_only && fobj->nfs_obj.poly_only)
-	{
-		printf("bad options: -np with -ns\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
-	if (fobj->nfs_obj.poly_only && fobj->nfs_obj.post_only)
-	{
-		printf("bad options: -nc with -np\n");
-		print_factors(fobj);
-		exit(1);
-	}
-
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -218,7 +174,8 @@ void nfs(fact_obj_t *fobj)
 				parse_job_file(fobj, &job);
 
 			// if we are going to be doing sieving, check for the sievers
-			if (!(fobj->nfs_obj.poly_only || fobj->nfs_obj.post_only))
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 			{
 				FILE *test;
 				// test for existence of the siever
@@ -234,6 +191,7 @@ void nfs(fact_obj_t *fobj)
 					mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 					return;
 				}
+				fclose(test);
 			}
 
 			if (VFLAG >= 0)
@@ -255,10 +213,10 @@ void nfs(fact_obj_t *fobj)
 
 		case NFS_STATE_POLY:
 			
-			do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
-			
-			if (fobj->nfs_obj.poly_only)
-				process_done = 1;
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
+				do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
+
 			nfs_state = NFS_STATE_SIEVE;
 			break;
 
@@ -266,112 +224,138 @@ void nfs(fact_obj_t *fobj)
 
 			pre_batch_rels = job.current_rels;
 			gettimeofday(&bstart, NULL);
-			do_sieving(fobj, &job);
 
-			// see how we're doing - force quit if user
-			// specified -ns with a fixed start and range,
-			// else see if we're ready for filtering
-			if (fobj->nfs_obj.rangeq > 0)
+			if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
+				!(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
+				do_sieving(fobj, &job);
+
+			// if this has been previously marked, then go ahead and exit.
+			if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
 				process_done = 1;
-			else
-				nfs_state = NFS_STATE_FILTCHECK;
+			
+			// if user specified -ns with a fixed start and range,
+			// then mark that we're done sieving.  
+			if (fobj->nfs_obj.rangeq > 0)
+			{
+				// we're done sieving the requested range, but there may be
+				// more phases to check, so don't exit yet
+				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+			}
+				
+			// then move on to the next phase
+			nfs_state = NFS_STATE_FILTCHECK;
 
 			break;
 
 		case NFS_STATE_FILTER:
 
-			relations_needed = do_msieve_filtering(fobj, obj, &job);
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_FILTER))
+				relations_needed = do_msieve_filtering(fobj, obj, &job);
+
 			if (relations_needed == 0)
 				nfs_state = NFS_STATE_LINALG;
 			else
-			{
-				if (fobj->nfs_obj.post_only)
-					process_done = 1;
-				else
-					nfs_state = NFS_STATE_SIEVE;
-			}
+				nfs_state = NFS_STATE_SIEVE;
+
 			break;
 
 		case NFS_STATE_LINALG:
 
-			// msieve: build matrix
-			flags = 0;
-			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-			if (VFLAG > 0)
-				flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-			flags = flags | MSIEVE_FLAG_NFS_LA;
-
-			// add restart flag if requested
-			if (fobj->nfs_obj.la_restart)
-				flags |= MSIEVE_FLAG_NFS_LA_RESTART;
-
-			obj->flags = flags;
-
-			if (VFLAG >= 0)
-				printf("nfs: commencing msieve linear algebra\n");
-
-			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve linear algebra\n");
-
-			// use a different number of threads for the LA, if requested
-			if (LATHREADS > 0)
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA_RESUME))
 			{
-				msieve_obj_free(obj);
-				obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-					fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-					(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, (uint32)0, 0.0);
-			}
+				// msieve: build matrix
+				flags = 0;
+				flags = flags | MSIEVE_FLAG_USE_LOGFILE;
+				if (VFLAG > 0)
+					flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+				flags = flags | MSIEVE_FLAG_NFS_LA;
 
-			// try this hack - store a pointer to the msieve obj so that
-			// we can change a flag on abort in order to interrupt the LA.
-			obj_ptr = obj;
-			nfs_solve_linear_system(obj, fobj->nfs_obj.gmp_n);
-			if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
-				nfs_state = NFS_STATE_DONE;
+				// add restart flag if requested
+				if (fobj->nfs_obj.nfs_phases & NFS_PHASE_LA_RESUME)
+					flags |= MSIEVE_FLAG_NFS_LA_RESTART;
+
+				obj->flags = flags;
+
+				if (VFLAG >= 0)
+					printf("nfs: commencing msieve linear algebra\n");
+
+				logprint_oc(fobj->flogname, "a", "nfs: commencing msieve linear algebra\n");
+
+				// use a different number of threads for the LA, if requested
+				if (LATHREADS > 0)
+				{
+					msieve_obj_free(obj);
+					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, (uint32)0, 0.0);
+				}
+
+				// try this hack - store a pointer to the msieve obj so that
+				// we can change a flag on abort in order to interrupt the LA.
+				obj_ptr = obj;
+				nfs_solve_linear_system(obj, fobj->nfs_obj.gmp_n);
+				if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
+					nfs_state = NFS_STATE_DONE;
+				else
+					nfs_state = NFS_STATE_SQRT;
+
+				// set the msieve threads back to where it was if we used
+				// a different amount for linalg
+				if (LATHREADS > 0)
+				{
+					msieve_obj_free(obj);
+					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
+						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
+						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+				}
+			
+				obj_ptr = NULL;
+			}
 			else
 				nfs_state = NFS_STATE_SQRT;
 
-			// set the msieve threads back to where it was if we used
-			// a different amount for linalg
-			if (LATHREADS > 0)
-			{
-				msieve_obj_free(obj);
-				obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-					fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-					(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
-			}
-			
-			obj_ptr = NULL;
 			break;
 
 		case NFS_STATE_SQRT:
 
-			// msieve: find factors
-			flags = 0;
-			flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-			if (VFLAG > 0)
-				flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
-			flags = flags | MSIEVE_FLAG_NFS_SQRT;
-			obj->flags = flags;
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT))
+			{
+				// msieve: find factors
+				flags = 0;
+				flags = flags | MSIEVE_FLAG_USE_LOGFILE;
+				if (VFLAG > 0)
+					flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
+				flags = flags | MSIEVE_FLAG_NFS_SQRT;
+				obj->flags = flags;
 
-			if (VFLAG >= 0)
-				printf("nfs: commencing msieve sqrt\n");
+				if (VFLAG >= 0)
+					printf("nfs: commencing msieve sqrt\n");
 
-			logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
+				logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
 
-			// try this hack - store a pointer to the msieve obj so that
-			// we can change a flag on abort in order to interrupt the LA.
-			obj_ptr = obj;
+				// try this hack - store a pointer to the msieve obj so that
+				// we can change a flag on abort in order to interrupt the LA.
+				obj_ptr = obj;
 
-			nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
+				nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
 
-			obj_ptr = NULL;
+				obj_ptr = NULL;
 			
-			extract_factors(&factor_list,fobj);
+				extract_factors(&factor_list,fobj);
 
-			if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
-				nfs_state = NFS_STATE_CLEANUP;		//completely factored, clean up everything
+				if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
+					nfs_state = NFS_STATE_CLEANUP;		//completely factored, clean up everything
+				else
+					nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
+			}
 			else
 				nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
+
 			break;
 
 		case NFS_STATE_CLEANUP:
@@ -417,12 +401,7 @@ void nfs(fact_obj_t *fobj)
 					printf("found %u relations, need at least %u, proceeding with filtering ...\n",
 					job.current_rels, job.min_rels);
 				
-				// if user specified -ns with no arguments, then
-				// quit once we are ready for filtering
-				if (fobj->nfs_obj.sieve_only)
-					process_done = 1;
-				else
-					nfs_state = NFS_STATE_FILTER;
+				nfs_state = NFS_STATE_FILTER;
 			}
 			else
 			{
@@ -453,35 +432,7 @@ void nfs(fact_obj_t *fobj)
 		case NFS_STATE_STARTNEW:
 
 			job.startq = job.fblim / 2;
-			nfs_state = NFS_STATE_POLY;
-
-			//deal with custom commands
-			if (fobj->nfs_obj.poly_only)
-				nfs_state = NFS_STATE_POLY;
-			else if (fobj->nfs_obj.sieve_only || (fobj->nfs_obj.startq > 0))
-			{
-				printf("poly selection must be performed before sieving is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
-			else if (fobj->nfs_obj.post_only)
-			{
-				printf("poly selection must be performed before post processing is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
-			else if (fobj->nfs_obj.la_restart)
-			{
-				printf("poly selection must be performed before post processing is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
+			nfs_state = NFS_STATE_POLY;		
 
 			// create a new directory for this job 
 //#ifdef _WIN32
@@ -558,11 +509,6 @@ void nfs(fact_obj_t *fobj)
 					job.startq = fobj->nfs_obj.startq;
 					nfs_state = NFS_STATE_SIEVE;
 				}
-				else if (fobj->nfs_obj.sieve_only)
-				{
-					job.startq = last_specialq;
-					nfs_state = NFS_STATE_SIEVE;
-				}
 				else
 				{
 					job.startq = last_specialq;
@@ -584,8 +530,9 @@ void nfs(fact_obj_t *fobj)
 
 			}
 
-			//override with custom commands, if applicable
-			if (fobj->nfs_obj.poly_only)
+			// if there is a job file and the user has specified -np, print
+			// this warning.
+			if (fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY)
 			{
 				printf("WARNING: .job file exists!  If you really want to redo poly selection,"
 					" delete the .job file.\n");
@@ -594,16 +541,6 @@ void nfs(fact_obj_t *fobj)
 				NFS_ABORT = 1;
 				process_done = 1;
 			}
-			else if (fobj->nfs_obj.sieve_only)
-				nfs_state = NFS_STATE_SIEVE;
-			else if (fobj->nfs_obj.post_only == 1)
-				nfs_state = NFS_STATE_FILTER;
-			else if (fobj->nfs_obj.post_only == 2)
-				nfs_state = NFS_STATE_LINALG;
-			else if (fobj->nfs_obj.post_only == 3)
-				nfs_state = NFS_STATE_SQRT;
-			else if (fobj->nfs_obj.la_restart)
-				nfs_state = NFS_STATE_LINALG;
 
 			break;
 
@@ -615,39 +552,6 @@ void nfs(fact_obj_t *fobj)
 			job.startq = job.fblim / 2;
 
 			//override with custom commands, if applicable
-			if (fobj->nfs_obj.poly_only)
-				nfs_state = NFS_STATE_POLY;
-			else if (fobj->nfs_obj.sieve_only)			
-			{
-				printf("poly selection must be performed before sieving is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
-			else if (fobj->nfs_obj.startq > 0)
-			{
-				job.startq = fobj->nfs_obj.startq;
-				printf("sieving will start at special-q %u when poly selection finishes\n",
-					job.startq);
-			}
-			else if (fobj->nfs_obj.post_only)
-			{
-				printf("poly selection must be performed before post processing is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
-			else if (fobj->nfs_obj.la_restart)
-			{
-				printf("poly selection must be performed before post processing is possible\n");
-				// non ideal solution to infinite loop in factor() if we return without factors
-				// (should return error code instead)
-				NFS_ABORT = 1;
-				process_done = 1;
-			}
-
 			nfs_state = NFS_STATE_POLY;
 
 			break;

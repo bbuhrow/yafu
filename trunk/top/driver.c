@@ -1073,7 +1073,14 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	//ignore blank lines
 	if (strlen(line) == 0)
 	{
-		printf("skipping blank line\n");
+		*code = 2;
+		free(line);
+		return input_exp;
+	}
+
+	//ignore comment lines
+	if (((line[0] == '/') && (line[1] == '/')) || (line[0] == '%'))
+	{
 		*code = 2;
 		free(line);
 		return input_exp;
@@ -1704,8 +1711,8 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		char **nextptr = &arg;
 
-		//argument "ns".  nfs sieving only
-		fobj->nfs_obj.sieve_only = 1;
+		//argument "ns".  do nfs sieving
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
 		
 		if (arg != NULL)
 		{
@@ -1738,8 +1745,8 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		char **nextptr = &arg;
 
-		//argument "np".  nfs poly finding only
-		fobj->nfs_obj.poly_only = 1;
+		//argument "np".  do poly finding.
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
 
 		if (arg != NULL)
 		{
@@ -1769,8 +1776,10 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[47]) == 0)
 	{
-		//argument "nc".  nfs post processing only, starting with filtering
-		fobj->nfs_obj.post_only = 1;
+		//argument "nc".  Do post processing, starting with filtering
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
 	}
 	else if (strcmp(opt,OptionArray[48]) == 0)
 	{
@@ -1809,6 +1818,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[51]) == 0)
 	{
+		// argument "ecm_path"
 		//argument is a string
 		if (strlen(arg) < 1024)
 			strcpy(fobj->ecm_obj.ecm_path,arg);
@@ -1817,6 +1827,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[52]) == 0)
 	{
+		// argument "siever"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -1832,10 +1843,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	else if (strcmp(opt,OptionArray[53]) == 0)
 	{
 		//argument "ncr".  linear algebra restart flag
-		fobj->nfs_obj.la_restart = 1;
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA_RESUME;
 	}
 	else if (strcmp(opt,OptionArray[54]) == 0)
 	{
+		// argument "lathreads"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -1850,13 +1862,13 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[55]) == 0)
 	{
-		//argument "nc2".  nfs post processing only, starting with LA
-		fobj->nfs_obj.post_only = 2;
+		//argument "nc2".  do linear algebra.
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
 	}
 	else if (strcmp(opt,OptionArray[56]) == 0)
 	{
-		//argument "nc3".  nfs post processing only, starting with sqrt
-		fobj->nfs_obj.post_only = 3;
+		//argument "nc3".  do nfs sqrt
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
 	}
 	else if (strcmp(opt, OptionArray[57]) == 0)
 	{
