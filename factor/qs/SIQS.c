@@ -2197,7 +2197,7 @@ int update_check(static_conf_t *sconf)
 	uint32 check_inc = sconf->check_inc;
 	double update_time = sconf->update_time;
 	double t_update;	
-	int i;
+	//int i;
 	fb_list *fb = sconf->factor_base;
 	int retcode = 0;
 

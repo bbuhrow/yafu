@@ -1689,7 +1689,8 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	else if (strcmp(opt,OptionArray[42]) == 0)
 	{
 		//argument "r".  Indicates rational side special Q.
-		fobj->nfs_obj.sq_side = 0;
+		//fobj->nfs_obj.sq_side = 0;
+		fobj->nfs_obj.sq_side = -1;
 	}
 	else if (strcmp(opt,OptionArray[43]) == 0)
 	{
