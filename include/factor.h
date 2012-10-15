@@ -77,6 +77,18 @@ typedef struct {
 	uint32 buf_off;
 } savefile_t;
 
+enum nfs_phase_flags
+{
+	NFS_DEFAULT_PHASES = 0,
+	NFS_PHASE_POLY = 0x1,
+	NFS_PHASE_SIEVE = 0x2,
+	NFS_PHASE_FILTER = 0x4,
+	NFS_PHASE_LA = 0x8,
+	NFS_PHASE_SQRT = 0x10,
+	NFS_PHASE_LA_RESUME = 0x20,
+	NFS_DONE_SIEVING = 0x40
+};
+
 enum msieve_flags {
 	MSIEVE_DEFAULT_FLAGS = 0,		/* just a placeholder */
 	MSIEVE_FLAG_USE_LOGFILE = 0x01,	    /* append log info to a logfile */
@@ -390,6 +402,7 @@ typedef struct
 	int la_restart;
 	int user_job;
 	uint32 polybatch;
+	uint32 nfs_phases;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;

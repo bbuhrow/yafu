@@ -46,7 +46,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 {
 	int i;
 	FILE *logfile;
-	char c[3];
+	char c[4];
 
 	// extract the factors
 	for (i=0;i<factor_list->num_factors;i++)
@@ -67,12 +67,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		{
 			//need to convert to yafu bigint to store
 			add_to_factor_list(fobj, tmp);
-			strcpy(c,"prp");
+			strncpy(c,"prp",3);
 		}
 		else
 		{
 			add_to_factor_list(fobj, tmp);
-			strcpy(c,"C");
+			strncpy(c,"C",1);
 		}
 
 		logfile = fopen(fobj->flogname, "a");
@@ -95,17 +95,17 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	//log anything left over
 	if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) > 0) 
 	{
-		char c[3];
+		char c[4];
 
 		if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-			strcpy(c,"prp");			
+			strncpy(c,"prp",3);			
 		}
 		else
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-			strcpy(c,"C");
+			strncpy(c,"C",1);
 		}
 		
 		logfile = fopen(fobj->flogname, "a");

@@ -220,7 +220,12 @@ int ecm_loop(fact_obj_t *fobj)
 				avg_batch_time = t_time / (double)num_batches;
 				est_time = (double)(fobj->ecm_obj.num_curves / THREADS - j) * avg_batch_time;
 
-				printf(", ETA: %1.0f sec ", est_time);
+				if (est_time > 3600)
+					printf(", ETA: %1.2f hrs ", est_time / 3600);
+				else if (est_time > 60)
+					printf(", ETA: %1.1f min ", est_time / 60);
+				else
+					printf(", ETA: %1.0f sec ", est_time);
 			}
 			printf("\r");
 			fflush(stdout);

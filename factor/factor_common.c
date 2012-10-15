@@ -288,6 +288,8 @@ void init_factobj(fact_obj_t *fobj)
 															//1 = wide
 															//2 = deep
 	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
+	fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
+
 	fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)
 	strcpy(fobj->nfs_obj.ggnfs_dir,".\\");
