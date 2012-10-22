@@ -263,6 +263,7 @@
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
     <ClCompile Include="..\..\factor\gpu_squfof.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
@@ -367,6 +368,7 @@
   <ItemGroup>
     <None Include="..\..\factor\gpu_squfof.cu">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

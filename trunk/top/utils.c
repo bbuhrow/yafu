@@ -1747,7 +1747,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input)
 {
 	int next = (idp + idm) / 2;
-
+	
 	while ((idp - idm) > 10)
 	{
 		if (input[next] > q)

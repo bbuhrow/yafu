@@ -686,7 +686,7 @@ void smallmpqs(fact_obj_t *fobj)
 	if (spSOEprimes[szSOEp - 1] <= poly->poly_d)
 		smpqs_get_more_primes(poly);
 
-	pindex = bin_search_uint32(NUM_P, 0, poly->poly_d, spSOEprimes);
+	pindex = bin_search_uint32(szSOEp, 0, poly->poly_d, spSOEprimes);
 	if (pindex < 0)
 	{
 		printf("prime not found in binary search\n");
