@@ -48,7 +48,7 @@ code to the public domain.
 
 /* system-independent header files ------------------------------------*/
 
-
+#include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <errno.h>

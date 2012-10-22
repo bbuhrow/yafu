@@ -36,10 +36,11 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
 	//	fclose(tmp);
 	else // test if the fb file is for this job
 	{
+		char line[GSTR_MAXSIZE];
 		mpz_t num, r;
 		mpz_init(num);
 		mpz_init(r);
-		char line[GSTR_MAXSIZE];
+		
 
 		while (fgets(line,GSTR_MAXSIZE,tmp))
 		{
@@ -98,12 +99,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		{
 			//need to convert to yafu bigint to store
 			add_to_factor_list(fobj, tmp);
-			strncpy(c,"prp",3);
+			strncpy(c,"prp",4);
 		}
 		else
 		{
 			add_to_factor_list(fobj, tmp);
-			strncpy(c,"C",1);
+			strncpy(c,"C",2);
 		}
 
 		logfile = fopen(fobj->flogname, "a");
@@ -131,12 +132,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-			strncpy(c,"prp",3);			
+			strncpy(c,"prp",4);			
 		}
 		else
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
-			strncpy(c,"C",1);
+			strncpy(c,"C",2);
 		}
 		
 		logfile = fopen(fobj->flogname, "a");
