@@ -1,6 +1,8 @@
 #include "nfs.h"
 #include "gmp_xface.h"
 
+#ifdef USE_NFS
+
 uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
 {
 	FILE *tmp, *logfile;
@@ -160,3 +162,4 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	return;
 }
 
+#endif

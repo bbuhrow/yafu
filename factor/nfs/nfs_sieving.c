@@ -1,5 +1,7 @@
 #include "nfs.h"
 
+#ifdef USE_NFS
+
 void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job)
 {
 	nfs_threaddata_t *thread_data;		//an array of thread data objects
@@ -171,3 +173,4 @@ void *lasieve_launcher(void *ptr)
 	return 0;
 }
 
+#endif

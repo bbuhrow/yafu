@@ -1,6 +1,8 @@
 #include "nfs.h"
 #include "gmp_xface.h"
 
+#ifdef USE_NFS
+
 void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
 {
 	FILE *in;
@@ -925,3 +927,4 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 	return;
 }
 
+#endif
