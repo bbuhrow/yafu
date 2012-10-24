@@ -67,11 +67,11 @@
 		"pcmpeqw %%xmm2, %%xmm5 \n\t"	/* root1s ?= 0 */ \
 		"pcmpeqw %%xmm3, %%xmm6 \n\t"	/* root2s ?= 0 */ \
 		"por %%xmm5, %%xmm7 \n\t"		/* combine results */ \
-		"por %%xmm6, %%xmm8 \n\t"		/* combine results */
+		"por %%xmm6, %%xmm0 \n\t"		/* combine results */
 
 	#define INIT_RESIEVE \
 		"movdqa (%4), %%xmm4 \n\t"		/* bring in corrections to roots */				\
-		"pxor %%xmm8, %%xmm8 \n\t"		/* zero xmm8 */ \
+		"pxor %%xmm0, %%xmm0 \n\t"		/* zero xmm8 */ \
 		"movdqa (%2), %%xmm2 \n\t"		/* bring in 8 root1s */ \
 		"paddw %%xmm4, %%xmm2 \n\t"		/* correct root1s */ \
 		"movdqa (%3), %%xmm3 \n\t"		/* bring in 8 root2s */ \
@@ -88,11 +88,11 @@
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
-			"por	%%xmm8, %%xmm7 \n\t" \
+			"por	%%xmm0, %%xmm7 \n\t" \
 			"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 			: "=r"(result) \
 			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
+			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
 			);
 
 	#define RESIEVE_8X_15BIT_MAX \
@@ -100,22 +100,22 @@
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
-			"por	%%xmm8, %%xmm7 \n\t" \
+			"por	%%xmm0, %%xmm7 \n\t" \
 			"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 			: "=r"(result) \
 			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
+			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
 			);
 
 	#define RESIEVE_8X_16BIT_MAX \
 		asm ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
-			"por	%%xmm8, %%xmm7 \n\t" \
+			"por	%%xmm0, %%xmm7 \n\t" \
 			"pmovmskb %%xmm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
 			: "=r"(result) \
 			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "cc", "memory" \
+			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
 			);
 
 
