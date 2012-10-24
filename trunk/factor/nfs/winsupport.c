@@ -3,6 +3,8 @@
 #include "arith.h"
 #include "factor.h"
 
+#ifdef USE_NFS
+
 // windows builds need to supply the following functions because they 
 // are not available within gnfs.lib or common.lib, but are available
 // within libmsieve.a
@@ -339,3 +341,4 @@ static void factor_list_add_core(msieve_obj *obj,
 	}
 }
 
+#endif

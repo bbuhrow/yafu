@@ -1,5 +1,7 @@
 #include "nfs.h"
 
+#ifdef USE_NFS
+
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
 	mp_t *mpN, factor_list_t *factor_list)
 {
@@ -557,3 +559,5 @@ void *polyfind_launcher(void *ptr)
 
 	return 0;
 }
+
+#endif

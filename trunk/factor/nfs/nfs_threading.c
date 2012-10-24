@@ -1,5 +1,7 @@
 #include "nfs.h"
 
+#ifdef USE_NFS
+
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
 				uint32 is_master_thread) {
 
@@ -177,3 +179,5 @@ void *nfs_worker_thread_main(void *thread_data) {
 	return NULL;
 #endif
 }
+
+#endif
