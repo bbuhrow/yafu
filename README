@@ -4,6 +4,8 @@ INSTALLATION
 
 No installation necessary, just put the binary in whatever 
 location you like and run it.  
+Support and an active user community can be found here:
+http://www.mersenneforum.org/forumdisplay.php?f=96
 
 ---------------------------------------------------------------
 INSTALLATION WITH NFS SUPPORT
@@ -55,30 +57,20 @@ love to hear about it!
 
 GCC 32 bit OS
 =============
-make x86 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
+make x86 [NFS=1] [PROFILE=1] [TIMING=1] [NFS=1]
 
 GCC 64 bit OS
 =============
-make x86_64 [GMPECM=1] [BLOCK=64] [PROFILE=1] [TIMING=1] [NFS=1]
+make x86_64 [NFS=1] [PROFILE=1] [TIMING=1] [NFS=1]
 
 Optionally enable GNFS factorizations by setting NFS=1 during
 make.  This will require the makefile to be edited to point to 
 the libmsieve.a library.  By default, it is assumed to be located
-at ../msieve/ relative to the Makefile.  Selecting NFS=1 will also
-require GMP and GMP-ECM.  See below.
+at ../msieve/ relative to the Makefile.  
 
-Optionally enable the p+1, p-1, and ecm factoring routines
-to utilize GMPECM libraries by setting GMPECM=1 during make.
-This will require the makefile to be edited to point to the
-location of your gmp and gmpecm libraries and include files.
-
-Optionally enable 64k sieve block sizes by setting BLOCK=64 
-during make.  This sets the size of the sieve interval during
-siqs, mpqs, pqs, and the sieve of eratosthenes.  In general
-the sieve block size should match the L1 data cache size of your
-CPU.  64k blocksizes are faster for AMD64 systems 
-(and possibly some older systems).  All intel chips should not
-use BLOCK=64.
+Yafu now requires gmp and gmp-ecm to be linked in at compile time.
+Some support can be had here:
+http://www.mersenneforum.org/forumdisplay.php?f=96
 
 Optionally enable gcc profiling by setting PROFILE=1 during 
 make.  this produces profiling information when run and thus
@@ -162,15 +154,8 @@ Win32.
 
 MINGW-64 OR MINGW-32
 =============
-YAFU should build in a mingw or mingw-64 environment.  Follow the
-instructions for a GCC build, except the makefile will need to
-be edited in the following way first:
-
-uncomment this line (remove the # symbol):
-#LIBS += -lm
-
-and comment this line
-LIBS += -lm -lpthread
+YAFU should build in a mingw or mingw-64 environment.  The 
+src zip file should include a Makefile.mingw for this purpose.
 
 
 

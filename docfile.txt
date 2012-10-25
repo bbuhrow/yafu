@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.32.2
+YAFU Version 1.33
 
 --------------------------------------------------------------------------------
 Introduction:
@@ -98,18 +98,29 @@ flags to change program behavior.  Supported flags are:
 -pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
 				Optionally provide an integer value specifing the maximum level of
 				pretesting to do (up to "num" digits, or a t-level of "num")
--ns	[X,Y]			Only perform sieving step within nfs() if a valid job file exists 
+				
+NFS BEHAVIOR OPTIONS
+general info: if none of these options are specified, yafu will perform all of
+them in order (poly search, sieving, filter, LA, sqrt).  On restarts, the set 
+of phases performed is automatically determined by yafu and depends on the state
+of one or more saved files associated with the input number.  If any of the
+following 5 options are specified, only those phases will be performed; checks
+against saved files will still be in place (i.e., refusal to overwrite data files)
+
+-np	[X,Y]		Perform poly search step within nfs().  NOTE: any existing 
+				poly files will be overwritten.  Optionally, provide a range of 
+				leading coefficients over which to search in the format: start,stop
+-ns	[X,Y]		Perform sieving step within nfs() if a valid job file exists 
 				for the input number and if the input number is the same as 
 				that specified in an existing data file.  Optionally, provide 
 				a range of special Q over which to sieve in the format: start,stop
--np	[X,Y]			Only perform poly search step within nfs().  NOTE: any existing 
-				poly files will be overwritten.  Optionally, provide a range of 
-				leading coefficients over which to search in the format: start,stop
--nc				Only perform postprocessing step within nfs(), starting with 
+-nc				Perform postprocessing step within nfs(), starting with 
 				filtering
--nc2				Only perform postprocessing step within nfs(), starting with 
+-nc2			Perform postprocessing step within nfs(), starting with 
 				linear algebra
--nc3				Only perform postprocessing step within nfs(), starting with sqrt
+-nc3			Perform postprocessing step within nfs(), starting with sqrt
+
+
 -lathreads	<num>		Use specified number of threads for linear algebra only.  If 
 				not specified, 'threads' threads are used (which defaults to 1).
 -a				Use special Q on the algebraic side within nfs() (default)
@@ -133,7 +144,11 @@ flags to change program behavior.  Supported flags are:
 				the integer in the default ggnfs siever name.  I.e, 
 				ggnfs-lasieve4I<num>e.exe		
 -ecm_path <path>	full path to ecm binary
--nprp <num>			Specify the number of witnesses to every Rabin-				Miller test in yafu
+-nprp <num>			Specify the number of witnesses to every Rabin-Miller test in yafu
+-ext_ecm <num>	specify the B1 value beyond which yafu will attempt to use
+				external ecm binaries.  below the specified threshold it will use
+				built-in ecm code
+				
 
 
 These flags are ignored when redirecting input to yafu.

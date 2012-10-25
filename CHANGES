@@ -1,6 +1,6 @@
 
 
-v 1.32.2
+v 1.33
 + made "found poly" messages much less verbose
 + using /r instead of printing backspaces now in ecm.c and SIQS.c
 + ggnfs jobs launched by yafu will now print out individual .last_spq files 
@@ -10,7 +10,7 @@ v 1.32.2
 	and probably not even beneficial at this point.  currently protected by 
 	HAVE_CUDA definition
 + more work on tinySIQS, but still not fully operational.
-+ added another fclose in SIQS
++ added more fclose's (thanks jcrombie!)
 + fixed bugs that caused crashes when inputs numbers approached or exceeded
 	1024 characters in batchfiles.
 + updates to text output of factor() to prevent window scrolling
@@ -19,8 +19,20 @@ v 1.32.2
 + got rid of cat.exe warning messages in windows that don't have unxutils
 	(thanks WraithX)
 + slight cleanup of nfs state machine
-+ improved min_rels calculation (thanks Dubslow!)
-+ added ability to parse user supplied job files for actual lpbr/a values
++ improved min_rels calculation 
++ added ability to parse user supplied job files and supply missing parameters
+	(thanks Dubslow!)
++ added additional support for user supplied snfs job files (allow input
+	difficult, scale job parameters accordingly)
++ (re)support x86 builds on linux (thanks EdH!)
++ support for multiple nfs options simultaneously
++ allow comment lines in batch files (// or %)
++ new option to specify the B1 level beyond which ecm will attempt to use 
+	external binaries: "ext_ecm"
++ more digits when quoting user supplied pretest ratios
++ notify user of any pretest limits in place
++ cleanup of nfs state machine
+
 
 
 v 1.32.1
