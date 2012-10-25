@@ -329,6 +329,7 @@ code to the public domain.
 		#define MySleep(x) usleep((x)*1000)
 		#define strto_fpdigit strtoul
 		#define strto_uint64 strtoull
+		#define align_free free
 
 		typedef unsigned char uint8;
 		typedef unsigned short uint16;
