@@ -1047,14 +1047,14 @@ void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32* missing_params)
 		substr = strstr(line, "rlambda:");		
 		if (substr != NULL)
 		{
-			rlambda = sscanf(substr + 8, "%f"); //strtof(substr + 8, NULL);
+			sscanf(substr + 8, "%f", &rlambda); //strtof(substr + 8, NULL);
 			continue;
 		}
 		
 		substr = strstr(line, "alambda:");		
 		if (substr != NULL)
 		{
-			alambda = sscanf(substr + 8, "%f"); //strtof(substr + 8, NULL);
+			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
 			continue;
 		}
 	}
