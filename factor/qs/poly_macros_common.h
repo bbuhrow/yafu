@@ -1,4 +1,51 @@
 
+#ifndef _POLY_COMMON_H_
+#define _POLY_COMMON_H_
+
+typedef struct 
+{
+	//read/write data inputs
+	uint32 *numptr_n;
+	uint32 *numptr_p;
+	uint32 *sliceptr_n;
+	uint32 *sliceptr_p;
+	uint32 *update_data_prime;
+	int *update_data_root1;
+	int *update_data_root2;
+	uint8 *update_data_logp;
+	lp_bucket *lp_bucket_p;
+	int *ptr;
+
+	//read only inputs:
+	uint32 large_B;
+	uint32 B;
+	uint32 interval;
+	int numblocks;
+
+	//read/write words
+	uint32 bound_val;
+	int bound_index;
+	int check_bound;
+	uint8 logp;
+
+	uint32 intervalm1;
+
+} polysieve_t;
+
+typedef struct 
+{
+	uint16 *first_r1;
+	uint16 *first_r2;
+	uint16 *fbp1;
+	uint16 *fbp2;
+	uint16 *fbn1;
+	uint16 *fbn2;
+	uint16 *primes;
+	uint16 *updates;
+	uint32 start;
+	uint32 stop;
+} small_update_t;
+
 #define CHECK_NEW_SLICE(j)									\
 	if (j >= check_bound)							\
 	{														\
@@ -191,42 +238,42 @@
 			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
 			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
 			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\			
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 8 new roots on the P side */	\
 			"movdqa	(%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = ptr */	\
 			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
-			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
+			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\			
+			"psubw	%%xmm3, %%xmm1 \n\t"					/* root1 -= ptr */	\
+			"psubw	%%xmm3, %%xmm2 \n\t"					/* root2 -= ptr */	\
 			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
-			"psubw	%%xmm3, %%xmm1 \n\t"			/* root1 -= ptr */	\
-			"psubw	%%xmm3, %%xmm2 \n\t"			/* root2 -= ptr */	\
-			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */	\
-			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */	\
-			"pcmpgtw	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
-			"pcmpgtw	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
-			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
-			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
-			"paddw	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */	\
-			"paddw	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */	\
-			"movdqa %%xmm2, %%xmm5 \n\t"			/* xmm5 = root2 copy */	\
-			"pmaxsw	%%xmm1, %%xmm5 \n\t"		/* xmm5 = root2 > root1 ? root2 : root1 */	\
-			"pminsw	%%xmm1, %%xmm2 \n\t"		/* xmm2 = root2 < root1 ? root2 : root1 */	\
-			/* now copy results to appropriate data structures */	\
-			"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */	\
-			/* root1p always gets the smaller roots (LT) */	\
-			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"				/* update root1p */	\
-			"psubw	%%xmm2, %%xmm0 \n\t"			/* prime - LT roots */	\
-			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"				/* update firstroots1 */	\
-			/* root2p always gets the bigger roots (GT) */	\
-			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"				/* update root2p */	\
-			"psubw	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */	\
-			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"				/* update firstroots2 */	\
-			/* root1n always gets prime - bigger roots (LT) */	\
-			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"				/* update root1n */	\
-			/* root2n always gets prime - smaller roots (GT) */	\
-			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"				/* update root2n */	\
+			"pxor	%%xmm4, %%xmm4 \n\t"					/* zero xmm4 */	\
+			"pxor	%%xmm5, %%xmm5 \n\t"					/* zero xmm5 */	\
+			"pcmpgtw	%%xmm1, %%xmm4 \n\t"				/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
+			"pcmpgtw	%%xmm2, %%xmm5 \n\t"				/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
+			"pand	%%xmm0, %%xmm4 \n\t"					/* copy prime to overflow locations (are set to 1) */	\
+			"pand	%%xmm0, %%xmm5 \n\t"					/* copy prime to overflow locations (are set to 1) */	\
+			"paddw	%%xmm4, %%xmm1 \n\t"					/* selectively add back prime (modular subtract) */	\
+			"paddw	%%xmm5, %%xmm2 \n\t"					/* selectively add back prime (modular subtract) */	\
+			"movdqa %%xmm2, %%xmm5 \n\t"					/* xmm5 = root2 copy */	\
+			"pmaxsw	%%xmm1, %%xmm5 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"pminsw	%%xmm1, %%xmm2 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+															/* now copy results to appropriate data structures */	\
+			"movdqa	%%xmm0, %%xmm4 \n\t"					/* copy primes */	\
+															/* root1p always gets the smaller roots (LT) */	\
+			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"			/* update root1p */	\
+			"psubw	%%xmm2, %%xmm0 \n\t"					/* prime - LT roots */	\
+			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"			/* update firstroots1 */	\
+															/* root2p always gets the bigger roots (GT) */	\
+			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"			/* update root2p */	\
+			"psubw	%%xmm5, %%xmm4 \n\t"					/* prime - GT roots */	\
+			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"			/* update firstroots2 */	\
+															/* root1n always gets prime - bigger roots (LT) */	\
+			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"			/* update root1n */	\
+															/* root2n always gets prime - smaller roots (GT) */	\
+			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"			/* update root2n */	\
 			"addl	$8, %%eax \n\t"	\
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jb		0b \n\t"	\
@@ -255,39 +302,39 @@
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 8 new roots on the N side */	\
-			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\
-			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
+			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\			
 			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
 			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
-			"paddw	%%xmm3, %%xmm1 \n\t"			/* root1 += ptr */	\
-			"paddw	%%xmm3, %%xmm2 \n\t"			/* root2 += ptr */	\
-			"pxor	%%xmm4, %%xmm4 \n\t"			/* zero xmm4 */	\
-			"pxor	%%xmm5, %%xmm5 \n\t"			/* zero xmm5 */	\
-			"psubw	%%xmm0, %%xmm1 \n\t"			/* (modular subtract) */		\
-			"psubw	%%xmm0, %%xmm2 \n\t"			/* (modular subtract) */	\
-			"pcmpgtw	%%xmm1, %%xmm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
-			"pcmpgtw	%%xmm2, %%xmm5 \n\t"		/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
-			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
-			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */	\
-			"paddw	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */	\
-			"paddw	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */	\
-			"movdqa %%xmm2, %%xmm5 \n\t"			/* xmm5 = root2 copy */	\
-			"pmaxsw	%%xmm1, %%xmm5 \n\t"		/* xmm5 = root2 > root1 ? root2 : root1 */	\
-			"pminsw	%%xmm1, %%xmm2 \n\t"		/* xmm2 = root2 < root1 ? root2 : root1 */	\
-			/* now copy results to appropriate data structures */	\
-			"movdqa	%%xmm0, %%xmm4 \n\t"			/* copy primes */	\
-			/* root1p always gets the smaller roots (LT) */	\
-			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"				/* update root1p */	\
-			"psubw	%%xmm2, %%xmm0 \n\t"			/* prime - LT roots */	\
-			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"				/* update firstroots1 */	\
-			/* root2p always gets the bigger roots (GT) */	\
-			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"				/* update root2p */	\
-			"psubw	%%xmm5, %%xmm4 \n\t"			/* prime - GT roots */	\
-			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"				/* update firstroots2 */	\
-			/* root1n always gets prime - bigger roots (LT) */	\
-			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"				/* update root1n */	\
-			/* root2n always gets prime - smaller roots (GT) */	\
-			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"				/* update root2n */	\
+			"paddw	%%xmm3, %%xmm1 \n\t"					/* root1 += ptr */	\
+			"paddw	%%xmm3, %%xmm2 \n\t"					/* root2 += ptr */	\
+			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
+			"pxor	%%xmm4, %%xmm4 \n\t"					/* zero xmm4 */	\
+			"pxor	%%xmm5, %%xmm5 \n\t"					/* zero xmm5 */	\
+			"psubw	%%xmm0, %%xmm1 \n\t"					/* (modular subtract) */		\
+			"psubw	%%xmm0, %%xmm2 \n\t"					/* (modular subtract) */	\
+			"pcmpgtw	%%xmm1, %%xmm4 \n\t"				/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */	\
+			"pcmpgtw	%%xmm2, %%xmm5 \n\t"				/* signed comparison: 0 > root2? if so, set xmm5 dword to 1's */	\
+			"pand	%%xmm0, %%xmm4 \n\t"					/* copy prime to overflow locations (are set to 1) */	\
+			"pand	%%xmm0, %%xmm5 \n\t"					/* copy prime to overflow locations (are set to 1) */	\
+			"paddw	%%xmm4, %%xmm1 \n\t"					/* selectively add back prime (modular subtract) */	\
+			"paddw	%%xmm5, %%xmm2 \n\t"					/* selectively add back prime (modular subtract) */	\
+			"movdqa %%xmm2, %%xmm5 \n\t"					/* xmm5 = root2 copy */	\
+			"pmaxsw	%%xmm1, %%xmm5 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"pminsw	%%xmm1, %%xmm2 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+															/* now copy results to appropriate data structures */	\
+			"movdqa	%%xmm0, %%xmm4 \n\t"					/* copy primes */	\
+															/* root1p always gets the smaller roots (LT) */	\
+			"movdqa	%%xmm2, (%%r9, %%rax, 2) \n\t"			/* update root1p */	\
+			"psubw	%%xmm2, %%xmm0 \n\t"					/* prime - LT roots */	\
+			"movdqa	%%xmm2, (%%rbx, %%rax, 2) \n\t"			/* update firstroots1 */	\
+															/* root2p always gets the bigger roots (GT) */	\
+			"movdqa	%%xmm5, (%%r10, %%rax, 2) \n\t"			/* update root2p */	\
+			"psubw	%%xmm5, %%xmm4 \n\t"					/* prime - GT roots */	\
+			"movdqa	%%xmm5, (%%rcx, %%rax, 2) \n\t"			/* update firstroots2 */	\
+															/* root1n always gets prime - bigger roots (LT) */	\
+			"movdqa	%%xmm4, (%%r11, %%rax, 2) \n\t"			/* update root1n */	\
+															/* root2n always gets prime - smaller roots (GT) */	\
+			"movdqa	%%xmm0, (%%r12, %%rax, 2) \n\t"			/* update root2n */	\
 			"addl	$8, %%eax \n\t"	\
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jb		0b \n\t"	\
@@ -663,6 +710,8 @@
 		root2 = (int)root2 - bmodp;		\
 		if (root1 < 0) root1 += prime;			\
 		if (root2 < 0) root2 += prime;
+
+#endif
 
 #endif
 

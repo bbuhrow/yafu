@@ -21,6 +21,11 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "sieve_macros_32k.h"
+#include "sieve_macros_32k_sse4.1.h"
+
+// protect sse41 code under MSVC builds.  USE_SSE41 should be manually
+// enabled at the top of qs.h for MSVC builds on supported hardware
+#ifdef USE_SSE41
 
 #if defined(_MSC_VER)
 	#include <mmintrin.h>
@@ -37,7 +42,7 @@ typedef struct
 	uint32 med_B;					//44
 } helperstruct_t;
 
-void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init)
 {
 	uint32 i,j;
@@ -153,7 +158,6 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	_INIT_SSE2_SMALL_PRIME_SIEVE;
 	_SSE2_SMALL_PRIME_SIEVE_15b;
 
-
 	// get past the 15b boundary
 	for (i=full_fb->fb_15bit_B-8;i<med_B;i++)
 	{	
@@ -162,7 +166,8 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
 
-		CHECK_1X_DONE;
+		if ((prime > 32768) && ((i&7) == 0))
+			break;
 
 		SIEVE_1X;
 		SIEVE_LAST;
@@ -170,33 +175,8 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 		UPDATE_ROOTS;
 	}
 
-#if defined(USE_ASM_SMALL_PRIME_SIEVING)
-
-	asm_input.logptr = fb->logp;
-	asm_input.primeptr = fb->prime;
-	asm_input.root1ptr = fb->root1;
-	asm_input.root2ptr = fb->root2;
-	asm_input.sieve = sieve;
-	asm_input.startprime = i;
-	asm_input.med_B = med_B;
-
-	SIEVE_GT_BLOCKSIZE_ASM;
-
-#else
-
-	//if there are primes left bigger than the blocksize, this will take
-	//care of them.  if not, it doesn't run at all.
-	for (;i<med_B;i++)
-	{	
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
-
-		SIEVE_BIG;
-		UPDATE_ROOTS;
-	}
-#endif
+	_INIT_SSE2_SMALL_PRIME_SIEVE;
+	_SSE41_SMALL_PRIME_SIEVE;
 
 
 #ifdef QS_TIMING
@@ -213,4 +193,5 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
 }
 
+#endif // USE_SSE41
 

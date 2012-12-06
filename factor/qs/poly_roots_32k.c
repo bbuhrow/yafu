@@ -367,8 +367,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		if (root2 < root1)
 		{
-			update_data.firstroots1[i] = root2;
-			update_data.firstroots2[i] = root1;
+			update_data.sm_firstroots1[i] = (uint16)root2;
+			update_data.sm_firstroots2[i] = (uint16)root1;
 
 			fb_p->root1[i] = (uint16)root2;
 			fb_p->root2[i] = (uint16)root1;
@@ -377,8 +377,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 		else
 		{
-			update_data.firstroots1[i] = root1;
-			update_data.firstroots2[i] = root2;
+			update_data.sm_firstroots1[i] = (uint16)root1;
+			update_data.sm_firstroots2[i] = (uint16)root2;
 
 			fb_p->root1[i] = (uint16)root1;
 			fb_p->root2[i] = (uint16)root2;
@@ -402,6 +402,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
+			dconf->sm_rootupdates[(j)*fb->B+i] = (uint16)x;
 		}
 	}
 

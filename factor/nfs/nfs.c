@@ -1209,6 +1209,9 @@ void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params)
 		else if (VFLAG > 0)
 			printf("nfs: job file is missing params, filling them\n");
 
+		// make sure we start on a new line
+		fprintf(out, "\n");
+
 		if (missing_params & PARAM_FLAG_FBLIM)
 		{
 			fprintf(out,"rlim: %u\n",job->fblim);

@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 	// now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
 	if (VERBOSE_PROC_INFO)
-		extended_cpuid(CPU_ID_STR, &CLSIZE, VERBOSE_PROC_INFO);
+		extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, VERBOSE_PROC_INFO);
 #endif
 
 	// get the batchfile ready, if requested
@@ -830,6 +830,7 @@ void get_computer_info(char *idstr)
 	CLSIZE = 0;
 	L1CACHE = DEFAULT_L1_CACHE_SIZE;
 	L2CACHE = DEFAULT_L2_CACHE_SIZE;
+	HAS_SSE41 = 0;
 
 #else
 	//read cache sizes
@@ -837,7 +838,7 @@ void get_computer_info(char *idstr)
 
 	// run an extended cpuid command to get the cache line size, and
 	// optionally print a bunch of info to the screen
-	extended_cpuid(idstr, &CLSIZE, VERBOSE_PROC_INFO);
+	extended_cpuid(idstr, &CLSIZE, &HAS_SSE41, VERBOSE_PROC_INFO);
 
 	#if defined(WIN32)
 

@@ -162,6 +162,7 @@ int VERBOSE_PROC_INFO;
 char CPU_ID_STR[80];
 uint32 L1CACHE, L2CACHE;
 int CLSIZE;
+char HAS_SSE41;
 #if defined(WIN32)
 	char sysname[MAX_COMPUTERNAME_LENGTH + 1];
 	int sysname_sz;

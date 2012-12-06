@@ -311,7 +311,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  static_conf_t *conf)
 {
-	char buf[LINE_BUF_SIZE];
+	char buf[1024];
 	fact_obj_t *obj = conf->obj;
 	uint32 i, k;
 

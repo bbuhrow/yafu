@@ -33,6 +33,14 @@ code to the public domain.
 //#include <drvapi_error_string.h>
 #endif
 
+#ifdef _MSC_VER
+// optionally define this or not depending on whether your hardware supports it.
+// if defined, compile the sse41 functions into the fat binary.  the global
+// flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
+// to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
+#define USE_SSE41 1
+#endif
+
 //#define HAVE_CUDA
 
 //#define QS_TIMING
@@ -76,20 +84,19 @@ double TF_SPECIAL;
 
 //#define USE_YAFU_TDIV 1
 
+// always use these optimizations using sse2
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
 #define SSE2_RESIEVING 1
+
+// multiplication by inverse constants
 #define FOGSHIFT 24
 #define FOGSHIFT_2 40
 
-#if defined (__MINGW64__)
+#if defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
+	// requires 64 bit and gcc inline assembler syntax
 	#define USE_POLY_SSE2_ASM 1
-	#define ASM_SIEVING 1
-#elif (defined(__GNUC__) && defined(__x86_64__))
-	#define USE_POLY_SSE2_ASM 1
-	#if (__GNUC__ > 3)
-		#define ASM_SIEVING 1
-	#endif
+	#define USE_ASM_SMALL_PRIME_SIEVING
 #endif
 
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
@@ -255,7 +262,8 @@ typedef struct
 	uint32 fb_10bit_B;			//index at which primes are bigger than 10 bits (and a multiple of 8)
 	uint32 fb_11bit_B;			//index at which primes are bigger than 11 bits (and a multiple of 8)
 	uint32 fb_12bit_B;			//index at which primes are bigger than 12 bits (and a multiple of 8)
-	uint32 fb_13bit_B;			//index at which primes are bigger than 12 bits (and a multiple of 8)
+	uint32 fb_13bit_B;			//index at which primes are bigger than 13 bits (and a multiple of 8)
+	uint32 fb_32k_div3;
 	uint32 fb_14bit_B;			//index at which primes are bigger than 14 bits (and a multiple of 8)
 	uint32 fb_15bit_B;			//index at which primes are bigger than 15 bits (and a multiple of 8)
 	uint32 med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)
@@ -512,6 +520,8 @@ static const uint8 mult_list[] =
 // sieving
 void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init);
+void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+		uint32 start_prime, uint8 s_init);
 void med_sieveblock_64k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init);
 void (*med_sieve_ptr)(uint8 *, sieve_fb_compressed *, fb_list *, uint32 , uint8 );
@@ -589,6 +599,7 @@ void firstRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   
@@ -634,7 +645,8 @@ double gpu_squfof_batch(uint64 *batch, uint32 numin, uint32 *factors,
 
 void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);
-void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb);
+void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb, 
+	fb_list *fullfb, int action);
 void siqsexit(int sig);
 int qcomp_siqs(const void *x, const void *y);
 uint32 make_fb_siqs(static_conf_t *sconf);

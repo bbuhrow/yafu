@@ -22,12 +22,17 @@ code to the public domain.
 #include "qs.h"
 #include "util.h"
 #include "common.h"
-#include "poly_macros_64k.h"
+#include "poly_macros_32k.h"
 #include "poly_macros_common.h"
+#include "poly_macros_common_sse4.1.h"
+
+// protect sse41 code under MSVC builds.  USE_SSE41 should be manually
+// enabled at the top of qs.h for MSVC builds on supported hardware
+#ifdef USE_SSE41
 
 //this is in the poly library, even though the bulk of the time is spent
 //bucketizing large primes, because it's where the roots of a poly are updated
-void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
+void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//update the roots 
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
@@ -66,7 +71,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	polysieve_t helperstruct;
 
 	numblocks = sconf->num_blocks;
-	interval = numblocks << 16;
+	interval = numblocks << 15;
 	
 	if (lp_bucket_p->list != NULL)
 	{
@@ -134,6 +139,10 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=sconf->sieve_small_fb_start; 
 			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
+			// as soon as we are aligned, use more efficient sse2 based methods...
+			if ((j&7) == 0)
+				break;
+
 			prime = update_data.prime[j];
 			root1 = (uint32)update_data.sm_firstroots1[j];
 			root2 = (uint32)update_data.sm_firstroots2[j];
@@ -167,24 +176,6 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// update 8 at a time using SSE2 and no branching
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
-			// 8x root updates in parallel with SSE2, for use only with 32k
-			// versions because of the signed comparisons.
-			// stuff of potential use for full 16 bit updates
-			// 8x unsigned gteq emulation
-			// "psubusw	%%xmm1, %%xmm4 \n\t"	/* xmm2 := orig root - new root */
-			// "pcmpeqw	%%xmm0, %%xmm4 \n\t"	/* xmm2 := a >= b ? 1 : 0 */
-			// 8x MIN/MAX swap in SSE2 */
-			// "movdqa	%%xmm2, %%xmm4 \n\t"			/* copy root2 */
-			// "pcmpltd	%%xmm1, %%xmm4 \n\t"		/* root2 < root1? root2 --> 1's:root2 --> 0 */
-			// "movdqa	%%xmm4, %%xmm5 \n\t"			/* copy ans */
-			// "movdqa	%%xmm4, %%xmm6 \n\t"			/* copy ans */
-			// "movdqa	%%xmm4, %%xmm7 \n\t"			/* copy ans */
-			// "pand	%%xmm1, %%xmm4 \n\t"			/* copy root1 to where root1 is GT */
-			// "pandn	%%xmm2, %%xmm5 \n\t"			/* copy root2 to where root2 is GT */
-			// "pandn	%%xmm1, %%xmm6 \n\t"			/* copy root1 to where root1 is LT */
-			// "pand	%%xmm2, %%xmm7 \n\t"			/* copy root2 to where root2 is LT */
-			// "por	%%xmm4, %%xmm5 \n\t"			/* combine GT */
-			// "por	%%xmm6, %%xmm7 \n\t"			/* combine LT */
 			small_update_t h;
 			
 			h.first_r1 = update_data.sm_firstroots1;		// 0
@@ -195,7 +186,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.fbn2 = fb_n->root2;							// 40
 			h.primes = fb_p->prime;							// 48
 			h.updates = sm_ptr;								// 56
-			h.start = sconf->factor_base->fb_10bit_B;		// 64
+			h.start = j;									// 64
 			h.stop = sconf->factor_base->fb_15bit_B;		// 68
 			if ((h.stop - 8) > h.start)
 				h.stop -= 8;
@@ -243,11 +234,14 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
 		ptr = &dconf->rootupdates[(v-1) * bound + j];
-		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			if ((prime > 32768) && ((j&7) == 0))
+				break;
 
 			COMPUTE_NEXT_ROOTS_P;
 
@@ -273,20 +267,43 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}	
 
-		// continue one at a time once we exceed 15 bits, because the 8x SSE2
-		// code has a hard time with unsigned 16 bit comparisons
+#if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined (_WIN64))
+		// update 8 at a time using SSE2 and no branching
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		{
+			small_update_t h;
+			
+			h.first_r1 = update_data.sm_firstroots1;		// 0
+			h.first_r2 = update_data.sm_firstroots2;		// 8
+			h.fbp1 = fb_p->root1;							// 16
+			h.fbp2 = fb_p->root2;							// 24
+			h.fbn1 = fb_n->root1;							// 32
+			h.fbn2 = fb_n->root2;							// 40
+			h.primes = fb_p->prime;							// 48
+			h.updates = sm_ptr;								// 56
+			h.start = j;									// 64
+			h.stop = med_B;									// 68
+
+			COMPUTE_8X_SMALL_PROOTS_SSE41;
+			
+			j = h.stop;
+		}	
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+
+#else
+
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
 
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -295,15 +312,19 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
 				fb_n->root1[j] = (uint16)(prime - root2);
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
-		}	
+		}
+
+
+#endif
+
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -355,6 +376,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.bound_index = bound_index;		//100
 		helperstruct.check_bound = check_bound;		//104
 		helperstruct.logp = logp;					//108
+		helperstruct.intervalm1 = interval-1;		//112
 
 		ASM_G (		\
 			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -390,8 +412,11 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
-			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
+			"movdqa %%xmm1, %%xmm9 \n\t"					/* xmm5 = root1 copy */	\
+			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			"pmaxud	%%xmm9, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
@@ -402,170 +427,153 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$0,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("0") \
-			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,2 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,2 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$1,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("1") \
-			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("1") \
-			"3:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,3 ========== */	\
-				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,3 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,3 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+				/* ================================================ */	\			
+			"pextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$2,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("2") \
-			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("2") \
-			"5:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,4 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,4 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$3,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("3") \
-			"7:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("3") \
-			"7:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,1 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,1 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("0") \
-			"1:		\n\t" \
+			"pextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$0,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("0") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("0") \
+			UPDATE_ROOT1_LOOP("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,2 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,2 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("1") \
-			"3:		\n\t" \
+			"pextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$1,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("1") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("1") \
-			"3:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("1") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,3 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,3 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("2") \
-			"5:		\n\t" \
+			"pextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$2,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("2") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("2") \
-			"5:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("2") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,4 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,4 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("3") \
-			"7:		\n\t" \
+			"pextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$3,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("3") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("3") \
-			"7:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("3") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
-			"addl   $4,%%r15d \n\t"					/* increment j by 1*/ \
+			"addl   $4,%%r15d \n\t"					/* increment j by 4*/ \
 			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
 			"jb     8b \n\t"	\
 			"9:		\n\t"				\
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+				"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "memory", "cc");
 
 		// refresh local pointers and constants before entering the next loop
 		numptr_n = helperstruct.numptr_n;
@@ -713,6 +721,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.bound_index = bound_index;		//100
 		helperstruct.check_bound = check_bound;		//104
 		helperstruct.logp = logp;					//108
+		helperstruct.intervalm1 = interval-1;		//112
 
 		ASM_G (		\
 			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -747,9 +756,12 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"movdqa %%xmm0, %%xmm7 \n\t"			/* copy prime to compute neg roots */ \
 			"paddd	%%xmm4, %%xmm1 \n\t"			/* selectively add back prime (modular subtract) */ \
-			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"paddd	%%xmm5, %%xmm2 \n\t"			/* selectively add back prime (modular subtract) */ \
-			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+			"movdqa %%xmm1, %%xmm8 \n\t"					/* xmm5 = root1 copy */	\
+			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			"pmaxud	%%xmm8, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \	
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
@@ -760,145 +772,133 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("0") \
-			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,2 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,2 from xmm2 */ \
+			"pextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("1") \
-			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("1") \
-			"3:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,3 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,3 from xmm2 */ \
+			"pextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("2") \
-			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("2") \
-			"5:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,4 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,4 from xmm2 */ \
+			"pextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("3") \
-			"7:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("3") \
-			"7:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,1 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,1 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("0") \
-			"1:		\n\t" \
+			"pextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("0") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("0") \
+			UPDATE_ROOT1("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,2 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,2 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("1") \
-			"3:		\n\t" \
+			"pextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("1") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("1") \
-			"3:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("1") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,3 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,3 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("2") \
-			"5:		\n\t" \
+			"pextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("2") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("2") \
-			"5:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("2") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,4 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,4 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("3") \
-			"7:		\n\t" \
+			"pextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("3") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("3") \
-			"7:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("3") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
@@ -909,7 +909,8 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+				"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
 
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
@@ -1048,6 +1049,11 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=sconf->sieve_small_fb_start; 
 			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
+
+			// as soon as we are aligned, use more efficient sse2 based methods...
+			if ((j&7) == 0)
+				break;
+
 			prime = update_data.prime[j];
 			root1 = (uint32)update_data.sm_firstroots1[j];
 			root2 = (uint32)update_data.sm_firstroots2[j];
@@ -1090,7 +1096,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.fbn2 = fb_n->root2;							// 40
 			h.primes = fb_p->prime;							// 48
 			h.updates = sm_ptr;								// 56
-			h.start = sconf->factor_base->fb_10bit_B;		// 64
+			h.start = j;									// 64
 			h.stop = sconf->factor_base->fb_15bit_B;		// 68
 			if ((h.stop - 8) > h.start)
 				h.stop -= 8;
@@ -1140,11 +1146,14 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
 		ptr = &dconf->rootupdates[(v-1) * bound + j];
-		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			if ((prime > 32768) && ((j&7) == 0))
+				break;
 
 			COMPUTE_NEXT_ROOTS_N;
 
@@ -1172,18 +1181,46 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		// continue one at a time once we exceed 15 bits, because the 8x SSE2
 		// code has a hard time with unsigned 16 bit comparisons
+#if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
+
+		// update 8 at a time using SSE2 and no branching		
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		{
+			small_update_t h;
+			int k;
+			
+			h.first_r1 = update_data.sm_firstroots1;		// 0
+			h.first_r2 = update_data.sm_firstroots2;		// 8
+			h.fbp1 = fb_p->root1;							// 16
+			h.fbp2 = fb_p->root2;							// 24
+			h.fbn1 = fb_n->root1;							// 32
+			h.fbn2 = fb_n->root2;							// 40
+			h.primes = fb_p->prime;							// 48
+			h.updates = sm_ptr;								// 56
+			h.start = j;									// 64
+			h.stop = med_B;									// 68
+
+			COMPUTE_8X_SMALL_NROOTS_SSE41;
+
+			j = h.stop;
+		}
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		
+		
+#else
+
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -1192,8 +1229,8 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
@@ -1201,6 +1238,9 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}	
+		
+
+#endif
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -1251,6 +1291,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.bound_index = bound_index;		//100
 		helperstruct.check_bound = check_bound;		//104
 		helperstruct.logp = logp;					//108
+		helperstruct.intervalm1 = interval-1;		//112
 
 		ASM_G (		\
 			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -1279,178 +1320,163 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
 			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
 			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
-			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \			
 			"movdqa %%xmm0, %%xmm6 \n\t"			/* copy of prime for neg root calculation */ \
 			"movdqa %%xmm0, %%xmm7 \n\t"			/* copy of prime for neg root calculation */ \
 			"movdqa %%xmm0, %%xmm8 \n\t"			/* copy of prime for neg root loops */ \
 			"pand	%%xmm0, %%xmm4 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
-			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
+			"movdqa %%xmm1, %%xmm9 \n\t"					/* xmm5 = root1 copy */	\
+			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			"pmaxud	%%xmm9, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
-			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \			
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
 			"movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
 			"movl	96(%%rsi,1),%%r12d \n\t"		/* store bound_val in a register */ \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$0,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("0") \
-			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,2 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,2 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$1,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("1") \
-			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("1") \
-			"3:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,3 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,3 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$2,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("2") \
-			"5:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("2") \
-			"5:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm0 \n\t" 				/* next prime */ \
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,4 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,4 from xmm2 */ \
-			"movd	%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			"pextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"pextrd	$3,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
 			UPDATE_ROOT1_LOOP("3") \
-			"7:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2_LOOP("3") \
-			"7:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,1 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,1 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("0") \
-			"1:		\n\t" \
+			"pextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$0,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("0") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("0") \
+			UPDATE_ROOT1_LOOP("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,2 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,2 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("1") \
-			"3:		\n\t" \
+			"pextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$1,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("1") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("1") \
-			"3:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("1") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,3 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,3 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("2") \
-			"5:		\n\t" \
+			"pextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$2,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("2") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("2") \
-			"5:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("2") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"psrldq $4,%%xmm8 \n\t" 				/* next prime */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,4 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,4 from xmm7 */ \
-			"movd	%%xmm8,%%edx \n\t"				/* else, extract prime from xmm8 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1_LOOP("3") \
-			"7:		\n\t" \
+			"pextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"pextrd	$3,%%xmm8,%%edx \n\t"				/* else, extract prime from xmm0 */ \
+			UPDATE_ROOT2_LOOP("3") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2_LOOP("3") \
-			"7:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1_LOOP("3") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
@@ -1461,7 +1487,8 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+				"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "memory", "cc");
 
 		// refresh local pointers and constants before entering the next loop
 		numptr_n = helperstruct.numptr_n;
@@ -1608,6 +1635,7 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.bound_index = bound_index;		//100
 		helperstruct.check_bound = check_bound;		//104
 		helperstruct.logp = logp;					//108
+		helperstruct.intervalm1 = interval-1;		//112
 
 		ASM_G (		\
 			"movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -1642,9 +1670,12 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movdqa %%xmm0, %%xmm7 \n\t"			/* copy prime to xmm7 */ \
 			"pand	%%xmm0, %%xmm5 \n\t"			/* copy prime to overflow locations (are set to 1) */ \
 			"psubd	%%xmm4, %%xmm1 \n\t"			/* selectively sub back prime (modular addition) */ \
-			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
 			"psubd	%%xmm5, %%xmm2 \n\t"			/* selectively sub back prime (modular addition) */ \
-			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
+			"movdqa %%xmm1, %%xmm8 \n\t"					/* xmm5 = root1 copy */	\
+			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
+			"pmaxud	%%xmm8, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
+			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \	
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
@@ -1655,145 +1686,135 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval?, if so then so is root2 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("0") \
-			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("0") \
+			"2: \n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,2 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,2 from xmm2 */ \
+			"pextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("1") \
-			"3:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("1") \
-			"3:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,3 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,3 from xmm2 */ \
+			"pextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm1 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("2") \
-			"5:		\n\t" \
+			
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm2 \n\t" 				/* next root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("2") \
-			"5:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm1,%%r8d \n\t"				/* else, extract root1,4 from xmm1 */ \
-			"movd	%%xmm2,%%r9d \n\t"				/* else, extract root2,4 from xmm2 */ \
+			"pextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
 			UPDATE_ROOT1("3") \
-			"7:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
 			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
 			UPDATE_ROOT2("3") \
-			"7:		\n\t" \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
 				/* ================================================ */	\
 			"movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
 			"movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,1 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,1 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("0") \
-			"1:		\n\t" \
+			"pextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? , if so then so is root 1*/ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("0") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    1f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("0") \
+			UPDATE_ROOT1("0") \
+			"2:		\n\t" \
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,2 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,2 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,2 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("1") \
-			"3:		\n\t" \
+			"pextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? , if so then so is root 1*/ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("1") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    3f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("1") \
-			"3:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("1") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,3 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,3 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,3 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"psrldq $4,%%xmm6 \n\t" 				/* nextn root1 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("2") \
-			"5:		\n\t" \
+			"pextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? , if so then so is root 1*/ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("2") \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"psrldq $4,%%xmm7 \n\t" 				/* nextn nroot2 */ \
-			"jae    5f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("2") \
-			"5:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("2") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT1,4 ========== */	\
 				/* ================================================ */	\
-			"movd	%%xmm6,%%r8d \n\t"				/* else, extract nroot1,4 from xmm6 */ \
-			"movd	%%xmm7,%%r9d \n\t"				/* else, extract nroot2,4 from xmm7 */ \
-			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT1("3") \
-			"7:		\n\t" \
+			"pextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
+			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? , if so then so is root 1*/ \
+			"jae    2f \n\t" 						/* jump if CF = 1 */ \
+			"pextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
+			UPDATE_ROOT2("3") \
+			
 				/* ================================================ */	\
 				/* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
 				/* ================================================ */	\
-			"cmpl	%%r13d,%%r9d \n\t"				/* root2 > interval? */ \
-			"jae    7f \n\t" 						/* jump if CF = 1 */ \
-			UPDATE_ROOT2("3") \
-			"7:		\n\t" \
+			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
+			"jae    1f \n\t" 						/* jump if CF = 1 */ \
+			UPDATE_ROOT1("3") \
+			"2:		\n\t" \
+			"1:		\n\t" \
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
@@ -1804,7 +1825,8 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+				"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
 
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
@@ -1916,3 +1938,5 @@ void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	return;
 }
+
+#endif // USE_SSE41

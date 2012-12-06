@@ -253,11 +253,16 @@ void SIQS(fact_obj_t *fobj)
 	//initialize and fill out the static part of the job data structure
 	siqs_static_init(static_conf, 0);
 
-	// test
-	static_conf->in_mem = 0;
-	//static_conf->in_mem_relations = (siqs_r *)malloc(32768 * sizeof(siqs_r));
-	//static_conf->buffered_rel_alloc = 32768;
-	//static_conf->buffered_rels = 0;
+	// test: use in-memory relation storage below a certain digit level?
+	if (0) //(static_conf->digits_n < 1)
+	{
+		static_conf->in_mem = 1;
+		static_conf->in_mem_relations = (siqs_r *)malloc(32768 * sizeof(siqs_r));
+		static_conf->buffered_rel_alloc = 32768;
+		static_conf->buffered_rels = 0;
+	}
+	else
+		static_conf->in_mem = 0;
 
 	//allocate structures for use in sieving with threads
 	for (i=0; i<THREADS; i++)
@@ -910,24 +915,28 @@ void *process_poly(void *ptr)
 		{
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p,
+				sconf->factor_base, 1);
 			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p,
+				sconf->factor_base, 0);
 			scan_ptr(i,0,sconf,dconf);
 
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n,
+				sconf->factor_base, 1);
 			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n);
+			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 
+				sconf->factor_base, 0);
 			scan_ptr(i,1,sconf,dconf);			
 
 		}
@@ -1205,9 +1214,14 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			printf("buckets hold %d elements\n",BUCKET_ALLOC);
 		}
 		if (sconf->qs_blocksize == 65536)
-			printf("using 64k sieve core\n");
+			printf("using SSE2 enabled 64k sieve core\n");
 		else
-			printf("using 32k sieve core\n");
+		{
+			if (HAS_SSE41)
+				printf("using SSE4.1 enabled 32k sieve core\n");
+			else
+				printf("using SSE2 enabled 32k sieve core\n");
+		}
 		printf("sieve interval: %d blocks of size %d\n",
 			sconf->num_blocks,sconf->qs_blocksize);
 		printf("polynomial A has ~ %d factors\n", 
@@ -1248,16 +1262,33 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		#endif
 #endif
 
-#if defined(SSE2_ASM_SIEVING)
-			printf("using SSE2 to sieve primes up to 16 bits\n");
+#if defined(USE_ASM_SMALL_PRIME_SIEVING)
+			if (HAS_SSE41)
+				printf("using SSE4.1 and inline ASM for small prime sieving\n");
+			else
+				printf("using SSE2 and inline ASM for small prime sieving\n");
+#else
+			if (HAS_SSE41)
+				printf("using SSE4.1 for small prime sieving\n");
+			else
+				printf("using SSE2 for small prime sieving\n");
 #endif
 
-#if defined(ASM_SIEVING)
-			printf("using inline ASM to sieve primes up to 16 bits\n");
-#endif
-
-#if defined(HAS_SSE2)
+#if defined(GCC_ASM64X) || defined(_MSC_VER)
 			printf("using SSE2 for poly updating up to 15 bits\n");
+#endif
+
+#if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
+			if (HAS_SSE41)
+				printf("using SSE4.1 for medium prime poly updating\n");
+#endif
+
+
+#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
+			if (HAS_SSE41)
+				printf("using SSE4.1 and inline ASM for large prime poly updating\n");
+			else
+				printf("using SSE2 and inline ASM for large prime poly updating\n");
 #endif
 
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
@@ -1540,8 +1571,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->fb_bounds = (uint32 *)malloc(
 			dconf->buckets->alloc_slices * sizeof(uint32));
-		dconf->buckets->logp = (uint8 *)malloc(
-			dconf->buckets->alloc_slices * sizeof(uint8));
+		dconf->buckets->logp = (uint8 *)calloc(
+			dconf->buckets->alloc_slices, sizeof(uint8));
 		dconf->buckets->list_size = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 		
 		//now allocate the buckets
@@ -1664,9 +1695,19 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	case cpu_core:
 	default:
 		firstRoots_ptr = &firstRoots_32k;
-		nextRoots_ptr = &nextRoots_32k;
+
+		if (HAS_SSE41)
+			nextRoots_ptr = &nextRoots_32k_sse41;
+		else
+			nextRoots_ptr = &nextRoots_32k;
+		
 		testRoots_ptr = &testfirstRoots_32k;
-		med_sieve_ptr = &med_sieveblock_32k;
+
+		if (HAS_SSE41)
+			med_sieve_ptr = &med_sieveblock_32k_sse41;
+		else
+			med_sieve_ptr = &med_sieveblock_32k;
+
 		tdiv_med_ptr = &tdiv_medprimes_32k;
 		resieve_med_ptr = &resieve_medprimes_32k;
 		sconf->qs_blocksize = 32768;
@@ -1844,8 +1885,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		//find the point at which factor base primes exceeds 13 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//find the point at which factor base primes exceeds 10 bits.  
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
@@ -1856,8 +1897,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		//find the point at which factor base primes exceeds 13 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//find the point at which factor base primes exceeds 11 bits.  
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
@@ -1868,8 +1909,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		//find the point at which factor base primes exceeds 13 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//find the point at which factor base primes exceeds 12 bits.  
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
@@ -1881,7 +1922,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	for (; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceeds 13 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
@@ -1890,16 +1931,31 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
+	// the prime at which we want to start testing the asm code below is the point
+	// at which we have at most 3 increments of the root.  this point starts when
+	// prime > 32768 / 3 = 10922.
+	for (; i < sconf->factor_base->B; i++)
+	{
+		//find the point at which factor base primes exceeds 13 bits.  
+		//wait until the index is a multiple of 8 so that we can enter
+		//this region of primes aligned on a 16 byte boundary and thus be able to use
+		//movdqa
+		//don't let med_B grow larger than 1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > 10922)  &&
+			(i % 8 == 0)) break;
+	}
+	sconf->factor_base->fb_32k_div3 = i-8;
+
 	for (; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceeds 14 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
 			(i % 8 == 0)) 
 		{
-			i -= 8;
+			i -= 8;		// why the hell did I do this here and nowhere else?
 			break;
 		}
 	}	
@@ -1908,7 +1964,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	for (; i < sconf->factor_base->B; i++)
 	{
 		//find the point at which factor base primes exceeds 15 bits.  
-		//wait until the index is a multiple of 4 so that we can enter
+		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 32768)  &&
@@ -2648,6 +2704,9 @@ int free_siqs(static_conf_t *sconf)
 		mpz_clear(tmp);
 		free(sconf->factor_list.final_factors[i]);
 	}
+
+	if (sconf->in_mem)
+		free(sconf->in_mem_relations);
 
 	mpz_clear(sconf->sqrt_n);
 	mpz_clear(sconf->n);

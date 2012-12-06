@@ -236,6 +236,12 @@
     <ClCompile Include="..\..\factor\gpu_squfof.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -309,6 +315,12 @@
     </ClInclude>
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
