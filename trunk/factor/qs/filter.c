@@ -241,6 +241,8 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	do
 	{
 		this_val = strtoul(substr,&nextstr,HEX);
+		if (this_val == (uint32)(-1))
+			printf("error parsing relation: strtoul returned error code\n");
 		substr = nextstr;
 		fb_offsets[j] = this_val;
 		j++;
@@ -444,7 +446,7 @@ static qs_cycle_t *get_table_entry(qs_cycle_t *table, uint32 *hashtable,
 
 	/* if an entry was not found, initialize a new one */
 
-	if (offset == 0) {
+	if (offset == 0) {		
 		entry = table + new_entry_offset;
 		entry->next = hashtable[first_offset];
 		entry->prime = prime;
@@ -907,6 +909,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 								curr_expected - 1);
 					break;
 				}
+				// process_rel calls add_to_hashtable, which can grow the size of the cycle table.
+				// update our local pointer to the table every time in case this happens.
+				table = sconf->cycle_table;
 			}
 			else
 			{
@@ -1022,14 +1027,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	num_relations = qs_purge_duplicate_relations(obj, 
 				relation_list, num_relations);
 
-	memset(hashtable, 0, sizeof(uint32) << QS_LOG2_CYCLE_HASH);
+	memset(hashtable, 0, sizeof(uint32) * (1 << QS_LOG2_CYCLE_HASH));
 	sconf->vertices = 0;
 	sconf->components = 0;
 	sconf->cycle_table_size = 1;
 
 	for (i = 0; i < num_relations; i++) {
 		siqs_r *r = relation_list + i;
-		if (r->large_prime[0] != r->large_prime[1]) {
+		if (r->large_prime[0] != r->large_prime[1]) {		
 			yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], 
 					r->large_prime[1]);
 		}
@@ -1086,10 +1091,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   to itself */
 
 	for (i = 0; i < (1 << QS_LOG2_CYCLE_HASH); i++) {
-		uint32 offset = hashtable[i];
+		uint32 offset = hashtable[i];		
 
 		while (offset != 0) {
 			qs_cycle_t *entry = table + offset;
+
 			if (offset != entry->data)
 				entry->data = 0;
 			offset = entry->next;
@@ -1099,7 +1105,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (obj->logfile != NULL)
 		logprint(obj->logfile, "attempting to build %u cycles\n", num_cycles);
 	if (VFLAG > 0)
+	{
 		printf("attempting to build %u cycles\n", num_cycles);
+		fflush(stdout);
+	}
 	cycle_list = (qs_la_col_t *)xmalloc(num_cycles * sizeof(qs_la_col_t));
 
 	/* keep going until either all cycles are found, all
@@ -1312,7 +1321,7 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 
 	qsort(rlist, (size_t)num_relations,
 		sizeof(siqs_r), compare_relations);
-	
+
 	for (i = 1, j = 0; i < num_relations; i++) {
 		if (compare_relations(rlist + j, rlist + i) == 0)
 		{
@@ -1328,9 +1337,11 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 		if (obj->logfile != NULL)
 			logprint(obj->logfile, "freed %d duplicate relations\n", 
 					num_relations - j);
-		printf("freed %d duplicate relations\n", 
+		if (VFLAG > 0)
+			printf("freed %d duplicate relations\n", 
 					num_relations - j);
 	}
+
 	return j;
 }
 

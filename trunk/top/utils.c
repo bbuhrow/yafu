@@ -1303,7 +1303,7 @@ enum cpu_type yafu_get_cpu_type(void) {
 
 
 
-int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
+int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int do_print)
 {
     char CPUString[0x20];
     char CPUBrandString[0x40];
@@ -1348,7 +1348,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
     char    bCMPXCHG16B = 0;
     char    bxTPRUpdateControl = 0;
     char    bPerfDebugCapabilityMSR = 0;
-    char    bSSE41Extensions = 0;
+    //char    bSSE41Extensions = 0;
     char    bSSE42Extensions = 0;
     char    bPOPCNT = 0;
 
@@ -1380,6 +1380,8 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
 
     char    bSelfInit = 0;
     char    bFullyAssociative = 0;
+
+	*bSSE41Extensions = 0;
 
     // __cpuid with an InfoType argument of 0 returns the number of
     // valid Ids in CPUInfo[0] and the CPU identification string in
@@ -1433,7 +1435,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
             bCMPXCHG16B= (CPUInfo[2] & 0x2000) || 0;
             bxTPRUpdateControl = (CPUInfo[2] & 0x4000) || 0;
             bPerfDebugCapabilityMSR = (CPUInfo[2] & 0x8000) || 0;
-            bSSE41Extensions = (CPUInfo[2] & 0x80000) || 0;
+            *bSSE41Extensions = (CPUInfo[2] & 0x80000) || 0;
             bSSE42Extensions = (CPUInfo[2] & 0x100000) || 0;
             bPOPCNT= (CPUInfo[2] & 0x800000) || 0;
             nFeatureInfo = CPUInfo[3];
@@ -1550,7 +1552,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
 				 bVirtualMachineExtensions || bEnhancedIntelSpeedStepTechnology ||
 				 bThermalMonitor2 || bSupplementalSSE3 || bL1ContextID || 
 				 bCMPXCHG16B || bxTPRUpdateControl || bPerfDebugCapabilityMSR || 
-				 bSSE41Extensions || bSSE42Extensions || bPOPCNT || 
+				 *bSSE41Extensions || bSSE42Extensions || bPOPCNT || 
 				 bLAHF_SAHFAvailable || bCmpLegacy || bSVM ||
 				 bExtApicSpace || bAltMovCr8 ||
 				 bLZCNT || bSSE4A || bMisalignedSSE ||
@@ -1583,7 +1585,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, int do_print)
 					printf("\txTPR Update Control\n");
 				if  (bPerfDebugCapabilityMSR)
 					printf("\tPerf\\Debug Capability MSR\n");
-				if  (bSSE41Extensions)
+				if  (*bSSE41Extensions)
 					printf("\tSSE4.1 Extensions\n");
 				if  (bSSE42Extensions)
 					printf("\tSSE4.2 Extensions\n");

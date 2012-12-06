@@ -85,10 +85,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	uint8 logp, bits;
 	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
 
-#ifdef DO_4X_SPV
-	uint32 *offsetarray, *mask1, *mask2;
-#endif
-
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
@@ -126,7 +122,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		uint64 q64;
 #ifdef USE_YAFU_TDIV
 		z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif
+#endif		
 
 		//this one qualifies to check further, log that fact.
 		dconf->num++;
@@ -192,164 +188,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		}
 #endif
 
-#ifdef DO_4X_SPV
-		// this won't work because to do the division via multiplication by inverse, the
-		// precomputed inverses need to be 32 bits in order to accomodate values of offset greater than
-		// 16 bits.  thus root1, root2, and prime are uint16's, but small_inv and correction are 
-		// uint32's and the vectors don't line up.  plus, we have to do a bunch of shifting and 
-		// masking in order to get around the lack of a pmulhuD instruction which limits the
-		// speedup of the SIMD approach.
-		//
-		// potential solution: if at the end of every sieve block we advance the values of the roots
-		// of these lowest primes into the next block then we can use the block offset rather than
-		// the global sieve array offset.  the block offset is always less than 16 bits, so this would
-		// perhaps allow the precomputed inverses to be crammed into 16 bit values.  then we can use
-		// pmulhuw and do 8x small primes at once.  this is also potentially useful for medprimes up to
-		// the resieving bound.
-		//
-		// is it worth it?  for a test c80, we spend 3.2 seconds in this stage, which is 2% of the total
-		// sieving time.  if doing 8x at once makes things (conservatively) 4x faster, then we can
-		// save 2.4 sec, for approx a 1.5% speedup overall.  meh.
-
-		offsetarray = xmalloc_align(4 * sizeof(uint32));
-		mask1 = xmalloc_align(4 * sizeof(uint32));
-		mask2 = xmalloc_align(4 * sizeof(uint32));
-		offsetarray[0] = offset; offsetarray[1] = offset; 
-		offsetarray[2] = offset; offsetarray[3] = offset;
-		mask1[0] = 0; mask1[1] = 0xffffffff; mask1[2] = 0; mask1[3] = 0xffffffff;
-		mask2[0] = 0xffffffff; mask2[1] = 0; mask2[2] = 0xffffffff; mask2[3] = 0;
-
-
-		// do i=2 and i=3
-		tmp1 = offset + fullfb_ptr->correction[2];
-		q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[2];
-		tmp1 = q64 >> 32; 
-		//at this point tmp1 is offset / prime
-		tmp1 = offset - tmp1 * fullfb_ptr->prime[2];
-
-		prime = fbc->prime[2];
-		root1 = fbc->root1[2];
-		root2 = fbc->root2[2];
-		logp = fbc->logp[2];
-
-		if (tmp1 == root1 || tmp1 == root2)
-		{
-			do
-			{
-				dconf->fb_offsets[report_num][++smooth_num] = 2;
-				zShortDiv32(Q,prime,Q);
-				bits += logp;
-			} while (zShortMod32(Q,prime) == 0);
-		}
-
-		tmp1 = offset + fullfb_ptr->correction[3];
-		q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[3];
-		tmp1 = q64 >> 32; 
-		//at this point tmp1 is offset / prime
-		tmp1 = offset - tmp1 * fullfb_ptr->prime[3];
-
-		prime = fbc->prime[3];
-		root1 = fbc->root1[3];
-		root2 = fbc->root2[3];
-		logp = fbc->logp[3];
-
-		if (tmp1 == root1 || tmp1 == root2)
-		{
-			do
-			{
-				dconf->fb_offsets[report_num][++smooth_num] = 3;
-				zShortDiv32(Q,prime,Q);
-				bits += logp;
-			} while (zShortMod32(Q,prime) == 0);
-		}
-
-		// start i=4 in batches of 4 (aligned memory boundary)
-		i=4;
-		bound = (sconf->sieve_small_fb_start - 4);		
-		while ((uint32)i < bound)
-		{
-			uint32 result;
-
-			ASM_G (
-				"movdqa	(%1), %%xmm0 \n\t" /* offset into xmm0 */
-				"movdqa (%2), %%xmm1 \n\t" /* correction into xmm1 */
-				"movdqa (%3), %%xmm2 \n\t" /* inv into xmm2 */
-				"movdqa (%4), %%xmm3 \n\t" /* primes into xmm3 */
-				"movdqa (%5), %%xmm4 \n\t" /* root1 into xmm4 */
-				"movdqa (%6), %%xmm5 \n\t" /* root2 into xmm5 */
-				"movdqa (%7), %%xmm8 \n\t" /* mask1 into xmm8 */
-				"movdqa (%8), %%xmm9 \n\t" /* mask2 into xmm9 */
-				"paddd %%xmm0, %%xmm1 \n\t" /* add offset with correction, overwrite correction */
-				"movdqa %%xmm2, %%xmm6 \n\t" /* copy of inv */
-				"psrldq $4, %%xmm6 \n\t" /* shift right 4 bytes */
-				"pmuludq %%xmm1, %%xmm2 \n\t" /* tmp * inv3,1 */
-				"pmuludq %%xmm1, %%xmm6 \n\t" /* tmp * inv4,2 */
-				"psrldq $4, %%xmm2 \n\t" /* shift right 4 bytes */
-				"psrldq $4, %%xmm6 \n\t" /* shift right 4 bytes */
-				"movdqa %%xmm3, %%xmm7 \n\t" /* copy of primes */
-				"psrldq $4, %%xmm7 \n\t" /* shift right 4 bytes */
-				"pmuludq %%xmm3, %%xmm2 \n\t" /* primes3,1 * tmp3,1 */
-				"pmuludq %%xmm7, %%xmm6 \n\t" /* primes4,2 * tmp4,2 */
-				"psrldq $4, %%xmm2 \n\t" /* shift right 4 bytes */
-				"pand %%xmm8, %%xmm6 \n\t" /* zero dwords 3 and 1 of xmm6 */
-				"pand %%xmm9, %%xmm2 \n\t" /* zero dwords 4 and 2 of xmm2 */
-				"por %%xmm2, %%xmm6 \n\t" /* recombine high dwords of products */
-				"psubd %%xmm6, %%xmm0 \n\t" /* final subtract to accomplish the mod operation */
-				"pcmpeqd %%xmm0, %%xmm4 \n\t" /* test equality to root1 */
-				"pcmpeqd %%xmm0, %%xmm5 \n\t" /* test equality to root2 */
-				"por %%xmm4, %%xmm5 \n\t" /* combine tests */
-				"pmovmskb %%xmm5, %0 \n\t" /* result to output variable */
-				: "=r"(result)
-				: "r"(offsetarray), "r"(fullfb_ptr->correction + i), "r"(fullfb_ptr->small_inv + i), "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(mask1), "r"(mask2)
-				: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9"); 
-
-			if (result & 0x8)
-			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i;
-					zShortDiv32(Q,fbc->prime[i],Q);
-					bits += fbc->logp[i];
-				} while (zShortMod32(Q,fbc->prime[i]) == 0);
-			}
-			if (result & 0x80)
-			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i+1;
-					zShortDiv32(Q,fbc->prime[i+1],Q);
-					bits += fbc->logp[i+1];
-				} while (zShortMod32(Q,fbc->prime[i+1]) == 0);
-			}
-			if (result & 0x800)
-			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i+2;
-					zShortDiv32(Q,fbc->prime[i+2],Q);
-					bits += fbc->logp[i+2];
-				} while (zShortMod32(Q,fbc->prime[i+2]) == 0);
-			}
-			if (result & 0x8000)
-			{
-				do
-				{
-					dconf->fb_offsets[report_num][++smooth_num] = i+3;
-					zShortDiv32(Q,fbc->prime[i+3],Q);
-					bits += fbc->logp[i+3];
-				} while (zShortMod32(Q,fbc->prime[i+3]) == 0);
-			}
-
-			i += 4;
-
-		}
-
-		free(offsetarray);
-		free(mask1);
-		free(mask2);
-
-#else
-
 		i=2;
 		//explicitly trial divide by small primes which we have not
 		//been sieving.  because we haven't been sieving, their progressions
@@ -392,55 +230,53 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			
 			i -= 3;
 
-			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-
+			
 			if (tmp1 == root1 || tmp1 == root2)
 			{
+				prime = fbc->prime[i];
+				logp = fbc->logp[i];
 				DIVIDE_ONE_PRIME
 			}
 
 			i++;
 
-			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-
+			
 			if (tmp2 == root1 || tmp2 == root2)
 			{
+				prime = fbc->prime[i];
+				logp = fbc->logp[i];
 				DIVIDE_ONE_PRIME
 			}
 
 			i++;
 
-			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-
+			
 			if (tmp3 == root1 || tmp3 == root2)
 			{
+				prime = fbc->prime[i];
+				logp = fbc->logp[i];
 				DIVIDE_ONE_PRIME
 			}
 
 			i++;
 
-			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
-			logp = fbc->logp[i];
-
+			
 			if (tmp4 == root1 || tmp4 == root2)
 			{
+				prime = fbc->prime[i];
+				logp = fbc->logp[i];
 				DIVIDE_ONE_PRIME
 			}
 			i++;
 		}
-		
-#endif		
 
 		//finish up the rest of the small primes
 		while ((uint32)i < sconf->sieve_small_fb_start)

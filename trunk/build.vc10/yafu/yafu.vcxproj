@@ -152,6 +152,7 @@
       <WarningLevel>Level3</WarningLevel>
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -167,6 +168,7 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <TargetMachine>MachineX86</TargetMachine>
       <AdditionalLibraryDirectories>..\..\..\msieve\lib\$(Platform)\Release\</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -235,6 +237,7 @@
       <WarningLevel>Level3</WarningLevel>
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -277,6 +280,7 @@
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_64k.c" />
     <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
     <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
@@ -302,6 +306,7 @@
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c" />
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />
@@ -333,7 +338,9 @@
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_64k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
     <ClInclude Include="..\..\factor\qs\sieve_macros_64k.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\tdiv_macros_64k.h" />

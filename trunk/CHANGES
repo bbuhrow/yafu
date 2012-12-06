@@ -1,4 +1,15 @@
 
+v 1.34
++ new sse2 code: faster small prime sieving in siqs 
++ new sse4.1 code: even faster small prime sieving in siqs
++ new sse4.1 code: faster large prime bucket sieving in siqs
++ makefile additions to include sse4.1 code in the fat binary on compatible hardware
++ runtime flag to utilize sse4.1 code on compatible hardware
++ enabled multipliers for fermat factorization
++ fixed bug in qs filtering (thanks Will Fay!)
++ fixed a bug in .job file filling - handle no line break on last line
+
+
 
 v 1.33
 + made "found poly" messages much less verbose

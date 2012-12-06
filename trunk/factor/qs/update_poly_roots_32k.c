@@ -25,48 +25,6 @@ code to the public domain.
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
 
-typedef struct 
-{
-	//read/write data inputs
-	uint32 *numptr_n;
-	uint32 *numptr_p;
-	uint32 *sliceptr_n;
-	uint32 *sliceptr_p;
-	uint32 *update_data_prime;
-	int *update_data_root1;
-	int *update_data_root2;
-	uint8 *update_data_logp;
-	lp_bucket *lp_bucket_p;
-	int *ptr;
-
-	//read only inputs:
-	uint32 large_B;
-	uint32 B;
-	uint32 interval;
-	int numblocks;
-
-	//read/write words
-	uint32 bound_val;
-	int bound_index;
-	int check_bound;
-	uint8 logp;
-
-} polysieve_t;
-
-typedef struct 
-{
-	uint16 *first_r1;
-	uint16 *first_r2;
-	uint16 *fbp1;
-	uint16 *fbp2;
-	uint16 *fbn1;
-	uint16 *fbn2;
-	uint16 *primes;
-	uint16 *updates;
-	uint32 start;
-	uint32 stop;
-} small_update_t;
-
 //this is in the poly library, even though the bulk of the time is spent
 //bucketizing large primes, because it's where the roots of a poly are updated
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -285,11 +243,14 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
 		ptr = &dconf->rootupdates[(v-1) * bound + j];
-		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			if ((prime > 32768) && ((j&7) == 0))
+				break;
 
 			COMPUTE_NEXT_ROOTS_P;
 
@@ -320,15 +281,15 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
 
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -337,15 +298,15 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;
 				fb_n->root1[j] = (uint16)(prime - root2);
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
-		}	
+		}
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -600,14 +561,15 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				/* ================================================ */	\
 				/* ======== END OF LOOP - UPDATE AND CHECK ======== */	\
 				/* ================================================ */	\
-			"addl   $4,%%r15d \n\t"					/* increment j by 1*/ \
+			"addl   $4,%%r15d \n\t"					/* increment j by 4*/ \
 			"cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
 			"jb     8b \n\t"	\
 			"9:		\n\t"				\
 			"movl	%%r15d, %%eax \n\t" \
 			:  \
 			: "g"(&helperstruct) \
-			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
+			: "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", 
+				"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "memory", "cc");
 
 		// refresh local pointers and constants before entering the next loop
 		numptr_n = helperstruct.numptr_n;
@@ -1182,11 +1144,14 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// boundary before we switch to using update_data.firstroots1/2.
 		// this should only run a few iterations, if any.
 		ptr = &dconf->rootupdates[(v-1) * bound + j];
-		for ( ; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
+		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
+
+			if ((prime > 32768) && ((j&7) == 0))
+				break;
 
 			COMPUTE_NEXT_ROOTS_N;
 
@@ -1217,15 +1182,15 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for ( ; j < med_B; j++, ptr++)
 		{
 			prime = update_data.prime[j];
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
+			root1 = update_data.sm_firstroots1[j];
+			root2 = update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-				update_data.firstroots1[j] = root2;
-				update_data.firstroots2[j] = root1;
+				update_data.sm_firstroots1[j] = (uint16)root2;
+				update_data.sm_firstroots2[j] = (uint16)root1;
 
 				fb_p->root1[j] = (uint16)root2;
 				fb_p->root2[j] = (uint16)root1;
@@ -1234,8 +1199,8 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else
 			{
-				update_data.firstroots1[j] = root1;
-				update_data.firstroots2[j] = root2;
+				update_data.sm_firstroots1[j] = (uint16)root1;
+				update_data.sm_firstroots2[j] = (uint16)root2;
 
 				fb_p->root1[j] = (uint16)root1;
 				fb_p->root2[j] = (uint16)root2;

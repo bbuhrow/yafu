@@ -43,6 +43,15 @@ else
 	OPT_FLAGS += -fomit-frame-pointer
 endif
 
+# if this option is specified then compile *both* the sse2 and sse4.1 versions of the
+# appropriate files.  The executable will then choose between them based on the runtime
+# capability of the user's cpu.  In other words, sse4.1 capability is required on the
+# host cpu in order to compile the fat binary, but once it is compiled it should run
+# to the capability of the target user cpu.
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41
+endif
+
 ifeq ($(OPT_DEBUG),1)
 	CFLAGS += -DOPT_DEBUG
 endif
@@ -117,9 +126,9 @@ YAFU_SRCS = \
 	factor/qs/tdiv_resieve_64k.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
+	factor/qs/large_sieve.c \
 	factor/qs/med_sieve_32k.c \
 	factor/qs/med_sieve_64k.c \
-	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
 	factor/qs/poly_roots_32k.c \
 	factor/qs/poly_roots_64k.c \
@@ -148,6 +157,12 @@ YAFU_SRCS = \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
+
+ifeq ($(USE_SSE41),1)
+# these files require SSE4.1 to compile
+	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+endif
 	
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
@@ -195,6 +210,12 @@ HEAD = include/yafu.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
 	include/nfs.h
+
+ifeq ($(USE_SSE41),1)
+# these files require SSE4.1 to compile
+	HEAD += factor/qs/poly_macros_common_sse4.1.h
+	HEAD += factor/qs/sieve_macros_32k_sse4.1.h
+endif
 
 #---------------------------Make Targets -------------------------
 
