@@ -289,6 +289,7 @@ void init_factobj(fact_obj_t *fobj)
 															//2 = deep
 	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
 	fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
+	fobj->nfs_obj.snfs_testsieve_threshold = 170;
 
 	fobj->nfs_obj.polybatch = 250;						//default	
 #if defined(_WIN64)

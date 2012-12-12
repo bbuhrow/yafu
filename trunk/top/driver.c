@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 61
+#define NUMOPTIONS 62
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -51,7 +51,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm"};
+	"ext_ecm", "testsieve"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -71,7 +71,7 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1};
+	1,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1903,6 +1903,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		}
 
 		fobj->ecm_obj.ecm_ext_xover = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[61]) == 0)
+	{
+		//argument "testsieve"
+		fobj->nfs_obj.snfs_testsieve_threshold = strtoul(arg,NULL,10);
 	}
 	else
 	{

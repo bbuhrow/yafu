@@ -403,6 +403,7 @@ typedef struct
 	int user_job;
 	uint32 polybatch;
 	uint32 nfs_phases;
+	uint32 snfs_testsieve_threshold;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;
