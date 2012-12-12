@@ -802,6 +802,19 @@ int qcomp_int(const void *x, const void *y)
 		return -1;
 }
 
+int qcomp_double(const void *x, const void *y)
+{
+	double *xx = (double *)x;
+	double *yy = (double *)y;
+
+	if (*xx > *yy)
+		return 1;
+	else if (*xx == *yy)
+		return 0;
+	else
+		return -1;
+}
+
 #ifdef _MSC_VER
 
 	/* Core aware timing on Windows, courtesy of Brian Gladman */

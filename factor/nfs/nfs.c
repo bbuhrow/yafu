@@ -1,3 +1,17 @@
+/*----------------------------------------------------------------------
+This source distribution is placed in the public domain by its author,
+Ben Buhrow. You may use it for any purpose, free of charge,
+without having to notify anyone. I disclaim any responsibility for any
+errors.
+
+Optionally, please be nice and tell me if you find this source to be
+useful. Again optionally, if you add to the functionality present here
+please consider making those additions public too, so that others may 
+benefit from your work.	
+
+       				   --bbuhrow@gmail.com 12/6/2012
+----------------------------------------------------------------------*/
+
 #include "nfs.h"
 #include "gmp_xface.h"
 
@@ -43,7 +57,9 @@ void nfs(fact_obj_t *fobj)
 	uint32 pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
+	snfs_t snfs_obj;
 	enum nfs_state_e nfs_state;
+	
 
 	obj_ptr = NULL;
 	//below a certain amount, revert to SIQS
@@ -123,6 +139,21 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
+	//// check snfs forms (if requested)
+	//snfs_init(&snfs_obj);
+	//if (snfs_obj.form_type == SNFS_NONE)
+	//{
+	//	printf("nfs: searching for brent special forms...\n");
+	//	find_brent_form(fobj, &snfs_obj);
+	//}
+
+	//if (snfs_obj.form_type == SNFS_NONE)
+	//{
+	//	printf("nfs: searching for homogeneous cunningham special forms...\n");
+	//	find_hcunn_form(fobj, &snfs_obj);
+	//}
+	//exit(0);
+
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -182,7 +213,7 @@ void nfs(fact_obj_t *fobj)
 
 			// before we get started, check to make sure we can find ggnfs sievers
 			// if we are going to be doing sieving
-			if (check_for_sievers(fobj) == 1)
+			if (check_for_sievers(fobj, 1) == 1)
 				nfs_state = NFS_STATE_DONE;
 
 			if (VFLAG >= 0 && nfs_state != NFS_STATE_DONE)
@@ -641,7 +672,7 @@ void nfs(fact_obj_t *fobj)
 
 #endif
 
-int check_for_sievers(fact_obj_t *fobj)
+int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 {
 	// if we are going to be doing sieving, check for the sievers
 	if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
@@ -654,6 +685,9 @@ int check_for_sievers(fact_obj_t *fobj)
 		for (i=11; i<16; i++)
 		{
 			sprintf(name, "%sggnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, i);
+#if defined(WIN32)
+			sprintf(name, "%s.exe", name);
+#endif
 			// test for existence of the siever
 			test = fopen(name, "rb");
 			if (test != NULL)
@@ -664,7 +698,7 @@ int check_for_sievers(fact_obj_t *fobj)
 			}
 		}
 
-		if (!found)
+		if (!found && revert_to_siqs)
 		{
 			printf("WARNING: could not find ggnfs sievers, reverting to siqs!\n");
 			logprint_oc(fobj->flogname, "a", "WARNING: could not find ggnfs sievers, "
@@ -675,7 +709,9 @@ int check_for_sievers(fact_obj_t *fobj)
 			mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 			return 1;
 		}
-		else 
+		else if (!found)
+			return 1;
+		else
 			return 0;
 	}
 
@@ -1209,7 +1245,7 @@ void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params)
 		else if (VFLAG > 0)
 			printf("nfs: job file is missing params, filling them\n");
 
-		// make sure we start on a new line
+		// make sure we start on a new line if we are filling anything
 		fprintf(out, "\n");
 
 		if (missing_params & PARAM_FLAG_FBLIM)
@@ -1241,3 +1277,5 @@ void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params)
  	
 	return;
 }
+
+

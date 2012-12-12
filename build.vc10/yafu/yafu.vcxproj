@@ -276,6 +276,7 @@
     <ClCompile Include="..\..\factor\nfs\nfs_postproc.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_sieving.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
+    <ClCompile Include="..\..\factor\nfs\snfs.c" />
     <ClCompile Include="..\..\factor\nfs\winsupport.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />

@@ -154,6 +154,7 @@ int qcomp_int(const void *x, const void *y);
 int qcomp_uint16(const void *x, const void *y);
 int qcomp_uint32(const void *x, const void *y);
 int qcomp_uint64(const void *x, const void *y);
+int qcomp_double(const void *x, const void *y);
 void generate_pseudoprime_list(int num, int bits);
 void yafu_set_idle_priority(void);
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input);

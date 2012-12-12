@@ -1263,15 +1263,24 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 
 #if defined(USE_ASM_SMALL_PRIME_SIEVING)
+#if defined (USE_SSE41)
 			if (HAS_SSE41)
 				printf("using SSE4.1 and inline ASM for small prime sieving\n");
 			else
 				printf("using SSE2 and inline ASM for small prime sieving\n");
 #else
+			printf("using SSE2 and inline ASM for small prime sieving\n");
+#endif
+
+#else
+#if defined (USE_SSE41)
 			if (HAS_SSE41)
 				printf("using SSE4.1 for small prime sieving\n");
 			else
 				printf("using SSE2 for small prime sieving\n");
+#else
+			printf("using SSE2 for small prime sieving\n");
+#endif
 #endif
 
 #if defined(GCC_ASM64X) || defined(_MSC_VER)
@@ -1279,16 +1288,22 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
+#if defined (USE_SSE41)
 			if (HAS_SSE41)
 				printf("using SSE4.1 for medium prime poly updating\n");
+#endif
 #endif
 
 
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
+#if defined (USE_SSE41)
 			if (HAS_SSE41)
 				printf("using SSE4.1 and inline ASM for large prime poly updating\n");
 			else
 				printf("using SSE2 and inline ASM for large prime poly updating\n");
+#else
+			printf("using SSE2 and inline ASM for large prime poly updating\n");
+#endif
 #endif
 
 #if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
@@ -1696,17 +1711,25 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	default:
 		firstRoots_ptr = &firstRoots_32k;
 
+#if defined(USE_SSE41)
 		if (HAS_SSE41)
 			nextRoots_ptr = &nextRoots_32k_sse41;
 		else
 			nextRoots_ptr = &nextRoots_32k;
+#else
+		nextRoots_ptr = &nextRoots_32k;
+#endif
 		
 		testRoots_ptr = &testfirstRoots_32k;
 
+#if defined(USE_SSE41)
 		if (HAS_SSE41)
 			med_sieve_ptr = &med_sieveblock_32k_sse41;
 		else
 			med_sieve_ptr = &med_sieveblock_32k;
+#else
+		med_sieve_ptr = &med_sieveblock_32k;
+#endif
 
 		tdiv_med_ptr = &tdiv_medprimes_32k;
 		resieve_med_ptr = &resieve_medprimes_32k;

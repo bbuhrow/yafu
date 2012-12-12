@@ -125,6 +125,62 @@ typedef struct {
 
 } nfs_threaddata_t;
 
+
+enum snfs_form_e
+{
+	SNFS_NONE,
+	SNFS_BRENT,
+	SNFS_H_CUNNINGHAM,
+	SNFS_XYYXF
+};
+
+enum special_q_e
+{
+	RATIONAL_SPQ,
+	ALGEBRAIC_SPQ
+};
+
+typedef struct
+{
+	// input integer
+	mpz_t n;
+	// algebraic representation of the snfs form
+	int base1;
+	int base2;
+	int exp1;
+	int exp2;
+	int coeff1;
+	int coeff2;
+	// polynomial coefficients - up to degree 8
+	int c[9];
+	mpz_t y0;
+	mpz_t y1;
+	mpz_t m;	
+	// type of form
+	enum snfs_form_e form_type;
+	// parameters needed for sieving
+	double skew;
+	uint32 rlim;
+	uint32 alim;
+	uint32 lpbr;
+	uint32 lpba;
+	uint32 mfbr;
+	uint32 mfba;
+	double rlambda;
+	double alambda;
+
+	// other useful parameters
+	int degree;
+	double difficulty;	
+	double sdifficulty;
+	double anorm;
+	double rnorm;
+	enum special_q_e side;
+	int rank;
+	int valid;
+} snfs_t;
+
+
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
 void *polyfind_launcher(void *ptr);
@@ -132,7 +188,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
-int check_for_sievers(fact_obj_t *fobj);
+int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs);
 //void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job);
 void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32* missing_params);
 void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params);
@@ -158,6 +214,23 @@ DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
 #else
 void *nfs_worker_thread_main(void *thread_data);
 #endif
+
+// snfs stuff
+void find_brent_form(fact_obj_t *fobj, snfs_t *poly);
+void find_hcunn_form(fact_obj_t *fobj, snfs_t *poly);
+void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
+void snfs_init(snfs_t *poly);
+void snfs_clear(snfs_t *poly);
+void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly);
+void check_poly(snfs_t *poly);
+void print_poly(snfs_t *poly, FILE *out);
+void snfs_copy_poly(snfs_t *src, snfs_t *dest);
+void approx_norms(snfs_t *poly);
+void snfs_scale_difficulty(snfs_t *polys, int npoly);
+void snfs_rank_polys(snfs_t *polys, int npoly);
+int qcomp_snfs_sdifficulty(const void *x, const void *y);
+void snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly);
+void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly);
 
 int NFS_ABORT;
 

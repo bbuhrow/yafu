@@ -242,6 +242,9 @@
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\snfs.c">
+      <Filter>Source Files\factoring\nfs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
