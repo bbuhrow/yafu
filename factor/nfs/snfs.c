@@ -510,7 +510,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 	int e = poly->exp1;
 	int b = poly->base1;
 	mpz_t n, m;
-	double d, skew;
+	double d, skew, k;
 	int f[100];
 	int numf = 0;
 	snfs_t *polys;
@@ -520,190 +520,410 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 	mpz_init(n);
 	mpz_init(m);
 
-	// test for algebraic factors - we look for several specific but common forms in this order:
+	// test for algebraic factors - we look for several specific but common forms:
 	// 21*k, 15*k, 13*k, 11*k, 7*k, 5*k, 3*k
 	// if any of these are available we immediately use them, because dividing out an algebraic factor
 	// will always be lower difficulty then playing with exponents only, even if the degree
 	// is sub-optimal.  
-
-
-
-	// No algebraic factor - play with powers and composite bases
-	mpz_set_ui(m, b);
-	if (!mpz_probab_prime_p(m,10))
+	if (poly->exp1 % 15 == 0)
 	{
-		int bb = b;
-		// factor the base
-		i=0;
-		while ((bb > 1) && (spSOEprimes[i] < 100))
-		{
-			int q = (int)spSOEprimes[i];
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(15k) +/- 1 has an algebraic factor which is an 8th degree symmetric polynomial.
+		// check for this case before a^(3k) or a^(5k) since the algbraic reduction is greater.
+		// the 8th degree poly can be halved as in the 11*k and 13*k cases, resulting in 
+		// the following quartic:
+		polys->degree = 4;
+		k = poly->exp1 / 15;
+		polys->c[4] = 1;
+		polys->c[3] = poly->coeff1;
+		polys->c[2] = -4;
+		polys->c[1] = -poly->coeff1 * 4;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 8. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;
+
+		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+		mpz_neg(polys->y1, polys->m);
+		mpz_mul(polys->y0, polys->m, polys->m);
+		mpz_add_ui(polys->y0, polys->y0, 1);
+		mpz_invert(m, polys->m, polys->n);
+		mpz_add(polys->m, polys->m, m);
+	}
+	else if (poly->exp1 % 21 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(21k) +/- 1 has an algebraic factor which is a 12th degree symmetric polynomial.
+		// check for this case before a^(3k) or a^(7k) since the algbraic reduction is greater.
+		// the 12th degree poly can be halved as in the 11*k and 13*k cases, resulting in 
+		// the following sextic:
+		polys->degree = 6;
+		k = poly->exp1 / 21;
+		polys->c[6] = 1;
+		polys->c[5] = poly->coeff1;
+		polys->c[4] = -6;
+		polys->c[3] = -poly->coeff1 * 6;
+		polys->c[2] = 8;
+		polys->c[1] = poly->coeff1 * 8;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 12. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;
 		
-			if (bb%q != 0)
-				i++;
-			else
-			{			
-				bb /= q;
-				f[numf++] = q;
+		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+		mpz_neg(polys->y1, polys->m);
+		mpz_mul(polys->y0, polys->m, polys->m);
+		mpz_add_ui(polys->y0, polys->y0, 1);
+		mpz_invert(m, polys->m, polys->n);
+		mpz_add(polys->m, polys->m, m);
+	}
+	else if (poly->exp1 % 6 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+		// the quadratic can be converted into a quartic...
+		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+		// todo: look into making degree 6 based on difficulty
+		polys->degree = 4;
+		k = poly->exp1 / 6;
+		polys->c[4] = 1;
+		polys->c[2] = -1;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;
+
+		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+		mpz_set(polys->y0, polys->m);
+		mpz_set_si(polys->y0, -1);
+	}
+	else if (poly->exp1 % 6 == 3)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+		// the quadratic can be converted into a quartic...
+		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+		// todo: look into making degree 6 based on difficulty
+		polys->degree = 4;
+		k = (poly->exp1 - 3) / 6;
+		polys->c[4] = poly->base1 * poly->base1;
+		polys->c[2] = poly->base1 * -poly->coeff1;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->skew = pow(mpz_get_d(m), -0.5);
+		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
+		mpz_pow_ui(polys->m, m, k);		
+
+		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+		mpz_set(polys->y0, polys->m);
+		mpz_set_si(polys->y0, -1);
+	}
+	else if (poly->exp1 % 5 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
+		polys->degree = 4;
+		k = poly->exp1 / 5;
+		polys->c[4] = 1;
+		polys->c[3] = -poly->coeff1;
+		polys->c[2] = 1;
+		polys->c[1] = -poly->coeff1;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;		
+
+		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+		mpz_set(polys->y0, polys->m);
+		mpz_set_si(polys->y0, -1);
+	}
+	else if (poly->exp1 % 7 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
+		polys->degree = 6;
+		k = poly->exp1 / 7;
+		polys->c[6] = 1;
+		polys->c[5] = -poly->coeff1;
+		polys->c[4] = 1;
+		polys->c[3] = -poly->coeff1;
+		polys->c[2] = 1;
+		polys->c[1] = -poly->coeff1;
+		polys->c[0] = 1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 6. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;		
+
+		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+		mpz_set(polys->y0, polys->m);
+		mpz_set_si(polys->y0, -1);
+	}
+	else if (poly->exp1 % 11 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
+		// but the poly is symmetric and can be halved to degree 5... 
+		// see http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+		polys->degree = 5;
+		k = poly->exp1 / 11;
+		polys->c[5] = 1;
+		polys->c[4] = -poly->coeff1*1;
+		polys->c[3] = -4;
+		polys->c[2] = poly->coeff1*3;
+		polys->c[1] = 3;
+		polys->c[0] = -poly->coeff1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 10. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;	
+		
+		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+		mpz_neg(polys->y1, polys->m);
+		mpz_mul(polys->y0, polys->m, polys->m);
+		mpz_add_ui(polys->y0, polys->y0, 1);
+		mpz_invert(m, polys->m, polys->n);
+		mpz_add(polys->m, polys->m, m);
+	}
+	else if (poly->exp1 % 13 == 0)
+	{
+		polys = (snfs_t *)malloc(sizeof(snfs_t));
+		snfs_init(polys);
+		npoly = 1;
+
+		// a^(13k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 12.
+		// but the poly is symmetric and can be halved to degree 6... 
+		// see http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+		polys->degree = 6;
+		k = poly->exp1 / 13;
+		polys->c[6] = 1;
+		polys->c[5] = -poly->coeff1;
+		polys->c[4] = -5;
+		polys->c[3] = poly->coeff1*4;
+		polys->c[2] = 6;
+		polys->c[1] = -poly->coeff1*3;
+		polys->c[0] = -1;
+		mpz_set_ui(m, poly->base1);
+		polys->difficulty = log10(mpz_get_d(m)) * 12. * k;
+		mpz_pow_ui(polys->m, m, k);
+		polys->skew = 1.;	
+		
+		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+		mpz_neg(polys->y1, polys->m);
+		mpz_mul(polys->y0, polys->m, polys->m);
+		mpz_add_ui(polys->y0, polys->y0, 1);
+		mpz_invert(m, polys->m, polys->n);
+		mpz_add(polys->m, polys->m, m);
+	}
+	else 
+	{
+
+		// No algebraic factor - play with powers and composite bases
+		mpz_set_ui(m, b);
+		if (!mpz_probab_prime_p(m,10))
+		{
+			int bb = b;
+			// factor the base
+			i=0;
+			while ((bb > 1) && (spSOEprimes[i] < 100))
+			{
+				int q = (int)spSOEprimes[i];
+		
+				if (bb%q != 0)
+					i++;
+				else
+				{			
+					bb /= q;
+					f[numf++] = q;
+				}
 			}
 		}
-	}
 
-	// initialize candidate polynomials now that we know how many we'll need.
-	// each factor of the base generates one, plus 2 for
-	// the whole base raised and lowered, for each degree
-	if (numf > 1) apoly = (numf + 2) * 3;
-	else apoly = 6;
+		// initialize candidate polynomials now that we know how many we'll need.
+		// each factor of the base generates one, plus 2 for
+		// the whole base raised and lowered, for each degree
+		if (numf > 1) apoly = (numf + 2) * 3;
+		else apoly = 6;
 
-	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
-	for (i=0; i<apoly; i++)
-		snfs_init(&polys[i]);
+		polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
+		for (i=0; i<apoly; i++)
+			snfs_init(&polys[i]);
 
-	if (VFLAG > 0)
-	{
-		printf("gen: ========================================================\n");
-		printf("gen: considering the following polynomials:\n");
-		printf("gen: ========================================================\n");
-	}
-
-	for (i=4; i<7; i++)
-	{
-		int c0, cd;
-
-		if (e % i == 0)
+		if (VFLAG > 0)
 		{
-			// the degree divides the exponent - resulting polynomial is straightforward
-			me = e / i;
-			mpz_set_si(m, b);
-			mpz_pow_ui(m, m, me);
-			d = mpz_get_d(m);
-			d = log10(d) * (double)i;
-			skew = 1.0;
-			cd = 1; c0 = poly->coeff1;
-			snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
-			polys[npoly].difficulty = d;
-			polys[npoly].skew = skew;
-			polys[npoly].c[i] = cd;
-			polys[npoly].c[0] = c0;
-			mpz_set_si(polys[npoly].y1, -1);
-			mpz_set(polys[npoly].y0, m);
-			mpz_set(polys[npoly].m, m);
-			polys[npoly].degree = i;			
-			check_poly(&polys[npoly]);
-			approx_norms(&polys[npoly]);
-			if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
-			if (polys[npoly].valid) npoly++;
+			printf("gen: ========================================================\n");
+			printf("gen: considering the following polynomials:\n");
+			printf("gen: ========================================================\n");
 		}
-		else
+
+		for (i=4; i<7; i++)
 		{
-			// degree does not divide the exponent, try increasing the exponent
-			int inc = (i - e % i);
-			me = (e+inc) / i;
-			mpz_set_si(m, b);
-			mpz_pow_ui(m, m, me);
-			d = mpz_get_d(m);
-			d = log10(d) * (double)i;
-			cd = 1;
-			c0 = (int)pow((double)b,inc) * poly->coeff1;
-			skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
-			snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
-			polys[npoly].difficulty = d;
-			polys[npoly].skew = skew;
-			polys[npoly].c[i] = cd;
-			polys[npoly].c[0] = c0;
-			mpz_set_si(polys[npoly].y1, -1);
-			mpz_set(polys[npoly].y0, m);
-			mpz_set(polys[npoly].m, m);
-			polys[npoly].degree = i;			
-			check_poly(&polys[npoly]);
-			approx_norms(&polys[npoly]);
-			if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
-			if (polys[npoly].valid) npoly++;
+			int c0, cd;
 
-			// and decreasing the exponent
-			inc = e % i;
-			me = (e-inc) / i;
-			mpz_set_si(m, b);
-			mpz_pow_ui(m, m, me);
-			d = mpz_get_d(m);
-			d = log10(d) * (double)i + log10(pow((double)b,inc));
-			cd = (int)pow((double)b,inc);
-			c0 = 1 * poly->coeff1;
-			skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
-			// leading coefficient contributes to the difficulty
-			d += log10((double)cd);
-			snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
-			polys[npoly].difficulty = d;
-			polys[npoly].skew = skew;
-			polys[npoly].c[i] = cd;
-			polys[npoly].c[0] = c0;
-			mpz_set_si(polys[npoly].y1, -1);
-			mpz_set(polys[npoly].y0, m);
-			mpz_set(polys[npoly].m, m);
-			polys[npoly].degree = i;
-			check_poly(&polys[npoly]);
-			approx_norms(&polys[npoly]);
-			if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
-			if (polys[npoly].valid) npoly++;
-
-			// and playing with composite bases
-			if (numf > 1)
+			if (e % i == 0)
 			{
-				int j;
+				// the degree divides the exponent - resulting polynomial is straightforward
+				me = e / i;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)i;
+				skew = 1.0;
+				cd = 1; c0 = poly->coeff1;
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].skew = skew;
+				polys[npoly].c[i] = cd;
+				polys[npoly].c[0] = c0;
+				mpz_set_si(polys[npoly].y1, -1);
+				mpz_set(polys[npoly].y0, m);
+				mpz_set(polys[npoly].m, m);
+				polys[npoly].degree = i;			
+				check_poly(&polys[npoly]);
+				approx_norms(&polys[npoly]);
+				if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
+				if (polys[npoly].valid) npoly++;
+			}
+			else
+			{
+				// degree does not divide the exponent, try increasing the exponent
+				int inc = (i - e % i);
+				me = (e+inc) / i;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)i;
+				cd = 1;
+				c0 = (int)pow((double)b,inc) * poly->coeff1;
+				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].skew = skew;
+				polys[npoly].c[i] = cd;
+				polys[npoly].c[0] = c0;
+				mpz_set_si(polys[npoly].y1, -1);
+				mpz_set(polys[npoly].y0, m);
+				mpz_set(polys[npoly].m, m);
+				polys[npoly].degree = i;			
+				check_poly(&polys[npoly]);
+				approx_norms(&polys[npoly]);
+				if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
+				if (polys[npoly].valid) npoly++;
 
-				// multiply by powers of each factor individually to get that 
-				// factor to a multiple of degree
-				for (j=0; j<numf; j++)
+				// and decreasing the exponent
+				inc = e % i;
+				me = (e-inc) / i;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)i + log10(pow((double)b,inc));
+				cd = (int)pow((double)b,inc);
+				c0 = 1 * poly->coeff1;
+				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+				// leading coefficient contributes to the difficulty
+				d += log10((double)cd);
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].skew = skew;
+				polys[npoly].c[i] = cd;
+				polys[npoly].c[0] = c0;
+				mpz_set_si(polys[npoly].y1, -1);
+				mpz_set(polys[npoly].y0, m);
+				mpz_set(polys[npoly].m, m);
+				polys[npoly].degree = i;
+				check_poly(&polys[npoly]);
+				approx_norms(&polys[npoly]);
+				if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
+				if (polys[npoly].valid) npoly++;
+
+				// and playing with composite bases
+				if (numf > 1)
 				{
-					int k, i1, i2, bb;
-					// move it up
-					i1 = (i - e % i);
-					c0 = pow((double)f[j], i1) * poly->coeff1;
-					// since we moved the current factor up, move the other factors down
-					// otherwise this would be the same as moving the whole composite base up
-					cd = 1;
-					bb = 1;
-					i2 = e % i;
-					for (k=0; k<numf; k++)
+					int j;
+
+					// multiply by powers of each factor individually to get that 
+					// factor to a multiple of degree
+					for (j=0; j<numf; j++)
 					{
-						if (k == j) continue;
-						cd *= pow((double)f[k], i2);
-						bb *= f[k];
+						int k, i1, i2, bb;
+						// move it up
+						i1 = (i - e % i);
+						c0 = pow((double)f[j], i1) * poly->coeff1;
+						// since we moved the current factor up, move the other factors down
+						// otherwise this would be the same as moving the whole composite base up
+						cd = 1;
+						bb = 1;
+						i2 = e % i;
+						for (k=0; k<numf; k++)
+						{
+							if (k == j) continue;
+							cd *= pow((double)f[k], i2);
+							bb *= f[k];
+						}
+						// m is now a mix of powers of factors of b.
+						// here is the contribution of the factor we increased
+						me = (e+i1) / i;
+						mpz_set_si(m, f[j]);
+						mpz_pow_ui(m, m, me);
+						// here is the contribution of the factors we decreased
+						me = (e-i2) / i;
+						mpz_set_si(n, bb);
+						mpz_pow_ui(n, n, me);
+						// combine them and compute the base difficulty
+						mpz_mul(m, m, n);
+						d = mpz_get_d(m);
+						d = log10(d) * (double)i;
+						// the power we moved up appears in the constant term and the powers we moved 
+						// down appear as a coefficient to the high order term and thus contribute
+						// to the difficulty.  
+						// leading coefficient contributes to the difficulty
+						d += log10((double)cd);
+						skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+						snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+						polys[npoly].difficulty = d;
+						polys[npoly].skew = skew;
+						polys[npoly].c[i] = cd;
+						polys[npoly].c[0] = c0;
+						mpz_set_si(polys[npoly].y1, -1);
+						mpz_set(polys[npoly].y0, m);
+						mpz_set(polys[npoly].m, m);
+						polys[npoly].degree = i;
+						check_poly(&polys[npoly]);
+						approx_norms(&polys[npoly]);
+						if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
+						if (polys[npoly].valid) npoly++;
 					}
-					// m is now a mix of powers of factors of b.
-					// here is the contribution of the factor we increased
-					me = (e+i1) / i;
-					mpz_set_si(m, f[j]);
-					mpz_pow_ui(m, m, me);
-					// here is the contribution of the factors we decreased
-					me = (e-i2) / i;
-					mpz_set_si(n, bb);
-					mpz_pow_ui(n, n, me);
-					// combine them and compute the base difficulty
-					mpz_mul(m, m, n);
-					d = mpz_get_d(m);
-					d = log10(d) * (double)i;
-					// the power we moved up appears in the constant term and the powers we moved 
-					// down appear as a coefficient to the high order term and thus contribute
-					// to the difficulty.  
-					// leading coefficient contributes to the difficulty
-					d += log10((double)cd);
-					skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
-					snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
-					polys[npoly].difficulty = d;
-					polys[npoly].skew = skew;
-					polys[npoly].c[i] = cd;
-					polys[npoly].c[0] = c0;
-					mpz_set_si(polys[npoly].y1, -1);
-					mpz_set(polys[npoly].y0, m);
-					mpz_set(polys[npoly].m, m);
-					polys[npoly].degree = i;
-					check_poly(&polys[npoly]);
-					approx_norms(&polys[npoly]);
-					if (VFLAG > 0 && polys[npoly].valid) print_poly(&polys[npoly], stdout);
-					if (polys[npoly].valid) npoly++;
-				}
-			}			
+				}			
+			}
 		}
 	}
 
