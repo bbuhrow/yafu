@@ -166,9 +166,18 @@ void print_poly(snfs_t *poly, FILE *out)
 	else
 		sprintf(side, "algebraic");
 
-	fprintf(out, "# %d^%d%c%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
-		poly->base1, poly->exp1, c, abs(poly->coeff1), poly->difficulty,
-		poly->anorm, poly->rnorm);
+	if (poly->form_type == SNFS_H_CUNNINGHAM)
+	{
+		fprintf(out, "# %d^%d%c%d^%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+			poly->base1, poly->exp1, c, poly->base2, poly->exp1, poly->difficulty,
+			poly->anorm, poly->rnorm);
+	}
+	else
+	{
+		fprintf(out, "# %d^%d%c%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+			poly->base1, poly->exp1, c, abs(poly->coeff1), poly->difficulty,
+			poly->anorm, poly->rnorm);
+	}
 	if (poly->sdifficulty > 0)
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
 	gmp_fprintf(out, "n: %Zd\n", poly->n);
@@ -242,7 +251,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		// limit the exponent so that the number is less than 1000 bits
 		maxb = 1000 / log((double)i) + 1;
 
-		if (VFLAG > 0)
+		if (VFLAG > 1)
 			printf("nfs: checking %d^x +/- 1 for 20 <= x <= %d\n", i, maxb);
 
 		for (j=20; j<maxb; j++)
@@ -256,6 +265,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				if (VFLAG > 0) printf("nfs: input divides %d^%d + 1\n", i, j);
 				form->form_type = SNFS_BRENT;
 				form->base1 = i;
+				form->base2 = 1;
 				form->exp1 = j;
 				form->coeff1 = 1;
 				mpz_set(form->n, n);
@@ -270,6 +280,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				if (VFLAG > 0) printf("nfs: input divides %d^%d - 1\n", i, j);
 				form->form_type = SNFS_BRENT;
 				form->base1 = i;
+				form->base2 = 1;
 				form->exp1 = j;
 				form->coeff1 = -1;
 				mpz_set(form->n, n);
@@ -366,7 +377,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 
 			// limit the exponent so that the number is less than 1000 bits
 			kmax = 1000 / log((double)i) + 1;
-			if (VFLAG > 0)
+			if (VFLAG > 1)
 				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
 
 			for (k=20; k<kmax; k++)
@@ -384,6 +395,8 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->base2 = j;
 					form->exp1 = k;
 					form->coeff1 = 1;
+					mpz_set(form->n, n);
+					gen_brent_poly(fobj, form);
 					goto done;
 				}
 
@@ -397,6 +410,8 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->base2 = j;
 					form->exp1 = k;
 					form->coeff1 = -1;
+					mpz_set(form->n, n);
+					gen_brent_poly(fobj, form);
 					goto done;
 				}
 
@@ -503,12 +518,10 @@ done:
 
 void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 {
-	// snfs difficulty is the size of p(m), where p is the poly and m is the root.
-
-	// find the best poly using power raising/lowering only:
 	int i, me;
 	int e = poly->exp1;
 	int b = poly->base1;
+	int b2 = poly->base2;
 	mpz_t n, m;
 	double d, skew, k;
 	int f[100];
@@ -530,6 +543,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(15k) +/- 1 has an algebraic factor which is an 8th degree symmetric polynomial.
 		// check for this case before a^(3k) or a^(5k) since the algbraic reduction is greater.
@@ -547,19 +561,44 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;
 
-		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-		mpz_neg(polys->y1, polys->m);
-		mpz_mul(polys->y0, polys->m, polys->m);
-		mpz_add_ui(polys->y0, polys->y0, 1);
-		mpz_invert(m, polys->m, polys->n);
-		mpz_add(polys->m, polys->m, m);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
+			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
+			// multiplying through by a2^2 gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			mpz_set_si(polys->y1, b2*b);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_set_ui(n, poly->base2);
+			mpz_pow_ui(n, n, 2*k);
+			mpz_add(polys->y0, polys->y0, n);
+			mpz_sqrt(n, n);
+			mpz_invert(n, n, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+			mpz_neg(polys->y1, polys->m);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_add_ui(polys->y0, polys->y0, 1);
+			mpz_invert(m, polys->m, polys->n);
+			mpz_add(polys->m, polys->m, m);
+		}
+		
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 21 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(21k) +/- 1 has an algebraic factor which is a 12th degree symmetric polynomial.
 		// check for this case before a^(3k) or a^(7k) since the algbraic reduction is greater.
@@ -579,19 +618,44 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;
 		
-		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-		mpz_neg(polys->y1, polys->m);
-		mpz_mul(polys->y0, polys->m, polys->m);
-		mpz_add_ui(polys->y0, polys->y0, 1);
-		mpz_invert(m, polys->m, polys->n);
-		mpz_add(polys->m, polys->m, m);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
+			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
+			// multiplying through by a2^2 gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			mpz_set_si(polys->y1, b2*b);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_set_ui(n, poly->base2);
+			mpz_pow_ui(n, n, 2*k);
+			mpz_add(polys->y0, polys->y0, n);
+			mpz_sqrt(n, n);
+			mpz_invert(n, n, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+			mpz_neg(polys->y1, polys->m);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_add_ui(polys->y0, polys->y0, 1);
+			mpz_invert(m, polys->m, polys->n);
+			mpz_add(polys->m, polys->m, m);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 6 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
 		// the quadratic can be converted into a quartic...
@@ -607,15 +671,32 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;
 
-		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-		mpz_set(polys->y0, polys->m);
-		mpz_set_si(polys->y0, -1);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			mpz_set_si(polys->y1, b2);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_set(polys->y0, polys->m);
+			mpz_invert(n, polys->y1, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+			mpz_set(polys->y0, polys->m);
+			mpz_set_si(polys->y0, -1);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 6 == 3)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
 		// the quadratic can be converted into a quartic...
@@ -631,15 +712,32 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
 		mpz_pow_ui(polys->m, m, k);		
 
-		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-		mpz_set(polys->y0, polys->m);
-		mpz_set_si(polys->y0, -1);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			mpz_set_si(polys->y1, b2);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_set(polys->y0, polys->m);
+			mpz_invert(n, polys->y1, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+			mpz_set(polys->y0, polys->m);
+			mpz_set_si(polys->y0, -1);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 5 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
 		polys->degree = 4;
@@ -654,15 +752,33 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;		
 
-		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-		mpz_set(polys->y0, polys->m);
-		mpz_set_si(polys->y0, -1);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			mpz_set_si(polys->y1, b2);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_set(polys->y0, polys->m);
+			mpz_invert(n, polys->y1, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+			mpz_set(polys->y0, polys->m);
+			mpz_set_si(polys->y0, -1);
+		}
+
+		mpz_set(polys->n, poly->n);
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 7 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
 		polys->degree = 6;
@@ -679,15 +795,32 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;		
 
-		// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-		mpz_set(polys->y0, polys->m);
-		mpz_set_si(polys->y0, -1);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			mpz_set_si(polys->y1, b2);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_set(polys->y0, polys->m);
+			mpz_invert(n, polys->y1, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+			mpz_set(polys->y0, polys->m);
+			mpz_set_si(polys->y0, -1);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 11 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
 		// but the poly is symmetric and can be halved to degree 5... 
@@ -704,20 +837,45 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		polys->difficulty = log10(mpz_get_d(m)) * 10. * k;
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;	
-		
-		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-		mpz_neg(polys->y1, polys->m);
-		mpz_mul(polys->y0, polys->m, polys->m);
-		mpz_add_ui(polys->y0, polys->y0, 1);
-		mpz_invert(m, polys->m, polys->n);
-		mpz_add(polys->m, polys->m, m);
+				
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
+			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
+			// multiplying through by a2^2 gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			mpz_set_si(polys->y1, b2*b);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_set_ui(n, poly->base2);
+			mpz_pow_ui(n, n, 2*k);
+			mpz_add(polys->y0, polys->y0, n);
+			mpz_sqrt(n, n);
+			mpz_invert(n, n, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+			mpz_neg(polys->y1, polys->m);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_add_ui(polys->y0, polys->y0, 1);
+			mpz_invert(m, polys->m, polys->n);
+			mpz_add(polys->m, polys->m, m);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else if (poly->exp1 % 13 == 0)
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(13k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 12.
 		// but the poly is symmetric and can be halved to degree 6... 
@@ -736,13 +894,37 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		mpz_pow_ui(polys->m, m, k);
 		polys->skew = 1.;	
 		
-		// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-		// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-		mpz_neg(polys->y1, polys->m);
-		mpz_mul(polys->y0, polys->m, polys->m);
-		mpz_add_ui(polys->y0, polys->y0, 1);
-		mpz_invert(m, polys->m, polys->n);
-		mpz_add(polys->m, polys->m, m);
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+		{
+			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
+			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
+			// multiplying through by a2^2 gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			mpz_set_si(polys->y1, b2*b);
+			mpz_pow_ui(polys->y1, polys->y1, k);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_set_ui(n, poly->base2);
+			mpz_pow_ui(n, n, 2*k);
+			mpz_add(polys->y0, polys->y0, n);
+			mpz_sqrt(n, n);
+			mpz_invert(n, n, poly->n);
+			mpz_mul(polys->m, polys->m, n);
+			mpz_mod(polys->m, polys->m, poly->n);
+			mpz_mul_si(polys->y1, polys->y1, -1);
+		}
+		else
+		{
+			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+			mpz_neg(polys->y1, polys->m);
+			mpz_mul(polys->y0, polys->m, polys->m);
+			mpz_add_ui(polys->y0, polys->y0, 1);
+			mpz_invert(m, polys->m, polys->n);
+			mpz_add(polys->m, polys->m, m);
+		}
+
+		check_poly(polys);
+		approx_norms(polys);
 	}
 	else 
 	{
@@ -804,9 +986,23 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 				polys[npoly].skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
-				mpz_set_si(polys[npoly].y1, -1);
-				mpz_set(polys[npoly].y0, m);
-				mpz_set(polys[npoly].m, m);
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set_si(polys[npoly].y1, b2);
+					mpz_pow_ui(polys[npoly].y1, polys[npoly].y1, me);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+					mpz_invert(n, polys[npoly].y1, polys[npoly].n);
+					mpz_mul(polys[npoly].m, polys[npoly].m, n);
+					mpz_mod(polys[npoly].m, polys[npoly].m, polys[npoly].n);
+					mpz_mul_si(polys[npoly].y1, polys[npoly].y1, -1);
+				}
+				else
+				{
+					mpz_set_si(polys[npoly].y1, -1);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+				}
 				polys[npoly].degree = i;			
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
@@ -822,7 +1018,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i;
-				cd = 1;
+				cd = (int)pow((double)b2, inc);
 				c0 = (int)pow((double)b,inc) * poly->coeff1;
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
@@ -830,9 +1026,23 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 				polys[npoly].skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
-				mpz_set_si(polys[npoly].y1, -1);
-				mpz_set(polys[npoly].y0, m);
-				mpz_set(polys[npoly].m, m);
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set_si(polys[npoly].y1, b2);
+					mpz_pow_ui(polys[npoly].y1, polys[npoly].y1, me);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+					mpz_invert(n, polys[npoly].y1, polys[npoly].n);
+					mpz_mul(polys[npoly].m, polys[npoly].m, n);
+					mpz_mod(polys[npoly].m, polys[npoly].m, polys[npoly].n);
+					mpz_mul_si(polys[npoly].y1, polys[npoly].y1, -1);
+				}
+				else
+				{
+					mpz_set_si(polys[npoly].y1, -1);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+				}
 				polys[npoly].degree = i;			
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
@@ -847,7 +1057,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i + log10(pow((double)b,inc));
 				cd = (int)pow((double)b,inc);
-				c0 = 1 * poly->coeff1;
+				c0 = (int)pow((double)b2, inc) * poly->coeff1;
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
 				// leading coefficient contributes to the difficulty
 				d += log10((double)cd);
@@ -856,9 +1066,23 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 				polys[npoly].skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
-				mpz_set_si(polys[npoly].y1, -1);
-				mpz_set(polys[npoly].y0, m);
-				mpz_set(polys[npoly].m, m);
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set_si(polys[npoly].y1, b2);
+					mpz_pow_ui(polys[npoly].y1, polys[npoly].y1, me);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+					mpz_invert(n, polys[npoly].y1, polys[npoly].n);
+					mpz_mul(polys[npoly].m, polys[npoly].m, n);
+					mpz_mod(polys[npoly].m, polys[npoly].m, polys[npoly].n);
+					mpz_mul_si(polys[npoly].y1, polys[npoly].y1, -1);
+				}
+				else
+				{
+					mpz_set_si(polys[npoly].y1, -1);
+					mpz_set(polys[npoly].y0, m);
+					mpz_set(polys[npoly].m, m);
+				}
 				polys[npoly].degree = i;
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
@@ -879,8 +1103,9 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 						i1 = (i - e % i);
 						c0 = pow((double)f[j], i1) * poly->coeff1;
 						// since we moved the current factor up, move the other factors down
-						// otherwise this would be the same as moving the whole composite base up
-						cd = 1;
+						// otherwise this would be the same as moving the whole composite base up.
+						// also move the second term up...
+						cd = pow((double)b2, i1);
 						bb = 1;
 						i2 = e % i;
 						for (k=0; k<numf; k++)
@@ -913,9 +1138,23 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 						polys[npoly].skew = skew;
 						polys[npoly].c[i] = cd;
 						polys[npoly].c[0] = c0;
-						mpz_set_si(polys[npoly].y1, -1);
-						mpz_set(polys[npoly].y0, m);
-						mpz_set(polys[npoly].m, m);
+						if (poly->form_type == SNFS_H_CUNNINGHAM)
+						{
+							mpz_set_si(polys[npoly].y1, b2);
+							mpz_pow_ui(polys[npoly].y1, polys[npoly].y1, (e+i1) / i);
+							mpz_set(polys[npoly].y0, m);
+							mpz_set(polys[npoly].m, m);
+							mpz_invert(n, polys[npoly].y1, polys[npoly].n);
+							mpz_mul(polys[npoly].m, polys[npoly].m, n);
+							mpz_mod(polys[npoly].m, polys[npoly].m, polys[npoly].n);
+							mpz_mul_si(polys[npoly].y1, polys[npoly].y1, -1);
+						}
+						else
+						{
+							mpz_set_si(polys[npoly].y1, -1);
+							mpz_set(polys[npoly].y0, m);
+							mpz_set(polys[npoly].m, m);
+						}
 						polys[npoly].degree = i;
 						check_poly(&polys[npoly]);
 						approx_norms(&polys[npoly]);
