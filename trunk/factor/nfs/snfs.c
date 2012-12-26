@@ -262,9 +262,6 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 
 		for (j=32; j<maxb; j++)
 		{
-			if (i==37 && j==89)
-				i=37;
-
 			mpz_mul(p, p, b);		// p = i^j
 			mpz_add_ui(r, n, inc);	// r = n + 2^30
 			mpz_mod(r, r, p);		// r = (n + 2^30) % i^j
@@ -583,7 +580,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 	// if any of these are available we immediately use them, because dividing out an algebraic factor
 	// will always be lower difficulty then playing with exponents only, even if the degree
 	// is sub-optimal.  
-	if (poly->exp1 % 15 == 0 && (poly->coeff1 == poly->coeff2))
+	if (poly->exp1 % 15 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -638,7 +635,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -695,7 +692,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -730,13 +727,13 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		{
 			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
 			mpz_set(polys->y0, polys->m);
-			mpz_set_si(polys->y0, -1);
+			mpz_set_si(polys->y1, -1);
 		}
 
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -771,13 +768,13 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		{
 			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
 			mpz_set(polys->y0, polys->m);
-			mpz_set_si(polys->y0, -1);
+			mpz_set_si(polys->y1, -1);
 		}
 
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -811,14 +808,14 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		{
 			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
 			mpz_set(polys->y0, polys->m);
-			mpz_set_si(polys->y0, -1);
+			mpz_set_si(polys->y1, -1);
 		}
 
 		mpz_set(polys->n, poly->n);
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -854,13 +851,13 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		{
 			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
 			mpz_set(polys->y0, polys->m);
-			mpz_set_si(polys->y0, -1);
+			mpz_set_si(polys->y1, -1);
 		}
 
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -915,7 +912,7 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == poly->coeff2))
+	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1239,6 +1236,16 @@ void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly)
 		printf("gen: ========================================================\n");
 
 		print_poly(&polys[0], stdout);
+	}
+
+	// output the polynomial to the default nfs job file
+	if (npoly > 0)
+	{
+		FILE *out;
+
+		out = fopen(fobj->nfs_obj.job_infile, "w");
+		print_poly(&polys[0], out);
+		fclose(out);
 	}
 
 	mpz_clear(n);
