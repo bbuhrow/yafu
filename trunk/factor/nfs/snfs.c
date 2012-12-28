@@ -158,8 +158,6 @@ void print_snfs(snfs_t *poly, FILE *out)
 
 void approx_norms(snfs_t *poly)
 {
-	if( !poly->valid )
-		return; // be sure poly->poly->alg is set properly
 	// anorm ~= b^d * f(a/b) where f = the algebraic poly
 	// rnorm ~= b * g(a/b) where g is the linear poly
 	// a,b depend on the siever used.  according to the rsa768 paper, 
@@ -169,13 +167,18 @@ void approx_norms(snfs_t *poly)
 	int i;
 	double a, b, c;
 	mpz_t res, tmp; // should be floats not ints perhaps
-	mpz_init(tmp);
+
+	// be sure poly->poly->alg is set properly
+	if( !poly->valid )
+		return; 
 
 	a = sqrt(poly->poly->skew) * 1000000.;
 	b = 1000000. / (sqrt(poly->poly->skew));
 	c = a/b;
 
-	//poly->anorm = 0;
+	mpz_init(tmp);
+	mpz_init(res);
+
 	mpz_set_ui(res, 0);
 	for (i=MAX_POLY_DEGREE; i>=0; i--)
 	{
@@ -190,6 +193,11 @@ void approx_norms(snfs_t *poly)
 	poly->rnorm = (fabs(mpz_get_d(poly->poly->rat.coeff[1]))*a/b + mpz_get_d(poly->poly->rat.coeff[0])) * b;
 	
 	// why not use msieve's eval_poly()? (see include/gnfs.h:69)
+	eval_poly(res, a, b, &poly->poly->alg);
+	poly->anorm = mpz_get_d(res);
+
+	eval_poly(res, a, b, &poly->poly->rat);
+	poly->rnorm = mpz_get_d(res);
 
 	return;
 }
@@ -1015,9 +1023,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				approx_norms(&polys[npoly]);
 				
 				if (polys[npoly].valid)
-				{
-					npoly++;
+				{				
 					if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					npoly++;
 				}
 				else
 				{	// being explicit
@@ -1066,9 +1074,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				approx_norms(&polys[npoly]);
 				
 				if (polys[npoly].valid)
-				{
-					npoly++;
+				{					
 					if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					npoly++;
 				}
 				else
 				{	// being explicit
@@ -1117,9 +1125,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				approx_norms(&polys[npoly]);
 				
 				if (polys[npoly].valid)
-				{
-					npoly++;
+				{					
 					if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+					npoly++;
 				}
 				else
 				{	// being explicit
@@ -1199,9 +1207,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						approx_norms(&polys[npoly]);
 						
 						if (polys[npoly].valid)
-						{
-							npoly++;
+						{							
 							if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+							npoly++;
 						}
 						else
 						{	// being explicit
@@ -1299,16 +1307,16 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 
 	for (i=0; i<npoly; i++)
 	{
-		double ratio;
+		double ratio, absa = fabs(polys[i].anorm), absr = fabs(polys[i].rnorm);
 		
-		if (polys[i].anorm > polys[i].rnorm)
+		if (absa > absr)
 		{
-			ratio = polys[i].anorm / polys[i].rnorm;
+			ratio = absa / absr;
 			polys[i].poly->side = ALGEBRAIC_SPQ;
 		}
 		else
 		{
-			ratio = polys[i].rnorm / polys[i].anorm;
+			ratio = absr / absa;
 			polys[i].poly->side = RATIONAL_SPQ;
 		}
 
