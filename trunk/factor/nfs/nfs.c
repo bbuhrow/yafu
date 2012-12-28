@@ -26,7 +26,7 @@ void nfsexit(int sig)
 #ifdef _WIN32
 	/* Windows resets the signal handler to the default action once it is
 	invoked so we just register it again. */
-  	signal(signum, nfsexit);
+  	signal(sig, nfsexit);
 #endif
 	if( NFS_ABORT < 1 )
 	{
@@ -242,7 +242,17 @@ void nfs(fact_obj_t *fobj)
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 				}
 				else
+				{
+					uint32 missing_params;
 					job.poly = job.snfs->poly;
+
+					missing_params = parse_job_file(fobj, &job); // get fblim
+					get_ggnfs_params(fobj, &job);
+					if( missing_params )
+						fill_job_file(fobj, &job, missing_params);
+
+					job.startq = fobj->nfs_obj.sq_side < 0 ? job.rlim/2 : job.alim/2;
+				}
 			}
 
 			nfs_state = NFS_STATE_SIEVE;

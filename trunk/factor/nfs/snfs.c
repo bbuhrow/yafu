@@ -200,10 +200,13 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 	mpz_t p, a, b, r, n;
 	uint32 inc = 1<<30;
 
+	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
-	// this routine finds inputs of the brent form as well as cunningham (a <= 12), 
-	// and oddperfect forms (a > 99, n > 1) and considers inputs up to 1000 bits in size (~ 10^302).
-	// once we have the form, we can create a polynomial for it for snfs processing.
+	// generallized cullen/woodall numbers take the form a*b^a +/- 1
+	// many oddperfect proof terms take the form a^n-1 for very large a
+	// others of interest include k*2^n +/- 1, repunits, mersenne plus 2, etc.
+	// All of the above forms (and more) can be represented by the generic form a*b^n +/- c
+	// This routine will quickly discover any such generic form less than 1000 bits in size.
 
 	maxa = 100;
 	maxb = 100;
@@ -307,11 +310,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		}
 	}
 
+	// TODO: edit to make this find a*b^n +/- c as above...
 	for (i = maxb; i>1; i--)
 	{
 		// now that we've reduced the exponent considerably, check for 
 		// large bases by looking at the remaining possible exponents.
-		if (VFLAG > 0)
+		if (VFLAG > 1)
 			printf("nfs: checking x^%d +/- 1\n", i);
 
 		// check -1 case:
@@ -447,87 +451,59 @@ done:
 
 void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 {
-	int i,j,k,maxa,kmax;
-	mpz_t pa, pb, a, b, r, g, n;
+	int x,y,maxx;
+	mpz_t xy, yx, r, g, n;
 
-	//form->form_type = SNFS_NONE;
 	// xyyxf numbers take the form x^y + y^x, where 1<y<x<151
 	// this routine finds inputs of the xyyxf form, and considers
 	// inputs up to 1000 bits in size (~ 10^302).
 	// once we have the form, we can create a polynomial for it for snfs processing.
 
-	maxa = 13;
+	maxx = 151;
 
-	// TODO: finish this routine!
-
-	mpz_init(pa);
-	mpz_init(pb);
-	mpz_init(a);
+	mpz_init(xy);
+	mpz_init(yx);
 	mpz_init(g);
-	mpz_init(b);
 	mpz_init(r);
 	mpz_init(n);
 
 	mpz_set(n, fobj->nfs_obj.gmp_n);
 
-	for (i=3; i<maxa; i++)
+	for (x=3; x<maxx; x++)
 	{
-		for (j=2; j<i; j++)
+		mpz_set_ui(xy, x);
+		for (y=2; y<x; y++)
 		{
-			if (spGCD(i,j) != 1)
-				continue;
-			
-			mpz_set_ui(a, i);
-			mpz_pow_ui(pa, a, 19);
-			mpz_set_ui(b, j);
-			mpz_pow_ui(pb, b, 19);			
+			// with x fixed, we have computed x^y0.  successively multiply in x to this term
+			// to avoid powering.
+			// y^x we compute by powering.  we could probably create a 151x151 table of all powers of 
+			// x and y without powering and then combine terms to check all possible x^y+y^x, but 
+			// that is overkill for this routine that takes no noticable time anyway.
+			mpz_mul_ui(xy, xy, x);
+			mpz_set_ui(yx, y);
+			mpz_pow_ui(yx, yx, x);
 
-			// limit the exponent so that the number is less than 1000 bits
-			kmax = 1000 / log((double)i) + 1;
-			if (VFLAG > 0)
-				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
-
-			for (k=20; k<kmax; k++)
+			mpz_add(g, xy, yx);
+			mpz_mod(r, g, n);
+			if (mpz_cmp_ui(r, 0) == 0)
 			{
-				mpz_mul(pa, pa, a);
-				mpz_mul(pb, pb, b);
-
-				mpz_add(g, pa, pb);
-				mpz_mod(r, g, n);
-				if (mpz_cmp_ui(r, 0) == 0)
-				{
-					if (VFLAG > 0) printf("nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
-					form->form_type = SNFS_H_CUNNINGHAM;
-					form->base1 = i;
-					form->base2 = j;
-					form->exp1 = k;
-					form->coeff1 = 1;
-					goto done;
-				}
-
-				mpz_sub(g, pa, pb);
-				mpz_mod(r, g, n);
-				if (mpz_cmp_ui(r, 0) == 0)
-				{
-					if (VFLAG > 0) printf("nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
-					form->form_type = SNFS_H_CUNNINGHAM;
-					form->base1 = i;
-					form->base2 = j;
-					form->exp1 = k;
-					form->coeff1 = -1;
-					goto done;
-				}
-
+				if (VFLAG > 0) printf("nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
+				form->form_type = SNFS_XYYXF;
+				form->base1 = x;
+				form->base2 = y;
+				form->exp1 = y;
+				form->exp1 = x;
+				form->coeff1 = 1;
+				form->coeff2 = 1;
+				goto done;
 			}
 		}
 	}
 
 done:
-	mpz_clear(pa);
-	mpz_clear(pb);
+	mpz_clear(xy);
+	mpz_clear(yx);
 	mpz_clear(g);
-	mpz_clear(a);
-	mpz_clear(b);
 	mpz_clear(r);
 	return;
 }
@@ -549,12 +525,27 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	mpz_init(n);
 	mpz_init(m);
 
-	// test for algebraic factors - we look for several specific but common forms:
+	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
+	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
+	// generallized cullen/woodall numbers take the form a*b^a +/- 1
+	// many oddperfect proof terms take the form a^n-1 for very large a
+	// others of interest include k*2^n +/- 1, repunits, mersenne plus 2, etc.
+	// All of the above forms (and more) can be represented by the generic form a*b^n +/- c
+	// This routine generates polynomials suitable for input into the gnfs lattice sievers from
+	// kleinjung/franke and considers simple reductions by algebraic factors where possible.
+	// Further, homogeneous cunninghams take the form a^n +/- b^n, where a,b <= 12 and gcd(a,b) == 1.
+	// These can be rearranged to resemble the generic form by dividing through by b^n, so that
+	// we have (a/b)^n +/- 1.  This requires straightforward modifications to the polynomial 
+	// generation
+
+	// first test for algebraic factors - we look for several specific but common forms:
 	// 21*k, 15*k, 13*k, 11*k, 7*k, 5*k, 3*k
 	// if any of these are available we immediately use them, because dividing out an algebraic factor
 	// will always be lower difficulty then playing with exponents only, even if the degree
-	// is sub-optimal.  
-	if (poly->exp1 % 15 == 0 && (poly->coeff1 == 1))
+	// is sub-optimal.  The possibility of simple algebraic reduction occurs only when the a,c 
+	// coefficients are 1.  More complex algebraic reductions like completing squares or Aurifeuillian 
+	// factorizations are not attempted here.
+	if (poly->exp1 % 15 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -609,7 +600,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -666,7 +657,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -707,7 +698,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -748,7 +739,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -789,7 +780,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -831,7 +822,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -886,7 +877,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		check_poly(polys);
 		approx_norms(polys);
 	}
-	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == 1))
+	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -944,7 +935,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	}
 	else 
 	{
-
 		// No algebraic factor - play with powers and composite bases
 		mpz_set_ui(m, b);
 		if (!mpz_probab_prime_p(m,10))
@@ -1322,8 +1312,8 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 			polys[i].poly->side = RATIONAL_SPQ;
 		}
 
-		if (VFLAG > 0) 
-			printf("anorm: %1.2e, rnorm: %1.2e, ratio: %1.2e, log10(ratio) = %1.2f\n",
+		if (VFLAG > 1)
+			printf("gen: anorm: %1.2e, rnorm: %1.2e, ratio: %1.2e, log10(ratio) = %1.2f\n",
 				polys[i].anorm, polys[i].rnorm, ratio, log10(ratio));
 		ratio = log10(ratio) - 6.;
 
