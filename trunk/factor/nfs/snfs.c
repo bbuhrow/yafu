@@ -16,6 +16,8 @@ benefit from your work.
 #include "util.h"
 #include "gmp_xface.h"
 
+int tdiv_int(int x, int *factors);
+
 void snfs_init(snfs_t* poly)
 {	
 	memset(poly, 0, sizeof(snfs_t));
@@ -136,6 +138,12 @@ void print_snfs(snfs_t *poly, FILE *out)
 	{
 		fprintf(out, "# %d^%d%c%d^%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
 			poly->base1, poly->exp1, c, poly->base2, poly->exp1, poly->difficulty,
+			poly->anorm, poly->rnorm);
+	}
+	else if (poly->form_type == SNFS_XYYXF)
+	{
+		fprintf(out, "# %d^%d+%d^%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
+			poly->base1, poly->exp1, poly->base2, poly->exp2, poly->difficulty,
 			poly->anorm, poly->rnorm);
 	}
 	else
@@ -480,6 +488,9 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 	for (x=3; x<maxx; x++)
 	{
 		mpz_set_ui(xy, x);
+		if (VFLAG > 1)
+			printf("nfs: checking %d^y + y^%d\n", x, x);
+
 		for (y=2; y<x; y++)
 		{
 			// with x fixed, we have computed x^y0.  successively multiply in x to this term
@@ -500,9 +511,10 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 				form->base1 = x;
 				form->base2 = y;
 				form->exp1 = y;
-				form->exp1 = x;
+				form->exp2 = x;
 				form->coeff1 = 1;
 				form->coeff2 = 1;
+				mpz_set(form->n, n);
 				goto done;
 			}
 		}
@@ -946,23 +958,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// No algebraic factor - play with powers and composite bases
 		mpz_set_ui(m, b);
 		if (!mpz_probab_prime_p(m,10))
-		{
-			int bb = b;
-			// factor the base
-			i=0;
-			while ((bb > 1) && (spSOEprimes[i] < 1000))
-			{
-				int q = (int)spSOEprimes[i];
-		
-				if (bb%q != 0)
-					i++;
-				else
-				{			
-					bb /= q;
-					f[numf++] = q;
-				}
-			}
-		}
+			numf = tdiv_int(b, f);
 
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates one, plus 2 for
@@ -1226,6 +1222,306 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	return polys;
 }
 
+snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
+{
+	int deg, i, j, nump1, nump2, me, base, e, b;
+	int x = poly->base1, y = poly->base2;
+	mpz_t n, m;
+	double d, skew, k;
+	int f1[100];
+	int numf1 = 0;
+	int f2[100];
+	int numf2 = 0;
+	snfs_t *polys, *final_polys;
+	int npoly = 0;
+	int apoly;	
+
+	mpz_init(n);
+	mpz_init(m);
+
+	// xyyxf numbers take the form x^y + y^x, where 1<y<x<151
+	// as far as I know there are no simple algebraic reductions of these types of polynomials.
+	// The strategy for generating polynomials for them is therefore the following:
+	// for each of the two terms, x^y and y^x, raise and lower the exponents to multiples of 
+	// each of degrees 4, 5, and 6 (as in brent poly generation).  keep track of the coefficients
+	// these actions create for each of the two terms.  Each can be raised/lowered independently,
+	// so there will be quite a few possible polynomials.  We also work with composite bases
+	// similarly to brent poly generation.  
+	// Once we have a suitable degree, the polynomial will look like this:
+	// a*(x^yd)^d + b*(y^xd)^d, where xd and yd are x and y reduced by a factor of d, 
+	// and a,b are coefficients arising from adjusting x,y to multiples of d.
+	// the algebraic poly f(z) is then a*z^d + b, where z = x^yd/y^xd
+	// the rational poly g(z) is then -(y^xd)*z + (x^yd)
+	// To handle the case where, with composite bases, we
+	// have common factors, reduce Y1 and Y0 by GCD(Y1, Y0) and reduce cx, c0 by gcd(cx, c0).
+
+	//mpz_set_ui(m, x);
+	//if (!mpz_probab_prime_p(m,10))
+	//	numf1 = tdiv_int(x, f1);
+
+	//mpz_set_ui(m, y);
+	//if (!mpz_probab_prime_p(m,10))
+	//	numf2 = tdiv_int(y, f2);
+
+	// initialize candidate polynomials now that we know how many we'll need.
+	// each factor of the base generates one, plus 2 for
+	// the whole base raised and lowered, for each degree, for each base
+	nump1 = (numf1 + 2) * 3;
+	nump2 = (numf2 + 2) * 3;
+	apoly = nump1 + nump2;
+
+	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
+	for (i=0; i<apoly; i++)
+		snfs_init(&polys[i]);
+		
+	npoly = 0;
+	// form all polys for x^y + 1 and 1 + y^x separately.  Then combine them later.
+	for (base = 0; base < 2; base++)
+	{
+		int *f, b2, numf;
+		// set the exponent/base.  on the first pass 
+		// we process x^y and the next we process y^x
+		e = base == 0 ? y : x;
+		b = base == 0 ? x : y;
+		f = base == 0 ? f1 : f2;
+		numf = base == 0 ? numf1 : numf2;
+		b2 = 1;
+
+		for (deg=4; deg<7; deg++)
+		{
+			int c0, cd;
+
+			if (e % deg == 0)
+			{
+				// the degree divides the exponent - resulting polynomial is straightforward
+				me = e / deg;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)deg;
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].poly->skew = 1.0;
+				polys[npoly].c[deg] = poly->coeff1;
+				polys[npoly].c[0] = poly->coeff2;
+				polys[npoly].poly->alg.degree = e;
+
+				npoly++;
+			}
+			else
+			{
+				// degree does not divide the exponent, try increasing the exponent
+				int inc = (deg - e % deg);
+				me = (e+inc) / deg;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)deg;
+				cd = (int)pow((double)b2, inc) * poly->coeff1;
+				c0 = (int)pow((double)b,inc) * poly->coeff2;
+				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].poly->skew = skew;
+				polys[npoly].c[deg] = cd;
+				polys[npoly].c[0] = c0;
+				polys[npoly].poly->alg.degree = e+inc;
+
+				npoly++;
+
+				// and decreasing the exponent
+				inc = e % deg;
+				me = (e-inc) / deg;
+				mpz_set_si(m, b);
+				mpz_pow_ui(m, m, me);
+				d = mpz_get_d(m);
+				d = log10(d) * (double)deg + log10(pow((double)b,inc));
+				cd = (int)pow((double)b,inc) * poly->coeff1;
+				c0 = (int)pow((double)b2, inc) * poly->coeff2;
+				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+				// leading coefficient contributes to the difficulty
+				//d += log10((double)cd);
+				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+				polys[npoly].difficulty = d;
+				polys[npoly].poly->skew = skew;
+				polys[npoly].c[deg] = cd;
+				polys[npoly].c[0] = c0;
+				polys[npoly].poly->alg.degree = e-inc;
+
+				npoly++;
+
+				// and playing with composite bases
+				if (numf > 1)
+				{
+					int j;
+
+					// multiply by powers of each factor individually to get that 
+					// factor to a multiple of degree
+					for (j=0; j<numf; j++)
+					{
+						int k, i1, i2, bb;
+						// move it up
+						i1 = (deg - e % deg);
+						c0 = pow((double)f[j], i1) * poly->coeff2;
+						// since we moved the current factor up, move the other factors down
+						// otherwise this would be the same as moving the whole composite base up.
+						// also move the second term up...
+						cd = pow((double)b2, i1) * poly->coeff1;
+						bb = 1;
+						i2 = e % deg;
+						for (k=0; k<numf; k++)
+						{
+							if (k == j) continue;
+							cd *= pow((double)f[k], i2);
+							bb *= f[k];
+						}
+						// m is now a mix of powers of factors of b.
+						// here is the contribution of the factor we increased
+						me = (e+i1) / deg;
+						mpz_set_si(m, f[j]);
+						mpz_pow_ui(m, m, me);
+						// here is the contribution of the factors we decreased
+						me = (e-i2) / deg;
+						mpz_set_si(n, bb);
+						mpz_pow_ui(n, n, me);
+						// combine them and compute the base difficulty
+						mpz_mul(m, m, n);
+						d = mpz_get_d(m);
+						d = log10(d) * (double)deg;
+						// the power we moved up appears in the constant term and the powers we moved 
+						// down appear as a coefficient to the high order term and thus contribute
+						// to the difficulty.
+						//d += log10((double)cd);
+						skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+						snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+						polys[npoly].difficulty = d;
+						polys[npoly].poly->skew = skew;
+						polys[npoly].c[deg] = cd;
+						polys[npoly].c[0] = c0;
+						polys[npoly].poly->alg.degree = deg;
+						mpz_set(polys[npoly].poly->m, m);
+
+						npoly++;
+					} // loop over factors of base
+				} // composite base?
+			} // degree divides exponent?
+		} // for each degree
+	} // for each base (x, y)
+
+	apoly = nump1 * nump2;
+	final_polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
+	for (i=0; i<apoly; i++)
+		snfs_init(&final_polys[i]);
+
+	if (VFLAG > 0)
+	{
+		printf( "gen: ========================================================\n"
+			"gen: considering the following polynomials:\n"
+			"gen: ========================================================\n\n");
+	}
+
+	// now mix together the possible forms of x^y + 1 and 1 + y^x
+	// don't mix degrees.
+	npoly = 0;
+	for (deg=4; deg<7; deg++)
+	{
+		snfs_t *p1, *p2;
+		int c0, cd;
+
+		// for each possible form of x^y + 1 with the current degree
+		for (i=0; i<nump1/3; i++)
+		{
+			p1 = &polys[(deg-4)*(nump1/3) + i];
+
+			// combine with each possible form of 1 + y^x with the same degree
+			for (j=0; j<nump2/3; j++)
+			{
+				p2 = &polys[nump1 + (deg-4)*(nump2/3) + j];
+
+				cd = p1->c[deg] * p2->c[0];
+				c0 = p1->c[0] * p2->c[deg];
+
+				// whichever of these is smaller can be the leading coefficient
+				if (cd > c0)
+				{
+					snfs_copy_poly(poly, &final_polys[npoly]);		// copy algebraic form
+					final_polys[npoly].c[deg] = cd;
+					final_polys[npoly].c[0] = c0;
+					final_polys[npoly].poly->skew = pow(
+						(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
+					final_polys[npoly].poly->alg.degree = deg;
+					final_polys[npoly].difficulty = log10(pow(10, p1->difficulty) + pow(10, p2->difficulty));
+
+					// the algebraic poly f(z) is then cd*z^d + c0, where z = x^yd/y^xd
+					// the rational poly g(z) is then -(y^xd)*z + (x^yd)
+					me = p2->poly->alg.degree / deg;
+					mpz_set_si(final_polys[npoly].poly->rat.coeff[1], y);
+					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
+							final_polys[npoly].poly->rat.coeff[1], me);
+
+					me = p1->poly->alg.degree / deg;
+					mpz_set_si(final_polys[npoly].poly->rat.coeff[0], x);
+					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
+							final_polys[npoly].poly->rat.coeff[0], me);
+
+					mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
+					mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
+					mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
+					mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
+					mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
+				}
+				else
+				{
+					snfs_copy_poly(poly, &final_polys[npoly]);		// copy algebraic form
+					final_polys[npoly].c[deg] = c0;
+					final_polys[npoly].c[0] = cd;
+					final_polys[npoly].poly->skew = pow(
+						(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
+					final_polys[npoly].poly->alg.degree = deg;
+					final_polys[npoly].difficulty = log10(pow(10, p1->difficulty) + pow(10, p2->difficulty));
+
+					// the algebraic poly f(z) is then cd*z^d + c0, where z = y^xd/x^yd
+					// the rational poly g(z) is then -(x^yd)*z + (y^xd)
+					me = p1->poly->alg.degree / deg;
+					mpz_set_si(final_polys[npoly].poly->rat.coeff[1], x);
+					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
+							final_polys[npoly].poly->rat.coeff[1], me);
+
+					me = p2->poly->alg.degree / deg;
+					mpz_set_si(final_polys[npoly].poly->rat.coeff[0], y);
+					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
+							final_polys[npoly].poly->rat.coeff[0], me);
+
+					mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
+					mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
+					mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
+					mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
+					mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
+				}
+
+				final_polys[npoly].difficulty += log10((double)final_polys[npoly].c[deg]);
+
+				check_poly(&final_polys[npoly]);
+				approx_norms(&final_polys[npoly]);
+				
+				if (final_polys[npoly].valid)
+				{				
+					if (VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
+					npoly++;
+				}
+				else
+				{	// being explicit
+					snfs_clear(&final_polys[npoly]);
+					snfs_init(&final_polys[npoly]);
+				}
+			}
+		}
+	}
+
+	*npolys = npoly;
+	return final_polys;
+}
+
 // we've now measured the difficulty for poly's of all common degrees possibly formed
 // in several different ways.  now we have a decision to make based largely on difficulty and 
 // degree.  We want to pick low difficulty, but only if the degree allows the norms on 
@@ -1359,4 +1655,27 @@ void snfs_rank_polys(snfs_t *polys, int npoly)
 		polys[i].rank = i;
 
 	return;
+}
+
+int tdiv_int(int x, int *factors)
+{
+	int numf = 0;
+	int xx = x;
+	int i;
+
+	i=0;
+	while ((xx > 1) && (spSOEprimes[i] < 1000))
+	{
+		int q = (int)spSOEprimes[i];
+		
+		if (xx%q != 0)
+			i++;
+		else
+		{			
+			xx /= q;
+			factors[numf++] = q;
+		}
+	}
+
+	return numf;
 }

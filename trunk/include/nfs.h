@@ -244,6 +244,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *poly);
 void find_hcunn_form(fact_obj_t *fobj, snfs_t *poly);
 void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys); // the workhorse
+snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys);
 snfs_t* snfs_choose_poly(fact_obj_t* fobj);
 void check_poly(snfs_t *poly);
 void print_snfs(snfs_t *poly, FILE *out);

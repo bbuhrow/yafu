@@ -18,7 +18,7 @@ benefit from your work.
 
 snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 {
-	snfs_t* poly, * polys, * best;
+	snfs_t* poly, * polys = NULL, * best;
 	int i, npoly;
 	
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
@@ -33,18 +33,27 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 		find_brent_form(fobj, poly);
+
+		if (poly->form_type == SNFS_BRENT)
+			polys = gen_brent_poly(fobj, poly, &npoly);
 	}
 	
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for homogeneous cunningham special forms...\n");
 		find_hcunn_form(fobj, poly);
+		
+		if (poly->form_type == SNFS_H_CUNNINGHAM)
+			polys = gen_brent_poly(fobj, poly, &npoly);
 	}
 					
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for XYYXF special forms...\n");
 		find_xyyxf_form(fobj, poly);
+		
+		if (poly->form_type == SNFS_XYYXF)
+			polys = gen_xyyxf_poly(fobj, poly, &npoly);
 	}
 					
 	if (poly->form_type == SNFS_NONE)
@@ -54,8 +63,6 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 		free(poly);
 		return NULL;
 	}
-	
-	polys = gen_brent_poly(fobj, poly, &npoly); // the meat
 	
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
