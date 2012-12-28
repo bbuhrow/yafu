@@ -1173,7 +1173,7 @@ void print_poly(mpz_polys_t* poly, FILE *out)
 {
 	// print the poly to stdout
 	int i;
-	fprintf(out, "skew: %1.2f\n", poly->skew);
+	fprintf(out, "skew: %1.4f\n", poly->skew);
 	for (i=MAX_POLY_DEGREE; i>=0; i--)
 		if (mpz_cmp_si(poly->alg.coeff[i], 0) != 0) 
 			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
