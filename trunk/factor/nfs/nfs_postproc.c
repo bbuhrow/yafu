@@ -17,7 +17,7 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job)
+uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 {
 	FILE *tmp, *logfile;
 	uint32 relations_needed;

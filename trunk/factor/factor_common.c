@@ -268,26 +268,21 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;
 	fobj->nfs_obj.min_digits = 85;
-	fobj->nfs_obj.siever = 0;							//default, use automatic selection
-	fobj->nfs_obj.startq = 0;							//default, not used
-	fobj->nfs_obj.rangeq = 0;							//default, not used
-	fobj->nfs_obj.polystart = 0;						//default, not used
-	fobj->nfs_obj.polyrange = 0;						//default, not used
+	fobj->nfs_obj.siever = 0;					//default, use automatic selection
+	fobj->nfs_obj.startq = 0;					//default, not used
+	fobj->nfs_obj.rangeq = 0;					//default, not used
+	fobj->nfs_obj.polystart = 0;					//default, not used
+	fobj->nfs_obj.polyrange = 0;					//default, not used
 	strcpy(fobj->nfs_obj.outputfile,"nfs.dat");			//default
 	strcpy(fobj->nfs_obj.logfile,"nfs.log");			//default
 	strcpy(fobj->nfs_obj.fbfile,"nfs.fb");				//default
-	fobj->nfs_obj.sq_side = 0;							//default = algebraic
-	fobj->nfs_obj.timeout = 0;							//default, not used
+	fobj->nfs_obj.sq_side = 0;					//default = algebraic
+	fobj->nfs_obj.timeout = 0;					//default, not used
 	strcpy(fobj->nfs_obj.job_infile,"nfs.job");			//default
-	fobj->nfs_obj.user_job = 0;							//user supplied job file? no.
-	fobj->nfs_obj.sieve_only = 0;						//default = no
-	fobj->nfs_obj.poly_only = 0;						//default = no
-	fobj->nfs_obj.post_only = 0;						//default = no
-	fobj->nfs_obj.la_restart = 0;						//default = no
-	fobj->nfs_obj.poly_option = 0;						//default = fast search
-															//1 = wide
-															//2 = deep
-	fobj->nfs_obj.restart_flag = 0;						//default = not a restart
+	fobj->nfs_obj.poly_option = 0;					//default = fast search
+										//1 = wide
+									//2 = deep
+	fobj->nfs_obj.restart_flag = 0;					//default = not a restart
 	fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
 	fobj->nfs_obj.snfs_testsieve_threshold = 170;
 

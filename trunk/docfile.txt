@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.33
+YAFU Version 1.34
 
 --------------------------------------------------------------------------------
 Introduction:
@@ -107,6 +107,8 @@ of one or more saved files associated with the input number.  If any of the
 following 5 options are specified, only those phases will be performed; checks
 against saved files will still be in place (i.e., refusal to overwrite data files)
 
+-snfs			Check if the input has a special form, and if so, generate SNFS polynomials
+				and perform test sieving (and then finish the job if not told otherwise)
 -np	[X,Y]		Perform poly search step within nfs().  NOTE: any existing 
 				poly files will be overwritten.  Optionally, provide a range of 
 				leading coefficients over which to search in the format: start,stop
@@ -302,15 +304,15 @@ the optimal amount of ecm to run when using the factor() function.
 usage: nfs(expression)
 
 description:
-Automated factorization using the general number field sieve.  Multi-threaded polynomial selection is 
-handled via msieve library function calls.  Sieving then proceeds in a multi-thread aware
-fashion using external ggnfs lattic sieve executables.  Post processing (filtering, 
-linear algebra, and sqrt functions) again make use of msieve library calls.
-The path to the ggnfs lasive binaries must be specified either on the command line using the
--ggnfs_dir switch, or in the yafu.ini file as a "ggnfs_dir=<path>" line.  It is assumed that the
-ggnfs binaries follow the usual naming convention (i.e. gnfs-lasieve4IXXe).  nfs is 
-automatically resumed if a job is killed prior to completion and nfs is called again with the
-same input.  Starting a different job will overwrite a previously incomplete factorizations data
+Automated factorization using the number field sieve.  Multi-threaded polynomial selection is 
+handled via msieve library function calls. yafu can now also perform SNFS polynomial creation.
+Sieving then proceeds in a multi-thread aware fashion using external ggnfs lattice sieve
+executables.  Post processing (filtering, linear algebra, and sqrt functions) again make use
+of msieve library calls. The path to the ggnfs lasive binaries must be specified either on the
+command line using the -ggnfs_dir switch, or in the yafu.ini file as a "ggnfs_dir=<path>" line.
+It is assumed that the ggnfs binaries follow the usual naming convention (i.e. gnfs-lasieve4IXXe).
+nfs is automatically resumed if a job is killed prior to completion and nfs is called again with the
+same input.  Starting a different job will overwrite a previously incomplete factorization's data
 files, which is potentially unrecoverable.  To skip polynomially selection and instead use an
 externally produced polynomial and lattice siever parameterization, create a file called 
 nfs.job with the following format prior to calling yafu with nfs("your number"), in the same 
@@ -336,10 +338,14 @@ rlambda: 2.500000
 alambda: 2.500000
 
 the n: "your number here" line must be on the first line of the nfs.job file.  All other lines
-should be interchangable.  Supplying nfs.job in this way allows for SNFS factorizations to take place,
-albeit not completely automated.
+should be interchangable.  Supplying nfs.job in this way allows for SNFS factorizations to take place;
+to further aid that, you should add "type: snfs" and "size: <snfs difficulty>" to the file. YAFU will
+adjust the minimum relations estimate to account for the easier difficulty, and should otherwise
+proceed just as in GNFS (that is, completely automated).
 
 command line flags effecting nfs:
+-snfs			Check if the input has a special form, and if so, generate SNFS polynomials
+				and perform test sieving (and then finish the job if not told otherwise)
 -ns	[X,Y]		Only perform sieving step within nfs() if a valid job file exists for the 
 					input number and if the input number is the same as that specified in
 					an existing data file.
@@ -376,7 +382,7 @@ Examples:
 "nfs(number)" -v -threads 4 -np 10000,0
 
 2) perform automated nfs on a 400 bit input, but do a 'deep' polynomial search,
-	and stop the process after 36000 seconds:
+	and stop the process after 10 hours:
 "nfs(rsa(400))" -v -threads 4 -psearch deep -ggnfsT 36000
 
 3) perform automated nfs, using a custom job file (SNFS), using rational side sieving,

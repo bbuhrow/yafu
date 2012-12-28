@@ -107,9 +107,9 @@ void *nfs_worker_thread_main(void *thread_data) {
 	nfs_threaddata_t *t = (nfs_threaddata_t *)thread_data;
 
 	/*
-    * Respond to the master thread that we're ready for work. If we had any thread-
-    * specific initialization which needed to be done, it would go before this signal.
-    */
+	* Respond to the master thread that we're ready for work. If we had any thread-
+	* specific initialization which needed to be done, it would go before this signal.
+	*/
 
 	// specific to different structure of poly selection threading
 	if (t->is_poly_select)

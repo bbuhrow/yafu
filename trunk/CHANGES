@@ -9,6 +9,11 @@ v 1.34
 + fixed bug in qs filtering (thanks Will Fay!)
 + fixed a bug in .job file filling - handle no line break on last line
 
++ New SNFS code
++ Updated "gnfs.h" to use GMP
++ Reorganized the NFS structs in prep for total SNFS support (serious testing needed)
++ total SNFS support is more-or-less complete
++ docfile at least partially updated
 
 
 v 1.33

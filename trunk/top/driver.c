@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 62
+#define NUMOPTIONS 63
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -51,7 +51,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve"};
+	"ext_ecm", "testsieve", "snfs"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -1704,7 +1704,6 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->nfs_obj.job_infile,arg);
-			fobj->nfs_obj.user_job = 1;
 		}
 		else
 			printf("*** argument to -job too long, ignoring ***\n");
@@ -1908,6 +1907,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "testsieve"
 		fobj->nfs_obj.snfs_testsieve_threshold = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[62]) == 0)
+	{
+		// argument "snfs"
+		fobj->nfs_obj.snfs = 1;
 	}
 	else
 	{
