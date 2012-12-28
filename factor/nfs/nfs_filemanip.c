@@ -86,7 +86,7 @@ void win_file_concat(char *filein, char *fileout)
 }
 
 
-enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job)
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_job_t *job)
 {
 	// see if we can resume a factorization based on the combination of input number,
 	// .job file, .fb file, .dat file, and/or .p file.  else, start new job.
@@ -177,6 +177,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 		}
 		else
 		{
+			if (VFLAG > 0) printf("job file found, testing for matching input\n");
 			while (ptr != NULL)
 			{
 				if (line[0] == '#')
@@ -184,7 +185,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 				else if (line[0] != 'n')
 				{
 					do_poly_check = 1;	// malformed job file.
-					if (VFLAG > 0) printf("malformed job file, first non-comment "
+					if (VFLAG > 0) printf("nfs: malformed job file, first non-comment "
 						"line should contain n: \n");
 					break;
 				}
@@ -241,7 +242,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 		if (in == NULL)
 		{
 			if (VFLAG > 0) 
-				printf("nfs: no poly file found\n");
+				printf("no poly file found\n");
 			return NFS_STATE_STARTNEW;			// no .p file.
 		}
 		else
@@ -250,11 +251,12 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 			if (ptr == NULL)
 			{
 				if (VFLAG > 0) 
-					printf("nfs: poly file empty\n");
+					printf("poly file empty\n");
 				return NFS_STATE_STARTNEW;		// .p file empty.
 			}
 			else
 			{
+				if (VFLAG > 0) printf("poly file found, testing for matching input\n");
 				fclose(in);
 
 				if (line[0] != 'n')
@@ -327,21 +329,6 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 	{
 		// ok, we have a job file for the current input.  this is a restart of sieving
 		ans = NFS_STATE_RESUMESIEVE;
-		
-		//if (VFLAG > 0)
-		//	printf("nfs: commencing NFS restart\n");
-
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open yafu logfile for appending\n");
-		}
-		else
-		{
-			logprint(logfile, "nfs: commencing NFS restart\n");
-			fclose(logfile);
-		}
 
 		printf("nfs: checking for data file\n");
 		// attempt to open data file
@@ -354,9 +341,11 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 		}
 		else if (fobj->nfs_obj.restart_flag)
 		{
+			printf("nfs: previous data file found\n");
 			// either restart from the end of the data file or from the specified 
 			// sieve range
-			if (fobj->nfs_obj.sieve_only && (fobj->nfs_obj.startq > 0))
+			//if (fobj->nfs_obj.sieve_only && (fobj->nfs_obj.startq > 0))
+			if (fobj->nfs_obj.nfs_phases == NFS_PHASE_SIEVE && (fobj->nfs_obj.startq > 0))
 			{
 				if (VFLAG > 0)
 					printf("nfs: user specified special-q range of %u-%u, "
@@ -364,22 +353,26 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq);
 				
 				*last_spq = 0;
-				return ans;
+				return NFS_STATE_RESUMESIEVE;
 			}
 
-			if (fobj->nfs_obj.la_restart || fobj->nfs_obj.post_only)
+			//if (fobj->nfs_obj.la_restart || fobj->nfs_obj.post_only)
+			// if ( ! (fobj->nfs_obj.nfs_phases & ( ~(NFS_PHASE_FILTER | NFS_PHASE_LA | 
+			//		NFS_PHASE_SQRT | NFS_PHASE_LA_RESUME) )) )
+			if( fobj->nfs_obj.nfs_phases != NFS_DEFAULT_PHASES &&
+				!(fobj->nfs_obj.nfs_phases & (NFS_PHASE_POLY | NFS_PHASE_SIEVE)))
+			// if (not default) and not (poly or sieve)
 			{
 				if (VFLAG > 0)
 					printf("nfs: user specified post processing only, "
 					"skipping search for last special-q\n");
 				
 				*last_spq = 0;
-				return ans;
+				return NFS_STATE_RESUMESIEVE;
 			}
 
 			if (VFLAG > 0)
-				printf("nfs: previous data file found - "
-				"commencing search for last special-q\n");
+				printf("nfs: commencing search for last special-q\n");
 
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
@@ -426,11 +419,12 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 					for (i=0; i < 4; i++)
 						free(lines[i]);
 					free(lines);
-					return ans;
+					return NFS_STATE_RESUMESIEVE;
 				}
 
 				// crawl through the entire data file to find the next to last line
 				// TODO: can't we start from the end of the file somehow?
+				// partial answer: `man fseek`
 				line = 0;
 				//while (!feof(in))
 				while (1)
@@ -469,7 +463,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_
 		}
 		else
 		{
-			printf("must specify -R to resume when a savefile already exists\n");	
+			printf("nfs: must specify -R to resume when a savefile already exists\n");	
 
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
@@ -619,7 +613,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile)
+void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -740,7 +734,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 	}
 
 	get_ggnfs_params(fobj, job);
-	job->startq = job->fblim / 2;
+	job->startq = fobj->nfs_obj.sq_side < 0 ? job->rlim/2 : job->alim/2;
+	// use alim if side not specified
 
 	//always overwrites previous job files!
 	out = fopen(fobj->nfs_obj.job_infile,"w");
@@ -789,6 +784,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	// copy out the poly
+	// in the future we might want to record the poly in job->poly
 	while (!feof(in))
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
@@ -814,14 +810,14 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 	}
 
 	// and copy in the job parameters
-	fprintf(out,"rlim: %u\n",job->fblim);
-	fprintf(out,"alim: %u\n",job->fblim);
-	fprintf(out,"lpbr: %u\n",job->lpb);
-	fprintf(out,"lpba: %u\n",job->lpb);
-	fprintf(out,"mfbr: %u\n",job->mfb);
-	fprintf(out,"mfba: %u\n",job->mfb);
-	fprintf(out,"rlambda: %.1f\n",job->lambda);
-	fprintf(out,"alambda: %.1f\n",job->lambda);
+	fprintf(out,"rlim: %u\n",job->rlim);
+	fprintf(out,"alim: %u\n",job->alim);
+	fprintf(out,"lpbr: %u\n",job->lpbr);
+	fprintf(out,"lpba: %u\n",job->lpba);
+	fprintf(out,"mfbr: %u\n",job->mfbr);
+	fprintf(out,"mfba: %u\n",job->mfba);
+	fprintf(out,"rlambda: %.1f\n",job->rlambda);
+	fprintf(out,"alambda: %.1f\n",job->alambda);
 
 	fclose(in);
 	fclose(out);
@@ -829,7 +825,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile
 	return;
 }
 
-void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
+void msieve_to_ggnfs(fact_obj_t *fobj, nfs_job_t *job)
 {
 	// convert a msieve.fb polynomial into a ggnfs polynomial file
 	FILE *in, *out;
@@ -874,14 +870,14 @@ void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
 	}
 
 	// and copy in the job parameters
-	fprintf(out,"rlim: %u\n",job->fblim);
-	fprintf(out,"alim: %u\n",job->fblim);
-	fprintf(out,"lpbr: %u\n",job->lpb);
-	fprintf(out,"lpba: %u\n",job->lpb);
-	fprintf(out,"mfbr: %u\n",job->mfb);
-	fprintf(out,"mfba: %u\n",job->mfb);
-	fprintf(out,"rlambda: %.1f\n",job->lambda);
-	fprintf(out,"alambda: %.1f\n",job->lambda);
+	fprintf(out,"rlim: %u\n",job->rlim);
+	fprintf(out,"alim: %u\n",job->alim);
+	fprintf(out,"lpbr: %u\n",job->lpbr);
+	fprintf(out,"lpba: %u\n",job->lpba);
+	fprintf(out,"mfbr: %u\n",job->mfbr);
+	fprintf(out,"mfba: %u\n",job->mfba);
+	fprintf(out,"rlambda: %.1f\n",job->rlambda);
+	fprintf(out,"alambda: %.1f\n",job->alambda);
 
 	fclose(in);
 	fclose(out);
@@ -889,7 +885,7 @@ void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job)
 	return;
 }
 
-void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
+void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 {
 	// convert a ggnfs.job file into a msieve.fb polynomial file
 	FILE *in, *out;
@@ -939,6 +935,251 @@ void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job)
 	fclose(out);
 
 	return;
+}
+
+uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
+{
+	FILE *in;
+	uint32 missing_params = 0;
+	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0;
+	char line[1024];
+	float alambda = 0, rlambda = 0;
+
+	in = fopen(fobj->nfs_obj.job_infile, "r");
+	if (in == NULL)
+	{
+		printf("nfs: couldn't open job file, using default min_rels\n");
+		return 0;
+	}
+
+	while (!feof(in))
+	{
+		char *substr, *ptr;
+		
+		ptr = fgets(line, 1024, in);
+
+		// bail if we couldn't read anything
+		if (ptr == NULL)
+			break;
+
+		substr = strstr(line, "lpbr:");
+
+		if (substr != NULL)
+		{
+			lpbr = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+
+		substr = strstr(line, "lpba:");
+
+		if (substr != NULL)
+		{
+			lpba = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+
+		substr = strstr(line, "type:");		
+		if (substr != NULL)
+ 		{
+ 			if (strstr(substr + 5, "snfs")) // case sensitive
+ 			{
+ 				job->snfs = malloc(sizeof(snfs_t));
+ 				if (job->snfs == NULL)
+ 				{
+ 					printf("nfs: couldn't allocate memory!\n");
+ 					exit(-1);
+ 				} 
+ 				else if (VFLAG > 0)
+ 					printf("nfs: found type: snfs\n");
+ 				snfs_init(job->snfs);
+ 			}
+			continue;
+		}
+		
+		substr = strstr(line, "size:");
+		if (substr != NULL)
+		{
+			uint32 difficulty = strtoul(substr + 5, NULL, 10);
+			job->snfs->difficulty = (double)difficulty;
+			if (VFLAG > 0)
+				printf("nfs: found size: %u\n", difficulty);
+			continue;
+		}
+	
+		substr = strstr(line, "mfbr:");
+		if (substr != NULL)
+		{
+			mfbr = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+		
+		substr = strstr(line, "mfba:");
+		if (substr != NULL)
+		{
+			mfba = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+		
+		substr = strstr(line, "rlim:");		
+		if (substr != NULL)
+		{
+			rlim = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+		
+		substr = strstr(line, "alim:");		
+		if (substr != NULL)
+		{
+			alim = strtoul(substr + 5, NULL, 10);
+			continue;
+		}
+		
+		substr = strstr(line, "rlambda:");		
+		if (substr != NULL)
+		{
+			sscanf(substr + 8, "%f", &rlambda); //strtof(substr + 8, NULL);
+			continue;
+		}
+		
+		substr = strstr(line, "alambda:");		
+		if (substr != NULL)
+		{
+			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
+			continue;
+		}
+	}
+
+	if (lpbr > 0)
+	{
+		if (job->lpbr == 0)
+			job->lpbr = lpbr;
+	}
+	else
+		missing_params |= PARAM_FLAG_LPBR;
+	if (lpba > 0)
+	{
+		if (job->lpba == 0)
+			job->lpba = lpba;
+	}
+	else
+		missing_params |= PARAM_FLAG_LPBA;
+	if (VFLAG > 0)
+		printf("nfs: parsed lpbr = %u, lpba = %u\n", lpbr, lpba);
+
+
+	if (mfbr > 0)
+	{
+		if (job->mfbr == 0)
+			job->mfbr = mfbr;
+	}
+	else
+		missing_params |= PARAM_FLAG_MFBR;
+	if (mfba > 0)
+	{
+		if (job->mfba == 0)
+			job->mfba = mfba;
+	}
+	else
+		missing_params |= PARAM_FLAG_MFBA;
+
+
+	if (rlim > 0)
+	{
+		if (job->rlim == 0)
+			job->rlim = rlim;
+	}
+	else
+		missing_params |= PARAM_FLAG_RLIM;
+	if (alim > 0)
+	{
+		if (job->alim == 0)
+			job->alim = alim;
+	}
+	else
+		missing_params |= PARAM_FLAG_ALIM;
+
+
+	if (rlambda > 0)
+	{
+		if (job->rlambda == 0)
+			job->rlambda = rlambda;
+	}
+	else
+		missing_params |= PARAM_FLAG_RLAMBDA;
+	if (alambda > 0)
+	{
+		if (job->alambda == 0)
+			job->alambda = alambda;
+	}
+	else
+		missing_params |= PARAM_FLAG_ALAMBDA;
+
+
+	if (size > 0)
+	{
+		if (job->snfs)
+			job->snfs->sdifficulty = size;
+		else
+			printf("nfs: found a size parameter but not snfs type\n");
+	}
+
+	fclose(in);
+
+	return missing_params;
+}
+	
+void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
+{
+	if (missing_params != PARAM_FLAG_NONE)
+	{
+		//printf("Missing params: %d\n", missing_params);
+		FILE* out = fopen(fobj->nfs_obj.job_infile, "a");
+		if (out == NULL)
+		{
+			printf("nfs: couldn't fill job file, will try sieving anyway\n");
+			return;
+		}
+		else if (VFLAG > 0)
+			printf("nfs: job file is missing params, filling them\n");
+
+		// make sure we start on a new line if we are filling anything
+		fprintf(out, "\n");
+
+		if (missing_params & PARAM_FLAG_RLIM)
+			fprintf(out,"rlim: %u\n",job->rlim);
+		if (missing_params & PARAM_FLAG_ALIM)
+			fprintf(out,"alim: %u\n",job->alim);
+		
+		if (missing_params & PARAM_FLAG_LPBR)
+			fprintf(out,"lpbr: %u\n",job->lpbr);
+		if (missing_params & PARAM_FLAG_LPBA)
+			fprintf(out,"lpba: %u\n",job->lpba);
+		
+		if (missing_params & PARAM_FLAG_MFBR)
+			fprintf(out,"mfbr: %u\n",job->mfbr);
+		if (missing_params & PARAM_FLAG_MFBA)
+			fprintf(out,"mfba: %u\n",job->mfba);
+		
+		if (missing_params & PARAM_FLAG_RLAMBDA)
+			fprintf(out,"rlambda: %.1lf\n",job->rlambda);
+		if (missing_params & PARAM_FLAG_ALAMBDA)
+			fprintf(out,"alambda: %.1lf\n",job->alambda);
+		
+		fclose(out);
+	}
+}
+
+void print_poly(mpz_polys_t* poly, FILE *out)
+{
+	// print the poly to stdout
+	int i;
+	fprintf(out, "skew: %1.2f\n", poly->skew);
+	for (i=MAX_POLY_DEGREE; i>=0; i--)
+		if (mpz_cmp_si(poly->alg.coeff[i], 0) != 0) 
+			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
+	gmp_fprintf(out, "Y1: %Zd\n", poly->rat.coeff[1]);
+	gmp_fprintf(out, "Y0: %Zd\n", poly->rat.coeff[0]);
+	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n\n", poly->m);
 }
 
 #endif

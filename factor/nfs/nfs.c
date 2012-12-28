@@ -21,14 +21,24 @@ msieve_obj *obj_ptr;
 
 void nfsexit(int sig)
 {
+
+// idea and following comment "borrowed" from Oliver Weihe's mfaktc...
+#ifdef _WIN32
+	/* Windows resets the signal handler to the default action once it is
+	invoked so we just register it again. */
+  	signal(signum, nfsexit);
+#endif
 	printf("\nReceived signal %d... please wait\n",sig);
-	NFS_ABORT = 1;
+	printf("If you quit again, YAFU will exit immediately but you will LOSE ALL UNSAVED PROGRESS.\n");
+	NFS_ABORT++;
 
 	if (obj_ptr != NULL)
 	{
 		printf("setting flag\n");
 		obj_ptr->flags |= MSIEVE_FLAG_STOP_SIEVING;
 	}
+	
+	if (NFS_ABORT > 1) exit(1);
 
 	return;
 }
@@ -45,7 +55,7 @@ void nfs(fact_obj_t *fobj)
 	mp_t mpN;
 	factor_list_t factor_list;
 	uint32 flags = 0;
-	ggnfs_job_t job;
+	nfs_job_t job;
 	uint32 relations_needed = 1;	
 	uint32 last_specialq = 0;
 	struct timeval stop;	// stop time of this job
@@ -57,11 +67,13 @@ void nfs(fact_obj_t *fobj)
 	uint32 pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];	
 	int process_done;
-	snfs_t snfs_obj;
 	enum nfs_state_e nfs_state;
 	
+	// initialize some job parameters
+	memset(&job, 0, sizeof(nfs_job_t));
 
 	obj_ptr = NULL;
+	
 	//below a certain amount, revert to SIQS
 	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
 	{
@@ -139,21 +151,6 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
-	//// check snfs forms (if requested)
-	//snfs_init(&snfs_obj);
-	//if (snfs_obj.form_type == SNFS_NONE)
-	//{
-	//	printf("nfs: searching for brent special forms...\n");
-	//	find_brent_form(fobj, &snfs_obj);
-	//}
-
-	//if (snfs_obj.form_type == SNFS_NONE)
-	//{
-	//	printf("nfs: searching for homogeneous cunningham special forms...\n");
-	//	find_hcunn_form(fobj, &snfs_obj);
-	//}
-	//exit(0);
-
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -171,15 +168,6 @@ void nfs(fact_obj_t *fobj)
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
-			// initialize some job parameters
-			job.current_rels = 0;
-			job.lpb = 0;
-			job.mfb = 0;
-			job.lambda = 0;
-			job.type = 0;		// 0==GNFS, 1==SNFS
-			job.size = 0;		// snfs difficulty
-			job.fblim = 0;
-
 			// write the input bigint as a string			
 			input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
 
@@ -194,22 +182,11 @@ void nfs(fact_obj_t *fobj)
 			// select is resumed they will be changed by check_existing_files.
 			job.last_leading_coeff = 0;
 			job.poly_time = 0;
+			job.snfs = NULL;
 
 			// determine what to do next based on the state of various files.
 			// this will set job.current_rels if it finds any
 			nfs_state = check_existing_files(fobj, &last_specialq, &job);
-
-			// get best parameters for the job - call this after checking the input
-			// against the savefile because the input could be changed (i.e., reduced
-			// by some factor).
-			// get_ggnfs_params(fobj, &job);
-			// instead call this only as necessary -- when done with poly select,
-			// or when starting/resuming sieving
-
-			// override the table-driven parameters with the supplied parameters,
-			// if the user has supplied their own .job file
-			//if (fobj->nfs_obj.user_job)
-			//	parse_job_file(fobj, &job);
 
 			// before we get started, check to make sure we can find ggnfs sievers
 			// if we are going to be doing sieving
@@ -238,7 +215,29 @@ void nfs(fact_obj_t *fobj)
 			
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
-				do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
+			{
+				// check snfs forms (if requested)
+				if( fobj->nfs_obj.snfs )
+				{
+					job.snfs = snfs_choose_poly(fobj);
+				}
+				if( job.snfs == NULL )
+				{ // either we never were doing snfs, or snfs form detect failed
+					job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+					if (job.poly == NULL)
+					{
+						printf("nfs: couldn't allocate memory!\n");
+						exit(-1);
+					}
+					mpz_polys_init(job.poly);
+					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
+					// assume gnfs for now
+					job.poly->side = ALGEBRAIC_SPQ;
+					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
+				}
+				else
+					job.poly = job.snfs->poly;
+			}
 
 			nfs_state = NFS_STATE_SIEVE;
 			break;
@@ -342,7 +341,7 @@ void nfs(fact_obj_t *fobj)
 			
 				obj_ptr = NULL;
 			}
-			else
+			else // not doing linalg
 				nfs_state = NFS_STATE_SQRT;
 
 			break;
@@ -425,7 +424,7 @@ void nfs(fact_obj_t *fobj)
 			if (job.current_rels >= job.min_rels)
 			{
 				if (VFLAG > 0)
-					printf("found %u relations, need at least %u, proceeding with filtering ...\n",
+					printf("nfs: found %u relations, need at least %u, proceeding with filtering ...\n",
 					job.current_rels, job.min_rels);
 				
 				nfs_state = NFS_STATE_FILTER;
@@ -452,8 +451,8 @@ void nfs(fact_obj_t *fobj)
 					(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 				{
 					if (VFLAG > 0)
-						printf("found %u relations, need at least %u "
-							"(filtering ETA: %uh %um), continuing with sieving ...\n",
+						printf("nfs: found %u relations, need at least %u "
+							"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
 							job.current_rels, job.min_rels, est_time / 3600, 
 							(est_time % 3600) / 60);
 
@@ -462,7 +461,7 @@ void nfs(fact_obj_t *fobj)
 				else
 				{
 					if (VFLAG > 0)
-						printf("found %u relations, need at least %u "
+						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), sieving not selected, finishing ...\n",
 							job.current_rels, job.min_rels, est_time / 3600, 
 							(est_time % 3600) / 60);
@@ -474,7 +473,6 @@ void nfs(fact_obj_t *fobj)
 
 		case NFS_STATE_STARTNEW:
 
-			//job.startq = job.fblim / 2;
 			nfs_state = NFS_STATE_POLY;		
 
 			// create a new directory for this job 
@@ -522,9 +520,7 @@ void nfs(fact_obj_t *fobj)
 			if (last_specialq == 0) 
  			{				
 				// no data file, so this is the first time using this job file
-				uint32 missing_params = PARAM_FLAG_NONE;
-				
-				parse_job_file(fobj, &job, &missing_params);
+				uint32 missing_params = parse_job_file(fobj, &job);
 				
 				// set min_rels.  
 				get_ggnfs_params(fobj, &job);
@@ -547,7 +543,8 @@ void nfs(fact_obj_t *fobj)
 				}
 				else
 				{
-					job.startq = job.fblim / 2;
+					// this is a guess, may be completely wrong
+					job.startq = (job.poly->side == RATIONAL_SPQ ? job.rlim : job.alim) / 2;
 					if (VFLAG >= 0)
 						printf("nfs: continuing with sieving - could not determine "
 							"last special q; using default startq\n");
@@ -559,9 +556,10 @@ void nfs(fact_obj_t *fobj)
 				// next step is sieving
 				nfs_state = NFS_STATE_SIEVE;
 			}
-			else
+			else // data file already exists
 			{				
-				parse_job_file(fobj, &job, NULL);
+				(void) parse_job_file(fobj, &job);
+				
 				// set min_rels.  
 				get_ggnfs_params(fobj, &job);
 
@@ -574,20 +572,18 @@ void nfs(fact_obj_t *fobj)
 				{
 					job.startq = last_specialq;
 
-					// since we apparently found some relations, and we done
+					// since we apparently found some relations, and we dont
 					// have any special plan in place from the user,
 					// see if we have enough to finish
 					nfs_state = NFS_STATE_FILTCHECK;
 				}
 
 				if (VFLAG >= 0)
-					printf("nfs: found %u relations, need at least %u, "
-					"continuing job at specialq = %u\n",
-					job.current_rels, job.min_rels, job.startq);
+					printf("nfs: continuing job at specialq = %u after a filter check\n",
+						job.startq);
 
-				logprint_oc(fobj->flogname, "a", "nfs: found %u relations, "
-					"need at least %u, continuing job at specialq = %u\n",
-					job.current_rels, job.min_rels, job.startq);
+				logprint_oc(fobj->flogname, "a", "nfs: continuing job at specialq = %u after a filter check\n",
+						job.startq);
 
 			}
 
@@ -608,9 +604,6 @@ void nfs(fact_obj_t *fobj)
 		case NFS_STATE_RESUMEPOLY:
 			if (VFLAG > 1) printf("nfs: resuming poly select\n");
 			fobj->nfs_obj.polystart = job.last_leading_coeff;
-
-			//load the job structure with the starting Q.
-			//job.startq = job.fblim / 2;
 
 			nfs_state = NFS_STATE_POLY;
 
@@ -653,6 +646,17 @@ void nfs(fact_obj_t *fobj)
 	if (obj != NULL)
 		msieve_obj_free(obj);
 	free(input);
+	
+	if( job.snfs )
+	{
+		snfs_clear(job.snfs);
+		free(job.snfs);
+	} 
+	else
+	{
+		mpz_polys_free(job.poly);
+		free(job.poly);
+	}
 
 	return;
 }
@@ -661,7 +665,7 @@ void nfs(fact_obj_t *fobj)
 
 void nfs(fact_obj_t *fobj)
 {
-	printf("gnfs has not been enabled\n");
+	printf("nfs has not been enabled\n");
 
 	mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 	SIQS(fobj);
@@ -682,7 +686,7 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 		char name[1024];
 		int found, i;
 
-		for (i=11; i<16; i++)
+		for (i=11; i<=16; i++)
 		{
 			sprintf(name, "%sggnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, i);
 #if defined(WIN32)
@@ -724,8 +728,8 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 #define GGNFS_TABLE_ROWS 15
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
-/* is filled in by get_ggnfs_params										*/
-/* columns:																*/
+/* is filled in by get_ggnfs_params					*/
+/* columns:								*/
 /* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
 	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
 	{90,  1200000,  25, 50, 2.3, 11, 0, 20000},
@@ -743,9 +747,9 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 	{150, 20000000, 29, 58, 2.5, 14, 0, 640000},
 	{155, 30000000, 29, 58, 2.5, 15, 0, 640000}
 };
+// in light of test sieving, this table might need to be extended
 
-
-void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
+void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 {
 	// based on the size/difficulty of the input number, determine "good" parameters
 	// for the following: factor base limits, factor base large prime bound, trial
@@ -758,23 +762,27 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	double scale;
 	double fudge; // sundae :)
 	int found = 0;
-	uint32 lpb;
+	uint32 lpb = 0, mfb = 0, fblim = 0, siever = 0;
+	double lambda;
 
-	//job->min_rels = 0;
-	if (job->type == 0 && job->size != 0 && job->size != d && VFLAG > 0)
+	/*
+	if (job->snfs == N && job->size != 0 && job->size != d && VFLAG > 0)
 		printf("nfs: warning: size param in job file does not match size of "
-			"number, ignoring param\n");
+			"number, ignoring param\n");	*/
 	
-	if (job->type > 0) // SNFS
+	if (job->snfs != NULL) 
 	{
-		if (job->size == 0)
+		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
 		{	
-			if (VFLAG > 1)
+			if (VFLAG > 0)
 				printf("nfs: detected snfs job but no snfs difficulty; "
 					"assuming size of number is the snfs difficulty\n");
 		}
 		else
-			d = job->size;
+		{
+			d = job->snfs->sdifficulty;
+			if (d == 0) d = job->snfs->difficulty;
+		}
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
 		i = 0.56*d + 30; 
@@ -782,9 +790,13 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
 				"gnfs difficulty %d\n", d, i);
 		d = i;
-		if (fobj->nfs_obj.sq_side == 0) // not overridden by the user
-			fobj->nfs_obj.sq_side = -1; // rational side
 	}
+	else if (fobj->nfs_obj.snfs)
+		printf( "nfs: user passed snfs switch, but the job file does not specify snfs\n"
+			"nfs: will continue as gnfs\n");
+	
+	if (fobj->nfs_obj.sq_side != 0) // user override
+		job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
 
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
 	{
@@ -794,58 +806,41 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 				(double)(ggnfs_table[i+1][0] - ggnfs_table[i][0]);
 
 			//interp
-			//job->fblim = ggnfs_table[i+1][1] - 
-			//	(uint32)(scale * (double)(ggnfs_table[i+1][1] - ggnfs_table[i][1]));
-			if (job->fblim == 0)
-				job->fblim = ggnfs_table[i+1][1] - 
-					(uint32)(scale * (double)(ggnfs_table[i+1][1] - ggnfs_table[i][1]));
-
-			//pick closest entry
-			//if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-			//	job->lpb = ggnfs_table[i][2];
-			//else
-			//	job->lpb = ggnfs_table[i+1][2];
-			if (job->lpb == 0)
-			{
-				if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-					job->lpb = ggnfs_table[i][2];
-				else
-					job->lpb = ggnfs_table[i+1][2];
-			}
-			
-			//pick closest entry
-			//if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-			//	job->mfb = ggnfs_table[i][3];
-			//else
-			//	job->mfb = ggnfs_table[i+1][3];
-			if (job->mfb == 0)
-			{
-				//pick closest entry
-				if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-					job->mfb = ggnfs_table[i][3];
-				else
-					job->mfb = ggnfs_table[i+1][3];
-			}
-
-			//pick closest entry
-			//if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-			//	job->lambda = ggnfs_table[i][4];
-			//else
-			//	job->lambda = ggnfs_table[i+1][4];
-			if (job->lambda == 0)
-			{
-				//pick closest entry
-				if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-					job->lambda = ggnfs_table[i][4];
-				else
-					job->lambda = ggnfs_table[i+1][4];
-			}
+			fblim = ggnfs_table[i+1][1] - 
+				(uint32)(scale * (double)(ggnfs_table[i+1][1] - ggnfs_table[i][1]));
+			if (job->rlim == 0) job->rlim = fblim;
+			if (job->alim == 0) job->alim = fblim;
 
 			//pick closest entry
 			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
-				job->siever = ggnfs_table[i][5];
+				lpb = ggnfs_table[i][2];
 			else
-				job->siever = ggnfs_table[i+1][5];
+				lpb = ggnfs_table[i+1][2];
+			if (job->lpbr == 0) job->lpbr = lpb;
+			if (job->lpba == 0) job->lpba = lpb;
+			
+			//pick closest entry
+			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
+				mfb = ggnfs_table[i][3];
+			else
+				mfb = ggnfs_table[i+1][3];
+			if (job->mfbr == 0) job->mfbr = mfb;
+			if (job->mfba == 0) job->mfba = mfb;
+
+			//pick closest entry
+			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
+				lambda = ggnfs_table[i][4];
+			else
+				lambda = ggnfs_table[i+1][4];
+			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->alambda == 0) job->alambda = lambda;
+
+			//pick closest entry
+			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
+				siever = ggnfs_table[i][5];
+			else
+				siever = ggnfs_table[i+1][5];
+			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
 			//interp
 			job->qrange = ggnfs_table[i+1][7] - 
@@ -860,28 +855,38 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 		//couldn't find a table entry
 		if (d <= ggnfs_table[0][0])
 		{
-			//job->fblim = ggnfs_table[0][1];
-			//job->lpb = ggnfs_table[0][2];
-			//job->mfb = ggnfs_table[0][3];
-			//job->lambda = ggnfs_table[0][4];
-			if (job->fblim == 0) job->fblim = ggnfs_table[0][1];
-			if (job->lpb == 0) job->lpb = ggnfs_table[0][2];
-			if (job->mfb == 0) job->mfb = ggnfs_table[0][3];
-			if (job->lambda == 0) job->lambda = ggnfs_table[0][4];
-			job->siever = ggnfs_table[0][5];
+			fblim = ggnfs_table[0][1];
+			lpb = ggnfs_table[0][2];
+			mfb = ggnfs_table[0][3];
+			lambda = ggnfs_table[0][4];
+			siever = ggnfs_table[0][5];
+			if (job->rlim == 0) job->rlim = fblim;
+			if (job->alim == 0) job->alim = fblim;
+			if (job->lpbr == 0) job->lpbr = lpb;
+			if (job->lpba == 0) job->lpba = lpb;
+			if (job->mfbr == 0) job->mfbr = mfb;
+			if (job->mfba == 0) job->mfba = mfb;
+			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->alambda == 0) job->alambda = lambda;
+			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 			job->qrange = ggnfs_table[0][7];
 		}
 		else
 		{
-			//job->fblim = ggnfs_table[GGNFS_TABLE_ROWS-1][1];
-			//job->lpb = ggnfs_table[GGNFS_TABLE_ROWS-1][2];
-			//job->mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
-			//job->lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
-			if (job->fblim == 0) job->fblim = ggnfs_table[GGNFS_TABLE_ROWS-1][1];
-			if (job->lpb == 0) job->lpb = ggnfs_table[GGNFS_TABLE_ROWS-1][2];
-			if (job->mfb == 0) job->mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
-			if (job->lambda == 0) job->lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
-			job->siever = ggnfs_table[GGNFS_TABLE_ROWS-1][5];
+			fblim = ggnfs_table[GGNFS_TABLE_ROWS-1][1];
+			lpb = ggnfs_table[GGNFS_TABLE_ROWS-1][2];
+			mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
+			lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
+			siever = ggnfs_table[0][5];
+			if (job->rlim == 0) job->rlim = fblim;
+			if (job->alim == 0) job->alim = fblim;
+			if (job->lpbr == 0) job->lpbr = lpb;
+			if (job->lpba == 0) job->lpba = lpb;
+			if (job->mfbr == 0) job->mfbr = mfb;
+			if (job->mfba == 0) job->mfba = mfb;
+			if (job->rlambda == 0) job->rlambda = lambda;
+			if (job->alambda == 0) job->alambda = lambda;
+			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 			job->qrange = ggnfs_table[GGNFS_TABLE_ROWS-1][7];
 		}
 	}
@@ -891,10 +896,11 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 	{
 		// these are always the same now... but someday maybe they won't be.  this
 		// routine will handle that when we get there.
+		// edit: we're there!!
 		if (i == 0)
-			lpb = job->lpb;
+			lpb = job->lpbr;
 		else
-			lpb = job->lpb;
+			lpb = job->lpba;
 
 		// appoximate min_rels:
 		// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
@@ -939,343 +945,11 @@ void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job)
 		job->min_rels += (uint32)(fudge * (
 			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
-
-
-	// if the user specified a siever, use that one, else use the one
-	// determined from the lookup table
-	if (fobj->nfs_obj.siever > 0)
-	{
-		switch (fobj->nfs_obj.siever)
-		{
-		case 11:
-			sprintf(job->sievername, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 12:
-			sprintf(job->sievername, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 13:
-			sprintf(job->sievername, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 14:
-			sprintf(job->sievername, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 15:
-			sprintf(job->sievername, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		}
-	}
-	else
-	{
-		switch (job->siever)
-		{
-		case 11:
-			sprintf(job->sievername, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 12:
-			sprintf(job->sievername, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 13:
-			sprintf(job->sievername, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 14:
-			sprintf(job->sievername, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		case 15:
-			sprintf(job->sievername, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
-			break;
-		}
-	}
-
+	
+	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
 
 	return;
 }
-
-void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32* missing_params)
-{
-	FILE *in;
-	//uint32 lpbr = 0, lpba = 0;
-	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0;
-	char line[1024];
-	float alambda = 0, rlambda = 0;
-
-	in = fopen(fobj->nfs_obj.job_infile, "r");
-	if (in == NULL)
-	{
-		printf("nfs: couldn't open job file, using default min_rels\n");
-		return;
-	}
-
-	while (!feof(in))
-	{
-		char *substr, *ptr;
-		
-		ptr = fgets(line, 1024, in);
-
-		// bail if we couldn't read anything
-		if (ptr == NULL)
-			break;
-
-		substr = strstr(line, "lpbr:");
-
-		if (substr != NULL)
-		{
-			lpbr = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-
-		substr = strstr(line, "lpba:");
-
-		if (substr != NULL)
-		{
-			lpba = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-
-		substr = strstr(line, "type:");		
-		if (substr != NULL)
- 		{
-			job->type = (NULL != strstr(substr + 5, "snfs")); // case sensitive
-			if (VFLAG > 0 && job->type > 0)
-				printf("nfs: found type: snfs\n");
-			continue;
-		}
-		
-		substr = strstr(line, "size:");
-		if (substr != NULL)
-		{
-			job->size = strtoul(substr + 5, NULL, 10);
-			if (VFLAG > 0)
-				printf("nfs: found size: %u\n", job->size);
-			continue;
-		}
-	
-		substr = strstr(line, "mfbr:");
-		if (substr != NULL)
-		{
-			mfbr = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-		
-		substr = strstr(line, "mfba:");
-		if (substr != NULL)
-		{
-			mfba = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-		
-		substr = strstr(line, "rlim:");		
-		if (substr != NULL)
-		{
-			rlim = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-		
-		substr = strstr(line, "alim:");		
-		if (substr != NULL)
-		{
-			alim = strtoul(substr + 5, NULL, 10);
-			continue;
-		}
-		
-		substr = strstr(line, "rlambda:");		
-		if (substr != NULL)
-		{
-			sscanf(substr + 8, "%f", &rlambda); //strtof(substr + 8, NULL);
-			continue;
-		}
-		
-		substr = strstr(line, "alambda:");		
-		if (substr != NULL)
-		{
-			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
-			continue;
-		}
-	}
-
-	if ((lpba > 0) && (lpbr > 0))
-	{
-		if (job->type) // assume -a for gnfs, -r for snfs
-			job->lpb = lpbr;
-		else
-			job->lpb = lpba;
-
-		if (VFLAG > 0)
-			printf("nfs: parsed lpbr = %u, lpba = %u, type = %s, setting lpb = %u\n",
-				lpbr, lpba, job->type ? "snfs" : "gnfs", job->lpb);
-	}
-	else if ((lpba == 0) && (lpbr == 0))
-	{
-		if (missing_params) *missing_params |= PARAM_FLAG_LPB;
-	}
-	
-	if ((mfba > 0) && (mfbr > 0))
-	{
-		if (job->type) // assume -a for gnfs, -r for snfs
-			job->mfb = mfbr;
-		else
-			job->mfb = mfba;
-		
-		if (VFLAG > 2)
-			printf("nfs: parsed mfbr = %u, mfba = %u, setting mfb = %u\n",
-				mfbr, mfba, job->mfb);
-	}
-	else if ((mfba == 0) && (mfbr == 0))
-	{
-		if (missing_params) *missing_params |= PARAM_FLAG_MFB;
-	}
-	
-	if ((alim > 0) && (rlim > 0))
-	{
-		if (job->type) // assume -a for gnfs, -r for snfs
-			job->fblim = rlim;
-		else
-			job->fblim = alim;
-		
-		if (VFLAG > 2)
-			printf("nfs: parsed rlim = %u, alim = %u, setting fblim = %u\n",
-				rlim, alim, job->fblim);
-	}
-	else if ((alim == 0) && (rlim == 0))
-	{
-		if (missing_params) *missing_params |= PARAM_FLAG_FBLIM;
-	}
-	
-	if ((alambda > 0) && (rlambda > 0))
-	{
-		if (job->type) // assume -a for gnfs, -r for snfs
-			job->lambda = rlambda;
-		else
-			job->lambda = alambda;
-		
-		if (VFLAG > 2)
-			printf("nfs: parsed rlim = %.1f, alim = %.1f, setting lambda = %.1f\n",
-				rlambda, alambda, job->lambda);
-	}
-	else if ((alambda == 0) && (rlambda == 0))
-	{
-		if (missing_params) *missing_params |= PARAM_FLAG_LAMBDA;
-	}
-
-
-	/*
-		if ((lpba > 0) && (lpbr > 0))
-		{
-			uint32 lpb;
-			int i;
-			job->min_rels = 0;
-
-			for (i = 0; i < 2; i++)
-			{
-				if (i == 0)
-					lpb = lpbr;
-				else
-					lpb = lpba;
-
-				// appoximate min_rels:
-				// http://ggnfs.svn.sourceforge.net/viewvc/ggnfs/trunk/tests/factMsieve.pl?r1=374&r2=416
-				// http://www.mersenneforum.org/showpost.php?p=294055&postcount=25
-				switch (lpb)
-				{
-				case 24:
-					fudge = 0.35;
-					break;
-				case 25:
-					fudge = 0.50;
-					break;
-				case 26:
-					fudge = 0.60;
-					break;
-				case 27:
-					fudge = 0.70;
-					break;
-				case 28:
-					fudge = 0.76;
-					break;
-				case 29:
-					fudge = 0.84;
-					break;
-				case 30:
-					fudge = 0.89;
-					break;
-				case 31:
-					fudge = 0.91;
-					break;
-				case 32:
-					fudge = 0.95;
-					break;
-				case 33:
-					fudge = 0.98;
-					break;
-				default:
-					fudge = 0.2;
-					break;
-				}
-
-				job->min_rels += (uint32)(fudge * (
-					pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
-			}
-
-			printf("nfs: parsed lpbr = %u, lpba = %u; setting min_rels = %u\n",
-				lpbr, lpba, job->min_rels);
-			break;
-		}			
-	}
-	*/
-
-
-	fclose(in);
-
-	return;
-}
-	
-void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params)
-{
-	if (missing_params != PARAM_FLAG_NONE)
-	{
-		//printf("Missing params: %d\n", missing_params);
-		FILE* out = fopen(fobj->nfs_obj.job_infile, "a");
-		if (out == NULL)
-		{
-			printf("nfs: couldn't fill job file, will try sieving anyway\n");
-			return;
-		}
-		else if (VFLAG > 0)
-			printf("nfs: job file is missing params, filling them\n");
-
-		// make sure we start on a new line if we are filling anything
-		fprintf(out, "\n");
-
-		if (missing_params & PARAM_FLAG_FBLIM)
-		{
-			fprintf(out,"rlim: %u\n",job->fblim);
-			fprintf(out,"alim: %u\n",job->fblim);
-		}
-		
-		if (missing_params & PARAM_FLAG_LPB)
-		{
-			fprintf(out,"lpbr: %u\n",job->lpb);
-			fprintf(out,"lpba: %u\n",job->lpb);
-		}
-		
-		if (missing_params & PARAM_FLAG_MFB)
-		{
-			fprintf(out,"mfbr: %u\n",job->mfb);
-			fprintf(out,"mfba: %u\n",job->mfb);
-		}
-		
-		if (missing_params & PARAM_FLAG_LAMBDA)
-		{
-			fprintf(out,"rlambda: %.1f\n",job->lambda);
-			fprintf(out,"alambda: %.1f\n",job->lambda);
-		}
-		
-		fclose(out);
-	}
- 	
-	return;
-}
-
-

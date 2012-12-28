@@ -382,8 +382,12 @@ typedef struct
 typedef struct
 {
 	mpz_t gmp_n;
+	
+	int snfs; // if the user specifies snfs
+	
 	char ggnfs_dir[1024];
 	uint32 siever;
+	uint32 sq_side;
 	uint32 startq;
 	uint32 rangeq;
 	uint32 polystart;
@@ -391,16 +395,14 @@ typedef struct
 	char outputfile[1024];
 	char logfile[1024];
 	char fbfile[1024];
-	int sq_side;
 	uint32 timeout;
 	char job_infile[1024];
-	int sieve_only;
-	int poly_only;
-	int post_only;
 	int poly_option;
 	int restart_flag;
-	int la_restart;
-	int user_job;
+	/*int sieve_only;
+	int poly_only;
+	int post_only;
+	int la_restart; */ // replaced by enum nfs_phase_flags
 	uint32 polybatch;
 	uint32 nfs_phases;
 	uint32 snfs_testsieve_threshold;
@@ -412,7 +414,7 @@ typedef struct
 	uint32 min_digits;
 
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
+	z *factors;				//array of bigint factors found in this method
 	double ttime;
 
 	msieve_obj *mobj;

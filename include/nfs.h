@@ -59,36 +59,114 @@ enum nfs_state_e
 	NFS_STATE_DONE
 };
 
-enum param_flag_e {
+enum param_flag_e
+{
 	PARAM_FLAG_NONE = 0,
-	PARAM_FLAG_FBLIM = 0x1,
-	PARAM_FLAG_LPB = 0x2,
-	PARAM_FLAG_MFB = 0x4,
-	PARAM_FLAG_LAMBDA = 0x8
+
+	PARAM_FLAG_RLIM = 0x1,
+	PARAM_FLAG_ALIM = 0x2,
+	PARAM_FLAG_FBLIM = 0x1 + 0x2,
+
+	PARAM_FLAG_LPBR = 0x4,
+	PARAM_FLAG_LPBA = 0x8,
+	PARAM_FLAG_LPB = 0x4 + 0x8,
+
+	PARAM_FLAG_MFBR = 0x10,
+	PARAM_FLAG_MFBA = 0x20,
+	PARAM_FLAG_MFB = 0x10 + 0x20,
+
+	PARAM_FLAG_RLAMBDA = 0x40,
+	PARAM_FLAG_ALAMBDA = 0x80,
+	PARAM_FLAG_LAMBDA = 0x40 + 0x80,
+
+	PARAM_FLAG_ALL = 0xFF
 };
+
+enum snfs_form_e
+{
+	SNFS_NONE,
+	SNFS_BRENT,
+	SNFS_H_CUNNINGHAM,
+	SNFS_XYYXF
+};
+
+enum special_q_e
+{
+	RATIONAL_SPQ,
+	ALGEBRAIC_SPQ
+};
+
+// gnfs.h has an mpz_poly_t struct:
+/* typedef struct {
+	uint32 degree;
+	mpz_t coeff[MAX_POLY_DEGREE + 1];
+
+	// scratch quantities for evaluating the homogeneous form of poly 
+	mpz_t tmp1, tmp2, tmp3;
+} mpz_poly_t; */
 
 typedef struct
 {
-	uint32 fblim;
-	uint32 lpb;
-	uint32 mfb;
-	float lambda;
-	uint32 siever; 
-	uint32 qrange;
+	mpz_poly_t rat; // linear (usually)
+	mpz_poly_t alg;
+	double skew;
+	mpz_t m; // common root mod n
+	enum special_q_e side;
+} mpz_polys_t;
+
+#define NUM_SNFS_POLYS 3
+
+typedef struct
+{
+	// input integer
+	mpz_t n;
+	// algebraic representation of the snfs form
+	int base1;
+	int base2;
+	int exp1;
+	int exp2;
+	int coeff1;
+	int coeff2;	
+	// type of form
+	enum snfs_form_e form_type;
+
+	
+	mpz_polys_t* poly;
+	int c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t
+				    // in check_poly()
+
+	// other useful parameters
+	double difficulty;	
+	double sdifficulty;
+	double anorm;
+	double rnorm;
+	int rank;
+	int valid;
+} snfs_t;
+
+typedef struct
+{
+	mpz_polys_t* poly; // the idea is that job->snfs->poly == job->poly always
+	uint32 rlim, alim;
+	uint32 lpbr, lpba;
+	uint32 mfbr, mfba;
+	double rlambda, alambda;
+	uint32 qrange; // how large a sieving block is
 	char sievername[1024];
 	uint32 startq;
 	uint32 min_rels;
 	uint32 current_rels;
-	uint32 type;			// 0==GNFS, 1==SNFS
-	uint32 size;			// used for SNFS difficulty
 	uint32 poly_time;
 	uint32 last_leading_coeff;
-} ggnfs_job_t;
+	
+	snfs_t* snfs; // NULL if GNFS
+} nfs_job_t;
 
 typedef struct {
 	// stuff for parallel ggnfs sieving
 	char outfilename[80];
-	ggnfs_job_t job;
+	nfs_job_t job;
+	uint32 siever;
 
 	// stuff for parallel msieve poly select
 	char *polyfilename, *logfilename, *fbfilename;
@@ -126,82 +204,28 @@ typedef struct {
 } nfs_threaddata_t;
 
 
-enum snfs_form_e
-{
-	SNFS_NONE,
-	SNFS_BRENT,
-	SNFS_H_CUNNINGHAM,
-	SNFS_XYYXF
-};
-
-enum special_q_e
-{
-	RATIONAL_SPQ,
-	ALGEBRAIC_SPQ
-};
-
-typedef struct
-{
-	// input integer
-	mpz_t n;
-	// algebraic representation of the snfs form
-	int base1;
-	int base2;
-	int exp1;
-	int exp2;
-	int coeff1;
-	int coeff2;
-	// polynomial coefficients - up to degree 8
-	int c[9];
-	mpz_t y0;
-	mpz_t y1;
-	mpz_t m;	
-	// type of form
-	enum snfs_form_e form_type;
-	// parameters needed for sieving
-	double skew;
-	uint32 rlim;
-	uint32 alim;
-	uint32 lpbr;
-	uint32 lpba;
-	uint32 mfbr;
-	uint32 mfba;
-	double rlambda;
-	double alambda;
-
-	// other useful parameters
-	int degree;
-	double difficulty;	
-	double sdifficulty;
-	double anorm;
-	double rnorm;
-	enum special_q_e side;
-	int rank;
-	int valid;
-} snfs_t;
-
-
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
 void *polyfind_launcher(void *ptr);
-void find_best_msieve_poly(fact_obj_t *fobj, ggnfs_job_t *job, int write_jobfile);
-void msieve_to_ggnfs(fact_obj_t *fobj, ggnfs_job_t *job);
-void ggnfs_to_msieve(fact_obj_t *fobj, ggnfs_job_t *job);
-void get_ggnfs_params(fact_obj_t *fobj, ggnfs_job_t *job);
+void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile);
+void msieve_to_ggnfs(fact_obj_t *fobj, nfs_job_t *job);
+void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job);
+void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job);
 int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs);
-//void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job);
-void parse_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32* missing_params);
-void fill_job_file(fact_obj_t *fobj, ggnfs_job_t *job, uint32 missing_params);
+void print_poly(mpz_polys_t* poly, FILE *out);
+uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job);
+void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params);
 
-enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, ggnfs_job_t *job);
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job);
-void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
+uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job);
+void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32 flags, uint64 start, uint64 stop);
-void do_sieving(fact_obj_t *fobj, ggnfs_job_t *job);
+void do_sieving(fact_obj_t *fobj, nfs_job_t *job);
+int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);
 void savefile_concat(char *filein, char *fileout, msieve_obj *mobj);
 void win_file_concat(char *filein, char *fileout);
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
@@ -219,18 +243,32 @@ void *nfs_worker_thread_main(void *thread_data);
 void find_brent_form(fact_obj_t *fobj, snfs_t *poly);
 void find_hcunn_form(fact_obj_t *fobj, snfs_t *poly);
 void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
-void snfs_init(snfs_t *poly);
-void snfs_clear(snfs_t *poly);
-void gen_brent_poly(fact_obj_t *fobj, snfs_t *poly);
+snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys); // the workhorse
+snfs_t* snfs_choose_poly(fact_obj_t* fobj);
 void check_poly(snfs_t *poly);
-void print_poly(snfs_t *poly, FILE *out);
+void print_snfs(snfs_t *poly, FILE *out);
 void snfs_copy_poly(snfs_t *src, snfs_t *dest);
 void approx_norms(snfs_t *poly);
 void snfs_scale_difficulty(snfs_t *polys, int npoly);
 void snfs_rank_polys(snfs_t *polys, int npoly);
 int qcomp_snfs_sdifficulty(const void *x, const void *y);
-void snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly);
+snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly);
 void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly);
+void snfs_init(snfs_t* poly);
+void snfs_clear(snfs_t* poly);
 
 int NFS_ABORT;
 
+static INLINE void mpz_polys_init(mpz_polys_t * poly) {
+	mpz_poly_init(&poly->rat);
+	mpz_poly_init(&poly->alg);
+	mpz_init(poly->m);
+	poly->skew = 0;
+	poly->side = ALGEBRAIC_SPQ; // snfs routines will override if necessary
+}
+
+static INLINE void mpz_polys_free(mpz_polys_t * poly) {
+	mpz_poly_free(&poly->rat);
+	mpz_poly_free(&poly->alg);
+	mpz_clear(poly->m);
+}

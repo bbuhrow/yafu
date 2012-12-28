@@ -16,7 +16,90 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job, 
+snfs_t* snfs_choose_poly(fact_obj_t* fobj)
+{
+	snfs_t* poly, * polys, * best;
+	int i, npoly;
+	
+	poly = (snfs_t*)malloc(sizeof(snfs_t));
+	if( !poly )
+	{
+		printf("gen: initial malloc failed\n");
+		exit(-1);
+	}
+	snfs_init(poly);
+	
+	if (poly->form_type == SNFS_NONE)
+	{
+		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
+		find_brent_form(fobj, poly);
+	}
+	
+	if (poly->form_type == SNFS_NONE)
+	{
+		if (VFLAG >= 0) printf("nfs: searching for homogeneous cunningham special forms...\n");
+		find_hcunn_form(fobj, poly);
+	}
+					
+	if (poly->form_type == SNFS_NONE)
+	{
+		if (VFLAG >= 0) printf("nfs: searching for XYYXF special forms...\n");
+		find_xyyxf_form(fobj, poly);
+	}
+					
+	if (poly->form_type == SNFS_NONE)
+	{
+		printf("nfs: couldn't find special form, reverting to gnfs\n");
+		snfs_clear(poly);
+		free(poly);
+		return NULL;
+	}
+	
+	polys = gen_brent_poly(fobj, poly, &npoly); // the meat
+	
+	// we've now measured the difficulty for poly's of all common degrees possibly formed
+	// in several different ways.  now we have a decision to make based largely on difficulty and 
+	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
+	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
+	// approximately equally in which case only test-sieving can really resolve the difference.
+	// if the difficulty is below a threshold, just pick one, else, do some test sieving.
+	
+	snfs_scale_difficulty(polys, npoly);
+	snfs_rank_polys(polys, npoly);
+
+	if (VFLAG > 0 && npoly > 1)
+	{
+		printf( "gen: ========================================================\n"
+			"gen: best %d polynomials:\n"
+			"gen: ========================================================\n", NUM_SNFS_POLYS);
+
+		for (i=0; i<npoly && i<NUM_SNFS_POLYS; i++)
+			print_snfs(&polys[i], stdout);
+	}
+
+	best = snfs_test_sieve(fobj, polys, npoly);
+
+	if (VFLAG > 0)
+	{
+		printf("gen: ========================================================\n");
+		printf("gen: selected polynomial:\n");
+		printf("gen: ========================================================\n");
+
+		print_snfs(best, stdout);
+	}
+	
+	snfs_copy_poly(best, poly); // best is only a pointer into polys, which needs to be free()d
+	
+	snfs_make_poly_file(fobj, poly);
+
+	for(i = 0; i < npoly; i++)
+		snfs_clear(&polys[i]);
+	free(polys);
+
+	return poly;
+}
+
+void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, 
 	mp_t *mpN, factor_list_t *factor_list)
 {
 	FILE *logfile;
@@ -26,14 +109,14 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	nfs_threaddata_t *thread_data;		
 
 	// thread work-queue controls
-    int threads_working = 0;
-    int *thread_queue, *threads_waiting;
+	int threads_working = 0;
+	int *thread_queue, *threads_waiting;
 #if defined(WIN32) || defined(_WIN64)
 	HANDLE queue_lock;
 	HANDLE *queue_events = NULL;
 #else
-    pthread_mutex_t queue_lock;
-    pthread_cond_t queue_cond;
+	pthread_mutex_t queue_lock;
+	pthread_cond_t queue_cond;
 #endif
 
 	int i,j,is_startup;
@@ -136,8 +219,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
 
 	// allocate the queue of threads waiting for work
-    thread_queue = (int *)malloc(THREADS * sizeof(int));
-    threads_waiting = (int *)malloc(sizeof(int));
+	thread_queue = (int *)malloc(THREADS * sizeof(int));
+	threads_waiting = (int *)malloc(sizeof(int));
 
 	if (THREADS > 1)
 	{
@@ -217,7 +300,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 			thread_queue[i] = i;
 		}
 	}
-    *threads_waiting = THREADS;
+	*threads_waiting = THREADS;
 
 	if (THREADS > 1)
 	{
@@ -296,6 +379,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 				//at the top.  this is used to help restart jobs in the polyfind phase
 				fid = fopen(master_polyfile, "r");
 				if (fid == NULL)
+
 				{
 					fid = fopen(master_polyfile, "w");
 					gmp_fprintf(fid, "n: %Zd\n", fobj->nfs_obj.gmp_n);
@@ -477,7 +561,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, ggnfs_job_t *job,
 	//free the thread structure
 	free(thread_data);		
 	free(thread_queue);
-    free(threads_waiting);
+	free(threads_waiting);
 
 #if defined(WIN32) || defined(_WIN64)
 	if (THREADS > 1)
