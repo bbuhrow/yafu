@@ -71,7 +71,7 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1,1};
+	1,1,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);

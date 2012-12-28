@@ -28,8 +28,14 @@ void nfsexit(int sig)
 	invoked so we just register it again. */
   	signal(signum, nfsexit);
 #endif
-	printf("\nReceived signal %d... please wait\n",sig);
-	printf("If you quit again, YAFU will exit immediately but you will LOSE ALL UNSAVED PROGRESS.\n");
+	if( NFS_ABORT < 1 )
+	{
+		printf("\nReceived signal %d... please wait\n",sig);
+		printf("If you quit again, YAFU will exit immediately but you will LOSE ALL UNSAVED PROGRESS.\n");
+	}
+	else
+		printf("\tStopping immediately!\n");
+
 	NFS_ABORT++;
 
 	if (obj_ptr != NULL)

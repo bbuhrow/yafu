@@ -263,7 +263,8 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->div_obj.limit = 10000;
 	fobj->div_obj.fmtlimit = 1000000;
 	
-	//initialize stuff for nfs	
+	//initialize stuff for nfs
+	fobj->nfs_obj.snfs = 0;
 	fobj->nfs_obj.gnfs_exponent = 0;
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;
