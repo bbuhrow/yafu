@@ -387,7 +387,7 @@ typedef struct
 	
 	char ggnfs_dir[1024];
 	uint32 siever;
-	uint32 sq_side;
+	int sq_side;
 	uint32 startq;
 	uint32 rangeq;
 	uint32 polystart;

@@ -28,6 +28,7 @@ void snfs_init(snfs_t* poly)
 	}
 	mpz_polys_init(poly->poly);
 	poly->poly->side = RATIONAL_SPQ;
+	poly->poly->rat.degree = 1;
 	mpz_init(poly->n);
 }
 

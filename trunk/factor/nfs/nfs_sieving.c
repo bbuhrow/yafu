@@ -200,6 +200,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				score[i], score[i] * jobs[i].min_rels * 1.2);
 		
 		remove(syscmd); // clean up after ourselves
+		sprintf(syscmd, "%s.afb.0", filenames[i]);
+		remove(syscmd);
 	}
 	
 	// clean up memory allocated
@@ -386,7 +388,8 @@ void *lasieve_launcher(void *ptr)
 	// -1073741819 is apparently what ggnfs returns when it crashes, which
 	// we don't want to interpret as an abort.
 	if (!((cmdret == 0) || cmdret == -1073741819))
-		nfsexit(cmdret);
+		if( NFS_ABORT < 1 )
+			NFS_ABORT = 1;
 
 	// count the relations produced
 	MySleep(100);
