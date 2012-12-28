@@ -432,6 +432,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->base2 = j;
 					form->exp1 = k;
 					form->coeff1 = 1;
+					form->coeff2 = 1;
 					mpz_set(form->n, n);
 					//gen_brent_poly(fobj, form);
 					goto done;
@@ -446,7 +447,8 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->base1 = i;
 					form->base2 = j;
 					form->exp1 = k;
-					form->coeff1 = -1;
+					form->coeff1 = 1;
+					form->coeff2 = -1;
 					mpz_set(form->n, n);
 					//gen_brent_poly(fobj, form);
 					goto done;
