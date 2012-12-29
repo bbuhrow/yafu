@@ -811,6 +811,22 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		printf( "nfs: user passed snfs switch, but the job file does not specify snfs\n"
 			"nfs: will continue as gnfs\n");
 	
+	if (job->poly == NULL)
+	{ // always be sure we can choose which side to sieve
+		job->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+		if (job->poly == NULL)
+		{
+			printf("nfs: couldn't allocate memory!\n");
+			exit(-1);
+		}
+		mpz_polys_init(job->poly);
+		job->poly->rat.degree = 1;
+		// if we got in here without a poly, then it's probably a standard
+		// gnfs resume (any snfs job would have already been detected and poly
+		// properly set before calling this func)
+		job->poly->side = ALGEBRAIC_SPQ;
+	}
+	
 	if (fobj->nfs_obj.sq_side != 0) // user override
 		job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
 
