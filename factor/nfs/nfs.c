@@ -225,10 +225,12 @@ void nfs(fact_obj_t *fobj)
 				// check snfs forms (if requested)
 				if( fobj->nfs_obj.snfs )
 				{
-					job.snfs = snfs_choose_poly(fobj);
+					snfs_choose_poly(fobj, &job);
 				}
+
 				if( job.snfs == NULL )
 				{ // either we never were doing snfs, or snfs form detect failed
+					// init job.poly for gnfs
 					job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 					if (job.poly == NULL)
 					{
@@ -239,19 +241,8 @@ void nfs(fact_obj_t *fobj)
 					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
 					// assume gnfs for now
 					job.poly->side = ALGEBRAIC_SPQ;
+					
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
-				}
-				else
-				{
-					uint32 missing_params;
-					job.poly = job.snfs->poly;
-
-					missing_params = parse_job_file(fobj, &job); // get fblim
-					get_ggnfs_params(fobj, &job);
-					if( missing_params )
-						fill_job_file(fobj, &job, missing_params);
-
-					job.startq = fobj->nfs_obj.sq_side < 0 ? job.rlim/2 : job.alim/2;
 				}
 			}
 
@@ -668,7 +659,7 @@ void nfs(fact_obj_t *fobj)
 		snfs_clear(job.snfs);
 		free(job.snfs);
 	} 
-	else
+	else if( job.poly )
 	{
 		mpz_polys_free(job.poly);
 		free(job.poly);
@@ -813,18 +804,31 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	
 	if (job->poly == NULL)
 	{ // always be sure we can choose which side to sieve
-		job->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
-		if (job->poly == NULL)
+		if (job->snfs != NULL)
 		{
-			printf("nfs: couldn't allocate memory!\n");
-			exit(-1);
+			job->poly = job->snfs->poly;
 		}
-		mpz_polys_init(job->poly);
-		job->poly->rat.degree = 1;
-		// if we got in here without a poly, then it's probably a standard
-		// gnfs resume (any snfs job would have already been detected and poly
-		// properly set before calling this func)
-		job->poly->side = ALGEBRAIC_SPQ;
+		else
+		{
+			job->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+			if (job->poly == NULL)
+			{
+				printf("nfs: couldn't allocate memory!\n");
+				exit(-1);
+			}
+			mpz_polys_init(job->poly);
+			job->poly->rat.degree = 1;
+			// if we got in here without a poly, then it's probably a standard
+			// gnfs resume (any snfs job would have already been detected and poly
+			// properly set before calling this func)
+			job->poly->side = ALGEBRAIC_SPQ;
+		}
+	}
+	else if (job->snfs != NULL && job->poly != job->snfs->poly)
+	{ // *shrug* it could happen I suppose
+		mpz_polys_free(job->poly);
+		free(job->poly);
+		job->poly = job->snfs->poly;
 	}
 	
 	if (fobj->nfs_obj.sq_side != 0) // user override

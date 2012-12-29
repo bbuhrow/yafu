@@ -92,6 +92,7 @@ enum snfs_form_e
 
 enum special_q_e
 {
+	NEITHER_SPQ,
 	RATIONAL_SPQ,
 	ALGEBRAIC_SPQ
 };
@@ -245,7 +246,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *poly);
 void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys); // the workhorse
 snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys);
-snfs_t* snfs_choose_poly(fact_obj_t* fobj);
+void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
 void check_poly(snfs_t *poly);
 void print_snfs(snfs_t *poly, FILE *out);
 void snfs_copy_poly(snfs_t *src, snfs_t *dest);

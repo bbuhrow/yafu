@@ -343,9 +343,11 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			if (VFLAG > 0) printf("nfs: input divides %d^%d - 1\n", (int)mpz_get_ui(b), i);
 			form->form_type = SNFS_BRENT;
+			form->coeff1 = 1;
 			form->base1 = mpz_get_ui(b);
 			form->exp1 = i;
-			form->coeff1 = -1;
+			form->base2 = 1;
+			form->coeff2 = -1;
 			mpz_set(form->n, n);
 			//gen_brent_poly(fobj, form);
 			goto done;
@@ -359,9 +361,11 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			if (VFLAG > 0) printf("nfs: input divides %d^%d + 1\n", (int)mpz_get_ui(b), i);
 			form->form_type = SNFS_BRENT;
+			form->coeff1 = 1;
 			form->base1 = mpz_get_ui(b);
 			form->exp1 = i;
-			form->coeff1 = 1;
+			form->base2 = 1;
+			form->coeff2 = 1;
 			mpz_set(form->n, n);
 			//gen_brent_poly(fobj, form);
 			goto done;
@@ -1445,7 +1449,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	if (VFLAG > 0)
 	{
-		printf( "gen: ========================================================\n"
+		printf( "\ngen: ========================================================\n"
 			"gen: considering the following polynomials:\n"
 			"gen: ========================================================\n\n");
 	}

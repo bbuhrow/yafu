@@ -16,7 +16,7 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-snfs_t* snfs_choose_poly(fact_obj_t* fobj)
+void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 {
 	snfs_t* poly, * polys = NULL, * best;
 	int i, npoly;
@@ -33,7 +33,10 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 		find_brent_form(fobj, poly);
-
+		
+		//printf("base1: %d, base2: %d, exp1: %d, exp2: %d, coeff1: %d, coeff2: %d\n",
+		//	poly->base1, poly->base2, poly->exp1, poly->exp2, poly->coeff1, poly->coeff2);
+			
 		if (poly->form_type == SNFS_BRENT)
 			polys = gen_brent_poly(fobj, poly, &npoly);
 	}
@@ -61,7 +64,7 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 		printf("nfs: couldn't find special form, reverting to gnfs\n");
 		snfs_clear(poly);
 		free(poly);
-		return NULL;
+		return;
 	}
 	
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
@@ -69,16 +72,15 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
-	// if the difficulty is below a threshold, just pick one, else, do some test sieving.
 	
 	snfs_scale_difficulty(polys, npoly);
 	snfs_rank_polys(polys, npoly);
 
 	if (VFLAG > 0 && npoly > 1)
 	{
-		printf( "gen: ========================================================\n"
+		printf( "\ngen: ========================================================\n"
 			"gen: best %d polynomials:\n"
-			"gen: ========================================================\n", NUM_SNFS_POLYS);
+			"gen: ========================================================\n\n", NUM_SNFS_POLYS);
 
 		for (i=0; i<npoly && i<NUM_SNFS_POLYS; i++)
 			print_snfs(&polys[i], stdout);
@@ -88,9 +90,9 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 
 	if (VFLAG > 0)
 	{
-		printf("gen: ========================================================\n");
+		printf("\ngen: ========================================================\n");
 		printf("gen: selected polynomial:\n");
-		printf("gen: ========================================================\n");
+		printf("gen: ========================================================\n\n");
 
 		print_snfs(best, stdout);
 	}
@@ -98,12 +100,18 @@ snfs_t* snfs_choose_poly(fact_obj_t* fobj)
 	snfs_copy_poly(best, poly); // best is only a pointer into polys, which needs to be free()d
 	
 	snfs_make_poly_file(fobj, poly);
+	
+	job->snfs = poly;
+	job->poly = poly->poly;
+	get_ggnfs_params(fobj, job);
+	fill_job_file(fobj, job, PARAM_FLAG_ALL);
+	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
 	for(i = 0; i < npoly; i++)
 		snfs_clear(&polys[i]);
 	free(polys);
 
-	return poly;
+	return;
 }
 
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, 
