@@ -944,6 +944,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0;
 	char line[1024];
 	float alambda = 0, rlambda = 0;
+	enum special_q_e side = NEITHER_SPQ;
 
 	in = fopen(fobj->nfs_obj.job_infile, "r");
 	if (in == NULL)
@@ -1047,6 +1048,24 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
 			continue;
 		}
+		
+		substr = strstr(line, "algebraic");
+		if (substr != NULL)
+		{
+			side = ALGEBRAIC_SPQ;
+			if (VFLAG > 0)
+				printf("nfs: found side: algebraic\n");
+			continue;
+		}
+		
+		substr = strstr(line, "rational");
+		if (substr != NULL)
+		{
+			side = RATIONAL_SPQ;
+			if (VFLAG > 0)
+				printf("nfs: found side: rational\n");
+			continue;
+		}
 	}
 
 	if (lpbr > 0)
@@ -1122,6 +1141,30 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		else
 			printf("nfs: found a size parameter but not snfs type\n");
 	}
+	
+	if (side != NEITHER_SPQ)
+	{
+		if (job->snfs != NULL)
+		{
+			job->snfs->poly->side = side;
+		}
+		else
+		{
+			if (job->poly == NULL)
+			{ // always be sure we can choose which side to sieve
+				job->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+				if (job->poly == NULL)
+				{
+					printf("nfs: couldn't allocate memory!\n");
+					exit(-1);
+				}
+				mpz_polys_init(job->poly);
+				job->poly->rat.degree = 1;
+			}
+			
+			job->poly->side = side;
+		}		
+	}
 
 	fclose(in);
 
@@ -1139,8 +1182,8 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
 			printf("nfs: couldn't fill job file, will try sieving anyway\n");
 			return;
 		}
-		else if (VFLAG > 0)
-			printf("nfs: job file is missing params, filling them\n");
+		//else if (VFLAG > 0)
+		//	printf("nfs: job file is missing params, filling them\n");
 
 		// make sure we start on a new line if we are filling anything
 		fprintf(out, "\n");
