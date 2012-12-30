@@ -86,7 +86,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 			print_snfs(&polys[i], stdout);
 	}
 
-	best = snfs_test_sieve(fobj, polys, npoly);
+	best = snfs_test_sieve(fobj, polys, NUM_SNFS_POLYS < npoly ? NUM_SNFS_POLYS : npoly);
 
 	if (VFLAG > 0)
 	{

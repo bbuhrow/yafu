@@ -93,7 +93,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	}
 	else
 	{ // create poly files
-		jobs = (nfs_obj_t *) args;
+		jobs = (nfs_job_t *) args;
 		filenames = (char**)malloc(njobs*sizeof(char*));
 		if( !filenames )
 		{
