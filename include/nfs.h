@@ -116,12 +116,15 @@ typedef struct
 } mpz_polys_t;
 
 #define NUM_SNFS_POLYS 3
+#define MAX_SNFS_BITS 1000
 
 typedef struct
 {
 	// input integer
 	mpz_t n;
-	// algebraic representation of the snfs form
+
+	// algebraic representation of the snfs form:
+	// n divides c1*b1^e1 + c2*b2^e2
 	int base1;
 	int base2;
 	int exp1;
@@ -147,7 +150,7 @@ typedef struct
 
 typedef struct
 {
-	mpz_polys_t* poly; // the idea is that job->snfs->poly == job->poly always
+	mpz_polys_t* poly; // the idea is that job->snfs->poly == job->poly
 	uint32 rlim, alim;
 	uint32 lpbr, lpba;
 	uint32 mfbr, mfba;

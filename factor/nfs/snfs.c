@@ -123,6 +123,7 @@ void print_snfs(snfs_t *poly, FILE *out)
 {
 	// print the poly to stdout
 	char c, side[80];
+	int d = poly->difficulty;
 
 	if (poly->coeff2 < 0)
 		c = '-';
@@ -159,8 +160,11 @@ void print_snfs(snfs_t *poly, FILE *out)
 				poly->anorm, poly->rnorm);
 	}
 	if (poly->sdifficulty > 0)
+	{
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
-	fprintf(out, "type: snfs\nsize: %d\n", (int)poly->sdifficulty);
+		d = poly->sdifficulty;
+	}
+	fprintf(out, "type: snfs\nsize: %d\n", d);
 	
 	print_poly(poly->poly, out);
 }
@@ -245,13 +249,13 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			continue;
 
 		mpz_set_ui(b, i);
-		mpz_pow_ui(p, b, 31);
+		mpz_pow_ui(p, b, 31); // p = i^31
 
 		// limit the exponent so that the number is less than 1000 bits
-		maxb = 1000 / log((double)i) + 1;
+		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
 		if (VFLAG > 1)
-			printf("nfs: checking %d^x +/- 1 for 20 <= x <= %d\n", i, maxb);
+			printf("nfs: checking %d^x +/- 1 for 32 <= x <= %d\n", i, maxb);
 
 		for (j=32; j<maxb; j++)
 		{
@@ -334,6 +338,27 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		// large bases by looking at the remaining possible exponents.
 		if (VFLAG > 1)
 			printf("nfs: checking x^%d +/- 1\n", i);
+		
+		// problem: this checks if n +/- 1 is a perfect power
+		// but what if n is a *co*factor of b^j +/- 1?
+		// then n +/- 1 doesn't divide b^j +/- 1, even though
+		// n divides b^j +/- 1
+		/*
+		maxb = pow(2, MAX_SNFS_BITS. / i) + 1;
+		
+		mpz_set_ui(a, i);
+		for(j = 2; j <= maxb; j++)
+		{
+			mpz_set_ui(b, j);
+			mpz_pow(p, b, a); // p = j^i
+			mpz_mod(r, p, n);
+			if (mpz_sizeinbase(r,2) <= 32)
+			{
+				// set form accordingly...
+				...
+			}
+		}
+		*/
 
 		// check -1 case:
 		mpz_add_ui(a, n, 1);
@@ -417,7 +442,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_pow_ui(pb, b, 19);			
 
 			// limit the exponent so that the number is less than 1000 bits
-			kmax = 1000 / log((double)i) + 1;
+			kmax = MAX_SNFS_BITS / log((double)i) + 1;
 			if (VFLAG > 1)
 				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
 
@@ -997,6 +1022,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i;
+				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = 1.0;
@@ -1050,6 +1076,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
+				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
@@ -1101,6 +1128,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				d += log10((double)cd);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
+				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
@@ -1598,16 +1626,14 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		printf("out of memory\n");
 		exit(-1);
 	}
-	else
-		memset(jobs, 0, npoly * sizeof(nfs_job_t*));
+	memset(jobs, 0, npoly * sizeof(nfs_job_t*));
 
 	// only one poly - don't bother test sieving it :)
 	if (npoly < 2)
 		return &polys[0];	
 
-	// see if any poly within the top three polys for this input is 
-	// big enough to justify test sieving
-	for (i=0, dotest = 0; i<npoly && i<NUM_SNFS_POLYS; i++)
+	// see if any poly is big enough to justify test sieving
+	for (i=0, dotest = 0; i<npoly; i++)
 		if (polys[i].sdifficulty > fobj->nfs_obj.snfs_testsieve_threshold) 
 			dotest = 1;
 
@@ -1615,14 +1641,14 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 	if( !dotest )
 		return &polys[0];
 
-	for (i=0; i<NUM_SNFS_POLYS && i<npoly; i++)
+	for (i=0; i<npoly; i++)
 	{		
 		jobs[i].poly = polys[i].poly;
 		jobs[i].snfs = &polys[i];
 		get_ggnfs_params(fobj, &jobs[i]);
 	}
 	
-	minscore_id = test_sieve(fobj, jobs, NUM_SNFS_POLYS < npoly ? NUM_SNFS_POLYS : npoly, 0);
+	minscore_id = test_sieve(fobj, jobs, npoly, 0);
 	
 	if( minscore_id < 0 )
 	{
