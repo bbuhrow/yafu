@@ -787,7 +787,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 		else
 		{
-			d = job->snfs->sdifficulty;
+			d = job->snfs->difficulty;
 			if (d == 0) d = job->snfs->difficulty;
 		}
 

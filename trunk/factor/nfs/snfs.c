@@ -91,35 +91,35 @@ void check_poly(snfs_t *poly)
 		mpz_mod(t, t, poly->n);
 	}
 
-	if (mpz_cmp(poly->n, t) > 0)
-	{
-		// if n is greater than the evaluation of the algebraic poly, then set
-		// n to that evaluation as long as it is valid.  this is necessary because the
-		// autodetection works on the full form of the input, but the input needs to be
-		// reduced by any algebraic factors before polynomials with algebraic 
-		// reductions will work.
-		mpz_t tmp;
-		mpz_init(tmp);
-		mpz_mod(tmp, poly->n, t);
-		if (mpz_cmp_ui(tmp, 0) == 0)
-		{
-			mpz_tdiv_q(tmp, poly->n, t);
-			gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", tmp);
-			mpz_set(poly->n, t);
-		}
-		mpz_clear(tmp);
-	}
+	//if (mpz_cmp(t, poly->n) > 0)
+	//{
+	//	// if n is greater than the evaluation of the algebraic poly, then set
+	//	// n to that evaluation as long as it is valid.  this is necessary because the
+	//	// autodetection works on the full form of the input, but the input needs to be
+	//	// reduced by any algebraic factors before polynomials with algebraic 
+	//	// reductions will work.
+	//	mpz_t tmp;
+	//	mpz_init(tmp);
+	//	mpz_mod(tmp, poly->n, t);
+	//	if (mpz_cmp_ui(tmp, 0) == 0)
+	//	{
+	//		mpz_tdiv_q(tmp, poly->n, t);
+	//		gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", tmp);
+	//		mpz_set(poly->n, t);
+	//	}
+	//	mpz_clear(tmp);
+	//}
 	mpz_mod(t, t, poly->n);
 
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of f(x) % N\n", poly->poly->m);
-		//gmp_fprintf (stderr, "n = %Zd\n", poly->n);
-		//fprintf (stderr, "f(x) = ");
-		//for (i = poly->poly->alg.degree; i >= 0; i--)
-		//	gmp_fprintf (stderr, "%c%d*x^%d", poly->c[i] < 0 ? '-' : '+', abs(poly->c[i]), i);
-		//gmp_fprintf (stderr, "\n""Remainder is %Zd\n", t);
+		gmp_fprintf (stderr, "Error: M=%Zd is not a root of f(x) % N\n", poly->poly->m);
+		gmp_fprintf (stderr, "n = %Zd\n", poly->n);
+		fprintf (stderr, "f(x) = ");
+		for (i = poly->poly->alg.degree; i >= 0; i--)
+			gmp_fprintf (stderr, "%c%d*x^%d", poly->c[i] < 0 ? '-' : '+', abs(poly->c[i]), i);
+		gmp_fprintf (stderr, "\n""Remainder is %Zd\n", t);
 	}
 	
 	// set mpz_poly_t alg appropriately
@@ -132,9 +132,9 @@ void check_poly(snfs_t *poly)
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		//gmp_fprintf (stderr, "n = %Zd\n", poly->n);
-		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of g(x) % N\n", poly->poly->m);
-		//gmp_fprintf (stderr, "Remainder is %Zd\n", t);
+		gmp_fprintf (stderr, "n = %Zd\n", poly->n);
+		gmp_fprintf (stderr, "Error: M=%Zd is not a root of g(x) % N\n", poly->poly->m);
+		gmp_fprintf (stderr, "Remainder is %Zd\n", t);
 	}
 
 	return;
@@ -183,7 +183,7 @@ void print_snfs(snfs_t *poly, FILE *out)
 	if (poly->sdifficulty > 0)
 	{
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
-		d = poly->sdifficulty;
+		//d = poly->sdifficulty;
 	}
 	fprintf(out, "type: snfs\nsize: %d\n", d);
 	
@@ -566,6 +566,38 @@ done:
 	return;
 }
 
+// this is a start, but is not good enough.  We need to find the primitive factor
+// of the input when there is an algebraic reduction.
+// see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
+void brent_alg_reduce_n(snfs_t *poly, int fac)
+{
+	mpz_t t, t2;
+
+	if (poly->form_type == SNFS_BRENT)
+	{
+		mpz_init(t);
+		mpz_init(t2);
+		mpz_set_ui(t, poly->base1);
+		mpz_pow_ui(t, t, fac);
+		if (poly->coeff2 < 0)
+			mpz_sub_ui(t, t, 1);
+		else
+			mpz_add_ui(t, t, 1);
+
+		mpz_mod(t2, poly->n, t);
+		if (mpz_cmp_ui(t2, 0) == 0)
+		{
+			mpz_tdiv_q(poly->n, poly->n, t);
+			gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", t);
+		}
+
+		mpz_clear(t);
+		mpz_clear(t2);
+	}
+
+	return;
+}
+
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 {
 	int i, me;
@@ -608,6 +640,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(15k) +/- 1 has an algebraic factor which is an 8th degree symmetric polynomial.
@@ -654,7 +687,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_invert(m, polys->poly->m, polys->n);
 			mpz_add(polys->poly->m, polys->poly->m, m);
 		}
-		
+				
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -663,6 +696,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(21k) +/- 1 has an algebraic factor which is a 12th degree symmetric polynomial.
@@ -720,6 +754,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -761,6 +796,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -802,6 +838,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 5);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
@@ -843,6 +880,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 7);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
@@ -885,6 +923,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 11);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
@@ -940,6 +979,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
+		brent_alg_reduce_n(poly, poly->exp1 / 13);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(13k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 12.
@@ -1724,29 +1764,32 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 {
 	// examine the difference between scaled difficulty and difficulty for snfs jobs
 	// and skew the r/a parameters accordingly.
-	// the input job struct should have already been filled in by get_ggnfs_params()
+	// the input job struct should have already been filled in by get_ggnfs_params()	
+	double oom_skew;
+	int num_ticks;
+	double percent_skew;		
 	if (job->snfs == NULL)
 		return;
 
-	double oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-	int num_ticks = (int)(oom_skew / 6.);
-	double percent_skew = num_ticks * 0.1;		// 10% for every 6 orders of magnitude difference
-													// between the norms
-	
+	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+	num_ticks = (int)(oom_skew / 6.);
+	// 10% for every 6 orders of magnitude difference between the norms	
+	percent_skew = num_ticks * 0.1;
+
 	if (job->snfs->poly->side == RATIONAL_SPQ)
 	{
 		// sieving on rational side means that side's norm is the bigger one
 		job->alim -= percent_skew*job->alim;
 		job->rlim += percent_skew*job->rlim;
 
-		if (num_ticks >= 2)
+		if (num_ticks >= 3)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpbr++;
 			job->mfbr += 2;
 		}
 
-		if (num_ticks >= 3)
+		if (num_ticks >= 4)
 		{
 			// for really really big skew, use 3 large primes
 			job->mfbr = job->lpbr*2.9;
@@ -1756,18 +1799,18 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	}
 	else
 	{
-		// sieving on rational side means that side's norm is the bigger one
+		// sieving on algebraic side means that side's norm is the bigger one
 		job->alim += percent_skew*job->alim;
 		job->rlim -= percent_skew*job->rlim;
 
-		if (num_ticks >= 2)
+		if (num_ticks >= 3)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpba++;
 			job->mfba += 2;
 		}
 
-		if (num_ticks >= 3)
+		if (num_ticks >= 4)
 		{
 			// for really really big skew, use 3 large primes
 			job->mfba = job->lpba*2.9;
