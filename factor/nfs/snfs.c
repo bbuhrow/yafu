@@ -169,6 +169,12 @@ void print_snfs(snfs_t *poly, FILE *out)
 	print_poly(poly->poly, out);
 }
 
+/* With the struct reorganization, it should be quite a bit easier to use/call
+Msieve's analyze_one_poly(), which is very general.
+There are two problems though: 1) It only prints the results, doesn't return them
+2) A modified version would be in Msieve > SVN 722, so we really need to convert
+YAFU to the new Msieve API */
+
 void approx_norms(snfs_t *poly)
 {
 	// anorm ~= b^d * f(a/b) where f = the algebraic poly
@@ -191,7 +197,7 @@ void approx_norms(snfs_t *poly)
 
 	mpz_init(tmp);
 	mpz_init(res);
-
+#if 0
 	mpz_set_ui(res, 0);
 	for (i=MAX_POLY_DEGREE; i>=0; i--)
 	{
@@ -204,14 +210,14 @@ void approx_norms(snfs_t *poly)
 	poly->anorm *= pow(b, poly->poly->alg.degree);
 
 	poly->rnorm = (fabs(mpz_get_d(poly->poly->rat.coeff[1]))*a/b + mpz_get_d(poly->poly->rat.coeff[0])) * b;
-	
+#else
 	// why not use msieve's eval_poly()? (see include/gnfs.h:69)
 	eval_poly(res, a, b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
 	eval_poly(res, a, b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
-
+#endif
 	return;
 }
 
@@ -1022,7 +1028,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i;
-				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = 1.0;
@@ -1076,7 +1081,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
-				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
@@ -1128,7 +1132,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				d += log10((double)cd);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
-				if (VFLAG > 1) printf("diff: %lf, %lf\n", d, polys[npoly].difficulty);
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[i] = cd;
 				polys[npoly].c[0] = c0;
