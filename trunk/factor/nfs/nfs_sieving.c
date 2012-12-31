@@ -16,6 +16,43 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+char* time_from_secs(unsigned long time)
+{ // perhaps should go in a different file
+	char *str, buf[80];
+	unsigned long d;
+	str = (char*)malloc(80); // can't return a char[] because it's local
+	// (but how to free it :P)
+	if( !str )
+	{
+		printf("malloc failed\n");
+		exit(-1);
+	}
+	
+	if( time > 3600*24 )
+	{
+		d = time / (3600*24);
+		time %= (3600*24);
+		sprintf(str, "%lu day%s ", d, d>1?"s":"");
+	}
+	if( time > 3600 )
+	{
+		d = time / 3600;
+		time %= 3600;
+		sprintf(buf, "%luh ", d);
+		strcat(str, buf);
+	}
+	if( time > 60 )
+	{
+		d = time / 60;
+		time %= 60;
+		sprintf(buf, "%lum ", d);
+		strcat(str, buf);
+	}
+	sprintf(buf, "%lus", time);
+	strcat(str, buf);
+	return str;
+}
+
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
  * else args is a nfs_job_t* array of job structs
@@ -28,6 +65,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	double* score = (double*)malloc(njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
+	char* time;
 	
 	char** filenames; // args
 	nfs_job_t* jobs; // args
@@ -151,7 +189,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		//create the afb/rfb - we don't want the time it takes to do this to
 		//pollute the sieve timings
 		sprintf(syscmd, "%s -b %s -k -c 0 -F", jobs[i].sievername, filenames[i]);
-		printf("test: generating factor bases\n");
+		printf("\ntest: generating factor bases\n");
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
@@ -160,6 +198,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(difference);
 		printf("test: fb generation took %6.4f seconds\n", t_time);
 		MySleep(.1);
+		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
+		remove(tmpbuf);
 		// are we really supposed to be removing the factorbase files before the test?
 		
 		//start the test
@@ -175,33 +215,36 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(difference);
 		
 		//count relations
-		sprintf(syscmd, "%s.out", filenames[i]);
-		in = fopen(syscmd, "r");
+		sprintf(tmpbuf, "%s.out", filenames[i]);
+		in = fopen(tmpbuf, "r");
 		if( !in )
-			count = 1; //no divide by zero
+			score[i] = 999999999.;
 		else
 		{
 			count = 0;
-			while( fgets(tmpbuf, GSTR_MAXSIZE, in) )
+			while( fgets(syscmd, GSTR_MAXSIZE, in) )
 				count++;
 			fclose(in);
+
+			score[i] = t_time / count;
 		}
 		
-		score[i] = t_time / count;
 		if( score[i] < min_score )
 		{
 			minscore_id = i;
 			min_score = score[i];
-			printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %1.2f\n", 
-				score[i], score[i] * jobs[i].min_rels * 1.2); // be more conservative
+			printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s\n", 
+				score[i], time=time_from_secs((unsigned long)(score[i] * jobs[i].min_rels * 1.2))); 
+				// be conservative about estimates
 		}
 		else
-			printf("gen: score was %1.6f sec/rel, estimated total sieving time = %1.2f\n", 
-				score[i], score[i] * jobs[i].min_rels * 1.2);
+			printf("test: score was %1.6f sec/rel, estimated total sieving time = %s\n", 
+				score[i], time=time_from_secs((unsigned long)(score[i] * jobs[i].min_rels * 1.2)));
 		
-		remove(syscmd); // clean up after ourselves
-		sprintf(syscmd, "%s.afb.0", filenames[i]);
-		remove(syscmd);
+		remove(tmpbuf); // clean up after ourselves
+		sprintf(tmpbuf, "%s", filenames[i]);
+		remove(tmpbuf);
+		free(time);
 	}
 	
 	// clean up memory allocated

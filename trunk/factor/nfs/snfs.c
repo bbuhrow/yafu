@@ -1627,7 +1627,7 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		printf("out of memory\n");
 		exit(-1);
 	}
-	memset(jobs, 0, npoly * sizeof(nfs_job_t*));
+	memset(jobs, 0, npoly * sizeof(nfs_job_t));
 
 	// only one poly - don't bother test sieving it :)
 	if (npoly < 2)
