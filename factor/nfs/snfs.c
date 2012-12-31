@@ -1511,6 +1511,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					final_polys[npoly].c[0] = c0 / spGCD(c0, cd);
 					final_polys[npoly].poly->skew = pow(
 						(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
+
 					final_polys[npoly].poly->alg.degree = deg;
 					final_polys[npoly].difficulty = log10(pow(10, p1->difficulty) + pow(10, p2->difficulty));
 
@@ -1620,7 +1621,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 {
 	int i, dotest, minscore_id;
-	nfs_job_t* jobs = (nfs_job_t*)malloc(npoly * sizeof(nfs_job_t*));
+	nfs_job_t* jobs = (nfs_job_t*)malloc(npoly * sizeof(nfs_job_t));
 	if( !jobs )
 	{
 		printf("out of memory\n");
