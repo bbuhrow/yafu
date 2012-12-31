@@ -460,7 +460,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"1:		\n\t" \
 				/* ================================================ */	\
 				/* =========== UPDATE POS BUCKET - ROOT1,3 ========== */	\
-				/* ================================================ */	\			
+				/* ================================================ */	\
 			"pextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
 			"cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
 			"jae    2f \n\t" 						/* jump if CF = 1 */ \
@@ -761,7 +761,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
 			"pmaxud	%%xmm8, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
 			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
-			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \	
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
@@ -1187,7 +1187,6 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
 			small_update_t h;
-			int k;
 			
 			h.first_r1 = update_data.sm_firstroots1;		// 0
 			h.first_r2 = update_data.sm_firstroots2;		// 8
@@ -1320,7 +1319,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movdqa (%%r12,%%r15,4), %%xmm0 \n\t"	/* xmm0 = next 4 primes */ \
 			"movdqa	%%xmm2, %%xmm5 \n\t"			/* copy root2 to xmm5 */ \
 			"pcmpgtd	%%xmm0, %%xmm4 \n\t"		/* signed comparison: root1 > p? if so, set xmm4 dword to 1's */ \
-			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \			
+			"pcmpgtd	%%xmm0, %%xmm5 \n\t"		/* signed comparison: root2 > p? if so, set xmm5 dword to 1's */ \
 			"movdqa %%xmm0, %%xmm6 \n\t"			/* copy of prime for neg root calculation */ \
 			"movdqa %%xmm0, %%xmm7 \n\t"			/* copy of prime for neg root calculation */ \
 			"movdqa %%xmm0, %%xmm8 \n\t"			/* copy of prime for neg root loops */ \
@@ -1335,7 +1334,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
-			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \			
+			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
 			"movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
 			"movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
 			"movl	96(%%rsi,1),%%r12d \n\t"		/* store bound_val in a register */ \
@@ -1675,7 +1674,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			"pminud	%%xmm2, %%xmm1 \n\t"					/* xmm2 = root2 < root1 ? root2 : root1 */	\
 			"pmaxud	%%xmm8, %%xmm2 \n\t"					/* xmm5 = root2 > root1 ? root2 : root1 */	\
 			"movdqa %%xmm1, (%%r14,%%r15,4) \n\t"	/* save new root1 values */ \
-			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \	
+			"movdqa %%xmm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
 			"psubd	%%xmm1, %%xmm6 \n\t"			/* form negative root1's; prime - root1 */ \
 			"psubd	%%xmm2, %%xmm7 \n\t"			/* form negative root2's; prime - root2 */ \
 			"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \

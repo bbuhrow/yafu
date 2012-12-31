@@ -90,18 +90,39 @@ void check_poly(snfs_t *poly)
 			mpz_add_ui(t, t, abs(poly->c[i]));
 		mpz_mod(t, t, poly->n);
 	}
+
+	if (mpz_cmp(poly->n, t) > 0)
+	{
+		// if n is greater than the evaluation of the algebraic poly, then set
+		// n to that evaluation as long as it is valid.  this is necessary because the
+		// autodetection works on the full form of the input, but the input needs to be
+		// reduced by any algebraic factors before polynomials with algebraic 
+		// reductions will work.
+		mpz_t tmp;
+		mpz_init(tmp);
+		mpz_mod(tmp, poly->n, t);
+		if (mpz_cmp_ui(tmp, 0) == 0)
+		{
+			mpz_tdiv_q(tmp, poly->n, t);
+			gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", tmp);
+			mpz_set(poly->n, t);
+		}
+		mpz_clear(tmp);
+	}
+	mpz_mod(t, t, poly->n);
+
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of f(x) % N\n", poly->m);
+		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of f(x) % N\n", poly->poly->m);
 		//gmp_fprintf (stderr, "n = %Zd\n", poly->n);
 		//fprintf (stderr, "f(x) = ");
-		//for (i = poly->degree; i >= 0; i--)
-		//	gmp_fprintf (stderr, "%d*x^%d %c %d", poly->c < 0 ? '-' : '+', abs(poly->c[i]), i);
+		//for (i = poly->poly->alg.degree; i >= 0; i--)
+		//	gmp_fprintf (stderr, "%c%d*x^%d", poly->c[i] < 0 ? '-' : '+', abs(poly->c[i]), i);
 		//gmp_fprintf (stderr, "\n""Remainder is %Zd\n", t);
 	}
-	//else // set mpz_poly_t alg appropriately
-
+	
+	// set mpz_poly_t alg appropriately
 	for (i = poly->poly->alg.degree; i >= 0; i--)
 		mpz_set_si(poly->poly->alg.coeff[i], poly->c[i]);
 
@@ -112,7 +133,7 @@ void check_poly(snfs_t *poly)
 	{
 		poly->valid = 0;
 		//gmp_fprintf (stderr, "n = %Zd\n", poly->n);
-		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of g(x) % N\n", poly->m);
+		//gmp_fprintf (stderr, "Error: M=%Zd is not a root of g(x) % N\n", poly->poly->m);
 		//gmp_fprintf (stderr, "Remainder is %Zd\n", t);
 	}
 
@@ -337,7 +358,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		}
 	}
 
-	// TODO: edit to make this find a*b^n +/- c as above...
+	// this checks only x^n +- 1
 	for (i = maxb; i>1; i--)
 	{
 		// now that we've reduced the exponent considerably, check for 
@@ -345,27 +366,6 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		if (VFLAG > 1)
 			printf("nfs: checking x^%d +/- 1\n", i);
 		
-		// problem: this checks if n +/- 1 is a perfect power
-		// but what if n is a *co*factor of b^j +/- 1?
-		// then n +/- 1 doesn't divide b^j +/- 1, even though
-		// n divides b^j +/- 1
-		/*
-		maxb = pow(2, MAX_SNFS_BITS. / i) + 1;
-		
-		mpz_set_ui(a, i);
-		for(j = 2; j <= maxb; j++)
-		{
-			mpz_set_ui(b, j);
-			mpz_pow(p, b, a); // p = j^i
-			mpz_mod(r, p, n);
-			if (mpz_sizeinbase(r,2) <= 32)
-			{
-				// set form accordingly...
-				...
-			}
-		}
-		*/
-
 		// check -1 case:
 		mpz_add_ui(a, n, 1);
 		mpz_root(b, a, i);
@@ -1715,6 +1715,64 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 			ratio = 0.;
 
 		polys[i].sdifficulty = polys[i].difficulty + ratio;		
+	}
+
+	return;
+}
+
+void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
+{
+	// examine the difference between scaled difficulty and difficulty for snfs jobs
+	// and skew the r/a parameters accordingly.
+	// the input job struct should have already been filled in by get_ggnfs_params()
+	if (job->snfs == NULL)
+		return;
+
+	double oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+	int num_ticks = (int)(oom_skew / 6.);
+	double percent_skew = num_ticks * 0.1;		// 10% for every 6 orders of magnitude difference
+													// between the norms
+	
+	if (job->snfs->poly->side == RATIONAL_SPQ)
+	{
+		// sieving on rational side means that side's norm is the bigger one
+		job->alim -= percent_skew*job->alim;
+		job->rlim += percent_skew*job->rlim;
+
+		if (num_ticks >= 2)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpbr++;
+			job->mfbr += 2;
+		}
+
+		if (num_ticks >= 3)
+		{
+			// for really really big skew, use 3 large primes
+			job->mfbr = job->lpbr*2.9;
+			job->rlambda = 3.6;
+		}
+
+	}
+	else
+	{
+		// sieving on rational side means that side's norm is the bigger one
+		job->alim += percent_skew*job->alim;
+		job->rlim -= percent_skew*job->rlim;
+
+		if (num_ticks >= 2)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpba++;
+			job->mfba += 2;
+		}
+
+		if (num_ticks >= 3)
+		{
+			// for really really big skew, use 3 large primes
+			job->mfba = job->lpba*2.9;
+			job->alambda = 3.6;
+		}
 	}
 
 	return;

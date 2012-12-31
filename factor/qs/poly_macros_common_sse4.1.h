@@ -90,7 +90,7 @@
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 8 new roots on the N side */	\
-			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\	
+			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\
 			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
 			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
 			"movdqa	%%xmm1, %%xmm7 \n\t"					/* copy root1 */ \

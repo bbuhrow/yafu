@@ -328,7 +328,7 @@
 		:  \
 		: "ecx", "edi", "xmm3", "xmm6", "xmm7");
 
-#define _SSE2_SMALL_PRIME_SIEVE_32k_DIV3 \	
+#define _SSE2_SMALL_PRIME_SIEVE_32k_DIV3 \
 	for (; i < full_fb->fb_32k_div3; i += 8) \
 		asm ( \
 			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
