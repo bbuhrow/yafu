@@ -20,19 +20,18 @@
 CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
-CFLAGS = -g -march=native -mtune=native
+CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
 # modify these for your particular gmp/gmp-ecm installation
-INC += -I/usr/local/include/
-LIBS += -L/usr/local/lib/
+INC += -I../gmp/include
+LIBS += -L../gmp/lib/linux/x86_64
 
-INC += -I/home/bill/yafu/ecm/ecm-6.4.3/
-LIBS += -L/usr/local/lib/
+INC += -I../gmp-ecm/include
+LIBS += -L../gmp-ecm/lib/linux/x86_64
 
-STATIC=1
 ifeq ($(STATIC),1)
 	CFLAGS += -static
 endif
@@ -44,6 +43,15 @@ else
 	OPT_FLAGS += -fomit-frame-pointer
 endif
 
+# if this option is specified then compile *both* the sse2 and sse4.1 versions of the
+# appropriate files.  The executable will then choose between them based on the runtime
+# capability of the user's cpu.  In other words, sse4.1 capability is required on the
+# host cpu in order to compile the fat binary, but once it is compiled it should run
+# to the capability of the target user cpu.
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41
+endif
+
 ifeq ($(OPT_DEBUG),1)
 	CFLAGS += -DOPT_DEBUG
 endif
@@ -53,10 +61,9 @@ ifeq ($(TIMING),1)
 endif
 
 # modify this for your particular msieve installation
-NFS=1
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L/home/bill/yafu/msieve/ -lmsieve
+	LIBS += -L../msieve/lib/linux/x86_64 -lmsieve
 endif
 
 # modify these for your particular cuda installation
@@ -119,9 +126,9 @@ YAFU_SRCS = \
 	factor/qs/tdiv_resieve_64k.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
+	factor/qs/large_sieve.c \
 	factor/qs/med_sieve_32k.c \
 	factor/qs/med_sieve_64k.c \
-	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
 	factor/qs/poly_roots_32k.c \
 	factor/qs/poly_roots_64k.c \
@@ -150,6 +157,12 @@ YAFU_SRCS = \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
+
+ifeq ($(USE_SSE41),1)
+# these files require SSE4.1 to compile
+	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+endif
 	
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
@@ -199,6 +212,12 @@ HEAD = include/yafu.h  \
 	include/gmp_xface.h \
 	include/nfs.h
 
+ifeq ($(USE_SSE41),1)
+# these files require SSE4.1 to compile
+	HEAD += factor/qs/poly_macros_common_sse4.1.h
+	HEAD += factor/qs/sieve_macros_32k_sse4.1.h
+endif
+
 #---------------------------Make Targets -------------------------
 
 all:
@@ -214,8 +233,6 @@ x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
 
-special: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o "../filt/special" $(LIBS)
 
 clean:
 	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
@@ -225,3 +242,8 @@ clean:
 	
 %.o: %.c $(HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+
+
+
