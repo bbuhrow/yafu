@@ -116,17 +116,18 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 						filenames[i], missing_params);
 				fill_job_file(fobj, jobs+i, missing_params);
 			}
-
-			jobs[i].poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 			if( !jobs[i].poly )
-			{
-				printf("derp: out of memory!\n");
-				exit(-1);
+			{ // not snfs (detected by parse_job_file())
+				jobs[i].poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+				if( !jobs[i].poly )
+				{
+					printf("derp: out of memory!\n");
+					exit(-1);
+				}
+				mpz_polys_init(jobs[i].poly);
+				// if user doesn't specify, go with algebraic *shrug*
+				jobs[i].poly->side = fobj->nfs_obj.sq_side < 0 ? RATIONAL_SPQ : ALGEBRAIC_SPQ;
 			}
-			mpz_polys_init(jobs[i].poly);
-			// if user doesn't specify, go with algebraic *shrug*
-			// (the user really should be specifying the side if they're testing SNFS polys)
-			jobs[i].poly->side = fobj->nfs_obj.sq_side < 0 ? RATIONAL_SPQ : ALGEBRAIC_SPQ;
 		}
 	}
 	else
@@ -174,6 +175,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	{
 		char syscmd[GSTR_MAXSIZE], tmpbuf[GSTR_MAXSIZE], side[32];
 		FILE* in;
+		double est;
 		
 		if( jobs[i].poly->side == RATIONAL_SPQ)
 		{
@@ -189,23 +191,23 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		//create the afb/rfb - we don't want the time it takes to do this to
 		//pollute the sieve timings
 		sprintf(syscmd, "%s -b %s -k -c 0 -F", jobs[i].sievername, filenames[i]);
-		printf("\ntest: generating factor bases\n");
+		if (VFLAG > 0) printf("\ntest: generating factor bases\n");
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
 		difference = my_difftime (&start, &stop);
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		printf("test: fb generation took %6.4f seconds\n", t_time);
+		if (VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
 		MySleep(.1);
 		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
 		// are we really supposed to be removing the factorbase files before the test?
 		
 		//start the test
-		sprintf(syscmd,"%s -%c %s -f %u -c %u -o %s.out",
-			jobs[i].sievername, side[0], filenames[i], jobs[i].startq, 5000, filenames[i]);
-		printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
+		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
+			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 5000, filenames[i]);
+		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + 5000);
 		gettimeofday(&start, NULL);
 		system(syscmd);
@@ -227,19 +229,22 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			fclose(in);
 
 			score[i] = t_time / count;
-		}
 		
-		if( score[i] < min_score )
-		{
-			minscore_id = i;
-			min_score = score[i];
-			printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s\n", 
-				score[i], time=time_from_secs((unsigned long)(score[i] * jobs[i].min_rels * 1.2))); 
-				// be conservative about estimates
+		     est = (score[i] * jobs[i].min_rels * 1.25) / THREADS; 
+		     // be conservative about estimates
+		
+		     if( score[i] < min_score )
+     		{
+     			minscore_id = i;
+     			min_score = score[i];
+     			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+     				score[i], time=time_from_secs((unsigned long)est), THREADS); 
+     				
+     		}
+     		else
+     			if (VFLAG > 0) printf("test: score was %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+     				score[i], time=time_from_secs((unsigned long)est), THREADS);
 		}
-		else
-			printf("test: score was %1.6f sec/rel, estimated total sieving time = %s\n", 
-				score[i], time=time_from_secs((unsigned long)(score[i] * jobs[i].min_rels * 1.2)));
 		
 		remove(tmpbuf); // clean up after ourselves
 		sprintf(tmpbuf, "%s", filenames[i]);
@@ -268,7 +273,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	difference = my_difftime (&start2, &stop2);
 	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 	free(difference);			
-	printf("test: test sieving took %1.2f seconds\n", t_time);
+	if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
 
 	return minscore_id;
 }
@@ -412,8 +417,8 @@ void *lasieve_launcher(void *ptr)
 	remove(thread_data->outfilename);
 		
 	//start ggnfs binary
-	sprintf(syscmd,"%s -%c %s -f %u -c %u -o %s -n %d",
-			thread_data->job.sievername, *side, // hehe (*side == side[0])
+	sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",
+			thread_data->job.sievername, VFLAG>0?" -v":"", *side, // hehe (*side == side[0])
 			fobj->nfs_obj.job_infile, thread_data->job.startq, 
 			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
 
