@@ -39,6 +39,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 			
 		if (poly->form_type == SNFS_BRENT)
 			polys = gen_brent_poly(fobj, poly, &npoly);
+			
 	}
 	
 	if (poly->form_type == SNFS_NONE)
@@ -65,14 +66,22 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		snfs_clear(poly);
 		free(poly);
 		return;
-	}
-	
+	}	
+
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
 	
+	// once form detection is done, do some quick trial division	
+	for (i=0; i<npoly; i++)
+	{
+		mpz_set(fobj->div_obj.gmp_n, polys[i].n);
+		zTrial(fobj);
+		mpz_set(polys[i].n, fobj->div_obj.gmp_n);
+	}
+
 	snfs_scale_difficulty(polys, npoly);
 	snfs_rank_polys(polys, npoly);
 
@@ -104,6 +113,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	job->snfs = poly;
 	job->poly = poly->poly;
 	get_ggnfs_params(fobj, job);
+	skew_snfs_params(fobj, job);
 	fill_job_file(fobj, job, PARAM_FLAG_ALL);
 	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 

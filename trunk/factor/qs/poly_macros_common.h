@@ -238,14 +238,14 @@ typedef struct
 			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
 			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
 			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\			
+			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 8 new roots on the P side */	\
 			"movdqa	(%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = ptr */	\
 			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
-			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\			
+			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
 			"psubw	%%xmm3, %%xmm1 \n\t"					/* root1 -= ptr */	\
 			"psubw	%%xmm3, %%xmm2 \n\t"					/* root2 -= ptr */	\
 			"movdqa (%%rdx, %%rax, 2), %%xmm0 \n\t"			/* xmm0 = next 8 primes */	\
@@ -302,7 +302,7 @@ typedef struct
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 8 new roots on the N side */	\
-			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\			
+			"movdqa (%%r8, %%rax, 2), %%xmm3 \n\t"			/* xmm3 = next 8 updates */	\
 			"movdqa (%%rbx, %%rax, 2), %%xmm1 \n\t"			/* xmm1 = next 8 values of root1 */	\
 			"movdqa (%%rcx, %%rax, 2), %%xmm2 \n\t"			/* xmm2 = next 8 values of root2 */	\
 			"paddw	%%xmm3, %%xmm1 \n\t"					/* root1 += ptr */	\
