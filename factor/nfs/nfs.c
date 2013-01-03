@@ -55,14 +55,13 @@ void nfs(fact_obj_t *fobj)
 	//expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
-	uint64 nfs_lower = 0;
-	uint64 nfs_upper = 0;
+	char *nfs_args = NULL; // unused as yet
 	enum cpu_type cpu = yafu_get_cpu_type();
 	mp_t mpN;
 	factor_list_t factor_list;
 	uint32 flags = 0;
 	nfs_job_t job;
-	uint32 relations_needed = 1;	
+	uint32 relations_needed = 1;
 	uint32 last_specialq = 0;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
@@ -71,15 +70,15 @@ void nfs(fact_obj_t *fobj)
 	TIME_DIFF *	difference;
 	double t_time;
 	uint32 pre_batch_rels = 0;
-	char tmpstr[GSTR_MAXSIZE];	
+	char tmpstr[GSTR_MAXSIZE];
 	int process_done;
 	enum nfs_state_e nfs_state;
-	
+
 	// initialize some job parameters
 	memset(&job, 0, sizeof(nfs_job_t));
 
 	obj_ptr = NULL;
-	
+
 	//below a certain amount, revert to SIQS
 	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
 	{
@@ -87,8 +86,8 @@ void nfs(fact_obj_t *fobj)
 		SIQS(fobj);
 		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
 		return;
-	}	
-		
+	}
+
 	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
@@ -179,9 +178,9 @@ void nfs(fact_obj_t *fobj)
 
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
-			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
+				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 			fobj->nfs_obj.mobj = obj;
 
 			// initialize these before checking existing files.  If poly
@@ -322,9 +321,9 @@ void nfs(fact_obj_t *fobj)
 				if (LATHREADS > 0)
 				{
 					msieve_obj_free(obj);
-					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, (uint32)0, 0.0);
+					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
+						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, nfs_args);
 				}
 
 				// try this hack - store a pointer to the msieve obj so that
@@ -341,11 +340,11 @@ void nfs(fact_obj_t *fobj)
 				if (LATHREADS > 0)
 				{
 					msieve_obj_free(obj);
-					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile, 
-						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, nfs_lower, nfs_upper, cpu, 
-						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
+						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 				}
-			
+
 				obj_ptr = NULL;
 			}
 			else // not doing linalg
@@ -776,11 +775,11 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	if (job->snfs == N && job->size != 0 && job->size != d && VFLAG > 0)
 		printf("nfs: warning: size param in job file does not match size of "
 			"number, ignoring param\n");	*/
-	
+
 	if (job->snfs != NULL) 
 	{
 		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
-		{	
+		{
 			if (VFLAG > 0)
 				printf("nfs: detected snfs job but no snfs difficulty; "
 					"assuming size of number is the snfs difficulty\n");
@@ -981,14 +980,67 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->min_rels += (uint32)(fudge * (
 			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
-	
+
 	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
 #if defined(WIN32)
 	sprintf(job->sievername, "%s.exe", job->sievername);
 #endif
 
+	if (job->snfs != NULL)
+	{
+		// examine the difference between scaled difficulty and difficulty for snfs jobs
+		// and skew the r/a parameters accordingly.
+		double oom_skew;
+		int num_ticks;
+		double percent_skew;
+
+		oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+		num_ticks = (int)(oom_skew / 6.);
+		// 10% for every 6 orders of magnitude difference between the norms
+		percent_skew = num_ticks * 0.1;
+
+		if (job->snfs->poly->side == RATIONAL_SPQ)
+		{
+			// sieving on rational side means that side's norm is the bigger one
+			job->alim -= percent_skew*job->alim;
+			job->rlim += percent_skew*job->rlim;
+
+			if (num_ticks >= 3)
+			{
+				// for really big skew, increment the large prime bound as well
+				job->lpbr++;
+				job->mfbr += 2;
+			}
+
+			if (num_ticks >= 4)
+			{
+				// for really really big skew, use 3 large primes
+				job->mfbr = job->lpbr*2.9;
+				job->rlambda = 3.6;
+			}
+
+		}
+		else
+		{
+			// sieving on algebraic side means that side's norm is the bigger one
+			job->alim += percent_skew*job->alim;
+			job->rlim -= percent_skew*job->rlim;
+
+			if (num_ticks >= 3)
+			{
+				// for really big skew, increment the large prime bound as well
+				job->lpba++;
+				job->mfba += 2;
+			}
+
+			if (num_ticks >= 4)
+			{
+				// for really really big skew, use 3 large primes
+				job->mfba = job->lpba*2.9;
+				job->alambda = 3.6;
+			}
+		}
+	}
+
 	return;
 }
-
-
-

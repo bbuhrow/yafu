@@ -121,7 +121,7 @@ enum msieve_flags {
 	MSIEVE_FLAG_NFS_LA_RESTART = 0x1000,/* restart the NFS linear algbra */
 	MSIEVE_FLAG_DEEP_ECM = 0x2000    /* perform nontrivial-size ECM */
 };
-	
+
 
 enum msieve_factor_type {
 	MSIEVE_COMPOSITE,
@@ -158,8 +158,6 @@ typedef struct {
 	                              stage will try to find. The default (0)
 				      is to keep sieving until all necessary 
 				      relations are found. */
-	uint64 nfs_lower;         /* lower bound for NFS-related thing to do */
-	uint64 nfs_upper;         /* upper bound for NFS-related thing to do */
 
 	uint32 cache_size1;       /* bytes in level 1 cache */
 	uint32 cache_size2;       /* bytes in level 2 cache */
@@ -181,13 +179,12 @@ typedef struct {
 #endif
 
 
-	uint32 mem_mb;            /* megabytes usable for NFS filtering */
 
 	uint32 which_gpu;         /* ordinal ID of GPU to use */
 
-	double target_density;   /* the target number of nonzeros per matrix
-				    column, used in NFS filtering */
 	char *mp_sprintf_buf;    /* scratch space for printing big integers */
+
+	const char *nfs_args; /* arguments for NFS */
 } msieve_obj;
 
 // these must be declared when calling msieve routines through
@@ -200,15 +197,12 @@ msieve_obj * msieve_obj_new(char *input_integer,
 			    uint32 seed1,
 			    uint32 seed2,
 			    uint32 max_relations,
-			    uint64 nfs_lower,
-			    uint64 nfs_upper,
 			    enum cpu_type cpu,
 			    uint32 cache_size1,
 			    uint32 cache_size2,
 			    uint32 num_threads,
-			    uint32 mem_mb,
 			    uint32 which_gpu,
-			    double target_density);
+			    const char *nfs_args);
 
 msieve_obj * msieve_obj_free(msieve_obj *obj);
 

@@ -34,7 +34,7 @@ void savefile_concat(char *filein, char *fileout, msieve_obj *mobj)
 	while (!feof(in))
 	{
 		char tmpline[GSTR_MAXSIZE], *tmpptr;
-		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
+		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);
 		if (tmpptr == NULL)
 			break;
 		else
@@ -137,7 +137,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		{
 			printf("A data file (.dat) exists in the current directory.  It must either be "
 				"removed or -R specified to resume nfs\n");
-			
+
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
 			{
@@ -234,7 +234,13 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		char master_polyfile[80];
 		int do_poly_parse = 0;
 
-		if (VFLAG > 0) 
+		if (fobj->nfs_obj.nfs_phases != NFS_DEFAULT_PHASES && !(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
+		{
+			printf("nfs: error, no job file and polyselect not specified\n");
+			return NFS_STATE_DONE;
+		}
+
+		if (VFLAG > 0)
 			printf("nfs: checking for poly file - ");
 		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
@@ -320,7 +326,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 
 				*last_spq = 0;
 				return NFS_STATE_DONE;
-			}			
+			}
 		}
 		else
 			return NFS_STATE_STARTNEW;
@@ -351,7 +357,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 					printf("nfs: user specified special-q range of %u-%u, "
 					"skipping search for last special-q\n", 
 					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq);
-				
+
 				*last_spq = 0;
 				return NFS_STATE_RESUMESIEVE;
 			}
@@ -366,7 +372,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 				if (VFLAG > 0)
 					printf("nfs: user specified post processing only, "
 					"skipping search for last special-q\n");
-				
+
 				*last_spq = 0;
 				return NFS_STATE_RESUMESIEVE;
 			}
@@ -378,7 +384,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			if (logfile == NULL)
 			{
 				printf("fopen error: %s\n", strerror(errno));
-				printf("could not open yafu logfile for appending\n");				
+				printf("could not open yafu logfile for appending\n");
 			}
 			else
 			{
@@ -432,7 +438,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 					// read a line into the next position of the circular buffer
 					savefile_read_line(tmp, GSTR_MAXSIZE, &mobj->savefile);
 					if (savefile_eof(&mobj->savefile))
-						break;					
+						break;
 
 					// quick check that it might be a valid line
 					if (strlen(tmp) > 30)
@@ -440,7 +446,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 						// wrap
 						if (++line > 3) line = 0;
 						// then copy
-						strcpy(lines[line], tmp);					
+						strcpy(lines[line], tmp);
 					}
 
 					// while we are at it, count the lines
@@ -463,7 +469,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		}
 		else
 		{
-			printf("nfs: must specify -R to resume when a savefile already exists\n");	
+			printf("nfs: must specify -R to resume when a savefile already exists\n");
 
 			logfile = fopen(fobj->flogname, "a");
 			if (logfile == NULL)
@@ -485,8 +491,9 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 	else
 	{
 		// job file is for a different input.  not a restart.
-		ans = NFS_STATE_STARTNEW;
 		*last_spq = 0;
+		return NFS_STATE_STARTNEW;
+
 	}
 
 	return ans;
@@ -792,8 +799,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 			break;
 
 		if (line[0] == '#')
-			break;		
-		
+			break;
+
 		//prevent a "time" line from being copied into the .job file
 		//ggnfs will ignore it, but it can be prevented here.
 		if (strlen(line) > 4)

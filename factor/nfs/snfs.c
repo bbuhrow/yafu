@@ -1511,7 +1511,6 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		else
 			nump2 = npoly - nump1;
 	} // for each base (x, y)
-	
 
 	apoly = nump1 * nump2;
 	final_polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
@@ -1635,9 +1634,9 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				// check correctness and evaluate
 				check_poly(&final_polys[npoly]);
 				approx_norms(&final_polys[npoly]);
-				
+
 				if (final_polys[npoly].valid)
-				{				
+				{
 					if (VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
 					npoly++;
 				}
@@ -1674,7 +1673,7 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 
 	// only one poly - don't bother test sieving it :)
 	if (npoly < 2)
-		return &polys[0];	
+		return &polys[0];
 
 	// see if any poly is big enough to justify test sieving
 	for (i=0, dotest = 0; i<npoly; i++)
@@ -1686,22 +1685,22 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		return &polys[0];
 
 	for (i=0; i<npoly; i++)
-	{		
+	{
 		jobs[i].poly = polys[i].poly;
 		jobs[i].snfs = &polys[i];
 		get_ggnfs_params(fobj, &jobs[i]);
 	}
-	
+
 	minscore_id = test_sieve(fobj, jobs, npoly, 0);
-	
+
 	if( minscore_id < 0 )
 	{
 		printf("gen: warning: test sieving failed, reverting to top ranked poly");
 		minscore_id = 0;
 	}
-	
+
 	free(jobs);
-	
+
 	return &polys[minscore_id];
 }
 
@@ -1734,7 +1733,7 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 	for (i=0; i<npoly; i++)
 	{
 		double ratio, absa = fabs(polys[i].anorm), absr = fabs(polys[i].rnorm);
-		
+
 		if (absa > absr)
 		{
 			ratio = absa / absr;
@@ -1754,68 +1753,7 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 		if (ratio < 0.)
 			ratio = 0.;
 
-		polys[i].sdifficulty = polys[i].difficulty + ratio;		
-	}
-
-	return;
-}
-
-void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
-{
-	// examine the difference between scaled difficulty and difficulty for snfs jobs
-	// and skew the r/a parameters accordingly.
-	// the input job struct should have already been filled in by get_ggnfs_params()	
-	double oom_skew;
-	int num_ticks;
-	double percent_skew;		
-	if (job->snfs == NULL)
-		return;
-
-	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-	num_ticks = (int)(oom_skew / 6.);
-	// 10% for every 6 orders of magnitude difference between the norms	
-	percent_skew = num_ticks * 0.1;
-
-	if (job->snfs->poly->side == RATIONAL_SPQ)
-	{
-		// sieving on rational side means that side's norm is the bigger one
-		job->alim -= percent_skew*job->alim;
-		job->rlim += percent_skew*job->rlim;
-
-		if (num_ticks >= 3)
-		{
-			// for really big skew, increment the large prime bound as well
-			job->lpbr++;
-			job->mfbr += 2;
-		}
-
-		if (num_ticks >= 4)
-		{
-			// for really really big skew, use 3 large primes
-			job->mfbr = job->lpbr*2.9;
-			job->rlambda = 3.6;
-		}
-
-	}
-	else
-	{
-		// sieving on algebraic side means that side's norm is the bigger one
-		job->alim += percent_skew*job->alim;
-		job->rlim -= percent_skew*job->rlim;
-
-		if (num_ticks >= 3)
-		{
-			// for really big skew, increment the large prime bound as well
-			job->lpba++;
-			job->mfba += 2;
-		}
-
-		if (num_ticks >= 4)
-		{
-			// for really really big skew, use 3 large primes
-			job->mfba = job->lpba*2.9;
-			job->alambda = 3.6;
-		}
+		polys[i].sdifficulty = polys[i].difficulty + ratio;
 	}
 
 	return;
