@@ -2202,6 +2202,9 @@ void factor(fact_obj_t *fobj)
 			add_to_factor_list(fobj,b);
 		}
 	}
+	else // factorization complete
+		refactor_depth = 0;
+
 	gmp2mp(b,&fobj->N);
 
 	gettimeofday (&stop, NULL);

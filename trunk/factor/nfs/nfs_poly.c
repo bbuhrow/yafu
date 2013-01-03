@@ -20,7 +20,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 {
 	snfs_t* poly, * polys = NULL, * best;
 	int i, npoly;
-	
+
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
 	if( !poly )
 	{
@@ -28,53 +28,49 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		exit(-1);
 	}
 	snfs_init(poly);
-	
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 		find_brent_form(fobj, poly);
-		
-		//printf("base1: %d, base2: %d, exp1: %d, exp2: %d, coeff1: %d, coeff2: %d\n",
-		//	poly->base1, poly->base2, poly->exp1, poly->exp2, poly->coeff1, poly->coeff2);
-			
+
 		if (poly->form_type == SNFS_BRENT)
 			polys = gen_brent_poly(fobj, poly, &npoly);
-			
 	}
-	
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for homogeneous cunningham special forms...\n");
 		find_hcunn_form(fobj, poly);
-		
+
 		if (poly->form_type == SNFS_H_CUNNINGHAM)
 			polys = gen_brent_poly(fobj, poly, &npoly);
 	}
-					
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for XYYXF special forms...\n");
 		find_xyyxf_form(fobj, poly);
-		
+
 		if (poly->form_type == SNFS_XYYXF)
 			polys = gen_xyyxf_poly(fobj, poly, &npoly);
 	}
-					
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		printf("nfs: couldn't find special form, reverting to gnfs\n");
 		snfs_clear(poly);
 		free(poly);
 		return;
-	}	
+	}
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
-	
-	// once form detection is done, do some quick trial division	
+
+	// once form detection is done, do some quick trial division
 	for (i=0; i<npoly; i++)
 	{
 		mpz_set(fobj->div_obj.gmp_n, polys[i].n);
@@ -95,7 +91,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 			print_snfs(&polys[i], stdout);
 	}
 
-	best = snfs_test_sieve(fobj, polys, NUM_SNFS_POLYS < npoly ? NUM_SNFS_POLYS : npoly);
+	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly));
 
 	if (VFLAG > 0)
 	{
@@ -105,15 +101,14 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 		print_snfs(best, stdout);
 	}
-	
+
 	snfs_copy_poly(best, poly); // best is only a pointer into polys, which needs to be free()d
-	
+
 	snfs_make_poly_file(fobj, poly);
-	
+
 	job->snfs = poly;
 	job->poly = poly->poly;
 	get_ggnfs_params(fobj, job);
-	skew_snfs_params(fobj, job);
 	fill_job_file(fobj, job, PARAM_FLAG_ALL);
 	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
@@ -131,7 +126,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	uint32 flags;
 
 	//an array of thread data objects
-	nfs_threaddata_t *thread_data;		
+	nfs_threaddata_t *thread_data;
 
 	// thread work-queue controls
 	int threads_working = 0;
@@ -351,9 +346,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			nfs_threaddata_t *t;	
 
 			// this thread is done, so decrement the count of working threads
-			if (!is_startup)			
+			if (!is_startup)
 				threads_working--;
-						
+
 			if (THREADS > 1)
 			{
 				// Pop a waiting thread off the queue (OK, it's stack not a queue)
@@ -457,8 +452,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			//free data
 			free(t->logfilename);
 			free(t->polyfilename);
-			msieve_obj_free(t->obj);			
-						
+			msieve_obj_free(t->obj);
+
 			// exit the loop without restarting if abort is asserted.
 			if (NFS_ABORT)
 				break;
@@ -505,10 +500,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 						pthread_mutex_unlock(&thread_data[tid].run_lock);
 #endif
 					}
-				
+
 					// this thread is now busy, so increment the count of working threads
 					threads_working++;
-				}				
+				}
 			}
 
 			if (THREADS == 1)
@@ -609,9 +604,11 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	uint64 start, uint64 stop)
 {
 	fact_obj_t *fobj = t->fobj;
+	char *nfs_args = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
 	t->fbfilename = (char *)malloc(80 * sizeof(char));
+	sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, start, stop);
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);
 	sprintf(t->logfilename,"%s.%d",fobj->nfs_obj.logfile,tid);
 	sprintf(t->fbfilename,"%s.%d",fobj->nfs_obj.fbfile,tid);
@@ -620,10 +617,10 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	remove(t->fbfilename);
 
 	//create an msieve_obj.  for poly select, the intermediate output file should be specified in
-	//the savefile field		
+	//the savefile field
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
-		g_rand.low, g_rand.hi, (uint32)0, start, stop, 
-		obj->cpu, (uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, (uint32)0, 0.0);
+		g_rand.low, g_rand.hi, (uint32)0,
+		obj->cpu, (uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 
 	//pointers to things that are static during poly select
 	t->mpN = mpN;
@@ -669,16 +666,18 @@ void *polyfind_launcher(void *ptr)
 
 	//remove any temporary relation files
 	remove(t->polyfilename);
-		
+
 	if (VFLAG >= 0)
 	{
+		uint64 start, stop; // one instance where the new msieve api is rather a pain
+		sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
 		printf("nfs: commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-			t->obj->nfs_lower, t->obj->nfs_upper);
+			start, stop);
 		fflush(stdout);
 	}
 
 	//start polyfind
-	factor_gnfs(t->obj, t->mpN, t->factor_list);	
+	factor_gnfs(t->obj, t->mpN, t->factor_list);
 
 	return 0;
 }

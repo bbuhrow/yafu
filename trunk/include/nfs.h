@@ -261,7 +261,6 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly);
 void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
-void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
 
 int NFS_ABORT;
 
