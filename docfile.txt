@@ -122,10 +122,12 @@ against saved files will still be in place (i.e., refusal to overwrite data file
 				linear algebra
 -nc3			Perform postprocessing step within nfs(), starting with sqrt
 
+-nt file1,file2...	Perform automated trial sieving of the listed job files (then exit)
+				(yafu will fill any missing ggnfs parameters as necessary)
 
 -lathreads	<num>		Use specified number of threads for linear algebra only.  If 
 				not specified, 'threads' threads are used (which defaults to 1).
--a				Use special Q on the algebraic side within nfs() (default)
+-a				Use special Q on the algebraic side within nfs()
 -r				Use special Q on the rational side within nfs()
 -job <name>		Name of input file in nfs - use a file other than ggnfs.job 
 				as the input job file.
