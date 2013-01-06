@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 63
+#define NUMOPTIONS 64
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -51,7 +51,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve", "snfs"};
+	"ext_ecm", "testsieve", "snfs", "nt"};
 
 
 // indication of whether or not an option needs a corresponding argument
@@ -71,7 +71,7 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1,1,0};
+	1,1,0,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 	z tmp;
 	int nooutput,offset,slog,is_cmdline_run=0;
 	FILE *logfile;
-	fact_obj_t *fobj;	
+	fact_obj_t *fobj;
 
 	//the input expression
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -1798,7 +1798,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 				printf("option -psearch recognizes arguments 'deep', 'wide', or 'fast'.\n  see docfile.txt for details\n"); 
 				exit(1);
 			}
-			
+
 		}
 		else
 			printf("*** argument to -psearch too long, ignoring ***\n");
@@ -1834,7 +1834,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		{
 			if (!isdigit(arg[i]))
 			{
-				printf("expected numeric input for option %s\n",opt);				
+				printf("expected numeric input for option %s\n",opt);
 				exit(1);
 			}
 		}
@@ -1896,7 +1896,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		{
 			if (!isdigit(arg[i]))
 			{
-				printf("expected numeric input for option %s\n",opt);				
+				printf("expected numeric input for option %s\n",opt);
 				exit(1);
 			}
 		}
@@ -1912,6 +1912,17 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		// argument "snfs"
 		fobj->nfs_obj.snfs = 1;
+	}
+	else if (strcmp(opt,OptionArray[63]) == 0)
+	{
+		// argument "nt"
+		if (arg == NULL)
+		{
+			printf("expected argument for option %s\n", opt);
+			exit(1);
+		}
+		else
+			strcpy(fobj->nfs_obj.filearg, arg);
 	}
 	else
 	{

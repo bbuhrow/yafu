@@ -73,7 +73,7 @@ void win_file_concat(char *filein, char *fileout)
 	while (!feof(in))
 	{
 		char tmpline[GSTR_MAXSIZE], *tmpptr;
-		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);					
+		tmpptr = fgets(tmpline, GSTR_MAXSIZE, in);
 		if (tmpptr == NULL)
 			break;
 		else

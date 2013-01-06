@@ -52,7 +52,7 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 	dest->coeff1 = src->coeff1;
 	dest->coeff2 = src->coeff2;
 	dest->form_type = src->form_type;
-	
+
 	dest->poly->rat.degree = src->poly->rat.degree;
 	for(i = 0; i <= src->poly->rat.degree; i++)
 		mpz_set(dest->poly->rat.coeff[i], src->poly->rat.coeff[i]);
@@ -144,7 +144,7 @@ void print_snfs(snfs_t *poly, FILE *out)
 {
 	// print the poly to stdout
 	char c, side[80];
-	int d = poly->difficulty;
+	int d = poly->difficulty; // round double to int
 
 	if (poly->coeff2 < 0)
 		c = '-';
@@ -156,7 +156,8 @@ void print_snfs(snfs_t *poly, FILE *out)
 	else
 		sprintf(side, "algebraic");
 
-	gmp_fprintf(out, "n: %Zd\n", poly->n); // moved to match YAFU's "n first" requirement
+	gmp_fprintf(out, "n: %Zd\n", poly->n);
+
 	if (poly->form_type == SNFS_H_CUNNINGHAM)
 	{
 		fprintf(out, "# %d^%d%c%d^%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
@@ -180,21 +181,18 @@ void print_snfs(snfs_t *poly, FILE *out)
 				abs(poly->coeff1), poly->base1, poly->exp1, c, abs(poly->coeff2), poly->difficulty,
 				poly->anorm, poly->rnorm);
 	}
+
 	if (poly->sdifficulty > 0)
-	{
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
-		//d = poly->sdifficulty;
-	}
+
 	fprintf(out, "type: snfs\nsize: %d\n", d);
-	
+
 	print_poly(poly->poly, out);
 }
 
 /* With the struct reorganization, it should be quite a bit easier to use/call
 Msieve's analyze_one_poly(), which is very general.
-There are two problems though: 1) It only prints the results, doesn't return them
-2) A modified version would be in Msieve > SVN 722, so we really need to convert
-YAFU to the new Msieve API */
+There's just one problem: it prints the results, but doesn't return them */
 
 void approx_norms(snfs_t *poly)
 {

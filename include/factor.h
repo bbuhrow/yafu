@@ -376,27 +376,24 @@ typedef struct
 typedef struct
 {
 	mpz_t gmp_n;
-	
+	mpz_t N; // full form used for snfs
+
 	int snfs; // if the user specifies snfs
-	
-	char ggnfs_dir[1024];
+
+	char ggnfs_dir[GSTR_MAXSIZE];
 	uint32 siever;
 	int sq_side;
 	uint32 startq;
 	uint32 rangeq;
 	uint32 polystart;
 	uint32 polyrange;
-	char outputfile[1024];
-	char logfile[1024];
-	char fbfile[1024];
+	char outputfile[GSTR_MAXSIZE];
+	char logfile[GSTR_MAXSIZE];
+	char fbfile[GSTR_MAXSIZE];
 	uint32 timeout;
-	char job_infile[1024];
+	char job_infile[GSTR_MAXSIZE];
 	int poly_option;
 	int restart_flag;
-	/*int sieve_only;
-	int poly_only;
-	int post_only;
-	int la_restart; */ // replaced by enum nfs_phase_flags
 	uint32 polybatch;
 	uint32 nfs_phases;
 	uint32 snfs_testsieve_threshold;
@@ -412,6 +409,8 @@ typedef struct
 	double ttime;
 
 	msieve_obj *mobj;
+
+	char filearg[GSTR_MAXSIZE]; // used to facilitate external trial sieving
 
 } nfs_obj_t;
 
