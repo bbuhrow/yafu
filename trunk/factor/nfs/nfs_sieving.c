@@ -73,7 +73,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	struct timeval stop, stop2;	// stop time of this job
 	struct timeval start, start2;	// start time of this job
 	TIME_DIFF *	difference;
-	
+
 	if( score == NULL )
 	{
 		printf("Couldn't alloc memory!\n");
@@ -88,12 +88,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	}
 
 	gettimeofday(&start2, NULL);
-	
+
 	strcpy(orig_name, fobj->nfs_obj.job_infile);
 	// necessary because parse/fill_job_file() get filename from fobj
 	if( are_files )
 	{ // read files into job structs (get fblim)
-		
+
 		filenames = (char**) args;
 		jobs = (nfs_job_t*)malloc(njobs * sizeof(nfs_job_t));
 		if( jobs == NULL )
@@ -101,6 +101,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			printf("Couldn't alloc memory!\n");
 			exit(-1);
 		}
+		memset(jobs, 0, njobs*sizeof(nfs_job_t));
 
 		for(i = 0; i < njobs; i++)
 		{
@@ -116,8 +117,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 						filenames[i], missing_params);
 				fill_job_file(fobj, jobs+i, missing_params);
 			}
-			if( !jobs[i].poly )
+			/*if( !jobs[i].poly )
 			{ // not snfs (detected by parse_job_file())
+				printf("branch taken\n");
 				jobs[i].poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 				if( !jobs[i].poly )
 				{
@@ -127,7 +129,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				mpz_polys_init(jobs[i].poly);
 				// if user doesn't specify, go with algebraic *shrug*
 				jobs[i].poly->side = fobj->nfs_obj.sq_side < 0 ? RATIONAL_SPQ : ALGEBRAIC_SPQ;
-			}
+			}*/
 		}
 	}
 	else
@@ -142,7 +144,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		for(i = 0; i < njobs; i++)
 		{
 			FILE* out;
-			filenames[i] = (char*)malloc(1024);
+			filenames[i] = (char*)malloc(GSTR_MAXSIZE);
 			if( !filenames[i] )
 			{
 				printf("malloc failed\n");
@@ -176,7 +178,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		char syscmd[GSTR_MAXSIZE], tmpbuf[GSTR_MAXSIZE], side[32];
 		FILE* in;
 		double est;
-		
+
 		if( jobs[i].poly->side == RATIONAL_SPQ)
 		{
 			sprintf(side, "rational");
@@ -203,7 +205,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
 		// are we really supposed to be removing the factorbase files before the test?
-		
+
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
 			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 5000, filenames[i]);
@@ -215,7 +217,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		difference = my_difftime (&start, &stop);
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
-		
+
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
 		in = fopen(tmpbuf, "r");
@@ -229,29 +231,30 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			fclose(in);
 
 			score[i] = t_time / count;
-		
-		     est = (score[i] * jobs[i].min_rels * 1.25) / THREADS; 
-		     // be conservative about estimates
-		
-		     if( score[i] < min_score )
-     		{
-     			minscore_id = i;
-     			min_score = score[i];
-     			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
-     				score[i], time=time_from_secs((unsigned long)est), THREADS); 
-     				
-     		}
-     		else
-     			if (VFLAG > 0) printf("test: score was %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
-     				score[i], time=time_from_secs((unsigned long)est), THREADS);
+
+			est = (score[i] * jobs[i].min_rels * 1.25) / THREADS; 
+			// be conservative about estimates
 		}
-		
+
+		if( score[i] < min_score )
+		{
+			minscore_id = i;
+			min_score = score[i];
+			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+				score[i], time=time_from_secs((unsigned long)est), THREADS); 
+
+     		}
+		else
+			if (VFLAG > 0) printf("test: score was %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+				score[i], time=time_from_secs((unsigned long)est), THREADS);
+
+
 		remove(tmpbuf); // clean up after ourselves
 		sprintf(tmpbuf, "%s", filenames[i]);
 		remove(tmpbuf);
 		free(time);
 	}
-	
+
 	// clean up memory allocated
 	if( are_files )
 	{

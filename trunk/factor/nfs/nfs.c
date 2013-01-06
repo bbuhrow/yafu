@@ -139,7 +139,7 @@ void nfs(fact_obj_t *fobj)
 			printf("could not open %s for appending\n", fobj->flogname);
 			exit(1);
 		}
-		
+
 		logprint(flog,"input is a perfect power\n");
 
 		for (j=0; j<fobj->num_factors; j++)
@@ -156,6 +156,12 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
+	if (fobj->nfs_obj.filearg)
+	{
+		trial_sieve(fobj);
+		return;
+	}
+
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
@@ -163,7 +169,7 @@ void nfs(fact_obj_t *fobj)
 
 	//start a counter for the whole job
 	gettimeofday(&start, NULL);
-	
+
 	//nfs state machine:
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	nfs_state = NFS_STATE_INIT;
@@ -173,7 +179,7 @@ void nfs(fact_obj_t *fobj)
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
-			// write the input bigint as a string			
+			// write the input bigint as a string
 			input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
 
 			// create an msieve_obj
@@ -210,14 +216,14 @@ void nfs(fact_obj_t *fobj)
 			// convert input to msieve bigint notation and initialize a list of factors
 			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
 			factor_list_init(&factor_list);
-			
+
 			if (fobj->nfs_obj.rangeq > 0)
-				job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);		
+				job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
 
 			break;
 
 		case NFS_STATE_POLY:
-			
+
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
 			{
@@ -240,7 +246,7 @@ void nfs(fact_obj_t *fobj)
 					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
 					// assume gnfs for now
 					job.poly->side = ALGEBRAIC_SPQ;
-					
+
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 				}
 			}
@@ -776,7 +782,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		printf("nfs: warning: size param in job file does not match size of "
 			"number, ignoring param\n");	*/
 
-	if (job->snfs != NULL) 
+	if (job->snfs != NULL)
 	{
 		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
 		{
@@ -785,13 +791,10 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 					"assuming size of number is the snfs difficulty\n");
 		}
 		else
-		{
 			d = job->snfs->difficulty;
-			if (d == 0) d = job->snfs->difficulty;
-		}
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
-		i = 0.56*d + 30; 
+		i = 0.56*d + 30;
 		if (VFLAG > 0)
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
 				"gnfs difficulty %d\n", d, i);
@@ -800,7 +803,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	else if (fobj->nfs_obj.snfs)
 		printf( "nfs: user passed snfs switch, but the job file does not specify snfs\n"
 			"nfs: will continue as gnfs\n");
-	
+
 	if (job->poly == NULL)
 	{ // always be sure we can choose which side to sieve
 		if (job->snfs != NULL)
@@ -829,7 +832,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		free(job->poly);
 		job->poly = job->snfs->poly;
 	}
-	
+
 	if (fobj->nfs_obj.sq_side != 0) // user override
 		job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
 
@@ -853,7 +856,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				lpb = ggnfs_table[i+1][2];
 			if (job->lpbr == 0) job->lpbr = lpb;
 			if (job->lpba == 0) job->lpba = lpb;
-			
+
 			//pick closest entry
 			if ((d - ggnfs_table[i][0]) < (ggnfs_table[i+1][0] - d))
 				mfb = ggnfs_table[i][3];
@@ -1043,4 +1046,30 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	}
 
 	return;
+}
+
+void trial_sieve(fact_obj_t* fobj)
+{
+	char** filenames = (char**)malloc(100*sizeof(char*));
+	char* ptr, * arg = fobj->nfs_obj.filearg;
+	int i = 0, me;
+
+	if (VFLAG < 0) VFLAG = 0;
+
+	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
+	{
+		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+		//printf("pointer: %p\n", filenames[i]);
+		strncpy(filenames[i++], arg, ptr-arg+1);
+		arg = ptr + 1;
+	}
+	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+	strcpy(filenames[i++], arg);
+
+	me = test_sieve(fobj, filenames, i, 1);
+
+	printf("test: \"%s\" is the fastest poly\n", filenames[me]);
+	for(me = 0; me < i; me++)
+		free(filenames[me]);
+	free(filenames);
 }

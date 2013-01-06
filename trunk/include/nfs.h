@@ -111,6 +111,7 @@ typedef struct
 	mpz_poly_t rat; // linear (usually)
 	mpz_poly_t alg;
 	double skew;
+	double murphy; // murphy e score
 	mpz_t m; // common root mod n
 	enum special_q_e side;
 } mpz_polys_t;
@@ -121,7 +122,8 @@ typedef struct
 typedef struct
 {
 	// input integer
-	mpz_t n;
+	mpz_t n; // the cofactor, what goes in the job file
+	mpz_t N; // the full form, small factors and all
 
 	// algebraic representation of the snfs form:
 	// n divides c1*b1^e1 + c2*b2^e2
@@ -130,17 +132,17 @@ typedef struct
 	int exp1;
 	int exp2;
 	int coeff1;
-	int coeff2;	
+	int coeff2;
 	// type of form
 	enum snfs_form_e form_type;
 
-	
+
 	mpz_polys_t* poly;
 	int c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t
 				    // in check_poly()
 
 	// other useful parameters
-	double difficulty;	
+	double difficulty;
 	double sdifficulty;
 	double anorm;
 	double rnorm;
@@ -162,7 +164,7 @@ typedef struct
 	uint32 current_rels;
 	uint32 poly_time;
 	uint32 last_leading_coeff;
-	
+
 	snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
 
@@ -229,6 +231,7 @@ void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32 flags, uint64 start, uint64 stop);
 void do_sieving(fact_obj_t *fobj, nfs_job_t *job);
+void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);
 void savefile_concat(char *filein, char *fileout, msieve_obj *mobj);
 void win_file_concat(char *filein, char *fileout);
