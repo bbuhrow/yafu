@@ -117,19 +117,6 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 						filenames[i], missing_params);
 				fill_job_file(fobj, jobs+i, missing_params);
 			}
-			/*if( !jobs[i].poly )
-			{ // not snfs (detected by parse_job_file())
-				printf("branch taken\n");
-				jobs[i].poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
-				if( !jobs[i].poly )
-				{
-					printf("derp: out of memory!\n");
-					exit(-1);
-				}
-				mpz_polys_init(jobs[i].poly);
-				// if user doesn't specify, go with algebraic *shrug*
-				jobs[i].poly->side = fobj->nfs_obj.sq_side < 0 ? RATIONAL_SPQ : ALGEBRAIC_SPQ;
-			}*/
 		}
 	}
 	else
