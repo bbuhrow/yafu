@@ -32,11 +32,13 @@ void snfs_init(snfs_t* poly)
 	poly->poly->side = RATIONAL_SPQ;
 	poly->poly->rat.degree = 1;
 	mpz_init(poly->n);
+	mpz_init(poly->N);
 }
 
 void snfs_clear(snfs_t* poly)
 {
 	mpz_clear(poly->n);
+	mpz_clear(poly->N);
 	mpz_polys_free(poly->poly);
 	free(poly->poly);
 }
@@ -240,6 +242,71 @@ void approx_norms(snfs_t *poly)
 	eval_poly(res, a, b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
 #endif
+	return;
+}
+
+void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
+{
+	if (job->snfs != NULL)
+	{
+		// examine the difference between scaled difficulty and difficulty for snfs jobs
+		// and skew the r/a parameters accordingly.
+		// the input job struct should have already been filled in by get_ggnfs_params()
+		double oom_skew;
+		int num_ticks;
+		double percent_skew;
+
+		oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+		if (oom_skew <= 0)
+			return;
+		
+		num_ticks = (int)(oom_skew / 6.);
+		// 10% for every 6 orders of magnitude difference between the norms
+		percent_skew = num_ticks * 0.1;
+
+		if (job->snfs->poly->side == RATIONAL_SPQ)
+		{
+			// sieving on rational side means that the rational norm is larger
+			job->alim -= percent_skew*job->alim;
+			job->rlim += percent_skew*job->rlim;
+
+			if (num_ticks >= 3)
+			{
+				// for really big skew, increment the large prime bound as well
+				job->lpbr++;
+				job->mfbr += 2;
+			}
+
+			if (num_ticks >= 4)
+			{
+				// for really really big skew, use 3 large primes
+				job->mfbr = job->lpbr*2.9;
+				job->rlambda = 3.6;
+			}
+
+		}
+		else
+		{
+			// sieving on algebraic side means that the algebraic norm is larger
+			job->alim += percent_skew*job->alim;
+			job->rlim -= percent_skew*job->rlim;
+
+			if (num_ticks >= 3)
+			{
+				// for really big skew, increment the large prime bound as well
+				job->lpba++;
+				job->mfba += 2;
+			}
+
+			if (num_ticks >= 4)
+			{
+				// for really really big skew, use 3 large primes
+				job->mfba = job->lpba*2.9;
+				job->alambda = 3.6;
+			}
+		}
+	}
+
 	return;
 }
 
@@ -589,7 +656,7 @@ void brent_alg_reduce_n(snfs_t *poly, int fac)
 		if (mpz_cmp_ui(t2, 0) == 0)
 		{
 			mpz_tdiv_q(poly->n, poly->n, t);
-			gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", t);
+			gmp_printf("gen: reducing input by an algebraic factor of %Zd\n", t);
 		}
 
 		mpz_clear(t);
@@ -1690,6 +1757,7 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		jobs[i].poly = polys[i].poly;
 		jobs[i].snfs = &polys[i];
 		get_ggnfs_params(fobj, &jobs[i]);
+		skew_snfs_params(fobj, &jobs[i]);
 	}
 
 	minscore_id = test_sieve(fobj, jobs, npoly, 0);
