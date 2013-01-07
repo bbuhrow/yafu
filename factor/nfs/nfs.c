@@ -156,8 +156,9 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
-	if (fobj->nfs_obj.filearg)
+	if (fobj->nfs_obj.filearg[0] != '\0')
 	{
+		if (VFLAG > 0) printf("test: starting trial sieving\n");
 		trial_sieve(fobj);
 		return;
 	}
