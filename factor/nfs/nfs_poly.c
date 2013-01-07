@@ -109,6 +109,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	job->snfs = poly;
 	job->poly = poly->poly;
 	get_ggnfs_params(fobj, job);
+	skew_snfs_params(fobj, job);
 	fill_job_file(fobj, job, PARAM_FLAG_ALL);
 	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
