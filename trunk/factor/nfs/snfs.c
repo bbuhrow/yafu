@@ -114,12 +114,15 @@ void check_poly(snfs_t *poly)
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		gmp_fprintf (stderr, "Error: M=%Zd is not a root of f(x) % N\n", poly->poly->m);
-		gmp_fprintf (stderr, "n = %Zd\n", poly->n);
-		fprintf (stderr, "f(x) = ");
-		for (i = poly->poly->alg.degree; i >= 0; i--)
-			gmp_fprintf (stderr, "%c%d*x^%d", poly->c[i] < 0 ? '-' : '+', abs(poly->c[i]), i);
-		gmp_fprintf (stderr, "\n""Remainder is %Zd\n", t);
+		if (VFLAG > 0) 
+		{
+			gmp_fprintf(stderr, "Error: M=%Zd is not a root of f(x) % N\n"
+				"n = %Zd\n", poly->poly->m, poly->n);
+			fprintf (stderr, "f(x) = ");
+			for (i = poly->poly->alg.degree; i >= 0; i--)
+				gmp_fprintf (stderr, "%c %d*x^%d ", poly->c[i] < 0 ? '-' : '+', abs(poly->c[i]), i);
+			gmp_fprintf (stderr, "\n""Remainder is %Zd\n\n", t);
+		}
 	}
 	
 	// set mpz_poly_t alg appropriately
@@ -132,9 +135,9 @@ void check_poly(snfs_t *poly)
 	if (mpz_cmp_ui(t,0) != 0)
 	{
 		poly->valid = 0;
-		gmp_fprintf (stderr, "n = %Zd\n", poly->n);
-		gmp_fprintf (stderr, "Error: M=%Zd is not a root of g(x) % N\n", poly->poly->m);
-		gmp_fprintf (stderr, "Remainder is %Zd\n", t);
+		if (VFLAG > 0)
+		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
+			poly->n, poly->poly->m, t);
 	}
 
 	return;
@@ -202,7 +205,7 @@ void approx_norms(snfs_t *poly)
 	// a,b were respectively about 3e9*sqrt(skew), 3e9/sqrt(skew).
 	// here we use 1e6 instead of 3e9... it might not matter so much as
 	// long as it is consistent between a/rnorm
-	int i;
+	//int i;
 	double a, b, c;
 	mpz_t res, tmp; // should be floats not ints perhaps
 
@@ -1303,7 +1306,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int deg, i, j, nump1, nump2, me, base, e, b;
 	int x = poly->base1, y = poly->base2;
 	mpz_t n, m;
-	double d, skew, k;
+	double d, skew;
 	int f1[100];
 	int numf1 = 0;
 	int f2[100];
