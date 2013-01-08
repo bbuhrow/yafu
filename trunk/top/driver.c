@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 64
+#define NUMOPTIONS 63
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
