@@ -930,8 +930,8 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 			sprintf(outline, "R%c %s",line[1], line + 4);
 		else if (line[0] == 'c')
 			sprintf(outline, "A%c %s",line[1], line + 4);
-		else if (line[0] == 'm' && line[1] == ':')
-			sprintf(outline, "R1 1\nR0 -%s", line + 3);
+		//else if (line[0] == 'm' && line[1] == ':')
+		//	sprintf(outline, "R1 1\nR0 -%s", line + 3);
 		else
 			strcpy(outline, "");
 

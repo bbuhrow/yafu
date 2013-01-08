@@ -108,18 +108,20 @@ enum msieve_flags {
 					    save a lot of memory with this */
 	MSIEVE_FLAG_NFS_POLY1 = 0x40,     /* if input is large enough, perform
 	                                    stage 1 polynomial selection for NFS */
-	MSIEVE_FLAG_NFS_POLY2 = 0x80,     /* if input is large enough, perform
-	                                    stage 2 polynomial selection for NFS */
-	MSIEVE_FLAG_NFS_SIEVE = 0x100,   /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_POLYSIZE = 0x80,  /* if input is large enough, perform
+	                                    NFS polynomial size optimization */
+	MSIEVE_FLAG_NFS_POLYROOT = 0x100, /* if input is large enough, perform
+	                                    NFS polynomial root optimization */
+	MSIEVE_FLAG_NFS_SIEVE = 0x200,   /* if input is large enough, perform
 	                                    sieving for NFS */
-	MSIEVE_FLAG_NFS_FILTER = 0x200,  /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_FILTER = 0x400,  /* if input is large enough, perform
 	                                    filtering phase for NFS */
-	MSIEVE_FLAG_NFS_LA = 0x400,      /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_LA = 0x800,      /* if input is large enough, perform
 	                                    linear algebra phase for NFS */
-	MSIEVE_FLAG_NFS_SQRT = 0x800,    /* if input is large enough, perform
+	MSIEVE_FLAG_NFS_SQRT = 0x1000,    /* if input is large enough, perform
 	                                    square root phase for NFS */
-	MSIEVE_FLAG_NFS_LA_RESTART = 0x1000,/* restart the NFS linear algbra */
-	MSIEVE_FLAG_DEEP_ECM = 0x2000    /* perform nontrivial-size ECM */
+	MSIEVE_FLAG_NFS_LA_RESTART = 0x2000,/* restart the NFS linear algbra */
+	MSIEVE_FLAG_DEEP_ECM = 0x4000    /* perform nontrivial-size ECM */
 };
 
 

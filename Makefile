@@ -60,10 +60,11 @@ ifeq ($(TIMING),1)
 	CFLAGS += -DQS_TIMING
 endif
 
-# modify this for your particular msieve installation
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/linux/x86_64 -lmsieve
+#	modify the following line for your particular msieve installation
+	LIBS += -L../msieve/lib/linux/x86_64 
+	LIBS += -lmsieve -ldl
 endif
 
 # modify these for your particular cuda installation

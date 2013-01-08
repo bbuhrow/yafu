@@ -111,6 +111,9 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	get_ggnfs_params(fobj, job);
 	skew_snfs_params(fobj, job);
 	fill_job_file(fobj, job, PARAM_FLAG_ALL);
+	//also create a .fb file
+	ggnfs_to_msieve(fobj, job);
+
 	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
 	for(i = 0; i < npoly; i++)
@@ -262,7 +265,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	if (VFLAG > 0)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 	flags = flags | MSIEVE_FLAG_NFS_POLY1;
-	flags = flags | MSIEVE_FLAG_NFS_POLY2;		
+	flags = flags | MSIEVE_FLAG_NFS_POLYSIZE;
+	flags = flags | MSIEVE_FLAG_NFS_POLYROOT;
 	
 	for (i=0; i<THREADS; i++)
 	{
