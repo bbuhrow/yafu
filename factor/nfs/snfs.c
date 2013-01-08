@@ -250,63 +250,59 @@ void approx_norms(snfs_t *poly)
 
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 {
-	if (job->snfs != NULL)
+	// examine the difference between scaled difficulty and difficulty for snfs jobs
+	// and skew the r/a parameters accordingly.
+	// the input job struct should have already been filled in by get_ggnfs_params()	
+	double oom_skew;
+	int num_ticks;
+	double percent_skew;		
+	if (job->snfs == NULL)
+		return;
+
+	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+	num_ticks = (int)(oom_skew / 6.);
+	// 10% for every 6 orders of magnitude difference between the norms	
+	percent_skew = num_ticks * 0.1;
+
+	if (job->snfs->poly->side == RATIONAL_SPQ)
 	{
-		// examine the difference between scaled difficulty and difficulty for snfs jobs
-		// and skew the r/a parameters accordingly.
-		// the input job struct should have already been filled in by get_ggnfs_params()
-		double oom_skew;
-		int num_ticks;
-		double percent_skew;
+		// sieving on rational side means that side's norm is the bigger one
+		job->alim -= percent_skew*job->alim;
+		job->rlim += percent_skew*job->rlim;
 
-		oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-		if (oom_skew <= 0)
-			return;
-		
-		num_ticks = (int)(oom_skew / 6.);
-		// 10% for every 6 orders of magnitude difference between the norms
-		percent_skew = num_ticks * 0.1;
-
-		if (job->snfs->poly->side == RATIONAL_SPQ)
+		if (num_ticks >= 2)
 		{
-			// sieving on rational side means that the rational norm is larger
-			job->alim -= percent_skew*job->alim;
-			job->rlim += percent_skew*job->rlim;
-
-			if (num_ticks >= 3)
-			{
-				// for really big skew, increment the large prime bound as well
-				job->lpbr++;
-				job->mfbr += 2;
-			}
-
-			if (num_ticks >= 4)
-			{
-				// for really really big skew, use 3 large primes
-				job->mfbr = job->lpbr*2.9;
-				job->rlambda = 3.6;
-			}
-
+			// for really big skew, increment the large prime bound as well
+			job->lpbr++;
+			job->mfbr += 2;
 		}
-		else
+
+		if (num_ticks >= 3)
 		{
-			// sieving on algebraic side means that the algebraic norm is larger
-			job->alim += percent_skew*job->alim;
-			job->rlim -= percent_skew*job->rlim;
+			// for really really big skew, use 3 large primes
+			job->mfbr = job->lpbr*2.9;
+			job->rlambda = 3.6;
+		}
 
-			if (num_ticks >= 3)
-			{
-				// for really big skew, increment the large prime bound as well
-				job->lpba++;
-				job->mfba += 2;
-			}
+	}
+	else
+	{
+		// sieving on algebraic side means that side's norm is the bigger one
+		job->alim += percent_skew*job->alim;
+		job->rlim -= percent_skew*job->rlim;
 
-			if (num_ticks >= 4)
-			{
-				// for really really big skew, use 3 large primes
-				job->mfba = job->lpba*2.9;
-				job->alambda = 3.6;
-			}
+		if (num_ticks >= 2)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpba++;
+			job->mfba += 2;
+		}
+
+		if (num_ticks >= 3)
+		{
+			// for really really big skew, use 3 large primes
+			job->mfba = job->lpba*2.9;
+			job->alambda = 3.6;
 		}
 	}
 
@@ -2046,67 +2042,6 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 			ratio = 0.;
 
 		polys[i].sdifficulty = polys[i].difficulty + ratio;
-	}
-
-	return;
-}
-
-void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
-{
-	// examine the difference between scaled difficulty and difficulty for snfs jobs
-	// and skew the r/a parameters accordingly.
-	// the input job struct should have already been filled in by get_ggnfs_params()	
-	double oom_skew;
-	int num_ticks;
-	double percent_skew;		
-	if (job->snfs == NULL)
-		return;
-
-	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-	num_ticks = (int)(oom_skew / 6.);
-	// 10% for every 6 orders of magnitude difference between the norms	
-	percent_skew = num_ticks * 0.1;
-
-	if (job->snfs->poly->side == RATIONAL_SPQ)
-	{
-		// sieving on rational side means that side's norm is the bigger one
-		job->alim -= percent_skew*job->alim;
-		job->rlim += percent_skew*job->rlim;
-
-		if (num_ticks >= 2)
-		{
-			// for really big skew, increment the large prime bound as well
-			job->lpbr++;
-			job->mfbr += 2;
-		}
-
-		if (num_ticks >= 3)
-		{
-			// for really really big skew, use 3 large primes
-			job->mfbr = job->lpbr*2.9;
-			job->rlambda = 3.6;
-		}
-
-	}
-	else
-	{
-		// sieving on algebraic side means that side's norm is the bigger one
-		job->alim += percent_skew*job->alim;
-		job->rlim -= percent_skew*job->rlim;
-
-		if (num_ticks >= 2)
-		{
-			// for really big skew, increment the large prime bound as well
-			job->lpba++;
-			job->mfba += 2;
-		}
-
-		if (num_ticks >= 3)
-		{
-			// for really really big skew, use 3 large primes
-			job->mfba = job->lpba*2.9;
-			job->alambda = 3.6;
-		}
 	}
 
 	return;
