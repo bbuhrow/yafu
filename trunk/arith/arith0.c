@@ -21,6 +21,25 @@ code to the public domain.
 #include "yafu.h"
 #include "arith.h"
 
+void mp2gmp(z *src, mpz_t dest) {
+
+	mpz_import(dest, (size_t)(abs(src->size)), -1, sizeof(fp_digit), 
+			0, (size_t)0, src->val);
+
+	if (src->size < 0)
+		mpz_neg(dest, dest);
+}
+
+void gmp2mp(mpz_t src, z *dest) {
+
+	size_t count;
+
+	dest->size = 1;
+	dest->val[0] = 0;
+	mpz_export(dest->val, &count, -1, sizeof(fp_digit),
+			0, (size_t)0, src);
+	dest->size = count;
+}
 
 char * mpz_conv2str(char **in, int base, mpz_t n)
 {
@@ -377,6 +396,32 @@ char *z2hexstr(z *n, str_t *s)
 
 void str2hexz(char in[], z *u)
 {
+	mpz_t t;
+	mpz_init(t);
+	if (mpz_set_str(t, in, 0) < 0)
+	{
+		// not valid - couldn't determine base?  Try the ones we support:
+		if (mpz_set_str(t, in, 2) < 0)
+		{
+			if (mpz_set_str(t, in, 8) < 0)
+			{
+				if (mpz_set_str(t, in, 10) < 0)
+				{
+					if (mpz_set_str(t, in, 16) < 0)
+					{
+						printf("str2hexz couldn't convert input string %s\n", in);
+						exit(1);
+					}
+				}
+			}
+		}
+	}
+	gmp2mp(t, u);
+	mpz_clear(t);
+	return;
+
+
+	/*
 	//convert a string to a bigint
 	char *s2,*s,*incpy;
 	char **ptr = NULL;
@@ -510,6 +555,8 @@ void str2hexz(char in[], z *u)
 
 	free(incpy);
 	return;
+
+	*/
 }
 
 void mp_t2z(mp_t *src, z *dest)

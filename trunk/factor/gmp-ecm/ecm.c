@@ -330,16 +330,16 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 int ecm_get_sigma(ecm_thread_data_t *thread_data)
 {
 	fact_obj_t *fobj = thread_data->fobj;
-	z tmp;
+	mpz_t tmp;
 
-	zInit(&tmp);
+	mpz_init(tmp);
 	if (fobj->ecm_obj.sigma != 0)
 	{
 		if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
 			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
 		thread_data->sigma = fobj->ecm_obj.sigma;
 	}
-	else if (get_uvar("sigma",&tmp))
+	else if (get_uvar("sigma",tmp))
 	{
 		thread_data->sigma = spRand(6,MAX_DIGIT);
 	}
@@ -347,10 +347,10 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	{
 		if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
 			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-		thread_data->sigma = (uint32)tmp.val[0];
+		thread_data->sigma = (uint32)mpz_get_ui(tmp);
 	}
 
-	zFree(&tmp);
+	mpz_clear(tmp);
 	return 0;
 }
 

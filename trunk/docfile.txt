@@ -98,8 +98,13 @@ flags to change program behavior.  Supported flags are:
 -pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
 				Optionally provide an integer value specifing the maximum level of
 				pretesting to do (up to "num" digits, or a t-level of "num")
+-ecm_path <path>	full path to ecm binary
+-nprp <num>			Specify the number of witnesses to every Rabin-Miller test in yafu
+-ext_ecm <num>	specify the B1 value beyond which yafu will attempt to use
+				external ecm binaries.  below the specified threshold it will use
+				built-in ecm code
 				
-NFS BEHAVIOR OPTIONS
+NFS BEHAVIOR OPTIONS - configuring phases to run
 general info: if none of these options are specified, yafu will perform all of
 them in order (poly search, sieving, filter, LA, sqrt).  On restarts, the set 
 of phases performed is automatically determined by yafu and depends on the state
@@ -107,8 +112,6 @@ of one or more saved files associated with the input number.  If any of the
 following 5 options are specified, only those phases will be performed; checks
 against saved files will still be in place (i.e., refusal to overwrite data files)
 
--snfs			Check if the input has a special form, and if so, generate SNFS polynomials
-				and perform test sieving (and then finish the job if not told otherwise)
 -np	[X,Y]		Perform poly search step within nfs().  NOTE: any existing 
 				poly files will be overwritten.  Optionally, provide a range of 
 				leading coefficients over which to search in the format: start,stop
@@ -125,6 +128,7 @@ against saved files will still be in place (i.e., refusal to overwrite data file
 -nt file1,file2...	Perform automated trial sieving of the listed job files (then exit)
 				(yafu will fill any missing ggnfs parameters as necessary)
 
+NFS BEHAVIOR OPTIONS - general
 -lathreads	<num>		Use specified number of threads for linear algebra only.  If 
 				not specified, 'threads' threads are used (which defaults to 1).
 -a				Use special Q on the algebraic side within nfs()
@@ -147,11 +151,8 @@ against saved files will still be in place (i.e., refusal to overwrite data file
 -siever <num>		Specify the ggnfs siever version to use, where <num> is 
 				the integer in the default ggnfs siever name.  I.e, 
 				ggnfs-lasieve4I<num>e.exe		
--ecm_path <path>	full path to ecm binary
--nprp <num>			Specify the number of witnesses to every Rabin-Miller test in yafu
--ext_ecm <num>	specify the B1 value beyond which yafu will attempt to use
-				external ecm binaries.  below the specified threshold it will use
-				built-in ecm code
+-testsieve <num>	Number of digits beyond which yafu will test sieve the top
+					3 polynomials discovered by either gnfs or snfs (default: 140)
 				
 
 
@@ -256,7 +257,7 @@ ispow			rho			gcd
 issquare			trial			jacobi
 sieverange			ecm			modinv
 testrange			fermat			fib
-						luc
+					snfs	luc
 						llt
 
 ----------
@@ -429,22 +430,39 @@ description:
 combines a variety of routines to (hopefully) optimally factor an arbitrary input.
 
 command line flags effecting factor:
--noecm			Set this flag to skip all ECM stages in the factor() function and instead
-				proceed directly to QS/NFS after small factor detection.
--one			Tells factor() to stop factoring after finding one factor.
--op <name>		Tells factor() to output primes and prps to file <name>.
--of <name>		Tells factor() to output an input number and all found factors to file <name>.
--ou <name>		Tells factor() to output unfactored composites to file <name>.
--plan <name>	Tells factor() to follow one of the following pretesting plans:
-				<name> = none: do only trial division and rho
-				<name> = noecm: stop before first ecm step and start nfs/qs
-				<name> = light: stop after 25 digit ecm (B1=50k) and start nfs/qs
-				<name> = normal: proceed as normal
-				<name> = deep: skip to 30 digit ecm (B1=250k) after trial division
-				All plans will still be stopped early if it is time optimal to do so.
-				All plans can be used in combination with target_ecm ratio options
--pretest		Use this switch to do only pretesting of the input number to
-				the factor() routine.  Sieve methods (QS/NFS) are not used
+-one				Tells factor() to stop factoring after finding one factor.
+-op <name>			Tells factor() to output primes and prps to file <name>.
+-of <name>			Tells factor() to output an input number and all found factors 
+				to file <name>.
+-ou <name>			Tells factor() to output unfactored composites to file <name>.
+-no_expr			When outputting numbers to file, do not print expression form, 
+				show full decimal expansion.
+-plan <name>		Tells factor() to follow one of the following pretesting plans:
+					<name> = none: do only trial division and rho
+					<name> = noecm: stop before first ecm step and start 
+						nfs/qs
+					<name> = light: pretest to t-level 2/7 the size of 
+						the input before starting qs/nfs
+					<name> = normal: pretest to t-level 4/13 the size of 
+						the input before starting qs/nfs
+					<name> = deep: pretest to t-level 1/3 the size of the  
+						input before starting qs/nfs
+					<name> = custom: pretest to t-level specified by the 
+						ratio in the –pretest_ratio option 
+-pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
+				determine the depth of pretesting.  Inputs are pretested 
+				to t-level equal to size of input * pretest_ratio
+-work <num>		Assert to factor() that the input has already received pretesting 
+				equivalent to the specified t-level.  In other words, if you know 
+				that an input has received ~900 ecm curves at B1=1M, then 
+				specify –work 35.  This value may be input as floating point.
+-xover <num>		Use this option to specify the decimal digit size beyond which nfs
+				should be used instead of qs.  Specifying this option overrides
+				any crossover point computed from tuning data.  May be entered
+				as a floating point number.
+-pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
+				Optionally provide an integer value specifing the maximum level of
+				pretesting to do (up to "num" digits, or a t-level of "num")
 
 [pm1]
 usage: pm1(expression)
@@ -724,8 +742,6 @@ usage: llt(expression)
 description:
 start the lucas lehmer test on the number 2^expression - 1.  A small amount of trial
 division is first performed, after determining that the expression is prime.
-Multiplication is N^2, so this is pretty slow for expression evaluating to greater than
-10000 or so.
 [end]
 
 

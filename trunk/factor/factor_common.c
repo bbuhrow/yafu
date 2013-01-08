@@ -160,8 +160,6 @@ enum factorization_state {
 	state_done
 };
 
-static int refactor_depth = 0;
-
 // local functions to do state based factorization
 double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b);
 double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b);
@@ -193,6 +191,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->flags = 0;
 	fobj->num_threads = 1;		//read from input arguments	
 	strcpy(fobj->flogname,"factor.log");	
+	fobj->do_logging = 1;
 
 	// initialize stuff for rho	
 	fobj->rho_obj.iterations = 1000;		
@@ -259,7 +258,7 @@ void init_factobj(fact_obj_t *fobj)
 	init_lehman();
 
 	// initialize stuff for trial division	
-	fobj->div_obj.print = 0;
+	fobj->div_obj.print = 0;	
 	fobj->div_obj.limit = 10000;
 	fobj->div_obj.fmtlimit = 1000000;
 	
@@ -315,7 +314,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
 	strcpy(fobj->autofact_obj.plan_str,"normal");
 	fobj->autofact_obj.only_pretest = 0;
-	fobj->autofact_obj.autofact_active = 0;
+	fobj->autofact_obj.autofact_active = 0;	
 
 	return;
 }
@@ -379,6 +378,7 @@ void free_factobj(fact_obj_t *fobj)
 
 	// then free other stuff in nfs
 	mpz_clear(fobj->nfs_obj.gmp_n);
+	mpz_clear(fobj->nfs_obj.snfs_cofactor);
 
 	//free general fobj stuff
 	zFree(&fobj->N);
@@ -428,6 +428,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->nfs_obj.gmp_n);
+	mpz_init(fobj->nfs_obj.snfs_cofactor);
 
 	fobj->allocated_factors = 256;
 	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
@@ -1040,8 +1041,8 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			{
 				if (!mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
-					refactor_depth++;
-					if (refactor_depth > 3)
+					fobj->refactor_depth++;
+					if (fobj->refactor_depth > 3)
 					{
 						printf("too many refactorization attempts, aborting\n");
 						done = 1;
@@ -1053,7 +1054,8 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						fact_obj_t *fobj_refactor;
 						int j;
 
-						printf("\nComposite result found, starting re-factorization\n");
+						if (VFLAG > 0)
+							printf("\nComposite result found, starting re-factorization\n");
 
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
@@ -1937,6 +1939,7 @@ void factor(fact_obj_t *fobj)
 	if (fobj->autofact_obj.only_pretest > 1)
 		logprint(flog, "custom pretesting limit is: %d\n",
 		fobj->autofact_obj.only_pretest);
+
 	if (check_tune_params(fobj))
 	{
 		if (fobj->autofact_obj.prefer_xover)

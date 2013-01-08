@@ -228,14 +228,20 @@ void nfs(fact_obj_t *fobj)
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
 			{
-				// check snfs forms (if requested)
-				if( fobj->nfs_obj.snfs )
-				{
-					snfs_choose_poly(fobj, &job);
-				}
+				// always check snfs forms (it is fast)
+				snfs_choose_poly(fobj, &job);
 
 				if( job.snfs == NULL )
-				{ // either we never were doing snfs, or snfs form detect failed
+				{ 
+					// either we never were doing snfs, or snfs form detect failed.
+					// if the latter then bail with an error because the user 
+					// explicitly wants to run snfs...
+					if (fobj->nfs_obj.snfs)
+					{
+						printf("nfs: failed to find snfs polynomial!\n");
+						exit(-1);
+					}
+
 					// init job.poly for gnfs
 					job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 					if (job.poly == NULL)
@@ -250,6 +256,8 @@ void nfs(fact_obj_t *fobj)
 
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 				}
+				else
+					fobj->nfs_obj.snfs = 1;
 			}
 
 			nfs_state = NFS_STATE_SIEVE;

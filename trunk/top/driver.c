@@ -51,8 +51,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve", "snfs", "nt"};
-
+	"ext_ecm", "testsieve", "nt"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -71,7 +70,7 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1,1,0,1};
+	1,1,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -103,7 +102,7 @@ int main(int argc, char *argv[])
 	uint32 insize = GSTR_MAXSIZE;
 	char *input_exp, *ptr, *indup;
 	str_t str;
-	z tmp;
+	mpz_t tmp;
 	int nooutput,offset,slog,is_cmdline_run=0;
 	FILE *logfile;
 	fact_obj_t *fobj;
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
 	print_splash(is_cmdline_run, logfile, CPU_ID_STR);
 
 	// bigint used in this routine
-	zInit(&tmp);
+	mpz_init(tmp);
 	
 	//start the calculator
 	//right now this just allocates room for user variables
@@ -191,7 +190,10 @@ int main(int argc, char *argv[])
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
-	srand(g_rand.low);
+	srand(g_rand.low);	
+	gmp_randinit_default(gmp_randstate);
+	mpz_set_ui(gmp_randstate->_mp_seed, g_rand.low);
+
 #if BITS_PER_DIGIT == 64
 	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
 #else
@@ -306,6 +308,9 @@ int main(int argc, char *argv[])
 			else
 				nooutput = 0;
 
+			// new factorization
+			fobj->refactor_depth = 0;
+
 			if (!calc(&str,fobj))
 			{
 				if (strcmp(str.s,"") != 0)
@@ -314,37 +319,24 @@ int main(int argc, char *argv[])
 					double t;
 
 					start = clock();
-					str2hexz(str.s,&tmp);
+					mpz_set_str(tmp, str.s, 10);
 					stop = clock();
 					t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 					//printf("str2hexz in = %6.4f seconds.\n",t);
 
-					if (set_uvar(input_exp,&tmp))
-						new_uvar(input_exp,&tmp);
+					if (set_uvar(input_exp,tmp))
+						new_uvar(input_exp,tmp);
 					if (nooutput == 0)
 					{
 						if (OBASE == DEC)
 						{
-							start = clock();
 							if (VFLAG >= 0)
-								printf("\n%s = %s\n\n",input_exp,z2decstr(&tmp,&gstr1));
-
-							stop = clock();
-							t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 10, tmp));
 						}
 						else if (OBASE == HEX)
 						{
-							if (strstr(str.s,"0x") != NULL)
-							{
-								if (VFLAG >= 0)
-									printf("\n%s = %s\n\n",input_exp,str.s);
-							}
-							else
-							{
-								z2hexstr(&tmp,&str);
-								if (VFLAG >= 0)
-									printf("\n%s = %s\n\n",input_exp,str.s);
-							}
+							if (VFLAG >= 0)
+								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 16, tmp));
 						}
 					}
 				}
@@ -395,7 +387,7 @@ int main(int argc, char *argv[])
 	sFree(&str);
 	free(input_exp);
 	free(indup);	
-	zFree(&tmp);
+	mpz_clear(tmp);
 	free_factobj(fobj);
 	free(fobj);
 
@@ -1909,11 +1901,6 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		fobj->nfs_obj.snfs_testsieve_threshold = strtoul(arg,NULL,10);
 	}
 	else if (strcmp(opt,OptionArray[62]) == 0)
-	{
-		// argument "snfs"
-		fobj->nfs_obj.snfs = 1;
-	}
-	else if (strcmp(opt,OptionArray[63]) == 0)
 	{
 		// argument "nt"
 		if (arg == NULL)

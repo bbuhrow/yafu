@@ -58,7 +58,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	if (poly->form_type == SNFS_NONE)
 	{
-		printf("nfs: couldn't find special form, reverting to gnfs\n");
+		printf("nfs: couldn't find special form\n");
 		snfs_clear(poly);
 		free(poly);
 		return;

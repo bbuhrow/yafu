@@ -28,27 +28,6 @@ extern "C" {
 	   MSVC forces the input argument in these calls to
 	   be 32 bits in size and not 64 */
 
-/*--------------------------------------------------------------------*/
-static INLINE void mp2gmp(z *src, mpz_t dest) {
-
-	mpz_import(dest, (size_t)(abs(src->size)), -1, sizeof(fp_digit), 
-			0, (size_t)0, src->val);
-
-	if (src->size < 0)
-		mpz_neg(dest, dest);
-}
-
-/*--------------------------------------------------------------------*/
-static INLINE void gmp2mp(mpz_t src, z *dest) {
-
-	size_t count;
-
-	zClear(dest);
-	mpz_export(dest->val, &count, -1, sizeof(fp_digit),
-			0, (size_t)0, src);
-	dest->size = count;
-}
-
 static INLINE void mp_t2gmp(mp_t *src, mpz_t dest) {
 
 	mpz_import(dest, (size_t)(src->nwords), -1, sizeof(uint32), 
