@@ -124,7 +124,7 @@ typedef struct
 	// input integer
 	mpz_t n; // the cofactor, what goes in the job file
 	mpz_t N; // the full form, small factors and all
-
+	mpz_t primitive;
 	// algebraic representation of the snfs form:
 	// n divides c1*b1^e1 + c2*b2^e2
 	int base1;
@@ -265,6 +265,7 @@ void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
+void find_primitive_factor(snfs_t *poly);
 
 int NFS_ABORT;
 

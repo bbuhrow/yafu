@@ -643,20 +643,23 @@ void gordon(int bits, z *p)
 	return;
 }
 
-void build_RSA(int bits, z *n)
+void build_RSA(int bits, mpz_t in)
 {
-	z p,q;
+	z p,q,n;
 	int i;
 	int words,subwords;
 
 	if (bits < 65)
 	{
-		printf("bitlength to small\n");
+		printf("bitlength too small\n");
 		return;
 	}
 
+	zInit(&n);
 	zInit(&p);
 	zInit(&q);
+
+	gmp2mp(in, &n);
 
 	words = bits/BITS_PER_DIGIT + (bits%BITS_PER_DIGIT != 0);
 	subwords = (int)ceil((double)words/2.0);
@@ -667,21 +670,22 @@ void build_RSA(int bits, z *n)
 	if (subwords > q.alloc)
 		zGrow(&q,subwords + LIMB_BLKSZ);
 
-	if (words > n->alloc)
-		zGrow(n,words + LIMB_BLKSZ);
+	if (words > n.alloc)
+		zGrow(&n, words + LIMB_BLKSZ);
 
-	zClear(n);
+	zClear(&n);
 	i=0;
-	while (zBits(n) != bits)
+	while (zBits(&n) != bits)
 	{
 		gordon(bits/2,&p);
 		gordon(bits/2,&q);
-		zMul(&p,&q,n);
+		zMul(&p,&q,&n);
 		//printf("trial %d has %d bits\n",i,zBits(n));
 		i++;
 	}
 
 	//printf("took %d trials\n",i);
+	mp2gmp(&n, in);
 	zFree(&p);
 	zFree(&q);
 	return;

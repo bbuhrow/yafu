@@ -178,7 +178,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		}
 
 		//create the afb/rfb - we don't want the time it takes to do this to
-		//pollute the sieve timings
+		//pollute the sieve timings		
 		sprintf(syscmd, "%s -b %s -k -c 0 -F", jobs[i].sievername, filenames[i]);
 		if (VFLAG > 0) printf("\ntest: generating factor bases\n");
 		gettimeofday(&start, NULL);
@@ -189,9 +189,6 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(difference);
 		if (VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
 		MySleep(.1);
-		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
-		remove(tmpbuf);
-		// are we really supposed to be removing the factorbase files before the test?
 
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
@@ -205,6 +202,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
 
+		// remove generated AFB
+		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
+		remove(tmpbuf);
+		
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
 		in = fopen(tmpbuf, "r");

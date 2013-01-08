@@ -85,7 +85,7 @@ typedef struct
 typedef struct
 {
 	char name[40];
-	z data;
+	mpz_t data;
 } uvar_t;
 
 typedef struct
@@ -150,6 +150,7 @@ char sessionname[1024];
 
 // random numbers - used everywhere
 rand_t g_rand;
+gmp_randstate_t gmp_randstate;
 uint64 LCGSTATE;
 
 //SoE

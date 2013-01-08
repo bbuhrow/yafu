@@ -35,7 +35,6 @@ void zTrial(fact_obj_t *fobj)
 	mpz_t tmp;
 	mpz_init(tmp);
 
-	//open the log file
 	flog = fopen(fobj->flogname,"a");
 	if (flog == NULL)
 	{

@@ -33,12 +33,14 @@ void snfs_init(snfs_t* poly)
 	poly->poly->rat.degree = 1;
 	mpz_init(poly->n);
 	mpz_init(poly->N);
+	mpz_init(poly->primitive);
 }
 
 void snfs_clear(snfs_t* poly)
 {
 	mpz_clear(poly->n);
 	mpz_clear(poly->N);
+	mpz_clear(poly->primitive);
 	mpz_polys_free(poly->poly);
 	free(poly->poly);
 }
@@ -47,6 +49,7 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 {
 	int i;
 	mpz_set(dest->n, src->n);
+	mpz_set(dest->primitive, src->primitive);
 	dest->base1 = src->base1;
 	dest->base2 = src->base2;
 	dest->exp1 = src->exp1;
@@ -413,14 +416,19 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 					}
 				}
 
+				if ((c1 == 1) && (c2 == 1) && (sign == NEGATIVE) && (j % 2) == 0)
+					j /= 2;
+
 				form->form_type = SNFS_BRENT;
 				form->coeff1 = c1;
 				form->base1 = i;
 				form->base2 = 1;
 				form->exp1 = j;
 				form->coeff2 = sign ? -c2 : c2;
-				mpz_set(form->n, n);
-				//gen_brent_poly(fobj, form);
+				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+				else
+					mpz_set(form->n, n);
 				goto done;
 			}
 		}
@@ -447,8 +455,14 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			form->exp1 = i;
 			form->base2 = 1;
 			form->coeff2 = -1;
-			mpz_set(form->n, n);
-			//gen_brent_poly(fobj, form);
+			// if the exponent is divisible by 2 in this case, then we can algebraically factor
+			// as b^(2n) - 1 = (b^n + 1)(b^n - 1)
+			if ((i & 0x1) == 0)
+				form->exp1 /= 2;
+			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+			else
+				mpz_set(form->n, n);
 			goto done;
 		}
 
@@ -465,8 +479,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			form->exp1 = i;
 			form->base2 = 1;
 			form->coeff2 = 1;
-			mpz_set(form->n, n);
-			//gen_brent_poly(fobj, form);
+			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+			else
+				mpz_set(form->n, n);
 			goto done;
 		}
 
@@ -536,8 +552,10 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->exp1 = k;
 					form->coeff1 = 1;
 					form->coeff2 = 1;
-					mpz_set(form->n, n);
-					//gen_brent_poly(fobj, form);
+					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+					else
+						mpz_set(form->n, n);
 					goto done;
 				}
 
@@ -552,8 +570,10 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->exp1 = k;
 					form->coeff1 = 1;
 					form->coeff2 = -1;
-					mpz_set(form->n, n);
-					//gen_brent_poly(fobj, form);
+					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+					else
+						mpz_set(form->n, n);
 					goto done;
 				}
 
@@ -620,7 +640,10 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 				form->exp2 = x;
 				form->coeff1 = 1;
 				form->coeff2 = 1;
-				mpz_set(form->n, n);
+				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+				else
+					mpz_set(form->n, n);
 				goto done;
 			}
 		}
@@ -634,35 +657,206 @@ done:
 	return;
 }
 
-// this is a start, but is not good enough.  We need to find the primitive factor
-// of the input when there is an algebraic reduction.
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
-void brent_alg_reduce_n(snfs_t *poly, int fac)
+void find_primitive_factor(snfs_t *poly)
 {
-	mpz_t t, t2;
+	// factor the exponent.  The algebraic reductions yafu knows how to handle are
+	// for cunningham and homogenous cunningham inputs where the exponent is in
+	// the exp1 field.
+	int e = poly->exp1;
+	int f[32];
+	int nf, i, j, k, m, mult;
+	// ranks of factors - we support up to 3 distinct odd factors of e
+	int franks[4][32];		// and beans
+	// and counts of the factors in each rank
+	int cranks[4];			// doesn't that make you happy?
+	int nr, mrank;
+	mpz_t n, term, t;
 
-	if (poly->form_type == SNFS_BRENT)
+	nf = tdiv_int(e, f);	
+	
+	for (i=0; i<4; i++)
+		cranks[i] = 0;
+
+	// now arrange the factors into ranks of combinations of unique, distinct, and odd factors.
+	// rank 0 is always 1
+	franks[0][0] = 1;
+	cranks[0] = 1;
+
+	// rank 1 is a list of the distinct odd factors.
+	j=0;
+	if (VFLAG > 1) printf("gen: rank 1 terms: ");
+	for (i=0; i<nf; i++)
 	{
-		mpz_init(t);
-		mpz_init(t2);
-		mpz_set_ui(t, poly->base1);
-		mpz_pow_ui(t, t, fac);
-		if (poly->coeff2 < 0)
-			mpz_sub_ui(t, t, 1);
-		else
-			mpz_add_ui(t, t, 1);
-
-		mpz_mod(t2, poly->n, t);
-		if (mpz_cmp_ui(t2, 0) == 0)
+		if (f[i] & 0x1)
 		{
-			mpz_tdiv_q(poly->n, poly->n, t);
-			gmp_printf("gen: reducing input by an algebraic factor of %Zd\n", t);
+			// odd
+			if (j==0 || f[i] != franks[1][j-1])
+			{
+				// distinct
+				franks[1][j++] = f[i];
+				if (VFLAG > 1) printf("%d ", f[i]);
+			}
 		}
+	}
+	if (VFLAG > 1) printf("\n");
+	cranks[1] = j;
+	nr = j + 1;
 
-		mpz_clear(t);
-		mpz_clear(t2);
+	if (j > 3)
+	{
+		printf("gen: too many distinct odd factors in exponent!\n");
+		exit(1);
 	}
 
+	// ranks 2...nf build on the first rank combinatorially.
+	// knuth, of course, has a lot to say on enumerating combinations:
+	// http://www.cs.utsa.edu/~wagner/knuth/fasc3a.pdf
+	// in which algorithm T might be sufficient since e shouldn't have too many
+	// factors.
+	// but since e shouldn't have too many factors and I don't feel like implementing
+	// algorithm T from that reference right now, I will proceed to hardcode a bunch of
+	// simple loops.
+	// here is the second rank, if necessary
+	if (cranks[1] == 2)
+	{
+		franks[2][0] = franks[1][0] * franks[1][1];
+		cranks[2] = 1;
+		if (VFLAG > 1) printf("gen: rank 2 term: %d\n", franks[2][0]);
+	}
+	else if (cranks[1] == 3)
+	{
+		// combinations of 2 primes
+		m=0;
+		if (VFLAG > 1) printf("gen: rank 2 terms: ");
+		for (j=0; j<cranks[1]-1; j++)
+		{
+			for (k=j+1; k<cranks[1]; k++)
+			{
+				franks[2][m++] = franks[1][j] * franks[1][k];
+				if (VFLAG > 1) printf("%d ", franks[2][m-1]);
+			}
+		}
+		cranks[2] = m;
+		if (VFLAG > 1) printf("\n");
+
+		// combinations of 3 primes
+		franks[3][0] = franks[1][0] * franks[1][1] * franks[1][2];
+		cranks[3] = 1;
+		if (VFLAG > 1) printf("gen: rank 3 term: %d\n", franks[3][0]);
+	}
+
+	// for exponents with repeated or even factors, find the multiplier
+	mult = e;
+	for (i=0; i<cranks[1]; i++)
+		mult /= franks[1][i];
+	if (VFLAG > 1) printf("gen: base exponent multiplier: %d\n", mult);
+
+	// form the primitive factor, following the rank system of
+	// http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
+	mpz_init(n);
+	mpz_set_ui(n, 1);
+	mpz_init(term);
+	mpz_init(t);
+	if ((nr & 0x1) == 1) 
+		mrank = 0;
+	else
+		mrank = 1;
+	for (i=nr-1; i >= 0; i--)
+	{
+		char c;
+		if ((i & 0x1) == mrank)
+		{
+			// multiply by every other rank - do this before the division
+			for (j=0; j<cranks[i]; j++)
+			{			
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set_ui(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					mpz_set_ui(t, poly->base2);
+					mpz_pow_ui(t, t, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub(term, term, t); c = '-';
+					}
+					else {
+						mpz_add(term, term, t); c = '+';
+					}
+					if (VFLAG > 1) printf("gen: multiplying by %d^%d %c %d^%d\n", 
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult);
+
+				}
+				else
+				{
+					mpz_set_ui(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub_ui(term, term, 1); c = '-';
+					}
+					else {
+						mpz_add_ui(term, term, 1); c = '+';
+					}
+					if (VFLAG > 1) printf("gen: multiplying by %d^%d %c 1\n", 
+						poly->base1, franks[i][j] * mult, c);
+				}
+				mpz_mul(n, n, term);
+			}
+		}
+	}
+	for (i=nr-1; i >= 0; i--)
+	{
+		char c;
+		if ((i & 0x1) == (!mrank))
+		{
+			// divide by every other rank
+			for (j=0; j<cranks[i]; j++)
+			{		
+				if (poly->form_type == SNFS_H_CUNNINGHAM)
+				{
+					mpz_set_ui(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					mpz_set_ui(t, poly->base2);
+					mpz_pow_ui(t, t, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub(term, term, t); c = '-';
+					}
+					else {
+						mpz_add(term, term, t); c = '+';
+					}
+					if (VFLAG > 1) printf("gen: dividing by %d^%d %c %d^%d\n", 
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult);
+				}
+				else
+				{
+					mpz_set_ui(term, poly->base1);
+					mpz_pow_ui(term, term, franks[i][j] * mult);
+					if (poly->coeff2 < 0) {
+						mpz_sub_ui(term, term, 1); c = '-';
+					}
+					else {
+						mpz_add_ui(term, term, 1); c = '+';
+					}
+					if (VFLAG > 1) printf("gen: dividing by %d^%d %c 1\n", 
+						poly->base1, franks[i][j] * mult, c);
+				}
+				mpz_mod(t, n, term);
+				if (mpz_cmp_ui(t, 0) != 0) printf("gen: error, term doesn't divide n!\n");
+				mpz_tdiv_q(n, n, term);
+			}
+		}
+	}
+
+	mpz_set(poly->primitive, n);
+
+	if (mpz_cmp(n, poly->n) < 0)
+	{
+		gmp_printf("gen: found primitive factor < input number:\ngen: %Zd\n", n);
+		mpz_set(poly->n, n);
+	}
+
+	mpz_clear(n);
+	mpz_clear(term);
+	mpz_clear(t);
 	return;
 }
 
@@ -672,7 +866,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int e = poly->exp1;
 	int b = poly->base1;
 	int b2 = poly->base2;
-	mpz_t n, m;
+	mpz_t n, m, t;
 	double d, skew, k;
 	int f[100];
 	int numf = 0;
@@ -682,6 +876,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	mpz_init(n);
 	mpz_init(m);
+	mpz_init(t);
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -701,14 +896,15 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// if any of these are available we immediately use them, because dividing out an algebraic factor
 	// will always be lower difficulty then playing with exponents only, even if the degree
 	// is sub-optimal.  The possibility of simple algebraic reduction occurs only when the a,c 
-	// coefficients are 1.  More complex algebraic reductions like completing squares or Aurifeuillian 
+	// coefficients are 1.  More complex algebraic reductions like Aurifeuillian 
 	// factorizations are not attempted here.
+	find_primitive_factor(poly);
 	if (poly->exp1 % 15 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 3);
+		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(15k) +/- 1 has an algebraic factor which is an 8th degree symmetric polynomial.
@@ -731,18 +927,24 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		{
 			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
 			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^2 gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			// multiplying through by a2^(2k) gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
 			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
 			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
+			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
 			mpz_set_ui(n, poly->base2);
 			mpz_pow_ui(n, n, 2*k);
 			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
 			mpz_sqrt(n, n);
-			mpz_invert(n, n, poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
+			mpz_set(t, n);													// a2^k
+			mpz_invert(n, n, poly->n);										// a2^-k
+			mpz_mul(n, polys->poly->m, n);									// 
+			mpz_mod(n, n, poly->n);											// (a1/a2)^k
+			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
+			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
+			mpz_add(polys->poly->m, polys->poly->m, n);						//
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
 			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
 		}
 		else
@@ -764,7 +966,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 3);
+		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(21k) +/- 1 has an algebraic factor which is a 12th degree symmetric polynomial.
@@ -789,18 +991,24 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		{
 			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
 			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^2 gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			// multiplying through by a2^(2k) gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
 			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
 			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
+			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
 			mpz_set_ui(n, poly->base2);
 			mpz_pow_ui(n, n, 2*k);
 			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
 			mpz_sqrt(n, n);
-			mpz_invert(n, n, poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
+			mpz_set(t, n);													// a2^k
+			mpz_invert(n, n, poly->n);										// a2^-k
+			mpz_mul(n, polys->poly->m, n);									// 
+			mpz_mod(n, n, poly->n);											// (a1/a2)^k
+			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
+			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
+			mpz_add(polys->poly->m, polys->poly->m, n);						//
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
 			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
 		}
 		else
@@ -822,7 +1030,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 3);
+		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -864,7 +1072,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 3);
+		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -906,7 +1114,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 5);
+		//brent_alg_reduce_n(poly, poly->exp1 / 5);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
@@ -948,7 +1156,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 7);
+		//brent_alg_reduce_n(poly, poly->exp1 / 7);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
@@ -991,7 +1199,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 11);
+		//brent_alg_reduce_n(poly, poly->exp1 / 11);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
@@ -1014,18 +1222,24 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		{
 			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
 			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^2 gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			// multiplying through by a2^(2k) gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
 			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
 			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
+			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
 			mpz_set_ui(n, poly->base2);
 			mpz_pow_ui(n, n, 2*k);
 			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
 			mpz_sqrt(n, n);
-			mpz_invert(n, n, poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
+			mpz_set(t, n);													// a2^k
+			mpz_invert(n, n, poly->n);										// a2^-k
+			mpz_mul(n, polys->poly->m, n);									// 
+			mpz_mod(n, n, poly->n);											// (a1/a2)^k
+			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
+			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
+			mpz_add(polys->poly->m, polys->poly->m, n);						//
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
 			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
 		}
 		else
@@ -1047,7 +1261,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		brent_alg_reduce_n(poly, poly->exp1 / 13);
+		//brent_alg_reduce_n(poly, poly->exp1 / 13);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(13k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 12.
@@ -1071,18 +1285,24 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		{
 			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
 			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^2 gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k
+			// multiplying through by a2^(2k) gives:
+			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
 			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
 			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
+			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
 			mpz_set_ui(n, poly->base2);
 			mpz_pow_ui(n, n, 2*k);
 			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
 			mpz_sqrt(n, n);
-			mpz_invert(n, n, poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
+			mpz_set(t, n);													// a2^k
+			mpz_invert(n, n, poly->n);										// a2^-k
+			mpz_mul(n, polys->poly->m, n);									// 
+			mpz_mod(n, n, poly->n);											// (a1/a2)^k
+			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
+			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
+			mpz_add(polys->poly->m, polys->poly->m, n);						//
+			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
 			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
 		}
 		else
@@ -1364,6 +1584,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		} // for each degree
 	} // check for algebraic factors
 
+	mpz_clear(m);
+	mpz_clear(n);
+	mpz_clear(t);
 	*npolys = npoly;
 	return polys;
 }
@@ -1823,6 +2046,67 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 			ratio = 0.;
 
 		polys[i].sdifficulty = polys[i].difficulty + ratio;
+	}
+
+	return;
+}
+
+void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
+{
+	// examine the difference between scaled difficulty and difficulty for snfs jobs
+	// and skew the r/a parameters accordingly.
+	// the input job struct should have already been filled in by get_ggnfs_params()	
+	double oom_skew;
+	int num_ticks;
+	double percent_skew;		
+	if (job->snfs == NULL)
+		return;
+
+	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
+	num_ticks = (int)(oom_skew / 6.);
+	// 10% for every 6 orders of magnitude difference between the norms	
+	percent_skew = num_ticks * 0.1;
+
+	if (job->snfs->poly->side == RATIONAL_SPQ)
+	{
+		// sieving on rational side means that side's norm is the bigger one
+		job->alim -= percent_skew*job->alim;
+		job->rlim += percent_skew*job->rlim;
+
+		if (num_ticks >= 2)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpbr++;
+			job->mfbr += 2;
+		}
+
+		if (num_ticks >= 3)
+		{
+			// for really really big skew, use 3 large primes
+			job->mfbr = job->lpbr*2.9;
+			job->rlambda = 3.6;
+		}
+
+	}
+	else
+	{
+		// sieving on algebraic side means that side's norm is the bigger one
+		job->alim += percent_skew*job->alim;
+		job->rlim -= percent_skew*job->rlim;
+
+		if (num_ticks >= 2)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpba++;
+			job->mfba += 2;
+		}
+
+		if (num_ticks >= 3)
+		{
+			// for really really big skew, use 3 large primes
+			job->mfba = job->lpba*2.9;
+			job->alambda = 3.6;
+		}
 	}
 
 	return;

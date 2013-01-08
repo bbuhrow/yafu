@@ -38,7 +38,7 @@ code to the public domain.
 #define RIGHT 1
 #define LEFT 0
 
-#define NUM_FUNC 64
+#define NUM_FUNC 65
 
 //arbitrary precision calculator
 void testcalc(void);
@@ -59,9 +59,9 @@ int isEOE(char s);
 int getFunc(char *s, int *nargs);
 int feval(int func, int nargs, fact_obj_t *fobj);
 //int getArgs(str_t *args, str_t *in, int num);
-int new_uvar(const char *name, z *data);
-int set_uvar(const char *name, z *data);
-int get_uvar(const char *name, z *data);
+int new_uvar(const char *name, mpz_t data);
+int set_uvar(const char *name, mpz_t data);
+int get_uvar(const char *name, mpz_t data);
 void free_uvars();
 int invalid_dest(char *dest);
 int invalid_num(char *num);

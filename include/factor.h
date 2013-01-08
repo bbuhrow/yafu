@@ -322,7 +322,7 @@ typedef struct
 	uint32 limit;				//trial div limit
 	uint32 fmtlimit;			//fermat max iterations
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
+	z *factors;					//array of bigint factors found in this method	
 	double ttime;
 	int print;
 
@@ -378,7 +378,8 @@ typedef struct
 	mpz_t gmp_n;
 	mpz_t N; // full form used for snfs
 
-	int snfs; // if the user specifies snfs
+	int snfs; // if this is a snfs job
+	mpz_t snfs_cofactor;
 
 	char ggnfs_dir[GSTR_MAXSIZE];
 	uint32 siever;
@@ -407,7 +408,8 @@ typedef struct
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;				//array of bigint factors found in this method
 	double ttime;
-
+	
+	// an object used to carry around information needed by the msieve library
 	msieve_obj *mobj;
 
 	char filearg[GSTR_MAXSIZE]; // used to facilitate external trial sieving
@@ -498,6 +500,8 @@ typedef struct
 	factor_t *fobj_factors;
 	uint32 num_factors;
 	uint32 allocated_factors;
+	int do_logging;
+	int refactor_depth;
 
 } fact_obj_t;
 
