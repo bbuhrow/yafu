@@ -210,7 +210,7 @@ void nfs(fact_obj_t *fobj)
 					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
 
 			if (nfs_state != NFS_STATE_DONE)
-				logprint_oc(fobj->flogname, "a", "nfs: commencing gnfs on c%d: %s\n",
+				logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
 					gmp_base10(fobj->nfs_obj.gmp_n),
 					mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
@@ -257,7 +257,10 @@ void nfs(fact_obj_t *fobj)
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 				}
 				else
+				{
 					fobj->nfs_obj.snfs = 1;
+					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
+				}
 			}
 
 			nfs_state = NFS_STATE_SIEVE;
