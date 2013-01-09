@@ -123,7 +123,6 @@ typedef struct
 {
 	// input integer
 	mpz_t n; // the cofactor, what goes in the job file
-	mpz_t N; // the full form, small factors and all
 	mpz_t primitive;
 	// algebraic representation of the snfs form:
 	// n divides c1*b1^e1 + c2*b2^e2

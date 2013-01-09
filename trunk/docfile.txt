@@ -125,9 +125,6 @@ against saved files will still be in place (i.e., refusal to overwrite data file
 				linear algebra
 -nc3			Perform postprocessing step within nfs(), starting with sqrt
 
--nt file1,file2...	Perform automated trial sieving of the listed job files (then exit)
-				(yafu will fill any missing ggnfs parameters as necessary)
-
 NFS BEHAVIOR OPTIONS - general
 -lathreads	<num>		Use specified number of threads for linear algebra only.  If 
 				not specified, 'threads' threads are used (which defaults to 1).
@@ -150,9 +147,11 @@ NFS BEHAVIOR OPTIONS - general
 -R				Must specify in order to restart when a previous savefile exists
 -siever <num>		Specify the ggnfs siever version to use, where <num> is 
 				the integer in the default ggnfs siever name.  I.e, 
-				ggnfs-lasieve4I<num>e.exe		
+				ggnfs-lasieve4I<num>e.exe
+-nt <file1>,<file2>...	Perform automated trial sieving of the listed job files (then exit)
+				(yafu will fill any missing ggnfs parameters as necessary)
 -testsieve <num>	Number of digits beyond which yafu will test sieve the top
-					3 polynomials discovered by either gnfs or snfs (default: 140)
+				3 polynomials discovered by snfs (default: 140)
 				
 
 
@@ -246,18 +245,18 @@ The following are all the supported functions:
 
 utility			factoring		arithmetic
 ------------------------------------------------------------------------------------------
-rsa				factor			shift
-size				siqs			nroot
-primes				smallmpqs		modexp
-nextprime			nfs			sqrt
+rsa			factor			shift
+size			siqs			nroot
+primes			smallmpqs		modexp
+nextprime		nfs			sqrt
 rand			squfof			lg2
 randb			pm1			log
 isprime			pp1			ln
 ispow			rho			gcd
-issquare			trial			jacobi
-sieverange			ecm			modinv
-testrange			fermat			fib
-					snfs	luc
+issquare		trial			jacobi
+sieverange		ecm			modinv
+testrange		fermat			fib
+			snfs			luc
 						llt
 
 ----------
@@ -292,6 +291,7 @@ PRIMES_TO_SCREEN - set to non zero to enable printing primes to the screen, when
 		primes() function
 VFLAG - control verbosity within the interactive environment
 
+
 [tune]
 usage: tune()
 
@@ -303,23 +303,23 @@ is automatically added to yafu.ini.  Estimation parameters are used to determine
 siqs/nfs crossover point and, together with in-situ timing analysis of ecm curves, determines
 the optimal amount of ecm to run when using the factor() function.  
 
+
 [nfs]
 usage: nfs(expression)
 
 description:
 Automated factorization using the number field sieve.  Multi-threaded polynomial selection is 
-handled via msieve library function calls. yafu can now also perform SNFS polynomial creation.
-Sieving then proceeds in a multi-thread aware fashion using external ggnfs lattice sieve
-executables.  Post processing (filtering, linear algebra, and sqrt functions) again make use
-of msieve library calls. The path to the ggnfs lasive binaries must be specified either on the
-command line using the -ggnfs_dir switch, or in the yafu.ini file as a "ggnfs_dir=<path>" line.
-It is assumed that the ggnfs binaries follow the usual naming convention (i.e. gnfs-lasieve4IXXe).
-nfs is automatically resumed if a job is killed prior to completion and nfs is called again with the
-same input.  Starting a different job will overwrite a previously incomplete factorization's data
-files, which is potentially unrecoverable.  To skip polynomially selection and instead use an
-externally produced polynomial and lattice siever parameterization, create a file called 
-nfs.job with the following format prior to calling yafu with nfs("your number"), in the same 
-directory as the yafu binary:
+handled via msieve library function calls. Sieving then proceeds in a multi-thread aware fashion
+using external ggnfs lattice sieve executables.  Post processing (filtering, linear algebra, and 
+sqrt functions) again make use of msieve library calls. The path to the ggnfs lasive binaries must
+be specified either on the command line using the -ggnfs_dir switch, or in the yafu.ini file as a 
+"ggnfs_dir=<path>" line. It is assumed that the ggnfs binaries follow the usual naming convention
+(i.e. gnfs-lasieve4IXXe). nfs is automatically resumed if a job is killed prior to completion and
+nfs is called again with the same input.  Starting a different job will overwrite a previously 
+incomplete factorization's data files, which is potentially unrecoverable.  To skip polynomially
+selection and instead use an externally produced polynomial and lattice siever parameterization, 
+create a file called nfs.job with the following format prior to calling yafu with 
+nfs("your number"), in the same directory as the yafu binary:
 
 n: "your number here"
 skew: 18508.57
@@ -341,14 +341,14 @@ rlambda: 2.500000
 alambda: 2.500000
 
 the n: "your number here" line must be on the first line of the nfs.job file.  All other lines
-should be interchangable.  Supplying nfs.job in this way allows for SNFS factorizations to take place;
-to further aid that, you should add "type: snfs" and "size: <snfs difficulty>" to the file. YAFU will
-adjust the minimum relations estimate to account for the easier difficulty, and should otherwise
-proceed just as in GNFS (that is, completely automated).
+should be interchangable. Note that, for convenience, nfs will attempt to detect a special form
+for all inputs, which should take less than a second; in the overwhelming likelihood that it fails,
+nfs will revert to standard gnfs poly select.
 
-command line flags effecting nfs:
--snfs			Check if the input has a special form, and if so, generate SNFS polynomials
-				and perform test sieving (and then finish the job if not told otherwise)
+With the -nt option, yafu can perform automated trial sieving of an arbitrary list of external
+polys, and report which one sieves the fastest.
+
+command line flags affecting nfs:
 -ns	[X,Y]		Only perform sieving step within nfs() if a valid job file exists for the 
 					input number and if the input number is the same as that specified in
 					an existing data file.
@@ -376,7 +376,9 @@ command line flags effecting nfs:
 				Default is 250.
 -R				Must specify in order to restart when a previous savefile exists
 -siever <num>	Specify the ggnfs siever version to use, where <num> is the integer in the default
-					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe	
+					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe
+-nt <file1>,<file2>...	Perform automated trial sieving of the listed job files (then exit)
+				(yafu will fill any missing ggnfs parameters as necessary)
 
 
 Examples:
@@ -388,9 +390,52 @@ Examples:
 	and stop the process after 10 hours:
 "nfs(rsa(400))" -v -threads 4 -psearch deep -ggnfsT 36000
 
-3) perform automated nfs, using a custom job file (SNFS), using rational side sieving,
+3) perform automated nfs, using a custom job file, using rational side sieving,
 	and output to a custom data file
-"nfs(number)" -v -threads 4 -job snfs.job -r -o snfs_output.dat
+"nfs(number)" -v -threads 4 -job custom.poly -r -o snfs_output.dat
+
+
+[snfs]
+usage: snfs(expression, cofactor)
+
+description:
+Automated factorization using the special number field sieve.  yafu generates snfs polynomials
+suitable for the input expression, used for factoring the "cofactor" of the expression. Sieving
+and post-processing then take place in exactly the same manner as with the nfs function above.
+You can resume sieving or postprocessing with either the nfs or snfs functions. As with the nfs
+function, you can provide your own polynomial (and ggnfs parameters if desired) in a file named
+nfs.job (the "n: <your number>" must be first, as with gnfs); in order to proceed as snfs, you
+must have "type: snfs" and "size: <snfs difficulty>" lines in the job file. yafu will adjust the
+minimum relations estimate to account for the easier difficulty, and should otherwise proceed
+just as in nfs.
+
+Supported special forms are:
+Various k*b^n+c including:
+	Cunningham numbers 		(b^n +- 1 with with b=2, 3, 5, 6, 7, 10, 11, 12)
+	Brent forms 			(b^n +/- 1, where 13<=b<=99)
+	Odd perfect numbers		(b^n - 1, b>99)
+	Generalized Cullen/Woodall numbers (a*b^a +/- 1)
+	Others: k*2^n +/- 1, repunits, mersenne plus 2, etc.
+	(Note that for large b, cases with k>1 or abs(c)>1 may not be detected)
+Homogeneous Cunningham numbers (a^n +/- b^n, where a,b <= 12 and gcd(a,b) == 1)
+XYYXF numbers (x^y + y^x, where 1<y<x<151)
+
+snfs supports all the command line flags for nfs, as well as one additional flag:
+-testsieve <num>	Number of digits beyond which yafu will test sieve the top
+				3 polynomials discovered by snfs (default: 140)
+
+Note: if a certain poly is particularly bad and is taking too long to test sieve,
+you can safely terminate the ggnfs process, and yafu should still get an accurate
+score and continue trial sieving the other polys.
+
+Examples:
+1) perform snfs poly selection but skip test sieving for an odd perfect number, 
+	outputing the poly to a custom job file:
+"snfs(158071^37-1, (158071^37-1)/158070)" -v -np -job opn.poly -testsieve 300
+
+2) resume sieving and do post processing:
+"snfs(158071^37-1, (158071^37-1)/158070)" -v -R -ns -nc -job opn.poly
+
 
 [siqs]
 usage: siqs(expression)
@@ -409,12 +454,13 @@ siqs will overwrite the file, so be careful to back up siqs.dat if you stop a fa
 and plan to come back to it after performing other siqs work.
 The savefile should appear in the same directory as the executable.
 
-command line flags effecting siqs:
+command line flags affecting siqs:
 -qssave	<name>  Name of the siqs savefile to use in this session
 -siqsR <num>	Stop after finding num relations in siqs
 -siqsT <num>	Stop after num seconds in siqs
 -threads <num>	Use num sieving threads in SIQS and ECM
 -v 		        Use to increase verbosity of output, can be used multiple times
+
 
 [smallmpqs]
 usage: smallmpqs(expression)
@@ -429,7 +475,7 @@ usage: factor(expression)
 description:
 combines a variety of routines to (hopefully) optimally factor an arbitrary input.
 
-command line flags effecting factor:
+command line flags affecting factor:
 -one				Tells factor() to stop factoring after finding one factor.
 -op <name>			Tells factor() to output primes and prps to file <name>.
 -of <name>			Tells factor() to output an input number and all found factors 
@@ -464,6 +510,7 @@ command line flags effecting factor:
 				Optionally provide an integer value specifing the maximum level of
 				pretesting to do (up to "num" digits, or a t-level of "num")
 
+
 [pm1]
 usage: pm1(expression)
 
@@ -476,10 +523,11 @@ To use the default B2 with gmp-ecm, simply do not specify the B2ecm or B2pp1 or 
 flags in the .ini file or in the command line arguments.  
 Specifying B2 as well will cause the default value to be overridden.
 
-command line flags effecting pm1:
+command line flags affecting pm1:
 
 -B1pm1	<num>   B1 bound in the pm1 method
 -B2pm1	<num>   B2 bound in the pm1 method
+
 
 [ecm]
 usage: ecm(expression1,[expression2])
@@ -502,11 +550,12 @@ run multi-threaded, if requested, when using an external binary.  Note that linu
 also run multi-threaded using the built-in gmp-ecm code.  External binaries can still be
 used in linux, for example if they are specially optimized for a particular system.
 
-command line flags effecting ecm:
+command line flags affecting ecm:
 
 -B1ecm	<num>   B1 bound in the ECM method
 -B2ecm	<num>   B2 bound in the ECM method
 -ecm_path <path>	full path to ecm binary
+
 
 [pp1]
 usage: pp1(expression,[expression2])
@@ -524,10 +573,11 @@ To use the default B2 with gmp-ecm, simply do not specify the B2ecm or B2pp1 or 
 flags in the .ini file or in the command line arguments.  
 Specifying B2 as well will cause the default value to be overridden.
 
-command line flags effecting pp1:
+command line flags affecting pp1:
 
 -B1pp1	<num>   B1 bound in the pp1 method
 -B2pp1	<num>   B2 bound in the pp1 method
+
 
 [rho]
 usage: rho(expression)
@@ -536,9 +586,10 @@ description:
 Pollard's rho method, with Brent's improvement.  The maximum number of iterations to 
 perform is configurable using the BRENT_MAX_IT parameter.
 
-command line flags effecting rho:
+command line flags affecting rho:
 
 -rhomax	<num>   max iterations in the rho method
+
 
 [trial]
 usage: trial(expression1,[expression2])
@@ -548,12 +599,14 @@ trial division of the result of expression1 to a bound specified by the result o
 the optional expression2.  All primes less than the bound are divided into the input.
 If no expression2 is provided, the default value is 10000.
 
+
 [fermat]
 usage: fermat(expression1,expression2)
 
 description:
 performs the fermat factorization algorithm on expression1, using a maximum of
 expression2 iterations.
+
 
 [squfof]
 usage: squfof(expression)
@@ -562,17 +615,20 @@ description:
 Shanks's square form factorization method, using multipliers.  Upper bound of the input
 is set to 62 bits.
 
+
 [gcd]
 usage: gcd(expression,expression)
 
 description:
 greatest common divisor of two inputs, using the Lehmer/Euclid method.
 
+
 [jacobi]
 usage: jacobi(expression,expression)
 
 description:
 jacobi symbol of two inputs p/q
+
 
 [isprime]
 usage: isprime(expression)
@@ -582,11 +638,13 @@ uses trial division followed by the rabin-miller probabalistic primalty
 test to determine probable-primalty.  The number of witnesses in the rabin-miller test
 is configurable using the NUM_WITNESSES parameter.  The default is 20.
 
+
 [issquare]
 usage: issquare(expression)
 
 description:
 determines if the number the expression evaluates to is a perfect square
+
 
 [ispow]
 usage: ispow(expression)
@@ -594,11 +652,13 @@ usage: ispow(expression)
 description:
 determines if the number the expression evaluates to is a perfect power
 
+
 [fib]
 usage: fib(expression)
 
 description:
 computes the nth fibonacci number
+
 
 [luc]
 usage: luc(expression)
@@ -606,11 +666,13 @@ usage: luc(expression)
 description:
 computes the nth lucas number
 
+
 [modinv]
 usage: modinv(expression1,expression2)
 
 description:
 computes the modular inverse of one number with respect to another
+
 
 [lg2]
 usage: lg2(expression)
@@ -618,11 +680,13 @@ usage: lg2(expression)
 description:
 the binary log
 
+
 [log]
 usage: log(expression)
 
 description:
 the base 10 log
+
 
 [ln]
 usage: ln(expression)
@@ -630,17 +694,20 @@ usage: ln(expression)
 description:
 the natural log
 
+
 [modexp]
 usage: modexp(expression1,expression2,expression3)
 
 description:
 modular exponentiation: a^b%n
 
+
 [sqrt]
 usage: sqrt(expression)
 
 description:
 sqrt using newton's method
+
 
 [nroot]
 usage: nroot(expression1,expression2)
@@ -649,11 +716,13 @@ description:
 nth root using newton's method.  The result of expression2 is the nth root to take of
 the result of expression1.
 
+
 [shift]
 usage: shift(expression1,expression2)
 
 description:
 binary left or right shift by result of expression2
+
 
 [size]
 usage: size(expression)
@@ -661,17 +730,20 @@ usage: size(expression)
 description:
 size of a number, digits and bits
 
+
 [rsa]
 usage: rsa(expression)
 
 description:
 form a difficult to factor number of a specified bit size.  NOT FOR CRYPTOGRAPHIC USE.
 
+
 [rand]
 usage: rand(expression)
 
 description:
 form a random number with a specified number of digits
+
 
 [primes]
 usage: primes(expression1,expression2,[expression3])
@@ -736,6 +808,7 @@ the next prime is smaller than the given number.  Else the next prime is larger 
 specified number.  If no expression2 is given, the default is the next bigger prime 
 (as if a non-zero input were given).
 
+
 [llt]
 usage: llt(expression)
 
@@ -743,6 +816,3 @@ description:
 start the lucas lehmer test on the number 2^expression - 1.  A small amount of trial
 division is first performed, after determining that the expression is prime.
 [end]
-
-
-

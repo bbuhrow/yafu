@@ -32,14 +32,12 @@ void snfs_init(snfs_t* poly)
 	poly->poly->side = RATIONAL_SPQ;
 	poly->poly->rat.degree = 1;
 	mpz_init(poly->n);
-	mpz_init(poly->N);
 	mpz_init(poly->primitive);
 }
 
 void snfs_clear(snfs_t* poly)
 {
 	mpz_clear(poly->n);
-	mpz_clear(poly->N);
 	mpz_clear(poly->primitive);
 	mpz_polys_free(poly->poly);
 	free(poly->poly);
@@ -96,24 +94,6 @@ void check_poly(snfs_t *poly)
 		mpz_mod(t, t, poly->n);
 	}
 
-	//if (mpz_cmp(t, poly->n) > 0)
-	//{
-	//	// if n is greater than the evaluation of the algebraic poly, then set
-	//	// n to that evaluation as long as it is valid.  this is necessary because the
-	//	// autodetection works on the full form of the input, but the input needs to be
-	//	// reduced by any algebraic factors before polynomials with algebraic 
-	//	// reductions will work.
-	//	mpz_t tmp;
-	//	mpz_init(tmp);
-	//	mpz_mod(tmp, poly->n, t);
-	//	if (mpz_cmp_ui(tmp, 0) == 0)
-	//	{
-	//		mpz_tdiv_q(tmp, poly->n, t);
-	//		gmp_printf("gen: reducing input by a factor of %Zd (algebraic)\n", tmp);
-	//		mpz_set(poly->n, t);
-	//	}
-	//	mpz_clear(tmp);
-	//}
 	mpz_mod(t, t, poly->n);
 
 	if (mpz_cmp_ui(t,0) != 0)
@@ -143,6 +123,20 @@ void check_poly(snfs_t *poly)
 		if (VFLAG > 0)
 		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
 			poly->n, poly->poly->m, t);
+	}
+
+	if (!isnormal(poly->anorm) || !isnormal(poly->rnorm)) // can they be negative?
+	{
+		poly->valid = 0;
+		if (VFLAG > 0)
+			fprintf(stderr, "Error: invalid norms\n");
+	}
+	
+	if (!isnormal(poly->sdifficulty) || poly->sdifficulty <= 0 || !isnormal(poly->difficulty) || poly->difficulty <= 0)
+	{
+		poly->valid = 0;
+		if (VFLAG > 0)
+			fprintf(stderr, "Error: invalid difficulties\n");
 	}
 
 	return;
@@ -321,7 +315,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 	// many oddperfect proof terms take the form a^n-1 for very large a
 	// others of interest include k*2^n +/- 1, repunits, mersenne plus 2, etc.
 	// All of the above forms (and more) can be represented by the generic form a*b^n +/- c
-	// This routine will quickly discover any such generic form less than 1000 bits in size.
+	// This routine will quickly discover any such generic form less than MAX_SNFS_BITS bits in size.
 
 	maxa = 100;
 	maxb = 100;
@@ -345,7 +339,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		mpz_set_ui(b, i);
 		mpz_pow_ui(p, b, 31); // p = i^31
 
-		// limit the exponent so that the number is less than 1000 bits
+		// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
 		if (VFLAG > 1)
@@ -523,7 +517,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 
 	// homogeneous cunninghams take the form a^n +/- b^n, where a,b <= 12 and gcd(a,b) == 1.
 	// this routine finds inputs of the hcunninghams form, and considers
-	// inputs up to 1000 bits in size (~ 10^302).
+	// inputs up to MAX_SNFS_BITS bits in size.
 	// once we have the form, we can create a polynomial for it for snfs processing.
 
 	maxa = 13;
@@ -550,7 +544,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_set_ui(b, j);
 			mpz_pow_ui(pb, b, 19);			
 
-			// limit the exponent so that the number is less than 1000 bits
+			// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 			kmax = MAX_SNFS_BITS / log((double)i) + 1;
 			if (VFLAG > 1)
 				printf("nfs: checking %d^x +/- %d^x for 20 <= x <= %d\n", i, j, kmax);
@@ -627,7 +621,7 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 
 	// xyyxf numbers take the form x^y + y^x, where 1<y<x<151
 	// this routine finds inputs of the xyyxf form, and considers
-	// inputs up to 1000 bits in size (~ 10^302).
+	// inputs up to MAX_SNFS_BITS bits in size.
 	// once we have the form, we can create a polynomial for it for snfs processing.
 
 	maxx = 151;
@@ -884,7 +878,7 @@ void find_primitive_factor(snfs_t *poly)
 
 	if (mpz_cmp(n, poly->n) < 0)
 	{
-		gmp_printf("gen: found primitive factor < input number:\ngen: %Zd\n", n);		
+		gmp_printf("gen: found primitive cofactor < input number:\ngen: %Zd\n", n);		
 		mpz_set(poly->n, n);
 	}
 

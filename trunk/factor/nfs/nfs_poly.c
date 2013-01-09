@@ -21,6 +21,13 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	snfs_t* poly, * polys = NULL, * best;
 	int i, npoly;
 
+	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > MAX_SNFS_BITS)
+	{
+		if (VFLAG >= 0)
+			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
+		return;
+	}
+
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
 	if( !poly )
 	{
