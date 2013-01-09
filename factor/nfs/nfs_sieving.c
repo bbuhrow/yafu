@@ -200,17 +200,16 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		gettimeofday(&stop, NULL);
 		difference = my_difftime (&start, &stop);
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
-
-		// remove generated AFB
-		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
-		remove(tmpbuf);
+		free(difference);		
 		
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
 		in = fopen(tmpbuf, "r");
 		if( !in )
+		{
 			score[i] = 999999999.;
+			est = 7*365*24*3600; // 7 years seems like a nice round number
+		}
 		else
 		{
 			count = 0;
@@ -239,6 +238,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		remove(tmpbuf); // clean up after ourselves
 		sprintf(tmpbuf, "%s", filenames[i]);
+		remove(tmpbuf);
+		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
 		free(time);
 	}
