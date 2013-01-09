@@ -141,20 +141,20 @@ void check_poly(snfs_t *poly)
 		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
 			poly->n, poly->poly->m, t);
 	}
-
-	if (!isnormal(poly->anorm) || !isnormal(poly->rnorm)) // can they be negative?
-	{
-		poly->valid = 0;
-		if (VFLAG > 0)
-			fprintf(stderr, "Error: invalid norms\n");
-	}
 	
-	if (!isnormal(poly->sdifficulty) || poly->sdifficulty <= 0 || !isnormal(poly->difficulty) || poly->difficulty <= 0)
-	{
-		poly->valid = 0;
-		if (VFLAG > 0)
-			fprintf(stderr, "Error: invalid difficulties\n");
-	}
+	//if (!isnormal(poly->anorm) || !isnormal(poly->rnorm)) // can they be negative?
+	//{
+	//	poly->valid = 0;
+	//	if (VFLAG > 0)
+	//		fprintf(stderr, "Error: invalid norms\n");
+	//}
+	//
+	//if (!isnormal(poly->sdifficulty) || poly->sdifficulty <= 0 || !isnormal(poly->difficulty) || poly->difficulty <= 0)
+	//{
+	//	poly->valid = 0;
+	//	if (VFLAG > 0)
+	//		fprintf(stderr, "Error: invalid difficulties\n");
+	//}
 
 	mpz_clear(t);
 	mpz_clear(term);
