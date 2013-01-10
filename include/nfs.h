@@ -117,7 +117,7 @@ typedef struct
 } mpz_polys_t;
 
 #define NUM_SNFS_POLYS 3
-#define MAX_SNFS_BITS 1000
+#define MAX_SNFS_BITS 1024
 
 typedef struct
 {

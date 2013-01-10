@@ -225,7 +225,7 @@ void approx_norms(snfs_t *poly)
 	// here we use 1e6 instead of 3e9... it might not matter so much as
 	// long as it is consistent between a/rnorm
 	//int i;
-	double a, b, c;
+	double a, b;
 	mpz_t res, tmp; // should be floats not ints perhaps
 
 	// be sure poly->poly->alg is set properly
@@ -234,31 +234,16 @@ void approx_norms(snfs_t *poly)
 
 	a = sqrt(poly->poly->skew) * 1000000.;
 	b = 1000000. / (sqrt(poly->poly->skew));
-	c = a/b;
 
 	mpz_init(tmp);
 	mpz_init(res);
-#if 0
-	mpz_set_ui(res, 0);
-	for (i=MAX_POLY_DEGREE; i>=0; i--)
-	{
-		// poly->anorm += abs(poly->c[i])*pow(a/b, i);
-		mpz_abs(tmp, poly->poly->alg.coeff[i]);
-		mpz_mul_si(tmp, tmp, (long)pow(c, i));
-		mpz_add(res, res, tmp);
-	}
-	poly->anorm = mpz_get_d(res);
-	poly->anorm *= pow(b, poly->poly->alg.degree);
 
-	poly->rnorm = (fabs(mpz_get_d(poly->poly->rat.coeff[1]))*a/b + mpz_get_d(poly->poly->rat.coeff[0])) * b;
-#else
-	// why not use msieve's eval_poly()? (see include/gnfs.h:69)
 	eval_poly(res, a, b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
 	eval_poly(res, a, b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
-#endif
+
 	return;
 }
 
@@ -969,7 +954,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(15k) +/- 1 has an algebraic factor which is an 8th degree symmetric polynomial.
@@ -1031,7 +1015,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(21k) +/- 1 has an algebraic factor which is a 12th degree symmetric polynomial.
@@ -1095,7 +1078,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -1137,7 +1119,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 3);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
@@ -1179,7 +1160,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 5);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
@@ -1221,7 +1201,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 7);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
@@ -1264,7 +1243,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 11);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(11k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 10.
@@ -1326,7 +1304,6 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
 		npoly = 1;
-		//brent_alg_reduce_n(poly, poly->exp1 / 13);
 		snfs_copy_poly(poly, polys);		// copy algebraic form
 
 		// a^(13k) +/- 1 is divisible by (a^k +/- 1) giving a poly in a^k of degree 12.
@@ -1707,7 +1684,10 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
 	for (i=0; i<apoly; i++)
+	{
 		snfs_init(&polys[i]);
+		polys[i].valid = 0;
+	}
 		
 	f = fopen(fobj->flogname, "a");
 	logprint(f, "nfs: commencing snfs on c%d: ", 
@@ -1750,7 +1730,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				polys[npoly].poly->skew = 1.0;
 				polys[npoly].c[deg] = poly->coeff1;
 				polys[npoly].c[0] = poly->coeff2;
-
+				polys[npoly].poly->alg.degree = deg;
 				npoly++;
 			}
 			else
@@ -1775,7 +1755,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[deg] = cd;
 				polys[npoly].c[0] = c0;
-
+				polys[npoly].poly->alg.degree = deg;
 				npoly++;
 
 				// and decreasing the exponent
@@ -1800,7 +1780,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				polys[npoly].poly->skew = skew;
 				polys[npoly].c[deg] = cd;
 				polys[npoly].c[0] = c0;
-
+				polys[npoly].poly->alg.degree = deg;
 				npoly++;
 
 				// and playing with composite bases
@@ -1813,6 +1793,12 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					for (j=0; j<numf; j++)
 					{
 						int k, i1, i2, bb;
+
+						// unique factors...
+						if (j > 0)
+							if (f[j] == f[j-1])
+								continue;
+
 						// move it up
 						i1 = (deg - e % deg);
 						c0 = pow((double)f[j], i1) * poly->coeff2;
@@ -1858,7 +1844,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						polys[npoly].c[deg] = cd;
 						polys[npoly].c[0] = c0;
 						mpz_set(polys[npoly].poly->m, m);
-
+						polys[npoly].poly->alg.degree = deg;
 						npoly++;
 					} // loop over factors of base
 				} // composite base?
@@ -1887,23 +1873,40 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			"gen: ========================================================\n\n");
 	}
 
-	// now mix together the possible forms of x^y + 1 and 1 + y^x
-	// don't mix degrees.
+	// now mix together the possible forms of x^y + 1 and 1 + y^x	
 	npoly = 0;
-	for (deg=4; deg<7; deg++)
+	//for (deg=4; deg<7; deg++)
+	for (i=0; i<nump1; i++)
 	{
 		snfs_t *p1, *p2;
 		int64 c0, cd;
 
-		// for each possible form of x^y + 1 with the current degree
-		for (i=0; i<nump1/3; i++)
+		p1 = &polys[i];
+		for (j=0; j<nump2; j++)
 		{
-			p1 = &polys[(deg-4)*(nump1/3) + i];
+			p2 = &polys[nump1+j];
+
+			// don't mix degrees.
+			if (p1->poly->alg.degree != p2->poly->alg.degree)
+				continue;
+
+			deg = p1->poly->alg.degree;
+
+		// for each possible form of x^y + 1 with the current degree
+		//for (i=0; i<nump1/3; i++)
+		//{
+			//p1 = &polys[(deg-4)*(nump1/3) + i];
 
 			// combine with each possible form of 1 + y^x with the same degree
-			for (j=0; j<nump2/3; j++)
-			{
-				p2 = &polys[nump1 + (deg-4)*(nump2/3) + j];
+			//for (j=0; j<nump2/3; j++)
+			//{
+				//p2 = &polys[nump1 + (deg-4)*(nump2/3) + j];
+
+				//if (p1->valid == 0 || p2->valid == 0)
+				//	continue;
+
+				//printf("combining c%d: %" PRId64 ", c0: %" PRId64 " with c%d: %" PRId64 ", c0: %" PRId64 "\n",
+				//	deg, p1->c[deg], p1->c[0], deg, p2->c[deg], p2->c[0]);
 
 				cd = p1->c[deg] * p2->c[0];
 				c0 = p1->c[0] * p2->c[deg];
@@ -1911,11 +1914,6 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				// whichever of these is smaller can be the leading coefficient
 				if (c0 > cd)
 				{
-					printf("combining c%d: %" PRId64 " c0: %" PRId64 ""
-						" (diff = %1.2f) with c%d: %" PRId64 " c0: %" PRId64 " (diff: %1.2f)\n",
-						deg, p1->c[deg], p1->c[0], p1->difficulty,
-						deg, p2->c[deg], p2->c[0], p2->difficulty);
-
 					mpz_set(final_polys[npoly].n, poly->n);
 					final_polys[npoly].c[deg] = cd / spGCD(c0, cd);
 					final_polys[npoly].c[0] = c0 / spGCD(c0, cd);
@@ -1955,11 +1953,6 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				}
 				else
 				{
-					printf("combining c%d: %" PRId64 " c0: %" PRId64 ""
-						" (diff = %1.2f) with c%d: %" PRId64 " c0: %" PRId64 " (diff: %1.2f)\n",
-						deg, p1->c[deg], p1->c[0], p1->difficulty,
-						deg, p2->c[deg], p2->c[0], p2->difficulty);
-
 					mpz_set(final_polys[npoly].n, poly->n);					
 					final_polys[npoly].c[deg] = c0 / spGCD(c0, cd);
 					final_polys[npoly].c[0] = cd / spGCD(c0, cd);
@@ -2018,7 +2011,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					snfs_clear(&final_polys[npoly]);
 					snfs_init(&final_polys[npoly]);
 				}
-			}
+			//}
 		}
 	}
 
