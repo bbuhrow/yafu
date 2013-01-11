@@ -66,6 +66,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char* time;
+	uint32 spq_range;
 	
 	char** filenames; // args
 	nfs_job_t* jobs; // args
@@ -166,6 +167,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		FILE* in;
 		double est;
 
+		// should probably scale the range of special-q to test based
+		// on input difficulty, but not sure how to do that easily...
+
 		if( jobs[i].poly->side == RATIONAL_SPQ)
 		{
 			sprintf(side, "rational");
@@ -192,7 +196,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
-			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 5000, filenames[i]);
+			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 2000, filenames[i]);
 		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + 5000);
 		gettimeofday(&start, NULL);
