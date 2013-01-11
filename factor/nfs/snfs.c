@@ -96,10 +96,7 @@ void check_poly(snfs_t *poly)
 		else
 			mpz_set_64(term, poly->c[i]);
 
-		if (poly->c[i] < 0)
-			mpz_sub(t, t, term);
-		else
-			mpz_add(t, t, term);
+		mpz_add(t, t, term);
 		mpz_mod(t, t, poly->n);
 	}
 
@@ -253,15 +250,18 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	// and skew the r/a parameters accordingly.
 	// the input job struct should have already been filled in by get_ggnfs_params()	
 	double oom_skew;
-	int num_ticks;
 	double percent_skew;		
 	if (job->snfs == NULL)
 		return;
 
+	// sdiff gets incremented by 1 for every 6 orders of magnitude difference
+	// between the r/a norms.  but sdiff is also increased by the size
+	// of the coefficients, which shouldn't influence lp bounds and thus
+	// should be removed...
 	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-	num_ticks = (int)(oom_skew / 6.);
+
 	// 10% for every 6 orders of magnitude difference between the norms	
-	percent_skew = num_ticks * 0.1;
+	percent_skew = oom_skew * 0.1;
 
 	if (job->snfs->poly->side == RATIONAL_SPQ)
 	{
@@ -269,14 +269,21 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->alim -= percent_skew*job->alim;
 		job->rlim += percent_skew*job->rlim;
 
-		if (num_ticks >= 3)
+		if (oom_skew >= 4)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpbr++;
 			job->mfbr += 2;
 		}
 
-		if (num_ticks >= 4)
+		if (oom_skew >= 5)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpbr++;
+			job->mfbr += 2;
+		}
+
+		if (oom_skew >= 6)
 		{
 			// for really really big skew, use 3 large primes
 			job->mfbr = job->lpbr*2.9;
@@ -290,14 +297,21 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->alim += percent_skew*job->alim;
 		job->rlim -= percent_skew*job->rlim;
 
-		if (num_ticks >= 3)
+		if (oom_skew >= 4)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpba++;
 			job->mfba += 2;
 		}
 
-		if (num_ticks >= 4)
+		if (oom_skew >= 5)
+		{
+			// for really big skew, increment the large prime bound as well
+			job->lpba++;
+			job->mfba += 2;
+		}
+
+		if (oom_skew >= 6)
 		{
 			// for really really big skew, use 3 large primes
 			job->mfba = job->lpba*2.9;
@@ -963,9 +977,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 4;
 		k = poly->exp1 / 15;
 		polys->c[4] = 1;
-		polys->c[3] = poly->coeff2;
+		polys->c[3] = (int64)poly->coeff2;
 		polys->c[2] = -4;
-		polys->c[1] = -poly->coeff2 * 4;
+		polys->c[1] = -(int64)poly->coeff2 * 4;
 		polys->c[0] = 1;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 8. * k;
@@ -1024,11 +1038,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 6;
 		k = poly->exp1 / 21;
 		polys->c[6] = 1;
-		polys->c[5] = poly->coeff2;
+		polys->c[5] = (int64)poly->coeff2;
 		polys->c[4] = -6;
-		polys->c[3] = -poly->coeff2 * 6;
+		polys->c[3] = -(int64)poly->coeff2 * 6;
 		polys->c[2] = 8;
-		polys->c[1] = poly->coeff2 * 8;
+		polys->c[1] = (int64)poly->coeff2 * 8;
 		polys->c[0] = 1;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 12. * k;
@@ -1127,8 +1141,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// todo: look into making degree 6 based on difficulty
 		polys->poly->alg.degree = 4;
 		k = (poly->exp1 - 3) / 6;
-		polys->c[4] = poly->base1 * poly->base1;
-		polys->c[2] = poly->base1 * -poly->coeff2;
+		polys->c[4] = (int64)(poly->base1 * poly->base1);
+		polys->c[2] = (int64)(poly->base1 * -poly->coeff2);
 		polys->c[0] = 1;
 		mpz_set_ui(m, poly->base1);
 		polys->poly->skew = pow(mpz_get_d(m), -0.5);
@@ -1166,9 +1180,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 4;
 		k = poly->exp1 / 5;
 		polys->c[4] = 1;
-		polys->c[3] = -poly->coeff2;
+		polys->c[3] = -(int64)poly->coeff2;
 		polys->c[2] = 1;
-		polys->c[1] = -poly->coeff2;
+		polys->c[1] = -(int64)poly->coeff2;
 		polys->c[0] = 1;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
@@ -1207,11 +1221,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 6;
 		k = poly->exp1 / 7;
 		polys->c[6] = 1;
-		polys->c[5] = -poly->coeff2;
+		polys->c[5] = -(int64)poly->coeff2;
 		polys->c[4] = 1;
-		polys->c[3] = -poly->coeff2;
+		polys->c[3] = -(int64)poly->coeff2;
 		polys->c[2] = 1;
-		polys->c[1] = -poly->coeff2;
+		polys->c[1] = -(int64)poly->coeff2;
 		polys->c[0] = 1;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 6. * k;
@@ -1251,11 +1265,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 5;
 		k = poly->exp1 / 11;
 		polys->c[5] = 1;
-		polys->c[4] = -poly->coeff2*1;
+		polys->c[4] = -(int64)poly->coeff2*1;
 		polys->c[3] = -4;
-		polys->c[2] = poly->coeff2*3;
+		polys->c[2] = (int64)poly->coeff2*3;
 		polys->c[1] = 3;
-		polys->c[0] = -poly->coeff2;
+		polys->c[0] = -(int64)poly->coeff2;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 10. * k;
 		mpz_pow_ui(polys->poly->m, m, k);
@@ -1312,11 +1326,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->poly->alg.degree = 6;
 		k = poly->exp1 / 13;
 		polys->c[6] = 1;
-		polys->c[5] = -poly->coeff2;
+		polys->c[5] = -(int64)poly->coeff2;
 		polys->c[4] = -5;
-		polys->c[3] = poly->coeff2*4;
+		polys->c[3] = (int64)poly->coeff2*4;
 		polys->c[2] = 6;
-		polys->c[1] = -poly->coeff2*3;
+		polys->c[1] = -(int64)poly->coeff2*3;
 		polys->c[0] = -1;
 		mpz_set_ui(m, poly->base1);
 		polys->difficulty = log10(mpz_get_d(m)) * 12. * k;
@@ -1364,14 +1378,15 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	else 
 	{
 		// No algebraic factor - play with powers and composite bases
+		int start_deg, stop_deg;
 		mpz_set_ui(m, b);
 		if (!mpz_probab_prime_p(m,10))
 			numf = tdiv_int(b, f);
 
 		// initialize candidate polynomials now that we know how many we'll need.
-		// each factor of the base generates one, plus 2 for
+		// each factor of the base generates two, plus 2 for
 		// the whole base raised and lowered, for each degree
-		if (numf > 1) apoly = (numf + 2) * 3;
+		if (numf > 1) apoly = (numf * 2 + 2) * 3;
 		else apoly = 6;
 
 		polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
@@ -1386,9 +1401,31 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		}
 		
 		npoly = 0;
-		for (i=4; i<7; i++)
+		// be a little smarter about what degrees we consider... 
+		me = (e-e % 5) / 5;
+		mpz_set_si(m, b);
+		mpz_pow_ui(m, m, me);
+		d = mpz_get_d(m);
+		d = log10(d) * 5.;
+		if (d < 120)
 		{
-			int c0, cd;
+			start_deg = 4; 
+			stop_deg = 4;
+		}
+		else if (d < 170)
+		{
+			start_deg = 4; 
+			stop_deg = 5;
+		}
+		else
+		{
+			start_deg = 5;
+			stop_deg = 6;
+		}
+
+		for (i=start_deg; i<=stop_deg; i++)
+		{
+			int64 c0, cd;
 
 			if (e % i == 0)
 			{
@@ -1401,8 +1438,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = 1.0;
-				polys[npoly].c[i] = poly->coeff1;
-				polys[npoly].c[0] = poly->coeff2;
+				polys[npoly].c[i] = (int64)poly->coeff1;
+				polys[npoly].c[0] = (int64)poly->coeff2;
 				polys[npoly].poly->alg.degree = i;
 				if (poly->form_type == SNFS_H_CUNNINGHAM)
 				{
@@ -1446,9 +1483,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i;
-				cd = (int)pow((double)b2, inc) * poly->coeff1;
-				c0 = (int)pow((double)b,inc) * poly->coeff2;
-				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+				cd = (int64)pow((double)b2, inc) * (int64)poly->coeff1;
+				c0 = (int64)pow((double)b,inc) * (int64)poly->coeff2;
+				skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = skew;
@@ -1495,9 +1532,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
 				d = log10(d) * (double)i + log10(pow((double)b,inc));
-				cd = (int)pow((double)b,inc) * poly->coeff1;
-				c0 = (int)pow((double)b2, inc) * poly->coeff2;
-				skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+				cd = (int64)pow((double)b,inc) * (int64)poly->coeff1;
+				c0 = (int64)pow((double)b2, inc) * (int64)poly->coeff2;
+				skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 				// leading coefficient contributes to the difficulty
 				d += log10((double)cd);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
@@ -1549,19 +1586,25 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					for (j=0; j<numf; j++)
 					{
 						int k, i1, i2, bb;
+
+						// unique factor
+						if (j > 0)
+							if (f[j] == f[j-1])
+								continue;
+
 						// move it up
 						i1 = (i - e % i);
-						c0 = pow((double)f[j], i1) * poly->coeff2;
+						c0 = (int64)pow((double)f[j], i1) * (int64)poly->coeff2;
 						// since we moved the current factor up, move the other factors down
 						// otherwise this would be the same as moving the whole composite base up.
 						// also move the second term up...
-						cd = pow((double)b2, i1) * poly->coeff1;
+						cd = (int64)pow((double)b2, i1) * (int64)poly->coeff1;
 						bb = 1;
 						i2 = e % i;
 						for (k=0; k<numf; k++)
 						{
 							if (k == j) continue;
-							cd *= pow((double)f[k], i2);
+							cd *= (int64)pow((double)f[k], i2);
 							bb *= f[k];
 						}
 						// m is now a mix of powers of factors of b.
@@ -1581,7 +1624,78 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						// down appear as a coefficient to the high order term and thus contribute
 						// to the difficulty.
 						d += log10((double)cd);
-						skew = pow((double)abs(c0)/(double)cd, 1./(double)i);
+						skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
+						snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
+						polys[npoly].difficulty = d;
+						polys[npoly].poly->skew = skew;
+						polys[npoly].c[i] = cd;
+						polys[npoly].c[0] = c0;
+						polys[npoly].poly->alg.degree = i;
+						if (poly->form_type == SNFS_H_CUNNINGHAM)
+						{
+							mpz_set_si(polys[npoly].poly->rat.coeff[1], b2);
+							mpz_pow_ui(polys[npoly].poly->rat.coeff[1],
+								   polys[npoly].poly->rat.coeff[1], (e+i1) / i);
+							mpz_set(polys[npoly].poly->rat.coeff[0], m);
+							mpz_set(polys[npoly].poly->m, m);
+							mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
+							mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
+							mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
+							mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
+						}
+						else
+						{
+							mpz_set_si(polys[npoly].poly->rat.coeff[1], -1);
+							mpz_set(polys[npoly].poly->rat.coeff[0], m);
+							mpz_set(polys[npoly].poly->m, m);
+						}
+
+						check_poly(&polys[npoly]);
+						approx_norms(&polys[npoly]);
+						
+						if (polys[npoly].valid)
+						{							
+							if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+							npoly++;
+						}
+						else
+						{	// being explicit
+							snfs_clear(&polys[npoly]);
+							snfs_init(&polys[npoly]);
+						}
+
+						// move it down
+						i1 = e % i;
+						cd = (int64)pow((double)f[j], i1) * (int64)poly->coeff1;
+						// since we moved the current factor down, move the other factors up
+						// otherwise this would be the same as moving the whole composite base down.
+						c0 = (int64)pow((double)b2, i1) * (int64)poly->coeff2;
+						bb = 1;
+						i2 = (i - e % i);
+						for (k=0; k<numf; k++)
+						{
+							if (k == j) continue;
+							c0 *= (int64)pow((double)f[k], i2);
+							bb *= f[k];
+						}
+						// m is now a mix of powers of factors of b.
+						// here is the contribution of the factor we cecreased
+						me = (e-i1) / i;
+						mpz_set_si(m, f[j]);
+						mpz_pow_ui(m, m, me);
+						// here is the contribution of the factors we increased
+						me = (e+i2) / i;
+						mpz_set_si(n, bb);
+						mpz_pow_ui(n, n, me);
+						// combine them and compute the base difficulty
+						mpz_mul(m, m, n);
+						d = mpz_get_d(m);
+						d = log10(d) * (double)i;
+						// the power we moved up appears in the constant term and the powers we moved 
+						// down appear as a coefficient to the high order term and thus contribute
+						// to the difficulty.
+						d += log10((double)cd);
+						skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 						snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 						polys[npoly].difficulty = d;
 						polys[npoly].poly->skew = skew;
@@ -1836,7 +1950,54 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 						// the power we moved up appears in the constant term and the powers we moved 
 						// down appear as a coefficient to the high order term and thus contribute
 						// to the difficulty.
-						//d += log10((double)cd);
+						d += log10((double)cd);
+						skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
+						mpz_set(polys[npoly].n, poly->n);
+						polys[npoly].difficulty = d;
+						polys[npoly].poly->skew = skew;
+						polys[npoly].c[deg] = cd;
+						polys[npoly].c[0] = c0;
+						mpz_set(polys[npoly].poly->m, m);
+						polys[npoly].poly->alg.degree = deg;
+						npoly++;
+
+						// move it down
+						i1 = e % deg;
+						cd = pow((double)f[j], i1) * poly->coeff1;
+						// since we moved the current factor down, move the other factors up
+						// otherwise this would be the same as moving the whole composite base down.
+						c0 = pow((double)b2, i1) * poly->coeff2;
+						bb = 1;
+						i2 = (deg - e % deg);
+						for (k=0; k<numf; k++)
+						{
+							if (k == j) continue;
+							c0 *= pow((double)f[k], i2);
+							bb *= f[k];
+						}
+						// m is now a mix of powers of factors of b.
+						// here is the contribution of the factor we increased
+						me = (e-i1) / deg;
+						mpz_set_si(m, f[j]);
+						mpz_pow_ui(m, m, me);
+						// remember the base and exponent
+						polys[npoly].base1 = f[j];
+						polys[npoly].exp1 = me;
+						// here is the contribution of the factors we decreased
+						me = (e+i2) / deg;
+						mpz_set_si(n, bb);
+						mpz_pow_ui(n, n, me);
+						// remember the base and exponent
+						polys[npoly].base2 = bb;
+						polys[npoly].exp2 = me;
+						// combine them and compute the base difficulty
+						mpz_mul(m, m, n);
+						d = mpz_get_d(m);
+						d = log10(d) * (double)deg;
+						// the power we moved up appears in the constant term and the powers we moved 
+						// down appear as a coefficient to the high order term and thus contribute
+						// to the difficulty.
+						d += log10((double)cd);
 						skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
 						mpz_set(polys[npoly].n, poly->n);
 						polys[npoly].difficulty = d;
@@ -1875,7 +2036,6 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	// now mix together the possible forms of x^y + 1 and 1 + y^x	
 	npoly = 0;
-	//for (deg=4; deg<7; deg++)
 	for (i=0; i<nump1; i++)
 	{
 		snfs_t *p1, *p2;
@@ -1892,126 +2052,109 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 			deg = p1->poly->alg.degree;
 
-		// for each possible form of x^y + 1 with the current degree
-		//for (i=0; i<nump1/3; i++)
-		//{
-			//p1 = &polys[(deg-4)*(nump1/3) + i];
+			cd = p1->c[deg] * p2->c[0];
+			c0 = p1->c[0] * p2->c[deg];
 
-			// combine with each possible form of 1 + y^x with the same degree
-			//for (j=0; j<nump2/3; j++)
-			//{
-				//p2 = &polys[nump1 + (deg-4)*(nump2/3) + j];
+			// whichever of these is smaller can be the leading coefficient
+			if (c0 > cd)
+			{
+				mpz_set(final_polys[npoly].n, poly->n);
+				final_polys[npoly].c[deg] = cd / spGCD(c0, cd);
+				final_polys[npoly].c[0] = c0 / spGCD(c0, cd);
+				final_polys[npoly].poly->skew = pow(
+					(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
 
-				//if (p1->valid == 0 || p2->valid == 0)
-				//	continue;
+				final_polys[npoly].poly->alg.degree = deg;
+				final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
 
-				//printf("combining c%d: %" PRId64 ", c0: %" PRId64 " with c%d: %" PRId64 ", c0: %" PRId64 "\n",
-				//	deg, p1->c[deg], p1->c[0], deg, p2->c[deg], p2->c[0]);
+				// the algebraic poly f(z) is then cd*z^d + c0, where z = x^yd/y^xd
+				// the rational poly g(z) is then -(y^xd)*z + (x^yd)
+				// to handle composite bases, the first loop records the part that was raised and 
+				// the part that was lowered separately
+				mpz_set_si(final_polys[npoly].poly->rat.coeff[1], p2->base1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
+						final_polys[npoly].poly->rat.coeff[1], p2->exp1);
+				mpz_set_si(n, p2->base2);
+				mpz_pow_ui(n, n, p2->exp2);
+				mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
-				cd = p1->c[deg] * p2->c[0];
-				c0 = p1->c[0] * p2->c[deg];
+				mpz_set_si(final_polys[npoly].poly->rat.coeff[0], p1->base1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
+						final_polys[npoly].poly->rat.coeff[0], p1->exp1);
+				mpz_set_si(n, p1->base2);
+				mpz_pow_ui(n, n, p1->exp2);
+				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
-				// whichever of these is smaller can be the leading coefficient
-				if (c0 > cd)
-				{
-					mpz_set(final_polys[npoly].n, poly->n);
-					final_polys[npoly].c[deg] = cd / spGCD(c0, cd);
-					final_polys[npoly].c[0] = c0 / spGCD(c0, cd);
-					final_polys[npoly].poly->skew = pow(
-						(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
+				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
+				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
+				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
-					final_polys[npoly].poly->alg.degree = deg;
-					final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
+				mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
+				mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
+				mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
+				mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
+				mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
+			}
+			else
+			{
+				mpz_set(final_polys[npoly].n, poly->n);					
+				final_polys[npoly].c[deg] = c0 / spGCD(c0, cd);
+				final_polys[npoly].c[0] = cd / spGCD(c0, cd);
+				final_polys[npoly].poly->skew = pow(
+					(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
+				final_polys[npoly].poly->alg.degree = deg;
+				final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
 
-					// the algebraic poly f(z) is then cd*z^d + c0, where z = x^yd/y^xd
-					// the rational poly g(z) is then -(y^xd)*z + (x^yd)
-					// to handle composite bases, the first loop records the part that was raised and 
-					// the part that was lowered separately
-					mpz_set_si(final_polys[npoly].poly->rat.coeff[1], p2->base1);
-					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
-							final_polys[npoly].poly->rat.coeff[1], p2->exp1);
-					mpz_set_si(n, p2->base2);
-					mpz_pow_ui(n, n, p2->exp2);
-					mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
+				// the algebraic poly f(z) is then cd*z^d + c0, where z = y^xd/x^yd
+				// the rational poly g(z) is then -(x^yd)*z + (y^xd)
+				// to handle composite bases, the first loop records the part that was raised and 
+				// the part that was lowered separately
+				mpz_set_si(final_polys[npoly].poly->rat.coeff[1], p1->base1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
+						final_polys[npoly].poly->rat.coeff[1], p1->exp1);
+				mpz_set_si(n, p1->base2);
+				mpz_pow_ui(n, n, p1->exp2);
+				mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
-					mpz_set_si(final_polys[npoly].poly->rat.coeff[0], p1->base1);
-					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
-							final_polys[npoly].poly->rat.coeff[0], p1->exp1);
-					mpz_set_si(n, p1->base2);
-					mpz_pow_ui(n, n, p1->exp2);
-					mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
+				mpz_set_si(final_polys[npoly].poly->rat.coeff[0], p2->base1);
+				mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
+						final_polys[npoly].poly->rat.coeff[0], p2->exp1);
+				mpz_set_si(n, p2->base2);
+				mpz_pow_ui(n, n, p2->exp2);
+				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
-					mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
-					mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
-					mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
+				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
+				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
+				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
-					mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
-					mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
-					mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
-					mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
-					mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
-				}
-				else
-				{
-					mpz_set(final_polys[npoly].n, poly->n);					
-					final_polys[npoly].c[deg] = c0 / spGCD(c0, cd);
-					final_polys[npoly].c[0] = cd / spGCD(c0, cd);
-					final_polys[npoly].poly->skew = pow(
-						(double)abs(final_polys[npoly].c[0])/(double)final_polys[npoly].c[deg], 1./(double)deg);
-					final_polys[npoly].poly->alg.degree = deg;
-					final_polys[npoly].difficulty = log(pow(2.71828, p1->difficulty) + pow(2.71828, p2->difficulty));
+				mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
+				mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
+				mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
+				mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
+				mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
+			}
 
-					// the algebraic poly f(z) is then cd*z^d + c0, where z = y^xd/x^yd
-					// the rational poly g(z) is then -(x^yd)*z + (y^xd)
-					// to handle composite bases, the first loop records the part that was raised and 
-					// the part that was lowered separately
-					mpz_set_si(final_polys[npoly].poly->rat.coeff[1], p1->base1);
-					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[1], 
-							final_polys[npoly].poly->rat.coeff[1], p1->exp1);
-					mpz_set_si(n, p1->base2);
-					mpz_pow_ui(n, n, p1->exp2);
-					mpz_mul(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
+			final_polys[npoly].difficulty += log10((double)final_polys[npoly].c[deg]);
 
-					mpz_set_si(final_polys[npoly].poly->rat.coeff[0], p2->base1);
-					mpz_pow_ui(final_polys[npoly].poly->rat.coeff[0], 
-							final_polys[npoly].poly->rat.coeff[0], p2->exp1);
-					mpz_set_si(n, p2->base2);
-					mpz_pow_ui(n, n, p2->exp2);
-					mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
+			// copy algebraic form
+			final_polys[npoly].base1 = x; final_polys[npoly].exp1 = y;	
+			final_polys[npoly].base2 = y; final_polys[npoly].exp2 = x;
+			final_polys[npoly].form_type = SNFS_XYYXF;
 
-					mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
-					mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
-					mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
+			// check correctness and evaluate
+			check_poly(&final_polys[npoly]);
+			approx_norms(&final_polys[npoly]);
 
-					mpz_set(final_polys[npoly].poly->m, final_polys[npoly].poly->rat.coeff[0]);
-					mpz_invert(n, final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].n);
-					mpz_mul(final_polys[npoly].poly->m, final_polys[npoly].poly->m, n);
-					mpz_mod(final_polys[npoly].poly->m, final_polys[npoly].poly->m, final_polys[npoly].n);
-					mpz_neg(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1]);
-				}
-
-				final_polys[npoly].difficulty += log10((double)final_polys[npoly].c[deg]);
-
-				// copy algebraic form
-				final_polys[npoly].base1 = x; final_polys[npoly].exp1 = y;	
-				final_polys[npoly].base2 = y; final_polys[npoly].exp2 = x;
-				final_polys[npoly].form_type = SNFS_XYYXF;
-
-				// check correctness and evaluate
-				check_poly(&final_polys[npoly]);
-				approx_norms(&final_polys[npoly]);
-
-				if (final_polys[npoly].valid)
-				{
-					if (VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
-					npoly++;
-				}
-				else
-				{	// being explicit
-					snfs_clear(&final_polys[npoly]);
-					snfs_init(&final_polys[npoly]);
-				}
-			//}
+			if (final_polys[npoly].valid)
+			{
+				if (VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
+				npoly++;
+			}
+			else
+			{	// being explicit
+				snfs_clear(&final_polys[npoly]);
+				snfs_init(&final_polys[npoly]);
+			}
 		}
 	}
 
@@ -2115,12 +2258,15 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 		if (VFLAG > 1)
 			printf("gen: anorm: %1.2e, rnorm: %1.2e, ratio: %1.2e, log10(ratio) = %1.2f\n",
 				polys[i].anorm, polys[i].rnorm, ratio, log10(ratio));
-		ratio = log10(ratio) - 6.;
+		ratio = log10(ratio) / 6.;
 
 		if (ratio < 0.)
 			ratio = 0.;
 
+		// also scale by the size of the coefficients
 		polys[i].sdifficulty = polys[i].difficulty + ratio;
+		polys[i].sdifficulty += log10(
+			fabs((double)polys[i].c[polys[i].poly->alg.degree]) + fabs((double)polys[i].c[0]));
 	}
 
 	return;
@@ -2128,7 +2274,7 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 
 int qcomp_snfs_sdifficulty(const void *x, const void *y)
 {
-	/* snfs_t *xx = (snfs_t *)x;
+	snfs_t *xx = (snfs_t *)x;
 	snfs_t *yy = (snfs_t *)y;
 
 	if ((*xx).sdifficulty > (*yy).sdifficulty)
@@ -2136,17 +2282,34 @@ int qcomp_snfs_sdifficulty(const void *x, const void *y)
 	else if ((*xx).sdifficulty == (*yy).sdifficulty)
 		return 0;
 	else
-		return -1; */
-	return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
+		return -1; 
+	
+	// this sometimes doesn't work right... double/int conversion?
+	//return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
 }
 
 void snfs_rank_polys(snfs_t *polys, int npoly)
 {
 	// rank by scaled difficulty
-	int i;
+	int i, j;
 
+	// first eliminate duplicate polys
+	for (i=0; i<npoly; i++)
+	{
+		for (j=i+1; j<npoly; j++)
+		{
+			if (mpz_cmp(polys[i].poly->m, polys[j].poly->m) == 0)
+			{
+				polys[i].sdifficulty = 99999999.;
+				break;
+			}
+		}
+	}
+
+	// then sort
 	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
 
+	// and rank
 	for (i=0; i<npoly; i++)
 		polys[i].rank = i;
 
