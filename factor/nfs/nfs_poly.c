@@ -40,28 +40,24 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
 		find_brent_form(fobj, poly);
-
-		if (poly->form_type == SNFS_BRENT)
-			polys = gen_brent_poly(fobj, poly, &npoly);
 	}
 
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for homogeneous cunningham special forms...\n");
-		find_hcunn_form(fobj, poly);
-
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-			polys = gen_brent_poly(fobj, poly, &npoly);
+		find_hcunn_form(fobj, poly);	
 	}
 
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for XYYXF special forms...\n");
 		find_xyyxf_form(fobj, poly);
-
-		if (poly->form_type == SNFS_XYYXF)
-			polys = gen_xyyxf_poly(fobj, poly, &npoly);
 	}
+
+	// once form detection is done, do some quick trial division
+	mpz_set(fobj->div_obj.gmp_n, poly->n);
+	zTrial(fobj);
+	mpz_set(poly->n, fobj->div_obj.gmp_n);
 
 	if (poly->form_type == SNFS_NONE)
 	{
@@ -70,21 +66,16 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		free(poly);
 		return;
 	}
+	else if (poly->form_type == SNFS_XYYXF)
+		polys = gen_xyyxf_poly(fobj, poly, &npoly);
+	else
+		polys = gen_brent_poly(fobj, poly, &npoly);
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
 	// degree.  We want to pick low difficulty, but only if the degree allows the norms on 
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
-
-	// once form detection is done, do some quick trial division
-	for (i=0; i<npoly; i++)
-	{
-		mpz_set(fobj->div_obj.gmp_n, polys[i].n);
-		zTrial(fobj);
-		mpz_set(polys[i].n, fobj->div_obj.gmp_n);
-	}
-
 	snfs_scale_difficulty(polys, npoly);
 	snfs_rank_polys(polys, npoly);
 
