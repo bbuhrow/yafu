@@ -259,21 +259,21 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	// of the coefficients, which shouldn't influence lp bounds and thus
 	// should be removed...
 	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-
-	// 10% for every 6 orders of magnitude difference between the norms	
-	percent_skew = oom_skew * 0.1;
+	oom_skew -= log10(fabs(mpz_get_d(job->poly->alg.coeff[job->poly->alg.degree])) + 
+		fabs(mpz_get_d(job->poly->alg.coeff[0])));
 
 	if (job->snfs->poly->side == RATIONAL_SPQ)
 	{
 		// sieving on rational side means that side's norm is the bigger one
-		job->alim -= percent_skew*job->alim;
-		job->rlim += percent_skew*job->rlim;
-
 		if (oom_skew >= 4)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpbr++;
 			job->mfbr += 2;
+			// 5% for every 6 orders of magnitude difference between the norms	
+			percent_skew = oom_skew * 0.05;
+			job->alim -= percent_skew*job->alim;
+			job->rlim += percent_skew*job->rlim;
 		}
 
 		if (oom_skew >= 5)
@@ -285,6 +285,10 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (oom_skew >= 6)
 		{
+			// 10% for every 6 orders of magnitude difference between the norms	
+			percent_skew = oom_skew * 0.1;
+			job->alim -= percent_skew*job->alim;
+			job->rlim += percent_skew*job->rlim;
 			// for really really big skew, use 3 large primes
 			job->mfbr = job->lpbr*2.9;
 			job->rlambda = 3.6;
@@ -294,14 +298,15 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	else
 	{
 		// sieving on algebraic side means that side's norm is the bigger one
-		job->alim += percent_skew*job->alim;
-		job->rlim -= percent_skew*job->rlim;
-
 		if (oom_skew >= 4)
 		{
 			// for really big skew, increment the large prime bound as well
 			job->lpba++;
 			job->mfba += 2;
+			// 5% for every 6 orders of magnitude difference between the norms	
+			percent_skew = oom_skew * 0.05;
+			job->alim += percent_skew*job->alim;
+			job->rlim -= percent_skew*job->rlim;
 		}
 
 		if (oom_skew >= 5)
@@ -313,6 +318,10 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (oom_skew >= 6)
 		{
+			// 5% for every 6 orders of magnitude difference between the norms	
+			percent_skew = oom_skew * 0.1;
+			job->alim += percent_skew*job->alim;
+			job->rlim -= percent_skew*job->rlim;
 			// for really really big skew, use 3 large primes
 			job->mfba = job->lpba*2.9;
 			job->alambda = 3.6;
@@ -1790,10 +1799,10 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		numf2 = tdiv_int(y, f2);
 
 	// initialize candidate polynomials now that we know how many we'll need.
-	// each factor of the base generates one, plus 2 for
+	// each factor of the base generates two, plus 2 for
 	// the whole base raised and lowered, for each degree, for each base
-	nump1 = (numf1 + 2) * 3;
-	nump2 = (numf2 + 2) * 3;
+	nump1 = (numf1 * 2 + 2) * 3;
+	nump2 = (numf2 * 2 + 2) * 3;
 	apoly = nump1 + nump2;
 
 	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
