@@ -749,27 +749,32 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 15
+#define GGNFS_TABLE_ROWS 20
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
 /* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
 	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
-	{90,  1200000,  25, 50, 2.3, 11, 0, 20000},
-	{95,  1500000,  25, 50, 2.5, 12, 0, 40000},
-	{100, 1800000,  26, 52, 2.5, 12, 0, 40000},
-	{105, 2500000,  26, 52, 2.5, 12, 0, 80000},
-	{110, 3200000,  26, 52, 2.5, 13, 0, 80000},
-	{115, 4500000,  27, 54, 2.5, 13, 0, 160000},
-	{120, 5000000,  27, 54, 2.5, 13, 0, 160000},
-	{125, 5500000,  27, 54, 2.5, 13, 0, 160000},
-	{130, 6000000,  27, 54, 2.5, 13, 0, 320000},
-	{135, 8000000,  27, 54, 2.5, 14, 0, 320000},
-	{140, 12000000, 28, 56, 2.5, 14, 0, 320000},
-	{145, 15000000, 28, 56, 2.5, 14, 0, 640000},
-	{150, 20000000, 29, 58, 2.5, 14, 0, 640000},
-	{155, 30000000, 29, 58, 2.5, 15, 0, 640000}
+	{90,  1200000,  25, 50, 2.3, 11, 0, 10000},
+	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
+	{100, 1800000,  26, 52, 2.5, 12, 0, 20000},
+	{105, 2500000,  26, 52, 2.5, 12, 0, 20000},
+	{110, 3200000,  26, 52, 2.5, 13, 0, 20000},
+	{115, 4500000,  27, 54, 2.5, 13, 0, 40000},
+	{120, 5500000,  27, 54, 2.5, 13, 0, 40000},
+	{125, 7000000,  27, 54, 2.5, 13, 0, 40000},
+	{130, 9000000,  28, 56, 2.5, 13, 0, 40000},
+	{135, 11500000, 28, 56, 2.6, 14, 0, 40000},
+	{140, 14500000, 28, 56, 2.6, 14, 0, 40000},
+	{145, 18000000, 28, 56, 2.6, 14, 0, 40000},
+	{150, 22000000, 29, 58, 2.6, 14, 0, 40000},
+	{155, 27000000, 29, 58, 2.6, 14, 0, 80000},
+	{160, 33000000, 29, 58, 2.6, 15, 0, 80000},
+	{165, 40000000, 30, 60, 2.6, 14, 0, 80000},
+	{170, 48000000, 30, 60, 2.6, 14, 0, 80000},
+	{175, 57000000, 30, 60, 2.6, 15, 0, 80000},
+	{180, 67000000, 30, 60, 2.6, 15, 0, 80000}
 };
 // in light of test sieving, this table might need to be extended
 
@@ -927,7 +932,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			lpb = ggnfs_table[GGNFS_TABLE_ROWS-1][2];
 			mfb = ggnfs_table[GGNFS_TABLE_ROWS-1][3];
 			lambda = ggnfs_table[GGNFS_TABLE_ROWS-1][4];
-			siever = ggnfs_table[0][5];
+			siever = ggnfs_table[GGNFS_TABLE_ROWS-1][5];
 			if (job->rlim == 0) job->rlim = fblim;
 			if (job->alim == 0) job->alim = fblim;
 			if (job->lpbr == 0) job->lpbr = lpb;
