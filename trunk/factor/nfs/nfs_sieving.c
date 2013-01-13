@@ -118,6 +118,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 						filenames[i], missing_params);
 				fill_job_file(fobj, jobs+i, missing_params);
 			}
+			// adjust a/rlim, lpbr/a, and mfbr/a if advantageous
+			skew_snfs_params(fobj, jobs+i);
 		}
 	}
 	else
@@ -198,7 +200,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
 			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 2000, filenames[i]);
 		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
-			side, jobs[i].startq, jobs[i].startq + 5000);
+			side, jobs[i].startq, jobs[i].startq + 2000);
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
@@ -231,12 +233,33 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		{
 			minscore_id = i;
 			min_score = score[i];
-			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel\n"
+				"test: estimated total sieving time = %s (with %d threads)\n", 
 				score[i], time=time_from_secs((unsigned long)est), THREADS); 
+			
+			if (count > 6000)
+			{
+				char *match;
 
-     		}
+				if (VFLAG > 0)
+					printf("test: yield greater than 3x/spq, lowering siever version\n");
+				
+				match = strstr(jobs[i].sievername, "I12e");
+				if (match != NULL) sprintf(match, "I11e");
+
+				match = strstr(jobs[i].sievername, "I13e");
+				if (match != NULL) sprintf(match, "I12e");
+
+				match = strstr(jobs[i].sievername, "I14e");
+				if (match != NULL) sprintf(match, "I13e");
+
+				match = strstr(jobs[i].sievername, "I15e");
+				if (match != NULL) sprintf(match, "I14e");
+			}
+     	}
 		else
-			if (VFLAG > 0) printf("test: score was %1.6f sec/rel, estimated total sieving time = %s (with %d threads)\n", 
+			if (VFLAG > 0) printf("test: score was %1.6f sec/rel\n"
+				"test: estimated total sieving time = %s (with %d threads)\n", 
 				score[i], time=time_from_secs((unsigned long)est), THREADS);
 
 

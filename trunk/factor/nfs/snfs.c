@@ -294,6 +294,10 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->rlambda = 3.6;
 		}
 
+		// this *should* just change min_rels based on the new lpbr/a value
+		if (oom_skew >= 4)
+			get_ggnfs_params(fobj, job);
+
 	}
 	else
 	{
@@ -326,6 +330,10 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->mfba = job->lpba*2.9;
 			job->alambda = 3.6;
 		}
+
+		// this *should* just change min_rels based on the new lpbr/a value
+		if (oom_skew >= 4)
+			get_ggnfs_params(fobj, job);
 	}
 
 	return;
