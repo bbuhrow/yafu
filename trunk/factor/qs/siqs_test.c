@@ -151,7 +151,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;	//tells SIQS to not try to close the logfile
 	}
 
-	if (gmp_base10(fobj->qs_obj.gmp_n) > 150)
+	if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
 	{
 		printf("input too big for SIQS\n");
 		return 1;

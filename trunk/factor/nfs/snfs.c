@@ -962,7 +962,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// is sub-optimal.  The possibility of simple algebraic reduction occurs only when the a,c 
 	// coefficients are 1.  More complex algebraic reductions like Aurifeuillian 
 	// factorizations are not attempted here.
-	find_primitive_factor(poly);
+	if ((poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+		find_primitive_factor(poly);
+
 	if (mpz_cmp(poly->primitive, poly->n) == 0)
 	{
 		FILE *f = fopen(fobj->flogname, "a");
