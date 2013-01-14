@@ -62,6 +62,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	if (poly->form_type == SNFS_NONE)
 	{
 		printf("nfs: couldn't find special form\n");
+		job->snfs = NULL;
 		snfs_clear(poly);
 		free(poly);
 		return;
@@ -70,6 +71,15 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
 	else
 		polys = gen_brent_poly(fobj, poly, &npoly);
+
+	if (npoly == 0)
+	{
+		printf("nfs: no snfs polynomial with small coefficients found\n");
+		job->snfs = NULL;
+		snfs_clear(poly);
+		free(poly);
+		return;
+	}
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
