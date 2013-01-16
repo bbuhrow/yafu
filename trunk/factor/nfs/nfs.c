@@ -540,10 +540,25 @@ void nfs(fact_obj_t *fobj)
 
 			break;
 
+			// should really be "resume_job", since we do more than just resume sieving...
 		case NFS_STATE_RESUMESIEVE:
-			if (last_specialq == 0) 
- 			{				
-				// no data file, so this is the first time using this job file
+
+			// last_specialq == 0 if:
+			// 1) user specifies -R and -ns with params
+			// 2) user specifies post processing steps only
+			// 3) user wants to resume sieving (either with a solo -ns or no arguements)
+			//		but no data file or special-q was found
+			// 4) -R was not specified (but then we won't be in this state, we'll be in DONE)
+			// last_specialq > 1 if:
+			// 5) user wants to resume sieving (either with a solo -ns or no arguements)
+			//		and a data file and special-q was found
+			// 6) it contains poly->time info (in which case we'll be in NFS_STATE_RESUMEPOLY)
+
+			if ((last_specialq == 0) &&
+				((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)))
+ 			{								
+				// this if-block catches cases 1 and 3 from above
 				uint32 missing_params = parse_job_file(fobj, &job);
 				
 				// set min_rels.  
@@ -558,30 +573,52 @@ void nfs(fact_obj_t *fobj)
 				if (fobj->nfs_obj.startq > 0)
 				{
 					job.startq = fobj->nfs_obj.startq;
-					if (VFLAG >= 0)
-						printf("nfs: continuing with sieving at user specified special-q %u\n",
-							job.startq);
 
-					logprint_oc(fobj->flogname, "a", "nfs: continuing with sieving at user "
-						"specified special-q %u\n", job.startq);
+					sprintf(tmpstr, "nfs: resuming with sieving at user specified special-q %u\n",
+						job.startq);
 				}
 				else
 				{
 					// this is a guess, may be completely wrong
 					job.startq = (job.poly->side == RATIONAL_SPQ ? job.rlim : job.alim) / 2;
-					if (VFLAG >= 0)
-						printf("nfs: continuing with sieving - could not determine "
-							"last special q; using default startq\n");
 
-					logprint_oc(fobj->flogname, "a", "nfs: continuing with sieving "
-						"- could not determine last special q; using default startq\n");
+					sprintf(tmpstr, "nfs: continuing with sieving - could not determine "
+						"last special q; using default startq\n");
 				}
 
 				// next step is sieving
 				nfs_state = NFS_STATE_SIEVE;
 			}
+			else if ((last_specialq == 0) &&
+				((fobj->nfs_obj.nfs_phases & NFS_PHASE_FILTER) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA_RESUME) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT)))
+			{
+				// this if-block catches case 2 from above
+				// with these options we don't check for the last special-q, so this isn't
+				// really a new factorization
+				if ((fobj->nfs_obj.nfs_phases & NFS_PHASE_FILTER))
+				{
+					nfs_state = NFS_STATE_FILTCHECK;
+					sprintf(tmpstr, "nfs: resuming with filtering\n");
+				}
+				else if ((fobj->nfs_obj.nfs_phases & NFS_PHASE_LA) ||
+					(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA_RESUME))
+				{
+					nfs_state = NFS_STATE_LINALG;
+					sprintf(tmpstr, "nfs: resuming with linear algebra\n");
+				}
+				else if (fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT)
+				{
+					nfs_state = NFS_STATE_SQRT;
+					sprintf(tmpstr, "nfs: resuming with sqrt\n");
+				}
+
+			}
 			else // data file already exists
 			{				
+				// this if-block catches case 5 from above
 				(void) parse_job_file(fobj, &job);
 				
 				// set min_rels.  
@@ -589,6 +626,9 @@ void nfs(fact_obj_t *fobj)
 
 				if (fobj->nfs_obj.startq > 0)
 				{
+					// user wants to resume sieving.
+					// i don't believe this case is ever executed... 
+					// because if startq is > 0, then last_specialq will be 0...
 					job.startq = fobj->nfs_obj.startq;
 					nfs_state = NFS_STATE_SIEVE;
 				}
@@ -596,20 +636,39 @@ void nfs(fact_obj_t *fobj)
 				{
 					job.startq = last_specialq;
 
-					// since we apparently found some relations, and we dont
-					// have any special plan in place from the user,
-					// see if we have enough to finish
-					nfs_state = NFS_STATE_FILTCHECK;
-				}
+					// we found some relations - find the appropriate state
+					// given user input
+					if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+						(fobj->nfs_obj.nfs_phases & NFS_PHASE_FILTER))
+					{
+						nfs_state = NFS_STATE_FILTCHECK;
+						sprintf(tmpstr, "nfs: resuming with filtering\n");
+					}
+					else if (fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)
+					{
+						nfs_state = NFS_STATE_SIEVE;
+						sprintf(tmpstr, "nfs: resuming with sieving at special-q = %u\n",
+							last_specialq);
+					}
+					else if ((fobj->nfs_obj.nfs_phases & NFS_PHASE_LA) ||
+						(fobj->nfs_obj.nfs_phases & NFS_PHASE_LA_RESUME))
+					{
+						nfs_state = NFS_STATE_LINALG;
+						sprintf(tmpstr, "nfs: resuming with linear algebra\n");
+					}
+					else if (fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT)
+					{
+						nfs_state = NFS_STATE_SQRT;
+						sprintf(tmpstr, "nfs: resuming with sqrt\n");
+					}
 
-				if (VFLAG >= 0)
-					printf("nfs: continuing job at specialq = %u after a filter check\n",
-						job.startq);
-
-				logprint_oc(fobj->flogname, "a", "nfs: continuing job at specialq = %u after a filter check\n",
-						job.startq);
-
+				}				
 			}
+
+			if (VFLAG >= 0)
+				printf("%s", tmpstr);
+
+			logprint_oc(fobj->flogname, "a", "%s", tmpstr);
 
 			// if there is a job file and the user has specified -np, print
 			// this warning.

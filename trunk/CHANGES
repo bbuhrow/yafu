@@ -12,7 +12,11 @@ v 1.34
 + added a function to factor all single precision integers within a specified range
 + frontend calculator now uses gmp
 + Updated "gnfs.h" to use GMP
-+ total SNFS support is complete (needs testing)
++ automatic processing of several SNFS forms:
+	N = a*b^n +/- c, for b < 100, c < 2^30, N < 1024 bits
+	N = b^n +/- 1, for b > 100, N < 1024 bits
+	N = a^n +/- b^n, for gcd(a,b) = 1, a,b <= 12, N < 1024 bits
+	N = x^y + y^x, for 1 < x < y < 151, N < 1024 bits
 + docfile updated
 + updated to use/link latest msieve SVN (currently 823)
 
