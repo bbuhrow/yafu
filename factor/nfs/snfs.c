@@ -462,8 +462,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				form->coeff2 = sign ? -c2 : c2;
 				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 				{
-					logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-						fobj->nfs_obj.snfs_cofactor);
+					FILE *f = fopen(fobj->flogname, "a");
+					logprint(f, "nfs: using supplied cofactor: ");
+					gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+					fclose(f);
 					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 				}
 				else
@@ -501,8 +503,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				form->exp1 /= 2;
 			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 			{
-				logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-					fobj->nfs_obj.snfs_cofactor);
+				FILE *f = fopen(fobj->flogname, "a");
+				logprint(f, "nfs: using supplied cofactor: ");
+				gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+				fclose(f);
 				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 			}
 			else
@@ -526,8 +530,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			form->coeff2 = 1;
 			if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 			{
-				logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-					fobj->nfs_obj.snfs_cofactor);
+				FILE *f = fopen(fobj->flogname, "a");
+				logprint(f, "nfs: using supplied cofactor: ");
+				gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+				fclose(f);
 				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 			}
 			else
@@ -604,8 +610,10 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->coeff2 = 1;
 					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 					{
-						logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-							fobj->nfs_obj.snfs_cofactor);
+						FILE *f = fopen(fobj->flogname, "a");
+						logprint(f, "nfs: using supplied cofactor: ");
+						gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+						fclose(f);
 						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 					}
 					else
@@ -627,8 +635,10 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 					form->coeff2 = -1;
 					if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 					{
-						logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-							fobj->nfs_obj.snfs_cofactor);
+						FILE *f = fopen(fobj->flogname, "a");
+						logprint(f, "nfs: using supplied cofactor: ");
+						gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+						fclose(f);
 						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 					}
 					else
@@ -702,8 +712,10 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 				form->coeff2 = 1;
 				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 				{
-					logprint_oc(fobj->flogname, "a", "nfs: using supplied cofactor %Zd: \n", 
-						fobj->nfs_obj.snfs_cofactor);
+					FILE *f = fopen(fobj->flogname, "a");
+					logprint(f, "nfs: using supplied cofactor: ");
+					gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+					fclose(f);
 					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 				}
 				else
@@ -937,10 +949,42 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	snfs_t *polys;
 	int npoly = 0;
 	int apoly;	
+	int special_poly = 0;
+	// make the name and log file part of the snfs_t struct?
+	// that way we can pass it into find_primitive_poly, for example,
+	// and log what happens there...
+	FILE *snfs_log;
+	char form_name[1024];
 
 	mpz_init(n);
 	mpz_init(m);
 	mpz_init(t);
+
+	// to this point, significant things that have happened have been logged to
+	// factor.log (like the fact that we detected a cunningham form).  Log all of the
+	// following generation conversation (which poly do I pick, results of test
+	// sieving, etc.) in the nfs.log file.  Once the final poly has been selected,
+	// record it in the factor.log file and resume logging to factor.log.
+	if (poly->form_type == SNFS_H_CUNNINGHAM)
+	{
+		char c;
+		if (poly->coeff2 < 0) c = '-'; else c = '+';
+		sprintf(form_name, "snfs_hcunn_%d%c%d_%d.log",
+			poly->base1, c, poly->base2, poly->exp1);
+	}
+	else
+	{
+		char c;
+		if (poly->coeff2 < 0) c = '-'; else c = '+';
+	
+		if ((poly->coeff1 == 1) && abs((poly->coeff2 == 1)))
+			sprintf(form_name, "snfs_gen_brent_%d_%d%c.log",
+			poly->base1, poly->exp1, c);
+		else
+			sprintf(form_name, "snfs_abcn_%d_%d_%d_%d_%c.log",
+			poly->coeff1, poly->base1, abs(poly->coeff2), poly->exp1, c);
+	}
+	snfs_log = fopen(form_name, "w");
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -1040,6 +1084,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_add(polys->poly->m, polys->poly->m, m);
 		}
 				
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1103,6 +1148,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_add(polys->poly->m, polys->poly->m, m);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1144,6 +1190,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_set_si(polys->poly->rat.coeff[1], -1);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1185,6 +1232,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_set_si(polys->poly->rat.coeff[1], -1);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1225,7 +1273,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_set_si(polys->poly->rat.coeff[1], -1);
 		}
 
-		mpz_set(polys->n, poly->n);
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1268,6 +1316,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_set_si(polys->poly->rat.coeff[1], -1);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1329,6 +1378,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_add(polys->poly->m, polys->poly->m, m);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1391,6 +1441,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			mpz_add(polys->poly->m, polys->poly->m, m);
 		}
 
+		special_poly = 1;
 		check_poly(polys);
 		approx_norms(polys);
 	}
@@ -1418,6 +1469,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				"gen: considering the following polynomials:\n"
 				"gen: ========================================================\n\n");
 		}
+		logprint_oc(fobj->nfs_obj.logfile, "a", "gen: considering the following polynomials:\n");
 		
 		npoly = 0;
 		// be a little smarter about what degrees we consider... 
@@ -1758,6 +1810,16 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			} // degree divides exponent?
 		} // for each degree
 	} // check for algebraic factors
+
+	if (special_poly)
+	{			
+		FILE *f = fopen(fobj->flogname, "a");
+		if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
+		print_snfs(&polys[npoly], f);
+		fclose(f);
+	}
+
+	fclose(snfs_log);
 
 	mpz_clear(m);
 	mpz_clear(n);

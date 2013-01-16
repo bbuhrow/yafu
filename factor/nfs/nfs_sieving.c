@@ -53,6 +53,25 @@ char* time_from_secs(unsigned long time)
 	return str;
 }
 
+// potential enhancements:
+// 1)
+// don't test a poly from a degree that has already been tested
+// when the base difficulty is higher.  e.g., for 7^232-1 we have
+// c6: 9 c0: 49 d = 197.75 and we have c6: 2401 c0: 81 d = 199.44
+// don't bother with the second one even though it makes the "top 3"
+// 2)
+// run a series of test "refinements" based on difficulty.  The idea
+// being twofold: a) for lower difficulty even a 2k range of spq might
+// be overkill and b) for some polys the differences in sieve speed
+// is obvious after only a few hundred spq.  So run a very small range
+// first, and if we have a clear winner go with it.  if not, run more
+// tests depending on both the "closeness" of the testing and the
+// difficulty.
+// 3)
+// in windows, we count the number of ctrl-c's and force quit after 2.
+// this defeats ctrl-c'ing out of one than one test sieve.  while test
+// sieving, on windows, we need to allow more than two ctrl-c's
+
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
  * else args is a nfs_job_t* array of job structs
@@ -167,7 +186,6 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	{
 		char syscmd[GSTR_MAXSIZE], tmpbuf[GSTR_MAXSIZE], side[32];
 		FILE* in;
-		double est;
 
 		// should probably scale the range of special-q to test based
 		// on input difficulty, but not sure how to do that easily...
@@ -214,7 +232,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		if( !in )
 		{
 			score[i] = 999999999.;
-			est = 7*365*24*3600; // 7 years seems like a nice round number
+			//est = 7*365*24*3600; // 7 years seems like a nice round number
 		}
 		else
 		{
@@ -225,7 +243,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 			score[i] = t_time / count;
 
-			est = (score[i] * jobs[i].min_rels * 1.25) / THREADS; 
+			// use estimated sieving time to rank, not sec/rel, since the latter
+			// is a function of parameterization and therefore not directly comparable
+			// to each other.
+			score[i] = (score[i] * jobs[i].min_rels * 1.25) / THREADS; 
 			// be conservative about estimates
 		}
 
@@ -233,14 +254,15 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		{
 			minscore_id = i;
 			min_score = score[i];
-			if (VFLAG > 0) printf("test: new best score of %1.6f sec/rel\n"
-				"test: estimated total sieving time = %s (with %d threads)\n", 
-				score[i], time=time_from_secs((unsigned long)est), THREADS); 
+			if (VFLAG > 0) printf("test: new best estimated total sieving time = %s (with %d threads)\n", 
+				time=time_from_secs((unsigned long)score[i]), THREADS); 
 			
 			if (count > 6000)
 			{
 				char *match;
 
+				// need to put this in job file and parse it back out to make it stick...
+				// or something else
 				if (VFLAG > 0)
 					printf("test: yield greater than 3x/spq, lowering siever version\n");
 				
@@ -258,9 +280,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			}
      	}
 		else
-			if (VFLAG > 0) printf("test: score was %1.6f sec/rel\n"
-				"test: estimated total sieving time = %s (with %d threads)\n", 
-				score[i], time=time_from_secs((unsigned long)est), THREADS);
+			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
+				time=time_from_secs((unsigned long)score[i]), THREADS);
 
 
 		remove(tmpbuf); // clean up after ourselves
