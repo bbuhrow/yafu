@@ -218,6 +218,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job);
 int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs);
 void print_poly(mpz_polys_t* poly, FILE *out);
+void print_job(nfs_job_t *job, FILE *out);
 uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params);
 

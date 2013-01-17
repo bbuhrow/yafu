@@ -858,8 +858,8 @@ void find_primitive_factor(snfs_t *poly)
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 1) printf("gen: multiplying by %d^%d %c %d^%d\n", 
-						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult);
+					if (VFLAG > 1) gmp_printf("gen: multiplying by %d^%d %c %d^%d = %Zd\n", 
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 
 				}
 				else
@@ -872,8 +872,8 @@ void find_primitive_factor(snfs_t *poly)
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 1) printf("gen: multiplying by %d^%d %c 1\n", 
-						poly->base1, franks[i][j] * mult, c);
+					if (VFLAG > 1) gmp_printf("gen: multiplying by %d^%d %c 1 = %Zd\n", 
+						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mul(n, n, term);
 			}
@@ -899,8 +899,8 @@ void find_primitive_factor(snfs_t *poly)
 					else {
 						mpz_add(term, term, t); c = '+';
 					}
-					if (VFLAG > 1) printf("gen: dividing by %d^%d %c %d^%d\n", 
-						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult);
+					if (VFLAG > 1) gmp_printf("gen: dividing by %d^%d %c %d^%d = %Zd\n", 
+						poly->base1, franks[i][j] * mult, c, poly->base2, franks[i][j] * mult, term);
 				}
 				else
 				{
@@ -912,8 +912,8 @@ void find_primitive_factor(snfs_t *poly)
 					else {
 						mpz_add_ui(term, term, 1); c = '+';
 					}
-					if (VFLAG > 1) printf("gen: dividing by %d^%d %c 1\n", 
-						poly->base1, franks[i][j] * mult, c);
+					if (VFLAG > 1) gmp_printf("gen: dividing by %d^%d %c 1 = %Zd\n", 
+						poly->base1, franks[i][j] * mult, c, term);
 				}
 				mpz_mod(t, n, term);
 				if (mpz_cmp_ui(t, 0) != 0) printf("gen: error, term doesn't divide n!\n");
@@ -936,6 +936,8 @@ void find_primitive_factor(snfs_t *poly)
 	return;
 }
 
+// thanks to Alex Kruppa for his phi program, on which a lot
+// of this routine is based.
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 {
 	int i, me;
@@ -949,42 +951,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	snfs_t *polys;
 	int npoly = 0;
 	int apoly;	
-	int special_poly = 0;
-	// make the name and log file part of the snfs_t struct?
-	// that way we can pass it into find_primitive_poly, for example,
-	// and log what happens there...
-	FILE *snfs_log;
-	char form_name[1024];
+	int algebraic = 0, halved = 0;
 
 	mpz_init(n);
 	mpz_init(m);
 	mpz_init(t);
-
-	// to this point, significant things that have happened have been logged to
-	// factor.log (like the fact that we detected a cunningham form).  Log all of the
-	// following generation conversation (which poly do I pick, results of test
-	// sieving, etc.) in the nfs.log file.  Once the final poly has been selected,
-	// record it in the factor.log file and resume logging to factor.log.
-	if (poly->form_type == SNFS_H_CUNNINGHAM)
-	{
-		char c;
-		if (poly->coeff2 < 0) c = '-'; else c = '+';
-		sprintf(form_name, "snfs_hcunn_%d%c%d_%d.log",
-			poly->base1, c, poly->base2, poly->exp1);
-	}
-	else
-	{
-		char c;
-		if (poly->coeff2 < 0) c = '-'; else c = '+';
-	
-		if ((poly->coeff1 == 1) && abs((poly->coeff2 == 1)))
-			sprintf(form_name, "snfs_gen_brent_%d_%d%c.log",
-			poly->base1, poly->exp1, c);
-		else
-			sprintf(form_name, "snfs_abcn_%d_%d_%d_%d_%c.log",
-			poly->coeff1, poly->base1, abs(poly->coeff2), poly->exp1, c);
-	}
-	snfs_log = fopen(form_name, "w");
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -1049,44 +1020,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;
 
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
-			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^(2k) gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
-			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
-			mpz_set_ui(n, poly->base2);
-			mpz_pow_ui(n, n, 2*k);
-			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
-			mpz_sqrt(n, n);
-			mpz_set(t, n);													// a2^k
-			mpz_invert(n, n, poly->n);										// a2^-k
-			mpz_mul(n, polys->poly->m, n);									// 
-			mpz_mod(n, n, poly->n);											// (a1/a2)^k
-			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
-			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
-			mpz_add(polys->poly->m, polys->poly->m, n);						//
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->m);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
-			mpz_add_ui(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], 1);
-			mpz_invert(m, polys->poly->m, polys->n);
-			mpz_add(polys->poly->m, polys->poly->m, m);
-		}
-				
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
+		halved = 1;
 	}
 	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1113,44 +1048,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;
 		
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
-			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^(2k) gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
-			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
-			mpz_set_ui(n, poly->base2);
-			mpz_pow_ui(n, n, 2*k);
-			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
-			mpz_sqrt(n, n);
-			mpz_set(t, n);													// a2^k
-			mpz_invert(n, n, poly->n);										// a2^-k
-			mpz_mul(n, polys->poly->m, n);									// 
-			mpz_mod(n, n, poly->n);											// (a1/a2)^k
-			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
-			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
-			mpz_add(polys->poly->m, polys->poly->m, n);						//
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->m);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
-			mpz_add_ui(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], 1);
-			mpz_invert(m, polys->poly->m, polys->n);
-			mpz_add(polys->poly->m, polys->poly->m, m);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
+		halved = 1;
 	}
 	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1173,26 +1072,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;
 
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			mpz_set_si(polys->poly->rat.coeff[1], b2);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_invert(n, polys->poly->rat.coeff[1], poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_set_si(polys->poly->rat.coeff[1], -1);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
 	}
 	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1215,26 +1095,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
 		mpz_pow_ui(polys->poly->m, m, k);		
 
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			mpz_set_si(polys->poly->rat.coeff[1], b2);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_invert(n, polys->poly->rat.coeff[1], poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_set_si(polys->poly->rat.coeff[1], -1);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
 	}
 	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1256,26 +1117,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;		
 
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			mpz_set_si(polys->poly->rat.coeff[1], b2);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_invert(n, polys->poly->rat.coeff[1], poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_set_si(polys->poly->rat.coeff[1], -1);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
 	}
 	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1299,26 +1141,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;		
 
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			mpz_set_si(polys->poly->rat.coeff[1], b2);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_invert(n, polys->poly->rat.coeff[1], poly->n);
-			mpz_mul(polys->poly->m, polys->poly->m, n);
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// Y1 = -1, Y0 = m such that y1*m + y0 = 0
-			mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
-			mpz_set_si(polys->poly->rat.coeff[1], -1);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
 	}
 	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1343,44 +1166,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.; // is this right? c[0]/c[6] != 1	
 				
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
-			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^(2k) gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
-			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
-			mpz_set_ui(n, poly->base2);
-			mpz_pow_ui(n, n, 2*k);
-			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
-			mpz_sqrt(n, n);
-			mpz_set(t, n);													// a2^k
-			mpz_invert(n, n, poly->n);										// a2^-k
-			mpz_mul(n, polys->poly->m, n);									// 
-			mpz_mod(n, n, poly->n);											// (a1/a2)^k
-			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
-			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
-			mpz_add(polys->poly->m, polys->poly->m, n);						//
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->m);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
-			mpz_add_ui(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], 1);
-			mpz_invert(m, polys->poly->m, polys->n);
-			mpz_add(polys->poly->m, polys->poly->m, m);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
+		halved = 1;
 	}
 	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
@@ -1406,44 +1193,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		mpz_pow_ui(polys->poly->m, m, k);
 		polys->poly->skew = 1.;	
 		
-		if (poly->form_type == SNFS_H_CUNNINGHAM)
-		{
-			// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
-			// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
-			// multiplying through by a2^(2k) gives:
-			// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
-			mpz_set_si(polys->poly->rat.coeff[1], b2*b);
-			mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
-			mpz_set_ui(n, poly->base2);
-			mpz_pow_ui(n, n, 2*k);
-			mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
-			mpz_sqrt(n, n);
-			mpz_set(t, n);													// a2^k
-			mpz_invert(n, n, poly->n);										// a2^-k
-			mpz_mul(n, polys->poly->m, n);									// 
-			mpz_mod(n, n, poly->n);											// (a1/a2)^k
-			mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
-			mpz_mul(polys->poly->m, polys->poly->m, t);						// 
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
-			mpz_add(polys->poly->m, polys->poly->m, n);						//
-			mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
-		}
-		else
-		{
-			// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
-			// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
-			mpz_neg(polys->poly->rat.coeff[1], polys->poly->m);
-			mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
-			mpz_add_ui(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], 1);
-			mpz_invert(m, polys->poly->m, polys->n);
-			mpz_add(polys->poly->m, polys->poly->m, m);
-		}
-
-		special_poly = 1;
-		check_poly(polys);
-		approx_norms(polys);
+		algebraic = 1;
+		halved = 1;
 	}
 	else 
 	{
@@ -1811,15 +1562,67 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		} // for each degree
 	} // check for algebraic factors
 
-	if (special_poly)
-	{			
-		FILE *f = fopen(fobj->flogname, "a");
-		if (VFLAG > 0) print_snfs(&polys[npoly], stdout);
-		print_snfs(&polys[npoly], f);
-		fclose(f);
+	if (algebraic)
+	{
+		if (halved)
+		{
+			if (poly->form_type == SNFS_H_CUNNINGHAM)
+			{
+				// multiplying through by b = a^k gives g(x) = bx - (b^2 + 1).  but
+				// for homogeneous polys a = a1/a2 so we have g(x) = (a1/a2)^k * x - ((a1^2/a2^2)^k + 1) = 0
+				// multiplying through by a2^(2k) gives:
+				// g(x) = (a1*a2)^k*x - (a1^(2k) + a2^(2k)) with m = (a1/a2)^k + (a2/a1)^k
+				mpz_set_si(polys->poly->rat.coeff[1], b2*b);
+				mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
+				mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);		// a1^(2k)
+				mpz_set_ui(n, poly->base2);
+				mpz_pow_ui(n, n, 2*k);
+				mpz_add(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], n);
+				mpz_sqrt(n, n);
+				mpz_set(t, n);													// a2^k
+				mpz_invert(n, n, poly->n);										// a2^-k
+				mpz_mul(n, polys->poly->m, n);									// 
+				mpz_mod(n, n, poly->n);											// (a1/a2)^k
+				mpz_invert(polys->poly->m, polys->poly->m, poly->n);			// a1^-k
+				mpz_mul(polys->poly->m, polys->poly->m, t);						// 
+				mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a2/a1)^k
+				mpz_add(polys->poly->m, polys->poly->m, n);						//
+				mpz_mod(polys->poly->m, polys->poly->m, poly->n);				// (a1/a2)^k + (a2/a1)^k
+				mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
+			}
+			else
+			{
+				// for halved degree polynomials, Y1 becomes -x^k and Y0 becomes x^(2k) + 1
+				// such that y1*x + y0 evaluated at M = x^k + x^-k is 0.
+				mpz_neg(polys->poly->rat.coeff[1], polys->poly->m);
+				mpz_mul(polys->poly->rat.coeff[0], polys->poly->m, polys->poly->m);
+				mpz_add_ui(polys->poly->rat.coeff[0], polys->poly->rat.coeff[0], 1);
+				mpz_invert(m, polys->poly->m, polys->n);
+				mpz_add(polys->poly->m, polys->poly->m, m);
+			}
+		}
+		else
+		{
+			if (poly->form_type == SNFS_H_CUNNINGHAM)
+			{
+				mpz_set_si(polys->poly->rat.coeff[1], b2);
+				mpz_pow_ui(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1], k);
+				mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
+				mpz_invert(n, polys->poly->rat.coeff[1], poly->n);
+				mpz_mul(polys->poly->m, polys->poly->m, n);
+				mpz_mod(polys->poly->m, polys->poly->m, poly->n);
+				mpz_neg(polys->poly->rat.coeff[1], polys->poly->rat.coeff[1]);
+			}
+			else
+			{
+				// Y1 = -1, Y0 = m such that y1*m + y0 = 0
+				mpz_set(polys->poly->rat.coeff[0], polys->poly->m);
+				mpz_set_si(polys->poly->rat.coeff[1], -1);
+			}			
+		}
+		check_poly(polys);
+		approx_norms(polys);
 	}
-
-	fclose(snfs_log);
 
 	mpz_clear(m);
 	mpz_clear(n);

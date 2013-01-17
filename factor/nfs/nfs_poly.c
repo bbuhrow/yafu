@@ -20,6 +20,8 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 {
 	snfs_t* poly, * polys = NULL, * best;
 	int i, npoly;
+	FILE *f;
+	char tmpstr[1024];
 
 	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > MAX_SNFS_BITS)
 	{
@@ -90,24 +92,39 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	snfs_rank_polys(polys, npoly);
 
 	if (VFLAG > 0 && npoly > 1)
-	{
-		printf( "\ngen: ========================================================\n"
+	{		
+		f = fopen(fobj->flogname, "a");
+		
+		printf("\ngen: ========================================================\n"
 			"gen: best %d polynomials:\n"
 			"gen: ========================================================\n\n", NUM_SNFS_POLYS);
+		
+		if (f != NULL) logprint(f, "gen: best %d polynomials:\n", NUM_SNFS_POLYS);
 
 		for (i=0; i<npoly && i<NUM_SNFS_POLYS; i++)
+		{
 			print_snfs(&polys[i], stdout);
+			if (f != NULL) print_snfs(&polys[i], f);
+		}
+
+		if (f != NULL) fclose(f);
 	}
 
 	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly));
 
 	if (VFLAG > 0)
 	{
+		f = fopen(fobj->flogname, "a");
+
 		printf("\ngen: ========================================================\n");
 		printf("gen: selected polynomial:\n");
 		printf("gen: ========================================================\n\n");
 
+		if (f != NULL) logprint(f, "gen: selected polynomial:\n");
+
 		print_snfs(best, stdout);
+		if (f != NULL) print_snfs(best, f);
+		if (f != NULL) fclose(f);
 	}
 
 	snfs_copy_poly(best, poly); // best is only a pointer into polys, which needs to be free()d

@@ -1229,7 +1229,26 @@ void print_poly(mpz_polys_t* poly, FILE *out)
 			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
 	gmp_fprintf(out, "Y1: %Zd\n", poly->rat.coeff[1]);
 	gmp_fprintf(out, "Y0: %Zd\n", poly->rat.coeff[0]);
-	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n\n", poly->m);
+	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
+}
+
+void print_job(nfs_job_t *job, FILE *out)
+{
+	mpz_polys_t* poly = job->poly;
+
+	// print the poly to stdout
+	int i;
+	fprintf(out, "skew: %1.4f\n", poly->skew);
+	for (i=MAX_POLY_DEGREE; i>=0; i--)
+		if (mpz_cmp_si(poly->alg.coeff[i], 0) != 0) 
+			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
+	gmp_fprintf(out, "Y1: %Zd\n", poly->rat.coeff[1]);
+	gmp_fprintf(out, "Y0: %Zd\n", poly->rat.coeff[0]);
+	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
+	fprintf(out, "rlim: %u\nalim: %u\n", job->rlim, job->alim);
+	fprintf(out, "mfbr: %u\nmfba: %u\n", job->mfbr, job->mfba);
+	fprintf(out, "lpbr: %u\nlpba: %u\n", job->lpbr, job->lpba);
+	fprintf(out, "rlambda: %1.2f\nalambda: %1.2f\n", job->rlambda, job->alambda);
 }
 
 #endif
