@@ -86,6 +86,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char* time;
 	uint32 spq_range;
+	FILE *flog;
 	
 	char** filenames; // args
 	nfs_job_t* jobs; // args
@@ -201,6 +202,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			jobs[i].startq = jobs[i].alim; // ditto
 		}
 
+		flog = fopen(fobj->flogname, "a");
+
 		//create the afb/rfb - we don't want the time it takes to do this to
 		//pollute the sieve timings		
 		sprintf(syscmd, "%s -b %s -k -c 0 -F", jobs[i].sievername, filenames[i]);
@@ -212,13 +215,20 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 		free(difference);
 		if (VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
+		logprint(flog, "test: fb generation took %6.4f seconds\n", t_time);
 		MySleep(.1);
 
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
 			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 2000, filenames[i]);
+
 		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + 2000);
+		logprint(flog, "test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
+			side, jobs[i].startq, jobs[i].startq + 2000);
+		print_job(&jobs[i], flog);
+		fclose(flog);
+
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
@@ -250,13 +260,17 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			// be conservative about estimates
 		}
 
+		flog = fopen(fobj->flogname, "a");
+
 		if( score[i] < min_score )
 		{
 			minscore_id = i;
 			min_score = score[i];
 			if (VFLAG > 0) printf("test: new best estimated total sieving time = %s (with %d threads)\n", 
 				time=time_from_secs((unsigned long)score[i]), THREADS); 
-			
+			logprint(flog, "test: new best estimated total sieving time = %s (with %d threads)\n", 
+				time=time_from_secs((unsigned long)score[i]), THREADS); 
+
 			if (count > 6000)
 			{
 				char *match;
@@ -280,10 +294,14 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			}
      	}
 		else
+		{
 			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
 				time=time_from_secs((unsigned long)score[i]), THREADS);
+			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
+				time=time_from_secs((unsigned long)score[i]), THREADS);
+		}
 
-
+		fclose(flog);
 		remove(tmpbuf); // clean up after ourselves
 		sprintf(tmpbuf, "%s", filenames[i]);
 		remove(tmpbuf);
@@ -314,6 +332,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
 	free(difference);			
 	if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
+	logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);
 
 	return minscore_id;
 }
