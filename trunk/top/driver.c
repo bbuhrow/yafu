@@ -221,6 +221,11 @@ int main(int argc, char *argv[])
 		}
 		else if (!is_cmdline_run)
 		{
+			int c = fgetc(stdin);
+			if (c == EOF)
+				break; // ^D quits yafu (but, for reasons I've not investigated, doesn't print the proper newline)
+			ungetc(c, stdin);
+
 			// get command from user
 			fgets(input_exp,GSTR_MAXSIZE,stdin);
 			while (1)
