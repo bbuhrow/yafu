@@ -76,16 +76,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
  * else args is a nfs_job_t* array of job structs
  * the latter is preferred */
-// @ben: the idea is a new yafu function "testsieve(n, ...)" where args are
-// an arbitrary list of files of external polys
 {
-	uint32 count;
+	uint32 count, spq_range = 2000;
 	int i, minscore_id = 0;
 	double* score = (double*)malloc(njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char* time;
-	uint32 spq_range;
 	FILE *flog;
 	
 	char** filenames; // args
@@ -220,12 +217,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		//start the test
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
-			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, 2000, filenames[i]);
+			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, spq_range, filenames[i]);
 
-		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
-			side, jobs[i].startq, jobs[i].startq + 2000);
+		if (VFLAG > 0) printf("\ntest: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
+			side, jobs[i].startq, jobs[i].startq + spq_range);
 		logprint(flog, "test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
-			side, jobs[i].startq, jobs[i].startq + 2000);
+			side, jobs[i].startq, jobs[i].startq + spq_range);
 		print_job(&jobs[i], flog);
 		fclose(flog);
 
@@ -266,19 +263,21 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		{
 			minscore_id = i;
 			min_score = score[i];
-			if (VFLAG > 0) printf("test: new best estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS); 
+			time = time_from_secs((unsigned long)score[i]);
+			if (VFLAG > 0) printf("\ntest: new best estimated total sieving time = %s (with %d threads)\n", 
+				time, THREADS); 
 			logprint(flog, "test: new best estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS); 
+				time, THREADS); 
 
-			if (count > 6000)
+			if (count > 3*spq_range)
 			{
 				char *match;
 
 				// need to put this in job file and parse it back out to make it stick...
 				// or something else
 				if (VFLAG > 0)
-					printf("test: yield greater than 3x/spq, lowering siever version\n");
+					printf("test: yield greater than 3 rels/spq, lowering siever version\n");
+				// what about increasing siever for really low yields?
 				
 				match = strstr(jobs[i].sievername, "I12e");
 				if (match != NULL) sprintf(match, "I11e");
@@ -292,13 +291,14 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				match = strstr(jobs[i].sievername, "I15e");
 				if (match != NULL) sprintf(match, "I14e");
 			}
-     	}
+     		}
 		else
 		{
+			time = time_from_secs((unsigned long)score[i]);
 			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS);
+				time, THREADS);
 			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS);
+				time, THREADS);
 		}
 
 		fclose(flog);

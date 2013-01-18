@@ -138,7 +138,7 @@ typedef struct
 
 	mpz_polys_t* poly;
 	int64 c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t
-				    // in check_poly()
+				      // in check_poly()
 
 	// other useful parameters
 	double difficulty;
