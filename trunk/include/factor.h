@@ -498,6 +498,11 @@ typedef struct
 	// threshold at which we know number are prime, as determined by trial division
 	uint64 prime_threshold;
 
+	// if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
+	int aprcl_prove_cutoff;
+	// if a number is > aprcl_display_cutoff, we will show the APRCL progress
+	int aprcl_display_cutoff;
+
 	//global storage for a list of factors
 	factor_t *fobj_factors;
 	uint32 num_factors;
