@@ -33,7 +33,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 63
+#define NUMOPTIONS 65
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -51,7 +51,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve", "nt"};
+	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -70,7 +70,7 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1,1,1};
+	1,1,1,1,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -190,9 +190,9 @@ int main(int argc, char *argv[])
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
-	srand(g_rand.low);	
+	srand(g_rand.low);
 	gmp_randinit_default(gmp_randstate);
-	mpz_set_ui(gmp_randstate->_mp_seed, g_rand.low);
+	gmp_randseed_ui(gmp_randstate, g_rand.low);
 
 #if BITS_PER_DIGIT == 64
 	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
@@ -1915,6 +1915,24 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		}
 		else
 			strcpy(fobj->nfs_obj.filearg, arg);
+	}
+	else if (strcmp(opt,OptionArray[63]) == 0)
+	{
+		// argument "aprcl_p", setting the threshold below which numbers
+		// are proved prime using APR-CL
+		fobj->aprcl_prove_cutoff = strtoul(arg,NULL,10);
+		if (fobj->aprcl_prove_cutoff > 6021)
+		{
+			printf("APR-CL primality proving is possible only for numbers less"
+				" than 6021 digits... setting limit to 6021 digits\n");
+			fobj->aprcl_prove_cutoff = 6021;
+		}
+	}
+	else if (strcmp(opt,OptionArray[64]) == 0)
+	{
+		// argument "aprcl_d", setting the threshold above which numbers
+		// that are proved prime using APR-CL have additional verbosity enabled
+		fobj->aprcl_display_cutoff = strtoul(arg,NULL,10);
 	}
 	else
 	{

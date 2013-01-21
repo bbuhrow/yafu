@@ -648,16 +648,17 @@ void print_factors(fact_obj_t *fobj)
 			//			fobj->fobj_factors[i].factor);
 			//	}
 			//}
-			//else if (fobj->fobj_factors[i].type == PRIME)
-			//{
-			//	for (j=0;j<fobj->fobj_factors[i].count;j++)
-			//	{
-			//		mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
-			//		gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
-			//			fobj->fobj_factors[i].factor);
-			//	}
-			//}
-			//else
+			if (fobj->fobj_factors[i].type == PRIME)
+			{
+				// don't redo APR-CL calculations already performed by add_to_factor_list
+				for (j=0;j<fobj->fobj_factors[i].count;j++)
+				{
+					mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+					gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+						fobj->fobj_factors[i].factor);
+				}
+			}
+			else
 			{
 				//type not set, determine it now
 				/* prove primality of numbers <= aprcl_prove_cutoff digits */
