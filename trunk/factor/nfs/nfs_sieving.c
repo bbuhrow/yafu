@@ -76,13 +76,16 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 /* if(are_files), then treat args as a char** list of (external) polys
  * else args is a nfs_job_t* array of job structs
  * the latter is preferred */
+// @ben: the idea is a new yafu function "testsieve(n, ...)" where args are
+// an arbitrary list of files of external polys
 {
-	uint32 count, spq_range = 2000;
+	uint32 count;
 	int i, minscore_id = 0;
 	double* score = (double*)malloc(njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char* time;
+	uint32 spq_range = 2000;
 	FILE *flog;
 	
 	char** filenames; // args
@@ -219,7 +222,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s.out",
 			jobs[i].sievername, VFLAG>0?" -v":"", side[0], filenames[i], jobs[i].startq, spq_range, filenames[i]);
 
-		if (VFLAG > 0) printf("\ntest: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
+		if (VFLAG > 0) printf("test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + spq_range);
 		logprint(flog, "test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + spq_range);
@@ -263,42 +266,43 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		{
 			minscore_id = i;
 			min_score = score[i];
-			time = time_from_secs((unsigned long)score[i]);
-			if (VFLAG > 0) printf("\ntest: new best estimated total sieving time = %s (with %d threads)\n", 
-				time, THREADS); 
+			if (VFLAG > 0) printf("test: new best estimated total sieving time = %s (with %d threads)\n", 
+				time=time_from_secs((unsigned long)score[i]), THREADS); 
 			logprint(flog, "test: new best estimated total sieving time = %s (with %d threads)\n", 
-				time, THREADS); 
+				time=time_from_secs((unsigned long)score[i]), THREADS); 
 
-			if (count > 3*spq_range)
+			// edit lbpr/a depending on test results.  we target something around 2 rels/Q.
+			// could also change siever version in more extreme cases.
+			// one problem with this is that for snfs test sieving at least, the jobs structures
+			// are thrown away when this function returns!  Only the poly is kept.  So 
+			// we need to figure out a way to get this info to the real sieving step...
+			if (count > 4*spq_range)
 			{
-				char *match;
-
-				// need to put this in job file and parse it back out to make it stick...
-				// or something else
 				if (VFLAG > 0)
-					printf("test: yield greater than 3 rels/spq, lowering siever version\n");
-				// what about increasing siever for really low yields?
-				
-				match = strstr(jobs[i].sievername, "I12e");
-				if (match != NULL) sprintf(match, "I11e");
-
-				match = strstr(jobs[i].sievername, "I13e");
-				if (match != NULL) sprintf(match, "I12e");
-
-				match = strstr(jobs[i].sievername, "I14e");
-				if (match != NULL) sprintf(match, "I13e");
-
-				match = strstr(jobs[i].sievername, "I15e");
-				if (match != NULL) sprintf(match, "I14e");
+					printf("test: yield greater than 4x/spq, reducing lpbr/lpba\n");
+				jobs[i].lpba--;
+				jobs[i].lpbr--;
+				jobs[i].mfba -= 2;
+				jobs[i].mfbr -= 2;
 			}
-     		}
+
+			if (count < spq_range)
+			{
+				if (VFLAG > 0)
+					printf("test: yield less than 1x/spq, increasing lpbr/lpba\n");
+				
+				jobs[i].lpba++;
+				jobs[i].lpbr++;
+				jobs[i].mfba += 2;
+				jobs[i].mfbr += 2;
+			}
+     	}
 		else
 		{
-			time = time_from_secs((unsigned long)score[i]);
 			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
-				time, THREADS);
+				time=time_from_secs((unsigned long)score[i]), THREADS);
 			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
-				time, THREADS);
+				time=time_from_secs((unsigned long)score[i]), THREADS);
 		}
 
 		fclose(flog);
