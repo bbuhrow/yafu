@@ -113,6 +113,7 @@ YAFU_SRCS = \
 	top/stack.c \
 	top/calc.c \
 	top/test.c \
+	top/mpz_prp_prime.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -206,6 +207,8 @@ HEAD = include/yafu.h  \
 	include/util.h  \
 	include/types.h \
 	include/yafu_string.h  \
+	include/mpz_prp_prime.h \
+	include/jacobi_sum.h \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \

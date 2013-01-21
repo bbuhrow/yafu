@@ -25,6 +25,7 @@ code to the public domain.
 #include "yafu_ecm.h"
 #include "util.h"
 #include "yafu_string.h"
+#include "mpz_prp_prime.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
@@ -314,7 +315,12 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
 	strcpy(fobj->autofact_obj.plan_str,"normal");
 	fobj->autofact_obj.only_pretest = 0;
-	fobj->autofact_obj.autofact_active = 0;	
+	fobj->autofact_obj.autofact_active = 0;
+
+	// if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
+	fobj->aprcl_prove_cutoff = 500;
+	// if a number is >= aprcl_display_cutoff, we will show the APRCL progress
+	fobj->aprcl_display_cutoff = 200;
 
 	return;
 }
@@ -461,7 +467,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 {
 	//stick the number n into the global factor list
 	uint32 i;
-	int found = 0;
+	int found = 0, v = 0;
 
 	if (fobj->num_factors >= fobj->allocated_factors)
 	{
@@ -485,7 +491,29 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 	mpz_init(fobj->fobj_factors[fobj->num_factors].factor);
 	mpz_set(fobj->fobj_factors[fobj->num_factors].factor, n);
 	fobj->fobj_factors[fobj->num_factors].count = 1;
-	if (mpz_probab_prime_p(n, NUM_WITNESSES))
+	if (gmp_base10(n) <= fobj->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
+	{
+		if (VFLAG > 0)
+			v = (gmp_base10(n) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+		else
+			v = APRTCLE_VERBOSE0;
+
+		if (mpz_aprtcle(n, v) == APRTCLE_PRIME)
+			fobj->fobj_factors[fobj->num_factors].type = PRIME;
+		else
+		{
+			if (mpz_bpsw_prp(n) != PRP_COMPOSITE)
+			{
+				// if BPSW doesn't think this composite number is actually composite, then ask the user
+				// to report this fact to the YAFU sub-forum at mersenneforum.org
+				printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
+				printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
+				gmp_printf(" *** ATTENTION: n = %Zd\n", n);
+			}
+			fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
+		}
+	}
+	else if (mpz_probab_prime_p(n, NUM_WITNESSES))
 	{
 		if (mpz_cmp_ui(n, 100000000) < 0)
 			fobj->fobj_factors[fobj->num_factors].type = PRIME;
@@ -589,7 +617,7 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact)
 void print_factors(fact_obj_t *fobj)
 {
 	uint32 i;
-	int j;
+	int j, v;
 	mpz_t tmp, tmp2;
 
 	//always print factors unless complete silence is requested
@@ -632,7 +660,42 @@ void print_factors(fact_obj_t *fobj)
 			//else
 			{
 				//type not set, determine it now
-				if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
+				/* prove primality of numbers <= aprcl_prove_cutoff digits */
+				if (gmp_base10(fobj->fobj_factors[i].factor) <= fobj->aprcl_prove_cutoff)
+				{
+					if (VFLAG > 0)
+						v = (gmp_base10(fobj->fobj_factors[i].factor) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+					else
+						v = APRTCLE_VERBOSE0;
+
+					if (mpz_aprtcle(fobj->fobj_factors[i].factor, v) == APRTCLE_PRIME)
+					{
+						for (j=0;j<fobj->fobj_factors[i].count;j++)
+						{
+							mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+							gmp_printf("P%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+								fobj->fobj_factors[i].factor);
+						}
+					}
+					else
+					{
+						if (mpz_bpsw_prp(fobj->fobj_factors[i].factor) != PRP_COMPOSITE)
+						{
+							// if BPSW doesn't think this composite number is actually composite, then ask the user
+							// to report this fact to the YAFU sub-forum at mersenneforum.org
+							printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
+							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
+							gmp_printf(" *** ATTENTION: n = %Zd\n", fobj->fobj_factors[i].factor);
+						}
+						for (j=0;j<fobj->fobj_factors[i].count;j++)
+						{
+							mpz_mul(tmp, tmp, fobj->fobj_factors[i].factor);
+							gmp_printf("C%d = %Zd\n", gmp_base10(fobj->fobj_factors[i].factor),
+								fobj->fobj_factors[i].factor);
+						}
+					}
+				}
+				else if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
@@ -665,7 +728,32 @@ void print_factors(fact_obj_t *fobj)
 			mpz_tdiv_q(tmp2, tmp2, tmp);
 			if (mpz_cmp_ui(tmp2, 1) > 0)
 			{
-				if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
+				/* prove primality of numbers <= aprcl_prove_cutoff digits */
+				if (gmp_base10(tmp2) <= fobj->aprcl_prove_cutoff)
+				{
+					if (VFLAG > 0)
+						v = (gmp_base10(tmp2) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+					else
+						v = APRTCLE_VERBOSE0;
+
+					if (mpz_aprtcle(tmp2, v) == APRTCLE_PRIME)
+						gmp_printf("\n***co-factor***\nP%d = %Zd\n",
+							gmp_base10(tmp2), tmp2);
+					else
+					{
+						if (mpz_bpsw_prp(tmp2) != PRP_COMPOSITE)
+						{
+							// if BPSW doesn't think this composite number is actually composite, then ask the user
+							// to report this fact to the YAFU sub-forum at mersenneforum.org
+							printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
+							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
+							gmp_printf(" *** ATTENTION: n = %Zd\n", tmp2);
+						}
+						gmp_printf("\n***co-factor***\nC%d = %Zd\n",
+							gmp_base10(tmp2), tmp2);
+					}
+				}
+				else if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
 				{
 					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
 						gmp_base10(tmp2), tmp2);

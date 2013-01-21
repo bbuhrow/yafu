@@ -744,21 +744,6 @@ void nfs(fact_obj_t *fobj)
 	return;
 }
 
-#else
-
-void nfs(fact_obj_t *fobj)
-{
-	printf("nfs has not been enabled\n");
-
-	mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
-	SIQS(fobj);
-	mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-
-	return;
-}
-
-#endif
-
 int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 {
 	// if we are going to be doing sieving, check for the sievers
@@ -1093,3 +1078,19 @@ void trial_sieve(fact_obj_t* fobj)
 		free(filenames[me]);
 	free(filenames);
 }
+
+#else
+
+void nfs(fact_obj_t *fobj)
+{
+	printf("nfs has not been enabled\n");
+
+	mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+	SIQS(fobj);
+	mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+	return;
+}
+
+#endif
+

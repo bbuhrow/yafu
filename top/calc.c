@@ -31,6 +31,7 @@ Implements an arbitrary precision calculator.
 #include "qs.h"
 #include "factor.h"
 #include "common.h"
+#include "mpz_prp_prime.h"
 
 char opchar[10] = {'=','<','>','+','-','*','/','%','^'};
 char imms[3] = {'!','#','-'};
@@ -1024,7 +1025,7 @@ int getFunc(char *s, int *nargs)
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sftest","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune",
-						"xor", "and", "or", "not", "frange"};
+						"xor", "and", "or", "not", "frange","bpsw","aprcl"};
 
 	int args[NUM_FUNC] = {1,1,2,1,1,
 					2,2,1,1,1,
@@ -1038,7 +1039,8 @@ int getFunc(char *s, int *nargs)
 					2,2,2,1,0,
 					0,5,1,4,1,
 					0,4,3,1,0,
-					2,2,2,1,2};
+					2,2,2,1,2,
+					1,1};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -2505,6 +2507,69 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			mpz_set_ui(operands[0], 0);
 		}
 
+		break;
+
+	case 65:
+		/* bpsw */
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in bpsw\n");
+			break;
+		}
+		else
+		{
+			int ret = 0;
+			ret = mpz_bpsw_prp(operands[0]);
+			// should we print out the input number again?
+			if (ret == PRP_COMPOSITE)
+			{
+				printf("Input is composite.  C%d\n", gmp_base10(operands[0]));
+			}
+			else if (ret == PRP_PRP)
+			{
+				printf("Input is prp.  PRP%d\n", gmp_base10(operands[0]));
+			}
+			else if (ret == PRP_PRIME)
+			{
+				printf("Input is prime.  P%d\n", gmp_base10(operands[0]));
+			}
+		}
+		break;
+
+	case 66:
+		/* aprcl */
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in aprcl\n");
+			break;
+		}
+		else
+		{
+			int ret = 0;
+			ret = mpz_aprtcle(operands[0], APRTCLE_VERBOSE1);
+			// should we print out the input number again?
+			if (ret == APRTCLE_COMPOSITE)
+			{
+				if (mpz_bpsw_prp(operands[0]) != PRP_COMPOSITE)
+				{
+					printf("\n");
+					// if BPSW doesn't think this composite number is actually composite, then ask the user
+					// to report this fact to the YAFU sub-forum at mersenneforum.org
+					printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
+					printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
+					gmp_printf(" *** ATTENTION: n = %Zd\n", operands[0]);
+				}
+				printf("\nInput is composite.  C%d\n", gmp_base10(operands[0]));
+			}
+			else if (ret == APRTCLE_PRP)
+			{
+				printf("\nInput is prp.  PRP%d\n", gmp_base10(operands[0]));
+			}
+			else if (ret == APRTCLE_PRIME)
+			{
+				printf("\nInput is prime.  P%d\n", gmp_base10(operands[0]));
+			}
+		}
 		break;
 
 	default:

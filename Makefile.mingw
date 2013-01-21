@@ -19,8 +19,8 @@
 
 CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
-#CFLAGS = -march=native -mtune=native
-CFLAGS = -g
+CFLAGS = -march=core2 -mtune=core2
+#CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
@@ -30,6 +30,9 @@ LIBS += -L../gmp/lib/mingw/x86_64
 
 INC += -I../gmp-ecm/include
 LIBS += -L../gmp-ecm/lib/mingw/x86_64
+
+INC += -I/d/Programming/gmp-ecm/svn_1873_mw64_mpir250
+LIBS += -L/d/Programming/gmp-ecm/svn_1873_mw64_mpir250/.libs
 
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
@@ -97,6 +100,7 @@ YAFU_SRCS = \
 	top/stack.c \
 	top/calc.c \
 	top/test.c \
+	top/mpz_prp_prime.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -183,6 +187,8 @@ HEAD = include/yafu.h  \
 	include/util.h  \
 	include/types.h \
 	include/yafu_string.h  \
+	include/mpz_prp_prime.h \
+	include/jacobi_sum.h \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
