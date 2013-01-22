@@ -493,12 +493,20 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 	fobj->fobj_factors[fobj->num_factors].count = 1;
 	if (gmp_base10(n) <= fobj->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
 	{
+		int ret = 0;
+
 		if (VFLAG > 0)
 			v = (gmp_base10(n) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 		else
 			v = APRTCLE_VERBOSE0;
 
-		if (mpz_aprtcle(n, v) == APRTCLE_PRIME)
+		if (v == APRTCLE_VERBOSE1)
+			printf("\n");
+		ret = mpz_aprtcle(n, v);
+		if (v == APRTCLE_VERBOSE1)
+			printf("\n");
+
+		if (ret == APRTCLE_PRIME)
 			fobj->fobj_factors[fobj->num_factors].type = PRIME;
 		else
 		{
@@ -664,12 +672,19 @@ void print_factors(fact_obj_t *fobj)
 				/* prove primality of numbers <= aprcl_prove_cutoff digits */
 				if (gmp_base10(fobj->fobj_factors[i].factor) <= fobj->aprcl_prove_cutoff)
 				{
+					int ret = 0;
 					if (VFLAG > 0)
 						v = (gmp_base10(fobj->fobj_factors[i].factor) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
 
-					if (mpz_aprtcle(fobj->fobj_factors[i].factor, v) == APRTCLE_PRIME)
+					if (v == APRTCLE_VERBOSE1)
+						printf("\n");
+					ret = mpz_aprtcle(fobj->fobj_factors[i].factor, v);
+					if (v == APRTCLE_VERBOSE1)
+						printf("\n");
+
+					if (ret == APRTCLE_PRIME)
 					{
 						for (j=0;j<fobj->fobj_factors[i].count;j++)
 						{
@@ -732,12 +747,19 @@ void print_factors(fact_obj_t *fobj)
 				/* prove primality of numbers <= aprcl_prove_cutoff digits */
 				if (gmp_base10(tmp2) <= fobj->aprcl_prove_cutoff)
 				{
+					int ret = 0;
 					if (VFLAG > 0)
 						v = (gmp_base10(tmp2) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
 
-					if (mpz_aprtcle(tmp2, v) == APRTCLE_PRIME)
+					if (v == APRTCLE_VERBOSE1)
+						printf("\n");
+					ret = mpz_aprtcle(tmp2, v);
+					if (v == APRTCLE_VERBOSE1)
+						printf("\n");
+
+					if (ret == APRTCLE_PRIME)
 						gmp_printf("\n***co-factor***\nP%d = %Zd\n",
 							gmp_base10(tmp2), tmp2);
 					else
