@@ -256,8 +256,8 @@ ispow			rho			gcd
 issquare		trial			jacobi
 sieverange		ecm			modinv
 testrange		fermat			fib
-			snfs			luc
-						llt
+bpsw			snfs			luc
+aprcl						llt
 
 ----------
 Variables:
@@ -637,6 +637,25 @@ description:
 uses trial division followed by the rabin-miller probabalistic primalty
 test to determine probable-primalty.  The number of witnesses in the rabin-miller test
 is configurable using the NUM_WITNESSES parameter.  The default is 20.
+
+
+[bpsw]
+usage: bpsw(expression)
+
+description:
+runs the Baillie-Pomerance-Selfride-Wagstaff probablistic primality test
+to determine probable-primality.  There are currently no know composites that
+are declared prime by this test.
+
+
+[aprcl]
+usage: aprcl(expression)
+
+description:
+runs the Adleman, Pomerance, Rumely, Cohen, and Lenstra primality test on
+the given expression to determine if the input is prime or composite.  It
+can prove numbers up to 6021 digits.  Above this size it falls back to a
+BPSW probable-primality test.
 
 
 [issquare]
