@@ -191,6 +191,3 @@ uint64 P_MAX;
 str_t gstr1, gstr2, gstr3;
 
 #endif //ifndef HEAD_DEF
-
-
-
