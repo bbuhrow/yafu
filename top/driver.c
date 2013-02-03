@@ -26,10 +26,17 @@ code to the public domain.
 #include "factor.h"
 #include "gmp.h"
 
+//#if defined(_MSC_VER)
+//	#include <gmp-ecm\config.h>
+//#else
+//	#include <config.h>
+//#endif
+/* Use the above if linking against GMP-ECM revision 2344 or earlier, and the
+following if linking against 2345+ (all 6.* versions are the old way) */
 #if defined(_MSC_VER)
-	#include <gmp-ecm\config.h>
+	#include <gmp-ecm\ecm.h>
 #else
-	#include "config.h"
+	#include <ecm.h>
 #endif
 
 // the number of recognized command line options
@@ -753,29 +760,23 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 
 	if (VFLAG > 0 || !is_cmdline_run)
 #ifdef _MSC_MPIR_VERSION
-		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+		printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
+_MSC_MPIR_VERSION);
+		fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
 _MSC_MPIR_VERSION);
 #else
-	#ifdef VERSION
-		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION, 
+	#ifdef ECM_VERSION
+		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION, 
 			__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+		fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION,
+		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
 	#else
+		printf("Using GMP-ECM, Powered by GMP\n");
 		fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
 	#endif
 
 #endif
 
-#ifdef _MSC_MPIR_VERSION
-	fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
-_MSC_MPIR_VERSION);
-#else
-#ifdef VERSION
-	fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", VERSION,
-		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-#else
-	fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
-#endif
-#endif
 	fflush(stdout);
 
 	fprintf(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
