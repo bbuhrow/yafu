@@ -971,6 +971,12 @@ int calc(str_t *in, fact_obj_t *fobj)
 				for (j=0;j<na;j++)
 				{
 					//z2hexstr(&operands[j],tmp);
+					int sz = mpz_sizeinbase(operands[j], 10) + 10;
+					if (tmp->alloc < sz)
+					{
+						tmp->s = (char *)realloc(tmp->s, sz * sizeof(char));
+						tmp->alloc = sz;
+					}
 					mpz_get_str(tmp->s, 10, operands[j]);
 					tmp->nchars = strlen(tmp->s)+1;
 					push(tmp,&stk);
@@ -978,8 +984,15 @@ int calc(str_t *in, fact_obj_t *fobj)
 			}
 			else
 			{
+				int sz;
+
 				get_uvar(tok,tmpz);
-				//z2decstr(&tmpz,&gstr1);
+				sz = mpz_sizeinbase(tmpz, 10) + 10;
+				if (gstr1.alloc < sz)
+				{
+					gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+					gstr1.alloc = sz;
+				}
 				mpz_get_str(gstr1.s, 10, tmpz);
 				gstr1.nchars = strlen(gstr1.s)+1;
 				sCopy(tmp,&gstr1);

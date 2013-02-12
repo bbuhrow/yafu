@@ -271,10 +271,17 @@ void nfs(fact_obj_t *fobj)
 			pre_batch_rels = job.current_rels;
 			gettimeofday(&bstart, NULL);
 
+			// sieve if the user has requested to (or by default).  else,
+			// set the done sieving flag.  this will prevent some infinite loops,
+			// for instance if we only want to post-process, but filtering 
+			// doesn't produce a matrix.  if we don't want to sieve in that case,
+			// then we're done.
 			if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
 				!(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
 				do_sieving(fobj, &job);
+			else
+				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
 
 			// if this has been previously marked, then go ahead and exit.
 			if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
@@ -307,7 +314,17 @@ void nfs(fact_obj_t *fobj)
 			if (relations_needed == 0)
 				nfs_state = NFS_STATE_LINALG;
 			else
+			{
+				// if we filtered, but didn't produce a matrix, raise the target
+				// min rels by a few percent.  this will prevent too frequent
+				// filtering attempts while allowing the q_batch size to remain small.
+				job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
+				if (VFLAG > 0)
+					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
+					1-fobj->nfs_obj.filter_min_rels_nudge, job.min_rels);
+
 				nfs_state = NFS_STATE_SIEVE;
+			}
 
 			break;
 
@@ -804,21 +821,21 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
 	{100, 1800000,  26, 52, 2.5, 12, 0, 20000},
 	{105, 2500000,  26, 52, 2.5, 12, 0, 20000},
-	{110, 3200000,  26, 52, 2.5, 13, 0, 20000},
+	{110, 3200000,  26, 52, 2.5, 13, 0, 40000},
 	{115, 4500000,  27, 54, 2.5, 13, 0, 40000},
 	{120, 5500000,  27, 54, 2.5, 13, 0, 40000},
 	{125, 7000000,  27, 54, 2.5, 13, 0, 40000},
-	{130, 9000000,  28, 56, 2.5, 13, 0, 40000},
-	{135, 11500000, 28, 56, 2.6, 14, 0, 40000},
-	{140, 14000000, 28, 56, 2.6, 14, 0, 40000},
-	{145, 17000000, 28, 56, 2.6, 14, 0, 40000},
-	{150, 21000000, 29, 58, 2.6, 14, 0, 40000},
-	{155, 28000000, 29, 58, 2.6, 14, 0, 80000},
-	{160, 36000000, 29, 58, 2.6, 15, 0, 80000},
-	{165, 45000000, 30, 60, 2.6, 14, 0, 80000},
-	{170, 55000000, 30, 60, 2.6, 14, 0, 80000},
-	{175, 66000000, 30, 60, 2.6, 15, 0, 80000},
-	{180, 78000000, 30, 60, 2.6, 15, 0, 80000}
+	{130, 9000000,  28, 56, 2.5, 13, 0, 80000},
+	{135, 11500000, 28, 56, 2.6, 14, 0, 80000},
+	{140, 14000000, 28, 56, 2.6, 14, 0, 80000},
+	{145, 17000000, 28, 56, 2.6, 14, 0, 80000},
+	{150, 21000000, 29, 58, 2.6, 14, 0, 160000},
+	{155, 28000000, 29, 58, 2.6, 14, 0, 160000},
+	{160, 36000000, 30, 60, 2.6, 14, 0, 160000},
+	{165, 45000000, 30, 60, 2.6, 14, 0, 160000},
+	{170, 55000000, 31, 62, 2.6, 14, 0, 320000},
+	{175, 66000000, 31, 62, 2.6, 15, 0, 320000},
+	{180, 78000000, 31, 62, 2.6, 15, 0, 320000}
 };
 // in light of test sieving, this table might need to be extended
 

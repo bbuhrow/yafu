@@ -269,6 +269,8 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;
 	fobj->nfs_obj.min_digits = 85;
+	fobj->nfs_obj.filter_min_rels_nudge = 1.025;	// raise min_rels bounds by 2.5%
+													// on unsuccessful filtering
 	fobj->nfs_obj.siever = 0;					//default, use automatic selection
 	fobj->nfs_obj.startq = 0;					//default, not used
 	fobj->nfs_obj.rangeq = 0;					//default, not used
@@ -2227,7 +2229,9 @@ void factor(fact_obj_t *fobj)
 		if (check_if_done(fobj, origN) || 
 			(quit_after_sieve_method && 
 			((fact_state == state_qs) ||
-			(fact_state == state_nfs))))
+			(fact_state == state_nfs))) ||
+			((fact_state == state_nfs) &&
+			(fobj->flags == FACTOR_INTERRUPT)))
 			fact_state = state_done;
 
 		if (fact_state != state_done)

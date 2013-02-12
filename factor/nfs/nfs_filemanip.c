@@ -149,7 +149,8 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 				logprint(logfile, "nfs: refusing to resume without -R option\n");
 				fclose(logfile);
 			}
-
+			// if we are inside factor, don't try to continue past this error
+			fobj->flags = FACTOR_INTERRUPT;
 			*last_spq = 0;
 			return NFS_STATE_DONE;
 		}

@@ -103,6 +103,11 @@ flags to change program behavior.  Supported flags are:
 -ext_ecm <num>	specify the B1 value beyond which yafu will attempt to use
 				external ecm binaries.  below the specified threshold it will use
 				built-in ecm code
+-aprcl_p <num>	Specify the upper size limit of numbers to be proved prime by APR-CL
+				(in decimal digits, default = 300, hard upper limit = 6021)
+-aprcl_d <num>	Specify the upper size limit of numbers that are proved prime by
+				APR-CL "silently".  Above this limit, APR-CL progress will be
+				printed (in decimal digits, default = 200)
 				
 NFS BEHAVIOR OPTIONS - configuring phases to run
 general info: if none of these options are specified, yafu will perform all of
@@ -356,7 +361,7 @@ command line flags affecting nfs:
 -np	[X,Y]		Only perform poly search step within nfs().  NOTE: any existing poly files will
 					be overwritten. Optionally, provide a range of leading coefficients over which to 
 					search in the format: start,stop
--nc				Only perform postprocessing step within nfs()
+-nc				Only perform postprocessing step within nfs(), filter, LA, and sqrt in order
 -nc2			Only perform postprocessing step within nfs(), starting with linear algebra
 -nc3			Only perform postprocessing step within nfs(), starting with sqrt
 -lathreads	<num>	Use specified number of threads for linear algebra only.  If not specified
@@ -379,6 +384,9 @@ command line flags affecting nfs:
 					ggnfs siever name.  I.e, ggnfs-lasieve4I<num>e.exe
 -nt <file1>,<file2>...	Perform automated trial sieving of the listed job files (then exit)
 				(yafu will fill any missing ggnfs parameters as necessary)
+-filt_bump <num>	Raise the min_rels bound by the specified percentage on unsuccessful filtering
+				attempts.  Floating point number interpreted as a percentage. default = 2.5%.
+				Note that the new min_rels is not remembered on abort.
 
 
 Examples:
@@ -643,8 +651,8 @@ is configurable using the NUM_WITNESSES parameter.  The default is 20.
 usage: bpsw(expression)
 
 description:
-runs the Baillie-Pomerance-Selfride-Wagstaff probablistic primality test
-to determine probable-primality.  There are currently no know composites that
+runs the Baillie-Pomerance-Selfridge-Wagstaff probablistic primality test
+to determine probable-primality.  There are currently no known composites that
 are declared prime by this test.
 
 
