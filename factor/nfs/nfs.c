@@ -319,10 +319,14 @@ void nfs(fact_obj_t *fobj)
 				// if we filtered, but didn't produce a matrix, raise the target
 				// min rels by a few percent.  this will prevent too frequent
 				// filtering attempts while allowing the q_batch size to remain small.
-				job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
+				if (job.current_rels > job.min_rels)
+					job.min_rels = job.current_rels * fobj->nfs_obj.filter_min_rels_nudge;
+				else
+					job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
+
 				if (VFLAG > 0)
 					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
-					100*(1-fobj->nfs_obj.filter_min_rels_nudge), job.min_rels);
+					100*(fobj->nfs_obj.filter_min_rels_nudge-1), job.min_rels);
 
 				nfs_state = NFS_STATE_SIEVE;
 			}
@@ -995,6 +999,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				siever = ggnfs_table[i][5];
 			else
 				siever = ggnfs_table[i+1][5];
+			// if no user specified siever - pick one from the table
 			if (fobj->nfs_obj.siever == 0) fobj->nfs_obj.siever = siever;
 
 			//interp
@@ -1142,6 +1147,61 @@ void nfs_set_min_rels(nfs_job_t *job)
 		job->min_rels += (uint32)(fudge * (
 			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
+}
+
+void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest)
+{
+	int i;
+
+	dest->skew = src->skew;
+	dest->side = src->side;
+	dest->murphy = src->murphy;
+	mpz_set(dest->m, src->m);
+	for (i=0; i<MAX_POLY_DEGREE+1; i++)
+	{
+		mpz_set(dest->rat.coeff[i], src->rat.coeff[i]);
+		mpz_set(dest->alg.coeff[i], src->alg.coeff[i]);
+	}
+
+	return;
+}
+
+void copy_job(nfs_job_t *src, nfs_job_t *dest)
+{
+	if (dest->poly == NULL)
+	{
+		dest->poly = (mpz_polys_t *)malloc(sizeof(mpz_polys_t));
+		mpz_polys_init(dest->poly);
+	}
+
+	copy_mpz_polys_t(src->poly, dest->poly);
+	dest->rlim = src->rlim;
+	dest->alim = src->alim;
+	dest->lpbr = src->lpbr;
+	dest->lpba = src->lpba;
+	dest->mfbr = src->mfbr;
+	dest->mfba = src->mfba;
+	dest->rlambda = src->rlambda;
+	dest->alambda = src->alambda;
+	dest->qrange = src->qrange;
+	strcpy(dest->sievername, src->sievername);
+	dest->startq = src->startq;
+	dest->min_rels = src->min_rels;
+	dest->current_rels = src->current_rels;
+	dest->poly_time = src->poly_time;
+	dest->last_leading_coeff = src->last_leading_coeff;
+	dest->use_max_rels = src->use_max_rels;
+
+	if (src->snfs != NULL)
+	{
+		if (dest->snfs == NULL)
+		{
+			dest->snfs = (snfs_t *)malloc(sizeof(snfs_t));
+			snfs_init(dest->snfs);
+		}
+		snfs_copy_poly(src->snfs, dest->snfs);
+	}
+	return;
 }
 
 #else

@@ -22,6 +22,7 @@ void snfs_init(snfs_t* poly)
 {	
 	memset(poly, 0, sizeof(snfs_t));
 	poly->form_type = SNFS_NONE;
+	poly->siever = 0;
 	poly->poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
 	if( !poly->poly )
 	{
@@ -55,6 +56,7 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 	dest->coeff1 = src->coeff1;
 	dest->coeff2 = src->coeff2;
 	dest->form_type = src->form_type;
+	dest->siever = src->siever;
 
 	dest->poly->rat.degree = src->poly->rat.degree;
 	for(i = 0; i <= src->poly->rat.degree; i++)
@@ -203,6 +205,10 @@ void print_snfs(snfs_t *poly, FILE *out)
 
 	if (poly->sdifficulty > 0)
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
+
+	// print recommended siever version, if known
+	if (poly->siever > 0)
+		fprintf(out, "# siever: %u\n", poly->siever);
 
 	fprintf(out, "type: snfs\nsize: %d\n", d);
 
@@ -2053,20 +2059,18 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 // approximately equally in which case only test-sieving can really resolve the difference.
 // if the difficulty is below a threshold, just pick one, else, do some test sieving.
 
-snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
+// not only can test sieving pick the best poly, but it can reveal optimizations
+// to the job file, such as adjustments to the siever version or lpb values
+// to get  rels/q into the desired range (somewhere around 2-4 rels/q).
+// Therefore, pass in job structures to be modified rather than using throwaway
+// objects during the test sieving.
+nfs_job_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t* jobs)
 {
-	int i, dotest, minscore_id;
-	nfs_job_t* jobs = (nfs_job_t*)malloc(npoly * sizeof(nfs_job_t));
-	if( !jobs )
-	{
-		printf("out of memory\n");
-		exit(-1);
-	}
-	memset(jobs, 0, npoly * sizeof(nfs_job_t));
+	int i, dotest, minscore_id;	
 
 	// only one poly - don't bother test sieving it :)
 	if (npoly < 2)
-		return &polys[0];
+		return &jobs[0];
 
 	// see if any poly is big enough to justify test sieving
 	for (i=0, dotest = 0; i<npoly; i++)
@@ -2075,15 +2079,7 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 
 	// input too small - test sieving not justified
 	if( !dotest )
-		return &polys[0];
-
-	for (i=0; i<npoly; i++)
-	{
-		jobs[i].poly = polys[i].poly;
-		jobs[i].snfs = &polys[i];
-		get_ggnfs_params(fobj, &jobs[i]);
-		skew_snfs_params(fobj, &jobs[i]);
-	}
+		return &jobs[0];
 
 	minscore_id = test_sieve(fobj, jobs, npoly, 0);
 
@@ -2093,14 +2089,13 @@ snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly)
 		minscore_id = 0;
 	}
 
-	free(jobs);
-
-	return &polys[minscore_id];
+	return &jobs[minscore_id];
 }
 
-void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly)
+void snfs_make_job_file(fact_obj_t *fobj, nfs_job_t *job)
 {
 	FILE *out;
+	snfs_t *poly = job->snfs;
 
 	out = fopen(fobj->nfs_obj.job_infile, "w");
 	if (out == NULL)
@@ -2109,7 +2104,9 @@ void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly)
 		exit(0);
 	}
 
+	// print the header stuff and the poly
 	print_snfs(poly, out);
+
 	fclose(out);
 
 	return;

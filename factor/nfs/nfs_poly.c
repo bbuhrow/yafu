@@ -18,10 +18,11 @@ benefit from your work.
 
 void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 {
-	snfs_t* poly, * polys = NULL, * best;
+	snfs_t* poly, * polys = NULL;
 	int i, npoly;
 	FILE *f;
 	char tmpstr[1024];
+	nfs_job_t *jobs, *best;
 
 	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > MAX_SNFS_BITS)
 	{
@@ -110,7 +111,27 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		if (f != NULL) fclose(f);
 	}
 
-	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly));
+	// initialize job structures to pass into test sieving.  test sieving may modify parameters
+	// of the job to optimize rels/q.
+	jobs = (nfs_job_t*)malloc(npoly * sizeof(nfs_job_t));
+	if( !jobs )
+	{
+		printf("out of memory\n");
+		exit(-1);
+	}
+	memset(jobs, 0, npoly * sizeof(nfs_job_t));
+	
+	// assign initial parameters
+	for (i=0; i<npoly; i++)
+	{
+		jobs[i].poly = polys[i].poly;
+		jobs[i].snfs = &polys[i];
+		get_ggnfs_params(fobj, &jobs[i]);
+		skew_snfs_params(fobj, &jobs[i]);
+	}
+
+	// return best job, which contains the best poly
+	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly), jobs);
 
 	if (VFLAG > 0)
 	{
@@ -122,28 +143,34 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 		if (f != NULL) logprint(f, "gen: selected polynomial:\n");
 
-		print_snfs(best, stdout);
-		if (f != NULL) print_snfs(best, f);
+		print_snfs(best->snfs, stdout);
+		if (f != NULL) print_snfs(best->snfs, f);
 		if (f != NULL) fclose(f);
 	}
 
-	snfs_copy_poly(best, poly); // best is only a pointer into polys, which needs to be free()d
+	// copy the best job to the object that will be returned from this function
+	copy_job(best, job);
 
-	snfs_make_poly_file(fobj, poly);
+	// re-compute the min_rels, in case that changed
+	nfs_set_min_rels(job);
 
-	job->snfs = poly;
-	job->poly = poly->poly;
-	get_ggnfs_params(fobj, job);
-	skew_snfs_params(fobj, job);
+	// make the file and fill it
+	snfs_make_job_file(fobj, job);
 	fill_job_file(fobj, job, PARAM_FLAG_ALL);
-	//also create a .fb file
+
+	// also create a .fb file
 	ggnfs_to_msieve(fobj, job);
 
-	job->startq = job->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
+	// set the starting q
+	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
+	// clean up
 	for(i = 0; i < npoly; i++)
 		snfs_clear(&polys[i]);
+	snfs_clear(poly);
+	free(poly);
 	free(polys);
+	free(jobs);
 
 	return;
 }

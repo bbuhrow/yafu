@@ -950,7 +950,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 {
 	FILE *in;
 	uint32 missing_params = 0;
-	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0;
+	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
 	char line[1024];
 	float alambda = 0, rlambda = 0;
 	enum special_q_e side = NEITHER_SPQ;
@@ -1057,6 +1057,13 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 			sscanf(substr + 8, "%f", &alambda); //strtof(substr + 8, NULL);
 			continue;
 		}
+
+		substr = strstr(line, "# siever:");		
+		if (substr != NULL)
+		{
+			sscanf(substr + 9, "%u", &siever);
+			continue;
+		}
 		
 		substr = strstr(line, "algebraic");
 		if (substr != NULL)
@@ -1075,6 +1082,21 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 				printf("nfs: found side: rational\n");
 			continue;
 		}
+	}
+
+	if (siever > 0)
+	{
+		// if no command line siever specified
+		if (fobj->nfs_obj.siever == 0)
+		{
+			// so get_ggnfs_params doesn't overwrite it
+			fobj->nfs_obj.siever = siever;
+			sprintf(job->sievername, "gnfs-lasieve4I%ue", siever);
+#ifdef WIN32
+			sprintf(job->sievername, "%s.exe", job->sievername);
+#endif
+		}
+
 	}
 
 	if (lpbr > 0)
