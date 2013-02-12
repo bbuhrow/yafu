@@ -376,6 +376,33 @@ char *gettimever(char *s)
 	return s;
 }
 
+char * time_from_secs(char *str, unsigned long time)
+{
+	// use an input scratch string
+	unsigned long d;
+
+	strcpy(str, "");
+	if( time > 3600*24 )
+	{
+		d = time / (3600*24);
+		time %= (3600*24);
+		sprintf(str, "%lu day%s ", d, d>1?"s":"");
+	}
+	if( time > 3600 )
+	{
+		d = time / 3600;
+		time %= 3600;
+		sprintf(str, "%s%luh ", str, d);
+	}
+	if( time > 60 )
+	{
+		d = time / 60;
+		time %= 60;
+		sprintf(str, "%s%lum ", str, d);
+	}
+	sprintf(str, "%s%lus", str, time);
+	return str;
+}
 
 void zNextPrime(z *n, z *p, int dir)
 {

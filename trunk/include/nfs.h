@@ -147,6 +147,7 @@ typedef struct
 	double rnorm;
 	int rank;
 	int valid;
+	int siever;
 } snfs_t;
 
 typedef struct
@@ -261,13 +262,15 @@ void approx_norms(snfs_t *poly);
 void snfs_scale_difficulty(snfs_t *polys, int npoly);
 void snfs_rank_polys(snfs_t *polys, int npoly);
 int qcomp_snfs_sdifficulty(const void *x, const void *y);
-snfs_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly);
-void snfs_make_poly_file(fact_obj_t *fobj, snfs_t *poly);
+nfs_job_t *snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t *jobs);
+void snfs_make_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
 void find_primitive_factor(snfs_t *poly);
 void nfs_set_min_rels(nfs_job_t *job);
+void copy_job(nfs_job_t *src, nfs_job_t *dest);
+void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);
 
 int NFS_ABORT;
 

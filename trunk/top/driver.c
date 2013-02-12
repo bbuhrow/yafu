@@ -33,8 +33,12 @@ code to the public domain.
 //#endif
 /* Use the above if linking against GMP-ECM revision 2344 or earlier, and the
 following if linking against 2345+ (all 6.* versions are the old way) */
+
+// hack until I get Duslow's change working on msvc...
+#define ECM_VERSION "6.3"
+
 #if defined(_MSC_VER)
-	#include <gmp-ecm\ecm.h>
+	//#include <gmp-ecm\ecm.h>
 #else
 	#include <ecm.h>
 #endif

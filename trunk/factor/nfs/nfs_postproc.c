@@ -99,6 +99,9 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	printf("%s\n",obj->input); //mp_print(mpN, 10, NULL, gstr1.s));
 	relations_needed = nfs_filter_relations(obj, fobj->nfs_obj.gmp_n);
 
+	// reset the args list
+	obj->nfs_args = NULL;
+
 	return relations_needed;
 }
 

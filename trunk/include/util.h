@@ -133,6 +133,7 @@ TIME_DIFF * my_difftime (struct timeval *, struct timeval *);
 void logprint(FILE *infile, char *args, ...);
 void logprint_oc(const char *name, const char *method, char *args, ...);
 char *gettimever(char *s);
+char * time_from_secs(char *str, unsigned long time);
 void dbl2z(double n, z *a);
 //char *strrev(char *str);
 fp_digit spRand(fp_digit lower, fp_digit upper);

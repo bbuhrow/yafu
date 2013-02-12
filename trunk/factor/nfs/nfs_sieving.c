@@ -16,43 +16,6 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-char* time_from_secs(unsigned long time)
-{ // perhaps should go in a different file
-	char *str, buf[80];
-	unsigned long d;
-	str = (char*)malloc(80); // can't return a char[] because it's local
-	// (but how to free it :P)
-	if( !str )
-	{
-		printf("malloc failed\n");
-		exit(-1);
-	}
-	
-	if( time > 3600*24 )
-	{
-		d = time / (3600*24);
-		time %= (3600*24);
-		sprintf(str, "%lu day%s ", d, d>1?"s":"");
-	}
-	if( time > 3600 )
-	{
-		d = time / 3600;
-		time %= 3600;
-		sprintf(buf, "%luh ", d);
-		strcat(str, buf);
-	}
-	if( time > 60 )
-	{
-		d = time / 60;
-		time %= 60;
-		sprintf(buf, "%lum ", d);
-		strcat(str, buf);
-	}
-	sprintf(buf, "%lus", time);
-	strcat(str, buf);
-	return str;
-}
-
 // potential enhancements:
 // 1)
 // don't test a poly from a degree that has already been tested
@@ -84,7 +47,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	double* score = (double*)malloc(njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
-	char* time;
+	char time[80];
 	uint32 spq_range = 2000;
 	FILE *flog;
 	
@@ -267,15 +230,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			minscore_id = i;
 			min_score = score[i];
 			if (VFLAG > 0) printf("test: new best estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS); 
+				time_from_secs(time, (unsigned long)score[i]), THREADS); 
 			logprint(flog, "test: new best estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS); 
+				time_from_secs(time, (unsigned long)score[i]), THREADS); 
 
 			// edit lbpr/a depending on test results.  we target something around 2 rels/Q.
 			// could also change siever version in more extreme cases.
-			// one problem with this is that for snfs test sieving at least, the jobs structures
-			// are thrown away when this function returns!  Only the poly is kept.  So 
-			// we need to figure out a way to get this info to the real sieving step...
 			if (count > 4*spq_range)
 			{
 				if (VFLAG > 0)
@@ -284,6 +244,45 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				jobs[i].lpbr--;
 				jobs[i].mfba -= 2;
 				jobs[i].mfbr -= 2;
+			}
+
+			if (count > 8*spq_range)
+			{
+				char *pos;
+				int siever;
+
+				pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
+				siever = (pos[14] - 48) * 10 + (pos[15] - 48);
+
+				if (VFLAG > 0)
+					printf("test: yield greater than 8x/spq, reducing siever version\n");
+
+				switch (siever)
+				{
+				case 11:
+					if (VFLAG > 0) printf("test: siever version cannot be decreased further\n");
+					break;
+
+				case 12:
+					pos[15] = '1';
+					jobs[i].snfs->siever = 11;
+					break;
+
+				case 13:
+					pos[15] = '2';
+					jobs[i].snfs->siever = 12;
+					break;
+
+				case 14:
+					pos[15] = '3';
+					jobs[i].snfs->siever = 13;
+					break;
+
+				case 15:
+					pos[15] = '4';
+					jobs[i].snfs->siever = 14;
+					break;
+				}
 			}
 
 			if (count < spq_range)
@@ -296,13 +295,55 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				jobs[i].mfba += 2;
 				jobs[i].mfbr += 2;
 			}
+
+			if (count < (spq_range/2))
+			{
+				char *pos;
+				int siever;
+
+				pos = strstr(jobs[i].sievername, "gnfs-lasieve4I");
+				siever = (pos[14] - 48) * 10 + (pos[15] - 48);
+
+				if (VFLAG > 0)
+					printf("test: yield less than 1x/2*spq, increasing siever version\n");
+
+				if ((pos = strstr(jobs[i].sievername, "gnfs-lasieve4I15e")) != NULL)
+					if (VFLAG > 0) printf("test: siever version cannot be increased further\n");
+
+				switch (siever)
+				{
+				case 15:
+					if (VFLAG > 0) printf("test: siever version cannot be increased further\n");
+					break;
+
+				case 14:
+					pos[15] = '5';
+					jobs[i].snfs->siever = 15;
+					break;
+
+				case 13:
+					pos[15] = '4';
+					jobs[i].snfs->siever = 14;
+					break;
+
+				case 12:
+					pos[15] = '3';
+					jobs[i].snfs->siever = 13;
+					break;
+
+				case 11:
+					pos[15] = '2';
+					jobs[i].snfs->siever = 12;
+					break;
+				}
+			}
      	}
 		else
 		{
 			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS);
+				time_from_secs(time, (unsigned long)score[i]), THREADS);
 			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
-				time=time_from_secs((unsigned long)score[i]), THREADS);
+				time_from_secs(time, (unsigned long)score[i]), THREADS);
 		}
 
 		fclose(flog);
@@ -311,7 +352,6 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		remove(tmpbuf);
 		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
-		free(time);
 	}
 
 	// clean up memory allocated
