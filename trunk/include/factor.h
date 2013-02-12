@@ -33,7 +33,7 @@ code to the public domain.
 #define NO_ZLIB
 #endif
 
-#ifdef _MSC_VER
+#if defined( _MSC_VER )
 #define USE_NFS
 #endif
 
@@ -87,6 +87,11 @@ enum nfs_phase_flags
 	NFS_PHASE_SQRT = 0x10,
 	NFS_PHASE_LA_RESUME = 0x20,
 	NFS_DONE_SIEVING = 0x40
+};
+
+enum factor_flags
+{
+	FACTOR_INTERRUPT = 1
 };
 
 enum msieve_flags {
@@ -390,6 +395,7 @@ typedef struct
 	uint32 rangeq;
 	uint32 polystart;
 	uint32 polyrange;
+	double filter_min_rels_nudge;
 	char outputfile[GSTR_MAXSIZE];
 	char logfile[GSTR_MAXSIZE];
 	char fbfile[GSTR_MAXSIZE];

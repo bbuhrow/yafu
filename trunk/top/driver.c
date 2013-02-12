@@ -40,7 +40,7 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 65
+#define NUMOPTIONS 66
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -58,7 +58,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ns", "np", "nc", "psearch", "R",
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d"};
+	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
+	"filt_bump"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -77,7 +78,8 @@ int needsArg[NUMOPTIONS] = {
 	2,2,0,1,0,
 	1,1,1,0,1,
 	0,0,0,1,1,
-	1,1,1,1,1};
+	1,1,1,1,1,
+	1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -331,7 +333,7 @@ int main(int argc, char *argv[])
 					double t;
 
 					start = clock();
-					mpz_set_str(tmp, str.s, 10);
+					mpz_set_str(tmp, str.s, 0);
 					stop = clock();
 					t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 					//printf("str2hexz in = %6.4f seconds.\n",t);
@@ -342,11 +344,23 @@ int main(int argc, char *argv[])
 					{
 						if (OBASE == DEC)
 						{
+							int sz = mpz_sizeinbase(tmp, 10) + 10;
+							if (gstr1.alloc < sz)
+							{
+								gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+								gstr1.alloc = sz;
+							}
 							if (VFLAG >= 0)
 								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 10, tmp));
 						}
 						else if (OBASE == HEX)
 						{
+							int sz = mpz_sizeinbase(tmp, 16) + 10;
+							if (gstr1.alloc < sz)
+							{
+								gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+								gstr1.alloc = sz;
+							}
 							if (VFLAG >= 0)
 								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 16, tmp));
 						}
@@ -1934,6 +1948,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		// argument "aprcl_d", setting the threshold above which numbers
 		// that are proved prime using APR-CL have additional verbosity enabled
 		fobj->aprcl_display_cutoff = strtoul(arg,NULL,10);
+	}
+	else if (strcmp(opt,OptionArray[55]) == 0)
+	{
+		//argument "filt_bump"
+		sscanf(arg, "%lf", &fobj->nfs_obj.filter_min_rels_nudge);
 	}
 	else
 	{
