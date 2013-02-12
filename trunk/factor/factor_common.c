@@ -269,7 +269,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;
 	fobj->nfs_obj.min_digits = 85;
-	fobj->nfs_obj.filter_min_rels_nudge = 1.025;	// raise min_rels bounds by 2.5%
+	fobj->nfs_obj.filter_min_rels_nudge = 1.05;	// raise min_rels bounds by 5%
 													// on unsuccessful filtering
 	fobj->nfs_obj.siever = 0;					//default, use automatic selection
 	fobj->nfs_obj.startq = 0;					//default, not used

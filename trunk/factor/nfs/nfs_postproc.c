@@ -22,6 +22,7 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	FILE *tmp, *logfile;
 	uint32 relations_needed;
 	uint32 flags = 0;
+	char nfs_args[80];
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
 	if (VFLAG > 0)
@@ -29,9 +30,18 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	flags = flags | MSIEVE_FLAG_NFS_FILTER;
 	obj->flags = flags;
 
-	//msieve: filter
-	if (VFLAG >= 0)
-		printf("nfs: commencing msieve filtering\n");
+	if (job->use_max_rels > 0)
+	{
+		sprintf(nfs_args, "filter_maxrels=%u", job->use_max_rels);
+		obj->nfs_args = nfs_args;
+		if (VFLAG >= 0)
+			printf("nfs: commencing msieve filtering with reduced relation set\n");
+	}
+	else
+	{
+		if (VFLAG >= 0)
+			printf("nfs: commencing msieve filtering\n");
+	}
 
 	logfile = fopen(fobj->flogname, "a");
 	if (logfile == NULL)
@@ -41,7 +51,10 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	}
 	else
 	{
-		logprint(logfile, "nfs: commencing msieve filtering\n");
+		if (job->use_max_rels > 0)
+			logprint(logfile, "nfs: commencing msieve filtering with reduced relation set\n");
+		else
+			logprint(logfile, "nfs: commencing msieve filtering\n");
 		fclose(logfile);
 	}
 

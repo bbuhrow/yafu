@@ -385,7 +385,7 @@ command line flags affecting nfs:
 -nt <file1>,<file2>...	Perform automated trial sieving of the listed job files (then exit)
 				(yafu will fill any missing ggnfs parameters as necessary)
 -filt_bump <num>	Raise the min_rels bound by the specified percentage on unsuccessful filtering
-				attempts.  Floating point number interpreted as a percentage. default = 2.5%.
+				attempts.  Floating point number interpreted as a percentage. default = 5%
 				Note that the new min_rels is not remembered on abort.
 
 

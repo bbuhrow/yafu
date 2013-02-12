@@ -1949,10 +1949,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		// that are proved prime using APR-CL have additional verbosity enabled
 		fobj->aprcl_display_cutoff = strtoul(arg,NULL,10);
 	}
-	else if (strcmp(opt,OptionArray[55]) == 0)
+	else if (strcmp(opt,OptionArray[65]) == 0)
 	{
 		//argument "filt_bump"
 		sscanf(arg, "%lf", &fobj->nfs_obj.filter_min_rels_nudge);
+		fobj->nfs_obj.filter_min_rels_nudge = 1 + fobj->nfs_obj.filter_min_rels_nudge / 100;
 	}
 	else
 	{
