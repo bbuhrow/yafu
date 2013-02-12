@@ -30,18 +30,15 @@ v 1.34
 	(looping on "refusing to resume with -R")
 + fixed infinite loop with -nc when filtering doesn't produce a matrix
 + new method to avoid excessive filtering attempts yet keep the q_batch size small:
-	bump the min_rels bound by a percentage (default 2.5%) if filtering is
+	bump the min_rels bound by a percentage (default 5%) if filtering is
 	unsuccessful.  the percentage can be set using the new parameter -filt_bump <num>
++ implemented a workaround to the "only trivial dependencies found" error in LA
 
 
 todo:
 + check for reasonable cofactor in snfs()
 + ggnfs_table modification based on swellman's input
 + test sieving enhancements - especially modification of poly based on sieving results
-+ after a matrix is solved, detect the case where only trivial dependencies are found (due
-	to extreme oversieving, usually).  msieve should really handle this, but until it
-	does, see if something can be done to restart the LA with less relations.  not ideal,
-	but better than an abormal exit during sqrt.
 + fix the "matrix probably cannot build" exit(1) within msieve.
 
 

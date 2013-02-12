@@ -163,6 +163,7 @@ typedef struct
 	uint32 current_rels;
 	uint32 poly_time;
 	uint32 last_leading_coeff;
+	uint32 use_max_rels;
 
 	snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
@@ -266,6 +267,7 @@ void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
 void find_primitive_factor(snfs_t *poly);
+void nfs_set_min_rels(nfs_job_t *job);
 
 int NFS_ABORT;
 

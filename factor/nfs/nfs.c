@@ -194,6 +194,7 @@ void nfs(fact_obj_t *fobj)
 			// select is resumed they will be changed by check_existing_files.
 			job.last_leading_coeff = 0;
 			job.poly_time = 0;
+			job.use_max_rels = 0;
 			job.snfs = NULL;
 
 			// determine what to do next based on the state of various files.
@@ -321,7 +322,7 @@ void nfs(fact_obj_t *fobj)
 				job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
 				if (VFLAG > 0)
 					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
-					1-fobj->nfs_obj.filter_min_rels_nudge, job.min_rels);
+					100*(1-fobj->nfs_obj.filter_min_rels_nudge), job.min_rels);
 
 				nfs_state = NFS_STATE_SIEVE;
 			}
@@ -368,7 +369,46 @@ void nfs(fact_obj_t *fobj)
 				if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
 					nfs_state = NFS_STATE_DONE;
 				else
-					nfs_state = NFS_STATE_SQRT;
+				{
+					// check for a .dat.deps file.  if we don't have one, assume
+					// its because the job was way oversieved and only trivial
+					// dependencies were found.  try again from filtering with
+					// 20% less relations.
+					FILE *t;
+					sprintf(tmpstr, "%s.dep", fobj->nfs_obj.outputfile);
+					if ((t = fopen(tmpstr, "r")) == NULL)
+					{
+						if (job.use_max_rels > 0)
+						{
+							// we've already tried again with an attempted fix to the trivial
+							// dependencies problem, so either that wasn't the problem or
+							// it didn't work.  either way, give up.
+							printf("nfs: no dependency file retry failed\n");
+							fobj->flags |= FACTOR_INTERRUPT;
+							nfs_state = NFS_STATE_DONE;
+						}
+						else
+						{
+							// this should be sufficient to produce a matrix, but not too much
+							// to trigger the assumed failure mode.							
+							if (job.min_rels == 0)
+							{
+								// if min_rels is not set, then we need to parse the .job file to compute it.
+								parse_job_file(fobj, &job);
+								nfs_set_min_rels(&job);
+							}
+							job.use_max_rels = job.min_rels * 1.5;
+							printf("nfs: no dependency file found - trying again with %u relations\n",
+								job.use_max_rels);
+							nfs_state = NFS_STATE_FILTER;
+						}
+					}
+					else
+					{
+						fclose(t);
+						nfs_state = NFS_STATE_SQRT;
+					}
+				}
 
 				// set the msieve threads back to where it was if we used
 				// a different amount for linalg
@@ -850,7 +890,6 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	// doing things by hand by then anyway.
 	uint32 i, d = gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
-	double fudge; // sundae :)
 	int found = 0;
 	uint32 lpb = 0, mfb = 0, fblim = 0, siever = 0;
 	double lambda;
@@ -1007,6 +1046,48 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 	}
 
+	nfs_set_min_rels(job);
+
+	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
+#if defined(WIN32)
+	sprintf(job->sievername, "%s.exe", job->sievername);
+#endif
+
+	return;
+}
+
+void trial_sieve(fact_obj_t* fobj)
+{
+	char** filenames = (char**)malloc(100*sizeof(char*));
+	char* ptr, * arg = fobj->nfs_obj.filearg;
+	int i = 0, me;
+
+	if (VFLAG < 0) VFLAG = 0;
+
+	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
+	{
+		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+		//printf("pointer: %p\n", filenames[i]);
+		strncpy(filenames[i++], arg, ptr-arg+1);
+		arg = ptr + 1;
+	}
+	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+	strcpy(filenames[i++], arg);
+
+	me = test_sieve(fobj, filenames, i, 1);
+
+	printf("test: \"%s\" is the fastest poly\n", filenames[me]);
+	for(me = 0; me < i; me++)
+		free(filenames[me]);
+	free(filenames);
+}
+
+void nfs_set_min_rels(nfs_job_t *job)
+{
+	int i;
+	double fudge; // sundae :)
+	uint32 lpb;
+
 	job->min_rels = 0;
 	for (i = 0; i < 2; i++)
 	{
@@ -1061,39 +1142,6 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		job->min_rels += (uint32)(fudge * (
 			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
-
-	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
-#if defined(WIN32)
-	sprintf(job->sievername, "%s.exe", job->sievername);
-#endif
-
-	return;
-}
-
-void trial_sieve(fact_obj_t* fobj)
-{
-	char** filenames = (char**)malloc(100*sizeof(char*));
-	char* ptr, * arg = fobj->nfs_obj.filearg;
-	int i = 0, me;
-
-	if (VFLAG < 0) VFLAG = 0;
-
-	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
-	{
-		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
-		//printf("pointer: %p\n", filenames[i]);
-		strncpy(filenames[i++], arg, ptr-arg+1);
-		arg = ptr + 1;
-	}
-	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
-	strcpy(filenames[i++], arg);
-
-	me = test_sieve(fobj, filenames, i, 1);
-
-	printf("test: \"%s\" is the fastest poly\n", filenames[me]);
-	for(me = 0; me < i; me++)
-		free(filenames[me]);
-	free(filenames);
 }
 
 #else
