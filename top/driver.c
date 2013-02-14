@@ -38,13 +38,13 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #define ECM_VERSION "6.3"
 
 #if defined(_MSC_VER)
-	//#include <gmp-ecm\ecm.h>
+	#include <ecm.h>
 #else
 	#include <ecm.h>
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 66
+#define NUMOPTIONS 67
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -63,7 +63,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-	"filt_bump"};
+	"filt_bump", "nc1"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -83,7 +83,7 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,1,
 	0,0,0,1,1,
 	1,1,1,1,1,
-	1};
+	1,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1958,6 +1958,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument "filt_bump"
 		sscanf(arg, "%lf", &fobj->nfs_obj.filter_min_rels_nudge);
 		fobj->nfs_obj.filter_min_rels_nudge = 1 + fobj->nfs_obj.filter_min_rels_nudge / 100;
+	}
+	else if (strcmp(opt,OptionArray[66]) == 0)
+	{
+		//argument "nc1".  do msieve filtering.
+		fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
 	}
 	else
 	{

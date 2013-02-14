@@ -24,7 +24,9 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	char tmpstr[1024];
 	nfs_job_t *jobs, *best;
 
-	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > MAX_SNFS_BITS)
+	// allow larger one to come in, because some polynomials forms are significantly reduced
+	// (i.e., x^(2n))
+	if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2) > 2*MAX_SNFS_BITS)
 	{
 		if (VFLAG >= 0)
 			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
@@ -90,19 +92,20 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
 	snfs_scale_difficulty(polys, npoly);
-	snfs_rank_polys(polys, npoly);
+	npoly = snfs_rank_polys(polys, npoly);
 
 	if (VFLAG > 0 && npoly > 1)
 	{		
+		int np = MIN(npoly, NUM_SNFS_POLYS);
 		f = fopen(fobj->flogname, "a");
 		
 		printf("\ngen: ========================================================\n"
 			"gen: best %d polynomials:\n"
-			"gen: ========================================================\n\n", NUM_SNFS_POLYS);
+			"gen: ========================================================\n\n", np);
 		
-		if (f != NULL) logprint(f, "gen: best %d polynomials:\n", NUM_SNFS_POLYS);
+		if (f != NULL) logprint(f, "gen: best %d polynomials:\n", np);
 
-		for (i=0; i<npoly && i<NUM_SNFS_POLYS; i++)
+		for (i=0; i<np; i++)
 		{
 			print_snfs(&polys[i], stdout);
 			if (f != NULL) print_snfs(&polys[i], f);

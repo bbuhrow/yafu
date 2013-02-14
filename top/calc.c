@@ -1129,6 +1129,14 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		fobj->nfs_obj.snfs = 1;
 		gmp2mp(operands[1],&fobj->N);
 		mpz_set(fobj->nfs_obj.snfs_cofactor, operands[1]);
+
+		if (mpz_sizeinbase(fobj->nfs_obj.snfs_cofactor, 10) < fobj->nfs_obj.min_digits)
+		{
+			printf("***** warning: possibly malformed co-factor (too small)!\n");
+			printf("*****          co-factor expected to be input divided by known factors.\n");
+			printf("*****          attempting snfs anyway.\n");
+		}
+
 		mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
 		nfs(fobj);
 		mpz_set(operands[0], fobj->nfs_obj.gmp_n);

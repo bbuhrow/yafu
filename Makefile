@@ -21,7 +21,7 @@ CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g
-WARN_FLAGS = -Wall #-W -Wconversion
+WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 

@@ -452,7 +452,6 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 
 					// while we are at it, count the lines
 					job->current_rels++;
-
 				}
 				savefile_close(&mobj->savefile);
 
@@ -899,6 +898,7 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 	// convert a ggnfs.job file into a msieve.fb polynomial file
 	FILE *in, *out;
 	char line[GSTR_MAXSIZE], outline[GSTR_MAXSIZE], *ptr;
+	char rats_printed = job->poly->rat.degree+1; 
 
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)
@@ -926,14 +926,19 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (line[0] == 'n')
 			sprintf(outline, "N %s",line + 3);
-		//else if(line[0] == 's')
-		//	sprintf(outline, "SKEW %s",line + 5);
-		else if (line[0] == 'Y')
+		else if (line[0] == 'Y' && rats_printed > 0) 
+		{
+			rats_printed--; 
 			sprintf(outline, "R%c %s",line[1], line + 4);
+		}
 		else if (line[0] == 'c')
 			sprintf(outline, "A%c %s",line[1], line + 4);
-		//else if (line[0] == 'm' && line[1] == ':')
-		//	sprintf(outline, "R1 1\nR0 -%s", line + 3);
+		else if (line[0] == 'm' && line[1] == ':' && rats_printed > 0) 
+		{
+			rats_printed=0;
+			// need to do something different here for non-linear rational poly...
+			sprintf(outline, "R1 1\nR0 -%s", line + 3);
+		}
 		else
 			strcpy(outline, "");
 
@@ -1062,6 +1067,8 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			sscanf(substr + 9, "%u", &siever);
+			if (VFLAG > 0)
+				printf("nfs: found siever gnfs-lasieve4I%ue\n", siever);
 			continue;
 		}
 		
