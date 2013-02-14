@@ -1279,7 +1279,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
 					mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
 					mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
-					mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
+
+					mpz_gcd(n, polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[1]);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[0], n);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1], n);
+
+					mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);					
 				}
 				else
 				{
@@ -1287,6 +1292,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_set(polys[npoly].poly->rat.coeff[0], m);
 					mpz_set(polys[npoly].poly->m, m);
 				}
+
+				cd = polys[npoly].c[i] < (int64)0 ? -1*polys[npoly].c[i] : polys[npoly].c[i];
+				c0 = polys[npoly].c[0] < (int64)0 ? -1*polys[npoly].c[0] : polys[npoly].c[0];
+				polys[npoly].c[i] /= (int64)spGCD(cd, c0);
+				polys[npoly].c[0] /= (int64)spGCD(cd, c0);
 				
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
@@ -1330,7 +1340,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
 					mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
 					mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
-					mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
+
+					mpz_gcd(n, polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[1]);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[0], n);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1], n);
+
+					mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);					
 				}
 				else
 				{
@@ -1339,6 +1354,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_set(polys[npoly].poly->m, m);
 				}
 		
+				cd = polys[npoly].c[i] < (int64)0 ? -1*polys[npoly].c[i] : polys[npoly].c[i];
+				c0 = polys[npoly].c[0] < (int64)0 ? -1*polys[npoly].c[0] : polys[npoly].c[0];
+				polys[npoly].c[i] /= (int64)spGCD(cd, c0);
+				polys[npoly].c[0] /= (int64)spGCD(cd, c0);
+
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
 				
@@ -1381,6 +1401,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
 					mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
 					mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
+
+					mpz_gcd(n, polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[1]);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[0], n);
+					mpz_tdiv_q(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1], n);
+
 					mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
 				}
 				else
@@ -1389,6 +1414,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 					mpz_set(polys[npoly].poly->rat.coeff[0], m);
 					mpz_set(polys[npoly].poly->m, m);
 				}
+
+				cd = polys[npoly].c[i] < (int64)0 ? -1*polys[npoly].c[i] : polys[npoly].c[i];
+				c0 = polys[npoly].c[0] < (int64)0 ? -1*polys[npoly].c[0] : polys[npoly].c[0];
+				polys[npoly].c[i] /= (int64)spGCD(cd, c0);
+				polys[npoly].c[0] /= (int64)spGCD(cd, c0);
 				
 				check_poly(&polys[npoly]);
 				approx_norms(&polys[npoly]);
@@ -1469,7 +1499,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
 							mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
 							mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
-							mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
+
+							mpz_gcd(n, polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[1]);
+							mpz_tdiv_q(polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[0], n);
+							mpz_tdiv_q(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1], n);
+
+							mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);							
 						}
 						else
 						{
@@ -1477,6 +1512,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_set(polys[npoly].poly->rat.coeff[0], m);
 							mpz_set(polys[npoly].poly->m, m);
 						}
+
+						cd = polys[npoly].c[i] < (int64)0 ? -1*polys[npoly].c[i] : polys[npoly].c[i];
+						c0 = polys[npoly].c[0] < (int64)0 ? -1*polys[npoly].c[0] : polys[npoly].c[0];
+						polys[npoly].c[i] /= (int64)spGCD(cd, c0);
+						polys[npoly].c[0] /= (int64)spGCD(cd, c0);
 
 						check_poly(&polys[npoly]);
 						approx_norms(&polys[npoly]);
@@ -1540,6 +1580,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_invert(n, polys[npoly].poly->rat.coeff[1], polys[npoly].n);
 							mpz_mul(polys[npoly].poly->m, polys[npoly].poly->m, n);
 							mpz_mod(polys[npoly].poly->m, polys[npoly].poly->m, polys[npoly].n);
+
+							mpz_gcd(n, polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[1]);
+							mpz_tdiv_q(polys[npoly].poly->rat.coeff[0], polys[npoly].poly->rat.coeff[0], n);
+							mpz_tdiv_q(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1], n);
+
 							mpz_neg(polys[npoly].poly->rat.coeff[1], polys[npoly].poly->rat.coeff[1]);
 						}
 						else
@@ -1548,6 +1593,11 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 							mpz_set(polys[npoly].poly->rat.coeff[0], m);
 							mpz_set(polys[npoly].poly->m, m);
 						}
+
+						cd = polys[npoly].c[i] < (int64)0 ? -1*polys[npoly].c[i] : polys[npoly].c[i];
+						c0 = polys[npoly].c[0] < (int64)0 ? -1*polys[npoly].c[0] : polys[npoly].c[0];
+						polys[npoly].c[i] /= (int64)spGCD(cd, c0);
+						polys[npoly].c[0] /= (int64)spGCD(cd, c0);
 
 						check_poly(&polys[npoly]);
 						approx_norms(&polys[npoly]);
@@ -2169,14 +2219,42 @@ int qcomp_snfs_sdifficulty(const void *x, const void *y)
 	//return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
 }
 
-void snfs_rank_polys(snfs_t *polys, int npoly)
+int snfs_rank_polys(snfs_t *polys, int npoly)
 {
 	// rank by scaled difficulty
 	int i, j;
+	double best_d4 = 999999999., best_d5 = 999999999., best_d6 = 999999999.;
+	int d4id = -1, d5id = -1, d6id = -1;
 
-	// first eliminate duplicate polys
+	// first eliminate duplicate polys and eliminate all but the best poly from
+	// each degree
 	for (i=0; i<npoly; i++)
 	{
+		switch (polys[i].poly->alg.degree)
+		{
+		case 4:
+			if ((polys[i].sdifficulty < best_d4) && (i != d4id))
+			{
+				best_d4 = polys[i].sdifficulty;
+				d4id = i;
+			}
+			break;
+		case 5:
+			if ((polys[i].sdifficulty < best_d5) && (i != d5id))
+			{
+				best_d5 = polys[i].sdifficulty;
+				d5id = i;
+			}
+			break;
+		case 6:
+			if ((polys[i].sdifficulty < best_d6) && (i != d6id))
+			{
+				best_d6 = polys[i].sdifficulty;
+				d6id = i;
+			}
+			break;
+		}
+
 		for (j=i+1; j<npoly; j++)
 		{
 			if (mpz_cmp(polys[i].poly->m, polys[j].poly->m) == 0)
@@ -2184,17 +2262,48 @@ void snfs_rank_polys(snfs_t *polys, int npoly)
 				polys[i].sdifficulty = 99999999.;
 				break;
 			}
+			else if ((polys[i].sdifficulty < polys[j].sdifficulty) &&
+				(polys[i].poly->alg.degree == polys[j].poly->alg.degree))
+			{
+				polys[j].sdifficulty = 99999999.;
+			}
+			else if ((polys[i].sdifficulty > polys[j].sdifficulty) &&
+				(polys[i].poly->alg.degree == polys[j].poly->alg.degree))
+			{
+				switch (polys[i].poly->alg.degree)
+				{
+				case 4:
+					best_d4 = polys[j].sdifficulty;
+					polys[d4id].sdifficulty = 99999999.;
+					d4id = j;
+					break;
+				case 5:
+					best_d5 = polys[j].sdifficulty;
+					polys[d5id].sdifficulty = 99999999.;
+					d5id = j;
+					break;
+				case 6:
+					best_d6 = polys[j].sdifficulty;
+					polys[d6id].sdifficulty = 99999999.;
+					d6id = j;
+					break;
+				}
+			}			
 		}
 	}
 
 	// then sort
 	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
 
-	// and rank
-	for (i=0; i<npoly; i++)
+	// and rank while counting those that are still valid
+	for (i=0, j=0; i<npoly; i++)
+	{
 		polys[i].rank = i;
+		if (polys[i].sdifficulty < 99999990.) j++;
+	}
+	if (j == 0) j = 1;
 
-	return;
+	return j;
 }
 
 int tdiv_int(int x, int *factors)

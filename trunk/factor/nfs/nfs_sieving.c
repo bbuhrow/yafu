@@ -17,11 +17,7 @@ benefit from your work.
 #ifdef USE_NFS
 
 // potential enhancements:
-// 1)
-// don't test a poly from a degree that has already been tested
-// when the base difficulty is higher.  e.g., for 7^232-1 we have
-// c6: 9 c0: 49 d = 197.75 and we have c6: 2401 c0: 81 d = 199.44
-// don't bother with the second one even though it makes the "top 3"
+
 // 2)
 // run a series of test "refinements" based on difficulty.  The idea
 // being twofold: a) for lower difficulty even a 2k range of spq might
@@ -48,7 +44,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
-	uint32 spq_range = 2000;
+	uint32 spq_range = 2000, actual_range;
 	FILE *flog;
 	
 	char** filenames; // args
@@ -202,17 +198,64 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
 		in = fopen(tmpbuf, "r");
+		actual_range = 0;
+		count = 0;
 		if( !in )
 		{
 			score[i] = 999999999.;
+			
 			//est = 7*365*24*3600; // 7 years seems like a nice round number
 		}
 		else
 		{
+			// scan the data file and
+			// 1) count the relations
+			// 2) save the last four relations to a buffer in order to extract the last processed
+			//		special-q.
+			// we need both 1) and 2) to compute yield correctly.
+
+			char **lines, *ptr, tmp[GSTR_MAXSIZE];
+			int line;
+			int j;
+
+			lines = (char **)malloc(4 * sizeof(char *));
+			for (j=0; j < 4; j++)
+				lines[j] = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+
+			line = 0;
 			count = 0;
-			while( fgets(syscmd, GSTR_MAXSIZE, in) )
+			while (1)
+			{
+				// read a line into the next position of the circular buffer
+				ptr = fgets(tmp, GSTR_MAXSIZE, in);
+				if (ptr == NULL) 
+					break;
+
+				// quick check that it might be a valid line
+				if (strlen(tmp) > 30)
+				{
+					// wrap
+					if (++line > 3) line = 0;
+					// then copy
+					strcpy(lines[line], tmp);
+				}
+
 				count++;
+			}
 			fclose(in);
+
+			line = get_spq(lines, line, fobj);
+			actual_range = line - jobs[i].startq;
+			if (VFLAG > 0)
+				printf("test: found %u relations in a range of %u special-q\n", 
+				count, actual_range);
+
+			if (actual_range > spq_range) 
+				actual_range = spq_range;
+
+			for (j=0; j < 4; j++)
+				free(lines[j]);
+			free(lines);
 
 			score[i] = t_time / count;
 
@@ -236,7 +279,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 			// edit lbpr/a depending on test results.  we target something around 2 rels/Q.
 			// could also change siever version in more extreme cases.
-			if (count > 4*spq_range)
+			if (count > 4*actual_range)
 			{
 				if (VFLAG > 0)
 					printf("test: yield greater than 4x/spq, reducing lpbr/lpba\n");
@@ -246,7 +289,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				jobs[i].mfbr -= 2;
 			}
 
-			if (count > 8*spq_range)
+			if (count > 8*actual_range)
 			{
 				char *pos;
 				int siever;
@@ -261,6 +304,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				{
 				case 11:
 					if (VFLAG > 0) printf("test: siever version cannot be decreased further\n");
+					jobs[i].snfs->siever = 11;
 					break;
 
 				case 12:
@@ -285,7 +329,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				}
 			}
 
-			if (count < spq_range)
+			if (count < actual_range)
 			{
 				if (VFLAG > 0)
 					printf("test: yield less than 1x/spq, increasing lpbr/lpba\n");
@@ -296,7 +340,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				jobs[i].mfbr += 2;
 			}
 
-			if (count < (spq_range/2))
+			if (count < (actual_range/2))
 			{
 				char *pos;
 				int siever;
@@ -307,13 +351,11 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				if (VFLAG > 0)
 					printf("test: yield less than 1x/2*spq, increasing siever version\n");
 
-				if ((pos = strstr(jobs[i].sievername, "gnfs-lasieve4I15e")) != NULL)
-					if (VFLAG > 0) printf("test: siever version cannot be increased further\n");
-
 				switch (siever)
 				{
 				case 15:
 					if (VFLAG > 0) printf("test: siever version cannot be increased further\n");
+					jobs[i].snfs->siever = 15;
 					break;
 
 				case 14:
@@ -371,6 +413,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(filenames);
 	}
 
+	flog = fopen(fobj->flogname, "a");
 	gettimeofday(&stop2, NULL);
 	difference = my_difftime (&start2, &stop2);
 	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
