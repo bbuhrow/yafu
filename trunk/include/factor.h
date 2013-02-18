@@ -387,6 +387,8 @@ typedef struct
 
 	int snfs; // if this is a snfs job
 	mpz_t snfs_cofactor;
+	int pref_degree;
+	int alt_degree;
 
 	char ggnfs_dir[GSTR_MAXSIZE];
 	uint32 siever;

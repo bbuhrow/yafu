@@ -326,6 +326,11 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 					pos[15] = '4';
 					jobs[i].snfs->siever = 14;
 					break;
+
+				case 16:
+					pos[15] = '5';
+					jobs[i].snfs->siever = 15;
+					break;
 				}
 			}
 
@@ -353,9 +358,14 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 				switch (siever)
 				{
-				case 15:
+				case 16:
 					if (VFLAG > 0) printf("test: siever version cannot be increased further\n");
-					jobs[i].snfs->siever = 15;
+					jobs[i].snfs->siever = 16;
+					break;
+
+				case 15:
+					pos[15] = '6';
+					jobs[i].snfs->siever = 16;
 					break;
 
 				case 14:

@@ -1214,24 +1214,24 @@ void *tiny_process_poly(void *ptr)
 		{
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, NULL, 1);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
 			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, NULL, 0);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
 			scan_ptr(i,0,sconf,dconf);
 
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, NULL, 1);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
 			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, NULL, 0);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
 			scan_ptr(i,1,sconf,dconf);			
 
 		}

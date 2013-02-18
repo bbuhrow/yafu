@@ -92,7 +92,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
 	snfs_scale_difficulty(polys, npoly);
-	npoly = snfs_rank_polys(polys, npoly);
+	npoly = snfs_rank_polys(fobj, polys, npoly);
 
 	if (VFLAG > 0 && npoly > 1)
 	{		

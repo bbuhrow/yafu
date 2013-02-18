@@ -65,6 +65,9 @@ void snfs_copy_poly(snfs_t *src, snfs_t *dest)
 	for(i = 0; i <= src->poly->alg.degree; i++)
 		mpz_set(dest->poly->alg.coeff[i], src->poly->alg.coeff[i]);
 	dest->poly->skew = src->poly->skew;
+	dest->poly->murphy = src->poly->murphy;
+	dest->poly->size = src->poly->size;
+	dest->poly->rroots = src->poly->rroots;
 	mpz_set(dest->poly->m, src->poly->m);
 	dest->poly->side = src->poly->side;
 
@@ -210,6 +213,11 @@ void print_snfs(snfs_t *poly, FILE *out)
 	if (poly->siever > 0)
 		fprintf(out, "# siever: %u\n", poly->siever);
 
+	// msieve "analyze_one_poly" output, if known
+	if (poly->poly->size > 0)
+		fprintf(out, "# size = %1.3e, alpha = %1.3f, combined = %1.3e, rroots = %d\n", 
+		poly->poly->size, poly->poly->alpha, poly->poly->murphy, poly->poly->rroots);
+
 	fprintf(out, "type: snfs\nsize: %d\n", d);
 
 	print_poly(poly->poly, out);
@@ -241,10 +249,10 @@ void approx_norms(snfs_t *poly)
 	mpz_init(tmp);
 	mpz_init(res);
 
-	eval_poly(res, a, b, &poly->poly->alg);
+	eval_poly(res, (int64)a, (int64)b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
-	eval_poly(res, a, b, &poly->poly->rat);
+	eval_poly(res, (int64)a, (int64)b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
 
 	return;
@@ -261,12 +269,8 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		return;
 
 	// sdiff gets incremented by 1 for every 6 orders of magnitude difference
-	// between the r/a norms.  but sdiff is also increased by the size
-	// of the coefficients, which shouldn't influence lp bounds and thus
-	// should be removed...
+	// between the r/a norms. 
 	oom_skew = job->snfs->sdifficulty - job->snfs->difficulty;
-	oom_skew -= log10(fabs(mpz_get_d(job->poly->alg.coeff[job->poly->alg.degree])) + 
-		fabs(mpz_get_d(job->poly->alg.coeff[0])));
 
 	if (job->snfs->poly->side == RATIONAL_SPQ)
 	{
@@ -278,7 +282,7 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->mfbr += 2;
 			// 5% for every 6 orders of magnitude difference between the norms	
 			percent_skew = oom_skew * 0.05;
-			job->alim -= percent_skew*job->alim;
+			job->alim -= percent_skew*job->alim/5;
 			job->rlim += percent_skew*job->rlim;
 		}
 
@@ -291,10 +295,6 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (oom_skew >= 6)
 		{
-			// 10% for every 6 orders of magnitude difference between the norms	
-			percent_skew = oom_skew * 0.1;
-			job->alim -= percent_skew*job->alim;
-			job->rlim += percent_skew*job->rlim;
 			// for really really big skew, use 3 large primes
 			job->mfbr = job->lpbr*2.9;
 			job->rlambda = 3.6;
@@ -316,7 +316,7 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			// 5% for every 6 orders of magnitude difference between the norms	
 			percent_skew = oom_skew * 0.05;
 			job->alim += percent_skew*job->alim;
-			job->rlim -= percent_skew*job->rlim;
+			job->rlim -= percent_skew*job->rlim/5;
 		}
 
 		if (oom_skew >= 5)
@@ -328,10 +328,6 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (oom_skew >= 6)
 		{
-			// 5% for every 6 orders of magnitude difference between the norms	
-			percent_skew = oom_skew * 0.1;
-			job->alim += percent_skew*job->alim;
-			job->rlim -= percent_skew*job->rlim;
 			// for really really big skew, use 3 large primes
 			job->mfba = job->lpba*2.9;
 			job->alambda = 3.6;
@@ -1237,16 +1233,29 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		d = log10(d) * 5.;
 		if (d < 120)
 		{
-			start_deg = 4; 
-			stop_deg = 4;
-		}
-		else if (d < 170)
-		{
+			fobj->nfs_obj.pref_degree = 4;
+			fobj->nfs_obj.alt_degree = 5;
 			start_deg = 4; 
 			stop_deg = 5;
 		}
+		else if (d < 170)
+		{
+			fobj->nfs_obj.pref_degree = 5;
+			fobj->nfs_obj.alt_degree = 4;
+			start_deg = 4; 
+			stop_deg = 5;
+		}
+		else if (d < 220)
+		{
+			fobj->nfs_obj.pref_degree = 5;
+			fobj->nfs_obj.alt_degree = 6;
+			start_deg = 5; 
+			stop_deg = 6;
+		}
 		else
 		{
+			fobj->nfs_obj.pref_degree = 6;
+			fobj->nfs_obj.alt_degree = 5;
 			start_deg = 5;
 			stop_deg = 6;
 		}
@@ -1701,6 +1710,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	int npoly = 0;
 	int apoly;	
 	FILE *f;
+	double avg_diff;
 
 	mpz_init(n);
 	mpz_init(m);
@@ -1976,6 +1986,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	// now mix together the possible forms of x^y + 1 and 1 + y^x	
 	npoly = 0;
+	avg_diff = 0.;
 	for (i=0; i<nump1; i++)
 	{
 		snfs_t *p1, *p2;
@@ -2085,6 +2096,36 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			check_poly(&final_polys[npoly]);
 			approx_norms(&final_polys[npoly]);
 
+			// be a little smarter about what degrees we consider
+			if (final_polys[npoly].difficulty < 120)
+			{
+				if (deg == 6)
+					final_polys[npoly].valid = 0;
+				else
+					avg_diff += final_polys[npoly].difficulty;
+			}
+			else if (final_polys[npoly].difficulty < 170)
+			{
+				if (deg == 6)
+					final_polys[npoly].valid = 0;
+				else
+					avg_diff += final_polys[npoly].difficulty;
+			}
+			else if (final_polys[npoly].difficulty < 220)
+			{
+				if (deg == 4)
+					final_polys[npoly].valid = 0;
+				else
+					avg_diff += final_polys[npoly].difficulty;
+			}
+			else
+			{
+				if (deg == 4)
+					final_polys[npoly].valid = 0;
+				else
+					avg_diff += final_polys[npoly].difficulty;
+			}
+
 			if (final_polys[npoly].valid)
 			{
 				if (VFLAG > 0) print_snfs(&final_polys[npoly], stdout);
@@ -2097,6 +2138,40 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 			}
 		}
 	}
+
+	// be a little smarter about what degrees we consider
+	avg_diff /= (double)npoly;
+	if (avg_diff < 120)
+	{
+		if (deg == 6)
+			final_polys[npoly].valid = 0;
+		fobj->nfs_obj.pref_degree = 4;
+		fobj->nfs_obj.alt_degree = 5;
+	}
+	else if (avg_diff < 170)
+	{
+		if (deg == 6)
+			final_polys[npoly].valid = 0;
+		fobj->nfs_obj.pref_degree = 5;
+		fobj->nfs_obj.alt_degree = 4;
+	}
+	else if (avg_diff < 220)
+	{
+		if (deg == 4)
+			final_polys[npoly].valid = 0;
+		fobj->nfs_obj.pref_degree = 5;
+		fobj->nfs_obj.alt_degree = 6;
+	}
+	else
+	{
+		if (deg == 4)
+			final_polys[npoly].valid = 0;
+		fobj->nfs_obj.pref_degree = 6;
+		fobj->nfs_obj.alt_degree = 5;
+	}
+
+	printf("average difficulty = %1.2f, preferred degree = %d, alternate degree = %d\n",
+		avg_diff, fobj->nfs_obj.pref_degree, fobj->nfs_obj.alt_degree);
 
 	*npolys = npoly;
 	return final_polys;
@@ -2131,7 +2206,10 @@ nfs_job_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t
 	if( !dotest )
 		return &jobs[0];
 
+	// we don't want canceled test sieves to impact the overall nfs job...
+	IGNORE_NFS_ABORT = 1;
 	minscore_id = test_sieve(fobj, jobs, npoly, 0);
+	IGNORE_NFS_ABORT = 0;
 
 	if( minscore_id < 0 )
 	{
@@ -2170,20 +2248,30 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 	// we add one to the difficulty for every order of magnitude imbalance beyond 6
 	// between the two sides (until we figure out something more accurate)
 	int i;
+	msieve_obj *obj;
+	FILE *in;
+	char line[1024], *ptr;
+	char outfile[80];
+
+	sprintf(outfile, "YAFU_get_poly_score.out");
+
+	obj = msieve_obj_new("", MSIEVE_FLAG_USE_LOGFILE, NULL, outfile,
+		NULL, 0, 0, (uint32)0, (enum cpu_type)0, 0, 0, 0, (uint32)0, "");
 
 	for (i=0; i<npoly; i++)
 	{
 		double ratio, absa = fabs(polys[i].anorm), absr = fabs(polys[i].rnorm);
 
-		if (absa > absr)
-		{
-			ratio = absa / absr;
-			polys[i].poly->side = ALGEBRAIC_SPQ;
-		}
-		else
+		// slight preference to sieve on the algebraic side...
+		if ((log10(absr) - 6) > log10(absa))
 		{
 			ratio = absr / absa;
 			polys[i].poly->side = RATIONAL_SPQ;
+		}
+		else
+		{
+			ratio = absa / absr;
+			polys[i].poly->side = ALGEBRAIC_SPQ;			
 		}
 
 		if (VFLAG > 1)
@@ -2193,14 +2281,68 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 
 		if (ratio < 0.)
 			ratio = 0.;
-
-		// also scale by the size of the coefficients
+		
 		polys[i].sdifficulty = polys[i].difficulty + ratio;
-		polys[i].sdifficulty += log10(
-			fabs((double)polys[i].c[polys[i].poly->alg.degree]) + fabs((double)polys[i].c[0]));
+		remove(outfile);
+		polys[i].poly->murphy = 1e-99;
+		analyze_one_poly(obj, &polys[i].poly->rat, &polys[i].poly->alg, polys[i].poly->skew);
+		in = fopen("YAFU_get_poly_score.out", "r");
+		if (in != NULL)
+		{
+			while (!feof(in))
+			{
+				ptr = fgets(line, 1024, in);
+				if (ptr == NULL)
+					break;
+
+				ptr = strstr(line, "size");
+				if (ptr == NULL)
+					continue;
+
+				polys[i].poly->size = strtod(ptr + 5, NULL);
+
+				ptr = strstr(ptr, "alpha");
+				if (ptr == NULL)
+					continue;
+
+				polys[i].poly->alpha = strtod(ptr + 6, NULL);
+
+				ptr = strstr(ptr, "combined");
+				if (ptr == NULL)
+					continue;
+
+				polys[i].poly->murphy = strtod(ptr + 11, NULL);
+
+				ptr = strstr(ptr, "rroots");
+				if (ptr == NULL)
+					continue;
+
+				sscanf(ptr + 8, "%d", &polys[i].poly->rroots);
+			}
+			fclose(in);			
+		}
 	}
+	remove(outfile);
+	msieve_obj_free(obj);
 
 	return;
+}
+
+int qcomp_snfs_murphy(const void *x, const void *y)
+{
+	snfs_t *xx = (snfs_t *)x;
+	snfs_t *yy = (snfs_t *)y;
+
+	// sort descending
+	if ((*xx).poly->murphy > (*yy).poly->murphy)
+		return -1;
+	else if ((*xx).poly->murphy == (*yy).poly->murphy)
+		return 0;
+	else
+		return 1; 
+	
+	// this sometimes doesn't work right... double/int conversion?
+	//return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
 }
 
 int qcomp_snfs_sdifficulty(const void *x, const void *y)
@@ -2219,91 +2361,62 @@ int qcomp_snfs_sdifficulty(const void *x, const void *y)
 	//return ((snfs_t*)x)->sdifficulty - ((snfs_t*)y)->sdifficulty;
 }
 
-int snfs_rank_polys(snfs_t *polys, int npoly)
+int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly)
 {
 	// rank by scaled difficulty
-	int i, j;
-	double best_d4 = 999999999., best_d5 = 999999999., best_d6 = 999999999.;
-	int d4id = -1, d5id = -1, d6id = -1;
+	int i, j, k;
+	int pref_count = 0;
+	int alt_count = 0;
 
-	// first eliminate duplicate polys and eliminate all but the best poly from
-	// each degree
-	for (i=0; i<npoly; i++)
+	// first eliminate duplicate 
+	for (i=0, k=0; i<npoly; i++)
 	{
-		switch (polys[i].poly->alg.degree)
-		{
-		case 4:
-			if ((polys[i].sdifficulty < best_d4) && (i != d4id))
-			{
-				best_d4 = polys[i].sdifficulty;
-				d4id = i;
-			}
-			break;
-		case 5:
-			if ((polys[i].sdifficulty < best_d5) && (i != d5id))
-			{
-				best_d5 = polys[i].sdifficulty;
-				d5id = i;
-			}
-			break;
-		case 6:
-			if ((polys[i].sdifficulty < best_d6) && (i != d6id))
-			{
-				best_d6 = polys[i].sdifficulty;
-				d6id = i;
-			}
-			break;
-		}
-
 		for (j=i+1; j<npoly; j++)
 		{
-			if (mpz_cmp(polys[i].poly->m, polys[j].poly->m) == 0)
+			if ((mpz_cmp(polys[i].poly->m, polys[j].poly->m) == 0) &&
+				(polys[i].poly->alg.degree == polys[j].poly->alg.degree))
 			{
-				polys[i].sdifficulty = 99999999.;
+				//polys[i].sdifficulty = 99999999.;
+				polys[i].poly->murphy = 1e-99;
+				k++;
 				break;
 			}
-			else if ((polys[i].sdifficulty < polys[j].sdifficulty) &&
-				(polys[i].poly->alg.degree == polys[j].poly->alg.degree))
-			{
-				polys[j].sdifficulty = 99999999.;
-			}
-			else if ((polys[i].sdifficulty > polys[j].sdifficulty) &&
-				(polys[i].poly->alg.degree == polys[j].poly->alg.degree))
-			{
-				switch (polys[i].poly->alg.degree)
-				{
-				case 4:
-					best_d4 = polys[j].sdifficulty;
-					polys[d4id].sdifficulty = 99999999.;
-					d4id = j;
-					break;
-				case 5:
-					best_d5 = polys[j].sdifficulty;
-					polys[d5id].sdifficulty = 99999999.;
-					d5id = j;
-					break;
-				case 6:
-					best_d6 = polys[j].sdifficulty;
-					polys[d6id].sdifficulty = 99999999.;
-					d6id = j;
-					break;
-				}
-			}			
 		}
 	}
+	if (VFLAG > 0 && k > 0)
+		printf("nfs: rejected %d duplicate polys out of %d\n", k, npoly);
 
 	// then sort
-	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
+	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
+	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
 
-	// and rank while counting those that are still valid
+	// keep the first two polys of the preferred degree, and the top
+	// one from a competing degree, that haven't already been rejected.
 	for (i=0, j=0; i<npoly; i++)
 	{
-		polys[i].rank = i;
-		if (polys[i].sdifficulty < 99999990.) j++;
+		if ((polys[i].poly->alg.degree == fobj->nfs_obj.pref_degree) &&
+			polys[i].poly->murphy > 1e-99)
+		{
+			pref_count++;
+			if (pref_count > 2)
+				polys[i].poly->murphy = 1e-99;
+		}
+		else if (polys[i].poly->alg.degree == fobj->nfs_obj.alt_degree)
+		{
+			alt_count++;
+			if (alt_count > 1)
+				polys[i].poly->murphy = 1e-99;
+		}
+		else
+			polys[i].poly->murphy = 1e-99;
 	}
-	if (j == 0) j = 1;
 
-	return j;
+	// then sort again
+	//qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_sdifficulty);
+	qsort(polys, npoly, sizeof(snfs_t), &qcomp_snfs_murphy);
+
+	j = MIN(pref_count,2) + MIN(alt_count,1);
+	return MIN(j,npoly);
 }
 
 int tdiv_int(int x, int *factors)

@@ -645,8 +645,8 @@ double gpu_squfof_batch(uint64 *batch, uint32 numin, uint32 *factors,
 
 void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);
-void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb, 
-	fb_list *fullfb, int action);
+void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s, 
+	sieve_fb_compressed *fb, int action);
 void siqsexit(int sig);
 int qcomp_siqs(const void *x, const void *y);
 uint32 make_fb_siqs(static_conf_t *sconf);
