@@ -28,6 +28,10 @@ void nfsexit(int sig)
 	invoked so we just register it again. */
   	signal(sig, nfsexit);
 #endif
+
+	if (IGNORE_NFS_ABORT)
+		return;
+
 	if( NFS_ABORT < 1 )
 	{
 		printf("\nReceived signal %d... please wait\n",sig);
@@ -855,7 +859,7 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 20
+#define GGNFS_TABLE_ROWS 21
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
@@ -873,14 +877,15 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 	{130, 9000000,  28, 56, 2.5, 13, 0, 80000},
 	{135, 11500000, 28, 56, 2.6, 14, 0, 80000},
 	{140, 14000000, 28, 56, 2.6, 14, 0, 80000},
-	{145, 17000000, 28, 56, 2.6, 14, 0, 80000},
-	{150, 21000000, 29, 58, 2.6, 14, 0, 160000},
-	{155, 28000000, 29, 58, 2.6, 14, 0, 160000},	
-	{160, 36000000, 30, 60, 2.6, 14, 0, 160000},	// snfs 232
-	{165, 45000000, 30, 60, 2.6, 14, 0, 160000},	// 241
-	{170, 55000000, 31, 62, 2.6, 14, 0, 320000},	// 250
-	{175, 66000000, 31, 62, 2.6, 15, 0, 320000},	// 259
-	{180, 78000000, 31, 62, 2.6, 15, 0, 320000}		// 267
+	{145, 19000000, 28, 56, 2.6, 14, 0, 80000},
+	{150, 25000000, 29, 58, 2.6, 14, 0, 160000},
+	{155, 32000000, 29, 58, 2.6, 14, 0, 160000},	
+	{160, 40000000, 30, 60, 2.6, 14, 0, 160000},	// snfs 232
+	{165, 49000000, 30, 60, 2.6, 14, 0, 160000},	// 241
+	{170, 59000000, 31, 62, 2.6, 14, 0, 320000},	// 250
+	{175, 70000000, 31, 62, 2.6, 15, 0, 320000},	// 259
+	{180, 82000000, 31, 62, 2.6, 15, 0, 320000},	// 267
+	{185, 100000000, 32, 64, 2.6, 16, 0, 320000}
 };
 // in light of test sieving, this table might need to be extended
 

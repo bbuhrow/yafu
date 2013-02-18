@@ -112,6 +112,9 @@ typedef struct
 	mpz_poly_t alg;
 	double skew;
 	double murphy; // murphy e score
+	double size;
+	double alpha;
+	int rroots;
 	mpz_t m; // common root mod n
 	enum special_q_e side;
 } mpz_polys_t;
@@ -260,8 +263,9 @@ void print_snfs(snfs_t *poly, FILE *out);
 void snfs_copy_poly(snfs_t *src, snfs_t *dest);
 void approx_norms(snfs_t *poly);
 void snfs_scale_difficulty(snfs_t *polys, int npoly);
-int snfs_rank_polys(snfs_t *polys, int npoly);
+int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly);
 int qcomp_snfs_sdifficulty(const void *x, const void *y);
+int qcomp_snfs_murphy(const void *x, const void *y);
 nfs_job_t *snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t *jobs);
 void snfs_make_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void snfs_init(snfs_t* poly);
@@ -273,12 +277,16 @@ void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);
 
 int NFS_ABORT;
+int IGNORE_NFS_ABORT;
 
 static INLINE void mpz_polys_init(mpz_polys_t * poly) {
 	mpz_poly_init(&poly->rat);
 	mpz_poly_init(&poly->alg);
 	mpz_init(poly->m);
 	poly->skew = 0;
+	poly->murphy = 0.;
+	poly->size = 0.;
+	poly->rroots = 0;
 	poly->side = ALGEBRAIC_SPQ; // snfs routines will override if necessary
 }
 

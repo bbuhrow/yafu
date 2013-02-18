@@ -403,10 +403,11 @@ int qcomp_siqs(const void *x, const void *y)
 		return -1;
 }
 
-void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb, 
-	fb_list *fullfb, int action)
+void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s, 
+	sieve_fb_compressed *fb, int action)
 {
 	int i;
+	fb_list *fullfb = sconf->factor_base;
 
 	for (i=0;i<s;i++)
 	{		
@@ -416,8 +417,8 @@ void set_aprime_roots(uint32 val, int *qli, int s, sieve_fb_compressed *fb,
 			and primes == 0 when roots are invalid instead of setting roots to 65536 for the
 			range of primes that are going to be treated this way.  then only the first location
 			in every block gets hosed and we can tell tdiv to always ignore that location.  the
-			snippet of assembly below sets roots and primes = 0 for invalid roots */
-		if ((fullfb->list->prime[qli[i]] > 8192) && (fullfb->list->prime[qli[i]] < 32768))
+			snippet of code below sets roots and primes = 0 for invalid roots */
+		if ((fullfb->list->prime[qli[i]] > 8192) && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
 		{
 			if (action == 1)
 			{

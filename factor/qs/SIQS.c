@@ -915,28 +915,24 @@ void *process_poly(void *ptr)
 		{
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p,
-				sconf->factor_base, 1);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
 			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p,
-				sconf->factor_base, 0);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
 			scan_ptr(i,0,sconf,dconf);
 
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n,
-				sconf->factor_base, 1);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
 			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
-			set_aprime_roots(invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 
-				sconf->factor_base, 0);
+			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
 			scan_ptr(i,1,sconf,dconf);			
 
 		}
@@ -1688,29 +1684,39 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	// sieve core functions
 	switch (yafu_get_cpu_type())
 	{
-	case cpu_generic:
-	case cpu_pentium:
-	case cpu_pentium2:
-	case cpu_pentium3:
-	case cpu_pentium4:
-	case cpu_pentium_m:
-	case cpu_athlon:
-	case cpu_athlon_xp:
-	case cpu_opteron:
-		firstRoots_ptr = &firstRoots_64k;
-		nextRoots_ptr = &nextRoots_64k;
-		testRoots_ptr = &testfirstRoots_64k;
-		med_sieve_ptr = &med_sieveblock_64k;
-		tdiv_med_ptr = &tdiv_medprimes_64k;
-		resieve_med_ptr = &resieve_medprimes_64k;
-		sconf->qs_blocksize = 65536;
-		sconf->qs_blockbits = 16;
-		break;
+		// after the sse41 improvements, 64k versions ceased to work.
+		// I must have borked something inadvertently, and probably the fix is minor.
+		// however, right now I don't have the energy - so for now, everything will
+		// use the 32k sieve.  It is a lot easier to optimize for anyway, since we don't
+		// have to worry about 16 bit overflow as much.  Which is probably why
+		// the 64k versions no longer work - I've only done the latest assembly
+		// optimizations for 32k.
+	//case cpu_generic:
+	//case cpu_pentium:
+	//case cpu_pentium2:
+	//case cpu_pentium3:
+	//case cpu_pentium4:
+	//case cpu_pentium_m:
+	//case cpu_athlon:
+	//case cpu_athlon_xp:
+	//case cpu_opteron:
+	//	
+	//	firstRoots_ptr = &firstRoots_64k;
+	//	nextRoots_ptr = &nextRoots_64k;
+	//	testRoots_ptr = &testfirstRoots_64k;
+	//	med_sieve_ptr = &med_sieveblock_64k;
+	//	tdiv_med_ptr = &tdiv_medprimes_64k;
+	//	resieve_med_ptr = &resieve_medprimes_64k;
+	//	sconf->qs_blocksize = 65536;
+	//	sconf->qs_blockbits = 16;
+	//	break;
 
-	case cpu_core:
+	//case cpu_core:
 	default:
 		firstRoots_ptr = &firstRoots_32k;
 
+		// if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
+		// machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
 #if defined(USE_SSE41)
 		if (HAS_SSE41)
 			nextRoots_ptr = &nextRoots_32k_sse41;

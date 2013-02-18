@@ -36,16 +36,10 @@ v 1.34
 + added -nc1 option to specify msieve filtering phase for nfs jobs
 + re-enabled handling m: line translation to msieve .fb files
 
+
 todo:
-+ ggnfs_table modification based on swellman's input
-+ test sieving enhancements
 + fix the "matrix probably cannot build" exit(1) within msieve.
-+ reduce coefficients by common factors in brent polys when possible (done).
-// 1)
-// don't test a poly from a degree that has already been tested
-// when the base difficulty is higher.  e.g., for 7^232-1 we have
-// c6: 9 c0: 49 d = 197.75 and we have c6: 2401 c0: 81 d = 199.44
-// don't bother with the second one even though it makes the "top 3" (done)
+
 
 v 1.33
 + made "found poly" messages much less verbose
