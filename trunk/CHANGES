@@ -35,10 +35,14 @@ v 1.34
 + implemented a workaround to the "only trivial dependencies found" error in LA
 + added -nc1 option to specify msieve filtering phase for nfs jobs
 + re-enabled handling m: line translation to msieve .fb files
-
++ added workaround to "matrix probably cannot build" exit within msieve
+	+ note, only available in the pre-built binaries... requires a patch to msieve
++ added workaround to "only trivial dependencies found" exit within msieve
+	+ note, only available in the pre-built binaries... requires a patch to msieve
 
 todo:
-+ fix the "matrix probably cannot build" exit(1) within msieve.
++ fix ECM_VERSION issue (done)
++ common factors in xyyxf forms, e.g. 126^91 + 91^126 (done)
 
 
 v 1.33

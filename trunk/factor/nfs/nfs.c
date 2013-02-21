@@ -440,6 +440,8 @@ void nfs(fact_obj_t *fobj)
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT))
 			{
+				uint32 retcode;
+
 				// msieve: find factors
 				flags = 0;
 				flags = flags | MSIEVE_FLAG_USE_LOGFILE;
@@ -454,19 +456,36 @@ void nfs(fact_obj_t *fobj)
 				logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
 
 				// try this hack - store a pointer to the msieve obj so that
-				// we can change a flag on abort in order to interrupt the LA.
+				// we can change a flag on abort in order to interrupt the sqrt.
 				obj_ptr = obj;
 
-				nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
+				retcode = nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
 
 				obj_ptr = NULL;
-			
-				extract_factors(&factor_list,fobj);
 
-				if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
-					nfs_state = NFS_STATE_CLEANUP;		//completely factored, clean up everything
+				if (retcode)
+				{
+					extract_factors(&factor_list,fobj);
+
+					if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
+						nfs_state = NFS_STATE_CLEANUP;		//completely factored, clean up everything
+					else
+						nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
+				}
 				else
-					nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
+				{
+					if (VFLAG >= 0)
+					{
+						printf("nfs: failed to find factors... possibly no dependencies found\n");
+						printf("nfs: continuing with sieving\n");
+					}
+
+					logprint_oc(fobj->flogname, "a", "nfs: failed to find factors... "
+						"possibly no dependencies found\n"
+						"nfs: continuing with sieving\n");
+
+					nfs_state = NFS_STATE_SIEVE;
+				}				
 			}
 			else
 				nfs_state = NFS_STATE_DONE;		//not factored completely, keep files and stop
