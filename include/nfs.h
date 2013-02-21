@@ -275,6 +275,7 @@ void find_primitive_factor(snfs_t *poly);
 void nfs_set_min_rels(nfs_job_t *job);
 void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);
+void analyze_one_poly_xface(snfs_t *poly);
 
 int NFS_ABORT;
 int IGNORE_NFS_ABORT;

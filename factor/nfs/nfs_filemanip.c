@@ -898,7 +898,8 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 	// convert a ggnfs.job file into a msieve.fb polynomial file
 	FILE *in, *out;
 	char line[GSTR_MAXSIZE], outline[GSTR_MAXSIZE], *ptr;
-	char rats_printed = job->poly->rat.degree+1; 
+	// sometimes reading rat.degree doesn't work... does it get set?
+	char rats_printed = 2; //job->poly->rat.degree+1; 
 
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)

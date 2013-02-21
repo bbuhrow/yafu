@@ -123,13 +123,13 @@ void check_poly(snfs_t *poly)
 		poly->valid = 0;
 		if (VFLAG > 0) 
 		{
-			gmp_fprintf(stderr, "Error: M=%Zd is not a root of f(x) % N\n"
+			gmp_fprintf(stdout, "Error: M=%Zd is not a root of f(x) % N\n"
 				"n = %Zd\n", poly->poly->m, poly->n);
 			fprintf (stderr, "f(x) = ");
 			for (i = poly->poly->alg.degree; i >= 0; i--)
-				gmp_fprintf (stderr, "%c %Zd*x^%d ",
+				gmp_fprintf (stdout, "%c %Zd*x^%d ",
 				poly->c[i] < 0 ? '-' : '+', poly->poly->alg.coeff[i], i);
-			gmp_fprintf (stderr, "\n""Remainder is %Zd\n\n", t);
+			gmp_fprintf (stdout, "\n""Remainder is %Zd\n\n", t);
 		}
 	}
 	
@@ -140,7 +140,7 @@ void check_poly(snfs_t *poly)
 	{
 		poly->valid = 0;
 		if (VFLAG > 0)
-		gmp_fprintf (stderr, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
+		gmp_fprintf (stdout, "n = %Zd\n" "Error: M=%Zd is not a root of g(x) % N\n" "Remainder is %Zd\n\n", 
 			poly->n, poly->poly->m, t);
 	}
 	
@@ -223,10 +223,6 @@ void print_snfs(snfs_t *poly, FILE *out)
 	print_poly(poly->poly, out);
 }
 
-/* With the struct reorganization, it should be quite a bit easier to use/call
-Msieve's analyze_one_poly(), which is very general.
-There's just one problem: it prints the results, but doesn't return them */
-
 void approx_norms(snfs_t *poly)
 {
 	// anorm ~= b^d * f(a/b) where f = the algebraic poly
@@ -249,11 +245,18 @@ void approx_norms(snfs_t *poly)
 	mpz_init(tmp);
 	mpz_init(res);
 
+	// use msieve functions to compute the norm size on each side.
+	// these are used to skew the polynomial parameters, if the norms
+	// are disparate enough
 	eval_poly(res, (int64)a, (int64)b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
 	eval_poly(res, (int64)a, (int64)b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
+
+	// extract from msieve (in a convoluted way) the Murphy score of the polynomial
+	// along with several other values.  This will be used to rank the polynomials generated.
+	analyze_one_poly_xface(poly);
 
 	return;
 }
@@ -2037,6 +2040,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
 				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
+				final_polys[npoly].difficulty -= log10(mpz_get_d(n))*deg;
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
@@ -2075,6 +2079,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_mul(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 
 				mpz_gcd(n, final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[1]);
+				final_polys[npoly].difficulty -= log10(mpz_get_d(n))*deg;
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[0], final_polys[npoly].poly->rat.coeff[0], n);
 				mpz_tdiv_q(final_polys[npoly].poly->rat.coeff[1], final_polys[npoly].poly->rat.coeff[1], n);
 
@@ -2248,15 +2253,6 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 	// we add one to the difficulty for every order of magnitude imbalance beyond 6
 	// between the two sides (until we figure out something more accurate)
 	int i;
-	msieve_obj *obj;
-	FILE *in;
-	char line[1024], *ptr;
-	char outfile[80];
-
-	sprintf(outfile, "YAFU_get_poly_score.out");
-
-	obj = msieve_obj_new("", MSIEVE_FLAG_USE_LOGFILE, NULL, outfile,
-		NULL, 0, 0, (uint32)0, (enum cpu_type)0, 0, 0, 0, (uint32)0, "");
 
 	for (i=0; i<npoly; i++)
 	{
@@ -2283,46 +2279,61 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly)
 			ratio = 0.;
 		
 		polys[i].sdifficulty = polys[i].difficulty + ratio;
-		remove(outfile);
-		polys[i].poly->murphy = 1e-99;
-		analyze_one_poly(obj, &polys[i].poly->rat, &polys[i].poly->alg, polys[i].poly->skew);
-		in = fopen("YAFU_get_poly_score.out", "r");
-		if (in != NULL)
-		{
-			while (!feof(in))
-			{
-				ptr = fgets(line, 1024, in);
-				if (ptr == NULL)
-					break;
-
-				ptr = strstr(line, "size");
-				if (ptr == NULL)
-					continue;
-
-				polys[i].poly->size = strtod(ptr + 5, NULL);
-
-				ptr = strstr(ptr, "alpha");
-				if (ptr == NULL)
-					continue;
-
-				polys[i].poly->alpha = strtod(ptr + 6, NULL);
-
-				ptr = strstr(ptr, "combined");
-				if (ptr == NULL)
-					continue;
-
-				polys[i].poly->murphy = strtod(ptr + 11, NULL);
-
-				ptr = strstr(ptr, "rroots");
-				if (ptr == NULL)
-					continue;
-
-				sscanf(ptr + 8, "%d", &polys[i].poly->rroots);
-			}
-			fclose(in);			
-		}
 	}
+	
+	return;
+}
+
+void analyze_one_poly_xface(snfs_t *poly)
+{
+	char line[1024], *ptr;
+	FILE *in;
+	msieve_obj *obj;
+	char outfile[80];
+
+	sprintf(outfile, "YAFU_get_poly_score.out");
+
+	obj = msieve_obj_new("", MSIEVE_FLAG_USE_LOGFILE, NULL, outfile,
+		NULL, 0, 0, (uint32)0, (enum cpu_type)0, 0, 0, 0, (uint32)0, "");
+
 	remove(outfile);
+	poly->poly->murphy = 1e-99;
+	analyze_one_poly(obj, &poly->poly->rat, &poly->poly->alg, poly->poly->skew);
+	in = fopen(outfile, "r");
+	if (in != NULL)
+	{
+		while (!feof(in))
+		{
+			ptr = fgets(line, 1024, in);
+			if (ptr == NULL)
+				break;
+
+			ptr = strstr(line, "size");
+			if (ptr == NULL)
+				continue;
+
+			poly->poly->size = strtod(ptr + 5, NULL);
+
+			ptr = strstr(ptr, "alpha");
+			if (ptr == NULL)
+				continue;
+
+			poly->poly->alpha = strtod(ptr + 6, NULL);
+
+			ptr = strstr(ptr, "combined");
+			if (ptr == NULL)
+				continue;
+
+			poly->poly->murphy = strtod(ptr + 11, NULL);
+
+			ptr = strstr(ptr, "rroots");
+			if (ptr == NULL)
+				continue;
+
+			sscanf(ptr + 8, "%d", &poly->poly->rroots);
+		}
+		fclose(in);			
+	}
 	msieve_obj_free(obj);
 
 	return;
