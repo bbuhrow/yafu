@@ -87,7 +87,6 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectName)-$(Platform)</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)-$(Platform)</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectName)-$(Platform)</TargetName>
-    <LibraryPath Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(VCInstallDir)lib\amd64;$(VCInstallDir)atlmfc\lib\amd64;$(WindowsSdkDir)lib\x64;C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64;</LibraryPath>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
@@ -113,7 +112,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -152,14 +151,13 @@
       <WarningLevel>Level3</WarningLevel>
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
@@ -168,7 +166,6 @@
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <TargetMachine>MachineX86</TargetMachine>
       <AdditionalLibraryDirectories>..\..\..\msieve\lib\$(Platform)\Release\</AdditionalLibraryDirectories>
-      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -196,7 +193,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -237,14 +234,13 @@
       <WarningLevel>Level3</WarningLevel>
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>psapi.lib;..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
