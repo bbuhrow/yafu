@@ -37,12 +37,6 @@ v 1.34
 + re-enabled handling m: line translation to msieve .fb files
 + added workaround to "matrix probably cannot build" exit within msieve
 	+ note, only available in the pre-built binaries... requires a patch to msieve
-+ added workaround to "only trivial dependencies found" exit within msieve
-	+ note, only available in the pre-built binaries... requires a patch to msieve
-
-todo:
-+ fix ECM_VERSION issue (done)
-+ common factors in xyyxf forms, e.g. 126^91 + 91^126 (done)
 
 
 v 1.33
