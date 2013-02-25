@@ -379,7 +379,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 				continue;
 
 			//see discussion near line 323
-			if ((thisloc >=	65534) || thisloc == 0)
+			if ((thisloc >=	65534) || (thisloc == 0))
 				continue;
 
 			// log this report
@@ -446,7 +446,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 				continue;
 
 			//see discussion near line 323
-			if ((thisloc >=	65534) || thisloc == 0)
+			if ((thisloc >=	65534) || (thisloc == 0))
 				continue;
 
 			// log this report
@@ -487,7 +487,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
@@ -525,7 +525,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
@@ -595,7 +595,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 				continue;
 
 			//see discussion near line 323
-			if ((thisloc >=	65534) || thisloc == 0)
+			if ((thisloc >=	65534) || (thisloc == 0))
 				continue;
 
 			// log this report
@@ -636,7 +636,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
@@ -675,7 +675,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
@@ -749,7 +749,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 				continue;
 
 			//see discussion near line 323
-			if ((thisloc >=	65534) || thisloc == 0)
+			if ((thisloc >=	65534) || (thisloc == 0))
 				continue;
 
 			// log this report
@@ -790,7 +790,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
@@ -831,7 +831,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 					continue;
 
 				//see discussion near line 323
-				if ((thisloc >=	65534) || thisloc == 0)
+				if ((thisloc >=	65534) || (thisloc == 0))
 					continue;
 
 				// log this report
