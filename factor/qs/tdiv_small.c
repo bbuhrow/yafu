@@ -139,6 +139,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 		mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1); 
 		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
 		if (parity)
 			mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2); 
 		else

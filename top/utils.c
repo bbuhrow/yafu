@@ -713,6 +713,7 @@ void build_RSA(int bits, mpz_t in)
 
 	//printf("took %d trials\n",i);
 	mp2gmp(&n, in);
+	zFree(&n);
 	zFree(&p);
 	zFree(&q);
 	return;

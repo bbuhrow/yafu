@@ -1634,7 +1634,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 #endif
 	dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		mpz_init(dconf->Qvals[i]); //, sconf->bits);
+		mpz_init(dconf->Qvals[i]); //, 2*sconf->bits);
 
 	dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
 	dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
@@ -1971,9 +1971,13 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 10922)  &&
-			(i % 8 == 0)) break;
+			(i % 8 == 0)) 
+		{
+			i -= 8;		// put the upper bound just before prime exceeds blocksize/3
+			break;
+		}
 	}
-	sconf->factor_base->fb_32k_div3 = i-8;
+	sconf->factor_base->fb_32k_div3 = i;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1984,7 +1988,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
 			(i % 8 == 0)) 
 		{
-			i -= 8;		// why the hell did I do this here and nowhere else?
+			i -= 8;		// put the upper bound just before prime exceeds 14 bits
 			break;
 		}
 	}	
@@ -2048,13 +2052,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	if (VFLAG > 1)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
 			sconf->sieve_small_fb_start,
 			sconf->factor_base->fb_10bit_B,
 			sconf->factor_base->fb_11bit_B,
 			sconf->factor_base->fb_12bit_B,
 			sconf->factor_base->fb_13bit_B,
+			sconf->factor_base->fb_32k_div3,
 			sconf->factor_base->fb_14bit_B,
 			sconf->factor_base->fb_15bit_B,
 			sconf->factor_base->med_B,
@@ -2062,12 +2067,13 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			sconf->factor_base->B);
 
 		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
 			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_12bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_13bit_B-1],
+			sconf->factor_base->list->prime[sconf->factor_base->fb_32k_div3-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
@@ -2596,6 +2602,8 @@ int free_sieve(dynamic_conf_t *dconf)
 		free(dconf->buckets->num);
 		free(dconf->buckets);
 	}
+	else
+		free(dconf->buckets);
 
 	//support data on the poly currently being sieved
 	free(dconf->curr_poly->gray);
@@ -2625,8 +2633,15 @@ int free_sieve(dynamic_conf_t *dconf)
 		zFree32(&dconf->Qvals32[i]);
 	free(dconf->Qvals32);
 #endif
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		mpz_clear(dconf->Qvals[i]);
+	
+	// mpz math in tdiv_small (lines 144, 146) sometimes causes reallocation
+	// of these mpz_t's, and that makes this crash, but only for 150 bit through 180 bit
+	// inputs.  other size inputs are fine.  too bizarre.  we lose a few tens of kilobytes
+	// by neglecting to free these, but I can't debug the cause of the crash and this
+	// fix works.  note: it starts working once the input becomes large enough to use
+	// bucket sieving... clue for debug...
+	//for (i=0; i<MAX_SIEVE_REPORTS; i++)
+	//	mpz_clear(dconf->Qvals[i]);
 	free(dconf->Qvals);	
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
