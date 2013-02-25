@@ -305,8 +305,7 @@ performs detailed timing of a sequence of partial SIQS and NFS factorizations.  
 regression analysis is performed and best-fit functions are created for the purpose of 
 estimating siqs() and nfs() factorizations.  Function coefficients together with machine info
 is automatically added to yafu.ini.  Estimation parameters are used to determine the optimal
-siqs/nfs crossover point and, together with in-situ timing analysis of ecm curves, determines
-the optimal amount of ecm to run when using the factor() function.  
+siqs/nfs crossover point.  
 
 
 [nfs]
@@ -401,6 +400,10 @@ Examples:
 3) perform automated nfs, using a custom job file, using rational side sieving,
 	and output to a custom data file
 "nfs(number)" -v -threads 4 -job custom.poly -r -o snfs_output.dat
+
+4) perform automated snfs on an input with no known large factors.  If applicable, YAFU will
+compute and proceed with the primitive factor of the input.
+"nfs(2^1039-1)" -v
 
 
 [snfs]

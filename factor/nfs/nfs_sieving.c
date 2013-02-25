@@ -598,10 +598,17 @@ void *lasieve_launcher(void *ptr)
 	// count the relations produced
 	MySleep(100);
 	fid = fopen(thread_data->outfilename,"r");
-	thread_data->job.current_rels = 0;
-	while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
-		thread_data->job.current_rels++;
-	fclose(fid);
+	if (fid != NULL)
+	{
+		thread_data->job.current_rels = 0;
+		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+			thread_data->job.current_rels++;
+		fclose(fid);
+	}
+	else
+	{
+		printf("nfs: could not open output file, possibly bad path to siever\n");
+	}
 
 	return 0;
 }
