@@ -120,9 +120,7 @@ void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *fu
 	_SSE2_SMALL_PRIME_SIEVE_32k_DIV3;
 
 	// get past the 32k/3 boundary
-	stop = MIN(8, full_fb->fb_32k_div3 - i);
-
-	for (j=0;j<stop;i++, j++)
+	for (j=0;j<8 && i < full_fb->fb_14bit_B;i++, j++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -143,9 +141,7 @@ void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *fu
 	_SSE2_SMALL_PRIME_SIEVE_14b;
 
 	// get past the 14b boundary
-	stop = MIN(8, full_fb->fb_14bit_B - i);
-
-	for (j=0; j<stop; i++, j++)
+	for (j=0; j<8 && i < full_fb->fb_15bit_B; i++, j++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];

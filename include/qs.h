@@ -449,6 +449,11 @@ typedef struct {
 	uint32 dlp_prp;
 	uint32 dlp_useful;
 
+#ifdef USE_8X_MOD_ASM
+	uint16 *bl_sizes;
+	uint16 *bl_locs;
+#endif
+
 	//polynomial info during sieving
 	siqs_poly *curr_poly;		// current poly during sieving	
 	mpz_t *Bl;					// array of Bl values used to compute new B polys
