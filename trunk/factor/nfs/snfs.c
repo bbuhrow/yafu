@@ -1014,6 +1014,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// the 8th degree poly can be halved as in the 11*k and 13*k cases, resulting in 
 		// the following quartic:
 		polys->poly->alg.degree = 4;
+		fobj->nfs_obj.pref_degree = 4;
 		k = poly->exp1 / 15;
 		polys->c[4] = 1;
 		polys->c[3] = (int64)poly->coeff2;
@@ -1040,6 +1041,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// the 12th degree poly can be halved as in the 11*k and 13*k cases, resulting in 
 		// the following sextic:
 		polys->poly->alg.degree = 6;
+		fobj->nfs_obj.pref_degree = 6;
 		k = poly->exp1 / 21;
 		polys->c[6] = 1;
 		polys->c[5] = (int64)poly->coeff2;
@@ -1068,6 +1070,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
 		// todo: look into making degree 6 based on difficulty
 		polys->poly->alg.degree = 4;
+		fobj->nfs_obj.pref_degree = 4;
 		k = poly->exp1 / 6;
 		polys->c[4] = 1;
 		polys->c[2] = -1;
@@ -1091,6 +1094,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
 		// todo: look into making degree 6 based on difficulty
 		polys->poly->alg.degree = 4;
+		fobj->nfs_obj.pref_degree = 4;
 		k = (poly->exp1 - 3) / 6;
 		polys->c[4] = (int64)(poly->base1 * poly->base1);
 		polys->c[2] = (int64)(poly->base1 * -poly->coeff2);
@@ -1111,6 +1115,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		// a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
 		polys->poly->alg.degree = 4;
+		fobj->nfs_obj.pref_degree = 4;
 		k = poly->exp1 / 5;
 		polys->c[4] = 1;
 		polys->c[3] = -(int64)poly->coeff2;
@@ -1133,6 +1138,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		// a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
 		polys->poly->alg.degree = 6;
+		fobj->nfs_obj.pref_degree = 6;
 		k = poly->exp1 / 7;
 		polys->c[6] = 1;
 		polys->c[5] = -(int64)poly->coeff2;
@@ -1159,6 +1165,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// but the poly is symmetric and can be halved to degree 5... 
 		// see http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
 		polys->poly->alg.degree = 5;
+		fobj->nfs_obj.pref_degree = 5;
 		k = poly->exp1 / 11;
 		polys->c[5] = 1;
 		polys->c[4] = -(int64)poly->coeff2*1;
@@ -1185,6 +1192,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// but the poly is symmetric and can be halved to degree 6... 
 		// see http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
 		polys->poly->alg.degree = 6;
+		fobj->nfs_obj.pref_degree = 6;
 		k = poly->exp1 / 13;
 		polys->c[6] = 1;
 		polys->c[5] = -(int64)poly->coeff2;
