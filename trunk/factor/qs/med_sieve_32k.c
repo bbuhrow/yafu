@@ -40,7 +40,7 @@ typedef struct
 void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init)
 {
-	uint32 i,j;
+	uint32 i;
 	uint32 med_B;
 	
 	uint32 prime, root1, root2, tmp, stop;
@@ -115,7 +115,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	_SSE2_SMALL_PRIME_SIEVE_32k_DIV3;
 
 	// get past the 32k/3 boundary
-	for (j=0;j<8 && i < full_fb->fb_14bit_B;i++, j++)
+	for (; i < full_fb->fb_32k_div3; i++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -136,7 +136,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	_SSE2_SMALL_PRIME_SIEVE_14b;
 
 	// get past the 14b boundary
-	for (j=0;j<8 && i < full_fb->fb_15bit_B;i++, j++)
+	for (; i < full_fb->fb_14bit_B; i++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];

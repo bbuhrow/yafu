@@ -1983,7 +1983,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			(i % 8 == 0)) break;
 	}
 	// put the upper bound just before prime exceeds blocksize/3, required by SSE2 sieving
-	sconf->factor_base->fb_32k_div3 = i - 8;
+	sconf->factor_base->fb_32k_div3 = i;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1995,7 +1995,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			(i % 8 == 0)) break;
 	}	
 	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
-	sconf->factor_base->fb_14bit_B = i - 8;
+	sconf->factor_base->fb_14bit_B = i;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
