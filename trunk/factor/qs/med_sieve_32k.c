@@ -101,6 +101,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 		if ((prime > 8192) && ((i&7) == 0))
 			break;
 
+		// invalid root (part of poly->a)
 		if (prime == 0) 
 			continue;
 
@@ -114,13 +115,14 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	_SSE2_SMALL_PRIME_SIEVE_32k_DIV3;
 
 	// get past the 32k/3 boundary
-	for (j=0;j<8;i++, j++)
+	for (j=0;j<8 && i < full_fb->fb_14bit_B;i++, j++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
 
+		// invalid root (part of poly->a)
 		if (prime == 0) 
 			continue;
 
@@ -134,13 +136,14 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	_SSE2_SMALL_PRIME_SIEVE_14b;
 
 	// get past the 14b boundary
-	for (j=0; j<8; i++, j++)
+	for (j=0;j<8 && i < full_fb->fb_15bit_B;i++, j++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
 
+		// invalid root (part of poly->a)
 		if (prime == 0) 
 			continue;
 
@@ -152,7 +155,6 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
 	_INIT_SSE2_SMALL_PRIME_SIEVE;
 	_SSE2_SMALL_PRIME_SIEVE_15b;
-
 
 	// get past the 15b boundary
 	for (i=full_fb->fb_15bit_B-8;i<med_B;i++)

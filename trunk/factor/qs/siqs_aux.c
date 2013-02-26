@@ -418,7 +418,7 @@ void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s,
 			range of primes that are going to be treated this way.  then only the first location
 			in every block gets hosed and we can tell tdiv to always ignore that location.  the
 			snippet of code below sets roots and primes = 0 for invalid roots */
-		if ((fullfb->list->prime[qli[i]] > 8192) && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
+		if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
 		{
 			if (action == 1)
 			{

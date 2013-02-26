@@ -73,7 +73,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 	numblocks = sconf->num_blocks;
 	interval = numblocks << 15;
 	
-	if (lp_bucket_p->list != NULL)
+	if (lp_bucket_p->alloc_slices != 0) //NULL)
 	{
 		lp_bucket_p->fb_bounds[0] = med_B;
 

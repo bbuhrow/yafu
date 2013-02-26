@@ -1373,6 +1373,10 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
 			sconf->scan_unrolling);
 #endif
+		if (HAS_SSE41)
+			logprint(sconf->obj->logfile,"using SSE4.1 enabled 32k sieve core\n");
+		else
+			logprint(sconf->obj->logfile,"using SSE2 enabled 32k sieve core\n");
 
 #if defined(USE_RESIEVING)
 	#if defined(SSE2_RESIEVING)
@@ -1643,6 +1647,11 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->dlp_outside_range = 0;
 	dconf->dlp_prp = 0;
 	dconf->dlp_useful = 0;
+
+#ifdef USE_8X_MOD_ASM
+	dconf->bl_sizes = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+	dconf->bl_locs = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+#endif
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1971,13 +1980,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 10922)  &&
-			(i % 8 == 0)) 
-		{
-			i -= 8;		// put the upper bound just before prime exceeds blocksize/3
-			break;
-		}
+			(i % 8 == 0)) break;
 	}
-	sconf->factor_base->fb_32k_div3 = i;
+	// put the upper bound just before prime exceeds blocksize/3, required by SSE2 sieving
+	sconf->factor_base->fb_32k_div3 = i - 8;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1986,13 +1992,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % 8 == 0)) 
-		{
-			i -= 8;		// put the upper bound just before prime exceeds 14 bits
-			break;
-		}
+			(i % 8 == 0)) break;
 	}	
-	sconf->factor_base->fb_14bit_B = i;
+	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
+	sconf->factor_base->fb_14bit_B = i - 8;
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -2623,7 +2626,6 @@ int free_sieve(dynamic_conf_t *dconf)
 	mpz_clear(dconf->gmptmp2);
 	mpz_clear(dconf->gmptmp3);
 	
-
 	align_free(dconf->mask);
 
 	//free sieve scan report stuff
@@ -2640,11 +2642,17 @@ int free_sieve(dynamic_conf_t *dconf)
 	// by neglecting to free these, but I can't debug the cause of the crash and this
 	// fix works.  note: it starts working once the input becomes large enough to use
 	// bucket sieving... clue for debug...
-	//for (i=0; i<MAX_SIEVE_REPORTS; i++)
-	//	mpz_clear(dconf->Qvals[i]);
+	for (i=0; i<MAX_SIEVE_REPORTS; i++)
+	{
+		//printf("freeing Qval %d\n", i); fflush(stdout);
+		mpz_clear(dconf->Qvals[i]);
+	}
 	free(dconf->Qvals);	
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
+
+	align_free(dconf->bl_locs);
+	align_free(dconf->bl_sizes);
 
 #if defined(SSE2_RESIEVING)
 	align_free(dconf->corrections);

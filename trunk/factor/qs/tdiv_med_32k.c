@@ -69,15 +69,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
-
-#ifdef USE_8X_MOD_ASM
-	uint16 *bl_sizes;
-	uint16 *bl_locs;
-
-	bl_sizes = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-	bl_locs = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-
-#endif
+	uint16 *bl_sizes = dconf->bl_sizes;
+	uint16 *bl_locs = dconf->bl_locs;
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -661,11 +654,6 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 	TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
 	free(qs_timing_diff);
-#endif
-
-#ifdef USE_8X_MOD_ASM
-	align_free(bl_sizes);
-	align_free(bl_locs);
 #endif
 
 	return;
