@@ -1,3 +1,12 @@
+v 1.34.2
++ fixed bug with cunningham/hcunningham algebraic reduction poly generation
+
+
+v 1.34.1
++ fix bug with new sse2 code that caused crashes for smaller inputs due to
+	buffer overruns
++ add sse2/4.1 core info to logfile in siqs
+
 
 v 1.34
 + many thanks to contributions by Dubslow, WraithX, Brian Gladman, and jcrombie!
