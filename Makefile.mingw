@@ -19,20 +19,20 @@
 
 CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
-CFLAGS = -march=core2 -mtune=core2
-#CFLAGS = -g
+#CFLAGS = -march=core2 -mtune=core2
+CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
-INC += -I../gmp/include
+INC += -I../gmp/include/mingw
 LIBS += -L../gmp/lib/mingw/x86_64
 
-INC += -I../gmp-ecm/include
+INC += -I../gmp-ecm/include/mingw
 LIBS += -L../gmp-ecm/lib/mingw/x86_64
 
-INC += -I/d/Programming/gmp-ecm/svn_1873_mw64_mpir250
-LIBS += -L/d/Programming/gmp-ecm/svn_1873_mw64_mpir250/.libs
+#INC += -I/d/Programming/gmp-ecm/svn_1873_mw64_mpir250
+#LIBS += -L/d/Programming/gmp-ecm/svn_1873_mw64_mpir250/.libs
 
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 

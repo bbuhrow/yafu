@@ -135,6 +135,7 @@ int qcomp_smpqs(const void *x, const void *y);
 
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
+	#define SM_SIMD_SIEVE_SCAN_VEC 1
 
 	#define SM_SIEVE_SCAN_64_VEC					\
 		asm volatile (							\
@@ -178,6 +179,7 @@ int qcomp_smpqs(const void *x, const void *y);
 
 #elif defined(GCC_ASM32X) || defined(__MINGW32__)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
+	#define SM_SIMD_SIEVE_SCAN 1
 
 	#define SM_SIEVE_SCAN_64		\
 		asm volatile (							\
@@ -193,6 +195,7 @@ int qcomp_smpqs(const void *x, const void *y);
 
 #elif defined(MSC_ASM32A)
 	#define SM_SCAN_CLEAN ASM_M {emms};
+	#define SM_SIMD_SIEVE_SCAN 1
 
 	#define SM_SIEVE_SCAN_64	\
 		do	{						\
@@ -209,6 +212,7 @@ int qcomp_smpqs(const void *x, const void *y);
 
 #elif defined(_WIN64)
 	#define SM_SCAN_CLEAN /*nothing*/
+	#define SM_SIMD_SIEVE_SCAN 1
 
 	#define SM_SIEVE_SCAN_64	\
 		do	{				  		\
@@ -783,6 +787,12 @@ void smallmpqs(fact_obj_t *fobj)
 				s_init,fb_sieve_n,fb,full,partial,cutoff,small_bits,
 				start_prime,1,&num,numpoly);
 		
+			if (VFLAG > 1)
+				printf("%d rels found: %d full + "
+					"%d from %d partial, (%d total polys)\r",
+					partial->act_r + full->num_r,
+					full->num_r, partial->act_r, partial->num_r, numpoly);
+
 			if (partial->num_r > 0)
 			{
 				//check the partials for full relations
@@ -1160,7 +1170,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 				}
 				else
 					neg = 0;
-				
+
 				smpqs_trial_divide_Q(Q,fb,full,partial,sieve,offset,
 					thisloc,neg,fullfb,cutoff,small_cutoff,start_prime,
 					numpoly,parity,closnuf,sieve[thisloc]);
@@ -1218,7 +1228,7 @@ static int smpqs_check_relations(uint32 sieve_interval, uint32 blocknum, uint8 *
 				}
 				else
 					neg = 0;
-				
+
 				smpqs_trial_divide_Q(Q,fb,full,partial,sieve,offset,
 					thisloc,neg,fullfb,cutoff,small_cutoff,start_prime,
 					numpoly,parity,closnuf,sieve[thisloc]);
