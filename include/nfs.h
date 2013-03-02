@@ -257,7 +257,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *poly);
 void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys); // the workhorse
 snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys);
-void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
+int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
 void check_poly(snfs_t *poly);
 void print_snfs(snfs_t *poly, FILE *out);
 void snfs_copy_poly(snfs_t *src, snfs_t *dest);
@@ -276,6 +276,7 @@ void nfs_set_min_rels(nfs_job_t *job);
 void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);
 void analyze_one_poly_xface(snfs_t *poly);
+int est_gnfs_size(nfs_job_t *job);
 
 int NFS_ABORT;
 int IGNORE_NFS_ABORT;

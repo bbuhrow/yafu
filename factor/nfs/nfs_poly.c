@@ -16,13 +16,14 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
+int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 {
 	snfs_t* poly, * polys = NULL;
 	int i, npoly;
 	FILE *f;
 	char tmpstr[1024];
 	nfs_job_t *jobs, *best;
+	int retcode = 0;
 
 	// allow larger one to come in, because some polynomials forms are significantly reduced
 	// (i.e., x^(2n))
@@ -30,7 +31,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	{
 		if (VFLAG >= 0)
 			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
-		return;
+		return 1;
 	}
 
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
@@ -70,7 +71,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		job->snfs = NULL;
 		snfs_clear(poly);
 		free(poly);
-		return;
+		return 1;
 	}
 	else if (poly->form_type == SNFS_XYYXF)
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
@@ -83,7 +84,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		job->snfs = NULL;
 		snfs_clear(poly);
 		free(poly);
-		return;
+		return 1;
 	}
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
@@ -133,6 +134,16 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		skew_snfs_params(fobj, &jobs[i]);
 	}
 
+	if ((est_gnfs_size(&jobs[0]) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)) &&
+		!fobj->nfs_obj.snfs)
+	{
+		// the input is probably faster by gnfs, and the user hasn't specifically chosen
+		// snfs, so don't trial sieve and return the gnfs preference
+		retcode = 1;
+		copy_job(&jobs[0], job);
+		goto cleanup;
+	}
+
 	// return best job, which contains the best poly
 	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly), jobs);
 
@@ -167,7 +178,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// set the starting q
 	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
-	// clean up
+cleanup:
 	for(i = 0; i < npoly; i++)
 		snfs_clear(&polys[i]);
 	snfs_clear(poly);
@@ -175,7 +186,7 @@ void snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	free(polys);
 	free(jobs);
 
-	return;
+	return retcode;
 }
 
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, 

@@ -54,6 +54,8 @@ uint32 modinv_1(uint32 a, uint32 p);
 uint32 modinv_1b(uint32 a, uint32 p);
 int shortCompare(fp_digit p[2], fp_digit t[2]);
 int shortSubtract(fp_digit p[2], fp_digit t[2], fp_digit w[2]);
+uint64 spModExp_asm(uint64 b, uint64 e, uint64 m);
+uint64 spPRP2(uint64 p);
 
 /********************* arbitrary precision arith **********************/
 //add

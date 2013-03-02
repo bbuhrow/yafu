@@ -233,18 +233,32 @@ void nfs(fact_obj_t *fobj)
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
 			{
-				// always check snfs forms (it is fast)
-				snfs_choose_poly(fobj, &job);
+				int better_by_gnfs = 0;
 
-				if( job.snfs == NULL )
+				// always check snfs forms (it is fast)
+				better_by_gnfs = snfs_choose_poly(fobj, &job);
+
+				if(job.snfs == NULL || fobj->nfs_obj.gnfs ||
+					(better_by_gnfs && !fobj->nfs_obj.snfs))
 				{ 
-					// either we never were doing snfs, or snfs form detect failed.
+					// either we never were doing snfs, or the user selected gnfs,
+					// or snfs form detect failed.
 					// if the latter then bail with an error because the user 
 					// explicitly wants to run snfs...
 					if (fobj->nfs_obj.snfs)
 					{
 						printf("nfs: failed to find snfs polynomial!\n");
 						exit(-1);
+					}
+
+					if (better_by_gnfs && !(job.snfs == NULL))
+					{
+						if (VFLAG >= 0)
+							printf("nfs: input snfs form is better done by gnfs: difficulty = %1.2f, size = %d\n",
+							job.snfs->difficulty, est_gnfs_size(&job));
+						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+							": difficulty = %1.2f, size = %d\n",
+							job.snfs->difficulty, est_gnfs_size(&job));
 					}
 
 					// init job.poly for gnfs
@@ -330,6 +344,9 @@ void nfs(fact_obj_t *fobj)
 
 				if (VFLAG > 0)
 					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
+					100*(fobj->nfs_obj.filter_min_rels_nudge-1), job.min_rels);
+
+				logprint_oc(fobj->flogname, "a", "nfs: raising min_rels by %1.2f percent to %u\n", 
 					100*(fobj->nfs_obj.filter_min_rels_nudge-1), job.min_rels);
 
 				nfs_state = NFS_STATE_SIEVE;
@@ -875,6 +892,17 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 	return 0;
 }
 
+int est_gnfs_size(nfs_job_t *job)
+{
+	if (job->snfs == NULL)
+		return 999999;
+	else if ((job->snfs->difficulty < 0) || (job->snfs->difficulty > 512))
+		return 999999;
+	else
+		return  0.56*job->snfs->difficulty + 30;
+}
+
+
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
@@ -940,7 +968,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			d = job->snfs->difficulty;
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
-		i = 0.56*d + 30;
+		i = est_gnfs_size(job);
 		if (VFLAG > 0)
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
 				"gnfs difficulty %d\n", d, i);

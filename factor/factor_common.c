@@ -265,6 +265,7 @@ void init_factobj(fact_obj_t *fobj)
 	
 	//initialize stuff for nfs
 	fobj->nfs_obj.snfs = 0;
+	fobj->nfs_obj.gnfs = 0;
 	fobj->nfs_obj.gnfs_exponent = 0;
 	fobj->nfs_obj.gnfs_multiplier = 0;
 	fobj->nfs_obj.gnfs_tune_freq = 0;

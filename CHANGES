@@ -1,3 +1,13 @@
+v 1.34.4
++ chose gnfs over snfs if appropriate during nfs poly selection
++ new parameter -gnfs to force use of gnfs over snfs
++ 64 bit asm base-2 fermat prp test for use in siqs DLP
+
+v 1.34.3
++ add some documentation to the med_sieve_32k_sse4.1.c
++ move compiler definitions specific to smallmpqs.c into that file where they can be seen
++ (non-source) re-link all binaries with new gmp and gmp-ecm versions
+
 v 1.34.2
 + fixed bug with cunningham/hcunningham algebraic reduction poly generation
 

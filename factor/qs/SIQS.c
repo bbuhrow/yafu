@@ -2128,7 +2128,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	//be subjected to factorization beyond trial division
 	if (sconf->use_dlp)
 	{
-		sconf->max_fb2 = (uint64)pow((double)sconf->factor_base->list->prime[sconf->factor_base->B - 1],2.0);
+		sconf->max_fb2 = (uint64)sconf->pmax * (uint64)sconf->pmax;
 		sconf->dlp_lower = spBits(sconf->max_fb2); 
 		sconf->large_prime_max2 = (uint64)pow((double)sconf->large_prime_max,1.8);
 		sconf->dlp_upper = spBits(sconf->large_prime_max2);
