@@ -163,7 +163,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
 		res = mpz_get_64(dconf->gmptmp1);
 #else
-		spModExp(2, q64 - 1, q64, &res);
+		// meh, not really any faster, but fun to write...
+		res = spPRP2(q64);
 #endif
 
 		//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.

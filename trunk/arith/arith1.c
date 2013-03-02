@@ -2677,6 +2677,88 @@ void spMultiply(fp_digit u, fp_digit v, fp_digit *product, fp_digit *carry)
 	return;
 }
 
+uint64 spPRP2(uint64 p)
+{
+	// do a base-2 prp test on the input, where p is greater than 2^32
+	// i.e., compute 2^(p-1) % p.
+	// since p is more than 32 bits we can do the accumulation division 
+	// free for the first 5 iterations.  may not be much, but it's something.
+	uint64 result;
+
+	ASM_G (
+		"xorq	%%rbx, %%rbx \n\t"
+		"xorq	%%rdi, %%rdi \n\t"
+		"addq	$1, %%rdi \n\t"		/* n = 1 */
+		"0:	\n\t"					/* begin loop */					
+		"test	$1, %%rcx \n\t"		/* exp & 0x1 */
+		"je	2f		\n\t"			/* bit not set, skip accumulation into n */
+		"movq	%%rax, %%rsi \n\t"	/* save acc */
+		"mulq	%%rdi \n\t"			/* n * acc mod m */
+		"movq	%%rax, %%rdi \n\t"	/* save n */
+		"movq	%%rsi, %%rax \n\t"	/* restore acc */
+		"2:			\n\t"			/* square acc stage */
+		"shrq	$1, %%rcx \n\t"		/* base >>= 1 */
+		"addq	$1, %%rbx \n\t"
+		"mulq	%%rax \n\t"			/* acc = acc * acc*/
+		"cmpq	$5, %%rbx \n\t"		/* exp == 0? */
+		"jb 0b \n\t"
+		"3:	\n\t"					/* begin loop */					
+		"test	$1, %%rcx \n\t"		/* exp & 0x1 */
+		"je	4f		\n\t"			/* bit not set, skip accumulation into n */
+		"movq	%%rax, %%rsi \n\t"	/* save acc */
+		"mulq	%%rdi \n\t"			/* n * acc mod m */
+		"divq	%3 \n\t"		
+		"movq	%%rdx, %%rdi \n\t"	/* save n */
+		"movq	%%rsi, %%rax \n\t"	/* restore acc */
+		"4:			\n\t"			/* square acc stage */
+		"shrq	$1, %%rcx \n\t"		/* base >>= 1 */
+		"mulq	%%rax \n\t"			/* acc = acc * acc*/
+		"divq	%3 \n\t"
+		"cmpq	$0, %%rcx \n\t"		/* exp == 0? */
+		"movq	%%rdx, %%rax \n\t"	/* mod m */
+		"jne 3b \n\t"
+		"movq	%%rdi, %0 \n\t"
+		: "=r"(result)
+		: "a"(2), "c"(p-1), "r"(p)
+		: "rbx", "rdx", "rdi", "rsi", "cc");				/* return result */
+
+	return result;
+
+}
+
+uint64 spModExp_asm(uint64 b, uint64 e, uint64 m)
+{
+	uint64 result;
+
+	ASM_G (
+		"xorq	%%rdi, %%rdi \n\t"
+		"addq	$1, %%rdi \n\t"		/* n = 1 */
+		"cmpq	$0, %%rcx \n\t"		/* exp == 0? */
+		"je 1f \n\t"
+		"0:	\n\t"					/* begin loop */					
+		"test	$1, %%rcx \n\t"		/* exp & 0x1 */
+		"je	2f		\n\t"			/* bit not set, skip accumulation into n */
+		"movq	%%rax, %%rsi \n\t"	/* save acc */
+		"mulq	%%rdi \n\t"			/* n * acc mod m */
+		"divq	%3 \n\t"		
+		"movq	%%rdx, %%rdi \n\t"	/* save n */
+		"movq	%%rsi, %%rax \n\t"	/* restore acc */
+		"2:			\n\t"			/* square acc stage */
+		"shrq	$1, %%rcx \n\t"		/* base >>= 1 */
+		"mulq	%%rax \n\t"			/* acc = acc * acc*/
+		"divq	%3 \n\t"
+		"cmpq	$0, %%rcx \n\t"		/* exp == 0? */
+		"movq	%%rdx, %%rax \n\t"	/* mod m */
+		"jne 0b \n\t"
+		"1:			\n\t"			/* end loop */
+		"movq	%%rdi, %0 \n\t"
+		: "=r"(result)
+		: "a"(b), "c"(e), "r"(m)
+		: "rdx", "rdi", "rsi", "cc");				/* return result */
+
+	return result;
+}
+
 void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit *lower, fp_digit *carry)
 {
 	fp_digit k,p;

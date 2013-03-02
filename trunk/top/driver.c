@@ -43,7 +43,7 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 67
+#define NUMOPTIONS 68
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -62,7 +62,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-	"filt_bump", "nc1"};
+	"filt_bump", "nc1", "gnfs"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -82,7 +82,7 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,1,
 	0,0,0,1,1,
 	1,1,1,1,1,
-	1,0};
+	1,0,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1962,6 +1962,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "nc1".  do msieve filtering.
 		fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
+	}
+	else if (strcmp(opt,OptionArray[67]) == 0)
+	{
+		//argument "gnfs"
+		fobj->nfs_obj.gnfs = 1;
 	}
 	else
 	{

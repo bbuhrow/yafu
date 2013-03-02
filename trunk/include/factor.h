@@ -386,6 +386,7 @@ typedef struct
 	mpz_t N; // full form used for snfs
 
 	int snfs; // if this is a snfs job
+	int gnfs; // user wants gnfs
 	mpz_t snfs_cofactor;
 	int pref_degree;
 	int alt_degree;
