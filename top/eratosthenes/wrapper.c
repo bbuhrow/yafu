@@ -190,15 +190,28 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 				uint32 num_ranges = (uint32)((highlimit - lowlimit) / maxrange);
 				uint64 remainder = (highlimit - lowlimit) % maxrange;
 				uint32 j;
+				//to get time per range
+				double t_time;
+				struct timeval start, stop;
+				TIME_DIFF *	difference;
 				
 				*num_p = 0;
 				tmpl = lowlimit;
 				tmph = lowlimit + maxrange;
+				gettimeofday (&start, NULL);
+
 				for (j = 0; j < num_ranges; j++)
 				{
 					*num_p += spSOE(sieve_p, num_sp, NULL, tmpl, &tmph, 1, NULL);
+
+					gettimeofday (&stop, NULL);
+					difference = my_difftime (&start, &stop);
+
+					t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+					free(difference);
+
 					if (VFLAG > 1)
-						printf("so far, found %" PRIu64 " primes\n",*num_p);
+						printf("so far, found %" PRIu64 " primes in %1.1f seconds\n",*num_p, t_time);
 					tmpl += maxrange;
 					tmph = tmpl + maxrange;
 				}
