@@ -1,3 +1,8 @@
+v 1.34.5
++ (non-source) re-link x64 binary with ecm-6.3
++ allow brent special forms to be detected during factor() runs when the input is 
+	partially factored
+
 v 1.34.4
 + chose gnfs over snfs if appropriate during nfs poly selection
 + new parameter -gnfs to force use of gnfs over snfs

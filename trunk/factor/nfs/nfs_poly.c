@@ -32,7 +32,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		if (VFLAG >= 0)
 			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
 		return 1;
-	}
+	}	
 
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
 	if( !poly )
@@ -45,7 +45,20 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	if (poly->form_type == SNFS_NONE)
 	{
 		if (VFLAG >= 0) printf("nfs: searching for brent special forms...\n");
+		// if this is a factor() run, restore the original input number so that we 
+		// can detect these forms
+		if (fobj->autofact_obj.autofact_active)
+		{
+			mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
+			mp2gmp(&fobj->N, fobj->nfs_obj.gmp_n);
+		}
+
 		find_brent_form(fobj, poly);
+
+		if (fobj->autofact_obj.autofact_active)
+		{
+			mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
+		}
 	}
 
 	if (poly->form_type == SNFS_NONE)
