@@ -18,6 +18,9 @@ code to the public domain.
        				   --bbuhrow@gmail.com 7/28/10
 ----------------------------------------------------------------------*/
 
+#ifndef YAFU_SOE_H
+#define YAFU_SOE_H
+
 #include "yafu.h"
 #include "arith.h"	//needed for spGCD and modinv_1
 #include "util.h"
@@ -164,11 +167,11 @@ typedef struct {
 
 } thread_soedata_t;
 
-//top level
+// top level sieving code
 uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset, 
 	uint64 lowlimit, uint64 *highlimit, int count, uint64 *primes);
 
-//thread ready sieving functions
+// thread ready sieving functions
 void sieve_line(thread_soedata_t *thread_data);
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
@@ -186,12 +189,12 @@ DWORD WINAPI soe_worker_thread_main(LPVOID thread_data);
 void *soe_worker_thread_main(void *thread_data);
 #endif
 
-//routines for finding small numbers of primes; seed primes for main SOE
+// routines for finding small numbers of primes; seed primes for main SOE
 uint32 tiny_soe(uint32 limit, uint32 *primes);
 
 void test_soe(int upper);
 
-//wrapper functions
+// interface functions
 uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp, 
 	mpz_t *offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p);
 uint64 *soe_wrapper(uint32 *sieve_p, uint32 num_sp, 
@@ -212,7 +215,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 	thread_soedata_t *thread_data, int count, uint64 *primes);
 void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock);
 
-//misc
+// misc
 void primesum(uint64 lower, uint64 upper);
 void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum);
 void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum);
@@ -285,3 +288,5 @@ int NO_STORE;
 //	{285,1,257,513,769,1025,1281,7,263,519,775,11,267,13,269,525,781,17,273,19,275,531,787,23,279,535,791,1047,1303,29}};
 //
 //
+
+#endif // YAFU_SOE_H

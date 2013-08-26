@@ -50,7 +50,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		if (fobj->autofact_obj.autofact_active)
 		{
 			mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
-			mp2gmp(&fobj->N, fobj->nfs_obj.gmp_n);
+			mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
 		}
 
 		find_brent_form(fobj, poly);

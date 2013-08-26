@@ -28,7 +28,7 @@ benefit from your work.
 // difficulty.
 // 3)
 // in windows, we count the number of ctrl-c's and force quit after 2.
-// this defeats ctrl-c'ing out of one than one test sieve.  while test
+// this defeats ctrl-c'ing out of more than one test sieve.  while test
 // sieving, on windows, we need to allow more than two ctrl-c's
 
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
@@ -572,11 +572,17 @@ void *lasieve_launcher(void *ptr)
 	//remove any temporary relation files
 	remove(thread_data->outfilename);
 		
-	//start ggnfs binary
-	sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",
-			thread_data->job.sievername, VFLAG>0?" -v":"", *side, // hehe (*side == side[0])
-			fobj->nfs_obj.job_infile, thread_data->job.startq, 
-			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
+	//start ggnfs binary - new win64 ASM enabled binaries current have a problem with this:
+	//sprintf(syscmd,"%s%s -%c %s -f %u -c %u -o %s -n %d",
+	//		thread_data->job.sievername, VFLAG>0?" -v":"", *side,
+	//		fobj->nfs_obj.job_infile, thread_data->job.startq, 
+	//		thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
+
+	// but not this:
+	sprintf(syscmd,"%s%s -f %u -c %u -o %s -n %d -%c %s ",
+			thread_data->job.sievername, VFLAG>0?" -v":"", thread_data->job.startq, 
+			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex,
+			*side, fobj->nfs_obj.job_infile);
 
 	if (VFLAG >= 0)
 	{

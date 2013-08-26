@@ -292,6 +292,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 
 			//even iteration
 			//check for square Qn = S*S
+			// try sse2: broadcast Qn, AND, parallel ==, bytebitmask
 			t2 = Qn & 31;
 			if (t2 == 0 || t2 == 1 || t2 == 4 ||
 				t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)			

@@ -243,10 +243,10 @@ void nfs(fact_obj_t *fobj)
 				{ 
 					// either we never were doing snfs, or the user selected gnfs,
 					// or snfs form detect failed.
-					// if the latter then bail with an error because the user 
-					// explicitly wants to run snfs...
 					if (fobj->nfs_obj.snfs)
 					{
+						// if the latter then bail with an error because the user 
+						// explicitly wants to run snfs...
 						printf("nfs: failed to find snfs polynomial!\n");
 						exit(-1);
 					}

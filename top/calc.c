@@ -1127,7 +1127,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		// fill the job's 'n' parameter now, and nfs will detect the form (or 
 		// bail).
 		fobj->nfs_obj.snfs = 1;
-		gmp2mp(operands[1],&fobj->N);
+		mpz_set(fobj->N, operands[1]);
 		mpz_set(fobj->nfs_obj.snfs_cofactor, operands[1]);
 
 		if (mpz_sizeinbase(fobj->nfs_obj.snfs_cofactor, 10) < fobj->nfs_obj.min_digits)
@@ -1200,9 +1200,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in factor\n");
 			break;
 		}
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		factor(fobj);
-		mp2gmp(&fobj->N,operands[0]);
+		mpz_set(operands[0], fobj->N);
 		print_factors(fobj);
 		break;
 	case 8:
@@ -1250,7 +1250,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in pm1\n");
 			break;
 		}
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
 		pollard_loop(fobj);
 		mpz_set(operands[0], fobj->pm1_obj.gmp_n);
@@ -1258,7 +1258,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 13:
 		//pp1 - two arguments
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		if (nargs == 2)
 		{
 			mpz_set(fobj->pp1_obj.gmp_n, operands[0]);
@@ -1287,7 +1287,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in rho\n");
 			break;
 		}
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->rho_obj.gmp_n, operands[0]);
 		brent_loop(fobj);
 		mpz_set(operands[0], fobj->rho_obj.gmp_n);
@@ -1295,7 +1295,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 15:
 		//trial - two arguments
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		if (nargs == 2)
 		{
 			mpz_set(fobj->div_obj.gmp_n, operands[0]);
@@ -1330,25 +1330,13 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//next prime - two arguments
 		if (nargs == 2)
 		{
-			z n, p;
-			zInit(&n);			
-			zInit(&p);
-			gmp2mp(operands[0], &n);
-			zNextPrime(&n, &p, mpz_get_ui(operands[1]));
-			mp2gmp(&p, operands[0]);
-			zFree(&p);
-			zFree(&n);
+			zNextPrime(operands[0], operands[2], mpz_get_ui(operands[1]));
+			mpz_set(operands[0], operands[2]);
 		}
 		else if (nargs == 1)
 		{
-			z n, p;
-			zInit(&n);			
-			zInit(&p);
-			gmp2mp(operands[1], &n);
-			zNextPrime(&n, &p, 1);
-			mp2gmp(&p, operands[0]);
-			zFree(&p);
-			zFree(&n);
+			zNextPrime(operands[1], operands[2], 1);
+			mpz_set(operands[0], operands[2]);
 		}
 		else
 		{
@@ -1477,7 +1465,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in siqs\n");
 			break;
 		}
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->qs_obj.gmp_n, operands[0]);
 		SIQS(fobj);
 		mpz_set(operands[0], fobj->qs_obj.gmp_n);
@@ -1553,9 +1541,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		{
 			printf("***********RUN %d***********\n",j+1);
 			mpz_urandomb(operands[2], gmp_randstate, k);
-			gmp2mp(operands[2], &fobj->N);
+			mpz_set(fobj->N, operands[2]);
 			factor(fobj);
-			mp2gmp(&fobj->N,operands[0]);
+			mpz_set(operands[0],fobj->N);
 			print_factors(fobj);
 			clear_factor_list(fobj);
 		}
@@ -1572,7 +1560,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 	case 32:
 		//ecm - two arguments
-		gmp2mp(operands[0], &fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		if (nargs == 2)
 		{
 			k = mpz_get_ui(operands[1]);
@@ -2079,7 +2067,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in smallmpqs\n");
 			break;
 		}
-		gmp2mp(operands[0],&fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->qs_obj.gmp_n, operands[0]);
 		fobj->logfile = fopen(fobj->flogname,"a");
 		if (fobj->logfile == NULL)
@@ -2237,14 +2225,14 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		//fermat - three arguments
 		if (nargs == 2)
 		{
-			gmp2mp(operands[1], &fobj->N);
+			mpz_set(fobj->N, operands[1]);
 			mpz_set(fobj->div_obj.gmp_n, operands[1]);
 			n64 = mpz_get_64(operands[2]);
 			j = 1;
 		}
 		else if (nargs == 3)
 		{			
-			gmp2mp(operands[0], &fobj->N);
+			mpz_set(fobj->N, operands[0]);
 			mpz_set(fobj->div_obj.gmp_n, operands[0]);
 			n64 = mpz_get_64(operands[1]);
 			j = mpz_get_ui(operands[2]);
@@ -2267,7 +2255,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in nfs\n");
 			break;
 		}
-		gmp2mp(operands[0], &fobj->N);
+		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
 		nfs(fobj);
 		mpz_set(operands[0], fobj->nfs_obj.gmp_n);
@@ -2441,7 +2429,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						if (a + blk*BLKSIZE + j > b)
 							break;
 						
-						sp2z(n[j], &fobj->N);						
+						mpz_set_64(fobj->N, n[j]);					
 						printf("%" PRIu64 " = ", a + blk*BLKSIZE + j);
 						for (k=0; k<nf[j]; k++)
 						{
@@ -2456,7 +2444,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 							continue;
 						}
 
-						if (isPrime(&fobj->N))
+						if (mpz_probab_prime_p(fobj->N, NUM_WITNESSES))
 						{
 							if (nf[j] == 0)
 							{
@@ -2483,8 +2471,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 								n[j] /= res;
 							}
 
-							sp2z(n[j], &fobj->N);
-							if (isPrime(&fobj->N))
+							mpz_set_64(fobj->N, n[j]);
+							if (mpz_probab_prime_p(fobj->N, NUM_WITNESSES))
 							{
 								printf(" * %" PRIu64 "\n", n[j]);
 								continue;

@@ -31,6 +31,7 @@ double shortmuldiv_acc(int m, int sz);
 double muldiv_acc(int m, int sz);
 double sqrt_acc(int m, int sz);
 double gcd_acc(int m, int sz);
+void richard_guy_problem_e7(void);
 
 void test_dlp_composites()
 {
@@ -835,3 +836,84 @@ double sqrt_acc(int m, int sz)
 	return t;
 }
 
+void richard_guy_problem_e7(void)
+{
+	uint64 n,j;
+	double sum = 0.;
+		
+	free(PRIMES);
+	PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL, 0, 
+		100000000, &NUM_P);
+
+	P_MIN = PRIMES[0]; 
+	P_MAX = PRIMES[(uint32)NUM_P-1];	
+
+	spSOEprimes = (uint32 *)realloc(spSOEprimes, 
+		(size_t) (NUM_P * sizeof(uint32)));
+	for (n=0; n<NUM_P; n++)
+		spSOEprimes[n] = (uint32)PRIMES[n];
+	szSOEp = NUM_P;
+
+	j=0;
+	for (n=1; n<1000000000000; )
+	{
+		if (j >= NUM_P)
+		{
+			j=0;
+
+			free(PRIMES);
+			PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL, P_MAX+1, 
+				(uint64)P_MAX + 10000000000, &NUM_P);
+
+			P_MIN = PRIMES[0]; 
+			P_MAX = PRIMES[(uint32)NUM_P-1];	
+
+			// print the odd iterations
+			printf("%" PRIu64 ", %" PRIu64 ", %1.9f\n", n, PRIMES[j], sum);
+
+			if ((n & 0x1) == 0)
+				sum += (double)n++ / (double)PRIMES[j++];
+			else
+				sum -= (double)n++ / (double)PRIMES[j++];
+					
+			printf("%" PRIu64 ", %" PRIu64 ", %1.9f\n", n, PRIMES[j], sum);
+	
+		}
+
+		if (j < (NUM_P - 8))
+		{
+			if (n & 0x1)
+			{
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+			}
+			else
+			{
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+				sum += (double)n++ / (double)PRIMES[j++];
+				sum -= (double)n++ / (double)PRIMES[j++];
+			}
+		}
+		else
+		{
+			if ((n & 0x1) == 0)
+				sum += (double)n++ / (double)PRIMES[j++];
+			else
+				sum -= (double)n++ / (double)PRIMES[j++];
+		}
+	}
+	printf("%" PRIu64 ", %1.9f\n", n-1, sum);
+
+	exit(0);
+}

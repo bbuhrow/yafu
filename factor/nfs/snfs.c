@@ -384,7 +384,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
 
 		if (VFLAG > 1)
-			printf("nfs: checking %d^x +/- 1 for 32 <= x <= %d\n", i, maxb);
+			printf("nfs: checking a*b^x +/- c for 32 <= x <= %d\n", i, maxb);
 
 		for (j=32; j<maxb; j++)
 		{
@@ -750,7 +750,7 @@ void find_primitive_factor(snfs_t *poly)
 	// ranks of factors - we support up to 3 distinct odd factors of e
 	int franks[4][32];		// and beans
 	// and counts of the factors in each rank
-	int cranks[4];			// doesn't that make you happy?
+	int cranks[4];			// doesn't that make you happy?   <-- bonus points if you get this...
 	int nr, mrank;
 	mpz_t n, term, t;
 
