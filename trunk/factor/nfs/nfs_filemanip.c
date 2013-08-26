@@ -205,7 +205,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 						if (mpz_cmp_ui(g, 1) > 0)
 							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
+						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
 
 						do_data_check = 1;		// job file matches: check for data file
@@ -285,7 +285,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 						if (mpz_cmp_ui(g, 1) > 0)
 							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
-						gmp2mp(fobj->nfs_obj.gmp_n, &fobj->N);	
+						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
 						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
 
 						if (VFLAG > 0) 

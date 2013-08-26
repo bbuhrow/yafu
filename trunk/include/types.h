@@ -25,11 +25,17 @@ code to the public domain.
 
 /* system-specific stuff ---------------------------------------*/
 
+#ifdef __APPLE__
+    #include <malloc/malloc.h>
+#else
+    #include <malloc.h>
+#endif
+
+
 #if defined(WIN32)
 
 	#define WIN32_LEAN_AND_MEAN
 	#include <intrin.h>	
-	#include <malloc.h>
 	#include <windows.h>
 	#include <process.h>
 	#include <direct.h>		//directory manipulation in windows
@@ -37,12 +43,10 @@ code to the public domain.
 #else /* !WIN32 */
 
 	#include <sys/types.h>
-	#include <sys/stat.h>
 	#include <fcntl.h>
 	#include <unistd.h>
 	#include <errno.h>
 	#include <pthread.h>
-	#include <malloc.h>
 
 #endif /* WIN32 */
 

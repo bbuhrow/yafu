@@ -29,7 +29,7 @@ INC = -I. -Iinclude
 INC += -I../gmp/include
 LIBS += -L../gmp/lib/linux/x86_64
 
-INC += -I../gmp-ecm/include
+INC += -I../gmp-ecm/include/linux
 LIBS += -L../gmp-ecm/lib/linux/x86_64
 
 ifeq ($(STATIC),1)
@@ -84,7 +84,8 @@ ifeq ($(FORCE_MODERN),1)
 endif
 
 ifeq ($(CC),icc)
-	CFLAGS += -mtune=core2 -march=core2
+	#CFLAGS += -mtune=core2 -march=core2 
+	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
 endif
 
 LIBS += -lecm -lgmp

@@ -141,7 +141,7 @@ void zRand(z *n, uint32 ndigits);
 void zRandb(z *n, int bits);
 void build_RSA(int bits, mpz_t n);
 void gordon(int bits, z *p);
-void zNextPrime(z *n, z *p, int dir);
+void zNextPrime(mpz_t n, mpz_t p, int dir);
 void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir);
 void helpfunc(char *s);
 int qcomp_int(const void *x, const void *y);

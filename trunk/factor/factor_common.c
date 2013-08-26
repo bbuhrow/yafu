@@ -390,7 +390,7 @@ void free_factobj(fact_obj_t *fobj)
 	mpz_clear(fobj->nfs_obj.snfs_cofactor);
 
 	//free general fobj stuff
-	zFree(&fobj->N);
+	mpz_clear(fobj->N);
 	sFree(&fobj->str_N);
 
 	clear_factor_list(fobj);
@@ -403,7 +403,7 @@ void alloc_factobj(fact_obj_t *fobj)
 {
 	int i;
 	
-	zInit(&fobj->N);
+	mpz_init(fobj->N);
 	sInit(&fobj->str_N);	
 
 	fobj->rho_obj.num_poly = 3;
@@ -740,7 +740,7 @@ void print_factors(fact_obj_t *fobj)
 		}
 
 		mpz_init(tmp2);
-		mp2gmp(&fobj->N, tmp2);
+		mpz_set(tmp2, fobj->N);
 		if (mpz_cmp_ui(tmp2, 1) > 0)
 		{
 			// non-trivial N remaining... compute and display the known co-factor
@@ -1174,7 +1174,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 						init_factobj(fobj_refactor);
-						gmp2mp(fobj->fobj_factors[i].factor, &fobj_refactor->N);
+						mpz_set(fobj_refactor->N, fobj->fobj_factors[i].factor);
 
 						// recurse on factor
 						factor(fobj_refactor);
@@ -2028,7 +2028,7 @@ void factor(fact_obj_t *fobj)
 	mpz_init(copyN);
 	mpz_init(b);
 
-	mp2gmp(&fobj->N, origN);
+	mpz_set(origN, fobj->N);
 	mpz_set(copyN, origN);
 	mpz_set(b, origN);
 
@@ -2045,7 +2045,13 @@ void factor(fact_obj_t *fobj)
 	flog = fopen(fobj->flogname,"a");
 	logprint(flog,"\n");
 	logprint(flog,"****************************\n");
-	logprint(flog,"Starting factorization of %s\n",mpz_conv2str(&gstr1.s, 10, b));
+	{
+		char *s;
+		s = mpz_get_str(NULL, 10, b);
+		// use ... when we have very big numbers?
+		logprint(flog,"Starting factorization of %s\n", s);
+		free(s);
+	}
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
 		logprint(flog,"custom pretest ratio is: %1.4f\n",
@@ -2127,7 +2133,7 @@ void factor(fact_obj_t *fobj)
 			fclose(flog);
 		}
 
-		gmp2mp(b, &fobj->N);
+		mpz_set(fobj->N, b);
 		mpz_clear(copyN);
 		mpz_clear(origN);
 		mpz_clear(b);
@@ -2164,7 +2170,7 @@ void factor(fact_obj_t *fobj)
 			// remove any common factor so the input exactly matches
 			// the file
 			mpz_tdiv_q(b, b, g);
-			gmp2mp(b, &fobj->N);
+			mpz_set(fobj->N, b);
 			mpz_set(origN, b);
 			mpz_set(copyN, b);
 
@@ -2193,6 +2199,7 @@ void factor(fact_obj_t *fobj)
 		mpz_init(tmpz);
 		mpz_init(g);
 
+		// may not be sufficient, in extreme cases...
 		fgets(tmpstr,1024,data);
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
@@ -2205,7 +2212,7 @@ void factor(fact_obj_t *fobj)
 			// remove any common factor so the input exactly matches
 			// the file
 			mpz_tdiv_q(b, b, g);
-			gmp2mp(b, &fobj->N);
+			mpz_set(fobj->N, b);
 			mpz_set(origN, b);
 			mpz_set(copyN, b);
 
@@ -2323,7 +2330,7 @@ void factor(fact_obj_t *fobj)
 		}
 	}
 
-	gmp2mp(b,&fobj->N);
+	mpz_set(fobj->N, b);
 
 	gettimeofday (&stop, NULL);
 	difference = my_difftime (&start, &stop);

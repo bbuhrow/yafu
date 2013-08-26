@@ -28,6 +28,7 @@ code to the public domain.
 #include "util.h"
 #include "arith.h"
 #include "yafu_string.h"
+#include "soe.h"
 
 const char* szFeatures[] =
 {
@@ -404,68 +405,222 @@ char * time_from_secs(char *str, unsigned long time)
 	return str;
 }
 
-void zNextPrime(z *n, z *p, int dir)
+void zNextPrime(mpz_t n, mpz_t p, int dir)
 {
 	//return the next prime after n, in the direction indicated by dir
 	//if dir is positive, next higher else, next lower prime
 	//n may get altered
-	int szn = abs(n->size);
+	uint32 a = 0;
 
-	if (szn > p->alloc)
-		zGrow(p,szn + LIMB_BLKSZ);
-
-	if (zCompare(n,&zThree) <= 0)
+	if (mpz_sizeinbase(n, 10) > 1000)
 	{
-		// handle special cases of really small inputs
-		if (dir > 0)
+		// for really big inputs, proceed with a windowed sieve approach.
+		uint64 *values;
+		uint64 num;
+		uint32 batch = 2048;
+		mpz_t l,h;
+
+		mpz_init(h);
+		mpz_init(l);
+		values = (uint64 *)malloc(batch * sizeof(uint64));
+
+		mpz_set(l, n);
+		mpz_set(h, n);
+
+		while (1)
 		{
-			if (n->val[0] == 3)
-				sp2z(5,p);
-			else if (n->val[0] == 2)
-				sp2z(3,p);
+			uint64 i;
+
+			if (dir > 0)
+				mpz_add_ui(h, l, batch);
 			else
-				sp2z(2,p);
+				mpz_sub_ui(l, h, batch);
+
+			// sieve with however many primes we have available, not to exceed 100k primes
+			values = sieve_to_depth(spSOEprimes, szSOEp > 100000 ? 100000 : szSOEp, l, h, 0, 0, &num);
+
+			for (i=0; i<num; i++)
+			{
+
+				if (VFLAG > 0) {
+					if (dir > 0)
+						printf("checking input + %u...\r", a + (uint32)values[i]);						
+					else
+						printf("checking input - %u...\r", a + (batch - (uint32)values[num-i-1]));
+					fflush(stdout);
+				}
+
+				if (dir > 0)
+					mpz_add_ui(p, l, values[i]);
+				else
+					mpz_add_ui(p, l, values[num-i-1]);
+
+				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				{
+
+					if (VFLAG > 0)
+						printf("\n");
+
+					goto done;
+				}
+			}
+
+			a += batch;
+			if (dir > 0)
+				mpz_set(l, h);
+			else
+				mpz_set(h, l);
 		}
-		else
-		{
-			sp2z(2,p);
-		}
+
+done:
+
+		mpz_clear(l);
+		mpz_clear(h);
+		free(values);
+
 		return;
 	}
 
-	//make sure start is odd
-	if (!(n->val[0] & 1))
+	// gmp has built-in support for increasing primes... 
+	if (dir > 0)
 	{
-		if (dir>0)
-			zShortAdd(n,1,p);
-		else
-			zShortSub(n,1,p);
-		if (isPrime(p))
-			return;
+		//... but it is 25% slower than 
+		// my naive implementation that does a tiny amount of trial division first!
+		//mpz_nextprime(p, n);
+
+		// start on an odd number
+		if (mpz_even_p(n))
+		{
+			mpz_add_ui(p, n, 1);
+			a++;
+			if ((VFLAG > 0) &&
+				(mpz_sizeinbase(n,10) > 1024)) {
+				printf("checking input + %u...\r",a);
+				fflush(stdout);
+			}
+
+			if (mpz_probab_prime_p(p, NUM_WITNESSES))
+			{
+
+				if ((VFLAG > 0) &&
+					(mpz_sizeinbase(n,10) > 1024))
+					printf("\n");
+
+				return;
+			}
+		}
+
+		while (1)
+		{
+			mpz_add_ui(p, p, 2);
+			a += 2;
+			if (mpz_tdiv_ui(p, 5) == 0) { 
+				a += 2;
+				mpz_add_ui(p, p, 2);
+			}
+			if (mpz_tdiv_ui(p, 7) == 0) {
+				a += 2;
+				mpz_add_ui(p, p, 2);
+			}
+			if (mpz_tdiv_ui(p, 11) == 0) {
+				a += 2;
+				mpz_add_ui(p, p, 2);
+			}
+
+			if ((VFLAG > 0) &&
+				(mpz_sizeinbase(n,10) > 1024)) {
+				printf("checking input + %u...\r",a);
+				fflush(stdout);
+			}
+
+			if (mpz_probab_prime_p(p, NUM_WITNESSES))
+			{
+
+				if ((VFLAG > 0) &&
+					(mpz_sizeinbase(n,10) > 1024))
+					printf("\n");
+
+				return;
+			}
+		}
+
+		return;
 	}
 	else
-		zCopy(n,p);
-
-	while (1)
-	{			
-		if (dir > 0)
-		{
-			zShortAdd(p,2,p);
-			if (zShortMod(p,5) == 0)
-				zShortAdd(p,2,p);
-		}
+	{
+		// for next decreasing prime, here is a straighforward naive implementation		
+		if (mpz_cmp_ui(n, 3) <= 0)
+			mpz_set_ui(p, 2);
+		else if (mpz_cmp_ui(n, 5) <= 0)
+			mpz_set_ui(p, 3);
+		else if (mpz_cmp_ui(n, 7) <= 0)
+			mpz_set_ui(p, 5);
+		else if (mpz_cmp_ui(n, 11) <= 0)
+			mpz_set_ui(p, 7);
+		else if (mpz_cmp_ui(n, 13) <= 0)
+			mpz_set_ui(p, 11);
+		else if (mpz_cmp_ui(n, 17) <= 0)
+			mpz_set_ui(p, 13);
 		else
 		{
-			zShortSub(p,2,p);
-			if (zShortMod(p,5) == 0 && zCompare(p,&zFive) != 0)
-				zShortSub(p,2,p);
+			// start on an odd number
+			if (mpz_even_p(n))
+			{
+				mpz_sub_ui(p, n, 1);
+				a++;
+
+				if ((VFLAG > 0) &&
+					(mpz_sizeinbase(n,10) > 1024)) {
+					printf("checking input - %u...\r",a);
+					fflush(stdout);
+				}
+
+				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				{
+
+					if ((VFLAG > 0) &&
+						(mpz_sizeinbase(n,10) > 1024))
+						printf("\n");
+
+					return;
+				}
+			}
+
+			while (1)
+			{
+				mpz_sub_ui(p, p, 2);
+				a += 2;
+				if (mpz_tdiv_ui(p, 5) == 0) {
+					a += 2;
+					mpz_sub_ui(p, p, 2);
+				}
+				if (mpz_tdiv_ui(p, 7) == 0) {
+					a += 2;
+					mpz_sub_ui(p, p, 2);
+				}
+				if (mpz_tdiv_ui(p, 11) == 0) {
+					a += 2;
+					mpz_sub_ui(p, p, 2);
+				}
+
+				if ((VFLAG > 0) &&
+					(mpz_sizeinbase(n,10) > 1024)) {
+					printf("checking input - %u...\r",a);
+					fflush(stdout);
+				}
+
+				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				{
+
+					if ((VFLAG > 0) &&
+						(mpz_sizeinbase(n,10) > 1024))
+						printf("\n");
+
+					return;
+				}
+			}
 		}
-
-		if (isPrime(p))
-			return;
-	}	
-
-	return;
+	}
 }
 
 void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir)
@@ -534,11 +689,11 @@ void generate_pseudoprime_list(int num, int bits)
 
 	FILE *out;
 	int i;
-	z tmp1,tmp2,tmp3;
+	mpz_t tmp1,tmp2,tmp3;
 
-	zInit(&tmp1);
-	zInit(&tmp2);
-	zInit(&tmp3);
+	mpz_init(tmp1);
+	mpz_init(tmp2);
+	mpz_init(tmp3);
 
 	out = fopen("pseudoprimes.dat","w");
 	if (out == NULL)
@@ -549,22 +704,20 @@ void generate_pseudoprime_list(int num, int bits)
 	
 	for (i=0; i<num; i++)
 	{
-		zRandb(&tmp3,bits/2);
-		zNextPrime(&tmp3,&tmp1,1);
-		zRandb(&tmp3,bits/2);
-		zNextPrime(&tmp3,&tmp2,1);
-		zMul(&tmp1,&tmp2,&tmp3);
-		fprintf(out,"%s,%s,%s\n",
-			z2decstr(&tmp3,&gstr1),
-			z2decstr(&tmp1,&gstr2),
-			z2decstr(&tmp2,&gstr3));
+		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+		zNextPrime(tmp3,tmp1,1);
+		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+		zNextPrime(tmp3,tmp2,1);
+		mpz_mul(tmp3,tmp2,tmp1);
+		gmp_fprintf(out,"%Zd,%Zd,%Zd\n",
+			tmp3, tmp1, tmp2);
 	}
 	fclose(out);
 
 	printf("generated %d pseudoprimes in file pseudoprimes.dat\n",num);
-	zFree(&tmp1);
-	zFree(&tmp2);
-	zFree(&tmp3);
+	mpz_clear(tmp1);
+	mpz_clear(tmp2);
+	mpz_clear(tmp3);
 	return;
 }
 

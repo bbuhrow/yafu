@@ -140,7 +140,7 @@ void SIQS(fact_obj_t *fobj)
 			if (mpz_cmp_ui(g, 1) > 0)
 				add_to_factor_list(fobj, g);
 			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, g);
-			gmp2mp(fobj->qs_obj.gmp_n, &fobj->N);
+			mpz_set(fobj->N, fobj->qs_obj.gmp_n);
 		}
 		mpz_clear(tmpz);
 		mpz_clear(g);

@@ -589,6 +589,18 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			
 		}
 
+		if (mpz_cmp(*offset, lowlimit) != 0)
+		{
+			// sieving needed to change the lower sieve limit.  adjust the returned
+			// values accordingly.
+			uint64 a;
+			mpz_sub(tmpz, lowlimit, *offset);
+			a = mpz_get_64(tmpz);
+
+			for (i=0; i < *num_p; i++)
+				values[i] -= a;
+		}
+
 		// now dump the requested range of primes to a file, or the
 		// screen, both, or neither, depending on the state of a couple
 		// global configuration variables
@@ -609,7 +621,8 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			{
 				for (i = 0; i < *num_p; i++)
 				{
-					mpz_add_ui(tmpz, *offset, values[i]);
+					//mpz_add_ui(tmpz, *offset, values[i]);
+					mpz_add_ui(tmpz, lowlimit, values[i]);
 					if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 						gmp_fprintf(out,"%Zd\n",tmpz);
 				}
@@ -621,7 +634,8 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 		{
 			for (i = 0; i < *num_p; i++)
 			{
-				mpz_add_ui(tmpz, *offset, values[i]);
+				//mpz_add_ui(tmpz, *offset, values[i]);
+				mpz_add_ui(tmpz, lowlimit, values[i]);
 				if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 					gmp_printf("%Zd\n",tmpz);
 			}

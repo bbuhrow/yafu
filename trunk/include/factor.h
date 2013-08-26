@@ -478,7 +478,7 @@ typedef struct
 
 typedef struct
 {
-	z N;						//numerical representation of input
+	mpz_t N;					//numerical representation of input
 	str_t str_N;				//string representation of input (expression form)
 	uint32 digits;				//number of digits in input
 	uint32 bits;				//number of bits in input
