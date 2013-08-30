@@ -742,14 +742,16 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 		//else, need to check for input from a redirect or pipe.
 		//this is done differently on unix like systems vs. windows
 #if defined(WIN32)	//not complete, but ok for now
-		fseek(in,-1,SEEK_END);
-		if (ftell(in) >= 0)
+		if(_isatty(_fileno(in)) == 0)
 		{
-			rewind(in);
-			fgets(input_exp,1024,in);
-			is_cmdline_run = 1;
+			fseek(in,-1,SEEK_END);
+			if (ftell(in) >= 0)
+			{
+				rewind(in);
+				fgets(input_exp,1024,in);
+				is_cmdline_run = 1;
+			}
 		}
-
 #else
 		if (isatty(fileno(in)) == 0)
 		{			
