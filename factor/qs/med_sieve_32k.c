@@ -164,6 +164,10 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
 
+		// invalid root (part of poly->a)
+		if (prime == 0) 
+			continue;
+
 		CHECK_1X_DONE;
 
 		SIEVE_1X;
