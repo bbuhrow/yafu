@@ -53,35 +53,8 @@ void nfsexit(int sig)
 	return;
 }
 
-//----------------------- NFS ENTRY POINT ------------------------------------//
-void nfs(fact_obj_t *fobj)
+int nfs_check_special_case(fact_obj_t *fobj)
 {
-	//expect the input in fobj->nfs_obj.gmp_n
-	char *input;
-	msieve_obj *obj = NULL;
-	char *nfs_args = NULL; // unused as yet
-	enum cpu_type cpu = yafu_get_cpu_type();
-	mp_t mpN;
-	factor_list_t factor_list;
-	uint32 flags = 0;
-	nfs_job_t job;
-	uint32 relations_needed = 1;
-	uint32 last_specialq = 0;
-	struct timeval stop;	// stop time of this job
-	struct timeval start;	// start time of this job
-	struct timeval bstop;	// stop time of sieving batch
-	struct timeval bstart;	// start time of sieving batch
-	TIME_DIFF *	difference;
-	double t_time;
-	uint32 pre_batch_rels = 0;
-	char tmpstr[GSTR_MAXSIZE];
-	int process_done;
-	enum nfs_state_e nfs_state;
-
-	// initialize some job parameters
-	memset(&job, 0, sizeof(nfs_job_t));
-
-	obj_ptr = NULL;
 
 	//below a certain amount, revert to SIQS
 	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
@@ -89,7 +62,7 @@ void nfs(fact_obj_t *fobj)
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
 		mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
-		return;
+		return 1;
 	}
 
 	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
@@ -105,7 +78,7 @@ void nfs(fact_obj_t *fobj)
 			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));	
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		return;
+		return 1;
 	}
 
 	if (mpz_perfect_square_p(fobj->nfs_obj.gmp_n))
@@ -123,7 +96,7 @@ void nfs(fact_obj_t *fobj)
 			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
-		return;
+		return 1;
 	}
 
 	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
@@ -157,8 +130,45 @@ void nfs(fact_obj_t *fobj)
 		}
 
 		fclose(flog);
-		return;
+		return 1;
 	}
+
+	return 0;
+}
+
+
+//----------------------- NFS ENTRY POINT ------------------------------------//
+void nfs(fact_obj_t *fobj)
+{
+	//expect the input in fobj->nfs_obj.gmp_n
+	char *input;
+	msieve_obj *obj = NULL;
+	char *nfs_args = NULL; // unused as yet
+	enum cpu_type cpu = yafu_get_cpu_type();
+	mp_t mpN;
+	factor_list_t factor_list;
+	uint32 flags = 0;
+	nfs_job_t job;
+	uint32 relations_needed = 1;
+	uint32 last_specialq = 0;
+	struct timeval stop;	// stop time of this job
+	struct timeval start;	// start time of this job
+	struct timeval bstop;	// stop time of sieving batch
+	struct timeval bstart;	// start time of sieving batch
+	TIME_DIFF *	difference;
+	double t_time;
+	uint32 pre_batch_rels = 0;
+	char tmpstr[GSTR_MAXSIZE];
+	int process_done;
+	enum nfs_state_e nfs_state;
+
+	// initialize some job parameters
+	memset(&job, 0, sizeof(nfs_job_t));
+
+	obj_ptr = NULL;
+
+	if (nfs_check_special_case(fobj))
+		return;
 
 	if (fobj->nfs_obj.filearg[0] != '\0')
 	{

@@ -16,14 +16,9 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
+snfs_t * snfs_find_form(fact_obj_t *fobj)
 {
-	snfs_t* poly, * polys = NULL;
-	int i, npoly;
-	FILE *f;
-	char tmpstr[1024];
-	nfs_job_t *jobs, *best;
-	int retcode = 0;
+	snfs_t* poly;
 
 	// allow larger one to come in, because some polynomials forms are significantly reduced
 	// (i.e., x^(2n))
@@ -31,7 +26,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	{
 		if (VFLAG >= 0)
 			printf("nfs: n is too large for snfs, skipping snfs poly select\n");
-		return 1;
+		return NULL;
 	}	
 
 	poly = (snfs_t*)malloc(sizeof(snfs_t));
@@ -73,20 +68,41 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		find_xyyxf_form(fobj, poly);
 	}
 
+	if (poly->form_type == SNFS_NONE)
+	{
+		printf("nfs: couldn't find special form\n");
+		
+		snfs_clear(poly);
+		free(poly);
+		return NULL;
+	}
+
+	return poly;
+}
+
+int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
+{
+	snfs_t* poly, * polys = NULL;
+	int i, npoly;
+	FILE *f;
+	char tmpstr[1024];
+	nfs_job_t *jobs, *best;
+	int retcode = 0;
+
+	if ((poly = snfs_find_form(fobj)) == NULL)
+	{
+		// form detection failed
+		job->snfs = NULL;
+		return 1;
+	}
+
 	// once form detection is done, do some quick trial division
 	mpz_set(fobj->div_obj.gmp_n, poly->n);
 	zTrial(fobj);
 	mpz_set(poly->n, fobj->div_obj.gmp_n);
 
-	if (poly->form_type == SNFS_NONE)
-	{
-		printf("nfs: couldn't find special form\n");
-		job->snfs = NULL;
-		snfs_clear(poly);
-		free(poly);
-		return 1;
-	}
-	else if (poly->form_type == SNFS_XYYXF)
+	// with the form detected, create a good polynomial
+	if (poly->form_type == SNFS_XYYXF)
 		polys = gen_xyyxf_poly(fobj, poly, &npoly);
 	else
 		polys = gen_brent_poly(fobj, poly, &npoly);
