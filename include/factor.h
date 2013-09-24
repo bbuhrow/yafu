@@ -446,6 +446,10 @@ typedef struct
 
 	//balance of ecm and various sieve methods
 	double target_pretest_ratio;
+	int has_snfs_form;			// 1 = input has snfs form
+								// 0 = input does not have snfs form
+								// -1 = input has not been checked yet
+
 	//double target_ecm_gnfs_ratio;
 	//double target_ecm_snfs_ratio;
 

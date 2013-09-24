@@ -129,8 +129,8 @@ typedef struct
 	mpz_t primitive;
 	// algebraic representation of the snfs form:
 	// n divides c1*b1^e1 + c2*b2^e2
-	int base1;
-	int base2;
+	mpz_t base1;
+	mpz_t base2;
 	int exp1;
 	int exp2;
 	int coeff1;
@@ -140,7 +140,7 @@ typedef struct
 
 
 	mpz_polys_t* poly;
-	int64 c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t
+	mpz_t c[MAX_POLY_DEGREE + 1]; // scratch space -- converted to mpz_poly_t
 				      // in check_poly()
 
 	// other useful parameters
@@ -277,6 +277,9 @@ void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);
 void analyze_one_poly_xface(snfs_t *poly);
 int est_gnfs_size(nfs_job_t *job);
+snfs_t * snfs_find_form(fact_obj_t *fobj);
+int tdiv_mpz(mpz_t x, int *factors);
+
 
 int NFS_ABORT;
 int IGNORE_NFS_ABORT;

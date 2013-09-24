@@ -22,6 +22,7 @@ code to the public domain.
 #include "soe.h"
 #include "factor.h"
 #include "qs.h"
+#include "nfs.h"
 #include "yafu_ecm.h"
 #include "util.h"
 #include "yafu_string.h"
@@ -313,6 +314,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.no_ecm = 0;
 	fobj->autofact_obj.target_pretest_ratio = 4.0 / 13.0;
 	fobj->autofact_obj.initial_work = 0.0;
+	fobj->autofact_obj.has_snfs_form = -1;		// not checked yet
 
 	//pretesting plan used by factor()
 	fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
@@ -1598,6 +1600,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	double target_digits;
 	double work_done;
 	FILE *flog;
+	snfs_t *poly;
 
 	// get the next factorization state that hasn't been completed
 	next_state = get_next_state(fwork, fobj);
@@ -1613,7 +1616,17 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	// check to see if 'tune' has been run or not
 	have_tune = check_tune_params(fobj);		
 
-	// set target pretesting depth
+	// set target pretesting depth, depending on user selection and whether or not
+	// the input is both big enough and snfsable...
+	if ((numdigits >= 100) && (fobj->autofact_obj.has_snfs_form < 0))
+	{
+		mpz_set(fobj->nfs_obj.gmp_n, b);
+		poly = snfs_find_form(fobj);
+		fobj->autofact_obj.has_snfs_form = (poly != NULL);
+		// The actual poly is not needed now, so just get rid of it.
+		free(poly);
+	}
+	
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
 		target_digits = 1. * (double)numdigits / 3.;
 	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
@@ -1622,6 +1635,15 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
 	else
 		target_digits = 4. * (double)numdigits / 13.;	
+
+	if (fobj->autofact_obj.has_snfs_form)
+	{
+		// we found a snfs polynomial for the input.  Since we are in factor(), we'll
+		// proceed with any ecm required, but adjust the plan ratio accordingly.
+		if (VFLAG > 0) printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
+			target_digits, target_digits / 1.2857);
+		target_digits /= 1.2857;
+	}
 
 	// get the current amount of work done - only print status prior to 
 	// ecm steps
@@ -1651,6 +1673,14 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		default:
 			work_done = compute_ecm_work_done(fwork, 0);
 			break;
+	}
+
+	// if there is a trivial amount of ecm to do, skip directly to a sieve method
+	if (target_digits < 15)
+	{
+		if (VFLAG > 0)
+			printf("fac: trivial ECM work to do... skipping to sieve method\n");
+		next_state = state_nfs;
 	}
 
 	// handle the case where the next state is a sieve method

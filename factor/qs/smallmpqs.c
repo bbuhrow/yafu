@@ -532,16 +532,8 @@ void smallmpqs(fact_obj_t *fobj)
 		return;
 	}
 
-	// factor base bound
-	bits_n = mpz_sizeinbase(n,2);
-
-	if (bits_n > 130)
-	{
-		printf("input too big\n");
-		mpz_clear(n);
-		mpz_clear(tmp);
-		return;
-	}
+	// size in bits influences mpqs parameters
+	bits_n = mpz_sizeinbase(n,2);	
 
 	// don't use the logfile if we see this special flag
 	if (fobj->qs_obj.flags != 12345)
@@ -551,7 +543,92 @@ void smallmpqs(fact_obj_t *fobj)
 				gmp_base10(n), mpz_conv2str(&gstr1.s, 10, n));
 	}
 
-	if (bits_n < 60)
+	//empircal tuning of sieve interval based on digits in n
+	sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
+
+	gettimeofday(&tstart, NULL);
+	mpz_init(tmp2);
+	mpz_init(tmp3);
+	
+	//default mpqs parameters
+	sm_sieve_params.fudge_factor = 1.3;
+	if (fobj->qs_obj.gbl_override_lpmult_flag != 0)
+		sm_sieve_params.large_mult = fobj->qs_obj.gbl_override_lpmult;
+
+	// how oversquare should we make the matrix?  32 works most of the time;
+	// it was observed to not work once, by kar_bon, where the input is comprised
+	// of many smallish primes and the matrix is exhaused before they are all found:
+	// 1000914215585288002972568692717.  however, calling factor() on this input works
+	// fine, and in fact never needs smallmpqs, so this isn't really this routine's
+	// fault.  thus it will stay 32...
+	sm_sieve_params.num_extra_relations = 32;
+
+	//allocate the space for the factor base
+	fb = (fb_list_sm_mpqs *)malloc(sizeof(fb_list_sm_mpqs));
+	
+	//set fb size from above
+	if (fobj->qs_obj.gbl_override_B_flag != 0)
+		fb->B = fobj->qs_obj.gbl_override_B;
+	else
+		fb->B = j;
+
+	if (fobj->qs_obj.gbl_override_blocks_flag != 0)
+		sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
+
+	//compute the number of digits in n 
+	digits_n = gmp_base10(n);
+
+	//set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
+	//is gathered, use some sort of table lookup.
+	sieve_interval = 32768*sm_sieve_params.num_blocks;
+
+	//allocate the space for the factor base
+	modsqrt = (uint32 *)malloc(fb->B * sizeof(uint32));
+	fb->list = (fb_element_sm_mpqs *)malloc((size_t)(sizeof(fb_element_sm_mpqs)));
+	fb->list->correction = (uint32 *)malloc(fb->B * sizeof(uint32));
+	fb->list->prime = (uint32 *)malloc(fb->B * sizeof(uint32));
+	fb->list->small_inv = (uint32 *)malloc(fb->B * sizeof(uint32));
+	fb->list->logprime = (uint8 *)malloc(fb->B * sizeof(uint8));
+	fb_sieve_p = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
+	fb_sieve_n = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
+
+	//find multiplier
+	mul = (uint32)smpqs_choose_multiplier(n,fb->B);
+	mpz_mul_ui(n,n,mul);
+
+	//find new sqrt_n
+	mpz_init(sqrt_n);
+	mpz_sqrt(sqrt_n,n);
+
+	// these values are fixed...
+	fb->list->prime[0] = 1;
+	fb->list->prime[1] = 2;
+
+	//construct the factor base, and copy to the sieve factor base
+	smpqs_make_fb_mpqs(fb,modsqrt,n);
+
+	// small factors can be removed during factor base creation... now is a good
+	// time to see how big the number is, and use special methods if it is below 
+	// a threshold
+	bits_n = mpz_sizeinbase(n,2);	
+
+	if (bits_n > 130)
+	{
+		printf("******* input too big for smallmpqs... please report this bug to bbuhrow@gmail.com *******\n");
+		mpz_clear(n);
+		mpz_clear(tmp);
+
+		free(fb_sieve_n);
+		free(fb_sieve_p);
+		free(fb->list->logprime);
+		free(fb->list->small_inv);
+		free(fb->list->prime);
+		free(fb->list->correction);
+		free(fb->list);
+		free(fb);
+		return;
+	}
+	else if (bits_n < 60)
 	{
 		mpz_t ztmp;
 		mpz_init(ztmp);
@@ -580,40 +657,20 @@ void smallmpqs(fact_obj_t *fobj)
 
 			mpz_set_ui(fobj->qs_obj.gmp_n, 1);
 
+			free(fb_sieve_n);
+			free(fb_sieve_p);
+			free(fb->list->logprime);
+			free(fb->list->small_inv);
+			free(fb->list->prime);
+			free(fb->list->correction);
+			free(fb->list);
+			free(fb);
 			mpz_clear(n);
 			mpz_clear(tmp);
 			return;
 		}
 	}
 
-	//empircal tuning of sieve interval based on digits in n
-	sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
-
-	gettimeofday(&tstart, NULL);
-	mpz_init(tmp2);
-	mpz_init(tmp3);
-	
-	//default mpqs parameters
-	sm_sieve_params.fudge_factor = 1.3;
-	if (fobj->qs_obj.gbl_override_lpmult_flag != 0)
-		sm_sieve_params.large_mult = fobj->qs_obj.gbl_override_lpmult;
-
-	sm_sieve_params.num_extra_relations = 32;
-
-	//allocate the space for the factor base
-	fb = (fb_list_sm_mpqs *)malloc(sizeof(fb_list_sm_mpqs));
-	
-	//set fb size from above
-	if (fobj->qs_obj.gbl_override_B_flag != 0)
-		fb->B = fobj->qs_obj.gbl_override_B;
-	else
-		fb->B = j;
-
-	if (fobj->qs_obj.gbl_override_blocks_flag != 0)
-		sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
-
-	//compute the number of digits in n 
-	digits_n = gmp_base10(n);
 
 	//allocate storage for relations based on the factor base size
 	max_f = fb->B + 3*sm_sieve_params.num_extra_relations;	
@@ -630,20 +687,13 @@ void smallmpqs(fact_obj_t *fobj)
 	partial->act_r = 0;
 	partial->list = (sm_mpqs_r **)malloc((size_t) (10*fb->B* sizeof(sm_mpqs_r *)));
 
-	//set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
-	//is gathered, use some sort of table lookup.
-	sieve_interval = 32768*sm_sieve_params.num_blocks;
 
-	//allocate the space for the factor base
-	modsqrt = (uint32 *)malloc(fb->B * sizeof(uint32));
-	fb->list = (fb_element_sm_mpqs *)malloc((size_t)(sizeof(fb_element_sm_mpqs)));
-	fb->list->correction = (uint32 *)malloc(fb->B * sizeof(uint32));
-	fb->list->prime = (uint32 *)malloc(fb->B * sizeof(uint32));
-	fb->list->small_inv = (uint32 *)malloc(fb->B * sizeof(uint32));
-	fb->list->logprime = (uint8 *)malloc(fb->B * sizeof(uint8));
-	fb_sieve_p = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
-	fb_sieve_n = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
-	
+	for (i=2;i<fb->B;i++)
+	{
+		fb_sieve_p[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
+		fb_sieve_n[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
+	}
+
 	//allocate the sieve
 	sieve = (uint8 *)xmalloc_align(32768 * sizeof(uint8));
 
@@ -655,14 +705,6 @@ void smallmpqs(fact_obj_t *fobj)
 	polyalloc = 32;
 	apoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
 	bpoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
-
-	//find multiplier
-	mul = (uint32)smpqs_choose_multiplier(n,fb->B);
-	mpz_mul_ui(n,n,mul);
-
-	//find new sqrt_n
-	mpz_init(sqrt_n);
-	mpz_sqrt(sqrt_n,n);
 
 	//find upper bound of Q values
 	mpz_tdiv_q_2exp(tmp,n,1); //zShiftRight(&tmp,n,1);
@@ -703,18 +745,6 @@ void smallmpqs(fact_obj_t *fobj)
 
 	smpqs_nextD(poly,n);
 	smpqs_computeB(poly,n);	
-
-	fb->list->prime[0] = 1;
-	fb->list->prime[1] = 2;
-
-	//construct the factor base, and copy to the sieve factor base
-	smpqs_make_fb_mpqs(fb,modsqrt,n);
-
-	for (i=2;i<fb->B;i++)
-	{
-		fb_sieve_p[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
-		fb_sieve_n[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
-	}
 
 	//find the root locations of the factor base primes for this poly
 	smpqs_computeRoots(poly,fb,modsqrt,fb_sieve_p,fb_sieve_n,2);
