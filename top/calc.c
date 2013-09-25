@@ -1026,7 +1026,7 @@ int getFunc(char *s, int *nargs)
 	//the number of arguments it takes
 	int i,j;
 
-	char func[NUM_FUNC][11] = {"fib","luc","snfs","hex2dec","rsa",
+	char func[NUM_FUNC][11] = {"fib","luc","snfs","expr","rsa",
 						"gcd","jacobi","factor","rand","lg2",
 						"log","ln","pm1","pp1","rho",
 						"trial","mpqs","nextprime","size","issquare",
@@ -1038,7 +1038,8 @@ int getFunc(char *s, int *nargs)
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sftest","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune",
-						"xor", "and", "or", "not", "frange","bpsw","aprcl"};
+						"xor", "and", "or", "not", "frange",
+						"bpsw","aprcl"};
 
 	int args[NUM_FUNC] = {1,1,2,1,1,
 					2,2,1,1,1,
@@ -1144,6 +1145,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 		break;
 	case 3:
+		// expr - one argument
+		// this is used to evaluate numerical expressions from the command line,
+		// now that the default behavior is to factor the input.
+		// since whatever was in the function will have already been evaluated,
+		// simply return the input.
+		if (nargs != 1)
+		{
+			printf("wrong number of arguments in expr\n");
+			break;
+		}
 
 		break;
 	case 4:

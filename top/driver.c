@@ -43,7 +43,7 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 68
+#define NUMOPTIONS 69
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -62,7 +62,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-	"filt_bump", "nc1", "gnfs"};
+	"filt_bump", "nc1", "gnfs", "e"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -82,7 +82,7 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,1,
 	0,0,0,1,1,
 	1,1,1,1,1,
-	1,0,0};
+	1,0,0,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -107,7 +107,7 @@ void finalize_batchline();
 // functions to process all incoming arguments
 int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj);
 void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj);
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression);
 
 int main(int argc, char *argv[])
 {
@@ -719,23 +719,22 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 	//their source.  
 	if (argc > 1)
 	{
-		//process arguments
+		// user input one or more arguments - process them
+		process_flags(argc-1, &argv[1], fobj, input_exp);
 
-		if (argv[1][0] == '-')
+		if (strlen(input_exp) != 0)
 		{
-			//then there are just flags, no expression.  start up normally
-			//after processing the flags
-			process_flags(argc-1, &argv[1], fobj);
-		}
-		else
-		{
-			//assume its a command.  execute once, after processing any
-			//flags.  an invalid command will be handled by calc.
+			// special check: if there is no function call, insert a 
+			// default function call
 			is_cmdline_run = 1;
-			strcpy(input_exp,argv[1]);
-			if (argc > 2)
-				process_flags(argc-2, &argv[2], fobj);
-		}		
+	
+			if (strstr(input_exp, "(") == NULL)
+			{
+				char s[1024];
+				sprintf(s, "factor(%s)", input_exp);
+				strcpy(input_exp, s);
+			}
+		}
 	}
 	else
 	{
@@ -779,10 +778,26 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 
 	if (VFLAG > 0 || !is_cmdline_run)
 #ifdef _MSC_MPIR_VERSION
+#ifdef ECM_VERSION
 		printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
 _MSC_MPIR_VERSION);
 		fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
 _MSC_MPIR_VERSION);
+#elif defined(VERSION)
+
+		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+_MSC_MPIR_VERSION);
+		fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+_MSC_MPIR_VERSION);
+
+#else
+		printf("Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
+_MSC_MPIR_VERSION);
+		fprintf(logfile,"Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
+_MSC_MPIR_VERSION);
+
+
+#endif
 #else
 	#ifdef ECM_VERSION
 		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION, 
@@ -1131,11 +1146,13 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	return input_exp;;
 }
 
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression)
 {
     int ch = 0, i,j,valid;
 	char optbuf[MAXOPTIONLEN];
 	char argbuf[80];
+
+	expression[0] = '\0';
 
     //argument loop
 	i = 0;
@@ -1145,12 +1162,43 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)
 		ch = argv[i][0];
 		if (ch != '-')
 		{
-			printf("no switch detected\n");
-			exit(1);
+			if (i == 0)
+			{
+				// no switch is ok if it's the first argument... assume
+				// it is the input expression (legacy support)
+				strcpy(expression, argv[i]);
+				i++;
+				continue;
+			}
+			else
+			{
+				printf("no switch detected in argument %d\n", i);
+				exit(1);
+			}
 		}
 		strcpy(optbuf,argv[i]);
 
-		//check if its valid
+		// check for the special "-e" argument, signifying an input expression
+		if (strcmp(optbuf+1, "e") == 0)
+		{
+			// check to see if an argument was supplied
+			if (((i+1) == argc) || argv[i+1][0] == '-')
+			{
+				// no option supplied.
+				printf("expected input expression\n");
+				exit(1);
+			}
+			else
+			{
+				// an option was supplied, pass it on
+				i++;				
+				strcpy(expression,argv[i]);
+				i++;
+				continue;
+			}
+		}
+
+		//check if it's valid option
 		valid = 0;
 		for (j=0; j<NUMOPTIONS;j++)
 		{
@@ -1170,7 +1218,7 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj)
 		if (needsArg[j] == 1)
 		{
 			i++;
-			if (i == argc)
+			if ((i == argc) || (argv[i][0] == '-'))
 			{
 				printf("argument expected for %s\n",optbuf);
 				exit(1);
