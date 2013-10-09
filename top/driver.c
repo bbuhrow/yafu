@@ -43,7 +43,7 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 69
+#define NUMOPTIONS 71
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -62,7 +62,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-	"filt_bump", "nc1", "gnfs", "e"};
+	"filt_bump", "nc1", "gnfs", "e", "repeat",
+	"ecmtime"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -82,7 +83,8 @@ int needsArg[NUMOPTIONS] = {
 	1,1,1,0,1,
 	0,0,0,1,1,
 	1,1,1,1,1,
-	1,0,0,1};
+	1,0,0,1,1,
+	1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -113,9 +115,7 @@ int main(int argc, char *argv[])
 {
 	uint32 insize = GSTR_MAXSIZE;
 	char *input_exp, *ptr, *indup;
-	str_t str;
-	mpz_t tmp;
-	int nooutput,offset,slog,is_cmdline_run=0;
+	int slog,is_cmdline_run=0;
 	FILE *logfile;
 	fact_obj_t *fobj;
 
@@ -123,8 +123,7 @@ int main(int argc, char *argv[])
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	indup = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	strcpy(input_exp,"");
-	sInit(&str);
-
+	
 	//set defaults for various things
 	set_default_globals();
 
@@ -151,17 +150,23 @@ int main(int argc, char *argv[])
 		extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, VERBOSE_PROC_INFO);
 #endif
 
+	if (is_cmdline_run == 2)
+	{
+		// batchfile from stdin
+		USEBATCHFILE = 2;
+	}
+
 	// get the batchfile ready, if requested
 	if (USEBATCHFILE)
 	{
 		prepare_batchfile(input_exp);		
 		
 		//batchfile jobs are command line in nature
-		is_cmdline_run = 1;
-
-		//remember the input expression
-		strcpy(indup,input_exp);
+		is_cmdline_run = 1;		
 	}
+
+	if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))	
+		strcpy(indup,input_exp);	//remember the input expression
 
 	//never run silently when run interactively, else the results of
 	//calculations will never be displayed.
@@ -180,10 +185,7 @@ int main(int argc, char *argv[])
 		slog = 1;	
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
-	print_splash(is_cmdline_run, logfile, CPU_ID_STR);
-
-	// bigint used in this routine
-	mpz_init(tmp);
+	print_splash(is_cmdline_run, logfile, CPU_ID_STR);	
 	
 	//start the calculator
 	//right now this just allocates room for user variables
@@ -213,7 +215,7 @@ int main(int argc, char *argv[])
 #endif	
 
 
-	//command line
+	// command line
 	while (1)
 	{		
 		reset_factobj(fobj);		
@@ -272,7 +274,7 @@ int main(int argc, char *argv[])
 
 		}
 		
-		//search for substring help in input
+		// help, exit, or execute the current expression...
 		ptr = strstr(input_exp,"help");
 		if (ptr != NULL)
 			helpfunc(input_exp);
@@ -280,96 +282,7 @@ int main(int argc, char *argv[])
 			break;
 		else
 		{
-			logprint(logfile,"Processing expression: %s\n\n",input_exp);
-			toStr(input_exp,&str);
-
-			preprocess(&str);
-			strcpy(input_exp,str.s);
-
-			//detect an '=' operation, and verify the destination of the = is valid
-			//pass on everything to the right of the = to the calculator
-			if ((ptr = strchr(str.s,'=')) != NULL)
-			{
-				*ptr = '\0';
-				if (invalid_dest(str.s))
-				{
-					printf("invalid destination %s\n",str.s);
-					offset = ptr-str.s+1;
-					sFree(&str);
-					sInit(&str);
-					memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
-					strcpy(input_exp,"ans");
-					str.nchars = strlen(str.s) + 1;
-				}
-				else
-				{
-					offset = ptr-str.s+1;
-					sFree(&str);
-					sInit(&str);
-					memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
-
-					input_exp[offset-1] = '\0';
-					str.nchars = strlen(str.s) + 1;
-				}
-			}
-			else
-				strcpy(input_exp,"ans");
-
-			//look for a trailing semicolon
-			if (str.s[str.nchars-2] == ';')
-			{
-				nooutput = 1;
-				str.s[str.nchars-2] = '\0';
-				str.nchars--;
-			}
-			else
-				nooutput = 0;
-
-			// new factorization
-			fobj->refactor_depth = 0;
-
-			if (!calc(&str,fobj))
-			{
-				if (strcmp(str.s,"") != 0)
-				{
-					clock_t start, stop;
-					double t;
-
-					start = clock();
-					mpz_set_str(tmp, str.s, 0);
-					stop = clock();
-					t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-					//printf("str2hexz in = %6.4f seconds.\n",t);
-
-					if (set_uvar(input_exp,tmp))
-						new_uvar(input_exp,tmp);
-					if (nooutput == 0)
-					{
-						if (OBASE == DEC)
-						{
-							int sz = mpz_sizeinbase(tmp, 10) + 10;
-							if (gstr1.alloc < sz)
-							{
-								gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
-								gstr1.alloc = sz;
-							}
-							if (VFLAG >= 0)
-								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 10, tmp));
-						}
-						else if (OBASE == HEX)
-						{
-							int sz = mpz_sizeinbase(tmp, 16) + 10;
-							if (gstr1.alloc < sz)
-							{
-								gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
-								gstr1.alloc = sz;
-							}
-							if (VFLAG >= 0)
-								printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 16, tmp));
-						}
-					}
-				}
-			}						
+			process_expression(input_exp, fobj);
 		}
 
 #if defined(WIN32)
@@ -383,13 +296,19 @@ int main(int argc, char *argv[])
 		}
 #endif
 
-		input_exp = (char *)realloc(input_exp,GSTR_MAXSIZE*sizeof(char));
-		if (input_exp == NULL)
+		// get the next expression, if running a batchfile, or
+		// re-display the command prompt
+		if (CMD_LINE_REPEAT == 0)
 		{
-			printf("couldn't reallocate string during cleanup\n");
-			exit(-1);
+			input_exp = (char *)realloc(input_exp,GSTR_MAXSIZE*sizeof(char));
+			if (input_exp == NULL)
+			{
+				printf("couldn't reallocate string during cleanup\n");
+				exit(-1);
+			}
+
+			input_exp[0] = '\0';
 		}
-		input_exp[0] = '\0';
 
 		if (is_cmdline_run)
 		{
@@ -399,6 +318,11 @@ int main(int argc, char *argv[])
 				// created in processs_batchline the new batchfile, with the line
 				// we just finished removed.
 				finalize_batchline();
+			}
+			else if (CMD_LINE_REPEAT > 0)
+			{
+				CMD_LINE_REPEAT--;
+				strcpy(input_exp, indup);
 			}
 			else
 				break;
@@ -412,11 +336,9 @@ int main(int argc, char *argv[])
 		fclose(logfile);
 
 	calc_finalize();
-	free_globals();
-	sFree(&str);
+	free_globals();	
 	free(input_exp);
 	free(indup);	
-	mpz_clear(tmp);
 	free_factobj(fobj);
 	free(fobj);
 
@@ -713,7 +635,6 @@ void prepare_batchfile(char *input_exp)
 int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 {
 	int is_cmdline_run=0;
-	FILE *in = stdin;
 
 	//now check for and handle any incoming arguments, whatever
 	//their source.  
@@ -721,13 +642,50 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 	{
 		// user input one or more arguments - process them
 		process_flags(argc-1, &argv[1], fobj, input_exp);
+	}
 
-		if (strlen(input_exp) != 0)
+	// we might have gotten an expression to execute with the above
+	// or we might not have.  And we also might have stuff in
+	// a pipe or redirect to work on.
+	// sort it out.
+
+	if (strlen(input_exp) != 0)
+	{
+		// process_flags found an expression to execute.  check for
+		// incoming data:
+		//if (stdin != NULL)
+		//if (fgets(buf, GSTR_MAXSIZE, stdin) != NULL)
+		//if (fread(buf, 1, GSTR_MAXSIZE, stdin) != 0)
+
+		// detect if stdin is a pipe
+		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
+#if defined(WIN32)	
+		if(_isatty(_fileno(stdin)) == 0)
 		{
+			fseek(stdin,-1,SEEK_END);
+			if (ftell(stdin) >= 0)
+			{
+				rewind(stdin);
+#else
+		if (isatty(fileno(stdin)) == 0)
+		{			
+
+#endif
+
+			// ok, we also have incoming data.  This is just
+			// batchfile mode with the batchfile = stdin.
+			is_cmdline_run = 2;
+		}
+#if defined(WIN32)	//not complete, but ok for now
+		}
+#endif
+		else
+		{
+			// no incoming data, just execute the provided expression
+			is_cmdline_run = 1;
+
 			// special check: if there is no function call, insert a 
 			// default function call
-			is_cmdline_run = 1;
-	
 			if (strstr(input_exp, "(") == NULL)
 			{
 				char s[1024];
@@ -738,26 +696,34 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 	}
 	else
 	{
-		//else, need to check for input from a redirect or pipe.
-		//this is done differently on unix like systems vs. windows
-#if defined(WIN32)	//not complete, but ok for now
-		if(_isatty(_fileno(in)) == 0)
+		// no expression provided.  if also no input pipe, start
+		// up in interactive mode
+		// detect if stdin is a pipe
+		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
+#if defined(WIN32)	
+		if(_isatty(_fileno(stdin)) == 0)
 		{
-			fseek(in,-1,SEEK_END);
-			if (ftell(in) >= 0)
+			fseek(stdin,-1,SEEK_END);
+			if (ftell(stdin) >= 0)
 			{
-				rewind(in);
-				fgets(input_exp,1024,in);
-				is_cmdline_run = 1;
-			}
-		}
+				rewind(stdin);
 #else
-		if (isatty(fileno(in)) == 0)
+		if (isatty(fileno(stdin)) == 0)
 		{			
-			fgets(input_exp,1024,in);
-			is_cmdline_run = 1;
+
+#endif
+
+			// we have an input pipe with no provided expression.
+			// insert a default function call in batch mode
+			is_cmdline_run = 2;
+			strcpy(input_exp, "factor(@)");
+		}
+#if defined(WIN32)	//not complete, but ok for now
 		}
 #endif
+		else
+			is_cmdline_run = 0;
+
 	}
 
 	return is_cmdline_run;
@@ -923,6 +889,7 @@ void set_default_globals(void)
 	USERSEED = 0;
 	THREADS = 1;
 	LATHREADS = 0;
+	CMD_LINE_REPEAT = 0;
 
 	strcpy(sessionname,"session.log");	
 
@@ -990,10 +957,13 @@ void free_globals()
 
 void finalize_batchline()
 {
-	rename(batchfilename,"_bkup");
-	rename("__tmpbatchfile",batchfilename);
-	remove("_bkup");
-	remove("__tmpbatchfile");
+	if (USEBATCHFILE == 1)
+	{
+		rename(batchfilename,"_bkup");
+		rename("__tmpbatchfile",batchfilename);
+		remove("_bkup");
+		remove("__tmpbatchfile");
+	}
 
 	return;
 }
@@ -1005,7 +975,10 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	FILE *batchfile, *tmpfile;
 
 	//try to open the file
-	batchfile = fopen(batchfilename,"r");	
+	if (USEBATCHFILE == 2)
+		batchfile = stdin;
+	else
+		batchfile = fopen(batchfilename,"r");	
 
 	if (batchfile == NULL)
 	{
@@ -1074,34 +1047,39 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 
 	} while (strlen(line) == 0);	
 
-	// copy everything in the file after the line we just read to
-	// a temporary file.  if the expression we just read finishes, 
-	// the temporary file will become the batch file (effectively 
-	// eliminating the expression from the batch file).
-	tmpfile = fopen("__tmpbatchfile", "w");
+	// this only applies for non-stdin batchfiles
+	if (USEBATCHFILE == 1)
+	{
+		// copy everything in the file after the line we just read to
+		// a temporary file.  if the expression we just read finishes, 
+		// the temporary file will become the batch file (effectively 
+		// eliminating the expression from the batch file).
+		tmpfile = fopen("__tmpbatchfile", "w");
 	
-	if (tmpfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("couldn't open __tmpbatchfile for reading\n");
-		exit(-1);
-	}	
+		if (tmpfile == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("couldn't open __tmpbatchfile for reading\n");
+			exit(-1);
+		}	
 
-	while (!feof(batchfile))
-	{
-		ptr2 = fgets(tmpline,GSTR_MAXSIZE,batchfile);
-		if (ptr2 == NULL)
-			break;
+		while (!feof(batchfile))
+		{
+			ptr2 = fgets(tmpline,GSTR_MAXSIZE,batchfile);
+			if (ptr2 == NULL)
+				break;
 
-		if (strlen(tmpline) == 0)
-			continue;
+			if (strlen(tmpline) == 0)
+				continue;
 
-		fputs(tmpline,tmpfile);
+			fputs(tmpline,tmpfile);
+		}
+		fclose(tmpfile);
+
+		// close the batchfile
+		fclose(batchfile);		
+
 	}
-	fclose(tmpfile);
-
-	// close the batchfile
-	fclose(batchfile);		
 
 	//ignore blank lines
 	if (strlen(line) == 0)
@@ -1136,10 +1114,13 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	}
 	input_exp[nChars++] = '\0';
 
-	printf("=== Starting work on batchfile expression ===\n");
-	printf("%s\n",input_exp);
-	printf("=============================================\n");
-	fflush(stdout);
+	if (VFLAG >= 0)
+	{
+		printf("=== Starting work on batchfile expression ===\n");
+		printf("%s\n",input_exp);
+		printf("=============================================\n");
+		fflush(stdout);
+	}
 
 	free(line);
 	*code = 0;
@@ -2017,6 +1998,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "gnfs"
 		fobj->nfs_obj.gnfs = 1;
+	}
+	else if (strcmp(opt,OptionArray[69]) == 0)			// NOTE: we skip -e because it is handled 
+	{													// specially by process_flags
+		//argument "repeat"
+		CMD_LINE_REPEAT = atoi(arg);
 	}
 	else
 	{

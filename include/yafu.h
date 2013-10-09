@@ -145,6 +145,7 @@ int LATHREADS;
 // input options
 int USEBATCHFILE;
 int USERSEED;
+int CMD_LINE_REPEAT;
 char batchfilename[1024];
 char sessionname[1024];
 
