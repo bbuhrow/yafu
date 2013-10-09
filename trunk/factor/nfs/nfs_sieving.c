@@ -438,6 +438,7 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 {
 	nfs_threaddata_t *thread_data;		//an array of thread data objects
 	int i;
+	FILE *fid;
 	FILE *logfile;
 
 	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
@@ -539,7 +540,34 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		// accumulate relation counts
 		job->current_rels += thread_data[i].job.current_rels;
 
-		remove(thread_data[i].outfilename);			
+		remove(thread_data[i].outfilename);
+	}
+
+	if ((fid = fopen("rels.add", "r")) != NULL)
+	{
+		char tmpstr[1024];
+		uint32 count = 0;
+
+		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
+			count++;
+		fclose(fid);
+
+		if (VFLAG > 0) printf("nfs: adding %u rels from rels.add\n",count);
+
+		logfile = fopen(fobj->flogname, "a");
+		if (logfile == NULL)
+		{
+			printf("fopen error: %s\n", strerror(errno));
+			printf("could not open yafu logfile for appending\n");
+		}
+		else
+		{
+			logprint(logfile, "nfs: adding %u rels from rels.add\n",count);
+			fclose(logfile);
+		}
+
+		savefile_concat("rels.add",fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
+		remove("rels.add");
 	}
 
 	//stop worker threads
@@ -554,6 +582,226 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 
 	return;
 }
+
+/*
+void do_sieving_pool(fact_obj_t *fobj, nfs_job_t *job)
+{
+	nfs_threaddata_t *thread_data;		//an array of thread data objects
+	int i;
+	FILE *logfile;
+
+	// thread work-queue controls
+    int threads_working = 0;
+    int *thread_queue, *threads_waiting;
+#if defined(WIN32) || defined(_WIN64)
+	HANDLE queue_lock;
+	HANDLE *queue_events = NULL;
+#else
+    pthread_mutex_t queue_lock;
+    pthread_cond_t queue_cond;
+#endif
+
+	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
+
+	// allocate the queue of threads waiting for work
+    thread_queue = (int *)malloc(THREADS * sizeof(int));
+    threads_waiting = (int *)malloc(sizeof(int));
+
+	if (THREADS > 1)
+	{
+#if defined(WIN32) || defined(_WIN64)
+		queue_lock = CreateMutex( 
+			NULL,              // default security attributes
+			FALSE,             // initially not owned
+			NULL);             // unnamed mutex
+		queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
+#else
+		pthread_mutex_init(&queue_lock, NULL);
+		pthread_cond_init(&queue_cond, NULL);
+#endif
+	}
+
+	logfile = fopen(fobj->flogname, "a");
+	if (logfile == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not open yafu logfile for appending\n");
+	}
+	else
+	{
+		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
+		fclose(logfile);
+	}
+
+	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
+	for (i=0; i<THREADS; i++)
+	{
+		thread_data[i].fobj = fobj;
+		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
+		thread_data[i].job.poly = job->poly; // no sense copying the whole struct
+		thread_data[i].job.rlim = job->rlim;
+		thread_data[i].job.alim = job->alim;
+		thread_data[i].job.rlambda = job->rlambda;
+		thread_data[i].job.alambda = job->alambda;
+		thread_data[i].job.lpbr = job->lpbr;
+		thread_data[i].job.lpba = job->lpba;
+		thread_data[i].job.mfbr = job->mfbr;
+		thread_data[i].job.mfba = job->mfba;
+		thread_data[i].job.min_rels = job->min_rels;
+		thread_data[i].job.current_rels = job->current_rels;
+		thread_data[i].siever = fobj->nfs_obj.siever;
+		thread_data[i].job.startq = job->startq;
+		strcpy(thread_data[i].job.sievername, job->sievername);
+		thread_data[i].is_poly_select = 0;
+		thread_data[i].fobj = fobj;
+		thread_data[i].tindex = i;
+
+		// todo: break this up into smaller chunks, in an effort to keep 
+		// threads from idleing less at the end of a range.  will need
+		// to compute and store the afb first
+		if (fobj->nfs_obj.rangeq > 0)
+			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+		else
+			thread_data[i].job.qrange = ceil((double)job->qrange / (double)THREADS);
+
+		// assign all thread's a pointer to the waiting queue.  access to 
+		// the array will be controlled by a mutex
+        thread_data[i].thread_queue = thread_queue;
+        thread_data[i].threads_waiting = threads_waiting;
+
+		if (THREADS > 1)
+		{
+#if defined(WIN32) || defined(_WIN64)
+			// assign a pointer to the mutex
+			thread_data[i].queue_lock = &queue_lock;
+			thread_data[i].queue_event = &queue_events[i];
+#else
+			thread_data[i].queue_lock = &queue_lock;
+			thread_data[i].queue_cond = &queue_cond;
+#endif
+		}
+	}
+
+
+	if (THREADS > 1)
+	{
+#if defined(WIN32) || defined(_WIN64)
+		// nothing
+#else
+		pthread_mutex_lock(&queue_lock);
+#endif
+	}
+
+    while (1)
+	{
+
+		// Process threads until there are no more waiting for their results to be collected
+		while (*threads_waiting > 0)
+		{
+			int tid;
+			
+			if (THREADS > 1)
+			{
+				// Pop a waiting thread off the queue (OK, it's stack not a queue)
+#if defined(WIN32) || defined(_WIN64)
+				WaitForSingleObject( 
+					queue_lock,    // handle to mutex
+					INFINITE);  // no time-out interval
+#endif
+  
+				tid = thread_queue[--(*threads_waiting)];
+
+#if defined(WIN32) || defined(_WIN64)
+				ReleaseMutex(queue_lock);
+#endif
+			}
+			else
+				tid = 0;
+
+			// Check whether the thread has any results to collect. This should only be false at the 
+			// very beginning, when the thread hasn't actually done anything yet.
+			if (thread_data[tid].dconf->buffered_rels)
+			{				
+				num_found = siqs_merge_data(thread_data[tid].dconf,static_conf);
+
+				//check whether to continue or not, and update the screen
+				updatecode = update_check(static_conf);
+
+				// this thread is done, so decrement the count of working threads
+				threads_working--;
+			}
+
+			// if we have enough relations, or if there was a break signal, stop dispatching
+			// any more threads
+			if (updatecode == 0 && num_found < num_needed) 
+			{
+
+				// generate a new poly A value for the thread we pulled out of the queue
+				// using its dconf.  this is done by the master thread because it also 
+				// stores the coefficients in a master list
+				static_conf->total_poly_a++;
+				new_poly_a(static_conf,thread_data[tid].dconf);
+
+				if (THREADS > 1)
+				{
+					// send the thread a signal to start processing the poly we just generated for it
+#if defined(WIN32) || defined(_WIN64)
+					thread_data[tid].command = COMMAND_RUN;
+					SetEvent(thread_data[tid].run_event);
+#else
+					pthread_mutex_lock(&thread_data[tid].run_lock);
+					thread_data[tid].command = COMMAND_RUN;
+					pthread_cond_signal(&thread_data[tid].run_cond);
+					pthread_mutex_unlock(&thread_data[tid].run_lock);
+#endif
+				}
+				
+				// this thread is now busy, so increment the count of working threads
+				threads_working++;
+			}
+
+			if (THREADS == 1)
+				*threads_waiting = 0;
+	
+		} // while (*threads_waiting > 0)
+
+		// if all threads are done, break out
+		if (threads_working == 0)
+			break;
+
+		if (THREADS > 1)
+		{
+			// wait for a thread to finish and put itself in the waiting queue
+#if defined(WIN32) || defined(_WIN64)
+			j = WaitForMultipleObjects(
+				THREADS,
+				queue_events,
+				FALSE,
+				INFINITE);
+#else
+			pthread_cond_wait(&queue_cond, &queue_lock);
+#endif
+		}
+		else
+		{
+			//do some work
+			nfs_threaddata_t *t = thread_data + 0;
+
+			lasieve_launcher(t);
+			*threads_waiting = 1;
+		}
+	}
+
+	//stop worker threads
+	for (i=0; i<THREADS; i++)
+	{
+		if (THREADS > 1)
+			nfs_stop_worker_thread(thread_data + i);
+	}
+
+	return;
+}
+*/
 
 void *lasieve_launcher(void *ptr)
 {

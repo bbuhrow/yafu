@@ -596,6 +596,114 @@ void get_expression(char *in, str_t *out)
 	free(tmp2);
 }
 
+int process_expression(char *input_exp, fact_obj_t *fobj)
+{
+
+	str_t str;
+	mpz_t tmp;
+	char *ptr;
+	int offset, nooutput;
+	
+	// bigint used in this routine
+	mpz_init(tmp);
+	sInit(&str);
+
+	//logprint(logfile,"Processing expression: %s\n\n",input_exp);
+	toStr(input_exp,&str);
+
+	preprocess(&str);
+	strcpy(input_exp,str.s);
+
+	//detect an '=' operation, and verify the destination of the = is valid
+	//pass on everything to the right of the = to the calculator
+	if ((ptr = strchr(str.s,'=')) != NULL)
+	{
+		*ptr = '\0';
+		if (invalid_dest(str.s))
+		{
+			printf("invalid destination %s\n",str.s);
+			offset = ptr-str.s+1;
+			sFree(&str);
+			sInit(&str);
+			memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
+			strcpy(input_exp,"ans");
+			str.nchars = strlen(str.s) + 1;
+		}
+		else
+		{
+			offset = ptr-str.s+1;
+			sFree(&str);
+			sInit(&str);
+			memcpy(str.s,input_exp+offset,(GSTR_MAXSIZE-offset) * sizeof(char));
+
+			input_exp[offset-1] = '\0';
+			str.nchars = strlen(str.s) + 1;
+		}
+	}
+	else
+		strcpy(input_exp,"ans");
+
+	//look for a trailing semicolon
+	if (str.s[str.nchars-2] == ';')
+	{
+		nooutput = 1;
+		str.s[str.nchars-2] = '\0';
+		str.nchars--;
+	}
+	else
+		nooutput = 0;
+
+	// new factorization
+	fobj->refactor_depth = 0;
+
+	if (!calc(&str,fobj))
+	{
+		if (strcmp(str.s,"") != 0)
+		{
+			clock_t start, stop;
+			double t;
+
+			mpz_set_str(tmp, str.s, 0);
+
+			if (set_uvar(input_exp,tmp))
+				new_uvar(input_exp,tmp);
+			if (nooutput == 0)
+			{
+				if (OBASE == DEC)
+				{
+					int sz = mpz_sizeinbase(tmp, 10) + 10;
+					if (gstr1.alloc < sz)
+					{
+						gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+						gstr1.alloc = sz;
+					}
+					if (VFLAG > 0)
+						printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 10, tmp));
+					else
+						printf("%s\n",mpz_get_str(gstr1.s, 10, tmp));
+				}
+				else if (OBASE == HEX)
+				{
+					int sz = mpz_sizeinbase(tmp, 16) + 10;
+					if (gstr1.alloc < sz)
+					{
+						gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+						gstr1.alloc = sz;
+					}
+					if (VFLAG > 0)
+						printf("\n%s = %s\n\n",input_exp, mpz_get_str(gstr1.s, 16, tmp));
+					else
+						printf("%s\n",mpz_get_str(gstr1.s, 16, tmp));
+				}
+			}
+		}
+	}		
+
+	mpz_clear(tmp);
+	sFree(&str);
+	return 0;
+}
+
 int calc(str_t *in, fact_obj_t *fobj)
 {
 
@@ -1033,13 +1141,14 @@ int getFunc(char *s, int *nargs)
 						"isprime","squfof","sqrt","modinv","modexp",
 						"nroot","shift","siqs","primes", "ispow", 
 						"torture","randb", "ecm","+","-",
-						"*","/","!","#","==",
+						"*","/","!","#","eq",
 						"<<",">>","%","^","test",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sftest","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune",
 						"xor", "and", "or", "not", "frange",
-						"bpsw","aprcl"};
+						"bpsw","aprcl","lte", "gte", "lt", 
+						"gt"};
 
 	int args[NUM_FUNC] = {1,1,2,1,1,
 					2,2,1,1,1,
@@ -1054,7 +1163,8 @@ int getFunc(char *s, int *nargs)
 					0,5,1,4,1,
 					0,4,3,1,0,
 					2,2,2,1,2,
-					1,1};
+					1,1,2,2,2,
+					2};
 
 	for (i=0;i<NUM_FUNC;i++)
 	{
@@ -1672,7 +1782,16 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 
 	case 39:
-		//==
+		// eq
+		if (nargs != 2)
+		{
+			printf("wrong number of arguments in eq\n");
+			break;
+		}
+		else
+		{
+			mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) == 0);
+		}
 
 		break;
 
@@ -2590,6 +2709,59 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				printf("\nInput is prime.  P%d\n", gmp_base10(operands[0]));
 			}
 		}
+		break;
+
+	case 67:
+		// lte
+		if (nargs != 2)
+		{
+			printf("wrong number of arguments in lte\n");
+			break;
+		}
+		else
+		{
+			mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) <= 0);
+		}
+		break;
+
+	case 68:
+		// gte
+		if (nargs != 2)
+		{
+			printf("wrong number of arguments in gte\n");
+			break;
+		}
+		else
+		{
+			mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) >= 0);
+		}
+		break;
+
+	case 69:
+		// lt
+		if (nargs != 2)
+		{
+			printf("wrong number of arguments in lt\n");
+			break;
+		}
+		else
+		{
+			mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) < 0);
+		}
+		break;
+
+	case 70:
+		// gt
+		if (nargs != 2)
+		{
+			printf("wrong number of arguments in gt\n");
+			break;
+		}
+		else
+		{
+			mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) > 0);
+		}
+
 		break;
 
 	default:

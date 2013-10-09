@@ -38,9 +38,10 @@ code to the public domain.
 #define RIGHT 1
 #define LEFT 0
 
-#define NUM_FUNC 67
+#define NUM_FUNC 71
 
 //arbitrary precision calculator
+int process_expression(char *input_exp, fact_obj_t *fobj);
 void testcalc(void);
 void handle_singleop(char *arg1, int op);
 int single_op(char s);
