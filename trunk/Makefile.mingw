@@ -25,11 +25,11 @@ WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
 
-INC += -I../gmp/include/mingw
-LIBS += -L../gmp/lib/mingw/x86_64
+INC += -I../gmp/install/include
+LIBS += -L../gmp/install/lib/mingw
 
-INC += -I../gmp-ecm/include/mingw
-LIBS += -L../gmp-ecm/lib/mingw/x86_64
+INC += -I../gmp-ecm/install/include
+LIBS += -L../gmp-ecm/install/lib/mingw
 
 #INC += -I/d/Programming/gmp-ecm/svn_1873_mw64_mpir250
 #LIBS += -L/d/Programming/gmp-ecm/svn_1873_mw64_mpir250/.libs
@@ -50,6 +50,11 @@ endif
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
+ifeq ($(USE_AVX2),1)
+	USE_SSE41=1
+	CFLAGS += -DUSE_SSE41 -DUSE_AVX2
+endif
+
 ifeq ($(USE_SSE41),1)
 	CFLAGS += -DUSE_SSE41
 endif
@@ -60,7 +65,7 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+	LIBS += -L../msieve -lecm -lmsieve -lgmp
 else
 	LIBS += -lecm -lgmp
 endif
@@ -147,6 +152,12 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
 
+ifeq ($(USE_AVX2),1)
+# these files require AVX2 to compile
+#	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
+endif
+	
 ifeq ($(USE_SSE41),1)
 # these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c

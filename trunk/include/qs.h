@@ -39,6 +39,7 @@ code to the public domain.
 // flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
 // to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
 #define USE_SSE41 1
+#define USE_AVX2 1
 #endif
 
 //#define HAVE_CUDA
@@ -521,6 +522,8 @@ static const uint8 mult_list[] =
 void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init);
 void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+		uint32 start_prime, uint8 s_init);
+void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init);
 void med_sieveblock_64k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
 		uint32 start_prime, uint8 s_init);

@@ -200,7 +200,8 @@ void yafu_get_cache_sizes(uint32 *level1_cache, uint32 *level2_cache);
 enum cpu_type yafu_get_cpu_type(void);
 //enum cpu_type get_cpu_type(void);
 
-int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int do_print);
+int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, 
+	char *AVX, char *AVX2, int do_print);
 
 /* CPU-specific capabilities */
 

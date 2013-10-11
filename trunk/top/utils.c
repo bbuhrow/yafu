@@ -1501,7 +1501,8 @@ enum cpu_type yafu_get_cpu_type(void) {
 
 
 
-int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int do_print)
+int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, 
+	char *AVX, char *AVX2, int do_print)
 {
     char CPUString[0x20];
     char CPUBrandString[0x40];
@@ -1636,6 +1637,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int 
             *bSSE41Extensions = (CPUInfo[2] & 0x80000) || 0;
             bSSE42Extensions = (CPUInfo[2] & 0x100000) || 0;
             bPOPCNT= (CPUInfo[2] & 0x800000) || 0;
+			*AVX = (CPUInfo[2] & 0x10000000) || 0;
             nFeatureInfo = CPUInfo[3];
             bMultithreading = (nFeatureInfo & (1 << 28)) || 0;
         }
@@ -1787,6 +1789,8 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int 
 					printf("\tSSE4.1 Extensions\n");
 				if  (bSSE42Extensions)
 					printf("\tSSE4.2 Extensions\n");
+				if (*AVX)
+					printf("\tAVX Extensions\n");
 				if  (bPOPCNT)
 					printf("\tPPOPCNT Instruction\n");
 
@@ -1940,6 +1944,13 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions, int 
 				nNumberSets+1);
 		}
     }
+
+	CPUID2(0x7,0,CPUInfo[0],CPUInfo[1],CPUInfo[2],CPUInfo[3]);
+
+	*AVX2 = (CPUInfo[1] & 0x20) || 0;
+		
+	if ((*AVX2) && do_print)
+		printf("\n\n\tAVX2 Extensions\n");
 
     return  nRet;
 }
