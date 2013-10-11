@@ -248,6 +248,9 @@
     <ClCompile Include="..\..\top\mpz_prp_prime.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -333,6 +336,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\mpz_prp_prime.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

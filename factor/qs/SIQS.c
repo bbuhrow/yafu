@@ -1213,7 +1213,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			printf("using SSE2 enabled 64k sieve core\n");
 		else
 		{
-			if (HAS_SSE41)
+			if (HAS_AVX2)
+				printf("using AVX2 enabled 32k sieve core\n");
+			else if (HAS_SSE41)
 				printf("using SSE4.1 enabled 32k sieve core\n");
 			else
 				printf("using SSE2 enabled 32k sieve core\n");
@@ -1582,7 +1584,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		testRoots_ptr(sconf,dconf);
 
 		//initialize the bucket lists and auxilary info.
-		dconf->buckets->num = (uint32 *)malloc(
+		dconf->buckets->num = (uint32 *)xmalloc_align(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->fb_bounds = (uint32 *)malloc(
 			dconf->buckets->alloc_slices * sizeof(uint32));
@@ -1673,6 +1675,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	uint32 i, memsize;
 	uint32 closnuf;
 	double sum, avg, sd;
+	int nump = 8;		// by default, ensure 8 contiguous primes.  AVX2 requires 16.
 
 	if (VFLAG > 2)
 	{
@@ -1737,7 +1740,19 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		
 		testRoots_ptr = &testfirstRoots_32k;
 
-#if defined(USE_SSE41)
+
+#if defined(USE_AVX2)
+		if (HAS_AVX2)
+		{
+			med_sieve_ptr = &med_sieveblock_32k_sse41;
+			//nump = 16;
+		}
+		else if (HAS_SSE41)
+			med_sieve_ptr = &med_sieveblock_32k_sse41;
+		else
+			med_sieve_ptr = &med_sieveblock_32k;
+
+#elif defined(USE_SSE41)
 		if (HAS_SSE41)
 			med_sieve_ptr = &med_sieveblock_32k_sse41;
 		else
@@ -1929,7 +1944,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 1024)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_10bit_B = i;
 
@@ -1941,7 +1956,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 2048)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_11bit_B = i;
 
@@ -1953,7 +1968,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 4096)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_12bit_B = i;
 
@@ -1965,7 +1980,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 8192)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
@@ -1980,7 +1995,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//movdqa
 		//don't let med_B grow larger than 1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > 10922)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	// put the upper bound just before prime exceeds blocksize/3, required by SSE2 sieving
 	sconf->factor_base->fb_32k_div3 = i;
@@ -1992,7 +2007,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}	
 	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
 	sconf->factor_base->fb_14bit_B = i;
@@ -2004,7 +2019,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 32768)  &&
-			(i % 8 == 0)) break;
+			(i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_15bit_B = i;
 
@@ -2602,7 +2617,7 @@ int free_sieve(dynamic_conf_t *dconf)
 		align_free(dconf->buckets->list);
 		free(dconf->buckets->fb_bounds);
 		free(dconf->buckets->logp);
-		free(dconf->buckets->num);
+		align_free(dconf->buckets->num);
 		free(dconf->buckets);
 	}
 	else
