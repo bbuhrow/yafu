@@ -2666,8 +2666,10 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
 
+#if defined(USE_8X_MOD_ASM)
 	align_free(dconf->bl_locs);
 	align_free(dconf->bl_sizes);
+#endif
 
 #if defined(SSE2_RESIEVING)
 	align_free(dconf->corrections);

@@ -24,6 +24,7 @@ CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O3
 INC = -I. -Iinclude
+BINNAME = yafu
 
 # modify these for your particular gmp/gmp-ecm installation
 INC += -I../gmp/include
@@ -32,13 +33,14 @@ LIBS += -L../gmp/lib/linux/x86_64
 INC += -I../gmp-ecm/include/linux
 LIBS += -L../gmp-ecm/lib/linux/x86_64
 
-ifeq ($(STATIC),1)
-	CFLAGS += -static
+ifeq ($(COMPILER),icc)
+	CC = icc
 endif
 
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
+	BINNAME := ${BINNAME:%=%_prof}
 else
 	OPT_FLAGS += -fomit-frame-pointer
 endif
@@ -64,7 +66,7 @@ ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 #	modify the following line for your particular msieve installation
 	LIBS += -L../msieve/lib/linux/x86_64 
-	LIBS += -lmsieve -ldl
+	LIBS += -lmsieve
 endif
 
 # modify these for your particular cuda installation
@@ -76,22 +78,38 @@ ifeq ($(CUDA),1)
 #	LIBS += /users/buhrow/NVIDIA_GPU_Computing_SDK/C/lib/libcutil_x86_64.a
 endif
 
-# use Makefile.mingw for mingw builds
-LIBS += -lm -lpthread
-
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
 endif
 
 ifeq ($(CC),icc)
-	#CFLAGS += -mtune=core2 -march=core2 
+#	CFLAGS += -mtune=core2 -march=core2 
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
+endif
+
+ifeq ($(MIC),1)
+	CFLAGS += -mmic -DTARGET_MIC
+	BINNAME := ${BINNAME:%=%_mic}
+	OBJ_EXT = .mo
+	
+	INC += -I../msieve/zlib
+else
+	OBJ_EXT = .o
 endif
 
 LIBS += -lecm -lgmp
 
+# attempt to get static builds to work... unsuccessful so far
+ifeq ($(STATIC),1)
+	CFLAGS += -static
+#	LIBS += -Wl,-Bstatic -lm -Wl,Bdynamic -pthread
+	LIBS += -L/usr/lib/x86_64-redhat-linux5E/lib64/ -lpthread -lm
+else
+	LIBS += -lpthread -lm -ldl
+endif
+
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
-	
+
 x86: CFLAGS += -m32
 
 #---------------------------Msieve file lists -------------------------
@@ -104,9 +122,9 @@ MSIEVE_SRCS = \
 	factor/qs/msieve/sqrt.c \
 	factor/qs/msieve/savefile.c \
 	factor/qs/msieve/gf2.c
-	
+
 MSIEVE_OBJS = $(MSIEVE_SRCS:.c=.o)
-	
+
 #---------------------------YAFU file lists -------------------------
 YAFU_SRCS = \
 	top/driver.c \
@@ -123,20 +141,10 @@ YAFU_SRCS = \
 	factor/qs/filter.c \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_med_32k.c \
-	factor/qs/tdiv_med_64k.c \
-	factor/qs/tdiv_resieve_32k.c \
-	factor/qs/tdiv_resieve_64k.c \
 	factor/qs/tdiv_large.c \
 	factor/qs/tdiv_scan.c \
 	factor/qs/large_sieve.c \
-	factor/qs/med_sieve_32k.c \
-	factor/qs/med_sieve_64k.c \
 	factor/qs/new_poly.c \
-	factor/qs/poly_roots_32k.c \
-	factor/qs/poly_roots_64k.c \
-	factor/qs/update_poly_roots_32k.c \
-	factor/qs/update_poly_roots_64k.c \
 	factor/qs/siqs_test.c \
 	factor/tinyqs/tinySIQS.c \
 	factor/qs/siqs_aux.c \
@@ -160,14 +168,35 @@ YAFU_SRCS = \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
-
+	
+ifeq ($(MIC),1)
+# just add 32k versions of these files
+	YAFU_SRCS += factor/qs/tdiv_med_32k.c \
+		factor/qs/tdiv_resieve_32k.c \
+		factor/qs/med_sieve_32k.c \
+		factor/qs/poly_roots_32k.c \
+		factor/qs/update_poly_roots_32k.c
+else
+# add both versions
+	YAFU_SRCS += factor/qs/tdiv_med_32k.c \
+		factor/qs/tdiv_med_64k.c \
+		factor/qs/tdiv_resieve_32k.c \
+		factor/qs/tdiv_resieve_64k.c \
+		factor/qs/med_sieve_32k.c \
+		factor/qs/med_sieve_64k.c \
+		factor/qs/poly_roots_32k.c \
+		factor/qs/poly_roots_64k.c \
+		factor/qs/update_poly_roots_32k.c \
+		factor/qs/update_poly_roots_64k.c
+endif
+		
 ifeq ($(USE_SSE41),1)
 # these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
 endif
-	
-YAFU_OBJS = $(YAFU_SRCS:.c=.o)
+
+YAFU_OBJS = $(YAFU_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU NFS file lists -----------------------
 ifeq ($(NFS),1)
@@ -180,7 +209,7 @@ YAFU_NFS_SRCS = \
 	factor/nfs/nfs_threading.c \
 	factor/nfs/snfs.c
 
-YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=.o)
+YAFU_NFS_OBJS = $(YAFU_NFS_SRCS:.c=$(OBJ_EXT))
 
 else
 
@@ -233,10 +262,10 @@ all:
 	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
 
 x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
+	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
 
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu $(LIBS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
 
 
 clean:
@@ -244,8 +273,8 @@ clean:
 
 #---------------------------Build Rules -------------------------
 
-	
-%.o: %.c $(HEAD)
+
+%$(OBJ_EXT): %.c $(HEAD)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 
