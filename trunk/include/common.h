@@ -53,7 +53,7 @@ extern "C" {
 	#define ASM_M __asm
 
 	/* for inline assembler on Unix/Linux */
-	#if defined(__unix__)        
+	#if defined(__unix__) && !defined(TARGET_MIC)
 		#if defined(__x86_64__)
 			#define GCC_ASM64A
 			#define GCC_ASM64X

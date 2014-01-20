@@ -86,15 +86,19 @@ double TF_SPECIAL;
 //#define USE_YAFU_TDIV 1
 
 // always use these optimizations using sse2
+#ifdef TARGET_MIC
+
+#else
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
 #define SSE2_RESIEVING 1
+#endif
 
 // multiplication by inverse constants
 #define FOGSHIFT 24
 #define FOGSHIFT_2 40
 
-#if defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__))
+#if defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__) && defined(GCC_ASM64X))
 	// requires 64 bit and gcc inline assembler syntax
 	#define USE_POLY_SSE2_ASM 1
 	#define USE_ASM_SMALL_PRIME_SIEVING

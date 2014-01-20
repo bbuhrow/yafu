@@ -1618,7 +1618,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// set target pretesting depth, depending on user selection and whether or not
 	// the input is both big enough and snfsable...
-	if ((numdigits >= 100) && (fobj->autofact_obj.has_snfs_form < 0))
+	if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
 	{
 		mpz_set(fobj->nfs_obj.gmp_n, b);
 		poly = snfs_find_form(fobj);
@@ -1676,7 +1676,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	}
 
 	// if there is a trivial amount of ecm to do, skip directly to a sieve method
-	if (target_digits < 15)
+	if ((target_digits < 15) && (numdigits <= 45))
 	{
 		if (VFLAG > 0)
 			printf("fac: trivial ECM work to do... skipping to sieve method\n");

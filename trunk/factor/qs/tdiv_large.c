@@ -251,6 +251,7 @@ this file contains code implementing 5)
 
 	#define SCAN_16X	\
 		result = 1;	/* force the normal method */
+	#define SCAN_CLEAN /*nothing*/
 
 #endif
 

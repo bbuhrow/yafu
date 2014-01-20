@@ -69,8 +69,11 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
+
+#ifdef USE_8X_MOD_ASM
 	uint16 *bl_sizes = dconf->bl_sizes;
 	uint16 *bl_locs = dconf->bl_locs;
+#endif
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -146,17 +149,10 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		//do the first few until the rest can be done in batches of 4 that are aligned to 16 byte
 		//boundaries.  this is necessary to use the SSE2 batch mod code, if it ever
 		//becomes faster...
-
 		i=sconf->sieve_small_fb_start;
-
-		// the bound before resieving takes over
-		bound = sconf->factor_base->fb_13bit_B;
-
-		// although if we are using 8x ASM division,
-		// use a lower bound for a while first
-#ifdef USE_8X_MOD_ASM
+		
+		// 8x trial division
 		bound = sconf->factor_base->fb_10bit_B;
-#endif
 		
 		// single-up test until i is a multiple of 8
 		while ((uint32)i < bound && ((i & 7) != 0))
@@ -402,242 +398,36 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		TDIV_MED_CLEAN;
 
 #else
-		//now do things in batches of 4 which are aligned on 16 byte boundaries.
-		while ((uint32)i < bound)
+		
+		// the bound before resieving takes over
+		bound = sconf->factor_base->fb_13bit_B;
+
+		// generic C version of trial division (by multiplication) up through 13 bits.
+		// i is a multiple of 8: will MIC vectorize this?
+		for ( ; i<bound; i++)
 		{
-			uint64 q64;
 			uint32 tmp1 = 32768 - block_loc;
-			uint32 tmp2 = 32768 - block_loc;
-			uint32 tmp3 = 32768 - block_loc;
-			uint32 tmp4 = 32768 - block_loc;
+			uint64 q64;
 
 			tmp1 = tmp1 + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> FOGSHIFT; 
 			tmp1 = tmp1 + 1;
 			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-			
-			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> FOGSHIFT; 
-			tmp2 = tmp2 + 1;
-			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
-
-			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> FOGSHIFT; 
-			tmp3 = tmp3 + 1;
-			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
-
-			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >>  FOGSHIFT; 
-			tmp4 = tmp4 + 1;
-			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
 
 			tmp1 = tmp1 - 32768;
-			tmp2 = tmp2 - 32768;
-			tmp3 = tmp3 - 32768;
-			tmp4 = tmp4 - 32768;
-
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 
+			// to vectorize, probably need to mark this prime in some kind
+			// of byte array, then go back and scan/divide afterwards.
+			// the vectorizer won't like this iterative function call.
 			if (tmp1 == root1 || tmp1 == root2)
 			{
 				//it will divide Q(x).  do so as many times as we can.
 				DIVIDE_ONE_PRIME;
 			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp2 == root1 || tmp2 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp3 == root1 || tmp3 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp4 == root1 || tmp4 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-		}
-
-		//now cleanup any that don't fit in the last batch
-		while ((uint32)i < bound)
-		{
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			tmp = 32768 - block_loc;
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT); 
-			tmp = block_loc + tmp*prime;
-			tmp = tmp - 32768;
-
-			if (tmp == root1 || tmp == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-		// single-up test until i is a multiple of 8
-		while ((uint32)i < bound && ((i & 7) != 0))
-		{
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			//tmp = distance from this sieve block offset to the end of the block
-			tmp = 32768 - block_loc;
-	
-			//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
-			//block, which is the state of the sieve now.
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
-			tmp = block_loc + tmp*prime;
-			tmp = tmp - 32768;
-
-			//tmp = advance the offset to where it should be after the interval, and
-			//check to see if that's where either of the roots are now.  if so, then
-			//this offset is on the progression of the sieve for this prime
-			if (tmp == root1 || tmp == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-		}
-
-		//now do things in batches of 4 which are aligned on 16 byte boundaries.
-		while ((uint32)i < bound)
-		{
-			uint64 q64;
-			uint32 tmp1 = 32768 - block_loc;
-			uint32 tmp2 = 32768 - block_loc;
-			uint32 tmp3 = 32768 - block_loc;
-			uint32 tmp4 = 32768 - block_loc;
-
-			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
-			tmp1 = q64 >> FOGSHIFT; 
-			tmp1 = tmp1 + 1;
-			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
-			
-			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
-			tmp2 = q64 >> FOGSHIFT; 
-			tmp2 = tmp2 + 1;
-			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
-
-			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
-			tmp3 = q64 >> FOGSHIFT; 
-			tmp3 = tmp3 + 1;
-			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
-
-			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
-			tmp4 = q64 >>  FOGSHIFT; 
-			tmp4 = tmp4 + 1;
-			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
-
-			tmp1 = tmp1 - 32768;
-			tmp2 = tmp2 - 32768;
-			tmp3 = tmp3 - 32768;
-			tmp4 = tmp4 - 32768;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp1 == root1 || tmp1 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp2 == root1 || tmp2 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp3 == root1 || tmp3 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			if (tmp4 == root1 || tmp4 == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
-
-		}
-
-		//now cleanup any that don't fit in the last batch
-		while ((uint32)i < bound)
-		{
-			prime = fbc->prime[i];
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
-
-			tmp = 32768 - block_loc;
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
-			tmp = block_loc + tmp*prime;
-			tmp = tmp - 32768;
-
-			if (tmp == root1 || tmp == root2)
-			{
-				//it will divide Q(x).  do so as many times as we can.
-				DIVIDE_ONE_PRIME;
-			}
-			i++;
 		}
 
 #endif
