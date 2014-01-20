@@ -633,7 +633,10 @@ void smallmpqs(fact_obj_t *fobj)
 		mpz_t ztmp;
 		mpz_init(ztmp);
 
+		// squfof and lehman will use their own mulipliers, remove the one we already added
+		mpz_tdiv_q_ui(n, n, mul); 
 		j = sp_shanks_loop(n, fobj);	
+
 		if (j > 1)
 		{
 			mpz_set_64(ztmp, j);
