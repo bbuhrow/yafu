@@ -175,7 +175,8 @@ int ecm_loop(fact_obj_t *fobj)
 					//but should check all threads output first
 					if (bail_on_factor)
 						bail = 1;
-					else if (mpz_probab_prime_p(fobj->ecm_obj.gmp_n, NUM_WITNESSES))
+					
+					else if (is_mpz_prp(fobj->ecm_obj.gmp_n))
 						bail = 1;
 					else
 					{
@@ -291,7 +292,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 		return 0;
 	}
 
-	if (mpz_probab_prime_p(thread_data->gmp_factor, NUM_WITNESSES))
+	if (is_mpz_prp(thread_data->gmp_factor))
 	{
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 
@@ -408,7 +409,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		return 0;
 	}
 
-	if (mpz_probab_prime_p(fobj->ecm_obj.gmp_n, NUM_WITNESSES))
+	if (is_mpz_prp(fobj->ecm_obj.gmp_n))
 	{
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)

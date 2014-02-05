@@ -164,7 +164,7 @@ void williams_loop(fact_obj_t *fobj)
 		}
 
 		start = clock();
-		if (mpz_probab_prime_p(fobj->pp1_obj.gmp_n, NUM_WITNESSES))
+		if (is_mpz_prp(fobj->pp1_obj.gmp_n))
 		{
 			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n),
 				mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_n));
@@ -192,7 +192,7 @@ void williams_loop(fact_obj_t *fobj)
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			//check if the factor is prime
-			if (mpz_probab_prime_p(fobj->pp1_obj.gmp_f, NUM_WITNESSES))
+			if (is_mpz_prp(fobj->pp1_obj.gmp_f))
 			{
 				add_to_factor_list(fobj, fobj->pp1_obj.gmp_f);
 

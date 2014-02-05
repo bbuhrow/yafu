@@ -511,7 +511,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 						mpz_add_ui(tmpz, *offset, t->ddata.primes[i - t->startid]);
 						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
 						{
-							if (mpz_probab_prime_p(tmpz, num_witnesses))
+							if (is_mpz_prp(tmpz))
 								t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 						}
 					}

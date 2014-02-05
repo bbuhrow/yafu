@@ -113,7 +113,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 		if (mpz_cmp(ans, b) == 0)
 		{
 			// found a base.  				
-			if (mpz_probab_prime_p(base, NUM_WITNESSES))
+			if (is_mpz_prp(base))
 			{
 				uint32 j;
 				//gmp_printf("\nAdding prime base %Zd to factor list...\n", base);
@@ -225,7 +225,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		}
 
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
-		if (mpz_probab_prime_p(fobj->div_obj.gmp_n, NUM_WITNESSES))
+		if (is_mpz_prp(fobj->div_obj.gmp_n))
 		{			
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"prp%d = %s\n",
@@ -436,7 +436,7 @@ found:
 		logprint(flog, "Fermat method found factors:\n");
 
 		add_to_factor_list(fobj, tmp);
-		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+		if (is_mpz_prp(tmp))
 		{			
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(tmp),
@@ -455,7 +455,7 @@ found:
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
 		add_to_factor_list(fobj, tmp);
-		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+		if (is_mpz_prp(tmp))
 		{			
 			logprint(flog,"prp%d = %s\n",
 				gmp_base10(tmp),

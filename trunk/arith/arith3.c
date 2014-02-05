@@ -22,6 +22,7 @@ code to the public domain.
 #include "arith.h"
 #include "gmp.h"
 #include "gmp_xface.h"
+#include "mpz_prp_prime.h"
 
 /*
 implements some more advanced arithmatic and/or number
@@ -86,6 +87,11 @@ int z_pull_twos(z *n, int *j, z *p)
 	return c;
 }
 
+int is_mpz_prp(mpz_t n)
+{
+	return mpz_probab_prime_p(n,NUM_WITNESSES) && 
+		mpz_strongbpsw_prp(n);
+}
 
 int isPrime(z *n)
 {
@@ -96,7 +102,7 @@ int isPrime(z *n)
 	mpz_init(gmpz);
 		
 	mp2gmp(n, gmpz);
-	i = mpz_probab_prime_p(gmpz, NUM_WITNESSES);
+	i = is_mpz_prp(gmpz);
 
 	mpz_clear(gmpz);
 	return (i > 0);
@@ -548,7 +554,7 @@ int llt(uint32 exp)
 
 	mpz_init(tmp);
 	mpz_set_ui(tmp, exp); //sp2z(exp,&tmp);
-	if (!mpz_probab_prime_p(tmp, NUM_WITNESSES))
+	if (!is_mpz_prp(tmp))
 	{
 		mpz_clear(tmp);
 		printf("exponent is not prime\n");
