@@ -455,7 +455,7 @@ void zNextPrime(mpz_t n, mpz_t p, int dir)
 				else
 					mpz_add_ui(p, l, values[num-i-1]);
 
-				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				if (is_mpz_prp(p))
 				{
 
 					if (VFLAG > 0)
@@ -489,9 +489,10 @@ done:
 		//mpz_nextprime(p, n);
 
 		// start on an odd number
+		mpz_set(p, n);
 		if (mpz_even_p(n))
 		{
-			mpz_add_ui(p, n, 1);
+			mpz_add_ui(p, p, 1);
 			a++;
 			if ((VFLAG > 0) &&
 				(mpz_sizeinbase(n,10) > 1024)) {
@@ -499,7 +500,7 @@ done:
 				fflush(stdout);
 			}
 
-			if (mpz_probab_prime_p(p, NUM_WITNESSES))
+			if (is_mpz_prp(p))
 			{
 
 				if ((VFLAG > 0) &&
@@ -533,7 +534,7 @@ done:
 				fflush(stdout);
 			}
 
-			if (mpz_probab_prime_p(p, NUM_WITNESSES))
+			if (is_mpz_prp(p))
 			{
 
 				if ((VFLAG > 0) &&
@@ -564,9 +565,10 @@ done:
 		else
 		{
 			// start on an odd number
+			mpz_set(p, n);
 			if (mpz_even_p(n))
 			{
-				mpz_sub_ui(p, n, 1);
+				mpz_sub_ui(p, p, 1);
 				a++;
 
 				if ((VFLAG > 0) &&
@@ -575,7 +577,7 @@ done:
 					fflush(stdout);
 				}
 
-				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				if (is_mpz_prp(p))
 				{
 
 					if ((VFLAG > 0) &&
@@ -609,7 +611,7 @@ done:
 					fflush(stdout);
 				}
 
-				if (mpz_probab_prime_p(p, NUM_WITNESSES))
+				if (is_mpz_prp(p))
 				{
 
 					if ((VFLAG > 0) &&

@@ -1506,7 +1506,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			break;
 		}
 
-		i = mpz_probab_prime_p(operands[0], NUM_WITNESSES);
+		i = is_mpz_prp(operands[0]);
 
 		if (i)
 			printf("probably prime\n");
@@ -2574,7 +2574,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 							continue;
 						}
 
-						if (mpz_probab_prime_p(fobj->N, NUM_WITNESSES))
+						if (is_mpz_prp(fobj->N))
 						{
 							if (nf[j] == 0)
 							{
@@ -2602,7 +2602,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 							}
 
 							mpz_set_64(fobj->N, n[j]);
-							if (mpz_probab_prime_p(fobj->N, NUM_WITNESSES))
+							if (is_mpz_prp(fobj->N))
 							{
 								printf(" * %" PRIu64 "\n", n[j]);
 								continue;

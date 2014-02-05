@@ -65,7 +65,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
+	if (is_mpz_prp(fobj->nfs_obj.gmp_n))
 	{
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		

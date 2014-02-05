@@ -80,7 +80,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, NUM_WITNESSES))
+	if (is_mpz_prp(fobj->qs_obj.gmp_n))
 	{
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)

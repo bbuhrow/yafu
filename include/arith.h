@@ -161,6 +161,9 @@ void zHex2Dec(z *u, z *v);
 void zDec2Hex(z *u, z *v);
 void swap(z *a, z *b);
 double rint(double x);
+
+// useful mpz utilities
+int is_mpz_prp(mpz_t n);
 uint64 mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64 src);
 void mpz_to_z32(mpz_t src, z32 *dest);

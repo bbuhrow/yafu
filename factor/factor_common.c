@@ -526,7 +526,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 			fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
 		}
 	}
-	else if (mpz_probab_prime_p(n, NUM_WITNESSES))
+	else if (is_mpz_prp(n))
 	{
 		if (mpz_cmp_ui(n, 100000000) < 0)
 			fobj->fobj_factors[fobj->num_factors].type = PRIME;
@@ -716,7 +716,7 @@ void print_factors(fact_obj_t *fobj)
 						}
 					}
 				}
-				else if (mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
+				else if (is_mpz_prp(fobj->fobj_factors[i].factor)
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
@@ -781,7 +781,7 @@ void print_factors(fact_obj_t *fobj)
 							gmp_base10(tmp2), tmp2);
 					}
 				}
-				else if (mpz_probab_prime_p(tmp2, NUM_WITNESSES))
+				else if (is_mpz_prp(tmp2))
 				{
 					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
 						gmp_base10(tmp2), tmp2);
@@ -1155,7 +1155,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			done = 1;
 			for (i=0; i<fobj->num_factors; i++)
 			{
-				if (!mpz_probab_prime_p(fobj->fobj_factors[i].factor, NUM_WITNESSES))
+				if (!is_mpz_prp(fobj->fobj_factors[i].factor))
 				{
 					fobj->refactor_depth++;
 					if (fobj->refactor_depth > 3)
@@ -1621,10 +1621,14 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
 	{
 		mpz_set(fobj->nfs_obj.gmp_n, b);
+#ifdef USE_NFS
 		poly = snfs_find_form(fobj);
 		fobj->autofact_obj.has_snfs_form = (poly != NULL);
 		// The actual poly is not needed now, so just get rid of it.
 		free(poly);
+#else
+		fobj->autofact_obj.has_snfs_form = 0;
+#endif
 	}
 	
 	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
@@ -2342,7 +2346,7 @@ void factor(fact_obj_t *fobj)
 		
 	if (mpz_cmp_ui(b, 1) != 0)
 	{
-		if (mpz_probab_prime_p(b, NUM_WITNESSES))
+		if (is_mpz_prp(b))
 		{
 			flog = fopen(fobj->flogname,"a");
 			logprint(flog,"prp%d cofactor = %s\n",gmp_base10(b),

@@ -127,7 +127,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, tmp);
 
 		//check if its prime and log accordingly
-		if (mpz_probab_prime_p(tmp, NUM_WITNESSES))
+		if (is_mpz_prp(tmp))
 		{
 			//need to convert to yafu bigint to store
 			add_to_factor_list(fobj, tmp);
@@ -161,7 +161,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	{
 		char c[4];
 
-		if (mpz_probab_prime_p(fobj->nfs_obj.gmp_n, NUM_WITNESSES))
+		if (is_mpz_prp(fobj->nfs_obj.gmp_n))
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 			strncpy(c,"prp",4);			

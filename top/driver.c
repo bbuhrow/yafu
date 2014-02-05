@@ -881,7 +881,7 @@ void set_default_globals(void)
 	VERBOSE_PROC_INFO = 0;
 	LOGFLAG = 1;
 
-	NUM_WITNESSES = 20;
+	NUM_WITNESSES = 1;
 	
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
