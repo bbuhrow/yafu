@@ -716,7 +716,7 @@ void print_factors(fact_obj_t *fobj)
 						}
 					}
 				}
-				else if (is_mpz_prp(fobj->fobj_factors[i].factor)
+				else if (is_mpz_prp(fobj->fobj_factors[i].factor))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
