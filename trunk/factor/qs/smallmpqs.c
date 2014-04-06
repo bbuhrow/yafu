@@ -891,6 +891,7 @@ done:
 		uint32 tmpi = fobj->rho_obj.iterations;
 		mpz_set(fobj->rho_obj.gmp_n, fobj->qs_obj.gmp_n);
 
+		logprint(fobj->logfile, "Smallmpqs failed: bruteforcing with rho\n");
 		while (mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) > 0)
 		{
 			fobj->rho_obj.iterations *= 2;
