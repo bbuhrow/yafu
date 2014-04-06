@@ -787,7 +787,9 @@ void smallmpqs(fact_obj_t *fobj)
 	numpoly = 0;
 	num = 0;
 	charcount=0;
-	while (1)
+
+	// arbitrary upper bound of polys to try.  if more than this, somethings wrong.
+	while (numpoly < 2048)
 	{		
 		//copy current poly into the poly lists
 		if (numpoly < polyalloc)
@@ -852,7 +854,7 @@ void smallmpqs(fact_obj_t *fobj)
 		smpqs_computeRoots(poly,fb,modsqrt,fb_sieve_p,fb_sieve_n,2);
 
 		numpoly++;
-	}
+	}	
 
 done:
 
@@ -879,48 +881,72 @@ done:
 	free(poly);
 	free(modsqrt);
 
-	num_factors=0;
-	factors = (mpz_t *)malloc(MAX_FACTORS * sizeof(mpz_t));
-	for (i=0;i<MAX_FACTORS;i++)
-		mpz_init(factors[i]);
-
-	gettimeofday(&tstart,NULL);
-	i = smpqs_BlockGauss(full,partial,apoly,bpoly,fb,n,mul,
-		factors,&num_factors);
-
-	gettimeofday (&tend, NULL);
-	difference = my_difftime (&tstart, &tend);
-
-	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
-	
-	if (VFLAG > 0)
-		printf("Gauss elapsed time = %6.4f seconds.\n",t_time);
-		
-	for(i=0;i<num_factors;i++)
+	if (numpoly >= 2048)
 	{
-		add_to_factor_list(fobj, factors[i]);
+		// something went wrong.
+		// example, wraithx's 151116012007860377
+		// see: http://www.mersenneforum.org/showpost.php?p=369993&postcount=273
+		//
+		// assume this is rare and just do rho until it factors...
+		uint32 tmpi = fobj->rho_obj.iterations;
+		mpz_set(fobj->rho_obj.gmp_n, fobj->qs_obj.gmp_n);
 
-		if (fobj->qs_obj.flags != 12345)
+		while (mpz_cmp_ui(fobj->rho_obj.gmp_n, 1) > 0)
 		{
-			if (fobj->logfile != NULL)
-				logprint(fobj->logfile,
-					"prp%d = %s\n", gmp_base10(factors[i]),
-					mpz_conv2str(&gstr1.s, 10, factors[i]));
+			fobj->rho_obj.iterations *= 2;
+			brent_loop(fobj);
 		}
 		
-		mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);
+		fobj->rho_obj.iterations = tmpi;
+		mpz_set_ui(fobj->qs_obj.gmp_n, 1);
 	}
+	else
+	{
+		num_factors=0;
+		factors = (mpz_t *)malloc(MAX_FACTORS * sizeof(mpz_t));
+		for (i=0;i<MAX_FACTORS;i++)
+			mpz_init(factors[i]);
+
+		gettimeofday(&tstart,NULL);
+		i = smpqs_BlockGauss(full,partial,apoly,bpoly,fb,n,mul,
+			factors,&num_factors);
+
+		gettimeofday (&tend, NULL);
+		difference = my_difftime (&tstart, &tend);
+
+		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+		free(difference);
+	
+		if (VFLAG > 0)
+			printf("Gauss elapsed time = %6.4f seconds.\n",t_time);
+
+		for(i=0;i<num_factors;i++)
+		{
+			add_to_factor_list(fobj, factors[i]);
+
+			if (fobj->qs_obj.flags != 12345)
+			{
+				if (fobj->logfile != NULL)
+					logprint(fobj->logfile,
+						"prp%d = %s\n", gmp_base10(factors[i]),
+						mpz_conv2str(&gstr1.s, 10, factors[i]));
+			}
+		
+			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, factors[i]);
+		}
+
+		for (i=0;i<MAX_FACTORS;i++)
+			mpz_clear(factors[i]);
+		free(factors);
+	}
+		
+	
 
 	mpz_clear(n);
 	mpz_clear(tmp);
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
 	mpz_clear(sqrt_n);
-
-	for (i=0;i<MAX_FACTORS;i++)
-		mpz_clear(factors[i]);
-	free(factors);
 
 	for (i=0;i<full->num_r;i++)
 	{
