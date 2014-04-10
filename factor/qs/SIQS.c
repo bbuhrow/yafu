@@ -1726,26 +1726,25 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	//case cpu_core:
 	default:
 		firstRoots_ptr = &firstRoots_32k;
+		nextRoots_ptr = &nextRoots_32k;
 
 		// if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
 		// machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
 #if defined(USE_SSE41)
 		if (HAS_SSE41)
 			nextRoots_ptr = &nextRoots_32k_sse41;
-		else
-			nextRoots_ptr = &nextRoots_32k;
-#else
-		nextRoots_ptr = &nextRoots_32k;
 #endif
 		
 		testRoots_ptr = &testfirstRoots_32k;
 
-
+		// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
+		// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
 #if defined(USE_AVX2)
 		if (HAS_AVX2)
 		{
-			med_sieve_ptr = &med_sieveblock_32k_sse41;
-			//nump = 16;
+			printf("using avx2 and nump = 16\n");
+			med_sieve_ptr = &med_sieveblock_32k_avx2;
+			nump = 16;
 		}
 		else if (HAS_SSE41)
 			med_sieve_ptr = &med_sieveblock_32k_sse41;

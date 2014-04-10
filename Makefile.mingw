@@ -52,7 +52,7 @@ endif
 # to the capability of the target user cpu.
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_SSE41 -DUSE_AVX2
+	CFLAGS += -DUSE_AVX2
 endif
 
 ifeq ($(USE_SSE41),1)
