@@ -61,6 +61,102 @@
 					"r" (fbc->root2 + i) \
 			: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
+
+#if defined(USE_AVX2)
+
+	#define MOD_INIT_16X												\
+		ASM_G (														\
+			"vmovdqa (%0), %%ymm0 \n\t"		/* move in BLOCKSIZE */ \
+			"vmovdqa (%1), %%ymm1 \n\t"		/* move in block_loc */ \
+			:														\
+			: "r" (bl_sizes), "r" (bl_locs)							\
+			: "xmm0", "xmm1");
+
+	#define MOD_CMP_16X(xtra_bits)																		\
+		ASM_G (																				\
+			"vmovdqa %%ymm1, %%ymm7 \n\t"	/* copy block_loc */ \
+			"vmovdqa %%ymm0, %%ymm4 \n\t"	/* copy BLOCKSIZE */ \
+			"vmovdqa (%1), %%ymm3 \n\t"		/* move in primes */							\
+			"vpsubw	%%ymm1, %%ymm4 \n\t"	/* BLOCKSIZE - block_loc */						\
+			"vpaddw	(%2), %%ymm4 \n\t"		/* apply corrections */							\
+			"vmovdqa (%4), %%ymm6 \n\t"		/* move in root1s */							\
+			"vpmulhuw	(%3), %%ymm4 \n\t"	/* (unsigned) multiply by inverses */		\
+			"vmovdqa (%5), %%ymm2 \n\t"		/* move in root2s */							\
+			"vpsrlw	$" xtra_bits ", %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
+			"vpaddw	%%ymm3, %%ymm7 \n\t"	/* add primes and block_loc */					\
+			"vpmullw	%%ymm3, %%ymm4 \n\t"	/* (signed) multiply by primes */				\
+			"vpsubw	%%ymm0, %%ymm7 \n\t"	/* substract blocksize */						\
+			"vpaddw	%%ymm7, %%ymm4 \n\t"	/* add in block_loc + primes - blocksize */		\
+			"vpcmpeqw	%%ymm4, %%ymm6 \n\t"	/* compare to root1s */						\
+			"vpcmpeqw	%%ymm4, %%ymm2 \n\t"	/* compare to root2s */						\
+			"vpor	%%ymm6, %%ymm2 \n\t"	/* combine compares */							\
+			"vpmovmskb %%ymm2, %0 \n\t"		/* export to result */							\
+			: "=r" (tmp3)																	\
+			: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
+				"r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
+					"r" (fbc->root2 + i) \
+			: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+
+	#define STEP_COMPARE_COMBINE_AVX2 \
+		"vpsubw %%ymm1, %%ymm2 \n\t"		/* subtract primes from root1s */ \
+		"vpsubw %%ymm1, %%ymm3 \n\t"		/* subtract primes from root2s */ \
+		"vpcmpeqw %%ymm2, %%ymm5 \n\t"	/* root1s ?= 0 */ \
+		"vpcmpeqw %%ymm3, %%ymm6 \n\t"	/* root2s ?= 0 */ \
+		"vpor %%ymm5, %%ymm7 \n\t"		/* combine results */ \
+		"vpor %%ymm6, %%ymm0 \n\t"		/* combine results */
+
+	#define INIT_RESIEVE_AVX2 \
+		"vmovdqa (%4), %%ymm4 \n\t"		/* bring in corrections to roots */				\
+		"vpxor %%ymm0, %%ymm0 \n\t"		/* zero ymm8 */ \
+		"vmovdqa (%2), %%ymm2 \n\t"		/* bring in 8 root1s */ \
+		"vpaddw %%ymm4, %%ymm2 \n\t"		/* correct root1s */ \
+		"vmovdqa (%3), %%ymm3 \n\t"		/* bring in 8 root2s */ \
+		"vpaddw %%ymm4, %%ymm3 \n\t"		/* correct root2s */ \
+		"vmovdqa (%1), %%ymm1 \n\t"		/* bring in 8 primes */ \
+		"vpxor %%ymm7, %%ymm7 \n\t"		/* zero ymm7 */ \
+		"vpxor %%ymm5, %%ymm5 \n\t"		/* zero ymm5 */ \
+		"vpxor %%ymm6, %%ymm6 \n\t"		/* zero ymm6 */
+
+	#define RESIEVE_16X_14BIT_MAX \
+		asm ( \
+			INIT_RESIEVE_AVX2 \
+			STEP_COMPARE_COMBINE_AVX2	\
+			STEP_COMPARE_COMBINE_AVX2	\
+			STEP_COMPARE_COMBINE_AVX2	\
+			STEP_COMPARE_COMBINE_AVX2	\
+			"vpor	%%ymm0, %%ymm7 \n\t" \
+			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
+			: "=r"(result) \
+			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
+			: "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm0", "cc", "memory" \
+			);
+
+	#define RESIEVE_16X_15BIT_MAX \
+		asm ( \
+			INIT_RESIEVE_AVX2 \
+			STEP_COMPARE_COMBINE_AVX2	\
+			STEP_COMPARE_COMBINE_AVX2	\
+			"vpor	%%ymm0, %%ymm7 \n\t" \
+			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
+			: "=r"(result) \
+			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
+			: "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm0", "cc", "memory" \
+			);
+
+	#define RESIEVE_16X_16BIT_MAX \
+		asm ( \
+			INIT_RESIEVE_AVX2 \
+			STEP_COMPARE_COMBINE_AVX2	\
+			"vpor	%%ymm0, %%ymm7 \n\t" \
+			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
+			: "=r"(result) \
+			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
+			: "ymm1", "ymm2", "ymm3", "ymm4", "ymm5", "ymm6", "ymm7", "ymm0", "cc", "memory" \
+			);
+
+
+#endif
+
 	#define STEP_COMPARE_COMBINE \
 		"psubw %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
 		"psubw %%xmm1, %%xmm3 \n\t"		/* subtract primes from root2s */ \
@@ -384,6 +480,117 @@
 			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
 			RESIEVE_1X_16BIT_MAX(0x8000);									\
 		} while (0); 
+
+#endif
+
+
+#if defined(USE_AVX2)
+
+#define INIT_CORRECTIONS \
+	corrections[0] = 32768 - block_loc; \
+	corrections[1] = 32768 - block_loc; \
+	corrections[2] = 32768 - block_loc; \
+	corrections[3] = 32768 - block_loc; \
+	corrections[4] = 32768 - block_loc; \
+	corrections[5] = 32768 - block_loc; \
+	corrections[6] = 32768 - block_loc; \
+	corrections[7] = 32768 - block_loc; \
+	corrections[8] = 32768 - block_loc; \
+	corrections[9] = 32768 - block_loc; \
+	corrections[10] = 32768 - block_loc; \
+	corrections[11] = 32768 - block_loc; \
+	corrections[12] = 32768 - block_loc; \
+	corrections[13] = 32768 - block_loc; \
+	corrections[14] = 32768 - block_loc; \
+	corrections[15] = 32768 - block_loc; 
+
+#define CHECK_16_RESULTS \
+	if (result & 0x2) {				  \
+		DIVIDE_RESIEVED_PRIME(0);	  \
+	}								  \
+	if (result & 0x8){				  \
+		DIVIDE_RESIEVED_PRIME(1);	  \
+	}								  \
+	if (result & 0x20){				  \
+		DIVIDE_RESIEVED_PRIME(2);	  \
+	}								  \
+	if (result & 0x80){				  \
+		DIVIDE_RESIEVED_PRIME(3);	  \
+	}								  \
+	if (result & 0x200){			  \
+		DIVIDE_RESIEVED_PRIME(4);	  \
+	}								  \
+	if (result & 0x800){			  \
+		DIVIDE_RESIEVED_PRIME(5);	  \
+	}								  \
+	if (result & 0x2000){			  \
+		DIVIDE_RESIEVED_PRIME(6);	  \
+	}								  \
+	if (result & 0x8000){			  \
+		DIVIDE_RESIEVED_PRIME(7);	  \
+	}									\
+	if (result & 0x20000) {				  \
+		DIVIDE_RESIEVED_PRIME(8);	  \
+	}								  \
+	if (result & 0x80000){				  \
+		DIVIDE_RESIEVED_PRIME(9);	  \
+	}								  \
+	if (result & 0x200000){				  \
+		DIVIDE_RESIEVED_PRIME(10);	  \
+	}								  \
+	if (result & 0x800000){				  \
+		DIVIDE_RESIEVED_PRIME(11);	  \
+	}								  \
+	if (result & 0x2000000){			  \
+		DIVIDE_RESIEVED_PRIME(12);	  \
+	}								  \
+	if (result & 0x8000000){			  \
+		DIVIDE_RESIEVED_PRIME(13);	  \
+	}								  \
+	if (result & 0x20000000){			  \
+		DIVIDE_RESIEVED_PRIME(14);	  \
+	}								  \
+	if (result & 0x80000000){			  \
+		DIVIDE_RESIEVED_PRIME(15);	  \
+	}
+
+#else
+
+#define INIT_CORRECTIONS \
+	corrections[0] = 32768 - block_loc; \
+	corrections[1] = 32768 - block_loc; \
+	corrections[2] = 32768 - block_loc; \
+	corrections[3] = 32768 - block_loc; \
+	corrections[4] = 32768 - block_loc; \
+	corrections[5] = 32768 - block_loc; \
+	corrections[6] = 32768 - block_loc; \
+	corrections[7] = 32768 - block_loc;
+
+#define CHECK_8_RESULTS \
+	if (result & 0x2) {				  \
+		DIVIDE_RESIEVED_PRIME(0);	  \
+	}								  \
+	if (result & 0x8){				  \
+		DIVIDE_RESIEVED_PRIME(1);	  \
+	}								  \
+	if (result & 0x20){				  \
+		DIVIDE_RESIEVED_PRIME(2);	  \
+	}								  \
+	if (result & 0x80){				  \
+		DIVIDE_RESIEVED_PRIME(3);	  \
+	}								  \
+	if (result & 0x200){			  \
+		DIVIDE_RESIEVED_PRIME(4);	  \
+	}								  \
+	if (result & 0x800){			  \
+		DIVIDE_RESIEVED_PRIME(5);	  \
+	}								  \
+	if (result & 0x2000){			  \
+		DIVIDE_RESIEVED_PRIME(6);	  \
+	}								  \
+	if (result & 0x8000){			  \
+		DIVIDE_RESIEVED_PRIME(7);	  \
+	}
 
 #endif
 
