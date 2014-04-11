@@ -1623,9 +1623,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
 
-#ifdef SSE2_RESIEVING
-	dconf->corrections = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-#endif
+	// used in SIMD optimized resiever
+	dconf->corrections = (uint16 *)xmalloc_align(16 * sizeof(uint16));
 
 	// array of sieve locations scanned from the sieve block that we
 	// will submit to trial division.  make it the size of a sieve block 
@@ -1650,10 +1649,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->dlp_prp = 0;
 	dconf->dlp_useful = 0;
 
-#ifdef USE_8X_MOD_ASM
-	dconf->bl_sizes = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-	dconf->bl_locs = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-#endif
+	// used in SIMD optimized versions of tdiv_med
+	dconf->bl_sizes = (uint16 *)xmalloc_align(16 * sizeof(uint16));
+	dconf->bl_locs = (uint16 *)xmalloc_align(16 * sizeof(uint16));
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
@@ -1760,7 +1758,19 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		med_sieve_ptr = &med_sieveblock_32k;
 #endif
 
+#if defined(USE_AVX2)
+		if (HAS_AVX2)
+		{
+			tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+		}
+		else
+		{
+			tdiv_med_ptr = &tdiv_medprimes_32k;
+		}
+#else
 		tdiv_med_ptr = &tdiv_medprimes_32k;
+#endif
+
 		resieve_med_ptr = &resieve_medprimes_32k;
 		sconf->qs_blocksize = 32768;
 		sconf->qs_blockbits = 15;
@@ -2665,14 +2675,9 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
 
-#if defined(USE_8X_MOD_ASM)
 	align_free(dconf->bl_locs);
 	align_free(dconf->bl_sizes);
-#endif
-
-#if defined(SSE2_RESIEVING)
 	align_free(dconf->corrections);
-#endif
 
 	return 0;
 }

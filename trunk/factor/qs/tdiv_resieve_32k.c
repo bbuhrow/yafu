@@ -104,14 +104,9 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		// where tdiv_medprimes left off
 		i = sconf->factor_base->fb_13bit_B;
 
-		corrections[0] = 32768 - block_loc;
-		corrections[1] = 32768 - block_loc;
-		corrections[2] = 32768 - block_loc;
-		corrections[3] = 32768 - block_loc;		
-		corrections[4] = 32768 - block_loc;
-		corrections[5] = 32768 - block_loc;
-		corrections[6] = 32768 - block_loc;
-		corrections[7] = 32768 - block_loc;		
+		// the roots have already been advanced to the next block.
+		// we need to correct them back to where they were before resieving.
+		INIT_CORRECTIONS;
 
 		// since the blocksize is bigger for YAFU_64K, skip resieving of primes
 		// up to 14 bits in size and instead use standard normal trial division.
@@ -139,6 +134,20 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 			//	(fbc->prime[i+3] - 1 + 32768) / fbc->prime[i+3]);
 
 			uint32 result = 0;
+
+#if defined(USE_AVX2)
+			RESIEVE_16X_14BIT_MAX;
+			
+			if (result == 0)
+			{
+				i += 16;
+				continue;
+			}
+
+			CHECK_16_RESULTS;
+			i += 16;
+
+#else
 			RESIEVE_8X_14BIT_MAX;
 			
 			if (result == 0)
@@ -147,47 +156,10 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 				continue;
 			}
 
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
+			CHECK_8_RESULTS;
 
 			i += 8;
+#endif
 		}
 
 		bound = sconf->factor_base->fb_15bit_B;
@@ -195,55 +167,31 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		while ((uint32)i < bound)
 		{
 			uint32 result = 0;
-			RESIEVE_8X_15BIT_MAX;
+#if defined(USE_AVX2)
+			RESIEVE_16X_15BIT_MAX;
+			
+			if (result == 0)
+			{
+				i += 16;
+				continue;
+			}
 
+			CHECK_16_RESULTS;
+			i += 16;
+
+#else
+			RESIEVE_8X_15BIT_MAX;
+			
 			if (result == 0)
 			{
 				i += 8;
 				continue;
 			}
 
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
+			CHECK_8_RESULTS;
 
 			i += 8;
+#endif
 		}
 
 		bound = sconf->factor_base->med_B;
@@ -251,55 +199,31 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		{
 
 			uint32 result = 0;
-			RESIEVE_8X_16BIT_MAX;
+#if defined(USE_AVX2)
+			RESIEVE_16X_16BIT_MAX;
+			
+			if (result == 0)
+			{
+				i += 16;
+				continue;
+			}
 
+			CHECK_16_RESULTS;
+			i += 16;
+
+#else
+			RESIEVE_8X_16BIT_MAX;
+			
 			if (result == 0)
 			{
 				i += 8;
 				continue;
 			}
 
-			if (result & 0x2)
-			{
-				DIVIDE_RESIEVED_PRIME(0);
-			}
-
-			if (result & 0x8)
-			{
-				DIVIDE_RESIEVED_PRIME(1);
-			}
-
-			if (result & 0x20)
-			{
-				DIVIDE_RESIEVED_PRIME(2);
-			}
-
-			if (result & 0x80)
-			{
-				DIVIDE_RESIEVED_PRIME(3);
-			}
-
-			if (result & 0x200)
-			{
-				DIVIDE_RESIEVED_PRIME(4);
-			}
-
-			if (result & 0x800)
-			{
-				DIVIDE_RESIEVED_PRIME(5);
-			}
-
-			if (result & 0x2000)
-			{
-				DIVIDE_RESIEVED_PRIME(6);
-			}
-
-			if (result & 0x8000)
-			{
-				DIVIDE_RESIEVED_PRIME(7);
-			}
+			CHECK_8_RESULTS;
 
 			i += 8;
+#endif
 		}
 
 
