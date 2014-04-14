@@ -52,7 +52,7 @@ endif
 # to the capability of the target user cpu.
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_AVX2
+	CFLAGS += -DUSE_AVX2 -mavx2 -mavx
 endif
 
 ifeq ($(USE_SSE41),1)
@@ -71,7 +71,7 @@ else
 endif
 
 #MINGW builds don't need -pthread
-LIBS += -lm 
+LIBS += -lm -pthread
 
 ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
@@ -156,6 +156,7 @@ ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
 #	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
+	YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 	YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c
 endif
 	
@@ -212,6 +213,12 @@ ifeq ($(USE_SSE41),1)
 # these files require SSE4.1 to compile
 	HEAD += factor/qs/poly_macros_common_sse4.1.h
 	HEAD += factor/qs/sieve_macros_32k_sse4.1.h
+endif
+
+ifeq ($(USE_SSE41),1)
+# these files require SSE4.1 to compile
+#	HEAD += factor/qs/poly_macros_common_sse4.1.h
+	HEAD += factor/qs/sieve_macros_32k_avx2.h
 endif
 
 #---------------------------Make Targets -------------------------
