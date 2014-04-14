@@ -1740,38 +1740,58 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(USE_AVX2)
 		if (HAS_AVX2)
 		{
-			printf("using avx2 and nump = 16\n");
-			med_sieve_ptr = &med_sieveblock_32k_avx2;
+			printf("using avx2 with med_sieve\n");
+			//med_sieve_ptr = &med_sieveblock_32k_avx2;
+			med_sieve_ptr = &med_sieveblock_32k_sse41;
 			nump = 16;
 		}
 		else if (HAS_SSE41)
+		{
+			printf("using sse4.1 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k_sse41;
+		}
 		else
+		{
+			printf("using sse2 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k;
+		}
 
 #elif defined(USE_SSE41)
 		if (HAS_SSE41)
+		{
+			printf("using sse4.1 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k_sse41;
+		}
 		else
+		{
+			printf("using sse2 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k;
+		}
 #else
+		printf("using sse2 with med_sieve\n");
 		med_sieve_ptr = &med_sieveblock_32k;
 #endif
 
 #if defined(USE_AVX2)
 		if (HAS_AVX2)
 		{
+			printf("using avx2 with tdiv_medprimes\n");
 			tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+			resieve_med_ptr = &resieve_medprimes_32k_avx2;
 		}
 		else
 		{
+			printf("using sse2 with tdiv_medprimes\n");
 			tdiv_med_ptr = &tdiv_medprimes_32k;
+			resieve_med_ptr = &resieve_medprimes_32k;
 		}
 #else
+		printf("using sse2 with tdiv_medprimes\n");
 		tdiv_med_ptr = &tdiv_medprimes_32k;
+		resieve_med_ptr = &resieve_medprimes_32k;
 #endif
 
-		resieve_med_ptr = &resieve_medprimes_32k;
+		
 		sconf->qs_blocksize = 32768;
 		sconf->qs_blockbits = 15;
 		break;

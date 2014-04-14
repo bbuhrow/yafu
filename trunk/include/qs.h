@@ -564,6 +564,8 @@ void (*tdiv_med_ptr)(uint8 , uint32 , uint32 ,
 
 void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
+						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*resieve_med_ptr)(uint8 , uint32 , uint32 , 

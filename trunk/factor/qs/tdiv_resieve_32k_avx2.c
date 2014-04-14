@@ -56,7 +56,7 @@ this file contains code implementing 4)
 
 */
 
-void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum, 
+void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
@@ -114,76 +114,34 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		bound = sconf->factor_base->fb_14bit_B;
 		while ((uint32)i < bound)
 		{
-			//minimum prime > blocksize / 2
-			//maximum correction = blocksize
-			//maximum starting value > blocksize * 3/2
-			//max steps = 2
-			//this misses all reports at block_loc = 0.  would need to check
-			//for equality to blocksize in that case
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i],fbc->root1[i],fbc->root2[i],
-			//	(fbc->prime[i] - 1 + 32768) / fbc->prime[i]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+1],fbc->root1[i+1],fbc->root2[i+1],
-			//	(fbc->prime[i+1] - 1 + 32768) / fbc->prime[i+1]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+2],fbc->root1[i+2],fbc->root2[i+2],
-			//	(fbc->prime[i+2] - 1 + 32768) / fbc->prime[i+2]);
-			//printf("prime = %u, roots = %u,%u.  max steps = %u\n",
-			//	fbc->prime[i+3],fbc->root1[i+3],fbc->root2[i+3],
-			//	(fbc->prime[i+3] - 1 + 32768) / fbc->prime[i+3]);
-
 			uint32 result = 0;
 
-			RESIEVE_8X_14BIT_MAX;
+			RESIEVE_16X_14BIT_MAX;
 			
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			CHECK_8_RESULTS;
-
-			i += 8;
+			CHECK_16_RESULTS;
+			i += 16;
 		}
 
 		bound = sconf->factor_base->fb_15bit_B;
-
 		while ((uint32)i < bound)
 		{
 			uint32 result = 0;
 
-			RESIEVE_8X_15BIT_MAX;
+			RESIEVE_16X_15BIT_MAX;
 			
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
-
-			CHECK_8_RESULTS;
-
-			i += 8;
+			CHECK_16_RESULTS;
+			i += 16;
 		}
 
 		bound = sconf->factor_base->med_B;
 		while ((uint32)i < bound)
 		{
-
 			uint32 result = 0;
 
-			RESIEVE_8X_16BIT_MAX;
-			
-			if (result == 0)
-			{
-				i += 8;
-				continue;
-			}
+			RESIEVE_16X_16BIT_MAX;
 
-			CHECK_8_RESULTS;
-
-			i += 8;
+			CHECK_16_RESULTS;
+			i += 16;
 		}
 
 

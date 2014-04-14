@@ -113,8 +113,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 		logp = fb->logp[i];
 
 		//// special exit condition: when prime > 8192 and i % 8 is 0;
-		//if ((prime > 8192) && ((i&7) == 0))
-		//	break;
+		if ((prime > 8192) && ((i&15) == 0))
+			break;
 
 		// invalid root (part of poly->a)
 		if (prime == 0) 
@@ -127,8 +127,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	}
 
 	// sieve primes 16 at a time, where 8192 < p < blocksize/3
-	_INIT_SSE2_SMALL_PRIME_SIEVE;
-	_SSE2_AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
+	_INIT_AVX2_SMALL_PRIME_SIEVE;
+	_AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
 
 	// the sse2 sieve stops just before prime exceeds blocksize/3
 	// the next sse2 sieve assumes primes exceed blocksize/3.  since
@@ -153,8 +153,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	}
 
 	// sieve primes 8 at a time, where blocksize/3 < p < 2^14
-	_INIT_SSE2_SMALL_PRIME_SIEVE;
-	_SSE2_AVX2_SMALL_PRIME_SIEVE_14b;
+	_INIT_AVX2_SMALL_PRIME_SIEVE;
+	_AVX2_SMALL_PRIME_SIEVE_14b;
 
 	// do this small set of crossover primes manually, one at a time,
 	// this time for the 14 bit crossover.
@@ -176,8 +176,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	}
 
 	// sieve primes 8 at a time, 2^14 < p < 2^15
-	_INIT_SSE2_SMALL_PRIME_SIEVE;
-	_SSE2_AVX2_SMALL_PRIME_SIEVE_15b;
+	_INIT_AVX2_SMALL_PRIME_SIEVE;
+	_AVX2_SMALL_PRIME_SIEVE_15b;
 
 	// do this small set of crossover primes manually, one at a time,
 	// this time for the 15 bit crossover.
@@ -202,8 +202,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	}
 
 	// sieve primes 8 at a time, 2^15 < p < med_B
-	_INIT_SSE2_SMALL_PRIME_SIEVE;
-	_SSE41_SMALL_PRIME_SIEVE;
+	_INIT_AVX2_SMALL_PRIME_SIEVE;
+	_AVX2_SMALL_PRIME_SIEVE;
 
 
 #ifdef QS_TIMING

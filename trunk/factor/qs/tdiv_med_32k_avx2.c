@@ -232,13 +232,7 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 			//	printf("index = %d, prime = %u, inv = %u, corr = %u, root1 = %u, root2 = %u, "
 			//	"loc = %u, result = %u\n",
 			//		i, fbc->prime[i], fullfb_ptr->small_inv[i], 
-			//		fullfb_ptr->correction[i], fbc->root1[i], fbc->root2[i], block_loc, tmp3);
-
-			if (result == 0)
-			{
-				i += 16;
-				continue;
-			}
+			//		fullfb_ptr->correction[i], fbc->root1[i], fbc->root2[i], block_loc, tmp3);			
 
 			CHECK_16_RESULTS;
 			i += 16;			
@@ -256,12 +250,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 			MOD_CMP_16X("10");
 #endif
 
-			if (result == 0)
-			{
-				i += 16;
-				continue;
-			}
-
 			CHECK_16_RESULTS;
 			i += 16;
 		}
@@ -277,12 +265,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 #else
 			MOD_CMP_16X("12");
 #endif
-
-			if (result == 0)
-			{
-				i += 16;
-				continue;
-			}
 
 			CHECK_16_RESULTS;
 			i += 16;
