@@ -57,68 +57,68 @@
 				"rdi", "cc", "memory");
 
 #define _16P_STEP_SIEVE_AVX2 \
-	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$0, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$1, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$1, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$0, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$0, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$1, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$1, %%xmm2, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$2, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$3, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$3, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$2, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$2, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$3, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$3, %%xmm2, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$4, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$5, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$5, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$4, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$4, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$5, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$5, %%xmm2, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$6, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$7, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$7, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$6, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$6, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$7, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$7, %%xmm2, %%edi \n\t"			/* extract root2 */ \
 	"vextracti128	$1, %%ymm1, %%xmm4 \n\t"		/* next 8 words */ \
 	"vextracti128	$1, %%ymm2, %%xmm5 \n\t"		/* next 8 words */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$0, %%xmm4, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$0, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$1, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$1, %%xmm5, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$0, %%xmm4, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$0, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$1, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$1, %%xmm5, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$2, %%xmm4, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$2, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$3, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$3, %%xmm5, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$2, %%xmm4, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$2, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$3, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$3, %%xmm5, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$4, %%xmm4, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$4, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$5, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$5, %%xmm5, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$4, %%xmm4, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$4, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$5, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$5, %%xmm5, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
-	"vpextrw	$6, %%xmm4, %%eax \n\t"			/* extract root1 */ \
-	"vpextrw	$6, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
-	"vpextrw	$7, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
-	"vpextrw	$7, %%xmm5, %%edi \n\t"			/* extract root2 */ \
+	"pextrw	$6, %%xmm4, %%eax \n\t"			/* extract root1 */ \
+	"pextrw	$6, %%xmm5, %%ebx \n\t"			/* extract root2 */ \
+	"pextrw	$7, %%xmm4, %%ecx \n\t"			/* extract root1 */ \
+	"pextrw	$7, %%xmm5, %%edi \n\t"			/* extract root2 */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
@@ -133,166 +133,166 @@
 	"vpmovmskb	%%ymm5, %%edi \n\t" \
 	"testl	$0x2, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* if bits are equal to zero then root1 ! <= blocksize-1; jump */ \
-	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$0, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x2, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$0, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$0, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x8, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$1, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$1, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x8, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$1, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$1, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x20, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$2, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x20, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$2, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$2, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x80, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$3, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$3, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x80, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$3, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$3, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x200, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$4, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x200, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$4, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$4, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x800, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$5, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$5, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x800, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$5, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$5, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x2000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$6, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x2000, %%edi \n\t"			/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$6, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$6, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x8000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$7, %%xmm1, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$7, %%xmm1, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x8000, %%edi \n\t"			/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$7, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$7, %%xmm2, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	"vextracti128	$1, %%ymm1, %%xmm6 \n\t"		/* next 8 words */ \
 	"vextracti128	$1, %%ymm2, %%xmm3 \n\t"		/* next 8 words */ \
 	"testl	$0x20000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* if bits are equal to zero then root1 ! <= blocksize-1; jump */ \
-	"vpextrw	$0, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$0, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x20000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$0, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$0, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x80000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$1, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$1, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x80000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$1, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$1, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x200000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"vpand	%%ymm0, %%ymm4, %%ymm4 \n\t"			/* clear primes whose root1's are >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$2, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$2, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x200000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$2, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$2, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x800000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"vpand	%%ymm0, %%ymm5, %%ymm5 \n\t"			/* clear primes whose root2's are >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$3, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$3, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x800000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$3, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$3, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x2000000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"vpsubw	%%ymm7, %%ymm4, %%ymm4 \n\t"			/* advance root1's still below blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$4, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$4, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x2000000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$4, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$4, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x8000000, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
 	"vpsubw	%%ymm7, %%ymm5, %%ymm5 \n\t"			/* advance root1's still below blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$5, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$5, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x8000000, %%edi \n\t"				/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$5, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$5, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x20000000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$6, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$6, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x20000000, %%edi \n\t"			/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$6, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$6, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
 	 \
 	"testl	$0x80000000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$7, %%xmm6, %%eax \n\t"			/* else extract root */ \
+	"pextrw	$7, %%xmm6, %%eax \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
 	"testl	$0x80000000, %%edi \n\t"			/* test if root2 >= blocksize */ \
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
-	"vpextrw	$7, %%xmm3, %%ebx \n\t"			/* else extract root */ \
+	"pextrw	$7, %%xmm3, %%ebx \n\t"			/* else extract root */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */
 

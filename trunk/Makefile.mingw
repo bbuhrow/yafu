@@ -154,7 +154,7 @@ YAFU_SRCS = \
 
 ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
-#	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
 	YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 	YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c
@@ -215,9 +215,9 @@ ifeq ($(USE_SSE41),1)
 	HEAD += factor/qs/sieve_macros_32k_sse4.1.h
 endif
 
-ifeq ($(USE_SSE41),1)
-# these files require SSE4.1 to compile
-#	HEAD += factor/qs/poly_macros_common_sse4.1.h
+ifeq ($(USE_AVX2),1)
+# these files require avx2 to compile
+	HEAD += factor/qs/poly_macros_common_avx2.h
 	HEAD += factor/qs/sieve_macros_32k_avx2.h
 endif
 

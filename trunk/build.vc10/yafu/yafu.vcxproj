@@ -306,6 +306,7 @@
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c" />
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
@@ -339,6 +340,7 @@
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_64k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h" />
