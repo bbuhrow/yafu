@@ -42,6 +42,12 @@ code to the public domain.
 #define USE_AVX2 1
 #endif
 
+#ifdef USE_AVX2
+#define NUM_SIMD_LANES 16
+#else
+#define NUM_SIMD_LANES 8
+#endif
+
 //#define HAVE_CUDA
 
 //#define QS_TIMING
@@ -611,6 +617,7 @@ void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   

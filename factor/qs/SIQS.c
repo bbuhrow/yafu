@@ -1728,9 +1728,24 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 		// if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
 		// machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
-#if defined(USE_SSE41)
-		if (HAS_SSE41)
+#if defined(USE_AVX2)
+		if (HAS_AVX2)
+		{
+			printf("using avx2 with next_roots\n");
+			nextRoots_ptr = &nextRoots_32k_avx2;
+		}
+		else if (HAS_SSE41)
+		{
+			printf("using sse4.1 with next_roots\n");
 			nextRoots_ptr = &nextRoots_32k_sse41;
+		}
+
+#elif defined(USE_SSE41)
+		if (HAS_SSE41)
+		{
+			printf("using sse4.1 with med_sieve\n");
+			nextRoots_ptr = &nextRoots_32k_sse41;
+		}
 #endif
 		
 		testRoots_ptr = &testfirstRoots_32k;
@@ -1741,8 +1756,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		if (HAS_AVX2)
 		{
 			printf("using avx2 with med_sieve\n");
-			//med_sieve_ptr = &med_sieveblock_32k_avx2;
-			med_sieve_ptr = &med_sieveblock_32k_sse41;
+			med_sieve_ptr = &med_sieveblock_32k_avx2;
+			//med_sieve_ptr = &med_sieveblock_32k_sse41;
 			nump = 16;
 		}
 		else if (HAS_SSE41)

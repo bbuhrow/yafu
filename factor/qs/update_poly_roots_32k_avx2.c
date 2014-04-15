@@ -24,15 +24,15 @@ code to the public domain.
 #include "common.h"
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
-#include "poly_macros_common_sse4.1.h"
+#include "poly_macros_common_avx2.h"
 
-// protect sse41 code under MSVC builds.  USE_SSE41 should be manually
+// protect avx2 code under MSVC builds.  USE_SSE41 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware
-#ifdef USE_SSE41
+#ifdef USE_AVX2
 
 //this is in the poly library, even though the bulk of the time is spent
 //bucketizing large primes, because it's where the roots of a poly are updated
-void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
+void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//update the roots 
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
@@ -140,7 +140,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
 			// as soon as we are aligned, use more efficient sse2 based methods...
-			if ((j & 7) == 0)
+			if ((j & 15) == 0)
 				break;
 
 			prime = update_data.prime[j];
@@ -240,7 +240,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
 
-			if ((prime > 32768) && ((j & 7) == 0))
+			if ((prime > 32768) && ((j & 15) == 0))
 				break;
 
 			COMPUTE_NEXT_ROOTS_P;
@@ -284,7 +284,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.start = j;									// 64
 			h.stop = med_B;									// 68
 
-			COMPUTE_8X_SMALL_PROOTS_SSE41;
+			COMPUTE_16X_SMALL_PROOTS_AVX2;
 			
 			j = h.stop;
 		}	
@@ -1051,7 +1051,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		{
 
 			// as soon as we are aligned, use more efficient sse2 based methods...
-			if ((j & 7) == 0)
+			if ((j & 15) == 0)
 				break;
 
 			prime = update_data.prime[j];
@@ -1152,7 +1152,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = (uint16)update_data.sm_firstroots1[j];
 			root2 = (uint16)update_data.sm_firstroots2[j];
 
-			if ((prime > 32768) && ((j & 7) == 0))
+			if ((prime > 32768) && ((j & 15) == 0))
 				break;
 
 			COMPUTE_NEXT_ROOTS_N;
@@ -1199,7 +1199,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.start = j;									// 64
 			h.stop = med_B;									// 68
 
-			COMPUTE_8X_SMALL_NROOTS_SSE41;
+			COMPUTE_16X_SMALL_NROOTS_AVX2;
 
 			j = h.stop;
 		}
