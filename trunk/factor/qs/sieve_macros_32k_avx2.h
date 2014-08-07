@@ -300,8 +300,11 @@
 	asm (	\
 		"movl	$0x7fff7fff, %%ecx \n\t"		/* load 2 copies of blocksize-1 in a 32bit reg */ \
 		"movl	$0x80008000, %%edi \n\t"		/* load 2 copies of blocksize in a 32bit reg */ \
-		"VPBROADCASTD	%%ecx, %%ymm3 \n\t"		/* broadcast blocksize-1 to all words of ymm3 */ \
-		"VPBROADCASTD	%%edi, %%ymm7 \n\t"		/* broadcast blocksize to all words of ymm7 */ \
+		"movd	%%ecx, %%xmm3 \n\t" \
+		"movd	%%edi, %%xmm7 \n\t" \
+		"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t"			/* xmm6 := 0 */ \
+		"VPBROADCASTD	%%xmm3, %%ymm3 \n\t"		/* broadcast blocksize-1 to all words of ymm3 */ \
+		"VPBROADCASTD	%%xmm7, %%ymm7 \n\t"		/* broadcast blocksize to all words of ymm7 */ \
 		: \
 		:  \
 		: "ecx", "edi", "xmm3", "xmm6", "xmm7");

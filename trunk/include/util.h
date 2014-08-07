@@ -54,13 +54,13 @@ extern "C" {
 static INLINE void * xmalloc_align(size_t len)
 {
 #if defined (_MSC_VER) || defined(__MINGW32__)
-	void *ptr = _aligned_malloc(len, 64);
+	void *ptr = _aligned_malloc(len, 128);
 
 #elif defined (__APPLE__)
 	void *ptr = malloc(len);
 
 #elif defined (__GNUC__)
-	void *ptr = memalign(64, len);
+	void *ptr = memalign(128, len);
 
 #else
 	void *ptr = malloc(len);
