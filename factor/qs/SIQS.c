@@ -915,24 +915,34 @@ void *process_poly(void *ptr)
 		{
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
+			printf("setting prime roots\n"); fflush(stdout);
 			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
+			printf("medsieve p\n"); fflush(stdout);
 			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+			printf("lpsieve p\n"); fflush(stdout);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
+			printf("setting prime roots\n"); fflush(stdout);
 			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
+			printf("scan p\n"); fflush(stdout);
 			scan_ptr(i,0,sconf,dconf);
 
 			//set the roots for the factors of a such that
 			//they will not be sieved.  we haven't found roots for them
+			printf("setting prime roots\n"); fflush(stdout);
 			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
+			printf("medsieve n\n"); fflush(stdout);
 			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+			printf("lpsieve n\n"); fflush(stdout);
 			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
 
 			//set the roots for the factors of a to force the following routine
 			//to explicitly trial divide since we haven't found roots for them
+			printf("setting prime roots\n"); fflush(stdout);
 			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
+			printf("scan p\n"); fflush(stdout);
 			scan_ptr(i,1,sconf,dconf);			
 
 		}
@@ -966,8 +976,10 @@ void *process_poly(void *ptr)
 
 		//next polynomial
 		//use the stored Bl's and the gray code to find the next b
+		printf("next B\n"); fflush(stdout);
 		nextB(dconf,sconf);
 		//and update the roots
+		printf("next roots\n"); fflush(stdout);
 		nextRoots_ptr(sconf, dconf);
 
 	}
@@ -1616,12 +1628,16 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	//used in trial division to mask out the fb_index portion of bucket entries, so that
 	//multiple block locations can be searched for in parallel using SSE2 instructions
-	dconf->mask = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+	dconf->mask = (uint16 *)xmalloc_align(16 * sizeof(uint16));
 
 	dconf->mask[1] = 0xFFFF;
 	dconf->mask[3] = 0xFFFF;
 	dconf->mask[5] = 0xFFFF;
 	dconf->mask[7] = 0xFFFF;
+	dconf->mask[9] = 0xFFFF;
+	dconf->mask[11] = 0xFFFF;
+	dconf->mask[13] = 0xFFFF;
+	dconf->mask[15] = 0xFFFF;
 
 	// used in SIMD optimized resiever
 	dconf->corrections = (uint16 *)xmalloc_align(16 * sizeof(uint16));
@@ -1701,25 +1717,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		// have to worry about 16 bit overflow as much.  Which is probably why
 		// the 64k versions no longer work - I've only done the latest assembly
 		// optimizations for 32k.
-	//case cpu_generic:
-	//case cpu_pentium:
-	//case cpu_pentium2:
-	//case cpu_pentium3:
-	//case cpu_pentium4:
-	//case cpu_pentium_m:
-	//case cpu_athlon:
-	//case cpu_athlon_xp:
-	//case cpu_opteron:
-	//	
-	//	firstRoots_ptr = &firstRoots_64k;
-	//	nextRoots_ptr = &nextRoots_64k;
-	//	testRoots_ptr = &testfirstRoots_64k;
-	//	med_sieve_ptr = &med_sieveblock_64k;
-	//	tdiv_med_ptr = &tdiv_medprimes_64k;
-	//	resieve_med_ptr = &resieve_medprimes_64k;
-	//	sconf->qs_blocksize = 65536;
-	//	sconf->qs_blockbits = 16;
-	//	break;
 
 	//case cpu_core:
 	default:
@@ -1732,7 +1729,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		if (HAS_AVX2)
 		{
 			printf("using avx2 with next_roots\n");
-			nextRoots_ptr = &nextRoots_32k_avx2;
+			nextRoots_ptr = &nextRoots_32k_sse41;
+			//nextRoots_ptr = &nextRoots_32k_avx2;
 		}
 		else if (HAS_SSE41)
 		{
@@ -1864,7 +1862,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		sconf->factor_base->tinylist = (tiny_fb_element_siqs *)xmalloc_align(
 			(size_t)(sizeof(tiny_fb_element_siqs)));
 
-		sconf->modsqrt_array = (uint32 *)malloc(
+		sconf->modsqrt_array = (uint32 *)xmalloc_align(
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));

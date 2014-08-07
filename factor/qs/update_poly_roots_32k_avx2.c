@@ -188,10 +188,10 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.updates = sm_ptr;								// 56
 			h.start = j;									// 64
 			h.stop = sconf->factor_base->fb_15bit_B;		// 68
-			if ((h.stop - 8) > h.start)
-				h.stop -= 8;
+			if ((h.stop - 16) > h.start)
+				h.stop -= 16;
 
-			COMPUTE_8X_SMALL_PROOTS;
+			COMPUTE_16X_SMALL_PROOTS_AVX2;
 			
 			j = h.stop;
 		}	
@@ -1098,10 +1098,10 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.updates = sm_ptr;								// 56
 			h.start = j;									// 64
 			h.stop = sconf->factor_base->fb_15bit_B;		// 68
-			if ((h.stop - 8) > h.start)
-				h.stop -= 8;
+			if ((h.stop - 16) > h.start)
+				h.stop -= 16;
 
-			COMPUTE_8X_SMALL_NROOTS;
+			COMPUTE_16X_SMALL_NROOTS_AVX2;
 			
 			j = h.stop;
 		}
@@ -1210,6 +1210,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		for ( ; j < med_B; j++, ptr++)
 		{
+			// 
 			prime = update_data.prime[j];
 			root1 = update_data.sm_firstroots1[j];
 			root2 = update_data.sm_firstroots2[j];
