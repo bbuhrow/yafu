@@ -1641,10 +1641,11 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		target_digits = 4. * (double)numdigits / 13.;	
 
 #ifdef USE_NFS
-	if ((fobj->autofact_obj.has_snfs_form) && (fobj->nfs_obj.gnfs == 0))
+	if ((fobj->autofact_obj.has_snfs_form) && (fobj->nfs_obj.gnfs == 0) && (strcmp(fobj->autofact_obj.plan_str,"normal") == 0))
 	{
 		// 1) we found a snfs polynomial for the input.
 		// 2) user has not specifically chosen gnfs.
+		// 3) user has not already adjusted the ECM plan.
 		// So it's looking like this will be an SNFS job and we should scale back the ECM effort .
 		// however we also need to check if easier by gnfs... this involves a little more work.
 		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
