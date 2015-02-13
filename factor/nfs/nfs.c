@@ -912,6 +912,14 @@ int est_gnfs_size(nfs_job_t *job)
 		return  0.56*job->snfs->difficulty + 30;
 }
 
+int est_gnfs_size_via_poly(snfs_t *job)
+{
+	if ((job->difficulty < 0) || (job->difficulty > 512))
+		return 999999;
+	else
+		return  0.56*job->difficulty + 30;
+}
+
 
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:

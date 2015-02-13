@@ -26,32 +26,59 @@ OPT_FLAGS = -O3
 INC = -I. -Iinclude
 BINNAME = yafu
 
-# modify these for your particular gmp/gmp-ecm installation
-INC += -I../gmp/include
-LIBS += -L../gmp/lib/linux/x86_64
 
-INC += -I../gmp-ecm/include/linux
-LIBS += -L../gmp-ecm/lib/linux/x86_64
-
+# ===================== compiler options =========================
 ifeq ($(COMPILER),icc)
 	CC = icc
+	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
 endif
 
-ifeq ($(PROFILE),1)
-	CFLAGS += -pg 
-	CFLAGS += -DPROFILING
-	BINNAME := ${BINNAME:%=%_prof}
-else
-	OPT_FLAGS += -fomit-frame-pointer
-endif
 
+# ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
 # appropriate files.  The executable will then choose between them based on the runtime
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
 ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41
+	CFLAGS += -DUSE_SSE41 
+endif
+
+ifeq ($(USE_AVX2),1)
+	USE_SSE41=1
+	CFLAGS += -DUSE_AVX2 -msse4 -msse4.1 -mavx2 -mavx
+endif
+
+ifeq ($(MIC),1)
+	CFLAGS += -mmic -DTARGET_MIC
+	BINNAME := ${BINNAME:%=%_mic}
+	OBJ_EXT = .mo
+	
+	INC += -I../msieve/zlib
+
+	INC += -I../gmp/include
+	LIBS += -L../gmp/lib/linux/phi
+
+	INC += -I../gmp-ecm/include/linux
+	LIBS += -L../gmp-ecm/lib/phi/lib
+else
+	OBJ_EXT = .o
+
+	INC += -I../gmp/include
+	LIBS += -L../gmp/lib/linux/x86_64
+
+	INC += -I../gmp-ecm/include/linux
+	LIBS += -L../gmp-ecm/lib/linux/x86_64
+endif
+
+
+# ===================== feature options =========================
+ifeq ($(PROFILE),1)
+	CFLAGS += -pg 
+	CFLAGS += -DPROFILING
+	BINNAME := ${BINNAME:%=%_prof}
+else
+	OPT_FLAGS += -fomit-frame-pointer
 endif
 
 ifeq ($(OPT_DEBUG),1)
@@ -82,21 +109,6 @@ ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
 endif
 
-ifeq ($(CC),icc)
-#	CFLAGS += -mtune=core2 -march=core2 
-	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
-endif
-
-ifeq ($(MIC),1)
-	CFLAGS += -mmic -DTARGET_MIC
-	BINNAME := ${BINNAME:%=%_mic}
-	OBJ_EXT = .mo
-	
-	INC += -I../msieve/zlib
-else
-	OBJ_EXT = .o
-endif
-
 LIBS += -lecm -lgmp
 
 # attempt to get static builds to work... unsuccessful so far
@@ -123,7 +135,7 @@ MSIEVE_SRCS = \
 	factor/qs/msieve/savefile.c \
 	factor/qs/msieve/gf2.c
 
-MSIEVE_OBJS = $(MSIEVE_SRCS:.c=.o)
+MSIEVE_OBJS = $(MSIEVE_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU file lists -------------------------
 YAFU_SRCS = \
@@ -132,7 +144,7 @@ YAFU_SRCS = \
 	top/stack.c \
 	top/calc.c \
 	top/test.c \
-	top/mpz_prp_prime.c \
+	top/aprcl/mpz_aprcl.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -178,6 +190,7 @@ ifeq ($(MIC),1)
 		factor/qs/update_poly_roots_32k.c
 else
 # add both versions
+
 	YAFU_SRCS += factor/qs/tdiv_med_32k.c \
 		factor/qs/tdiv_med_64k.c \
 		factor/qs/tdiv_resieve_32k.c \
@@ -194,6 +207,7 @@ ifeq ($(USE_SSE41),1)
 # these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+
 endif
 
 YAFU_OBJS = $(YAFU_SRCS:.c=$(OBJ_EXT))
@@ -237,8 +251,8 @@ HEAD = include/yafu.h  \
 	include/util.h  \
 	include/types.h \
 	include/yafu_string.h  \
-	include/mpz_prp_prime.h \
-	include/jacobi_sum.h \
+	top/aprcl/mpz_aprcl.h \
+	top/aprcl/jacobi_sum.h \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \

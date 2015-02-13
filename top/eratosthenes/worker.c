@@ -170,7 +170,7 @@ void *soe_worker_thread_main(void *thread_data) {
 				mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
 				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 				{
-					if (mpz_probab_prime_p(t->tmpz, t->current_line))
+					if (is_mpz_prp(t->tmpz))
 						t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 				}
 			}

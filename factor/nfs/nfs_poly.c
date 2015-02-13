@@ -737,7 +737,7 @@ void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range)
 	if (fobj->nfs_obj.polystart > 0)
 		*start = fobj->nfs_obj.polystart;
 	else
-		*start = 1ULL;
+		*start = 8192ULL;		// default leading coefficient
 	
 	if (fobj->nfs_obj.polyrange > 0)
 	{

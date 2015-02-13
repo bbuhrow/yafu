@@ -419,6 +419,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 			//so GetPRIMESRange will return the requested range directly
 			//and the count will be in NUM_P
 			values = GetPRIMESRange(seed_p, num_sp, offset, 0, range, num_p);
+
 		}
 
 		if (num_witnesses > 0)

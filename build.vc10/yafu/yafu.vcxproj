@@ -311,6 +311,7 @@
     <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c" />
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />
+    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\eratosthenes\count.c" />
@@ -323,7 +324,6 @@
     <ClCompile Include="..\..\top\eratosthenes\tiny.c" />
     <ClCompile Include="..\..\top\eratosthenes\worker.c" />
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />
-    <ClCompile Include="..\..\top\mpz_prp_prime.c" />
     <ClCompile Include="..\..\top\stack.c" />
     <ClCompile Include="..\..\top\test.c" />
     <ClCompile Include="..\..\top\utils.c" />
@@ -355,9 +355,7 @@
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
-    <ClInclude Include="..\..\include\jacobi_sum.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
-    <ClInclude Include="..\..\include\mpz_prp_prime.h" />
     <ClInclude Include="..\..\include\nfs.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\soe.h" />
@@ -367,6 +365,8 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
+    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
+    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod32.asm">
