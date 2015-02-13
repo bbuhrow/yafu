@@ -234,6 +234,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 	//for each character read, decide if we've found the start of a new token
 
 	int inpos, i, el_type, el_type2, token_alloc, tmpsize = GSTR_MAXSIZE;
+	int len = strlen(in);
 	char ch;
 	char *tmp;
 	char **tokens;
@@ -286,7 +287,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 		else
 			el_type = OP;
 	}
-	while (1)
+	while (inpos < len)
 	{
 		//get another character and check the type
 		inpos++;
@@ -334,7 +335,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 				return NULL;
 			}
 		}
-		
+
 		if (is_new_token(el_type,el_type2) || el_type == EOE)
 		{
 			if (el_type == EOE)
@@ -343,7 +344,7 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			if (el_type == -1)
 			{
 				//unrecognized character.  clear all tokens and return;
-				printf("unrecognized character in input\n");
+				printf("unrecognized character in input: %d\n", el_type);
 				for (i=0;i< *num_tokens; i++)
 					free(tokens[i]);
 				free(tokens);
@@ -1773,11 +1774,14 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		}
 		else
 		{
-			z n;
-			zInit(&n);			
-			zPrimorial(mpz_get_ui(operands[0]),&n);
-			mp2gmp(&n, operands[0]);
-			zFree(&n);
+			mpz_primorial_ui(operands[0], mpz_get_ui(operands[0]));
+
+
+			//z n;
+			//zInit(&n);			
+			//zPrimorial(mpz_get_ui(operands[0]),&n);
+			//mp2gmp(&n, operands[0]);
+			//zFree(&n);
 		}
 		break;
 
@@ -2245,9 +2249,9 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			mpz_init(highz);
 			mpz_set(lowz, operands[0]);
 			mpz_set(highz, operands[1]);
-			//printf("test range with %d witnesses\n", operands[3].val[0]);
 			primes = sieve_to_depth(sieve_p, num_sp, lowz, highz, 
 				0, mpz_get_ui(operands[3]), &num_found);
+
 
 			free(sieve_p);
 			if (!NULL)

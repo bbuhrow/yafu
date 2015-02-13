@@ -15,9 +15,6 @@
       <UniqueIdentifier>{2fb2f2c2-4f91-44ce-8cac-46f944abad64}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
     </Filter>
-    <Filter Include="Source Files\sieve">
-      <UniqueIdentifier>{deea1bcc-709f-4fc6-9ed6-d7ea2f1a1786}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\factoring\qs">
       <UniqueIdentifier>{3d086396-99eb-43de-b3ea-952bfd26b590}</UniqueIdentifier>
     </Filter>
@@ -38,6 +35,12 @@
     </Filter>
     <Filter Include="Source Files\factoring\qs\sieve">
       <UniqueIdentifier>{b323f02c-6a6e-4b2a-8a4c-ad59a46f7cb8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\primesieve">
+      <UniqueIdentifier>{deea1bcc-709f-4fc6-9ed6-d7ea2f1a1786}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\primetest">
+      <UniqueIdentifier>{adc471be-053e-4b06-8353-42de94ce9721}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -84,31 +87,31 @@
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\count.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\linesieve.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\offsets.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\primes.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\roots.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\soe.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\tiny.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\worker.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c">
       <Filter>Source Files\factoring\gmp-ecm</Filter>
@@ -180,7 +183,7 @@
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\eratosthenes\soe_util.c">
-      <Filter>Source Files\sieve</Filter>
+      <Filter>Source Files\primesieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\tdiv.c">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
@@ -245,9 +248,6 @@
     <ClCompile Include="..\..\factor\nfs\snfs.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\mpz_prp_prime.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClCompile>
@@ -259,6 +259,9 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
+      <Filter>Source Files\primetest</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -340,17 +343,17 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\jacobi_sum.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\mpz_prp_prime.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
     <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h">
       <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h">
+      <Filter>Source Files\primetest</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h">
+      <Filter>Source Files\primetest</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

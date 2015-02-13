@@ -1913,6 +1913,8 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	nump2 = (numf2 * 2 + 2) * 3;
 	apoly = nump1 + nump2;
 
+	printf("number of factors: %d, %d, total polys = %d\n", numf1, numf2, apoly);
+
 	polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
 	for (i=0; i<apoly; i++)
 	{
@@ -1921,8 +1923,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	}
 		
 	f = fopen(fobj->flogname, "a");
-	logprint(f, "nfs: commencing snfs on c%d: ", 
-		gmp_base10(poly->n));
+	logprint(f, "nfs: commencing snfs on c%d: ", gmp_base10(poly->n));
 	gmp_fprintf(f, "%Zd\n", poly->n);
 	fclose(f);
 
@@ -2140,6 +2141,9 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	} // for each base (x, y)
 
 	apoly = nump1 * nump2;
+
+	printf("actual polys = %d, %d, total actual polys = %d\n", nump1, nump2, apoly);
+
 	final_polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
 	for (i=0; i<apoly; i++)
 		snfs_init(&final_polys[i]);

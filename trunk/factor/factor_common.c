@@ -1640,14 +1640,55 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 	else
 		target_digits = 4. * (double)numdigits / 13.;	
 
-	if (fobj->autofact_obj.has_snfs_form)
+#ifdef USE_NFS
+	if ((fobj->autofact_obj.has_snfs_form) && (fobj->nfs_obj.gnfs == 0))
 	{
-		// we found a snfs polynomial for the input.  Since we are in factor(), we'll
-		// proceed with any ecm required, but adjust the plan ratio accordingly.
-		if (VFLAG > 0) printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
-			target_digits, target_digits / 1.2857);
-		target_digits /= 1.2857;
+		// 1) we found a snfs polynomial for the input.
+		// 2) user has not specifically chosen gnfs.
+		// So it's looking like this will be an SNFS job and we should scale back the ECM effort .
+		// however we also need to check if easier by gnfs... this involves a little more work.
+		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
+		// ECM factor), but this goes fast.
+		// temporarily set verbosity high so we don't spam the screen.  
+		int tmpV = VFLAG;
+		snfs_t *polys = NULL;
+		int npoly;
+		int gnfs_size;
+
+		VFLAG = -1;
+
+		mpz_set(fobj->nfs_obj.gmp_n, b);
+		poly = snfs_find_form(fobj);
+
+		// with the form detected, create a good polynomial
+		if (poly->form_type == SNFS_XYYXF)
+			polys = gen_xyyxf_poly(fobj, poly, &npoly);
+		else
+			polys = gen_brent_poly(fobj, poly, &npoly);
+
+		// then scale and rank them
+		snfs_scale_difficulty(polys, npoly);
+		npoly = snfs_rank_polys(fobj, polys, npoly);
+
+		VFLAG = tmpV;
+
+		// and test the best one
+		gnfs_size = est_gnfs_size_via_poly(&polys[0]);
+
+		if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
+		{
+			// Finally - to the best of our knowledge this will be a SNFS job.
+			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
+			// the plan ratio in accord with the snfs job.
+			if (VFLAG > 0) 
+			{
+				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
+					target_digits, target_digits / 1.2857);
+			}
+			target_digits /= 1.2857;
+		}
 	}
+#endif
 
 	// get the current amount of work done - only print status prior to 
 	// ecm steps
