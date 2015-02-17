@@ -245,7 +245,7 @@
     <ClCompile Include="..\..\factor\nfs\snfs.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\mpz_prp_prime.c">
+    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -328,10 +328,10 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\jacobi_sum.h">
+    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\mpz_prp_prime.h">
+    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

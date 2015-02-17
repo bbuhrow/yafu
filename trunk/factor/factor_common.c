@@ -26,7 +26,7 @@ code to the public domain.
 #include "yafu_ecm.h"
 #include "util.h"
 #include "yafu_string.h"
-#include "mpz_prp_prime.h"
+#include "mpz_aprcl.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
