@@ -248,6 +248,27 @@
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_avx2.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\poly_roots.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -333,6 +354,12 @@
     </ClInclude>
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
+      <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
