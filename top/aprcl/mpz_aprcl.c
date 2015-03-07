@@ -1,4 +1,4 @@
-/* Copyright 2011,2012,2013 David Cleaver
+/* Copyright 2011-2015 David Cleaver
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -25,6 +25,10 @@
  *      - Speed improvement 2: Removed/consolidated calls to mpz_mod in APRCL
  *        (these improvements make the APRCL code about 1.5-2.2x faster)
  *      - Bug fix: Final test in APRCL routine is now correct
+ *
+ * v1.2 Posted to SourceForge on 2015/03/07
+ *   - Minor change to code to remove "warning: array subscript is above array bounds"
+ *     encountered while compiling with the options ( -O3 -Wall )
  */
 
 /*
@@ -1644,7 +1648,6 @@ int mpz_aprtcle(mpz_t N, int verbose)
   int IV, InvX, LEVELnow, NP, PK, PL, PM, SW, VK, TestedQs, TestingQs;
   int QQ, T1, T3, U1, U3, V1, V3;
   int break_this = 0;
-  int zz = 0;
 
 
   /* make sure the input is >= 2 and odd */
@@ -1734,12 +1737,8 @@ MainStart:
   {
     for (i = 0; i < NP; i++)
     {
-      P = aiP[i+zz];
-      while (T%P != 0)
-      {
-        zz++;
-        P = aiP[i+zz];
-      }
+      P = aiP[i];
+      if (T%P != 0) continue;
 
       SW = TestedQs = 0;
       /* Q = W = (int) BigNbrModLong(TestNbr, P * P); */

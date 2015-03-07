@@ -1,4 +1,4 @@
-/* Copyright 2011,2012,2013 David Cleaver
+/* Copyright 2011-2015 David Cleaver
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -14,8 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MPZ_PRP_PRIME__
-#define __MPZ_PRP_PRIME__
+#ifndef __MPZ_APRCL__
+#define __MPZ_APRCL__
 
 #ifndef HAVE_U64_T
 #define HAVE_U64_T
@@ -181,13 +181,14 @@ int mpz_strongbpsw_prp(mpz_t n);
  *
  * v1.0 to v1.1 improvements:
  *
- * In August 2013 Laurent Desnogues found a few ways to improve the APRCL code.
- * I have implemented two of his findings:
- * 1) Removed extraneous calls to NormalizeJS.
- * 2) Removed/consolidated mpz_mod calls.
- * These improvements made APRCL about 1.7-2.2x faster for numbers up to 900 digits
+ * [The following fix was recommended by Dana Jacobsen and verified by Jon Grantham]
+ *      - Bug fix: Removed unnecessary vl==0 check in mpz_extrastronglucas_prp
+ * [The following improvements/fixes were recommended by Laurent Desnogues in 2013/08]
+ *      - Speed improvement 1: Removed extraneous NormalizeJS calls in ARPCL
+ *      - Speed improvement 2: Removed/consolidated calls to mpz_mod in APRCL
+ *        (these improvements make the APRCL code about 1.5-2.2x faster)
+ *      - Bug fix: Final test in APRCL routine is now correct
  *
- * He also found a bug in the APRCL v1.0 final test, this is now correct in v1.1.
  *
  * *********************************************************************************/
 
