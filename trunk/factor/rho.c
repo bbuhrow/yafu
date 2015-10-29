@@ -87,7 +87,7 @@ void brent_loop(fact_obj_t *fobj)
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
 			(int)gmp_base10(fobj->rho_obj.gmp_n));
 		
-		//call brent's rho algorithm, using montgomery arithmetic.
+		//call brent's rho algorithm
 		mbrent(fobj);
 
 		//check to see if 'f' is non-trivial
@@ -155,12 +155,11 @@ int mbrent(fact_obj_t *fobj)
 	returning the first factor found in f, or else 0 for failure.
 	use f(x) = x^2 + c
 	see, for example, bressoud's book.
-	use montgomery arithmetic. 
 	*/
 
-	mpz_t x,y,q,g,ys,t1,t2,cc;
+	mpz_t x,y,q,g,ys,t1;
 
-	uint32 i=0,k,r,m,c;
+	uint32 i=0,k,r,m;
 	int it;
 	int imax = fobj->rho_obj.iterations;
 
@@ -171,16 +170,13 @@ int mbrent(fact_obj_t *fobj)
 	mpz_init(g);
 	mpz_init(ys);
 	mpz_init(t1);
-	mpz_init(t2);
-	mpz_init(cc);
 
 	//starting state of algorithm.  
 	r = 1;
 	m = 10;
 	i = 0;
 	it = 0;
-	c = fobj->rho_obj.curr_poly;
-	mpz_set_ui(cc, fobj->rho_obj.polynomials[c]);
+
 	mpz_set_ui(q, 1);
 	mpz_set_ui(y, 0);
 	mpz_set_ui(g, 1); 
@@ -191,7 +187,7 @@ int mbrent(fact_obj_t *fobj)
 		for(i=0;i<=r;i++)
 		{
 			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
-			mpz_add_ui(t1, t1, c);
+            mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 			mpz_tdiv_r(t1, t1, fobj->rho_obj.gmp_n);			
 		}
 
@@ -202,7 +198,7 @@ int mbrent(fact_obj_t *fobj)
 			for(i=1;i<=MIN(m,r-k);i++)
 			{
 				mpz_mul(t1,y,y); //y=(y*y + c)%n
-				mpz_add_ui(t1, t1, c);
+                mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 				mpz_tdiv_r(y, t1, fobj->rho_obj.gmp_n);	
 
 				mpz_sub(t1, x, y); //q = q*abs(x-y) mod n
@@ -233,7 +229,7 @@ int mbrent(fact_obj_t *fobj)
 		do
 		{
 			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
-			mpz_add_ui(t1, t1, c);
+            mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
 			mpz_tdiv_r(ys, t1, fobj->rho_obj.gmp_n); 
 
 			mpz_sub(t1, ys, x);
@@ -276,8 +272,6 @@ free:
 	mpz_clear(g);
 	mpz_clear(ys);
 	mpz_clear(t1);
-	mpz_clear(t2);
-	mpz_clear(cc);
 	
 	return it;
 }
