@@ -23,7 +23,7 @@ CC = gcc
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O3
-INC = -I. -Iinclude
+INC = -I. -Iinclude -Itop/aprcl
 BINNAME = yafu
 
 
