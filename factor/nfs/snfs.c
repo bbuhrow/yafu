@@ -1322,12 +1322,20 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates two, plus 2 for
 		// the whole base raised and lowered, for each degree
-		if (numf > 1) apoly = (numf * 2 + 2) * 3;
-		else apoly = 6;
+        if (numf > 1)
+        {
+            apoly = (numf * 2 + 2) * 3;
+        }
+        else
+        {
+            apoly = 6;
+        }
 
 		polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
-		for (i=0; i<apoly; i++)
-			snfs_init(&polys[i]);
+        for (i = 0; i < apoly; i++)
+        {
+            snfs_init(&polys[i]);
+        }
 
 		if (VFLAG > 0)
 		{
@@ -1851,6 +1859,12 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		}
 		check_poly(polys);
 		approx_norms(polys);
+
+        if (!polys->valid)
+        {	// being explicit
+            snfs_clear(polys);
+            npoly = 0;
+        }
 	}
 
 	mpz_clear(m);
@@ -1876,6 +1890,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	snfs_t *polys, *final_polys;
 	int npoly = 0;
 	int apoly;	
+    int alloc_base_poly;
 	FILE *f;
 	double avg_diff;
 
@@ -1912,6 +1927,9 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	nump1 = (numf1 * 2 + 2) * 3;
 	nump2 = (numf2 * 2 + 2) * 3;
 	apoly = nump1 + nump2;
+
+    // so we can free it later.  apoly gets reused.
+    alloc_base_poly = apoly;
 
 	printf("number of factors: %d, %d, total polys = %d\n", numf1, numf2, apoly);
 
@@ -2145,8 +2163,10 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	printf("actual polys = %d, %d, total actual polys = %d\n", nump1, nump2, apoly);
 
 	final_polys = (snfs_t *)malloc(apoly * sizeof(snfs_t));
-	for (i=0; i<apoly; i++)
-		snfs_init(&final_polys[i]);
+    for (i = 0; i < apoly; i++)
+    {
+        snfs_init(&final_polys[i]);
+    }
 
 	if (VFLAG > 0)
 	{
@@ -2343,8 +2363,21 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		fobj->nfs_obj.alt_degree = 5;
 	}
 
-	printf("average difficulty = %1.2f, preferred degree = %d, alternate degree = %d\n",
-		avg_diff, fobj->nfs_obj.pref_degree, fobj->nfs_obj.alt_degree);
+	printf("generated %d polynomials: average difficulty = %1.2f, preferred degree = %d, alternate degree = %d\n",
+		npoly, avg_diff, fobj->nfs_obj.pref_degree, fobj->nfs_obj.alt_degree);
+    fflush(stdout);
+
+    // clean up
+    for (i = 0; i<alloc_base_poly; i++)
+    {
+        snfs_clear(&polys[i]);
+    }
+    free(polys);
+
+    for (i = npoly; i < apoly; i++)
+    {
+        snfs_clear(&final_polys[i]);
+    }
 
 	*npolys = npoly;
 	return final_polys;
