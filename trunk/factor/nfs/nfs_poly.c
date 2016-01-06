@@ -208,8 +208,10 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	job->startq = job->snfs->poly->side == RATIONAL_SPQ ? job->rlim/2 : job->alim/2;
 
 cleanup:
-	for(i = 0; i < npoly; i++)
-		snfs_clear(&polys[i]);
+    for (i = 0; i < npoly; i++)
+    {
+        snfs_clear(&polys[i]);
+    }
 	snfs_clear(poly);
 	free(poly);
 	free(polys);

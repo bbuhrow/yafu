@@ -1595,6 +1595,7 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t *fobj)
 {
 	int have_tune;
+    int i;
 	enum factorization_state next_state;
 	int numdigits = gmp_base10(b);
 	double target_digits;
@@ -1618,14 +1619,23 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// set target pretesting depth, depending on user selection and whether or not
 	// the input is both big enough and snfsable...
-	if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
-	{
-		mpz_set(fobj->nfs_obj.gmp_n, b);
+    if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
+    {
+        mpz_set(fobj->nfs_obj.gmp_n, b);
 #ifdef USE_NFS
-		poly = snfs_find_form(fobj);
-		fobj->autofact_obj.has_snfs_form = (poly != NULL);
-		// The actual poly is not needed now, so just get rid of it.
-		free(poly);
+        poly = snfs_find_form(fobj);
+
+        if (poly != NULL)
+        {
+            fobj->autofact_obj.has_snfs_form = 1;
+            // The actual poly is not needed now, so just get rid of it.
+            snfs_clear(poly);
+            free(poly);
+        }
+        else
+        {
+            fobj->autofact_obj.has_snfs_form = 0;
+        }
 #else
 		fobj->autofact_obj.has_snfs_form = 0;
 #endif
@@ -1641,7 +1651,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		target_digits = 4. * (double)numdigits / 13.;	
 
 #ifdef USE_NFS
-	if ((fobj->autofact_obj.has_snfs_form) && (fobj->nfs_obj.gnfs == 0) && (strcmp(fobj->autofact_obj.plan_str,"normal") == 0))
+	if ((fobj->autofact_obj.has_snfs_form == 1) && (fobj->nfs_obj.gnfs == 0) && (strcmp(fobj->autofact_obj.plan_str,"normal") == 0))
 	{
 		// 1) we found a snfs polynomial for the input.
 		// 2) user has not specifically chosen gnfs.
@@ -1662,10 +1672,14 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		poly = snfs_find_form(fobj);
 
 		// with the form detected, create a good polynomial
-		if (poly->form_type == SNFS_XYYXF)
-			polys = gen_xyyxf_poly(fobj, poly, &npoly);
-		else
-			polys = gen_brent_poly(fobj, poly, &npoly);
+        if (poly->form_type == SNFS_XYYXF)
+        {
+            polys = gen_xyyxf_poly(fobj, poly, &npoly);
+        }
+        else
+        {
+            polys = gen_brent_poly(fobj, poly, &npoly);
+        }
 
 		// then scale and rank them
 		snfs_scale_difficulty(polys, npoly);
@@ -1688,6 +1702,17 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			}
 			target_digits /= 1.2857;
 		}
+
+        // don't need the poly anymore
+        snfs_clear(poly);
+        free(poly);
+
+        // or the list of best polys
+        for (i = 0; i<npoly; i++)
+        {
+            snfs_clear(&polys[i]);
+        }
+        free(polys);
 	}
 #endif
 
