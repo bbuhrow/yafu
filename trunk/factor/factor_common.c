@@ -1249,6 +1249,12 @@ enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj)
 		next_state = state_ecm_45digit;
 	else if (fwork->ecm_50digit_curves < fwork->ecm_max_50digit_curves)
 		next_state = state_ecm_50digit;
+    else if (fwork->ecm_55digit_curves < fwork->ecm_max_55digit_curves)
+        next_state = state_ecm_55digit;
+    else if (fwork->ecm_60digit_curves < fwork->ecm_max_60digit_curves)
+        next_state = state_ecm_60digit;
+    else if (fwork->ecm_65digit_curves < fwork->ecm_max_65digit_curves)
+        next_state = state_ecm_65digit;
 	else
 		next_state = state_nfs;
 
@@ -1569,26 +1575,36 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 		tlevels[i] = 0;
 		
 		for (k=state_ecm_15digit, j=0; k <= state_ecm_65digit; k++, j++)
-		{
+		{            
 			curves_done = get_ecm_curves_done(fwork, k);			
-			tlevels[i] += (double)curves_done / ecm_data[i][j];			
+			tlevels[i] += (double)curves_done / ecm_data[i][j];
 		}
 
-		if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
-			printf("fac: t%d: %1.2f\n", ecm_levels[i], tlevels[i]);		
+        if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
+        {
+            printf("fac: t%d: %1.2f\n", ecm_levels[i], tlevels[i]);
+        }
 	}
 
 	// find the first one less than 1
-	for (i=0; i < NUM_ECM_LEVELS; i++)
-		if (tlevels[i] < 1)
-			break;
+    for (i = 0; i < NUM_ECM_LEVELS; i++)
+    {
+        if (tlevels[i] < 1)
+        {
+            break;
+        }
+    }
 
 	// estimate the t level done by extrapolating between this and the previous one
 	// assuming they are all spaced 5 digits apart.
-	if (i == 0)
-		return 0;
-	else
-		return ecm_levels[i-1] + 5 * tlevels[i];
+    if (i == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return ecm_levels[i - 1] + 5 * tlevels[i];
+    }
 
 }
 
@@ -1641,21 +1657,36 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 #endif
 	}
 	
-	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
-		target_digits = 1. * (double)numdigits / 3.;
-	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
-		target_digits = 2. * (double)numdigits / 9.;
-	else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
-	else
-		target_digits = 4. * (double)numdigits / 13.;	
+    if (fobj->autofact_obj.only_pretest > 1)
+    {
+        target_digits = fobj->autofact_obj.only_pretest;
+    }
+    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_DEEP)
+    {
+        target_digits = 1. * (double)numdigits / 3.;
+    }
+    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_LIGHT)
+    {
+        target_digits = 2. * (double)numdigits / 9.;
+    }
+    else if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+    {
+        target_digits = (double)numdigits * fobj->autofact_obj.target_pretest_ratio;
+    }
+    else
+    {
+        target_digits = 4. * (double)numdigits / 13.;
+    }
 
 #ifdef USE_NFS
-	if ((fobj->autofact_obj.has_snfs_form == 1) && (fobj->nfs_obj.gnfs == 0) && (strcmp(fobj->autofact_obj.plan_str,"normal") == 0))
+	if ((fobj->autofact_obj.has_snfs_form == 1) && (fobj->nfs_obj.gnfs == 0) && 
+        (strcmp(fobj->autofact_obj.plan_str,"normal") == 0) &&
+        (fobj->autofact_obj.only_pretest <= 1))
 	{
 		// 1) we found a snfs polynomial for the input.
 		// 2) user has not specifically chosen gnfs.
 		// 3) user has not already adjusted the ECM plan.
+        // 4) user has not specified an only-pretest bound.
 		// So it's looking like this will be an SNFS job and we should scale back the ECM effort .
 		// however we also need to check if easier by gnfs... this involves a little more work.
 		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
@@ -1737,7 +1768,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			work_done = compute_ecm_work_done(fwork, 1);
 			
 			if (VFLAG >= 1)
-				printf("fac: sum of completed work is t%1.2f\n", work_done);
+				printf("fac: estimated sum of completed work is t%1.2f\n", work_done);
 
 			break;
 
@@ -1847,23 +1878,34 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	double work_low, work_high, work;
 	uint32 tmp_curves;
 
-	// choose the max of target_digits or any user specified pretest ceiling
-	if (fobj->autofact_obj.only_pretest > 1)
-		target_digits = MIN(target_digits, fobj->autofact_obj.only_pretest);
+	// if there is a user specified pretest value, use it, regardless if it
+    // means over or under ecm'ing something.
+    if (fobj->autofact_obj.only_pretest > 1)
+    {
+        //target_digits = MIN(target_digits, fobj->autofact_obj.only_pretest);
+        target_digits = fobj->autofact_obj.only_pretest;
+    }
+
 
 	work_low = get_ecm_curves_done(fwork, state);
 	work_high = get_max_ecm_curves(fwork, state);		
 	work = (work_low + work_high) / 2;
 
-	if ((VFLAG >= 1) && log_results)
-		printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n", 
-			fwork->B1, work_low, work_high);
+    if ((VFLAG >= 1) && log_results)
+    {
+        printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n",
+            fwork->B1, work_low, work_high);
+    }
 
 	tmp_curves = work_low;		
 	while ((work_high - work_low) > 1)
 	{
-		set_ecm_curves_done(fwork, state, (uint32)work);
-		if (compute_ecm_work_done(fwork, 0) > target_digits)
+        double compute;
+
+		set_ecm_curves_done(fwork, state, (uint32)work);       
+        compute = compute_ecm_work_done(fwork, 0);
+
+		if (compute > target_digits)
 		{
 			work_high = work;
 			work = (work_high + work_low) / 2;							
@@ -1874,16 +1916,23 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 			work = (work_high + work_low) / 2;							
 		}
 	}
-	set_ecm_curves_done(fwork, state, tmp_curves);			
-	fwork->curves = (uint32)ceil(work);				
-	if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, state))
-		fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
 
-	if ((VFLAG >= 1) && log_results)
-		printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n", 
-			fwork->curves, fwork->B1, target_digits);
+	
+    set_ecm_curves_done(fwork, state, tmp_curves);    
+	fwork->curves = (uint32)ceil(work);
 
-	if (log_results)
+    if ((tmp_curves + fwork->curves) > get_max_ecm_curves(fwork, state))
+    {
+        fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
+    }
+
+    if ((VFLAG >= 1) && log_results)
+    {
+        printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n",
+            fwork->curves, fwork->B1, target_digits);
+    }
+
+    if (log_results)
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
@@ -2090,12 +2139,44 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_20digit_curves = get_max_ecm_curves(fwork, state_ecm_20digit);
 		interp_state = state_ecm_25digit;
 	}
-	else
-		interp_state = state_idle;
+    else
+    {
+        interp_state = state_idle;
+    }
 
-	if (interp_state != state_idle)
-		interp_and_set_curves(fwork, fobj, interp_state, 0, 
-			fobj->autofact_obj.initial_work, 0);
+    if (interp_state != state_idle)
+    {
+
+        // initializing with an indicated amount of work.  we are using this function
+        // to try to figure out how many curves at the current level this is
+        // equivalent too.  But the function is normally used to compute the number
+        // of curves left toward the target, which could be either a digit level or
+        // a pretest value.  Conclusion: temporarily set any pretest value to zero,
+        // so that this function finds the equivalent curves to the indicated work.
+        double tmp_pretest = fobj->autofact_obj.only_pretest;
+
+        fobj->autofact_obj.only_pretest = 0;
+        interp_and_set_curves(fwork, fobj, interp_state, fobj->autofact_obj.initial_work,
+            fobj->autofact_obj.initial_work, 0);
+            
+        // restore any pretest value
+        fobj->autofact_obj.only_pretest = tmp_pretest;
+            
+        // then fill in the equivalent curves to the indicated work amount.
+        switch (interp_state)
+        {
+        case state_ecm_25digit: fwork->ecm_25digit_curves = fwork->curves; break;
+        case state_ecm_30digit: fwork->ecm_30digit_curves = fwork->curves; break;
+        case state_ecm_35digit: fwork->ecm_35digit_curves = fwork->curves; break;
+        case state_ecm_40digit: fwork->ecm_40digit_curves = fwork->curves; break;
+        case state_ecm_45digit: fwork->ecm_45digit_curves = fwork->curves; break;
+        case state_ecm_50digit: fwork->ecm_50digit_curves = fwork->curves; break;
+        case state_ecm_55digit: fwork->ecm_55digit_curves = fwork->curves; break;
+        case state_ecm_60digit: fwork->ecm_60digit_curves = fwork->curves; break;
+        case state_ecm_65digit: fwork->ecm_65digit_curves = fwork->curves; break;
+        }
+
+    }
 	
 	return;
 }
@@ -2335,16 +2416,20 @@ void factor(fact_obj_t *fobj)
 	{	
 		do_work(fact_state, &fwork, b, fobj);
 
-		if (check_if_done(fobj, origN) || 
-			(quit_after_sieve_method && 
-			((fact_state == state_qs) ||
-			(fact_state == state_nfs))) ||
-			((fact_state == state_nfs) &&
-			(fobj->flags == FACTOR_INTERRUPT)))
-			fact_state = state_done;
+        if (check_if_done(fobj, origN) ||
+            (quit_after_sieve_method &&
+            ((fact_state == state_qs) ||
+            (fact_state == state_nfs))) ||
+            ((fact_state == state_nfs) &&
+            (fobj->flags == FACTOR_INTERRUPT)))
+        {
+            fact_state = state_done;
+        }
 
-		if (fact_state != state_done)
-			fact_state = schedule_work(&fwork, b, fobj);		
+        if (fact_state != state_done)
+        {
+            fact_state = schedule_work(&fwork, b, fobj);
+        }
 	}
 
 	// optionally record output in one or more file formats

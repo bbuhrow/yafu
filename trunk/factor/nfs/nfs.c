@@ -263,12 +263,29 @@ void nfs(fact_obj_t *fobj)
 
 					if (better_by_gnfs && !(job.snfs == NULL))
 					{
-						if (VFLAG >= 0)
-							printf("nfs: input snfs form is better done by gnfs: difficulty = %1.2f, size = %d\n",
-							job.snfs->difficulty, est_gnfs_size(&job));
+                        if (VFLAG >= 0)
+                        {
+                            printf("nfs: input snfs form is better done by gnfs: "
+                                "difficulty = %1.2f, size = %d, actual size = %d\n",
+                                job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+                        }
 						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
-							": difficulty = %1.2f, size = %d\n",
-							job.snfs->difficulty, est_gnfs_size(&job));
+							": difficulty = %1.2f, size = %d, actual size = %d\n",
+                            job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+                        // clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
+                        snfs_clear(job.snfs);
+                        free(job.snfs);
+                        job.snfs = NULL;
+                        job.alambda = 0.0;
+                        job.rlambda = 0.0;
+                        job.lpba = 0;
+                        job.lpbr = 0;
+                        job.mfba = 0;
+                        job.mfbr = 0;
+                        job.alim = 0;
+                        job.rlim = 0;
+                        fobj->nfs_obj.siever = 0;
 					}
 
 					// init job.poly for gnfs
@@ -282,6 +299,7 @@ void nfs(fact_obj_t *fobj)
 					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
 					// assume gnfs for now
 					job.poly->side = ALGEBRAIC_SPQ;
+                    job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
 				}
@@ -992,9 +1010,11 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 				"gnfs difficulty %d\n", d, i);
 		d = i;
 	}
-	else if (fobj->nfs_obj.snfs)
-		printf( "nfs: user passed snfs switch, but the job file does not specify snfs\n"
-			"nfs: will continue as gnfs\n");
+    else if (fobj->nfs_obj.snfs)
+    {
+        printf("nfs: user passed snfs switch, but the job file does not specify snfs\n"
+            "nfs: will continue as gnfs\n");
+    }
 
 	if (job->poly == NULL)
 	{ // always be sure we can choose which side to sieve
@@ -1018,15 +1038,24 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 			job->poly->side = ALGEBRAIC_SPQ;
 		}
 	}
-	else if (job->snfs != NULL && job->poly != job->snfs->poly)
+	else if ((job->snfs != NULL) && (job->poly != job->snfs->poly))
 	{ // *shrug* it could happen I suppose
 		mpz_polys_free(job->poly);
 		free(job->poly);
 		job->poly = job->snfs->poly;
 	}
 
-	if (fobj->nfs_obj.sq_side != 0) // user override
-		job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
+    if (fobj->nfs_obj.sq_side != 0)
+    {
+        // user override
+        job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
+    }
+
+    if (VFLAG > 0)
+    {
+        printf("nfs: creating ggnfs job parameters for input of size %u\n", d);
+        fflush(stdout);
+    }
 
 	for (i=0; i<GGNFS_TABLE_ROWS - 1; i++)
 	{

@@ -17,8 +17,9 @@ typedef struct {
 } poly_deadline_t;
 
 static const poly_deadline_t time_limits[] = {
-	{264, 4 * 60},
-	{304, 8 * 60},
+    {248, 1 * 60},
+    {264, 2 * 60},
+	{304, 6 * 60},
 	{320, 15 * 60},
 	{348, 30 * 60},
 	{365, 1 * 3600},

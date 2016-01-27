@@ -32,6 +32,279 @@ double muldiv_acc(int m, int sz);
 double sqrt_acc(int m, int sz);
 double gcd_acc(int m, int sz);
 void richard_guy_problem_e7(void);
+int SQUFOF_alpertron(int64 N, int64 queue[]);
+int squfof_rds(int64 n, int *fac1, int *fac2);
+void enqu(int q, int *iter);
+
+
+int qqueue[100];
+int qpoint;
+
+void enqu(int q, int *iter)
+{
+    qqueue[qpoint] = q;
+    if (++qpoint > 100) *iter = -1;
+}
+
+
+int squfof_rds(int64 n, int *fac1, int *fac2)
+{   /* start of squfof: factor n as fac1*fac2  faster in FP?????*/
+    int64 temp, temp1;
+    register int iq, ll, l2, p, pnext, q, qlast, r, s, t, i;
+    int jter, iter;
+
+    qlast = 1;
+    s = (int)sqrt(n);
+
+    p = s;
+    temp1 = s * s;
+    temp = n - temp1;                 /* temp = n - floor(sqrt(n))^2   */
+    if (temp == 0)
+    {                                   /* Here n is a square            */
+        *fac1 = s;
+        *fac2 = s;
+        return(1);
+    }
+
+    q = (int)temp;              /* q = excess of n over next smaller square */
+    ll = 1 + 2 * (int)sqrt((double)(p + p));
+    l2 = ll / 2;
+    qpoint = 0;
+
+    /*   In the loop below, we need to check if q is a square right before   */
+    /*  the end of the loop.  Is there a faster way? The current way is      */
+    /*   EXPENSIVE! (many branches and double prec sqrt)                     */
+
+    for (jter = 0; jter < 800000; jter++)      /* I see no way to speed this   */
+    {                                     /*  main loop                   */
+        iq = (s + p) / q;
+        pnext = iq*q - p;
+        if (q <= ll)
+        {
+            if ((q & 1) == 0) enqu(q / 2, &jter);
+            else if (q <= l2) enqu(q, &jter);
+            if (jter < 0)
+            {
+                return 0;
+            }
+        }
+        t = qlast + iq*(p - pnext);
+        qlast = q;
+        q = t;
+        p = pnext;                          /* check for square; even iter   */
+        if (jter & 1) continue;             /* jter is odd:omit square test  */
+        r = (int)sqrt((double)q);                 /* r = floor(sqrt(q))      */
+        if (q != r*r) continue;
+        if (qpoint == 0) goto gotit;
+        for (i = 0; i<qpoint - 1; i += 2)      /* treat queue as list for simplicity*/
+        {
+            if (r == qqueue[i]) goto contin;
+            if (r == qqueue[i + 1]) goto contin;
+        }
+        if (r == qqueue[qpoint - 1]) continue;
+        goto gotit;
+    contin:;
+    }   /* end of main loop */
+
+gotit:;
+    qlast = r;
+    p = p + r*((s - p) / r);
+    temp = (int64)p * (int64)p;
+    temp = n - temp;
+    temp1 = temp / qlast;
+    q = (int)temp1;					/* q = (n - p*p)/qlast (div is exact)*/
+    for (iter = 0; iter<40000; iter++)
+    {                              /* begin second main loop            */
+        iq = (s + p) / q;                /* unroll it, of course              */
+        pnext = iq*q - p;
+        if (p == pnext) goto gotfac;
+        t = qlast + iq*(p - pnext);
+        qlast = q;
+        q = t;
+        p = pnext;
+        iq = (s + p) / q;
+        pnext = iq*q - p;
+        if (p == pnext) goto gotfac;
+        t = qlast + iq*(p - pnext);
+        qlast = q;
+        q = t;
+        p = pnext;
+        iq = (s + p) / q;
+        pnext = iq*q - p;
+        if (p == pnext) goto gotfac;
+        t = qlast + iq*(p - pnext);
+        qlast = q;
+        q = t;
+        p = pnext;
+        iq = (s + p) / q;
+        pnext = iq*q - p;
+        if (p == pnext) goto gotfac;
+        t = qlast + iq*(p - pnext);
+        qlast = q;
+        q = t;
+        p = pnext;
+    }
+
+
+    return(0);                               /* this shouldn't happen      */
+
+gotfac:; if ((q & 1) == 0) q /= 2;      /* q was factor or 2*factor   */
+    *fac1 = q;
+    temp = n / q;
+    *fac2 = (int)temp;
+    return(1);
+}
+
+
+/*Implementation of algorithm explained in Gower and Wagstaff paper */
+int SQUFOF_alpertron(int64 N, int64 queue[])
+{
+    double sqrtn;
+    int B, Q, Q1, P, P1, L, S;
+    int i, r, s, t, q, u;
+    int queueHead, queueTail, queueIndex;
+
+    /* Step 1: Initialize */
+    if ((N & 3) == 1)
+    {
+        N <<= 1;
+    }
+    sqrtn = sqrt(N);
+    S = (int)sqrtn;
+    if ((long)(S + 1)*(long)(S + 1) <= N)
+    {
+        S++;
+    }
+    if ((long)S*(long)S > N)
+    {
+        S--;
+    }
+    if ((long)S*(long)S == N)
+    {
+        return S;
+    }
+    Q1 = 1;
+    P = S;
+    Q = (int)N - P*P;
+    L = (int)(2 * sqrt(2 * sqrtn));
+    B = L << 1;
+    queueHead = 0;
+    queueTail = 0;
+
+    /* Step 2: Cycle forward to find a proper square form */
+    for (i = 0; i <= B; i++)
+    {
+        q = (S + P) / Q;
+        P1 = q*Q - P;
+        if (Q <= L)
+        {
+            if ((Q & 1) == 0)
+            {
+                queue[queueHead++] = Q >> 1;
+                queue[queueHead++] = P % (Q >> 1);
+                if (queueHead == 100)
+                {
+                    queueHead = 0;
+                }
+            }
+            else if (Q + Q <= L)
+            {
+                queue[queueHead++] = Q;
+                queue[queueHead++] = P % Q;
+                if (queueHead == 100)
+                {
+                    queueHead = 0;
+                }
+            }
+        }
+
+        t = Q1 + q*(P - P1);
+        Q1 = Q;
+        Q = t;
+        P = P1;
+        if ((i & 1) == 0 && ((Q & 7) < 2 || (Q & 7) == 4))
+        {
+            r = (int)sqrt(Q);
+            if (r*r == Q)
+            {
+                queueIndex = queueTail;
+                for (;;)
+                {
+                    if (queueIndex == queueHead)
+                    {
+                        /* Step 3: Compute inverse square root of the square form */
+                        Q1 = r;
+                        u = (S - P) % r;
+                        u += (u >> 31) & r;
+                        P = S - u;
+                        Q = (int)((N - (long)P*(long)P) / Q1);
+                        /* Step 4: Cycle in the reverse direction to find a factor of N */
+                        for (;;)
+                        {
+                            q = (S + P) / Q;
+                            P1 = q*Q - P;
+                            if (P == P1)
+                            {
+                                break;
+                            }
+                            t = Q1 + q*(P - P1);
+                            Q1 = Q;
+                            Q = t;
+                            P = P1;
+                        }
+
+                        /* Step 5: Get the factor of N */
+                        if ((Q & 1) == 0)
+                        {
+                            return Q >> 1;
+                        }
+                        return Q;
+                    }
+                    s = queue[queueIndex++];
+                    t = queue[queueIndex++];
+                    if (queueIndex == 100)
+                    {
+                        queueIndex = 0;
+                    }
+                    if ((P - t) % s == 0)
+                    {
+                        break;
+                    }
+                }
+                if (r > 1)
+                {
+                    queueTail = queueIndex;
+                }
+                if (r == 1)
+                {
+                    queueIndex = queueTail;
+                    for (;;)
+                    {
+                        if (queueIndex == queueHead)
+                        {
+                            break;
+                        }
+                        if (queue[queueIndex] == 1)
+                        {
+                            return 0;
+                        }
+                        queueIndex += 2;
+                        if (queueIndex == 100)
+                        {
+                            queueIndex = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+
+
+
+
 
 void test_dlp_composites()
 {
@@ -45,8 +318,11 @@ void test_dlp_composites()
 	z tmp,tmp2,t1,t2,t3;
 	mpz_t gmptmp;
 	//uint64 f64;
-	//int64 queue[100];
+	int64 queue[100];
 	//fact_obj_t *fobj;
+    TIME_DIFF *	difference;
+    struct timeval gstart;	
+    struct timeval gstop;
 
 	mpz_init(gmptmp);
 	comp = (uint64 *)malloc(2000000 * sizeof(uint64));
@@ -86,115 +362,161 @@ void test_dlp_composites()
 	printf("data read in %2.4f sec\n",t_time);
 	printf("average bits of input numbers = %.2f\n",(double)totBits/(double)i);
 	printf("minimum bits of input numbers = %d\n",minBits);
-	printf("maximum bits of input numbers = %d\n",maxBits);
+    printf("maximum bits of input numbers = %d\n", maxBits);
 
 
-	start = clock();
-
-	correct = 0;
-	for (i=0;i<num;i++)
-	{
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-
-		//sp642z(comp[i],&tmp);
-		mpz_set_64(gmptmp, comp[i]);
-		f64 = sp_shanks_loop(gmptmp, NULL);
-
-		if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-			correct++;
-	}
-
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
-
-	/*
-	start = clock();
-
-	correct = 0;
-	for (i=0;i<num;i++)
-	{
-		
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-		sp642z(comp[i],&tmp);
-		//smallmpqs(&tmp,&tmp2,&t2,&t3);
-		//f64 = tmp2.val[0];
-
-		//f64 = sp_shanks_loop(&tmp);
-		f64 = (uint64)squfof_jp(&tmp);
-
-		if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-			correct++;
-	}
-
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
-
-	start = clock();
-
-	correct = 0;
-	for (i=0;i<num;i++)
-	{
-
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-		sp642z(comp[i],&tmp);
-		f64 = (uint64)SQUFOF_alpertron((int64)z264(&tmp),queue);
-
-		if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-			correct++;
-	}
-
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
-
-	start = clock();
-
-	correct = 0;
-	for (i=0;i<num;i++)
-	{
-		int fact1, fact2;
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-		sp642z(comp[i],&tmp);
-		////sp642z(2128691,&tmp);
-		squfof_rds((int64)z264(&tmp),&fact1, &fact2);
-		//printf("%" PRIu64 " = %u * %u\n",z264(&tmp), fact1, fact2);
 
 
-		if ( ((uint32)fact1 == f1[i]) || ((uint32)fact1 == f2[i]))
-			correct++;
-	}
+    /*
+    start = clock();
 
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);	
+    correct = 0;
+    for (i=0;i<num;i++)
+    {
 
-	*/
+    if (i%1000 == 0)
+    {
+    printf("done with %d, %d correct, after %2.2f sec\n",i,
+    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+    }
+    sp642z(comp[i],&tmp);
+    f64 = (uint64)squfof_jp(&tmp);
+
+    if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+    correct++;
+    }
+
+    stop = clock();
+    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+
+
+    start = clock();
+
+    correct = 0;
+    for (i=0;i<num;i++)
+    {
+
+    if (i%1000 == 0)
+    {
+    printf("done with %d, %d correct, after %2.2f sec\n",i,
+    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+    }
+    sp642z(comp[i],&tmp);
+    f64 = (uint64)SQUFOF_alpertron((int64)z264(&tmp),queue);
+
+    if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+    correct++;
+    }
+
+    stop = clock();
+    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+
+    start = clock();
+
+    correct = 0;
+    for (i=0;i<num;i++)
+    {
+    int fact1, fact2;
+    if (i%1000 == 0)
+    {
+    printf("done with %d, %d correct, after %2.2f sec\n",i,
+    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+    }
+    sp642z(comp[i],&tmp);
+    squfof_rds((int64)z264(&tmp),&fact1, &fact2);
+
+    if ( ((uint32)fact1 == f1[i]) || ((uint32)fact1 == f2[i]))
+    correct++;
+    }
+
+    stop = clock();
+    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+    
+
+    {
+        fact_obj_t *fobj2;
+
+        fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+        init_factobj(fobj2);
+
+        start = clock();
+
+        correct = 0;
+        for (i = 0; i < num; i++)
+        {
+            if (i % 1000 == 0)
+            {
+                printf("done with %d, %d correct, after %2.2f sec\n", i,
+                    correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
+            }
+
+            mpz_set_64(fobj2->qs_obj.gmp_n, comp[i]);
+            fobj2->qs_obj.flags = 12345;
+            smallmpqs(fobj2);
+
+            if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
+            {
+                correct++;
+            }
+
+            clear_factor_list(fobj2);
+
+        }
+
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+    }
+
+    */
+
+
+    gettimeofday(&gstart, NULL);
+
+    for (j = 0; j < 1; j++)
+    {
+        correct = 0;
+        for (i = 0; i < num; i++)
+        {
+            if (i % 1000 == 0)
+            {
+                printf("done with %d, %d correct, after %2.2f sec\n", i,
+                    correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
+            }
+
+            //sp642z(comp[i],&tmp);
+            mpz_set_64(gmptmp, comp[i]);
+            f64 = sp_shanks_loop(gmptmp, NULL);
+
+            if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+                correct++;
+        }
+    }
+
+    gettimeofday(&gstop, NULL);
+    difference = my_difftime(&gstart, &gstop);
+
+    t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+    free(difference);
+
+    printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+    printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+    printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+
 
 	/*
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));

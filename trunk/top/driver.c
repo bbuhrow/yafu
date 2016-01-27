@@ -43,7 +43,7 @@ following if linking against 2345+ (all 6.* versions are the old way) */
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 71
+#define NUMOPTIONS 72
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -63,7 +63,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
-	"ecmtime"};
+	"ecmtime", "no_clk_test"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -84,7 +84,7 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,1,1,
 	1,1,1,1,1,
 	1,0,0,1,1,
-	1};
+	1,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -132,10 +132,7 @@ int main(int argc, char *argv[])
 	// this is not used.  the factor object must be initialized prior to parsing
 	// input options in order to make those options stick.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj);
-
-	//get the computer name, cache sizes, etc.  store in globals
-	get_computer_info(CPU_ID_STR);	
+	init_factobj(fobj);	
 
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
@@ -143,6 +140,9 @@ int main(int argc, char *argv[])
 
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
+
+    //get the computer name, cache sizes, etc.  store in globals
+    get_computer_info(CPU_ID_STR);
 	
 	// now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
@@ -212,9 +212,8 @@ int main(int argc, char *argv[])
 #if BITS_PER_DIGIT == 64
 	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
 #else
-	LCGSTATE = g_rand.low;
+    LCGSTATE = g_rand.low;
 #endif	
-
 
 	// command line
 	while (1)
@@ -650,6 +649,16 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 	// a pipe or redirect to work on.
 	// sort it out.
 
+    // but it is more complicated, and broken, if running in a MSYS2 fake console:
+    // from https://github.com/nodejs/node/issues/3006
+    // When running node in a fake console, it's useful to imagine that you're running it with input and output 
+    // redirected to files(e.g.node foobar.js <infile.txt >outfile.txt).That's basically what node thinks is 
+    // going on (a pipe and a file look more-or-less the same to node). Things that would work with file redirections 
+    // will work in the fake console.
+    //
+    // not sure how to sort it out in the case of msys2.  recommended running in normal
+    // windows cmd terminal once it is built.
+
 	if (strlen(input_exp) != 0)
 	{
 		// process_flags found an expression to execute.  check for
@@ -660,8 +669,8 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 
 		// detect if stdin is a pipe
 		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
-#if defined(WIN32)	
-		if(_isatty(_fileno(stdin)) == 0)
+#if defined(WIN32) 
+        if(_isatty(_fileno(stdin)) == 0)
 		{
 			fseek(stdin,-1,SEEK_END);
 			if (ftell(stdin) >= 0)
@@ -677,7 +686,7 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 			// batchfile mode with the batchfile = stdin.
 			is_cmdline_run = 2;
 		}
-#if defined(WIN32)	//not complete, but ok for now
+#if defined(WIN32)		//not complete, but ok for now
 		}
 #endif
 		else
@@ -701,7 +710,7 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 		// up in interactive mode
 		// detect if stdin is a pipe
 		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
-#if defined(WIN32)	
+#if defined(WIN32)	//&& !defined(__MINGW32__)
 		if(_isatty(_fileno(stdin)) == 0)
 		{
 			fseek(stdin,-1,SEEK_END);
@@ -719,8 +728,13 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 			is_cmdline_run = 2;
 			strcpy(input_exp, "factor(@)");
 		}
-#if defined(WIN32)	//not complete, but ok for now
-		}
+#if defined(WIN32) 	//not complete, but ok for now
+        else
+        {
+            is_cmdline_run = 0;
+        }
+        
+        }
 #endif
 		else
 			is_cmdline_run = 0;
@@ -819,7 +833,10 @@ void get_computer_info(char *idstr)
 	//figure out cpu freq in order to scale qs time estimations
 	//0.1 seconds won't be very accurate, but hopefully close
 	//enough for the rough scaling we'll be doing anyway.
-    MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
+    if (NO_CLK_TEST == 0)
+        MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
+    else
+        MEAS_CPU_FREQUENCY = 42;
 	
 #ifdef __APPLE__
 	// something in extended cpuid causes a segfault on mac builds.
@@ -886,6 +903,7 @@ void set_default_globals(void)
 	PRIMES_TO_FILE = 0;
 	PRIMES_TO_SCREEN = 0;
 	GLOBAL_OFFSET = 0;
+    NO_CLK_TEST = 0;
 	
 	USEBATCHFILE = 0;
 	USERSEED = 0;
@@ -2006,6 +2024,16 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument "repeat"
 		CMD_LINE_REPEAT = atoi(arg);
 	}
+    else if (strcmp(opt, OptionArray[70]) == 0)
+    {
+        //argument "ecmtime"
+        
+    }
+    else if (strcmp(opt, OptionArray[71]) == 0)			
+    {													
+        //argument "no_clk_test"
+        NO_CLK_TEST = 1;
+    }
 	else
 	{
 		printf("invalid option %s\n",opt);
