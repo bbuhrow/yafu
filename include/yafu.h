@@ -148,6 +148,7 @@ int USERSEED;
 int CMD_LINE_REPEAT;
 char batchfilename[1024];
 char sessionname[1024];
+int NO_CLK_TEST;
 
 // random numbers - used everywhere
 rand_t g_rand;

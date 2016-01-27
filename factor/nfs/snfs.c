@@ -1095,7 +1095,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		fclose(f);
 	}
 
-	if (poly->exp1 % 15 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	if ((poly->exp1 % 15 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1122,7 +1122,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		algebraic = 1;
 		halved = 1;
 	}
-	else if (poly->exp1 % 21 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	else if ((poly->exp1 % 21 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1151,57 +1151,177 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		algebraic = 1;
 		halved = 1;
 	}
-	else if (poly->exp1 % 6 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
-	{
-		polys = (snfs_t *)malloc(sizeof(snfs_t));
-		snfs_init(polys);
-		npoly = 1;
-		snfs_copy_poly(poly, polys);		// copy algebraic form
+    else if ((poly->exp1 % 3 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+    {
+        // todo:
+        // one case that looks to see if exponent is divisible by 3.
+        // then handle conversion to a quartic or sextic depending on input difficulty.
+        double d4;
+        double d6;
+        int degree;
 
-		// a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
-		// the quadratic can be converted into a quartic...
-		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
-		// todo: look into making degree 6 based on difficulty
-		polys->poly->alg.degree = 4;
-		fobj->nfs_obj.pref_degree = 4;
-		k = poly->exp1 / 6;
-		mpz_set_ui(polys->c[4], 1);
-		mpz_set_si(polys->c[2], -1);
-		mpz_set_ui(polys->c[0], 1);
-		mpz_set(m, poly->base1);
-		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
-		mpz_pow_ui(polys->poly->m, m, k);
-		polys->poly->skew = 1.;
+        mpz_set(m, poly->base1);
 
-		algebraic = 1;
-	}
-	else if (poly->exp1 % 6 == 3 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
-	{
-		polys = (snfs_t *)malloc(sizeof(snfs_t));
-		snfs_init(polys);
-		npoly = 1;
-		snfs_copy_poly(poly, polys);		// copy algebraic form
+        if (poly->exp1 % 6 == 0)
+        {
+            k = (poly->exp1 / 6);
+            d4 = log10(mpz_get_d(m)) * 4. * k;
+        }
+        else
+        {
+            k = (poly->exp1 - 3) / 6;
+            d4 = log10(mpz_get_d(m)) * (4. * k + 2);
+        }
 
-		// a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
-		// the quadratic can be converted into a quartic...
-		// see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
-		// todo: look into making degree 6 based on difficulty
-		polys->poly->alg.degree = 4;
-		fobj->nfs_obj.pref_degree = 4;
-		k = (poly->exp1 - 3) / 6;
-		mpz_set(polys->c[4], poly->base1);
-		mpz_mul(polys->c[4], polys->c[4], poly->base1);
-		mpz_set_si(polys->c[2], -poly->coeff2);
-		mpz_mul(polys->c[2], polys->c[2], poly->base1);
-		mpz_set_ui(polys->c[0], 1);
-		mpz_set(m, poly->base1);
-		polys->poly->skew = pow(mpz_get_d(m), -0.5);
-		polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
-		mpz_pow_ui(polys->poly->m, m, k);		
+        if (poly->exp1 % 9 == 0)
+        {
+            k = (poly->exp1 / 9);
+            d6 = log10(mpz_get_d(m)) * 6. * k;
+        }
+        else if (poly->exp1 % 9 == 3)
+        {
+            k = (poly->exp1 - 3) / 9;
+            d6 = log10(mpz_get_d(m)) * (6. * k + 2);
+        }
+        else
+        {
+            k = (poly->exp1 + 3) / 9;
+            d6 = log10(mpz_get_d(m)) * (6. * k);
+        }
 
-		algebraic = 1;
-	}
-	else if (poly->exp1 % 5 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+        poly->poly->rat.degree = 1;
+        if (d4 < 160)
+        {
+            poly->poly->alg.degree = 4;
+            fobj->nfs_obj.pref_degree = 4;
+            degree = 4;
+        }
+        else
+        {
+            poly->poly->alg.degree = 6;
+            fobj->nfs_obj.pref_degree = 6;
+            degree = 6;
+        }
+
+        printf("nfs: degree 4 difficulty = %1.2f, degree 6 difficulty = %1.2f\n", d4, d6);
+        printf("nfs: choosing degree %d\n", degree);
+
+
+        if ((poly->exp1 % 6 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 4))
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(3k) +/- 1, k even, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+            // the quadratic can be converted into a quartic...
+            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            // todo: look into making degree 6 based on difficulty
+            k = poly->exp1 / 6;
+            mpz_set_ui(polys->c[4], 1);
+            mpz_set_si(polys->c[2], -poly->coeff2);
+            mpz_set_ui(polys->c[0], 1);
+            mpz_set(m, poly->base1);
+            polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
+            mpz_pow_ui(polys->poly->m, m, k);
+            polys->poly->skew = 1.;
+        }
+        else if ((poly->exp1 % 6 == 3) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 4))
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+            // the quadratic can be converted into a quartic...
+            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            // todo: look into making degree 6 based on difficulty
+            k = (poly->exp1 - 3) / 6;
+            mpz_mul(polys->c[4], poly->base1, poly->base1);
+            mpz_set_si(polys->c[2], -poly->coeff2);
+            mpz_mul(polys->c[2], polys->c[2], poly->base1);
+            mpz_mul(polys->c[2], polys->c[2], poly->base2);
+            mpz_mul(polys->c[0], poly->base2, poly->base2);
+
+            mpz_set(m, poly->base1);
+            polys->poly->skew = pow(mpz_get_d(poly->base1) / mpz_get_d(poly->base2), -0.5);
+            polys->difficulty = log10(mpz_get_d(m)) * (4. * k + 2);
+            mpz_pow_ui(polys->poly->m, m, k);
+        }
+        else if ((poly->exp1 % 9 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 6))
+        {            
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+            // the quadratic can be converted into a sextic...
+            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection            
+            k = (poly->exp1 / 9);
+
+            mpz_set_ui(polys->c[6], 1);
+            mpz_set_si(polys->c[3], -poly->coeff2);
+            mpz_set_ui(polys->c[0], 1);
+
+            polys->poly->skew = 1.;
+            polys->difficulty = log10(mpz_get_d(m)) * 6. * k;
+            mpz_pow_ui(polys->poly->m, m, k);
+
+        }
+        else if ((poly->exp1 % 9 == 3) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 6))
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+            // the quadratic can be converted into a sextic...
+            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            k = (poly->exp1 - 3) / 9;
+
+            mpz_set(polys->c[6], poly->base1);
+            mpz_mul(polys->c[6], polys->c[6], poly->base1);
+            mpz_set_si(polys->c[3], -poly->coeff2);
+            mpz_mul(polys->c[3], polys->c[3], poly->base1);
+            mpz_mul(polys->c[3], polys->c[3], poly->base2);
+            mpz_set_ui(polys->c[0], 1);
+
+            polys->poly->skew = pow(mpz_get_d(poly->base1) / mpz_get_d(poly->base2), -1. / 3.);
+            polys->difficulty = log10(mpz_get_d(m)) * (6. * k + 2);
+            mpz_pow_ui(polys->poly->m, m, k);
+        }
+        else if ((poly->exp1 % 9 == 6) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && (degree == 6))
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
+            // the quadratic can be converted into a sextic...
+            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            k = (poly->exp1 + 3) / 9;
+
+            mpz_mul(polys->c[6], poly->base2, poly->base2);
+            mpz_set_si(polys->c[3], -poly->coeff2);
+            mpz_mul(polys->c[3], polys->c[3], poly->base1);
+            mpz_mul(polys->c[3], polys->c[3], poly->base2);
+            mpz_mul(polys->c[0], poly->base1, poly->base1);
+
+            //polys->poly->skew = pow(mpz_get_d(poly->base1) / mpz_get_d(poly->base2), 1./3.);
+            polys->poly->skew = pow(mpz_get_d(poly->base1), 1. / 3.);
+            polys->difficulty = log10(mpz_get_d(m)) * (6. * k);
+            mpz_pow_ui(polys->poly->m, m, k);
+        }
+
+        algebraic = 1;
+
+    }
+	else if ((poly->exp1 % 5 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1224,7 +1344,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		algebraic = 1;
 	}
-	else if (poly->exp1 % 7 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	else if ((poly->exp1 % 7 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1249,7 +1369,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		algebraic = 1;
 	}
-	else if (poly->exp1 % 11 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	else if ((poly->exp1 % 11 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
@@ -1276,7 +1396,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 		algebraic = 1;
 		halved = 1;
 	}
-	else if (poly->exp1 % 13 == 0 && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	else if ((poly->exp1 % 13 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);
