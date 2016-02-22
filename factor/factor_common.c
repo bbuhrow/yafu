@@ -915,27 +915,51 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	switch (method)
 	{
 	case state_trialdiv:
-		// do all of the tdiv work requested
-		if (VFLAG >= 0)
-			printf("div: primes less than %d\n", fwork->tdiv_max_limit);
-		fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
-		mpz_set(fobj->div_obj.gmp_n, b);
-		fobj->div_obj.print = 1;
-		fobj->div_obj.limit = fwork->tdiv_max_limit;
-		zTrial(fobj);
-		mpz_set(b, fobj->div_obj.gmp_n);
 
-		// record the work done
-		fwork->tdiv_limit = fwork->tdiv_max_limit;
-		
-		// measure time for this completed work
-		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        // first do a perfect power check
+        if (mpz_perfect_power_p(b))
+        {
+            FILE *flog;
 
-		fwork->trialdiv_time = t_time;
-		fwork->total_time += t_time;
+            if (VFLAG > 0)
+            {
+                printf("fac: input is a perfect power\n");
+            }
+
+            flog = fopen(fobj->flogname, "a");
+            if (flog != NULL)
+            {
+                logprint(flog, "input is a perfect power\n");
+                fclose(flog);
+            }
+
+            factor_perfect_power(fobj, b);
+
+            mpz_set(fobj->N, b);
+            break;
+        }
+
+        // then do all of the tdiv work requested
+        if (VFLAG >= 0)
+            printf("div: primes less than %d\n", fwork->tdiv_max_limit);
+        fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
+        mpz_set(fobj->div_obj.gmp_n, b);
+        fobj->div_obj.print = 1;
+        fobj->div_obj.limit = fwork->tdiv_max_limit;
+        zTrial(fobj);
+        mpz_set(b, fobj->div_obj.gmp_n);
+
+        // record the work done
+        fwork->tdiv_limit = fwork->tdiv_max_limit;
+
+        // measure time for this completed work
+        gettimeofday(&tstop, NULL);
+        difference = my_difftime(&tstart, &tstop);
+        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+        free(difference);
+
+        fwork->trialdiv_time = t_time;
+        fwork->total_time += t_time;
 
 		break;
 
@@ -2287,40 +2311,7 @@ void factor(fact_obj_t *fobj)
 			printf("fac: input indicated to have been pretested to t%1.2f\n",
 				fobj->autofact_obj.initial_work);
 
-		//printf("\n");
-	}
-
-	if (mpz_perfect_power_p(b))
-	{
-		if (VFLAG > 0)
-			printf("fac: input is a perfect power\n");
-
-		factor_perfect_power(fobj, b);
-
-		flog = fopen(fobj->flogname,"a");
-		if (flog != NULL)
-		{
-			uint32 j;
-			logprint(flog,"input is a perfect power\n");
-			
-			for (j=0; j<fobj->num_factors; j++)
-			{
-				uint32 k;
-				for (k=0; k<fobj->fobj_factors[j].count; k++)
-				{
-					logprint(flog,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
-						mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
-				}
-			}
-			fclose(flog);
-		}
-
-		mpz_set(fobj->N, b);
-		mpz_clear(copyN);
-		mpz_clear(origN);
-		mpz_clear(b);
-		return;
-	}
+	}	
 
 	init_factor_work(&fwork, fobj);
 
