@@ -1,0 +1,991 @@
+v 1.35
++ fix nextprime() bug for large inputs (nextprime is now faster as well)
++ fixed malloc header for MAC builds
++ fixed bug impacting factorization of very large numbers (no longer use mpz_import)
++ change format of ggnfs command line string to comply with recent builds of the sievers
++ fixed a bug that appeared for some small inputs in a narrow input size range, using the
+	sse2 code branch (thanks to Dana Jacobsen and EdH)
++ rearranged some of the initialization steps in smallmpqs
++ factor() will skip trivial amounts of ecm (i.e., on small inputs)
++ when using factor(), if number is large enough, snfsability is checked before starting ecm:
+	* ecm pretesting is reduced accordingly if input is snfsable
++ better SNFS form detection:
+	* will detect input *cofactors* of forms of type b^n +/- c, for c < 2^30
+	* will detect homogeneous cunningham forms, a^n +/- b^n, up to a,b <= 51
+	* will detect xyyxf forms, x^y + y^x, for 1 < x < y < 201
+	* will detect a^n +/- 1 for arbitrary a, e.g., 903716551382580990289363207931^7-1, 
+		or 12332642633^17-1
+  * will detect algebraic factors of all a^n +/- b^n where n is divisible by 3
++ command line less picky about argument ordering... expression can either be first, or be 
+	anywhere else, preceeded by -e, e.g., ./yafu -v -threads 2 -e "factor(rsa(256))"
++ will now default to factor() applied to the input, if no other function is given, 
+	e.g., ./yafu 12345 will commence to factor 12345.  this only applys to command line 
+	expressions
++ add new command expr(), to evaulate numerical expressions from the command line
++ in NFS, relations can be added to a running job using a "rels.add" file in the 
+	working directory
++ more robust handling of input redirects/pipes with or without command line arguments
++ new option "repeat" to execute an input expression more than once
++ several new functions (comparison operations, ==, >=, <=, >, <)
++ gnfs poly selection default minimum leading coefficient is now 8192
++ updated to wraithX's latest aprcl code (version 1.1)
++ use GMP's primorial
++ more work on AVX2 and MIC builds (not functional)
++ linking against Msieve SVN 991
+
+
+
+todo:
+* http://www.mersenneforum.org/showpost.php?p=357022&postcount=178
+* make the SoE a library, and use the library interface whenever it is needed
+	in the rest of the codebase
+* more work on snfs:  better ranking?, trial sieving
+* trial sieving gnfs polynomials
+* AVX2 code for siqs
+* triple large prime siqs
+* build without openmp in gmp-ecm (to prevent users from needing to download a .dll on windows)
+* ecm timeout argument
+* change all if (VFLAG ...) printf() stuff to logprint with stdio file?  Then we can handle
+	all of the VFLAG stuff in one place.  logprint will then need a verbosity input.
+* more robust restart behavior: http://www.mersenneforum.org/showpost.php?p=288438&postcount=29
+* smarter sieving behavior when specifying special-q range and multiple threads:
+	http://www.mersenneforum.org/showpost.php?p=359334&postcount=185
+
+  
+
+v 1.34.5
++ (non-source) re-link x64 binary with ecm-6.3
++ allow brent special forms to be detected during factor() runs when the input is 
+	partially factored
+
+v 1.34.4
++ chose gnfs over snfs if appropriate during nfs poly selection
++ new parameter -gnfs to force use of gnfs over snfs
++ 64 bit asm base-2 fermat prp test for use in siqs DLP
+
+v 1.34.3
++ add some documentation to the med_sieve_32k_sse4.1.c
++ move compiler definitions specific to smallmpqs.c into that file where they can be seen
++ (non-source) re-link all binaries with new gmp and gmp-ecm versions
+
+v 1.34.2
++ fixed bug with cunningham/hcunningham algebraic reduction poly generation
+
+
+v 1.34.1
++ fix bug with new sse2 code that caused crashes for smaller inputs due to
+	buffer overruns
++ add sse2/4.1 core info to logfile in siqs
+
+
+v 1.34
++ many thanks to contributions by Dubslow, WraithX, Brian Gladman, and jcrombie!
++ many thanks to beta testers and bug reporters!
+	(swellman, Dubslow, Will Fay, stargate38, Mathew, and probably others)
++ new sse2 code: faster small prime sieving in siqs 
++ new sse4.1 code: even faster small prime sieving in siqs
++ new sse4.1 code: faster large prime bucket sieving in siqs
++ makefile additions to include sse4.1 code in the fat binary on compatible hardware
++ runtime flag to utilize sse4.1 code on compatible hardware
++ enabled multipliers for fermat factorization
++ fixed bug in qs filtering
++ fixed a bug in .job file filling - handle no line break on last line
++ fixed "too many refactorizations" bug
++ added a function to factor all single precision integers within a specified range
++ frontend calculator now uses GMP
++ Updated "gnfs.h" to use GMP
++ automatic processing of several SNFS forms:
+	N = a*b^n +/- c, for b < 100, c < 2^30, N < 1024 bits
+	N = b^n +/- 1, for b > 100, N < 1024 bits
+	N = a^n +/- b^n, for gcd(a,b) = 1, a,b <= 12, N < 1024 bits
+	N = x^y + y^x, for 1 < x < y < 151, N < 1024 bits
++ docfile updated
++ updated to use/link latest msieve SVN (currently 823)
++ automatic primality proving using APR-CL up to 6021 digits
+	+ option to print status above a specified bound
+	+ option to not do proving above a specified bound
++ linked pthreads into visual studio builds
++ fixed infinite loop when user forgets to remove a .dat with factor()
+	(looping on "refusing to resume with -R")
++ fixed infinite loop with -nc when filtering doesn't produce a matrix
++ new method to avoid excessive filtering attempts yet keep the q_batch size small:
+	bump the min_rels bound by a percentage (default 5%) if filtering is
+	unsuccessful.  the percentage can be set using the new parameter -filt_bump <num>
++ implemented a workaround to the "only trivial dependencies found" error in LA
++ added -nc1 option to specify msieve filtering phase for nfs jobs
++ re-enabled handling m: line translation to msieve .fb files
++ added workaround to "matrix probably cannot build" exit within msieve
+	+ note, only available in the pre-built binaries... requires a patch to msieve
+
+
+v 1.33
++ made "found poly" messages much less verbose
++ using /r instead of printing backspaces now in ecm.c and SIQS.c
++ ggnfs jobs launched by yafu will now print out individual .last_spq files 
+	per thread, although they are still not used for anything
++ get rid of blk_rel_count experiment code in siqs
++ add the beginnings of CUDA squfof support - although it is far from working 
+	and probably not even beneficial at this point.  currently protected by 
+	HAVE_CUDA definition
++ more work on tinySIQS, but still not fully operational.
++ added more fclose's (thanks jcrombie!)
++ fixed bugs that caused crashes when inputs numbers approached or exceeded
+	1024 characters in batchfiles.
++ updates to text output of factor() to prevent window scrolling
+	(thanks WraithX)
++ (re)support builds without NFS=1
++ got rid of cat.exe warning messages in windows that don't have unxutils
+	(thanks WraithX)
++ slight cleanup of nfs state machine
++ improved min_rels calculation 
++ added ability to parse user supplied job files and supply missing parameters
+	(thanks Dubslow!)
++ added additional support for user supplied snfs job files (allow input
+	difficult, scale job parameters accordingly)
++ (re)support x86 builds on linux (thanks EdH!)
++ support for multiple nfs options simultaneously
++ allow comment lines in batch files (// or %)
++ new option to specify the B1 level beyond which ecm will attempt to use 
+	external binaries: "ext_ecm"
++ more digits when quoting user supplied pretest ratios
++ notify user of any pretest limits in place
++ cleanup of nfs state machine
+
+
+
+v 1.32.1
++ added fclose's and fixed gethostname alloc problem
+	(thanks jcrombie and chalsall)
++ removed the "found time record" messages from poly select
++ remove the printing of rels during .dat parsing (available with
+	verbose mode -v -v)
++ changed siqs cutoff back to 115 bits
+
+
+v 1.32
++ fixed restart-with-factor bug by logging factors removed during
+	restart with add_to_factor_list (thanks 10_metreh)
++ fiddled with q-range table again, and changed multi-threaded nfs sieving
+	so that q-ranges are split over the threads, instead of each
+	thread getting its own range.  
++ split blocksize dependent code in siqs into separate functions; runtime
+	decisions are made based on cpu architecture as to which function to use.
+	This eliminates the need for separate 32k/64k executables.
++ much improved fermat factorization routine: 50x+ faster and accepts
+	user supplied multipliers (thanks neonsignal!)
++ watch for ggnfs siever crash error code (thanks WraithX)
++ added ETA estimate to ecm for larger B1 values
++ added ETA estimate to the filtering stage of NFS, while sieving
++ cosmetic changes to factor() messages
++ resume nfs in factor() if input matches .job file
++ -ns bug fix and small changes to nfs state machine
+
+
+v 1.31.1
+ 
++ fixed issues with resuming sieve based methods
++ fixed issue with min_rels
++ lowered q-range for all sieve jobs because min_rels is now (hopefully)
+	more accurate
+
+
+v 1.31
++ bugfixes (thanks volmike, kar_bon, StarGate38, jwes, and Brian Gladman for
+	reports and fixes)
++ 8x sse2 asm division 
++ 8x small prime poly updating
++ removed obsolete pre-processor directives and code (e.g. USE_COMPRESSED_FB)
++ replaced zNroot and zExp code with gmp equivalents
++ added wrapper for mpz_get_str that will reallocate the destination string to fit
+	the input
++ cleanup of tdiv_med.c: separate division and resieving stuff
++ change to factor(): remove pp1 while increasing pm1 bound by 1.5x
++ create a yafu.ini file if one doesn't exist in tune()
++ added a factor_perfect_power routine to factor(), nfs(), and siqs()
++ printing factors should now get the type correct (i.e., prime, prp, or composite)
++ more robust restarting
++ better min_rels estimation
++ added "nprp" command line option to specify the number of witnesses in 
+	PRP checks
+
+
+v 1.30
++ fixed counting of decimal digits for logging purposes
++ massive overhaul of factor(): pretesting to (customizable) digit level instead of 
+	timed ecm pretesting, more ecm pretesting levels, better usage of ecm levels, 
+	printing of computed t levels
++ removed -qs_ecm_ratio and -gnfs_ecm_ratio, added -pretest_ratio and -xover options -
+see docfile for more info
++ added some logging info of new factor() state machine
++ added -work option to make factor() aware of prior pretesting work (specified as a t-level)
++ handle aborts and errors within nfs the same as with other factoring routines 
+	(print_factors and exit), to avoid infinite loops in the new factor() state machine
++ a little bit more verbose when resuming nfs (with vflag > 0)
++ skip looking for last special-q if argument -ns is given
++ prevent "time=x" lines from being written to .job files
++ incorporated code contributed by Warren Smith implementing an optimized version of Lehman's 
+	factoring algorithm
++ changes to assembly routines for compiling on linux and mingw 32 bit systems
++ keep primes from being marked as prp in factor()
+
+
+v 1.29.2
++ fixed a bug in smallmpqs - not getting enough primes
++ fixed an oversight in fermat - didn't write factors to logfile
+
+
+v 1.29.1
++ comply with zlib savefile fields new to msieve
+
+
+v 1.29
++ default ggnfs_dir is now the top level yafu directory
++ now require GMP and GMP-ECM header and library availability to compile
+	(thanks Random_Poster)
++ conversion of a bunch more stuff to gmp
++ fixed bug so that win32 will switch to nfs when appropriate
++ nfs code reorganization - split into several new files
++ fixed oversight in smallmpqs to not assume that squfof will succeed, and to 
+	instead continue with qs if it does not
++ fixed bug - initialize logfile prior to starting smallmpqs if it is called 
+	directly from the command line (i.e. smallmpqs(#))
++ got rid of ecm fork code that only worked on linux, to help streamline 
+	gmp porting
++ linked in msieve codebase SVN 666
++ support for resuming nfs during poly selection and during linear algebra
++ removed Tom's fast math from the project
++ removed some obsolete code (mostly arith)
++ cleaned up compiler warnings
++ massive updates to sieve of eratosthenes code
++ bug fixes when running siqs on huge inputs
++ 2 new functions: sieverange and testrange.  see docfile for details
++ 4 new options: p, lathreads, nc2, and nc3.  see docfile for details
++ fixed a bug: a savefile flush added in 1.28.5 could severely effect speed
+	of smaller factorizations on some systems.
++ builds on mac osx now work (thanks Mathew Steine!)
++ isprime function calls now use gmp/mpir mpz_probab_prime_p (thanks Stargate38)
++ added NUM_WITNESSES to the list of globals that can be changed from
+	the yafu command prompt (thanks LaurV and axn)
+
+
+
+v 1.28.5
++ no longer print SKEW line to nfs.fb files
++ add issquare and ispow to function list
++ cleanup of siqs tdiv code: now requires SSE2
++ added perfect power checks to siqs and nfs
++ on NFS restart, check any rels found against min_rels instead of always
+	proceeding to filtering
++ support for large nfs jobs on windows (file size limitations removed)
++ fix for the "skipping blank line" infinite loop sometimes encountered during
+	-batchfile runs
++ fixed estimation when allocating memory in SoE wrapper - now gives better
+	estimates and saves memory
++ fixed bug introduced in 1.28.4 where rho() doesn't detect PRP factors correctly
+	(thanks wblipp!)
++ if gnfs-lasieve binaries are not detected prior to starting an nfs job that
+	requires sieving, siqs is started instead of aborting (and a warning
+	message is printed to the screen and logfile)
++ added a check for a valid siqs savefile and restart siqs inside of factor()
+
+
+v 1.28.4
++ fixed bug in primes() routine
++ smallmpqs now prints its factors to the logfile like it should
++ disabled 8x med prime trial division due to windows x64 bug
++ ported rho.c entirely to gmp
+	removed my homegrown monty code from the project
++ main now returns 0 instead of 1 (thanks yoyo!)
+
+v 1.28.3
++ robustified nfs data file parsing a bit
++ fixed a couple issues with yafu running in the interactive 
+	environment (thanks kar_bon!)
++ a couple more smallmpqs improvements
++ more ASM code in SIQS trial division - checking primes between 8 and 13 bits 
+	8 at a time using SSE2 (not enabled in 64k versions)
+
+v 1.28.2
++ fixed a bug in Win32 builds that crippled the speed of double large prime
+	siqs factorizations
++ running single threaded now imposes the B1 limit on using external ECM 
+	executables
++ implemented a bit scanning technique to enhance the sse2 sieve scanning already
+	present in smallmpqs and siqs.  significant speedup to smallmpqs, almost
+	unnoticable to siqs.
++ fixed a bug in Win32 builds: trial division in verbose mode used the wrong output
+	display type
+
+v 1.28.1
++ fixed a bug in multi-threaded external ecm
+
+v 1.28
++ fixed a bug in LEGCD that called spDivide when v == 1, causing a crash
++ tweaked poly_a generation to allow siqs to work on much smaller inputs 
++ modified siqs to use smallmpqs (instead of mpqs) below a threshold, and lowered 
+	the threshold to take advantage of new parameters for small siqs jobs.
++ fixed a bug in nextprime that caused some small primes to be identifed as not prime
++ smallmpqs called standalone now returns factors and residue
++ smallmpqs now uses gmp throughout (for a large speedup)
++ parameter adjustments to smallmpqs resulting in a small speedup
++ fixed a bug in the SoE to allocate memory better
++ double large prime cutoffs changed to uint64s, simplifying the code and providing
+	a small speedup for larger jobs
++ better polynomial root update and bucket sieving assembler code, providing a
+	small speedup
++ fixed a couple more bugs in prime counting and printing (thanks again to Alex
+	Balfour and his Calendar Magic beta testers!)
++ added some extra info to the -v printout at the end of DLP siqs factorizations
++ removed some obsolete code and cleaned up some compiler warnings
++ added an option to specify the ggnfs siever version to use for a NFS factorization
++ massive overhaul of the code
+	+ moved most globals into a factorization structure that gets passed around to 
+		all factorization routines.
+	+ creation of a pseudo-library for factorization methods and a clear(er) 
+		delineation between factorization stuff and top level stuff like
+		calc, driver, and the SoE
+	+ cleanup of directory structure, header relationships, files, etc.
++ slightly changed the pm1/pp1 bounds during auto factorization, to maintain a
+	1/5/10 ratio between the next stage of ecm and pp1/pm1
++ added multi-threaded ecm to windows (and linux) via support of external 
+	gmp-ecm binaries
+
+
+v 1.27
++ tweaks to siqs parameter selection for numbers > 80 digits - resulting in 
+	fairly significant improvements at 90+ digits (~10% on a c95, ~20% on a c100)
++ factor() now prints factors as they are found by the various methods, with -v
++ (local) modifications to msieve to return a non-zero error code when encountering
+	the "too few cycles, matrix probably cannnot build" condition.  This allows yafu
+	to continue sieving rather than aborting.
++ modified NFS poly selection to use more efficient thread pool architecture
+
+
+v 1.26.x
++ count digits using multiply-compare instead of division
++ str2hexz now works with 64 bit string/num conversions when appropriate
++ fixed nRoot (again)
++ fixed bug in poly select - best polynomial wasn't chosen
++ fixed cmd line parsing bug that was causing -np x,y to crash
++ fixed a bug in zShiftLeft_x.  wasn't initializing the size of the output correctly.
++ fixed a memory leak in smallmpqs
++ more robustness in trial division in mpqs/smallmpqs
+
+
+v 1.26
++ Makefile now properly includes NFS or not if specified
++ fixed the process of optimizing the small trial division cutoff that was impacted
+	by the new threading architecture.
++ simplified the process of checking small-prime-variation primes for inclusion
+	on a sieve progression in smallmpqs as well.  also fixed a bug.
++ reused division by multiplication by inverse trick when computing the roots of
+	polynomials.
++ made special functions for left/right shifting by 1 and generally made shifting
+	more efficient (and associated functions that use shifting).
++ added a special threading case when running single threaded - the new architecture
+	of v1.25 impacted single threaded efficiency slightly which is now fixed.
++ fixed a typo when reporting composite factors found in ECM
++ nfs() overhaul
++ added several input options for customization of NFS jobs (see docfile for details)
++ tune() now uses job files and data files different from default nfs() jobs,
+	to reduce likelihood of corruption
++ long overdue additions to docfile.txt
++ nfs polynomial selection is now performed in parallel
+	+ added a number of options to tailor parallel poly selection - see docfile.txt
++ automated nfs jobs now only invoke filtering after a minimum number of relations
+	have been collected
++ added a simple abort handler to NFS
++ added a -R option, for specifing a NFS restart using an existing savefile
+
+
+v 1.25
++ improved smallmpqs quite a bit
++ simplified the process of checking small-prime-variation primes for inclusion
+	on a sieve progression
++ experimentation with different versions of the sieve of eratosthenes.  no impact
+	to in-use code at this point.
++ much more efficient threading architecture in SIQS.  30-40% speedup in many cases for 
+	multi-threaded factorizations.  Architecture and code for linux platforms 
+	contributed by Ben Chaffin.
++ got rid of a couple stray debugging messages.
+
+v 1.24 2/9/11
++ added proprocessing check for enabled profiling which disables poly.c ASM code.  profiling
+	doesn't work if all of the registers are in the clobber list.
++ rearranged sieve scanning in check_relations slightly so that a list of reports are 
+	generated first, then all reports are sequencially examined.
++ fixed the reporting of how many total polynomials were used
++ implemented a re-sieving algorithm for factor base primes between 8192 up to the med_B bound.  
+	makes use of SSE2 instructions for multi-up re-sieving.  This change applies to x64 and
+	linux64 builds only for now.
++ (Brian Gladman) contributed assembler files to support 64 bit mod operations in x64.
++ changes to the preprocessor definition structure in many places to make the project 
+	mingw64 friendly
++ actually make use of the PRIu/d/x64 definitions now
++ uncomment stuff in fp_montgomery_reduce.c which was protected by #ifdef's anyway
++ shared memory and fork not available in mingw after all - adjust preprocessor directives
+	accordingly
++ makefile needed to be adjusted to get ecm/gmp to link in mingw
++ got inline ASM working to sieve small/medium primes in sieve.c (x86-64 only).  This is faster
+	than the SSE2 equivalent.
++ added typedef's for MINGW32 builds.
++ cleaned up a bunch of warnings and added ULL's to 64 bit constants
++ merged in parallel gmp-ecm code from bchaffin
++ wraithx contribued code to capture and log/print input expressions
+
+
+v 1.23 1/21/11
++ added a check in factor() to output the type of number (i.e. PRP, COMPOSITE) correctly 
+	when stopping early using -one
++ changed msieve_obj declaration/definition to match current msieve version
++ added a bunch of assembly code to make bucket sieving in SIQS faster.  
+	only x86_64 linux builds will benefit from this ASM.  I see about a 5-10% improvement in 
+	overall factorization speed.
++ cleaned up comments in assembly code
++ added SSE2 intrinsics to do a subset of the x86_64 ASM improvements on windows machines
+	+ see 2.5-5% improvement, sometimes more
++ added ASM macros to do a subset of the x86_64 ASM improvements on 32 bit linux machines
+	+ not tested yet.
++ added a -plan switch for greater selectivity in pretest plan options
++ (wraithx) added several new output option switches, -ou, -of, -op.  for details see
+	the docfile
++ (wraithx) changed logfile output of found ECM factors to record the B1 value used
++ added a -pretest switch to tell factor that we only want to pretest (skip sieve methods)
++ fixed a bug in the extract factors function in nfs.c; factors found in the sqrt step
+	were not reported correctly (thanks Andi_HB)
+
+
+v 1.22.2
++ remove B2 cap in ecm
++ factor() now properly ignores user defined B2 flags for ecm, pp1, and pm1
++ fixed bug in factor() when inputs are really big.  NFS/QS time estimate are too high
+	and the number of curves for P+1 level 2 was not set properly.
++ merged in changes from wraithx implementing a -one switch, used to stop factor() 
+	after finding one factor.
+
+v 1.22.1
++ remove restriction on Win32 NFS
+
+v 1.22 1/4/11
++ incorporated a completely automated multi-threaded gnfs implemetation by using msieve 
+	library calls and externally called ggnfs lasieve binaries.  currently snfs is not
+	completely automated - a polynomial file must be produced manually prior to calling
+	yafu with nfs().
++ creation of different filter heirarchy in MSVC solution
++ some rearrangement of function declarations
++ changed symbol names of all ported msieve code so that there aren't any collisions
+	with symbols defined in msieve libraries linked for NFS purposes (libraries contain
+	mpqs and common code as well as NFS code).
++ added a -noecm flag
++ added a flag to specify the directory of ggnfs binaries
++ modifications to factor() to incorporate nfs, with limited size tuning 
+	(cutoff set to 95 digits).
++ added a nfs() function
++ added nfs support to windows builds
++ added check for existence of ggnfs lasieve binary prior to starting NFS factorization
++ added checks for unxutils in windows environments prior to starting a homegrown (read 'poor') 
+	workaround for 'cat'
++ added a check for the existence of msieve.fb prior to starting msieve filtering.  If one
+	does not exist, one is created from the ggnfs.job polynomial file.
++ added an initial filtering run prior to sieving when restarting a NFS factorization
++ searching for last specialq saved no longer requires 'tail'.  dealing with free relations
+	meant a more robust solution was required.
++ added logging of NFS progress and results to yafu logfile.
++ added a small amount of trial division and a primalty test prior to starting NFS
++ output executable directory updated for yafu-32k (yafu-64k was ok) under Win32 (release and debug)
++ work on factor_tune: tuning produces exponential fit parameters and writes them to the 
+	yafu.ini file. The flag handling appartus then imports the tuning parameters and 
+	qs_time_estimation uses them if present.
++ ecm/qs and ecm/gnfs target ratios now settable as flags
++ further segregation of ported msieve code used in qs post-processing from symbols defined
+	in gnfs.lib and common.lib (changing typedef names, static variable names, etc), in a 
+	vain effort to fix Win32 linear algebra failures.
++ added some additional log messages during NFS
++ fixed a bug in ecm, where the GMP-ECM generated sigma value was not reported back to 
+	yafu's ecm apparatus.  GMP-ECM is now fed sigma values from yafu.
++ fixed a bug in ecm, where the message printed to the logfile misrepresents the size
+	of the input if a factor is found.  The message should be printed prior to reducing the input
+	by the found factor.
++ changed yafu reporting of pm1, pp1, and ecm curves performed by gmp-ecm to report 
+	"gmp-ecm default B2" if the default B2 value is requested.
++ gmp-ecm messages are printed now at verbosity level equal to 2 less than the yafu verbosity 
+	level.  for example, -v -v -v -v prints gmp-ecm messages at -v -v
++ added a minimum threshold below which nfs defaults to siqs
++ fixed a bug in the new factor structure where a number could be sent to siqs before any
+	pretesting.
++ removed messages to consider using unxutils. 
++ updated version to 1.22
+
+
+v 1.21 12/22/10
++ first sourceforge release
++ report number of primes in each category correctly when running/compiling with TIMING=1
++ clean up a bunch of experimental code
++ add memory allocation info to verbosity level 3 in siqs
++ fixed a bug wherein the number 1 could be sent to GMPECM's pm1 method, which causes an
+	assertion to fail
++ work on batch file input: 
++   lines removed from batch file as they complete
++   more robust parsing
++ automatically refactor composites reported during a factorization
++ ecm, pm1, pp1 methods now respond to cntl-c signals.  if cntl-c is detected in any of
+	these functions (or siqs), the factors found so far are printed to the screen, along
+	with any leftover co-factor
+
+v 1.20.2 12/7/10
++ fixed a bug preventing squfof from being run on small inputs to siqs, possibly resulting in 
+	hangs of the binary.
+
+v 1.20.1 
++ gmp-ecm should now work correctly for all platforms, if libraries are available
++ gmp-ecm, mpir, and gmp versions are properly detected if linked during build
++ reduced memory usage during post-processing, due to issues with memory
+	consumption seen on 32 bit windows systems.
+
+v 1.20 11/4/10
++ added SSE2 compiler intrinsics for sieve scanning and large prime scanning in
+	SIQS, for the WIN64 code branch.  64 bit windows machines get a 15-20% boost
+	in performance from this, for bigger numbers.
++ better cache detection (detects nehalem L3 cache, for instance), thanks msieve
++ attempts to detect nehalem processors (took a guess at model/family codes)
++ detect a few other things (cache line size, cpu brand string, ...)
+	+ new flag (vproc) prints TONS of cpu/memory info using cpuid code modified from
+	http://msdn.microsoft.com/en-us/library/hskdteyh.aspx
++ tweaks to startup splash info
++ added qs estimation for nehalem processors
++ tweaks to the qs estimation process - should achieve a better ecm/qs ratio now
+	+ don't penalize if only running single threaded
+	+ less of a threading penalty for nehalem/opteron/phenom cpus
++ made bucket sizes one notch (x2) bigger in SIQS.  this gives modern cpus a boost, 
+	but hurts older cpus
++ a bucket entry is now a unsigned int instead of a structure with two 16 bit fields
+	+ fb_offset is in the high half of the unsigned int, and sieve_loc in the bottom half
+	+ gives a small boost to SIQS
++ moved cpu frequency measurement to driver.c, so that it is only performed once when
+	yafu is first launched rather than every time factor() is called.
++ fermat now only called if trial division does not completely factor the 
+	number.  thanks Warren Schudy!
++ fermat now gives up if 'a' reaches (n+1)/2 before a square is found.
+	thanks Warren Schudy!
+
+
+v 1.19.2 8/17/10
++ fixed bug in squfof introduced in 1.19
++ changed syntax of -seed command line option to take highseed,lowseed pair
++ made it harder to override the default value during small tf optimization 
+	(first introduced in 1.17) for DLP composites in SIQS.  higher relation
+	discovery rate does not seem to map well to faster completion times when using DLP
+
+v 1.19.1 8/10/10
++ fixed yafu version number to 1.19	
+
+v 1.19  7/28/10
++ added flags -pfile and -pscreen, which enables printing of primes to file or screen,
+	respectively, when using primes(low,high,0)
++ doubled the speed of computing primes in spSOE with count=0, by using a mergesort
+	of the sieve lines instead of qsort.  Requires slightly more memory
++ fixed bug in multi-threaded sieve of Erathostenes which resulted in incorrect counts
+	when run multi-threaded.
++ saved a bunch of useless function calls in 64k versions of SIQS by moving the check and bail
+	for block_loc == 65535 up to the sieve scan routine.
++ ~4% speedup in squfof by unrolling the two loops.  This may give a slight (~1%) speedup  
+	on larger (> 81 digit) siqs jobs.
++ fixed factor() for very large inputs where the estimated number of ECM curves was overflowing.
+	factor should now continue doing ECM indefinatly while the input is out of SIQS range.
++ fixed a bug when generating poly_a values where for small inputs (c42, for example) 
+	duplicate polynomial values were continuously generated.  thanks Batalov!
+	+ better 64 bit RNG.  
++ several improvements to the sieve of eratosthenes  
+	+ sieving the smallest primes in precomputed 64 bit batches
+	+ reducing read/write port usage during bucket sieving
+	+ recursively calling the fast segmented sieve when large numbers of sieving primes are necessary
+	+ halving the number of divisions involved in computing offsets of large primes
+	+ greatly reduced memory footprint of bucket sieving when sieving at high offsets
+		+ better bucket space estimation
+		+ large prime bucket sorting (primes larger than entire interval)
+	+ added mod 2310 and mod 30030 cases for sieving larger and larger intervals
+	+ eliminated memory reallocation during merge sorting (at a cost of slightly higher memory usage)
++ raised limit of sieve of eratosthenes to approx 4e18
++ fixed a bug causing factorial to break for inputs >= 100 that was introduced in version 1.18
+	when primes were changed to 64 bit.
++ added fermat's factorization routine
++ changed logfile to report number of digits, rather than bits, and made it look more like
+	the screen output in general (thanks kar_bon)
+	
+
+v 1.18  3/26/10
++ more efficient threading in SIQS using a threadpool.  this also fixes some slowdown
+	issues I was seeing on Intel Nehalem chips.  Thanks again to jasonp and msieve
+	for the simple threadpool functions.
++ threading in the sieve of Erathostenes, using the same threadpool design as in SIQS.
+	Efficiency depends on the cpu and the number of threads.
++ sieve of Erathostenes now supports counting of primes > 2^32, up to 1.6e14.
++ added bucket sieving in sieve of Erathostenes for a huge speedup when sieving
+	at higher limits
++ fixed bug reported by VolMike where an incorrect number of arguments to a function
+	caused a crash.
+	
+
+v 1.17  3/15/10
++ Changed siqs find_factors routine to compute the cofactor once we find a factor.  
+	This should prevent cases where only one factor is reported as found during
+	siqs.
++ Added an adaptive routine for optimization of the small trial division cutoff
+	constant in siqs.  The initial guess for this value is usually pretty close, but 
+	sometimes not.  This results in a speedup of from 0 to 7% or so in siqs, depending on
+	the OS/platform and input number size.
++ fixed a bug in mpqs - relation storage was overflowing for 64k blocksizes.  Thanks
+	Will Fay!
++ fixed a bug in the parser: adding a null termination to the delimiter of the strtok function
+	fixed some intermittant parsing errors.
+	
+
+
+v 1.16 3/5/10
++ got gmp-ecm default B2 values correct
++ using *_STG2_MAX now works again and works correctly with GMP-ECM.  NOTE: to use
+	the default B2 with either gmp-ecm or yafu P+1, P-1, or ECM routines, 
+	there must be no reference to the B2ecm or B2pp1 or B2pm1 flags in the .ini file 
+	or in the command line arguments.  An updated yafu.ini file with these flags 
+	removed should be packaged with the 1.16 binary.  Specifying a B1 value only will
+	cause B2 to be automatically determined for either gmp-ecm or yafu routines.  Specifying
+	B2 as well will cause the default value to be overridden.
++ changed around the source directories and build files to a standarized form with
+	respect to mpir, gmp-ecm, and gmp.  Thanks Brian Gladman!
++ fixed a bug preventing SIQS from working below 141 bits.  Lowered siqs minimum input
+	bitsize to 130 (from 150).  Below this mpqs seems to be faster.
++ loop unrolling, a faster popcount method, and better offset calculations using
+	the extended euclidean algorithm in sieve of Erathostenes code gave a ~ 25% speedup
+	on 64 bit systems.  Also, SOE blocksize now automatically scales with the BLOCK=64
+	compiler option, like in siqs.
++ further compressed the data structure used during small prime sieving in SIQS to take advantage
+	of the fact that those primes and roots are all less than 2^16.  This reduces the number
+	of load/stores to memory during sieving and poly updating loops and results in a slight
+	overall speedup: 1-2% on core2 and p3's/4's, up to 5% on opteron/athlon64.
++ added code to prevent yafu from crashing when encountering bad poly a's during filtering.
++ tweaked the various verbosity levels.  default level now provides some status.  thanks
+	mdettweiler for suggestions.
++ fixed some inconsistencies in the documentation file docfile.txt.  several of the function
+	descriptions had not been updated in some time.
+
+
+v 1.15 12/6/09
++ integrated GMP-ECM library calls into YAFU, replacing the native 
+	P+1, P-1, and ECM routines in all provided binaries.  This capability
+	is optionally enabled when compiling on systems with GMP and GMP-ECM
+	available.  If not available when compiling from source, the native 
+	YAFU routines are used.  GMP-ECM runs single-threaded only (SIQS threading
+	is not effected).
++ expanded the capability/readablity of the makefile 
++ added -v and -silent switches to control verbosity.  multiple -v swithes are supported
+	with increasing verbosity.  -v -v gives the same output as what 1.14 produced.
+	-silent should only print to the logfile, and is not available when run interactively
++ fixed another intermittant bug in Nnoot which was causing small QS jobs to crash 
+	(thanks Jeff Gilchrist and Buzzo for bug reports)
++ fixed behavior of the primes function, for small ranges (thanks Z and Lou Godio).  
+	Also added environment variables which allow printing of primes to a file or 
+	to the screen. By default primes will print to a file, and not to the screen.  
+	See docfile.txt for more info.
+
+v 1.14 11/25/09
++ fixed a bug causing crashes in linux32 and win64 builds related to
+	the assembly macros in computing first roots in poly.c, for those
+	platforms.
++ incorporated latest windows cpu frequency and timing code from Brian Gladman
++ plugged all memory leaks except one originating deep within block_lanczos_core
+
+
+v 1.13 11/24/09
++ worked on nroot some more, hopefully better now (thanks Gammatester,
+  wblipp, and jasonp!)
++ fixed bugs in str2hexz and zGrow which caused crashes when size was
+  negative
++ a little more robustness in str2hexz, checking for valid input
++ a little more robustness in expression handler (dealing with negation)
++ added multi-threaded ECM, enabled by the -threads flag, same as SIQS
++ made squfof a little faster, by implementing a state saving structure for
+	each multiplier and racing them
++ added squfof_big which can handle inputs up to 100 bits with uint64 as the base
+	type.  faster than QS up to 70ish bits.  this is not available on the 
+	command line, but is used automatically by QS when possible to do so.
++ removed all global bigints from the code
++ changed all montgomery arithmetic routines to have the modulus explicitly
+	passed in, as opposed to being stored in a global structure.  The global structure
+	caused problems in multi-threaded ECM, even though it was read-only.
++ got rid of some overhead in the trial division stage of SIQS, for a small
+	overall speed improvement
++ made the timing in QS an optional compile time parameter, resulting in a decent 
+	speedup of QS (with no timing).  also expanded the optional timing report.
++ added some assembly in the siqs root intialization, for computing the root
+	updates.  very small, if any, overall speed impact.
+	
+
+v 1.12 9/24/09
++ fixed a bug in restarting a previously finished siqs factorization (thanks Jeff
+	Gilchrist!)
++ added a few free's I forgot in 1.11
++ fixed problem in sieve.c preventing using smaller blocksizes than 32768 (telling the
+	unrolling in small prime sieving where to break and move to the next level should
+	scale with blocksize)
++ fixed a bug causing a crash if run in interactive mode in windows: 
+	div_obj.n wasn't getting initialized or free'ed (thanks timbit and 
+	Brian Gladman).
++ added some smartness in how many ECM curves are run, based on rough curve fits
+	of estimated qs time vs digits, for various architectures.  If this seems very 
+	out of whack, please let me know.
++ fixed computing total factoring time in factor(), when threads are in use in siqs
++ added ability to read in optional .ini file to override default settings
++ fixed bug in the shift right arithmatic routine - needed to break out of the 
+	leading zero justification if the first word was non-zero. (thanks Andi_HB!)
+
+v 1.11 9/18/09
++ massive overhaul of siqs code.
++ re-structuring of entire factorization flow, enabling better logging/tracking
+	of an arbitrarily sequenced factorization job.
++ fixed squfof bug that was introduced when multiplier 1 was done first 
+	instead of last.  turns out it was always possible for the last
+	multiplier to be returned as a valid result, which was always 1 before, 
+	and so it didn't matter, but which is 3 now, which is incorrect. (thanks kar_bon)
++ lowered the bound at which pQS sends things to squfof (to 58), because pQS works to
+	very low bit levels while squfof sometimes has trouble when it is up against the 
+	limits of 62 bit inputs.
++ fixed a bug in the low level arithmatic routines which broke rho,ecm,pm1,pp1 
+	(anything using montgomery reduction) for inputs > 1024 bits.  There is now a 
+	significant speed drop for processing inputs > 1024 bits.
++ improved Nroot, much less hackish.
++ fixed a number of small memory leaks in siqs code (valgrind)
++ made 'a' coefficient selection more robust in siqs in order to avoid duplicate
+	polynomials (and thus relations), and to avoid an infinite loop condition that
+	I'm surprised hasn't surfaced yet in prior versions in which no valid 'a'
+	can be generated.  This is still a very hackish routine... need to quit bolting
+	on fixes and make it better from scratch.
++ changed some pre-processor statements in poly.c and elsewhere.  
++ added multi-threading capability in siqs, controlled with the -threads command
+	line switch
++ fixed a bug wherein rels/sec reported goes mad after loading a bunch of them
+	from disk on a restart in siqs. (thanks 10metreh)
+
+v 1.10 4/14/09
++ changed preprocessor directives to shunt MSVC win64 builds away from inline
+	asm which it doesn't understand.  In relation.c for sieve scanning and in
+	poly.c for computation of next roots.
++ changed gcc inline asm for SCAN_16X to build properly on newer versions of gcc.
+	This required changing the "g" constraints to "r" to force the use of a
+	register when moving via "movdqa".  Thanks fivemack!
++ Changed project optmization settings to eliminate unneeded optimization that
+	was forcing 30+ min compiles on MSVC.  Thanks Brian Gladman!
++ Changed 'mask' allocation to be aligned on the heap to fix crashes when using
+	movdqa in SSE2 scanning code.
++ removed all use of NR code
+
+v 1.09 4/13/09
++ SSE2 scanning in trial division of bucket sorted primes.  
++ slightly faster computation of root updates when building the next poly in siqs
+	(thanks jasonp, for cmov idea)
++ loop unrolling in trial division code
++ moved special case divisibility checks for poly_a factors from the inner loops
+	of the trial division code to a standalone loop which is much cleaner and faster
++ no longer store factors of the a_poly in each relation
+	*NOTE* this will cause an imcompatibility with previous YAFU versions' savefiles
++ The above siqs improvements give a 3% or so boost to siqs on core2 systems 
+	and a huge boost to nearly everything else: 25% to 30% faster siqs on athlon, 
+	opteron, pentium3, and pentium4
++ squfof now does multiplier 1 first, so squares of primes are detected right
+	away (thanks 10metreh and andi47)
++ added some more #defines, and cleaned up code a bit (needs a lot more!)
++ fixed a couple more gcc warnings
++ made the right shift fixed-length in the trial divison code when doing a mod 
+	operation via multiplication by an inverse.  This means the small prime
+	variation limit shouldn't be changed.
++ changed the factor base data structure to a structure of arrays rather than
+	an array of structures.  This allows multi-up testing for divisibility in
+	the trial division routine, which unfortunately, is not faster than the 
+	native C code at this point.
++ added -sigma command line switch to use user input sigma in ECM (thanks Jeff Gilchrist)
++ added -session command line switch to use user defined name for the session log
+	(thanks mklasson)
++ ecm prints a warning if sigma is fixed via switch or variable and numcurves > 1
++ removed (rels/poly) output in siqs screen status, added to logfile.
++ reduced digit size at which the double large prime variation is used to 82 in siqs
++ all siqs factorizations now store relations on disk rather than in memory
+	
+
+v 1.08 3/23/09
++ in MPQS, fixed number of blocks selected for 64k blocksizes
++ fixed a bunch of signed/unsigned and data type conversion warnings
++ fixed a couple bugs with nextprime, and fixed the documentation
++ fixed some bugs with logging - now qs factorizations finished with squfof
+	should log the factors found.
++ fixed bug in squfof where input was big enough to cause the initial 
+	64 bit sqrt to fail.  will still keep the code in the loop to break
+	on failure, in case this wasn't the sole source of the failures.
++ fixed a bug in make_fb_siqs where factors of composite multipliers were mistakenly
+	divided out of the input, causing siqs to fail.
+
+v 1.07 3/14/09
++ increased number of iterations performed per multiplier in squfof so that less
+	factorizations are missed in siqs DLP.
++ fixed a infinite loop bug in squfof when it detects and logs an error
+	(didn't break all the way out of the loop) (thanks mklasson).
++ fixed a bug in relation filtering which (rarely) caused a crash for very
+	small factorizations (reading past the end of in-memory relation list)
+	(thanks mklasson).
++ added a small amount of trial division on start of siqs, in addition to now
+	dividing out small primes found to have quadratic character 0 during 
+	construction of the factor base.
++ changed random seeding - just do once per session and record what the 
+	seed is in session.log.
++ new input flag for inputting a random seed
++ actually put stuff in session.log now - keep track of what commands are run
++ fixed calc to correctly compute (125*10) - (5^2 + 100)/25 (or similar), 
+ which was incorrectly treating "-" as a function and thus giving it
+ precedence over "/"
++ changed primorial # to compute Prod(primes <= n) rather than 
+	Prod(first n primes)
++ allow for variable number of arguments to select functions.  Also better protection
+	for incorrect number of arguments in all other functions.  Ecm, trial,
+	and nextprime now treat #curves, trial division limit, and direction as
+	optional, respectively.  See docfile.txt for details
++ made pp1() default behavior to just perform one base.  changed factor() to do 
+	3 bases of pp1.  Also added in optional parameter in pp1() to select a number
+	of bases to perform.
++ made checking for prp's more efficient in the factorization wrappers - saved
+	much unnecessary time spent in miller-rabin function
++ when available, now uses SSE2 or MMX to scan larger hunks of the sieve
+	array at a time, for a slight SIQS speed improvement
++ streamlined logging of ecm curves
++ added B1,B2 to display during ecm curves
++ slight change to zRandb in how the topmost word is generated
++ added generate_pseudoprime_list()
++ added ability to work with batchfiles.  See docfile.txt for more details
++ fixed a bug in SIQS which generated incorrect relations in really big factorizations
++ changed verbosity flag slightly:  VFLAG = 0 now means total silence to screen,
+	VFLAG = 1 means maximum verbosity.
++ fixed incorrect report of multiplier as a factor in qs routine
++ made the blocksize used in SIQS a compile time constant.  This is less convienient 
+	because now different versions of the code are needed for different CPUs, but
+	it is 3-4% faster.  
+
+
+v 1.06 1/22/08
++ tweaked parameters for large jobs, and allow SIQS to run up to 125 digits.
++ loop unrolling during trial division of bucketized primes for a small
+	performance improvement in siqs
++ better small prime variation parameters, for a decent performance improvement
+	in siqs
++ expanded preprocessor directive functionality throughout library
++ fixed bug which caused a string to overflow when printing factors
++ added more info to sieving stage screen display
++ made a smallmpqs routine, which will be needed for TLP siqs.  Not
+	currently accessable from the interface.
++ bugfixes (several reported by Jeff Gilchrist)
++ win32 version now built with mingw32-gcc, for a large performance increase essentially 
+	everywhere arbitrary precision arithmatic is used (roughly 2x faster 
+	pm1, pp1, ecm on xeon/p4/amd; and about 1.6x faster pm1, pp1, ecm on core2) 
+	See the README for more info on which executable you should be using.
++ wrote assembly routines for MSVC 32 bit builds for TFM macros and other
+	multiple precision arithmetic.  This results in a performance improvement over
+	no-assembly if compiled by MSVC, but nowhere near the performance improvement
+	over the mingw32-gcc with assembly builds.
++ fixed stall in squfof routine (detects infinite loop and breaks out) (thanks 
+	Jeff Gilchrist)
++ check for factoring 0 (thanks Andi_HB)
++ fixed some memory leaks in rho,pm1,pp1,ecm: needed to free constants defined
+	for montgomery arithmetic.
++ fixed some warnings generated by gcc 3.2.3 -Wall
++ fixed a few bugs, and now using TFM monty reduction for all rho,pp1,pm1, and ecm jobs, 
+	regardless of size. this makes those factorization routines much faster for 
+	inputs larger than 1024 bits,
++ significant improvements to the arbirary precision expression parser and underlying
+	arithmetic routines.  Things should work much better (and faster) now for 
+	large inputs.
++ first successful build on 64 bit MSVC.  64 bit windows users will see significant 
+	performance improvements in all factorization routines.  Many thanks to Jeff
+	Gilchrist for performing the compilation, lots of benchmarking, and dealing
+	with many updates from me.  See the README for more info on which executable you 
+	should be using.
+
+v 1.05 12/9/08
++ better random number generation and seeding.  this became a high priority
+	after jobs submitted to a queueing cluster produced exact duplicate
+	relation files...
++ tweaks to the main driver to hopefully provide a better method of
+	getting the hostname on the linux side, take II. (thanks Jeff Gilchrist)
++ removed unneeded data structures from siqs
++ patched a small memory leak in siqs
++ fixed bug which caused crashes during postprocessing of large jobs
++ fixed bug which caused crashes when running postprocessing more than once in
+	a session
++ added 2 new command line flags for SIQS to allow graceful shutdown after 
+	a specified elapsed time or after a specified number of relations are found
++ added new command line flag to allow logging to a specified logfile 
+	(not specific to SIQS).
++ added a benchmark function for SIQS
+
+v 1.04  12/5/08
++ merged in Brian Gladman's work with msieve's inline assembly routines
+	and pre-processor defines to make the assembler work for any 
+	compiler, OS and word size.
++ tweaks to the main driver to hopefully provide a better method of
+	getting the hostname on the linux side
++ added full parsing of switched options and arguments from the command line
+	so that one can adjust things like stage 1/2 bounds in ecm and
+	specify the savefile in QS.  For a complete list of options and expected
+	arguments, see the docfile.  This option parsing is ignored in pipes
+	or redirects.
++ changed the format of factors found slightly, both on screen and in 
+	factor.log
+
+v 1.03  12/5/08
++ fixed most compiler warnings under gcc-3.2.3 (don't know about later gcc's)
++ no longer store all b poly values in savefile
++ consolidated all factorization logging into one factorization log file
++ reverted back to msieve's default Lanczos blocksize for large matrices
++ incorporated fix by Brian Gladman into matmul MSVC inline assembly routines
++ essentially re-did large sections of code pertaining to restarts of saved jobs 
+	and saving of large jobs
++ added double large prime variation to SIQS, making use of msieve filtering code.
++ re-did large prime sieving, making things more cache friendly as
+	well as adding in a tiling of the factor base.  All buckets are now
+	4 bytes rather than 8 bytes.  
++ added ability to parse command line expressions (no flags, yet.  all
+	program globals are default, like pp1,pm1 stage 1/2 bounds, etc)
++ removed squfof logging.  Still accessible independantly as a function, but
+	results don't go to the logfile.  also reduced some other overhead to
+	make it faster for SIQS double large primes.
+
+v 1.02  11/9/08
++ added checks to input of rsa (thanks VolMike)
++ additional limit enforcement in primes, similar to that in rsa
+	(thanks tmorrow)
++ complete reorg of code
++ windows build with VC++ 2008 Express Edition
++ update siqs linear algebra code to msieve-1.38
++ removed exact division during siqs trial division.
+	didn't really speed anything up, and removal of 4 bytes from fb structure
+	may actually make things faster.
++ significantly cut back on the number of (unneeded) checks for bucket
+	overflow during large prime sieving.  small speedups across the board.
++ changed versioning system and logprint header format
++ added cpu_id code from msieve, used to automatically choose the best
+	blocksize in SIQS.
++ fixed lanczos blocksize at 32768, when the matrix dimension is large
+	enough to use it.  I was seeing errors with msieve's default choice.
++ fixed bug in tfm_reduce which allowed the size of the input number to
+	shrink to zero.  (thanks 10metreh)
++ fixed memory leak in zMul when not using TFM
++ allowed for low pm1, pp1, ecm stage 1 limits, as well as checks for 
+	limits that are too low (<= 210).  Stage 2 doesn't work well if
+	the limits are too low.
+
+v 1.01
++ added vlp typedefs and sieving of very large primes to siqs
+	+ a couple percent improvement for larger jobs
++ referenced the packed sieve factor base during trial division
+	of bucket sieved elements rather than the full factor base
+	entry.  not using exact division with this change.
++ fixed bug in size, where large values crashed the program in windows
+	+ also fixed bug wherein computing large values crashes the program in windows
++ fixed bug in primes(), where counting very small ranges crashed
+	+ also made the interface a little more robust, enforcing limits on
+	the range and enforcing lowlimit > highlimit

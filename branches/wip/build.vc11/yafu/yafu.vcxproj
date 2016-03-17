@@ -1,0 +1,393 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{F55BD26F-47C3-410B-8FEA-D71469BEE544}</ProjectGuid>
+    <RootNamespace>yafu</RootNamespace>
+    <ProjectName>yafu</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="..\vsyasm.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\gmp_ecm_config.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\gmp_ecm_config.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\gmp_ecm_config.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\gmp_ecm_config.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30128.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GenerateManifest>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)-$(Platform)</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectName)-$(Platform)</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)-$(Platform)</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectName)-$(Platform)</TargetName>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\bin\$(Platform)\$(Configuration)\</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Midl>
+      <TypeLibraryName>$(Platform)\$(Configuration)\yafu.tlb</TypeLibraryName>
+      <HeaderFileName>
+      </HeaderFileName>
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;..\..\..\pthreads;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(ProjectName).bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Midl>
+      <TypeLibraryName>$(Platform)\$(Configuration)\yafu.tlb</TypeLibraryName>
+      <HeaderFileName>
+      </HeaderFileName>
+    </Midl>
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <StringPooling>true</StringPooling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <BrowseInformation>
+      </BrowseInformation>
+      <WarningLevel>Level3</WarningLevel>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>
+      </OptimizeReferences>
+      <EnableCOMDATFolding>
+      </EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <TargetMachine>MachineX86</TargetMachine>
+      <AdditionalLibraryDirectories>..\..\..\msieve\lib\$(Platform)\Release\</AdditionalLibraryDirectories>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(ProjectName).bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+      <TypeLibraryName>$(Platform)\$(Configuration)\yafu.tlb</TypeLibraryName>
+      <HeaderFileName>
+      </HeaderFileName>
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <WarningLevel>Level3</WarningLevel>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(ProjectName).bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <TargetEnvironment>X64</TargetEnvironment>
+      <TypeLibraryName>$(Platform)\$(Configuration)\yafu.tlb</TypeLibraryName>
+      <HeaderFileName>
+      </HeaderFileName>
+    </Midl>
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <StringPooling>true</StringPooling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <BrowseInformation>
+      </BrowseInformation>
+      <WarningLevel>Level3</WarningLevel>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\pthreads\lib\$(IntDir)pthreads.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>
+      </OptimizeReferences>
+      <EnableCOMDATFolding>
+      </EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>$(OutDir)$(ProjectName).bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
+    <ClCompile Include="..\..\factor\gpu_squfof.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\nfs\nfs.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_postproc.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_sieving.c" />
+    <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
+    <ClCompile Include="..\..\factor\nfs\snfs.c" />
+    <ClCompile Include="..\..\factor\nfs\winsupport.c" />
+    <ClCompile Include="..\..\factor\qs\filter.c" />
+    <ClCompile Include="..\..\factor\qs\large_sieve.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
+    <ClCompile Include="..\..\factor\qs\med_sieve_64k.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul0.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul1.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul2.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\savefile.c" />
+    <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
+    <ClCompile Include="..\..\factor\qs\new_poly.c" />
+    <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\poly_roots_64k.c" />
+    <ClCompile Include="..\..\factor\qs\SIQS.c" />
+    <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
+    <ClCompile Include="..\..\factor\qs\siqs_test.c" />
+    <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_64k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_64k.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_64k.c" />
+    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
+    <ClCompile Include="..\..\factor\tune.c" />
+    <ClCompile Include="..\..\top\calc.c" />
+    <ClCompile Include="..\..\top\driver.c" />
+    <ClCompile Include="..\..\top\eratosthenes\count.c" />
+    <ClCompile Include="..\..\top\eratosthenes\linesieve.c" />
+    <ClCompile Include="..\..\top\eratosthenes\offsets.c" />
+    <ClCompile Include="..\..\top\eratosthenes\primes.c" />
+    <ClCompile Include="..\..\top\eratosthenes\roots.c" />
+    <ClCompile Include="..\..\top\eratosthenes\soe.c" />
+    <ClCompile Include="..\..\top\eratosthenes\soe_util.c" />
+    <ClCompile Include="..\..\top\eratosthenes\tiny.c" />
+    <ClCompile Include="..\..\top\eratosthenes\worker.c" />
+    <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />
+    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
+    <ClCompile Include="..\..\top\stack.c" />
+    <ClCompile Include="..\..\top\test.c" />
+    <ClCompile Include="..\..\top\utils.c" />
+    <ClCompile Include="..\..\factor\factor_common.c" />
+    <ClCompile Include="..\..\factor\rho.c" />
+    <ClCompile Include="..\..\factor\squfof.c" />
+    <ClCompile Include="..\..\factor\trialdiv.c" />
+    <ClCompile Include="..\..\arith\arith0.c" />
+    <ClCompile Include="..\..\arith\arith1.c" />
+    <ClCompile Include="..\..\arith\arith2.c" />
+    <ClCompile Include="..\..\arith\arith3.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_64k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
+    <ClInclude Include="..\..\include\arith.h" />
+    <ClInclude Include="..\..\include\calc.h" />
+    <ClInclude Include="..\..\include\common.h" />
+    <ClInclude Include="..\..\include\factor.h" />
+    <ClInclude Include="..\..\include\gmp_xface.h" />
+    <ClInclude Include="..\..\include\gnfs.h" />
+    <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
+    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
+    <ClInclude Include="..\..\include\nfs.h" />
+    <ClInclude Include="..\..\include\qs.h" />
+    <ClInclude Include="..\..\include\soe.h" />
+    <ClInclude Include="..\..\include\types.h" />
+    <ClInclude Include="..\..\include\util.h" />
+    <ClInclude Include="..\..\include\yafu.h" />
+    <ClInclude Include="..\..\include\yafu_ecm.h" />
+    <ClInclude Include="..\..\include\yafu_stack.h" />
+    <ClInclude Include="..\..\include\yafu_string.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <YASM Include="..\..\arith\mod32.asm">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </YASM>
+    <YASM Include="..\..\arith\mod64.asm">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+    </YASM>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\factor\gpu_squfof.cu">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\vsyasm.targets" />
+  </ImportGroup>
+</Project>
