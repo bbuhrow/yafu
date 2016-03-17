@@ -137,6 +137,41 @@ int qcomp_smpqs(const void *x, const void *y);
 	#define SM_SCAN_CLEAN asm volatile("emms");	
 	#define SM_SIMD_SIEVE_SCAN_VEC 1
 
+#ifdef USE_AVX2
+
+#define SM_SIEVE_SCAN_64_VEC					\
+		asm volatile (							\
+			"vmovdqa (%1), %%ymm0   \n\t"		\
+			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
+			"vpmovmskb %%ymm0, %%r11   \n\t"	/* output results to 64 bit register */		\
+			"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
+			"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+			"vmovdqa (%1), %%ymm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
+			"vmovdqa 32(%1), %%ymm1   \n\t"		/* extract high bit masks from each byte */ \
+			"vpmovmskb %%ymm1, %%r9d   \n\t"		/*  */		\
+			"salq $32, %%r9		\n\t"			/*  */ \
+			"vpmovmskb %%ymm0, %%r8d   \n\t"		/*  */		\
+			"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+			"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+			"1:			\n\t"					/* top of bit scan loop */ \
+			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
+			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+			"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
+			"jnz 1b		\n\t"					/* loop if so */ \
+			"2:		\n\t"						/*  */ \
+			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "r"(buffer)	\
+			: "xmm0", "xmm1", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+#else
+
 	#define SM_SIEVE_SCAN_64_VEC					\
 		asm volatile (							\
 			"movdqa (%1), %%xmm0   \n\t"		\
@@ -176,6 +211,8 @@ int qcomp_smpqs(const void *x, const void *y);
 			: "=r"(result)						\
 			: "r"(sieveblock + j), "r"(buffer)	\
 			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+#endif
 
 #elif defined(GCC_ASM32X) || defined(__MINGW32__)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
@@ -541,12 +578,13 @@ void smallmpqs(fact_obj_t *fobj)
 		if (fobj->logfile != NULL)
 			logprint(fobj->logfile, "starting smallmpqs on C%d: %s\n",
 				gmp_base10(n), mpz_conv2str(&gstr1.s, 10, n));
+
+        gettimeofday(&tstart, NULL);
 	}
 
 	//empircal tuning of sieve interval based on digits in n
 	sm_get_params(bits_n,&j,&sm_sieve_params.large_mult,&sm_sieve_params.num_blocks);
-
-	gettimeofday(&tstart, NULL);
+	
 	mpz_init(tmp2);
 	mpz_init(tmp3);
 	
@@ -628,7 +666,7 @@ void smallmpqs(fact_obj_t *fobj)
 		free(fb);
 		return;
 	}
-	else if (bits_n < 60)
+    else if ((bits_n < 60) && (fobj->qs_obj.flags != 12345))
 	{
 		mpz_t ztmp;
 		mpz_init(ztmp);

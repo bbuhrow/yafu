@@ -60,9 +60,149 @@ this file contains code implementing 5)
 	//these compilers support SIMD 
 	#define SCAN_CLEAN asm volatile("emms");	
 
-	#if defined(HAS_SSE2)
-		//top level sieve scanning with SSE2
-	
+    #if defined(USE_AVX2)
+
+        #define SCAN_16X_VEC_b			\
+			asm volatile (			\
+				"vmovdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
+				"vmovdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+				"vmovdqa 16(%1), %%xmm2	\n\t"		\
+				"vpcmpeqw %%xmm0, %%xmm1, %%xmm1	\n\t"	/*compare to mask*/	\
+				"vmovdqa 32(%1), %%xmm3	\n\t"		\
+				"vpcmpeqw %%xmm0, %%xmm2, %%xmm2	\n\t"		\
+				"vmovdqa 48(%1), %%xmm4	\n\t"		\
+				"vpcmpeqw %%xmm0, %%xmm3, %%xmm3	\n\t"		\
+				"vpcmpeqw %%xmm0, %%xmm4, %%xmm4	\n\t"		\
+                "vpmovmskb %%xmm1, %%r8   \n\t"		/* 1st 4 comparisons in 16 bits of r8  */		\
+                "vpmovmskb %%xmm2, %%r9   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\
+                "vpmovmskb %%xmm3, %%r10   \n\t"		/* 3rd 4 comparisons in 16 bits of r9  */		\
+                "vpmovmskb %%xmm4, %%r11   \n\t"		/* 4th 4 comparisons in 16 bits of r9  */		\
+                "salq $16, %%r9		\n\t"			/*  */ \
+                "salq $32, %%r10		\n\t"			/*  */ \
+                "salq $48, %%r11		\n\t"			/*  */ \
+                "orq	%%r11,%%r10		\n\t"		/* r8 now holds 16 comparisons in 64 bits */ \
+                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \                                
+                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \                                
+                "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
+                "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+                "1:			\n\t"					/* top of bit scan loop */ \
+                "bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+                "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+                "addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+                "movq   %%r10,%%r9 \n\t" \
+                "sarq   $2,%%r9 \n\t"               /* translate to offset within bptr */ \
+                "addl   %4,%%r9d \n\t"   \
+                "movw	%%r9w, (%3, %%r11, 2) \n\t"		/* put the bit index into the output buffer */ \
+                "shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+                "incl	%%r11d		\n\t"			/* increment the count of set bits */ \
+                "incq	%%r10		\n\t"			/* increment the index */ \
+                "shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+                "jmp 1b		\n\t"					/* loop if so */ \
+                "2:		\n\t"						/*  */ \
+                "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+                : "+r"(result)						\
+                : "r"(bptr + j), "r"(mask), "r"(buffer), "r"(j)	\
+                : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "cc", "memory");	
+
+        #define SCAN_16X_VEC			\
+			asm volatile (			\
+				"vmovdqa (%2), %%ymm0	\n\t"	/*move mask into xmm0*/	\
+				"vmovdqa (%1), %%ymm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+				"vmovdqa 32(%1), %%ymm2	\n\t"		\
+				"vpcmpeqw %%ymm0, %%ymm1, %%ymm1	\n\t"	/*compare to mask*/	\
+				"vpcmpeqw %%ymm0, %%ymm2, %%ymm2	\n\t"		\
+                "vpor   %%ymm1, %%ymm2, %%ymm3 \n\t" \
+                "vpmovmskb %%ymm1, %%r8   \n\t"		/* 1st 4 comparisons in 16 bits of r8  */		\
+                "vpmovmskb %%ymm2, %%r9   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\                
+                "vpmovmskb %%ymm3, %%r10   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\
+                "testq %%r10, %%r10 \n\t"			/* AND, and set ZF */ \
+			    "jz 3f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+                "salq $32, %%r9		\n\t"			/*  */ \
+                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \
+                "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
+                "movl   %0,%%r11d \n\t" \
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+                "1:			\n\t"					/* top of bit scan loop */ \
+                "bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+                "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+                "addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+                "movq   %%r10,%%r9 \n\t" \
+                "shrq   $2,%%r9 \n\t"               /* translate to offset within bptr */ \
+                "addl   %4,%%r9d \n\t"   \
+                "movw	%%r9w, (%3, %%r11, 2) \n\t"		/* put the bit index into the output buffer */ \
+                "shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+                "incl	%%r11d		\n\t"			/* increment the count of set bits */ \
+                "incq	%%r10		\n\t"			/* increment the index */ \
+                "shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+                "jmp 1b		\n\t"					/* repeat */ \
+                "2:		\n\t"						/*  */ \
+                "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+                "3:     \n\t" \
+                : "+r"(result)						\
+                : "r"(bptr + j), "r"(mask), "r"(buffer), "r"(j)	\
+                : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "cc", "memory");
+
+
+
+	#elif defined(HAS_SSE2)
+		// top level sieve scanning with SSE2
+        // the block_loc that we are looking for is in the
+        // bottom half of each 32-bit value of bptr, so each
+        // 128-bit xmm register holds 4 locations to search.
+        // we load 4 registers worth, 16 locations total, 
+        // perform the test on each, and OR all of the results together.
+
+        #define SCAN_16X_VEC			\
+			asm volatile (			\
+				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
+				"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+				"movdqa 16(%1), %%xmm2	\n\t"		\
+				"pcmpeqw %%xmm0, %%xmm1	\n\t"	/*compare to mask*/	\
+				"movdqa 32(%1), %%xmm3	\n\t"		\
+				"pcmpeqw %%xmm0, %%xmm2	\n\t"		\
+				"movdqa 48(%1), %%xmm4	\n\t"		\
+				"pcmpeqw %%xmm0, %%xmm3	\n\t"		\
+				"pcmpeqw %%xmm0, %%xmm4	\n\t"		\
+                "pmovmskb %%xmm1, %%r8   \n\t"		/* 1st 4 comparisons in 16 bits of r8  */		\
+                "pmovmskb %%xmm2, %%r9   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\
+                "pmovmskb %%xmm3, %%r10   \n\t"		/* 3rd 4 comparisons in 16 bits of r9  */		\
+                "pmovmskb %%xmm4, %%r11   \n\t"		/* 4th 4 comparisons in 16 bits of r9  */		\
+                "salq $16, %%r9		\n\t"			/*  */ \
+                "salq $32, %%r10		\n\t"			/*  */ \
+                "salq $48, %%r11		\n\t"			/*  */ \
+                "orq	%%r11,%%r10		\n\t"		/* r8 now holds 16 comparisons in 64 bits */ \
+                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \                                
+                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \                                
+                "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
+                "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+                "1:			\n\t"					/* top of bit scan loop */ \
+                "bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+                "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+                "addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+                "movq   %%r10,%%r9 \n\t" \
+                "sarq   $2,%%r9 \n\t"               /* translate to offset within bptr */ \
+                "addl   %4,%%r9d \n\t"   \
+                "movw	%%r9w, (%3, %%r11, 2) \n\t"		/* put the bit index into the output buffer */ \
+                "shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+                "incl	%%r11d		\n\t"			/* increment the count of set bits */ \
+                "incq	%%r10		\n\t"			/* increment the index */ \
+                "shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+                "jmp 1b		\n\t"					/* loop if so */ \
+                "2:		\n\t"						/*  */ \
+                "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+				: "+r"(result)						\
+			    : "r"(bptr + j), "r"(mask), "r"(buffer), "r"(j)	\
+                : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "cc", "memory");	
+
+    #endif
+
+    #if defined(HAS_SSE2)
+
 		#define SCAN_16X			\
 			asm volatile (			\
 				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
@@ -123,7 +263,7 @@ this file contains code implementing 5)
 
 	#else
 		#define SCAN_16X	\
-			result = 1;	/*dont know what compiler this is. force the normal method*/
+			result = 0xffff;	/*dont know what compiler this is. force the normal method*/
 	#endif
 
 #elif defined(MSC_ASM32A)
@@ -269,6 +409,13 @@ this file contains code implementing 5)
 		fb_offsets[++smooth_num] = i;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
+
+#define DIVIDE_RESIEVED_PRIME(j) \
+            	while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
+                                    	{						\
+		fb_offsets[++smooth_num] = j;	\
+		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
+                                    	}
 #endif
 
 void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
@@ -282,6 +429,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	sieve_fb *fb;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
+    uint16 buffer[32];
 
 #ifdef USE_YAFU_TDIV
 	z32 *tmp32 = &dconf->Qvals32[report_num];
@@ -299,6 +447,10 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	mask[2] = block_loc;
 	mask[4] = block_loc;
 	mask[6] = block_loc;
+    mask[8] = block_loc;
+    mask[10] = block_loc;
+    mask[12] = block_loc;
+    mask[14] = block_loc;
 	
 	if (parity)
 		fb = dconf->fb_sieve_n;
@@ -314,150 +466,207 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 		bptr += (sconf->num_blocks << BUCKET_BITS);
 		basebucket = sconf->num_blocks;
 	}
-	else
-		basebucket = 0;
+    else
+    {
+        basebucket = 0;
+    }
 
-	//times_checked++;
+
+
 	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
 	{
 		uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
-
+        int r;
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
-		uint32 result;
+		uint32 result = 0;
 
-		for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
-		{
-			SCAN_16X;
 
-			if (result == 0)
-				continue;
+#if defined (_MSC_VER) || defined (FORCE_GENERIC)
+        for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            SCAN_16X;
 
-			//noticably faster to not put these in a loop!
-			if (result & 0x2)
-			{
-				// could be j = 0, 4, 8, or 12
-				if ((bptr[j] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+4] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+4] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+8] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+8] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+12] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+12] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-			}
-			if (result & 0x20)
-			{
-				// could be j = 1, 5, 9, or 13
-				if ((bptr[j+1] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+1] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+5] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+5] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+9] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+9] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+13] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+13] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-			}
-			if (result & 0x200)
-			{
-				// could be j = 2, 6, 10, or 14
-				if ((bptr[j+2] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+2] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+6] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+6] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+10] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+10] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+14] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+14] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-			}
-			if (result & 0x2000)
-			{
-				// could be j= 3, 7, 11, or 15
-				if ((bptr[j+3] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+3] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+7] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+7] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+11] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+11] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-				if ((bptr[j+15] & 0x0000ffff) == block_loc)
-				{
-					i = fb_bound + (bptr[j+15] >> 16);
-					prime = fb[i].prime;
-					DIVIDE_ONE_PRIME;
-				}
-			}
-		}
-		
+            if (result == 0)
+                continue;
+
+            //noticably faster to not put these in a loop!
+            if (result & 0x2)
+            {
+                // could be j = 0, 4, 8, or 12
+                if ((bptr[j] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 4] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 4] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 8] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 8] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 12] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 12] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x20)
+            {
+                // could be j = 1, 5, 9, or 13
+                if ((bptr[j + 1] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 1] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 5] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 5] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 9] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 9] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 13] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 13] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x200)
+            {
+                // could be j = 2, 6, 10, or 14
+                if ((bptr[j + 2] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 2] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 6] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 6] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 10] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 10] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 14] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 14] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x2000)
+            {
+                // could be j= 3, 7, 11, or 15
+                if ((bptr[j + 3] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 3] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 7] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 7] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 11] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 11] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 15] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 15] >> 16);
+                    prime = fb[i].prime;
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+        }
+
+        for (; (uint32)j < lpnum; j++)
+        {
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i].prime;
+                //printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
+                //	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+#else
+
+
+
+#if defined(USE_AVX2)
+        CLEAN_AVX2;
+#endif
+
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            SCAN_16X_VEC;
+        }
+
+#if defined(USE_AVX2)
+        CLEAN_AVX2;
+#endif
+
+        for (r = 0; r < result; r++)
+        {
+            i = fb_bound + (bptr[buffer[r]] >> 16);
+            prime = fb[i].prime;
+
+            // Is this only necessary with AVX2, or with the new vector approach?
+            if ((prime < 2) || (i >= sconf->factor_base->B))
+            {
+                dconf->lp_scan_failures++;
+                continue;
+            }
+
+            DIVIDE_ONE_PRIME;
+
+        }
+
 		for (; (uint32)j < lpnum; j++)
 		{
 			if ((bptr[j] & 0x0000ffff) == block_loc)
 			{
 				i = fb_bound + (bptr[j] >> 16);
 				prime = fb[i].prime;
-				//printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
-				//	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
-				DIVIDE_ONE_PRIME;
+
+                if ((prime < 2) || (i >= sconf->factor_base->B))
+                {
+                    dconf->lp_scan_failures++;
+                    continue;
+                }
+
+                DIVIDE_RESIEVED_PRIME(i);
 			}
 		}
+
+#endif
 
 		//point to the next slice of primes
 		bptr += (sconf->num_blocks << (BUCKET_BITS + 1));

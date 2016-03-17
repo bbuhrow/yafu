@@ -343,7 +343,7 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 {
-	int i,j,maxa,maxb;
+	int i,j,maxa,maxb,startb;
 	mpz_t p, a, b, r, n, q;
 	uint32 inc = 1<<30;
 
@@ -357,6 +357,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 
 	maxa = 100;
 	maxb = 100;
+    startb = 31;
 
 	mpz_init(p);
 	mpz_init(a);
@@ -376,7 +377,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			continue;
 
 		mpz_set_ui(b, i);
-		mpz_pow_ui(p, b, 31); // p = i^31
+		mpz_pow_ui(p, b, startb-1); // p = i^31
 
 		// limit the exponent so that the number is less than MAX_SNFS_BITS bits
 		maxb = MAX_SNFS_BITS / log((double)i) + 1;
@@ -384,7 +385,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		if (VFLAG > 1)
 			printf("nfs: checking a*b^x +/- c for 32 <= x <= %d\n", maxb);
 
-		for (j=32; j<maxb; j++)
+		for (j=startb; j<maxb; j++)
 		{
 			// find any n = a*i^j + c, where a is arbitrary and c < 2^32
 			mpz_mul(p, p, b);		// p = i^j
@@ -566,8 +567,10 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 	{
 		// now that we've reduced the exponent considerably, check for 
 		// large bases by looking at the remaining possible exponents.
-		if (VFLAG > 1)
-			printf("nfs: checking x^%d +/- 1\n", i);
+        if (VFLAG > 1)
+        {
+            printf("nfs: checking x^%d +/- 1\n", i);
+        }
 		
 		// check -1 case:
 		mpz_add_ui(a, n, 1);
@@ -578,7 +581,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 			char s[2048];
 
 			if (VFLAG > 0) gmp_printf("nfs: input divides %Zd^%d - 1\n", b, i);
-			logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - 1\n", mpz_get_str(s, 10, b), i);
+			logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d - 1\n", mpz_get_str(s, 10, b), i);
 			form->form_type = SNFS_BRENT;
 			form->coeff1 = 1;
 			mpz_set(form->base1, b);
@@ -630,6 +633,74 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_set(form->n, n);
 			goto done;
 		}
+
+        // check other "+" cases:
+        mpz_root(b, n, i);      // find b^i
+        mpz_pow_ui(p, b, i);
+        mpz_sub(p, n, p);       // and see if n - b^i is "small"
+
+        if (mpz_sizeinbase(p, 2) < (mpz_sizeinbase(n, 2) / 4))
+        {
+            char s[2048];
+            char s2[2048];
+            // if the remainder is less than a quarter the size of the input, output the 
+            // potential form (one-quarter-size being "small"-ish)        
+            gmp_printf("nfs: input divides %Zd^%d + %Zd\n", b, i, p);
+
+            //logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d + %s\n",
+            //    mpz_get_str(s, 10, b), i, mpz_get_str(s2, 10, p));
+            //form->form_type = SNFS_XYYXF;
+            //form->coeff1 = 1;
+            //mpz_set(form->base1, b);
+            //form->exp1 = i;
+            //mpz_set(form->base2, p);
+            //form->coeff2 = 1;
+            //form->exp2 = 1;
+
+            goto done;
+        }
+
+        // check other "-" cases:
+        mpz_add_ui(b, b, 1);
+        mpz_pow_ui(p, b, i);
+        mpz_sub(p, p, n);       // and see if (b+1)^i - n is "small"
+
+        if (mpz_sizeinbase(p, 2) < (mpz_sizeinbase(n, 2) / 4))
+        {
+            char s[2048];
+            char s2[2048];
+            // if the remainder is less than a quarter the size of the input, output the 
+            // potential form (one-quarter-size being "small"-ish)
+            gmp_printf("nfs: input divides %Zd^%d - %Zd\n", b, i, p);
+
+            //logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d - %s\n", 
+            //    mpz_get_str(s, 10, b), i, mpz_get_str(s2, 10, p));
+            //form->form_type = SNFS_XYYXF;
+            //form->coeff1 = 1;
+            //mpz_set(form->base1, b);
+            //form->exp1 = i;
+            //mpz_set(form->base2, p);
+            //form->coeff2 = -1;
+            //form->exp2 = 1;
+
+            //// if the exponent is divisible by 2 in this case, then we can algebraically factor
+            //// as b^(2n) - 1 = (b^n + 1)(b^n - 1)
+            //if ((i & 0x1) == 0)
+            //    form->exp1 /= 2;
+            //if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
+            //{
+            //    FILE *f = fopen(fobj->flogname, "a");
+            //    logprint(f, "nfs: using supplied cofactor: ");
+            //    gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+            //    fclose(f);
+            //    mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
+            //}
+            //else
+            //    mpz_set(form->n, n);
+
+
+            goto done;
+        }
 
 	}
 

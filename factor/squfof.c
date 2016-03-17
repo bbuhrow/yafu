@@ -24,7 +24,10 @@ code to the public domain.
 #include "util.h"
 #include <gmp.h>
 
-#define NUM_SQUFOF_MULT 16
+#define NUM_SQUFOF_MULT 38
+#define NUM_LANES 8
+
+//#define PRINT_DEBUG
 
 /*
 implements shanks's squfof algorihm.  priceless help from the papers
@@ -33,21 +36,9 @@ of Stephen McMath, Danial Shanks, and Jason Gower
 
 typedef struct
 {
-	uint32 mult;
-	uint32 valid;
-	uint32 P;
-	uint32 bn;
-	uint32 Qn;
-	uint32 Q0;
-	uint32 b0;
-	uint32 it;
-	uint32 imax;	
-} mult_t;
-
-#ifdef NOTDEF
-typedef struct
-{
-	// these have to be allocated on the heap to ensure they are aligned
+    uint64 *N;
+    uint64 *mN;
+    uint32 *listref;    
 	uint32 *mult;
 	uint32 *valid;
 	uint32 *P;
@@ -57,25 +48,53 @@ typedef struct
 	uint32 *b0;
 	uint32 *it;
 	uint32 *imax;	
-} mult_2x_t;
+    uint32 *f;
+    int *maxrounds;
+    int *rounds;
+    int *multnum;
+    int *active;
+} par_mult_t;
 
-double *twoarray, *fudge_array;
-uint32 *rarray, *darray, *narray;
-uint8 *sqr_tests, *sqr_tests2;
+typedef struct
+{
+    uint32 mult;
+    uint32 valid;
+    uint32 P;
+    uint32 bn;
+    uint32 Qn;
+    uint32 Q0;
+    uint32 b0;
+    uint32 it;
+    uint32 imax;	
+    uint32 maxrounds;
+    uint32 rounds;
+} mult_t;
 
-#endif
 
+// local functions
+void par_shanks_mult_unit(par_mult_t *mult_save);
+void par_shanks_mult_unit_asm(par_mult_t *mult_save);
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
+int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, mpz_t gmptmp);
+void copy_mult_save(par_mult_t batch_data, int dest_lane, int src_lane);
+void save_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane);
+void load_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane, int multnum);
+
+// larger list of square-free multipliers from Dana Jacobsen.  Together with fewer
+// iterations per round and racing, this works faster on average.
+const int multipliers[NUM_SQUFOF_MULT] = {
+    3 * 5 * 7 * 11, 3 * 5 * 7, 3 * 5 * 7 * 11 * 13, 3 * 5 * 7 * 13, 3 * 5 * 7 * 11 * 17, 3 * 5 * 11,
+    3 * 5 * 7 * 17, 3 * 5, 3 * 5 * 7 * 11 * 19, 3 * 5 * 11 * 13, 3 * 5 * 7 * 19, 3 * 5 * 7 * 13 * 17,
+    3 * 5 * 13, 3 * 7 * 11, 3 * 7, 5 * 7 * 11, 3 * 7 * 13, 5 * 7,
+    3 * 5 * 17, 5 * 7 * 13, 3 * 5 * 19, 3 * 11, 3 * 7 * 17, 3,
+    3 * 11 * 13, 5 * 11, 3 * 7 * 19, 3 * 13, 5, 5 * 11 * 13,
+    5 * 7 * 19, 5 * 13, 7 * 11, 7, 3 * 17, 7 * 13,
+    11, 1 };
+
 
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 {
-	//call shanks with multiple small multipliers
-	const int multipliers[NUM_SQUFOF_MULT] = {1, 3, 5, 7, 
-				11, 3*5, 3*7, 3*11, 
-				5*7, 5*11, 7*11, 
-				3*5*7, 3*5*11, 3*7*11, 
-				5*7*11, 3*5*7*11};
-				
+	// call shanks with multiple small multipliers
 	int i, rounds,j;
 	uint64 n64, nn64, f64, big1, big2;
 	mult_t mult_save[NUM_SQUFOF_MULT];
@@ -124,7 +143,7 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 		mpz_set_64(gmptmp, nn64);
 		mpz_sqrt(gmptmp, gmptmp);	
 		mult_save[i].b0 = mpz_get_ui(gmptmp);
-		mult_save[i].imax = (uint32)sqrt((double)mult_save[i].b0) / 2;
+		mult_save[i].imax = (uint32)sqrt((double)mult_save[i].b0) / 16;
 
 		//set up recurrence
 		mult_save[i].Q0 = 1;
@@ -147,10 +166,21 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 	//now process the multipliers a little at a time.  this allows more
 	//multipliers to be tried in order to hopefully find one that 
 	//factors the input quickly
-	rounds = 6;
+    if (mpz_sizeinbase(N, 2) < 50)
+        rounds = 4;
+    else if (mpz_sizeinbase(N, 2) < 55)
+        rounds = 8;
+    else if (mpz_sizeinbase(N, 2) < 58)
+        rounds = 16;
+    else if (mpz_sizeinbase(N, 2) < 61)
+        rounds = 24;
+    else
+        rounds = 32;
+
 	for (i = 0; i < rounds; i++)
 	{
 		for (j=0; j < NUM_SQUFOF_MULT; j++)
+        //for (j = NUM_SQUFOF_MULT - 1; j >= 0; j--)
 		{
 			if (mult_save[j].valid == 0)
 				continue;
@@ -200,22 +230,539 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 	//a value of 1 signifies this
 done:
 
-	/*
-	gettimeofday(&myTVend, NULL);
-	difference = my_difftime (&myTVstart, &myTVend);
-
-	t_time = 
-		((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
-
-	if (1)
-		printf("Total squfof time = %6.6f seconds.\n",t_time);
-		*/
-
 	mpz_clear(gmptmp);
 
 	return f64;
 }
+
+
+int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
+{
+    // this routine takes a list of input 64-bit integers and factors them in 
+    // parallel using AVX2 enhanced racing-SQUFOF.  If a factor is found, it is 
+    // placed into the corresponding location of the array 'f'.  Else the location 
+    // in 'f' is set to 1. 
+    int i, rounds, j, all_done, list_position, num_successes, num_processed, num_active;
+    uint64 n64, nn64, f64;
+    par_mult_t mult_batch;
+    mpz_t gmptmp;
+
+    mult_t **save_data;
+
+    mpz_init(gmptmp);
+
+    save_data = (mult_t **)malloc(NUM_LANES * sizeof(mult_t *));
+    for (i = 0; i < NUM_LANES; i++)
+    {
+        save_data[i] = (mult_t *)malloc(NUM_SQUFOF_MULT * sizeof(mult_t));
+    }
+    mult_batch.active = (int *)xmalloc_align(NUM_LANES * sizeof(int));
+    mult_batch.b0 = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.bn = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.f = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.imax = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.it = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.listref = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.mN = (uint64 *)xmalloc_align(NUM_LANES * sizeof(uint64));
+    mult_batch.mult = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.multnum = (int *)xmalloc_align(NUM_LANES * sizeof(int));
+    mult_batch.N = (uint64 *)xmalloc_align(NUM_LANES * sizeof(uint64));
+    mult_batch.P = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.Q0 = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.Qn = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.valid = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.maxrounds = (int *)xmalloc_align(NUM_LANES * sizeof(int));
+    mult_batch.rounds = (int *)xmalloc_align(NUM_LANES * sizeof(int));
+
+
+    num_active = 0;
+    num_successes = 0;
+    num_processed = 0;
+    all_done = 0;
+    list_position = 0;
+    for (j = 0; j < NUM_LANES; j++)
+    {
+        mult_batch.active[j] = 0;
+    }
+
+    while ((num_processed < num_in) || (num_active > 0))
+    {
+
+        // fill in any empty lane in the batch.  A lane can be empty if it
+        // has been factored, or has had all multipliers exhaused with no factor
+        for (j = 0; j < NUM_LANES; j++)
+        {
+            if (list_position == num_in)
+            {
+                // stop filling lanes if we've reached the end of the list.
+                // parallel squfof will continue to run on the incomplete
+                // list until all are finished.
+                break;
+            }
+
+            if (mult_batch.active[j] == 0)
+            {
+                int result;
+
+                //printf("assigning input %d = %lu to lane %d\n", list_position, N[list_position], j);
+                // replace this lane.
+                mult_batch.listref[j] = list_position;
+                mult_batch.N[j] = N[list_position++];
+
+                if (mult_batch.N[j] < 3)
+                {
+                    //printf("rejecting input N = %lu\n", mult_batch.N[j]);
+                    f[mult_batch.listref[j]] = mult_batch.N[j];
+                    mult_batch.active[j] = 0;
+                    j--;
+                    continue;
+                }
+
+                // initialize all multipliers
+                result = init_multipliers(save_data, mult_batch, mult_batch.N[j], j, gmptmp);
+
+                if (result == 1)
+                {
+                    // a result code of 1 from init_multipliers means that we found
+                    // a factor while trying out multipliers.  Can happen if the input
+                    // is already a perfect square.
+                    // record this (unlikely) success, and try to fill the lane again.
+                    num_processed++;
+                    num_successes++;
+                    mult_batch.active[j] = 0;
+                    f[mult_batch.listref[j]] = mult_batch.f[j];
+                    j--;
+                }
+            }
+        }
+
+        if (num_active < NUM_LANES)
+        {
+            int active_lane;
+
+            // if we are at the end of the list, some lanes may be inactive.  Fill the
+            // save_data for these lanes with copies of an active lane, to prevent
+            // problems with divide-by-0.
+            for (j = 0; j < NUM_LANES; j++)
+            {
+                if (mult_batch.active[j] == 1)
+                {
+                    active_lane = j;
+                    break;
+                }
+            }
+
+            for (j = 0; j < NUM_LANES; j++)
+            {
+                if (mult_batch.active[j] == 0)
+                {
+                    copy_mult_save(mult_batch, j, active_lane);
+
+                    // keep it inactive
+                    mult_batch.active[j] = 0;
+                }
+            }
+
+        }
+
+        //for (j = 0; j < NUM_LANES; j++)
+        //{
+        //    printf("lane %d has input %lu with multiplier %d starting on iteration %u of %u\n", 
+        //        j, mult_batch.mN[j], mult_batch.mult[j], mult_batch.it[j], mult_batch.imax[j]);
+        //}
+
+        // run parallel squfof
+        par_shanks_mult_unit(&mult_batch);
+
+        // examine the batch and:
+        // 1) flag completed numbers
+        // 2a) change multpliers on any number that has more than imax iterations run.
+        // 2b) or has found a trivial factor 
+        // 3) check if we are all done
+        for (j = 0; j < NUM_LANES; j++)
+        {
+            int result;
+
+            if (mult_batch.active[j] == 1)
+            {
+
+                f64 = mult_batch.f[j];
+
+                //check the output for a non-trivial factor
+                if (f64 == (uint64)-1)
+                {
+                    //this is an error condition, stop processing this multiplier
+                    save_data[j][mult_batch.multnum[j]].valid = 0;
+                    get_next_multiplier(mult_batch, save_data, j);
+                }
+                else if (f64 > 1)
+                {
+                    //found a non-trivial factor, return it;
+                    f[mult_batch.listref[j]] = f64;
+                    num_successes++;
+                    num_processed++;
+
+                    // and flag this lane to be replaced by a new input
+                    mult_batch.active[j] = 0;
+                }
+                else
+                {
+
+                    // if it's not an error or a factor, check to see if we should 
+                    // continue or not.
+                    if (mult_batch.it[j] >= mult_batch.imax[j])
+                    {
+                        int next;
+                        int old_multnum;
+
+                        // we've done enough iterations on this multiplier, switch
+                        // to the next one.  First reset the number of performed iterations.
+                        // The exact number of iterations doesn't really matter,
+                        // but we have to maintain the parity of the iteration count.
+                        while (mult_batch.it[j] >= mult_batch.imax[j])
+                        {
+                            if (mult_batch.imax[j] & 1)
+                            {
+                                mult_batch.it[j] -= (mult_batch.imax[j] - 1);
+                            }
+                            else
+                            {
+                                mult_batch.it[j] -= mult_batch.imax[j];
+                            }
+                        }
+                        
+                        // try to get the next multiplier
+                        old_multnum = mult_batch.multnum[j];
+                        save_multiplier_data(mult_batch, save_data, j);
+                        next = get_next_multiplier(mult_batch, save_data, j);
+
+                        if (next < 0)
+                        {
+                            // no more multipliers for this input, try another round
+                            // on the same multiplier.
+                            load_multiplier_data(mult_batch, save_data, j, old_multnum);
+                            mult_batch.rounds[j]++;
+                            save_data[j][old_multnum].rounds = mult_batch.rounds[j];
+
+                            if (mult_batch.rounds[j] >= mult_batch.maxrounds[j])
+                            {
+                                // also done with rounds.  give up.
+                                mult_batch.active[j] = 0;
+                                num_processed++;
+                            }
+                            else
+                            {
+                                // start over with the first multiplier, to
+                                // do another round of iterations on each.
+                                mult_batch.multnum[j] = -1;
+
+                                // try to get the next multiplier starting from the beginning                                
+                                next = get_next_multiplier(mult_batch, save_data, j);
+                                if (next < 0)
+                                {
+                                    // all multipliers invalid.  give up.
+                                    mult_batch.active[j] = 0;
+                                    num_processed++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // count the number of active lanes, to see if we should keep going.
+        num_active = 0;
+        for (j = 0; j < NUM_LANES; j++)
+        {
+            num_active += mult_batch.active[j];
+        }
+
+        //printf("now %d successes out of %d processed, %d currently active lanes\n", 
+        //    num_successes, num_processed, num_active);
+
+    }
+
+    mpz_clear(gmptmp);
+
+    align_free(mult_batch.active);
+    align_free(mult_batch.b0);
+    align_free(mult_batch.bn);
+    align_free(mult_batch.f);
+    align_free(mult_batch.imax);
+    align_free(mult_batch.it);
+    align_free(mult_batch.listref);
+    align_free(mult_batch.mN);
+    align_free(mult_batch.mult);
+    align_free(mult_batch.multnum);
+    align_free(mult_batch.N);
+    align_free(mult_batch.P);
+    align_free(mult_batch.Q0);
+    align_free(mult_batch.Qn);
+    align_free(mult_batch.valid);
+
+    return num_successes;
+}
+
+void copy_mult_save(par_mult_t batch_data, int dest_lane, int src_lane)
+{
+    // copy fields from src lane to dest lane.
+    batch_data.active[dest_lane]    = batch_data.active[src_lane];
+    batch_data.b0[dest_lane]        = batch_data.b0[src_lane];
+    batch_data.bn[dest_lane]        = batch_data.bn[src_lane];
+    batch_data.f[dest_lane]         = batch_data.f[src_lane];
+    batch_data.imax[dest_lane]      = batch_data.imax[src_lane];
+    batch_data.it[dest_lane]        = batch_data.it[src_lane];
+    batch_data.listref[dest_lane]   = batch_data.listref[src_lane];
+    batch_data.maxrounds[dest_lane] = batch_data.maxrounds[src_lane];
+    batch_data.mN[dest_lane]        = batch_data.mN[src_lane];
+    batch_data.mult[dest_lane]      = batch_data.mult[src_lane];
+    batch_data.multnum[dest_lane]   = batch_data.multnum[src_lane];
+    batch_data.N[dest_lane]         = batch_data.N[src_lane];
+    batch_data.P[dest_lane]         = batch_data.P[src_lane];
+    batch_data.Q0[dest_lane]        = batch_data.Q0[src_lane];
+    batch_data.Qn[dest_lane]        = batch_data.Qn[src_lane];
+    batch_data.rounds[dest_lane]    = batch_data.rounds[src_lane];
+    batch_data.valid[dest_lane]     = batch_data.valid[src_lane];
+
+    return;
+}
+
+void save_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane)
+{
+    // save current data from this lane
+    int i = batch_data.multnum[lane];
+    savedata[lane][i].b0 = batch_data.b0[lane];
+    savedata[lane][i].bn = batch_data.bn[lane];
+    savedata[lane][i].it = batch_data.it[lane];
+    savedata[lane][i].P = batch_data.P[lane];
+    savedata[lane][i].Q0 = batch_data.Q0[lane];
+    savedata[lane][i].Qn = batch_data.Qn[lane];
+    savedata[lane][i].valid = batch_data.valid[lane];
+    savedata[lane][i].rounds = batch_data.rounds[lane];
+    return;
+}
+
+void load_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane, int multnum)
+{
+    // save current data from this lane
+    batch_data.b0[lane] = savedata[lane][multnum].b0;
+    batch_data.bn[lane] = savedata[lane][multnum].bn;
+    batch_data.it[lane] = savedata[lane][multnum].it;
+    batch_data.P[lane] = savedata[lane][multnum].P;
+    batch_data.Q0[lane] = savedata[lane][multnum].Q0;
+    batch_data.Qn[lane] = savedata[lane][multnum].Qn;
+    batch_data.valid[lane] = savedata[lane][multnum].valid;
+    batch_data.rounds[lane] = savedata[lane][multnum].rounds;
+    return;
+}
+
+int get_next_multiplier(par_mult_t batch_data, mult_t **savedata, int lane)
+{
+    
+    int i;
+    int found = -1;
+
+    // restore infomation about the next valid multiplier for this lane
+    batch_data.multnum[lane]++;
+    for (i = batch_data.multnum[lane]; i < NUM_SQUFOF_MULT; i++)
+    {
+        if (savedata[lane][i].valid == 0)
+        {
+            continue;
+        }
+
+        batch_data.b0[lane] = savedata[lane][i].b0;
+        batch_data.bn[lane] = savedata[lane][i].bn;
+        batch_data.it[lane] = savedata[lane][i].it;
+        batch_data.mN[lane] = batch_data.N[lane] * multipliers[i];
+        batch_data.imax[lane] = savedata[lane][i].imax;
+        batch_data.mult[lane] = multipliers[i];
+        batch_data.multnum[lane] = i;
+        batch_data.P[lane] = savedata[lane][i].P;
+        batch_data.Q0[lane] = savedata[lane][i].Q0;
+        batch_data.Qn[lane] = savedata[lane][i].Qn;
+        batch_data.valid[lane] = 1;
+        batch_data.maxrounds[lane] = savedata[lane][i].maxrounds;
+        batch_data.rounds[lane] = savedata[lane][i].rounds;
+        found = 1;
+        break;
+    }
+
+    return found;
+}
+
+int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, mpz_t gmptmp)
+{
+    int i;
+    int rounds;
+    int success = 0;
+    uint64 nn64;
+    uint64 big2 = 0x3FFFFFFFFFFFFFFFULL;
+
+
+    if (batch_data.active[lane] == 0)
+    {
+        for (i = 0; i < NUM_SQUFOF_MULT; i++)
+        {
+
+            // can we multiply without overflowing 64 bits?
+            if ((big2 / (uint64)multipliers[i]) < N)
+            {
+                //this multiplier makes the input bigger than 64 bits
+                savedata[lane][i].mult = multipliers[i];
+                savedata[lane][i].valid = 0;
+                continue;
+            }
+
+            //form the multiplied input
+            nn64 = N * (uint64)multipliers[i];
+
+            savedata[lane][i].mult = multipliers[i];
+            savedata[lane][i].valid = 1;
+
+            //set imax = N^1/4
+            mpz_set_64(gmptmp, nn64);
+
+            if (mpz_sizeinbase(gmptmp, 2) < 50)
+                rounds = 4;
+            else if (mpz_sizeinbase(gmptmp, 2) < 55)
+                rounds = 8;
+            else if (mpz_sizeinbase(gmptmp, 2) < 58)
+                rounds = 16;
+            else if (mpz_sizeinbase(gmptmp, 2) < 61)
+                rounds = 24;
+            else
+                rounds = 32;            
+
+            savedata[lane][i].maxrounds = rounds;
+            savedata[lane][i].rounds = 0;
+
+            mpz_sqrt(gmptmp, gmptmp);
+            savedata[lane][i].b0 = mpz_get_ui(gmptmp);
+            savedata[lane][i].imax = (uint32)sqrt((double)savedata[lane][i].b0) / 16;
+
+            //set up recurrence
+            savedata[lane][i].Q0 = 1;
+            savedata[lane][i].P = savedata[lane][i].b0;
+            savedata[lane][i].Qn = (uint32)(nn64 -
+                (uint64)savedata[lane][i].b0 * (uint64)savedata[lane][i].b0);
+
+            if (savedata[lane][i].Qn == 0)
+            {
+                // N is a perfect square - this number is factored.
+                batch_data.f[batch_data.listref[lane]] = (uint64)savedata[lane][i].b0;
+                success = 1;
+                break;
+            }
+            savedata[lane][i].bn = (savedata[lane][i].b0 + savedata[lane][i].P) / savedata[lane][i].Qn;
+            savedata[lane][i].it = 0;
+
+            // copy the first valid multiplier to the batch data structure
+            if (batch_data.active[lane] == 0)
+            {
+                batch_data.active[lane] = 1;
+                batch_data.b0[lane] = savedata[lane][i].b0;
+                batch_data.bn[lane] = savedata[lane][i].bn;
+                batch_data.it[lane] = savedata[lane][i].it;
+                batch_data.mN[lane] = nn64;
+                batch_data.imax[lane] = savedata[lane][i].imax;
+                batch_data.f[lane] = 0;
+                batch_data.mult[lane] = multipliers[i];
+                batch_data.multnum[lane] = i;
+                batch_data.P[lane] = savedata[lane][i].P;
+                batch_data.N[lane] = N;
+                batch_data.Q0[lane] = savedata[lane][i].Q0;
+                batch_data.Qn[lane] = savedata[lane][i].Qn;
+                batch_data.valid[lane] = savedata[lane][i].valid;
+                batch_data.maxrounds[lane] = rounds;
+                batch_data.rounds[lane] = 0;
+            }
+        }
+    }
+
+    // whether we found a factor or not (overwhelming not... but it could happen).
+    return success;
+}
+
+
+int init_next_multiplier(par_mult_t mult_save, int lane, mpz_t gmptmp)
+{
+    int i;
+    int rounds;
+    int success = 0;
+    uint64 nn64;
+    uint64 n64 = mult_save.N[lane];
+    uint64 big2 = 0x3FFFFFFFFFFFFFFFULL;
+
+    // initially deactivate this lane
+    mult_save.active[lane] = 0;
+
+    // then see if we can find another multiplier to use
+    for (i = mult_save.multnum[lane]; i < NUM_SQUFOF_MULT; i++)
+    {
+        mult_save.multnum[lane] = i;
+
+        // can we multiply without overflowing 64 bits?
+        if ((big2 / (uint64)multipliers[i]) < n64)
+        {
+            //this multiplier makes the input bigger than 64 bits
+            mult_save.mult[lane] = multipliers[i];
+            mult_save.valid[lane] = 0;
+            continue;
+        }
+
+        //form the multiplied input
+        nn64 = n64 * (uint64)multipliers[i];
+        mult_save.mN[lane] = nn64;
+
+        mult_save.mult[lane] = multipliers[i];
+        mult_save.valid[lane] = 1;
+
+        //set imax = N^1/4
+        mpz_set_64(gmptmp, nn64);
+
+        if (mpz_sizeinbase(gmptmp, 2) < 50)
+            rounds = 4;
+        else if (mpz_sizeinbase(gmptmp, 2) < 55)
+            rounds = 8;
+        else if (mpz_sizeinbase(gmptmp, 2) < 58)
+            rounds = 16;
+        else if (mpz_sizeinbase(gmptmp, 2) < 61)
+            rounds = 24;
+        else
+            rounds = 32;
+
+        mpz_sqrt(gmptmp, gmptmp);
+        mult_save.b0[lane] = mpz_get_ui(gmptmp);
+        mult_save.imax[lane] = (uint32)sqrt((double)mult_save.b0[lane]) * rounds / 16;
+
+        //set up recurrence
+        mult_save.Q0[lane] = 1;
+        mult_save.P[lane] = mult_save.b0[lane];
+        mult_save.Qn[lane] = (uint32)(nn64 -
+            (uint64)mult_save.b0[lane] * (uint64)mult_save.b0[lane]);
+
+        if (mult_save.Qn[lane] == 0)
+        {
+            // N is a perfect square - this number is factored.
+            mult_save.f[mult_save.listref[lane]] = (uint64)mult_save.b0[lane];
+            success = 1;
+            break;
+        }
+        mult_save.bn[lane] = (mult_save.b0[lane] + mult_save.P[lane]) / mult_save.Qn[lane];
+        mult_save.it[lane] = 0;
+
+        // found a valid multiplier, go on to the next lane.
+        mult_save.active[lane] = 1;
+        break;
+    }
+
+    // whether we found a factor or not (overwhelming not... but it could happen).
+    return success;
+}
+
+
 
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 {
@@ -236,6 +783,8 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 	b0 = mult_save->b0;
 	i = mult_save->it;
 	imax = i + mult_save->imax;
+
+    //printf("scheduled to run %d iterations on input %lu\n", imax, N);
 	
 	while (1)
 	{
@@ -320,6 +869,8 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 					
 		}
 
+        //printf("checking symmetry point after %d iterations on input %lu\n", i, N);
+
 		//reduce to G0
 		S = (int)sqrt(Qn);
 		Ro = P + S*((b0 - P)/S);
@@ -385,453 +936,1353 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 	}
 }
 
-#ifdef NOTDEF
-void shanks_mult_unit_2x(uint64 N, mult_2x_t *mult_save, int start_mult, uint64 *f);
-
-uint64 sp_shanks_loop_2x(mpz_t N, fact_obj_t *fobj)
+void par_shanks_mult_unit(par_mult_t *mult_save)
 {
-	//call shanks with multiple small multipliers
-	const int multipliers[NUM_SQUFOF_MULT] = {1, 3, 5, 7, 
-				11, 3*5, 3*7, 3*11, 
-				5*7, 5*11, 7*11, 
-				3*5*7, 3*5*11, 3*7*11, 
-				5*7*11, 3*5*7*11};
-				
-	int i, rounds, j;
-	uint64 n64, nn64, f64, big1, big2;
-	mult_2x_t mult_save;
-	mpz_t gmptmp;
-	
-	big1 = 0xFFFFFFFFFFFFFFFFULL;
-	big2 = 0x3FFFFFFFFFFFFFFFULL;
+    //use shanks SQUFOF on 8 inputs simultaneously using AVX2 for the bulk of the calculations.
+    //input N < 2^63
+    //return 1 in f if no factor is found
+    uint32 imax;
+    
+#if defined(__INTEL_COMPILER)
+    //__declspec(aligned(64)) uint32 iterations[NUM_LANES];
+    //__declspec(aligned(64)) uint32 Q0[NUM_LANES];
+    //__declspec(aligned(64)) uint32 b0[NUM_LANES];
+    //__declspec(aligned(64)) uint32 Qn[NUM_LANES];
+    //__declspec(aligned(64)) uint32 bn[NUM_LANES];
+    //__declspec(aligned(64)) uint32 P[NUM_LANES];
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    __declspec(aligned(64)) uint32 bbn[NUM_LANES];
+    __declspec(aligned(64)) uint32 Ro[NUM_LANES];
+    __declspec(aligned(64)) uint32 S[NUM_LANES];
+    __declspec(aligned(64)) uint32 So[NUM_LANES];
+    __declspec(aligned(64)) uint32 t1[NUM_LANES];
+    __declspec(aligned(64)) uint32 t2[NUM_LANES];
+    __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
+#else
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    uint32 bbn[NUM_LANES];
+    uint32 Ro[NUM_LANES];
+    uint32 S[NUM_LANES];
+    uint32 So[NUM_LANES];
+    uint32 t1[NUM_LANES];
+    uint32 t2[NUM_LANES];
+    uint32 success_vec[NUM_LANES];
+#endif
 
-	if (mpz_sizeinbase(N,2) > 62)
-	{
-		printf("N too big (%d bits), exiting...\n", (int)mpz_sizeinbase(N,2));
-		return 1;
-	}
 
-	n64 = mpz_get_64(N);
+    int j = 0;
+    int i = 0;
+    int k;
+    int success;
 
-	//default return value
-	f64 = 1;
+    // find max iterations such that all active lanes will have met this multiplier's imax
+    imax = 0xffffffff;
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        if (mult_save->active[k] == 1)
+        {
+            if ((mult_save->imax[k] - mult_save->it[k]) < imax)
+            {
+                imax = mult_save->imax[k] - mult_save->it[k];
+            }
+        }
+    }
 
-	if (n64 <= 3)
-		return n64;
+    imax = MAX(imax, 128);
 
-	mult_save.b0 = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.bn = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.imax = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.it = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.mult = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.P = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.Q0 = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.Qn = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
-	mult_save.valid = (uint32 *)xmalloc_align(NUM_SQUFOF_MULT * sizeof(double));
+#pragma ivdep
+#pragma vector aligned
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        mult_save->f[k] = 0;
+    }
 
-	mpz_init(gmptmp);
+    while (1)
+    {
+        j = 0;
 
-	twoarray = (double *)xmalloc_align(2 * sizeof(double));
-	fudge_array = (double *)xmalloc_align(2 * sizeof(double));
-	rarray = (uint32 *)xmalloc_align(2 * sizeof(uint32));
-	darray = (uint32 *)xmalloc_align(2 * sizeof(uint32));
-	narray = (uint32 *)xmalloc_align(2 * sizeof(uint32));
-	twoarray[0] = 2.0;
-	twoarray[1] = 2.0;
-	fudge_array[0] = 1.0/65536.0;
-	fudge_array[1] = 1.0/65536.0;
+        //i must be even on entering the unrolled loop below
+#pragma ivdep
+#pragma vector aligned
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if (iterations[k] & 0x1)
+            {
+                t1[k] = P[k];
+                P[k] = bn[k] * Qn[k] - P[k];
+                t2[k] = Qn[k];
+                Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
+                Q0[k] = t2[k];
+                bn[k] = (b0[k] + P[k]) / Qn[k];
+                iterations[k]++;
+            }
+        }
 
-	sqr_tests = (uint8 *)xmalloc_align(16 * sizeof(uint8));
-	sqr_tests2 = (uint8 *)xmalloc_align(16 * sizeof(uint8));
-	sqr_tests[0] = 0;
-	sqr_tests[1] = 1;
-	sqr_tests[2] = 4;
-	sqr_tests[3] = 9;
-	sqr_tests[4] = 0;
-	sqr_tests[5] = 1;
-	sqr_tests[6] = 4;
-	sqr_tests[7] = 9;
-	sqr_tests[8] = 0;
-	sqr_tests[9] = 1;
-	sqr_tests[10] = 4;
-	sqr_tests[11] = 9;
-	sqr_tests[12] = 0;
-	sqr_tests[13] = 1;
-	sqr_tests[14] = 4;
-	sqr_tests[15] = 9;
+#ifdef PRINT_DEBUG
+        printf("starting values:\n");
 
-	sqr_tests2[0] = 16;
-	sqr_tests2[1] = 17;
-	sqr_tests2[2] = 25;
-	sqr_tests2[3] = 255;
-	sqr_tests2[4] = 16;
-	sqr_tests2[5] = 17;
-	sqr_tests2[6] = 25;
-	sqr_tests2[7] = 255;
-	sqr_tests2[8] = 16;
-	sqr_tests2[9] = 17;
-	sqr_tests2[10] = 25;
-	sqr_tests2[11] = 255;
-	sqr_tests2[12] = 16;
-	sqr_tests2[13] = 17;
-	sqr_tests2[14] = 25;
-	sqr_tests2[15] = 255;	
+        printf("P = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", P[k]);
+        printf("]\n");
 
-	j = 0;	//num valid multipliers
-	for (i=NUM_SQUFOF_MULT-1;i>=0;i--)
-	{
-		// can we multiply without overflowing 64 bits?
-		if (big2/(uint64)multipliers[i] < n64)
-		{
-			//this multiplier makes the input bigger than 64 bits
-			mult_save.mult[i] = (uint32)multipliers[i];
-			mult_save.valid[i] = 0;
-			continue;
-		}
+        printf("Qn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Qn[k]);
+        printf("]\n");
 
-		//form the multiplied input
-		nn64 = n64 * (uint64)multipliers[i];
+        printf("Q0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Q0[k]);
+        printf("]\n");
 
-		mult_save[i].mult = multipliers[i];
-		mult_save[i].valid = 1;
+        printf("bn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", bn[k]);
+        printf("]\n");
 
-		//set imax = N^1/4
-		mpz_set_64(gmptmp, nn64);
-		mpz_sqrt(gmptmp, gmptmp);	
-		mult_save.b0[i] = mpz_get_ui(gmptmp);
-		mult_save.imax[i] = (uint32)sqrt((double)mult_save.b0[i]) / 2;
+        printf("b0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", b0[k]);
+        printf("]\n");
 
-		//set up recurrence
-		mult_save.Q0[i] = 1;
-		mult_save.P[i] = mult_save.b0[i];
-		mult_save.Qn[i] = (uint32)(nn64 - 
-			(uint64)mult_save.b0[i] * (uint64)mult_save.b0[i]);
-			
-		if (mult_save.Qn[i] == 0)
-		{
-			//N is a perfect square
-			f64 = (uint64)mult_save.b0[i];
-			goto done;
-		}
-		mult_save.bn[i] = (mult_save.b0[i] + mult_save.P[i])
-			/ mult_save.Qn[i];
-		mult_save.it[i] = 0;
+        printf("iterations = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", iterations[k]);
+        printf("]\n\n");
+#endif
 
-		j++;
-	}		
+        while (1)
+        {
+            //at the start of every iteration, we need to know:
+            //	P from the previous iteration
+            //	bn from the previous iteration
+            //	Qn from the previous iteration
+            //	Q0 from the previous iteration
+            //	iteration count, i
+            if (i >= imax)
+            {
+                //haven't progressed to the next stage yet.  let another
+                //multiplier try for awhile.  save state so we
+                //know where to start back up in the next round
 
-	//now process the multipliers a little at a time in batches of 4.  this allows more
-	//multipliers to be tried in order to hopefully find one that 
-	//factors the input quickly
-	rounds = 6;
-	for (i = 0; i < rounds; i++)
-	{
-		for (j=0; j < NUM_SQUFOF_MULT; j++)
-		{
-			if (mult_save.valid[j] == 0)
-				continue;
+#pragma ivdep
+#pragma vector aligned
+                for (k = 0; k < NUM_LANES; k++)
+                {
+                    //signal to do nothing but continue looking for a factor
+                    mult_save->f[k] = 0;
+                }
 
-			//form the input
-			nn64 = n64 * multipliers[j];
-			//try to factor
-			shanks_mult_unit_2x(nn64, &mult_save, j, &f64);
+#ifdef PRINT_DEBUG
+                printf("ending values:\n");
 
-			//check the output for a non-trivial factor
-			if (f64 == (uint64)-1)
-			{
-				//this is an error condition, stop processing this multiplier
-				mult_save.valid[j] = 0;
-			}
-			else if (f64 > 1)
-			{
-				if (f64 != multipliers[j])
-				{
-					//factor found.  check for and remove small multiplier if necessary.
-					nn64 = gcd64(f64,multipliers[j]);
-					f64 /= nn64;
+                printf("P = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", P[k]);
+                printf("]\n");
 
-					if (f64 != 1)
-					{
-						//found a non-trivial factor, return it;
-						goto done;
-					}
-					else
-					{
-						//found trivial factor, stop processing this multiplier
-						mult_save.valid[j] = 0;
-					}
-				}
-				else
-				{
-					//found trivial factor, stop processing this multiplier
-					mult_save.valid[j] = 0;
-				}
-			}
-		}
-	}
-	//default return value
-	f64 = 1;
+                printf("Qn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Qn[k]);
+                printf("]\n");
 
-	//if we've got to here, then the number is still unfactored.  returning
-	//a value of 1 signifies this
-done:
+                printf("Q0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Q0[k]);
+                printf("]\n");
 
-	mpz_clear(gmptmp);
+                printf("bn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", bn[k]);
+                printf("]\n");
 
-	align_free(mult_save.b0);
-	align_free(mult_save.bn);
-	align_free(mult_save.imax);
-	align_free(mult_save.it);
-	align_free(mult_save.mult);
-	align_free(mult_save.P);
-	align_free(mult_save.Q0);
-	align_free(mult_save.Qn);
-	align_free(mult_save.valid);
+                printf("b0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", b0[k]);
+                printf("]\n");
 
-	align_free(twoarray);
-	align_free(fudge_array);
-	align_free(rarray);
-	align_free(darray);
-	align_free(narray);
-	align_free(sqr_tests);
-	align_free(sqr_tests2);
+                printf("iterations = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", iterations[k]);
+                printf("]\n\n");
 
-	return f64;
+                printf("i >= imax\n");
+                exit(1);
+#endif
+                
+                return;
+            }
+
+#pragma ivdep
+#pragma vector aligned
+            for (k = 0; k < NUM_LANES; k++)
+            {
+                t1[k] = P[k];
+                P[k] = bn[k] * Qn[k] - P[k];
+                t2[k] = Qn[k];
+                Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
+                Q0[k] = t2[k];
+                bn[k] = (b0[k] + P[k]) / Qn[k];
+                iterations[k]++;
+            }
+            i++;
+
+#ifdef PRINT_DEBUG
+            printf("P = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", P[k]);
+            printf("]\n");
+
+            printf("Qn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Qn[k]);
+            printf("]\n");
+
+            printf("Q0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Q0[k]);
+            printf("]\n");
+
+            printf("bn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", bn[k]);
+            printf("]\n");
+
+            printf("b0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", b0[k]);
+            printf("]\n");
+
+            printf("iterations = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", iterations[k]);
+            printf("]\n\n");
+#endif
+
+            //even iteration
+            //check for square Qn = S*S
+            success = 0;
+#pragma ivdep
+#pragma vector aligned
+#pragma unroll
+            for (k = 0; k < NUM_LANES; k++)
+            {
+                success_vec[k] = 0;
+
+                // much faster this way, can be autovectorized.
+                t1[k] = (uint32)sqrt(Qn[k]);
+                if (Qn[k] == t1[k] * t1[k])
+                {
+                    success_vec[k] = 1;
+                    success = 1;
+                }
+
+            }
+
+            if (success)
+            {
+#ifdef PRINT_DEBUG
+                printf("found a square\n");
+                printf("ending values:\n");
+
+                printf("P = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", P[k]);
+                printf("]\n");
+
+                printf("Qn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Qn[k]);
+                printf("]\n");
+
+                printf("Q0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Q0[k]);
+                printf("]\n");
+
+                printf("bn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", bn[k]);
+                printf("]\n");
+
+                printf("b0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", b0[k]);
+                printf("]\n");
+
+                printf("iterations = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", iterations[k]);
+                printf("]\n");
+
+                printf("success_vec = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", success_vec[k]);
+                printf("]\n\n");
+
+                
+                exit(1);
+#endif
+
+                // found at least one square.  check to see if it produces a factorization.
+                break;
+            }
+
+            //odd iteration
+#pragma ivdep
+#pragma vector aligned
+            for (k = 0; k < NUM_LANES; k++)
+            {
+                t1[k] = P[k];
+                P[k] = bn[k] * Qn[k] - P[k];
+                t2[k] = Qn[k];
+                Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
+                Q0[k] = t2[k];
+                bn[k] = (b0[k] + P[k]) / Qn[k];
+                iterations[k]++;
+            }
+            i++;
+
+#ifdef PRINT_DEBUG
+            printf("P = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", P[k]);
+            printf("]\n");
+
+            printf("Qn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Qn[k]);
+            printf("]\n");
+
+            printf("Q0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Q0[k]);
+            printf("]\n");
+
+            printf("bn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", bn[k]);
+            printf("]\n");
+
+            printf("b0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", b0[k]);
+            printf("]\n");
+
+            printf("iterations = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", iterations[k]);
+            printf("]\n\n");
+#endif
+
+        }
+
+        // we're about to check for a factorization.  
+        // save progress in case we find one and exit.
+#pragma ivdep
+#pragma vector aligned
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            //set default signal: to do nothing but continue looking for a factor
+            mult_save->f[k] = 0;
+        }
+
+        success = 0;
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if ((success_vec[k] == 1) && (mult_save->active[k] == 1))
+            {
+                int failsafe = 10000;
+
+                //printf("symmetry check on input %lu in lane %d after %d iterations\n", 
+                //    mult_save->mN[k], k, i);
+
+                // reduce to G0
+                S[k] = (int)sqrt(Qn[k]);
+                Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
+                t1[k] = Ro[k];
+                So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+
+                // search for symmetry point
+                while (failsafe)
+                {
+
+                    t1[k] = Ro[k];
+                    Ro[k] = bbn[k] * So[k] - Ro[k];
+                    t2[k] = So[k];
+                    So[k] = S[k] + bbn[k] * (t1[k] - Ro[k]);
+                    S[k] = t2[k];
+                    bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+                    if (Ro[k] == t1[k])
+                    {
+                        // eliminate trivial cases before running the expensive gcd
+                        if (Ro[k] > mult_save->mult[k])
+                        {
+                            // these run at almost exactly the same speed.  use the normal
+                            // gcd both because it is more general and because it will
+                            // pick up any future advances in hardware integer division.
+                            mult_save->f[k] = gcd64(Ro[k], mult_save->N[k]);
+                            //mult_save->f[k] = spBinGCD_odd(mult_save->N[k], Ro[k]);
+
+                            if (mult_save->f[k] > 1)
+                            {
+                                success = 1;
+                            }
+                        }
+                        break;
+                    }
+
+                    failsafe--;
+                }
+            }
+        }
+
+
+        if (success)
+        {
+            // at least one of the lanes was successful.  drop out of this
+            // routine so we can replace that lane.  else we'll keep
+            // going until we hit imax (or another square).
+            return;
+        }
+    }
 }
 
-//typedef struct
-//{
-//	// these have to be allocated on the heap to ensure they are aligned
-//	uint32 *mult;		//0
-//	uint32 *valid;		//8
-//	uint32 *P;			//16
-//	uint32 *bn;			//24
-//	uint32 *Qn;			//32
-//	uint32 *Q0;			//40
-//	uint32 *b0;			//48
-//	uint32 *it;			//56
-//	uint32 *imax;		//64
-//} mult_2x_t;
+#ifdef USE_AVX2
 
-void shanks_mult_unit_2x(uint64 N, mult_2x_t *mult_save, int start_mult, uint64 *f)
+void par_shanks_mult_unit_asm(par_mult_t *mult_save)
 {
-	//use shanks SQUFOF to factor N.  almost all computation can be done with longs
-	//input N < 2^63
-	//return 1 in f if no factor is found
-	uint32 imax,i,Q0,b0,Qn,bn,P,bbn,Ro,S,So,t1,t2;
+    //use shanks SQUFOF on 8 inputs simultaneously using AVX2 for the bulk of the calculations.
+    //input N < 2^63
+    //return 1 in f if no factor is found
+    uint32 imax;
 
-	//initialize output
-	*f=0;
-
-	// loop through all multipliers, regardless of if they are valid or not.
-	// later, add code to get smarter about which multipliers are used.
-	asm(
-		"movq	16(%0,1), %%rax  \n\t"				/* address of P */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm0 \n\t"		/* xmm0 := values of P */
-		"movq	24(%0,1), %%rax  \n\t"				/* address of bn */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm1 \n\t"		/* xmm1 := values of bn */
-		"movq	32(%0,1), %%rax  \n\t"				/* address of Qn */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm2 \n\t"		/* xmm2 := values of Qn */
-		"movq	40(%0,1), %%rax  \n\t"				/* address of Q0 */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm3 \n\t"		/* xmm3 := values of Q0 */
-		"movq	48(%0,1), %%rax  \n\t"				/* address of b0 */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm4 \n\t"		/* xmm4 := values of b0 */
-		"movq	56(%0,1), %%rax  \n\t"				/* address of i */
-		"movdqa	(%%rax, %%rcx, 4), %%xmm5 \n\t"		/* xmm5 := values of i */
-		"0:	/n/t"									/* top of loop */
-		"cmpl	%%ebx, %%ecx \n\t"
-		"jge	1f	\n\t"							/* jump out of loop if i >= imax */
-		"movdqa	%%xmm0, %%xmm6 \n\t"				/* store tmp P */
-		"movdqa	%%xmm2, %%xmm7 \n\t"				/* move Qn for mul */
-		"movdqa	%%xmm1, %%xmm9 \n\t"				/* move bn for mul */
-		"movdqa	%%xmm2, %%xmm8 \n\t"				/* move Qn for mul */
-		"movdqa	%%xmm1, %%xmm10 \n\t"				/* move bn for mul */
-		"psrldq	$4, %%xmm8, %%xmm8 \n\t"
-		"psrldq	$4, %%xmm10, %%xmm10 \n\t"
-		"pmuludq	%%xmm7, %%xmm9 \n\t"			/* words 1 and 3 */
-		"pmuludq	%%xmm8, %%xmm10 \n\t"			/* words 2 and 4 */
-		"pslldq	$4, %%xmm10, %%xmm10 \n\t"
-		"por	%%xmm9, %%xmm10 \n\t"				/* words 1 - 4 */
-
-
-		"addl	$1, %%ebx \n\t"
-		"jmp	0b \n\t"
-		"1:	/n/t"
-		:
-		: "r"(mult_save), "b"(i), "c"(start_mult), "d"(imax), "r"(success)
-		: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
-
-	
-	while (1)
-	{
-		//i must be even on entering the unrolled loop below
-		if (i & 0x1)
-		{
-			t1 = P;		//hold Pn for this iteration
-			P = bn*Qn - P;
-			t2 = Qn;	//hold Qn for this iteration
-			Qn = Q0 + bn*(t1-P);
-			Q0 = t2;	//remember last Q
-			bn = (b0 + P) / Qn;
-			i++;
-		}
-
-		while (1)
-		{
-			//at the start of every iteration, we need to know:
-			//	P from the previous iteration
-			//	bn from the previous iteration
-			//	Qn from the previous iteration
-			//	Q0 from the previous iteration
-			//	iteration count, i
-			if (i >= imax)
-			{
-				//haven't progressed to the next stage yet.  let another
-				//multiplier try for awhile.  save state so we
-				//know where to start back up in the next round
-				mult_save->P = P;
-				mult_save->bn = bn;
-				mult_save->Qn = Qn;
-				mult_save->Q0 = Q0;
-				mult_save->it = i;
-				//signal to do nothing but continue looking for a factor
-				*f = 0;	
-				return;
-			}
-
-			t1 = P;		//hold Pn for this iteration
-			P = bn*Qn - P;
-			t2 = Qn;	//hold Qn for this iteration
-			Qn = Q0 + bn*(t1-P);
-			Q0 = t2;	//remember last Q
-
-			// this happens fairly often, but special-casing the division
-			// still makes things slower (at least on modern intel chips)
-			//if (Qn > ((b0 + P) >> 1))
-			//	bn = 1;
-			//else
-			bn = (b0 + P) / Qn;		
-			i++;
-
-			//even iteration
-			//check for square Qn = S*S
-			//idea: broadcast the results of Qn & x to each of several bytes in
-			//an sse2 register.  then pcmpeqb with a pre-set sse2 register containing
-			//all of the valid square endings (below) followed by pmovmskb and check 
-			//for non-zero.  2 or 3 clocks to accomplish all of the tests below, or more...
-#ifdef NOTDEF
-			t2 = Qn & 31;
-			if (t2 == 0 || t2 == 1 || t2 == 4 ||
-				t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)			
-			{
-				// extra squaritude tests are also slower on modern intel chips
-				//t2 = Qn & 63;
-				//if (t2 < 32 || t2 == 33 || t2 == 36 || 
-				//	t2 == 41 ||t2 == 49 || t2 == 57)
-				//{
-					t1 = (uint32)sqrt(Qn);
-					if (Qn == t1 * t1)
-						break;
-				//}
-			}
+#if defined(__INTEL_COMPILER)
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    __declspec(aligned(64)) uint32 bbn[NUM_LANES];
+    __declspec(aligned(64)) uint32 Ro[NUM_LANES];
+    __declspec(aligned(64)) uint32 S[NUM_LANES];
+    __declspec(aligned(64)) uint32 So[NUM_LANES];
+    __declspec(aligned(64)) uint32 t1[NUM_LANES];
+    __declspec(aligned(64)) uint32 t2[NUM_LANES];
+    __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
 #else
-			//this is almost as fast.  the broadcast is the bottleneck.
-			t2 = ((Qn & 63) << 8) | (Qn & 63);
-			t2 = (t2 << 16) | t2;
-			asm(
-				"movd	%%eax, %%xmm0 \n\t"
-				"pshufd	$0, %%xmm0, %%xmm1 \n\t"
-				"pcmpeqb	%%xmm5, %%xmm1 \n\t"
-				"pmovmskb	%%xmm1, %0 \n\t"
-				: "=r"(t1)
-				: "a"(t2)
-				: "xmm0", "xmm1", "memory", "cc");
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    uint32 bbn[NUM_LANES];
+    uint32 Ro[NUM_LANES];
+    uint32 S[NUM_LANES];
+    uint32 So[NUM_LANES];
+    uint32 t1[NUM_LANES];
+    uint32 t2[NUM_LANES];
+    uint32 success_vec[NUM_LANES];
+#endif
 
-			if (t1 != 0)
-			{
-				t2 = (uint32)sqrt(Qn);
-				if (Qn == t2 * t2)
-					break;
-			}
+
+    int j = 0;
+    int i = 0;
+    int k;
+    int success;
+
+    // find max iterations such that all active lanes will have met this multiplier's imax
+    imax = 0xffffffff;
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        if (mult_save->active[k] == 1)
+        {
+            if ((mult_save->imax[k] - mult_save->it[k]) < imax)
+            {
+                imax = mult_save->imax[k] - mult_save->it[k];
+            }
+        }
+    }
+
+    imax = MAX(imax, 128);
+    //printf("scheduled to run %d iterations\n", imax);
+
+    // load previous save point
+#pragma novector
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        mult_save->f[k] = 0;
+        success_vec[k] = 0;
+    }
+
+    while (1)
+    {
+        j = 0;
+
+        //i must be even on entering the unrolled loop below
+#pragma novector
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if (iterations[k] & 0x1)
+            {
+                t1[k] = P[k];
+                P[k] = bn[k] * Qn[k] - P[k];
+                t2[k] = Qn[k];
+                Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
+                Q0[k] = t2[k];
+                bn[k] = (b0[k] + P[k]) / Qn[k];
+                iterations[k]++;
+            }
+        }
+
+        //printf("entering loop at iteration %d (of %d)\n", i, imax);
+        //fflush(stdout);
+
+        __asm__
+            (
+            /* load quantities in xmm registers */
+            "vmovdqa    (%1), %%ymm0 \n\t" /* P */
+            "vmovdqa    (%2), %%ymm1 \n\t" /* Qn */
+            "vmovdqa    (%3), %%ymm2 \n\t" /* Q0 */
+            "vmovdqa    (%4), %%ymm3 \n\t" /* bn */
+            "vmovdqa    (%5), %%ymm4 \n\t" /* b0 */
+            "vmovdqa    (%6), %%ymm5 \n\t" /* it */
+            "movl	    $1, %%r11d \n\t"		        /* fill utility register with 1's */
+            "vmovd      %%r11d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */
+            "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */
+            "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t"
+            "movl       %0, %%r10d \n\t"
+            "movl       %8, %%r11d \n\t"
+
+            /* top of while(1) loop */
+            "0: \n\t"       
+
+            /* if (i >= imax) do this then return */
+            "cmpl       %%r10d, %%r11d \n\t"
+            "jae 1f \n\t"
+            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+            "vmovdqa    %%ymm5, (%6)  \n\t" /* it */
+            "jmp 5f \n\t"                   /* jump out of loop and set return condition */
+
+            "1: \n\t"
+            /* even iteration */
+            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+
+            /* first 4 divisions */
+            "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+            "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+
+            /* second 4 divisions */
+            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
+            "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
+            "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+            "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
+            "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+
+            "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
+            "incl       %%r10d \n\t"
+
+            /* square root check */
+            "xorl       %%r8d, %%r8d \n\t"
+            "vpxor      %%xmm10, %%xmm10, %%xmm10        \n\t"       /* fill xmm10 with 0's */
+            "vcvtdq2pd  %%xmm1, %%ymm6	                 \n\t"      /* convert Qn to double precision */
+            "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+            "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+            "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+            "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
+            "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
+            "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+
+            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"                  /* grab high half of inputs */
+            "vcvtdq2pd  %%xmm7, %%ymm6	                 \n\t"      /* convert Qn to double precision */
+            "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+            "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+            "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+            "vpcmpeqd   %%xmm6, %%xmm7, %%xmm7           \n\t"      /* see if equal to starting value */
+            "vinserti128    $1, %%xmm7, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
+            "vmovmskps  %%xmm7, %%r9d	                 \n\t"      /* set a bit if so */
+            "vpand      %%ymm8, %%ymm9, %%ymm6 \n\t"                /* use success mask to selective write 1's to success_vec */
+            "orl        %%r9d, %%r8d \n\t"
+
+            /* if (success) do this then exit loop */
+            "testl      %%r8d, %%r8d \n\t"
+            "jz 2f \n\t"
+            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+            "vmovdqa    %%ymm5, (%6)  \n\t" /* it */
+            "vmovdqa    %%ymm6, (%7)  \n\t" /* successes */
+            "jmp 5f \n\t"                   /* jump out of loop and set break condition */
+
+            "2: \n\t"
+            /* odd iteration */ 
+            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+
+            /* first 4 divisions */
+            "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+            "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+
+            /* second 4 divisions */
+            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
+            "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
+            "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+            "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
+            "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+
+            "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
+            "incl       %%r10d \n\t"
+
+            "jmp    0b \n\t"
+
+            /* exit marker */
+            "5: \n\t"
+            "movl   %%r10d, %0 \n\t"            /* export iteration count */
+
+            : "+r"(i)
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations), 
+                "r"(success_vec), "r"(imax)
+            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "r8", "r9", "r10", "r11", "cc"
+        );
+
+        //printf("loop exited at iteration %d (of %d)\n", i, imax);
+            
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            // set default signal: to do nothing but continue looking for a factor
+            mult_save->f[k] = 0;
+        }
+
+        if (i >= imax)
+        {
+            return;
+        }
+
+        success = 0;
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if ((success_vec[k] == 1) && (mult_save->active[k] == 1))
+            {
+                int failsafe = 10000;
+
+                //printf("symmetry check on input %lu in lane %d after %d iterations\n", 
+                //    mult_save->mN[k], k, i);
+
+                // reduce to G0
+                S[k] = (int)sqrt(Qn[k]);
+                Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
+                t1[k] = Ro[k];
+                So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+                if ((S[k] *  S[k]) != Qn[k])
+                {
+                    printf("error, reported square is not square: %u, %u\n", S[k], Qn[k]); 
+                    fflush(stdout);
+                    continue;                    
+                }
+                //printf("Searching for symmetry on Square %u, S = %u (%u)...", Qn[k], S[k], S[k] * S[k]);
+
+                // search for symmetry point
+                while (failsafe)
+                {
+
+                    t1[k] = Ro[k];
+                    Ro[k] = bbn[k] * So[k] - Ro[k];
+                    t2[k] = So[k];
+                    So[k] = S[k] + bbn[k] * (t1[k] - Ro[k]);
+                    S[k] = t2[k];
+                    bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+                    // eliminate trivial cases before running the expensive gcd
+                    if (Ro[k] == t1[k])
+                    {
+                        // eliminate trivial cases before running the expensive gcd
+                        if (Ro[k] > mult_save->mult[k])
+                        {
+                            // these run at almost exactly the same speed.  use the normal
+                            // gcd both because it is more general and because it will
+                            // pick up any future advances in hardware integer division.
+                            mult_save->f[k] = gcd64(Ro[k], mult_save->N[k]);
+                            //mult_save->f[k] = spBinGCD(mult_save->N[k], Ro[k]);
+
+                            if (mult_save->f[k] > 1)
+                            {
+                                success = 1;
+                            }
+                        }
+                        break;
+                    }
+
+                    
+                    failsafe--;
+                }
+
+                //if (success)
+                //    printf("found result %u\n", mult_save->f[k]);
+                //else
+                //    printf("\n");
+                
+            }
+        }
+
+
+        if (success)
+        {
+            // at least one of the lanes was successful.  drop out of this
+            // routine so we can replace that lane.  else we'll keep
+            // going until we hit imax (or another square).
+            return;
+        }
+    }
+}
+
+void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
+{
+    //use shanks SQUFOF on 8 inputs simultaneously using AVX2 for the bulk of the calculations.
+    //input N < 2^63
+    //return 1 in f if no factor is found
+    uint32 imax;
+
+#if defined(__INTEL_COMPILER)
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    __declspec(aligned(64)) uint32 bbn[NUM_LANES];
+    __declspec(aligned(64)) uint32 Ro[NUM_LANES];
+    __declspec(aligned(64)) uint32 S[NUM_LANES];
+    __declspec(aligned(64)) uint32 So[NUM_LANES];
+    __declspec(aligned(64)) uint32 t1[NUM_LANES];
+    __declspec(aligned(64)) uint32 t2[NUM_LANES];
+    __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
+#else
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    uint32 bbn[NUM_LANES];
+    uint32 Ro[NUM_LANES];
+    uint32 S[NUM_LANES];
+    uint32 So[NUM_LANES];
+    uint32 t1[NUM_LANES];
+    uint32 t2[NUM_LANES];
+    uint32 success_vec[NUM_LANES];
+#endif
+
+
+    int j = 0;
+    int i = 0;
+    int k;
+    int success;
+
+    // find max iterations such that all active lanes will have met this multiplier's imax
+    imax = 0xffffffff;
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        if (mult_save->active[k] == 1)
+        {
+            if ((mult_save->imax[k] - mult_save->it[k]) < imax)
+            {
+                imax = mult_save->imax[k] - mult_save->it[k];
+            }
+        }
+    }
+
+    imax = MAX(imax, 128);
+    //printf("scheduled to run %d iterations\n", imax);
+
+    // load previous save point
+#pragma novector
+    for (k = 0; k < NUM_LANES; k++)
+    {
+        mult_save->f[k] = 0;
+        success_vec[k] = 0;
+    }
+
+    while (1)
+    {
+        j = 0;
+
+        //i must be even on entering the unrolled loop below
+#pragma novector
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if (iterations[k] & 0x1)
+            {
+                t1[k] = P[k];
+                P[k] = bn[k] * Qn[k] - P[k];
+                t2[k] = Qn[k];
+                Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
+                Q0[k] = t2[k];
+                bn[k] = (b0[k] + P[k]) / Qn[k];
+                iterations[k]++;
+            }
+        }
+
+#ifdef PRINT_DEBUG
+        printf("starting values:\n");
+
+        printf("P = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", P[k]);
+        printf("]\n");
+
+        printf("Qn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Qn[k]);
+        printf("]\n");
+
+        printf("Q0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Q0[k]);
+        printf("]\n");
+
+        printf("bn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", bn[k]);
+        printf("]\n");
+
+        printf("b0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", b0[k]);
+        printf("]\n");
+
+        printf("iterations = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", iterations[k]);
+        printf("]\n\n");
+#endif
+        
+        // load quantities in xmm registers
+        __asm__
+        (
+            "vmovdqa    (%0), %%ymm0 \n\t" /* P */
+            "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
+            "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
+            "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
+            "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
+            "vmovdqa    (%5), %%ymm5 \n\t" /* it */
+            "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
+            "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
+            "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
+            "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
+            :
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
+            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
+        );
+
+        while (1)
+        {
+            //at the start of every iteration, we need to know:
+            //	P from the previous iteration
+            //	bn from the previous iteration
+            //	Qn from the previous iteration
+            //	Q0 from the previous iteration
+            //	iteration count, i
+            if (i >= imax)
+            {
+                //haven't progressed to the next stage yet.  let another
+                //multiplier try for awhile.  save state so we
+                //know where to start back up in the next round
+
+                // restore quantities from xmm registers to memory.
+                __asm__
+                (
+                    "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
+                    "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
+                    "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
+                    "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
+                    "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
+                    :
+                    : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
+                    : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
+                );
+
+#ifdef PRINT_DEBUG
+                printf("ending values:\n");
+
+                printf("P = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", P[k]);
+                printf("]\n");
+
+                printf("Qn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Qn[k]);
+                printf("]\n");
+
+                printf("Q0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Q0[k]);
+                printf("]\n");
+
+                printf("bn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", bn[k]);
+                printf("]\n");
+
+                printf("b0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", b0[k]);
+                printf("]\n");
+
+                printf("iterations = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", iterations[k]);
+                printf("]\n\n");
+
+                printf("i >= imax\n");
+                exit(1);
 
 #endif
 
-			//odd iteration
-			t1 = P;		//hold Pn for this iteration
-			P = bn*Qn - P;
-			t2 = Qn;	//hold Qn for this iteration
-			Qn = Q0 + bn*(t1-P);
-			Q0 = t2;	//remember last Q
+#pragma novector
+                for (k = 0; k < NUM_LANES; k++)
+                {
+                    //signal to do nothing but continue looking for a factor
+                    mult_save->f[k] = 0;
+                }
+                return;
+            }
 
-			bn = (b0 + P) / Qn;
-			i++;
-					
-		}
+            // perform an iteration.  maintain these register assignments
+            // so that we can do other things in separate inline-asm statements:
+            // P  <==> ymm0
+            // Qn <==> ymm1
+            // Q0 <==> ymm2
+            // bn <==> ymm3
+            // b0 <==> ymm4
+            // it <==> ymm5
+            // we trust that the compiler won't stomp on them in the meantime...
+            // which shouldn't be an unreasonable assumption as long as
+            // we don't do anything too vector-ish between asm statements.
+            __asm__
+            (
+                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"                     
+                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
 
-		//reduce to G0
-		S = (int)sqrt(Qn);
-		Ro = P + S*((b0 - P)/S);
-		t1 = Ro;
-		So = (uint32)(((int64)N - (int64)t1*(int64)t1)/(int64)S);
-		bbn = (b0+Ro)/So;
+                /* first 4 divisions */
+                "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+                "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+                
+                /* second 4 divisions */
+                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
+                "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
+                "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+                "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
+                "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
 
-		//search for symmetry point
-		while (1)
-		{
-			t1 = Ro;		//hold Ro for this iteration
-			Ro = bbn*So - Ro;
-			t2 = So;		//hold So for this iteration
-			So = S + bbn*(t1-Ro);
-			S = t2;			//remember last S
-			bbn = (b0+Ro)/So;
-			
-			//check for symmetry point
-			if (Ro == t1)
-				break;
+                "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
+                :
+                :
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10"
+            );
 
-			t1 = Ro;		//hold Ro for this iteration
-			Ro = bbn*So - Ro;
-			t2 = So;		//hold So for this iteration
-			So = S + bbn*(t1-Ro);
-			S = t2;			//remember last S
-			bbn = (b0+Ro)/So;
-			
-			//check for symmetry point
-			if (Ro == t1)
-				break;
+            i++;
 
-			t1 = Ro;		//hold Ro for this iteration
-			Ro = bbn*So - Ro;
-			t2 = So;		//hold So for this iteration
-			So = S + bbn*(t1-Ro);
-			S = t2;			//remember last S
-			bbn = (b0+Ro)/So;
-			
-			//check for symmetry point
-			if (Ro == t1)
-				break;
+#ifdef PRINT_DEBUG
+            __asm__
+                (
+                "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
+                "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
+                "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
+                "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
+                "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
+                :
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
+                );
 
-			t1 = Ro;		//hold Ro for this iteration
-			Ro = bbn*So - Ro;
-			t2 = So;		//hold So for this iteration
-			So = S + bbn*(t1-Ro);
-			S = t2;			//remember last S
-			bbn = (b0+Ro)/So;
-			
-			//check for symmetry point
-			if (Ro == t1)
-				break;
+            printf("P = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", P[k]);
+            printf("]\n");
 
-		}
+            printf("Qn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Qn[k]);
+            printf("]\n");
 
-		*f = gcd64(Ro,N);
-		//found a factor - don't know yet if it's trivial or not.
-		//we don't need to remember any state info, as one way or the other
-		//this multiplier will be invalidated		
-		if (*f > 1)
-			return;
-	}
+            printf("Q0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Q0[k]);
+            printf("]\n");
+
+            printf("bn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", bn[k]);
+            printf("]\n");
+
+            printf("b0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", b0[k]);
+            printf("]\n");
+
+            printf("iterations = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", iterations[k]);
+            printf("]\n\n");
+
+            // load quantities in xmm registers
+            __asm__
+                (
+                "vmovdqa    (%0), %%ymm0 \n\t" /* P */
+                "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
+                "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
+                "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
+                "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
+                "vmovdqa    (%5), %%ymm5 \n\t" /* it */
+                "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
+                "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
+                "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
+                "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
+                :
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
+                );
+
+#endif
+
+            success = 0;
+            // iteration count is now even.
+            // check for square Qn.  maintain these register assignments
+            // so that we can do other things in separate inline-asm statements:
+            // P  <==> ymm0
+            // Qn <==> ymm1
+            // Q0 <==> ymm2
+            // bn <==> ymm3
+            // b0 <==> ymm4
+            // it <==> ymm5
+            // we trust that the compiler won't stomp on them in the meantime...
+            // which shouldn't be an unreasonable assumption as long as
+            // we don't do anything too vector-ish between asm statements.
+            __asm__
+            (
+                "vpxor      %%xmm10, %%xmm10, %%xmm10        \n\t"       /* fill xmm10 with 0's */
+                "vcvtdq2pd  %%xmm1, %%ymm6	                 \n\t"      /* convert Qn to double precision */
+                "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+                "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+                "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+                "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
+                "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
+                "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+
+                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"                  /* grab high half of inputs */
+                "vcvtdq2pd  %%xmm7, %%ymm6	                 \n\t"      /* convert Qn to double precision */
+                "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+                "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+                "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+                "vpcmpeqd   %%xmm6, %%xmm7, %%xmm7           \n\t"      /* see if equal to starting value */
+                "vinserti128    $1, %%xmm7, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
+                "vmovmskps  %%xmm7, %%r9d	                 \n\t"      /* set a bit if so */
+                "vpand      %%ymm8, %%ymm9, %%ymm6 \n\t"                /* use success mask to selective write 1's to success_vec */
+                "orl        %%r9d, %%r8d \n\t"
+                "movl       %%r8d, %0 \n\t"                             /* return combined success indicator */
+                : "=r"(success)
+                : 
+                : "xmm1", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "r8"
+            );
+
+
+            if (success)
+            {
+                // found at least one square.  check to see if it produces a factorization.
+                // restore quantities from xmm registers to memory.
+                __asm__
+                (
+                    "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
+                    "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
+                    "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
+                    "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
+                    "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
+                    "vmovdqa    %%ymm6, (%5)  \n\t" /* successes */
+                    :
+                    : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations), "r"(success_vec)
+                    : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5", "xmm6"
+                );
+
+#ifdef PRINT_DEBUG
+                printf("found a square\n");
+
+                printf("ending values:\n");
+
+                printf("P = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", P[k]);
+                printf("]\n");
+
+                printf("Qn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Qn[k]);
+                printf("]\n");
+
+                printf("Q0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Q0[k]);
+                printf("]\n");
+
+                printf("bn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", bn[k]);
+                printf("]\n");
+
+                printf("b0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", b0[k]);
+                printf("]\n");
+
+                printf("success_vec = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", success_vec[k]);
+                printf("]\n");
+
+                printf("iterations = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", iterations[k]);
+                printf("]\n\n");
+
+                exit(1);
+#endif
+                break;
+            }
+
+            // perform an iteration.  maintain these register assignments
+            // so that we can dump to memory in separate inline-asm statements:
+            // P  <==> ymm0
+            // Qn <==> ymm1
+            // Q0 <==> ymm2
+            // bn <==> ymm3
+            // b0 <==> ymm4
+            // it <==> ymm5
+            // we trust that the compiler won't stomp on them in the meantime...
+            // which shouldn't be an unreasonable assumption as long as
+            // we don't do anything too vector-ish between asm statements.
+            __asm__
+                (
+                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+
+                /* first 4 divisions */
+                "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+                "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+
+                /* second 4 divisions */
+                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
+                "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
+                "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
+                "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
+                "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+
+                "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
+                :
+            :
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10"
+                );
+
+            // iteration count is now odd
+            i++;
+
+#ifdef PRINT_DEBUG
+            __asm__
+                (
+                "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
+                "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
+                "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
+                "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
+                "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
+                :
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
+                );
+
+            printf("P = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", P[k]);
+            printf("]\n");
+
+            printf("Qn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Qn[k]);
+            printf("]\n");
+
+            printf("Q0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Q0[k]);
+            printf("]\n");
+
+            printf("bn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", bn[k]);
+            printf("]\n");
+
+            printf("b0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", b0[k]);
+            printf("]\n");
+
+            printf("iterations = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", iterations[k]);
+            printf("]\n\n");
+
+            // load quantities in xmm registers
+            __asm__
+            (
+                "vmovdqa    (%0), %%ymm0 \n\t" /* P */
+                "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
+                "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
+                "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
+                "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
+                "vmovdqa    (%5), %%ymm5 \n\t" /* it */
+                "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
+                "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
+                "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
+                "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
+                :
+                : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
+            );
+
+#endif
+
+        }
+
+#pragma novector
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            // set default signal: to do nothing but continue looking for a factor
+            mult_save->f[k] = 0;
+        }
+
+        success = 0;
+        for (k = 0; k < NUM_LANES; k++)
+        {
+            if ((success_vec[k] == 1) && (mult_save->active[k] == 1))
+            {
+                int failsafe = 10000;
+
+                //printf("symmetry check on input %lu in lane %d after %d iterations\n", 
+                //    mult_save->mN[k], k, i);
+
+                // reduce to G0
+                S[k] = (int)sqrt(Qn[k]);
+                Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
+                t1[k] = Ro[k];
+                So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+
+                // search for symmetry point
+                while (failsafe)
+                {
+
+                    t1[k] = Ro[k];
+                    Ro[k] = bbn[k] * So[k] - Ro[k];
+                    t2[k] = So[k];
+                    So[k] = S[k] + bbn[k] * (t1[k] - Ro[k]);
+                    S[k] = t2[k];
+                    bbn[k] = (b0[k] + Ro[k]) / So[k];
+
+                    if (Ro[k] == t1[k])
+                    {
+                        mult_save->f[k] = gcd64(Ro[k], mult_save->mN[k]);
+                        if (mult_save->f[k] > 1)
+                        {
+                            int a;
+
+                            success = 1;
+                        }
+                        break;
+                    }
+
+                    failsafe--;
+                }
+            }
+        }
+
+
+        if (success)
+        {
+            // at least one of the lanes was successful.  drop out of this
+            // routine so we can replace that lane.  else we'll keep
+            // going until we hit imax (or another square).
+            return;
+        }
+    }
 }
+
 #endif
 
 /****

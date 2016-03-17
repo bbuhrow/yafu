@@ -302,7 +302,114 @@ int SQUFOF_alpertron(int64 N, int64 queue[])
 }
 
 
+void test_dlp_composites_par()
+{
+    FILE *in;
+    uint64 *comp, f64;
+    uint32 *f1;
+    uint64 *f;
+    uint32 *f2, totBits, minBits, maxBits;
+    double t_time;
+    clock_t start, stop;
+    int i, j, num, correct, num_successes;
+    z tmp, tmp2, t1, t2, t3;
+    mpz_t gmptmp;
+    int64 queue[100];
+    TIME_DIFF *	difference;
+    struct timeval gstart;
+    struct timeval gstop;
+    int nf;
+    int num_files;
+    char filenames[6][80];
 
+    mpz_init(gmptmp);
+    comp = (uint64 *)malloc(2000000 * sizeof(uint64));
+    f1 = (uint32 *)malloc(2000000 * sizeof(uint32));
+    f2 = (uint32 *)malloc(2000000 * sizeof(uint32));
+    f = (uint64 *)malloc(2000000 * sizeof(uint64));
+    zInit(&tmp);
+    zInit(&tmp2);
+    zInit(&t2);
+    zInit(&t1);
+    zInit(&t3);
+
+    strcpy(filenames[0], "pseudoprimes_37bit.dat");
+    strcpy(filenames[1], "pseudoprimes_41bit.dat");
+    strcpy(filenames[2], "pseudoprimes_48bit.dat");
+    strcpy(filenames[3], "pseudoprimes_51bit.dat");
+    strcpy(filenames[4], "pseudoprimes_55bit.dat");
+    strcpy(filenames[5], "pseudoprimes_59bit.dat");
+    num_files = 6;
+
+    for (nf = 0; nf < num_files; nf++)
+    {
+        in = fopen(filenames[nf], "r");
+
+        start = clock();
+        i = 0;
+        totBits = 0;
+        minBits = 999;
+        maxBits = 0;
+        //read in everything
+        while (!feof(in))
+        {
+            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            sp642z(comp[i], &tmp);
+            j = zBits(&tmp);
+            totBits += j;
+            if ((uint32)j > maxBits)
+                maxBits = j;
+            if ((uint32)j < minBits && j != 0)
+                minBits = j;
+            i++;
+        }
+        num = i;
+        num = 10000;
+        fclose(in);
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("data read in %2.4f sec\n", t_time);
+        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+        printf("minimum bits of input numbers = %d\n", minBits);
+        printf("maximum bits of input numbers = %d\n", maxBits);
+
+        gettimeofday(&gstart, NULL);
+
+        num_successes = par_shanks_loop(comp, f, num);
+
+        correct = 0;
+        for (i = 0; i < num; i++)
+        {
+            if (((uint32)f[i] == f1[i]) || ((uint32)f[i] == f2[i]))
+            {
+                correct++;
+            }
+        }
+
+        gettimeofday(&gstop, NULL);
+        difference = my_difftime(&gstart, &gstop);
+
+        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+        free(difference);
+
+        printf("par_squfof reported %d successes\n", num_successes);
+        printf("par_squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+    }
+
+    free(f);
+    free(f1);
+    free(f2);
+    free(comp);
+    zFree(&tmp);
+    zFree(&tmp2);
+    zFree(&t2);
+    zFree(&t1);
+    zFree(&t3);
+    mpz_clear(gmptmp);
+    return;
+}
 
 
 
@@ -323,6 +430,9 @@ void test_dlp_composites()
     TIME_DIFF *	difference;
     struct timeval gstart;	
     struct timeval gstop;
+    int nf;
+    int num_files;
+    char filenames[6][80];
 
 	mpz_init(gmptmp);
 	comp = (uint64 *)malloc(2000000 * sizeof(uint64));
@@ -334,118 +444,125 @@ void test_dlp_composites()
 	zInit(&t1);
 	zInit(&t3);
 
-	in = fopen("pseudoprimes.dat","r");
+    strcpy(filenames[0], "pseudoprimes_37bit.dat");
+    strcpy(filenames[1], "pseudoprimes_41bit.dat");
+    strcpy(filenames[2], "pseudoprimes_48bit.dat");
+    strcpy(filenames[3], "pseudoprimes_51bit.dat");
+    strcpy(filenames[4], "pseudoprimes_55bit.dat");
+    strcpy(filenames[5], "pseudoprimes_59bit.dat");
+    num_files = 6;
 
-	start = clock();
-	i=0;
-	totBits = 0;
-	minBits = 999;
-	maxBits = 0;
-	//read in everything
-	while (!feof(in))
-	{
-		fscanf(in,"%" PRIu64 ",%u,%u",comp+i,f1+i,f2+i);
-		sp642z(comp[i],&tmp);
-		j = zBits(&tmp);
-		totBits += j;
-		if ((uint32)j > maxBits)
-			maxBits = j;
-		if ((uint32)j < minBits && j != 0)
-			minBits = j;
-		i++;
-	}
-	num = i;
-	num = 10000;
-	fclose(in);
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("data read in %2.4f sec\n",t_time);
-	printf("average bits of input numbers = %.2f\n",(double)totBits/(double)i);
-	printf("minimum bits of input numbers = %d\n",minBits);
-    printf("maximum bits of input numbers = %d\n", maxBits);
-
-
-
-
-    /*
-    start = clock();
-
-    correct = 0;
-    for (i=0;i<num;i++)
+    for (nf = 0; nf < num_files; nf++)
     {
+        in = fopen(filenames[nf], "r");
 
-    if (i%1000 == 0)
-    {
-    printf("done with %d, %d correct, after %2.2f sec\n",i,
-    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-    }
-    sp642z(comp[i],&tmp);
-    f64 = (uint64)squfof_jp(&tmp);
+        start = clock();
+        i = 0;
+        totBits = 0;
+        minBits = 999;
+        maxBits = 0;
+        //read in everything
+        while (!feof(in))
+        {
+            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            sp642z(comp[i], &tmp);
+            j = zBits(&tmp);
+            totBits += j;
+            if ((uint32)j > maxBits)
+                maxBits = j;
+            if ((uint32)j < minBits && j != 0)
+                minBits = j;
+            i++;
+        }
+        num = i;
+        num = 10000;
+        fclose(in);
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("data read in %2.4f sec\n", t_time);
+        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+        printf("minimum bits of input numbers = %d\n", minBits);
+        printf("maximum bits of input numbers = %d\n", maxBits);
 
-    if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-    correct++;
-    }
+        /*
+        start = clock();
 
-    stop = clock();
-    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+        correct = 0;
+        for (i=0;i<num;i++)
+        {
 
+        if (i%1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n",i,
+        correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+        }
+        sp642z(comp[i],&tmp);
+        f64 = (uint64)squfof_jp(&tmp);
 
+        if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+        correct++;
+        }
 
-    start = clock();
-
-    correct = 0;
-    for (i=0;i<num;i++)
-    {
-
-    if (i%1000 == 0)
-    {
-    printf("done with %d, %d correct, after %2.2f sec\n",i,
-    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-    }
-    sp642z(comp[i],&tmp);
-    f64 = (uint64)SQUFOF_alpertron((int64)z264(&tmp),queue);
-
-    if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-    correct++;
-    }
-
-    stop = clock();
-    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+        stop = clock();
+        t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+        printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+        printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
 
 
-    start = clock();
 
-    correct = 0;
-    for (i=0;i<num;i++)
-    {
-    int fact1, fact2;
-    if (i%1000 == 0)
-    {
-    printf("done with %d, %d correct, after %2.2f sec\n",i,
-    correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-    }
-    sp642z(comp[i],&tmp);
-    squfof_rds((int64)z264(&tmp),&fact1, &fact2);
+        start = clock();
 
-    if ( ((uint32)fact1 == f1[i]) || ((uint32)fact1 == f2[i]))
-    correct++;
-    }
+        correct = 0;
+        for (i=0;i<num;i++)
+        {
 
-    stop = clock();
-    t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-    printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-    printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-    printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+        if (i%1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n",i,
+        correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+        }
+        sp642z(comp[i],&tmp);
+        f64 = (uint64)SQUFOF_alpertron((int64)z264(&tmp),queue);
 
-    
+        if ( ((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+        correct++;
+        }
 
-    {
+        stop = clock();
+        t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+        printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+        printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+
+        start = clock();
+
+        correct = 0;
+        for (i=0;i<num;i++)
+        {
+        int fact1, fact2;
+        if (i%1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n",i,
+        correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+        }
+        sp642z(comp[i],&tmp);
+        squfof_rds((int64)z264(&tmp),&fact1, &fact2);
+
+        if ( ((uint32)fact1 == f1[i]) || ((uint32)fact1 == f2[i]))
+        correct++;
+        }
+
+        stop = clock();
+        t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        printf("squfof got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+        printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+        printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+
+
+        {
         fact_obj_t *fobj2;
 
         fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
@@ -456,22 +573,22 @@ void test_dlp_composites()
         correct = 0;
         for (i = 0; i < num; i++)
         {
-            if (i % 1000 == 0)
-            {
-                printf("done with %d, %d correct, after %2.2f sec\n", i,
-                    correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
-            }
+        if (i % 1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n", i,
+        correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
+        }
 
-            mpz_set_64(fobj2->qs_obj.gmp_n, comp[i]);
-            fobj2->qs_obj.flags = 12345;
-            smallmpqs(fobj2);
+        mpz_set_64(fobj2->qs_obj.gmp_n, comp[i]);
+        fobj2->qs_obj.flags = 12345;
+        smallmpqs(fobj2);
 
-            if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
-            {
-                correct++;
-            }
+        if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
+        {
+        correct++;
+        }
 
-            clear_factor_list(fobj2);
+        clear_factor_list(fobj2);
 
         }
 
@@ -480,131 +597,131 @@ void test_dlp_composites()
         printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
         printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
         printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
-    }
-
-    */
-
-
-    gettimeofday(&gstart, NULL);
-
-    for (j = 0; j < 1; j++)
-    {
-        correct = 0;
-        for (i = 0; i < num; i++)
-        {
-            if (i % 1000 == 0)
-            {
-                printf("done with %d, %d correct, after %2.2f sec\n", i,
-                    correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
-            }
-
-            //sp642z(comp[i],&tmp);
-            mpz_set_64(gmptmp, comp[i]);
-            f64 = sp_shanks_loop(gmptmp, NULL);
-
-            if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-                correct++;
         }
+
+        */
+
+
+        gettimeofday(&gstart, NULL);
+
+        for (j = 0; j < 1; j++)
+        {
+            correct = 0;
+            for (i = 0; i < num; i++)
+            {
+                //if (i % 1000 == 0)
+                //{
+                //    printf("done with %d, %d correct, after %2.2f sec\n", i,
+                //        correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
+                //}
+
+                mpz_set_64(gmptmp, comp[i]);
+                f64 = sp_shanks_loop(gmptmp, NULL);
+
+                if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+                    correct++;
+            }
+        }
+
+        gettimeofday(&gstop, NULL);
+        difference = my_difftime(&gstart, &gstop);
+
+        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+        free(difference);
+
+        printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+
+
+        /*
+        fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+        init_factobj(fobj);
+
+
+        start = clock();
+
+        correct = 0;
+        num=10000;
+        for (i=0;i<num;i++)
+        {
+        if (i%1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n",i,
+        correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+        }
+        sp642z(comp[i],&tmp);
+        zCopy(&tmp,&fobj->qs_obj.n);
+        fobj->qs_obj.flags = 12345;
+        pQS(fobj);
+
+        for (j=0; j<fobj->qs_obj.num_factors; j++)
+        {
+        uint32 fact = (uint32)fobj->qs_obj.factors[j].val[0];
+        if ( (fact == f1[i]) || (fact == f2[i]))
+        {
+        correct++;
+        break;
+        }
+        zFree(&fobj->qs_obj.factors[j]);
+        }
+        for (; j < fobj->qs_obj.num_factors; j++)
+        zFree(&fobj->qs_obj.factors[j]);
+
+        }
+        fobj->qs_obj.num_factors = 0;
+        free_factobj(fobj);
+
+        stop = clock();
+        t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        printf("pQS got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+        printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+        printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+
+
+        fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+        init_factobj(fobj);
+
+        start = clock();
+
+        correct = 0;
+        for (i=0;i<num;i++)
+        {
+        if (i%1000 == 0)
+        {
+        printf("done with %d, %d correct, after %2.2f sec\n",i,
+        correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
+        }
+
+        sp642z(comp[i],&tmp);
+        zCopy(&tmp,&fobj->qs_obj.n);
+        smallmpqs(fobj);
+
+        for (j=0; j<fobj->qs_obj.num_factors; j++)
+        {
+        uint32 fact = (uint32)fobj->qs_obj.factors[j].val[0];
+        if ( (fact == f1[i]) || (fact == f2[i]))
+        {
+        correct++;
+        break;
+        }
+        zFree(&fobj->qs_obj.factors[j]);
+        }
+        for (; j < fobj->qs_obj.num_factors; j++)
+        zFree(&fobj->qs_obj.factors[j]);
+        fobj->qs_obj.num_factors = 0;
+
+        }
+        fobj->qs_obj.num_factors = 0;
+        free_factobj(fobj);
+
+        stop = clock();
+        t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        printf("smallmpqs got %d of %d correct in %2.2f sec\n",correct,num,t_time);
+        printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
+        printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
+        */
     }
-
-    gettimeofday(&gstop, NULL);
-    difference = my_difftime(&gstart, &gstop);
-
-    t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-    free(difference);
-
-    printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
-    printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
-    printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
-
-
-	/*
-	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj);
-
-
-	start = clock();
-
-	correct = 0;
-	num=10000;
-	for (i=0;i<num;i++)
-	{
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-		sp642z(comp[i],&tmp);
-		zCopy(&tmp,&fobj->qs_obj.n);
-		fobj->qs_obj.flags = 12345;
-		pQS(fobj);
-
-		for (j=0; j<fobj->qs_obj.num_factors; j++)
-		{
-			uint32 fact = (uint32)fobj->qs_obj.factors[j].val[0];
-			if ( (fact == f1[i]) || (fact == f2[i]))
-			{
-				correct++;
-				break;
-			}
-			zFree(&fobj->qs_obj.factors[j]);
-		}
-		for (; j < fobj->qs_obj.num_factors; j++)
-			zFree(&fobj->qs_obj.factors[j]);
-
-	}
-	fobj->qs_obj.num_factors = 0;
-	free_factobj(fobj);
-
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("pQS got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);	
-	
-
-	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj);
-
-	start = clock();
-
-	correct = 0;
-	for (i=0;i<num;i++)
-	{
-		if (i%1000 == 0)
-		{
-			printf("done with %d, %d correct, after %2.2f sec\n",i,
-				correct,(double)(clock() - start)/(double)CLOCKS_PER_SEC);
-		}
-
-		sp642z(comp[i],&tmp);
-		zCopy(&tmp,&fobj->qs_obj.n);
-		smallmpqs(fobj);
-
-		for (j=0; j<fobj->qs_obj.num_factors; j++)
-		{
-			uint32 fact = (uint32)fobj->qs_obj.factors[j].val[0];
-			if ( (fact == f1[i]) || (fact == f2[i]))
-			{
-				correct++;
-				break;
-			}
-			zFree(&fobj->qs_obj.factors[j]);
-		}
-		for (; j < fobj->qs_obj.num_factors; j++)
-			zFree(&fobj->qs_obj.factors[j]);
-		fobj->qs_obj.num_factors = 0;
-
-	}
-	fobj->qs_obj.num_factors = 0;
-	free_factobj(fobj);
-
-	stop = clock();
-	t_time = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("smallmpqs got %d of %d correct in %2.2f sec\n",correct,num,t_time);
-	printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
-	printf("average time per input = %.2f ms\n",1000*t_time/(double)num);	
-	*/
 
 	free(f1);
 	free(f2);

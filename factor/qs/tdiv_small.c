@@ -53,18 +53,18 @@ this file contains code implementing 2)
 */
 
 #ifdef USE_YAFU_TDIV
-#define DIVIDE_ONE_PRIME \
+#define DIVIDE_ONE_PRIME(x) \
 	do	\
 	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
 		zShortDiv32(tmp32, prime, tmp32);	\
 		bits += logp;	\
 	} while (zShortMod32(tmp32, prime) == 0);
 #else
-#define DIVIDE_ONE_PRIME \
+#define DIVIDE_ONE_PRIME(x) \
 	do	\
 	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = i;	\
+		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
 		bits += logp;	\
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
@@ -193,7 +193,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		//explicitly trial divide by small primes which we have not
 		//been sieving.  because we haven't been sieving, their progressions
 		//have not been updated and thus we can't use the faster methods
-		//seen below.  fortunately, there shouldn't be many of these to test
+		//seen below.  fortunately, there shouldn't be many of these to test.
 		//to speed things up, use multiplication by inverse rather than 
 		//division, and do things in batches of 4 so we can use
 		//the whole cache line at once (16 byte structure)
@@ -210,27 +210,22 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			//at this point tmp1 is offset / prime
 			tmp1 = offset - tmp1 * fullfb_ptr->prime[i];
 			//now tmp1 is offset % prime
-			i++;
 
-			tmp2 = offset + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i];
+			tmp2 = offset + fullfb_ptr->correction[i+1];
+			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
 			tmp2 = q64 >> 32; 
-			tmp2 = offset - tmp2 * fullfb_ptr->prime[i];
-			i++;
+			tmp2 = offset - tmp2 * fullfb_ptr->prime[i+1];
 
-			tmp3 = offset + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i];
+			tmp3 = offset + fullfb_ptr->correction[i+2];
+			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
 			tmp3 = q64 >> 32;
-			tmp3 = offset - tmp3 * fullfb_ptr->prime[i];
-			i++;
+			tmp3 = offset - tmp3 * fullfb_ptr->prime[i+2];
 
-			tmp4 = offset + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i];
+			tmp4 = offset + fullfb_ptr->correction[i+3];
+			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
 			tmp4 = q64 >> 32; 
-			tmp4 = offset - tmp4 * fullfb_ptr->prime[i];
+			tmp4 = offset - tmp4 * fullfb_ptr->prime[i+3];
 			
-			i -= 3;
-
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 			
@@ -238,45 +233,40 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			{
 				prime = fbc->prime[i];
 				logp = fbc->logp[i];
-				DIVIDE_ONE_PRIME
+                DIVIDE_ONE_PRIME(i);
 			}
 
-			i++;
-
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
+			root1 = fbc->root1[i+1];
+			root2 = fbc->root2[i+1];
 			
 			if (tmp2 == root1 || tmp2 == root2)
 			{
-				prime = fbc->prime[i];
-				logp = fbc->logp[i];
-				DIVIDE_ONE_PRIME
+				prime = fbc->prime[i+1];
+				logp = fbc->logp[i+1];
+                DIVIDE_ONE_PRIME(i+1);
 			}
 
-			i++;
-
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
+			root1 = fbc->root1[i+2];
+			root2 = fbc->root2[i+2];
 			
 			if (tmp3 == root1 || tmp3 == root2)
 			{
-				prime = fbc->prime[i];
-				logp = fbc->logp[i];
-				DIVIDE_ONE_PRIME
+				prime = fbc->prime[i+2];
+				logp = fbc->logp[i+2];
+                DIVIDE_ONE_PRIME(i+2);
 			}
 
-			i++;
-
-			root1 = fbc->root1[i];
-			root2 = fbc->root2[i];
+			root1 = fbc->root1[i+3];
+			root2 = fbc->root2[i+3];
 			
 			if (tmp4 == root1 || tmp4 == root2)
 			{
-				prime = fbc->prime[i];
-				logp = fbc->logp[i];
-				DIVIDE_ONE_PRIME
+				prime = fbc->prime[i+3];
+				logp = fbc->logp[i+3];
+                DIVIDE_ONE_PRIME(i+3);
 			}
-			i++;
+
+            i += 4;
 		}
 
 		//finish up the rest of the small primes
@@ -301,7 +291,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			//often.  the simple offset % prime check will miss these cases.
 			if (tmp == root1 || tmp == root2)
 			{
-				DIVIDE_ONE_PRIME
+                DIVIDE_ONE_PRIME(i);
 			}
 			i++;
 		}

@@ -59,8 +59,8 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 
 	if (mpz_cmp(Q,RHS) != 0)
 	{
-		printf("failure to equate relation\n");
-		gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
+		//printf("failure to equate relation\n");
+		//gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
 		retval = 1;
 	}
 

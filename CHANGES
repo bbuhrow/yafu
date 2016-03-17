@@ -2,22 +2,56 @@ v 1.35
 + fix nextprime() bug for large inputs (nextprime is now faster as well)
 + fixed malloc header for MAC builds
 + fixed bug impacting factorization of very large numbers (no longer use mpz_import)
++ change format of ggnfs command line string to comply with recent builds of the sievers
++ fixed a bug that appeared for some small inputs in a narrow input size range, using the
+	sse2 code branch (thanks to Dana Jacobsen and EdH)
++ rearranged some of the initialization steps in smallmpqs
++ factor() will skip trivial amounts of ecm (i.e., on small inputs)
++ when using factor(), if number is large enough, snfsability is checked before starting ecm:
+	* ecm pretesting is reduced accordingly if input is snfsable
++ better SNFS form detection:
+	* will detect input *cofactors* of forms of type b^n +/- c, for c < 2^30
+	* will detect homogeneous cunningham forms, a^n +/- b^n, up to a,b <= 51
+	* will detect xyyxf forms, x^y + y^x, for 1 < x < y < 201
+	* will detect a^n +/- 1 for arbitrary a, e.g., 903716551382580990289363207931^7-1, 
+		or 12332642633^17-1
+  * will detect algebraic factors of all a^n +/- b^n where n is divisible by 3
++ command line less picky about argument ordering... expression can either be first, or be 
+	anywhere else, preceeded by -e, e.g., ./yafu -v -threads 2 -e "factor(rsa(256))"
++ will now default to factor() applied to the input, if no other function is given, 
+	e.g., ./yafu 12345 will commence to factor 12345.  this only applys to command line 
+	expressions
++ add new command expr(), to evaulate numerical expressions from the command line
++ in NFS, relations can be added to a running job using a "rels.add" file in the 
+	working directory
++ more robust handling of input redirects/pipes with or without command line arguments
++ new option "repeat" to execute an input expression more than once
++ several new functions (comparison operations, ==, >=, <=, >, <)
++ gnfs poly selection default minimum leading coefficient is now 8192
++ updated to wraithX's latest aprcl code (version 1.1)
++ use GMP's primorial
++ more work on AVX2 and MIC builds (not functional)
++ linking against Msieve SVN 991
+
+
 
 todo:
-* link against non-openMP ecm libraries
+* http://www.mersenneforum.org/showpost.php?p=357022&postcount=178
 * make the SoE a library, and use the library interface whenever it is needed
 	in the rest of the codebase
-* more work on snfs:  arbitrary length coefficients, trial sieving.
-* smarter snfs/gnfs cutover (from within gnfs, snfs, or factor). (http://www.mersenneforum.org/showpost.php?p=341095&postcount=170)
+* more work on snfs:  better ranking?, trial sieving
 * trial sieving gnfs polynomials
-* AVX2 code for siqs (get an account on someones machine to test?)
-* adding externally generated relations: http://www.mersenneforum.org/showpost.php?p=338026&postcount=165
-* true multi-threading of NFS sieving
-	** maybe move to a common threadpool library?
-* don't start gnfs poly selection at leading coefficient 1
-* bug fix: http://www.mersenneforum.org/showpost.php?p=339976&postcount=103, http://www.mersenneforum.org/showpost.php?p=344261&postcount=114
-* bug fix: http://www.mersenneforum.org/showpost.php?p=339885&postcount=97
+* AVX2 code for siqs
+* triple large prime siqs
+* build without openmp in gmp-ecm (to prevent users from needing to download a .dll on windows)
+* ecm timeout argument
+* change all if (VFLAG ...) printf() stuff to logprint with stdio file?  Then we can handle
+	all of the VFLAG stuff in one place.  logprint will then need a verbosity input.
+* more robust restart behavior: http://www.mersenneforum.org/showpost.php?p=288438&postcount=29
+* smarter sieving behavior when specifying special-q range and multiple threads:
+	http://www.mersenneforum.org/showpost.php?p=359334&postcount=185
 
+  
 
 v 1.34.5
 + (non-source) re-link x64 binary with ecm-6.3

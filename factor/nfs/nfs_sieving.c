@@ -44,7 +44,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
-	uint32 spq_range = 2000, actual_range;
+	uint32 spq_range = 1000, actual_range;
 	FILE *flog;
 	
 	char** filenames; // args
