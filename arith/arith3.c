@@ -495,27 +495,67 @@ fp_digit spGCD(fp_digit x, fp_digit y)
 	return a;
 }
 
-fp_digit spBinGCD(fp_digit x, fp_digit y)
+// straight from wikipedia.
+uint64 spBinGCD(uint64 u, uint64 v)
 {
-	int k;
-	//fp_digit a,b,c;
-	fp_signdigit t;
-	k = 0;
-	while (!((x & 0x1) || (y & 0x1)))
-	{
-		k++;
-		x >>= 1;
-		y >>= 1;
-	}
-	if (x & 0x1)
-		t = -1 * y;
-	else
-		t = x;
+    // binary GCD for non-zero inputs.
+    int shift;
 
-	//fix this!
-	return 0;
+    /* Let shift := lg K, where K is the greatest power of 2
+    dividing both u and v. */
+    for (shift = 0; ((u | v) & 1) == 0; ++shift) {
+        u >>= 1;
+        v >>= 1;
+    }
 
+    while ((u & 1) == 0)
+        u >>= 1;
+
+    /* From here on, u is always odd. */
+    do {
+        /* remove all factors of 2 in v -- they are not common */
+        /*   note: v is not zero, so while will terminate */
+        while ((v & 1) == 0)  /* Loop X */
+            v >>= 1;
+
+        /* Now u and v are both odd. Swap if necessary so u <= v,
+        then set v = v - u (which is even). For bignums, the
+        swapping is just pointer movement, and the subtraction
+        can be done in-place. */
+        if (u > v) {
+            uint64 t = v; v = u; u = t;
+        }  // Swap u and v.
+        v = v - u;                       // Here v >= u.
+    } while (v != 0);
+
+    /* restore common factors of 2 */
+    return u << shift;
 }
+
+// assume u is odd
+uint64 spBinGCD_odd(uint64 u, uint64 v)
+{
+    /* From here on, u is always odd. */
+    do {
+        /* remove all factors of 2 in v -- they are not common */
+        /*   note: v is not zero, so while will terminate */
+        while ((v & 1) == 0)  /* Loop X */
+            v >>= 1;
+
+        /* Now u and v are both odd. Swap if necessary so u <= v,
+        then set v = v - u (which is even). For bignums, the
+        swapping is just pointer movement, and the subtraction
+        can be done in-place. */
+        if (u > v) {
+            uint64 t = v; v = u; u = t;
+        }  // Swap u and v.
+        v = v - u;                       // Here v >= u.
+    } while (v != 0);
+
+    /* restore common factors of 2 */
+    return u;
+}
+
 
 uint64 gcd64(uint64 x, uint64 y)
 {

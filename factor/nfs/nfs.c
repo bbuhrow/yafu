@@ -898,6 +898,19 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs)
 				fclose(test);
 				break;
 			}
+
+            sprintf(name, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, i);
+#if defined(WIN32)
+            sprintf(name, "%s.exe", name);
+#endif
+            // test for existence of the siever
+            test = fopen(name, "rb");
+            if (test != NULL)
+            {
+                found = 1;
+                fclose(test);
+                break;
+            }
 		}
 
 		if (!found && revert_to_siqs)

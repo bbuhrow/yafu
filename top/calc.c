@@ -2123,7 +2123,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 						fobj2->qs_obj.flags = 12345;
 						tmpv = VFLAG;
 						VFLAG = -1;
-						tinySIQS(fobj2->qs_obj.gmp_n, NULL, NULL);
+						//tinySIQS(fobj2->qs_obj.gmp_n, NULL, NULL);
 
 						//if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) != 0)
 						//{						

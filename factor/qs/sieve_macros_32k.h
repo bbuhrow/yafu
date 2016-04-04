@@ -6,13 +6,13 @@
 
 #define SIEVE_GT_BLOCKSIZE_ASM \
 	__asm__ ( \
-		"movq	%0,%%r12 \n\t"					/* move helperstruct into rsi */ \
+		"movq	%0,%%r12 \n\t"					/* move helperstruct into r12 */ \
 		"movl   40(%%r12,1),%%r8d \n\t"			/* move startprime (i) into r8d */ \
 		"movq	(%%r12,1),%%rbx \n\t"			/* move sieve into rbx */ \
 		"movl   44(%%r12,1),%%r15d \n\t"		/* move med_B into r15d */ \
 		"movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
   		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
-		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
+		"cmpl   44(%%r12,1),%%r8d \n\t"				/* i >= med_B? */ \
 		"jae    9f \n\t"						/* jump to exit if so */ \
 		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
 		"movl   %%r8d,%%r14d \n\t"				/* copy i to ecx */ \
@@ -20,7 +20,7 @@
 			/* ==================================================================== */ \
 			/* = prime > blocksize sieving							              = */ \
 			/* ==================================================================== */ \
-		"cmpl   %%r15d,%%r8d \n\t" \
+		"cmpl   44(%%r12,1),%%r8d \n\t" \
 		"jae    9f \n\t" \
 		"4: \n\t"								/* top of > blocksize sieving loop */ \
 		"movzwl (%%rdx,%%r8,2),%%r10d \n\t"		/* bring in prime */	 \
@@ -44,7 +44,7 @@
  		"incl   %%r8d \n\t" \
  		"leaq   0xffffffffffff8000(%%r9),%%rsi \n\t" \
  		"leaq   0xffffffffffff8000(%%rdi),%%r9 \n\t" \
- 		"cmpl   %%r15d,%%r8d \n\t" \
+ 		"cmpl   44(%%r12,1),%%r8d \n\t" \
  		"movw   %%si,0x0(%%r13,%%r14,2) \n\t" \
  		"movw   %%r9w,(%%r11,%%r14,2) \n\t" \
  		"jae    9f \n\t" \
@@ -61,18 +61,17 @@
 		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
 		:																\
 		: "g"(&asm_input)												\
-		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
+		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory", "cc");
 		
 
 #define SIEVE_13b_ASM \
 	__asm__ ( \
-		"movq	%0,%%r12 \n\t"					/* move helperstruct into rsi */ \
+		"movq	%0,%%r12 \n\t"					/* move helperstruct into r12 */ \
 		"movl   40(%%r12,1),%%r8d \n\t"			/* move startprime (i) into r8d */ \
 		"movq	(%%r12,1),%%rbx \n\t"			/* move sieve into rbx */ \
-		"movl   44(%%r12,1),%%r15d \n\t"		/* move med_B into r15d */ \
 		"movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
   		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
-		"cmpl   %%r15d,%%r8d \n\t"				/* i >= med_B? */ \
+		"cmpl   44(%%r12,1),%%r8d \n\t"				/* i >= med_B? */ \
 		"jae    8f \n\t"						/* jump to exit if so */ \
 		"7: \n\t"								/* start of 2x sieving loop */  \
 		"movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
@@ -94,12 +93,12 @@
   		"leal   (%%r10,%%r10,1),%%r11d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
 		"0:  \n\t"								/* sieve to "stop"(r13d) */ \
   		"movl   %%r9d,%%edx \n\t" \
-  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
-  		"addl   %%r11d,%%edi \n\t" \
+  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \  		
   		"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
-  		"addl   %%r11d,%%r9d \n\t" \
+  		"addl   %%r11d,%%edi \n\t" \
   		"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
   		"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
+        "addl   %%r11d,%%r9d \n\t" \
   		"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
   		"cmpl   %%r13d,%%edi \n\t" \
   		"jb     0b \n\t"						/* repeat */ \
@@ -131,14 +130,14 @@
  		"leaq   0xffffffffffff8000(%%rdi),%%r9 \n\t" \
  		"movw   %%r10w,0x0(%%r13,%%r14,2) \n\t" /* write out new root1 */ \
 		"movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
-		"cmpl   %%r15d,%%r8d \n\t" \
+		"cmpl   44(%%r12,1),%%r8d \n\t" \
 		"movw   %%r9w,(%%r11,%%r14,2) \n\t"		/* write out new root2 */ \
  		"jb     7b \n\t"						/* repeat 2x sieving loop */ \
 		"8: \n\t"													\
 		"movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
 		:																\
 		: "g"(&asm_input)												\
-		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory", "cc");
+		: "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory", "cc");
 
 
 #define _8P_STEP_SIEVE \
@@ -382,6 +381,8 @@
 			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", "rsi", \
 				"rdi", "cc", "memory");
+
+
 
 #elif defined(_MSC_VER)
 

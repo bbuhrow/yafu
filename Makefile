@@ -31,6 +31,7 @@ BINNAME = yafu
 ifeq ($(COMPILER),icc)
 	CC = icc
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
+#	CFLAGS += -vec-report3
 endif
 
 
@@ -41,16 +42,17 @@ endif
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
 ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41 
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_AVX2 -msse4 -msse4.1 -mavx2 -mavx
+	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 -march=core-avx2 -m64
+  #-march=core-avx2
 endif
 
 ifeq ($(MIC),1)
-	CFLAGS += -mmic -DTARGET_MIC
+	CFLAGS += -mmic -DTARGET_MIC -DFORCE_GENERIC
 	BINNAME := ${BINNAME:%=%_mic}
 	OBJ_EXT = .mo
 	
@@ -92,7 +94,12 @@ endif
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 #	modify the following line for your particular msieve installation
-	LIBS += -L../msieve/lib/linux/x86_64 
+	
+	ifeq ($(MIC),1)
+		LIBS += -L../msieve/lib/phi
+	else
+		LIBS += -L../msieve/lib/linux/x86_64 
+	endif
 	LIBS += -lmsieve
 endif
 
@@ -105,8 +112,8 @@ ifeq ($(CUDA),1)
 #	LIBS += /users/buhrow/NVIDIA_GPU_Computing_SDK/C/lib/libcutil_x86_64.a
 endif
 
-ifeq ($(FORCE_MODERN),1)
-	CFLAGS += -DFORCE_MODERN
+ifeq ($(FORCE_GENERIC),1)
+	CFLAGS += -DFORCE_GENERIC
 endif
 
 LIBS += -lecm -lgmp
@@ -162,6 +169,11 @@ YAFU_SRCS = \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
 	factor/qs/SIQS.c \
+	factor/qs/tdiv_med_32k.c \
+	factor/qs/tdiv_resieve_32k.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/poly_roots_32k.c \
+	factor/qs/update_poly_roots_32k.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
@@ -181,33 +193,27 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c
 	
-ifeq ($(MIC),1)
-# just add 32k versions of these files
-	YAFU_SRCS += factor/qs/tdiv_med_32k.c \
-		factor/qs/tdiv_resieve_32k.c \
-		factor/qs/med_sieve_32k.c \
-		factor/qs/poly_roots_32k.c \
-		factor/qs/update_poly_roots_32k.c
-else
-# add both versions
 
-	YAFU_SRCS += factor/qs/tdiv_med_32k.c \
-		factor/qs/tdiv_med_64k.c \
-		factor/qs/tdiv_resieve_32k.c \
-		factor/qs/tdiv_resieve_64k.c \
-		factor/qs/med_sieve_32k.c \
-		factor/qs/med_sieve_64k.c \
-		factor/qs/poly_roots_32k.c \
-		factor/qs/poly_roots_64k.c \
-		factor/qs/update_poly_roots_32k.c \
-		factor/qs/update_poly_roots_64k.c
-endif
 		
-ifeq ($(USE_SSE41),1)
-# these files require SSE4.1 to compile
-	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
-	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+ifeq ($(USE_AVX2),1)
+    
+    YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c
+    YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
+    YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
+    YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 
+	# also compile in SSE41 files, as a fallback in case user's cpu doesn't have avx2
+    YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+    YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+    
+else
+  ifeq ($(USE_SSE41),1)
+  
+    # these files require SSE4.1 to compile
+    YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+    YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
+    
+  endif
 endif
 
 YAFU_OBJS = $(YAFU_SRCS:.c=$(OBJ_EXT))
@@ -235,12 +241,8 @@ endif
 HEAD = include/yafu.h  \
 	include/qs.h  \
 	factor/qs/poly_macros_32k.h \
-	factor/qs/poly_macros_64k.h \
 	factor/qs/poly_macros_common.h \
 	factor/qs/sieve_macros_32k.h \
-	factor/qs/sieve_macros_64k.h \
-	factor/qs/tdiv_macros_32k.h \
-	factor/qs/tdiv_macros_64k.h \
 	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
 	include/types.h  \
@@ -260,10 +262,19 @@ HEAD = include/yafu.h  \
 	include/gmp_xface.h \
 	include/nfs.h
 
-ifeq ($(USE_SSE41),1)
-# these files require SSE4.1 to compile
-	HEAD += factor/qs/poly_macros_common_sse4.1.h
-	HEAD += factor/qs/sieve_macros_32k_sse4.1.h
+ifeq ($(USE_AVX2),1)
+
+	HEAD += factor/qs/poly_macros_common_avx2.h
+	HEAD += factor/qs/sieve_macros_32k_avx2.h
+
+else
+  ifeq ($(USE_SSE41),1)
+
+  # these files require SSE4.1 to compile
+    HEAD += factor/qs/poly_macros_common_sse4.1.h
+    HEAD += factor/qs/sieve_macros_32k_sse4.1.h
+    
+  endif
 endif
 
 #---------------------------Make Targets -------------------------

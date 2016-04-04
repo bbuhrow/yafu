@@ -123,11 +123,13 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			// in poly_id
 			poly_id |= (sconf->total_poly_a << 16);
 			buffer_relation(offset,large_prime,smooth_num+1,
-				fb_offsets,poly_id,parity,dconf,polya_factors,it);
+				fb_offsets,poly_id,parity,dconf,polya_factors,it, 1);
 		}
-		else
-			buffer_relation(offset,large_prime,smooth_num+1,
-				fb_offsets,poly_id,parity,dconf,polya_factors,it);
+        else
+        {
+            buffer_relation(offset, large_prime, smooth_num + 1,
+                fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+        }
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
@@ -153,7 +155,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	{	
 		//quick prime check: compute 2^(residue-1) mod residue.  
 		uint64 res;
-		//printf("%llu\n",q64);
 
 #if BITS_PER_DIGIT == 32
 		mpz_set_64(dconf->gmptmp1, q64);
@@ -162,6 +163,13 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 		mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
 		res = mpz_get_64(dconf->gmptmp1);
+#elif defined (TARGET_MIC)
+        mpz_set_64(dconf->gmptmp1, q64);
+        mpz_set_64(dconf->gmptmp2, 2);
+        mpz_set_64(dconf->gmptmp3, q64-1);
+
+        mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
+        res = mpz_get_64(dconf->gmptmp1);
 #else
 		// meh, not really any faster, but fun to write...
 		res = spPRP2(q64);
@@ -198,6 +206,13 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		}
 #else
 
+
+#ifdef USE_VEC_SQUFOF
+
+        buffer_relation(offset, NULL, smooth_num + 1,
+            fb_offsets, poly_id, parity, dconf, polya_factors, it, q64);
+
+#else
 		dconf->attempted_squfof++;
 		mpz_set_64(dconf->gmptmp1, q64);
 		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
@@ -208,26 +223,32 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			large_prime[0] = (uint32)f64;
 			large_prime[1] = (uint32)(q64 / f64);
 
-			if (large_prime[0] < sconf->large_prime_max 
-				&& large_prime[1] < sconf->large_prime_max)
-			{
-				//add this one
-				dconf->dlp_useful++;
-				buffer_relation(offset,large_prime,smooth_num+1,
-					fb_offsets,poly_id,parity,dconf,polya_factors,it);
-			}
+            if (large_prime[0] < sconf->large_prime_max
+                && large_prime[1] < sconf->large_prime_max)
+            {
+                //add this one
+                dconf->dlp_useful++;
+                buffer_relation(offset, large_prime, smooth_num + 1,
+                    fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+            }
 				
 		}
 		else
 		{
 			dconf->failed_squfof++;
-			//printf("squfof failure: %" PRIu64 "\n", q64);
 		}
+
+#endif
+
+
 #endif
 
 	}
-	else
-		dconf->dlp_outside_range++;
+    else
+    {
+        //gmp_printf("residue %Zd (%" PRIu64 ") is outside range\n", dconf->Qvals[report_num], q64);
+        dconf->dlp_outside_range++;
+    }
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -240,69 +261,99 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	return;
 }
 
-void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
-						  dynamic_conf_t *conf, uint32 *polya_factors, 
-						  uint32 num_polya_factors)
+void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
+    uint32 *fb_offsets, uint32 poly_id, uint32 parity,
+    dynamic_conf_t *conf, uint32 *polya_factors,
+    uint32 num_polya_factors, uint64 unfactored_residue)
 {
-	//put this relations's info into a temporary buffer which
-	//will get merged with other such buffers (if multi-threaded) and
-	//dumped to file once the threads are joined.
-	siqs_r *rel;
-	uint32 i, j, k;
+    //put this relations's info into a temporary buffer which
+    //will get merged with other such buffers (if multi-threaded) and
+    //dumped to file once the threads are joined.
+    siqs_r *rel;
+    uint32 i, j, k;
 
-	//first check that this relation won't overflow the buffer
-	if (conf->buffered_rels >= conf->buffered_rel_alloc)
-	{
-		printf("reallocating relation buffer\n");
-		conf->relation_buf = (siqs_r *)realloc(conf->relation_buf, 
-			conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
+    //first check that this relation won't overflow the buffer
+    if (conf->buffered_rels >= conf->buffered_rel_alloc)
+    {
+        printf("reallocating relation buffer\n");
+        conf->relation_buf = (siqs_r *)realloc(conf->relation_buf,
+            conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
 #ifdef HAVE_CUDA
-		conf->buf_id = (uint32 *)realloc(conf->buf_id, 
-			conf->buffered_rel_alloc * 2 * sizeof(uint32));
-		conf->squfof_candidates = (uint64 *)realloc(conf->squfof_candidates, 
-			conf->buffered_rel_alloc * 2 * sizeof(uint64));
+        conf->buf_id = (uint32 *)realloc(conf->buf_id, 
+            conf->buffered_rel_alloc * 2 * sizeof(uint32));
+        conf->squfof_candidates = (uint64 *)realloc(conf->squfof_candidates, 
+            conf->buffered_rel_alloc * 2 * sizeof(uint64));
 #endif
-		if (conf->relation_buf == NULL)
-		{
-			printf("error re-allocating temporary storage of relations\n");
-			exit(-1);
-		}
-		conf->buffered_rel_alloc *= 2;
-	}
+        if (conf->relation_buf == NULL)
+        {
+            printf("error re-allocating temporary storage of relations\n");
+            exit(-1);
+        }
+        conf->buffered_rel_alloc *= 2;
+    }
 
-	//then stick all the info in the buffer
-	rel = conf->relation_buf + conf->buffered_rels;
-	
-	rel->sieve_offset = offset;
-	rel->parity = parity;
-	rel->poly_idx = poly_id;
+    //then stick all the info in the buffer
+    rel = conf->relation_buf + conf->buffered_rels;
 
-	rel->fb_offsets = (uint32 *)malloc(
-		(num_polya_factors + num_factors) * sizeof(uint32));
+    rel->sieve_offset = offset;
+    rel->parity = parity;
+    rel->poly_idx = poly_id;
 
-	//merge in extra factors of the apoly factors
-	i = j = k = 0;
-	while (k < num_factors && j < num_polya_factors) {
-		if (fb_offsets[k] < polya_factors[j]) {
-			rel->fb_offsets[i++] = fb_offsets[k++];
-		}
-		else if (fb_offsets[k] > polya_factors[j]) {
-			rel->fb_offsets[i++] = polya_factors[j++];
-		}
-		else {
-			rel->fb_offsets[i++] = fb_offsets[k++];
-			rel->fb_offsets[i++] = polya_factors[j++];
-		}
-	}
-	while (k < num_factors)
-		rel->fb_offsets[i++] = fb_offsets[k++];
-	while (j < num_polya_factors)
-		rel->fb_offsets[i++] = polya_factors[j++];
-		
-	rel->num_factors = num_factors + num_polya_factors;
-	rel->large_prime[0] = large_prime[0];
+    rel->fb_offsets = (uint32 *)malloc(
+        (num_polya_factors + num_factors) * sizeof(uint32));
+
+    //merge in extra factors of the apoly factors
+    i = j = k = 0;
+    while (k < num_factors && j < num_polya_factors) {
+        if (fb_offsets[k] < polya_factors[j]) {
+            rel->fb_offsets[i++] = fb_offsets[k++];
+        }
+        else if (fb_offsets[k] > polya_factors[j]) {
+            rel->fb_offsets[i++] = polya_factors[j++];
+        }
+        else {
+            rel->fb_offsets[i++] = fb_offsets[k++];
+            rel->fb_offsets[i++] = polya_factors[j++];
+        }
+    }
+    while (k < num_factors)
+        rel->fb_offsets[i++] = fb_offsets[k++];
+    while (j < num_polya_factors)
+        rel->fb_offsets[i++] = polya_factors[j++];
+
+    rel->num_factors = num_factors + num_polya_factors;
+
+#ifdef USE_VEC_SQUFOF
+
+    if (unfactored_residue > 1)
+    {
+        if (conf->num_64bit_residue >= 4096)
+        {
+            printf("uh-oh, too many residues\n"); fflush(stdout);
+        }
+
+        //printf("adding %lu to unfactored residue list in position %d, relation %d\n", 
+        //    unfactored_residue, conf->num_64bit_residue, conf->buffered_rels);
+
+        conf->unfactored_residue[conf->num_64bit_residue] = unfactored_residue;        
+
+        // use this to signify we need to add factors later.
+        rel->large_prime[0] = 0xffffffff;
+        conf->num_64bit_residue++;
+    }
+    else
+    {
+        rel->large_prime[0] = large_prime[0];
+        rel->large_prime[1] = large_prime[1];
+    }
+
+#else
+    
+    rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
+
+#endif
+
 
 	conf->buffered_rels++;
 	return;

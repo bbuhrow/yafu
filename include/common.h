@@ -22,8 +22,6 @@ Purpose:	Port into Yafu-1.14.  Much of the functionality in here
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-//#include "msieve.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

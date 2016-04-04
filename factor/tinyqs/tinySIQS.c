@@ -18,6 +18,8 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#ifdef NOTDEF
+
 #include "yafu.h"
 #include "qs.h"
 #include "util.h"
@@ -1765,5 +1767,5 @@ static uint64 tiny_bitValRead64(uint64 **m, int row, int col)
 	return (m[row][mcol] & tiny_masks64[offset]);
 }
 
-
+#endif
 

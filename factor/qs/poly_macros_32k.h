@@ -95,13 +95,12 @@
 	// in order to take advantage of the fractional clock latency of movd, and to
 	// break up a dependency bottleneck between movd and the cmpl.
 
-	// macro for adding an element (specified by r8d) to the end of a bucket list
-	#define UPDATE_ROOT1(it) \
-		"movl   %%r8d,%%ebx \n\t"				/* ebx becomes bnum */ \
+    // macro for adding an element (specified by r8d) to the end of a bucket list
+    #define UPDATE_ROOT1(it) \
+        "movl   %%r8d,%%ebx \n\t"				/* ebx becomes bnum */ \
 		"movl   %%r15d,%%edi \n\t"				/* edi becomes fb offset */ \
-		"movl   %%r8d,%%eax \n\t"				/* eax becomes block location */ \
 		"shrl   $15,%%ebx \n\t"	/* right shift root by blksize  = bnum */ \
-		"andl   $32767,%%eax \n\t"	/* root & BLOCKSIZEm1 */ \
+		"andl   $32767,%%r8d \n\t"	/* root & BLOCKSIZEm1 */ \
 		"movl   %%ebx,%%ecx \n\t"				/* ecx becomes bucket address offset */ \
 		"addl	$" it ", %%edi \n\t"			/* add iteration number to j */ \
 		"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
@@ -110,16 +109,15 @@
 		"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 		"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 		"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-		"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+		"orl	%%r8d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 		"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */
 
 	// macro for adding an element (specified by r9d) to the end of a bucket list
 	#define UPDATE_ROOT2(it) \
 		"movl   %%r9d,%%ebx \n\t"				/* ebx becomes bnum */ \
 		"movl   %%r15d,%%edi \n\t"				/* edi becomes fb offset */ \
-		"movl   %%r9d,%%eax \n\t"				/* eax becomes block location */ \
 		"shrl   $15,%%ebx \n\t"	/* right shift root by blksize  = bnum */ \
-		"andl   $32767,%%eax \n\t"	/* root & BLOCKSIZEm1 */ \
+		"andl   $32767,%%r9d \n\t"	/* root & BLOCKSIZEm1 */ \
 		"movl   %%ebx,%%ecx \n\t"				/* ecx becomes bucket address offset */ \
 		"addl	$" it ", %%edi \n\t"			/* add iteration number to j */ \
 		"movl   (%%r10,%%rbx,4),%%r14d \n\t"	/* numptr_p[bnum] */ \
@@ -128,7 +126,7 @@
 		"shll	$16,%%edi \n\t"					/* move (j - bound_val) to upper word */ \
 		"addl   %%r14d,%%ecx \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
 		"addl   $1,(%%r10,%%rbx,4) \n\t"		/* store new numptr to memory */ \
-		"orl	%%eax,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
+		"orl	%%r9d,%%edi \n\t"				/* combine two words to reduce write port pressure */ \
 		"movl   %%edi,(%%r11,%%rcx,4) \n\t"		/* store new fb_index/loc to memory */
 
 	// macro for iteratively adding an element (specified by r8d) to the end of a bucket list
