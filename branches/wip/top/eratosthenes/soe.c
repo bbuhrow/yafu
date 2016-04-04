@@ -517,7 +517,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 }
 
 
-#ifdef NOT_DEF
+#ifdef DEFINED
 void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum)
 {
 	z mp1;
@@ -525,6 +525,7 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 	uint64 n64;
 	uint32 j;
 	uint64 pcount = 0;
+    uint32 *seed_p, num_sp;
 	
 	//stuff for timing
 	double t;
@@ -572,9 +573,17 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 	powof2m1sum = powof2m1sqr;
 	powof2sum = powof2sqr;
 
+    seed_p = (uint32 *)malloc(1000000 * sizeof(uint32));
+    num_sp = tiny_soe(10000000, seed_p);
+
 	//lets not print all this stuff to the screen...
 	PRIMES_TO_SCREEN = 0;
 	PRIMES_TO_FILE = 0;
+
+    PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, 0, 10000000, &n64);
+    NUM_P = n64;
+    P_MIN = lower;
+    P_MAX = PRIMES[(uint32)NUM_P - 1];
 	
 	tmpupper = lower;
 	while (tmpupper != upper)
@@ -587,7 +596,11 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 		gettimeofday(&tstart, NULL);		
 
 		//get a new batch of primes.
-		n64 = soe_wrapper(lower,tmpupper,0);
+        free(PRIMES);
+        PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, lower, tmpupper, &n64);
+        NUM_P = n64;
+        P_MIN = lower;
+        P_MAX = PRIMES[(uint32)NUM_P - 1];
 
 		//keep a running sum of how many we've found
 		pcount += n64;
@@ -609,9 +622,9 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 			if ((PRIMES[j] > tmpupper) || (PRIMES[j] < lower))
 				break;
 
-#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+//#if defined(GCC_ASM64X) //&& !defined(ASM_ARITH_DEBUG)
 			
-			ASM_G (
+			__asm (
 				"addq %%rax, (%%rcx) \n\t"
 				"adcq $0, 8(%%rcx) \n\t"
 				"mulq %1		\n\t"
@@ -622,13 +635,14 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 				: "b"(squaresum->val), "a"(PRIMES[j]), "c"(sum->val)
 				: "rdx", "memory", "cc");				
 
-#else
-			sp642z(PRIMES[j],&mp1);
-			zSqr(&mp1,&mp1);
-			zAdd(squaresum,&mp1,squaresum);
-			zShortAdd(sum,PRIMES[j],sum);
-
-#endif
+//#else
+//            printf(".");
+//			sp642z(PRIMES[j],&mp1);
+//			zSqr(&mp1,&mp1);
+//			zAdd(squaresum,&mp1,squaresum);
+//			zShortAdd(sum,PRIMES[j],sum);
+//
+//#endif
 						
 			//check if the squaresum is 0 modulo the current power of 10
 			if ((squaresum->val[0] & powof2m1sqr) == 0)
@@ -739,6 +753,9 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum,
 	return;
 }
 
+#endif
+
+#ifdef NOT_DEF
 void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
 {
 	z mp1;

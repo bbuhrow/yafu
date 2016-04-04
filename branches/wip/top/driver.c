@@ -203,10 +203,32 @@ int main(int argc, char *argv[])
     LCGSTATE = g_rand.low;
 #endif	
 
+    if (0)
+    {
+        test_dlp_composites();
+    }
 
-    //test_dlp_composites();
-    //test_dlp_composites_par();
+    if (0)
+    {
+        test_dlp_composites_par();
+    }
+
+    if (0)
+    {
+        z z1, z2;
+        zInit(&z1);
+        zInit(&z2);
+        primesum_check12(0, 10000000000000, 10, &z1, &z2);
+    }
     
+    if (0)
+    {
+        uint64 N[8];
+        uint64 f[8];
+
+        N[0] = 41333480705307667;
+        par_shanks_loop(N, f, 1);
+    }
 
 
 	// command line

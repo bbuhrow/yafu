@@ -24,6 +24,7 @@ code to the public domain.
 #include "util.h"
 #include <gmp.h>
 
+#define DEFINED 1
 #define NUM_SQUFOF_MULT 38
 #define NUM_LANES 8
 
@@ -74,6 +75,7 @@ typedef struct
 // local functions
 void par_shanks_mult_unit(par_mult_t *mult_save);
 void par_shanks_mult_unit_asm(par_mult_t *mult_save);
+void par_shanks_mult_unit_asm2(par_mult_t *mult_save);
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
 int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, mpz_t gmptmp);
 void copy_mult_save(par_mult_t batch_data, int dest_lane, int src_lane);
@@ -371,8 +373,13 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
         //        j, mult_batch.mN[j], mult_batch.mult[j], mult_batch.it[j], mult_batch.imax[j]);
         //}
 
+
         // run parallel squfof
+#if defined(__INTEL_COMPILER)
         par_shanks_mult_unit(&mult_batch);
+#else
+        par_shanks_mult_unit_asm2(&mult_batch);
+#endif
 
         // examine the batch and:
         // 1) flag completed numbers
@@ -394,6 +401,10 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                     //this is an error condition, stop processing this multiplier
                     save_data[j][mult_batch.multnum[j]].valid = 0;
                     get_next_multiplier(mult_batch, save_data, j);
+
+#ifdef PRINT_DEBUG
+                    printf("failed on input %lu \n", N[mult_batch.listref[j]]);
+#endif
                 }
                 else if (f64 > 1)
                 {
@@ -401,6 +412,11 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                     f[mult_batch.listref[j]] = f64;
                     num_successes++;
                     num_processed++;
+
+#ifdef PRINT_DEBUG
+                    printf("found factor %u of input %lu on multiplier %u, round %u, iteration %u\n",
+                        f64, N[mult_batch.listref[j]], mult_batch.multnum[j], mult_batch.rounds[j], mult_batch.it[j]);
+#endif
 
                     // and flag this lane to be replaced by a new input
                     mult_batch.active[j] = 0;
@@ -449,6 +465,10 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                                 // also done with rounds.  give up.
                                 mult_batch.active[j] = 0;
                                 num_processed++;
+
+#ifdef PRINT_DEBUG
+                                printf("giving up on input %lu \n", N[mult_batch.listref[j]]);
+#endif
                             }
                             else
                             {
@@ -463,6 +483,10 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                                     // all multipliers invalid.  give up.
                                     mult_batch.active[j] = 0;
                                     num_processed++;
+
+#ifdef PRINT_DEBUG
+                                    printf("giving up on input %lu \n", N[mult_batch.listref[j]]);
+#endif
                                 }
                             }
                         }
@@ -1118,7 +1142,6 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
                 printf("]\n\n");
 
                 printf("i >= imax\n");
-                exit(1);
 #endif
                 
                 return;
@@ -1173,6 +1196,7 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
             //even iteration
             //check for square Qn = S*S
             success = 0;
+
 #pragma ivdep
 #pragma vector aligned
 #pragma unroll
@@ -1182,12 +1206,11 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
 
                 // much faster this way, can be autovectorized.
                 t1[k] = (uint32)sqrt(Qn[k]);
-                if (Qn[k] == t1[k] * t1[k])
+                if (Qn[k] == (t1[k] * t1[k]))
                 {
                     success_vec[k] = 1;
                     success = 1;
                 }
-
             }
 
             if (success)
@@ -1232,7 +1255,6 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
                 printf("]\n\n");
 
                 
-                exit(1);
 #endif
 
                 // found at least one square.  check to see if it produces a factorization.
@@ -1248,7 +1270,7 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
                 P[k] = bn[k] * Qn[k] - P[k];
                 t2[k] = Qn[k];
                 Qn[k] = Q0[k] + bn[k] * (t1[k] - P[k]);
-                Q0[k] = t2[k];
+                Q0[k] = t2[k];                
                 bn[k] = (b0[k] + P[k]) / Qn[k];
                 iterations[k]++;
             }
@@ -1385,6 +1407,8 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
     __declspec(aligned(64)) uint32 t1[NUM_LANES];
     __declspec(aligned(64)) uint32 t2[NUM_LANES];
     __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
+    uint64 conversion[4];
+    double fudge[4];
 #else
     uint32 *iterations = mult_save->it;
     uint32 *P = mult_save->P;
@@ -1399,6 +1423,8 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
     uint32 t1[NUM_LANES];
     uint32 t2[NUM_LANES];
     uint32 success_vec[NUM_LANES];
+    uint64 conversion[4];
+    double fudge[4];
 #endif
 
 
@@ -1406,6 +1432,16 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
     int i = 0;
     int k;
     int success;
+
+    conversion[0] = 0x4330000000000000;
+    conversion[1] = 0x4330000000000000;
+    conversion[2] = 0x4330000000000000;
+    conversion[3] = 0x4330000000000000;
+
+    fudge[0] = 1/65536.0;
+    fudge[1] = 1/65536.0;
+    fudge[2] = 1/65536.0;
+    fudge[3] = 1/65536.0;
 
     // find max iterations such that all active lanes will have met this multiplier's imax
     imax = 0xffffffff;
@@ -1420,7 +1456,7 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
         }
     }
 
-    imax = MAX(imax, 128);
+    //imax = MAX(imax, 128);
     //printf("scheduled to run %d iterations\n", imax);
 
     // load previous save point
@@ -1433,6 +1469,8 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
 
     while (1)
     {
+        int kk;
+
         j = 0;
 
         //i must be even on entering the unrolled loop below
@@ -1451,144 +1489,384 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
             }
         }
 
+#ifdef PRINT_DEBUG
+        printf("starting values:\n");
+
+        printf("P = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", P[k]);
+        printf("]\n");
+
+        printf("Qn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Qn[k]);
+        printf("]\n");
+
+        printf("Q0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Q0[k]);
+        printf("]\n");
+
+        printf("bn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", bn[k]);
+        printf("]\n");
+
+        printf("b0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", b0[k]);
+        printf("]\n");
+
+        printf("iterations = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", iterations[k]);
+        printf("]\n\n");
+#endif
+
         //printf("entering loop at iteration %d (of %d)\n", i, imax);
         //fflush(stdout);
+        //success = imax / 8;
+        //for (kk = 0; kk < success; kk++)
+        //{
 
-        __asm__
-            (
-            /* load quantities in xmm registers */
-            "vmovdqa    (%1), %%ymm0 \n\t" /* P */
-            "vmovdqa    (%2), %%ymm1 \n\t" /* Qn */
-            "vmovdqa    (%3), %%ymm2 \n\t" /* Q0 */
-            "vmovdqa    (%4), %%ymm3 \n\t" /* bn */
-            "vmovdqa    (%5), %%ymm4 \n\t" /* b0 */
-            "vmovdqa    (%6), %%ymm5 \n\t" /* it */
-            "movl	    $1, %%r11d \n\t"		        /* fill utility register with 1's */
-            "vmovd      %%r11d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */
-            "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */
-            "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t"
-            "movl       %0, %%r10d \n\t"
-            "movl       %8, %%r11d \n\t"
+        kk = i;
 
-            /* top of while(1) loop */
-            "0: \n\t"       
+            __asm__
+                (
+                /* load quantities in xmm registers */
+                "vmovdqa    (%1), %%ymm0 \n\t" /* P */
+                "vmovdqa    (%2), %%ymm1 \n\t" /* Qn */
+                "vmovdqa    (%3), %%ymm2 \n\t" /* Q0 */
+                "vmovdqa    (%4), %%ymm3 \n\t" /* bn */
+                "vmovdqa    (%5), %%ymm4 \n\t" /* b0 */
+                "movl	    $1, %%r11d \n\t"		        /* fill utility register with 1's */
+                "vmovd      %%r11d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */
+                "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */
+                "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t"
+                "vmovd      %%r11d, %%xmm10 \n\t"               /* broadcast 1's to ymm10 */
+                "vpshufd	    $0, %%xmm10, %%xmm10 \n\t"      /* broadcast 1's to ymm10 */
+                "vpaddd     %%xmm10, %%xmm10, %%xmm10 \n\t"     /* make it an array of 2's */
+                "vcvtdq2ps  %%xmm10, %%xmm10 \n\t"	            /* convert to single precision */
+                "vcvtps2pd  %%xmm10, %%ymm5 \n\t"	            /* convert to double precision (2's array) */
+                "vrcpps	%%xmm10, %%xmm10 \n\t"		            /* approx 1/2 */
+                "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/4 */
+                "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/16 */
+                "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/256 */
+                "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/65536 */
+                "vcvtps2pd %%xmm10, %%ymm10 \n\t"	            /* convert to double precision */
+                "vmovdqu    (%8), %%ymm11 \n\t"                 /* load conversion constant into ymm11 */
+                "movl       %0, %%r10d \n\t"
+                "movl       %7, %%r11d \n\t"
+                "decl       %%r11d \n\t"
 
-            /* if (i >= imax) do this then return */
-            "cmpl       %%r10d, %%r11d \n\t"
-            "jae 1f \n\t"
-            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
-            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
-            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
-            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
-            "vmovdqa    %%ymm5, (%6)  \n\t" /* it */
-            "jmp 5f \n\t"                   /* jump out of loop and set return condition */
+                /* top of while(1) loop */
+                "0: \n\t"       
 
-            "1: \n\t"
-            /* even iteration */
-            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
-            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
-            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
-            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
-            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
-            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
-            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
-            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
-            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+                /* if (i >= imax) do this then return */
+                "cmpl       %%r10d, %%r11d \n\t"
+                "jae 1f \n\t"
+                "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+                "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+                "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+                "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+                "jmp 5f \n\t"                   /* jump out of loop and set return condition */
 
-            /* first 4 divisions */
-            "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-            "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                "1: \n\t"
+                /* even iteration */
+                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
 
-            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+#ifdef DEFINED //NOTDEFINED // DEFINED //
+                /* first 4 divisions */
+                "vpmovzxdq  %%xmm1, %%ymm7 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpmovzxdq  %%xmm6, %%ymm9 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm7, %%ymm11, %%ymm7 \n\t"   /* (p1, L3) add magic constant as integer */
+                "vextracti128   $1,%%ymm1,%%xmm12 \n\t"     /* (p5, L3) grab high half of inputs */
+                "vpaddq     %%ymm9, %%ymm11, %%ymm9 \n\t"   /* (p1, L3) add magic constant as integer */
+                "vextracti128   $1,%%ymm6,%%xmm13 \n\t"     /* (p5, L3) grab high half of inputs */
+                "vsubpd     %%ymm11, %%ymm7, %%ymm7 \n\t"   /* (p1, L3) sub magic constant as double */
+                "vpmovzxdq  %%xmm12, %%ymm12 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vsubpd     %%ymm11, %%ymm9, %%ymm9 \n\t"   /* (p1, L3) sub magic constant as double */
+                "vpmovzxdq  %%xmm13, %%ymm13 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t" /* (p1, L3) add magic constant as integer */
+                
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */      
+                "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
+                "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */
+                
+                /* second 4 divisions */                
+                "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
+                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+                "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+#else
 
-            /* second 4 divisions */
-            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
-            "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
-            "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-            "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
+                // numerator is in ymm6
+                // denominator is in ymm1
+                // result needs to be in ymm3 at the end
+                // used (unavailable) registers:
+                // ymm0 (P), ymm1 (Qn), ymm2 (Q0), ymm4 (b0), ymm5 (double 2's), 
+                // ymm10 (fudge), ymm11 (convert)
+                // available registers:
+                // ymm6 (after numerator is used)
+                // ymm3, ymm7, ymm8, ymm9, ymm12, ymm13, ymm14, ymm15                
 
-            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-            "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
-            "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+                "vextracti128   $1,%%ymm1,%%xmm13 \n\t"      /* grab high half of inputs */
+                "vpmovzxdq  %%xmm1, %%ymm12 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vpmovzxdq  %%xmm13, %%ymm13 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t"   /* add magic constant as integer */
+                "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t"   /* add magic constant as integer */
+                "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t"   /* sub magic constant as double */
+                "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t"   /* sub magic constant as double */
 
-            "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
-            "incl       %%r10d \n\t"
+                "vcvtpd2ps	    %%ymm12, %%xmm7 \n\t"	            /* convert double to float */    
+                "vrcpps	        %%xmm7, %%xmm7 \n\t"	            /* approx 1/d */
+                "vcvtpd2ps	    %%ymm13, %%xmm9 \n\t"	            /* convert double to float */
+                "vrcpps	        %%xmm9, %%xmm9 \n\t"	            /* approx 1/d */ 
+                "vcvtps2pd      %%xmm7, %%ymm7 \n\t"	            /* convert back to double precision */
+                "vcvtps2pd      %%xmm9, %%ymm9 \n\t"	            /* convert back to double precision */
+                
 
-            /* square root check */
-            "xorl       %%r8d, %%r8d \n\t"
-            "vpxor      %%xmm10, %%xmm10, %%xmm10        \n\t"       /* fill xmm10 with 0's */
-            "vcvtdq2pd  %%xmm1, %%ymm6	                 \n\t"      /* convert Qn to double precision */
-            "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
-            "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
-            "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
-            "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
-            "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
-            "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+                "vmulpd	        %%ymm7, %%ymm12, %%ymm14 \n\t"	      /* d * 1/d */
+                "vpmovzxdq      %%xmm6, %%ymm8 \n\t"                /* extend low half of numerator */
+                "vmulpd	        %%ymm9, %%ymm13, %%ymm15 \n\t"	      /* d * 1/d */
+                "vextracti128   $1,%%ymm6,%%xmm6 \n\t"              /* grab high half of numerator */
+                "vmulpd	        %%ymm14, %%ymm7, %%ymm14 \n\t"	      /* d * 1/d * 1/d */
+                "vpmovzxdq      %%xmm6, %%ymm6 \n\t"                /* extend high half of numerator */
+                "vmulpd	        %%ymm15, %%ymm9, %%ymm15 \n\t"	      /* d * 1/d * 1/d */
+                "vpaddq         %%ymm8, %%ymm11, %%ymm8 \n\t"       /* add magic constant as integer */
+                "vfmsub132pd	%%ymm5, %%ymm14, %%ymm7 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vpaddq         %%ymm6, %%ymm11, %%ymm6 \n\t"       /* add magic constant as integer */
+                "vfmsub132pd	%%ymm5, %%ymm15, %%ymm9 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vsubpd         %%ymm11, %%ymm8, %%ymm8 \n\t"   /* sub magic constant as double */
+                "vmulpd	        %%ymm7, %%ymm12, %%ymm14 \n\t"	      /* d * 1/d */
+                "vsubpd         %%ymm11, %%ymm6, %%ymm6 \n\t"   /* sub magic constant as double */
+                "vmulpd	        %%ymm9, %%ymm13, %%ymm15 \n\t"	      /* d * 1/d */
+                "vmulpd	        %%ymm14, %%ymm7, %%ymm14 \n\t"	      /* d * 1/d * 1/d */
+                "vmulpd	        %%ymm15, %%ymm9, %%ymm15 \n\t"	      /* d * 1/d * 1/d */
+                "vfmsub132pd	%%ymm5, %%ymm14, %%ymm7 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vfmsub132pd	%%ymm5, %%ymm15, %%ymm9 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vmovapd        %%ymm8, %%ymm14 \n\t"           /* copy numerator */
+                "vmovapd        %%ymm6, %%ymm15 \n\t"           /* copy numerator */
+                "vfmadd132pd	%%ymm7, %%ymm10, %%ymm14 \n\t"	/* n * 1/d + 1/65536 */
+                "vfmadd132pd	%%ymm9, %%ymm10, %%ymm15 \n\t"	/* n * 1/d + 1/65536 */
+                "vroundpd	    $3, %%ymm14, %%ymm14 \n\t"	/* truncate */
+                "vroundpd	    $3, %%ymm15, %%ymm15 \n\t"	/* truncate */
+                "vmulpd	        %%ymm14, %%ymm12, %%ymm12 \n\t"	      /* ans * denominators */
+                "vmulpd	        %%ymm15, %%ymm13, %%ymm13 \n\t"	      /* ans * denominators */
+                "vcmppd         $0xe, %%ymm8, %%ymm12, %%ymm7 \n\t"   /* if (ymm4[j] > numerator[j]) set ymm5[j] = 0xffffffffffffffff, for j=0:3 */
+                "vcmppd         $0xe, %%ymm6, %%ymm13, %%ymm9 \n\t"   /* if (ymm4[j] > numerator[j]) set ymm5[j] = 0xffffffffffffffff, for j=0:3 */
+                "vpand          %%ymm10, %%ymm7, %%ymm7 \n\t"            
+                "vpand          %%ymm10, %%ymm9, %%ymm9 \n\t"
+                "vsubpd         %%ymm7, %%ymm14, %%ymm14 \n\t"
+                "vsubpd         %%ymm9, %%ymm15, %%ymm15 \n\t"
+                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32 */
+                "vinserti128   $1,%%xmm7, %%ymm3, %%ymm3 \n\t"      /* set high half of bn */
+#endif
 
-            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"                  /* grab high half of inputs */
-            "vcvtdq2pd  %%xmm7, %%ymm6	                 \n\t"      /* convert Qn to double precision */
-            "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
-            "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
-            "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
-            "vpcmpeqd   %%xmm6, %%xmm7, %%xmm7           \n\t"      /* see if equal to starting value */
-            "vinserti128    $1, %%xmm7, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
-            "vmovmskps  %%xmm7, %%r9d	                 \n\t"      /* set a bit if so */
-            "vpand      %%ymm8, %%ymm9, %%ymm6 \n\t"                /* use success mask to selective write 1's to success_vec */
-            "orl        %%r9d, %%r8d \n\t"
+                "incl       %%r10d \n\t"
 
-            /* if (success) do this then exit loop */
-            "testl      %%r8d, %%r8d \n\t"
-            "jz 2f \n\t"
-            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
-            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
-            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
-            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
-            "vmovdqa    %%ymm5, (%6)  \n\t" /* it */
-            "vmovdqa    %%ymm6, (%7)  \n\t" /* successes */
-            "jmp 5f \n\t"                   /* jump out of loop and set break condition */
+                /* square root check */
+                "xorl       %%r8d, %%r8d \n\t"
 
-            "2: \n\t"
-            /* odd iteration */ 
-            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
-            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
-            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
-            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
-            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
-            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
-            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
-            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
-            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+                "vextracti128   $1,%%ymm1,%%xmm12 \n\t"      /* grab high half of inputs */
+                "vpmovzxdq  %%xmm1, %%ymm6 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vmovdqa    %%xmm12, %%xmm13 \n\t"          /* copy high half */
+                "vpaddq     %%ymm6, %%ymm11, %%ymm6 \n\t"   /* add magic constant as integer */
+                "vpmovzxdq  %%xmm12, %%ymm12 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vsubpd     %%ymm11, %%ymm6, %%ymm6 \n\t"   /* sub magic constant as double */                
 
-            /* first 4 divisions */
-            "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-            "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
+                "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+                "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t"   /* add magic constant as integer */
+                "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t"   /* sub magic constant as double */
+                "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+                "vsqrtpd    %%ymm12, %%ymm12	        	     \n\t"      /* take the square root */
+                "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+                "vcvttpd2dq %%ymm12, %%xmm12 \n\t"
+                "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
+                "vpmulld    %%xmm12, %%xmm12, %%xmm12	         \n\t"      /* multiply answer * answer */
+                "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
+                "vpcmpeqd   %%xmm12, %%xmm13, %%xmm13           \n\t"      /* see if equal to starting value */
+                "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+                "vinserti128    $1, %%xmm13, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
+                "vmovmskps  %%xmm13, %%r9d	                 \n\t"      /* set a bit if so */
+                "vpsrld     $31, %%ymm9, %%ymm6 \n\t"                   /* shift the mask to 1's in positions that pass */
+                "orl        %%r9d, %%r8d \n\t"
 
-            /* second 4 divisions */
-            "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
-            "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
-            "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-            "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-            "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
-            "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+                /* if (success) do this then exit loop */
+                "testl      %%r8d, %%r8d \n\t"
+                "jz 2f \n\t"
+                "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+                "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+                "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+                "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+                "vmovdqa    %%ymm6, (%6)  \n\t" /* successes */
+                "jmp 5f \n\t"                   /* jump out of loop and set break condition */
 
-            "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
-            "incl       %%r10d \n\t"
+                "2: \n\t"
+                /* odd iteration */ 
+                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
 
-            "jmp    0b \n\t"
+#ifdef DEFINED //NOTDEFINED // DEFINED //
+                /* first 4 divisions */
+                "vpmovzxdq  %%xmm1, %%ymm7 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpmovzxdq  %%xmm6, %%ymm9 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm7, %%ymm11, %%ymm7 \n\t"   /* (p1, L3) add magic constant as integer */
+                "vextracti128   $1,%%ymm1,%%xmm12 \n\t"     /* (p5, L3) grab high half of inputs */
+                "vpaddq     %%ymm9, %%ymm11, %%ymm9 \n\t"   /* (p1, L3) add magic constant as integer */
+                "vextracti128   $1,%%ymm6,%%xmm13 \n\t"     /* (p5, L3) grab high half of inputs */
+                "vsubpd     %%ymm11, %%ymm7, %%ymm7 \n\t"   /* (p1, L3) sub magic constant as double */
+                "vpmovzxdq  %%xmm12, %%ymm12 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vsubpd     %%ymm11, %%ymm9, %%ymm9 \n\t"   /* (p1, L3) sub magic constant as double */
+                "vpmovzxdq  %%xmm13, %%ymm13 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t" /* (p1, L3) add magic constant as integer */
 
-            /* exit marker */
-            "5: \n\t"
-            "movl   %%r10d, %0 \n\t"            /* export iteration count */
+                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+                "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */   
+                "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
+                "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */                
 
-            : "+r"(i)
-            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations), 
-                "r"(success_vec), "r"(imax)
-            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "r8", "r9", "r10", "r11", "cc"
-        );
+                /* second 4 divisions */                
+                "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
+                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+                "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+
+#else
+
+                // numerator is in ymm6
+                // denominator is in ymm1
+                // result needs to be in ymm3 at the end
+                // used (unavailable) registers:
+                // ymm0 (P), ymm1 (Qn), ymm2 (Q0), ymm4 (b0), ymm5 (double 2's), 
+                // ymm10 (fudge), ymm11 (convert)
+                // available registers:
+                // ymm6 (after numerator is used)
+                // ymm3, ymm7, ymm8, ymm9, ymm12, ymm13, ymm14, ymm15                
+
+                "vextracti128   $1,%%ymm1,%%xmm13 \n\t"      /* grab high half of inputs */
+                "vpmovzxdq  %%xmm1, %%ymm12 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vpmovzxdq  %%xmm13, %%ymm13 \n\t"            /* zero extend 32-bit to 64-bit */
+                "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t"   /* add magic constant as integer */
+                "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t"   /* add magic constant as integer */
+                "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t"   /* sub magic constant as double */
+                "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t"   /* sub magic constant as double */
+
+                "vcvtpd2ps	    %%ymm12, %%xmm7 \n\t"	            /* convert double to float */
+                "vpmovzxdq      %%xmm6, %%ymm8 \n\t"                /* extend low half of numerator */
+                "vcvtpd2ps	    %%ymm13, %%xmm9 \n\t"	            /* convert double to float */
+                "vextracti128   $1,%%ymm6,%%xmm6 \n\t"              /* grab high half of numerator */
+                "vrcpps	        %%xmm7, %%xmm7 \n\t"	            /* approx 1/d */
+                "vpmovzxdq      %%xmm6, %%ymm6 \n\t"                /* extend high half of numerator */
+                "vpaddq         %%ymm8, %%ymm11, %%ymm8 \n\t"       /* add magic constant as integer */
+                "vrcpps	        %%xmm9, %%xmm9 \n\t"	            /* approx 1/d */
+                "vpaddq         %%ymm6, %%ymm11, %%ymm6 \n\t"       /* add magic constant as integer */
+                "vcvtps2pd      %%xmm7, %%ymm7 \n\t"	            /* convert back to double precision */
+                "vsubpd         %%ymm11, %%ymm8, %%ymm8 \n\t"   /* sub magic constant as double */
+                "vcvtps2pd      %%xmm9, %%ymm9 \n\t"	            /* convert back to double precision */
+                "vsubpd         %%ymm11, %%ymm6, %%ymm6 \n\t"   /* sub magic constant as double */
+
+                "vmulpd	        %%ymm7, %%ymm12, %%ymm14 \n\t"	      /* d * 1/d */
+                "vmulpd	        %%ymm9, %%ymm13, %%ymm15 \n\t"	      /* d * 1/d */
+                "vmulpd	        %%ymm14, %%ymm7, %%ymm14 \n\t"	      /* d * 1/d * 1/d */
+                "vmulpd	        %%ymm15, %%ymm9, %%ymm15 \n\t"	      /* d * 1/d * 1/d */
+                "vfmsub132pd	%%ymm5, %%ymm14, %%ymm7 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vfmsub132pd	%%ymm5, %%ymm15, %%ymm9 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vmulpd	        %%ymm7, %%ymm12, %%ymm14 \n\t"	      /* d * 1/d */
+                "vmulpd	        %%ymm9, %%ymm13, %%ymm15 \n\t"	      /* d * 1/d */
+                "vmulpd	        %%ymm14, %%ymm7, %%ymm14 \n\t"	      /* d * 1/d * 1/d */
+                "vmulpd	        %%ymm15, %%ymm9, %%ymm15 \n\t"	      /* d * 1/d * 1/d */
+                "vfmsub132pd	%%ymm5, %%ymm14, %%ymm7 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vfmsub132pd	%%ymm5, %%ymm15, %%ymm9 \n\t"	/* 1/d = 2 * 1/d - d * 1/d^2 */
+                "vmovapd        %%ymm8, %%ymm14 \n\t"           /* copy numerator */
+                "vmovapd        %%ymm6, %%ymm15 \n\t"           /* copy numerator */
+                "vfmadd132pd	%%ymm7, %%ymm10, %%ymm14 \n\t"	/* n * 1/d + 1/65536 */
+                "vfmadd132pd	%%ymm9, %%ymm10, %%ymm15 \n\t"	/* n * 1/d + 1/65536 */
+                "vroundpd	    $3, %%ymm14, %%ymm14 \n\t"	/* truncate */
+                "vroundpd	    $3, %%ymm15, %%ymm15 \n\t"	/* truncate */
+                "vmulpd	        %%ymm14, %%ymm12, %%ymm12 \n\t"	      /* ans * denominators */
+                "vmulpd	        %%ymm15, %%ymm13, %%ymm13 \n\t"	      /* ans * denominators */
+                "vcmppd         $0xe, %%ymm8, %%ymm12, %%ymm7 \n\t"   /* if (ymm4[j] > numerator[j]) set ymm5[j] = 0xffffffffffffffff, for j=0:3 */
+                "vcmppd         $0xe, %%ymm6, %%ymm13, %%ymm9 \n\t"   /* if (ymm4[j] > numerator[j]) set ymm5[j] = 0xffffffffffffffff, for j=0:3 */
+                "vpand          %%ymm10, %%ymm7, %%ymm7 \n\t"
+                "vpand          %%ymm10, %%ymm9, %%ymm9 \n\t"
+                "vsubpd         %%ymm7, %%ymm14, %%ymm14 \n\t"
+                "vsubpd         %%ymm9, %%ymm15, %%ymm15 \n\t"
+                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32 */
+                "vinserti128   $1,%%xmm7, %%ymm3, %%ymm3 \n\t"      /* set high half of bn */
+#endif
+
+                "incl       %%r10d \n\t"
+
+                "jmp    0b \n\t"
+
+                /* exit marker */
+                "5: \n\t"
+                "movl   %%r10d, %0 \n\t"            /* export iteration count */
+
+                : "+r"(i)
+                : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0),
+                "r"(success_vec), "r"(imax), "r"(conversion)
+                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", 
+                    "xmm12", "xmm13", "xmm14", "xmm15", "r8", "r9", "r10", "r11", "cc", "memory"
+                );
+
+
+                kk = i - kk;
+
+#ifdef PRINT_DEBUG
+
+                printf("values after i = %d\n", i);
+                printf("P = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", P[k]);
+                printf("]\n");
+
+                printf("Qn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Qn[k]);
+                printf("]\n");
+
+                printf("Q0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", Q0[k]);
+                printf("]\n");
+
+                printf("bn = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", bn[k]);
+                printf("]\n");
+
+                printf("b0 = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", b0[k]);
+                printf("]\n");
+
+                printf("iterations = [");
+                for (k = 0; k < NUM_LANES; k++)
+                    printf("%u ", iterations[k]);
+                printf("]\n\n");
+#endif
+
+        //}
 
         //printf("loop exited at iteration %d (of %d)\n", i, imax);
             
@@ -1596,12 +1874,91 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
         {
             // set default signal: to do nothing but continue looking for a factor
             mult_save->f[k] = 0;
+            iterations[k] += kk;
         }
 
         if (i >= imax)
         {
+
+#ifdef PRINT_DEBUG
+            printf("i > imax\n");
+            printf("ending values:\n");
+
+            printf("P = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", P[k]);
+            printf("]\n");
+
+            printf("Qn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Qn[k]);
+            printf("]\n");
+
+            printf("Q0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", Q0[k]);
+            printf("]\n");
+
+            printf("bn = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", bn[k]);
+            printf("]\n");
+
+            printf("b0 = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", b0[k]);
+            printf("]\n");
+
+            printf("iterations = [");
+            for (k = 0; k < NUM_LANES; k++)
+                printf("%u ", iterations[k]);
+            printf("]\n\n");
+
+#endif
+
             return;
         }
+
+#ifdef PRINT_DEBUG
+        printf("found a square\n");
+        printf("ending values:\n");
+
+        printf("P = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", P[k]);
+        printf("]\n");
+
+        printf("Qn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Qn[k]);
+        printf("]\n");
+
+        printf("Q0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", Q0[k]);
+        printf("]\n");
+
+        printf("bn = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", bn[k]);
+        printf("]\n");
+
+        printf("b0 = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", b0[k]);
+        printf("]\n");
+
+        printf("iterations = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", iterations[k]);
+        printf("]\n");
+
+        printf("success_vec = [");
+        for (k = 0; k < NUM_LANES; k++)
+            printf("%u ", success_vec[k]);
+        printf("]\n\n");
+
+#endif
 
         success = 0;
         for (k = 0; k < NUM_LANES; k++)
@@ -1703,6 +2060,8 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
     __declspec(aligned(64)) uint32 t1[NUM_LANES];
     __declspec(aligned(64)) uint32 t2[NUM_LANES];
     __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
+    uint64 conversion[4];
+    double fudge[4];
 #else
     uint32 *iterations = mult_save->it;
     uint32 *P = mult_save->P;
@@ -1717,6 +2076,7 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
     uint32 t1[NUM_LANES];
     uint32 t2[NUM_LANES];
     uint32 success_vec[NUM_LANES];
+    uint64 conversion[4];
 #endif
 
 
@@ -1724,6 +2084,11 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
     int i = 0;
     int k;
     int success;
+
+    conversion[0] = 0x4330000000000000;
+    conversion[1] = 0x4330000000000000;
+    conversion[2] = 0x4330000000000000;
+    conversion[3] = 0x4330000000000000;
 
     // find max iterations such that all active lanes will have met this multiplier's imax
     imax = 0xffffffff;
@@ -1738,7 +2103,7 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
         }
     }
 
-    imax = MAX(imax, 128);
+    //imax = MAX(imax, 128);
     //printf("scheduled to run %d iterations\n", imax);
 
     // load previous save point
@@ -1751,6 +2116,8 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
 
     while (1)
     {
+        int kk;
+
         j = 0;
 
         //i must be even on entering the unrolled loop below
@@ -1769,461 +2136,187 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
             }
         }
 
-#ifdef PRINT_DEBUG
-        printf("starting values:\n");
+        kk = i;
 
-        printf("P = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", P[k]);
-        printf("]\n");
-
-        printf("Qn = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", Qn[k]);
-        printf("]\n");
-
-        printf("Q0 = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", Q0[k]);
-        printf("]\n");
-
-        printf("bn = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", bn[k]);
-        printf("]\n");
-
-        printf("b0 = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", b0[k]);
-        printf("]\n");
-
-        printf("iterations = [");
-        for (k = 0; k < NUM_LANES; k++)
-            printf("%u ", iterations[k]);
-        printf("]\n\n");
-#endif
-        
-        // load quantities in xmm registers
         __asm__
-        (
-            "vmovdqa    (%0), %%ymm0 \n\t" /* P */
-            "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
-            "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
-            "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
-            "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
-            "vmovdqa    (%5), %%ymm5 \n\t" /* it */
-            "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
-            "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
-            "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
-            "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
-            :
-            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
-            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
-        );
-
-        while (1)
-        {
-            //at the start of every iteration, we need to know:
-            //	P from the previous iteration
-            //	bn from the previous iteration
-            //	Qn from the previous iteration
-            //	Q0 from the previous iteration
-            //	iteration count, i
-            if (i >= imax)
-            {
-                //haven't progressed to the next stage yet.  let another
-                //multiplier try for awhile.  save state so we
-                //know where to start back up in the next round
-
-                // restore quantities from xmm registers to memory.
-                __asm__
-                (
-                    "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
-                    "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
-                    "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
-                    "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
-                    "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
-                    :
-                    : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
-                    : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
-                );
-
-#ifdef PRINT_DEBUG
-                printf("ending values:\n");
-
-                printf("P = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", P[k]);
-                printf("]\n");
-
-                printf("Qn = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", Qn[k]);
-                printf("]\n");
-
-                printf("Q0 = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", Q0[k]);
-                printf("]\n");
-
-                printf("bn = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", bn[k]);
-                printf("]\n");
-
-                printf("b0 = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", b0[k]);
-                printf("]\n");
-
-                printf("iterations = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", iterations[k]);
-                printf("]\n\n");
-
-                printf("i >= imax\n");
-                exit(1);
-
-#endif
-
-#pragma novector
-                for (k = 0; k < NUM_LANES; k++)
-                {
-                    //signal to do nothing but continue looking for a factor
-                    mult_save->f[k] = 0;
-                }
-                return;
-            }
-
-            // perform an iteration.  maintain these register assignments
-            // so that we can do other things in separate inline-asm statements:
-            // P  <==> ymm0
-            // Qn <==> ymm1
-            // Q0 <==> ymm2
-            // bn <==> ymm3
-            // b0 <==> ymm4
-            // it <==> ymm5
-            // we trust that the compiler won't stomp on them in the meantime...
-            // which shouldn't be an unreasonable assumption as long as
-            // we don't do anything too vector-ish between asm statements.
-            __asm__
             (
-                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
-                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"                     
-                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
-                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
-                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
-                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
-                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
-                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
-                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
+            /* load quantities in xmm registers */
+            "vmovdqa    (%1), %%ymm0 \n\t" /* P */
+            "vmovdqa    (%2), %%ymm1 \n\t" /* Qn */
+            "vmovdqa    (%3), %%ymm2 \n\t" /* Q0 */
+            "vmovdqa    (%4), %%ymm3 \n\t" /* bn */
+            "vmovdqa    (%5), %%ymm4 \n\t" /* b0 */
+            "movl	    $1, %%r11d \n\t"		        /* fill utility register with 1's */
+            "vmovd      %%r11d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */
+            "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */
+            "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t"
+            "vmovd      %%r11d, %%xmm10 \n\t"               /* broadcast 1's to ymm10 */
+            "vpshufd	    $0, %%xmm10, %%xmm10 \n\t"      /* broadcast 1's to ymm10 */
+            "vpaddd     %%xmm10, %%xmm10, %%xmm10 \n\t"     /* make it an array of 2's */
+            "vcvtdq2ps  %%xmm10, %%xmm10 \n\t"	            /* convert to single precision */
+            "vcvtps2pd  %%xmm10, %%ymm5 \n\t"	            /* convert to double precision (2's array) */
+            "vrcpps	%%xmm10, %%xmm10 \n\t"		            /* approx 1/2 */
+            "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/4 */
+            "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/16 */
+            "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/256 */
+            "vmulps	%%xmm10, %%xmm10, %%xmm10 \n\t"		    /* approx 1/65536 */
+            "vcvtps2pd %%xmm10, %%ymm10 \n\t"	            /* convert to double precision */
+            "vmovdqu    (%8), %%ymm11 \n\t"                 /* load conversion constant into ymm11 */
+            "movl       %0, %%r10d \n\t"
+            "movl       %7, %%r11d \n\t"
+            "decl       %%r11d \n\t"
 
-                /* first 4 divisions */
-                "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-                "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
-                
-                /* second 4 divisions */
-                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
-                "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
-                "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-                "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-                "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
-                "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+            /* top of while(1) loop */
+            "0: \n\t"       
 
-                "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
-                :
-                :
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10"
-            );
+            /* if (i >= imax) do this then return */
+            "cmpl       %%r10d, %%r11d \n\t"
+            "jae 1f \n\t"
+            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+            "jmp 5f \n\t"                   /* jump out of loop and set return condition */
 
-            i++;
+            "1: \n\t"
+            /* even iteration */
+            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
 
-#ifdef PRINT_DEBUG
-            __asm__
-                (
-                "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
-                "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
-                "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
-                "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
-                "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
-                :
-            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
-                );
+            /* first 4 divisions */
+            "vpmovzxdq  %%xmm1, %%ymm7 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpmovzxdq  %%xmm6, %%ymm9 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpaddq     %%ymm7, %%ymm11, %%ymm7 \n\t"   /* (p1, L3) add magic constant as integer */
+            "vextracti128   $1,%%ymm1,%%xmm12 \n\t"     /* (p5, L3) grab high half of inputs */
+            "vpaddq     %%ymm9, %%ymm11, %%ymm9 \n\t"   /* (p1, L3) add magic constant as integer */
+            "vextracti128   $1,%%ymm6,%%xmm13 \n\t"     /* (p5, L3) grab high half of inputs */
+            "vsubpd     %%ymm11, %%ymm7, %%ymm7 \n\t"   /* (p1, L3) sub magic constant as double */
+            "vpmovzxdq  %%xmm12, %%ymm12 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vsubpd     %%ymm11, %%ymm9, %%ymm9 \n\t"   /* (p1, L3) sub magic constant as double */
+            "vpmovzxdq  %%xmm13, %%ymm13 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t" /* (p1, L3) add magic constant as integer */
 
-            printf("P = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", P[k]);
-            printf("]\n");
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */      
+            "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
+            "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
+            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */
 
-            printf("Qn = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", Qn[k]);
-            printf("]\n");
+            /* second 4 divisions */                
+            "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
+            "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+            "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
 
-            printf("Q0 = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", Q0[k]);
-            printf("]\n");
+            "incl       %%r10d \n\t"
 
-            printf("bn = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", bn[k]);
-            printf("]\n");
+            /* square root check */
+            "xorl       %%r8d, %%r8d \n\t"
 
-            printf("b0 = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", b0[k]);
-            printf("]\n");
+            "vextracti128   $1,%%ymm1,%%xmm12 \n\t"      /* grab high half of inputs */
+            "vpmovzxdq  %%xmm1, %%ymm6 \n\t"            /* zero extend 32-bit to 64-bit */
+            "vmovdqa    %%xmm12, %%xmm13 \n\t"          /* copy high half */
+            "vpaddq     %%ymm6, %%ymm11, %%ymm6 \n\t"   /* add magic constant as integer */
+            "vpmovzxdq  %%xmm12, %%ymm12 \n\t"            /* zero extend 32-bit to 64-bit */
+            "vsubpd     %%ymm11, %%ymm6, %%ymm6 \n\t"   /* sub magic constant as double */                
 
-            printf("iterations = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", iterations[k]);
-            printf("]\n\n");
+            "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
+            "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t"   /* add magic constant as integer */
+            "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t"   /* sub magic constant as double */
+            "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
+            "vsqrtpd    %%ymm12, %%ymm12	        	     \n\t"      /* take the square root */
+            "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
+            "vcvttpd2dq %%ymm12, %%xmm12 \n\t"
+            "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
+            "vpmulld    %%xmm12, %%xmm12, %%xmm12	         \n\t"      /* multiply answer * answer */
+            "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
+            "vpcmpeqd   %%xmm12, %%xmm13, %%xmm13           \n\t"      /* see if equal to starting value */
+            "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+            "vinserti128    $1, %%xmm13, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
+            "vmovmskps  %%xmm13, %%r9d	                 \n\t"      /* set a bit if so */
+            "vpsrld     $31, %%ymm9, %%ymm6 \n\t"                   /* shift the mask to 1's in positions that pass */
+            "orl        %%r9d, %%r8d \n\t"
 
-            // load quantities in xmm registers
-            __asm__
-                (
-                "vmovdqa    (%0), %%ymm0 \n\t" /* P */
-                "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
-                "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
-                "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
-                "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
-                "vmovdqa    (%5), %%ymm5 \n\t" /* it */
-                "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
-                "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
-                "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
-                "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
-                :
-            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
-                );
+            /* if (success) do this then exit loop */
+            "testl      %%r8d, %%r8d \n\t"
+            "jz 2f \n\t"
+            "vmovdqa    %%ymm0, (%1)  \n\t" /* P */
+            "vmovdqa    %%ymm1, (%2)  \n\t" /* Qn */
+            "vmovdqa    %%ymm2, (%3)  \n\t" /* Q0 */
+            "vmovdqa    %%ymm3, (%4)  \n\t" /* bn */
+            "vmovdqa    %%ymm6, (%6)  \n\t" /* successes */
+            "jmp 5f \n\t"                   /* jump out of loop and set break condition */
 
-#endif
+            "2: \n\t"
+            /* odd iteration */ 
+            "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
+            "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
+            "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
+            "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
+            "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
+            "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
+            "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
+            "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
+            "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
 
-            success = 0;
-            // iteration count is now even.
-            // check for square Qn.  maintain these register assignments
-            // so that we can do other things in separate inline-asm statements:
-            // P  <==> ymm0
-            // Qn <==> ymm1
-            // Q0 <==> ymm2
-            // bn <==> ymm3
-            // b0 <==> ymm4
-            // it <==> ymm5
-            // we trust that the compiler won't stomp on them in the meantime...
-            // which shouldn't be an unreasonable assumption as long as
-            // we don't do anything too vector-ish between asm statements.
-            __asm__
-            (
-                "vpxor      %%xmm10, %%xmm10, %%xmm10        \n\t"       /* fill xmm10 with 0's */
-                "vcvtdq2pd  %%xmm1, %%ymm6	                 \n\t"      /* convert Qn to double precision */
-                "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
-                "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
-                "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
-                "vpcmpeqd   %%xmm6, %%xmm1, %%xmm7           \n\t"      /* see if equal to starting value */
-                "vmovdqa    %%xmm7, %%xmm9 \n\t"                        /* save the success mask */
-                "vmovmskps  %%xmm7, %%r8d	                 \n\t"      /* set a bit if so */
+            /* first 4 divisions */
+            "vpmovzxdq  %%xmm1, %%ymm7 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpmovzxdq  %%xmm6, %%ymm9 \n\t"            /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpaddq     %%ymm7, %%ymm11, %%ymm7 \n\t"   /* (p1, L3) add magic constant as integer */
+            "vextracti128   $1,%%ymm1,%%xmm12 \n\t"     /* (p5, L3) grab high half of inputs */
+            "vpaddq     %%ymm9, %%ymm11, %%ymm9 \n\t"   /* (p1, L3) add magic constant as integer */
+            "vextracti128   $1,%%ymm6,%%xmm13 \n\t"     /* (p5, L3) grab high half of inputs */
+            "vsubpd     %%ymm11, %%ymm7, %%ymm7 \n\t"   /* (p1, L3) sub magic constant as double */
+            "vpmovzxdq  %%xmm12, %%ymm12 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vsubpd     %%ymm11, %%ymm9, %%ymm9 \n\t"   /* (p1, L3) sub magic constant as double */
+            "vpmovzxdq  %%xmm13, %%ymm13 \n\t"          /* (p5, L3) zero extend 32-bit to 64-bit */
+            "vpaddq     %%ymm12, %%ymm11, %%ymm12 \n\t" /* (p1, L3) add magic constant as integer */
 
-                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"                  /* grab high half of inputs */
-                "vcvtdq2pd  %%xmm7, %%ymm6	                 \n\t"      /* convert Qn to double precision */
-                "vsqrtpd    %%ymm6, %%ymm6	        	     \n\t"      /* take the square root */
-                "vcvttpd2dq %%ymm6, %%xmm6 \n\t"
-                "vpmulld    %%xmm6, %%xmm6, %%xmm6	         \n\t"      /* multiply answer * answer */
-                "vpcmpeqd   %%xmm6, %%xmm7, %%xmm7           \n\t"      /* see if equal to starting value */
-                "vinserti128    $1, %%xmm7, %%ymm9, %%ymm9 \n\t"        /* insert into high half of success mask */
-                "vmovmskps  %%xmm7, %%r9d	                 \n\t"      /* set a bit if so */
-                "vpand      %%ymm8, %%ymm9, %%ymm6 \n\t"                /* use success mask to selective write 1's to success_vec */
-                "orl        %%r9d, %%r8d \n\t"
-                "movl       %%r8d, %0 \n\t"                             /* return combined success indicator */
-                : "=r"(success)
-                : 
-                : "xmm1", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "r8"
+            "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
+            "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */   
+            "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
+            "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
+            "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */                
+
+            /* second 4 divisions */                
+            "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
+            "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+            "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
+
+            "incl       %%r10d \n\t"
+
+            "jmp    0b \n\t"
+
+            /* exit marker */
+            "5: \n\t"
+            "movl   %%r10d, %0 \n\t"            /* export iteration count */
+
+            : "+r"(i)
+            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0),
+            "r"(success_vec), "r"(imax), "r"(conversion)
+            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", 
+            "xmm12", "xmm13", "xmm14", "xmm15", "r8", "r9", "r10", "r11", "cc", "memory"
             );
 
 
-            if (success)
-            {
-                // found at least one square.  check to see if it produces a factorization.
-                // restore quantities from xmm registers to memory.
-                __asm__
-                (
-                    "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
-                    "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
-                    "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
-                    "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
-                    "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
-                    "vmovdqa    %%ymm6, (%5)  \n\t" /* successes */
-                    :
-                    : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations), "r"(success_vec)
-                    : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5", "xmm6"
-                );
+        kk = i - kk;
 
-#ifdef PRINT_DEBUG
-                printf("found a square\n");
-
-                printf("ending values:\n");
-
-                printf("P = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", P[k]);
-                printf("]\n");
-
-                printf("Qn = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", Qn[k]);
-                printf("]\n");
-
-                printf("Q0 = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", Q0[k]);
-                printf("]\n");
-
-                printf("bn = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", bn[k]);
-                printf("]\n");
-
-                printf("b0 = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", b0[k]);
-                printf("]\n");
-
-                printf("success_vec = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", success_vec[k]);
-                printf("]\n");
-
-                printf("iterations = [");
-                for (k = 0; k < NUM_LANES; k++)
-                    printf("%u ", iterations[k]);
-                printf("]\n\n");
-
-                exit(1);
-#endif
-                break;
-            }
-
-            // perform an iteration.  maintain these register assignments
-            // so that we can dump to memory in separate inline-asm statements:
-            // P  <==> ymm0
-            // Qn <==> ymm1
-            // Q0 <==> ymm2
-            // bn <==> ymm3
-            // b0 <==> ymm4
-            // it <==> ymm5
-            // we trust that the compiler won't stomp on them in the meantime...
-            // which shouldn't be an unreasonable assumption as long as
-            // we don't do anything too vector-ish between asm statements.
-            __asm__
-                (
-                "vpmulld    %%ymm3, %%ymm1, %%ymm6 \n\t"    /* P = bn * Qn - P */
-                "vpsubd     %%ymm0, %%ymm6, %%ymm6 \n\t"
-                "vpsubd     %%ymm6, %%ymm0, %%ymm7  \n\t"   /* Qn = Q0 + bn * (t1 - P) */
-                "vmovdqa    %%ymm6, %%ymm0 \n\t"            /* now ok to write new P */
-                "vpmulld    %%ymm7, %%ymm3, %%ymm7  \n\t"
-                "vpaddd     %%ymm2, %%ymm7, %%ymm7  \n\t"
-                "vmovdqa    %%ymm1, %%ymm2 \n\t"            /* now ok to write new Q0 */
-                "vmovdqa    %%ymm7, %%ymm1 \n\t"            /* now ok to write new Qn */
-                "vpaddd     %%ymm4, %%ymm0, %%ymm6  \n\t"    /* bn = (b0 + P) / Qn */
-
-                /* first 4 divisions */
-                "vcvtdq2pd	%%xmm1, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-                "vcvtdq2pd	%%xmm6, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* truncate to uint32 */
-
-                /* second 4 divisions */
-                "vextracti128   $1,%%ymm1,%%xmm7 \n\t"      /* grab high half of inputs */
-                "vextracti128   $1,%%ymm6,%%xmm9 \n\t"      /* grab high half of inputs */
-                "vcvtdq2pd	%%xmm7, %%ymm7 \n\t"	        /* convert denominator uint32 to double */
-                "vcvtdq2pd	%%xmm9, %%ymm9 \n\t"	        /* convert numerator uint32 to double */
-                "vdivpd     %%ymm7, %%ymm9, %%ymm9 \n\t"
-                "vcvttpd2dq	%%ymm9, %%xmm10 \n\t"	        /* truncate to uint32 */
-                "vinserti128    $1, %%xmm10, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
-
-                "vpaddd     %%ymm5, %%ymm8, %%ymm5   \n\t"    /* iterations++ */
-                :
-            :
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10"
-                );
-
-            // iteration count is now odd
-            i++;
-
-#ifdef PRINT_DEBUG
-            __asm__
-                (
-                "vmovdqa    %%ymm0, (%0)  \n\t" /* P */
-                "vmovdqa    %%ymm1, (%1)  \n\t" /* Qn */
-                "vmovdqa    %%ymm2, (%2)  \n\t" /* Q0 */
-                "vmovdqa    %%ymm3, (%3)  \n\t" /* bn */
-                "vmovdqa    %%ymm5, (%4)  \n\t" /* it */
-                :
-            : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(iterations)
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm5"
-                );
-
-            printf("P = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", P[k]);
-            printf("]\n");
-
-            printf("Qn = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", Qn[k]);
-            printf("]\n");
-
-            printf("Q0 = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", Q0[k]);
-            printf("]\n");
-
-            printf("bn = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", bn[k]);
-            printf("]\n");
-
-            printf("b0 = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", b0[k]);
-            printf("]\n");
-
-            printf("iterations = [");
-            for (k = 0; k < NUM_LANES; k++)
-                printf("%u ", iterations[k]);
-            printf("]\n\n");
-
-            // load quantities in xmm registers
-            __asm__
-            (
-                "vmovdqa    (%0), %%ymm0 \n\t" /* P */
-                "vmovdqa    (%1), %%ymm1 \n\t" /* Qn */
-                "vmovdqa    (%2), %%ymm2 \n\t" /* Q0 */
-                "vmovdqa    (%3), %%ymm3 \n\t" /* bn */
-                "vmovdqa    (%4), %%ymm4 \n\t" /* b0 */
-                "vmovdqa    (%5), %%ymm5 \n\t" /* it */
-                "movl	    $1, %%r13d \n\t"		        /* fill utility register with 1's */ \
-                "vmovd      %%r13d, %%xmm8 \n\t"            /* broadcast 1's to ymm8 */ \
-                "vpshufd	    $0, %%xmm8, %%xmm8 \n\t"    /* broadcast 1's to ymm8 */ \
-                "vinserti128    $1, %%xmm8, %%ymm8, %%ymm8 \n\t" \
-                :
-                : "r"(P), "r"(Qn), "r"(Q0), "r"(bn), "r"(b0), "r"(iterations)
-                : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm8", "r13"
-            );
-
-#endif
-
-        }
-
-#pragma novector
         for (k = 0; k < NUM_LANES; k++)
         {
             // set default signal: to do nothing but continue looking for a factor
             mult_save->f[k] = 0;
+            iterations[k] += kk;
+        }
+
+        if (i >= imax)
+        {
+            return;
         }
 
         success = 0;
@@ -2243,6 +2336,13 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
                 So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
                 bbn[k] = (b0[k] + Ro[k]) / So[k];
 
+                if ((S[k] *  S[k]) != Qn[k])
+                {
+                    printf("error, reported square is not square: %u, %u\n", S[k], Qn[k]); 
+                    fflush(stdout);
+                    continue;                    
+                }
+                //printf("Searching for symmetry on Square %u, S = %u (%u)...", Qn[k], S[k], S[k] * S[k]);
 
                 // search for symmetry point
                 while (failsafe)
@@ -2255,17 +2355,26 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
                     S[k] = t2[k];
                     bbn[k] = (b0[k] + Ro[k]) / So[k];
 
+                    // eliminate trivial cases before running the expensive gcd
                     if (Ro[k] == t1[k])
                     {
-                        mult_save->f[k] = gcd64(Ro[k], mult_save->mN[k]);
-                        if (mult_save->f[k] > 1)
+                        // eliminate trivial cases before running the expensive gcd
+                        if (Ro[k] > mult_save->mult[k])
                         {
-                            int a;
+                            // these run at almost exactly the same speed.  use the normal
+                            // gcd both because it is more general and because it will
+                            // pick up any future advances in hardware integer division.
+                            mult_save->f[k] = gcd64(Ro[k], mult_save->N[k]);
+                            //mult_save->f[k] = spBinGCD(mult_save->N[k], Ro[k]);
 
-                            success = 1;
+                            if (mult_save->f[k] > 1)
+                            {
+                                success = 1;
+                            }
                         }
                         break;
                     }
+
 
                     failsafe--;
                 }
@@ -2282,7 +2391,6 @@ void par_shanks_mult_unit_asm2(par_mult_t *mult_save)
         }
     }
 }
-
 #endif
 
 /****
@@ -2549,3 +2657,104 @@ void init_lehman()
 	return;
 }
 
+
+#ifdef NOTDEF
+void VecLehmanFactor(uint64 *N, double Tune, double CutFrac, uint64 *f, uint32 num)
+{
+    uint32 b, p, k, r, U, B, inc, FirstCut, ip = 1;
+    uint32 Bred[NUM_LANES];
+    uint64 a, c, kN, kN4;
+    uint64 B2[NUM_LANES];
+    double Tune2, Tune3, x, sqrtn;
+    mpz_t tmpz;
+    int vi;
+    int num_success;
+    int it;
+
+    num_success = 0;
+    mpz_init(tmpz);
+
+    for (vi = 0; vi < num; vi += NUM_LANES)
+    {
+
+#pragma ivdep
+#pragma vector aligned
+        for (it = 0; it < NUM_LANES; it++)
+        {
+            mpz_set_64(tmpz, N[vi+it]);
+            mpz_root(tmpz, tmpz, 3);
+            B = Tune * (1 + (double)mpz_get_ui(tmpz));
+
+            FirstCut = CutFrac*B;
+
+            //assures prime N will not activate "wrong" Lehman return
+            if (FirstCut < 84)
+                FirstCut = 84;
+
+            if (FirstCut > 65535)
+                FirstCut = 65535;
+
+            Tune2 = Tune*Tune;
+            Tune3 = Tune2*Tune;
+            Bred[it] = B / Tune3;
+
+            B2[it] = B*B;
+            kN = 0;
+
+            //Lehman suggested (to get more average speed) trying highly-divisible k first. However,
+            //my experiments on trying to to that have usually slowed things down versus this simple loop:
+            sqrtn = sqrt((double)N);
+            for (k = 1; k <= Bred; k++)
+            {
+                if (k & 1)
+                {
+                    inc = 4;
+                    r = (k + N) % 4;
+                }
+                else
+                {
+                    inc = 2;
+                    r = 1;
+                }
+
+                kN += N;
+                kN4 = kN * 4;
+                if (k < 1024)
+                    x = sqrtn * sqr_tab[k];
+                else
+                    x = sqrt((double)kN);
+
+                a = x;
+                if ((uint64)a*(uint64)a == kN)
+                {
+                    B2 = gcd64((uint64)a, N);
+                    return(B2);
+                }
+
+                x *= 2;
+                a = x + 0.9999999665; //very carefully chosen.
+
+                b = a%inc;
+                b = a + (inc + r - b) % inc;   //b is a but adjusted upward to make b%inc=r.
+                c = (uint64)b*(uint64)b - kN4;  //this is the precision bottleneck.
+
+                U = x + B2 / (2 * x);
+
+                //Below loop is: for(all integers a with 0<=a*a-kN4<=B*B and with a%inc==r)
+                for (a = b; a <= U; c += inc*(a + a + inc), a += inc)
+                {
+                    b = sqrt(c + 0.9);
+                    if (b*b == c)
+                    {
+                        //square found
+                        B2 = gcd64((uint64)(a + b), N);
+                        return(B2);
+                    }
+                }
+            }
+        }
+    }
+
+    return num_success;
+}
+#endif
