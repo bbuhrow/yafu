@@ -29,6 +29,8 @@ typedef struct
 	uint8 logp;
 
 	uint32 intervalm1;
+    uint32 filler;
+    uint32 *scratch;
 
 } polysieve_t;
 
@@ -50,6 +52,7 @@ typedef struct
 	if (j >= check_bound)							\
 	{														\
 		room = 0;											\
+        /* find the most filled bucket */ \
 		for (k=0;k<numblocks;k++)							\
 		{													\
 			if (*(numptr_p + k) > room)						\
@@ -58,6 +61,7 @@ typedef struct
 				room = *(numptr_n + k);						\
 		}													\
 		room = BUCKET_ALLOC - room;							\
+        /* if it is filled close to the allocation, start recording in a new set of buckets */ \
 		if (room < 32)										\
 		{													\
 			logp = update_data.logp[j];						\
@@ -224,6 +228,8 @@ typedef struct
 
 #elif defined(GCC_ASM64X)
 
+#ifdef HAS_SSE2
+
 	#define COMPUTE_8X_SMALL_PROOTS	\
 		ASM_G (	\
 			"movq   %0, %%rsi \n\t"	\
@@ -388,6 +394,8 @@ typedef struct
 			: "a"(&rootupdates[(v-1) * bound + j]), "b"(update_data.prime + j), "c"(update_data.firstroots1 + j), "d"(update_data.firstroots2 + j) \
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "cc");	
 
+
+#endif
 
 #elif defined(GCC_ASM32X)
 

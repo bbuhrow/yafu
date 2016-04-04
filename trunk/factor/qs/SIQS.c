@@ -86,7 +86,7 @@ void SIQS(fact_obj_t *fobj)
 	int num_avg = 10;
 	int num_meas = 1;
 	int orig_value;
-	int	poly_start_num = 0;
+	
 
 	// checking savefile
 	FILE *data;
@@ -270,7 +270,7 @@ void SIQS(fact_obj_t *fobj)
 
 	//check if a savefile exists for this number, and if so load the data
 	//into the master data structure
-	alldone = siqs_check_restart(thread_data[0].dconf, static_conf);
+	siqs_check_restart(thread_data[0].dconf, static_conf);
 	print_siqs_splash(thread_data[0].dconf, static_conf);
 
 	//start the process
@@ -388,8 +388,10 @@ void SIQS(fact_obj_t *fobj)
 				ReleaseMutex(queue_lock);
 #endif
 			}
-			else
-				tid = 0;
+            else
+            {
+                tid = 0;
+            }
 
 			// Check whether the thread has any results to collect. This should only be false at the 
 			// very beginning, when the thread hasn't actually done anything yet.
@@ -399,6 +401,8 @@ void SIQS(fact_obj_t *fobj)
 
 				if (fobj->qs_obj.no_small_cutoff_opt == 0) 
 				{
+                    int	poly_start_num = 0;
+
 					if (num_meas < 3)
 					{			
 						if (averaged_polys >= num_avg)
@@ -473,6 +477,11 @@ void SIQS(fact_obj_t *fobj)
 				thread_data[tid].dconf->dlp_outside_range = 0;
 				thread_data[tid].dconf->dlp_prp = 0;
 				thread_data[tid].dconf->dlp_useful = 0;
+                thread_data[tid].dconf->total_blocks = 0;
+                thread_data[tid].dconf->total_reports = 0;
+                thread_data[tid].dconf->total_surviving_reports = 0;
+                thread_data[tid].dconf->lp_scan_failures = 0;
+                thread_data[tid].dconf->num_64bit_residue = 0;
 
 #ifdef HAVE_CUDA
 				thread_data[tid].dconf->num_squfof_cand = 0;
@@ -487,7 +496,7 @@ void SIQS(fact_obj_t *fobj)
 
 			// if we have enough relations, or if there was a break signal, stop dispatching
 			// any more threads
-			if (updatecode == 0 && num_found < num_needed) 
+			if ((updatecode == 0) && (num_found < num_needed)) 
 			{
 
 #ifdef QS_TIMING
@@ -552,6 +561,7 @@ void SIQS(fact_obj_t *fobj)
 			//do some work
 			thread_sievedata_t *t = thread_data + 0;
 
+            //printf("processing polynomial\n");
 			process_poly(t);
 			*threads_waiting = 1;
 		}
@@ -721,15 +731,13 @@ done:
 
 void start_worker_thread(thread_sievedata_t *t) {
 
-    //create a thread that will process a polynomial 
-
+    //create a thread that will process a polynomial     
 	t->command = COMMAND_INIT;
 #if defined(WIN32) || defined(_WIN64)
 	t->run_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->finish_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	*t->queue_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
-
 	WaitForSingleObject(t->finish_event, INFINITE); /* wait for ready */
 #else
 	pthread_mutex_init(&t->run_lock, NULL);
@@ -843,146 +851,259 @@ void *worker_thread_main(void *thread_data) {
 void *process_poly(void *ptr)
 //void process_hypercube(static_conf_t *sconf,dynamic_conf_t *dconf)
 {
-	//top level sieving function which performs all work for a single
-	//new a coefficient.  has pthread calling conventions, meant to be
-	//used in a multi-threaded environment
-	thread_sievedata_t *thread_data = (thread_sievedata_t *)ptr;
-	static_conf_t *sconf = thread_data->sconf;
-	dynamic_conf_t *dconf = thread_data->dconf;
+    //top level sieving function which performs all work for a single
+    //new a coefficient.  has pthread calling conventions, meant to be
+    //used in a multi-threaded environment
+    thread_sievedata_t *thread_data = (thread_sievedata_t *)ptr;
+    static_conf_t *sconf = thread_data->sconf;
+    dynamic_conf_t *dconf = thread_data->dconf;
 
-	//unpack stuff from the job data structure
-	sieve_fb_compressed *fb_sieve_p = dconf->comp_sieve_p;	
-	sieve_fb_compressed *fb_sieve_n = dconf->comp_sieve_n;
-	siqs_poly *poly = dconf->curr_poly;
-	uint8 *sieve = dconf->sieve;
-	fb_list *fb = sconf->factor_base;
-	lp_bucket *buckets = dconf->buckets;
-	uint32 start_prime = sconf->sieve_small_fb_start;
-	uint32 num_blocks = sconf->num_blocks;	
-	uint8 blockinit = sconf->blockinit;
+    //unpack stuff from the job data structure
+    sieve_fb_compressed *fb_sieve_p = dconf->comp_sieve_p;
+    sieve_fb_compressed *fb_sieve_n = dconf->comp_sieve_n;
+    siqs_poly *poly = dconf->curr_poly;
+    uint8 *sieve = dconf->sieve;
+    fb_list *fb = sconf->factor_base;
+    lp_bucket *buckets = dconf->buckets;
+    uint32 start_prime = sconf->sieve_small_fb_start;
+    uint32 num_blocks = sconf->num_blocks;
+    uint8 blockinit = sconf->blockinit;
 
-	//locals
-	uint32 i;
+    //locals
+    uint32 i;
 
-	//to get relations per second
-	double t_time;
-	struct timeval start, stop, st;
-	TIME_DIFF *	difference;
+    //to get relations per second
+    double t_time;
+    struct timeval start, stop, st;
+    TIME_DIFF *	difference;
 
-	//this routine is handed a dconf structure which already has a
-	//new poly a coefficient (and some supporting data).  continue from
-	//there, first initializing the gray code...
+    //this routine is handed a dconf structure which already has a
+    //new poly a coefficient (and some supporting data).  continue from
+    //there, first initializing the gray code...
 
-	//lock_thread_to_core();
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_start, NULL);
-#endif
-
-	gettimeofday (&start, NULL);
-
-	// used to print a little more status info for huge jobs.
-	if (sconf->digits_n > 110)
-		gettimeofday (&st, NULL);
-
-	//update the gray code
-	get_gray_code(dconf->curr_poly);
-
-	//update roots, etc.
-	dconf->maxB = 1<<(dconf->curr_poly->s-1);
-	dconf->numB = 1;
-	computeBl(sconf,dconf);
-
-	firstRoots_ptr(sconf,dconf);
+    //lock_thread_to_core();
 
 #ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-	POLY_STG1 += 
-		((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    gettimeofday (&qs_timing_start, NULL);
 #endif
 
-	//loop over each possible b value, for the current a value
-	for ( ; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
-	{
-		//setting these to be invalid means the last entry of every block will be ignored
-		//so we're throwing away 1/blocksize relations, potentially, but gaining 
-		//a faster sieve routine.
-		uint32 invalid_root_marker = 0xFFFFFFFF; //(BLOCKSIZEm1 << 16) | BLOCKSIZEm1;
+    gettimeofday(&start, NULL);
 
-		for (i=0; i < num_blocks; i++)
-		{
-			//set the roots for the factors of a such that
-			//they will not be sieved.  we haven't found roots for them
-			//printf("setting prime roots\n"); fflush(stdout);
-			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
-			//printf("medsieve p\n"); fflush(stdout);
-			med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
-			//printf("lpsieve p\n"); fflush(stdout);
-			lp_sieveblock(sieve, i, num_blocks, buckets, 0);
+    // used to print a little more status info for huge jobs.
+    if (sconf->digits_n > 110)
+        gettimeofday(&st, NULL);
 
-			//set the roots for the factors of a to force the following routine
-			//to explicitly trial divide since we haven't found roots for them
-			//printf("setting prime roots\n"); fflush(stdout);
-			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
-			//printf("scan p\n"); fflush(stdout);
-			scan_ptr(i,0,sconf,dconf);
+    //update the gray code
+    get_gray_code(dconf->curr_poly);
 
-			//set the roots for the factors of a such that
-			//they will not be sieved.  we haven't found roots for them
-			//printf("setting prime roots\n"); fflush(stdout);
-			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
-			//printf("medsieve n\n"); fflush(stdout);
-			med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
-			//printf("lpsieve n\n"); fflush(stdout);
-			lp_sieveblock(sieve, i, num_blocks, buckets, 1);
+    //update roots, etc.
+    dconf->maxB = 1 << (dconf->curr_poly->s - 1);
+    dconf->numB = 1;
+    computeBl(sconf, dconf);
 
-			//set the roots for the factors of a to force the following routine
-			//to explicitly trial divide since we haven't found roots for them
-			//printf("setting prime roots\n"); fflush(stdout);
-			set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
-			//printf("scan p\n"); fflush(stdout);
-			scan_ptr(i,1,sconf,dconf);			
+    firstRoots_ptr(sconf, dconf);
 
-		}
+#ifdef QS_TIMING
+    gettimeofday (&qs_timing_stop, NULL);
+    qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
+    POLY_STG1 += 
+        ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
+    free(qs_timing_diff);
+#endif
 
-		// print a little more status info for huge jobs.
-		if (sconf->digits_n > 110)
-		{
-			gettimeofday (&stop, NULL);
-			difference = my_difftime (&st, &stop);
+    //loop over each possible b value, for the current a value
+    for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
+    {
+        //setting these to be invalid means the last entry of every block will be ignored
+        //so we're throwing away 1/blocksize relations, potentially, but gaining 
+        //a faster sieve routine.
+        uint32 invalid_root_marker = 0xFFFFFFFF; //(BLOCKSIZEm1 << 16) | BLOCKSIZEm1;
 
-			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);
+        for (i = 0; i < num_blocks; i++)
+        {
+            //set the roots for the factors of a such that
+            //they will not be sieved.  we haven't found roots for them
+            //printf("setting prime roots\n"); fflush(stdout);
+            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
+            //printf("medsieve p\n"); fflush(stdout);
+            med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+            //printf("lpsieve p\n"); fflush(stdout);
+            lp_sieveblock(sieve, i, num_blocks, buckets, 0, dconf);
 
-			if (t_time > 5)
-			{
-				// print some status
-				gettimeofday (&stop, NULL);
-				difference = my_difftime (&start, &stop);
+            //set the roots for the factors of a to force the following routine
+            //to explicitly trial divide since we haven't found roots for them
+            //printf("setting prime roots\n"); fflush(stdout);
+            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
+            //printf("scan p\n"); fflush(stdout);
+            scan_ptr(i, 0, sconf, dconf);
 
-				t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+            //set the roots for the factors of a such that
+            //they will not be sieved.  we haven't found roots for them
+            //printf("setting prime roots\n"); fflush(stdout);
+            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
+            //printf("medsieve n\n"); fflush(stdout);
+            med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+            //printf("lpsieve n\n"); fflush(stdout);
+            lp_sieveblock(sieve, i, num_blocks, buckets, 1, dconf);
 
-				printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
-					dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
-					(double)dconf->buffered_rels / t_time);
+            //set the roots for the factors of a to force the following routine
+            //to explicitly trial divide since we haven't found roots for them
+            //printf("setting prime roots\n"); fflush(stdout);
+            set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
+            //printf("scan p\n"); fflush(stdout);
+            scan_ptr(i, 1, sconf, dconf);
 
-				// reset the timer
-				gettimeofday (&st, NULL);
-			}
-		}
+        }
 
-		//next polynomial
-		//use the stored Bl's and the gray code to find the next b
-		//printf("next B\n"); fflush(stdout);
-		nextB(dconf,sconf);
-		//and update the roots
-		//printf("next roots\n"); fflush(stdout);
-		nextRoots_ptr(sconf, dconf);
+        // print a little more status info for huge jobs.
+        if (sconf->digits_n > 110)
+        {
+            gettimeofday(&stop, NULL);
+            difference = my_difftime(&st, &stop);
 
-	}
+            t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+            free(difference);
+
+            if (t_time > 5)
+            {
+                // print some status
+                gettimeofday(&stop, NULL);
+                difference = my_difftime(&start, &stop);
+
+                t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
+                free(difference);
+
+                printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
+                    dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
+                    (double)dconf->buffered_rels / t_time);
+
+                // reset the timer
+                gettimeofday(&st, NULL);
+            }
+        }
+
+        //next polynomial
+        //use the stored Bl's and the gray code to find the next b
+        //printf("next B\n"); fflush(stdout);
+        nextB(dconf, sconf);
+        //and update the roots
+        //printf("next roots\n"); fflush(stdout);
+        nextRoots_ptr(sconf, dconf);
+
+    }
+
+
+
+#ifdef USE_VEC_SQUFOF
+    // vector SQUFOF if necessary
+    if (sconf->use_dlp)
+    {
+        uint64 *f = dconf->residue_factors;
+        uint32 f32;
+        int j = 0;
+        siqs_r *rel;
+
+        if (dconf->num_64bit_residue < 7)
+        {
+            for (i=0; i < dconf->buffered_rels; i++)
+            {
+                rel = dconf->relation_buf + i;
+
+                if (rel->large_prime[0] == 0xffffffff)
+                {                
+                    // get the next factorization
+                    dconf->attempted_squfof++;
+                    mpz_set_64(dconf->gmptmp1, dconf->unfactored_residue[j]);
+                    f32 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+
+                    if (f32 > 1)
+                    {
+                        rel->large_prime[0] = f32;
+                        rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
+
+                        if ((rel->large_prime[0] < sconf->large_prime_max) &&
+                            (rel->large_prime[1] < sconf->large_prime_max))
+                        {
+                            //add this one
+                            dconf->dlp_useful++;
+                        }
+                        else
+                        {
+                            // mark it as failed so we don't write it to the savefile
+                            rel->large_prime[0] = 0xffffffff;
+                        }
+
+                    }
+                    else
+                    {
+                        dconf->failed_squfof++;
+
+                        // mark it as failed so we don't write it to the savefile
+                        rel->large_prime[0] = 0xffffffff;
+                    }
+
+                    j++;
+                }
+            }
+        }
+        else
+        {
+
+            //printf("attempting vector squfof on %d residues... ", dconf->num_64bit_residue);
+
+            f32 = par_shanks_loop(dconf->unfactored_residue, f, 
+                dconf->num_64bit_residue);
+
+            //printf("vector squfof reported %d successes\n", f32);
+
+            dconf->attempted_squfof += dconf->num_64bit_residue;
+            for (i=0; i < dconf->buffered_rels; i++)
+            {
+                rel = dconf->relation_buf + i;
+
+                if (rel->large_prime[0] == 0xffffffff)
+                {                
+                    // get the next factorization
+                    f32 = f[j];
+
+                    //printf("relation %d found factor %u of input %lu in position %d\n", 
+                    //    i, f32, dconf->unfactored_residue[j], j);
+
+                    if (f32 > 1)
+                    {
+                        rel->large_prime[0] = f32;
+                        rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
+
+                        if ((rel->large_prime[0] < sconf->large_prime_max) &&
+                            (rel->large_prime[1] < sconf->large_prime_max))
+                        {
+                            //add this one
+                            dconf->dlp_useful++;
+                        }
+                        else
+                        {
+                            // mark it as failed so we don't write it to the savefile
+                            rel->large_prime[0] = 0xffffffff;
+                        }
+
+                    }
+                    else
+                    {
+                        dconf->failed_squfof++;
+
+                        // mark it as failed so we don't write it to the savefile
+                        rel->large_prime[0] = 0xffffffff;
+                    }
+
+                    j++;
+                }
+            }
+        }
+        
+    }
+#endif
+
+
 
 	gettimeofday (&stop, NULL);
 	difference = my_difftime (&start, &stop);
@@ -1008,7 +1129,6 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	uint32 i;
 	siqs_r *rel;
 	char buf[1024];
-	//uint32 ndp=0;
 
 	// save the A value.
 	if (!sconf->in_mem)
@@ -1117,6 +1237,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 #endif
 
+    //printf("saving %d buffered relations\n", dconf->buffered_rels);
 	//save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
 	{
@@ -1125,16 +1246,22 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 			continue;
 #endif
 		rel = dconf->relation_buf + i;
-		//if ((rel->large_prime[0]) > 1 && (rel->large_prime[1] > 1))
-		//	ndp++;
+
+#ifdef USE_VEC_SQUFOF
+        if (rel->large_prime[0] == 0xffffffff)
+        {
+            continue;
+        }
+#endif
 		save_relation_siqs(rel->sieve_offset,rel->large_prime,
 			rel->num_factors, rel->fb_offsets, rel->poly_idx, 
 			rel->parity, sconf);
 	}
 
-	//printf("%u dlp's for polyA\n",ndp);
-
 	//update some progress indicators
+    sconf->total_blocks += dconf->total_blocks;
+    sconf->total_reports += dconf->total_reports;
+    sconf->total_surviving_reports += dconf->total_surviving_reports;
 	sconf->num += dconf->num;
 	sconf->tot_poly += dconf->tot_poly;
 	sconf->failed_squfof += dconf->failed_squfof;
@@ -1142,6 +1269,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	sconf->dlp_outside_range += dconf->dlp_outside_range;
 	sconf->dlp_prp += dconf->dlp_prp;
 	sconf->dlp_useful += dconf->dlp_useful;
+    sconf->lp_scan_failures += dconf->lp_scan_failures;
 
 	//compute total relations found so far
 	sconf->num_r = sconf->num_relations + 
@@ -1200,130 +1328,81 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-	//print some info to the screen and the log file
-	if (VFLAG > 0)
-	{	
-		printf("\n==== sieve params ====\n");
-		printf("n = %d digits, %d bits\n",sconf->digits_n,sconf->bits);
-		printf("factor base: %d primes (max prime = %u)\n",sconf->factor_base->B,sconf->pmax);
-		printf("single large prime cutoff: %u (%d * pmax)\n",
-			sconf->large_prime_max,sconf->large_mult);
-		if (sconf->use_dlp)
-		{
-			printf("double large prime range from %d to %d bits\n",
-				sconf->dlp_lower,sconf->dlp_upper);
-			printf("double large prime cutoff: %" PRIu64 "\n",
-				sconf->large_prime_max2);
-		}
-		if (dconf->buckets->list != NULL)
-		{
-			printf("allocating %d large prime slices of factor base\n",
-				dconf->buckets->alloc_slices);
-			printf("buckets hold %d elements\n",BUCKET_ALLOC);
-		}
-		if (sconf->qs_blocksize == 65536)
-			printf("using SSE2 enabled 64k sieve core\n");
-		else
-		{
-			if (HAS_AVX2)
-				printf("using AVX2 enabled 32k sieve core\n");
-			else if (HAS_SSE41)
-				printf("using SSE4.1 enabled 32k sieve core\n");
-			else
-				printf("using SSE2 enabled 32k sieve core\n");
-		}
-		printf("sieve interval: %d blocks of size %d\n",
-			sconf->num_blocks,sconf->qs_blocksize);
-		printf("polynomial A has ~ %d factors\n", 
-			(int)mpz_sizeinbase(sconf->target_a, 2) / 11);
-		printf("using multiplier of %u\n",sconf->multiplier);
-		printf("using SPV correction of %d bits, starting at offset %d\n",
-			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
+    //print some info to the screen and the log file
+    char inst_set[16];
 
-#if defined(HAS_SSE2)
-		printf("using SSE2 for x%d sieve scanning\n",
-			sconf->scan_unrolling);
+#ifdef USE_AVX2
+    if (HAS_AVX2)
+    {
+        strcpy(inst_set, "AVX2");
+    }
+    else if (HAS_SSE41)
+    {
+        strcpy(inst_set, "SSE4.1");
+    }
+    else if (HAS_SSE2)
+    {
+        strcpy(inst_set, "SSE2");
+    }
+    else
+    {
+        strcpy(inst_set, "generic C");
+    }
+#elif defined(USE_SSE41)
+    if (HAS_SSE41)
+    {
+        strcpy(inst_set, "SSE4.1");
+    }
+    else if (HAS_SSE2)
+    {
+        strcpy(inst_set, "SSE2");
+    }
+    else
+    {
+        strcpy(inst_set, "generic C");
+    }
+#elif defined(HAS_SSE2)
+    if (HAS_SSE2)
+    {
+        strcpy(inst_set, "SSE2");
+    }
+    else
+    {
+        strcpy(inst_set, "generic C");
+    }
 #else
-		printf("using generic x%d sieve scanning\n",
-			sconf->scan_unrolling);
+    strcpy(inst_set, "generic C");
 #endif
 
-#if defined(USE_RESIEVING)
-	#if defined(SSE2_RESIEVING)
-		#ifdef YAFU_64K
-			printf("using SSE2 for resieving 14-16 bit primes\n");
-		#else
-			printf("using SSE2 for resieving 13-16 bit primes\n");
-		#endif
-	#else
-		#ifdef YAFU_64K
-			printf("resieving 14-16 bit primes\n");
-		#else
-			printf("resieving 13-16 bit primes\n");
-		#endif
-	#endif
-#endif
-
-#if defined(USE_8X_MOD_ASM)
-		#ifdef YAFU_64K
-			printf("using SSE2 for 8x trial divison to 14 bits\n");
-		#else
-			printf("using SSE2 for 8x trial divison to 13 bits\n");
-		#endif
-#endif
-
-#if defined(USE_ASM_SMALL_PRIME_SIEVING)
-#if defined (USE_SSE41)
-			if (HAS_SSE41)
-				printf("using SSE4.1 and inline ASM for small prime sieving\n");
-			else
-				printf("using SSE2 and inline ASM for small prime sieving\n");
-#else
-			printf("using SSE2 and inline ASM for small prime sieving\n");
-#endif
-
-#else
-#if defined (USE_SSE41)
-			if (HAS_SSE41)
-				printf("using SSE4.1 for small prime sieving\n");
-			else
-				printf("using SSE2 for small prime sieving\n");
-#else
-			printf("using SSE2 for small prime sieving\n");
-#endif
-#endif
-
-#if defined(GCC_ASM64X) || defined(_MSC_VER)
-			printf("using SSE2 for poly updating up to 15 bits\n");
-#endif
-
-#if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
-#if defined (USE_SSE41)
-			if (HAS_SSE41)
-				printf("using SSE4.1 for medium prime poly updating\n");
-#endif
-#endif
-
-
-#if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
-#if defined (USE_SSE41)
-			if (HAS_SSE41)
-				printf("using SSE4.1 and inline ASM for large prime poly updating\n");
-			else
-				printf("using SSE2 and inline ASM for large prime poly updating\n");
-#else
-			printf("using SSE2 and inline ASM for large prime poly updating\n");
-#endif
-#endif
-
-#if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
-		printf("using 64 byte cache line prefetching\n");
-#elif defined(MANUAL_PREFETCH)
-		printf("using 32 byte cache line prefetching\n");
-#endif
+    if (VFLAG > 0)
+    {
+        printf("\n==== sieve params ====\n");
+        printf("n = %d digits, %d bits\n", sconf->digits_n, sconf->bits);
+        printf("factor base: %d primes (max prime = %u)\n", sconf->factor_base->B, sconf->pmax);
+        printf("single large prime cutoff: %u (%d * pmax)\n",
+            sconf->large_prime_max, sconf->large_mult);
+        if (sconf->use_dlp)
+        {
+            printf("double large prime range from %d to %d bits\n",
+                sconf->dlp_lower, sconf->dlp_upper);
+            printf("double large prime range from %" PRIu64 " to %" PRIu64 "\n",
+                sconf->max_fb2, sconf->large_prime_max2);
+        }
+        if (dconf->buckets->list != NULL)
+        {
+            printf("allocating %d large prime slices of factor base\n",
+                dconf->buckets->alloc_slices);
+            printf("buckets hold %d elements\n", BUCKET_ALLOC);
+        }
+        printf("using %s enabled 32k sieve core\n", inst_set);
+        printf("sieve interval: %d blocks of size %d\n",
+            sconf->num_blocks, sconf->qs_blocksize);
+        printf("polynomial A has ~ %d factors\n",
+            (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
+        printf("using multiplier of %u\n", sconf->multiplier);
+        printf("using SPV correction of %d bits, starting at offset %d\n",
+            sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
 		printf("trial factoring cutoff at %d bits\n",sconf->tf_closnuf);
-
-		
 	}
 
 	if (VFLAG >= 0)
@@ -1364,10 +1443,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 				dconf->buckets->alloc_slices);
 			logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
 		}
-		if (sconf->qs_blocksize == 65536)
-			logprint(sconf->obj->logfile,"using 64k sieve core\n");
-		else
-			logprint(sconf->obj->logfile,"using 32k sieve core\n");
+        logprint(sconf->obj->logfile,"using %s enabled 32k sieve core\n", inst_set);
 		logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
 			sconf->num_blocks,sconf->qs_blocksize);
 		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n", 
@@ -1375,52 +1451,6 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
 		logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
-
-
-#if defined(HAS_SSE2)
-		logprint(sconf->obj->logfile,"using SSE2 for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-#elif defined(HAS_MMX)
-		logprint(sconf->obj->logfile,"using MMX for trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-#else
-		logprint(sconf->obj->logfile,"using generic trial division and x%d sieve scanning\n",
-			sconf->scan_unrolling);
-#endif
-		if (HAS_SSE41)
-			logprint(sconf->obj->logfile,"using SSE4.1 enabled 32k sieve core\n");
-		else
-			logprint(sconf->obj->logfile,"using SSE2 enabled 32k sieve core\n");
-
-#if defined(USE_RESIEVING)
-	#if defined(SSE2_RESIEVING)
-		#ifdef YAFU_64K
-			logprint(sconf->obj->logfile,"using SSE2 for resieving 14-16 bit primes\n");
-		#else
-			logprint(sconf->obj->logfile,"using SSE2 for resieving 13-16 bit primes\n");
-		#endif
-	#else
-		#ifdef YAFU_64K
-			logprint(sconf->obj->logfile,"resieving 14-16 bit primes\n");
-		#else
-			logprint(sconf->obj->logfile,"resieving 13-16 bit primes\n");
-		#endif
-	#endif
-#endif
-
-#if defined(SSE2_ASM_SIEVING)
-			logprint(sconf->obj->logfile,"using SSE2 to sieve primes up to 16 bits\n");
-#endif
-
-#if defined(ASM_SIEVING)
-			logprint(sconf->obj->logfile,"using inline ASM to sieve primes up to 16 bits\n");
-#endif
-
-#if defined(CACHE_LINE_64) && defined(MANUAL_PREFETCH)
-		logprint(sconf->obj->logfile,"using 64 byte cache line prefetching\n");
-#elif defined(MANUAL_PREFETCH)
-		logprint(sconf->obj->logfile,"using 32 byte cache line prefetching\n");
-#endif
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
 			sconf->tf_closnuf);
 		if (THREADS == 1)
@@ -1629,6 +1659,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	//used in trial division to mask out the fb_index portion of bucket entries, so that
 	//multiple block locations can be searched for in parallel using SSE2 instructions
 	dconf->mask = (uint16 *)xmalloc_align(16 * sizeof(uint16));
+    dconf->mask2 = (uint32 *)xmalloc_align(8 * sizeof(uint32));
 
 	dconf->mask[1] = 0xFFFF;
 	dconf->mask[3] = 0xFFFF;
@@ -1638,6 +1669,16 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->mask[11] = 0xFFFF;
 	dconf->mask[13] = 0xFFFF;
 	dconf->mask[15] = 0xFFFF;
+
+    dconf->mask2[0] = 0x0000ffff;
+    dconf->mask2[1] = 0x0000ffff;
+    dconf->mask2[2] = 0x0000ffff;
+    dconf->mask2[3] = 0x0000ffff;
+    dconf->mask2[4] = 0x0000ffff;
+    dconf->mask2[5] = 0x0000ffff;
+    dconf->mask2[6] = 0x0000ffff;
+    dconf->mask2[7] = 0x0000ffff;
+
 
 	// used in SIMD optimized resiever
 	dconf->corrections = (uint16 *)xmalloc_align(16 * sizeof(uint16));
@@ -1665,13 +1706,27 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->dlp_prp = 0;
 	dconf->dlp_useful = 0;
 
+#ifdef USE_VEC_SQUFOF
+    dconf->unfactored_residue = (uint64 *)malloc(4096 * sizeof(uint64));
+    dconf->residue_factors = (uint64 *)malloc(4096 * sizeof(uint64));
+    dconf->num_64bit_residue = 0;
+#endif
+
 	// used in SIMD optimized versions of tdiv_med
+#ifdef USE_8X_MOD_ASM
 	dconf->bl_sizes = (uint16 *)xmalloc_align(16 * sizeof(uint16));
 	dconf->bl_locs = (uint16 *)xmalloc_align(16 * sizeof(uint16));
+#endif
+
+    dconf->polyscratch = (uint32 *)xmalloc_align(16 * sizeof(uint32));
 
 	//initialize some counters
 	dconf->tot_poly = 0;		//track total number of polys
 	dconf->num = 0;				//sieve locations subjected to trial division
+    dconf->lp_scan_failures = 0;
+    dconf->total_reports = 0;
+    dconf->total_surviving_reports = 0;
+    dconf->total_blocks = 0;
 
 	return 0;
 }
@@ -1689,7 +1744,17 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	uint32 i, memsize;
 	uint32 closnuf;
 	double sum, avg, sd;
-	int nump = 8;		// by default, ensure 8 contiguous primes.  AVX2 requires 16.
+    uint32 dlp_cutoff;
+
+    // this pretty much has to stay "8".  the reason is that many of the specialized routines
+    // have picky requirements about how large or small the primes can be for them
+    // to work correctly.  It seems we have trouble finding indices within the factor
+    // base that simultaneously provide the correct size boundaries and are also
+    // aligned to a multiple of 16.
+    // When using AVX2, we'll maybe have to perform a round or two of SSE41 in a couple
+    // places to cross over size boundaries within the factor base, if those boundaries
+    // are not divisible by 16.
+	int nump = 8;
 
 	if (VFLAG > 2)
 	{
@@ -1708,102 +1773,74 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->use_dlp = 0;
 
 	// sieve core functions
-	switch (yafu_get_cpu_type())
-	{
-		// after the sse41 improvements, 64k versions ceased to work.
-		// I must have borked something inadvertently, and probably the fix is minor.
-		// however, right now I don't have the energy - so for now, everything will
-		// use the 32k sieve.  It is a lot easier to optimize for anyway, since we don't
-		// have to worry about 16 bit overflow as much.  Which is probably why
-		// the 64k versions no longer work - I've only done the latest assembly
-		// optimizations for 32k.
+    switch (yafu_get_cpu_type())
+    {
+        // after the sse41 improvements, 64k versions ceased to work.
+        // I must have borked something inadvertently, and probably the fix is minor.
+        // however, right now I don't have the energy - so for now, everything will
+        // use the 32k sieve.  It is a lot easier to optimize for anyway, since we don't
+        // have to worry about 16 bit overflow as much.  Which is probably why
+        // the 64k versions no longer work - I've only done the latest assembly
+        // optimizations for 32k.
 
-	//case cpu_core:
-	default:
-		firstRoots_ptr = &firstRoots_32k;
-		nextRoots_ptr = &nextRoots_32k;
+        //case cpu_core:
+    default:
+        firstRoots_ptr = &firstRoots_32k;
+        nextRoots_ptr = &nextRoots_32k;
 
-		// if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
-		// machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
+        // if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
+        // machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
 #if defined(USE_AVX2)
-		if (HAS_AVX2)
-		{
-			printf("using avx2 with next_roots\n");
-			nextRoots_ptr = &nextRoots_32k_sse41;
-			//nextRoots_ptr = &nextRoots_32k_avx2;
-		}
-		else if (HAS_SSE41)
-		{
-			printf("using sse4.1 with next_roots\n");
-			nextRoots_ptr = &nextRoots_32k_sse41;
-		}
+        if (HAS_AVX2)
+        {
+            nextRoots_ptr = &nextRoots_32k_avx2;
+        }
+        else if (HAS_SSE41)
+        {
+            nextRoots_ptr = &nextRoots_32k_sse41;
+        }
 
 #elif defined(USE_SSE41)
 		if (HAS_SSE41)
 		{
-			//printf("using sse4.1 with med_sieve\n");
 			nextRoots_ptr = &nextRoots_32k_sse41;
 		}
+
 #endif
 		
 		testRoots_ptr = &testfirstRoots_32k;
 
+        med_sieve_ptr = &med_sieveblock_32k;
 		// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
 		// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
 #if defined(USE_AVX2)
 		if (HAS_AVX2)
 		{
-			printf("using avx2 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k_avx2;
-			//med_sieve_ptr = &med_sieveblock_32k_sse41;
-			nump = 16;
 		}
 		else if (HAS_SSE41)
 		{
-			printf("using sse4.1 with med_sieve\n");
 			med_sieve_ptr = &med_sieveblock_32k_sse41;
-		}
-		else
-		{
-			printf("using sse2 with med_sieve\n");
-			med_sieve_ptr = &med_sieveblock_32k;
 		}
 
 #elif defined(USE_SSE41)
 		if (HAS_SSE41)
 		{
-			//printf("using sse4.1 with med_sieve\n");
-			med_sieve_ptr = &med_sieveblock_32k_sse41;
+		    med_sieve_ptr = &med_sieveblock_32k_sse41;
 		}
-		else
-		{
-			//printf("using sse2 with med_sieve\n");
-			med_sieve_ptr = &med_sieveblock_32k;
-		}
-#else
-		//printf("using sse2 with med_sieve\n");
-		med_sieve_ptr = &med_sieveblock_32k;
+
 #endif
+
+        tdiv_med_ptr = &tdiv_medprimes_32k;
+        resieve_med_ptr = &resieve_medprimes_32k;
 
 #if defined(USE_AVX2)
 		if (HAS_AVX2)
 		{
-			printf("using avx2 with tdiv_medprimes\n");
 			tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
 			resieve_med_ptr = &resieve_medprimes_32k_avx2;
 		}
-		else
-		{
-			printf("using sse2 with tdiv_medprimes\n");
-			tdiv_med_ptr = &tdiv_medprimes_32k;
-			resieve_med_ptr = &resieve_medprimes_32k;
-		}
-#else
-		//printf("using sse2 with tdiv_medprimes\n");
-		tdiv_med_ptr = &tdiv_medprimes_32k;
-		resieve_med_ptr = &resieve_medprimes_32k;
 #endif
-
 		
 		sconf->qs_blocksize = 32768;
 		sconf->qs_blockbits = 15;
@@ -2008,9 +2045,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
-		//don't let med_B grow larger than 1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > 4096)  &&
-			(i % nump == 0)) break;
+        if ((sconf->factor_base->list->prime[i] > 4096) &&
+            (i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_12bit_B = i;
 
@@ -2020,9 +2056,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//wait until the index is a multiple of 8 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
-		//don't let med_B grow larger than 1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > 8192)  &&
-			(i % nump == 0)) break;
+        if ((sconf->factor_base->list->prime[i] > 8192) &&
+            (i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_13bit_B = i;
 
@@ -2049,7 +2084,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 16384)  &&
-			(i % nump == 0)) break;
+            (i % nump == 0)) break;
 	}	
 	// put the upper bound just before prime exceeds 14 bits, required by SSE2 sieving
 	sconf->factor_base->fb_14bit_B = i;
@@ -2061,7 +2096,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 32768)  &&
-			(i % nump == 0)) break;
+            (i % nump == 0)) break;
 	}
 	sconf->factor_base->fb_15bit_B = i;
 
@@ -2153,8 +2188,24 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	else
 		sconf->large_prime_max = sconf->pmax * sconf->large_mult;
 
-	//based on the size of the input, determine how to proceed.
-	if (sconf->digits_n > 81 || sconf->obj->qs_obj.gbl_force_DLP)
+	// based on the size of the input, determine how to proceed.
+    // this should maybe be tuned based on machine type and/or other
+    // factors as well, not just instruction set used during compile.
+    // inputs as low as c70 can benefit from DLP, but it also seems
+    // that the probability of something going wrong in parallel squfof
+    // goes up.  occasionally a floating point exception occurs.  we
+    // can fix that within parallel squfof by looking for division by
+    // zero, but that slows down parallel squfof, and is a hack in any
+    // case.  The root cause of the floating exception (getting zeros
+    // in the denominator of squfof) is unknown or why it happens more
+    // often with smaller inputs.
+#if defined(USE_AVX2) || defined(USE_SSE41)
+    dlp_cutoff = 70;
+#else
+    dlp_cutoff = 77;
+#endif
+
+    if ((sconf->digits_n >= dlp_cutoff) || sconf->obj->qs_obj.gbl_force_DLP)
 	{
 		sconf->use_dlp = 1;
 		scan_ptr = &check_relations_siqs_16;
@@ -2164,8 +2215,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	{
 		if (sconf->digits_n < 30)
 		{
-			scan_ptr = &check_relations_siqs_1;
-			sconf->scan_unrolling = 8;
+			scan_ptr = &check_relations_siqs_4;
+			sconf->scan_unrolling = 32;
 		}
 		else if (sconf->digits_n < 60)
 		{
@@ -2204,17 +2255,32 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	closnuf += (uint8)(log((double)sconf->sieve_interval/2)/log(2.0));
 	closnuf -= (uint8)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
 	
+    //if (sconf->digits_n > 60)
+    //{
+    //    closnuf -= 2;
+    //}
 	//it pays to trial divide a little more for big jobs...
 	//"optimized" is used rather loosely here, but these corrections
 	//were observed to make things faster.  
-	if (sconf->digits_n >=70 && sconf->digits_n < 75)
-		closnuf += 1;	//optimized for 75 digit num
-	else if (sconf->digits_n >=75 && sconf->digits_n < 78)
-		closnuf -= 0;	//optimized for 75 digit num
-	else if (sconf->digits_n >=78 && sconf->digits_n < 81)
-		closnuf -= 2;	//optimized for 80 digit num
-	else if (sconf->digits_n >=81 && sconf->digits_n < 85)
-		closnuf -= 3;	//optimized for 82 digit num	
+    //if ((sconf->digits_n >= 70) && (sconf->digits_n < 75))
+    //{
+    //    closnuf += 1;	//optimized for 75 digit num
+    //}
+    //else if ((sconf->digits_n >= 75) && (sconf->digits_n < 79))
+    //{
+    //    closnuf -= 2;	//optimized for 75 digit num
+    //}
+    //else if ((sconf->digits_n >= 78) && (sconf->digits_n < 81))
+    //{
+    //    closnuf -= 2;	//optimized for 80 digit num
+    //}
+    //else if ((sconf->digits_n >= 79) && (sconf->digits_n < 85))
+    //{
+    //    closnuf -= 3;	//optimized for 82 digit num	
+    //}
+
+    // inputs larger than this use a different method (below)
+
 
 #ifdef QS_TIMING
 	printf("%d primes not sieved in SPV\n",sconf->sieve_small_fb_start);
@@ -2264,10 +2330,24 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	//way... find out and reference here.
 	sconf->tf_small_cutoff = (uint8)(avg + 2.5*sd);
 
-	if (sconf->digits_n >= 85)
-		closnuf = sconf->digits_n + 5;	//empirically, this was observed to work fairly well.
-	else
-		closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
+    if ((sconf->use_dlp == 1) || sconf->obj->qs_obj.gbl_force_DLP)
+    {
+        //empirically, these were observed to work fairly well.
+        if(sconf->digits_n < 82)
+            closnuf = sconf->digits_n + 7;
+        else if (sconf->digits_n < 90)
+            closnuf = sconf->digits_n + 5;
+        else if (sconf->digits_n < 95)
+            closnuf = sconf->digits_n + 3;
+        else if (sconf->digits_n < 100)
+            closnuf = sconf->digits_n + 1;
+        else
+            closnuf = sconf->digits_n;
+    }
+    else
+    {
+        closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
+    }
 
 	if (sconf->obj->qs_obj.gbl_override_tf_flag)
 	{
@@ -2326,6 +2406,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	
 	sconf->tot_poly = 0;		//track total number of polys
 	sconf->num = 0;				//sieve locations subjected to trial division
+    sconf->total_reports = 0;
+    sconf->total_surviving_reports = 0;
+    sconf->total_blocks = 0;
+    sconf->lp_scan_failures = 0;
 
 	//no factors so far...
 	sconf->factor_list.num_factors = 0;
@@ -2435,14 +2519,6 @@ int update_check(static_conf_t *sconf)
 		difference = my_difftime (&sconf->totaltime_start, &update_stop);
 		if (VFLAG >= 0)
 		{
-			uint32 update_rels;
-
-			//in order to keep rels/sec from going mad when relations
-			//are reloaded on a restart, just use the number of
-			//relations we've found since the last update.  don't forget
-			//to initialize last_numfull and partial when loading
-			update_rels = sconf->num_relations + sconf->num_cycles - 
-				sconf->last_numfull - sconf->last_numcycles;
 			sconf->charcount = printf("%d rels found: %d full + "
 				"%d from %d partial, (%6.2f rels/sec)\r",
 				sconf->num_r,sconf->num_relations,
@@ -2526,6 +2602,16 @@ int update_final(static_conf_t *sconf)
 				printf("squfof: %u failures, %u attempts, %u outside range, %u prp, %u useful\n", 
 					sconf->failed_squfof, sconf->attempted_squfof, 
 					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
+
+            printf("total reports = %u, total surviving reports = %u\ntotal blocks sieved = %u,"
+                "avg surviving reports per block = %1.2f\n", sconf->total_reports,
+                sconf->total_surviving_reports, sconf->total_blocks,
+                (float)sconf->total_surviving_reports / (float)sconf->total_blocks);
+
+#ifdef USE_AVX2
+            printf("large prime scan failures = %u\n", sconf->lp_scan_failures);
+#endif
+
 		}
 		else
 			printf("\n\n");
@@ -2693,24 +2779,25 @@ int free_sieve(dynamic_conf_t *dconf)
 	free(dconf->Qvals32);
 #endif
 	
-	// mpz math in tdiv_small (lines 144, 146) sometimes causes reallocation
-	// of these mpz_t's, and that makes this crash, but only for 150 bit through 180 bit
-	// inputs.  other size inputs are fine.  too bizarre.  we lose a few tens of kilobytes
-	// by neglecting to free these, but I can't debug the cause of the crash and this
-	// fix works.  note: it starts working once the input becomes large enough to use
-	// bucket sieving... clue for debug...
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 	{
-		//printf("freeing Qval %d\n", i); fflush(stdout);
 		mpz_clear(dconf->Qvals[i]);
 	}
 	free(dconf->Qvals);	
 	free(dconf->valid_Qs);
 	free(dconf->smooth_num);
 
+#ifdef USE_8X_MOD_ASM
 	align_free(dconf->bl_locs);
 	align_free(dconf->bl_sizes);
+#endif
 	align_free(dconf->corrections);
+    align_free(dconf->polyscratch);
+
+#ifdef USE_VEC_SQUFOF
+    free(dconf->unfactored_residue);
+    free(dconf->residue_factors);
+#endif
 
 	return 0;
 }
@@ -2779,7 +2866,7 @@ int free_siqs(static_conf_t *sconf)
 	mpz_clear(sconf->curr_poly->mpz_poly_c);
 	free(sconf->curr_poly);
 	mpz_clear(sconf->curr_a);	
-	free(sconf->modsqrt_array);
+    align_free(sconf->modsqrt_array);
 	align_free(sconf->factor_base->list->prime);
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);

@@ -39,17 +39,19 @@ code to the public domain.
 // flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
 // to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
 #define USE_SSE41 1
-#define USE_AVX2 1
+//#define USE_AVX2 1
 #endif
 
-#ifdef USE_AVX2
-#define NUM_SIMD_LANES 16
-#else
-#define NUM_SIMD_LANES 8
+
+#if defined(USE_AVX2)
+#define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
+#endif
+
+#if defined(USE_AVX2) || defined(USE_SSE41)
+#define USE_VEC_SQUFOF
 #endif
 
 //#define HAVE_CUDA
-
 //#define QS_TIMING
 
 #ifdef QS_TIMING
@@ -76,6 +78,10 @@ double TF_SPECIAL;
 
 /************************* Common types and functions *****************/
 
+#define BLOCKBITS 15
+#define BLOCKSIZEm1 32767
+#define BLOCKSIZE 32768
+
 #define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
 #define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
@@ -94,7 +100,7 @@ double TF_SPECIAL;
 // always use these optimizations using sse2
 #ifdef TARGET_MIC
 
-#else
+#elif !defined (FORCE_GENERIC)
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
 #define SSE2_RESIEVING 1
@@ -104,24 +110,24 @@ double TF_SPECIAL;
 #define FOGSHIFT 24
 #define FOGSHIFT_2 40
 
-#if defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__) && defined(GCC_ASM64X))
+#if !defined (FORCE_GENERIC) && (defined (__MINGW64__) || (defined(__GNUC__) && defined(__x86_64__) && defined(GCC_ASM64X)))
 	// requires 64 bit and gcc inline assembler syntax
 	#define USE_POLY_SSE2_ASM 1
 	#define USE_ASM_SMALL_PRIME_SIEVING
 #endif
 
-#if defined(GCC_ASM64X) || defined(__MINGW64__)
+#if !defined (FORCE_GENERIC) && (defined(GCC_ASM64X) || defined(__MINGW64__))
 	//assume we have sse2, set defines to use the sse2 code available
 	#define SIMD_SIEVE_SCAN 1
 	#define SIMD_SIEVE_SCAN_VEC 1
 
-#elif defined(GCC_ASM32X) || defined(__MINGW32__)
+#elif !defined (FORCE_GENERIC) && (defined(GCC_ASM32X) || defined(__MINGW32__))
 	#define SIMD_SIEVE_SCAN 1
 
-#elif defined(MSC_ASM32A)
+#elif !defined (FORCE_GENERIC) && defined(MSC_ASM32A)
 	#define SIMD_SIEVE_SCAN 1
 
-#elif defined(_WIN64)
+#elif !defined (FORCE_GENERIC) && defined(_WIN64)
 	#define SIMD_SIEVE_SCAN 1
 
 #endif
@@ -373,6 +379,10 @@ typedef struct {
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
+    uint32 total_reports;
+    uint32 total_surviving_reports;
+    uint32 total_blocks;
+    uint32 lp_scan_failures;
 
 	//master time record
 	double t_time1;				// sieve time
@@ -432,6 +442,7 @@ typedef struct {
 	lp_bucket *buckets;			// bins holding sieve updates
 	int *rootupdates;			// updates to apply to roots of primes
 	uint16 *sm_rootupdates;			// updates to apply to roots of primes
+    uint32 *mask2;
 	
 	//scratch
 	mpz_t gmptmp1;
@@ -454,6 +465,9 @@ typedef struct {
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
+    uint32 total_reports;
+    uint32 total_surviving_reports;
+    uint32 total_blocks;
 
 #ifdef USE_8X_MOD_ASM
 	uint16 *bl_sizes;
@@ -470,15 +484,21 @@ typedef struct {
 	uint32 buffered_rel_alloc;
 	siqs_r *relation_buf;
 
+    uint64 *unfactored_residue;
+    uint64 *residue_factors;
+    uint32 num_64bit_residue;
+
 #ifdef HAVE_CUDA
 	uint64 *squfof_candidates;
 	uint32 *buf_id;
 	uint32 num_squfof_cand;
 #endif
 
+    uint32 *polyscratch;
 	uint16 *corrections;
 
 	//counters and timers
+    uint32 lp_scan_failures;
 	uint32 num;					// sieve locations we've subjected to trial division
 	double rels_per_sec;
 
@@ -540,7 +560,7 @@ void med_sieveblock_64k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 void (*med_sieve_ptr)(uint8 *, sieve_fb_compressed *, fb_list *, uint32 , uint8 );
 
 void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
-		lp_bucket *lp, int side);
+		lp_bucket *lp, int side, dynamic_conf_t * dconf);
 
 // trial division
 int check_relations_siqs_1(uint32 blocknum, uint8 parity, 
@@ -584,7 +604,7 @@ void trial_divide_Q_siqs(uint32 report_num,
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  dynamic_conf_t *conf, uint32 *polya_factors, 
-						  uint32 num_polya_factors);
+						  uint32 num_polya_factors, uint64 unfactored_residue);
 
 void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors, 
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,

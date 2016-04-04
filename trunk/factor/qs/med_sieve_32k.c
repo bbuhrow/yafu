@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+
 #include "yafu.h"
 #include "qs.h"
 #include "sieve_macros_32k.h"
@@ -87,6 +88,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 		UPDATE_ROOTS;
 	}
 #endif
+
+
+#ifdef HAS_SSE2
 
 	for (; i<med_B; i++)
 	{	
@@ -204,6 +208,28 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	}
 #endif
 
+#else
+
+    for (; i<med_B; i++)
+    {	
+        uint8 *s2;		
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+#endif
+
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -218,5 +244,4 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 	return;
 
 }
-
 

@@ -18,14 +18,602 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include "common.h"
+
+// protect avx2 code under MSVC builds.  USE_AVX2 should be manually
+// enabled at the top of qs.h for MSVC builds on supported hardware
+#if defined( USE_AVX2 ) && defined (GCC_ASM64X)
+
+
 #include "yafu.h"
 #include "qs.h"
 #include "sieve_macros_32k.h"
 #include "sieve_macros_32k_avx2.h"
 
-// protect avx2 code under MSVC builds.  USE_AVX2 should be manually
-// enabled at the top of qs.h for MSVC builds on supported hardware
-#ifdef USE_AVX2
+
+#define _8P_STEP_SIEVE_AVX2 \
+	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+	"vpextrw	$0, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+    "subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$1, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$1, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$2, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+    "subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$3, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$3, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$4, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+    "subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$5, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$5, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$6, %%xmm2, %%ebx \n\t"			/* extract root2 */ \
+    "subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$7, %%xmm1, %%ecx \n\t"			/* extract root1 */ \
+    "subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpextrw	$7, %%xmm2, %%edi \n\t"			/* extract root2 */ \
+	"subb	%%sil, (%%rdx, %%rcx, 1) \n\t"	/* read/modify/write sieve */ \
+	"vpaddw	%%xmm0, %%xmm1, %%xmm1 \n\t"			/* increment root1's by primes */ \
+	"vpaddw	%%xmm0, %%xmm2, %%xmm2 \n\t"			/* increment root2's by primes */ \
+    "subb	%%sil, (%%rdx, %%rdi, 1) \n\t"	/* read/modify/write sieve */ 
+
+
+#define _8P_FINAL_STEP_SIEVE_AVX2 \
+	/* workaround for lack of unsigned greater than... */ \
+	"vpsubusw	%%xmm3, %%xmm1, %%xmm4 \n\t"		/* xmm4 := root1 - 32767 */ \
+    "vpsubusw	%%xmm3, %%xmm2, %%xmm5 \n\t"		/* xmm5 := root2 - 32767 */ \
+	"vpcmpeqw	%%xmm6, %%xmm4, %%xmm4 \n\t"		/* xmm4 := root1 <= 32767 ? 1 : 0 */ \
+	"vpcmpeqw	%%xmm6, %%xmm5, %%xmm5 \n\t"		/* xmm5 := root2 <= 32767 ? 1 : 0 */ \
+	"vpmovmskb	%%xmm4, %%ecx \n\t" \
+	"vpmovmskb	%%xmm5, %%edi \n\t" \
+	"testl	$0x2, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* if bits are equal to zero then root1 ! <= blocksize-1; jump */ \
+	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$0, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$1, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$1, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpand	%%xmm0, %%xmm4, %%xmm4 \n\t"			/* clear primes whose root1's are >= blocksize */ \
+	"testl	$0x20, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$2, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x20, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpand	%%xmm0, %%xmm5, %%xmm5 \n\t"			/* clear primes whose root2's are >= blocksize */ \
+	"testl	$0x80, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$3, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$3, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x80, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpsubw	%%xmm7, %%xmm4, %%xmm4 \n\t"			/* advance root1's still below blocksize */ \
+    "testl	$0x200, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$4, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x200, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpsubw	%%xmm7, %%xmm5, %%xmm5 \n\t"			/* advance root1's still below blocksize */ \
+	"testl	$0x800, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$5, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$5, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x800, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x2000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$6, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$7, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$7, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */
+
+#ifdef NOTDEF
+#define _16P_FINAL_STEP_SIEVE_AVX2 \
+	/* workaround for lack of unsigned greater than... */ \
+	"vpsubusw	%%ymm3, %%ymm1, %%ymm4 \n\t"		/* xmm4 := root1 - 32767 */ \
+    "vpsubusw	%%ymm3, %%ymm2, %%ymm5 \n\t"		/* xmm5 := root2 - 32767 */ \
+	"vpcmpeqw	%%ymm6, %%ymm4, %%ymm4 \n\t"		/* xmm4 := root1 <= 32767 ? 1 : 0 */ \
+	"vpcmpeqw	%%ymm6, %%ymm5, %%ymm5 \n\t"		/* xmm5 := root2 <= 32767 ? 1 : 0 */ \
+	"vpmovmskb	%%ymm4, %%ecx \n\t" \
+	"vpmovmskb	%%ymm5, %%edi \n\t" \
+	"testl	$0x2, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* if bits are equal to zero then root1 ! <= blocksize-1; jump */ \
+	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$0, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$1, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$1, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpand	%%ymm0, %%ymm4, %%ymm4 \n\t"			/* clear primes whose root1's are >= blocksize */ \
+	"testl	$0x20, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$2, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x20, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpand	%%ymm0, %%ymm5, %%ymm5 \n\t"			/* clear primes whose root2's are >= blocksize */ \
+	"testl	$0x80, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$3, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$3, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x80, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpsubw	%%ymm7, %%ymm4, %%ymm4 \n\t"			/* advance root1's still below blocksize */ \
+    "testl	$0x200, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$4, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x200, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "vpsubw	%%ymm7, %%ymm5, %%ymm5 \n\t"			/* advance root1's still below blocksize */ \
+	"testl	$0x800, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$5, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$5, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x800, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x2000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$6, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$7, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$7, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+    "vextracti128 $1,%%ymm1, %%xmm1 \n\t" /* now the high half */ \
+    "vextracti128 $1,%%ymm2, %%xmm2 \n\t" /* now the high half */ \
+    "sarl   $16, %%ecx \n\t" \
+    "sarl   $16, %%edi \n\t" \
+    "testl	$0x2, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* if bits are equal to zero then root1 ! <= blocksize-1; jump */ \
+	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$0, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$1, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$1, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x20, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$2, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$2, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x20, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x80, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$3, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$3, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x80, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+    "testl	$0x200, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$4, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$4, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x200, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x800, %%ecx \n\t"				/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$5, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$5, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x800, %%edi \n\t"				/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x2000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$6, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$6, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x2000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */ \
+	 \
+	"testl	$0x8000, %%ecx \n\t"			/* test if root1 >= blocksize (thus so is root2) */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"vpextrw	$7, %%xmm1, %%eax \n\t"			/* else extract root */ \
+    "vpextrw	$7, %%xmm2, %%ebx \n\t"			/* else extract root */ \
+	"subb	%%sil, (%%rdx, %%rax, 1) \n\t"	/* read/modify/write sieve */ \
+	"testl	$0x8000, %%edi \n\t"			/* test if root2 >= blocksize */ \
+	"je 1f \n\t"							/* jump past R/M/W if so */ \
+	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
+	"1: \n\t"								/* both root1 and root2 were >= blocksize */
+
+#endif
+
+#define _FINALIZE_SORT_UPDATE_AVX2 \
+	"vpaddw	    %%xmm4, %%xmm1, %%xmm1 \n\t"			/* r1 = r1 + (p - b) */ \
+	"vpaddw	    %%xmm5, %%xmm2, %%xmm2 \n\t"			/* r2 = r2 + (p - b) */ \
+	"vpmaxsw	%%xmm1, %%xmm2, %%xmm5 \n\t"			/* replace xmm2 with max of root1 and root2 */ \
+	"vpminsw	%%xmm2, %%xmm1, %%xmm4 \n\t"			/* replace xmm1 with min of root1 and root2 */ \
+	"vmovdqa    %%xmm4, (%2) \n\t"				/* write new root1's */ \
+	"vmovdqa    %%xmm5, (%3) \n\t"				/* write new root2's */
+
+#define _INIT_AVX2_SMALL_PRIME_SIEVE \
+	asm (	\
+		"movl	$0x7fff7fff, %%ecx \n\t"		/* load 2 copies of blocksize-1 in a 32bit reg */ \
+		"movl	$0x80008000, %%edi \n\t"		/* load 2 copies of blocksize in a 32bit reg */ \
+		"vmovd	%%ecx, %%xmm3 \n\t"				/* we need 32k-1 because we do signed comparisons */ \
+		"vmovd	%%edi, %%xmm7 \n\t"				\
+		"vpxor	    %%xmm6, %%xmm6, %%xmm6 \n\t"			/* xmm6 := 0 */ \
+		"vpshufd	$0, %%xmm3, %%xmm3 \n\t"		/* broadcast blocksize-1 to all words of xmm3 */ \
+		"vpshufd	$0, %%xmm7, %%xmm7 \n\t"		/* broadcast blocksize to all words of xmm7 */ \
+		: \
+		:  \
+		: "ecx", "edi", "xmm3", "xmm6", "xmm7");
+
+#define _INIT_AVX2_SMALL_PRIME_SIEVE_x16 \
+	asm (	\
+		"movl	$0x7fff7fff, %%ecx \n\t"		/* load 2 copies of blocksize-1 in a 32bit reg */ \
+		"movl	$0x80008000, %%edi \n\t"		/* load 2 copies of blocksize in a 32bit reg */ \
+		"vmovd	%%ecx, %%xmm3 \n\t"				/* we need 32k-1 because we do signed comparisons */ \
+		"vmovd	%%edi, %%xmm7 \n\t"				\
+		"vpxor	    %%ymm6, %%ymm6, %%ymm6 \n\t"			/* xmm6 := 0 */ \
+		"vpshufd	$0, %%xmm3, %%xmm3 \n\t"		/* broadcast blocksize-1 to all words of xmm3 */ \
+		"vpshufd	$0, %%xmm7, %%xmm7 \n\t"		/* broadcast blocksize to all words of xmm7 */ \
+        "vinserti128	$1, %%xmm3, %%ymm3, %%ymm3 \n\t"		/* broadcast blocksize-1 to all words of xmm3 */ \
+		"vinserti128	$1, %%xmm7, %%ymm7, %%ymm7 \n\t"		/* broadcast blocksize to all words of xmm7 */ \
+		: \
+		:  \
+		: "ecx", "edi", "xmm3", "xmm6", "xmm7");
+
+
+#define _FINALIZE_SORT_UPDATE_AVX2_MM \
+	"vpaddw	    %%xmm4, %%xmm1, %%xmm1 \n\t"			/* r1 = r1 + (p - b) */ \
+	"vpaddw	    %%xmm5, %%xmm2, %%xmm2 \n\t"			/* r2 = r2 + (p - b) */ \
+	"vpmaxuw	%%xmm1, %%xmm2, %%xmm5 \n\t"			/* replace xmm2 with max of root1 and root2 */ \
+	"vpminuw	%%xmm2, %%xmm1, %%xmm4 \n\t"			/* replace xmm1 with min of root1 and root2 */ \
+	"vmovdqa    %%xmm4, (%2) \n\t"				/* write new root1's */ \
+	"vmovdqa    %%xmm5, (%3) \n\t"				/* write new root2's */
+
+#define _FINALIZE_SORT_UPDATE_AVX2_x16 \
+	"vpaddw	    %%ymm4, %%ymm1, %%ymm1 \n\t"			/* r1 = r1 + (p - b) */ \
+	"vpaddw	    %%ymm5, %%ymm2, %%ymm2 \n\t"			/* r2 = r2 + (p - b) */ \
+	"vpmaxuw	%%ymm1, %%ymm2, %%ymm5 \n\t"			/* replace xmm2 with max of root1 and root2 */ \
+	"vpminuw	%%ymm2, %%ymm1, %%ymm4 \n\t"			/* replace xmm1 with min of root1 and root2 */ \
+	"vmovdqa    %%ymm4, (%2) \n\t"				/* write new root1's */ \
+	"vmovdqa    %%ymm5, (%3) \n\t"				/* write new root2's */
+
+#define _AVX2_SMALL_PRIME_SIEVE \
+	for (; i < med_B; i += 8) \
+		asm (			\
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
+			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
+			"vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */ \
+			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */ \
+			\
+			_8P_FINAL_STEP_SIEVE_AVX2					\
+			_FINALIZE_SORT_UPDATE_AVX2_MM \
+			\
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", \
+				"rsi", "rdi", "cc", "memory");
+
+#define _AVX2_SMALL_PRIME_SIEVE_x16 \
+	for (; i < med_B; i += 16) \
+		asm (			\
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
+			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 16 primes */ \
+			"vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 16 root1's */ \
+			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 16 root2's */ \
+			\
+			_8P_FINAL_STEP_SIEVE_AVX2					\
+			_FINALIZE_SORT_UPDATE_AVX2 \
+			"vmovdqa	16(%1), %%xmm0 \n\t"				/* bring in 16 primes */ \
+			"vmovdqa	16(%2), %%xmm1 \n\t"				/* bring in 16 root1's */ \
+			"vmovdqa	16(%3), %%xmm2 \n\t"				/* bring in 16 root2's */ \
+			\
+			_8P_FINAL_STEP_SIEVE_AVX2					\
+			"vpaddw	    %%xmm4, %%xmm1, %%xmm1 \n\t"			/* r1 = r1 + (p - b) */ \
+	        "vpaddw	    %%xmm5, %%xmm2, %%xmm2 \n\t"			/* r2 = r2 + (p - b) */ \
+	        "vpmaxuw	%%xmm1, %%xmm2, %%xmm5 \n\t"			/* replace xmm2 with max of root1 and root2 */ \
+	        "vpminuw	%%xmm2, %%xmm1, %%xmm4 \n\t"			/* replace xmm1 with min of root1 and root2 */ \
+	        "vmovdqa    %%xmm4, 16(%2) \n\t"				/* write new root1's */ \
+	        "vmovdqa    %%xmm5, 16(%3) \n\t"				/* write new root2's */ \
+			\
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", \
+				"rsi", "rdi", "cc", "memory");
+
+
+#define _AVX2_SMALL_PRIME_SIEVE_x16_b \
+	for (; i < med_B; i += 16) \
+		asm (			\
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
+			"vmovdqa	(%1), %%ymm0 \n\t"				/* bring in 16 primes */ \
+			"vmovdqa	(%2), %%ymm1 \n\t"				/* bring in 16 root1's */ \
+			"vmovdqa	(%3), %%ymm2 \n\t"				/* bring in 16 root2's */ \
+			\
+			_8P_FINAL_STEP_SIEVE_AVX2					\
+			_FINALIZE_SORT_UPDATE_AVX2_x16 \
+			\
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", \
+				"rsi", "rdi", "cc", "memory");
+
+#define _AVX2_SMALL_PRIME_SIEVE_32k_DIV3 \
+	for (; i < full_fb->fb_32k_div3-8; i += 8) \
+		asm ( \
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$13, %%rsi \n\t"				/* logps = 13 in this range */ \
+			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
+			"vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */ \
+			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */ \
+			 \
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_FINAL_STEP_SIEVE_AVX2	 \
+			_FINALIZE_SORT_UPDATE_AVX2 \
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", \
+				"rcx", "rdx", "rsi", "rdi", "cc", "memory");
+
+#define _AVX2_SMALL_PRIME_SIEVE_14b \
+	for (; i < full_fb->fb_14bit_B-8; i += 8) \
+		asm ( \
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$14, %%rsi \n\t"				/* logp's range from 13 to 14... call 'em = 14 */ \
+			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
+			"vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */ \
+			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */ \
+			 \
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_FINAL_STEP_SIEVE_AVX2	\
+			_FINALIZE_SORT_UPDATE_AVX2 \
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", \
+				"rcx", "rdx", "rsi", "rdi", "cc", "memory");
+
+#define _AVX2_SMALL_PRIME_SIEVE_15b \
+	for (; i < full_fb->fb_15bit_B-8; i += 8) \
+		asm ( \
+			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
+			"movq	$15, %%rsi \n\t"				/* logp's range from 14 to 15... call 'em = 15 */ \
+			"vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */ \
+			"vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */ \
+			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */ \
+				\
+			_8P_STEP_SIEVE_AVX2 \
+			_8P_FINAL_STEP_SIEVE_AVX2			\
+			_FINALIZE_SORT_UPDATE_AVX2 \
+			\
+			: \
+			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", "rsi", \
+				"rdi", "cc", "memory");
+
+// registers clobbered in this loop:
+// r9,r10,r14,rax,rcx,rdx,rsi,rdi
+// protected registers:
+// rbx,r8,r12,r15,r11,r13
+// free registers:
+// none
+#define SIEVE_2X_BLOCK_ASM(id) \
+    "vpextrw $" id ", %%xmm2, %%r10d \n\t"	    /* bring in prime */	 \
+    "vpextrw $" id ", %%xmm5, %%r14d \n\t"		/* bring in stop value */ \
+    "leaq   (%%r10,%%rbx,1),%%rcx	 \n\t"	/* sieve2 = sieve + prime */ \
+    "vpextrw $" id ", %%xmm0, %%r9d \n\t"		/* bring in root1 */ \
+  	"vpextrw $" id ", %%xmm1, %%edi \n\t"		/* bring in root2 */	 \
+  	"vpextrw $" id ", %%xmm3, %%esi \n\t"		/* bring in logp */ \
+    "leal   (%%r10,%%r10,1),%%r10d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
+  	"cmpl   %%r14d,%%edi \n\t"				/* root2 >= blocksize-prime? */ \
+  	"jae    1f \n\t"						/* jump past loop if so */ \
+	"0:  \n\t"								/* sieve to "stop"(r14d) */ \
+  	"movl   %%r9d,%%edx \n\t" \
+  	"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \  		
+    "subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
+    "addl   %%r10d,%%edi \n\t" \
+    "subb   %%sil,(%%rbx,%%rax,1) \n\t" \
+    "subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
+    "addl   %%r10d,%%r9d \n\t" \
+    "subb   %%sil,(%%rcx,%%rax,1) \n\t" \
+    "cmpl   %%r14d,%%edi \n\t" \
+    "jb     0b \n\t"						/* repeat */ \
+    "1:  \n\t" \
+    "shrl   $1, %%r10d \n\t"                 /* done with 2x prime */ \
+    "cmpl   $32767,%%edi \n\t"				/* root2 >= blocksize? */ \
+    "ja     1f  \n\t"						/* jump to extra root1 check */ \
+    \
+    "0:  \n\t"								/* sieve to "blocksize" */ \
+    "movl   %%r9d,%%ecx \n\t" \
+    "movl   %%edi,%%edx \n\t" \
+    "addl   %%r10d,%%edi \n\t" \
+    "subb   %%sil,(%%rbx,%%rcx,1) \n\t" \
+    "addl   %%r10d,%%r9d \n\t" \
+    "subb   %%sil,(%%rbx,%%rdx,1) \n\t" \
+    "cmpl   $32767,%%edi \n\t" \
+    "jbe    0b \n\t"						/* repeat */ \
+    "1:  \n\t" \
+    "vpinsrw $" id ", %%edi, %%xmm1, %%xmm1 \n\t"		/* put back new root2 */ \
+    "cmpl   $32767,%%r9d \n\t"				/* root1 >= blocksize? */ \
+    "ja     1f \n\t"						/* jump past extra root1 block if so */ \
+    "subb   %%sil,(%%rbx,%%r9,1) \n\t"      /* need one last write in this block from root 1 */ \
+    "addl   %%r10d,%%r9d \n\t"              /* and one last increment by prime */ \
+    "1:  \n\t" \
+    "vpinsrw $" id ", %%r9d, %%xmm0, %%xmm0 \n\t"		/* put back new root1 */
+
+
+#define SIEVE_13b_ASM_AVX2 \
+	__asm__ ( \
+		"movq	%0,%%r12 \n\t"					/* move helperstruct into r12 */ \
+		"movl   40(%%r12,1),%%r8d \n\t"			/* move startprime (i) into r8d */ \
+		"movq	(%%r12,1),%%rbx \n\t"			/* move sieve into rbx */ \
+		"cmpl   44(%%r12,1),%%r8d \n\t"				/* i >= bound? */ \
+		"jae    8f \n\t"						/* jump to exit if so */ \
+        "movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
+        "movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
+        "movq   8(%%r12,1),%%rdx \n\t"			/* rdx holds prime pointer */ \
+        "movq   32(%%r12,1),%%rax \n\t"			/* rax holds logp pointer */ \
+        "movl   $0x80008000,%%ecx \n\t"		    /* blocksize temporarily in rcx */ \
+        "vmovd      %%ecx, %%xmm4 \n\t"         /* broadcast blocksize to xmm4 */ \
+        "vpshufd	$0, %%xmm4, %%xmm4 \n\t"    /* broadcast blocksize to xmm4 */ \
+            /* ==================================================================== */ \
+			/* = 2x sieving	loop									              = */ \
+			/* ==================================================================== */ \
+		"7: \n\t"								/* start of 2x sieving loop */  \
+        "vmovdqa (%%r13, %%r8, 2), %%xmm0 \n\t"          /* load 8 root1's */ \
+        "vmovdqa (%%r11, %%r8, 2), %%xmm1 \n\t"          /* load 8 root2's */ \
+        "vmovdqa (%%rdx, %%r8, 2), %%xmm2 \n\t"          /* load 8 primes's */ \
+        "vmovdqa (%%rax, %%r8, 2), %%xmm3 \n\t"          /* load 8 logp's */ \
+        "vpsubw     %%xmm2, %%xmm4, %%xmm5 \n\t"    /* xmm5 = blocksize - prime */ \
+        /* registers clobbered in this loop: */ \
+        /* r9,r10,r14,rax,rcx,rdx,rsi,rdi */ \
+  		SIEVE_2X_BLOCK_ASM("0") \
+        SIEVE_2X_BLOCK_ASM("1") \
+        SIEVE_2X_BLOCK_ASM("2") \
+        SIEVE_2X_BLOCK_ASM("3") \
+        SIEVE_2X_BLOCK_ASM("4") \
+        SIEVE_2X_BLOCK_ASM("5") \
+        SIEVE_2X_BLOCK_ASM("6") \
+        SIEVE_2X_BLOCK_ASM("7") \
+            /* ==================================================================== */ \
+            /* = cleanup        									              = */ \
+            /* ==================================================================== */ \
+        "vpsubw     %%xmm4, %%xmm0, %%xmm0 \n\t"    /* root1 -= blocksize */ \
+        "vpsubw     %%xmm4, %%xmm1, %%xmm1 \n\t"    /* root2 -= blocksize */ \
+        "vpmaxuw	%%xmm0, %%xmm1, %%xmm5 \n\t"	/* replace xmm2 with max of root1 and root2 */ \
+        "vpminuw	%%xmm0, %%xmm1, %%xmm6 \n\t"	/* replace xmm1 with min of root1 and root2 */ \
+        "movq   %%r8, %%r14 \n\t" \
+        "addq   $8, %%r8 \n\t"                      /* get ready for next iteration */ \    
+        "vmovdqa %%xmm6, (%%r13, %%r14, 2) \n\t"    /* store 8 new root1's */ \
+        "movq   8(%%r12,1),%%rdx \n\t"			    /* rdx holds prime pointer */ \
+        "vmovdqa %%xmm5, (%%r11, %%r14, 2) \n\t"    /* store 8 new root2's */ \
+        "movq   32(%%r12,1),%%rax \n\t"			    /* rax holds logp pointer */ \
+        "cmpl   44(%%r12,1),%%r8d \n\t" \
+        "jb     7b \n\t"						/* repeat 2x sieving loop */ \
+        "8: \n\t"													\
+        "movl	%%r8d, 40(%%r12,1) \n\t"		/* copy out final value of i */ \
+        :																\
+        : "g"(&asm_input)												\
+        : "rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory", "cc");
+
 
 #if defined(_MSC_VER)
 	#include <mmintrin.h>
@@ -54,6 +642,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	helperstruct_t asm_input;
 
 	med_B = full_fb->med_B;
+
+    CLEAN_AVX2;
 	
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
@@ -61,6 +651,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
 	//initialize the block
 	BLOCK_INIT;
+
+    CLEAN_AVX2;
 
 	// sieve primes less than 2^13 using optimized loops: it becomes
 	// inefficient to do fully unrolled sse2 loops as the number of
@@ -75,14 +667,26 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	asm_input.root2ptr = fb->root2;
 	asm_input.sieve = sieve;
 	asm_input.startprime = start_prime;
-	asm_input.med_B = full_fb->fb_13bit_B-16;
+	asm_input.med_B = full_fb->fb_10bit_B;
 
 	SIEVE_13b_ASM;
 
 	i = asm_input.startprime;
 
+    asm_input.logptr = fb->logp;
+    asm_input.primeptr = fb->prime;
+    asm_input.root1ptr = fb->root1;
+    asm_input.root2ptr = fb->root2;
+    asm_input.sieve = sieve;
+    asm_input.startprime = i;
+    asm_input.med_B = full_fb->fb_13bit_B-8;
+
+    SIEVE_13b_ASM_AVX2;
+
+    i = asm_input.startprime;
+
 #else
-	for (i=start_prime;i< full_fb->fb_13bit_B-16;i++)
+	for (i=start_prime;i< full_fb->fb_13bit_B-8;i++)
 	{	
 		uint8 *s2;		
 
@@ -112,10 +716,6 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 		root2 = fb->root2[i];
 		logp = fb->logp[i];
 
-		//// special exit condition: when prime > 8192 and i % 8 is 0;
-		if ((prime > 8192) && ((i&15) == 0))
-			break;
-
 		// invalid root (part of poly->a)
 		if (prime == 0) 
 			continue;
@@ -126,7 +726,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 		UPDATE_ROOTS;
 	}
 
-	// sieve primes 16 at a time, where 8192 < p < blocksize/3
+	// sieve primes 8 at a time, where 8192 < p < blocksize/3
 	_INIT_AVX2_SMALL_PRIME_SIEVE;
 	_AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
 
@@ -181,7 +781,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
 	// do this small set of crossover primes manually, one at a time,
 	// this time for the 15 bit crossover.
-	for (i = full_fb->fb_15bit_B; i<med_B; i++)
+	for (i = full_fb->fb_15bit_B - 8; i<med_B; i++)
 	{	
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -205,6 +805,8 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	_INIT_AVX2_SMALL_PRIME_SIEVE;
 	_AVX2_SMALL_PRIME_SIEVE;
 
+    CLEAN_AVX2;
+
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -220,5 +822,5 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
 }
 
-#endif // USE_SSE41
+#endif // USE_AVX2
 

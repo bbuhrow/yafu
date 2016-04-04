@@ -25,22 +25,7 @@ code to the public domain.
 #include "util.h"
 #include "factor.h"
 #include "gmp.h"
-
-//#if defined(_MSC_VER)
-//	#include <gmp-ecm\config.h>
-//#else
-//	#include <config.h>
-//#endif
-/* Use the above if linking against GMP-ECM revision 2344 or earlier, and the
-following if linking against 2345+ (all 6.* versions are the old way) */
-
-// note that visual studio builds require a recent SVN, in order to capture
-// changes implemented by Brian Gladman to put ECM_VERSION in ecm.h.
-#if defined(_MSC_VER)
-	#include <ecm.h>
-#else
-	#include <ecm.h>
-#endif
+#include <ecm.h>
 
 // the number of recognized command line options
 #define NUMOPTIONS 72
@@ -141,6 +126,7 @@ int main(int argc, char *argv[])
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
 
+#if !defined( TARGET_MIC )
     //get the computer name, cache sizes, etc.  store in globals
     get_computer_info(CPU_ID_STR);
 	
@@ -149,6 +135,8 @@ int main(int argc, char *argv[])
 	if (VERBOSE_PROC_INFO)
 		extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, &HAS_AVX,
 			&HAS_AVX2, VERBOSE_PROC_INFO);
+#endif
+
 #endif
 
 	if (is_cmdline_run == 2)
@@ -214,6 +202,34 @@ int main(int argc, char *argv[])
 #else
     LCGSTATE = g_rand.low;
 #endif	
+
+    if (0)
+    {
+        test_dlp_composites();
+    }
+
+    if (0)
+    {
+        test_dlp_composites_par();
+    }
+
+    if (0)
+    {
+        z z1, z2;
+        zInit(&z1);
+        zInit(&z2);
+        primesum_check12(0, 10000000000000, 10, &z1, &z2);
+    }
+    
+    if (0)
+    {
+        uint64 N[8];
+        uint64 f[8];
+
+        N[0] = 41333480705307667;
+        par_shanks_loop(N, f, 1);
+    }
+
 
 	// command line
 	while (1)

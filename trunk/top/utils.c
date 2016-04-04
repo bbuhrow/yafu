@@ -1089,6 +1089,8 @@ int qcomp_double(const void *x, const void *y)
 
 #else
 
+    double cycles_per_second = 0.0;
+
 	uint64 measure_processor_speed(void)
 	{   
 		uint64 cycles;
@@ -1219,6 +1221,12 @@ typedef union {
 		c = _z[2]; \
 		d = _z[3]; \
 	}
+
+#else
+
+#define CPUID(code, a, b, c, d)
+#define CPUID2(code1, code2, a,b,c,d)
+
 #endif
 
 

@@ -54,13 +54,13 @@ extern "C" {
 static INLINE void * xmalloc_align(size_t len)
 {
 #if defined (_MSC_VER) || defined(__MINGW32__)
-	void *ptr = _aligned_malloc(len, 128);
+	void *ptr = _aligned_malloc(len, 32);
 
 #elif defined (__APPLE__)
 	void *ptr = malloc(len);
 
 #elif defined (__GNUC__)
-	void *ptr = memalign(128, len);
+	void *ptr = memalign(32, len);
 
 #else
 	void *ptr = malloc(len);
@@ -168,19 +168,6 @@ void arith_timing(int num);
 
 /* for turning on CPU-specific code */
 
-//enum cpu_type {
-//	cpu_generic,
-//	cpu_pentium,
-//	cpu_pentium2,
-//	cpu_pentium3,
-//	cpu_pentium4,
-//	cpu_pentium_m,
-//	cpu_core,
-//	cpu_athlon,
-//	cpu_athlon_xp,
-//	cpu_opteron
-//};
-
 enum cpu_type {
 	cpu_generic,
 	cpu_pentium,
@@ -192,7 +179,6 @@ enum cpu_type {
 	cpu_athlon,
 	cpu_athlon_xp,
 	cpu_opteron,
-	//cpu_nehalem
 };
 
 uint64 yafu_read_clock(void);
@@ -211,48 +197,13 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
    the classic Pentium */
 
 #define HAS_CMOV
-#define FORCE_MODERN
-//#define HAS_SSE2
-//#define CACHE_LINE_64
 
-#if defined(CPU_GENERIC)
-	#define MANUAL_PREFETCH
-	#if !defined(WIN32) && !defined(__i386__)
-		#define HAS_MANY_REGISTERS
-	#endif
-	#define CACHE_LINE_32
-
-#elif defined(CPU_PENTIUM2) 
-	#define MANUAL_PREFETCH
-	#define CACHE_LINE_32
-
-#elif defined(CPU_ATHLON)
-	#define MANUAL_PREFETCH
-	#define HAS_AMD_MMX
-	#define CACHE_LINE_32
-
-#elif defined(CPU_PENTIUM3) 
-	#define MANUAL_PREFETCH
-	#define HAS_SSE
-	#define CACHE_LINE_32
-
-#elif defined(CPU_ATHLON_XP)
-	#define HAS_SSE
-
-#elif defined(CPU_PENTIUM4) || defined(CPU_PENTIUM_M) || \
-	defined(CPU_CORE) || defined(CPU_OPTERON)
-	#define HAS_SSE
-	#define HAS_SSE2
-	#if !defined(WIN32) && !defined(__i386__)
-		#define HAS_MANY_REGISTERS
-	#endif
-	#define CACHE_LINE_64
-
-#elif defined(FORCE_MODERN)
-	#define HAS_MMX
-	#define HAS_SSE
-	#define HAS_SSE2
-	#define CACHE_LINE_64
+// assme this is a modern cpu that has at least up through sse2.
+#if !defined(USE_MIC) && !defined(FORCE_GENERIC)
+#define HAS_MMX 1
+#define HAS_SSE 1
+#define HAS_SSE2 1
+#define CACHE_LINE_64
 #endif
 
 

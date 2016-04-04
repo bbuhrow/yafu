@@ -162,29 +162,11 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}
 		
-#if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
+#if defined(HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
 		
 		// update 8 at a time using SSE2 and no branching
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
-			// 8x root updates in parallel with SSE2, for use only with 32k
-			// versions because of the signed comparisons.
-			// stuff of potential use for full 16 bit updates
-			// 8x unsigned gteq emulation
-			// "psubusw	%%xmm1, %%xmm4 \n\t"	/* xmm2 := orig root - new root */
-			// "pcmpeqw	%%xmm0, %%xmm4 \n\t"	/* xmm2 := a >= b ? 1 : 0 */
-			// 8x MIN/MAX swap in SSE2 */
-			// "movdqa	%%xmm2, %%xmm4 \n\t"			/* copy root2 */
-			// "pcmpltd	%%xmm1, %%xmm4 \n\t"		/* root2 < root1? root2 --> 1's:root2 --> 0 */
-			// "movdqa	%%xmm4, %%xmm5 \n\t"			/* copy ans */
-			// "movdqa	%%xmm4, %%xmm6 \n\t"			/* copy ans */
-			// "movdqa	%%xmm4, %%xmm7 \n\t"			/* copy ans */
-			// "pand	%%xmm1, %%xmm4 \n\t"			/* copy root1 to where root1 is GT */
-			// "pandn	%%xmm2, %%xmm5 \n\t"			/* copy root2 to where root2 is GT */
-			// "pandn	%%xmm1, %%xmm6 \n\t"			/* copy root1 to where root1 is LT */
-			// "pand	%%xmm2, %%xmm7 \n\t"			/* copy root2 to where root2 is LT */
-			// "por	%%xmm4, %%xmm5 \n\t"			/* combine GT */
-			// "por	%%xmm6, %%xmm7 \n\t"			/* combine LT */
 			small_update_t h;
 			
 			h.first_r1 = update_data.sm_firstroots1;		// 0
@@ -657,7 +639,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root2 = update_data.firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
-			//fb_offset = (j - bound_val) << 16;
 
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
@@ -1080,7 +1061,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}
 		
-#if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
+#if defined(HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
 		// update 8 at a time using SSE2 and no branching		
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{

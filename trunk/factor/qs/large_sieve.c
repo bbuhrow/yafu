@@ -26,7 +26,7 @@ code to the public domain.
 #endif
 
 void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
-		lp_bucket *lp, int side)
+		lp_bucket *lp, int side, dynamic_conf_t * dconf)
 {
 
 	uint32 i,j,lpnum,basebucket;
@@ -48,30 +48,22 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 		bptr += (numblocks << BUCKET_BITS);
 		basebucket = numblocks;
 	}
-	else
-		basebucket = 0;
+    else
+    {
+        basebucket = 0;
+    }
 
 	//use x8 when cache line has 32 bytes
 	//use x16 when chache line has 64 bytes
 #if defined(CACHE_LINE_64)
-	//printf("cache_line_64\n");
 	for (j=0;j<lp->num_slices;j++)
 	{
 		lpnum = *(lp->num + bnum + basebucket);
 		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
 		logp = *(lp->logp + j);
-		for (i = 0; i < (lpnum & (uint32)(~15)); i += 16)
-		{
-#if defined(MANUAL_PREFETCH)
-#if defined(GCC_ASM64X) || defined (__MINGW32__)
-			//_mm_prefetch(bptr + i + 16,_MM_HINT_NTA);
-			__asm ("prefetchnta %0	\n\t"
-				: 
-				:"m"(bptr + i + 16));
-#else
-			_mm_prefetch(bptr + i + 16,_MM_HINT_NTA);
-#endif
-#endif
+
+        for (i = 0; (uint32)i < (lpnum & (uint32)(~15)); i += 16)
+        {
 
 			sieve[bptr[i  ] & 0x0000ffff] -= logp;
 			sieve[bptr[i+1] & 0x0000ffff] -= logp;
@@ -89,6 +81,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 			sieve[bptr[i+13] & 0x0000ffff] -= logp;
 			sieve[bptr[i+14] & 0x0000ffff] -= logp;
 			sieve[bptr[i+15] & 0x0000ffff] -= logp;
+
 		}
 
 		for (;i<lpnum;i++)

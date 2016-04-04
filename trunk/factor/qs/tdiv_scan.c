@@ -59,6 +59,67 @@ this file contains code implementing 1)
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SCAN_CLEAN asm volatile("emms");	
 
+#if defined(USE_AVX2)
+
+
+#define SIEVE_SCAN_32_VEC					\
+		asm volatile (							\
+			"vmovdqa (%1), %%ymm0   \n\t"		\
+			"vpmovmskb %%ymm0, %%r11   \n\t"		/* output results to 64 bit register */		\
+            "movq %%r11, %%r8   \n\t"		\
+			                                    /* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+			"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+			"1:			\n\t"					/* top of bit scan loop */ \
+			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+            "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
+			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+			"jmp 1b		\n\t"					/* loop if so */ \
+			"2:		\n\t"						/*  */ \
+			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "r"(buffer)	\
+			: "xmm0", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+#define SIEVE_SCAN_64_VEC					\
+		asm volatile (							\
+			"vmovdqa (%1), %%ymm0   \n\t"		\
+			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
+			"vpmovmskb %%ymm0, %%r11   \n\t"	/* output results to 64 bit register */		\
+			"testq %%r11, %%r11 \n\t"			/* AND, and set ZF */ \
+			"jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+			"vmovdqa (%1), %%ymm0   \n\t"		/* else, we had hits, move sections of sieveblock back in */ \
+			"vmovdqa 32(%1), %%ymm1   \n\t"		/* extract high bit masks from each byte */ \
+			"vpmovmskb %%ymm1, %%r9d   \n\t"		/*  */		\
+			"salq $32, %%r9		\n\t"			/*  */ \
+			"vpmovmskb %%ymm0, %%r8d   \n\t"		/*  */		\
+			"orq	%%r9,%%r8		\n\t"		/* r8 now holds 64 byte mask results, in order, from sieveblock */ \
+			"xorq	%%r11,%%r11		\n\t"		/* initialize count of set bits */ \
+			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+			"1:			\n\t"					/* top of bit scan loop */ \
+			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
+			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
+			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
+			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+			"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
+			"jnz 1b		\n\t"					/* loop if so */ \
+			"2:		\n\t"						/*  */ \
+			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+			: "=r"(result)						\
+			: "r"(sieveblock + j), "r"(buffer)	\
+			: "xmm0", "xmm1", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+
+#else
+
 	//top level sieve scanning with SSE2
 	#define SIEVE_SCAN_32_VEC					\
 		asm volatile (							\
@@ -77,13 +138,14 @@ this file contains code implementing 1)
 			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
 			"1:			\n\t"					/* top of bit scan loop */ \
 			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+            "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
 			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
 			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
 			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
 			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
 			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
-			"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
-			"jnz 1b		\n\t"					/* loop if so */ \
+			"jmp 1b		\n\t"					/* loop if so */ \
 			"2:		\n\t"						/*  */ \
 			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
 			: "=r"(result)						\
@@ -117,18 +179,21 @@ this file contains code implementing 1)
 			"xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
 			"1:			\n\t"					/* top of bit scan loop */ \
 			"bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
+            "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
 			"addq	%%rcx,%%r10	\n\t"			/* add in the offset of this index */ \
 			"movb	%%r10b, (%2, %%r11, 1) \n\t"		/* put the bit index into the output buffer */ \
 			"shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
 			"incq	%%r11		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
 			"shrq	$1, %%r8 \n\t"				/* clear the bit */ \
-			"testq	%%r8,%%r8	\n\t"			/* check if there are any more set bits */ \
-			"jnz 1b		\n\t"					/* loop if so */ \
+			"jmp 1b		\n\t"					/* loop if so */ \
 			"2:		\n\t"						/*  */ \
 			"movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
 			: "=r"(result)						\
 			: "r"(sieveblock + j), "r"(buffer)	\
 			: "xmm0", "xmm1", "xmm2", "xmm3", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
+
+#endif
 
 	#define SIEVE_SCAN_32	\
 		asm volatile (		\
@@ -388,14 +453,11 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 		}
 	}
 
-	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
-	//{
-	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	////	exit(-1);
-	//}
-
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 		dconf->num_reports = MAX_SIEVE_REPORTS-1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
@@ -407,6 +469,7 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 	{
 		if (dconf->valid_Qs[j])
 		{
+            dconf->total_surviving_reports++;
 			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
@@ -427,7 +490,12 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
 
+
 #ifdef SIMD_SIEVE_SCAN_VEC
+
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
 
 	for (j=0;j<it;j+=4)	
 	{		
@@ -439,21 +507,31 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 		if (result == 0)
 			continue;
 
-		for (i=0; i<result; i++)
-		{
-			thisloc = (j << 3) + (uint32)buffer[i];
-			if ((dconf->sieve[thisloc] & 0x80) == 0)
-				continue;
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {            
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
 
-			//see discussion near line 323
-			if ((thisloc >=	65534) || (thisloc == 0))
-				continue;
-
-			// log this report
-			if (dconf->num_reports < MAX_SIEVE_REPORTS)
-				dconf->reports[dconf->num_reports++] = thisloc;
-		}
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
 	}
+
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
 
 	// make it safe to perform floating point
 	SCAN_CLEAN;
@@ -538,14 +616,12 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 #endif
 
-	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
-	//{
-	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	////	exit(-1);
-	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 		dconf->num_reports = MAX_SIEVE_REPORTS-1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve,dconf->numB-1,blocknum,sconf,dconf);
@@ -557,6 +633,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	{
 		if (dconf->valid_Qs[j])
 		{
+            dconf->total_surviving_reports++;
 			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
@@ -578,6 +655,10 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 #ifdef SIMD_SIEVE_SCAN_VEC
 
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
+
 	for (j=0;j<it;j+=8)	
 	{		
 		uint32 result;
@@ -588,21 +669,31 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		if (result == 0)
 			continue;
 
-		for (i=0; i<result; i++)
-		{
-			thisloc = (j << 3) + (uint32)buffer[i];
-			if ((dconf->sieve[thisloc] & 0x80) == 0)
-				continue;
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {            
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
 
-			//see discussion near line 323
-			if ((thisloc >=	65534) || (thisloc == 0))
-				continue;
-
-			// log this report
-			if (dconf->num_reports < MAX_SIEVE_REPORTS)
-				dconf->reports[dconf->num_reports++] = thisloc;
-		}
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
 	}
+
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
 
 	// make it safe to perform floating point
 	SCAN_CLEAN;
@@ -688,16 +779,12 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 #endif
 
-	//if (dconf->num_reports > MAX_SIEVE_REPORTS)
-	//{
-	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	////	exit(-1);
-	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 		dconf->num_reports = MAX_SIEVE_REPORTS-1;
 
-	//printf("block %d found %d reports\n", blocknum, dconf->num_reports);
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1, blocknum,sconf,dconf);
@@ -709,6 +796,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	{
 		if (dconf->valid_Qs[j])
 		{
+            dconf->total_surviving_reports++;
 			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
@@ -718,45 +806,58 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 }
 
 
-int check_relations_siqs_16(uint32 blocknum, uint8 parity, 
-						   static_conf_t *sconf, dynamic_conf_t *dconf)
+int check_relations_siqs_16(uint32 blocknum, uint8 parity,
+    static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	//unrolled x128; for large inputs
-	uint32 i,j,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
+    //unrolled x128; for large inputs
+    uint32 i, j, it = sconf->qs_blocksize >> 3;
+    uint32 thisloc;
+    uint64 *sieveblock;
 
-	sieveblock = (uint64 *)dconf->sieve;
-	dconf->num_reports = 0;
+    sieveblock = (uint64 *)dconf->sieve;
+    dconf->num_reports = 0;
 
 #ifdef SIMD_SIEVE_SCAN_VEC
 
-	for (j=0;j<it;j+=8)	
-	{		
-		uint32 result;
-		uint8 buffer[64];
-		
-		SIEVE_SCAN_64_VEC;
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
 
-		if (result == 0)
-			continue;
+    for (j=0;j<it;j+=8)	
+    {		
+        uint32 result;
+        uint8 buffer[64];
 
-		for (i=0; i<result; i++)
-		{
-			thisloc = (j << 3) + (uint32)buffer[i];
-			
-			if ((dconf->sieve[thisloc] & 0x80) == 0)
-				continue;
+        SIEVE_SCAN_64_VEC;
 
-			//see discussion near line 323
-			if ((thisloc >=	65534) || (thisloc == 0))
-				continue;
+        if (result == 0)
+            continue;
 
-			// log this report
-			if (dconf->num_reports < MAX_SIEVE_REPORTS)
-				dconf->reports[dconf->num_reports++] = thisloc;
-		}
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {            
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i=0; i<result; i++)
+            {
+                thisloc = (j << 3) + (uint32)buffer[i];
+
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
 	}
+
+#if defined(USE_AVX2)
+    CLEAN_AVX2;
+#endif
 
 	// make it safe to perform floating point
 	SCAN_CLEAN;
@@ -844,14 +945,12 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 #endif	
 
-	//if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-	//{
-	//	printf("error: too many sieve reports (found %d)\n",dconf->num_reports);
-	//	exit(-1);
-	//}
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 		dconf->num_reports = MAX_SIEVE_REPORTS-1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
 
 	//remove small primes, and test if its worth continuing for each report
 	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
@@ -863,6 +962,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	{
 		if (dconf->valid_Qs[j])
 		{
+            dconf->total_surviving_reports++;
 			tdiv_LP(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}

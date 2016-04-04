@@ -25,8 +25,8 @@
 		// which we can catch by comparing to prime as well as root1/2; but it probably isn't
 		// worth it.
 
-				/*"movdqa (%6), %%xmm0 \n\t"		 move in BLOCKSIZE */ \
-				/*"movdqa (%7), %%xmm1 \n\t"		 move in block_loc */ \
+
+#if defined (HAS_SSE2)
 
 	#define MOD_INIT_8X												\
 		ASM_G (														\
@@ -62,100 +62,49 @@
 			: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
 
-#if defined(USE_AVX2)
-
-	#define MOD_INIT_16X												\
-		ASM_G (														\
-			"vmovdqa (%0), %%ymm0 \n\t"		/* move in BLOCKSIZE */ \
-			"vmovdqa (%1), %%ymm1 \n\t"		/* move in block_loc */ \
-			:														\
-			: "r" (bl_sizes), "r" (bl_locs)							\
-			: "xmm0", "xmm1");
-
-	#define MOD_CMP_16X(xtra_bits)																		\
+    #define MOD_CMP_8X_vec(xtra_bits)																		\
 		ASM_G (																				\
-			"vmovdqa %%ymm1, %%ymm7 \n\t"	/* copy block_loc */ \
-			"vmovdqa %%ymm0, %%ymm4 \n\t"	/* copy BLOCKSIZE */ \
-			"vmovdqa (%1), %%ymm3 \n\t"		/* move in primes */							\
-			"vpsubw	%%ymm1, %%ymm4, %%ymm4 \n\t"	/* BLOCKSIZE - block_loc */						\
-			"vpaddw	(%2), %%ymm4, %%ymm4 \n\t"		/* apply corrections */							\
-			"vmovdqa (%4), %%ymm6 \n\t"		/* move in root1s */							\
-			"vpmulhuw	(%3), %%ymm4, %%ymm4 \n\t"	/* (unsigned) multiply by inverses */		\
-			"vmovdqa (%5), %%ymm2 \n\t"		/* move in root2s */							\
-			"vpsrlw	$" xtra_bits ", %%ymm4, %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
-			"vpaddw	%%ymm3, %%ymm7, %%ymm7 \n\t"	/* add primes and block_loc */					\
-			"vpmullw	%%ymm3, %%ymm4, %%ymm4 \n\t"	/* (signed) multiply by primes */				\
-			"vpsubw	%%ymm0, %%ymm7, %%ymm7 \n\t"	/* substract blocksize */						\
-			"vpaddw	%%ymm7, %%ymm4, %%ymm4 \n\t"	/* add in block_loc + primes - blocksize */		\
-			"vpcmpeqw	%%ymm4, %%ymm6, %%ymm6 \n\t"	/* compare to root1s */						\
-			"vpcmpeqw	%%ymm4, %%ymm2, %%ymm2 \n\t"	/* compare to root2s */						\
-			"vpor	%%ymm6, %%ymm2, %%ymm2 \n\t"	/* combine compares */							\
-			"vpmovmskb %%ymm2, %0 \n\t"		/* export to result */							\
-			: "=r" (result)																	\
+			"movdqa %%xmm1, %%xmm7 \n\t"	/* copy block_loc */ \
+			"movdqa	%%xmm0, %%xmm4 \n\t"	/* copy BLOCKSIZE */ \
+			"movdqa (%1), %%xmm3 \n\t"		/* move in primes */							\
+			"psubw	%%xmm1, %%xmm4 \n\t"	/* BLOCKSIZE - block_loc */						\
+			"paddw	(%2), %%xmm4 \n\t"		/* apply corrections */							\
+			"movdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
+			"pmulhuw	(%3), %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
+			"movdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
+			"psrlw	$" xtra_bits ", %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
+			"paddw	%%xmm3, %%xmm7 \n\t"	/* add primes and block_loc */					\
+			"pmullw	%%xmm3, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
+			"psubw	%%xmm0, %%xmm7 \n\t"	/* substract blocksize */						\
+			"paddw	%%xmm7, %%xmm4 \n\t"	/* add in block_loc + primes - blocksize */		\
+			"pcmpeqw	%%xmm4, %%xmm6 \n\t"	/* compare to root1s */						\
+			"pcmpeqw	%%xmm4, %%xmm2 \n\t"	/* compare to root2s */						\
+			"por	%%xmm6, %%xmm2 \n\t"	/* combine compares */							\
+			"pmovmskb %%xmm2, %%r8 \n\t"		/* export to result */							\
+            "andl   $0xaaaaaaaa,%%r8d   \n\t"   /* mask the bits we don't care about */ \
+            "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
+            "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
+            "1:			\n\t"					/* top of bit scan loop */ \
+            "bsfl	%%r8d,%%ecx		\n\t"		/* put least significant set bit index into rcx */ \
+            "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
+            "addl	%%ecx,%%r10d	\n\t"			/* add in the offset of this index */ \
+            "movl   %%r10d,%%r9d \n\t" \
+            "shrl   $1,%%r9d \n\t"   \
+            "addl   %7,%%r9d \n\t"   \
+            "movw	%%r9w, (%6, %%r11, 2) \n\t"		/* put the bit index into the output buffer */ \
+            "shrq	%%cl,%%r8	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
+            "incl	%%r11d		\n\t"			/* increment the count of set bits */ \
+            "incq	%%r10		\n\t"			/* increment the index */ \
+            "shrq	$1, %%r8 \n\t"				/* clear the bit */ \
+            "jmp 1b		\n\t"					/* loop if so */ \
+            "2:		\n\t"						/*  */ \
+            "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
+			: "+r" (tmp3)																	\
 			: "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
 				"r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
-					"r" (fbc->root2 + i) \
-			: "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+					"r" (fbc->root2 + i), "r"(buffer), "r"(i) \
+			: "r9", "r8", "r10", "r11", "rcx", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 
-	#define STEP_COMPARE_COMBINE_AVX2 \
-		"vpsubw %%ymm1, %%ymm2, %%ymm2 \n\t"		/* subtract primes from root1s */ \
-		"vpsubw %%ymm1, %%ymm3, %%ymm3 \n\t"		/* subtract primes from root2s */ \
-		"vpcmpeqw %%ymm2, %%ymm5, %%ymm5 \n\t"	/* root1s ?= 0 */ \
-		"vpcmpeqw %%ymm3, %%ymm6, %%ymm6 \n\t"	/* root2s ?= 0 */ \
-		"vpor %%ymm5, %%ymm7, %%ymm7 \n\t"		/* combine results */ \
-		"vpor %%ymm6, %%ymm0, %%ymm0 \n\t"		/* combine results */
-
-	#define INIT_RESIEVE_AVX2 \
-		"vmovdqa (%4), %%ymm4 \n\t"		/* bring in corrections to roots */				\
-		"vpxor %%ymm0, %%ymm0, %%ymm0 \n\t"		/* zero ymm8 */ \
-		"vmovdqa (%2), %%ymm2 \n\t"		/* bring in 8 root1s */ \
-		"vpaddw %%ymm4, %%ymm2, %%ymm2 \n\t"		/* correct root1s */ \
-		"vmovdqa (%3), %%ymm3 \n\t"		/* bring in 8 root2s */ \
-		"vpaddw %%ymm4, %%ymm3, %%ymm3 \n\t"		/* correct root2s */ \
-		"vmovdqa (%1), %%ymm1 \n\t"		/* bring in 8 primes */ \
-		"vpxor %%ymm7, %%ymm7, %%ymm7 \n\t"		/* zero ymm7 */ \
-		"vpxor %%ymm5, %%ymm5, %%ymm5 \n\t"		/* zero ymm5 */ \
-		"vpxor %%ymm6, %%ymm6, %%ymm6 \n\t"		/* zero ymm6 */
-
-	#define RESIEVE_16X_14BIT_MAX \
-		asm ( \
-			INIT_RESIEVE_AVX2 \
-			STEP_COMPARE_COMBINE_AVX2	\
-			STEP_COMPARE_COMBINE_AVX2	\
-			STEP_COMPARE_COMBINE_AVX2	\
-			STEP_COMPARE_COMBINE_AVX2	\
-			"vpor	%%ymm0, %%ymm7, %%ymm7 \n\t" \
-			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-			: "=r"(result) \
-			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
-			);
-
-	#define RESIEVE_16X_15BIT_MAX \
-		asm ( \
-			INIT_RESIEVE_AVX2 \
-			STEP_COMPARE_COMBINE_AVX2	\
-			STEP_COMPARE_COMBINE_AVX2	\
-			"vpor	%%ymm0, %%ymm7, %%ymm7 \n\t" \
-			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-			: "=r"(result) \
-			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
-			);
-
-	#define RESIEVE_16X_16BIT_MAX \
-		asm ( \
-			INIT_RESIEVE_AVX2 \
-			STEP_COMPARE_COMBINE_AVX2	\
-			"vpor	%%ymm0, %%ymm7, %%ymm7 \n\t" \
-			"vpmovmskb %%ymm7, %0 \n\t"		/* if one of these primes divides this location, this will be !0*/ \
-			: "=r"(result) \
-			: "r"(fbc->prime + i), "r"(fbc->root1 + i), "r"(fbc->root2 + i), "r"(corrections) \
-			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
-			);
-
-
-#endif
 
 	#define STEP_COMPARE_COMBINE \
 		"psubw %%xmm1, %%xmm2 \n\t"		/* subtract primes from root1s */ \
@@ -214,7 +163,169 @@
 			: "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm0", "cc", "memory" \
 			);
 
+#else
 
+#define MOD_INIT_8X	
+
+#define COMPARE_RESIEVE_VALS(x)	\
+		if (r1 == 0){ result |= x;} \
+		if (r2 == 0){ result |= x;}
+
+#define STEP_RESIEVE \
+		r1 -= p;	\
+		r2 -= p;
+
+#define RESIEVE_1X_14BIT_MAX(x)	\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);			\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);			\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);			\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);
+
+#define RESIEVE_1X_15BIT_MAX(x)	\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);			\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);
+
+#define RESIEVE_1X_16BIT_MAX(x)	\
+		STEP_RESIEVE;						\
+		COMPARE_RESIEVE_VALS(x);
+
+#define RESIEVE_8X_14BIT_MAX \
+		do { \
+			int p = (int)fbc->prime[i];										\
+			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			RESIEVE_1X_14BIT_MAX(0x2);										\
+			\
+			p = (int)fbc->prime[i+1];										\
+			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x8);										\
+			\
+			p = (int)fbc->prime[i+2];										\
+			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x20);									\
+			\
+			p = (int)fbc->prime[i+3];										\
+			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x80);									\
+			\
+			p = (int)fbc->prime[i+4];										\
+			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x200);									\
+			\
+			p = (int)fbc->prime[i+5];										\
+			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x800);									\
+			\
+			p = (int)fbc->prime[i+6];										\
+			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x2000);									\
+			\
+			p = (int)fbc->prime[i+7];										\
+			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			RESIEVE_1X_14BIT_MAX(0x8000);									\
+        		} while (0); 
+
+#define RESIEVE_8X_15BIT_MAX \
+		do { \
+			int p = (int)fbc->prime[i];										\
+			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			RESIEVE_1X_15BIT_MAX(0x2);										\
+			\
+			p = (int)fbc->prime[i+1];										\
+			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x8);										\
+			\
+			p = (int)fbc->prime[i+2];										\
+			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x20);									\
+			\
+			p = (int)fbc->prime[i+3];										\
+			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x80);									\
+			\
+			p = (int)fbc->prime[i+4];										\
+			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x200);									\
+			\
+			p = (int)fbc->prime[i+5];										\
+			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x800);									\
+			\
+			p = (int)fbc->prime[i+6];										\
+			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x2000);									\
+			\
+			p = (int)fbc->prime[i+7];										\
+			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			RESIEVE_1X_15BIT_MAX(0x8000);									\
+        		} while (0); 
+
+#define RESIEVE_8X_16BIT_MAX \
+		do { \
+			int p = (int)fbc->prime[i];										\
+			int r1 = (int)fbc->root1[i] + 32768 - block_loc;			\
+			int r2 = (int)fbc->root2[i] + 32768 - block_loc;			\
+			RESIEVE_1X_16BIT_MAX(0x2);										\
+			\
+			p = (int)fbc->prime[i+1];										\
+			r1 = (int)fbc->root1[i+1] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+1] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x8);										\
+			\
+			p = (int)fbc->prime[i+2];										\
+			r1 = (int)fbc->root1[i+2] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+2] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x20);									\
+			\
+			p = (int)fbc->prime[i+3];										\
+			r1 = (int)fbc->root1[i+3] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+3] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x80);									\
+			\
+			p = (int)fbc->prime[i+4];										\
+			r1 = (int)fbc->root1[i+4] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+4] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x200);									\
+			\
+			p = (int)fbc->prime[i+5];										\
+			r1 = (int)fbc->root1[i+5] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+5] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x800);									\
+			\
+			p = (int)fbc->prime[i+6];										\
+			r1 = (int)fbc->root1[i+6] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+6] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x2000);									\
+			\
+			p = (int)fbc->prime[i+7];										\
+			r1 = (int)fbc->root1[i+7] + 32768 - block_loc;				\
+			r2 = (int)fbc->root2[i+7] + 32768 - block_loc;				\
+			RESIEVE_1X_16BIT_MAX(0x8000);									\
+        		} while (0); 
+
+
+#endif
 
 #elif defined(_MSC_VER)
 
@@ -325,8 +436,8 @@
 	#define MOD_INIT_8X	
 
 	#define COMPARE_RESIEVE_VALS(x)	\
-		if (r1 == 0) result |= x; \
-		if (r2 == 0) result |= x;
+		if (r1 == 0){ result |= x; } \
+		if (r2 == 0){ result |= x; }
 
 	#define STEP_RESIEVE \
 		r1 -= p;	\
@@ -484,29 +595,6 @@
 #endif
 
 
-#if defined(USE_AVX2)
-
-#define INIT_CORRECTIONS \
-	corrections[0] = 32768 - block_loc; \
-	corrections[1] = 32768 - block_loc; \
-	corrections[2] = 32768 - block_loc; \
-	corrections[3] = 32768 - block_loc; \
-	corrections[4] = 32768 - block_loc; \
-	corrections[5] = 32768 - block_loc; \
-	corrections[6] = 32768 - block_loc; \
-	corrections[7] = 32768 - block_loc; \
-	corrections[8] = 32768 - block_loc; \
-	corrections[9] = 32768 - block_loc; \
-	corrections[10] = 32768 - block_loc; \
-	corrections[11] = 32768 - block_loc; \
-	corrections[12] = 32768 - block_loc; \
-	corrections[13] = 32768 - block_loc; \
-	corrections[14] = 32768 - block_loc; \
-	corrections[15] = 32768 - block_loc; 
-
-
-#else
-
 #define INIT_CORRECTIONS \
 	corrections[0] = 32768 - block_loc; \
 	corrections[1] = 32768 - block_loc; \
@@ -516,62 +604,6 @@
 	corrections[5] = 32768 - block_loc; \
 	corrections[6] = 32768 - block_loc; \
 	corrections[7] = 32768 - block_loc;
-
-#endif
-
-#define CHECK_16_RESULTS \
-	if (result == 0) {				  \
-		i += 16;					  \
-		continue;					  \
-	}								  \
-	if (result & 0x2) {				  \
-		DIVIDE_RESIEVED_PRIME(0);	  \
-	}								  \
-	if (result & 0x8){				  \
-		DIVIDE_RESIEVED_PRIME(1);	  \
-	}								  \
-	if (result & 0x20){				  \
-		DIVIDE_RESIEVED_PRIME(2);	  \
-	}								  \
-	if (result & 0x80){				  \
-		DIVIDE_RESIEVED_PRIME(3);	  \
-	}								  \
-	if (result & 0x200){			  \
-		DIVIDE_RESIEVED_PRIME(4);	  \
-	}								  \
-	if (result & 0x800){			  \
-		DIVIDE_RESIEVED_PRIME(5);	  \
-	}								  \
-	if (result & 0x2000){			  \
-		DIVIDE_RESIEVED_PRIME(6);	  \
-	}								  \
-	if (result & 0x8000){			  \
-		DIVIDE_RESIEVED_PRIME(7);	  \
-	}									\
-	if (result & 0x20000) {				  \
-		DIVIDE_RESIEVED_PRIME(8);	  \
-	}								  \
-	if (result & 0x80000){				  \
-		DIVIDE_RESIEVED_PRIME(9);	  \
-	}								  \
-	if (result & 0x200000){				  \
-		DIVIDE_RESIEVED_PRIME(10);	  \
-	}								  \
-	if (result & 0x800000){				  \
-		DIVIDE_RESIEVED_PRIME(11);	  \
-	}								  \
-	if (result & 0x2000000){			  \
-		DIVIDE_RESIEVED_PRIME(12);	  \
-	}								  \
-	if (result & 0x8000000){			  \
-		DIVIDE_RESIEVED_PRIME(13);	  \
-	}								  \
-	if (result & 0x20000000){			  \
-		DIVIDE_RESIEVED_PRIME(14);	  \
-	}								  \
-	if (result & 0x80000000){			  \
-		DIVIDE_RESIEVED_PRIME(15);	  \
-	}
 
 #define CHECK_8_RESULTS \
 	if (result & 0x2) {				  \

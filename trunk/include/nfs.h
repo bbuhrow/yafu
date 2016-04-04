@@ -134,8 +134,8 @@ typedef struct
 	mpz_t base2;
 	int exp1;
 	int exp2;
-	int coeff1;
-	int coeff2;
+	int64 coeff1;
+	int64 coeff2;
 	// type of form
 	enum snfs_form_e form_type;
 

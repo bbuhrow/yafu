@@ -592,6 +592,7 @@ void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
 //void tinySIQS(fact_obj_t *fobj);
+int par_shanks_loop(uint64 *N, uint64 *f, int num_in);
 void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);
 
 int sptestsqr(uint64 n);

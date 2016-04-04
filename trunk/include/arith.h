@@ -112,7 +112,8 @@ int getcolval(uint8 **em, int i, int k);
 //applied arbitrary precision arith routines
 //contents of arith3.c
 fp_digit spGCD(fp_digit x, fp_digit y);
-fp_digit spBinGCD(fp_digit x, fp_digit y);
+uint64 spBinGCD(uint64 x, uint64 y);
+uint64 spBinGCD_odd(uint64 u, uint64 v);
 uint64 gcd64(uint64 x, uint64 y);
 void xGCD(z *a, z *b, z *x, z *y, z *g);
 void dblGCD(double x, double y, double *w);
