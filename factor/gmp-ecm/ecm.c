@@ -530,30 +530,51 @@ void ecm_process_init(fact_obj_t *fobj)
 	TMP_THREADS = THREADS;
 	TMP_STG2_MAX = fobj->ecm_obj.B2;
 
-	if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
-		fobj->ecm_obj.use_external = 1;
+    if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
+    {
+        fobj->ecm_obj.use_external = 1;
+    }
 	
 	if (THREADS > 1)
 	{
 		if (!fobj->ecm_obj.use_external)
-		{
-			if (VFLAG >= 2)
-				printf("GMP-ECM does not support multiple threads... running single threaded\n");
-			THREADS = 1;
+		{            
+            if (atoi(ECM_VERSION) >= 7)
+            {
+                // ok to use multiple threads in ecm 7+
+
+            }
+            else
+            {
+                if (VFLAG >= 2)
+                {
+                    printf("GMP-ECM does not support multiple threads... running single threaded\n");
+                }
+                THREADS = 1;
+            }
 		}
 		else
 		{
-			if (fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover || fobj->ecm_obj.num_curves == 1)
+			if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover) || (fobj->ecm_obj.num_curves == 1))
 			{
-				THREADS = 1;
-				fobj->ecm_obj.use_external = 0;
+                if (atoi(ECM_VERSION) >= 7)
+                {
+                    // ok to use multiple threads in ecm 7+
+                }
+                else
+                {
+                    THREADS = 1;                    
+                }
+                fobj->ecm_obj.use_external = 0;
 			}
 		}
 	}
 	else
 	{
-		if (fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover)
-			fobj->ecm_obj.use_external = 0;
+        if (fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover)
+        {
+            fobj->ecm_obj.use_external = 0;
+        }
 	}
 
 	return;
