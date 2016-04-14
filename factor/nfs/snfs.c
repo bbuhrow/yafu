@@ -1309,7 +1309,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             mpz_set_si(polys->c[3], -poly->coeff2);
             mpz_mul(polys->c[3], polys->c[3], poly->base1);
             mpz_mul(polys->c[3], polys->c[3], poly->base2);
-            mpz_set_ui(polys->c[0], 1);
+            mpz_set(polys->c[0], poly->base2);
+            mpz_mul(polys->c[0], polys->c[0], poly->base2);
 
             polys->poly->skew = pow(mpz_get_d(poly->base1) / mpz_get_d(poly->base2), -1. / 3.);
             polys->difficulty = log10(mpz_get_d(m)) * (6. * k + 2);
