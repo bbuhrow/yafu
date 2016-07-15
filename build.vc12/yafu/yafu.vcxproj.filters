@@ -218,9 +218,6 @@
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\gpu_squfof.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
@@ -253,6 +250,9 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\poly_roots.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\eratosthenes\presieve.c">
+      <Filter>Source Files\sieve</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -337,11 +337,6 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\factor\gpu_squfof.cu">
-      <Filter>Source Files\factoring</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

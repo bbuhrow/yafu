@@ -120,7 +120,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 		//primes in the interval	
 		max_p = (uint32)sqrt((int64)(highlimit)) + 65536;
 		range_est = (uint32)estimate_primes_in_range(0, (uint64)max_p);
-		sieve_p = (uint32 *)malloc((size_t) (range_est * sizeof(uint32)));
+		sieve_p = (uint32 *)xmalloc_align((size_t) (range_est * sizeof(uint32)));
 
 		if (sieve_p == NULL)
 		{
@@ -143,7 +143,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 	else
 	{
 		//seed primes are enough
-		sieve_p = (uint32 *)malloc((size_t) (num_sp * sizeof(uint32)));
+        sieve_p = (uint32 *)xmalloc_align((size_t)(num_sp * sizeof(uint32)));
 		//NO_STORE = 1;
 
 		if (sieve_p == NULL)
@@ -297,7 +297,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 		}			
 	}
 
-	free(sieve_p);
+	align_free(sieve_p);
 	return primes;
 }
 

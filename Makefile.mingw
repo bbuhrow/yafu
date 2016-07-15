@@ -146,6 +146,7 @@ YAFU_SRCS = \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
+	top/eratosthenes/presieve.c \
 	top/eratosthenes/wrapper.c
 
 ifeq ($(USE_AVX2),1)

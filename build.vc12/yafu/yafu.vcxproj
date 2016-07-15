@@ -266,12 +266,6 @@
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
-    <ClCompile Include="..\..\factor\gpu_squfof.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
@@ -320,6 +314,7 @@
     <ClCompile Include="..\..\top\eratosthenes\count.c" />
     <ClCompile Include="..\..\top\eratosthenes\linesieve.c" />
     <ClCompile Include="..\..\top\eratosthenes\offsets.c" />
+    <ClCompile Include="..\..\top\eratosthenes\presieve.c" />
     <ClCompile Include="..\..\top\eratosthenes\primes.c" />
     <ClCompile Include="..\..\top\eratosthenes\roots.c" />
     <ClCompile Include="..\..\top\eratosthenes\soe.c" />
@@ -368,14 +363,6 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\factor\gpu_squfof.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

@@ -123,12 +123,7 @@ void *soe_worker_thread_main(void *thread_data) {
 			else
 			{
 				mpz_t tmpz;
-				//mpz_t t1, t2;
 				mpz_init(tmpz);
-
-				//experiment for custom ranges that can be expressed as base^exp + range
-				//mpz_init(t1);
-				//mpz_init(t2);
 
 				mpz_add_ui(tmpz, *t->sdata.offset, t->sdata.lowlimit + 1);
 				for (i = t->startid; i < t->stopid; i++)
@@ -141,15 +136,7 @@ void *soe_worker_thread_main(void *thread_data) {
 		
 					t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
 						mpz_tdiv_ui(tmpz, prime);
-
-					//mpz_set_ui(t2,prime);
-					//mpz_set_ui(t1, 10);
-					//mpz_powm_ui(t1, t1, 999999, t2);
-					//t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = mpz_get_ui(t1);
 				}
-
-				//mpz_clear(t1);
-				//mpz_clear(t2);
 			}
 
 		}
@@ -170,7 +157,8 @@ void *soe_worker_thread_main(void *thread_data) {
 				mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
 				if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
 				{
-					if (is_mpz_prp(t->tmpz))
+					//if (is_mpz_prp(t->tmpz))
+                    if (mpz_extrastrongbpsw_prp(t->tmpz))
 						t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
 				}
 			}

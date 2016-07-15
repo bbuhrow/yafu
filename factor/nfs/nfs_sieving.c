@@ -119,7 +119,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				printf("malloc failed\n");
 				exit(-1);
 			}
-			sprintf(filenames[i], "test-sieve-%d.poly", i);
+            sprintf(filenames[i], "test-sieve-%d.poly", i);
 			out = fopen(filenames[i], "w");
 			if( !out )
 			{
@@ -146,6 +146,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	{
 		char syscmd[GSTR_MAXSIZE], tmpbuf[GSTR_MAXSIZE], side[32];
 		FILE* in;
+
+        if (VFLAG > 0)
+            printf("\ntest: trial sieving %s\n", filenames[i]);
 
 		// should probably scale the range of special-q to test based
 		// on input difficulty, but not sure how to do that easily...
@@ -392,7 +395,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
      	}
 		else
 		{
-			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
+			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n\n", 
 				time_from_secs(time, (unsigned long)score[i]), THREADS);
 			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
 				time_from_secs(time, (unsigned long)score[i]), THREADS);
@@ -400,8 +403,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		fclose(flog);
 		remove(tmpbuf); // clean up after ourselves
-		sprintf(tmpbuf, "%s", filenames[i]);
-		remove(tmpbuf);
+
+        if (!are_files)
+        {
+            sprintf(tmpbuf, "%s", filenames[i]);
+            remove(tmpbuf);
+        }
+
 		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
 	}
@@ -409,6 +417,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	// clean up memory allocated
 	if( are_files )
 	{
+        // TODO: need to write parameter adjustments to file
 		for(i = 0; i < njobs; i++)
 		{
 			mpz_polys_free(jobs[i].poly);

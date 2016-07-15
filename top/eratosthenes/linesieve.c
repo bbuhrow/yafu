@@ -13,150 +13,9 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "soe.h"
+#include <immintrin.h>
 
-//masks for sieving multiple locations at once: small primes
-//that hit a 64 bit interval more than once.  
-int _64_MOD_P[9] = {4,1,9,12,13,7,18,6,2};
 
-uint64 _5_MASKS[5] = {
-	0xef7bdef7bdef7bdeULL,
-	0xdef7bdef7bdef7bdULL,
-	0xbdef7bdef7bdef7bULL,
-	0x7bdef7bdef7bdef7ULL,
-	0xf7bdef7bdef7bdefULL};
-
-uint64 _7_MASKS[7] = {
-	0x7efdfbf7efdfbf7eULL,
-	0xfdfbf7efdfbf7efdULL,
-	0xfbf7efdfbf7efdfbULL,
-	0xf7efdfbf7efdfbf7ULL,
-	0xefdfbf7efdfbf7efULL,
-	0xdfbf7efdfbf7efdfULL,
-	0xbf7efdfbf7efdfbfULL};
-
-uint64 _11_MASKS[11] = {
-	0xff7feffdffbff7feULL,
-	0xfeffdffbff7feffdULL,
-	0xfdffbff7feffdffbULL,
-	0xfbff7feffdffbff7ULL,
-	0xf7feffdffbff7fefULL,
-	0xeffdffbff7feffdfULL,
-	0xdffbff7feffdffbfULL,
-	0xbff7feffdffbff7fULL,
-	0x7feffdffbff7feffULL,
-	0xffdffbff7feffdffULL,
-	0xffbff7feffdffbffULL};
-
-uint64 _13_MASKS[13] = {
-	0xffefff7ffbffdffeULL,
-	0xffdffefff7ffbffdULL,
-	0xffbffdffefff7ffbULL,
-	0xff7ffbffdffefff7ULL,
-	0xfefff7ffbffdffefULL,
-	0xfdffefff7ffbffdfULL,
-	0xfbffdffefff7ffbfULL,
-	0xf7ffbffdffefff7fULL,
-	0xefff7ffbffdffeffULL,
-	0xdffefff7ffbffdffULL,
-	0xbffdffefff7ffbffULL,
-	0x7ffbffdffefff7ffULL,
-	0xfff7ffbffdffefffULL};
-
-uint64 _17_MASKS[17] = {
-	0xfff7fffbfffdfffeULL,
-	0xffeffff7fffbfffdULL,
-	0xffdfffeffff7fffbULL,
-	0xffbfffdfffeffff7ULL,
-	0xff7fffbfffdfffefULL,
-	0xfeffff7fffbfffdfULL,
-	0xfdfffeffff7fffbfULL,
-	0xfbfffdfffeffff7fULL,
-	0xf7fffbfffdfffeffULL,
-	0xeffff7fffbfffdffULL,
-	0xdfffeffff7fffbffULL,
-	0xbfffdfffeffff7ffULL,
-	0x7fffbfffdfffefffULL,
-	0xffff7fffbfffdfffULL,
-	0xfffeffff7fffbfffULL,
-	0xfffdfffeffff7fffULL,
-	0xfffbfffdfffeffffULL};
-
-uint64 _19_MASKS[19] = {
-	0xfdffffbffff7fffeULL,
-	0xfbffff7fffeffffdULL,
-	0xf7fffeffffdffffbULL,
-	0xeffffdffffbffff7ULL,
-	0xdffffbffff7fffefULL,
-	0xbffff7fffeffffdfULL,
-	0x7fffeffffdffffbfULL,
-	0xffffdffffbffff7fULL,
-	0xffffbffff7fffeffULL,
-	0xffff7fffeffffdffULL,
-	0xfffeffffdffffbffULL,
-	0xfffdffffbffff7ffULL,
-	0xfffbffff7fffefffULL,
-	0xfff7fffeffffdfffULL,
-	0xffeffffdffffbfffULL,
-	0xffdffffbffff7fffULL,
-	0xffbffff7fffeffffULL,
-	0xff7fffeffffdffffULL,
-	0xfeffffdffffbffffULL};
-
-uint64 _23_MASKS[23] = {
-	0xffffbfffff7ffffeULL,
-	0xffff7ffffefffffdULL,
-	0xfffefffffdfffffbULL,
-	0xfffdfffffbfffff7ULL,
-	0xfffbfffff7ffffefULL,
-	0xfff7ffffefffffdfULL,
-	0xffefffffdfffffbfULL,
-	0xffdfffffbfffff7fULL,
-	0xffbfffff7ffffeffULL,
-	0xff7ffffefffffdffULL,
-	0xfefffffdfffffbffULL,
-	0xfdfffffbfffff7ffULL,
-	0xfbfffff7ffffefffULL,
-	0xf7ffffefffffdfffULL,
-	0xefffffdfffffbfffULL,
-	0xdfffffbfffff7fffULL,
-	0xbfffff7ffffeffffULL,
-	0x7ffffefffffdffffULL,
-	0xfffffdfffffbffffULL,
-	0xfffffbfffff7ffffULL,
-	0xfffff7ffffefffffULL,
-	0xffffefffffdfffffULL,
-	0xffffdfffffbfffffULL};
-
-uint64 _29_MASKS[29] = {
-	0xfbffffffdffffffeULL,
-	0xf7ffffffbffffffdULL,
-	0xefffffff7ffffffbULL,
-	0xdffffffefffffff7ULL,
-	0xbffffffdffffffefULL,
-	0x7ffffffbffffffdfULL,
-	0xfffffff7ffffffbfULL,
-	0xffffffefffffff7fULL,
-	0xffffffdffffffeffULL,
-	0xffffffbffffffdffULL,
-	0xffffff7ffffffbffULL,
-	0xfffffefffffff7ffULL,
-	0xfffffdffffffefffULL,
-	0xfffffbffffffdfffULL,
-	0xfffff7ffffffbfffULL,
-	0xffffefffffff7fffULL,
-	0xffffdffffffeffffULL,
-	0xffffbffffffdffffULL,
-	0xffff7ffffffbffffULL,
-	0xfffefffffff7ffffULL,
-	0xfffdffffffefffffULL,
-	0xfffbffffffdfffffULL,
-	0xfff7ffffffbfffffULL,
-	0xffefffffff7fffffULL,
-	0xffdffffffeffffffULL,
-	0xffbffffffdffffffULL,
-	0xff7ffffffbffffffULL,
-	0xfefffffff7ffffffULL,
-	0xfdffffffefffffffULL};
 
 void sieve_line(thread_soedata_t *thread_data)
 {
@@ -167,8 +26,9 @@ void sieve_line(thread_soedata_t *thread_data)
 	uint8 *line = thread_data->sdata.lines[current_line];
 	
 	//stuff for bucket sieving
-	soe_bucket_t *bptr;
-	soe_bucket_t **buckets;
+    uint64 *bptr;
+    uint64 **buckets;
+
 	uint32 *nptr;
 	uint32 linesize = FLAGSIZE * sdata->blocks, bnum;
 
@@ -188,6 +48,25 @@ void sieve_line(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i=0;i<sdata->blocks;i++)
 	{			
+#ifdef USE_AVX2
+        __m256i vflagsizem1 = _mm256_set1_epi32(FLAGSIZEm1);
+        __m256i v31 = _mm256_set1_epi32(31);
+        __m256i vfull = _mm256_set1_epi32(0xffffffff);
+        __m256i vone = _mm256_set1_epi32(1);
+
+#ifdef __INTEL_COMPILER
+        __declspec(align(64)) uint32 t[8];
+        __declspec(align(64)) uint32 t2[8];
+#else
+        uint32 *t;
+        uint32 *t2;
+        t = (uint32 *)xmalloc_align(8 * sizeof(uint32));
+        t2 = (uint32 *)xmalloc_align(8 * sizeof(uint32));
+#endif
+
+        uint32 *flagblock32 = (uint32 *)flagblock;
+#endif
+
 		//set all flags for this block, which also puts it into cache for the sieving
 		//to follow
 		memset(flagblock,255,BLOCKSIZE);			
@@ -207,13 +86,19 @@ void sieve_line(thread_soedata_t *thread_data)
 			if ((sdata->rclass[current_line] == 1) &&
 				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
 				flagblock[0] &= 0xfe;
-		}
+		}		
 
+#ifdef USE_AVX2
+        // AVX2 presieves more, so we start with the 24th prime (97)
+        j = 24;
+#else
+        j = 10;
+#endif
 
-		//unroll the loop: all primes less than this max hit the interval at least 16 times
-		maxP = FLAGSIZE >> 4;
+        //unroll the loop: all primes less than this max hit the interval at least 16 times
+        maxP = FLAGSIZE >> 4;
 
-		for (j=10;j<ddata->pbounds[i];j++)
+		for (;j<ddata->pbounds[i];j++)
 		{
 			uint32 tmpP;
 			uint64 stop;
@@ -256,12 +141,6 @@ void sieve_line(thread_soedata_t *thread_data)
 			for (;k<FLAGSIZE;k+=prime)
 				flagblock[k>>3] &= masks[k&7];
 
-
-			
-			//if ((j >= 2) && (j <= 10))
-			//{
-			//	printf("actual = %lx; next offset = %u\n",flagblock64[0], k - FLAGSIZE);
-			//}
 			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
 			
 		}
@@ -335,6 +214,7 @@ void sieve_line(thread_soedata_t *thread_data)
 
 			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
 		}
+
 		
 		if (ddata->bucket_depth > 0)
 		{
@@ -360,120 +240,164 @@ void sieve_line(thread_soedata_t *thread_data)
 			for (j=0; j < (nptr[i] & (uint32)(~7)); j+=8)
 			{				
 				//unload 8 hits
-				flagblock[(bptr[j + 0].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 0].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 1].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 1].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 2].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 2].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 3].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 3].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 4].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 4].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 5].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 5].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 6].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 6].root & FLAGSIZEm1) & 7];
-				flagblock[(bptr[j + 7].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 7].root & FLAGSIZEm1) & 7];
+
+                flagblock[(bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 0] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 1] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 2] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 3] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 4] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 5] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 6] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 7] & FLAGSIZEm1) & 7];
 				
+                bptr[j + 0] += (bptr[j + 0] >> 32);	
+                bptr[j + 1] += (bptr[j + 1] >> 32);		
+                bptr[j + 2] += (bptr[j + 2] >> 32);	
+                bptr[j + 3] += (bptr[j + 3] >> 32);
+                bptr[j + 4] += (bptr[j + 4] >> 32);
+                bptr[j + 5] += (bptr[j + 5] >> 32);
+                bptr[j + 6] += (bptr[j + 6] >> 32);
+                bptr[j + 7] += (bptr[j + 7] >> 32);
+
 				//then compute their next hit and update the roots while they are
 				//still fresh in the cache
-				bptr[j + 0].root += bptr[j + 0].prime;	
-				bptr[j + 1].root += bptr[j + 1].prime;		
-				bptr[j + 2].root += bptr[j + 2].prime;	
+                
+                if ((uint32)bptr[j + 0] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 0] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 0];
+                    nptr[bnum]++;
+                }
 
-				if (bptr[j + 0].root < linesize)			
-				{	
-					bnum = (bptr[j + 0].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 0].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 0].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 1] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 1] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 1];
+                    nptr[bnum]++;
+                }
 
-				if (bptr[j + 1].root < linesize)			
-				{	
-					bnum = (bptr[j + 1].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 1].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 1].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 2] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 2] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 2];
+                    nptr[bnum]++;
+                }
 
-				if (bptr[j + 2].root < linesize)			
-				{	
-					bnum = (bptr[j + 2].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 2].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 2].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 3] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 3] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 3];
+                    nptr[bnum]++;
+                }
 
-				bptr[j + 3].root += bptr[j + 3].prime;		
-				bptr[j + 4].root += bptr[j + 4].prime;	
-				bptr[j + 5].root += bptr[j + 5].prime;		
-				if (bptr[j + 3].root < linesize)			
-				{	
-					bnum = (bptr[j + 3].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 3].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 3].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 4] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 4] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 4];
+                    nptr[bnum]++;
+                }
 
-				if (bptr[j + 4].root < linesize)			
-				{	
-					bnum = (bptr[j + 4].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 4].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 4].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 5] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 5] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 5];
+                    nptr[bnum]++;
+                }
 
-				if (bptr[j + 5].root < linesize)			
-				{	
-					bnum = (bptr[j + 5].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 5].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 5].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 6] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 6] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 6];
+                    nptr[bnum]++;
+                }
 
-				bptr[j + 6].root += bptr[j + 6].prime;		
-				bptr[j + 7].root += bptr[j + 7].prime;		
-
-				if (bptr[j + 6].root < linesize)			
-				{	
-					bnum = (bptr[j + 6].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 6].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 6].prime;
-					nptr[bnum]++;						
-				}	
-
-				if (bptr[j + 7].root < linesize)			
-				{	
-					bnum = (bptr[j + 7].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j + 7].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j + 7].prime;
-					nptr[bnum]++;						
-				}	
+                if ((uint32)bptr[j + 7] < linesize)
+                {
+                    bnum = ((uint32)bptr[j + 7] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j + 7];
+                    nptr[bnum]++;
+                }
+                
 
 			}
 
 			//finish up those that didn't fit into a group of 8 hits
 			for (;j < nptr[i]; j++)
 			{
-				flagblock[(bptr[j].root & FLAGSIZEm1) >> 3] &= masks[(bptr[j].root & FLAGSIZEm1) & 7];
-
-				bptr[j].root += bptr[j].prime;		
-				if (bptr[j].root < linesize)			
-				{	
-					bnum = (bptr[j].root >> FLAGBITS);
-					buckets[bnum][nptr[bnum]].root = bptr[j].root;
-					buckets[bnum][nptr[bnum]].prime = bptr[j].prime;
-					nptr[bnum]++;						
-				}
-				
+                flagblock[((uint32)bptr[j] & FLAGSIZEm1) >> 3] &= masks[((uint32)bptr[j] & FLAGSIZEm1) & 7];
+                
+                bptr[j] += (bptr[j] >> 32);
+                if ((uint32)bptr[j] < linesize)
+                {
+                    bnum = ((uint32)bptr[j] >> FLAGBITS);
+                    buckets[bnum][nptr[bnum]] = bptr[j];
+                    nptr[bnum]++;
+                }
+                
 			}
 
 			// repeat the dumping of bucket primes, this time with very large primes
 			// that only hit the interval once.  thus, we don't need to update the root
 			// with the next hit, and we can do more at once because each bucket hit is smaller
 			if (ddata->largep_offset > 0)
-			{
+            {                
 				uint32 *large_bptr = ddata->large_sieve_buckets[i];	
 				uint32 *large_nptr = ddata->large_bucket_hits;
 
-				for (j=0; j < (large_nptr[i] & (uint32)(~15)); j+=16)
+                for (j = 0; j < (large_nptr[i] - 16); j += 16)
 				{				
 					//unload 8 hits
+#ifdef NOTUSE_AVX2
+                    __m256i vbuck, vbuck2;
+                    __m256i vt1;
+                    __m256i vt2;                
+                    __m128i vext;
+
+                    // The AVX2 is almost exactly the same speed as the non-AVX2 code...
+                    // the bottleneck is not in computing the indices.
+                    // keep it here for future reference: scatter might help eventually.
+                    vbuck = _mm256_load_si256((__m256i *)(large_bptr + j));
+                    vt1 = _mm256_and_si256(vbuck, vflagsizem1);
+                    vt2 = _mm256_and_si256(vt1, v31);
+                    vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
+                    vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
+                    vt1 = _mm256_srai_epi32(vt1, 5);
+                    _mm256_store_si256((__m256i *)t, vt1);
+                    //_mm256_store_si256((__m256i *)t2, vt2);
+                    vext = _mm256_extracti128_si256(vt2, 0);
+
+                    flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
+                    flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
+                    flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
+                    flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
+                    vext = _mm256_extracti128_si256(vt2, 1);
+                    flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
+                    flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
+                    flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
+                    flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+
+                    vbuck = _mm256_load_si256((__m256i *)(large_bptr + j + 8));
+                    vt1 = _mm256_and_si256(vbuck, vflagsizem1);
+                    vt2 = _mm256_and_si256(vt1, v31);
+                    vt2 = _mm256_sllv_epi32(vone, vt2);        // bit location
+                    vt2 = _mm256_andnot_si256(vt2, vfull);      // sieve &= not(bit location)
+                    vt1 = _mm256_srai_epi32(vt1, 5);
+                    
+                    _mm256_store_si256((__m256i *)t, vt1);
+                    //_mm256_store_si256((__m256i *)t2, vt2);
+                    vext = _mm256_extracti128_si256(vt2, 0);
+
+                    flagblock32[t[0]] &= _mm_extract_epi32(vext, 0); //t2[0];
+                    flagblock32[t[1]] &= _mm_extract_epi32(vext, 1); //t2[1];
+                    flagblock32[t[2]] &= _mm_extract_epi32(vext, 2); //t2[2];
+                    flagblock32[t[3]] &= _mm_extract_epi32(vext, 3); //t2[3];
+                    vext = _mm256_extracti128_si256(vt2, 1);
+                    flagblock32[t[4]] &= _mm_extract_epi32(vext, 0); //t2[4];
+                    flagblock32[t[5]] &= _mm_extract_epi32(vext, 1); //t2[5];
+                    flagblock32[t[6]] &= _mm_extract_epi32(vext, 2); //t2[6];
+                    flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
+
+#else
 					flagblock[(large_bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 0] & FLAGSIZEm1) & 7];
 					flagblock[(large_bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 1] & FLAGSIZEm1) & 7];
 					flagblock[(large_bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 2] & FLAGSIZEm1) & 7];
@@ -490,6 +414,7 @@ void sieve_line(thread_soedata_t *thread_data)
 					flagblock[(large_bptr[j + 13] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 13] & FLAGSIZEm1) & 7];
 					flagblock[(large_bptr[j + 14] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 14] & FLAGSIZEm1) & 7];
 					flagblock[(large_bptr[j + 15] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 15] & FLAGSIZEm1) & 7];
+#endif
 				}
 
 				for (;j < large_nptr[i]; j++)
@@ -526,134 +451,18 @@ void sieve_line(thread_soedata_t *thread_data)
 		}
 
 		flagblock += BLOCKSIZE;
+
+#ifdef USE_AVX2
+#ifndef __INTEL_COMPILER
+        align_free(t);
+        align_free(t2);
+#endif
+#endif
+
 	}
 
 	return;
 }
 
-void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock)
-{
-	uint64 startprime = sdata->startprime;
-	uint64 k;
-	int mask_step, mask_step2;
-	int mask_num, mask_num2;		
-	uint64 *flagblock64;	
 
-	//flagblock is always a multiple of 8 bytes
-	flagblock64 = (uint64 *)flagblock;	
-
-	//do the smallest primes in predetermined 64 bit batches
-	if (startprime == 2)
-	{
-		//ToDo: implement using instruction ROR (rotate right).  Then we'd
-		//just need to load in one 64 bit value and repeatedly ROR.  On 64-bit
-		//systems we could probably do all 8 small primes in the same loop, 
-		//one prime mask per r8-15 register, with the other registers for
-		//step counting and loop control...
-		for (k=0, mask_step = _64_MOD_P[0], mask_num = ddata->offsets[2],
-			mask_step2 = _64_MOD_P[1], mask_num2 = ddata->offsets[3]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_5_MASKS[mask_num] & _7_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 5 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 7 + mask_num2;
-		}
-		ddata->offsets[2]= (uint32)mask_num;
-		ddata->offsets[3]= (uint32)mask_num2;
-
-		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 11 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-		}
-		ddata->offsets[4]= (uint32)mask_num;
-		ddata->offsets[5]= (uint32)mask_num2;
-	}
-	else if (startprime == 3)
-	{
-		for (k=0, mask_step = _64_MOD_P[1], mask_num = ddata->offsets[3]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= _7_MASKS[mask_num];
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 7 + mask_num;
-		}
-		ddata->offsets[3]= (uint32)mask_num;
-
-		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 11 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-		}
-		ddata->offsets[4]= (uint32)mask_num;
-		ddata->offsets[5]= (uint32)mask_num2;
-	}
-	else if (startprime == 4)
-	{
-
-		for (k=0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-			mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5]; 
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 11 + mask_num;
-			mask_num2 -= mask_step2;
-			if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-		}
-		ddata->offsets[4]= (uint32)mask_num;
-		ddata->offsets[5]= (uint32)mask_num2;
-	}
-	else if (startprime == 5)
-	{
-		for (k=0, mask_step = _64_MOD_P[3], mask_num = ddata->offsets[5];
-			k<FLAGSIZE >> 6; k++)
-		{
-			flagblock64[k] &= _13_MASKS[mask_num];
-			mask_num -= mask_step;
-			if (mask_num < 0) mask_num = 13 + mask_num;
-		}
-		ddata->offsets[5]= (uint32)mask_num;
-	}	
-
-	for (k=0, mask_step = _64_MOD_P[4], mask_num = ddata->offsets[6],
-		mask_step2 = _64_MOD_P[5], mask_num2 = ddata->offsets[7]; 
-		k<FLAGSIZE >> 6; k++)
-	{
-		flagblock64[k] &= (_17_MASKS[mask_num] & _19_MASKS[mask_num2]);
-		mask_num -= mask_step;
-		if (mask_num < 0) mask_num = 17 + mask_num;
-		mask_num2 -= mask_step2;
-		if (mask_num2 < 0) mask_num2 = 19 + mask_num2;
-	}
-	ddata->offsets[6]= (uint32)mask_num;
-	ddata->offsets[7]= (uint32)mask_num2;
-
-	for (k=0, mask_step = _64_MOD_P[6], mask_num = ddata->offsets[8],
-		mask_step2 = _64_MOD_P[7], mask_num2 = ddata->offsets[9]; 
-		k<FLAGSIZE >> 6; k++)
-	{
-		flagblock64[k] &= (_23_MASKS[mask_num] & _29_MASKS[mask_num2]);
-		mask_num -= mask_step;
-		if (mask_num < 0) mask_num = 23 + mask_num;
-		mask_num2 -= mask_step2;
-		if (mask_num2 < 0) mask_num2 = 29 + mask_num2;
-	}
-	ddata->offsets[8]= (uint32)mask_num;
-	ddata->offsets[9]= (uint32)mask_num2;	
-
-	return;
-}
 

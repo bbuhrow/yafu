@@ -192,21 +192,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		}
 		
 		//try to find a double large prime
-#ifdef HAVE_CUDA
-		{
-			uint32 large_prime[2] = {1,1};
-		
-			// remember the residue and the relation it is associated with
-			dconf->buf_id[dconf->num_squfof_cand] = dconf->buffered_rels;
-			dconf->squfof_candidates[dconf->num_squfof_cand++] = q64;
-
-			// buffer the relation
-			buffer_relation(offset,large_prime,smooth_num+1,
-				fb_offsets,poly_id,parity,dconf,polya_factors,it);
-		}
-#else
-
-
 #ifdef USE_VEC_SQUFOF
 
         buffer_relation(offset, NULL, smooth_num + 1,
@@ -240,8 +225,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #endif
 
-
-#endif
 
 	}
     else
@@ -278,12 +261,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
         printf("reallocating relation buffer\n");
         conf->relation_buf = (siqs_r *)realloc(conf->relation_buf,
             conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
-#ifdef HAVE_CUDA
-        conf->buf_id = (uint32 *)realloc(conf->buf_id, 
-            conf->buffered_rel_alloc * 2 * sizeof(uint32));
-        conf->squfof_candidates = (uint64 *)realloc(conf->squfof_candidates, 
-            conf->buffered_rel_alloc * 2 * sizeof(uint64));
-#endif
+
         if (conf->relation_buf == NULL)
         {
             printf("error re-allocating temporary storage of relations\n");

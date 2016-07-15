@@ -42,7 +42,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 	if (check_input(*highlimit, lowlimit, num_sp, sieve_p, &sdata, *offset))
 		return 0;
 
-	//determine what kind of sieve to used based on the input
+	//determine what kind of sieve to use based on the input
 	get_numclasses(*highlimit, lowlimit, &sdata);
 
 	//allocate and initialize some stuff
@@ -139,10 +139,10 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 				if (count)
 				{
 					t->sdata.lines[t->current_line] = 
-						(uint8 *)malloc(t->sdata.numlinebytes * sizeof(uint8));
+						(uint8 *)xmalloc_align(t->sdata.numlinebytes * sizeof(uint8));
 					sieve_line(t);
 					t->linecount = count_line(sdata, t->current_line);
-					free(t->sdata.lines[t->current_line]);
+					align_free(t->sdata.lines[t->current_line]);
 				}
 				else
 				{
@@ -214,10 +214,10 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 	for (i=0; i<THREADS - 1; i++)
 	{
 		stop_soe_worker_thread(thread_data + i, 0);
-		free(thread_data[i].ddata.offsets);
+        align_free(thread_data[i].ddata.offsets);
 	}
 	stop_soe_worker_thread(thread_data + i, 1);
-	free(thread_data[i].ddata.offsets);
+	align_free(thread_data[i].ddata.offsets);
 
 #ifdef INPLACE_BUCKET
 	// now sieve with the inplace primes
@@ -495,10 +495,10 @@ void finalize_sieve(soe_staticdata_t *sdata,
 	if (!sdata->only_count)
 	{
 		for (i=0; i<sdata->numclasses; i++)
-			free(sdata->lines[i]);
+			align_free(sdata->lines[i]);
 	}
-	free(sdata->lines);
-	free(sdata->root);
+    align_free(sdata->lines);
+    free(sdata->root);
 	free(sdata->lower_mod_prime);
 	free(thread_data);
 	free(sdata->rclass);

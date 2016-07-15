@@ -1185,11 +1185,13 @@ void trial_sieve(fact_obj_t* fobj)
 	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
 	{
 		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+        memset(filenames[i], 0, GSTR_MAXSIZE);
 		//printf("pointer: %p\n", filenames[i]);
-		strncpy(filenames[i++], arg, ptr-arg+1);
+		strncpy(filenames[i++], arg, ptr-arg);
 		arg = ptr + 1;
 	}
 	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+    memset(filenames[i], 0, GSTR_MAXSIZE);
 	strcpy(filenames[i++], arg);
 
 	me = test_sieve(fobj, filenames, i, 1);
