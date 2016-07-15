@@ -1,4 +1,4 @@
-v 1.35
+v 1.35 (beta)
 + fix nextprime() bug for large inputs (nextprime is now faster as well)
 + fixed malloc header for MAC builds
 + fixed bug impacting factorization of very large numbers (no longer use mpz_import)
@@ -19,7 +19,7 @@ v 1.35
 + command line less picky about argument ordering... expression can either be first, or be 
 	anywhere else, preceeded by -e, e.g., ./yafu -v -threads 2 -e "factor(rsa(256))"
 + will now default to factor() applied to the input, if no other function is given, 
-	e.g., ./yafu 12345 will commence to factor 12345.  this only applys to command line 
+	e.g., ./yafu 12345 will commence to factor 12345.  this only applies to command line 
 	expressions
 + add new command expr(), to evaulate numerical expressions from the command line
 + in NFS, relations can be added to a running job using a "rels.add" file in the 
@@ -30,8 +30,12 @@ v 1.35
 + gnfs poly selection default minimum leading coefficient is now 8192
 + updated to wraithX's latest aprcl code (version 1.1)
 + use GMP's primorial
-+ more work on AVX2 and MIC builds (not functional)
++ more work on AVX2
++ more work on MIC (not functional)
 + linking against Msieve SVN 991
++ removed HAVE_CUDA #defines, dead code path
++ AVX2 enhancements to sieve of eratosthenes (presieving)
++ bug fixes related to test sieving interface (thanks dubslow!)
 
 
 

@@ -1111,6 +1111,93 @@ int mpz_strongselfridge_prp(mpz_t n)
 
 }/* method mpz_strongselfridge_prp */
 
+/* *********************************************************************************************************
+* mpz_strongselfridge_prp:
+* A "strong Lucas-Selfridge pseudoprime" n is a "strong Lucas pseudoprime" using Selfridge parameters of:
+* Find the first element D in the sequence {5, -7, 9, -11, 13, ...} such that Jacobi(D,n) = -1
+* Then use P=1 and Q=(1-D)/4 in the strong Lucase pseudoprime test.
+* Make sure n is not a perfect square, otherwise the search for D will only stop when D=n.
+* **********************************************************************************************************/
+int mpz_extrastrongselfridge_prp(mpz_t n)
+{
+    long int d = 5, p = 1, q = 0;
+    int max_d = 1000000;
+    int jacobi = 0;
+    mpz_t zD;
+
+    if (mpz_cmp_ui(n, 2) < 0)
+        return PRP_COMPOSITE;
+
+    if (mpz_divisible_ui_p(n, 2))
+    {
+        if (mpz_cmp_ui(n, 2) == 0)
+            return PRP_PRIME;
+        else
+            return PRP_COMPOSITE;
+    }
+
+    mpz_init_set_ui(zD, d);
+
+    while (1)
+    {
+        jacobi = mpz_jacobi(zD, n);
+
+        /* if jacobi == 0, d is a factor of n, therefore n is composite... */
+        /* if d == n, then either n is either prime or 9... */
+        if (jacobi == 0)
+        {
+            if ((mpz_cmpabs(zD, n) == 0) && (mpz_cmp_ui(zD, 9) != 0))
+            {
+                mpz_clear(zD);
+                return PRP_PRIME;
+            }
+            else
+            {
+                mpz_clear(zD);
+                return PRP_COMPOSITE;
+            }
+        }
+        if (jacobi == -1)
+            break;
+
+        /* if we get to the 5th d, make sure we aren't dealing with a square... */
+        if (d == 13)
+        {
+            if (mpz_perfect_square_p(n))
+            {
+                mpz_clear(zD);
+                return PRP_COMPOSITE;
+            }
+        }
+
+        if (d < 0)
+        {
+            d *= -1;
+            d += 2;
+        }
+        else
+        {
+            d += 2;
+            d *= -1;
+        }
+
+        /* make sure we don't search forever */
+        if (d >= max_d)
+        {
+            mpz_clear(zD);
+            return PRP_ERROR;
+        }
+
+        mpz_set_si(zD, d);
+    }
+    mpz_clear(zD);
+
+    q = (1 - d) / 4;
+
+    return mpz_extrastronglucas_prp(n, p);
+
+}/* method mpz_strongselfridge_prp */
+
 
 /* **********************************************************************************
  * mpz_bpsw_prp:
@@ -1160,6 +1247,31 @@ int mpz_strongbpsw_prp(mpz_t n)
     return ret;
 
   return mpz_strongselfridge_prp(n);
+
+}/* method mpz_strongbpsw_prp */
+
+/* ****************************************************************************************
+* mpz_strongbpsw_prp:
+* A "strong Baillie-Pomerance-Selfridge-Wagstaff pseudoprime" is a composite n such that
+* n is a strong pseudoprime to the base 2 and
+* n is a strong Lucas pseudoprime using the Selfridge parameters.
+* ****************************************************************************************/
+int mpz_extrastrongbpsw_prp(mpz_t n)
+{
+    int ret = 0;
+    mpz_t two;
+
+    mpz_init_set_ui(two, 2);
+
+    ret = mpz_sprp(n, two);
+    mpz_clear(two);
+
+    /* with a base of 2,  mpz_sprp won't return PRP_ERROR */
+    /* so, only check for PRP_COMPOSITE or PRP_PRIME here */
+    if ((ret == PRP_COMPOSITE) || (ret == PRP_PRIME))
+        return ret;
+
+    return mpz_extrastrongselfridge_prp(n);
 
 }/* method mpz_strongbpsw_prp */
 

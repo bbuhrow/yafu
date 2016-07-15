@@ -105,11 +105,8 @@ endif
 
 # modify these for your particular cuda installation
 ifeq ($(CUDA),1)
-	CFLAGS += -DHAVE_CUDA
-#	INC += -I/users/buhrow/NVIDIA_GPU_Computing_SDK/C/common/inc
 	INC += -I/usr/local/cuda/include/
 	LIBS += -L/usr/lib64 -lcuda
-#	LIBS += /users/buhrow/NVIDIA_GPU_Computing_SDK/C/lib/libcutil_x86_64.a
 endif
 
 ifeq ($(FORCE_GENERIC),1)
@@ -182,6 +179,7 @@ YAFU_SRCS = \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
+	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
 	top/eratosthenes/primes.c \

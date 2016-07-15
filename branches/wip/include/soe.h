@@ -25,6 +25,15 @@ code to the public domain.
 #include "arith.h"	//needed for spGCD and modinv_1
 #include "util.h"
 
+#ifdef _MSC_VER
+// optionally define this or not depending on whether your hardware supports it.
+// if defined, compile the sse41 functions into the fat binary.  the global
+// flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
+// to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
+//#define USE_SSE41 1
+//#define USE_AVX2 1
+#endif
+
 #define BLOCKSIZE 32768
 #define FLAGSIZE 262144
 #define FLAGSIZEm1 262143
@@ -54,11 +63,11 @@ typedef struct
 	uint8 bnum;
 } soe_bucket_t_old;
 
-typedef struct
-{
-	uint32 root;
-	uint32 prime;
-} soe_bucket_t;
+//typedef struct
+//{
+//	uint32 root;
+//	uint32 prime;
+//} soe_bucket_t;
 
 typedef struct
 {
@@ -125,7 +134,7 @@ typedef struct
 
 	uint32 bucket_alloc;
 	uint32 *bucket_hits;
-	soe_bucket_t **sieve_buckets;
+    uint64 **sieve_buckets;
 	
 	uint32 *special_count;
 	uint32 num_special_bins;

@@ -109,7 +109,9 @@ int mpz_selfridge_prp(mpz_t n);
  * Then use P=1 and Q=(1-D)/4 in the strong Lucase pseudoprime test.
  * Make sure n is not a perfect square, otherwise the search for D will only stop when D=n.
  * **********************************************************************************************************/
-int mpz_strongselfridge_prp(mpz_t n);
+int mpz_strongselfridge_prp(mpz_t n); 
+int mpz_extrastrongselfridge_prp(mpz_t n);
+
 
 /* **********************************************************************************
  * mpz_bpsw_prp:
@@ -126,7 +128,7 @@ int mpz_bpsw_prp(mpz_t n);
  * n is a strong Lucas pseudoprime using the Selfridge parameters.
  * ****************************************************************************************/
 int mpz_strongbpsw_prp(mpz_t n);
-
+int mpz_extrastrongbpsw_prp(mpz_t n);
 
 
 

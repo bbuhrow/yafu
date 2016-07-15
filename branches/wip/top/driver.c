@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
         z z1, z2;
         zInit(&z1);
         zInit(&z2);
-        primesum_check12(0, 10000000000000, 10, &z1, &z2);
+        //primesum_check12(0, 10000000000000, 10, &z1, &z2);
     }
     
     if (0)
@@ -1167,7 +1167,7 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 {
     int ch = 0, i,j,valid;
 	char optbuf[MAXOPTIONLEN];
-	char argbuf[80];
+    char argbuf[GSTR_MAXSIZE];
 
 	expression[0] = '\0';
 

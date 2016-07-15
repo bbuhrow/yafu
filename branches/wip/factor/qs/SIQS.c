@@ -241,14 +241,6 @@ void SIQS(fact_obj_t *fobj)
 		fflush(sieve_log);
 	}
 
-#ifdef HAVE_CUDA
-	// look for a card and properties
-	if(!InitCUDA(static_conf))
-	{
-		exit(0);
-	} 
-#endif
-
 	//get best parameters, multiplier, and factor base for the job
 	//initialize and fill out the static part of the job data structure
 	siqs_static_init(static_conf, 0);
@@ -483,10 +475,6 @@ void SIQS(fact_obj_t *fobj)
                 thread_data[tid].dconf->lp_scan_failures = 0;
                 thread_data[tid].dconf->num_64bit_residue = 0;
 
-#ifdef HAVE_CUDA
-				thread_data[tid].dconf->num_squfof_cand = 0;
-#endif
-
 				//check whether to continue or not, and update the screen
 				updatecode = update_check(static_conf);
 
@@ -580,15 +568,7 @@ void SIQS(fact_obj_t *fobj)
 			stop_worker_thread(thread_data + i);
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
-#ifdef HAVE_CUDA
-		free(thread_data[i].dconf->squfof_candidates);
-		free(thread_data[i].dconf->buf_id);
-#endif
 	}
-
-#ifdef HAVE_CUDA
-	cuCtxDetach(static_conf->cuContext);
-#endif
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
@@ -1137,114 +1117,10 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 		qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
 
-#ifdef HAVE_CUDA
-	//printf("%u buffered relations, doing squfof on %u\n",
-	//	dconf->buffered_rels, dconf->num_squfof_cand);
-
-	{
-		uint32 *results;
-		double t;
-
-		results = (uint32 *)malloc(dconf->num_squfof_cand * sizeof(uint32));
-		for (i=0; i<dconf->num_squfof_cand; i++)
-			results[i] = 1;
-
-		t = gpu_squfof_batch(dconf->squfof_candidates, 
-			dconf->num_squfof_cand, results, sconf);
-
-		//printf("gpu batch done in %1.4f milliseconds\n", t);
-		dconf->attempted_squfof += dconf->num_squfof_cand;
-
-		for (i=0; i<dconf->num_squfof_cand; i++)
-		{
-			uint32 bid = dconf->buf_id[i];
-
-			if (results[i] > 1) // && results[i] != q64)
-			{
-				uint32 large_prime[2];
-
-				large_prime[0] = (uint32)results[i];
-				large_prime[1] = (uint32)(dconf->squfof_candidates[i] 
-					/ results[i]);
-
-				if ((dconf->squfof_candidates[i] % results[i]) != 0)
-				{
-					dconf->relation_buf[bid].num_factors = 0;
-					dconf->failed_squfof++;
-				}
-				else
-				{
-					if (large_prime[0] < sconf->large_prime_max 
-						&& large_prime[1] < sconf->large_prime_max)
-					{
-						//add this one
-						dconf->dlp_useful++;
-						dconf->relation_buf[bid].large_prime[0] = large_prime[0];
-						dconf->relation_buf[bid].large_prime[1] = large_prime[1];
-					}
-					else
-						dconf->relation_buf[bid].num_factors = 0;
-				}
-				
-			}
-			else
-			{
-				dconf->relation_buf[bid].num_factors = 0;
-				dconf->failed_squfof++;
-			}
-		}
-	}
-
-
-
-	/*
-	for (i=0; i<dconf->num_squfof_cand; i++)
-	{
-		uint64 q64 = dconf->squfof_candidates[i];
-		uint64 f64;
-		uint32 bid = dconf->buf_id[i];		
-
-		dconf->attempted_squfof++;
-		mpz_set_64(dconf->gmptmp1, q64);
-		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
-		if (f64 > 1 && f64 != q64)
-		{
-			uint32 large_prime[2];
-
-			large_prime[0] = (uint32)f64;
-			large_prime[1] = (uint32)(q64 / f64);
-
-			if (large_prime[0] < sconf->large_prime_max 
-				&& large_prime[1] < sconf->large_prime_max)
-			{
-				//add this one
-				dconf->dlp_useful++;
-				dconf->relation_buf[bid].large_prime[0] = large_prime[0];
-				dconf->relation_buf[bid].large_prime[1] = large_prime[1];
-			}
-			else
-				dconf->relation_buf[bid].num_factors = 0;
-				
-		}
-		else
-		{
-			dconf->relation_buf[bid].num_factors = 0;
-			dconf->failed_squfof++;
-		}
-	}
-	*/
-
-
-#endif
-
     //printf("saving %d buffered relations\n", dconf->buffered_rels);
 	//save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
 	{
-#ifdef HAVE_CUDA
-		if (dconf->relation_buf[i].num_factors == 0)
-			continue;
-#endif
 		rel = dconf->relation_buf + i;
 
 #ifdef USE_VEC_SQUFOF
@@ -1500,11 +1376,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->relation_buf = (siqs_r *)malloc(32768 * sizeof(siqs_r));
 	dconf->buffered_rel_alloc = 32768;
 	dconf->buffered_rels = 0;
-#ifdef HAVE_CUDA
-	dconf->squfof_candidates = (uint64 *)malloc(32768 * sizeof(uint64));
-	dconf->buf_id = (uint32 *)malloc(32768 * sizeof(uint32));
-	dconf->num_squfof_cand = 0;
-#endif
 
 	if (VFLAG > 2)
 	{

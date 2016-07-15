@@ -127,7 +127,7 @@ void get_offsets(thread_soedata_t *thread_data)
 
 	if (ddata->bucket_depth > 0)
 	{
-		soe_bucket_t **bptr;
+        uint64 **bptr;
 
 		uint32 *nptr;
 		uint32 linesize = FLAGSIZE * sdata->blocks;
@@ -136,7 +136,6 @@ void get_offsets(thread_soedata_t *thread_data)
 		nptr = ddata->bucket_hits;
 		bptr = ddata->sieve_buckets;
 
-		//for (; i<sdata->pboundi-1; i+=2)
 		for (; i < sdata->inplace_start_id-1; i += 2)
 		{
 			uint64 tmp3;
@@ -147,7 +146,6 @@ void get_offsets(thread_soedata_t *thread_data)
 			p2 = sdata->sieve_p[i+1];
 
 			//condition to see if the current prime only hits the sieve interval once
-			//if ((prime * prodN) > (sdata->blk_r * sdata->blocks))
 			if (prime > sdata->large_bucket_start_prime)
 			{
 				ddata->largep_offset = i;
@@ -166,25 +164,24 @@ void get_offsets(thread_soedata_t *thread_data)
 			root = (uint32)(tmp2 % (uint64)prime);
 			r2 = (uint32)(tmp3 % (uint64)p2);
 
+            // As of the AVX2 modifications 6/2016, it is faster to update during
+            // linesieve than doing it all here in a loop
 			if (root < linesize)			
 			{	
 				bnum = (root >> FLAGBITS);
-				bptr[bnum][nptr[bnum]].root = root;
-				bptr[bnum][nptr[bnum]].prime = prime;
+				bptr[bnum][nptr[bnum]] = ((uint64)prime << 32) | (uint64)root;
 				nptr[bnum]++;	
 			}	
 
 			if (r2 < linesize)			
 			{	
 				bnum = (r2 >> FLAGBITS);
-				bptr[bnum][nptr[bnum]].root = r2;
-				bptr[bnum][nptr[bnum]].prime = p2;
+                bptr[bnum][nptr[bnum]] = ((uint64)p2 << 32) | (uint64)r2;
 				nptr[bnum]++;	
 			}	
 			
 		}
 
-		//if ((i < sdata->pboundi) && (ddata->largep_offset == 0))
 		if ((i < sdata->inplace_start_id) && (ddata->largep_offset == 0))
 		{
 			uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
@@ -201,8 +198,7 @@ void get_offsets(thread_soedata_t *thread_data)
 			if (root < linesize)			
 			{	
 				bnum = (root >> FLAGBITS);
-				bptr[bnum][nptr[bnum]].root = root;
-				bptr[bnum][nptr[bnum]].prime = prime;
+                bptr[bnum][nptr[bnum]] = ((uint64)prime << 32) | (uint64)root;
 				nptr[bnum]++;	
 			}	
 
@@ -210,6 +206,9 @@ void get_offsets(thread_soedata_t *thread_data)
 
 		if (ddata->largep_offset > 0)
 		{
+            // primes greater than the entire sieve interval, thus they
+            // at most hit one block and we don't need to save the prime
+            // itself since it doesn't need to be advanced.
 			uint32 **large_bptr;
 			uint32 *large_nptr;
 			uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
@@ -223,7 +222,6 @@ void get_offsets(thread_soedata_t *thread_data)
 				large_nptr[i] = 0;
 			}
 
-			//for (i = ddata->largep_offset; i<sdata->pboundi-1; i+=2)
 			for (i = ddata->largep_offset; i<sdata->inplace_start_id-1; i+=2)
 			{
 				uint64 tmp3;

@@ -27,11 +27,6 @@ code to the public domain.
 #include "lanczos.h"
 #include "common.h"
 
-#ifdef HAVE_CUDA
-#include <cuda.h>
-#include <builtin_types.h>
-//#include <drvapi_error_string.h>
-#endif
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
@@ -47,11 +42,10 @@ code to the public domain.
 #define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
 #endif
 
-#if defined(USE_AVX2) || defined(USE_SSE41)
+#if (defined(USE_AVX2) || defined(USE_SSE41)) && ~defined(_MSC_VER)
 #define USE_VEC_SQUFOF
 #endif
 
-//#define HAVE_CUDA
 //#define QS_TIMING
 
 #ifdef QS_TIMING
@@ -416,13 +410,6 @@ typedef struct {
 	uint32 buffered_rel_alloc;
 	siqs_r *in_mem_relations;
 
-#ifdef HAVE_CUDA
-	CUdevice cuDevice;
-	CUcontext cuContext;
-	CUmodule cuModule;
-	CUfunction cu_squfof;
-#endif
-
 } static_conf_t;
 
 typedef struct {
@@ -487,12 +474,6 @@ typedef struct {
     uint64 *unfactored_residue;
     uint64 *residue_factors;
     uint32 num_64bit_residue;
-
-#ifdef HAVE_CUDA
-	uint64 *squfof_candidates;
-	uint32 *buf_id;
-	uint32 num_squfof_cand;
-#endif
 
     uint32 *polyscratch;
 	uint16 *corrections;
@@ -674,12 +655,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny);
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf);
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf);
 uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf);
-
-#ifdef HAVE_CUDA
-int InitCUDA(static_conf_t *sconf);
-double gpu_squfof_batch(uint64 *batch, uint32 numin, uint32 *factors, 
-	static_conf_t *sconf);
-#endif
 
 void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);

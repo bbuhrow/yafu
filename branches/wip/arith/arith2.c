@@ -301,6 +301,8 @@ uint32 modinv_1b(uint32 a, uint32 p) {
 		return 0xFFFFFFFF - ps1 + 1;
 }
 
+
+
 int zExp(uint32 e, z *u, z *w)
 {
 	//return u^e = w
