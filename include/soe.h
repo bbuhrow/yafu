@@ -25,6 +25,8 @@ code to the public domain.
 #include "arith.h"	//needed for spGCD and modinv_1
 #include "util.h"
 
+#define USE_SOE_THREADPOOL
+
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
 // if defined, compile the sse41 functions into the fat binary.  the global
@@ -55,6 +57,21 @@ enum soe_command {
 	SOE_COMPUTE_PRPS,
 	SOE_COMMAND_END
 };
+
+#ifdef USE_AVX2
+// for storage of presieving lists from prime index 24 to 40 (97 to 173 inclusive)
+#ifdef __GNUC__
+__attribute__((aligned(64))) uint64 presieve_largemasks[16][173][4];
+__attribute__((aligned(64))) uint32 presieve_steps[32];
+__attribute__((aligned(64))) uint32 presieve_primes[32];
+__attribute__((aligned(64))) uint32 presieve_p1[32];
+#else
+__declspec(align(64)) uint64 presieve_largemasks[16][173][4];
+__declspec(align(64)) uint32 presieve_steps[32];
+__declspec(align(64)) uint32 presieve_primes[32];
+__declspec(align(64)) uint32 presieve_p1[32];
+#endif
+#endif
 
 typedef struct
 {
@@ -121,6 +138,9 @@ typedef struct
 	int sieve_range;
 	uint64 min_sieved_val;
 
+    // presieving stuff
+    int presieve_max_id;
+
 } soe_staticdata_t;
 
 typedef struct
@@ -147,6 +167,9 @@ typedef struct
 	uint32 largep_offset;
 	uint64 min_sieved_val;
 
+    // presieving stuff
+    uint32 *presieve_scratch;
+
 } soe_dynamicdata_t;
 
 typedef struct {
@@ -154,6 +177,9 @@ typedef struct {
 	soe_staticdata_t sdata;
 	uint64 linecount;
 	uint32 current_line;
+
+    int tindex;
+    int tstartup;
 
 	// start and stop for computing roots
 	uint32 startid, stopid;
@@ -164,14 +190,39 @@ typedef struct {
 	/* fields for thread pool synchronization */
 	volatile enum soe_command command;
 
+#ifdef USE_SOE_THREADPOOL
+    /* fields for thread pool synchronization */
+    volatile int *thread_queue, *threads_waiting;
+
 #if defined(WIN32) || defined(_WIN64)
-	HANDLE thread_id;
-	HANDLE run_event;
-	HANDLE finish_event;
+    HANDLE thread_id;
+    HANDLE run_event;
+
+    HANDLE finish_event;
+    HANDLE *queue_event;
+    HANDLE *queue_lock;
+
 #else
-	pthread_t thread_id;
-	pthread_mutex_t run_lock;
-	pthread_cond_t run_cond;
+    pthread_t thread_id;
+    pthread_mutex_t run_lock;
+    pthread_cond_t run_cond;
+
+    pthread_mutex_t *queue_lock;
+    pthread_cond_t *queue_cond;
+#endif
+
+#else
+
+#if defined(WIN32) || defined(_WIN64)
+    HANDLE thread_id;
+    HANDLE run_event;
+    HANDLE finish_event;
+#else
+    pthread_t thread_id;
+    pthread_mutex_t run_lock;
+    pthread_cond_t run_cond;
+#endif
+
 #endif
 
 } thread_soedata_t;
@@ -185,13 +236,13 @@ void sieve_line(thread_soedata_t *thread_data);
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
 uint32 compute_8_bytes(soe_staticdata_t *sdata, 
-	uint32 pcount, uint64 *primes, uint64 byte_offset, int *pchar);
+	uint32 pcount, uint64 *primes, uint64 byte_offset);
 uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_data,
 	uint32 start_count, uint64 *primes);
 void get_offsets(thread_soedata_t *thread_data);
 void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data);
-void stop_soe_worker_thread(thread_soedata_t *t, uint32 is_master_thread);
-void start_soe_worker_thread(thread_soedata_t *t, uint32 is_master_thread);
+void stop_soe_worker_thread(thread_soedata_t *t);
+void start_soe_worker_thread(thread_soedata_t *t);
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI soe_worker_thread_main(LPVOID thread_data);
 #else

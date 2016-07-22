@@ -16,7 +16,7 @@ benefit from your work.
 #include <immintrin.h>
 
 
-
+// sieve all blocks of a line, i.e., a row of the sieve area.
 void sieve_line(thread_soedata_t *thread_data)
 {
 	//extract stuff from the thread data structure
@@ -36,6 +36,7 @@ void sieve_line(thread_soedata_t *thread_data)
 	uint64 i,j,k;
 	uint32 prime;
 	uint32 maxP;
+    int stopid;
 
 	ddata->lblk_b = sdata->lowlimit + sdata->rclass[current_line];
 	ddata->ublk_b = sdata->blk_r + ddata->lblk_b - sdata->prodN;
@@ -88,25 +89,20 @@ void sieve_line(thread_soedata_t *thread_data)
 				flagblock[0] &= 0xfe;
 		}		
 
-#ifdef USE_AVX2
-        // AVX2 presieves more, so we start with the 24th prime (97)
-        j = 24;
-#else
-        j = 10;
-#endif
+        // start where presieving left off, which is different for various cpus.
+        j = sdata->presieve_max_id;
 
         //unroll the loop: all primes less than this max hit the interval at least 16 times
         maxP = FLAGSIZE >> 4;
 
-		for (;j<ddata->pbounds[i];j++)
+        stopid = MIN(ddata->pbounds[i], 1901);
+		for (;j<stopid;j++)
 		{
 			uint32 tmpP;
 			uint64 stop;
 			uint64 p1,p2,p3;
 
 			prime = sdata->sieve_p[j];
-			if (prime > maxP)
-				break;
 
 			tmpP = prime << 4;
 			stop = FLAGSIZE - tmpP + prime;
@@ -148,89 +144,90 @@ void sieve_line(thread_soedata_t *thread_data)
 		//unroll the loop: all primes less than this max hit the interval at least 8 times
 		maxP = FLAGSIZE >> 3;
 
-		for (;j<ddata->pbounds[i];j++)
-		{
-			uint32 tmpP;
-			uint64 stop;
-			uint64 p2, p4;
+        stopid = MIN(ddata->pbounds[i], 3513);
+        for (; j<stopid; j++)
+        {
+            uint32 tmpP;
+            uint64 stop;
+            uint64 p1, p2, p3;
 
-			prime = sdata->sieve_p[j];
-			if (prime > maxP)
-				break;
+            prime = sdata->sieve_p[j];
 
-			tmpP = prime << 3;
-			stop = FLAGSIZE - tmpP + prime;
-			k=ddata->offsets[j];
-			p2 = prime<<1;
-			p4 = prime<<2;
+            tmpP = prime << 3;
+            stop = FLAGSIZE - tmpP + prime;
+            k = ddata->offsets[j];
+            p1 = prime;
+            p2 = p1 + prime;
+            p3 = p2 + prime;
+            while (k < stop)
+            {
+                flagblock[k >> 3] &= masks[k & 7];
+                flagblock[(k + p1) >> 3] &= masks[(k + p1) & 7];
+                flagblock[(k + p2) >> 3] &= masks[(k + p2) & 7];
+                flagblock[(k + p3) >> 3] &= masks[(k + p3) & 7];
+                k += (prime << 2);
+                flagblock[k >> 3] &= masks[k & 7];
+                flagblock[(k + p1) >> 3] &= masks[(k + p1) & 7];
+                flagblock[(k + p2) >> 3] &= masks[(k + p2) & 7];
+                flagblock[(k + p3) >> 3] &= masks[(k + p3) & 7];
+                k += (prime << 2);
+            }
 
-			while (k < stop)
-			{
-				flagblock[k>>3] &= masks[k&7];								//0 * prime
-				flagblock[(k+prime)>>3] &= masks[(k+prime)&7];				//1 * prime
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];					//2 * prime
-				flagblock[(k+prime+p2)>>3] &= masks[(k+prime+p2)&7];		//3 * prime
-				flagblock[(k+p4)>>3] &= masks[(k+p4)&7];					//4 * prime
-				flagblock[(k+prime+p4)>>3] &= masks[(k+prime+p4)&7];		//5 * prime
-				flagblock[(k+p2+p4)>>3] &= masks[(k+p2+p4)&7];				//6 * prime
-				flagblock[(k+prime+p2+p4)>>3] &= masks[(k+prime+p2+p4)&7];	//7 * prime
-				k += (prime << 3);											//advance
-			}
+            for (; k<FLAGSIZE; k += prime)
+                flagblock[k >> 3] &= masks[k & 7];
 
-			for (;k<FLAGSIZE;k+=prime)								//finish
-				flagblock[k>>3] &= masks[k&7];
+            ddata->offsets[j] = (uint32)(k - FLAGSIZE);
 
-			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
-		}
+        }
 
-		//unroll the loop: all primes less than this max hit the interval at least 4 times
-		maxP = FLAGSIZE >> 2;
+        //unroll the loop: all primes less than this max hit the interval at least 4 times
+        maxP = FLAGSIZE >> 2;
 
-		for (;j<ddata->pbounds[i];j++)
-		{
-			uint32 tmpP;
-			uint64 stop;
-			uint64 p2;
+        stopid = MIN(ddata->pbounds[i], 6543);
+        for (; j<stopid; j++)
+        {
+            uint32 tmpP;
+            uint64 stop;
+            uint64 p1, p2, p3;
 
-			prime = sdata->sieve_p[j];
-			if (prime > maxP)
-				break;
+            prime = sdata->sieve_p[j];
 
-			tmpP = prime << 2;
-			stop = FLAGSIZE - tmpP + prime;
-			k=ddata->offsets[j];
-			p2 = prime<<1;
-			while (k < stop)
-			{
-				flagblock[k>>3] &= masks[k&7];								//0 * prime
-				flagblock[(k+prime)>>3] &= masks[(k+prime)&7];				//1 * prime
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];					//2 * prime
-				flagblock[(k+prime+p2)>>3] &= masks[(k+prime+p2)&7];		//3 * prime
-				k += (prime << 2);											//advance
-			}
+            tmpP = prime << 2;
+            stop = FLAGSIZE - tmpP + prime;
+            k = ddata->offsets[j];
+            p1 = prime;
+            p2 = p1 + prime;
+            p3 = p2 + prime;
+            while (k < stop)
+            {
+                flagblock[k >> 3] &= masks[k & 7];
+                flagblock[(k + p1) >> 3] &= masks[(k + p1) & 7];
+                flagblock[(k + p2) >> 3] &= masks[(k + p2) & 7];
+                flagblock[(k + p3) >> 3] &= masks[(k + p3) & 7];
+                k += (prime << 2);
+            }
 
-			for (;k<FLAGSIZE;k+=prime)								//finish
-				flagblock[k>>3] &= masks[k&7];
+            for (; k<FLAGSIZE; k += prime)
+                flagblock[k >> 3] &= masks[k & 7];
 
-			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
-		}
+            ddata->offsets[j] = (uint32)(k - FLAGSIZE);
 
-		
+        }
+
+        // primes are getting fairly big now, unrolling is less useful.
+        // keep going up to the large prime bound.
+        stopid = MIN(ddata->pbounds[i], 33336);
+        for (; j<ddata->pbounds[i]; j++)
+        {
+            prime = sdata->sieve_p[j];
+            for (k = ddata->offsets[j]; k<FLAGSIZE; k += prime)
+                flagblock[k >> 3] &= masks[k & 7];
+
+            ddata->offsets[j] = (uint32)(k - FLAGSIZE);
+        }
+
 		if (ddata->bucket_depth > 0)
 		{
-			//finish the primes greater than (flagblocklimit >> 2) that we
-			//didn't unroll prior to proceeding with the bucket sieving.
-			for (;j<ddata->pbounds[i];j++)
-			{
-				prime = sdata->sieve_p[j];
-				if (prime > BUCKETSTARTP)
-					break;
-				for (k=ddata->offsets[j];k<FLAGSIZE;k+=prime)
-					flagblock[k>>3] &= masks[k&7];
-
-				ddata->offsets[j]= (uint32)(k - FLAGSIZE);
-			}
-
 			//finally, fill any primes in this block's bucket
 			bptr = ddata->sieve_buckets[i];	
 			buckets = ddata->sieve_buckets;
@@ -241,14 +238,14 @@ void sieve_line(thread_soedata_t *thread_data)
 			{				
 				//unload 8 hits
 
-                flagblock[(bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 0] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 1] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 2] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 3] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 4] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 5] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 6] & FLAGSIZEm1) & 7];
-                flagblock[(bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[(bptr[j + 7] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 0] & 7];
+                flagblock[(bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 1] & 7];
+                flagblock[(bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 2] & 7];
+                flagblock[(bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 3] & 7];
+                flagblock[(bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 4] & 7];
+                flagblock[(bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 5] & 7];
+                flagblock[(bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 6] & 7];
+                flagblock[(bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[bptr[j + 7] & 7];
 				
                 bptr[j + 0] += (bptr[j + 0] >> 32);	
                 bptr[j + 1] += (bptr[j + 1] >> 32);		
@@ -324,7 +321,7 @@ void sieve_line(thread_soedata_t *thread_data)
 			//finish up those that didn't fit into a group of 8 hits
 			for (;j < nptr[i]; j++)
 			{
-                flagblock[((uint32)bptr[j] & FLAGSIZEm1) >> 3] &= masks[((uint32)bptr[j] & FLAGSIZEm1) & 7];
+                flagblock[(bptr[j] & FLAGSIZEm1) >> 3] &= masks[bptr[j] & 7];
                 
                 bptr[j] += (bptr[j] >> 32);
                 if ((uint32)bptr[j] < linesize)
@@ -398,44 +395,30 @@ void sieve_line(thread_soedata_t *thread_data)
                     flagblock32[t[7]] &= _mm_extract_epi32(vext, 3); //t2[7];
 
 #else
-					flagblock[(large_bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 0] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 1] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 2] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 3] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 4] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 5] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 6] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 7] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 8] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 8] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 9] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 9] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 10] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 10] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 11] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 11] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 12] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 12] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 13] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 13] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 14] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 14] & FLAGSIZEm1) & 7];
-					flagblock[(large_bptr[j + 15] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j + 15] & FLAGSIZEm1) & 7];
+					flagblock[(large_bptr[j + 0] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 0] & 7];
+					flagblock[(large_bptr[j + 1] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 1] & 7];
+					flagblock[(large_bptr[j + 2] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 2] & 7];
+					flagblock[(large_bptr[j + 3] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 3] & 7];
+					flagblock[(large_bptr[j + 4] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 4] & 7];
+					flagblock[(large_bptr[j + 5] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 5] & 7];
+					flagblock[(large_bptr[j + 6] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 6] & 7];
+					flagblock[(large_bptr[j + 7] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 7] & 7];
+					flagblock[(large_bptr[j + 8] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 8] & 7];
+					flagblock[(large_bptr[j + 9] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 9] & 7];
+					flagblock[(large_bptr[j + 10] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 10] & 7];
+					flagblock[(large_bptr[j + 11] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 11] & 7];
+					flagblock[(large_bptr[j + 12] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 12] & 7];
+					flagblock[(large_bptr[j + 13] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 13] & 7];
+					flagblock[(large_bptr[j + 14] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 14] & 7];
+					flagblock[(large_bptr[j + 15] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j + 15] & 7];
 #endif
 				}
 
 				for (;j < large_nptr[i]; j++)
-					flagblock[(large_bptr[j] & FLAGSIZEm1) >> 3] &= masks[(large_bptr[j] & FLAGSIZEm1) & 7];
+					flagblock[(large_bptr[j] & FLAGSIZEm1) >> 3] &= masks[large_bptr[j] & 7];
 
 			}
 
-		}
-		else
-		{
-			//didn't need to use a bucket sieve
-			//finish with primes greater than (flagblocklimit >> 2) that we
-			//didn't unroll.
-			for (;j<ddata->pbounds[i];j++)
-			{
-				prime = sdata->sieve_p[j];
-				for (k=ddata->offsets[j];k<FLAGSIZE;k+=prime)
-					flagblock[k>>3] &= masks[k&7];
-
-				ddata->offsets[j]= (uint32)(k - FLAGSIZE);
-			}
 		}
 
 		if (i == 0)
@@ -463,6 +446,7 @@ void sieve_line(thread_soedata_t *thread_data)
 
 	return;
 }
+
 
 
 

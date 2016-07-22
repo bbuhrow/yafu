@@ -42,44 +42,46 @@ void get_offsets(thread_soedata_t *thread_data)
 
 	if (sdata->sieve_range == 0)
 	{
-		for (i=startprime;i<sdata->bucket_start_id;i++)
-		{
-			prime = sdata->sieve_p[i];
+        uint32 *lmp = sdata->lower_mod_prime;
 
-			//find the first multiple of the prime which is greater than the first sieve location 
-			//and also equal to the residue class mod 'prodN'.  
-			//we need to solve the congruence: rclass[current_line] == kp mod prodN for k
-			//xGCD gives r and s such that r*p + s*prodN = gcd(p,prodN).
-			//then k = r*class/gcd(p,prodN) is a solution.
-			//the gcd of p and prodN is always 1 by construction of prodN and choice of p.  
-			//therefore k = r * class is a solution.  furthermore, since the gcd is 1, there
-			//is only one solution.  
-			//xGCD_1((int)prime,(int)prodN,&r,&s,&tmp);
+        for (i = startprime; i < sdata->bucket_start_id; i++)
+        {
+            prime = sdata->sieve_p[i];
 
-			//To speed things up we solve and store modinv(prodN, prime) for every prime (only
-			//needs to be done once, in roots.c).  Then to get the offset for the current block
-			//we just need to multiply the stored root with the starting sieve location (mod p).	
+            //find the first multiple of the prime which is greater than the first sieve location 
+            //and also equal to the residue class mod 'prodN'.  
+            //we need to solve the congruence: rclass[current_line] == kp mod prodN for k
+            //xGCD gives r and s such that r*p + s*prodN = gcd(p,prodN).
+            //then k = r*class/gcd(p,prodN) is a solution.
+            //the gcd of p and prodN is always 1 by construction of prodN and choice of p.  
+            //therefore k = r * class is a solution.  furthermore, since the gcd is 1, there
+            //is only one solution.  
+            //xGCD_1((int)prime,(int)prodN,&r,&s,&tmp);
 
-			//if the prime is greater than the limit at which it is necessary to sieve
-			//a block, start that prime in the next block.
-			if (sdata->sieve_p[i] > ddata->blk_b_sqrt)
-			{
-				ddata->pbounds[block] = i;
-				block++;
-				ddata->lblk_b = ddata->ublk_b + prodN;
-				ddata->ublk_b += sdata->blk_r;
-				ddata->blk_b_sqrt = (uint64)(sqrt((int64)(ddata->ublk_b + prodN))) + 1;
-			}
-		
-			s = sdata->root[i];
+            //To speed things up we solve and store modinv(prodN, prime) for every prime (only
+            //needs to be done once, in roots.c).  Then to get the offset for the current block
+            //we just need to multiply the stored root with the starting sieve location (mod p).	
 
-			//the lower block bound (lblk_b) times s can exceed 64 bits for large ranges,
-			//so reduce mod p here as well.
-			tmp2 =  (uint64)s * (ddata->lblk_b % (uint64)prime);
-			ddata->offsets[i] = (uint32)(tmp2 % (uint64)prime);
-			//printf("p = %u, o = %u, r = %d, lblk_b = %" PRIu64 " modp = %u\n", prime, ddata->offsets[i], s,
-			//	ddata->lblk_b, (uint32)(ddata->lblk_b % (uint64)prime));
-		}
+            //if the prime is greater than the limit at which it is necessary to sieve
+            //a block, start that prime in the next block.
+            if (sdata->sieve_p[i] > ddata->blk_b_sqrt)
+            {
+                ddata->pbounds[block] = i;
+                block++;
+                ddata->lblk_b = ddata->ublk_b + prodN;
+                ddata->ublk_b += sdata->blk_r;
+                ddata->blk_b_sqrt = (uint64)(sqrt((int64)(ddata->ublk_b + prodN))) + 1;
+            }
+
+            s = sdata->root[i];
+
+            //the lower block bound (lblk_b) times s can exceed 64 bits for large ranges,
+            //so reduce mod p here as well.
+            tmp2 = (uint64)s * (ddata->lblk_b % (uint64)prime);
+                
+            //tmp2 = (uint64)s * (uint64)(lmp[i] + diff);
+            ddata->offsets[i] = (uint32)(tmp2 % (uint64)prime);
+        }
 	}
 	else
 	{
@@ -131,7 +133,7 @@ void get_offsets(thread_soedata_t *thread_data)
 
 		uint32 *nptr;
 		uint32 linesize = FLAGSIZE * sdata->blocks;
-		uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
+        uint32 *lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 		
 		nptr = ddata->bucket_hits;
 		bptr = ddata->sieve_buckets;
@@ -164,8 +166,9 @@ void get_offsets(thread_soedata_t *thread_data)
 			root = (uint32)(tmp2 % (uint64)prime);
 			r2 = (uint32)(tmp3 % (uint64)p2);
 
-            // As of the AVX2 modifications 6/2016, it is faster to update during
-            // linesieve than doing it all here in a loop
+            // It is faster to update during
+            // linesieve than doing it all here in a loop.
+            // measured 6/2016
 			if (root < linesize)			
 			{	
 				bnum = (root >> FLAGBITS);
@@ -184,7 +187,7 @@ void get_offsets(thread_soedata_t *thread_data)
 
 		if ((i < sdata->inplace_start_id) && (ddata->largep_offset == 0))
 		{
-			uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
+            uint32 *lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 			prime = sdata->sieve_p[i];
 
 			s = sdata->root[i];
@@ -211,7 +214,7 @@ void get_offsets(thread_soedata_t *thread_data)
             // itself since it doesn't need to be advanced.
 			uint32 **large_bptr;
 			uint32 *large_nptr;
-			uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
+            uint32 *lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 
 			large_nptr = ddata->large_bucket_hits;
 			large_bptr = ddata->large_sieve_buckets;
@@ -259,10 +262,9 @@ void get_offsets(thread_soedata_t *thread_data)
 				
 			}
 
-			//if (i<sdata->pboundi)
 			if (i < sdata->inplace_start_id)
 			{		
-				uint32 *lmp = sdata->lower_mod_prime - sdata->bucket_start_id;
+                uint32 *lmp = sdata->lower_mod_prime;// -sdata->bucket_start_id;
 				prime = sdata->sieve_p[i];
 
 				s = sdata->root[i];

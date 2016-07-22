@@ -21,102 +21,307 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	uint32 pcount = start_count;	
 	uint64 i;
 	int j;
+    int k;
 	uint32 range, lastid;
-	int pchar = 0;
-	// for testing of parallel approach
-	int do_parallel = 1;
-	int tmpt;
 
-	if (!do_parallel)
-	{
-		tmpt = THREADS;
-		THREADS = 1;
-	}
+#ifdef USE_SOE_THREADPOOL
+    // thread work-queue controls
+    int threads_working = 0;
+    int *thread_queue;
+    int *threads_waiting;
+#if defined(WIN32) || defined(_WIN64)
+    HANDLE queue_lock;
+    HANDLE *queue_events = NULL;
+#else
+    pthread_mutex_t queue_lock;
+    pthread_cond_t queue_cond;
+#endif
 
-	// start the threads
-	for (i = 0; i < THREADS - 1; i++)
-		start_soe_worker_thread(thread_data + i, 0);
+#else
 
-	start_soe_worker_thread(thread_data + i, 1);
+    // start the threads
+    for (i = 0; i < THREADS - 1; i++)
+        start_soe_worker_thread(thread_data + i);
+
+#endif
 
 	// each thread needs to work on a number of bytes that is divisible by 8
 	range = sdata->numlinebytes / THREADS;
 	range -= (range % 8);
 	lastid = 0;
 
-	// divvy up the line bytes
-	for (i = 0; i < THREADS; i++)
-	{
-		thread_soedata_t *t = thread_data + i;
+    // divvy up the line bytes
+    for (i = 0; i < THREADS; i++)
+    {
+        thread_soedata_t *t = thread_data + i;
 
-		t->sdata = *sdata;
-		t->startid = lastid;
-		t->stopid = t->startid + range; 
-		lastid = t->stopid;
+        t->sdata = *sdata;
+        t->startid = lastid;
+        t->stopid = t->startid + range;
+        lastid = t->stopid;
 
-		if (VFLAG > 2)
-			printf("thread %d finding primes from byte offset %u to %u\n", 
-				(int)i, t->startid, t->stopid);
-	}
+        if (VFLAG > 2)
+        {
+            printf("thread %d finding primes from byte offset %u to %u\n",
+                (int)i, t->startid, t->stopid);
+        }
+    }
 
-	// allocate a temporary array for each thread's primes
-	if (THREADS > 1)
-	{
-		uint64 memchunk;
+    // allocate a temporary array for each thread's primes
+    if (THREADS > 1)
+    {
+        uint64 memchunk;
 
-		if (sdata->sieve_range)
-		{
-			// then just split the overall range into equal parts
-			memchunk = (sdata->orig_hlimit - sdata->orig_llimit) / THREADS + THREADS;
+        if (sdata->sieve_range)
+        {
+            // then just split the overall range into equal parts
+            memchunk = (sdata->orig_hlimit - sdata->orig_llimit) / THREADS + THREADS;
 
-			for (i = 0; i < THREADS; i++)
-			{
-				thread_soedata_t *t = thread_data + i;
+            for (i = 0; i < THREADS; i++)
+            {
+                thread_soedata_t *t = thread_data + i;
 
-				t->ddata.primes = (uint64 *)malloc(memchunk * sizeof(uint64));
-			}
-		}
-		else
-		{
-			// then estimate the number of primes we'll find in each chunk.
-			// it's important to do this chunk by chunk, because in some cases
-			// the number of primes changes rapidly as a function of offset
-			// from the start of the range (i.e., when start is 0)
-			uint64 hi_est, lo_est;
-			uint64 tmplo = sdata->orig_llimit;
-			uint64 tmphi;
-			uint64 chunk = 8 * sdata->numlinebytes / THREADS;
+                t->ddata.primes = (uint64 *)malloc(memchunk * sizeof(uint64));
+            }
+        }
+        else
+        {
+            // then estimate the number of primes we'll find in each chunk.
+            // it's important to do this chunk by chunk, because in some cases
+            // the number of primes changes rapidly as a function of offset
+            // from the start of the range (i.e., when start is 0)
+            uint64 hi_est, lo_est;
+            uint64 tmplo = sdata->orig_llimit;
+            uint64 tmphi;
+            uint64 chunk = 8 * sdata->numlinebytes / THREADS;
 
-			chunk *= sdata->prodN;
-			tmphi = tmplo + chunk;
-			for (i = 0; i < THREADS; i++)
-			{
-				thread_soedata_t *t = thread_data + i;
+            chunk *= sdata->prodN;
+            tmphi = tmplo + chunk;
+            for (i = 0; i < THREADS; i++)
+            {
+                thread_soedata_t *t = thread_data + i;
 
-				hi_est = (uint64)(tmphi/log((double)tmphi));
-				if (tmplo > 1)
-					lo_est = (uint64)(tmplo/log((double)tmplo));
-				else
-					lo_est = 0;
+                hi_est = (uint64)(tmphi / log((double)tmphi));
+                if (tmplo > 1)
+                    lo_est = (uint64)(tmplo / log((double)tmplo));
+                else
+                    lo_est = 0;
 
-				memchunk = (uint64)((double)(hi_est - lo_est) * 1.25);
+                memchunk = (uint64)((double)(hi_est - lo_est) * 1.25);
 
-				if (VFLAG > 2)
-					printf("allocating temporary space for %" PRIu64 " primes between %" PRIu64 " and %" PRIu64 "\n",
-						memchunk, tmplo, tmphi);
+                if (VFLAG > 2)
+                {
+                    printf("allocating temporary space for %" PRIu64 " primes between %" PRIu64 " and %" PRIu64 "\n",
+                        memchunk, tmplo, tmphi);
+                }
 
-				t->ddata.primes = (uint64 *)malloc(memchunk * sizeof(uint64));
+                t->ddata.primes = (uint64 *)malloc(memchunk * sizeof(uint64));
 
-				tmplo += chunk;
-				tmphi += chunk;
-			}			
-		}		
-	}
-	else
-	{
-		// with just one thread, don't bother with creating a temporary array
-		thread_data[0].ddata.primes = primes;
-	}
+                tmplo += chunk;
+                tmphi += chunk;
+            }
+        }
+    }
+    else
+    {
+        // with just one thread, don't bother with creating a temporary array
+        thread_data[0].ddata.primes = primes;
+    }
+
+#ifdef USE_SOE_THREADPOOL
+
+    // allocate the queue of threads waiting for work
+    thread_queue = (int *)malloc(THREADS * sizeof(int));
+    threads_waiting = (int *)malloc(sizeof(int));
+
+    if (THREADS > 1)
+    {
+#if defined(WIN32) || defined(_WIN64)
+        queue_lock = CreateMutex(
+            NULL,              // default security attributes
+            FALSE,             // initially not owned
+            NULL);             // unnamed mutex
+        queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
+#else
+        pthread_mutex_init(&queue_lock, NULL);
+        pthread_cond_init(&queue_cond, NULL);
+#endif
+    }
+
+    for (i = 0; i<THREADS; i++)
+    {
+        thread_data[i].tindex = i;
+        thread_data[i].tstartup = 1;
+        // assign all thread's a pointer to the waiting queue.  access to 
+        // the array will be controlled by a mutex
+        thread_data[i].thread_queue = thread_queue;
+        thread_data[i].threads_waiting = threads_waiting;
+
+        if (THREADS > 1)
+        {
+#if defined(WIN32) || defined(_WIN64)
+            // assign a pointer to the mutex
+            thread_data[i].queue_lock = &queue_lock;
+            thread_data[i].queue_event = &queue_events[i];
+#else
+            thread_data[i].queue_lock = &queue_lock;
+            thread_data[i].queue_cond = &queue_cond;
+#endif
+        }
+    }
+
+    if (THREADS > 1)
+    {
+        // Activate the worker threads one at a time. 
+        // Initialize the work queue to say all threads are waiting for work
+        for (i = 0; i < THREADS; i++)
+        {
+            start_soe_worker_thread(thread_data + i);
+            thread_queue[i] = i;
+        }
+    }
+    *threads_waiting = THREADS;
+
+    if (THREADS > 1)
+    {
+#if defined(WIN32) || defined(_WIN64)
+        // nothing
+#else
+        pthread_mutex_lock(&queue_lock);
+#endif
+    }
+
+    k = 0;
+    //printf("=== starting threaded sieve\n");
+    while (1)
+    {
+
+        // Process threads until there are no more waiting for their results to be collected
+        while (*threads_waiting > 0)
+        {
+            int tid;
+
+            if (THREADS > 1)
+            {
+                // Pop a waiting thread off the queue (OK, it's stack not a queue)
+#if defined(WIN32) || defined(_WIN64)
+                WaitForSingleObject(
+                    queue_lock,    // handle to mutex
+                    INFINITE);  // no time-out interval
+#endif
+
+                tid = thread_queue[--(*threads_waiting)];
+
+#if defined(WIN32) || defined(_WIN64)
+                ReleaseMutex(queue_lock);
+#endif
+            }
+            else
+            {
+                tid = 0;
+            }
+
+            // if not in startup...
+            if (thread_data[tid].tstartup == 0)
+            {
+
+                // this thread is done, so decrement the count of working threads
+                threads_working--;
+            }
+            else
+            {
+                thread_data[tid].tstartup = 0;
+            }
+
+            // don't really need a threadpool for this, since we just assign
+            // one chunk of work to each thread, but we need to use the existing
+            // infrastructure.  In the future, process smaller batches in a pool.
+            if (k < THREADS)
+            {
+                thread_soedata_t *t = thread_data + tid;
+
+                t->command = SOE_COMPUTE_PRIMES;
+
+                if (THREADS > 1)
+                {
+                    // send the thread a signal to start processing the poly we just generated for it
+#if defined(WIN32) || defined(_WIN64)
+                    SetEvent(thread_data[tid].run_event);
+#else
+                    pthread_mutex_lock(&thread_data[tid].run_lock);
+                    pthread_cond_signal(&thread_data[tid].run_cond);
+                    pthread_mutex_unlock(&thread_data[tid].run_lock);
+#endif
+                }
+
+                // this thread is now busy, so increment the count of working threads
+                threads_working++;
+
+                // and keep track of where we are overall.
+                k++;
+            }
+
+            if (THREADS == 1)
+                *threads_waiting = 0;
+
+        } // while (*threads_waiting > 0)
+
+        // if all threads are done, break out
+        if (threads_working == 0)
+            break;
+
+        if (THREADS > 1)
+        {
+            // wait for a thread to finish and put itself in the waiting queue
+#if defined(WIN32) || defined(_WIN64)
+            j = WaitForMultipleObjects(
+                THREADS,
+                queue_events,
+                FALSE,
+                INFINITE);
+#else
+            pthread_cond_wait(&queue_cond, &queue_lock);
+#endif
+        }
+        else
+        {
+            //do some work
+            thread_soedata_t *t = thread_data + 0;
+
+            if (THREADS == 1)
+                t->linecount = pcount;
+            else
+                t->linecount = 0;
+
+            for (i = t->startid; i < t->stopid; i += 8)
+            {
+                t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);
+            }
+
+            *threads_waiting = 1;
+        }
+    }
+
+    //printf("=== computing finished\n");
+
+    //stop worker threads
+    for (i = 0; i<THREADS; i++)
+    {
+        if (THREADS > 1)
+            stop_soe_worker_thread(thread_data + i);
+    }
+
+    //printf("=== threading stopped\n");
+
+    free(thread_queue);
+    free(threads_waiting);
+
+#if defined(WIN32) || defined(_WIN64)
+    if (THREADS > 1)
+        free(queue_events);
+#endif
+
+#else
 
 	// now run with the threads
 	for (j = 0; j < THREADS; j++)
@@ -132,7 +337,7 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 
 			for (i = t->startid; i < t->stopid; i+=8)
 			{
-				t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i, &pchar);		
+				t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);		
 			}
 		}
 		else
@@ -167,7 +372,9 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 
 	//stop the worker threads
 	for (i=0; i<THREADS - 1; i++)
-		stop_soe_worker_thread(thread_data + i, 0);
+		stop_soe_worker_thread(thread_data + i);
+
+#endif
 
 	// now combine all of the temporary arrays, if necessary
 	if (THREADS > 1)
@@ -192,8 +399,10 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 			free(t->ddata.primes);
 		}
 	}
-	else
-		pcount = thread_data[0].linecount;
+    else
+    {
+        pcount = thread_data[0].linecount;
+    }
 
 	// and finally, get primes from any residual portion of the line arrays
 	// using a direct method
@@ -205,27 +414,15 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 
 		for (i = lastid; i < sdata->numlinebytes; i+=8)
 		{
-			pcount = compute_8_bytes(sdata, pcount, primes, i, NULL);		
+			pcount = compute_8_bytes(sdata, pcount, primes, i);		
 		}
 	}
-
-
-	if (VFLAG > 1)
-	{
-		//don't print status if computing primes, because lots of routines within
-		//yafu do this and they don't want this side effect
-		for (i = 0; i<pchar; i++)
-			printf("\b");
-	}
-
-	if (!do_parallel)
-		THREADS = tmpt;
 
 	return pcount;
 }
 
 uint32 compute_8_bytes(soe_staticdata_t *sdata, 
-	uint32 pcount, uint64 *primes, uint64 byte_offset, int *pchar)
+	uint32 pcount, uint64 *primes, uint64 byte_offset)
 {
 	int b;	
 	uint32 current_line;
@@ -254,12 +451,10 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
 		
 	if ((byte_offset & 32767) == 0)
 	{
-		if ((VFLAG > 1) && (pchar != NULL))
+		if (VFLAG > 1)
 		{
 			int k;
-			for (k = 0; k < *pchar; k++)
-				printf("\b");
-			*pchar = printf("computing: %d%%",(int)
+			printf("computing: %d%%\r",(int)
 				((double)byte_offset / (double)(sdata->numlinebytes) * 100.0));
 			fflush(stdout);
 		}

@@ -439,9 +439,9 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 
 			// start the threads
 			for (i = 0; i < THREADS - 1; i++)
-				start_soe_worker_thread(thread_data + i, 0);
+				start_soe_worker_thread(thread_data + i);
 
-			start_soe_worker_thread(thread_data + i, 1);
+			//start_soe_worker_thread(thread_data + i, 1);
 
 			range = *num_p / THREADS;
 			lastid = 0;
@@ -550,7 +550,7 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 
 			//stop the worker threads
 			for (i=0; i<THREADS - 1; i++)
-				stop_soe_worker_thread(thread_data + i, 0);
+				stop_soe_worker_thread(thread_data + i);
 
 			// combine results and free stuff
 			if (THREADS == 1)

@@ -100,22 +100,280 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int count)
 {
 	uint64 i,j,k,num_p=0;
-	int pchar;
 	uint64 numclasses = sdata->numclasses;
 
-	/* activate the threads one at a time. The last is the
-	   master thread (i.e. not a thread at all). */
+#ifdef USE_SOE_THREADPOOL
+    // thread work-queue controls
+    int threads_working = 0;
+    int *thread_queue;
+    int *threads_waiting;
+#if defined(WIN32) || defined(_WIN64)
+    HANDLE queue_lock;
+    HANDLE *queue_events = NULL;
+#else
+    pthread_mutex_t queue_lock;
+    pthread_cond_t queue_cond;
+#endif
+#endif
 
+	
+#ifndef USE_SOE_THREADPOOL
+    /* activate the threads one at a time. The last is the
+    master thread (i.e. not a thread at all). */
 	for (i = 0; i < THREADS - 1; i++)
-		start_soe_worker_thread(thread_data + i, 0);
+		start_soe_worker_thread(thread_data + i);
 
-	start_soe_worker_thread(thread_data + i, 1);
+#endif
 
 	//main sieve, line by line
 	k = 0;	//count total lines processed
-	pchar = 0;
 	num_p = 0;
+
+#ifdef USE_SOE_THREADPOOL
+    // allocate the queue of threads waiting for work
+    thread_queue = (int *)malloc(THREADS * sizeof(int));
+    threads_waiting = (int *)malloc(sizeof(int));
+
+    if (THREADS > 1)
+    {
+#if defined(WIN32) || defined(_WIN64)
+        queue_lock = CreateMutex(
+            NULL,              // default security attributes
+            FALSE,             // initially not owned
+            NULL);             // unnamed mutex
+        queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
+#else
+        pthread_mutex_init(&queue_lock, NULL);
+        pthread_cond_init(&queue_cond, NULL);
+#endif
+    }
+
+    for (i = 0; i<THREADS; i++)
+    {
+        thread_data[i].tindex = i;
+        thread_data[i].tstartup = 1;
+        // assign all thread's a pointer to the waiting queue.  access to 
+        // the array will be controlled by a mutex
+        thread_data[i].thread_queue = thread_queue;
+        thread_data[i].threads_waiting = threads_waiting;
+
+        if (THREADS > 1)
+        {
+#if defined(WIN32) || defined(_WIN64)
+            // assign a pointer to the mutex
+            thread_data[i].queue_lock = &queue_lock;
+            thread_data[i].queue_event = &queue_events[i];
+#else
+            thread_data[i].queue_lock = &queue_lock;
+            thread_data[i].queue_cond = &queue_cond;
+#endif
+        }
+    }
+
+    if (THREADS > 1)
+    {
+        // Activate the worker threads one at a time. 
+        // Initialize the work queue to say all threads are waiting for work
+        for (i = 0; i < THREADS; i++)
+        {
+            start_soe_worker_thread(thread_data + i);
+            thread_queue[i] = i;
+        }
+    }
+    *threads_waiting = THREADS;
 	
+    if (THREADS > 1)
+    {
+#if defined(WIN32) || defined(_WIN64)
+        // nothing
+#else
+        pthread_mutex_lock(&queue_lock);
+#endif
+    }
+
+    //printf("=== starting threaded sieve\n");
+    while (1)
+    {
+
+        // Process threads until there are no more waiting for their results to be collected
+        while (*threads_waiting > 0)
+        {
+            int tid;
+
+            if (THREADS > 1)
+            {
+                // Pop a waiting thread off the queue (OK, it's stack not a queue)
+#if defined(WIN32) || defined(_WIN64)
+                WaitForSingleObject(
+                    queue_lock,    // handle to mutex
+                    INFINITE);  // no time-out interval
+#endif
+
+                tid = thread_queue[--(*threads_waiting)];
+
+#if defined(WIN32) || defined(_WIN64)
+                ReleaseMutex(queue_lock);
+#endif
+            }
+            else
+            {
+                tid = 0;
+            }
+
+            // if not in startup...
+            if (thread_data[tid].tstartup == 0)
+            {
+                //printf("=== thread %d finished\n", tid);
+
+                //printf a progress report if counting
+                if (VFLAG > 1)
+                {
+                    //don't print status if computing primes, because lots of routines within
+                    //yafu do this and they don't want this side effect
+                    printf("sieving: %d%%\r", (int)((double)k / (double)(numclasses)* 100.0));
+                    fflush(stdout);
+                }
+
+#ifndef INPLACE_BUCKET
+                if (count)
+                {
+                    num_p += thread_data[tid].linecount;
+                }
+
+                if (thread_data[tid].ddata.min_sieved_val < sdata->min_sieved_val)
+                {
+                    sdata->min_sieved_val = thread_data[tid].ddata.min_sieved_val;
+                }
+#endif
+
+                // this thread is done, so decrement the count of working threads
+                threads_working--;
+            }
+            else
+            {
+                thread_data[tid].tstartup = 0;
+            }
+
+            // if not done, dispatch another line for sieving
+            if (k < numclasses)
+            {
+                thread_soedata_t *t = thread_data + tid;
+
+                t->current_line = (uint32)k;
+
+                //printf("=== thread %d set to process line %d\n", tid, k);
+
+                if (count)
+                    t->command = SOE_COMMAND_SIEVE_AND_COUNT;
+                else
+                    t->command = SOE_COMMAND_SIEVE_AND_COMPUTE;
+
+                if (THREADS > 1)
+				{
+					// send the thread a signal to start processing the poly we just generated for it
+#if defined(WIN32) || defined(_WIN64)
+					SetEvent(thread_data[tid].run_event);
+#else
+					pthread_mutex_lock(&thread_data[tid].run_lock);
+					pthread_cond_signal(&thread_data[tid].run_cond);
+					pthread_mutex_unlock(&thread_data[tid].run_lock);
+#endif
+				}
+
+                // this thread is now busy, so increment the count of working threads
+                threads_working++;
+
+                // and keep track of where we are overall.
+                k++;
+            }
+            
+            if (THREADS == 1)
+                *threads_waiting = 0;
+
+        } // while (*threads_waiting > 0)
+
+        // if all threads are done, break out
+        if (threads_working == 0)
+            break;
+
+        if (THREADS > 1)
+        {
+            // wait for a thread to finish and put itself in the waiting queue
+#if defined(WIN32) || defined(_WIN64)
+            j = WaitForMultipleObjects(
+                THREADS,
+                queue_events,
+                FALSE,
+                INFINITE);
+#else
+            pthread_cond_wait(&queue_cond, &queue_lock);
+#endif
+        }
+        else
+        {
+            //do some work
+            thread_soedata_t *t = thread_data + 0;            
+
+            if (count)
+            {
+                // if we are only counting, can discard each line
+                // after we are done sieving/counting it.  (note, this is
+                // no longer true if we count twins or other prime tuples)
+                t->sdata.lines[t->current_line] =
+                    (uint8 *)xmalloc_align(t->sdata.numlinebytes * sizeof(uint8));
+                sieve_line(t);
+                t->linecount = count_line(sdata, t->current_line);
+                align_free(t->sdata.lines[t->current_line]);
+
+                //printf a progress report if counting
+                if (VFLAG > 1)
+                {
+                    //don't print status if computing primes, because lots of routines within
+                    //yafu do this and they don't want this side effect
+                    printf("sieving: %d%%\r", (int)((double)k / (double)(numclasses)* 100.0));
+                    fflush(stdout);
+                }
+
+                if (t->ddata.min_sieved_val < sdata->min_sieved_val)
+                    sdata->min_sieved_val = t->ddata.min_sieved_val;
+
+            }
+            else
+            {
+                sieve_line(t);
+            }
+
+            *threads_waiting = 1;
+        }
+    }
+
+    //printf("=== classes finished\n");
+
+#ifndef INPLACE_BUCKET
+    sdata->num_found = num_p;
+#endif
+
+    //stop worker threads
+    for (i=0; i<THREADS; i++)
+    {
+        if (THREADS > 1)
+            stop_soe_worker_thread(thread_data + i);
+        align_free(thread_data[i].ddata.offsets);
+    }
+
+    //printf("=== threading stopped\n");
+
+    free(thread_queue);
+    free(threads_waiting);
+
+#if defined(WIN32) || defined(_WIN64)
+    if (THREADS > 1)
+        free(queue_events);
+#endif
+
+#else
+
+
 	while (k < numclasses)
 	{
 		fflush(stdout);
@@ -183,9 +441,7 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 		{
 			//don't print status if computing primes, because lots of routines within
 			//yafu do this and they don't want this side effect
-			for (i = 0; i<pchar; i++)
-				printf("\b");
-			pchar = printf("sieving: %d%%",(int)((double)k / (double)(numclasses) * 100.0));
+			printf("sieving: %d%%\r",(int)((double)k / (double)(numclasses) * 100.0));
 			fflush(stdout);
 		}
 		
@@ -213,10 +469,10 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 	//stop the worker threads and free stuff not needed anymore
 	for (i=0; i<THREADS - 1; i++)
 	{
-		stop_soe_worker_thread(thread_data + i, 0);
+		stop_soe_worker_thread(thread_data + i);
         align_free(thread_data[i].ddata.offsets);
 	}
-	stop_soe_worker_thread(thread_data + i, 1);
+	//stop_soe_worker_thread(thread_data + i, 1);
 	align_free(thread_data[i].ddata.offsets);
 
 #ifdef INPLACE_BUCKET
@@ -236,10 +492,7 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 				if (VFLAG > 0)
 				{
 					int k;
-					////don't print status if computing primes, because lots of routines within
-					////yafu do this and they don't want this side effect
-					for (k = 0; k < pchar; k++)
-						printf("\b");
+
 					//pchar = printf("sieving: %d%%",
 					//	(int)(((i * sdata->numclasses + j) / (sdata->blocks * sdata->numclasses)) * 100.0));
 					//fflush(stdout);
@@ -354,13 +607,10 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 	sdata->num_found = num_p;
 
 #else
-	if (VFLAG > 1)
-	{
-		//don't print status if computing primes, because lots of routines within
-		//yafu do this and they don't want this side effect
-		for (i = 0; i<pchar; i++)
-			printf("\b");
-	}
+
+#endif
+
+
 #endif
 
 	return;
@@ -468,6 +718,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 	{
 		thread_soedata_t *thread = thread_data + i;
 		free(thread->ddata.pbounds);
+        align_free(thread->ddata.presieve_scratch);
 	}
 
 	if (sdata->num_bucket_primes > 0)
@@ -487,7 +738,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 			}
 			free(thread->ddata.sieve_buckets);
 			if (thread->ddata.large_sieve_buckets != NULL)
-				free(thread->ddata.large_sieve_buckets);
+				free(thread->ddata.large_sieve_buckets);            
 		}
 
 	}

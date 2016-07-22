@@ -13,6 +13,7 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "soe.h"
+#include <immintrin.h>
 
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 {
@@ -22,11 +23,81 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 	uint64 lowlimit = sdata->lowlimit;
 	uint64 prodN = sdata->prodN;
 	uint64 *flagblock64 = (uint64 *)line;
-	uint8 *flagblock;
+	uint8 *flagblock = line;
 	uint64 i, k, it = 0;
 	int ix;
 	int done, kx;
 	uint64 prime;
+
+
+#ifdef USE_AVX2
+
+    __m256i v5, v3, v0f, v3f;
+    uint32 *tmp;
+
+    v5 = _mm256_set1_epi32(0x55555555);
+    v3 = _mm256_set1_epi32(0x33333333);
+    v0f = _mm256_set1_epi32(0x0F0F0F0F);
+    v3f = _mm256_set1_epi32(0x0000003F);
+    tmp = (uint32 *)xmalloc_align(8 * sizeof(uint32));
+
+    // process 256 bits at a time (4 64-bit words at a time) using AVX2
+    for (i = 0; i < (numlinebytes >> 5); i+=2)
+    {
+        __m256i t1, t2, t3, t4;
+        __m256i x = _mm256_load_si256((__m256i *)(&flagblock[32 * i]));
+        __m256i y = _mm256_load_si256((__m256i *)(&flagblock[32 * i + 32]));
+        t1 = _mm256_srli_epi64(x, 1);
+        t3 = _mm256_srli_epi64(y, 1);
+        t1 = _mm256_and_si256(t1, v5);
+        t3 = _mm256_and_si256(t3, v5);
+        x = _mm256_sub_epi64(x, t1);
+        y = _mm256_sub_epi64(y, t3);
+        t1 = _mm256_and_si256(x, v3);
+        t3 = _mm256_and_si256(y, v3);
+        t2 = _mm256_srli_epi64(x, 2);
+        t4 = _mm256_srli_epi64(y, 2);
+        t2 = _mm256_and_si256(t2, v3);
+        t4 = _mm256_and_si256(t4, v3);
+        x = _mm256_add_epi64(t2, t1);
+        y = _mm256_add_epi64(t4, t3);
+        t1 = _mm256_srli_epi64(x, 4);
+        t3 = _mm256_srli_epi64(y, 4);
+        x = _mm256_add_epi64(x, t1);
+        y = _mm256_add_epi64(y, t3);
+        x = _mm256_and_si256(x, v0f);
+        y = _mm256_and_si256(y, v0f);
+        t1 = _mm256_srli_epi64(x, 8);
+        t3 = _mm256_srli_epi64(y, 8);
+        x = _mm256_add_epi64(x, t1);
+        y = _mm256_add_epi64(y, t3);
+        t1 = _mm256_srli_epi64(x, 16);
+        t3 = _mm256_srli_epi64(y, 16);
+        x = _mm256_add_epi64(x, t1);
+        y = _mm256_add_epi64(y, t3);
+        t1 = _mm256_srli_epi64(x, 32);
+        t3 = _mm256_srli_epi64(y, 32);
+        x = _mm256_add_epi64(x, t1);
+        y = _mm256_add_epi64(y, t3);
+        x = _mm256_and_si256(x, v3f);
+        y = _mm256_and_si256(y, v3f);
+        _mm256_store_si256((__m256i *)tmp, x);
+        it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
+        _mm256_store_si256((__m256i *)tmp, y);
+        it += tmp[0] + tmp[2] + tmp[4] + tmp[6];
+       
+    }
+
+    align_free(tmp);
+
+#elif defined (USE_SSE41)
+
+    for (i=0;i<(numlinebytes >> 3);i++)
+    {
+        it += _mm_popcnt_u64(flagblock64[i]);
+    }
+
+#else
 
 	for (i=0;i<(numlinebytes >> 3);i++)
 	{
@@ -37,6 +108,7 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 			*  "Hacker's Delight" book, chapter 5.   Added one more shift-n-add
 			*  to accomdate 64 bit values.
 			*/
+        
 		x = x - ((x >> 1) & 0x5555555555555555ULL);
 		x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
 		x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
@@ -45,7 +117,10 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 		x = x + (x >> 32);
 
 		it += (x & 0x000000000000003FULL);
+        
 	}
+
+#endif
 
 	//potentially misses the last few bytes
 	//use the simpler baseline method to get these few
