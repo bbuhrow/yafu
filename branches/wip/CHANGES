@@ -34,7 +34,7 @@ v 1.35 (beta)
 + more work on MIC (not functional)
 + linking against Msieve SVN 991
 + removed HAVE_CUDA #defines, dead code path
-+ AVX2 enhancements to sieve of eratosthenes (presieving)
++ AVX2 and other enhancements to sieve of eratosthenes (presieving, small prime sieves)
 + bug fixes related to test sieving interface (thanks dubslow!)
 
 

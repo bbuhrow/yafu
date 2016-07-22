@@ -141,7 +141,7 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 
 uint64 init_sieve(soe_staticdata_t *sdata)
 {
-	int i,k;
+	int i,j,k;
 	uint64 numclasses = sdata->numclasses;
 	uint64 prodN = sdata->prodN;
 	uint64 allocated_bytes = 0;
@@ -354,8 +354,10 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 #endif
 
 	//these are only used by the bucket sieve
-	sdata->lower_mod_prime = (uint32 *)malloc(sdata->num_bucket_primes * sizeof(uint32));
-	allocated_bytes += sdata->num_bucket_primes * sizeof(uint32);
+	//sdata->lower_mod_prime = (uint32 *)malloc(sdata->num_bucket_primes * sizeof(uint32));    
+    //allocated_bytes += sdata->num_bucket_primes * sizeof(uint32);
+    sdata->lower_mod_prime = (uint32 *)malloc(sdata->pboundi * sizeof(uint32));
+    allocated_bytes += sdata->pboundi * sizeof(uint32);
 	if (sdata->lower_mod_prime == NULL)
 	{
 		printf("error allocating lower mod prime\n");
@@ -365,7 +367,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 	{
 		if (VFLAG > 2)
 			printf("allocated %u bytes for lower mod prime\n",
-			(uint32)sdata->num_bucket_primes * (uint32)sizeof(uint32));
+            (uint32)sdata->pboundi * (uint32)sizeof(uint32));
 	}
 
 	//allocate all of the lines if we are computing primes.  if we are
@@ -393,6 +395,56 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 			numbytes += numlinebytes * sizeof(uint8);
 		}
 	}
+
+#ifdef USE_AVX2
+    // during presieveing, storing precomputed lists will start to get unwieldy, so
+    // generate the larger lists here.
+    sdata->presieve_max_id = 40;
+
+    for (j = 24; j < sdata->presieve_max_id; j++)
+    {
+        uint32 prime = sdata->sieve_p[j];
+
+        // for each possible starting location
+        for (i = 0; i < prime; i++)
+        {
+            uint64 interval[4] = { 0xffffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffffffULL };
+
+            // sieve up to the bound, printing each 64-bit word as we fill it
+            k = i;
+            if (k >= 256) k -= 256;
+
+            for (; k < 256; k += prime)
+            {
+                interval[k >> 6] &= ~(1ULL << k);
+            }
+
+            presieve_largemasks[j - 24][i][0] = interval[0];
+            presieve_largemasks[j - 24][i][1] = interval[1];
+            presieve_largemasks[j - 24][i][2] = interval[2];
+            presieve_largemasks[j - 24][i][3] = interval[3];
+        }        
+    }
+
+    for (j = 24; j < sdata->presieve_max_id; j++)
+    {
+        presieve_primes[j - 24] = sdata->sieve_p[j];
+    }
+
+    for (j = 24; j < sdata->presieve_max_id; j++)
+    {
+        presieve_p1[j - 24] = sdata->sieve_p[j] - 1;
+    }
+
+    for (j = 24; j < sdata->presieve_max_id; j++)
+    {
+        presieve_steps[j - 24] = 256 % sdata->sieve_p[j];
+    }
+
+#else
+    sdata->presieve_max_id = 10;
+
+#endif
 
 	if (VFLAG > 2)
 		printf("allocated %" PRIu64 " bytes for sieve lines\n",numbytes);
@@ -581,6 +633,9 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 	{
 		thread_soedata_t *thread = thread_data + i;
 
+        // presieving scratch space
+        thread->ddata.presieve_scratch = (uint32 *)xmalloc_align(8 * sizeof(uint32));
+
 		//allocate a bound for each block
 		thread->ddata.pbounds = (uint64 *)malloc(
 			sdata->blocks * sizeof(uint64));
@@ -649,8 +704,10 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 							(uint32)sdata->blocks * (uint32)sizeof(uint32 *));
 				}
 			}
-			else
-				thread->ddata.large_sieve_buckets = NULL;
+            else
+            {
+                thread->ddata.large_sieve_buckets = NULL;
+            }
 
 			//create a hit counter for each bucket
 			thread->ddata.bucket_hits = (uint32 *)malloc(
@@ -663,9 +720,11 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 			}
 			else
 			{
-				if (VFLAG > 2)
-					printf("allocated %u bytes for hit counters\n",
-						(uint32)sdata->blocks * (uint32)sizeof(uint32));
+                if (VFLAG > 2)
+                {
+                    printf("allocated %u bytes for hit counters\n",
+                        (uint32)sdata->blocks * (uint32)sizeof(uint32));
+                }
 			}
 
 			if (large_bucket_alloc > 0)
@@ -680,13 +739,17 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 				}
 				else
 				{
-					if (VFLAG > 2)
-						printf("allocated %u bytes for large hit counters\n",
-							(uint32)sdata->blocks * (uint32)sizeof(uint32));
+                    if (VFLAG > 2)
+                    {
+                        printf("allocated %u bytes for large hit counters\n",
+                            (uint32)sdata->blocks * (uint32)sizeof(uint32));
+                    }
 				}
 			}
-			else
-				thread->ddata.large_bucket_hits = NULL;
+            else
+            {
+                thread->ddata.large_bucket_hits = NULL;
+            }
 
 			//each bucket must be able to hold a hit from every prime used above BUCKETSTARTP.
 			//this is overkill, because every prime will not hit every bucket when

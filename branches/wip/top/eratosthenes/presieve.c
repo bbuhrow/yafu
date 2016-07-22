@@ -1155,6 +1155,7 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
 {
     uint64 startprime = sdata->startprime;
     uint64 k;
+    int i, j;
     int mask_step, mask_step2, mask_step3, mask_step4;
     int mask_num, mask_num2, mask_num3, mask_num4;
     uint64 *flagblock64;
@@ -1401,8 +1402,7 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
 #ifdef __INTEL_COMPILER
         __declspec(align(64)) uint32 t[8];
 #else
-        uint32 *t;
-        t = (uint32 *)xmalloc_align(8 * sizeof(uint32));
+        uint32 *t = ddata->presieve_scratch;
 #endif
 
         for (k = 0; k < FLAGSIZE >> 8; k++)
@@ -1490,13 +1490,62 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
 
         _mm256_store_si256((__m256i *)(ddata->offsets + 16), vmasknums);
 
-#ifndef __INTEL_COMPILER
-        align_free(t);
-#endif
+        // continue presieving 16 more primes whose mask info has been
+        // dynamically generated (to avoid super long constant lists).
+        // we can't keep doing this forever because the memory footprint 
+        // quickly grows too big and the flag density too sparse, negating 
+        // the benefits of this approach.
+        for (j = 24; j < sdata->presieve_max_id; j += 8)
+        {        
+            vmaskp = _mm256_load_si256((__m256i *)(&presieve_primes[j-24]));
+            vmaskp1 = _mm256_load_si256((__m256i *)(&presieve_p1[j-24]));
+            vmaskstep = _mm256_load_si256((__m256i *)(&presieve_steps[j-24]));
+            vmasknums = _mm256_load_si256((__m256i *)(ddata->offsets + j));
+
+            for (k = 0; k < FLAGSIZE >> 8; k++)
+            {
+                __m256i vsieve = _mm256_load_si256((__m256i *)(&flagblock64[k * 4]));
+                _mm256_store_si256((__m256i *)t, vmasknums);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+0][t[0]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+1][t[1]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+2][t[2]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+3][t[3]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+4][t[4]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+5][t[5]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+6][t[6]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+7][t[7]]));
+                vsieve = _mm256_and_si256(vmask, vsieve);
+
+                _mm256_store_si256((__m256i *)(&flagblock64[k * 4]), vsieve);
+
+                vmasknums = _mm256_sub_epi32(vmasknums, vmaskstep);
+                vmasknums = _mm256_add_epi32(vmasknums, vmaskp);
+                vmask = _mm256_cmpgt_epi32(vmasknums, vmaskp1);
+                vmask = _mm256_and_si256(vmask, vmaskp);
+                vmasknums = _mm256_sub_epi32(vmasknums, vmask);
+            }
+
+            _mm256_store_si256((__m256i *)(ddata->offsets + j), vmasknums);
+        }
 
     }
 
-
+    
 #else
 
     for (k = 0, mask_step = _64_MOD_P[4], mask_num = ddata->offsets[6],
