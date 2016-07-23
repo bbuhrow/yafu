@@ -187,7 +187,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -325,6 +325,7 @@
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
     <ClCompile Include="..\..\top\stack.c" />
     <ClCompile Include="..\..\top\test.c" />
+    <ClCompile Include="..\..\top\threadpool.c" />
     <ClCompile Include="..\..\top\utils.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\rho.c" />
@@ -363,6 +364,7 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
+    <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

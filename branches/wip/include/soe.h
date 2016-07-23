@@ -99,6 +99,7 @@ typedef struct
 
 typedef struct
 {
+    int sync_count;
 	uint32 *sieve_p;
 	int *root;
 	uint32 *lower_mod_prime;
@@ -226,6 +227,13 @@ typedef struct {
 #endif
 
 } thread_soedata_t;
+
+// for use with threadpool
+typedef struct
+{
+    soe_staticdata_t *sdata;
+    thread_soedata_t *ddata;
+} soe_userdata_t;
 
 // top level sieving code
 uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset, 

@@ -2308,6 +2308,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	case 56: 
 
 		//sieverange - 4 arguments
+        // range lo, range hi, sieve bound, count?
 		if (nargs != 4)
 		{
 			printf("wrong number of arguments in sieverange\n");

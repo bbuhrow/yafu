@@ -254,6 +254,9 @@
     <ClCompile Include="..\..\top\eratosthenes\presieve.c">
       <Filter>Source Files\sieve</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\threadpool.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -336,6 +339,9 @@
     </ClInclude>
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\threadpool.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
