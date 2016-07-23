@@ -23,7 +23,7 @@ CC = gcc
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O3
-INC = -I. -Iinclude -Itop/aprcl
+INC = -I. -Iinclude -Itop/aprcl -Itop/
 BINNAME = yafu
 
 
@@ -189,7 +189,8 @@ YAFU_SRCS = \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
-	top/eratosthenes/wrapper.c
+	top/eratosthenes/wrapper.c \
+	top/threadpool.c
 	
 
 		
@@ -258,7 +259,8 @@ HEAD = include/yafu.h  \
 	include/yafu_stack.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
-	include/nfs.h
+	include/nfs.h \
+	top/threadpool.h
 
 ifeq ($(USE_AVX2),1)
 
