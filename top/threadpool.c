@@ -210,7 +210,7 @@ void tpool_go(tpool_t *thread_data)
     pthread_mutex_lock(&queue_lock);
 #endif
 
-    printf("=== starting threadpool\n");
+    //printf("=== starting threadpool\n");
     while (1)
     {
         int tid;
@@ -285,7 +285,7 @@ void tpool_go(tpool_t *thread_data)
         
     }
 
-    printf("=== work finished\n");
+    //printf("=== work finished\n");
 
     //stop worker threads
     for (i = 0; i<thread_data[0].num_threads; i++)
@@ -293,7 +293,7 @@ void tpool_go(tpool_t *thread_data)
         tpool_stop(thread_data + i);
     }
 
-    printf("=== threadpool stopped\n");
+    //printf("=== threadpool stopped\n");
 
     free(thread_queue);
     free(threads_waiting);

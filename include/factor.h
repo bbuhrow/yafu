@@ -302,6 +302,7 @@ typedef struct
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
 	uint32 ecm_ext_xover;
+    int bail_on_factor;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
