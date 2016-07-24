@@ -30,36 +30,24 @@ declarations for types and functions used in ECM and other
 group theoretic factorization routines
 */
 
-enum ecm_thread_command {
-	ECM_COMMAND_INIT,
-	ECM_COMMAND_WAIT,
-	ECM_COMMAND_RUN,
-	ECM_COMMAND_RUN_TRANS,
-	ECM_COMMAND_END
-};
-
 typedef struct {
 	mpz_t gmp_n, gmp_factor;
+    mpz_t t, d; // scratch bignums
 	ecm_params params;
 	uint32 sigma;
 	int stagefound;
 	fact_obj_t *fobj;
 	int thread_num;
 	int curves_run;
+    int *total_curves_run;
 	char tmp_output[80];
+    int factor_found;
+    int *ok_to_stop;
 
-	/* fields for thread pool synchronization */
-	volatile enum ecm_thread_command command;
-
-#if defined(WIN32) || defined(_WIN64)
-	HANDLE thread_id;
-	HANDLE run_event;
-	HANDLE finish_event;
-#else
-	pthread_t thread_id;
-	pthread_mutex_t run_lock;
-	pthread_cond_t run_cond;
-#endif
+    // timing data for ETA
+    struct timeval stop;
+    struct timeval start;
+    double *total_time;
 
 } ecm_thread_data_t;
 
