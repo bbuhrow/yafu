@@ -37,6 +37,8 @@ void ecm_sync_fcn(void *ptr)
     *thread_data->total_curves_run += thread_data->curves_run;
     thread_data->curves_run = 0;
 
+    (*thread_data->curves_in_flight)--;
+
     // progress report
     if (VFLAG >= 0)
     {
@@ -120,12 +122,18 @@ void ecm_dispatch_fcn(void *ptr)
         }
         else if (is_mpz_prp(thread_data->fobj->ecm_obj.gmp_n))
         {
+            // todo: should check primality in the work function so
+            // this prp check doesn't bottleneck dispatching to
+            // other threads.  report results to the thread structure
+            // and handle here.
             // always bail if the cofactor is prime
             *thread_data->ok_to_stop = 1;
         }
         else
         {
-            // set the thread local copy of n
+            // set the thread local copy of n.
+            // todo: we should not be setting or reading from fobj.gmp_n
+            // in the work function - not thread safe.
             mpz_set(thread_data->gmp_n, thread_data->fobj->ecm_obj.gmp_n);
         }
     }
@@ -135,9 +143,11 @@ void ecm_dispatch_fcn(void *ptr)
         // found a factor - ok to stop              
         tdata->work_fcn_id = tdata->num_work_fcn;
     }
-    else if (*thread_data->total_curves_run < thread_data->fobj->ecm_obj.num_curves)
+    else if (*thread_data->total_curves_run < 
+        (thread_data->fobj->ecm_obj.num_curves - *thread_data->curves_in_flight))
     {
         // more curves to run
+        (*thread_data->curves_in_flight)++;
         tdata->work_fcn_id = 0;
     }
     else
@@ -202,8 +212,9 @@ int ecm_loop(fact_obj_t *fobj)
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
 	int total_curves_run;
-	int bail_on_factor = 1;
+	int bail_on_factor = 0;
 	int bail = 0;
+    int curves_in_flight = 0;
 	int input_digits = gmp_base10(fobj->ecm_obj.gmp_n);
 
     // threading structures
@@ -231,10 +242,12 @@ int ecm_loop(fact_obj_t *fobj)
         // structure for this...
         // e.g. user_data and user_shared_data structures
         thread_data[i].fobj = fobj;
-        thread_data[i].thread_num = i;
+        thread_data[i].thread_num = i;  // todo: remove and replace with tpool->tindex
         thread_data[i].total_curves_run = &total_curves_run;
         thread_data[i].total_time = &total_time;
+        thread_data[i].factor_found = 0;
         thread_data[i].ok_to_stop = &bail;
+        thread_data[i].curves_in_flight = &curves_in_flight;
     }
 
     tpool_data = tpool_setup(THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
@@ -265,11 +278,9 @@ int ecm_loop(fact_obj_t *fobj)
 
 	fclose(flog);
 
-    // if we found a factor, need to tell factor() we ran all our
-    // curves or it will lock up... fix this.
-
     // this is how we tell factor() to stop running curves at this level
-    if (bail)
+    if (((bail_on_factor == 1) && (bail == 1)) || 
+        (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0))
     {
         total_curves_run = fobj->ecm_obj.num_curves;
     }

@@ -41,7 +41,9 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
     v3f = _mm256_set1_epi32(0x0000003F);
     tmp = (uint32 *)xmalloc_align(8 * sizeof(uint32));
 
-    // process 256 bits at a time (4 64-bit words at a time) using AVX2
+    // process 256 bits at a time by using Warren's algorithm (the same
+    // one that non-simd code uses, below) to compute the popcount
+    // for four 64-bit words simultaneously.
     for (i = 0; i < (numlinebytes >> 5); i+=2)
     {
         __m256i t1, t2, t3, t4;
@@ -89,13 +91,6 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
     }
 
     align_free(tmp);
-
-#elif defined (USE_SSE41)
-
-    for (i=0;i<(numlinebytes >> 3);i++)
-    {
-        it += _mm_popcnt_u64(flagblock64[i]);
-    }
 
 #else
 

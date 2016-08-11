@@ -59,7 +59,6 @@ void compute_roots_work_fcn(void *vptr)
             inv = modinv_1c(t->sdata.prodN, prime);
             t->sdata.root[i] = prime - inv;
 
-            //t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
             t->sdata.lower_mod_prime[i] =
                 (t->sdata.lowlimit + 1) % prime;
         }
@@ -79,7 +78,6 @@ void compute_roots_work_fcn(void *vptr)
             inv = modinv_1c(t->sdata.prodN, prime);
             t->sdata.root[i] = prime - inv;
 
-            //t->sdata.lower_mod_prime[i - t->sdata.bucket_start_id] = 
             t->sdata.lower_mod_prime[i] =
                 mpz_tdiv_ui(tmpz, prime);
         }
@@ -110,7 +108,10 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     prodN = (int)sdata->prodN;
     startprime = sdata->startprime;
 
-    gettimeofday(&tstart, NULL);
+    if (VFLAG > 1)
+    {
+        gettimeofday(&tstart, NULL);
+    }
 
     lblk_b = sdata->lowlimit;
     ublk_b = sdata->blk_r + lblk_b - sdata->prodN;
@@ -149,18 +150,22 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
             (lblk_b + 1) % prime;
     }
 
-    gettimeofday(&tstop, NULL);
-
-    difference = my_difftime(&tstart, &tstop);
-    t = ((double)difference->secs + (double)difference->usecs / 1000000);
-    free(difference);
-
-    if (VFLAG > 2)
+    if (VFLAG > 1)
     {
-        printf("time to compute linear sieve roots = %1.2f\n", t);
-    }
+        gettimeofday(&tstop, NULL);
 
-    gettimeofday(&tstart, NULL);
+        difference = my_difftime(&tstart, &tstop);
+        t = ((double)difference->secs + (double)difference->usecs / 1000000);
+        free(difference);
+
+        if (VFLAG > 2)
+        {
+            printf("time to compute linear sieve roots = %1.2f\n", t);
+        }
+
+
+        gettimeofday(&tstart, NULL);
+    }
 
     range = (sdata->pboundi - sdata->bucket_start_id) / THREADS;
     lastid = sdata->bucket_start_id;
@@ -205,15 +210,18 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     }
     free(tpool_data);
 
-	gettimeofday(&tstop, NULL);
-
-	difference = my_difftime(&tstart, &tstop);
-	t = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
-
-    if (VFLAG > 2)
+    if (VFLAG > 1)
     {
-        printf("time to compute bucket sieve roots = %1.2f\n", t);
+        gettimeofday(&tstop, NULL);
+
+        difference = my_difftime(&tstart, &tstop);
+        t = ((double)difference->secs + (double)difference->usecs / 1000000);
+        free(difference);
+
+        if (VFLAG > 2)
+        {
+            printf("time to compute bucket sieve roots = %1.2f\n", t);
+        }
     }
 
 #ifdef INPLACE_BUCKET

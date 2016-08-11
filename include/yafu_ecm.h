@@ -43,6 +43,7 @@ typedef struct {
 	char tmp_output[80];
     int factor_found;
     int *ok_to_stop;
+    int *curves_in_flight;
 
     // timing data for ETA
     struct timeval stop;

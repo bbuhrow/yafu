@@ -240,12 +240,15 @@ void get_offsets(thread_soedata_t *thread_data)
 				//we solved for lower_mod_prime while computing the modular inverse of
 				//each prime, for the residue class 1.  add the difference between this
 				//residue class and 1 before multiplying by the modular inverse.
+                // could use (_mm256_mul_epu32 --> VPMULUDQ)
 				tmp2 = (uint64)s * (uint64)(lmp[i] + diff);
 				tmp3 = (uint64)s2 * (uint64)(lmp[i + 1] + diff);
 
+                // would need custom solution
 				root = (uint32)(tmp2 % (uint64)prime);
 				r2 = (uint32)(tmp3 % (uint64)p2);
 
+                // gather may help, but writes would need to be done 1 by 1.
 				if (root < linesize)			
 				{	
 					bnum = (root >> FLAGBITS);
