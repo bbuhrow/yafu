@@ -356,8 +356,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 	if (!sdata->only_count)
 	{
-		for (i=0; i<sdata->numclasses; i++)
-			align_free(sdata->lines[i]);
+		align_free(sdata->lines[0]);
 	}
     align_free(sdata->lines);
     free(sdata->root);

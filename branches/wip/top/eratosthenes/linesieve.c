@@ -95,6 +95,9 @@ void sieve_line(thread_soedata_t *thread_data)
         //unroll the loop: all primes less than this max hit the interval at least 16 times
         maxP = FLAGSIZE >> 4;
 
+        // at first glance it looks like AVX2 operations to compute the indices
+        // might help, but since we can't address memory with SIMD registers
+        // it actually isn't.  Things might be different with a scatter operation.
         stopid = MIN(ddata->pbounds[i], 1901);
 		for (;j<stopid;j++)
 		{
@@ -102,42 +105,71 @@ void sieve_line(thread_soedata_t *thread_data)
 			uint64 stop;
 			uint64 p1,p2,p3;
 
+            // we store byte masks to speed things up.  The byte masks
+            // are addressed by index % 8.  However, (k+p) % 8 is
+            // the same as (k+8p) % 8 so it suffices to compute and
+            // store in registers (k+np) % 8 for n = 0:7.  Thanks to 
+            // tverniquet for discovering this optimization.
+            // The precomputed mask trick works well here because many
+            // of these primes actually hit the interval many more
+            // than 16 times, thus we get a lot of reuse out of
+            // the masks.  In subsequent loops this isn't true.
+            uint8 m0;
+            uint8 m1;
+            uint8 m2;
+            uint8 m3;
+            uint8 m4;
+            uint8 m5;
+            uint8 m6;
+            uint8 m7;
+
 			prime = sdata->sieve_p[j];
 
 			tmpP = prime << 4;
 			stop = FLAGSIZE - tmpP + prime;
-			k=ddata->offsets[j];
+			k=ddata->offsets[j];            
+
 			p1 = prime;
 			p2 = p1 + prime;
 			p3 = p2 + prime;
+
+            m0 = masks[(k + 0 * prime) & 7];
+            m1 = masks[(k + 1 * prime) & 7];
+            m2 = masks[(k + 2 * prime) & 7];
+            m3 = masks[(k + 3 * prime) & 7];
+            m4 = masks[(k + 4 * prime) & 7];
+            m5 = masks[(k + 5 * prime) & 7];
+            m6 = masks[(k + 6 * prime) & 7];
+            m7 = masks[(k + 7 * prime) & 7];
+
 			while (k < stop)
 			{
-				flagblock[k>>3] &= masks[k&7];
-				flagblock[(k+p1)>>3] &= masks[(k+p1)&7];
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];
-				flagblock[(k+p3)>>3] &= masks[(k+p3)&7];
-				k += (prime << 2);
-				flagblock[k>>3] &= masks[k&7];
-				flagblock[(k+p1)>>3] &= masks[(k+p1)&7];
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];
-				flagblock[(k+p3)>>3] &= masks[(k+p3)&7];
-				k += (prime << 2);
-				flagblock[k>>3] &= masks[k&7];
-				flagblock[(k+p1)>>3] &= masks[(k+p1)&7];
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];
-				flagblock[(k+p3)>>3] &= masks[(k+p3)&7];
-				k += (prime << 2);
-				flagblock[k>>3] &= masks[k&7];
-				flagblock[(k+p1)>>3] &= masks[(k+p1)&7];
-				flagblock[(k+p2)>>3] &= masks[(k+p2)&7];
-				flagblock[(k+p3)>>3] &= masks[(k+p3)&7];
-				k += (prime << 2);
+                flagblock[k >> 3] &= m0;
+                flagblock[(k + p1) >> 3] &= m1;
+                flagblock[(k + p2) >> 3] &= m2;
+                flagblock[(k + p3) >> 3] &= m3;
+                k += (prime << 2);
+                flagblock[k >> 3] &= m4;
+                flagblock[(k + p1) >> 3] &= m5;
+                flagblock[(k + p2) >> 3] &= m6;
+                flagblock[(k + p3) >> 3] &= m7;
+                k += (prime << 2);
+                flagblock[k >> 3] &= m0;
+                flagblock[(k + p1) >> 3] &= m1;
+                flagblock[(k + p2) >> 3] &= m2;
+                flagblock[(k + p3) >> 3] &= m3;
+                k += (prime << 2);
+                flagblock[k >> 3] &= m4;
+                flagblock[(k + p1) >> 3] &= m5;
+                flagblock[(k + p2) >> 3] &= m6;
+                flagblock[(k + p3) >> 3] &= m7;
+                k += (prime << 2);
 			}
 
 			for (;k<FLAGSIZE;k+=prime)
 				flagblock[k>>3] &= masks[k&7];
 
-			ddata->offsets[j]= (uint32)(k - FLAGSIZE);
+			ddata->offsets[j]= k - FLAGSIZE;
 			
 		}
 
@@ -159,6 +191,7 @@ void sieve_line(thread_soedata_t *thread_data)
             p1 = prime;
             p2 = p1 + prime;
             p3 = p2 + prime;
+
             while (k < stop)
             {
                 flagblock[k >> 3] &= masks[k & 7];

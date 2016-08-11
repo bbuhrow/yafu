@@ -383,16 +383,18 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 	}
 	else
 	{
-		//actually allocate all of the lines
+        //actually allocate all of the lines
+        sdata->lines[0] = (uint8 *)xmalloc_align(numlinebytes * sdata->numclasses * sizeof(uint8));
+        if (sdata->lines[0] == NULL)
+        {
+            printf("error allocated sieve lines\n");
+            exit(-1);
+        }
+        numbytes += sdata->numclasses * numlinebytes * sizeof(uint8);
+
 		for (i=0; i<sdata->numclasses; i++)
 		{
-            sdata->lines[i] = (uint8 *)xmalloc_align(numlinebytes * sizeof(uint8));
-			if (sdata->lines[i] == NULL)
-			{
-				printf("error allocated sieve lines\n");
-				exit(-1);
-			}
-			numbytes += numlinebytes * sizeof(uint8);
+            sdata->lines[i] = sdata->lines[0] + i * numlinebytes;
 		}
 	}
 
