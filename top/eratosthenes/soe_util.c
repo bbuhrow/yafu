@@ -85,7 +85,12 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 
 		if (sieve_p[num_sp - 1] < sdata->pbound)
 		{
-			printf("not enough sieving primes\n");
+			printf("found %d primes, max = %u: not enough sieving primes\n", 
+                num_sp, sieve_p[num_sp - 1]);
+
+            //for (i = 0; i < num_sp; i++)
+            //    printf("%u\n", sieve_p[i]);
+
 			exit(1);
 		}
 

@@ -375,10 +375,12 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
 
 
         // run parallel squfof
+#if (USE_AVX2)
 #if defined(__INTEL_COMPILER)
         par_shanks_mult_unit(&mult_batch);
-#elif (USE_AVX2)
+#else
         par_shanks_mult_unit_asm(&mult_batch);
+#endif
 #else
         par_shanks_mult_unit(&mult_batch);
 #endif

@@ -174,7 +174,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
 void set_work_params(factor_work_t *fwork, enum factorization_state state);
 int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
-double compute_ecm_work_done(factor_work_t *fwork, int disp);
+double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
 	enum factorization_state state, double work_done,
@@ -241,6 +241,8 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for qs	
 	fobj->qs_obj.gbl_override_B_flag = 0;
 	fobj->qs_obj.gbl_override_B = 0;
+    fobj->qs_obj.gbl_override_small_cutoff_flag = 0;
+    fobj->qs_obj.gbl_override_small_cutoff = 0;
 	fobj->qs_obj.gbl_override_blocks_flag = 0;
 	fobj->qs_obj.gbl_override_blocks = 0 ;
 	fobj->qs_obj.gbl_override_lpmult_flag = 0;
@@ -1584,7 +1586,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
 	return max_curves;
 }
 
-double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
+double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log)
 {
 	// there is probably a more elegant way to do this involving dickman's function
 	// or something, but we can get a reasonable estimate using empirical data
@@ -1592,6 +1594,11 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 	double tlevels[NUM_ECM_LEVELS];
 	uint32 curves_done;
 	int i, j;
+
+    if (log != NULL)
+    {
+        logprint(log, "ecm work completed:\n");
+    }
 
 	// compute the %done of each tlevel
 	for (i=0; i < NUM_ECM_LEVELS; i++)
@@ -1607,7 +1614,12 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 
         if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
         {
-            printf("fac: t%d: %1.2f\n", ecm_levels[i], tlevels[i]);
+            printf("\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
+        }
+
+        if ((log != NULL) && (tlevels[i] > 0.01))
+        {
+            logprint(log, "\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
         }
 	}
 
@@ -1790,7 +1802,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			if (VFLAG >= 1)
 				printf("fac: setting target pretesting digits to %1.2f\n", target_digits);
 			
-			work_done = compute_ecm_work_done(fwork, 1);
+			work_done = compute_ecm_work_done(fwork, 1, NULL);
 			
 			if (VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.2f\n", work_done);
@@ -1798,7 +1810,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			break;
 
 		default:
-			work_done = compute_ecm_work_done(fwork, 0);
+			work_done = compute_ecm_work_done(fwork, 0, NULL);
 			break;
 	}
 
@@ -1928,7 +1940,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         double compute;
 
 		set_ecm_curves_done(fwork, state, (uint32)work);       
-        compute = compute_ecm_work_done(fwork, 0);
+        compute = compute_ecm_work_done(fwork, 0, NULL);
 
 		if (compute > target_digits)
 		{
@@ -2406,8 +2418,12 @@ void factor(fact_obj_t *fobj)
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	
+        // do the next item of work
 		do_work(fact_state, &fwork, b, fobj);
 
+        // check if we are done:
+        // * number is completely factored
+        // * sieve method was performed and either finished or was interrupted.
         if (check_if_done(fobj, origN) ||
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
@@ -2417,7 +2433,24 @@ void factor(fact_obj_t *fobj)
         {
             fact_state = state_done;
         }
+        else if ((fact_state >= state_ecm_15digit) && (fact_state <= state_ecm_65digit))
+        {
+            // if we ran ecm, check the ecm exit code and
+            // handle appropriately.
+            if (fobj->ecm_obj.exit_cond == ECM_EXIT_ABORT)
+            {
+                FILE *flog;
+                double work_done;
 
+                flog = fopen(fobj->flogname, "a");
+                work_done = compute_ecm_work_done(&fwork, 1, flog);
+                logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
+                fclose(flog);
+                fact_state = state_done;
+            }
+        }
+
+        // if not done, figure out the next item of work.
         if (fact_state != state_done)
         {
             fact_state = schedule_work(&fwork, b, fobj);

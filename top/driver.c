@@ -1183,6 +1183,8 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 			{
 				// no switch is ok if it's the first argument... assume
 				// it is the input expression (legacy support)
+                expression = (char *)realloc(expression, 
+                    (strlen(argv[i]) + 2) * sizeof(char));
 				strcpy(expression, argv[i]);
 				i++;
 				continue;
@@ -1193,6 +1195,13 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 				exit(1);
 			}
 		}
+        
+        if (strlen(argv[i]) >= MAXOPTIONLEN)
+        {
+            printf("unknown long option name %s\n", argv[i]);
+            exit(1);
+        }
+
 		strcpy(optbuf,argv[i]);
 
 		// check for the special "-e" argument, signifying an input expression
@@ -1209,6 +1218,8 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 			{
 				// an option was supplied, pass it on
 				i++;				
+                expression = (char *)realloc(expression,
+                    (strlen(argv[i]) + 2) * sizeof(char));
 				strcpy(expression,argv[i]);
 				i++;
 				continue;

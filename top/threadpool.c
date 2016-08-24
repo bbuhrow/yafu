@@ -274,7 +274,7 @@ void tpool_go(tpool_t *thread_data)
 
         // wait for a thread to finish and put itself in the waiting queue
 #if defined(WIN32) || defined(_WIN64)
-        j = WaitForMultipleObjects(
+        WaitForMultipleObjects(
             thread_data[tid].num_threads,
             queue_events,
             FALSE,

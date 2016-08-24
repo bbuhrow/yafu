@@ -245,6 +245,8 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
 uint32 compute_8_bytes(soe_staticdata_t *sdata, 
 	uint32 pcount, uint64 *primes, uint64 byte_offset);
+uint32 compute_32_bytes(soe_staticdata_t *sdata,
+    uint32 pcount, uint64 *primes, uint64 byte_offset);
 uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_data,
 	uint32 start_count, uint64 *primes);
 void get_offsets(thread_soedata_t *thread_data);
