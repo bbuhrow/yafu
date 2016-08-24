@@ -94,6 +94,12 @@ enum factor_flags
 	FACTOR_INTERRUPT = 1
 };
 
+enum ecm_exit_cond_e
+{
+    ECM_EXIT_NORMAL = 0,
+    ECM_EXIT_ABORT = 0x1
+};
+
 enum msieve_flags {
 	MSIEVE_DEFAULT_FLAGS = 0,		/* just a placeholder */
 	MSIEVE_FLAG_USE_LOGFILE = 0x01,	    /* append log info to a logfile */
@@ -303,6 +309,7 @@ typedef struct
 	double ttime;
 	uint32 ecm_ext_xover;
     int bail_on_factor;
+    enum ecm_exit_cond_e exit_cond;              // exit condition
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
@@ -359,6 +366,8 @@ typedef struct
 
 	int gbl_override_B_flag;
 	uint32 gbl_override_B;			//override the # of factor base primes
+    int gbl_override_small_cutoff_flag;
+    uint32 gbl_override_small_cutoff;			//override the tf_small_cutoff value
 	int gbl_override_tf_flag;
 	uint32 gbl_override_tf;			//extra reduction of the TF bound by X bits
 	int gbl_override_time_flag;

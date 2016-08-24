@@ -83,7 +83,7 @@ void sieve_work_fcn(void *vptr)
             (uint8 *)xmalloc_align(t->sdata.numlinebytes * sizeof(uint8));
         sieve_line(t);
         t->linecount = count_line(&t->sdata, t->current_line);
-        free(t->sdata.lines[t->current_line]);
+        align_free(t->sdata.lines[t->current_line]);
     }
     else
     {

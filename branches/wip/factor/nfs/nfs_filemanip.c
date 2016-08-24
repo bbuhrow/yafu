@@ -342,9 +342,11 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		if (!savefile_exists(&mobj->savefile))
 		{
 			// data file doesn't exist, return flag to start sieving from the beginning
-			if (VFLAG > 0)
-				printf("nfs: no data file found\n");
-			*last_spq = 0;
+            *last_spq = 0;
+            if (VFLAG > 0)
+            {
+                printf("nfs: no data file found\n");
+            }
 		}
 		else if (fobj->nfs_obj.restart_flag)
 		{
@@ -1221,8 +1223,9 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
 			printf("nfs: couldn't fill job file, will try sieving anyway\n");
 			return;
 		}
-		//else if (VFLAG > 0)
-		//	printf("nfs: job file is missing params, filling them\n");
+		
+        if (VFLAG > 0)
+			printf("nfs: job file is missing params, filling them\n");
 
 		// make sure we start on a new line if we are filling anything
 		fprintf(out, "\n");

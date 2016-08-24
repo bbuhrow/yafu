@@ -226,7 +226,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -335,6 +335,7 @@
     <ClCompile Include="..\..\arith\arith1.c" />
     <ClCompile Include="..\..\arith\arith2.c" />
     <ClCompile Include="..\..\arith\arith3.c" />
+    <ClCompile Include="..\..\top\vecarith.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />

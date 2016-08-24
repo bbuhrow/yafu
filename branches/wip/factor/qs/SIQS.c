@@ -32,16 +32,16 @@ code to the public domain.
 
 void SIQS(fact_obj_t *fobj)
 {
-	//the input fobj->N and this 'n' are pointers to memory which holds
-	//the input number to this function.  a copy in different memory
-	//will also be made, and modified by a multiplier.  don't confuse
-	//these two.
-	//input expected in fobj->qs_obj->gmp_n	
+	// the input fobj->N and this 'n' are pointers to memory which holds
+	// the input number to this function.  a copy in different memory
+	// will also be made, and modified by a multiplier.  don't confuse
+	// these two.
+	// input expected in fobj->qs_obj->gmp_n	
 
-	//thread data holds all data needed during sieving
+	// thread data holds all data needed during sieving
 	thread_sievedata_t *thread_data;		//an array of thread data objects
 
-	//master control structure
+	// master control structure
 	static_conf_t *static_conf;
 
     // thread work-queue controls
@@ -55,20 +55,20 @@ void SIQS(fact_obj_t *fobj)
     pthread_cond_t queue_cond;
 #endif
 
-	//stuff for lanczos
+	// stuff for lanczos
 	qs_la_col_t *cycle_list;
 	uint32 num_cycles = 0;
 	uint64 *bitfield = NULL;
 	siqs_r *relation_list;
 
-	//log file
+	// log file
 	FILE *sieve_log;
 
 #ifdef OPT_DEBUG
 	FILE *optfile;
 #endif
 
-	//some locals
+	// some locals
 	uint32 num_needed, num_found;
 	uint32 alldone;
 	uint32 j;
@@ -79,7 +79,7 @@ void SIQS(fact_obj_t *fobj)
 	TIME_DIFF *	difference;
 	int updatecode = 0;
 
-	//adaptive tf_small_cutoff variables
+	// adaptive tf_small_cutoff variables
 	double rels_per_sec_avg = 0.0;
 	double results[3] = {0.0,0.0,0.0};
 	int averaged_polys = 0;
@@ -92,8 +92,8 @@ void SIQS(fact_obj_t *fobj)
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
 
-	//logfile for this factorization
-	//must ensure it is only written to by main thread
+	// logfile for this factorization
+	// must ensure it is only written to by main thread
 	if (fobj->qs_obj.flags != 12345)
 	{
 		fobj->logfile = fopen(fobj->flogname,"a");
@@ -105,7 +105,7 @@ void SIQS(fact_obj_t *fobj)
 		sieve_log = fobj->logfile;
 	}
 
-	//check for special cases and bail if there is one
+	// check for special cases and bail if there is one
 	if ((i = check_specialcase(fobj->logfile,fobj)) > 0)
 	{
 		if (i == 1)
@@ -116,7 +116,7 @@ void SIQS(fact_obj_t *fobj)
 		return;
 	}	
 
-	//check to see if a siqs savefile exists for this input	
+	// check to see if a siqs savefile exists for this input	
 	data = fopen(fobj->qs_obj.siqs_savefile,"r");
 
 	if (data != NULL)
@@ -136,9 +136,15 @@ void SIQS(fact_obj_t *fobj)
 		if (resume_check_input_match(tmpz, fobj->qs_obj.gmp_n, g))
 		{
 			// remove any common factor so the input exactly matches
-			// the file
-			if (mpz_cmp_ui(g, 1) > 0)
-				add_to_factor_list(fobj, g);
+			// the file.  
+            // TODO: we should also factor the common factor 'g' 
+            // somehow, since the user may be expecting the complete
+            // factorization of the input instead of just the 
+            // qs-resumed bit.
+            if (mpz_cmp_ui(g, 1) > 0)
+            {
+                add_to_factor_list(fobj, g);
+            }
 			mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, g);
 			mpz_set(fobj->N, fobj->qs_obj.gmp_n);
 		}
@@ -147,29 +153,29 @@ void SIQS(fact_obj_t *fobj)
 		fclose(data);
 	}
 
-	//then do a small amount of trial division
-	//which will add anything found to the global factor list
-	//this is only called with the main thread
+	// then do a small amount of trial division
+	// which will add anything found to the global factor list
+	// this is only called with the main thread
 	mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
 	fobj->div_obj.print = 0;
 	fobj->div_obj.limit = 10000;
 	zTrial(fobj);
 	mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
 
-	//At this point, we are committed to doing qs on the input
-	//we need to:
-	//1.) notify the screen and log
-	//2.) start watching for an abort signal
-	//3.) initialize data objects
-	//4.) get ready to find the factor base
+	// At this point, we are committed to doing qs on the input
+	// we need to:
+	// 1.) notify the screen and log
+	// 2.) start watching for an abort signal
+	// 3.) initialize data objects
+	// 4.) get ready to find the factor base
 
-	//fill in the factorization object
+	// fill in the factorization object
 	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
 	fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
-	//initialize the data objects
+	// initialize the data objects
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
 
@@ -215,23 +221,25 @@ void SIQS(fact_obj_t *fobj)
 		}
 	}
 
-	//initialize the flag to watch for interrupts, and set the
-	//pointer to the function to call if we see a user interrupt
+	// initialize the flag to watch for interrupts, and set the
+	// pointer to the function to call if we see a user interrupt
 	SIQS_ABORT = 0;
 	signal(SIGINT,siqsexit);
 
-	//initialize offset for savefile buffer
+	// initialize offset for savefile buffer
 	savefile_buf_off = 0;	
 	
-	//function pointer to the sieve array scanner
+	// function pointer to the sieve array scanner
 	scan_ptr = NULL;
 
-	//start a counter for the whole job
+	// start a counter for the whole job
 	gettimeofday(&static_conf->totaltime_start, NULL);
 
-	if (VFLAG >= 0)
-		printf("\nstarting SIQS on c%d: %s\n",fobj->digits, 
-		mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+    if (VFLAG >= 0)
+    {
+        printf("\nstarting SIQS on c%d: %s\n", fobj->digits,
+            mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+    }
 
 	if (sieve_log != NULL)
 	{
@@ -241,8 +249,8 @@ void SIQS(fact_obj_t *fobj)
 		fflush(sieve_log);
 	}
 
-	//get best parameters, multiplier, and factor base for the job
-	//initialize and fill out the static part of the job data structure
+	// get best parameters, multiplier, and factor base for the job
+	// initialize and fill out the static part of the job data structure
 	siqs_static_init(static_conf, 0);
 
 	// test: use in-memory relation storage below a certain digit level?
@@ -253,19 +261,23 @@ void SIQS(fact_obj_t *fobj)
 		static_conf->buffered_rel_alloc = 32768;
 		static_conf->buffered_rels = 0;
 	}
-	else
-		static_conf->in_mem = 0;
+    else
+    {
+        static_conf->in_mem = 0;
+    }
 
-	//allocate structures for use in sieving with threads
-	for (i=0; i<THREADS; i++)
-		siqs_dynamic_init(thread_data[i].dconf, static_conf);
+	// allocate structures for use in sieving with threads
+    for (i = 0; i < THREADS; i++)
+    {
+        siqs_dynamic_init(thread_data[i].dconf, static_conf);
+    }
 
-	//check if a savefile exists for this number, and if so load the data
-	//into the master data structure
+	// check if a savefile exists for this number, and if so load the data
+	// into the master data structure
 	siqs_check_restart(thread_data[0].dconf, static_conf);
 	print_siqs_splash(thread_data[0].dconf, static_conf);
 
-	//start the process
+	// start the process
 	num_needed = static_conf->factor_base->B + static_conf->num_extra_relations;
 	num_found = static_conf->num_r;
 	static_conf->total_poly_a = -1;
@@ -357,6 +369,12 @@ void SIQS(fact_obj_t *fobj)
 #endif
 	}
 
+    if (fobj->qs_obj.gbl_override_small_cutoff_flag)
+    {
+        fobj->qs_obj.no_small_cutoff_opt = 1;
+        static_conf->tf_small_cutoff = fobj->qs_obj.gbl_override_small_cutoff;
+    }
+
     while (1)
 	{
 
@@ -443,6 +461,9 @@ void SIQS(fact_obj_t *fobj)
 									else
 										static_conf->tf_small_cutoff = orig_value - 5;
 								}	
+
+                                printf("\nfinal value for tf_small_cutoff = %u\n",
+                                    static_conf->tf_small_cutoff);
 #ifdef OPT_DEBUG
 								fprintf(optfile,"final value = %d\n",static_conf->tf_small_cutoff);
 #endif

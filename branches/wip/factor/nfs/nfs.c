@@ -217,24 +217,32 @@ void nfs(fact_obj_t *fobj)
 
 			// before we get started, check to make sure we can find ggnfs sievers
 			// if we are going to be doing sieving
-			if (check_for_sievers(fobj, 1) == 1)
-				nfs_state = NFS_STATE_DONE;
+            if (check_for_sievers(fobj, 1) == 1)
+            {
+                nfs_state = NFS_STATE_DONE;
+            }
 
-			if (VFLAG >= 0 && nfs_state != NFS_STATE_DONE)
-				gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
-					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+            if ((VFLAG >= 0) && (nfs_state != NFS_STATE_DONE))
+            {
+                gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
+                    gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+            }
 
-			if (nfs_state != NFS_STATE_DONE)
-				logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
-					gmp_base10(fobj->nfs_obj.gmp_n),
-					mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+            if (nfs_state != NFS_STATE_DONE)
+            {
+                logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
+                    gmp_base10(fobj->nfs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+            }
 
 			// convert input to msieve bigint notation and initialize a list of factors
-			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
+			gmp2mp_t(fobj->nfs_obj.gmp_n, &mpN);
 			factor_list_init(&factor_list);
 
-			if (fobj->nfs_obj.rangeq > 0)
-				job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+            if (fobj->nfs_obj.rangeq > 0)
+            {
+                job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+            }
 
 			break;
 
@@ -682,6 +690,8 @@ void nfs(fact_obj_t *fobj)
 			// 5) user wants to resume sieving (either with a solo -ns or no arguements)
 			//		and a data file and special-q was found
 			// 6) it contains poly->time info (in which case we'll be in NFS_STATE_RESUMEPOLY)
+            printf("nfs: resumesieve; last_spq = %u, nfs_phases = %u\n",
+                last_specialq, fobj->nfs_obj.nfs_phases);
 
 			strcpy(tmpstr, "");
 			if ((last_specialq == 0) &&

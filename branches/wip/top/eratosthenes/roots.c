@@ -146,8 +146,8 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         // get_offsets loop.  This requires that we update the
         // lower block boundary (above) in which sieve primes are 
         // first used as we go.
-        sdata->lower_mod_prime[i] =
-            (lblk_b + 1) % prime;
+        //sdata->lower_mod_prime[i] = (lblk_b + 1) % prime;
+        //sdata->lower_mod_prime[i] = lblk_b % prime;
     }
 
     if (VFLAG > 1)

@@ -23,7 +23,7 @@ CFLAGS = -march=westmere -mtune=westmere
 #CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
-INC = -I. -Iinclude -Itop/aprcl
+INC = -I. -Iinclude -Itop/aprcl -Itop/
 
 INC += -I../gmp/include/mingw
 LIBS += -L../gmp/lib/mingw/x86_64
@@ -106,6 +106,7 @@ YAFU_SRCS = \
 	top/stack.c \
 	top/calc.c \
 	top/test.c \
+  top/threadpool.c \
 	top/aprcl/mpz_aprcl.c \
 	factor/factor_common.c \
 	factor/rho.c \
@@ -203,7 +204,8 @@ HEAD = include/yafu.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
 	include/gmp_xface.h \
-	include/nfs.h
+	include/nfs.h \
+  top/threadpool.h
 
 
 ifeq ($(USE_SSE41),1)
@@ -231,7 +233,7 @@ x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-win32 $(LIBS)
 
 x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-x64 $(LIBS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-x64-mingw $(LIBS)
 
 
 clean:

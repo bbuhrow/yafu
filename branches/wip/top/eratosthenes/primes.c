@@ -62,11 +62,30 @@ void compute_primes_work_fcn(void *vptr)
     {
         t->linecount = 0;
     }
-
+    
+#ifdef USE_AVX2
+    if ((sdata->numclasses == 2) && (sdata->lowlimit == 0))
+    {
+        //printf("using avx2 nc2 code from byte offset %d to %d in steps of 32 bytes\n",
+          //  t->startid, t->stopid);
+        for (i = t->startid; i < t->stopid; i += 32)
+        {
+            t->linecount = compute_32_bytes(sdata, t->linecount, t->ddata.primes, i);
+        }
+    }
+    else
+    {
+        for (i = t->startid; i < t->stopid; i += 8)
+        {
+            t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);
+        }
+    }
+#else
     for (i = t->startid; i < t->stopid; i += 8)
     {
         t->linecount = compute_8_bytes(sdata, t->linecount, t->ddata.primes, i);
     }
+#endif
 
     return;
 }
@@ -79,7 +98,6 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	uint32 pcount = start_count;	
 	uint64 i;
 	int j;
-    int k;
 	uint32 range, lastid;
 
     //timing
@@ -96,9 +114,9 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
         gettimeofday(&tstart, NULL);
     }
 
-	// each thread needs to work on a number of bytes that is divisible by 8
+	// each thread needs to work on a number of bytes that is divisible by 32
 	range = sdata->numlinebytes / THREADS;
-	range -= (range % 8);
+	range -= (range % 32);
 	lastid = 0;
 
     // divvy up the line bytes
@@ -256,6 +274,283 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	return pcount;
 }
 
+uint32 compute_32_bytes(soe_staticdata_t *sdata,
+    uint32 pcount, uint64 *primes, uint64 byte_offset)
+{
+    int b;
+    uint64 prime;
+    uint64 prodN = sdata->prodN;
+    uint8 **lines = sdata->lines;
+    uint64 ohigh = sdata->orig_hlimit;
+
+    if ((byte_offset & 32767) == 0)
+    {
+        if (VFLAG > 1)
+        {
+            printf("computing: %d%%\r", (int)
+                ((double)byte_offset / (double)(sdata->numlinebytes) * 100.0));
+            fflush(stdout);
+        }
+    }
+
+#ifdef USE_AVX2
+
+    // here is the 2 line version
+    if (1)
+    {
+        // here is the process for 2 lines.
+        // load the first 8 dwords from line 1 and the first 8 dwords from line 2.
+        // vreg1 = {l1,0, l1,1, l1,2, ... l1,7}
+        // vreg2 = {l2,0, l2,1, l2,2, ... l2,7}
+        // where li,j is the ith line, jth dword.
+        // the bits are again ordered columnwise, so we do parallel bitcount
+        // to determine where each dword computation should write the prime array.
+        // i.e., if l1,0 has 9 set bits (of 32) and l2,0 has 5 set bits then
+        // primes emerging from l1,1 are written to the primes array offset by 9+5 locations.
+        // other than the larger number of offsets to keep track of compared to
+        // the 8-line case, everything proceeds similarly.  However, a benefit is we
+        // don't need to use vgather... just two vector loads.
+        // Also we compute 8*4 = 32 bytes of each line instead of 8, so we'll
+        // need fewer iterations of this function.
+        // need a vector of the indices of the memory elements to load,
+        // relative to the base address.  we set the base address to the
+        // first line's byte offset, so the indices are all just multiples
+        // of the length of a line.
+        __m256i vtmp1;
+        __m256i vlinenums;
+        __m256i vlinenums2;
+        __m256i vmasks = _mm256_set1_epi32(0x1);
+        __m256i vprodN = _mm256_set1_epi32((uint32)prodN);
+        __m256i vbitoffset;
+        __m256i vbits, vbits2;
+        __m256i vtmp2, vtmp3, vtmp4;
+#if defined(__GNUC__)
+        __attribute__((aligned(64))) uint32 tmpstore[8];
+        __attribute__((aligned(64))) uint32 tmpstore2[8];
+#else
+        __declspec(align(64)) uint32 tmpstore[8];
+        __declspec(align(64)) uint32 tmpstore2[8];
+#endif
+        int i;
+        int poffset1[8];
+        //int poffset2[8];
+        int pcounts1[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+        //int pcounts2[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+        uint32 bmask, bmask2;
+
+        // all primes from the first vector are in class 1 and
+        // all primes from the second vector are in class 5.
+        vlinenums = _mm256_set1_epi32(1);
+        vlinenums2 = _mm256_set1_epi32(5);
+
+        // load 256 bits of each line
+        vbits = _mm256_load_si256((__m256i *)(&lines[0][byte_offset]));
+        vtmp4 = _mm256_load_si256((__m256i *)(&lines[0][byte_offset + sdata->numlinebytes]));
+
+        // count the primes in each vector
+        {
+            __m256i v5 = _mm256_set1_epi32(0x55555555);
+            __m256i v3 = _mm256_set1_epi32(0x33333333);
+            __m256i v0f = _mm256_set1_epi32(0x0F0F0F0F);
+            __m256i v3f = _mm256_set1_epi32(0x0000003F);
+            vbits2 = vbits;
+            vtmp1 = _mm256_srli_epi32(vbits2, 1);
+            vtmp1 = _mm256_and_si256(vtmp1, v5);
+            vbits2 = _mm256_sub_epi32(vbits2, vtmp1);
+            vtmp1 = _mm256_and_si256(vbits2, v3);
+            vtmp2 = _mm256_srli_epi32(vbits2, 2);
+            vtmp2 = _mm256_and_si256(vtmp2, v3);
+            vbits2 = _mm256_add_epi32(vtmp2, vtmp1);
+            vtmp1 = _mm256_srli_epi32(vbits2, 4);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vbits2 = _mm256_and_si256(vbits2, v0f);
+            vtmp1 = _mm256_srli_epi32(vbits2, 8);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vtmp1 = _mm256_srli_epi32(vbits2, 16);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vbits2 = _mm256_and_si256(vbits2, v3f);
+            _mm256_store_si256((__m256i *)tmpstore, vbits2);
+        }
+
+        // count the primes in each vector
+        {
+            __m256i v5 = _mm256_set1_epi32(0x55555555);
+            __m256i v3 = _mm256_set1_epi32(0x33333333);
+            __m256i v0f = _mm256_set1_epi32(0x0F0F0F0F);
+            __m256i v3f = _mm256_set1_epi32(0x0000003F);
+            vbits2 = vtmp4;
+            vtmp1 = _mm256_srli_epi32(vbits2, 1);
+            vtmp1 = _mm256_and_si256(vtmp1, v5);
+            vbits2 = _mm256_sub_epi32(vbits2, vtmp1);
+            vtmp1 = _mm256_and_si256(vbits2, v3);
+            vtmp2 = _mm256_srli_epi32(vbits2, 2);
+            vtmp2 = _mm256_and_si256(vtmp2, v3);
+            vbits2 = _mm256_add_epi32(vtmp2, vtmp1);
+            vtmp1 = _mm256_srli_epi32(vbits2, 4);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vbits2 = _mm256_and_si256(vbits2, v0f);
+            vtmp1 = _mm256_srli_epi32(vbits2, 8);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vtmp1 = _mm256_srli_epi32(vbits2, 16);
+            vbits2 = _mm256_add_epi32(vbits2, vtmp1);
+            vbits2 = _mm256_and_si256(vbits2, v3f);
+            _mm256_store_si256((__m256i *)tmpstore2, vbits2);
+        }
+
+        // map each dword to the correct location in the primes array
+        // using the counts we just computed.
+        poffset1[0] = pcount;
+        poffset1[1] = poffset1[0] + tmpstore[0] + tmpstore2[0];
+        poffset1[2] = poffset1[1] + tmpstore[1] + tmpstore2[1];
+        poffset1[3] = poffset1[2] + tmpstore[2] + tmpstore2[2];
+        poffset1[4] = poffset1[3] + tmpstore[3] + tmpstore2[3];
+        poffset1[5] = poffset1[4] + tmpstore[4] + tmpstore2[4];
+        poffset1[6] = poffset1[5] + tmpstore[5] + tmpstore2[5];
+        poffset1[7] = poffset1[6] + tmpstore[6] + tmpstore2[6];
+
+#ifdef PRINT_DEBUG
+        {
+            printf("at byte offset %d, here are the dword prime counts with initial count %u\n", 
+                byte_offset, pcount);
+            printf("class 1:\n");
+            for (i = 0; i < 32; i++)
+            {
+                printf("%02x", lines[0][byte_offset + i]);
+                if (i % 4 == 3) printf(" ");
+            }
+            printf("\nclass 5:\n");
+            for (i = 0; i < 32; i++)
+            {
+                printf("%02x", lines[0][byte_offset + sdata->numlinebytes + i]);
+                if (i % 4 == 3) printf(" ");
+            }
+            printf("\ncounts1:\n");
+            for (i = 0; i < 8; i++)
+            {
+                printf("%d ", tmpstore[i]);
+            }
+            printf("\ncounts2:\n");
+            for (i = 0; i < 8; i++)
+            {
+                printf("%d ", tmpstore2[i]);
+            }
+            printf("\n");
+            printf("\ncumulative offsets1:\n");
+            for (i = 0; i < 8; i++)
+            {
+                printf("%d ", poffset1[i]);
+            }
+            printf("\ncumulative offsets2:\n");
+            for (i = 0; i < 8; i++)
+            {
+                printf("%d ", poffset2[i]);
+            }
+            printf("\n");            
+        }
+#endif
+
+
+        // each dword has a different bit offset.  they are the same
+        // for each line (which have different class numbers).
+        b = (uint32)byte_offset << 3;
+        vbitoffset = _mm256_setr_epi32(b, b + 32, b + 64, b + 96,
+            b + 128, b + 160, b + 192, b + 224);
+
+        vbits2 = vtmp4;
+
+        // for each of the 32 bits, compute a prime if the bit is set.
+        for (i = 0; i < 32; i++)
+        {
+            //int id;
+            int j;
+
+            // isolate the current bit and compare if equal to 1.            
+            vtmp2 = _mm256_cmpeq_epi32(_mm256_and_si256(vmasks, vbits), vmasks);
+            vtmp4 = _mm256_cmpeq_epi32(_mm256_and_si256(vmasks, vbits2), vmasks);
+
+            // extract topmost bit of every byte of the comparison mask
+            bmask = _mm256_movemask_epi8(vtmp2);
+            bmask2 = _mm256_movemask_epi8(vtmp4);
+
+            // next bitmap location
+            vbits = _mm256_srli_epi32(vbits, 1);
+            vbits2 = _mm256_srli_epi32(vbits2, 1);
+
+            // skip if all non-prime
+            if ((bmask == 0) && (bmask2 == 0))
+                continue;
+
+            // compute the primes.  The only part of the calculation 
+            // that involves more than 32 bits is the addition of
+            // lowlimit.  This is because when we compute primes the
+            // range is not allowed to exceed 32-bits in size.
+            vtmp1 = _mm256_set1_epi32(i);
+            vtmp1 = _mm256_add_epi32(vtmp1, vbitoffset);
+            vtmp1 = _mm256_mullo_epi32(vtmp1, vprodN);
+            vtmp3 = _mm256_add_epi32(vtmp1, vlinenums2);
+            vtmp1 = _mm256_add_epi32(vtmp1, vlinenums);
+            
+
+            // Use the result to conditionally store the primes we computed.
+            vtmp2 = _mm256_and_si256(vtmp2, vtmp1);
+            vtmp4 = _mm256_and_si256(vtmp4, vtmp3);
+
+            // one vector store.  (extracting directly from the vector is not profitable...)
+            _mm256_store_si256((__m256i *)tmpstore, vtmp2);
+            _mm256_store_si256((__m256i *)tmpstore2, vtmp4);
+
+            // search the masked primes for non-zero values and copy
+            // them to the output array.
+            // the two vectors are contiguous along columns of dwords, so we
+            // look at the dwords one at a time.  could probably also do a
+            // similar tzcnt/blsr thing as the 8-class case if we first
+            // OR together the bmasks...
+            for (j = 0; j < 8; j++)
+            {
+                if (bmask & 0x1)
+                {
+                    prime = tmpstore[j];
+                    if (prime <= ohigh)
+                    {
+                        primes[GLOBAL_OFFSET + poffset1[j] + pcounts1[j]] = prime;
+                        pcounts1[j]++;
+                    }
+                }
+
+                if (bmask2 & 0x1)
+                {
+                    prime = tmpstore2[j];
+                    if (prime <= ohigh)
+                    {
+                        primes[GLOBAL_OFFSET + poffset1[j] + pcounts1[j]] = prime;
+                        pcounts1[j]++;
+                    }
+                }
+
+                bmask >>= 4;
+                bmask2 >>= 4;
+            }
+
+        }
+
+        for (i = 0; i < 8; i++)
+        {
+            pcount += pcounts1[i];
+        }
+
+#ifdef PRINT_DEBUG
+        printf("pcount is now %d\n", pcount);
+#endif
+    }
+
+#ifdef PRINT_DEBUG
+    exit(1);
+#endif
+#endif
+
+    return pcount;
+}
+
 uint32 compute_8_bytes(soe_staticdata_t *sdata, 
 	uint32 pcount, uint64 *primes, uint64 byte_offset)
 {
@@ -276,7 +571,6 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
 	{
 		if (VFLAG > 1)
 		{
-			int k;
 			printf("computing: %d%%\r",(int)
 				((double)byte_offset / (double)(sdata->numlinebytes) * 100.0));
 			fflush(stdout);
@@ -317,7 +611,6 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
 #endif
         int *startaddr = (int *)(&lines[0][byte_offset]);
         int i;
-        int j;
         int poffset = pcount;
         uint32 pcount2 = 0;
         uint32 bmask, bmask2;

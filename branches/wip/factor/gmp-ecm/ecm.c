@@ -99,7 +99,8 @@ void ecm_sync_fcn(void *ptr)
     if (ECM_ABORT)
     {
         print_factors(fobj);
-        exit(1);
+        fobj->ecm_obj.exit_cond = ECM_EXIT_ABORT;
+        //exit(1);
     }
 
     return;
@@ -141,6 +142,11 @@ void ecm_dispatch_fcn(void *ptr)
     if (*thread_data->ok_to_stop == 1)
     {
         // found a factor - ok to stop              
+        tdata->work_fcn_id = tdata->num_work_fcn;
+    }
+    else if (thread_data->fobj->ecm_obj.exit_cond == ECM_EXIT_ABORT)
+    {
+        // user abort - ok to stop  
         tdata->work_fcn_id = tdata->num_work_fcn;
     }
     else if (*thread_data->total_curves_run < 
@@ -207,7 +213,7 @@ int ecm_loop(fact_obj_t *fobj)
 	FILE *flog;
 	int i,j;
     double total_time = 0;
-	int num_batches;
+	int num_batches;    
 
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
@@ -220,6 +226,9 @@ int ecm_loop(fact_obj_t *fobj)
     // threading structures
     tpool_t *tpool_data;
     ecm_thread_data_t *thread_data;		//an array of thread data objects
+
+    // if nothing else happens to overwrite it, set the normal exit condition.
+    fobj->ecm_obj.exit_cond = ECM_EXIT_NORMAL;
 
     // check if we need to continue ecm
 	if (ecm_check_input(fobj) == 0)
@@ -444,21 +453,36 @@ int ecm_check_input(fact_obj_t *fobj)
 
 void ecm_process_init(fact_obj_t *fobj)
 {
-	//initialize things which all threads will need when using
-	//GMP-ECM
+	// initialize things which all threads will need when using
+	// GMP-ECM
 	TMP_THREADS = THREADS;
 	TMP_STG2_MAX = fobj->ecm_obj.B2;
 
     if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
     {
-        fobj->ecm_obj.use_external = 1;
+        // check that the file actually exists... print a warning if not and
+        // resort to internal ecm.
+        if (NULL == fopen(fobj->ecm_obj.ecm_path, "rb"))
+        {
+            printf("ecm: ECM executable does not exist at %s\n"
+                "ecm: using internal single threaded ECM...\n",
+                fobj->ecm_obj.ecm_path);
+            fobj->ecm_obj.use_external = 0;
+        }
+        else
+        {
+            fobj->ecm_obj.use_external = 1;
+        }
     }
 	
 	if (THREADS > 1)
 	{
+        float ver;
+        sscanf(ECM_VERSION, "%f", &ver);
+
 		if (!fobj->ecm_obj.use_external)
-		{            
-            if (atoi(ECM_VERSION) >= 7)
+		{                       
+            if (ver > 7.0)
             {
                 // ok to use multiple threads in ecm 7+
 
@@ -476,7 +500,7 @@ void ecm_process_init(fact_obj_t *fobj)
 		{
 			if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover) || (fobj->ecm_obj.num_curves == 1))
 			{
-                if (atoi(ECM_VERSION) >= 7)
+                if (ver > 7.0)
                 {
                     // ok to use multiple threads in ecm 7+
                 }

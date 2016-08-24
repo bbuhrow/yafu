@@ -39,7 +39,7 @@ code to the public domain.
 #define BIN 2
 
 //max words for fixed precision msieve bignum
-#define MAX_MP_WORDS 32
+#define MAX_MP_WORDS 64
 
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024

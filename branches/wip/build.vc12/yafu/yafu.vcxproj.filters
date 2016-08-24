@@ -257,6 +257,9 @@
     <ClCompile Include="..\..\top\threadpool.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\vecarith.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">

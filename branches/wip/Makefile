@@ -63,14 +63,18 @@ ifeq ($(MIC),1)
 
 	INC += -I../gmp-ecm/include/linux
 	LIBS += -L../gmp-ecm/lib/phi/lib
+    
 else
 	OBJ_EXT = .o
 
 	INC += -I../gmp/include
 	LIBS += -L../gmp/lib/linux/x86_64
 
-	INC += -I../gmp-ecm/include/linux
-	LIBS += -L../gmp-ecm/lib/linux/x86_64
+	#INC += -I../gmp-ecm/include/linux
+	#LIBS += -L../gmp-ecm/lib/linux/x86_64
+  
+  INC += -I../../ecm-7.0.3/install/include/
+	LIBS += -L../../ecm-7.0.3/install/lib/
 endif
 
 
@@ -99,6 +103,7 @@ ifeq ($(NFS),1)
 		LIBS += -L../msieve/lib/phi
 	else
 		LIBS += -L../msieve/lib/linux/x86_64 
+    #LIBS += -L../msieve
 	endif
 	LIBS += -lmsieve
 endif

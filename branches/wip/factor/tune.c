@@ -44,6 +44,8 @@ void factor_tune(fact_obj_t *inobj)
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		63709, 143984, 242825, 589192, 847299, 1272852, 1709598};
+    uint32 siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
+        15, 13, 16, 20, 18, 19, 20 };
 
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
@@ -65,6 +67,14 @@ void factor_tune(fact_obj_t *inobj)
 	if (THREADS != 1)
 		printf("Setting THREADS = 1 for tuning\n");
 	THREADS = 1;
+
+#if defined(USE_AVX2) || defined(USE_SSE41)
+    // as of version 1.35, c70 and above use DLP in SIQS for these CPUs:
+    // need to modify the actual relations needed.
+    siqs_actualrels[2] = 97812;
+    siqs_actualrels[3] = 243854;
+    siqs_actualrels[4] = 418664;
+#endif
 
 	//siqs: start with c60, increment by 5 digits, up to a c100
 	//this will allow determination of NFS/QS crossover as well as provide enough
@@ -95,10 +105,16 @@ void factor_tune(fact_obj_t *inobj)
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 		init_factobj(fobj);		
 
-		//measure how long it takes to gather a fixed number of relations 		
+		// measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);
 		fobj->qs_obj.gbl_override_rel_flag = 1;
 		fobj->qs_obj.gbl_override_rel = 10000;	
+
+        // also set the tf_small_cutoff to its known best value so we
+        // don't pollute the measurement with the optimization process.
+        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+        fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
+
 		gettimeofday(&start, NULL);
 		mp2gmp(&n,fobj->qs_obj.gmp_n);
 		SIQS(fobj);

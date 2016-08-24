@@ -54,6 +54,10 @@ void sieve_line(thread_soedata_t *thread_data)
         __m256i v31 = _mm256_set1_epi32(31);
         __m256i vfull = _mm256_set1_epi32(0xffffffff);
         __m256i vone = _mm256_set1_epi32(1);
+        //__m256i v7 = _mm256_set1_epi32(7);
+        //__m256i vpmul = _mm256_set_epi32(0,1,2,3,4,5,6,7);
+        //__m256i vt1, vt2;
+        //__m256i vmask, vp8, vidx;
 
 #ifdef __INTEL_COMPILER
         __declspec(align(64)) uint32 t[8];
@@ -128,10 +132,66 @@ void sieve_line(thread_soedata_t *thread_data)
 			tmpP = prime << 4;
 			stop = FLAGSIZE - tmpP + prime;
 			k=ddata->offsets[j];            
+			
+#ifdef NOT_USE_AVX2
+            // once again, it is much slower to use AVX2 assisted index
+            // calculations, since the results of both the index and mask
+            // calculations have to be written out to temporary storage
+            // then re-read and re-stored into the flagblock array. 
+            // byte-wide scattering or addressing from AVX2 registers 
+            // may someday help...
+            p1 = prime << 3;
 
-			p1 = prime;
-			p2 = p1 + prime;
-			p3 = p2 + prime;
+            vt1 = _mm256_mullo_epi32(_mm256_set1_epi32(prime), vpmul);
+            vidx = _mm256_add_epi32(_mm256_set1_epi32(k), vt1);
+            vp8 = _mm256_slli_epi32(_mm256_set1_epi32(prime), 3);
+            vmask = _mm256_and_si256(vidx, v7);
+            vmask = _mm256_sllv_epi32(vone, vmask);
+            vmask = _mm256_andnot_si256(vmask, vfull);
+
+            while (k < stop)
+            {
+                vt1 = _mm256_srli_epi32(vidx, 3);
+                _mm256_store_si256((__m256i *)t, vt1);
+                vt2 = _mm256_i32gather_epi32((int *)flagblock, vt1, 1);                
+                vt2 = _mm256_and_si256(vt2, vmask);
+                _mm256_store_si256((__m256i *)t2, vt2);
+
+                flagblock[t[0]] = (uint8)t2[0];
+                //_mm256_maskstore_epi32((int *)(&flagblock[t[0]]), _mm256_set_epi32(0xffffffff,0,0,0,0,0,0,0), vt2);
+                flagblock[t[1]] = (uint8)t2[1];
+                flagblock[t[2]] = (uint8)t2[2];
+                flagblock[t[3]] = (uint8)t2[3];
+                flagblock[t[4]] = (uint8)t2[4];
+                flagblock[t[5]] = (uint8)t2[5];
+                flagblock[t[6]] = (uint8)t2[6];
+                flagblock[t[7]] = (uint8)t2[7];
+
+                k += p1;
+                vidx = _mm256_add_epi32(vidx, vp8);
+                vt1 = _mm256_srli_epi32(vidx, 3);
+                _mm256_store_si256((__m256i *)t, vt1);
+                vt2 = _mm256_i32gather_epi32((int *)flagblock, vt1, 1);
+                vt2 = _mm256_and_si256(vt2, vmask);
+                _mm256_store_si256((__m256i *)t2, vt2);
+
+                flagblock[t[0]] = (uint8)t2[0];
+                flagblock[t[1]] = (uint8)t2[1];
+                flagblock[t[2]] = (uint8)t2[2];
+                flagblock[t[3]] = (uint8)t2[3];
+                flagblock[t[4]] = (uint8)t2[4];
+                flagblock[t[5]] = (uint8)t2[5];
+                flagblock[t[6]] = (uint8)t2[6];
+                flagblock[t[7]] = (uint8)t2[7];
+
+                vidx = _mm256_add_epi32(vidx, vp8);
+                k += p1;
+            }
+#else
+
+            p1 = prime;
+            p2 = p1 + prime;
+            p3 = p2 + prime;
 
             m0 = masks[(k + 0 * prime) & 7];
             m1 = masks[(k + 1 * prime) & 7];
@@ -165,6 +225,7 @@ void sieve_line(thread_soedata_t *thread_data)
                 flagblock[(k + p3) >> 3] &= m7;
                 k += (prime << 2);
 			}
+#endif
 
 			for (;k<FLAGSIZE;k+=prime)
 				flagblock[k>>3] &= masks[k&7];
