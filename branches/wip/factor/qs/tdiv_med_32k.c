@@ -68,8 +68,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32 block_loc;
-    uint16 buffer[16];
-    uint16 buffer2[16];
+    uint16 buffer[32];
     uint32 tmp3 = 0;
     int r;
     int starti;
@@ -452,10 +451,12 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         TDIV_MED_CLEAN;
 
+#if defined(HAS_SSE2) && defined(GCC_ASM64X)
         for (r = 0; r < tmp3; r++)
         {
-            DIVIDE_ONE_PRIME_2((buffer[r]));
+            DIVIDE_RESIEVED_PRIME_2((buffer[r]));
         }
+#endif
 
 #else
 

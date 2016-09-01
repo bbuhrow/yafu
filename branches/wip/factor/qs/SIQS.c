@@ -420,12 +420,18 @@ void SIQS(fact_obj_t *fobj)
         &siqs_sync, &siqs_dispatch, &udata);
     tpool_add_work_fcn(tpool_data, &process_poly);
 
+    // this function is not run by tpool. It puts things into the user
+    // data portion of the tpool structure and runs a few initialization 
+    // routines in an attempt to clean up this toplevel function.
     siqs_start(tpool_data);
+
     if (THREADS == 1)
     {
         // it is noticably faster to remove the tpool overhead
         // if we just have one thread.  This is basically what
-        // tpool_go() does without all of the threading overhead.        
+        // tpool_go() does without all of the threading overhead.
+        // todo: maybe this *should* be what tpool_go() does when
+        // num_threads == 1...
         while (1)
         {
             siqs_sync(tpool_data);
