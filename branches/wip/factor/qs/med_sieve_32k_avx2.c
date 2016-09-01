@@ -31,6 +31,13 @@ code to the public domain.
 #include "sieve_macros_32k_avx2.h"
 
 
+// vpext uses p0 and p5
+// subb uses 2p0156 2p237 p4
+// vpext avoids read port conflicts; subb is free to use p237
+// subb can be using p1 or p6 while vpext uses p0 and p5
+// thus hopefully once things get rolling we have an 
+// effective reciprocal throughput of 1.
+// short of gather/scatter, not sure if I can do any better.
 #define _8P_STEP_SIEVE_AVX2 \
 	"vpextrw	$0, %%xmm1, %%eax \n\t"			/* extract root1 */ \
 	"vpextrw	$0, %%xmm2, %%ebx \n\t"			/* extract root2 */ \

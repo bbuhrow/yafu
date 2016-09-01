@@ -68,7 +68,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	int smooth_num;
 	uint32 *fb_offsets;
 	uint32 polya_factors[20];
-	sieve_fb *fb;
+	//sieve_fb *fb;
+    sieve_fb_compressed *fbc = dconf->comp_sieve_p;
 	uint32 offset, block_loc;
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
@@ -80,10 +81,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	offset = (bnum << sconf->qs_blockbits) + block_loc;
 
-	if (parity)
-		fb = dconf->fb_sieve_n;
-	else
-		fb = dconf->fb_sieve_p;
+	//if (parity)
+	//	fb = dconf->fb_sieve_n;
+	//else
+	//	fb = dconf->fb_sieve_p;
 
 #ifdef USE_YAFU_TDIV
 	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
@@ -96,7 +97,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	{
 		//fbptr = fb + dconf->curr_poly->qlisort[j];
 		//prime = fbptr->prime;
-		prime = fb[dconf->curr_poly->qlisort[j]].prime;
+        prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 
 		while ((mpz_tdiv_ui(dconf->Qvals[report_num],prime) == 0) && (it < 20))
 		{

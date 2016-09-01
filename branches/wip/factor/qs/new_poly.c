@@ -81,7 +81,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 potential_a_factor = 0, found_a_factor;
 	uint32 afact[20];
 	double target_mul = 0.9;
-	int too_close, min_ratio;
+    int too_close, min_ratio, close_range;
 	FILE *sieve_log = sconf->obj->logfile;
 	uint32 upper_polypool_index, lower_polypool_index;
 
@@ -297,6 +297,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//brute force the poly to be somewhat close to the target
 		target_bits = (uint32)((double)mpz_sizeinbase(target_a, 2) * target_mul);
 		too_close = 10;
+        close_range = 5;
 		min_ratio = 1000;
 	}
 
@@ -354,7 +355,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				*s=0;
 				continue;
 			}
-			else if (j < (too_close + 5))
+			else if (j < (too_close + close_range))
 			{
 				//close enough to pick a last factor
 #ifdef POLYA_DEBUG
@@ -365,9 +366,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		//at this point, poly_a is too small by one factor, find the closest factor
-		mpz_set(tmp, target_a); //zCopy(target_a,&tmp);
+		mpz_set(tmp, target_a); 
 		mpz_tdiv_q(tmp2, tmp, poly_a);
-		//zDiv(&tmp,poly_a,&tmp2,&tmp3);
 
 		mindiff = 0xffffffff;
 		a1 = mpz_get_ui(tmp2);
@@ -420,7 +420,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		mpz_mul_ui(poly_a, poly_a, fb->list->prime[randindex]); 
-		//zShortMul(poly_a,fb->list->prime[randindex],poly_a);
 #ifdef POLYA_DEBUG
 		printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
 #endif

@@ -22,6 +22,7 @@ code to the public domain.
 #include "qs.h"
 #include "util.h"
 #include "gmp_xface.h"
+#include "threadpool.h"
 
 //#define VDEBUG
 // opt debug will print out some info relevant to the process used to 
@@ -29,6 +30,233 @@ code to the public domain.
 // first few polynomials and the value which maximizes relation discover rate
 // is chosen.
 //#define OPT_DEBUG
+
+typedef struct
+{
+    thread_sievedata_t *thread_data;
+
+    // adaptive tf_small_cutoff variables needed across syncronizations
+    int orig_value;
+    int num_meas;
+    double results[3];
+    int averaged_polys;
+    double rels_per_sec_avg;
+#ifdef OPT_DEBUG
+    FILE *optfile;
+#endif
+
+    // other stuff that we need a global copy of
+    uint32 num_needed;
+    uint32 num_found;
+    int updatecode;
+    
+} siqs_userdata_t;
+
+void siqs_start(void *vptr)
+{
+    tpool_t *tdata = (tpool_t *)vptr;
+    siqs_userdata_t *udata = tdata->user_data;
+    static_conf_t *static_conf = udata->thread_data[0].sconf;
+    fact_obj_t *fobj = static_conf->obj;
+    int i;
+
+#ifdef OPT_DEBUG
+    udata->optfile = fopen("optfile.csv", "a");
+    fprintf(udata->optfile, "Optimization Debug File\n");
+    fprintf(udata->optfile, "Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
+        yafu_get_cpu_type(), L1CACHE, L2CACHE);
+    gmp_fprintf(udata->optfile, "Starting SIQS on c%d: %s\n\n",
+        fobj->digits, mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+    fprintf(udata->optfile, "Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
+#endif
+
+    udata->results[0] = 0.0;
+    udata->results[1] = 0.0;
+    udata->results[2] = 0.0;
+
+    udata->averaged_polys = 0;
+    udata->rels_per_sec_avg = 0.0;
+    udata->updatecode = 0;
+
+    // get best parameters, multiplier, and factor base for the job
+    // initialize and fill out the static part of the job data structure
+    siqs_static_init(udata->thread_data[0].sconf, 0);
+
+    // allocate structures for use in sieving with threads
+    for (i = 0; i < THREADS; i++)
+    {
+        siqs_dynamic_init(udata->thread_data[i].dconf, static_conf);
+    }
+
+    // check if a savefile exists for this number, and if so load the data
+    // into the master data structure
+    siqs_check_restart(udata->thread_data[0].dconf, static_conf);
+    print_siqs_splash(udata->thread_data[0].dconf, static_conf);
+
+    // start the process
+    udata->num_needed = static_conf->factor_base->B + static_conf->num_extra_relations;
+    udata->num_found = static_conf->num_r;
+    static_conf->total_poly_a = -1;
+    udata->num_meas = 0;
+    udata->orig_value = static_conf->tf_small_cutoff;
+
+    if (fobj->qs_obj.gbl_override_small_cutoff_flag)
+    {
+        fobj->qs_obj.no_small_cutoff_opt = 1;
+        static_conf->tf_small_cutoff = fobj->qs_obj.gbl_override_small_cutoff;
+    }
+
+    return;
+}
+
+void siqs_sync(void *vptr)
+{
+    tpool_t *tdata = (tpool_t *)vptr;
+    siqs_userdata_t *udata = tdata->user_data;
+    thread_sievedata_t *t = udata->thread_data;
+    static_conf_t *static_conf = udata->thread_data[0].sconf;
+    fact_obj_t *fobj = static_conf->obj;
+    
+    int tid = tdata->tindex;
+    
+    // adaptive tf_small_cutoff variables    
+    int num_avg = 10;    
+    int orig_value = udata->orig_value;
+    int j;
+    
+    // Check whether the thread has any results to collect and merge them if so.
+    if (t[tid].dconf->buffered_rels)
+    {
+        udata->num_found = siqs_merge_data(t[tid].dconf, static_conf);
+
+        if (fobj->qs_obj.no_small_cutoff_opt == 0)
+        {
+            int	poly_start_num = 0;
+
+            if (udata->num_meas < 3)
+            {
+                if (udata->averaged_polys >= num_avg)
+                {
+                    poly_start_num = static_conf->total_poly_a;
+                    udata->results[udata->num_meas] = udata->rels_per_sec_avg /
+                        (double)udata->averaged_polys;
+
+#ifdef OPT_DEBUG
+                    fprintf(udata->optfile, "%d,%d,%f,%d\n", udata->num_meas, 
+                        static_conf->total_poly_a,
+                        udata->results[udata->num_meas], 
+                        static_conf->tf_small_cutoff);
+#endif
+
+                    udata->rels_per_sec_avg = 0.0;
+                    udata->averaged_polys = 0;
+
+                    if (udata->num_meas == 0)
+                    {
+                        static_conf->tf_small_cutoff = orig_value + 5;
+                    }
+                    else if (udata->num_meas == 1)
+                    {
+                        static_conf->tf_small_cutoff = orig_value - 5;
+                    }
+                    else
+                    {
+                        //we've got our three measurements, make a decision.
+                        //the experimental results need to be convincingly better
+                        //in order to switch to a different value.  2% for numbers
+                        //with one LP, 5% for DLP.
+                        if (static_conf->use_dlp)
+                            udata->results[0] *= 1.05;
+                        else
+                            udata->results[0] *= 1.02;
+
+                        if (udata->results[0] > udata->results[1])
+                        {
+                            if (udata->results[0] > udata->results[2])
+                                static_conf->tf_small_cutoff = orig_value;
+                            else
+                                static_conf->tf_small_cutoff = orig_value - 5;
+                        }
+                        else
+                        {
+                            if (udata->results[1] > udata->results[2])
+                                static_conf->tf_small_cutoff = orig_value + 5;
+                            else
+                                static_conf->tf_small_cutoff = orig_value - 5;
+                        }
+
+                        //printf("\nfinal value for tf_small_cutoff = %u\n",
+                        //    static_conf->tf_small_cutoff);
+#ifdef OPT_DEBUG
+                        fprintf(udata->optfile, "final value = %d\n", static_conf->tf_small_cutoff);
+                        fprintf(udata->optfile, "\n\n");
+                        fclose(udata->optfile);
+#endif
+                    }
+
+                    udata->num_meas++;
+                }
+                else
+                {
+                    udata->rels_per_sec_avg += t[tid].dconf->rels_per_sec;
+                    udata->averaged_polys++;
+                }
+            }
+        }
+
+        // free sieving structure
+        for (j = 0; j < t[tid].dconf->buffered_rels; j++)
+            free(t[tid].dconf->relation_buf[j].fb_offsets);
+
+        t[tid].dconf->num = 0;
+        t[tid].dconf->tot_poly = 0;
+        t[tid].dconf->buffered_rels = 0;
+        t[tid].dconf->attempted_squfof = 0;
+        t[tid].dconf->failed_squfof = 0;
+        t[tid].dconf->dlp_outside_range = 0;
+        t[tid].dconf->dlp_prp = 0;
+        t[tid].dconf->dlp_useful = 0;
+        t[tid].dconf->total_blocks = 0;
+        t[tid].dconf->total_reports = 0;
+        t[tid].dconf->total_surviving_reports = 0;
+        t[tid].dconf->lp_scan_failures = 0;
+        t[tid].dconf->num_64bit_residue = 0;
+    }
+
+    return;
+}
+
+void siqs_dispatch(void *vptr)
+{
+    tpool_t *tdata = (tpool_t *)vptr;
+    siqs_userdata_t *udata = tdata->user_data;
+    thread_sievedata_t *t = udata->thread_data;
+    static_conf_t *static_conf = t[0].sconf;
+    fact_obj_t *fobj = static_conf->obj;
+    int tid = tdata->tindex;    
+
+    //check whether to continue or not, and update the screen
+    udata->updatecode = update_check(static_conf);
+
+    // if we have enough relations, or if there was a break signal, stop dispatching
+    // any more threads
+    if ((udata->updatecode == 0) && (udata->num_found < udata->num_needed))
+    {
+        // generate a new poly A value for the thread we pulled out of the queue
+        // using its dconf.  this is done by the master thread because it also 
+        // stores the coefficients in a master list
+        static_conf->total_poly_a++;
+        new_poly_a(static_conf, t[tid].dconf);
+        tdata->work_fcn_id = 0;
+    }
+    else
+    {
+        tdata->work_fcn_id = tdata->num_work_fcn;
+    }
+
+
+    return;
+}
 
 void SIQS(fact_obj_t *fobj)
 {
@@ -39,21 +267,12 @@ void SIQS(fact_obj_t *fobj)
 	// input expected in fobj->qs_obj->gmp_n	
 
 	// thread data holds all data needed during sieving
+    tpool_t *tpool_data;
+    siqs_userdata_t udata;
 	thread_sievedata_t *thread_data;		//an array of thread data objects
 
 	// master control structure
 	static_conf_t *static_conf;
-
-    // thread work-queue controls
-    int threads_working = 0;
-    int *thread_queue, *threads_waiting;
-#if defined(WIN32) || defined(_WIN64)
-	HANDLE queue_lock;
-	HANDLE *queue_events = NULL;
-#else
-    pthread_mutex_t queue_lock;
-    pthread_cond_t queue_cond;
-#endif
 
 	// stuff for lanczos
 	qs_la_col_t *cycle_list;
@@ -64,29 +283,12 @@ void SIQS(fact_obj_t *fobj)
 	// log file
 	FILE *sieve_log;
 
-#ifdef OPT_DEBUG
-	FILE *optfile;
-#endif
-
-	// some locals
-	uint32 num_needed, num_found;
-	uint32 alldone;
-	uint32 j;
+	// some locals	
 	int i;
 	clock_t start, stop;
 	double t_time;
-	struct timeval myTVend, optstart;
-	TIME_DIFF *	difference;
-	int updatecode = 0;
-
-	// adaptive tf_small_cutoff variables
-	double rels_per_sec_avg = 0.0;
-	double results[3] = {0.0,0.0,0.0};
-	int averaged_polys = 0;
-	int num_avg = 10;
-	int num_meas = 1;
-	int orig_value;
-	
+	struct timeval myTVend;
+	TIME_DIFF *	difference;	
 
 	// checking savefile
 	FILE *data;
@@ -175,50 +377,16 @@ void SIQS(fact_obj_t *fobj)
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
-	// initialize the data objects
+	// initialize the data objects both shared (static) and 
+    // per-thread (dynamic)
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
-
-    // allocate the queue of threads waiting for work
-    thread_queue = (int *)malloc(THREADS * sizeof(int));
-    threads_waiting = (int *)malloc(sizeof(int));
-
-	if (THREADS > 1)
-	{
-#if defined(WIN32) || defined(_WIN64)
-		queue_lock = CreateMutex( 
-			NULL,              // default security attributes
-			FALSE,             // initially not owned
-			NULL);             // unnamed mutex
-		queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
-#else
-		pthread_mutex_init(&queue_lock, NULL);
-		pthread_cond_init(&queue_cond, NULL);
-#endif
-	}
 
 	thread_data = (thread_sievedata_t *)malloc(THREADS * sizeof(thread_sievedata_t));
 	for (i=0; i<THREADS; i++)
 	{
 		thread_data[i].dconf = (dynamic_conf_t *)malloc(sizeof(dynamic_conf_t));
 		thread_data[i].sconf = static_conf;
-		thread_data[i].tindex = i;
-		// assign all thread's a pointer to the waiting queue.  access to 
-		// the array will be controlled by a mutex
-        thread_data[i].thread_queue = thread_queue;
-        thread_data[i].threads_waiting = threads_waiting;
-
-		if (THREADS > 1)
-		{
-#if defined(WIN32) || defined(_WIN64)
-			// assign a pointer to the mutex
-			thread_data[i].queue_lock = &queue_lock;
-			thread_data[i].queue_event = &queue_events[i];
-#else
-			thread_data[i].queue_lock = &queue_lock;
-			thread_data[i].queue_cond = &queue_cond;
-#endif
-		}
 	}
 
 	// initialize the flag to watch for interrupts, and set the
@@ -226,12 +394,9 @@ void SIQS(fact_obj_t *fobj)
 	SIQS_ABORT = 0;
 	signal(SIGINT,siqsexit);
 
-	// initialize offset for savefile buffer
+	// initialize global offset for savefile buffer
 	savefile_buf_off = 0;	
-	
-	// function pointer to the sieve array scanner
-	scan_ptr = NULL;
-
+		
 	// start a counter for the whole job
 	gettimeofday(&static_conf->totaltime_start, NULL);
 
@@ -249,347 +414,47 @@ void SIQS(fact_obj_t *fobj)
 		fflush(sieve_log);
 	}
 
-	// get best parameters, multiplier, and factor base for the job
-	// initialize and fill out the static part of the job data structure
-	siqs_static_init(static_conf, 0);
+    udata.thread_data = thread_data;
 
-	// test: use in-memory relation storage below a certain digit level?
-	if (0) //(static_conf->digits_n < 1)
-	{
-		static_conf->in_mem = 1;
-		static_conf->in_mem_relations = (siqs_r *)malloc(32768 * sizeof(siqs_r));
-		static_conf->buffered_rel_alloc = 32768;
-		static_conf->buffered_rels = 0;
-	}
-    else
+    tpool_data = tpool_setup(THREADS, NULL, NULL,
+        &siqs_sync, &siqs_dispatch, &udata);
+    tpool_add_work_fcn(tpool_data, &process_poly);
+
+    siqs_start(tpool_data);
+    if (THREADS == 1)
     {
-        static_conf->in_mem = 0;
-    }
-
-	// allocate structures for use in sieving with threads
-    for (i = 0; i < THREADS; i++)
-    {
-        siqs_dynamic_init(thread_data[i].dconf, static_conf);
-    }
-
-	// check if a savefile exists for this number, and if so load the data
-	// into the master data structure
-	siqs_check_restart(thread_data[0].dconf, static_conf);
-	print_siqs_splash(thread_data[0].dconf, static_conf);
-
-	// start the process
-	num_needed = static_conf->factor_base->B + static_conf->num_extra_relations;
-	num_found = static_conf->num_r;
-	static_conf->total_poly_a = -1;
-
-#ifdef OPT_DEBUG
-	optfile = fopen("optfile.csv","a");
-	fprintf(optfile,"Optimization Debug File\n");
-	fprintf(optfile,"Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
-		yafu_get_cpu_type(),L1CACHE,L2CACHE);
-	gmp_fprintf(optfile,"Starting SIQS on c%d: %s\n\n",
-		fobj->digits, mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
-	fprintf(optfile,"Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
-#endif
-	gettimeofday(&optstart, NULL);
-
-	num_meas = 0;
-	orig_value = static_conf->tf_small_cutoff;
-
-	if (THREADS > 1)
-	{
-		// Activate the worker threads one at a time. 
-		// Initialize the work queue to say all threads are waiting for work
-		for (i = 0; i < THREADS; i++) 
-		{
-			start_worker_thread(thread_data + i);
-			thread_queue[i] = i;
-		}
-	}
-    *threads_waiting = THREADS;
-
-          /*
-            MASTER THREAD:
-
-            Start N threads  // so there are really N+1 threads: N workers doing poly processing plus one master
-            initialize thread queue to contain all thread IDs
-
-            lock queue mutex
-            while (1) {
-
-              while (waiting threads queue is non-empty) {
-                pull thread id T from queue
-
-                if (T has results) {   // only false on first dispatch to T
-                  siqs_merge_data(T)
-                  do SIQS opt code
-                  free T's sieving structures
-                  update_check()
-                  re-allocate sieving structure
-                  threads_working--
-                }
-
-                if (num_found < num_needed) {  // could optimize here to predict when enough threads are in flight
-                  new_poly_a(T)
-                  signal T to start with COMMAND_RUN (same as current code)
-                  threads_working++
-                }
-              }
-
-              if (threads_working == 0) break;
-
-              // waiting threads queue is now empty
-              wait on thread queue condition (unlocks queue mutex)
-              // when cond_wait returns, a thread is waiting for work
+        // it is noticably faster to remove the tpool overhead
+        // if we just have one thread.  This is basically what
+        // tpool_go() does without all of the threading overhead.        
+        while (1)
+        {
+            siqs_sync(tpool_data);
+            siqs_dispatch(tpool_data);
+            if (tpool_data->work_fcn_id == 0)
+            {
+                process_poly(tpool_data);
             }
-
-
-            WORKER THREADS:
-
-            while (1) {
-              wait for COMMAND_RUN (same as current code)
-              process_poly()
-              set COMMAND_WAIT
-
-              lock queue mutex
-              add my TID to the queue
-              signal queue condition
-              unlock queue mutex
-            }
-           */
-
-        // Master thread begins with the workqueue locked
-
-	if (THREADS > 1)
-	{
-#if defined(WIN32) || defined(_WIN64)
-		// nothing
-#else
-		pthread_mutex_lock(&queue_lock);
-#endif
-	}
-
-    if (fobj->qs_obj.gbl_override_small_cutoff_flag)
-    {
-        fobj->qs_obj.no_small_cutoff_opt = 1;
-        static_conf->tf_small_cutoff = fobj->qs_obj.gbl_override_small_cutoff;
-    }
-
-    while (1)
-	{
-
-		// Process threads until there are no more waiting for their results to be collected
-		while (*threads_waiting > 0)
-		{
-			int tid;
-			
-			if (THREADS > 1)
-			{
-				// Pop a waiting thread off the queue (OK, it's stack not a queue)
-#if defined(WIN32) || defined(_WIN64)
-				WaitForSingleObject( 
-					queue_lock,    // handle to mutex
-					INFINITE);  // no time-out interval
-#endif
-  
-				tid = thread_queue[--(*threads_waiting)];
-
-#if defined(WIN32) || defined(_WIN64)
-				ReleaseMutex(queue_lock);
-#endif
-			}
             else
             {
-                tid = 0;
+                break;
             }
+        }
+    }
+    else
+    {
+        tpool_go(tpool_data);
+    }
 
-			// Check whether the thread has any results to collect. This should only be false at the 
-			// very beginning, when the thread hasn't actually done anything yet.
-			if (thread_data[tid].dconf->buffered_rels)
-			{				
-				num_found = siqs_merge_data(thread_data[tid].dconf,static_conf);
-
-				if (fobj->qs_obj.no_small_cutoff_opt == 0) 
-				{
-                    int	poly_start_num = 0;
-
-					if (num_meas < 3)
-					{			
-						if (averaged_polys >= num_avg)
-						{
-							poly_start_num = static_conf->total_poly_a;
-							results[num_meas] = rels_per_sec_avg / (double)averaged_polys;						
-
-#ifdef OPT_DEBUG
-							fprintf(optfile,"%d,%d,%f,%d\n",num_meas,static_conf->total_poly_a,
-									results[num_meas], static_conf->tf_small_cutoff);
-#endif
-
-							rels_per_sec_avg = 0.0;
-							averaged_polys = 0;
-
-							if (num_meas == 0)
-							{
-								static_conf->tf_small_cutoff = orig_value + 5;
-							}
-							else if (num_meas == 1)
-							{
-								static_conf->tf_small_cutoff = orig_value - 5;
-							}
-							else
-							{
-								//we've got our three measurements, make a decision.
-								//the experimental results need to be convincingly better
-								//in order to switch to a different value.  2% for numbers
-								//with one LP, 5% for DLP.
-								if (static_conf->use_dlp)
-									results[0] *= 1.05;
-								else
-									results[0] *= 1.02;
-
-								if (results[0] > results[1])
-								{
-									if (results[0] > results[2])
-										static_conf->tf_small_cutoff = orig_value;
-									else
-										static_conf->tf_small_cutoff = orig_value - 5;
-								}
-								else
-								{
-									if (results[1] > results[2])
-										static_conf->tf_small_cutoff = orig_value + 5;
-									else
-										static_conf->tf_small_cutoff = orig_value - 5;
-								}	
-
-                                printf("\nfinal value for tf_small_cutoff = %u\n",
-                                    static_conf->tf_small_cutoff);
-#ifdef OPT_DEBUG
-								fprintf(optfile,"final value = %d\n",static_conf->tf_small_cutoff);
-#endif
-							}
-
-							num_meas++;
-						}
-						else
-						{
-							rels_per_sec_avg += thread_data[tid].dconf->rels_per_sec;
-							averaged_polys++;
-						}
-					}
-				}
-
-				// free sieving structure
-				for (j=0; j<thread_data[tid].dconf->buffered_rels; j++)
-					free(thread_data[tid].dconf->relation_buf[j].fb_offsets);
-				thread_data[tid].dconf->num = 0;
-				thread_data[tid].dconf->tot_poly = 0;
-				thread_data[tid].dconf->buffered_rels = 0;
-				thread_data[tid].dconf->attempted_squfof = 0;
-				thread_data[tid].dconf->failed_squfof = 0;
-				thread_data[tid].dconf->dlp_outside_range = 0;
-				thread_data[tid].dconf->dlp_prp = 0;
-				thread_data[tid].dconf->dlp_useful = 0;
-                thread_data[tid].dconf->total_blocks = 0;
-                thread_data[tid].dconf->total_reports = 0;
-                thread_data[tid].dconf->total_surviving_reports = 0;
-                thread_data[tid].dconf->lp_scan_failures = 0;
-                thread_data[tid].dconf->num_64bit_residue = 0;
-
-				//check whether to continue or not, and update the screen
-				updatecode = update_check(static_conf);
-
-				// this thread is done, so decrement the count of working threads
-				threads_working--;
-			}
-
-			// if we have enough relations, or if there was a break signal, stop dispatching
-			// any more threads
-			if ((updatecode == 0) && (num_found < num_needed)) 
-			{
-
-#ifdef QS_TIMING
-				gettimeofday (&qs_timing_start, NULL);
-#endif
-				// generate a new poly A value for the thread we pulled out of the queue
-				// using its dconf.  this is done by the master thread because it also 
-				// stores the coefficients in a master list
-				static_conf->total_poly_a++;
-				new_poly_a(static_conf,thread_data[tid].dconf);
-
-#ifdef QS_TIMING
-				gettimeofday (&qs_timing_stop, NULL);
-				qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-				POLY_STG0 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-				free(qs_timing_diff);
-#endif
-
-				if (THREADS > 1)
-				{
-					// send the thread a signal to start processing the poly we just generated for it
-#if defined(WIN32) || defined(_WIN64)
-					thread_data[tid].command = COMMAND_RUN;
-					SetEvent(thread_data[tid].run_event);
-#else
-					pthread_mutex_lock(&thread_data[tid].run_lock);
-					thread_data[tid].command = COMMAND_RUN;
-					pthread_cond_signal(&thread_data[tid].run_cond);
-					pthread_mutex_unlock(&thread_data[tid].run_lock);
-#endif
-				}
-				
-				// this thread is now busy, so increment the count of working threads
-				threads_working++;
-			}
-
-			if (THREADS == 1)
-				*threads_waiting = 0;
-	
-		} // while (*threads_waiting > 0)
-
-		// if all threads are done, break out
-		if (threads_working == 0)
-			break;
-
-		if (THREADS > 1)
-		{
-			// wait for a thread to finish and put itself in the waiting queue
-#if defined(WIN32) || defined(_WIN64)
-			j = WaitForMultipleObjects(
-				THREADS,
-				queue_events,
-				FALSE,
-				INFINITE);
-#else
-			pthread_cond_wait(&queue_cond, &queue_lock);
-#endif
-		}
-		else
-		{
-			//do some work
-			thread_sievedata_t *t = thread_data + 0;
-
-            //printf("processing polynomial\n");
-			process_poly(t);
-			*threads_waiting = 1;
-		}
-	}
-
-#ifdef OPT_DEBUG
-	fprintf(optfile,"\n\n");
-	fclose(optfile);
-#endif		
+    // this just holds pointers to other stuff that still exists.
+    // we can get rid of the wrapper now...
+    free(tpool_data);
 
 	//stop worker threads
-	for (i=0; i<THREADS; i++)
-	{
-		//static_conf->tot_poly += thread_data[i].dconf->tot_poly;
-		if (THREADS > 1)
-			stop_worker_thread(thread_data + i);
-		free_sieve(thread_data[i].dconf);
-		free(thread_data[i].dconf->relation_buf);
-	}
+    for (i = 0; i < THREADS; i++)
+    {
+        free_sieve(thread_data[i].dconf);
+        free(thread_data[i].dconf->relation_buf);
+    }
 	
 	//finialize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
@@ -597,8 +462,10 @@ void SIQS(fact_obj_t *fobj)
 	
 	update_final(static_conf);
 
-	if (updatecode == 2)
-		goto done;
+    if (udata.updatecode == 2)
+    {
+        goto done;
+    }
 
 	//we don't need the poly_a_list anymore... free it so the other routines
 	//can use it (unless we are doing in-mem)
@@ -618,15 +485,12 @@ void SIQS(fact_obj_t *fobj)
 	if (VFLAG > 0)
 	{
 		printf("QS elapsed time = %6.4f seconds.\n",t_time);
-		//printf("Predicted MAX_DIFF = %u, Actual MAX_DIFF = %u\n",MAX_DIFF,MAX_DIFF2);
 		printf("\n==== post processing stage (msieve-1.38) ====\n");
 	}
 
 	fobj->qs_obj.qs_time = t_time;	
 	
 	start = clock();
-
-	//return;
 
 	//filter the relation set and get ready for linear algebra
 	//all the polys and relations are on disk.
@@ -707,8 +571,10 @@ done:
 	//free everything else
 	free_siqs(thread_data[0].sconf);
 
-	if (sieve_log != NULL)
-		fclose(sieve_log);
+    if (sieve_log != NULL)
+    {
+        fclose(sieve_log);
+    }
 
 	for (i=0; i<THREADS; i++)
 	{
@@ -716,13 +582,6 @@ done:
 	}
 	free(static_conf);
 	free(thread_data);
-    free(thread_queue);
-    free(threads_waiting);
-
-#if defined(WIN32) || defined(_WIN64)
-	if (THREADS > 1)
-		free(queue_events);
-#endif
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
@@ -730,132 +589,15 @@ done:
 	return;
 }
 
-void start_worker_thread(thread_sievedata_t *t) {
-
-    //create a thread that will process a polynomial     
-	t->command = COMMAND_INIT;
-#if defined(WIN32) || defined(_WIN64)
-	t->run_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	t->finish_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	*t->queue_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-	t->thread_id = CreateThread(NULL, 0, worker_thread_main, t, 0, NULL);
-	WaitForSingleObject(t->finish_event, INFINITE); /* wait for ready */
-#else
-	pthread_mutex_init(&t->run_lock, NULL);
-	pthread_cond_init(&t->run_cond, NULL);
-
-	pthread_create(&t->thread_id, NULL, worker_thread_main, t);
-
-	pthread_mutex_lock(&t->run_lock); /* wait for ready */
-	while (t->command != COMMAND_WAIT)
-		pthread_cond_wait(&t->run_cond, &t->run_lock);
-	pthread_mutex_unlock(&t->run_lock);
-#endif
-}
-
-void stop_worker_thread(thread_sievedata_t *t)
-{
-
-#if defined(WIN32) || defined(_WIN64)
-	t->command = COMMAND_END;
-	SetEvent(t->run_event);
-	WaitForSingleObject(t->thread_id, INFINITE);
-	CloseHandle(t->thread_id);
-	CloseHandle(t->run_event);
-	CloseHandle(t->finish_event);
-	CloseHandle(*t->queue_event);
-#else
-	pthread_mutex_lock(&t->run_lock);
-	t->command = COMMAND_END;
-	pthread_cond_signal(&t->run_cond);
-	pthread_mutex_unlock(&t->run_lock);
-	pthread_join(t->thread_id, NULL);
-	pthread_cond_destroy(&t->run_cond);
-	pthread_mutex_destroy(&t->run_lock);
-#endif
-}
-
-#if defined(WIN32) || defined(_WIN64)
-DWORD WINAPI worker_thread_main(LPVOID thread_data) {
-#else
-void *worker_thread_main(void *thread_data) {
-#endif
-	thread_sievedata_t *t = (thread_sievedata_t *)thread_data;
-
-    /*
-        * Respond to the master thread that we're ready for work. If we had any thread-
-        * specific initialization which needed to be done, it would go before this signal.
-        */
-#if defined(WIN32) || defined(_WIN64)
-	t->command = COMMAND_WAIT;
-	SetEvent(t->finish_event);
-#else
-    pthread_mutex_lock(&t->run_lock);
-    t->command = COMMAND_WAIT;
-    pthread_cond_signal(&t->run_cond);
-    pthread_mutex_unlock(&t->run_lock);
-#endif
-
-	while(1)
-	{
-
-		/* wait forever for work to do */
-#if defined(WIN32) || defined(_WIN64)
-		WaitForSingleObject(t->run_event, INFINITE);		
-#else
-		pthread_mutex_lock(&t->run_lock);
-		while (t->command == COMMAND_WAIT) {
-			pthread_cond_wait(&t->run_cond, &t->run_lock);
-		}
-#endif
-		/* do work */
-
-		if (t->command == COMMAND_RUN)
-			process_poly(t);
-		else if (t->command == COMMAND_END)
-			break;
-
-		/* signal completion */
-
-		t->command = COMMAND_WAIT;
-#if defined(WIN32) || defined(_WIN64)
-
-		WaitForSingleObject( 
-            *t->queue_lock,    // handle to mutex
-            INFINITE);  // no time-out interval
- 
-		t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
-		SetEvent(*t->queue_event);
-
-		ReleaseMutex(*t->queue_lock);
-		
-#else
-		pthread_mutex_unlock(&t->run_lock);
-
-        // lock the work queue and insert my thread ID into it
-        // this tells the master that my results should be collected
-        // and I should be dispatched another polynomial
-        pthread_mutex_lock(t->queue_lock);
-        t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
-        pthread_cond_signal(t->queue_cond);
-        pthread_mutex_unlock(t->queue_lock);
-#endif
-	}
-
-#if defined(WIN32) || defined(_WIN64)
-	return 0;
-#else
-	return NULL;
-#endif
-}
-
-void *process_poly(void *ptr)
+void *process_poly(void *vptr)
 //void process_hypercube(static_conf_t *sconf,dynamic_conf_t *dconf)
 {
     //top level sieving function which performs all work for a single
     //new a coefficient.  has pthread calling conventions, meant to be
     //used in a multi-threaded environment
-    thread_sievedata_t *thread_data = (thread_sievedata_t *)ptr;
+    tpool_t *tdata = (tpool_t *)vptr;
+    siqs_userdata_t *udata = tdata->user_data;
+    thread_sievedata_t *thread_data = &udata->thread_data[tdata->tindex];
     static_conf_t *sconf = thread_data->sconf;
     dynamic_conf_t *dconf = thread_data->dconf;
 
@@ -881,13 +623,6 @@ void *process_poly(void *ptr)
     //this routine is handed a dconf structure which already has a
     //new poly a coefficient (and some supporting data).  continue from
     //there, first initializing the gray code...
-
-    //lock_thread_to_core();
-
-#ifdef QS_TIMING
-    gettimeofday (&qs_timing_start, NULL);
-#endif
-
     gettimeofday(&start, NULL);
 
     // used to print a little more status info for huge jobs.
@@ -904,54 +639,36 @@ void *process_poly(void *ptr)
 
     firstRoots_ptr(sconf, dconf);
 
-#ifdef QS_TIMING
-    gettimeofday (&qs_timing_stop, NULL);
-    qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-    POLY_STG1 += 
-        ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-    free(qs_timing_diff);
-#endif
-
-    //loop over each possible b value, for the current a value
+    // loop over each possible b value, for the current a value
     for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
     {
-        //setting these to be invalid means the last entry of every block will be ignored
-        //so we're throwing away 1/blocksize relations, potentially, but gaining 
-        //a faster sieve routine.
-        uint32 invalid_root_marker = 0xFFFFFFFF; //(BLOCKSIZEm1 << 16) | BLOCKSIZEm1;
+        // setting these to be invalid means the last entry of every block (for 64k versions)
+        // will be ignored so we're throwing away 1/blocksize relations, potentially, 
+        // but gaining a faster sieve routine.
+        uint32 invalid_root_marker = 0xFFFFFFFF;
 
         for (i = 0; i < num_blocks; i++)
         {
-            //set the roots for the factors of a such that
-            //they will not be sieved.  we haven't found roots for them
-            //printf("setting prime roots\n"); fflush(stdout);
+            // set the roots for the factors of a such that
+            // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
-            //printf("medsieve p\n"); fflush(stdout);
             med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
-            //printf("lpsieve p\n"); fflush(stdout);
             lp_sieveblock(sieve, i, num_blocks, buckets, 0, dconf);
 
-            //set the roots for the factors of a to force the following routine
-            //to explicitly trial divide since we haven't found roots for them
-            //printf("setting prime roots\n"); fflush(stdout);
+            // set the roots for the factors of a to force the following routine
+            // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
-            //printf("scan p\n"); fflush(stdout);
             scan_ptr(i, 0, sconf, dconf);
 
-            //set the roots for the factors of a such that
-            //they will not be sieved.  we haven't found roots for them
-            //printf("setting prime roots\n"); fflush(stdout);
+            // set the roots for the factors of a such that
+            // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
-            //printf("medsieve n\n"); fflush(stdout);
             med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
-            //printf("lpsieve n\n"); fflush(stdout);
             lp_sieveblock(sieve, i, num_blocks, buckets, 1, dconf);
 
-            //set the roots for the factors of a to force the following routine
-            //to explicitly trial divide since we haven't found roots for them
-            //printf("setting prime roots\n"); fflush(stdout);
+            // set the roots for the factors of a to force the following routine
+            // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
-            //printf("scan p\n"); fflush(stdout);
             scan_ptr(i, 1, sconf, dconf);
 
         }
@@ -983,12 +700,10 @@ void *process_poly(void *ptr)
             }
         }
 
-        //next polynomial
-        //use the stored Bl's and the gray code to find the next b
-        //printf("next B\n"); fflush(stdout);
+        // next polynomial
+        // use the stored Bl's and the gray code to find the next b
         nextB(dconf, sconf);
-        //and update the roots
-        //printf("next roots\n"); fflush(stdout);
+        // and update the roots
         nextRoots_ptr(sconf, dconf);
 
     }
@@ -1371,9 +1086,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 	//workspace bigints
-	mpz_init(dconf->gmptmp1); //, sconf->bits);
-	mpz_init(dconf->gmptmp2); //, sconf->bits);
-	mpz_init(dconf->gmptmp3); //, sconf->bits);	
+	mpz_init(dconf->gmptmp1);
+	mpz_init(dconf->gmptmp2);
+	mpz_init(dconf->gmptmp3);	
 
 	//this stuff changes with every new poly
 	//allocate a polynomial structure which will hold the current
@@ -1426,11 +1141,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
 	dconf->comp_sieve_n->logp = (uint16 *)xmalloc_align(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
-
-	dconf->fb_sieve_p = (sieve_fb *)xmalloc_align(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
-	dconf->fb_sieve_n = (sieve_fb *)xmalloc_align(
-		(size_t)(sconf->factor_base->B * sizeof(sieve_fb)));
 	
 	dconf->update_data.sm_firstroots1 = (uint16 *)xmalloc_align(
 		(size_t)(sconf->factor_base->med_B * sizeof(uint16)));
@@ -1453,7 +1163,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	if (VFLAG > 2)
 	{
 		memsize = sconf->factor_base->med_B * sizeof(sieve_fb_compressed) * 2;
-		memsize += sconf->factor_base->B * sizeof(sieve_fb) * 2;
 		printf("\tfactor bases: %d bytes\n",memsize);
 	}
 
@@ -1491,20 +1200,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->comp_sieve_n->logp[i] = (uint8)lp;
 		dconf->comp_sieve_n->prime[i] = (uint16)p;
 
-		dconf->fb_sieve_p[i].prime = p;
-		dconf->fb_sieve_p[i].logprime = lp;
-		dconf->fb_sieve_n[i].prime = p;
-		dconf->fb_sieve_n[i].logprime = lp;
 		dconf->update_data.prime[i] = p;
 		dconf->update_data.logp[i] = lp;
 	}
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		dconf->fb_sieve_p[i].prime = sconf->factor_base->list->prime[i];
-		dconf->fb_sieve_p[i].logprime = sconf->factor_base->list->logprime[i];
-		dconf->fb_sieve_n[i].prime = sconf->factor_base->list->prime[i];
-		dconf->fb_sieve_n[i].logprime = sconf->factor_base->list->logprime[i];
 		dconf->update_data.prime[i] = sconf->factor_base->list->prime[i];
 		dconf->update_data.logp[i] = sconf->factor_base->list->logprime[i];
 	}
@@ -1518,7 +1219,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		testRoots_ptr(sconf,dconf);
 
 		//initialize the bucket lists and auxilary info.
-		dconf->buckets->num = (uint32 *)xmalloc_align(
+        dconf->buckets->num = (uint32 *)xmalloc_align(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->fb_bounds = (uint32 *)malloc(
 			dconf->buckets->alloc_slices * sizeof(uint32));
@@ -1527,7 +1228,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		dconf->buckets->list_size = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 		
 		//now allocate the buckets
-		dconf->buckets->list = (uint32 *)xmalloc_align(
+        dconf->buckets->list = (uint32 *)xmalloc_align(
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
 			BUCKET_ALLOC * sizeof(uint32));
 	}
@@ -1541,10 +1242,12 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	if (VFLAG > 2)
 	{
-		memsize = 2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32);
+        memsize = 2 * sconf->num_blocks *
+            dconf->buckets->alloc_slices * sizeof(uint32);
 		memsize += dconf->buckets->alloc_slices * sizeof(uint32);
 		memsize += dconf->buckets->alloc_slices * sizeof(uint8);
-		memsize += 2 * sconf->num_blocks * dconf->buckets->alloc_slices * BUCKET_ALLOC * sizeof(uint32);
+		memsize += 2 * sconf->num_blocks * 
+            dconf->buckets->alloc_slices * BUCKET_ALLOC * sizeof(uint32);
 		printf("\tbucket data: %d bytes\n",memsize);
 	}
 
@@ -1663,6 +1366,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->num_extra_relations = 64;
 	sconf->small_limit = 256;
 	sconf->use_dlp = 0;
+
+    // function pointer to the sieve array scanner
+    scan_ptr = NULL;
 
 	// sieve core functions
     switch (yafu_get_cpu_type())
@@ -1874,6 +1580,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->factor_base->list->prime[0] = 1;		//actually represents -1
 	sconf->factor_base->list->prime[1] = 2;
 
+    sconf->sieve_primes = (uint32 *)xmalloc_align(
+        (size_t)(sconf->factor_base->B * sizeof(uint32)));
+
+    for (i = 2; i < sconf->factor_base->B; i++)
+    {
+        sconf->sieve_primes[i] = sconf->factor_base->list->prime[i];
+    }
+
 	//adjust for various architectures
 	if (sconf->qs_blocksize == 32768)
 		sconf->num_blocks *= 2;
@@ -2039,7 +1753,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	if (VFLAG > 1)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n\tall: %u\n",
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
+            "\tlarge_x2: %u\n\tall: %u\n",
 			sconf->factor_base->small_B,
 			sconf->sieve_small_fb_start,
 			sconf->factor_base->fb_10bit_B,
@@ -2051,10 +1766,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			sconf->factor_base->fb_15bit_B,
 			sconf->factor_base->med_B,
 			sconf->factor_base->large_B,
+            sconf->factor_base->x2_large_B,
 			sconf->factor_base->B);
 
 		printf("start primes\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"
-			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n",
+			"13bit: %u\n\t32k div 3: %u\n\t14bit: %u\n\t15bit: %u\n\tmed: %u\n\tlarge: %u\n"
+            "\tlarge_x2: %u\n\tall: %u\n",
 			sconf->factor_base->list->prime[sconf->sieve_small_fb_start - 1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_10bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_11bit_B-1],
@@ -2064,7 +1781,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			sconf->factor_base->list->prime[sconf->factor_base->fb_14bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->fb_15bit_B-1],
 			sconf->factor_base->list->prime[sconf->factor_base->med_B-1],
-			sconf->factor_base->list->prime[sconf->factor_base->large_B-1]);
+			sconf->factor_base->list->prime[sconf->factor_base->large_B-1],
+            sconf->factor_base->list->prime[sconf->factor_base->x2_large_B - 1],
+            sconf->factor_base->list->prime[sconf->factor_base->B]);
 	}
 
 	//a couple limits
@@ -2096,6 +1815,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #else
     dlp_cutoff = 77;
 #endif
+
+    // could maybe someday change this w.r.t input size... for now
+    // just test it out...
+    //sconf->poly_batch_size = 1;
 
     if ((sconf->digits_n >= dlp_cutoff) || sconf->obj->qs_obj.gbl_force_DLP)
 	{
@@ -2305,6 +2028,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	//no factors so far...
 	sconf->factor_list.num_factors = 0;
+
+    // test: use in-memory relation storage below a certain digit level?
+    // no.  maybe for tinysiqs someday.
+    sconf->in_mem = 0;
 
 	return 0;
 }
@@ -2608,9 +2335,6 @@ int free_sieve(dynamic_conf_t *dconf)
 
 	//can free sieving structures now
 	align_free(dconf->sieve);
-	align_free(dconf->fb_sieve_p);
-	align_free(dconf->fb_sieve_n);
-
 	align_free(dconf->comp_sieve_p->prime);
 	align_free(dconf->comp_sieve_p->root1);
 	align_free(dconf->comp_sieve_p->root2);
@@ -2662,6 +2386,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	mpz_clear(dconf->gmptmp3);
 	
 	align_free(dconf->mask);
+    align_free(dconf->mask2);
 
 	//free sieve scan report stuff
 	free(dconf->reports);
@@ -2770,6 +2495,7 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->list);
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);
+    align_free(sconf->sieve_primes);
 
 	//while freeing the list of factors, divide them out of the input
 	for (i=0;i<sconf->factor_list.num_factors;i++)
@@ -2799,6 +2525,7 @@ int free_siqs(static_conf_t *sconf)
 
 	//free(sconf->obj->qs_obj.savefile.name);
 	qs_savefile_free(&sconf->obj->qs_obj.savefile);
+    
 
 	return 0;
 }

@@ -331,16 +331,29 @@ void nfs(fact_obj_t *fobj)
 			// for instance if we only want to post-process, but filtering 
 			// doesn't produce a matrix.  if we don't want to sieve in that case,
 			// then we're done.
-			if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
-				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
-				!(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
-				do_sieving(fobj, &job);
-			else
-				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+            if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+                (fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
+                !(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
+            {
+                // this is not a threadpool, so there can be imbalances between
+                // threads on multi-threaded runs where we end up waiting
+                // for the last one to finish.
+                // todo: make do_sieving a threadpool that incorporates the 
+                // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
+                // so that we can keep sieving until it is actually time to
+                // filter.
+                do_sieving(fobj, &job);
+            }
+            else
+            {
+                fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+            }
 
 			// if this has been previously marked, then go ahead and exit.
-			if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
-				process_done = 1;
+            if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
+            {
+                process_done = 1;
+            }
 			
 			// if user specified -ns with a fixed start and range,
 			// then mark that we're done sieving.  

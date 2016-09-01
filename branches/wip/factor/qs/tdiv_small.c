@@ -79,7 +79,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	int i;
 	uint32 bound, tmp, prime, root1, root2;
 	int smooth_num;
-	sieve_fb *fb;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
 	uint8 logp, bits;
@@ -88,12 +87,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
-		fb = dconf->fb_sieve_n;
 		fbc = dconf->comp_sieve_n;
 	}
 	else
 	{
-		fb = dconf->fb_sieve_p;
 		fbc = dconf->comp_sieve_p;
 	}
 
