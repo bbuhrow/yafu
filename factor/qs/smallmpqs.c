@@ -652,7 +652,7 @@ void smallmpqs(fact_obj_t *fobj)
 
 	if (bits_n > 130)
 	{
-		printf("******* input too big for smallmpqs... please report this bug to bbuhrow@gmail.com *******\n");
+		printf("******* input too big for smallmpqs *******\n");
 		mpz_clear(n);
 		mpz_clear(tmp);
 

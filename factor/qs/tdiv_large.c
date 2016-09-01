@@ -426,7 +426,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	uint32 *bptr;
-	sieve_fb *fb;
+    uint32 *fb = sconf->sieve_primes;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
     uint16 buffer[32];
@@ -451,11 +451,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
     mask[10] = block_loc;
     mask[12] = block_loc;
     mask[14] = block_loc;
-	
-	if (parity)
-		fb = dconf->fb_sieve_n;
-	else
-		fb = dconf->fb_sieve_p;
 
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
@@ -471,8 +466,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         basebucket = 0;
     }
 
-
-
 	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
 	{
 		uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
@@ -480,6 +473,8 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result = 0;
 
+        //printf("tdiv_large for poly %d: slice %d bound = %u\n", 
+        //    dconf->numB, k, fb_bound);
 
 #if defined (_MSC_VER) || defined (FORCE_GENERIC)
         for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
@@ -496,25 +491,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 4] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 4] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 8] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 8] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 12] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 12] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -524,25 +519,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 1] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 1] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 5] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 5] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 9] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 9] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 13] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 13] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -552,25 +547,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 2] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 2] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 6] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 6] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 10] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 10] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 14] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 14] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -580,25 +575,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 3] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 3] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 7] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 7] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 11] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 11] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 15] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 15] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -609,7 +604,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
                 i = fb_bound + (bptr[j] >> 16);
-                prime = fb[i].prime;
+                prime = fb[i];
                 //printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
                 //	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
                 DIVIDE_ONE_PRIME;
@@ -636,7 +631,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         for (r = 0; r < result; r++)
         {
             i = fb_bound + (bptr[buffer[r]] >> 16);
-            prime = fb[i].prime;
+            prime = fb[i];
 
             // Is this only necessary with AVX2, or with the new vector approach?
             if ((prime < 2) || (i >= sconf->factor_base->B))
@@ -654,7 +649,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 			if ((bptr[j] & 0x0000ffff) == block_loc)
 			{
 				i = fb_bound + (bptr[j] >> 16);
-				prime = fb[i].prime;
+                prime = fb[i];
 
                 if ((prime < 2) || (i >= sconf->factor_base->B))
                 {

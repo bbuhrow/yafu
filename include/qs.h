@@ -160,14 +160,6 @@ typedef struct
 //factor base elements into cache during the sieve
 typedef struct
 {
-	uint32 prime;
-	uint32 root1;
-	uint32 root2;
-	uint8 logprime;
-} sieve_fb;
-
-typedef struct
-{
 	uint16 *prime;			
 	uint16 *root1;				
 	uint16 *root2;
@@ -306,6 +298,7 @@ typedef struct {
 	mpz_t n;					// the number to factor (scaled by multiplier)
 	mpz_t sqrt_n;				// sqrt of n
 	fb_list *factor_base;       // the factor base to use
+    uint32 *sieve_primes;            // sieve primes
 	uint32 num_sieve_blocks;	// number of sieve blocks in sieving interval
 	uint32 sieve_small_fb_start;// starting FB offset for sieving
 	mpz_t target_a;				// optimal value of 'a' 
@@ -334,6 +327,7 @@ typedef struct {
 	uint32 tf_med_recip1_cutoff;
 	uint32 tf_med_recip2_cutoff;
 	uint32 tf_large_cutoff;
+    //uint32 poly_batch_size;     // how many polys to update at one time?
 
 	
 	struct timeval totaltime_start;	// start time of this job
@@ -421,8 +415,6 @@ typedef struct {
 	uint8 *sieve;				// scratch space used for one sieve block 
 	sieve_fb_compressed *comp_sieve_p;		// scratch space for a packed versions of fb
 	sieve_fb_compressed *comp_sieve_n;		// for use during sieving smallish primes
-	sieve_fb *fb_sieve_p;		// scratch space for a packed versions of fb
-	sieve_fb *fb_sieve_n;		// for use during sieving smallish primes
 
 	//large prime sieving
 	update_t update_data;		// data for updating root values
@@ -493,30 +485,6 @@ typedef struct {
 typedef struct {
 	static_conf_t *sconf;
 	dynamic_conf_t *dconf;
-
-    int tindex;
-
-	/* fields for thread pool synchronization */
-	volatile enum thread_command command;
-    volatile int *thread_queue, *threads_waiting;
-
-#if defined(WIN32) || defined(_WIN64)
-	HANDLE thread_id;
-	HANDLE run_event;
-
-	HANDLE finish_event;
-	HANDLE *queue_event;
-	HANDLE *queue_lock;
-
-#else
-	pthread_t thread_id;
-	pthread_mutex_t run_lock;
-	pthread_cond_t run_cond;
-
-	pthread_mutex_t *queue_lock;
-	pthread_cond_t *queue_cond;
-#endif
-
 } thread_sievedata_t;
 
 // used in multiplier selection
@@ -591,15 +559,12 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  static_conf_t *conf);
 
-void stop_worker_thread(thread_sievedata_t *t);
-void start_worker_thread(thread_sievedata_t *t);
 
-#if defined(WIN32) || defined(_WIN64)
-DWORD WINAPI worker_thread_main(LPVOID thread_data);
-#else
-void *worker_thread_main(void *thread_data);
-#endif
-
+// threading and misc
+void siqs_sync(void *vptr);
+void siqs_dispatch(void *vptr);
+void siqs_work_fcn(void *vptr);
+void siqs_thread_start(void *vptr);
 void *process_poly(void *ptr);
 int free_sieve(dynamic_conf_t *dconf);
 int update_final(static_conf_t *sconf);
@@ -758,6 +723,8 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32
 /* perform postprocessing on a list of relations */
 void yafu_qs_filter_relations(static_conf_t *sconf);
 
+
+/*--------------           GLOBALS                  ------------------------*/
 #define SAVEFILE_BUF_SIZE 2048
 char savebuf[2048];
 int savefile_buf_off;

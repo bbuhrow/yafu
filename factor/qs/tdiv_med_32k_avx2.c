@@ -335,7 +335,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     uint32 bound13;
     int smooth_num;
     uint32 *fb_offsets;
-    sieve_fb *fb;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32 block_loc;
@@ -349,12 +348,10 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     fullfb_ptr = fullfb;
     if (parity)
     {
-        fb = dconf->fb_sieve_n;
         fbc = dconf->comp_sieve_n;
     }
     else
     {
-        fb = dconf->fb_sieve_p;
         fbc = dconf->comp_sieve_p;
     }
 

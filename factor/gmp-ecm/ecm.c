@@ -633,6 +633,7 @@ void *ecm_do_one_curve(void *ptr)
 		// external executable was specified
 		sprintf(thread_data->tmp_output, "_yafu_ecm_tmp%d.out", thread_data->thread_num);
 
+        // todo: add command line input of arbitrary argument string to append to this command
 		// build system command
 		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", 
 			tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, 

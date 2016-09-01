@@ -92,9 +92,9 @@ char * process_batchline(char *input_exp, char *indup, int *code);
 void finalize_batchline();
 
 // functions to process all incoming arguments
-int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj);
+int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
 void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression);
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression);
 
 int main(int argc, char *argv[])
 {
@@ -119,25 +119,32 @@ int main(int argc, char *argv[])
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);	
 
+#if !defined( TARGET_MIC )
+    //get the computer name, cache sizes, etc.  store in globals
+    // we need to have the cpu id string before calling readINI so that
+    // any tune_info lines are applied correctly.
+    get_computer_info(CPU_ID_STR);
+#endif
+
 	//now check for an .ini file, which will override these defaults
 	//command line arguments will override the .ini file
 	readINI(fobj);	
 
-	//check/process input arguments
-	is_cmdline_run = process_arguments(argc, argv, input_exp, fobj);
 
 #if !defined( TARGET_MIC )
-    //get the computer name, cache sizes, etc.  store in globals
-    get_computer_info(CPU_ID_STR);
-	
-	// now that we've processed arguments, spit out vproc info if requested
+    // now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
-	if (VERBOSE_PROC_INFO)
-		extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, &HAS_AVX,
-			&HAS_AVX2, VERBOSE_PROC_INFO);
+    // 
+    if (VERBOSE_PROC_INFO)
+    {
+        extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, &HAS_AVX,
+            &HAS_AVX2, VERBOSE_PROC_INFO);
+    }
+#endif
 #endif
 
-#endif
+	//check/process input arguments
+	is_cmdline_run = process_arguments(argc, argv, &input_exp, fobj);
 
 	if (is_cmdline_run == 2)
 	{
@@ -211,14 +218,6 @@ int main(int argc, char *argv[])
     if (0)
     {
         test_dlp_composites_par();
-    }
-
-    if (0)
-    {
-        z z1, z2;
-        zInit(&z1);
-        zInit(&z2);
-        //primesum_check12(0, 10000000000000, 10, &z1, &z2);
     }
     
     if (0)
@@ -648,12 +647,12 @@ void prepare_batchfile(char *input_exp)
 	return;
 }
 
-int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
+int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 {
 	int is_cmdline_run=0;
 
-	//now check for and handle any incoming arguments, whatever
-	//their source.  
+	// now check for and handle any incoming arguments, whatever
+	// their source.  
 	if (argc > 1)
 	{
 		// user input one or more arguments - process them
@@ -675,7 +674,7 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
     // not sure how to sort it out in the case of msys2.  recommended running in normal
     // windows cmd terminal once it is built.
 
-	if (strlen(input_exp) != 0)
+	if (strlen(*input_exp) != 0)
 	{
 		// process_flags found an expression to execute.  check for
 		// incoming data:
@@ -712,11 +711,11 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 
 			// special check: if there is no function call, insert a 
 			// default function call
-			if (strstr(input_exp, "(") == NULL)
+			if (strstr(*input_exp, "(") == NULL)
 			{
 				char s[1024];
-				sprintf(s, "factor(%s)", input_exp);
-				strcpy(input_exp, s);
+				sprintf(s, "factor(%s)", *input_exp);
+				strcpy(*input_exp, s);
 			}
 		}
 	}
@@ -742,7 +741,7 @@ int process_arguments(int argc, char **argv, char *input_exp, fact_obj_t *fobj)
 			// we have an input pipe with no provided expression.
 			// insert a default function call in batch mode
 			is_cmdline_run = 2;
-			strcpy(input_exp, "factor(@)");
+			strcpy(*input_exp, "factor(@)");
 		}
 #if defined(WIN32) 	//not complete, but ok for now
         else
@@ -1135,7 +1134,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 
 	//substitute the batchfile line into the '@' symbol in the input expression
 	nChars = 0;
-	if ((strlen(indup) + strlen(line)) >= GSTR_MAXSIZE)
+	if ((strlen(indup) + strlen(line)) >= strlen(input_exp))
 		input_exp = (char *)realloc(input_exp, strlen(indup) + strlen(line) + 2);
 
 	for (i=0; i<strlen(indup); i++)
@@ -1163,13 +1162,13 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	return input_exp;;
 }
 
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression)
+unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression)
 {
     int ch = 0, i,j,valid;
 	char optbuf[MAXOPTIONLEN];
     char argbuf[GSTR_MAXSIZE];
 
-	expression[0] = '\0';
+	*expression[0] = '\0';
 
     //argument loop
 	i = 0;
@@ -1183,9 +1182,9 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 			{
 				// no switch is ok if it's the first argument... assume
 				// it is the input expression (legacy support)
-                expression = (char *)realloc(expression, 
+                *expression = (char *)realloc(*expression,
                     (strlen(argv[i]) + 2) * sizeof(char));
-				strcpy(expression, argv[i]);
+                strcpy(*expression, argv[i]);
 				i++;
 				continue;
 			}
@@ -1218,9 +1217,9 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char *expression
 			{
 				// an option was supplied, pass it on
 				i++;				
-                expression = (char *)realloc(expression,
+                *expression = (char *)realloc(*expression,
                     (strlen(argv[i]) + 2) * sizeof(char));
-				strcpy(expression,argv[i]);
+                strcpy(*expression, argv[i]);
 				i++;
 				continue;
 			}
@@ -2099,7 +2098,8 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 	}
 	osstr[j] = '\0';
 
-	//printf("found OS = %s and CPU = %s in tune_info field\n",osstr, cpustr);
+	//printf("found OS = %s and CPU = %s in tune_info field, this cpu is %s\n",
+ //       osstr, cpustr, CPU_ID_STR);
 
 
 #if defined(_WIN64)

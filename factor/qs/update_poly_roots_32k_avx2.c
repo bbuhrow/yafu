@@ -31,24 +31,21 @@ code to the public domain.
 #include "poly_macros_common.h"
 #include "poly_macros_common_avx2.h"
 
-/* "shrl   $15,%%r8d \n\t"	                 right shift root by blksize  = bnum */
 
 // we have put (j - bound_val + i) | (root1 & 0x7fff) into ymm10.
 #define UPDATE_ROOT1_NEW(it) \
-        "shrl   $15,%%r8d \n\t"	                /* right shift root by blksize  = bnum */ \
 		"movl   (%%r10,%%r8,4),%%r14d \n\t"	    /* numptr_p[bnum] */ \
+        "incl   (%%r10,%%r8,4) \n\t"		    /* store new numptr to memory */ \
+        "shll   $" BUCKET_BITStxt ",%%r8d \n\t"	/* bnum << BUCKET_BITS */ \
         "vpextrd $" it ",%%xmm10,%%edi \n\t"	/* load this lanes (j - bound_val + i) | (root1 & 0x7fff) */ \
-        "addl   $1,(%%r10,%%r8,4) \n\t"		    /* store new numptr to memory */ \
-		"shll   $" BUCKET_BITStxt ",%%r8d \n\t"	/* bnum << BUCKET_BITS */ \
 		"addl   %%r14d,%%r8d \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
         "movl   %%edi,(%%r11,%%r8,4) \n\t"		/* store new fb_index/loc to memory */
 
 #define UPDATE_ROOT2_NEW(it) \
-        "shrl   $15,%%r9d \n\t"	                /* right shift root by blksize  = bnum */ \
 		"movl   (%%r10,%%r9,4),%%r14d \n\t"	    /* numptr_p[bnum] */ \
+        "incl   (%%r10,%%r9,4) \n\t"		    /* store new numptr to memory */ \
+        "shll   $" BUCKET_BITStxt ",%%r9d \n\t"	/* bnum << BUCKET_BITS */ \
         "vpextrd $" it ",%%xmm11,%%edi \n\t"	/* load this lanes (j - bound_val + i) | (root1 & 0x7fff) */ \
-        "addl   $1,(%%r10,%%r9,4) \n\t"		    /* store new numptr to memory */ \
-		"shll   $" BUCKET_BITStxt ",%%r9d \n\t"	/* bnum << BUCKET_BITS */ \
 		"addl   %%r14d,%%r9d \n\t"				/* (bnum << 11) + numptr_p[bnum] */ \
         "movl   %%edi,(%%r11,%%r9,4) \n\t"		/* store new fb_index/loc to memory */
 
@@ -362,7 +359,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}
 			
-		// update 16 at a time using SSE2 and no branching
+		// update 16 at a time using AVX2
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
 			small_update_t h;
@@ -797,13 +794,15 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
             "vpand	    %%ymm1, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm2, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
-            /*"vpsrld	    $15, %%ymm1, %%ymm1 \n\t"			 shift roots to compute blocknums */ \
-            /*"vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm1, %%ymm1 \n\t"			 /* shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
             "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* numblocks */ \
+            "movl	92(%%rsi,1),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
+            /* do a vector compare and extract a bitmask, then the comparisons don't depend */ \
+            /* on vpextrd and we can skip the vpextrd unless the test succeeds... */ \
             /* both eax and edx are available for use... */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
@@ -811,13 +810,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("0") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("0") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -827,13 +826,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("1") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("1") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -843,13 +842,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("2") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("2") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -859,13 +858,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("3") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("3") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -879,13 +878,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("4") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,5 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("4") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -895,13 +894,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("5") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,6 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("5") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -911,13 +910,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,7 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("6") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -927,13 +926,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("7") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,8 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("7") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -944,20 +943,20 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vpand	    %%ymm6, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm7, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
-            /*"vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 shift roots to compute blocknums */ \
-            /*"vpsrld	    $15, %%ymm7, %%ymm7 \n\t"			 shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 /* shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm7, %%ymm7 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("0") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("0") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -967,13 +966,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("1") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("1") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -983,13 +982,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("2") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("2") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -999,13 +998,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("3") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("3") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1019,13 +1018,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("4") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,5 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("4") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1035,13 +1034,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("5") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,6 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("5") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1051,13 +1050,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,7 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("6") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1067,13 +1066,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("7") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,8 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root1 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("7") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1093,6 +1092,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm10", "xmm11", "xmm13", "xmm14", "xmm15", "memory", "cc");
 
 
+            //printf("all positive roots skipped %d times out of %d\n",
+            //    helperstruct.filler, (bound - large_B) / 8);
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
@@ -1616,13 +1617,14 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
             "vpand	    %%ymm1, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm2, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
-            /*"vpsrld	    $15, %%ymm1, %%ymm1 \n\t"			 shift roots to compute blocknums */ \
-            /*"vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 shift roots to compute blocknums */ \
+            /* after this point the roots are only needed as block numbers */ \
+            "vpsrld	    $15, %%ymm1, %%ymm1 \n\t"			 /* shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
             "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* numblocks */ \
+            "movl	92(%%rsi,1),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
             /* edx is free at this point... can it be used? */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
@@ -1630,13 +1632,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("0") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,1 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("0") \
             "2: \n\t" \
             "1:		\n\t" \
@@ -1646,13 +1648,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("1") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,2 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("1") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1662,13 +1664,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("2") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,3 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("2") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1678,13 +1680,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("3") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,4 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("3") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1698,13 +1700,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$0,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("4") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,5 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("4") \
             "2: \n\t" \
             "1:		\n\t" \
@@ -1714,13 +1716,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$1,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("5") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,6 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("5") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1730,13 +1732,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,7 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("6") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1746,13 +1748,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$3,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("7") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,8 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("7") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1763,20 +1765,20 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vpand	    %%ymm6, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm7, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
-            /*"vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 shift roots to compute blocknums */ \
-            /*"vpsrld	    $15, %%ymm7, %%ymm7 \n\t"			 shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 /* shift roots to compute blocknums */ \
+            "vpsrld	    $15, %%ymm7, %%ymm7 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("0") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,1 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("0") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1786,13 +1788,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("1") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,2 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("1") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1802,13 +1804,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("2") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,3 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("2") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1818,13 +1820,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("3") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,4 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("3") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1838,13 +1840,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("4") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,5 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("4") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1854,13 +1856,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$1,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$1,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("5") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,6 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("5") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1870,13 +1872,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,7 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("6") \
             "2:		\n\t" \
             "1:		\n\t" \
@@ -1886,13 +1888,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$3,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$3,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "cmpl	%%r9d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    2f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    2f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT2_NEW("7") \
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT2,8 ========== */	\
             /* ================================================ */	\
             "cmpl	%%r8d,%%r13d \n\t"				/* root2 > interval? */ \
-            "jb    1f \n\t" 						/* jump if CF = 1 */ \
+            "jbe    1f \n\t" 						/* jump if CF = 1 */ \
             UPDATE_ROOT1_NEW("7") \
             "2:		\n\t" \
             "1:		\n\t" \
