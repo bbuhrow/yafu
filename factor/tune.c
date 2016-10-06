@@ -37,15 +37,14 @@ void factor_tune(fact_obj_t *inobj)
 	int i, tmpT;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
-	TIME_DIFF *	difference;
 	double t_time;
 
 	//uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
-		63709, 143984, 242825, 589192, 847299, 1272852, 1709598};
+		63709, 143984, 242825, 589192, 847299, 1272852, 1709598}; // 2397232, 3293925
     uint32 siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
-        15, 13, 16, 20, 18, 19, 20 };
+        15, 13, 16, 20, 18, 19, 20 }; // 20, 20
 
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
@@ -119,9 +118,7 @@ void factor_tune(fact_obj_t *inobj)
 		mp2gmp(&n,fobj->qs_obj.gmp_n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time = my_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
 		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
@@ -170,9 +167,8 @@ void factor_tune(fact_obj_t *inobj)
 
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time2 = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time2 = my_difftime(&start, &stop);
+		
 		printf("afb generation took %6.4f seconds.\n",t_time2);
 		remove("tune.job.afb.0");
 		MySleep(.1);
@@ -187,9 +183,7 @@ void factor_tune(fact_obj_t *inobj)
 			startq, startq + qrange);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time = my_difftime(&start, &stop);
 
 		//count relations
 		in = fopen("tunerels.out","r");

@@ -133,7 +133,7 @@ void sm_get_params(int bits, uint32 *B, uint32 *M, uint32 *BL);
 int qcomp_smpqs(const void *x, const void *y);
 
 
-#if defined(GCC_ASM64X) || defined(__MINGW64__)
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
 	#define SM_SIMD_SIEVE_SCAN_VEC 1
 
@@ -531,7 +531,6 @@ void smallmpqs(fact_obj_t *fobj)
 
 	double t_time;
 	struct timeval tstart, tend;
-	TIME_DIFF *	difference;
 	uint32 numpoly, polyalloc;
 	uint32 mul,i,j, j2;
 	uint32 pmax;							//largest prime in factor base
@@ -901,10 +900,7 @@ done:
 			partial->act_r+full->num_r,full->num_r,partial->act_r,partial->num_r,numpoly);
 
 	gettimeofday (&tend, NULL);
-	difference = my_difftime (&tstart, &tend);
-
-	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+    t_time = my_difftime(&tstart, &tend);
 
 	if (VFLAG > 0)
 		printf("QS elapsed time = %6.4f seconds.\n",t_time);
@@ -951,10 +947,7 @@ done:
 			factors,&num_factors);
 
 		gettimeofday (&tend, NULL);
-		difference = my_difftime (&tstart, &tend);
-
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tend);
 	
 		if (VFLAG > 0)
 			printf("Gauss elapsed time = %6.4f seconds.\n",t_time);

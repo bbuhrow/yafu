@@ -424,6 +424,19 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			tmp = q64 >> 32; 
 			x = t2 - tmp * prime;
 
+            // the root updates for each poly are spaced apart
+            // from each other by the number of factor base primes.
+            // The root updates for groups of primes are contiguous
+            // for each poly.  This allows for SIMD processing
+            // during root update calculations.
+            // if we wanted to compute root updates for batches of
+            // polys at a time then we can use a striping approach:
+            // put N primes contiguous for each of polys 1 to M.
+            // then the next N primes for the same polys.  Then
+            // repeat the whole business for the next M polys, etc.
+            // the gray code and sign values will also have to be
+            // arranging slightly differently.  those are computed in 
+            // the top level process_poly function.
 			rootupdates[(j)*fb->B+i] = x;
 		}
 	}

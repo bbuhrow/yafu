@@ -52,15 +52,12 @@ void ecm_sync_fcn(void *ptr)
         // for larger B1s
         if (fobj->ecm_obj.B1 > 48000)
         {
-            TIME_DIFF *	difference;
             double curve_time;
             double avg_curve_time;
             double est_time;
             double curves_left;
 
-            difference = my_difftime(&thread_data->start, &thread_data->stop);
-            curve_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-            free(difference);
+            curve_time = my_difftime(&thread_data->start, &thread_data->stop);
             *thread_data->total_time += curve_time;
             avg_curve_time = *thread_data->total_time / (double)(*thread_data->total_curves_run);
             curves_left = (int)fobj->ecm_obj.num_curves - *thread_data->total_curves_run;

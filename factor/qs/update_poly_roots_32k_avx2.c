@@ -383,11 +383,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -700,11 +696,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
@@ -1099,10 +1091,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}
@@ -1204,11 +1193,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 += my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1521,11 +1506,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 += = my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1920,10 +1901,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 += my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}

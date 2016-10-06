@@ -51,9 +51,10 @@ ifeq ($(USE_AVX2),1)
   #-march=core-avx2
 endif
 
-ifeq ($(MIC),1)
-	CFLAGS += -mmic -DTARGET_MIC -DFORCE_GENERIC
-	BINNAME := ${BINNAME:%=%_mic}
+ifeq ($(KNC),1)
+	CFLAGS += -mmic -DTARGET_KNC -vec-report3
+	# -DFORCE_GENERIC 
+	BINNAME := ${BINNAME:%=%_knc}
 	OBJ_EXT = .mo
 	
 	INC += -I../msieve/zlib
@@ -99,7 +100,7 @@ ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 #	modify the following line for your particular msieve installation
 	
-	ifeq ($(MIC),1)
+	ifeq ($(KNC),1)
 		LIBS += -L../msieve/lib/phi
 	else
 		LIBS += -L../msieve/lib/linux/x86_64 
@@ -163,7 +164,6 @@ YAFU_SRCS = \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
 	factor/qs/tdiv_large.c \
-	factor/qs/tdiv_scan.c \
 	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
 	factor/qs/siqs_test.c \
@@ -171,11 +171,8 @@ YAFU_SRCS = \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
 	factor/qs/SIQS.c \
-	factor/qs/tdiv_med_32k.c \
-	factor/qs/tdiv_resieve_32k.c \
 	factor/qs/med_sieve_32k.c \
 	factor/qs/poly_roots_32k.c \
-	factor/qs/update_poly_roots_32k.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
@@ -206,19 +203,34 @@ ifeq ($(USE_AVX2),1)
     YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
     YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 
-	# also compile in SSE41 files, as a fallback in case user's cpu doesn't have avx2
-    YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
-    YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
-    
-else
-  ifeq ($(USE_SSE41),1)
-  
-    # these files require SSE4.1 to compile
-    YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
-    YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
-    
-  endif
 endif
+
+ifeq ($(USE_SSE41),1)
+  
+	# these files require SSE4.1 to compile
+	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
+    
+endif
+
+ifeq ($(KNC),1)
+  
+	# these files target running on KNC hardware
+	YAFU_SRCS += factor/qs/update_poly_roots_32k_knc.c
+    YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
+	YAFU_SRCS += factor/qs/tdiv_resieve_32k_knc.c
+	YAFU_SRCS += factor/qs/tdiv_scan_knc.c
+
+else
+
+	# won't build with KNC
+	YAFU_SRCS += factor/qs/update_poly_roots_32k.c
+	YAFU_SRCS += factor/qs/tdiv_med_32k.c
+	YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
+	YAFU_SRCS += factor/qs/tdiv_scan.c
+
+endif
+
 
 YAFU_OBJS = $(YAFU_SRCS:.c=$(OBJ_EXT))
 
@@ -284,17 +296,7 @@ endif
 
 #---------------------------Make Targets -------------------------
 
-all:
-	@echo "pick a target:"
-	@echo "x86       32-bit Intel/AMD systems (required if gcc used)"
-	@echo "x86_64    64-bit Intel/AMD systems (required if gcc used)"
-	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
-	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
-
-x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
-
-x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+all: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
 	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
 
 

@@ -1,4 +1,8 @@
 #include "threadpool.h"
+#ifdef USE_TPOOL_AFFINITY
+#define _GNU_SOURCE
+#include <unistd.h>
+#endif
 #include <stdint.h>
 
 #if defined(WIN32) || defined(_WIN64)
@@ -30,7 +34,16 @@ void tpool_start(tpool_t *t)
     pthread_mutex_init(&t->run_lock, NULL);
     pthread_cond_init(&t->run_cond, NULL);
 
+#ifdef USE_TPOOL_AFFINITY
+    CPU_ZERO(t->cpus);
+    CPU_SET(t->tindex, t->cpus);
+    pthread_attr_setaffinity_np(t->attr, sizeof(cpu_set_t), t->cpus);
+
+    pthread_create(&t->thread_id, t->attr, tpool_worker_main, t);
+#else
+
     pthread_create(&t->thread_id, NULL, tpool_worker_main, t);
+#endif
 
     pthread_mutex_lock(&t->run_lock); /* wait for ready */
     while (t->state != TPOOL_STATE_WAIT)
@@ -158,6 +171,15 @@ void tpool_go(tpool_t *thread_data)
 #else
     pthread_mutex_t queue_lock;
     pthread_cond_t queue_cond;
+    
+#ifdef USE_TPOOL_AFFINITY
+    pthread_attr_t attr;
+    cpu_set_t cpus;
+#endif
+#endif
+
+#ifdef USE_TPOOL_AFFINITY
+    pthread_attr_init(&attr);
 #endif
 
     // allocate the queue of threads waiting for work
@@ -179,7 +201,7 @@ void tpool_go(tpool_t *thread_data)
     {
         thread_data[i].tindex = i;
         thread_data[i].tstartup = 1;
-        // assign all thread's a pointer to the waiting queue.  access to 
+        // assign all threads a pointer to the waiting queue.  access to 
         // the array will be controlled by a mutex
         thread_data[i].thread_queue = thread_queue;
         thread_data[i].threads_waiting = threads_waiting;
@@ -191,6 +213,11 @@ void tpool_go(tpool_t *thread_data)
 #else
         thread_data[i].queue_lock = &queue_lock;
         thread_data[i].queue_cond = &queue_cond;
+
+#ifdef USE_TPOOL_AFFINITY
+        thread_data[i].attr = &attr;
+        thread_data[i].cpus = &cpus;
+#endif
 #endif
     }
 
@@ -311,6 +338,9 @@ tpool_t * tpool_setup(int num_threads, void *start_fcn, void *stop_fcn,
 {
     tpool_t *t = (tpool_t *)malloc(num_threads * sizeof(tpool_t));
     int i;
+
+    //int numberOfProcessors = sysconf(_SC_NPROCESSORS_ONLN);
+    //printf("Number of processors: %d\n", numberOfProcessors);
 
     for (i = 0; i < num_threads; i++)
     {

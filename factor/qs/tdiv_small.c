@@ -61,13 +61,25 @@ this file contains code implementing 2)
 		bits += logp;	\
 	} while (zShortMod32(tmp32, prime) == 0);
 #else
+
+
+#ifdef SPARSE_STORE
+#define DIVIDE_ONE_PRIME(x) \
+    do	\
+    {	\
+        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
+        bits += logp;	\
+    } while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
+#else
 #define DIVIDE_ONE_PRIME(x) \
 	do	\
-	{	\
+    	{	\
 		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
 		bits += logp;	\
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
+#endif
+
 #endif
 //#define DO_4X_SPV 1
 
@@ -148,7 +160,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		if (mpz_sgn(dconf->Qvals[report_num]) < 0)
 		{
 			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
-			dconf->fb_offsets[report_num][++smooth_num] = 0;
 		}
 
 		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
@@ -181,7 +192,10 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		{
 			//zShiftRight32_x(Q,Q,1);
 			mpz_tdiv_q_2exp(dconf->Qvals[report_num], dconf->Qvals[report_num], 1);
+
+#ifndef SPARSE_STORE
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
+#endif
 			bits++;
 		}
 #endif
@@ -303,11 +317,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG1 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
-
+    TF_STG1 += my_difftime (&qs_timing_start, &qs_timing_stop);
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 

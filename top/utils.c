@@ -878,25 +878,26 @@ void build_RSA(int bits, mpz_t in)
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-TIME_DIFF * my_difftime (struct timeval * start, struct timeval * end)
+double my_difftime (struct timeval * start, struct timeval * end)
 {
-	TIME_DIFF * diff = (TIME_DIFF *) malloc ( sizeof (TIME_DIFF) );
+    double secs;
+    double usecs;
 
 	if (start->tv_sec == end->tv_sec) {
-		diff->secs = 0;
-		diff->usecs = end->tv_usec - start->tv_usec;
+		secs = 0;
+		usecs = end->tv_usec - start->tv_usec;
 	}
 	else {
-		diff->usecs = 1000000 - start->tv_usec;
-		diff->secs = end->tv_sec - (start->tv_sec + 1);
-		diff->usecs += end->tv_usec;
-		if (diff->usecs >= 1000000) {
-			diff->usecs -= 1000000;
-			diff->secs += 1;
+		usecs = 1000000 - start->tv_usec;
+		secs = end->tv_sec - (start->tv_sec + 1);
+		usecs += end->tv_usec;
+		if (usecs >= 1000000) {
+			usecs -= 1000000;
+			secs += 1;
 		}
 	}
 	
-	return diff;
+	return secs + usecs / 1000000.;
 }
 
 //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
@@ -1096,7 +1097,6 @@ int qcomp_double(const void *x, const void *y)
 		uint64 cycles;
 		struct timeval start, stop;
 		double t_time;
-		TIME_DIFF *	difference;
 
 		gettimeofday(&start,NULL);
 
@@ -1104,10 +1104,7 @@ int qcomp_double(const void *x, const void *y)
 		do
 		{
 			gettimeofday (&stop, NULL);
-			difference = my_difftime (&start, &stop);
-			t_time = ((double)difference->secs + 
-				(double)difference->usecs / 1000000);
-			free(difference);
+            t_time = my_difftime (&start, &stop);
 		}
 		while (t_time < 0.1);
 		cycles = yafu_read_clock() - cycles;

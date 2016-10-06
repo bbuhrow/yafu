@@ -26,7 +26,12 @@ code to the public domain.
 
 #define DEFINED 1
 #define NUM_SQUFOF_MULT 38
+
+#ifdef TARGET_KNC
+#define NUM_LANES 16
+#else
 #define NUM_LANES 8
+#endif
 
 //#define PRINT_DEBUG
 
@@ -39,21 +44,62 @@ typedef struct
 {
     uint64 *N;
     uint64 *mN;
-    uint32 *listref;    
-	uint32 *mult;
-	uint32 *valid;
-	uint32 *P;
-	uint32 *bn;
-	uint32 *Qn;
-	uint32 *Q0;
-	uint32 *b0;
-	uint32 *it;
-	uint32 *imax;	
+    uint32 *listref;
+    uint32 *mult;
+    uint32 *valid;
+    uint32 *P;
+    uint32 *bn;
+    uint32 *Qn;
+    uint32 *Q0;
+    uint32 *b0;
+    uint32 *it;
+    uint32 *imax;
     uint32 *f;
     int *maxrounds;
     int *rounds;
     int *multnum;
     int *active;
+
+    /*
+#ifdef __GNUC__
+    __attribute__((aligned(64))) uint64 N[NUM_LANES];
+    __attribute__((aligned(64))) uint64 mN[NUM_LANES];
+    __attribute__((aligned(64))) uint32 listref[NUM_LANES];
+    __attribute__((aligned(64))) uint32 mult[NUM_LANES];
+    __attribute__((aligned(64))) uint32 valid[NUM_LANES];
+    __attribute__((aligned(64))) uint32 P[NUM_LANES];
+    __attribute__((aligned(64))) uint32 bn[NUM_LANES];
+    __attribute__((aligned(64))) uint32 Qn[NUM_LANES];
+    __attribute__((aligned(64))) uint32 Q0[NUM_LANES];
+    __attribute__((aligned(64))) uint32 b0[NUM_LANES];
+    __attribute__((aligned(64))) uint32 it[NUM_LANES];
+    __attribute__((aligned(64))) uint32 imax[NUM_LANES];
+    __attribute__((aligned(64))) uint32 f[NUM_LANES];
+    __attribute__((aligned(64))) int maxrounds[NUM_LANES];
+    __attribute__((aligned(64))) int rounds[NUM_LANES];
+    __attribute__((aligned(64))) int multnum[NUM_LANES];
+    __attribute__((aligned(64))) int active[NUM_LANES];
+#else
+    __declspec(align(64)) uint64 N[NUM_LANES];
+    __declspec(align(64)) uint64 mN[NUM_LANES];
+    __declspec(align(64)) uint32 listref[NUM_LANES];
+    __declspec(align(64)) uint32 mult[NUM_LANES];
+    __declspec(align(64)) uint32 valid[NUM_LANES];
+    __declspec(align(64)) uint32 P[NUM_LANES];
+    __declspec(align(64)) uint32 bn[NUM_LANES];
+    __declspec(align(64)) uint32 Qn[NUM_LANES];
+    __declspec(align(64)) uint32 Q0[NUM_LANES];
+    __declspec(align(64)) uint32 b0[NUM_LANES];
+    __declspec(align(64)) uint32 it[NUM_LANES];
+    __declspec(align(64)) uint32 imax[NUM_LANES];
+    __declspec(align(64)) uint32 f[NUM_LANES];
+    __declspec(align(64)) int maxrounds[NUM_LANES];
+    __declspec(align(64)) int rounds[NUM_LANES];
+    __declspec(align(64)) int multnum[NUM_LANES];
+    __declspec(align(64)) int active[NUM_LANES];
+#endif
+    */
+
 } par_mult_t;
 
 typedef struct
@@ -77,10 +123,14 @@ void par_shanks_mult_unit(par_mult_t *mult_save);
 void par_shanks_mult_unit_asm(par_mult_t *mult_save);
 void par_shanks_mult_unit_asm2(par_mult_t *mult_save);
 void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
-int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, mpz_t gmptmp);
+int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, 
+    int num_in, mpz_t gmptmp);
+int init_next_multiplier(par_mult_t mult_save, int lane,
+    int num_in, mpz_t gmptmp);
 void copy_mult_save(par_mult_t batch_data, int dest_lane, int src_lane);
 void save_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane);
 void load_multiplier_data(par_mult_t batch_data, mult_t **savedata, int lane, int multnum);
+int get_next_multiplier(par_mult_t batch_data, mult_t **savedata, int lane);
 
 // larger list of square-free multipliers from Dana Jacobsen.  Together with fewer
 // iterations per round and racing, this works faster on average.
@@ -253,10 +303,10 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
 
     mpz_init(gmptmp);
 
-    save_data = (mult_t **)malloc(NUM_LANES * sizeof(mult_t *));
+    save_data = (mult_t **)xmalloc(NUM_LANES * sizeof(mult_t *));
     for (i = 0; i < NUM_LANES; i++)
     {
-        save_data[i] = (mult_t *)malloc(NUM_SQUFOF_MULT * sizeof(mult_t));
+        save_data[i] = (mult_t *)xmalloc(NUM_SQUFOF_MULT * sizeof(mult_t));
     }
     mult_batch.active = (int *)xmalloc_align(NUM_LANES * sizeof(int));
     mult_batch.b0 = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
@@ -315,13 +365,13 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                 {
                     //printf("rejecting input N = %lu\n", mult_batch.N[j]);
                     f[mult_batch.listref[j]] = mult_batch.N[j];
-                    mult_batch.active[j] = 0;
                     j--;
                     continue;
                 }
 
                 // initialize all multipliers
-                result = init_multipliers(save_data, mult_batch, mult_batch.N[j], j, gmptmp);
+                result = init_multipliers(save_data, mult_batch, 
+                    mult_batch.N[j], j, num_in, gmptmp);
 
                 if (result == 1)
                 {
@@ -331,8 +381,7 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                     // record this (unlikely) success, and try to fill the lane again.
                     num_processed++;
                     num_successes++;
-                    mult_batch.active[j] = 0;
-                    f[mult_batch.listref[j]] = mult_batch.f[j];
+                    f[mult_batch.listref[j]] = (uint64)sqrt(N[j]);
                     j--;
                 }
             }
@@ -340,7 +389,7 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
 
         if (num_active < NUM_LANES)
         {
-            int active_lane;
+            int active_lane = -1;
 
             // if we are at the end of the list, some lanes may be inactive.  Fill the
             // save_data for these lanes with copies of an active lane, to prevent
@@ -352,6 +401,13 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                     active_lane = j;
                     break;
                 }
+            }
+
+            if (active_lane < 0)
+            {
+                //printf("no active lanes found\n");
+                active_lane = 0;
+                break;
             }
 
             for (j = 0; j < NUM_LANES; j++)
@@ -528,6 +584,14 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
     align_free(mult_batch.Q0);
     align_free(mult_batch.Qn);
     align_free(mult_batch.valid);
+    align_free(mult_batch.maxrounds);
+    align_free(mult_batch.rounds);
+
+    for (i = 0; i < NUM_LANES; i++)
+    {
+        free(save_data[i]);
+    }
+    free(save_data);
 
     return num_successes;
 }
@@ -620,7 +684,8 @@ int get_next_multiplier(par_mult_t batch_data, mult_t **savedata, int lane)
     return found;
 }
 
-int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, mpz_t gmptmp)
+int init_multipliers(mult_t **savedata, par_mult_t batch_data, 
+    uint64 N, int lane, int num_in, mpz_t gmptmp)
 {
     int i;
     int rounds;
@@ -679,33 +744,33 @@ int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lan
             if (savedata[lane][i].Qn == 0)
             {
                 // N is a perfect square - this number is factored.
-                batch_data.f[batch_data.listref[lane]] = (uint64)savedata[lane][i].b0;
+                //printf("perfect sqrt in init_multipliers with N = %lu, mN = %lu\n",
+                //    N, nn64);
                 success = 1;
-                break;
+                savedata[lane][i].valid = 0;
+                continue;
             }
+
             savedata[lane][i].bn = (savedata[lane][i].b0 + savedata[lane][i].P) / savedata[lane][i].Qn;
             savedata[lane][i].it = 0;
 
             // copy the first valid multiplier to the batch data structure
-            if (batch_data.active[lane] == 0)
-            {
-                batch_data.active[lane] = 1;
-                batch_data.b0[lane] = savedata[lane][i].b0;
-                batch_data.bn[lane] = savedata[lane][i].bn;
-                batch_data.it[lane] = savedata[lane][i].it;
-                batch_data.mN[lane] = nn64;
-                batch_data.imax[lane] = savedata[lane][i].imax;
-                batch_data.f[lane] = 0;
-                batch_data.mult[lane] = multipliers[i];
-                batch_data.multnum[lane] = i;
-                batch_data.P[lane] = savedata[lane][i].P;
-                batch_data.N[lane] = N;
-                batch_data.Q0[lane] = savedata[lane][i].Q0;
-                batch_data.Qn[lane] = savedata[lane][i].Qn;
-                batch_data.valid[lane] = savedata[lane][i].valid;
-                batch_data.maxrounds[lane] = rounds;
-                batch_data.rounds[lane] = 0;
-            }
+            batch_data.active[lane] = 1;
+            batch_data.b0[lane] = savedata[lane][i].b0;
+            batch_data.bn[lane] = savedata[lane][i].bn;
+            batch_data.it[lane] = savedata[lane][i].it;
+            batch_data.mN[lane] = nn64;
+            batch_data.imax[lane] = savedata[lane][i].imax;
+            batch_data.f[lane] = 0;
+            batch_data.mult[lane] = multipliers[i];
+            batch_data.multnum[lane] = i;
+            batch_data.P[lane] = savedata[lane][i].P;
+            batch_data.N[lane] = N;
+            batch_data.Q0[lane] = savedata[lane][i].Q0;
+            batch_data.Qn[lane] = savedata[lane][i].Qn;
+            batch_data.valid[lane] = savedata[lane][i].valid;
+            batch_data.maxrounds[lane] = rounds;
+            batch_data.rounds[lane] = 0;
         }
     }
 
@@ -714,7 +779,8 @@ int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lan
 }
 
 
-int init_next_multiplier(par_mult_t mult_save, int lane, mpz_t gmptmp)
+int init_next_multiplier(par_mult_t mult_save, int lane, 
+    int num_in, mpz_t gmptmp)
 {
     int i;
     int rounds;
@@ -2171,14 +2237,18 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
 			p = prime[ip];
 			if(p>=FirstCut) 
 				break;
-			if(N%p==0) 
-				return(p);
+            if (N%p == 0)
+            {
+                mpz_clear(tmpz);
+                return(p);
+            }
 		}
 	}
 
 	if(N>=8796393022207ull)
 	{
 		printf("Sorry1, Lehman only implemented for N<8796393022207\n");
+        mpz_clear(tmpz);
 		return(1);
 	}
 
@@ -2209,6 +2279,7 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
 		if(kN >= 1152921504606846976ull)
 		{
 			printf("Sorry2, overflow, N=%" PRIu64 " is too large\n", N);
+            mpz_clear(tmpz);
 			return(1);
 		}
 
@@ -2226,6 +2297,7 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
 		if((uint64)a*(uint64)a==kN)
 		{ 
 			B2 = gcd64((uint64)a, N);
+            mpz_clear(tmpz);
 			return(B2);
 		}
 
@@ -2268,6 +2340,7 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
 							B2 = gcd64((uint64)(a+b), N);
 							if(B2>=N)
 								printf("theorem failure: B2=%" PRIu64 " N=%" PRIu64 "\n", B2,N); 
+                            mpz_clear(tmpz);
 							return(B2);
 						}
 					}
@@ -2286,11 +2359,15 @@ uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
 			p = prime[ip];
 			if(p>=B) 
 				break;
-			if(N%p==0) 
-				return(p);
+            if (N%p == 0)
+            {
+                mpz_clear(tmpz);
+                return(p);
+            }
 		}
 	}
 
+    mpz_clear(tmpz);
 	return(N); //N is prime
 }
 

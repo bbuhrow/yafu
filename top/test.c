@@ -315,7 +315,6 @@ void test_dlp_composites_par()
     z tmp, tmp2, t1, t2, t3;
     mpz_t gmptmp;
     int64 queue[100];
-    TIME_DIFF *	difference;
     struct timeval gstart;
     struct timeval gstop;
     int nf;
@@ -387,10 +386,7 @@ void test_dlp_composites_par()
         }
 
         gettimeofday(&gstop, NULL);
-        difference = my_difftime(&gstart, &gstop);
-
-        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t_time = my_difftime(&gstart, &gstop);
 
         printf("par_squfof reported %d successes\n", num_successes);
         printf("par_squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
@@ -424,10 +420,7 @@ void test_dlp_composites()
 	int i,j,num,correct;
 	z tmp,tmp2,t1,t2,t3;
 	mpz_t gmptmp;
-	//uint64 f64;
 	int64 queue[100];
-	//fact_obj_t *fobj;
-    TIME_DIFF *	difference;
     struct timeval gstart;	
     struct timeval gstop;
     int nf;
@@ -624,10 +617,7 @@ void test_dlp_composites()
         }
 
         gettimeofday(&gstop, NULL);
-        difference = my_difftime(&gstart, &gstop);
-
-        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t_time = my_difftime(&gstart, &gstop);
 
         printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
         printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);

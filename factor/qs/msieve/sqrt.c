@@ -68,7 +68,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	uint32 num_relations, prime;
 	siqs_r *relation;
 	uint32 factor_found = 0;
-	int bits;
+	int bits, bits_before;
 
 	mpz_init(factor);
 	mpz_init(x);
@@ -79,9 +79,10 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	mpz_init(tmpn);
 	
 	fb_counts = (uint32 *)malloc(fb_size * sizeof(uint32));
-	mpz_set(tmpn, n);
+	mpz_set_ui(tmpn, multiplier);
 
-	bits = 0;
+	bits = mpz_sizeinbase(n, 2);
+
 	/* For each dependency */
 	for (mask = 1; mask; mask <<= 1) {
 		memset(fb_counts, 0, fb_size * sizeof(uint32));
@@ -248,10 +249,18 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			}
 
 			//ignore composite factors for now...
-			if (!is_mpz_prp(tmp))
-				continue;
+            if (is_mpz_prp(tmp))
+            {
+                //gmp_printf("found prime factor %Zd\n", tmp);
+            }
+            else
+            {
+                //gmp_printf("found composite factor %Zd\n", tmp);
+                continue;
+            }
 
 			//add the factor to our global list
+            bits_before = bits;
 			bits = yafu_factor_list_add(obj, factor_list, tmp);
 
 			//check if only the multiplier remains
@@ -259,14 +268,20 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				break;
 
 			//divide the factor out of our number
-			mpz_tdiv_q(tmp2, tmpn, tmp); //zDiv(&tmpn, &tmp, &tmp2, &tmp3);
+            if (bits < bits_before)
+            {
+                mpz_mul(tmpn, tmpn, tmp);
+                bits_before = bits;
+            }
+			mpz_tdiv_q(tmp2, n, tmpn); //zDiv(&tmpn, &tmp, &tmp2, &tmp3);
 
 			//check if the remaining number is prime
 			if (is_mpz_prp(tmp2))
 			{
 				//add it to our global factor list
-				//printf("remaining cofactor is prime\n");
-				bits = yafu_factor_list_add(obj, factor_list, tmp2);
+				//gmp_printf("remaining cofactor %Zd is prime\n", tmp2);
+                mpz_mul(tmpn, tmpn, tmp2);
+                bits = yafu_factor_list_add(obj, factor_list, tmp2);
 
 				//then bail
 				break;
@@ -275,24 +290,32 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			//divide out the multiplier from the remaining number
 			if (multiplier > 1) {
 				uint32 ignore_me = spGCD(multiplier,
-						mpz_tdiv_ui(tmp2, multiplier));
+                    mpz_tdiv_ui(tmp2, multiplier));
 				if (ignore_me > 1) {
-					mpz_tdiv_q_ui(tmp, tmp2, ignore_me);
+                    mpz_tdiv_q_ui(tmp2, tmp2, ignore_me);
 
 					//check again if the remaining number is prime
-					if (is_mpz_prp(tmp))
+                    if (is_mpz_prp(tmp2))
 					{
 						//add it to our global factor list
-						//printf("remaining cofactor is prime after removing multiplier\n");
-						bits = yafu_factor_list_add(obj, factor_list, tmp);
+						//gmp_printf("remaining cofactor %Zd is prime after"
+                        //    " removing multiplier\n", tmp2);
+                        mpz_mul(tmpn, tmpn, tmp2);
+                        bits = yafu_factor_list_add(obj, factor_list, tmp2);
 
 						//then bail
 						break;
 					}
 				}
 			}
+
+            //gmp_printf("still composite, remaining input is %Zd... "
+            //    "checking another dependency\n", tmp2);
 		}
 	}
+
+    //mpz_tdiv_q(tmp2, n, tmpn);
+    //gmp_printf("done with sqrt... remaining input is %Zd\n", tmp2);
 
 	free(fb_counts);
 	mpz_clear(factor);

@@ -1365,9 +1365,6 @@ static uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 	free(v[0]);
 	free(v[1]);
 	free(v[2]);
-	//x isn't freed in this code path... but freeing it causes
-	//segfaults sometimes, and I don't want to debug this...
-	//free(x);
 
 	if (*num_deps_found == 0)
 	{

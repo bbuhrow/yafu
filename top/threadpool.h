@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+#ifdef USE_TPOOL_AFFINITY
+#include <sched.h>
+#endif
+
 #if defined(WIN32)
 
 #include <windows.h>
@@ -11,6 +15,8 @@
 #include <pthread.h>
 
 #endif /* WIN32 */
+
+
 
 enum tpool_state {
     TPOOL_STATE_INIT,
@@ -62,6 +68,12 @@ typedef struct
 
     pthread_mutex_t *queue_lock;
     pthread_cond_t *queue_cond;
+
+#ifdef USE_TPOOL_AFFINITY
+    pthread_attr_t *attr;
+    cpu_set_t *cpus;
+#endif
+
 #endif
 
 } tpool_t;

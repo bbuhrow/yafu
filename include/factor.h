@@ -172,6 +172,7 @@ typedef struct {
 				      is to keep sieving until all necessary 
 				      relations are found. */
 
+    uint32 which_gpu;         /* ordinal ID of GPU to use */
 	uint32 cache_size1;       /* bytes in level 1 cache */
 	uint32 cache_size2;       /* bytes in level 2 cache */
 	enum cpu_type cpu;
@@ -190,10 +191,6 @@ typedef struct {
 	uint32 mpi_la_row_rank;
 	uint32 mpi_la_col_rank;
 #endif
-
-
-
-	uint32 which_gpu;         /* ordinal ID of GPU to use */
 
 	char *mp_sprintf_buf;    /* scratch space for printing big integers */
 

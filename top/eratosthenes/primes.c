@@ -103,7 +103,6 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
     //timing
     double t;
     struct timeval tstart, tstop;
-    TIME_DIFF *	difference;
 
     // threading structures
     tpool_t *tpool_data;
@@ -261,9 +260,7 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
     {
         gettimeofday(&tstop, NULL);
 
-        difference = my_difftime(&tstart, &tstop);
-        t = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t = my_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {

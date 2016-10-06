@@ -293,8 +293,9 @@ code to the public domain.
 		#endif
 
 	#elif defined(__x86_64__)
-		//sleep in milliseconds
-		#define MySleep(x) usleep((x)*1000)
+
+        // sleep in milliseconds		
+        #define MySleep(x) usleep((x)*1000)	
 		#define strto_fpdigit strtoull
 		#define strto_uint64 strtoull
 
@@ -319,13 +320,14 @@ code to the public domain.
 		#define PRId64 "ld"
 		#define PRIu64 "lu"
 		#define PRIx64 "lx"
-		
+
 		#ifndef RS6K
 		typedef char int8;
 		typedef short int16;
 		typedef int32_t int32;
 		typedef int64_t int64;
 		#endif
+
 
 	#elif defined(__i386__)
 	

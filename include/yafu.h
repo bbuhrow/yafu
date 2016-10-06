@@ -117,15 +117,6 @@ typedef struct
 	uint32 low;
 } rand_t;
 
-//user dimis:
-//http://cboard.cprogramming.com/cplusplus-programming/
-//101085-how-measure-time-multi-core-machines-pthreads.html
-//
-typedef struct {
-	long		secs;
-	long		usecs;
-} TIME_DIFF;
-
 //global variables
 
 // calculator

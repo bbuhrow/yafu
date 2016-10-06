@@ -299,13 +299,17 @@
     <ClCompile Include="..\..\factor\qs\tdiv_med.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knc.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knc.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />

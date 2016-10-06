@@ -42,7 +42,8 @@ code to the public domain.
 #define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
 #endif
 
-#if (defined(USE_AVX2) || defined(USE_SSE41)) && ~defined(_MSC_VER)
+//|| defined(TARGET_KNC)
+#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
 #define USE_VEC_SQUFOF
 #endif
 
@@ -50,7 +51,6 @@ code to the public domain.
 
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
-TIME_DIFF *qs_timing_diff;
 double START;
 double TF_STG1;
 double TF_STG2;
@@ -76,7 +76,15 @@ double TF_SPECIAL;
 #define BLOCKSIZEm1 32767
 #define BLOCKSIZE 32768
 
-#define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
+// store only largish smooth factors of relations; trial divide during filtering
+#define SPARSE_STORE
+
+#ifdef SPARSE_STORE
+#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#else
+#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#endif
+
 #define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
@@ -92,8 +100,9 @@ double TF_SPECIAL;
 //#define USE_YAFU_TDIV 1
 
 // always use these optimizations using sse2
-#ifdef TARGET_MIC
-
+#ifdef TARGET_KNC
+#define USE_ASM_SMALL_PRIME_SIEVING
+#define USE_8X_MOD_ASM 1
 #elif !defined (FORCE_GENERIC)
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
@@ -123,8 +132,8 @@ double TF_SPECIAL;
 
 #elif !defined (FORCE_GENERIC) && defined(_WIN64)
 	#define SIMD_SIEVE_SCAN 1
-
 #endif
+
 
 
 // these were used in an experiment to check how many times a routine was called
@@ -177,7 +186,7 @@ typedef struct
 	uint32 sieve_offset;		//offset specifying Q (the quadratic polynomial)
 	uint32 poly_idx;			//which poly this relation uses
 	uint32 parity;				//the sign of the offset (x) 0 is positive, 1 is negative
-	uint32 *fb_offsets;			//offsets of factor base primes dividing Q(offset).  
+    uint32 fb_offsets[MAX_SMOOTH_PRIMES];			//offsets of factor base primes dividing Q(offset).  
 								//note that other code limits the max # of fb primes to < 2^16
 	uint32 num_factors;			//number of factor base factors in the factorization of Q
 } siqs_r;
@@ -348,6 +357,7 @@ typedef struct {
 	uint32 num_cycles;			/* number of cycles in list */
 	uint32 num_r;				// total relations found
 	uint32 num;					// sieve locations we've subjected to trial division
+    uint32 num_found;
 
 	//used to check on progress of the factorization	
 	struct timeval update_start;	// time at which we last assessed the situation
@@ -398,6 +408,7 @@ typedef struct {
 
 	int is_tiny;
 	int in_mem;
+    int flag;
 
 	//storage of relations found during in-mem sieving
 	uint32 buffered_rels;
@@ -532,6 +543,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void tdiv_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*tdiv_med_ptr)(uint8 , uint32 , uint32 , 
@@ -541,6 +554,8 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*resieve_med_ptr)(uint8 , uint32 , uint32 , 
@@ -584,6 +599,7 @@ void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   

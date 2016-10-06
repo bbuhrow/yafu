@@ -161,7 +161,6 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 			i += 8;
 		}
 
-
 		// after either resieving or standard trial division, record
 		// how many factors we've found so far.
 		dconf->smooth_num[report_num] = smooth_num;	
@@ -170,10 +169,7 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 			
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    TF_STG4 += my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

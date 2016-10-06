@@ -28,7 +28,7 @@ code to the public domain.
 #include <ecm.h>
 
 // the number of recognized command line options
-#define NUMOPTIONS 72
+#define NUMOPTIONS 73
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -48,7 +48,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
-	"ecmtime", "no_clk_test"};
+	"ecmtime", "no_clk_test", "siqsTFSm"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -69,7 +69,7 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,1,1,
 	1,1,1,1,1,
 	1,0,0,1,1,
-	1,0};
+	1,0,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);	
 
-#if !defined( TARGET_MIC )
+#if !defined( TARGET_KNC )
     //get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling readINI so that
     // any tune_info lines are applied correctly.
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
 	readINI(fobj);	
 
 
-#if !defined( TARGET_MIC )
+#if !defined( TARGET_KNC )
     // now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
     // 
@@ -210,23 +210,11 @@ int main(int argc, char *argv[])
     LCGSTATE = g_rand.low;
 #endif	
 
+
     if (0)
     {
         test_dlp_composites();
-    }
-
-    if (0)
-    {
         test_dlp_composites_par();
-    }
-    
-    if (0)
-    {
-        uint64 N[8];
-        uint64 f[8];
-
-        N[0] = 41333480705307667;
-        par_shanks_loop(N, f, 1);
     }
 
 
@@ -2059,6 +2047,12 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
     {													
         //argument "no_clk_test"
         NO_CLK_TEST = 1;
+    }
+    else if (strcmp(opt, OptionArray[72]) == 0)
+    {
+        //argument "siqsTFSm"
+        fobj->qs_obj.gbl_override_small_cutoff = atoi(arg);
+        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
     }
 	else
 	{

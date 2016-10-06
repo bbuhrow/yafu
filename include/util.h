@@ -60,7 +60,7 @@ static INLINE void * xmalloc_align(size_t len)
 	void *ptr = malloc(len);
 
 #elif defined (__GNUC__)
-	void *ptr = memalign(32, len);
+	void *ptr = memalign(64, len);
 
 #else
 	void *ptr = malloc(len);
@@ -122,7 +122,7 @@ get_rand(uint32 *rand_seed, uint32 *rand_carry) {
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-TIME_DIFF * my_difftime (struct timeval *, struct timeval *);
+double my_difftime (struct timeval *, struct timeval *);
 
 //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
 #if defined (_MSC_VER)
@@ -199,7 +199,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 #define HAS_CMOV
 
 // assme this is a modern cpu that has at least up through sse2.
-#if !defined(USE_MIC) && !defined(FORCE_GENERIC)
+#ifndef FORCE_GENERIC
 #define HAS_MMX 1
 #define HAS_SSE 1
 #define HAS_SSE2 1

@@ -155,7 +155,6 @@ void nfs(fact_obj_t *fobj)
 	struct timeval start;	// start time of this job
 	struct timeval bstop;	// stop time of sieving batch
 	struct timeval bstart;	// start time of sieving batch
-	TIME_DIFF *	difference;
 	double t_time;
 	uint32 pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];
@@ -574,10 +573,7 @@ void nfs(fact_obj_t *fobj)
 
 			gettimeofday(&stop, NULL);
 
-			difference = my_difftime (&start, &stop);
-
-			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);	
+            t_time = my_difftime(&start, &stop);
 
 			if (VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
@@ -613,9 +609,7 @@ void nfs(fact_obj_t *fobj)
 				uint32 est_time;
 
 				gettimeofday(&bstop, NULL);
-				difference = my_difftime (&bstart, &bstop);
-				t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+                t_time = my_difftime(&bstart, &bstop);
 
 				est_time = (uint32)((job.min_rels - job.current_rels) * 
 					(t_time / (job.current_rels - pre_batch_rels)));				
@@ -856,10 +850,8 @@ void nfs(fact_obj_t *fobj)
 
 		//after every state, check elasped time against a specified timeout value
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
+        t_time = my_difftime(&start, &stop);
 
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);	
 		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
 		{
 			if (VFLAG >= 0)
