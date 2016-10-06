@@ -143,30 +143,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         i = sconf->sieve_small_fb_start;
 
-
-        //printf("start index = %u\n", i);
-        //printf("10-bit bound = %u\n", sconf->factor_base->fb_10bit_B);
-        //printf("12-bit bound = %u\n", sconf->factor_base->fb_12bit_B);
-        //printf("13-bit bound = %u\n", sconf->factor_base->fb_13bit_B);
-
-
         // 8x trial division
-#ifdef USE_AVX2
-
-        if ((sconf->factor_base->fb_10bit_B & 15) == 0)
-        {
-            bound = sconf->factor_base->fb_10bit_B;
-            //printf("10 bit bound divisible by 16: %u\n", sconf->factor_base->fb_10bit_B); fflush(stdout);
-        }
-        else
-        {
-            bound = MAX(sconf->factor_base->fb_10bit_B - 8, sconf->sieve_small_fb_start);
-            //printf("10 bit bound not divisible by 16, new bound: %u\n", bound); fflush(stdout);
-        }
-
-#else
         bound = sconf->factor_base->fb_10bit_B;
-#endif
 
         // single-up test until i is a multiple of 8
         while ((uint32)i < bound && ((i & 7) != 0))
@@ -198,7 +176,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         starti = i;
 
-#ifdef USE_8X_MOD_ASM
+
+#if defined(USE_8X_MOD_ASM)
 
         bl_sizes[0] = 32768;
         bl_sizes[1] = 32768;
@@ -500,10 +479,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
     gettimeofday(&qs_timing_stop, NULL);
-    qs_timing_diff = my_difftime(&qs_timing_start, &qs_timing_stop);
-
-    TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-    free(qs_timing_diff);
+    TF_STG2 += my_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     return;

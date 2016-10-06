@@ -910,7 +910,6 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	uint64 tmp2;	
 	struct timeval tstart, tstop;
 	double t_time;
-	TIME_DIFF *	difference;
 	uint32 curves_done;
 
 	gettimeofday(&tstart, NULL);
@@ -957,9 +956,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
         // measure time for this completed work
         gettimeofday(&tstop, NULL);
-        difference = my_difftime(&tstart, &tstop);
-        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
         fwork->trialdiv_time = t_time;
         fwork->total_time += t_time;
@@ -978,9 +975,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->rho_time = t_time;
 		fwork->total_time += t_time;
@@ -999,9 +994,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->fermat_time = t_time;
 		fwork->total_time += t_time;
@@ -1036,9 +1029,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->ecm_time += t_time;
 		fwork->total_time += t_time;
@@ -1068,9 +1059,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->pp1_time += t_time;
 		fwork->total_time += t_time;
@@ -1099,9 +1088,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->pm1_time += t_time;
 		fwork->total_time += t_time;
@@ -1114,9 +1101,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->qs_time = t_time;
 		if (VFLAG > 0)
@@ -1131,9 +1116,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = my_difftime(&tstart, &tstop);
 
 		fwork->nfs_time = t_time;
 		if (VFLAG > 0)
@@ -2000,6 +1983,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_max_60digit_curves = 42017;	//260M
 	fwork->ecm_max_65digit_curves = 69408;	//850M
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
+    fwork->fermat_iterations = 0;
 	fwork->fermat_max_iterations = fobj->div_obj.fmtlimit;
 	fwork->rho_max_bases = 3;
 	fwork->rho_max_iterations = fobj->rho_obj.iterations;
@@ -2230,7 +2214,6 @@ void factor(fact_obj_t *fobj)
 	FILE *flog;
 	struct timeval start, stop;
 	double t_time;
-	TIME_DIFF *	difference;
 	int user_defined_ecm_b2 = fobj->ecm_obj.stg2_is_default;
 	int user_defined_pp1_b2 = fobj->pp1_obj.stg2_is_default;
 	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
@@ -2544,9 +2527,7 @@ void factor(fact_obj_t *fobj)
 	mpz_set(fobj->N, b);
 
 	gettimeofday (&stop, NULL);
-	difference = my_difftime (&start, &stop);
-	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+    t_time = my_difftime(&start, &stop);
 
 	if (VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);
@@ -2581,7 +2562,6 @@ void spfactorlist(uint64 nstart, uint64 nrange)
 	int i, c, s, e, m;
 	double t;
 	struct timeval tstart, tstop;
-	TIME_DIFF *	difference;
 	mpz_t tmp;
 	fact_obj_t f;
 	uint64 sf;
@@ -2693,9 +2673,7 @@ void spfactorlist(uint64 nstart, uint64 nrange)
 	free_factobj(&f);
 	mpz_clear(tmp);
 	gettimeofday (&tstop, NULL);
-	difference = my_difftime (&tstart, &tstop);
-	t = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+	t = my_difftime (&tstart, &tstop);
 
 	printf("completed %d factorizations (%d SQUFOF, %d fermat, %d rho) "
 		"in %6.4f seconds\n", c, s, m, e, t);

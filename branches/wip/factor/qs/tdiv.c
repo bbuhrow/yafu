@@ -68,7 +68,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	int smooth_num;
 	uint32 *fb_offsets;
 	uint32 polya_factors[20];
-	//sieve_fb *fb;
     sieve_fb_compressed *fbc = dconf->comp_sieve_p;
 	uint32 offset, block_loc;
 	fb_offsets = &dconf->fb_offsets[report_num][0];
@@ -81,11 +80,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	offset = (bnum << sconf->qs_blockbits) + block_loc;
 
-	//if (parity)
-	//	fb = dconf->fb_sieve_n;
-	//else
-	//	fb = dconf->fb_sieve_p;
-
 #ifdef USE_YAFU_TDIV
 	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
 #endif
@@ -95,20 +89,19 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	it=0;	//max 20 factors allocated for - should be overkill
 	for (j = 0; (j < dconf->curr_poly->s) && (it < 20); j++)
 	{
-		//fbptr = fb + dconf->curr_poly->qlisort[j];
-		//prime = fbptr->prime;
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
 
 		while ((mpz_tdiv_ui(dconf->Qvals[report_num],prime) == 0) && (it < 20))
 		{
 			mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);
+
+#ifndef SPARSE_STORE
 			polya_factors[it++] = dconf->curr_poly->qlisort[j];
+#endif
 		}
 	}
 
 	//check if it completely factored by looking at the unfactored portion in tmp
-	//if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
-		//(mpz_get_64(dconf->Qvals[report_num]) < (uint64)sconf->large_prime_max))
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
@@ -134,10 +127,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        TF_STG6 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 		return;
@@ -147,8 +137,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		return;
 
 	//quick check if Q is way too big for DLP (more than 64 bits)	
-	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) >= 64)
-		return;
+    if (mpz_sizeinbase(dconf->Qvals[report_num], 2) >= 64)
+    {
+        dconf->dlp_outside_range++;
+        return;
+    }
 
 	q64 = mpz_get_64(dconf->Qvals[report_num]);
 
@@ -164,7 +157,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 		mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
 		res = mpz_get_64(dconf->gmptmp1);
-#elif defined (TARGET_MIC)
+#elif defined (FORCE_GENERIC) && !defined(TARGET_KNC)
         mpz_set_64(dconf->gmptmp1, q64);
         mpz_set_64(dconf->gmptmp2, 2);
         mpz_set_64(dconf->gmptmp3, q64-1);
@@ -183,10 +176,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		{
 #ifdef QS_TIMING
 			gettimeofday (&qs_timing_stop, NULL);
-			qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-			TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-			free(qs_timing_diff);
+            TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 			dconf->dlp_prp++;
 			return;
@@ -236,10 +226,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG6 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 	
 	return;
@@ -278,9 +265,18 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
     rel->parity = parity;
     rel->poly_idx = poly_id;
 
-    rel->fb_offsets = (uint32 *)malloc(
-        (num_polya_factors + num_factors) * sizeof(uint32));
+    if ((num_polya_factors + num_factors) > MAX_SMOOTH_PRIMES)
+    {
+        printf("error: too many smooth primes!\n");
+        exit(234);
+    }
 
+#ifdef SPARSE_STORE
+    // extra factors of polya are not added to the list of factors. they will be added
+    // during filtering on only the relations that survive singleton removal.
+    memcpy(rel->fb_offsets, fb_offsets, sizeof(uint32) * num_factors);
+
+#else
     //merge in extra factors of the apoly factors
     i = j = k = 0;
     while (k < num_factors && j < num_polya_factors) {
@@ -299,6 +295,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
         rel->fb_offsets[i++] = fb_offsets[k++];
     while (j < num_polya_factors)
         rel->fb_offsets[i++] = polya_factors[j++];
+#endif
 
     rel->num_factors = num_factors + num_polya_factors;
 
@@ -373,7 +370,6 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 		r->poly_idx = poly_id;
 		r->parity = parity;
 		r->sieve_offset = offset;
-		r->fb_offsets = (uint32 *)malloc(num_factors * sizeof(uint32));
 		for (i=0; i<num_factors; i++)
 			r->fb_offsets[i] = fb_offsets[i];
 

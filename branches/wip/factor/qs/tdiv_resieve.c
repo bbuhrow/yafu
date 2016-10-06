@@ -979,10 +979,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    TF_STG4 += my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

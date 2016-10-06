@@ -62,7 +62,7 @@ this file contains code implementing 1)
 #if defined(USE_AVX2)
 
 
-#define SIEVE_SCAN_32_VEC					\
+    #define SIEVE_SCAN_32_VEC					\
 		asm volatile (							\
 			"vmovdqa (%1), %%ymm0   \n\t"		\
 			"vpmovmskb %%ymm0, %%r11   \n\t"		/* output results to 64 bit register */		\
@@ -86,7 +86,7 @@ this file contains code implementing 1)
 			: "r"(sieveblock + j), "r"(buffer)	\
 			: "xmm0", "r8", "r9", "r10", "r11", "rcx", "cc", "memory");
 
-#define SIEVE_SCAN_64_VEC					\
+    #define SIEVE_SCAN_64_VEC					\
 		asm volatile (							\
 			"vmovdqa (%1), %%ymm0   \n\t"		\
 			"vpor 32(%1), %%ymm0, %%ymm0    \n\t"		\
@@ -812,12 +812,14 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
     //unrolled x128; for large inputs
     uint32 i, j, it = sconf->qs_blocksize >> 3;
     uint32 thisloc;
+    uint32 num_reports = 0;
     uint64 *sieveblock;
 
-    sieveblock = (uint64 *)dconf->sieve;
     dconf->num_reports = 0;
+    sieveblock = (uint64 *)dconf->sieve;
 
-#ifdef SIMD_SIEVE_SCAN_VEC
+
+#if defined(SIMD_SIEVE_SCAN_VEC)
 
 #if defined(USE_AVX2)
     CLEAN_AVX2;
@@ -826,7 +828,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
     for (j=0;j<it;j+=8)	
     {		
         uint32 result;
-        uint8 buffer[64];
+        uint8 buffer[64];               
 
         SIEVE_SCAN_64_VEC;
 

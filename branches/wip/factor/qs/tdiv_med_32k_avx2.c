@@ -470,11 +470,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
         i = sconf->sieve_small_fb_start;
 
-        //printf("start index = %u\n", i);
-        //printf("10-bit bound = %u\n", sconf->factor_base->fb_10bit_B);
-        //printf("12-bit bound = %u\n", sconf->factor_base->fb_12bit_B);
-        //printf("13-bit bound = %u\n", sconf->factor_base->fb_13bit_B);
-
         // single-up test until i is a multiple of 8
 #ifdef DO_16X
         while ((i < bound10) && ((i & 15) != 0))

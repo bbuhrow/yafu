@@ -226,7 +226,7 @@ typedef struct
 				}	\
 			} while(0);
 
-#elif defined(GCC_ASM64X)
+#elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 
 #ifdef HAS_SSE2
 
@@ -446,7 +446,7 @@ typedef struct
 
 #endif
 
-#if defined (GCC_ASM64X)
+#if defined (GCC_ASM64X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 	#define CHECK_NEW_SLICE_ASM \
 		"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
 			/* note this is the counter j, not the byte offset j */ \
@@ -549,7 +549,8 @@ typedef struct
 
 #endif
 
-#if defined(MSC_ASM32A)
+
+#if defined(MSC_ASM32A) && !defined(FORCE_GENERIC)
 	#define COMPUTE_NEXT_ROOTS_P	\
 	do {	\
 		uint32 update = *ptr;	\
@@ -606,7 +607,7 @@ typedef struct
 		} while (0);
 	
 
-#elif defined(GCC_ASM64X)
+#elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 
 	#define COMPUTE_NEXT_ROOTS_P						\
 		ASM_G (											\
@@ -652,7 +653,7 @@ typedef struct
 			: "r"(bmodp), "g"(prime)		\
 			: "r8", "r9", "cc");
 
-#elif defined(GCC_ASM32X)
+#elif defined(GCC_ASM32X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 
 	#define COMPUTE_NEXT_ROOTS_P						\
 		ASM_G (											\

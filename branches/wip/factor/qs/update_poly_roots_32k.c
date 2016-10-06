@@ -188,14 +188,16 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}	
 
 #else
+
+
 		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
 		for (j=sconf->factor_base->fb_10bit_B; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
 		{
-			prime = update_data.prime[j];
-			root1 = update_data.sm_firstroots1[j];
-			root2 = update_data.sm_firstroots2[j];
+            prime = update_data.prime[j];
+            root1 = update_data.sm_firstroots1[j];
+            root2 = update_data.sm_firstroots2[j];
 
-			COMPUTE_NEXT_ROOTS_P;
+            COMPUTE_NEXT_ROOTS_P;
 
 			if (root2 < root1)
 			{
@@ -218,6 +220,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
+
 #endif		
 
 		// assembly code may not get all the way to 15 bits since we 
@@ -292,11 +295,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -629,6 +628,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
 #else
+
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
@@ -655,11 +655,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 += my_difftime(&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
@@ -964,6 +960,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
 #else
+
 		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound;j++,ptr++)				
 		{				
@@ -988,12 +985,10 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
+
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 += my_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}
@@ -1088,6 +1083,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 
 #else
+
 		ptr = &dconf->rootupdates[(v-1) * bound + sconf->factor_base->fb_10bit_B];
 		for (j=sconf->factor_base->fb_10bit_B; j < sconf->factor_base->fb_15bit_B; j++, ptr++)
 		{
@@ -1192,11 +1188,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 += my_difftime(&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1553,11 +1545,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1888,10 +1876,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}

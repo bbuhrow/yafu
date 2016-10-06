@@ -1195,7 +1195,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 	//uint32 *offsets;
 	double t;
 	struct timeval tstart, tstop;
-	TIME_DIFF *	difference;
 	uint64 lower, upper, inc, count;
 
 	mpz_init(mp1);
@@ -1322,6 +1321,18 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in factor\n");
 			break;
 		}
+
+//        srand(12345);
+//        g_rand.hi = rand();
+//        g_rand.low = rand();
+//#if BITS_PER_DIGIT == 64
+//        LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
+//#else
+//        LCGSTATE = g_rand.low;
+//#endif	
+//        gmp_randseed_ui(gmp_randstate, g_rand.low);
+
+
 		mpz_set(fobj->N, operands[0]);
 		factor(fobj);
 		mpz_set(operands[0], fobj->N);
@@ -1606,10 +1617,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 
 			mpz_set_64(operands[0], n64);
 			gettimeofday (&tstop, NULL);
-			difference = my_difftime (&tstart, &tstop);
+			t = my_difftime (&tstart, &tstop);
 
-			t = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);
 			printf("elapsed time = %6.4f\n",t);
 			break;
 		}
@@ -2049,9 +2058,8 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				}
 
 				gettimeofday (&tstop, NULL);
-				difference = my_difftime (&tstart, &tstop);
-				t = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+				t = my_difftime (&tstart, &tstop);
+
 				if (VFLAG > 0)
 				{
 					printf("generation of %d %d bit inputs took = %6.4f\n",numin,bits,t);
@@ -2150,9 +2158,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			
 			
 				gettimeofday (&tstop, NULL);
-				difference = my_difftime (&tstart, &tstop);
-				t = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+				t = my_difftime (&tstart, &tstop);
 
 				if (test_lehman || test_squfof || test_squfof_tf)
 				{
@@ -2295,9 +2301,7 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 				soe_wrapper(spSOEprimes, szSOEp, lower, upper, 1, &n64);
 				count += n64;
 				gettimeofday (&tstop, NULL);
-				difference = my_difftime (&tstart, &tstop);
-				t = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+				t = my_difftime (&tstart, &tstop);
 				lower = upper;
 				printf("%" PRIu64 ": %" PRIu64 ", elapsed time = %6.4f\n",upper,count,t);
 			}

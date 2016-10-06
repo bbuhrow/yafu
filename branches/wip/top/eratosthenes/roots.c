@@ -99,7 +99,6 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     //timing
     double t;
     struct timeval tstart, tstop;
-    TIME_DIFF *	difference;
 
     // threading structures
     tpool_t *tpool_data;
@@ -154,9 +153,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     {
         gettimeofday(&tstop, NULL);
 
-        difference = my_difftime(&tstart, &tstop);
-        t = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t = my_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {
@@ -170,53 +167,54 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     range = (sdata->pboundi - sdata->bucket_start_id) / THREADS;
     lastid = sdata->bucket_start_id;
 
-    // divvy up the primes
-    for (j = 0; j < THREADS; j++)
+    if (range > 0)
     {
-        thread_soedata_t *t = thread_data + j;
-
-        t->sdata = *sdata;
-        t->startid = lastid;
-        t->stopid = t->startid + range;
-        lastid = t->stopid;
-
-        if (VFLAG > 2)
+        // divvy up the primes left to compute
+        for (j = 0; j < THREADS; j++)
         {
-            printf("thread %d starting root computation over %u to %u\n",
-                j, t->startid, t->stopid); fflush(stdout);
+            thread_soedata_t *t = thread_data + j;
+
+            t->sdata = *sdata;
+            t->startid = lastid;
+            t->stopid = t->startid + range;
+            lastid = t->stopid;
+
+            if (VFLAG > 2)
+            {
+                printf("thread %d starting root computation over %u to %u\n",
+                    j, t->startid, t->stopid); fflush(stdout);
+            }
         }
-    }
 
-    // the last one gets any leftover
-    if (thread_data[THREADS - 1].stopid != sdata->pboundi)
-    {
-        thread_data[THREADS - 1].stopid = sdata->pboundi;
-    }
+        // the last one gets any leftover
+        if (thread_data[THREADS - 1].stopid != sdata->pboundi)
+        {
+            thread_data[THREADS - 1].stopid = sdata->pboundi;
+        }
 
-    udata.sdata = sdata;
-    udata.ddata = thread_data;
-    tpool_data = tpool_setup(THREADS, NULL, NULL, NULL, 
-        &compute_roots_dispatch, &udata);
+        udata.sdata = sdata;
+        udata.ddata = thread_data;
+        tpool_data = tpool_setup(THREADS, NULL, NULL, NULL,
+            &compute_roots_dispatch, &udata);
 
-    if (THREADS == 1)
-    {
-        compute_roots_work_fcn(tpool_data);
+        if (THREADS == 1)
+        {
+            compute_roots_work_fcn(tpool_data);
+        }
+        else
+        {
+            sdata->sync_count = 0;
+            tpool_add_work_fcn(tpool_data, &compute_roots_work_fcn);
+            tpool_go(tpool_data);
+        }
+        free(tpool_data);
     }
-    else
-    {
-        sdata->sync_count = 0;
-        tpool_add_work_fcn(tpool_data, &compute_roots_work_fcn);
-        tpool_go(tpool_data);
-    }
-    free(tpool_data);
 
     if (VFLAG > 1)
     {
         gettimeofday(&tstop, NULL);
 
-        difference = my_difftime(&tstart, &tstop);
-        t = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t = my_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {
@@ -303,9 +301,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
 
 	gettimeofday(&tstop, NULL);
 
-	difference = my_difftime(&tstart, &tstop);
-	t = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+    t = my_difftime(&tstart, &tstop);
 
 	if (VFLAG > 2)
 		printf("time to compute inplace sieve roots = %1.2f\n", t);
