@@ -136,7 +136,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//locals
 	uint32 i, interval;
 	uint8 logp;
-	int root1, root2, prime, amodp, bmodp, inv, x, bnum,j,numblocks;
+    int root1, root2, nroot1, nroot2, prime, amodp, bmodp, inv, x, bnum, j, numblocks;
 	int s = poly->s;
 	int bound_index = 0, k;
 	uint32 bound_val = fb->med_B;
@@ -432,12 +432,9 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
-
+        nroot1 = (prime - root1);
+        nroot2 = (prime - root2);
 		FILL_ONE_PRIME_LOOP_P(i);
-
-		root1 = (prime - update_data.firstroots1[i]);
-		root2 = (prime - update_data.firstroots2[i]);
-
 		FILL_ONE_PRIME_LOOP_N(i);
 
 		//for this factor base prime, compute the rootupdate value for all s

@@ -50,7 +50,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	uint32 j, interval; //, fb_offset;
 	int k,numblocks;
-	uint32 root1, root2, prime;
+    uint32 root1, root2, nroot1, nroot2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
@@ -78,12 +78,9 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_p = lp_bucket_p->num;
 		numptr_n = lp_bucket_p->num + numblocks;
 		
-		//reuse this for a sec...
-		prime = 2*numblocks*lp_bucket_p->alloc_slices;
-
-		//reset lp_buckets
-		for (j=0;j<prime;j++)
-			numptr_p[j] = 0;
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+            numptr_p[j] = 0;
 	
 		lp_bucket_p->num_slices = 0;
 
@@ -575,52 +572,44 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 			prime = update_data.prime[j];
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
 
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 			prime = update_data.prime[j];
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
 
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 			prime = update_data.prime[j];
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
 
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 			prime = update_data.prime[j];
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -642,12 +631,10 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
+            nroot1 = prime - root1;
+            nroot2 = prime - root2;
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 		}
 
@@ -1463,55 +1450,47 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			COMPUTE_4_NROOTS(j);
 
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
-			prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+            prime = update_data.prime[j];
 
-			FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
 
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
+            j++;
 
-			FILL_ONE_PRIME_LOOP_N(j);
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+            prime = update_data.prime[j];
 
-			j++;
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
 
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
-			prime = update_data.prime[j];
+            j++;
 
-			FILL_ONE_PRIME_LOOP_P(j);
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+            prime = update_data.prime[j];
 
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
 
-			FILL_ONE_PRIME_LOOP_N(j);
+            j++;
 
-			j++;
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+            prime = update_data.prime[j];
 
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
-			prime = update_data.prime[j];
-
-			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
-			FILL_ONE_PRIME_LOOP_N(j);
-
-			j++;
-
-			root1 = update_data.firstroots1[j];
-			root2 = update_data.firstroots2[j];
-			prime = update_data.prime[j];
-
-			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
-			FILL_ONE_PRIME_LOOP_N(j);
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
 		}
@@ -1532,13 +1511,11 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
+            nroot1 = prime - root1;
+            nroot2 = prime - root2;
 
-			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
-			FILL_ONE_PRIME_LOOP_N(j);
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
 		}
 
 #endif
@@ -1888,4 +1865,455 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
 
 	return;
+}
+
+
+void nextRoots_32k_generic_small(static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+    //update the roots 
+    sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
+    sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
+    int *rootupdates = dconf->rootupdates;
+
+    update_t update_data = dconf->update_data;
+
+    uint32 startprime = 2;
+    uint32 bound = sconf->factor_base->B;
+
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+    int *ptr;
+
+    uint32 med_B = sconf->factor_base->med_B;
+
+    uint32 j;
+    int k;
+    uint32 root1, root2, prime;
+    uint8 logp = 0;
+
+    k = 0;
+    ptr = &rootupdates[(v - 1) * bound + startprime];
+    //ptr = rootupdates;
+
+    if (sign > 0)
+    {
+        for (j = startprime; j < sconf->sieve_small_fb_start; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            //we don't sieve these, so ordering doesn't matter
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            fb_p->root1[j] = (uint16)root1;
+            fb_p->root2[j] = (uint16)root2;
+            fb_n->root1[j] = (uint16)(prime - root2);
+            fb_n->root2[j] = (uint16)(prime - root1);
+            if (fb_n->root1[j] == prime)
+                fb_n->root1[j] = 0;
+            if (fb_n->root2[j] == prime)
+                fb_n->root2[j] = 0;
+
+        }
+
+        for (j = sconf->sieve_small_fb_start;
+            j < sconf->factor_base->med_B; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = (uint32)update_data.sm_firstroots1[j];
+            root2 = (uint32)update_data.sm_firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            if (root2 < root1)
+            {
+                update_data.sm_firstroots1[j] = (uint16)root2;
+                update_data.sm_firstroots2[j] = (uint16)root1;
+
+                fb_p->root1[j] = (uint16)root2;
+                fb_p->root2[j] = (uint16)root1;
+                fb_n->root1[j] = (uint16)(prime - root1);
+                fb_n->root2[j] = (uint16)(prime - root2);
+            }
+            else
+            {
+                update_data.sm_firstroots1[j] = (uint16)root1;
+                update_data.sm_firstroots2[j] = (uint16)root2;
+
+                fb_p->root1[j] = (uint16)root1;
+                fb_p->root2[j] = (uint16)root2;
+                fb_n->root1[j] = (uint16)(prime - root2);
+                fb_n->root2[j] = (uint16)(prime - root1);
+            }
+        }
+    }
+    else
+    {
+        for (j = startprime; j < sconf->sieve_small_fb_start; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            //we don't sieve these, so ordering doesn't matter
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            fb_p->root1[j] = (uint16)root1;
+            fb_p->root2[j] = (uint16)root2;
+            fb_n->root1[j] = (uint16)(prime - root2);
+            fb_n->root2[j] = (uint16)(prime - root1);
+            if (fb_n->root1[j] == prime)
+                fb_n->root1[j] = 0;
+            if (fb_n->root2[j] == prime)
+                fb_n->root2[j] = 0;
+
+        }
+
+        for (j = sconf->sieve_small_fb_start;
+            j < sconf->factor_base->med_B; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = (uint32)update_data.sm_firstroots1[j];
+            root2 = (uint32)update_data.sm_firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            if (root2 < root1)
+            {
+                update_data.sm_firstroots1[j] = (uint16)root2;
+                update_data.sm_firstroots2[j] = (uint16)root1;
+
+                fb_p->root1[j] = (uint16)root2;
+                fb_p->root2[j] = (uint16)root1;
+                fb_n->root1[j] = (uint16)(prime - root1);
+                fb_n->root2[j] = (uint16)(prime - root2);
+            }
+            else
+            {
+                update_data.sm_firstroots1[j] = (uint16)root1;
+                update_data.sm_firstroots2[j] = (uint16)root2;
+
+                fb_p->root1[j] = (uint16)root1;
+                fb_p->root2[j] = (uint16)root2;
+                fb_n->root1[j] = (uint16)(prime - root2);
+                fb_n->root2[j] = (uint16)(prime - root1);
+            }
+        }
+
+    }
+
+
+    return;
+}
+
+
+void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+    //update the roots 
+    sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
+    sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
+    int *rootupdates = dconf->rootupdates;
+
+    update_t update_data = dconf->update_data;
+
+    uint32 startprime = 2;
+    uint32 bound = sconf->factor_base->B;
+#ifdef USE_BATCHPOLY
+    char *nu = dconf->curr_poly->nu;
+    char *gray = dconf->curr_poly->gray;
+    int numB = dconf->numB;
+    uint32 poly_offset = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+#else
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+    int *ptr;
+#endif
+
+    lp_bucket *lp_bucket_p = dconf->buckets;
+    uint32 med_B = sconf->factor_base->med_B;
+    uint32 large_B = sconf->factor_base->large_B;
+
+    uint32 j, interval;
+    int k, numblocks;
+    uint32 root1, root2, nroot1, nroot2, prime;
+
+    int bound_index = 0;
+    int check_bound = BUCKET_ALLOC / 2 - 1;
+    uint32 bound_val = med_B;
+    uint32 *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
+
+    uint32 *bptr;
+    int bnum, room;
+
+    uint8 logp = 0;
+    polysieve_t helperstruct;
+
+    numblocks = sconf->num_blocks;
+    interval = numblocks << 15;
+
+    if (lp_bucket_p->alloc_slices != 0) // != NULL)
+    {
+        lp_bucket_p->fb_bounds[0] = med_B;
+
+        sliceptr_p = lp_bucket_p->list;
+        sliceptr_n = lp_bucket_p->list + (numblocks << BUCKET_BITS);
+
+        numptr_p = lp_bucket_p->num;
+        numptr_n = lp_bucket_p->num + numblocks;
+
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+            numptr_p[j] = 0;
+
+        lp_bucket_p->num_slices = 0;
+
+    }
+    else
+    {
+        sliceptr_p = NULL;
+        sliceptr_n = NULL;
+        numptr_p = NULL;
+        numptr_n = NULL;
+    }
+   
+    bound_index = 0;
+    bound_val = med_B;
+    check_bound = med_B + BUCKET_ALLOC / 2;
+
+#ifdef USE_BATCHPOLY
+    logp = update_data.logp[med_B];
+    for (j = med_B; j < large_B; j += 16)
+    {
+        int p;
+
+        CHECK_NEW_SLICE_BATCH(j);
+
+        for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
+        {
+            if (gray[numB + p] > 0)
+            {
+                for (k = 0; k < 16; k++)
+                {
+                    prime = update_data.prime[j + k];
+                    root1 = update_data.firstroots1[j + k];
+                    root2 = update_data.firstroots2[j + k];
+
+                    COMPUTE_NEXT_ROOTS_BATCH_P(p);
+
+                    update_data.firstroots1[j + k] = root1;
+                    update_data.firstroots2[j + k] = root2;
+                    nroot1 = prime - root1;
+                    nroot2 = prime - root2;
+                    FILL_ONE_PRIME_LOOP_P(j + k);
+                    FILL_ONE_PRIME_LOOP_N(j + k);
+                }
+            }
+            else
+            {
+                for (k = 0; k < 16; k++)
+                {
+                    prime = update_data.prime[j + k];
+                    root1 = update_data.firstroots1[j + k];
+                    root2 = update_data.firstroots2[j + k];
+
+                    COMPUTE_NEXT_ROOTS_BATCH_N(p);
+
+                    update_data.firstroots1[j + k] = root1;
+                    update_data.firstroots2[j + k] = root2;
+                    nroot1 = prime - root1;
+                    nroot2 = prime - root2;
+                    FILL_ONE_PRIME_LOOP_P(j + k);
+                    FILL_ONE_PRIME_LOOP_N(j + k);
+                }
+            }
+
+            // advance pointers
+            sliceptr_p += poly_offset * BUCKET_ALLOC;
+            sliceptr_n += poly_offset * BUCKET_ALLOC;
+            numptr_p += poly_offset;
+            numptr_n += poly_offset;
+        }
+
+        // reset pointers
+        sliceptr_p -= p * poly_offset * BUCKET_ALLOC;
+        sliceptr_n -= p * poly_offset * BUCKET_ALLOC;
+        numptr_p -= p * poly_offset;
+        numptr_n -= p * poly_offset;
+
+    }
+
+    logp = update_data.logp[j - 1];
+    for (j = large_B; j < bound; j += 16)
+    {
+        int p;
+
+        CHECK_NEW_SLICE_BATCH(j);
+
+        for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
+        {
+            if (gray[numB + p] > 0)
+            {
+                for (k = 0; k < 16; k++)
+                {
+                    prime = update_data.prime[j + k];
+                    root1 = update_data.firstroots1[j + k];
+                    root2 = update_data.firstroots2[j + k];
+
+                    COMPUTE_NEXT_ROOTS_BATCH_P(p);
+
+                    update_data.firstroots1[j + k] = root1;
+                    update_data.firstroots2[j + k] = root2;
+
+                    FILL_ONE_PRIME_P(j + k);
+                    root1 = prime - root1;
+                    root2 = prime - root2;
+                    FILL_ONE_PRIME_N(j + k);
+                }
+            }
+            else
+            {
+                for (k = 0; k < 16; k++)
+                {
+                    prime = update_data.prime[j + k];
+                    root1 = update_data.firstroots1[j + k];
+                    root2 = update_data.firstroots2[j + k];
+
+                    COMPUTE_NEXT_ROOTS_BATCH_N(p);
+
+                    update_data.firstroots1[j + k] = root1;
+                    update_data.firstroots2[j + k] = root2;
+
+                    FILL_ONE_PRIME_P(j + k);
+                    root1 = prime - root1;
+                    root2 = prime - root2;
+                    FILL_ONE_PRIME_N(j + k);
+                }
+            }
+
+            // advance pointers
+            sliceptr_p += poly_offset * BUCKET_ALLOC;
+            sliceptr_n += poly_offset * BUCKET_ALLOC;
+            numptr_p += poly_offset;
+            numptr_n += poly_offset;
+
+        }
+
+        // reset pointers
+        sliceptr_p -= p * poly_offset * BUCKET_ALLOC;
+        sliceptr_n -= p * poly_offset * BUCKET_ALLOC;
+        numptr_p -= p * poly_offset;
+        numptr_n -= p * poly_offset;
+
+    }
+#else
+
+    ptr = &rootupdates[(v - 1) * bound + med_B];
+    //ptr = rootupdates;
+
+    if (sign > 0)
+    {
+        logp = update_data.logp[j - 1];
+        for (j = med_B; j < large_B; j++, ptr++)
+        {
+            CHECK_NEW_SLICE(j);
+
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+        }
+
+        logp = update_data.logp[j - 1];
+        for (j = large_B; j < bound; j++, ptr++)
+        {
+            CHECK_NEW_SLICE(j);
+
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            FILL_ONE_PRIME_P(j);
+
+            root1 = (prime - root1);
+            root2 = (prime - root2);
+
+            FILL_ONE_PRIME_N(j);
+        }
+    }
+    else
+    {
+        logp = update_data.logp[j - 1];
+        for (j = med_B; j < large_B; j++, ptr++)
+        {
+            CHECK_NEW_SLICE(j);
+
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+        }
+
+        logp = update_data.logp[j - 1];
+        for (j = large_B; j < bound; j++, ptr++)
+        {
+            CHECK_NEW_SLICE(j);
+
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            FILL_ONE_PRIME_P(j);
+
+            root1 = (prime - root1);
+            root2 = (prime - root2);
+
+            FILL_ONE_PRIME_N(j);
+        }
+
+    }
+
+#endif
+
+    if (lp_bucket_p->list != NULL)
+    {
+        lp_bucket_p->num_slices = bound_index + 1;
+        lp_bucket_p->logp[bound_index] = logp;
+    }
+
+    return;
 }

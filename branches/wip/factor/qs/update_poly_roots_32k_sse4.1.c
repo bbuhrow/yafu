@@ -83,12 +83,9 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_p = lp_bucket_p->num;
 		numptr_n = lp_bucket_p->num + numblocks;
 		
-		//reuse this for a sec...
-		prime = 2*numblocks*lp_bucket_p->alloc_slices;
-
-		//reset lp_buckets
-		for (j=0;j<prime;j++)
-			numptr_p[j] = 0;
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+            numptr_p[j] = 0;
 	
 		lp_bucket_p->num_slices = 0;
 
