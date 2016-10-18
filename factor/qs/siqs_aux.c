@@ -494,15 +494,46 @@ void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s,
 	int i;
 	fb_list *fullfb = sconf->factor_base;
 
+    /* invalid roots are currently marked by being set to 65535.  this works when we
+    explicitly check the root against the blocksize before sieving it, but here where
+    we've completely unrolled the loop it doesn't work.  what we could do is set roots
+    and primes == 0 when roots are invalid instead of setting roots to 65535 for the
+    range of primes that are going to be treated this way.  then only the first location
+    in every block gets hosed and we can tell tdiv to always ignore that location.  the
+    snippet of code below sets roots and primes = 0 for invalid roots */
+
+
+    if (action == 1)
+    {
+        for (i = 0; i<s; i++)
+        {
+            if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
+            {
+                fb->root1[qli[i]] = 0;
+                fb->prime[qli[i]] = 0;
+                fb->root2[qli[i]] = 0;
+            }
+            else
+            {
+                fb->root1[qli[i]] = 0xffff;
+                fb->root2[qli[i]] = 0xffff;
+            }
+        }
+    }
+    else
+    {
+        for (i = 0; i < s; i++)
+        {
+            fb->root1[qli[i]] = 0xffff;
+            fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
+            fb->root2[qli[i]] = 0xffff;
+        }
+    }
+
+    /*
 	for (i=0;i<s;i++)
 	{		
-		/* invalid roots are currently marked by being set to 65536.  this works when we
-			explicitly check the root against the blocksize before sieving it, but here where
-			we've completely unrolled the loop it doesn't work.  what we could do is set roots
-			and primes == 0 when roots are invalid instead of setting roots to 65536 for the
-			range of primes that are going to be treated this way.  then only the first location
-			in every block gets hosed and we can tell tdiv to always ignore that location.  the
-			snippet of code below sets roots and primes = 0 for invalid roots */
+		
 		if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
 		{
 			if (action == 1)
@@ -515,17 +546,19 @@ void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s,
 			else
 			{
 				//printf("restoring roots and primes at index %d, prime = %u\n", qli[i], fullfb->list->prime[qli[i]]);
-				fb->root1[qli[i]] = (uint16)(val & 0xFFFF);
+				fb->root1[qli[i]] = 0xffff;
 				fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
-				fb->root2[qli[i]] = (uint16)(val >> 16);
+				fb->root2[qli[i]] = 0xffff;
 			}
 		}
 		else
 		{
-			fb->root1[qli[i]] = (uint16)(val & 0xFFFF);
-			fb->root2[qli[i]] = (uint16)(val >> 16);
+			fb->root1[qli[i]] = 0xffff;
+			fb->root2[qli[i]] = 0xffff;
 		}
 	}
+    */
+
 	return;
 }
 

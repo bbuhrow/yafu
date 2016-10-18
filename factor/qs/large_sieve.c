@@ -25,6 +25,13 @@ code to the public domain.
 	#include <mmintrin.h>
 #endif
 
+
+#ifdef TARGET_KNC
+#include <immintrin.h>
+#define NUM_LANES 16
+#endif
+
+
 void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 		lp_bucket *lp, int side, dynamic_conf_t * dconf)
 {
@@ -32,6 +39,32 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 	uint32 i,j,lpnum,basebucket;
 	uint8 logp;
 	uint32 *bptr;
+#ifdef TARGET_KNC
+    __m512i vmask = _mm512_set1_epi32(0x0000ffff);
+
+#if defined(__GNUC__)
+    __attribute__((aligned(64))) uint32 tmpvec[NUM_LANES];
+#else
+    __declspec(align(64)) uint32 tmpvec[NUM_LANES];
+#endif
+
+
+#endif
+
+#ifdef USE_BATCHPOLY
+    int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+
+    if (dconf->numB == 1)
+    {
+        poly_offset = 0;
+    }
+    else if (poly_offset < 0)
+    {
+        poly_offset += dconf->poly_batchsize;
+    }
+    poly_offset = poly_offset * 2 * numblocks * dconf->buckets->alloc_slices;
+
+#endif
 
 	//finally, dump the buckets into the now cached 
 	//sieve block in prefetched batches
@@ -42,12 +75,18 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 	//negative buckets in every slice.  each slice is a complete set of such buckets.  slices
 	//are contiguous in memory, so the whole thing is physically one giant linear list of
 	//bucket hits which we have subdivided.  
+
+#ifdef USE_BATCHPOLY
+    bptr = lp->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
+#else
 	bptr = lp->list + (bnum << BUCKET_BITS);
-	if (side)
-	{
-		bptr += (numblocks << BUCKET_BITS);
-		basebucket = numblocks;
-	}
+#endif
+
+    if (side)
+    {
+        bptr += (numblocks << BUCKET_BITS);
+        basebucket = numblocks;
+    }
     else
     {
         basebucket = 0;
@@ -57,13 +96,38 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 	//use x16 when chache line has 64 bytes
 	for (j=0;j<lp->num_slices;j++)
 	{
+#ifdef USE_BATCHPOLY
+        lpnum = *(lp->num + bnum + basebucket + poly_offset);
+#else
 		lpnum = *(lp->num + bnum + basebucket);
+#endif
 		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
 		logp = *(lp->logp + j);
 
         for (i = 0; (uint32)i < (lpnum & (uint32)(~15)); i += 16)
         {
 
+#ifdef TARGET_KNC
+            __m512i vbuckets = _mm512_load_epi32((__m512i *)(&bptr[i]));
+            vbuckets = _mm512_and_epi32(vbuckets, vmask);
+            _mm512_store_epi32(tmpvec, vbuckets);
+            sieve[tmpvec[0] ] -= logp;
+            sieve[tmpvec[1] ] -= logp;
+            sieve[tmpvec[2] ] -= logp;
+            sieve[tmpvec[3] ] -= logp;
+            sieve[tmpvec[4] ] -= logp;
+            sieve[tmpvec[5] ] -= logp;
+            sieve[tmpvec[6] ] -= logp;
+            sieve[tmpvec[7] ] -= logp;
+            sieve[tmpvec[8] ] -= logp;
+            sieve[tmpvec[9] ] -= logp;
+            sieve[tmpvec[10]] -= logp;
+            sieve[tmpvec[11]] -= logp;
+            sieve[tmpvec[12]] -= logp;
+            sieve[tmpvec[13]] -= logp;
+            sieve[tmpvec[14]] -= logp;
+            sieve[tmpvec[15]] -= logp;
+#else
 			sieve[bptr[i  ] & 0x0000ffff] -= logp;
 			sieve[bptr[i+1] & 0x0000ffff] -= logp;
 			sieve[bptr[i+2] & 0x0000ffff] -= logp;
@@ -80,6 +144,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 			sieve[bptr[i+13] & 0x0000ffff] -= logp;
 			sieve[bptr[i+14] & 0x0000ffff] -= logp;
 			sieve[bptr[i+15] & 0x0000ffff] -= logp;
+#endif
 
 		}
 

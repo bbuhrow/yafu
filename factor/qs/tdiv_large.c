@@ -284,6 +284,13 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#else
 
+        #define SCAN_16X_VEC \
+            for (i=0; i<16; i++) { \
+                if ((bptr[j+i] & 0x0000ffff) == block_loc) { \
+                    buffer[result++] = j+i; \
+                } \
+            }
+
 
         #define SCAN_CLEAN
 
@@ -463,6 +470,21 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	z32 *tmp32 = &dconf->Qvals32[report_num];
 #endif
 
+#ifdef USE_BATCHPOLY
+    int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+
+    if (dconf->numB == 1)
+    {
+        poly_offset = 0;
+    }
+    else if (poly_offset < 0)
+    {
+        poly_offset += dconf->poly_batchsize;
+    }
+    poly_offset = poly_offset * 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+
+#endif
+
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);
 #endif
@@ -490,12 +512,17 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
 	//current block index.
+#ifdef USE_BATCHPOLY
+    bptr = dconf->buckets->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
+#else
 	bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
-	if (parity)
-	{
-		bptr += (sconf->num_blocks << BUCKET_BITS);
-		basebucket = sconf->num_blocks;
-	}
+#endif
+
+    if (parity)
+    {
+        bptr += (sconf->num_blocks << BUCKET_BITS);
+        basebucket = sconf->num_blocks;
+    }
     else
     {
         basebucket = 0;
@@ -503,7 +530,12 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
 	{
-		uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+#ifdef USE_BATCHPOLY
+        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
+#else
+        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+#endif
+
         int r, q;
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result = 0;

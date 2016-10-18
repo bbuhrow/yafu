@@ -27,13 +27,21 @@ code to the public domain.
 #include "lanczos.h"
 #include "common.h"
 
+// I've been unable to get this to run any faster, for
+// either generic or knc codebases...
+//#define USE_BATCHPOLY
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
 // if defined, compile the sse41 functions into the fat binary.  the global
 // flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
 // to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
-#define USE_SSE41 1
+#ifdef USE_BATCHPOLY
+    #define FORCE_GENERIC 1
+#else
+    #define USE_SSE41 1
+#endif
+
 //#define USE_AVX2 1
 #endif
 
@@ -468,6 +476,7 @@ typedef struct {
 	siqs_poly *curr_poly;		// current poly during sieving	
 	mpz_t *Bl;					// array of Bl values used to compute new B polys
 	uint32 tot_poly, numB, maxB;// polynomial counters
+    int poly_batchsize;
 
 	//storage of relations found during sieving
 	uint32 buffered_rels;
@@ -603,6 +612,13 @@ void nextRoots_32k_knc(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   
+void nextRoots_32k_generic_small(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf);
+
+void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf);
+
 void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void testfirstRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*testRoots_ptr)(static_conf_t *, dynamic_conf_t *);

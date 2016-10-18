@@ -475,7 +475,12 @@ void ecm_process_init(fact_obj_t *fobj)
 	if (THREADS > 1)
 	{
         float ver;
+
+#ifdef ECM_VERSION
         sscanf(ECM_VERSION, "%f", &ver);
+#else
+        ver = 6;
+#endif
 
 		if (!fobj->ecm_obj.use_external)
 		{                       

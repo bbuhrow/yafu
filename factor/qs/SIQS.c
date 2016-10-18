@@ -613,11 +613,10 @@ done:
 }
 
 void *process_poly(void *vptr)
-//void process_hypercube(static_conf_t *sconf,dynamic_conf_t *dconf)
 {
-    //top level sieving function which performs all work for a single
-    //new a coefficient.  has pthread calling conventions, meant to be
-    //used in a multi-threaded environment
+    // top-level sieving function which performs all work for a single
+    // new a coefficient.  has pthread calling conventions, meant to be
+    // used in a multi-threaded environment
     tpool_t *tdata = (tpool_t *)vptr;
     siqs_userdata_t *udata = tdata->user_data;
     thread_sievedata_t *thread_data = &udata->thread_data[tdata->tindex];
@@ -659,14 +658,20 @@ void *process_poly(void *vptr)
     dconf->numB = 1;
     computeBl(sconf, dconf);
 
+    //printf("\n");
+    //for (i = 1; i < dconf->maxB; i++)
+    //{
+    //    printf("poly = %d, nu = %d, sign = %d\n", i,
+    //        dconf->curr_poly->nu[i], dconf->curr_poly->gray[i]);
+    //}
+    //printf("\n");
+
+
     firstRoots_ptr(sconf, dconf);
 
     // loop over each possible b value, for the current a value
     for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
     {
-        // setting these to be invalid means the last entry of every block (for 64k versions)
-        // will be ignored so we're throwing away 1/blocksize relations, potentially, 
-        // but gaining a faster sieve routine.
         uint32 invalid_root_marker = 0xFFFFFFFF;
 
         for (i = 0; i < num_blocks; i++)
@@ -692,7 +697,6 @@ void *process_poly(void *vptr)
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
             scan_ptr(i, 1, sconf, dconf);
-
         }
 
         // print a little more status info for huge jobs.
@@ -721,8 +725,41 @@ void *process_poly(void *vptr)
         // next polynomial
         // use the stored Bl's and the gray code to find the next b
         nextB(dconf, sconf);
+
+#ifdef USE_BATCHPOLY
+
+#ifdef TARGET_KNC
+        nextRoots_32k_knc_small(sconf, dconf);
+
+        // every N iterations we do the bucket sieve
+        if ((dconf->numB % dconf->poly_batchsize) == 1)
+        {
+            nextRoots_32k_knc_polybatch(sconf, dconf);
+        }
+#else
+        // every iteration we update the small-med prime's roots
+        nextRoots_32k_generic_small(sconf, dconf);
+
+        // every N iterations we do the bucket sieve
+        if ((dconf->numB % dconf->poly_batchsize) == 1)
+        {
+            nextRoots_32k_generic_polybatch(sconf, dconf);
+        }
+#endif
+
+#else
+
+#ifdef TARGET_KNC
+
+        nextRoots_32k_knc_small(sconf, dconf);
+        nextRoots_32k_knc_bucket(sconf, dconf);
+
+#else
         // and update the roots
         nextRoots_ptr(sconf, dconf);
+#endif
+
+#endif
 
 #ifdef TARGET_KNC
         // other threads may have got us past the threshold while we
@@ -736,115 +773,66 @@ void *process_poly(void *vptr)
 
 #ifdef USE_VEC_SQUFOF
     // vector SQUFOF if necessary
-    if (sconf->use_dlp)
+    if ((sconf->use_dlp) && (dconf->num_64bit_residue > 0))
     {
         uint64 *f = dconf->residue_factors;
         uint32 f32;
         int j = 0;
         siqs_r *rel;
 
-        // for small batches, just use normal squfof
-#ifdef TARGET_KNC
-        if (dconf->num_64bit_residue < 15)
-#else
-        if (dconf->num_64bit_residue < 7)
-#endif
+        //printf("attempting vector squfof on %d residues... ", dconf->num_64bit_residue);
+
+        f32 = par_shanks_loop(dconf->unfactored_residue, f, 
+            dconf->num_64bit_residue);
+
+        //printf("vector squfof reported %d successes\n", f32);
+
+        dconf->attempted_squfof += dconf->num_64bit_residue;
+        for (i=0; i < dconf->buffered_rels; i++)
         {
-            for (i=0; i < dconf->buffered_rels; i++)
-            {
-                rel = dconf->relation_buf + i;
+            rel = dconf->relation_buf + i;
 
-                if (rel->large_prime[0] == 0xffffffff)
-                {                
-                    // get the next factorization
-                    dconf->attempted_squfof++;
-                    mpz_set_64(dconf->gmptmp1, dconf->unfactored_residue[j]);
-                    f32 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+            // buffered_rels contains non-dlp relations as well, so check
+            // if this one was a dlp.  Only dlp relations will have
+            // been sent to squfof, and they appear in the factor list
+            // in the same order as in the relation buffer.
+            if (rel->large_prime[0] == 0xffffffff)
+            {                
+                // get the next factorization
+                f32 = f[j];
 
-                    if (f32 > 1)
+                //printf("relation %d found factor %u of input %lu in position %d\n", 
+                //    i, f32, dconf->unfactored_residue[j], j);
+
+                if (f32 > 1)
+                {
+                    rel->large_prime[0] = f32;
+                    rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
+
+                    if ((rel->large_prime[0] < sconf->large_prime_max) &&
+                        (rel->large_prime[1] < sconf->large_prime_max))
                     {
-                        rel->large_prime[0] = f32;
-                        rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
-
-                        if ((rel->large_prime[0] < sconf->large_prime_max) &&
-                            (rel->large_prime[1] < sconf->large_prime_max))
-                        {
-                            //add this one
-                            dconf->dlp_useful++;
-                        }
-                        else
-                        {
-                            // mark it as failed so we don't write it to the savefile
-                            rel->large_prime[0] = 0xffffffff;
-                        }
-
+                        //add this one
+                        dconf->dlp_useful++;
                     }
                     else
                     {
-                        dconf->failed_squfof++;
-
                         // mark it as failed so we don't write it to the savefile
                         rel->large_prime[0] = 0xffffffff;
                     }
 
-                    j++;
                 }
+                else
+                {
+                    dconf->failed_squfof++;
+
+                    // mark it as failed so we don't write it to the savefile
+                    rel->large_prime[0] = 0xffffffff;
+                }
+
+                j++;
             }
         }
-        else
-        {
-
-            //printf("attempting vector squfof on %d residues... ", dconf->num_64bit_residue);
-
-            f32 = par_shanks_loop(dconf->unfactored_residue, f, 
-                dconf->num_64bit_residue);
-
-            //printf("vector squfof reported %d successes\n", f32);
-
-            dconf->attempted_squfof += dconf->num_64bit_residue;
-            for (i=0; i < dconf->buffered_rels; i++)
-            {
-                rel = dconf->relation_buf + i;
-
-                if (rel->large_prime[0] == 0xffffffff)
-                {                
-                    // get the next factorization
-                    f32 = f[j];
-
-                    //printf("relation %d found factor %u of input %lu in position %d\n", 
-                    //    i, f32, dconf->unfactored_residue[j], j);
-
-                    if (f32 > 1)
-                    {
-                        rel->large_prime[0] = f32;
-                        rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
-
-                        if ((rel->large_prime[0] < sconf->large_prime_max) &&
-                            (rel->large_prime[1] < sconf->large_prime_max))
-                        {
-                            //add this one
-                            dconf->dlp_useful++;
-                        }
-                        else
-                        {
-                            // mark it as failed so we don't write it to the savefile
-                            rel->large_prime[0] = 0xffffffff;
-                        }
-
-                    }
-                    else
-                    {
-                        dconf->failed_squfof++;
-
-                        // mark it as failed so we don't write it to the savefile
-                        rel->large_prime[0] = 0xffffffff;
-                    }
-
-                    j++;
-                }
-            }
-        }
-        
     }
 #endif
 
@@ -881,7 +869,8 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	}
 
 #ifdef TARGET_KNC
-    printf("saving %d buffered relations\n", dconf->buffered_rels);
+    // spam the screen
+    //printf("saving %d buffered relations\n", dconf->buffered_rels);
 #endif
 
 	//save the data and merge into master cycle structure
@@ -890,6 +879,8 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 		rel = dconf->relation_buf + i;
 
 #ifdef USE_VEC_SQUFOF
+        // rarely, squfof will fail to factor a dlp.  
+        // just skip these.
         if (rel->large_prime[0] == 0xffffffff)
         {
             continue;
@@ -973,7 +964,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     //print some info to the screen and the log file
     char inst_set[16];
 
-#ifdef USE_AVX2
+#ifdef TARGET_KNC
+
+    strcpy(inst_set, "KNC");
+
+#elif defined(USE_AVX2)
     if (HAS_AVX2)
     {
         strcpy(inst_set, "AVX2");
@@ -1035,9 +1030,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
             printf("allocating %d large prime slices of factor base\n",
                 dconf->buckets->alloc_slices);
             printf("buckets hold %d elements\n", BUCKET_ALLOC);
-            printf("large prime hashtables have %d bytes\n", 2 * sconf->num_blocks *
-                dconf->buckets->alloc_slices *
-                BUCKET_ALLOC * sizeof(uint32));
+#ifdef USE_BATCHPOLY
+            printf("processing polynomials in batches of %d\n", dconf->poly_batchsize);
+#endif
+            printf("large prime hashtables have %d bytes\n", 
+                dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32));
         }
         printf("using %s enabled 32k sieve core\n", inst_set);
         printf("sieve interval: %d blocks of size %d\n",
@@ -1087,10 +1084,12 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			logprint(sconf->obj->logfile,"allocating %d large prime slices of factor base\n",
 				dconf->buckets->alloc_slices);
 			logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
+#ifdef USE_BATCHPOLY
+            logprint(sconf->obj->logfile, "processing polynomials in batches of %d\n", 
+                dconf->poly_batchsize);
+#endif
             logprint(sconf->obj->logfile, "large prime hashtables have %d bytes\n", 
-                2 * sconf->num_blocks *
-                dconf->buckets->alloc_slices *
-                BUCKET_ALLOC * sizeof(uint32));
+                dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32));
 		}
         logprint(sconf->obj->logfile,"using %s enabled 32k sieve core\n", inst_set);
 		logprint(sconf->obj->logfile,"sieve interval: %d blocks of size %d\n",
@@ -1258,22 +1257,42 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 		//test to see how many slices we'll need.
 		testRoots_ptr(sconf,dconf);
 
+#ifdef USE_BATCHPOLY
+        // this should be a function of the L2 size.
+#ifdef TARGET_KNC
+        dconf->poly_batchsize = MAX(2, 30000000 / 4 /
+            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
+            BUCKET_ALLOC * sizeof(uint32)));
+#else
+        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / THREADS / 
+            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
+            BUCKET_ALLOC * sizeof(uint32)));
+#endif
+
+        dconf->poly_batchsize = 4;
+
+#else
+        dconf->poly_batchsize = 1;
+#endif
+
 		//initialize the bucket lists and auxilary info.
-        dconf->buckets->num = (uint32 *)xmalloc_align(
+        dconf->buckets->num = (uint32 *)xmalloc_align(dconf->poly_batchsize * 
 			2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->fb_bounds = (uint32 *)malloc(
 			dconf->buckets->alloc_slices * sizeof(uint32));
 		dconf->buckets->logp = (uint8 *)calloc(
 			dconf->buckets->alloc_slices, sizeof(uint8));
-		dconf->buckets->list_size = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+        dconf->buckets->list_size = dconf->poly_batchsize * 2 * 
+            sconf->num_blocks * dconf->buckets->alloc_slices;
 		
 		//now allocate the buckets
         dconf->buckets->list = (uint32 *)xmalloc_align(
-			2 * sconf->num_blocks * dconf->buckets->alloc_slices * 
+            dconf->buckets->list_size *
 			BUCKET_ALLOC * sizeof(uint32));
 	}
 	else
 	{
+        dconf->poly_batchsize = 1;
 		dconf->buckets = (lp_bucket *)malloc(sizeof(lp_bucket));
 		dconf->buckets->list = NULL;
 		dconf->buckets->alloc_slices = 0;
@@ -1282,12 +1301,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	if (VFLAG > 2)
 	{
-        memsize = 2 * sconf->num_blocks *
-            dconf->buckets->alloc_slices * sizeof(uint32);
+        memsize = dconf->buckets->list_size * sizeof(uint32);
 		memsize += dconf->buckets->alloc_slices * sizeof(uint32);
 		memsize += dconf->buckets->alloc_slices * sizeof(uint8);
-		memsize += 2 * sconf->num_blocks * 
-            dconf->buckets->alloc_slices * BUCKET_ALLOC * sizeof(uint32);
+        memsize += dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32);
 		printf("\tbucket data: %d bytes\n",memsize);
 	}
 
@@ -1426,7 +1443,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
 
 #if defined(TARGET_KNC)
-    nextRoots_ptr = &nextRoots_32k_knc;
+    nextRoots_ptr = &nextRoots_32k_knc_small;
 
 #elif defined(USE_AVX2)
     if (HAS_AVX2)

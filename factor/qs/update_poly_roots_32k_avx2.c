@@ -254,12 +254,9 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_p = lp_bucket_p->num;
 		numptr_n = lp_bucket_p->num + numblocks;
 		
-		//reuse this for a sec...
-		prime = 2*numblocks*lp_bucket_p->alloc_slices;
-
-		//reset lp_buckets
-		for (j=0;j<prime;j++)
-			numptr_p[j] = 0;
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+            numptr_p[j] = 0;
 	
 		lp_bucket_p->num_slices = 0;
 
@@ -322,7 +319,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		// do one at a time up to the 10bit boundary, where
-		// we can start doing things 8 at a time and be
+		// we can start doing things 16 at a time and be
 		// sure we can use aligned moves (static_data_init).		
 		for (j=sconf->sieve_small_fb_start; 
 			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
@@ -1129,13 +1126,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		// do one at a time up to the 10bit boundary, where
-		// we can start doing things 8 at a time and be
+		// we can start doing things 16 at a time and be
 		// sure we can use aligned moves (static_data_init).	
 		for (j=sconf->sieve_small_fb_start; 
 			j < sconf->factor_base->fb_10bit_B; j++, ptr++)
 		{
 
-			// as soon as we are aligned, use more efficient sse2 based methods...
+			// as soon as we are aligned, use more efficient avx2 based methods...
 			if ((j & 15) == 0)
 				break;
 
@@ -1167,7 +1164,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}
 		
-		// update 8 at a time using SSE2 and no branching		
+		// update 16 at a time using avx2 and no branching		
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
 		{
 			small_update_t h;
@@ -1915,6 +1912,226 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	}
 
 	return;
+}
+
+
+
+void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+    //update the roots 
+    sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
+    sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
+    int *rootupdates = dconf->rootupdates;
+    int it;
+
+    update_t update_data = dconf->update_data;
+
+    uint32 startprime = 2;
+    uint32 bound = sconf->factor_base->B;
+
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+    int *ptr;
+    uint16 *sm_ptr;
+
+    uint32 med_B = sconf->factor_base->med_B;
+
+    uint32 j;
+    int k, numblocks;
+    uint32 root1, root2, prime;
+
+    uint8 logp = 0;
+    polysieve_t helperstruct;
+
+    numblocks = sconf->num_blocks;
+
+    CLEAN_AVX2;
+
+    k = 0;
+    ptr = &rootupdates[(v - 1) * bound + startprime];
+
+    if (sign > 0)
+    {
+
+        for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            //we don't sieve these, so ordering doesn't matter
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            fb_p->root1[j] = (uint16)root1;
+            fb_p->root2[j] = (uint16)root2;
+            fb_n->root1[j] = (uint16)(prime - root2);
+            fb_n->root2[j] = (uint16)(prime - root1);
+            if (fb_n->root1[j] == prime)
+                fb_n->root1[j] = 0;
+            if (fb_n->root2[j] == prime)
+                fb_n->root2[j] = 0;
+
+        }
+
+        // do one at a time up to the 10bit boundary, where
+        // we can start doing things 16 at a time and be
+        // sure we can use aligned moves (static_data_init).		
+        for (j = sconf->sieve_small_fb_start;
+            j < sconf->factor_base->fb_10bit_B; j++, ptr++)
+        {
+            // as soon as we are aligned, use more efficient AVX2 based methods...
+            if ((j & 15) == 0)
+                break;
+
+            prime = update_data.prime[j];
+            root1 = (uint32)update_data.sm_firstroots1[j];
+            root2 = (uint32)update_data.sm_firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_P;
+
+            if (root2 < root1)
+            {
+                update_data.sm_firstroots1[j] = (uint16)root2;
+                update_data.sm_firstroots2[j] = (uint16)root1;
+
+                fb_p->root1[j] = (uint16)root2;
+                fb_p->root2[j] = (uint16)root1;
+                fb_n->root1[j] = (uint16)(prime - root1);
+                fb_n->root2[j] = (uint16)(prime - root2);
+            }
+            else
+            {
+                update_data.sm_firstroots1[j] = (uint16)root1;
+                update_data.sm_firstroots2[j] = (uint16)root2;
+
+                fb_p->root1[j] = (uint16)root1;
+                fb_p->root2[j] = (uint16)root2;
+                fb_n->root1[j] = (uint16)(prime - root2);
+                fb_n->root2[j] = (uint16)(prime - root1);
+            }
+        }
+
+        // update 16 at a time using AVX2
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * bound];
+        {
+            small_update_t h;
+
+            h.first_r1 = update_data.sm_firstroots1;		// 0
+            h.first_r2 = update_data.sm_firstroots2;		// 8
+            h.fbp1 = fb_p->root1;							// 16
+            h.fbp2 = fb_p->root2;							// 24
+            h.fbn1 = fb_n->root1;							// 32
+            h.fbn2 = fb_n->root2;							// 40
+            h.primes = fb_p->prime;							// 48
+            h.updates = sm_ptr;								// 56
+            h.start = j;									// 64
+            h.stop = sconf->factor_base->med_B;		// 68
+
+            COMPUTE_16X_SMALL_PROOTS_AVX2;
+
+            j = h.stop;
+        }
+
+ 
+
+    }
+    else
+    {
+        /////////////////////////////////////////////////////////////////////////////////
+        // sign < 0
+        /////////////////////////////////////////////////////////////////////////////////
+
+        for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
+        {
+            prime = update_data.prime[j];
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            //we don't sieve these, so ordering doesn't matter
+            update_data.firstroots1[j] = root1;
+            update_data.firstroots2[j] = root2;
+
+            fb_p->root1[j] = (uint16)root1;
+            fb_p->root2[j] = (uint16)root2;
+            fb_n->root1[j] = (uint16)(prime - root2);
+            fb_n->root2[j] = (uint16)(prime - root1);
+            if (fb_n->root1[j] == prime)
+                fb_n->root1[j] = 0;
+            if (fb_n->root2[j] == prime)
+                fb_n->root2[j] = 0;
+
+        }
+
+        // do one at a time up to the 10bit boundary, where
+        // we can start doing things 16 at a time and be
+        // sure we can use aligned moves (static_data_init).	
+        for (j = sconf->sieve_small_fb_start;
+            j < sconf->factor_base->fb_10bit_B; j++, ptr++)
+        {
+
+            // as soon as we are aligned, use more efficient AVX2 based methods...
+            if ((j & 15) == 0)
+                break;
+
+            prime = update_data.prime[j];
+            root1 = (uint32)update_data.sm_firstroots1[j];
+            root2 = (uint32)update_data.sm_firstroots2[j];
+
+            COMPUTE_NEXT_ROOTS_N;
+
+            if (root2 < root1)
+            {
+                update_data.sm_firstroots1[j] = (uint16)root2;
+                update_data.sm_firstroots2[j] = (uint16)root1;
+
+                fb_p->root1[j] = (uint16)root2;
+                fb_p->root2[j] = (uint16)root1;
+                fb_n->root1[j] = (uint16)(prime - root1);
+                fb_n->root2[j] = (uint16)(prime - root2);
+            }
+            else
+            {
+                update_data.sm_firstroots1[j] = (uint16)root1;
+                update_data.sm_firstroots2[j] = (uint16)root2;
+
+                fb_p->root1[j] = (uint16)root1;
+                fb_p->root2[j] = (uint16)root2;
+                fb_n->root1[j] = (uint16)(prime - root2);
+                fb_n->root2[j] = (uint16)(prime - root1);
+            }
+        }
+
+        // update 16 at a time using AVX2 and no branching		
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * bound];
+        {
+            small_update_t h;
+
+            h.first_r1 = update_data.sm_firstroots1;		// 0
+            h.first_r2 = update_data.sm_firstroots2;		// 8
+            h.fbp1 = fb_p->root1;							// 16
+            h.fbp2 = fb_p->root2;							// 24
+            h.fbn1 = fb_n->root1;							// 32
+            h.fbn2 = fb_n->root2;							// 40
+            h.primes = fb_p->prime;							// 48
+            h.updates = sm_ptr;								// 56
+            h.start = j;									// 64
+            h.stop = sconf->factor_base->med_B;		// 68
+
+            COMPUTE_16X_SMALL_NROOTS_AVX2;
+
+            j = h.stop;
+        }
+
+    }
+
+    CLEAN_AVX2;
+
+    return;
 }
 
 #endif // USE_AVX2

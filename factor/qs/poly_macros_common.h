@@ -92,6 +92,45 @@ typedef struct
 	}
 
 
+#define CHECK_NEW_SLICE_BATCH(j)									\
+	if (j >= check_bound)							\
+        	{														\
+		room = 0;											\
+		for (k = 0; k < numblocks; k++) { \
+            for (p = 0; p < dconf->poly_batchsize; p++) { \
+                if (numptr_p[k + p * poly_offset] > room) { \
+                    room = numptr_p[k + p * poly_offset]; \
+                                                                } } } \
+		room = BUCKET_ALLOC - room;							\
+		if (room < 32)										\
+                		{													\
+			logp = update_data.logp[j];						\
+			lp_bucket_p->logp[bound_index] = logp;			\
+			bound_index++;									\
+			lp_bucket_p->fb_bounds[bound_index] = j;		\
+			bound_val = j;									\
+			sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
+			sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
+			numptr_p += (numblocks << 1);							\
+			numptr_n += (numblocks << 1);							\
+			check_bound += BUCKET_ALLOC >> 1;					\
+                		}													\
+                        		else												\
+			check_bound += room >> 1;						\
+        	}										\
+            	else if ((j - bound_val) >= 65536)		\
+    	{										\
+		lp_bucket_p->logp[bound_index] = logp;			\
+		bound_index++;									\
+		lp_bucket_p->fb_bounds[bound_index] = j;		\
+		bound_val = j;									\
+		sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
+		sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
+		numptr_p += (numblocks << 1);							\
+		numptr_n += (numblocks << 1);							\
+		check_bound += BUCKET_ALLOC >> 1;					\
+    	}
+
 #if defined(_MSC_VER)
 
 	#define COMPUTE_4_PROOTS(j)								\
@@ -719,6 +758,31 @@ typedef struct
 		root2 = (int)root2 - bmodp;		\
 		if (root1 < 0) root1 += prime;			\
 		if (root2 < 0) root2 += prime;
+
+#define COMPUTE_NEXT_ROOTS_BATCH(i) \
+        if (gray[numB + i] > 0) { \
+            root1 = (int)root1 - rootupdates[(nu[numB + i] - 1) * bound + j]; \
+            root2 = (int)root2 - rootupdates[(nu[numB + i] - 1) * bound + j]; \
+            root1 += ((root1 >> 31) * prime); \
+            root2 += ((root2 >> 31) * prime); \
+        } else { \
+            root1 = (int)root1 + rootupdates[(nu[numB + i] - 1) * bound + j]; \
+            root2 = (int)root2 + rootupdates[(nu[numB + i] - 1) * bound + j]; \
+            root1 -= ((root1 >= prime) * prime); \
+            root2 -= ((root2 >= prime) * prime); \
+        }
+
+#define COMPUTE_NEXT_ROOTS_BATCH_P(i) \
+        root1 = (int)root1 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root2 = (int)root2 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root1 += ((root1 >> 31) * prime); \
+        root2 += ((root2 >> 31) * prime);
+
+#define COMPUTE_NEXT_ROOTS_BATCH_N(i) \
+        root1 = (int)root1 + rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root2 = (int)root2 + rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
+        root1 -= ((root1 >= prime) * prime); \
+        root2 -= ((root2 >= prime) * prime); \
 
 #endif
 

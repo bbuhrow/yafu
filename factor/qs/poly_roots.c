@@ -242,7 +242,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		check_bound += BUCKET_ALLOC >> 1;					\
 	}
 
-
 #if defined(MSC_ASM32A)
 
 	#define COMPUTE_FIRST_ROOTS	\
@@ -434,9 +433,13 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
             // put N primes contiguous for each of polys 1 to M.
             // then the next N primes for the same polys.  Then
             // repeat the whole business for the next M polys, etc.
-            // the gray code and sign values will also have to be
-            // arranging slightly differently.  those are computed in 
-            // the top level process_poly function.
+            // no... nevermind, this won't work.  we only store
+            // info for the s Bl values, for a total of B*s entries
+            // in the rootupdate table.  but to stripe all of the
+            // info would require B*(2^(s-1)) entries (a lot more...).
+            // the update code will just have to load new sections
+            // of update info as it needs them (and sign info).
+
 			rootupdates[(j)*fb->B+i] = x;
 		}
 	}

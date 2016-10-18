@@ -504,10 +504,10 @@ done:
 
 void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	//ql = array of factors of a
-	//Bl = array of generated Bl values
-	//notation of polynomials, here and elsewhere, generally follows
-	//contini's notation
+	// ql = array of factors of a
+	// Bl = array of generated Bl values
+	// notation of polynomials, here and elsewhere, generally follows
+	// contini's notation
 
 	uint32 root1, root2, prime, gamma;
 	uint32 amodql;	//(a/ql)^-1 mod ql = inv(a/ql mod ql) mod ql
@@ -557,12 +557,12 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-	//compute the ith b value for this polya
-	//using a Gray code
-	//b_i+1 = bi + 2*(-1)^ceil(i/2^v)*Bv
-	//where 2^v is the highest power of 2 that divides 2*i
-	//notation of polynomials, here and elsewhere, generally follows
-	//contini's notation
+	// compute the ith b value for this polya
+	// using a Gray code
+	// b_i+1 = bi + 2*(-1)^ceil(i/2^v)*Bv
+	// where 2^v is the highest power of 2 that divides 2*i
+	// notation of polynomials, here and elsewhere, generally follows
+	// contini's notation
 	uint32 Bnum = dconf->numB;
 	siqs_poly *poly = dconf->curr_poly;
 	mpz_ptr n = sconf->n;

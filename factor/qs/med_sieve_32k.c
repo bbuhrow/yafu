@@ -27,6 +27,10 @@ code to the public domain.
 	#include <mmintrin.h>
 #endif
 
+#ifdef TARGET_KNC
+#include <immintrin.h>
+#endif
+
 typedef struct
 {
 	uint8 *sieve;					//0
@@ -49,12 +53,14 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
 	helperstruct_t asm_input;
 
-#ifdef TARGET_NOT_MIC
+#ifdef TARGET_KNC
     __m512i vpmul = _mm512_setr_epi32(
         0, 1, 2, 3, 
         4, 5, 6, 7, 
         8, 9, 10, 11, 
         12, 13, 14, 15);
+
+    __m512i vblock = _mm512_set1_epi32(32768);
 
 #endif
 
@@ -89,7 +95,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vidx1 = _mm512_add_epi32(vroot1, vidx2);
         vidx2 = _mm512_add_epi32(vroot2, vidx2);
 
-        mask2 = _mm512_cmp_epu32_mask(vidx2, _mm512_set1_epi32(32768), _MM_CMPINT_LT);
+        mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
 
         while (mask2 > 0)
         {
@@ -112,10 +118,10 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
             vidx1 = _mm512_mask_add_epi32(vidx1, mask2, vidx1, v16p);
             vidx2 = _mm512_mask_add_epi32(vidx2, mask2, vidx2, v16p);
 
-            mask2 = _mm512_cmp_epu32_mask(vidx2, _mm512_set1_epi32(32768), _MM_CMPINT_LT);
+            mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
         }
 
-        mask1 = _mm512_cmp_epu32_mask(vidx1, _mm512_set1_epi32(32768), _MM_CMPINT_LT);
+        mask1 = _mm512_cmp_epu32_mask(vidx1, vblock, _MM_CMPINT_LT);
 
         if (mask1 > 0)
         {
@@ -296,14 +302,17 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
 #if defined(USE_ASM_SMALL_PRIME_SIEVING)
 
+#ifdef TARGET_KNC
+
     for (; i<full_fb->fb_15bit_B; i++)
     {	
-        uint8 *s2;		
-
         prime = fb->prime[i];
         root1 = fb->root1[i];
         root2 = fb->root2[i];
         logp = fb->logp[i];
+
+        if ((prime > 8192) && ((i & 15) == 0))
+            break;
 
         // invalid root (part of poly->a)
         if (prime == 0)
@@ -311,6 +320,474 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
         SIEVE_1X;
         SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 13;
+    if (((full_fb->fb_32k_div3 - 8 - i) & 15) != 0)
+        stop = full_fb->fb_32k_div3 - 16;
+    else
+        stop = full_fb->fb_32k_div3 - 8;
+
+    for (; i < stop; i += 16)
+    {	
+        __m512i vprime, vroot1, vroot2, vmax, vmin;
+        __mmask16 mask1, mask2;
+        int j, idx;
+
+        vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        mask1 = _mm512_cmp_epu32_mask(vroot1, vblock, _MM_CMPINT_LT);
+        mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+        vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+        while ((idx = _mm_tzcnt_32(mask1)) < 16)
+        {
+            sieve[fb->root1[i+idx]] -= logp;
+            mask1 ^= (1 << idx);
+            if (mask2 & (1 << idx))
+                sieve[fb->root2[i+idx]] -= logp;
+        }
+
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+
+        vmax = _mm512_max_epu32(vroot1, vroot2);
+        vmin = _mm512_min_epu32(vroot1, vroot2);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+    }
+
+
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if ((prime > 10923) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 14;
+    if (((full_fb->fb_14bit_B - 8 - i) & 15) != 0)
+        stop = full_fb->fb_14bit_B - 16;
+    else
+        stop = full_fb->fb_14bit_B - 8;
+   
+    for (; i < stop; i += 16)
+    {	
+        __m512i vprime, vroot1, vroot2, vmax, vmin;
+        __mmask16 mask1, mask2;
+        int j, idx;
+
+        vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        mask1 = _mm512_cmp_epu32_mask(vroot1, vblock, _MM_CMPINT_LT);
+        mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+        vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+        while ((idx = _mm_tzcnt_32(mask1)) < 16)
+        {
+            sieve[fb->root1[i+idx]] -= logp;
+            mask1 ^= (1 << idx);
+            if (mask2 & (1 << idx))
+                sieve[fb->root2[i+idx]] -= logp;
+        }
+
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+
+        vmax = _mm512_max_epu32(vroot1, vroot2);
+        vmin = _mm512_min_epu32(vroot1, vroot2);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+    }
+
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+
+        if ((prime > 16384) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 15;
+    for (; i<full_fb->fb_15bit_B; i += 16)
+    {	
+        __m512i vprime, vroot1, vroot2, vmax, vmin;
+        __mmask16 mask1, mask2;
+        int j, idx;
+
+        vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+
+#pragma unroll(16)
+        for (j = 0; j < 16; j++)
+        {
+            sieve[fb->root1[i+j]] -= logp;
+            sieve[fb->root2[i+j]] -= logp;
+        }
+
+        vroot1 = _mm512_add_epi32(vroot1, vprime);
+        vroot2 = _mm512_add_epi32(vroot2, vprime);
+
+        mask1 = _mm512_cmp_epu32_mask(vroot1, vblock, _MM_CMPINT_LT);
+        mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+        vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+        while ((idx = _mm_tzcnt_32(mask1)) < 16)
+        {
+            sieve[fb->root1[i+idx]] -= logp;
+            mask1 ^= (1 << idx);
+            if (mask2 & (1 << idx))
+                sieve[fb->root2[i+idx]] -= logp;
+        }
+
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+
+        vmax = _mm512_max_epu32(vroot1, vroot2);
+        vmin = _mm512_min_epu32(vroot1, vroot2);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+
+    }
+
+    logp = 15;
+    for (; i<med_B; i += 16)
+    {	
+        __m512i vprime, vroot1, vroot2, vmax, vmin;
+        __mmask16 mask1, mask2;
+        int j, idx;
+
+        vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+        vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
+            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+
+        mask1 = _mm512_cmp_epu32_mask(vroot1, vblock, _MM_CMPINT_LT);
+        mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
+
+        vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+        vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+
+        while ((idx = _mm_tzcnt_32(mask1)) < 16)
+        {
+            sieve[fb->root1[i+idx]] -= logp;
+            mask1 ^= (1 << idx);
+            if (mask2 & (1 << idx))
+                sieve[fb->root2[i+idx]] -= logp;
+        }
+
+        vroot1 = _mm512_sub_epi32(vroot1, vblock);
+        vroot2 = _mm512_sub_epi32(vroot2, vblock);
+
+        vmax = _mm512_max_epu32(vroot1, vroot2);
+        vmin = _mm512_min_epu32(vroot1, vroot2);
+
+        _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+        _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
+            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+    }
+
+#else
+
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if (prime > 8192)
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 13;
+    for (; i<full_fb->fb_32k_div3-8; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        if (root1 < 32768) 
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+            if (root2 < 32768)
+            {
+                sieve[root2] -= logp;
+                root2 += prime;
+            }
+            else
+            {
+                tmp = root2;
+                root2 = root1;
+                root1 = tmp;
+            }
+        }
+
+        UPDATE_ROOTS;
+    }
+
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if (prime > 10923)
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 14;
+    for (; i<full_fb->fb_14bit_B - 8; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        if (root1 < 32768) 
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+            if (root2 < 32768)
+            {
+                sieve[root2] -= logp;
+                root2 += prime;
+            }
+            else
+            {
+                tmp = root2;
+                root2 = root1;
+                root1 = tmp;
+            }
+        }
+
+        UPDATE_ROOTS;
+    }
+
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+
+        if ((prime > 16384) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    logp = 15;
+    for (; i<full_fb->fb_15bit_B; i++)
+    {	
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+
+        sieve[root1] -= logp;
+        sieve[root2] -= logp;
+        root1 += prime;
+        root2 += prime;
+
+        if (root1 < 32768) 
+        {
+            sieve[root1] -= logp;
+            root1 += prime;
+            if (root2 < 32768)
+            {
+                sieve[root2] -= logp;
+                root2 += prime;
+            }
+            else
+            {
+                tmp = root2;
+                root2 = root1;
+                root1 = tmp;
+            }
+        }
+
         UPDATE_ROOTS;
     }
 
@@ -323,6 +800,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
     asm_input.med_B = med_B;
 
     SIEVE_GT_BLOCKSIZE_ASM;
+
+#endif
+
 
 #else
 

@@ -522,6 +522,34 @@ code to the public domain.
 // rbx,r8,r12,r15,r11,r13
 // free registers:
 // none
+
+#ifdef NOTDEF
+
+"movl   %%r9d,%%edx \n\t" \
+"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
+"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
+"addl   %%r10d,%%edi \n\t" \
+"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
+"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
+"addl   %%r10d,%%r9d \n\t" \
+"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
+
+
+"leaq   (%%rbx,%%r9d,1),%%rdx \n\t" \
+"leaq   (%%rbx,%%rdi,1),%%rax \n\t"			 \
+"addl   %%r10d,%%edi \n\t" \
+"addl   %%r10d,%%r9d \n\t" \
+"subb   %%sil,(%%rdx)	 \n\t"	/* rbx holds sieve */ \
+"subb   %%sil,(%%rax) \n\t" \
+"leaq   (%%rcx,%%r9d,1),%%rdx \n\t" \
+"leaq   (%%rcx,%%rdi,1),%%rax \n\t"			 \
+"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
+"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
+"prefetcht0 (%%r11) \n\t" \
+"prefetcht0 (%%r13) \n\t" \
+
+#endif
+
 #define SIEVE_2X_BLOCK_ASM(id) \
     "vpextrw $" id ", %%xmm2, %%r10d \n\t"	    /* bring in prime */	 \
     "vpextrw $" id ", %%xmm5, %%r14d \n\t"		/* bring in stop value */ \
@@ -533,14 +561,26 @@ code to the public domain.
   	"cmpl   %%r14d,%%edi \n\t"				/* root2 >= blocksize-prime? */ \
   	"jae    1f \n\t"						/* jump past loop if so */ \
 	"0:  \n\t"								/* sieve to "stop"(r14d) */ \
-  	"movl   %%r9d,%%edx \n\t" \
-  	"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \  		
-    "subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
+    "leaq   (%%rbx,%%r9,1),%%rdx \n\t" \
+    "leaq   (%%rbx,%%rdi,1),%%rax \n\t"			 \
+    "leaq   (%%rcx,%%r9,1),%%r11 \n\t" \
+    "leaq   (%%rcx,%%rdi,1),%%r13 \n\t"			 \
+    "subb   %%sil,(%%rdx)	 \n\t" \
+    "subb   %%sil,(%%rax) \n\t" \
+    "prefetcht0 (%%r11) \n\t" \
+    "prefetcht0 (%%r13) \n\t" \
     "addl   %%r10d,%%edi \n\t" \
-    "subb   %%sil,(%%rbx,%%rax,1) \n\t" \
-    "subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
     "addl   %%r10d,%%r9d \n\t" \
-    "subb   %%sil,(%%rcx,%%rax,1) \n\t" \
+    "leaq   (%%rbx,%%r9,1),%%rdx \n\t" \
+    "leaq   (%%rbx,%%rdi,1),%%rax \n\t"			 \
+    "shrl   $1, %%r10d \n\t"                 /* done with 2x prime */ \
+    "subb   %%sil,(%%r11)	 \n\t"	 \
+    "subb   %%sil,(%%r13) \n\t" \
+    "addl   %%r10d,%%edi \n\t" \
+    "addl   %%r10d,%%r9d \n\t" \
+    "subb   %%sil,(%%rdx)	 \n\t" \
+    "subb   %%sil,(%%rax) \n\t" \
+    "shll   $1, %%r10d \n\t"                 /* 2x prime */ \
     "cmpl   %%r14d,%%edi \n\t" \
     "jb     0b \n\t"						/* repeat */ \
     "1:  \n\t" \
@@ -590,6 +630,7 @@ code to the public domain.
         "vmovdqa (%%rdx, %%r8, 2), %%xmm2 \n\t"          /* load 8 primes's */ \
         "vmovdqa (%%rax, %%r8, 2), %%xmm3 \n\t"          /* load 8 logp's */ \
         "vpsubw     %%xmm2, %%xmm4, %%xmm5 \n\t"    /* xmm5 = blocksize - prime */ \
+        "vpsubw     %%xmm2, %%xmm5, %%xmm5 \n\t"    /* xmm5 = blocksize - 2*prime */ \
         /* registers clobbered in this loop: */ \
         /* r9,r10,r14,rax,rcx,rdx,rsi,rdi */ \
   		SIEVE_2X_BLOCK_ASM("0") \
@@ -605,6 +646,8 @@ code to the public domain.
             /* ==================================================================== */ \
         "vpsubw     %%xmm4, %%xmm0, %%xmm0 \n\t"    /* root1 -= blocksize */ \
         "vpsubw     %%xmm4, %%xmm1, %%xmm1 \n\t"    /* root2 -= blocksize */ \
+        "movq	16(%%r12,1),%%r13 \n\t"			/* r13 holds root1 pointer */ \
+        "movq   24(%%r12,1),%%r11 \n\t"			/* r11 holds root2 pointer */ \
         "vpmaxuw	%%xmm0, %%xmm1, %%xmm5 \n\t"	/* replace xmm2 with max of root1 and root2 */ \
         "vpminuw	%%xmm0, %%xmm1, %%xmm6 \n\t"	/* replace xmm1 with min of root1 and root2 */ \
         "movq   %%r8, %%r14 \n\t" \
