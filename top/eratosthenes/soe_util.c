@@ -1,4 +1,5 @@
 #include "soe.h"
+#include <immintrin.h>
 
 uint64 estimate_primes_in_range(uint64 lowlimit, uint64 highlimit)
 {
@@ -146,248 +147,248 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 
 uint64 init_sieve(soe_staticdata_t *sdata)
 {
-	int i,j,k;
-	uint64 numclasses = sdata->numclasses;
-	uint64 prodN = sdata->prodN;
-	uint64 allocated_bytes = 0;
-	uint64 lowlimit = sdata->orig_llimit; 
-	uint64 highlimit = sdata->orig_hlimit;
-	uint64 numflags, numbytes, numlinebytes;
+    int i, j, k;
+    uint64 numclasses = sdata->numclasses;
+    uint64 prodN = sdata->prodN;
+    uint64 allocated_bytes = 0;
+    uint64 lowlimit = sdata->orig_llimit;
+    uint64 highlimit = sdata->orig_hlimit;
+    uint64 numflags, numbytes, numlinebytes;
 
-	//create the selection masks
+    //create the selection masks
     for (i = 0; i < BITSINBYTE; i++)
     {
         nmasks[i] = ~masks[i];
     }
 
-	//allocate the residue classes.  
-	sdata->rclass = (uint32 *)malloc(numclasses * sizeof(uint32));
-	allocated_bytes += numclasses * sizeof(uint32);
+    //allocate the residue classes.  
+    sdata->rclass = (uint32 *)malloc(numclasses * sizeof(uint32));
+    allocated_bytes += numclasses * sizeof(uint32);
 
-	//find the residue classes
-	k=0;
-	for (i=1;i<prodN;i++)
-	{
-		if (spGCD(i,(uint64)prodN) == 1)
-		{
-			sdata->rclass[k] = (uint32)i;
-			k++;
-		}
-	}
+    //find the residue classes
+    k = 0;
+    for (i = 1; i < prodN; i++)
+    {
+        if (spGCD(i, (uint64)prodN) == 1)
+        {
+            sdata->rclass[k] = (uint32)i;
+            k++;
+        }
+    }
 
-	sdata->min_sieved_val = 1ULL << 63;
-	
-	//temporarily set lowlimit to the first multiple of numclasses*prodN < lowlimit
-	if (sdata->sieve_range == 0)
-	{
-		lowlimit = (lowlimit/(numclasses*prodN))*(numclasses*prodN);
-		sdata->lowlimit = lowlimit;
-	}
-	else
-	{
-		mpz_t tmpz, tmpz2;
-		mpz_init(tmpz);
-		mpz_init(tmpz2);
+    sdata->min_sieved_val = 1ULL << 63;
 
-		//the start of the range of interest is controlled by offset, not lowlimit
-		//figure out how it needs to change to accomodate sieving
-		mpz_tdiv_q_ui(tmpz, *sdata->offset, numclasses * prodN);
-		mpz_mul_ui(tmpz, tmpz, numclasses * prodN);		
-		mpz_sub(tmpz2, *sdata->offset, tmpz);
+    //temporarily set lowlimit to the first multiple of numclasses*prodN < lowlimit
+    if (sdata->sieve_range == 0)
+    {
+        lowlimit = (lowlimit / (numclasses*prodN))*(numclasses*prodN);
+        sdata->lowlimit = lowlimit;
+    }
+    else
+    {
+        mpz_t tmpz, tmpz2;
+        mpz_init(tmpz);
+        mpz_init(tmpz2);
 
-		//raise the high limit by the amount the offset was lowered, so that
-		//we allocate enough flags to cover the range of interest
-		highlimit += mpz_get_ui(tmpz2);
-		sdata->orig_hlimit += mpz_get_ui(tmpz2);
+        //the start of the range of interest is controlled by offset, not lowlimit
+        //figure out how it needs to change to accomodate sieving
+        mpz_tdiv_q_ui(tmpz, *sdata->offset, numclasses * prodN);
+        mpz_mul_ui(tmpz, tmpz, numclasses * prodN);
+        mpz_sub(tmpz2, *sdata->offset, tmpz);
 
-		//also raise the original lowlimit so that we don't include sieve primes
-		//that we shouldn't when finalizing the process.
-		sdata->orig_llimit += mpz_get_ui(tmpz2);
+        //raise the high limit by the amount the offset was lowered, so that
+        //we allocate enough flags to cover the range of interest
+        highlimit += mpz_get_ui(tmpz2);
+        sdata->orig_hlimit += mpz_get_ui(tmpz2);
 
-		//copy the new value to the pointer, which will get passed back to sieve_to_depth
-		mpz_set(*sdata->offset, tmpz);
-		mpz_clear(tmpz);
-		mpz_clear(tmpz2);
+        //also raise the original lowlimit so that we don't include sieve primes
+        //that we shouldn't when finalizing the process.
+        sdata->orig_llimit += mpz_get_ui(tmpz2);
 
-		//set the lowlimit to 0; the real start of the range is controlled by offset
-		sdata->lowlimit = 0;
-	}
+        //copy the new value to the pointer, which will get passed back to sieve_to_depth
+        mpz_set(*sdata->offset, tmpz);
+        mpz_clear(tmpz);
+        mpz_clear(tmpz2);
 
-	//reallocate flag structure for wheel and block sieving
-	//starting at lowlimit, we need a flag for every 'numresidues' numbers out of 'prodN' up to 
-	//limit.  round limit up to make this a whole number.
-	numflags = (highlimit - lowlimit)/prodN;
-	numflags += ((numflags % prodN) != 0);
-	numflags *= numclasses;
+        //set the lowlimit to 0; the real start of the range is controlled by offset
+        sdata->lowlimit = 0;
+    }
 
-	//since we can pack 8 flags in a byte, we need numflags/8 bytes allocated.
-	numbytes = numflags / BITSINBYTE + ((numflags % BITSINBYTE) != 0);
+    //reallocate flag structure for wheel and block sieving
+    //starting at lowlimit, we need a flag for every 'numresidues' numbers out of 'prodN' up to 
+    //limit.  round limit up to make this a whole number.
+    numflags = (highlimit - lowlimit) / prodN;
+    numflags += ((numflags % prodN) != 0);
+    numflags *= numclasses;
 
-	//since there are N lines to sieve over, each line will contain (numflags/8)/N bytes
-	//so round numflags/8 up to the nearest multiple of N
-	numlinebytes = numbytes/numclasses + ((numbytes % numclasses) != 0);
+    //since we can pack 8 flags in a byte, we need numflags/8 bytes allocated.
+    numbytes = numflags / BITSINBYTE + ((numflags % BITSINBYTE) != 0);
 
-	//we want an integer number of blocks, so round up to the nearest multiple of blocksize bytes
-	i = 0;
-	while (1)
-	{
-		i += BLOCKSIZE;
-		if (i > numlinebytes)
-			break;
-	}
-	numlinebytes = i;
+    //since there are N lines to sieve over, each line will contain (numflags/8)/N bytes
+    //so round numflags/8 up to the nearest multiple of N
+    numlinebytes = numbytes / numclasses + ((numbytes % numclasses) != 0);
 
-	//all this rounding has likely changed the desired high limit.  compute the new highlimit.
-	//the orignial desired high limit is already recorded so the proper count will be returned.
-	//todo... did we round too much?  look into this.
-	highlimit = (uint64)((uint64)numlinebytes * (uint64)prodN * (uint64)BITSINBYTE + lowlimit);
-	sdata->highlimit = highlimit;
-	sdata->numlinebytes = numlinebytes;
+    //we want an integer number of blocks, so round up to the nearest multiple of blocksize bytes
+    i = 0;
+    while (1)
+    {
+        i += BLOCKSIZE;
+        if (i > numlinebytes)
+            break;
+    }
+    numlinebytes = i;
 
-	//a block consists of BLOCKSIZE bytes of flags
-	//which holds FLAGSIZE flags.
-	sdata->blocks = numlinebytes/BLOCKSIZE;
+    //all this rounding has likely changed the desired high limit.  compute the new highlimit.
+    //the orignial desired high limit is already recorded so the proper count will be returned.
+    //todo... did we round too much?  look into this.
+    highlimit = (uint64)((uint64)numlinebytes * (uint64)prodN * (uint64)BITSINBYTE + lowlimit);
+    sdata->highlimit = highlimit;
+    sdata->numlinebytes = numlinebytes;
 
-	//each flag in a block is spaced prodN integers apart.  record the resulting size of the 
-	//number line encoded in each block.
-	sdata->blk_r = FLAGSIZE*prodN;
+    //a block consists of BLOCKSIZE bytes of flags
+    //which holds FLAGSIZE flags.
+    sdata->blocks = numlinebytes / BLOCKSIZE;
 
-	//allocate space for the root of each sieve prime
-	sdata->root = (int *)malloc(sdata->pboundi * sizeof(int));
-	allocated_bytes += sdata->pboundi * sizeof(uint32);
-	if (sdata->root == NULL)
-	{
-		printf("error allocating roots\n");
-		exit(-1);
-	}
-	else
-	{
-		if (VFLAG > 2)
-			printf("allocated %u bytes for roots\n",(uint32)(sdata->pboundi * sizeof(uint32)));
-	}
+    //each flag in a block is spaced prodN integers apart.  record the resulting size of the 
+    //number line encoded in each block.
+    sdata->blk_r = FLAGSIZE*prodN;
 
-	//compute the breakpoints at which we switch to other sieving methods	
-	if (sdata->pboundi > BUCKETSTARTI)
-	{
-		sdata->bucket_start_id = BUCKETSTARTI;
-		sdata->num_bucket_primes = sdata->pboundi - sdata->bucket_start_id;		
-	}
-	else
-	{
-		sdata->num_bucket_primes = 0;
-		sdata->bucket_start_id = sdata->pboundi;
-	}
+    //allocate space for the root of each sieve prime
+    sdata->root = (int *)malloc(sdata->pboundi * sizeof(int));
+    allocated_bytes += sdata->pboundi * sizeof(uint32);
+    if (sdata->root == NULL)
+    {
+        printf("error allocating roots\n");
+        exit(-1);
+    }
+    else
+    {
+        if (VFLAG > 2)
+            printf("allocated %u bytes for roots\n", (uint32)(sdata->pboundi * sizeof(uint32)));
+    }
 
-	//any prime larger than this will only hit the interval once (in residue space)
-	sdata->large_bucket_start_prime = sdata->blocks * FLAGSIZE;
+    //compute the breakpoints at which we switch to other sieving methods	
+    if (sdata->pboundi > BUCKETSTARTI)
+    {
+        sdata->bucket_start_id = BUCKETSTARTI;
+        sdata->num_bucket_primes = sdata->pboundi - sdata->bucket_start_id;
+    }
+    else
+    {
+        sdata->num_bucket_primes = 0;
+        sdata->bucket_start_id = sdata->pboundi;
+    }
 
-	//block ranges for the various line sieving scenarios:
-	//2 classes: block range = 1572864, approx min prime index = 119275
-	//8 classes: block range = 7864320, min prime index = 531290
-	//48 classes: block range = 55050240, min prime index = 3285304
-	//480 classes: block range = 605552640, min prime index = 31599827
-	sdata->inplace_start_id = sdata->pboundi;
-	sdata->num_inplace_primes = 0;
+    //any prime larger than this will only hit the interval once (in residue space)
+    sdata->large_bucket_start_prime = sdata->blocks * FLAGSIZE;
+
+    //block ranges for the various line sieving scenarios:
+    //2 classes: block range = 1572864, approx min prime index = 119275
+    //8 classes: block range = 7864320, min prime index = 531290
+    //48 classes: block range = 55050240, min prime index = 3285304
+    //480 classes: block range = 605552640, min prime index = 31599827
+    sdata->inplace_start_id = sdata->pboundi;
+    sdata->num_inplace_primes = 0;
 #if defined(INPLACE_BUCKET)
 
-	switch (sdata->numclasses)
-	{
-	case 2:
-		if (sdata->pboundi > 119275)
-		{
-			sdata->inplace_start_id = 119275;
-			sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;		
-			sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
-		}
+    switch (sdata->numclasses)
+    {
+    case 2:
+        if (sdata->pboundi > 119275)
+        {
+            sdata->inplace_start_id = 119275;
+            sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;		
+            sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
+        }
 
-		break;
-	case 8:
-		if (sdata->pboundi > 531290)
-		{
-			sdata->inplace_start_id = 531290;
-			sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;	
-			sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
-		}
+        break;
+    case 8:
+        if (sdata->pboundi > 531290)
+        {
+            sdata->inplace_start_id = 531290;
+            sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;	
+            sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
+        }
 
-		break;
-	case 48:
-		if (sdata->pboundi > 3285304)
-		{
-			sdata->inplace_start_id = 3285304;
-			sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;
-			sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
-		}
+        break;
+    case 48:
+        if (sdata->pboundi > 3285304)
+        {
+            sdata->inplace_start_id = 3285304;
+            sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;
+            sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
+        }
 
-		break;
-	case 480:
-		if (sdata->pboundi > 31599827)
-		{
-			sdata->inplace_start_id = 31599827;
-			sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;
-			sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
-		}
+        break;
+    case 480:
+        if (sdata->pboundi > 31599827)
+        {
+            sdata->inplace_start_id = 31599827;
+            sdata->num_inplace_primes = sdata->pboundi - sdata->inplace_start_id;
+            sdata->num_bucket_primes = sdata->inplace_start_id - sdata->bucket_start_id;
+        }
 
-		break;
-	default:
-		printf("unknown number of classes\n");
-		exit(1);
+        break;
+    default:
+        printf("unknown number of classes\n");
+        exit(1);
 
-		break;
-	}
+        break;
+    }
 
-	// allocate data structures for inplace sieving
-	if (sdata->num_inplace_primes > 0)
-	{	
-		// set up a two dimensional array of pointers to elements of the sieving prime array
-		// first dimension is block number
-		// second dimension is class number
-		// element is a pointer to a uint32 (a sieving prime)
-		sdata->inplace_ptrs = (int **)malloc(sdata->blocks * sizeof(int *));
-		for (i=0; i<sdata->blocks; i++)
-		{
-			int j;
-			sdata->inplace_ptrs[i] = (int *)malloc(sdata->numclasses * sizeof(int));
-			for (j=0; j<sdata->numclasses; j++)
-				sdata->inplace_ptrs[i][j] = -1;
-		}
+    // allocate data structures for inplace sieving
+    if (sdata->num_inplace_primes > 0)
+    {	
+        // set up a two dimensional array of pointers to elements of the sieving prime array
+        // first dimension is block number
+        // second dimension is class number
+        // element is a pointer to a uint32 (a sieving prime)
+        sdata->inplace_ptrs = (int **)malloc(sdata->blocks * sizeof(int *));
+        for (i=0; i<sdata->blocks; i++)
+        {
+            int j;
+            sdata->inplace_ptrs[i] = (int *)malloc(sdata->numclasses * sizeof(int));
+            for (j=0; j<sdata->numclasses; j++)
+                sdata->inplace_ptrs[i][j] = -1;
+        }
 
-		// allocate space for the inplace data we'll need
-		sdata->inplace_data = (soe_inplace_p *)malloc(
-			sdata->num_inplace_primes * sizeof(soe_inplace_p));
-	}
+        // allocate space for the inplace data we'll need
+        sdata->inplace_data = (soe_inplace_p *)malloc(
+            sdata->num_inplace_primes * sizeof(soe_inplace_p));
+    }
 
 #endif
 
-	//these are only used by the bucket sieve
-	//sdata->lower_mod_prime = (uint32 *)malloc(sdata->num_bucket_primes * sizeof(uint32));    
+    //these are only used by the bucket sieve
+    //sdata->lower_mod_prime = (uint32 *)malloc(sdata->num_bucket_primes * sizeof(uint32));    
     //allocated_bytes += sdata->num_bucket_primes * sizeof(uint32);
     sdata->lower_mod_prime = (uint32 *)malloc(sdata->pboundi * sizeof(uint32));
     allocated_bytes += sdata->pboundi * sizeof(uint32);
-	if (sdata->lower_mod_prime == NULL)
-	{
-		printf("error allocating lower mod prime\n");
-		exit(-1);
-	}
-	else
-	{
-		if (VFLAG > 2)
-			printf("allocated %u bytes for lower mod prime\n",
+    if (sdata->lower_mod_prime == NULL)
+    {
+        printf("error allocating lower mod prime\n");
+        exit(-1);
+    }
+    else
+    {
+        if (VFLAG > 2)
+            printf("allocated %u bytes for lower mod prime\n",
             (uint32)sdata->pboundi * (uint32)sizeof(uint32));
-	}
+    }
 
-	//allocate all of the lines if we are computing primes.  if we are
-	//only counting them, just create the pointer array - lines will
-	//be allocated as needed during sieving
-	sdata->lines = (uint8 **)xmalloc_align(sdata->numclasses * sizeof(uint8 *));
-	numbytes = 0;
-	if (sdata->only_count)
-	{
-		//don't allocate anything now, but
-		//provide an figure for the memory that will be allocated later
-		numbytes = numlinebytes * sizeof(uint8) * THREADS;
-	}
-	else
-	{
+    //allocate all of the lines if we are computing primes.  if we are
+    //only counting them, just create the pointer array - lines will
+    //be allocated as needed during sieving
+    sdata->lines = (uint8 **)xmalloc_align(sdata->numclasses * sizeof(uint8 *));
+    numbytes = 0;
+    if (sdata->only_count)
+    {
+        //don't allocate anything now, but
+        //provide an figure for the memory that will be allocated later
+        numbytes = numlinebytes * sizeof(uint8) * THREADS;
+    }
+    else
+    {
         //actually allocate all of the lines
         sdata->lines[0] = (uint8 *)xmalloc_align(numlinebytes * sdata->numclasses * sizeof(uint8));
         if (sdata->lines[0] == NULL)
@@ -397,11 +398,12 @@ uint64 init_sieve(soe_staticdata_t *sdata)
         }
         numbytes += sdata->numclasses * numlinebytes * sizeof(uint8);
 
-		for (i=0; i<sdata->numclasses; i++)
-		{
+        for (i = 0; i < sdata->numclasses; i++)
+        {
             sdata->lines[i] = sdata->lines[0] + i * numlinebytes;
-		}
-	}
+        }
+    }
+
 
 #ifdef USE_AVX2
     // during presieveing, storing precomputed lists will start to get unwieldy, so
@@ -448,9 +450,32 @@ uint64 init_sieve(soe_staticdata_t *sdata)
         presieve_steps[j - 24] = 256 % sdata->sieve_p[j];
     }
 
-#else
-    sdata->presieve_max_id = 10;
+#endif
 
+
+#ifdef USE_AVX2
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_AVX2))
+#else
+    if (__builtin_cpu_supports("avx2");
+#endif
+    {
+        pre_sieve_ptr = &pre_sieve_avx2;
+        compute_8_bytes_ptr = &compute_8_bytes_avx2;
+    }
+    else
+    {
+        pre_sieve_ptr = &pre_sieve;
+        compute_8_bytes_ptr = &compute_8_bytes;
+        sdata->presieve_max_id = 10;
+    }
+#else
+    // if we haven't built the code with AVX2 support, or if at runtime
+    // we find that AVX2 isn't supported, use the portable version
+    // of these routines.
+    pre_sieve_ptr = &pre_sieve;
+    compute_8_bytes_ptr = &compute_8_bytes;
+    sdata->presieve_max_id = 10;
 #endif
 
 	if (VFLAG > 2)

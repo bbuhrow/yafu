@@ -27,7 +27,7 @@ code to the public domain.
 #define DEFINED 1
 #define NUM_SQUFOF_MULT 38
 
-#ifdef TARGET_KNC
+#if defined (TARGET_KNC) || defined(TARGET_KNL)
 #define NUM_LANES 16
 #else
 #define NUM_LANES 8

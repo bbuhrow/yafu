@@ -524,7 +524,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
 		}
 	}
 

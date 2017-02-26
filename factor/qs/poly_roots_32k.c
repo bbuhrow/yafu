@@ -143,6 +143,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 *bptr, *sliceptr_p, *sliceptr_n;
 	uint32 *numptr_p, *numptr_n;
 	int check_bound = BUCKET_ALLOC/2 - 1, room;
+    FILE *out;
+
 
 	numblocks = sconf->num_blocks;
 	interval = numblocks << 15;
@@ -317,7 +319,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
 		}
 	}
 
@@ -402,7 +404,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
 		}
 	}
 
@@ -451,6 +453,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	}
 
+    //out = fopen("rupdate_info.csv", "w");
 	logp = fb->list->logprime[fb->large_B-1];
 	for (i=fb->large_B;i<fb->B;i++)
 	{
@@ -486,13 +489,117 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//the rootupdate value is given by 2*Bj*amodp
 		//Bl[j] now holds 2*Bl
 		//s is the number of primes in 'a'
+        //fprintf(out, "%u,%u,%u", prime, root1, root2);
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
 			x = (int)((int64)x * (int64)inv % (int64)prime);
 			rootupdates[(j)*fb->B+i] = x;
+            //fprintf(out, ",%u", x);
 		}
+        //fprintf(out, "\n");
 	}
+
+    if (0)
+    {
+        char *v = dconf->curr_poly->nu;
+        char *sign = dconf->curr_poly->gray;
+        double avg = 0.;
+        int hit;
+        uint32 pstarti;
+
+        printf("checking large prime hits in the interval of size %u\n", interval);
+
+        pstarti = fb->large_B;
+        for (i = fb->large_B; i < fb->B; i++)
+        {
+            int j;
+
+            prime = fb->list->prime[i];
+            root1 = update_data.firstroots1[i];
+            root2 = update_data.firstroots2[i];
+
+            for (j = 1; j < dconf->maxB; j++)
+            {
+                hit = 0;
+                if (sign[j] > 0)
+                {
+                    root1 = (int)root1 - rootupdates[(v[j] - 1) * fb->B + i];
+                    root2 = (int)root2 - rootupdates[(v[j] - 1) * fb->B + i];
+                    root1 += (root1 < 0) * prime;
+                    root1 += (root2 < 0) * prime;
+
+                    if (root1 < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if (root2 < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if ((prime - root1) < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if ((prime - root2) < interval)
+                    {
+                        hit = 1;
+                    }
+                }
+                else
+                {
+                    root1 = (int)root1 + rootupdates[(v[j] - 1) * fb->B + i];
+                    root2 = (int)root2 + rootupdates[(v[j] - 1) * fb->B + i];
+                    root1 -= ((root1 >= prime) * prime);
+                    root2 -= ((root2 >= prime) * prime);
+
+                    if (root1 < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if (root2 < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if ((prime - root1) < interval)
+                    {
+                        hit = 1;
+                    }
+
+                    if ((prime - root2) < interval)
+                    {
+                        hit = 1;
+                    }
+                }
+
+                avg += (double)hit;
+            }
+
+            if ((i - pstarti) >= 1000)
+            {
+                printf("primes from %u(%d) to %u(%d) hit %1.0f times in all polys",
+                    fb->list->prime[pstarti], pstarti, fb->list->prime[i], i, avg);
+
+                avg /= (i - pstarti);
+                avg /= dconf->maxB;
+
+                printf(" (%1.2f%% hit rate of %u primes in %u polys (any root or side)\n",
+                    avg * 100, (i - pstarti), dconf->maxB);
+                
+                avg = 0.;
+                pstarti = i;
+            }
+        }
+
+        exit(1);
+    }
+
+    
 
 	if (lp_bucket_p->list != NULL)
 		lp_bucket_p->num_slices = bound_index + 1;

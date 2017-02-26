@@ -49,15 +49,11 @@ void sieve_line(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i=0;i<sdata->blocks;i++)
 	{			
-#ifdef USE_AVX2
+#ifdef NOTUSE_AVX2
         __m256i vflagsizem1 = _mm256_set1_epi32(FLAGSIZEm1);
         __m256i v31 = _mm256_set1_epi32(31);
         __m256i vfull = _mm256_set1_epi32(0xffffffff);
         __m256i vone = _mm256_set1_epi32(1);
-        //__m256i v7 = _mm256_set1_epi32(7);
-        //__m256i vpmul = _mm256_set_epi32(0,1,2,3,4,5,6,7);
-        //__m256i vt1, vt2;
-        //__m256i vmask, vp8, vidx;
 
 #ifdef __INTEL_COMPILER
         __declspec(align(64)) uint32 t[8];
@@ -77,7 +73,7 @@ void sieve_line(thread_soedata_t *thread_data)
 		memset(flagblock,255,BLOCKSIZE);			
 		
 		//smallest primes use special methods
-		pre_sieve(ddata, sdata, flagblock);
+		pre_sieve_ptr(ddata, sdata, flagblock);
 		
 		//one is not a prime
 		if (sdata->sieve_range == 0)
@@ -529,7 +525,7 @@ void sieve_line(thread_soedata_t *thread_data)
 
 		flagblock += BLOCKSIZE;
 
-#ifdef USE_AVX2
+#ifdef NOTUSE_AVX2
 #ifndef __INTEL_COMPILER
         align_free(t);
         align_free(t2);

@@ -139,7 +139,7 @@ void z32_to_mpz(z32 *src, mpz_t dest)
 void zCopy(z *src, z *dest)
 {
 	//physically copy the digits of u into the digits of v
-	int su = abs(src->size);
+	int i,su = abs(src->size);
 	
 	if (src == dest)
 		return;
@@ -147,7 +147,9 @@ void zCopy(z *src, z *dest)
 	if (dest->alloc < su)
 		zGrow(dest,su);
 
-	memcpy(dest->val,src->val,su * sizeof(fp_digit));
+	//memcpy(dest->val,src->val,su * sizeof(fp_digit));
+    for (i = 0; i < su; i++)
+        dest->val[i] = src->val[i];
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -156,7 +158,7 @@ void zCopy(z *src, z *dest)
 void zCopy32(z32 *src, z32 *dest)
 {
 	//physically copy the digits of u into the digits of v
-	int su = abs(src->size);
+	int i,su = abs(src->size);
 	
 	if (src == dest)
 		return;
@@ -164,7 +166,9 @@ void zCopy32(z32 *src, z32 *dest)
 	if (dest->alloc < su)
 		zGrow32(dest,su);
 
-	memcpy(dest->val,src->val,su * sizeof(uint32));
+	//memcpy(dest->val,src->val,su * sizeof(uint32));
+    for (i = 0; i < su; i++)
+        dest->val[i] = src->val[i];
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -303,10 +307,13 @@ char *z2decstr(z *n, str_t *s)
 		//print the rest
 		for (i=sza - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%09u",(uint32)a.val[i]);
-			memcpy(s->s + s->nchars, tmp, 9);
+			//memcpy(s->s + s->nchars, tmp, 9);
+            for (j=0; j<9; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 9;
 		}
 #else
@@ -316,10 +323,13 @@ char *z2decstr(z *n, str_t *s)
 		//print the rest
 		for (i=sza - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%019" PRIu64,a.val[i]);
-			memcpy(s->s + s->nchars, tmp, 19);
+			//memcpy(s->s + s->nchars, tmp, 19);
+            for (j = 0; j<19; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 19;
 		}
 #endif
@@ -367,10 +377,13 @@ char *z2hexstr(z *n, str_t *s)
 		//print the rest
 		for (i=szn - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%08x",(uint32)n->val[i]);
-			memcpy(s->s + s->nchars, tmp, 8);
+			//memcpy(s->s + s->nchars, tmp, 8);
+            for (j = 0; j<8; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 8;
 		}
 #else
@@ -381,8 +394,11 @@ char *z2hexstr(z *n, str_t *s)
 		//print the rest
 		for (i=szn - 2; i>=0; i--)
 		{
+            int j;
 			sprintf(tmp,"%016" PRIx64,n->val[i]);
-			memcpy(s->s + s->nchars, tmp, 16);
+			//memcpy(s->s + s->nchars, tmp, 16);
+            for (j = 0; j<16; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 16;
 		}
 #endif

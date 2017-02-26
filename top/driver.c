@@ -27,6 +27,10 @@ code to the public domain.
 #include "gmp.h"
 #include <ecm.h>
 
+#if defined(__unix__)
+#include <termios.h>
+#endif
+
 // the number of recognized command line options
 #define NUMOPTIONS 73
 // maximum length of command line option strings
@@ -95,14 +99,38 @@ void finalize_batchline();
 int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
 void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
 unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression);
+char * get_input(char *input_exp, uint32 *insize);
+
+#if defined(__unix__)
+#define CMDHIST_SIZE 16
+static char **CMDHIST;
+static int CMDHIST_HEAD = 0;
+static int CMDHIST_TAIL = 0;
+#endif
 
 int main(int argc, char *argv[])
 {
 	uint32 insize = GSTR_MAXSIZE;
 	char *input_exp, *ptr, *indup;
+    
 	int slog,is_cmdline_run=0;
 	FILE *logfile;
 	fact_obj_t *fobj;
+    int i;
+
+#if defined(__unix__)
+    static struct termios oldtio, newtio;
+    tcgetattr(0, &oldtio);
+    newtio = oldtio;
+    newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK);
+    tcsetattr(0, TCSANOW, &newtio);
+
+    CMDHIST = (char **)malloc(CMDHIST_SIZE * sizeof(char *));
+    for (i = 0; i < CMDHIST_SIZE; i++)
+    {
+        CMDHIST[i] = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
+    }
+#endif
 
 	//the input expression
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -210,14 +238,6 @@ int main(int argc, char *argv[])
     LCGSTATE = g_rand.low;
 #endif	
 
-
-    if (0)
-    {
-        test_dlp_composites();
-        test_dlp_composites_par();
-    }
-
-
 	// command line
 	while (1)
 	{		
@@ -238,38 +258,7 @@ int main(int argc, char *argv[])
 		}
 		else if (!is_cmdline_run)
 		{
-			int c = fgetc(stdin);
-			if (c == EOF)
-				break; // ^D quits yafu (but, for reasons I've not investigated, doesn't print the proper newline)
-			ungetc(c, stdin);
-
-			// get command from user
-			fgets(input_exp,GSTR_MAXSIZE,stdin);
-			while (1)
-			{
-				if (input_exp[strlen(input_exp) - 1] == 13 || input_exp[strlen(input_exp) - 1] == 10)
-				{
-					//replace with a null char and continue
-					printf("\n");
-					fflush(stdout);
-					input_exp[strlen(input_exp) - 1] = '\0';
-					break;
-				}
-				else
-				{
-					//last char is not a carriage return means
-					//the input is longer than allocated.
-					//reallocate and get another chunk
-					insize += GSTR_MAXSIZE;
-					input_exp = (char *)realloc(input_exp,insize*sizeof(char));
-					if (input_exp == NULL)
-					{
-						printf("couldn't reallocate string when parsing\n");
-						exit(-1);
-					}
-					fgets(input_exp+strlen(input_exp),GSTR_MAXSIZE,stdin);
-				}
-			}	
+            input_exp = get_input(input_exp, &insize);
 		}
 		else
 		{
@@ -343,9 +332,234 @@ int main(int argc, char *argv[])
 	free(input_exp);
 	free(indup);	
 	free_factobj(fobj);
-	free(fobj);
+	free(fobj);       
+
+#if defined(__unix__)
+    for (i = 0; i < CMDHIST_SIZE; i++)
+    {
+        free(CMDHIST[i]);
+    }
+    free(CMDHIST);
+
+    tcsetattr(0, TCSANOW, &oldtio);
+#endif
 
 	return 0;
+}
+
+char * get_input(char *input_exp, uint32 *insize)
+{
+    int c;
+    int n = 0;
+
+#if !defined(__unix__)
+
+    // get command from user
+    fgets(input_exp, GSTR_MAXSIZE, stdin);
+
+    while (1)
+    {
+        if (input_exp[strlen(input_exp) - 1] == 13 || input_exp[strlen(input_exp) - 1] == 10)
+        {
+            //replace with a null char and continue
+            printf("\n");
+            fflush(stdout);
+            input_exp[strlen(*input_exp) - 1] = '\0';
+            break;
+        }
+        else
+        {
+            //last char is not a carriage return means
+            //the input is longer than allocated.
+            //reallocate and get another chunk
+            *insize += GSTR_MAXSIZE;
+            input_exp = (char *)realloc(input_exp, *insize * sizeof(char));
+            if (input_exp == NULL)
+            {
+                printf("couldn't reallocate string when parsing\n");
+                exit(-1);
+            }
+            fgets(input_exp + strlen(input_exp), GSTR_MAXSIZE, stdin);
+        }
+    }
+
+#else
+
+    int p = CMDHIST_HEAD;
+    strcpy(CMDHIST[p], "");
+
+    while (1)
+    {        
+        c = getc(stdin);
+
+        // is this an escape sequence?
+        if (c == 27) {
+            // "throw away" next two characters which specify escape sequence
+            int c1 = getc(stdin);
+            int c2 = getc(stdin);
+            int i;
+
+            if ((c1 == 91) && (c2 == 65))
+            {
+                // clear the current screen contents
+                for (i = 0; i < n; i++)
+                    printf("\b");
+
+                for (i = 0; i < n; i++)
+                    printf(" ");
+
+                for (i = 0; i < n; i++)
+                    printf("\b");
+
+                // save whatever is currently entered                
+                if (p == CMDHIST_HEAD)
+                {
+                    input_exp[n] = '\0';
+                    memcpy(CMDHIST[CMDHIST_HEAD], input_exp, GSTR_MAXSIZE * sizeof(char));
+                }
+
+                // uparrow     
+                if (CMDHIST_HEAD >= CMDHIST_TAIL)
+                {
+                    p--;
+
+                    // wrap
+                    if (p < 0)
+                    {
+                        // but not past tail
+                        p = 0;
+                    }
+                }
+                else
+                {
+                    p--;
+
+                    // wrap
+                    if (p < 0)
+                    {
+                        p = CMDHIST_SIZE - 1;
+                    }
+                }                                
+
+                // and print the previous one
+                printf("%s", CMDHIST[p]);
+                strcpy(input_exp, CMDHIST[p]);
+                n = strlen(input_exp);
+            }
+            else if ((c1 == 91) && (c2 == 66))
+            {
+                // downarrow
+                // clear the current screen contents
+                for (i = 0; i < strlen(CMDHIST[p]); i++)
+                    printf("\b");
+
+                for (i = 0; i < strlen(CMDHIST[p]); i++)
+                    printf(" ");
+
+                for (i = 0; i < strlen(CMDHIST[p]); i++)
+                    printf("\b");
+
+                if (p != CMDHIST_HEAD)
+                {
+                    p++;
+
+                    // wrap
+                    if (p == CMDHIST_SIZE)
+                    {
+                        p = 0;
+                    }
+                }                            
+
+                // and print the next one
+                printf("%s", CMDHIST[p]);
+                strcpy(input_exp, CMDHIST[p]);
+                n = strlen(input_exp);
+            }
+            else if ((c1 == 91) && (c2 == 67))
+            {
+                // rightarrow
+            }
+            else if ((c1 == 91) && (c2 == 68))
+            {
+                // leftarrow
+            }
+            else
+            {
+                printf("unknown escape sequence %d %d\n", c1, c2);
+            }
+
+            continue;
+        }
+
+        // if backspace
+        if (c == 0x7f)
+        {
+            //fprintf(stderr,"saw a backspace\n"); fflush(stderr);
+            if (n > 0)
+            {
+                // go one char left
+                printf("\b");
+                // overwrite the char with whitespace
+                printf(" ");
+                // go back to "now removed char position"
+                printf("\b");
+                n--;
+            }
+            continue;
+        }
+
+        if (c == EOF)
+        {
+            printf("\n");
+            exit(0);
+        }
+
+        if ((c == 13) || (c == 10))
+        {
+            input_exp[n++] = '\0';
+            break;
+        }
+
+        putc(c, stdout);
+        input_exp[n++] = (char)c;
+
+        if (n >= *insize)
+        {
+            *insize += GSTR_MAXSIZE;
+            input_exp = (char *)realloc(input_exp, *insize * sizeof(char));
+            if (input_exp == NULL)
+            {
+                printf("couldn't reallocate string when parsing\n");
+                exit(-1);
+            }
+        }
+    }
+
+    printf("\n");
+    fflush(stdout);
+
+    if (strlen(input_exp) > 0)
+    {
+        memcpy(CMDHIST[CMDHIST_HEAD++], input_exp, GSTR_MAXSIZE * sizeof(char));
+
+        if (CMDHIST_TAIL > 0)
+        {
+            CMDHIST_TAIL++;
+            if (CMDHIST_TAIL == CMDHIST_SIZE)
+                CMDHIST_TAIL = 0;
+        }
+
+        if (CMDHIST_HEAD == CMDHIST_SIZE)
+        {
+            CMDHIST_HEAD = 0;
+            if (CMDHIST_TAIL == 0)
+                CMDHIST_TAIL = 1;
+        }
+    }
+
+#endif
+
+    return input_exp;
 }
 
 void readINI(fact_obj_t *fobj)
@@ -859,6 +1073,15 @@ void get_computer_info(char *idstr)
 	// optionally print a bunch of info to the screen
 	extended_cpuid(idstr, &CLSIZE, &HAS_SSE41, &HAS_AVX, &HAS_AVX2, 
 		VERBOSE_PROC_INFO);
+
+    if (0)
+    {
+        if (HAS_SSE41)
+            printf("CPU has SSE4.1\n");
+
+        if (HAS_AVX2)
+            printf("CPU has AVX2\n");
+    }
 
 	#if defined(WIN32)
 

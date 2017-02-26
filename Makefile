@@ -31,7 +31,7 @@ BINNAME = yafu
 ifeq ($(COMPILER),icc)
 	CC = icc
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
-#	CFLAGS += -vec-report3
+	CFLAGS += -qopt-report=5
 endif
 
 
@@ -47,8 +47,14 @@ endif
 
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 -march=core-avx2 -m64
+	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
+  #-march=core-avx2 -m64
   #-march=core-avx2
+endif
+
+ifeq ($(KNL),1)
+  CFLAGS += -DTARGET_KNL -xMIC-AVX512 
+  #-openmp
 endif
 
 ifeq ($(KNC),1)
@@ -123,9 +129,10 @@ LIBS += -lecm -lgmp
 
 # attempt to get static builds to work... unsuccessful so far
 ifeq ($(STATIC),1)
-	CFLAGS += -static
+# https://software.intel.com/en-us/articles/error-ld-cannot-find-lm
+	CFLAGS += -static-intel -static
 #	LIBS += -Wl,-Bstatic -lm -Wl,Bdynamic -pthread
-	LIBS += -L/usr/lib/x86_64-redhat-linux5E/lib64/ -lpthread -lm
+  LIBS += -L/usr/lib/x86_64-redhat-linux6E/lib64/ -lpthread -lm
 else
 	LIBS += -lpthread -lm -ldl
 endif
@@ -198,10 +205,10 @@ YAFU_SRCS = \
 		
 ifeq ($(USE_AVX2),1)
     
-    YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c
-    YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
-    YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
-    YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
+  YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c 
+  YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
+  YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
+  YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 
 endif
 
@@ -217,17 +224,28 @@ ifeq ($(KNC),1)
   
 	# these files target running on KNC hardware
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_knc.c
-    YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
+  YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
 	YAFU_SRCS += factor/qs/tdiv_resieve_32k_knc.c
 	YAFU_SRCS += factor/qs/tdiv_scan_knc.c
 
 else
 
-	# won't build with KNC
-	YAFU_SRCS += factor/qs/update_poly_roots_32k.c
-	YAFU_SRCS += factor/qs/tdiv_med_32k.c
-	YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
-	YAFU_SRCS += factor/qs/tdiv_scan.c
+  ifeq ($(KNL),1)
+  
+    YAFU_SRCS += factor/qs/tdiv_scan_knl.c
+    YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+  
+  else
+  
+    YAFU_SRCS += factor/qs/tdiv_scan.c
+    
+  endif
+  
+  # won't build with KNC
+  YAFU_SRCS += factor/qs/update_poly_roots_32k.c
+  YAFU_SRCS += factor/qs/tdiv_med_32k.c
+  YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
+
 
 endif
 

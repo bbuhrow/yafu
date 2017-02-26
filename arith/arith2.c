@@ -481,7 +481,8 @@ void zModExp(z *a, z *b, z *m, z *u)
 	zFree(&q);
 	zFree(&r);
 	zFree(&t);
-	return;
+
+    return;
 }
 
 void zModExp_1(z *a, fp_digit b, fp_digit m, fp_digit *u)

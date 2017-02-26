@@ -1143,7 +1143,7 @@ int getFunc(char *s, int *nargs)
 						"nroot","shift","siqs","primes", "ispow", 
 						"torture","randb", "ecm","+","-",
 						"*","/","!","#","eq",
-						"<<",">>","%","^","test",
+						"<<",">>","%","^","redc",
 						"puzzle","sieve","algebraic","llt","siqsbench",
 						"pullp","sftest","smallmpqs","testrange","siqstune",
 						"ptable","sieverange","fermat","nfs","tune",
@@ -1321,17 +1321,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 			printf("wrong number of arguments in factor\n");
 			break;
 		}
-
-//        srand(12345);
-//        g_rand.hi = rand();
-//        g_rand.low = rand();
-//#if BITS_PER_DIGIT == 64
-//        LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
-//#else
-//        LCGSTATE = g_rand.low;
-//#endif	
-//        gmp_randseed_ui(gmp_randstate, g_rand.low);
-
 
 		mpz_set(fobj->N, operands[0]);
 		factor(fobj);
@@ -1784,13 +1773,6 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		else
 		{
 			mpz_primorial_ui(operands[0], mpz_get_ui(operands[0]));
-
-
-			//z n;
-			//zInit(&n);			
-			//zPrimorial(mpz_get_ui(operands[0]),&n);
-			//mp2gmp(&n, operands[0]);
-			//zFree(&n);
 		}
 		break;
 
@@ -1849,10 +1831,121 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		break;
 
 	case 44:
+        // REDC
+        if (nargs != 2)
+        {
+            printf("wrong number of arguments in REDC\n");
+            break;
+        }
+
+        {
+            uint32 b, x, mhat;
+            uint32 a[2 * 256 + 1];
+            uint32 m[2 * 256 + 1];
+            uint32 c[2 * 256 + 1], *_c, *tmpm, mu;
+            int      oldused, xx, y, pa, j;
+            char *strn;            
+
+            // REDC
+            // export the input as a 4-byte array, least significant word first,
+            // native endianness, full words (0 nails bits)
+            mpz_export(a, &oldused, -1, 4, 0, 0, operands[0]);
+            mpz_export(m, &pa, -1, 4, 0, 0, operands[1]);
+
+            printf("size of a = %d, size of m = %d\n", oldused, pa);
+
+            b = m[0];
+
+            // this first equation results from taking our starting point a^-1 = 1 mod 2
+            // and lifting it twice to produce -a^3 + 4a^2 - 6a + 4 mod 16.
+            // if you work out the above algebraicly using the bit representation of a mod 16,
+            // you get this result.
+            x = (((b + 2) & 4) << 1) + b; // here x*a==1 mod 2**4
+            x *= 2 - b * x;               // here x*a==1 mod 2**8
+            x *= 2 - b * x;               // here x*a==1 mod 2**16
+            x *= 2 - b * x;               // here x*a==1 mod 2**32
+
+            // mhat = -1/m mod b
+            mhat = (uint32)(((uint64)1 << ((uint64)32)) - ((uint64)x));
+
+            printf("mhat = %u\n", mhat);
+
+            /* copy the input */
+            for (xx = 0; xx < oldused; xx++)
+            {
+                c[xx] = a[xx];
+            }
+            for (; xx < 2 * pa + 1; xx++)
+            {
+                c[xx] = 0;
+            }
+
+            for (xx = 0; xx < pa; xx++)
+            {
+                uint32 cy = 0;
+
+                // get Mu for this round
+                mu = c[xx] * mhat;
+
+                // compute c += mu*n*b^x, where b=2^DIGITBITS
+                _c = c + xx;          // b^x
+                tmpm = m;      // n
+                y = 0;
+
+#ifdef __unix__
+                for (; y < pa; y++)
+                {
+                    __asm__(\
+                        "movl %5,%%eax \n\t"
+                        "mull %4       \n\t"
+                        "addl %1,%%eax \n\t"
+                        "adcl $0,%%edx \n\t"
+                        "addl %%eax,%0 \n\t"
+                        "adcl $0,%%edx \n\t"
+                        "movl %%edx,%1 \n\t"
+                        :"=g"(_c[0]), "=r"(cy)
+                        : "0"(_c[0]), "1"(cy), "r"(mu), "r"(*tmpm++)
+                        : "%eax", "%edx", "memory", "%cc");
+
+                    ++_c;
+                }
+#endif
+
+                while (cy)
+                {
+                    do { uint32 t = _c[0] += cy; cy = (t < cy); } while (0);
+                    ++_c;
+                }
+
+            }
+
+            /* now copy out */
+            _c = c + pa;
+            tmpm = a;
+            for (xx = 0; xx < pa + 1; xx++)
+            {
+                *tmpm++ = *_c++;
+            }
+
+            for (; xx < oldused; xx++)
+            {
+                *tmpm++ = 0;
+            }
+
+            mpz_import(operands[0], pa + 1, -1, 4, 0, 0, a);
+
+            if (mpz_cmp(operands[0], operands[1]) >= 0)
+            {
+                mpz_sub(operands[0], operands[0], operands[1]);
+            }
+
+
+        }
 
 		break;
 
 	case 45:
+        // modmul
 
 		break;
 

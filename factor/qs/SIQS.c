@@ -241,13 +241,24 @@ void siqs_dispatch(void *vptr)
     double in_flight_rels;
 
     //check whether to continue or not, and update the screen
-    udata->updatecode = update_check(static_conf);    
-    if ((udata->num_found > 0) && (static_conf->total_poly_a > 0))
+    udata->updatecode = update_check(static_conf);
+    if ((udata->num_found > 0) && ((int)static_conf->total_poly_a > 0))
     {
         avg_rels_per_acoeff = (double)udata->num_found / (double)(static_conf->total_poly_a + 1);
-        in_flight_rels = (tdata->num_threads - 1) * 0.9 * avg_rels_per_acoeff;
+
+        if (static_conf->is_restart == 1)
+        {
+            // we'd have to separately track the relations found since the
+            // restart for this to work right.  that impacts many things,
+            // so for now just don't worry about overshoot due to multi-threading.
+            in_flight_rels = 0;
+        }
+        else
+        {
+            in_flight_rels = (tdata->num_threads - 1) * 0.9 * avg_rels_per_acoeff;
+        }
         //printf("found %u rels so far in %d 'A' polys, avg rels_per_poly = %f, rels in flight = %f\n",
-          //  udata->num_found, static_conf->total_poly_a + 1, avg_rels_per_acoeff, in_flight_rels);
+        //    udata->num_found, static_conf->total_poly_a + 1, avg_rels_per_acoeff, in_flight_rels);
     }
     else
     {
@@ -508,7 +519,7 @@ void SIQS(fact_obj_t *fobj)
 		printf("\n==== post processing stage (msieve-1.38) ====\n");
 	}
 
-#ifdef TARGET_KNC
+#if defined (TARGET_KNC) || defined(TARGET_KNL)
     // for now, just do timing on the sieving portion.  LA is really slow.
     exit(1);
 #endif
@@ -700,7 +711,7 @@ void *process_poly(void *vptr)
         }
 
         // print a little more status info for huge jobs.
-#ifndef TARGET_KNC
+#if !defined( TARGET_KNC) && !defined(TARGET_KNL)
         if (sconf->digits_n > 110)
         {
             gettimeofday(&stop, NULL);
@@ -754,6 +765,11 @@ void *process_poly(void *vptr)
         nextRoots_32k_knc_small(sconf, dconf);
         nextRoots_32k_knc_bucket(sconf, dconf);
 
+#elif TARGET_KNL
+
+        nextRoots_32k_avx2_small(sconf, dconf);
+        nextRoots_32k_knl_bucket(sconf, dconf);
+
 #else
         // and update the roots
         nextRoots_ptr(sconf, dconf);
@@ -761,7 +777,7 @@ void *process_poly(void *vptr)
 
 #endif
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
         // other threads may have got us past the threshold while we
         // are still working on this 'A' poly... check if we can stop.
         if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
@@ -917,6 +933,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	fact_obj_t *obj = sconf->obj;
 	char buf[1024];
 	int state = 0;
+    sconf->is_restart = 0;
 
 	// if we want to do an in-memory factorization, then 
 	// ignore the current state of the savefile and don't
@@ -928,7 +945,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	//check if this number has had work done
 	restart_siqs(sconf,dconf);
 	
-	if ((uint32)sconf->num_r >= sconf->factor_base->B + sconf->num_extra_relations) 
+	if ((uint32)sconf->num_r >= (sconf->factor_base->B + sconf->num_extra_relations)) 
 	{
 		//we've got enough total relations to stop		
 		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
@@ -942,6 +959,11 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		//whether or not this is a big job, it needed to be resumed
 		//once so treat it as if it will need to be again.  use the savefile.
 		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
+
+        // don't try to do optimization of the small cutoff... it is not 
+        // designed to cope with starting with a bunch of relations and poly_a's
+        obj->qs_obj.no_small_cutoff_opt = 1;
+        sconf->is_restart = 1;
 	}
 	else
 	{
@@ -971,7 +993,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #elif defined(USE_AVX2)
     if (HAS_AVX2)
     {
+#ifdef TARGET_KNL
+        strcpy(inst_set, "KNL-AVX2");
+#else
         strcpy(inst_set, "AVX2");
+#endif
     }
     else if (HAS_SSE41)
     {
@@ -1193,7 +1219,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	dconf->rootupdates = (int *)xmalloc_align(
 		(size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(int)));
 	dconf->sm_rootupdates = (uint16 *)xmalloc_align(
-		(size_t)(MAX_A_FACTORS * sconf->factor_base->B * sizeof(uint16)));
+        (size_t)(MAX_A_FACTORS * sconf->factor_base->med_B * sizeof(uint16)));
 
 
 	if (VFLAG > 2)
@@ -1501,6 +1527,11 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(TARGET_KNC)
     tdiv_med_ptr = &tdiv_medprimes_32k_knc;
     resieve_med_ptr = &resieve_medprimes_32k_knc;
+#endif
+
+#if defined(TARGET_KNL)
+    //tdiv_med_ptr = &tdiv_medprimes_32k_knl;
+    //resieve_med_ptr = &resieve_medprimes_32k_knc;
 #endif
 		
 	sconf->qs_blocksize = 32768;
@@ -1906,7 +1937,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		sconf->use_dlp = 0;
 	}
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
     // so far have only implemented this one
     scan_ptr = &check_relations_siqs_16;
     sconf->scan_unrolling = 128;
@@ -2116,7 +2147,7 @@ int update_check(static_conf_t *sconf)
 	uint32 num_full = sconf->num_relations;
 	uint32 check_total = sconf->check_total;
 	uint32 check_inc = sconf->check_inc;
-#ifdef TARGET_KNC
+#if defined( TARGET_KNC) || defined (TARGET_KNL)
     double update_time = 0;
 #else
     double update_time = sconf->update_time;
@@ -2204,7 +2235,7 @@ int update_check(static_conf_t *sconf)
 		t_time = my_difftime (&sconf->totaltime_start, &update_stop);
 		if (VFLAG >= 0)
 		{
-			sconf->charcount = printf("%d rels found: %d full + "
+			printf("%d rels found: %d full + "
 				"%d from %d partial, (%6.2f rels/sec)\r",
 				sconf->num_r,sconf->num_relations,
 				sconf->num_cycles +
@@ -2218,7 +2249,7 @@ int update_check(static_conf_t *sconf)
 		gettimeofday(&sconf->update_start, NULL);
 		sconf->t_update = 0;
 		
-		if (sconf->num_r >= fb->B + sconf->num_extra_relations) 
+		if (sconf->num_r >= (fb->B + sconf->num_extra_relations))
 		{
 			//we've got enough total relations to stop
 			mpz_clear(tmp1);

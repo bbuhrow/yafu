@@ -414,6 +414,7 @@ typedef struct {
 	qs_la_col_t *cycle_list;	// cycles derived from relations
 	siqs_poly *curr_poly;		// current poly during filtering
 
+    int is_restart;
 	int is_tiny;
 	int in_mem;
     int flag;
@@ -554,6 +555,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
                          static_conf_t *sconf, dynamic_conf_t *dconf);
+void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*tdiv_med_ptr)(uint8 , uint32 , uint32 , 
@@ -608,6 +611,7 @@ void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_knc(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
@@ -617,6 +621,7 @@ void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf
 
 void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_knc_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf);
 
 void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);

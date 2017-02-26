@@ -24,7 +24,7 @@ code to the public domain.
 #include "util.h"
 #include "common.h"
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined (TARGET_KNL)
 #include <immintrin.h>
 
 
