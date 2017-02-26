@@ -55,7 +55,7 @@ this file contains code implementing 5)
 
 */
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
 #include <immintrin.h>
 #endif
 
@@ -66,7 +66,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 #if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__))
 	
-    #ifdef TARGET_KNC
+    #if defined(TARGET_KNC) //|| defined(TARGET_KNL)
 
         #define SCAN_CLEAN
 
@@ -462,7 +462,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
     uint16 buffer[32];    
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
     __m512i vmask, vblock;
 #endif
 
@@ -493,20 +493,20 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
 
-	mask[0] = block_loc;
-	mask[2] = block_loc;
-	mask[4] = block_loc;
-	mask[6] = block_loc;
-    mask[8] = block_loc;
-    mask[10] = block_loc;
-    mask[12] = block_loc;
-    mask[14] = block_loc;
-
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
     // 16 copies of the 16-bit block_loc in the lower half of
     // each of the 32-bit vector elements.
     vblock = _mm512_set1_epi32(block_loc);
     vmask = _mm512_set1_epi32(0x0000ffff);
+#else
+    mask[0] = block_loc;
+    mask[2] = block_loc;
+    mask[4] = block_loc;
+    mask[6] = block_loc;
+    mask[8] = block_loc;
+    mask[10] = block_loc;
+    mask[12] = block_loc;
+    mask[14] = block_loc;
 #endif
 
 	//primes bigger than med_B are bucket sieved, so we need
@@ -539,9 +539,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         int r, q;
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result = 0;
-
-        //printf("tdiv_large for poly %d: slice %d bound = %u\n", 
-        //    dconf->numB, k, fb_bound);
 
 #if defined (_MSC_VER)
         for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
@@ -682,113 +679,27 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #else
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC) || defined(TARGET_KNL)
 
         for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
         {
+            uint32 idx;
             __m512i velements = _mm512_load_epi32(bptr + j);
             velements = _mm512_and_epi32(velements, vmask);
             result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
 
-            if (result != 0)
+            if (result == 0)
+                continue;
+
+            while (_BitScanForward(&idx, result))
             {
-                if (result & 0x1)
-                {
-                    i = fb_bound + (bptr[j+0] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x2)
-                {
-                    i = fb_bound + (bptr[j+1] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x4)
-                {
-                    i = fb_bound + (bptr[j+2] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x8)
-                {
-                    i = fb_bound + (bptr[j+3] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x10)
-                {
-                    i = fb_bound + (bptr[j+4] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x20)
-                {
-                    i = fb_bound + (bptr[j+5] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x40)
-                {
-                    i = fb_bound + (bptr[j+6] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x80)
-                {
-                    i = fb_bound + (bptr[j+7] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x100)
-                {
-                    i = fb_bound + (bptr[j + 8] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x200)
-                {
-                    i = fb_bound + (bptr[j + 9] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x400)
-                {
-                    i = fb_bound + (bptr[j + 10] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x800)
-                {
-                    i = fb_bound + (bptr[j + 11] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x1000)
-                {
-                    i = fb_bound + (bptr[j + 12] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x2000)
-                {
-                    i = fb_bound + (bptr[j + 13] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x4000)
-                {
-                    i = fb_bound + (bptr[j + 14] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
-                if (result & 0x8000)
-                {
-                    i = fb_bound + (bptr[j + 15] >> 16);
-                    prime = fb[i];
-                    DIVIDE_RESIEVED_PRIME(i);
-                }
+                i = fb_bound + (bptr[j+idx] >> 16);
+                prime = fb[i];
+                DIVIDE_RESIEVED_PRIME(i);
+
+                result ^= (1 << idx);
             }
+            
         }
 
 #else

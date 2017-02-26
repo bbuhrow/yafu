@@ -1,8 +1,4 @@
 #include "threadpool.h"
-#ifdef USE_TPOOL_AFFINITY
-#define _GNU_SOURCE
-#include <unistd.h>
-#endif
 #include <stdint.h>
 
 #if defined(WIN32) || defined(_WIN64)
@@ -99,6 +95,7 @@ void *tpool_worker_main(void *thread_data) {
     t->state = TPOOL_STATE_WAIT;
     pthread_cond_signal(&t->run_cond);
     pthread_mutex_unlock(&t->run_lock);
+    //omp_get_num_procs();
 #endif
 
     while (1) {
@@ -226,7 +223,7 @@ void tpool_go(tpool_t *thread_data)
     for (i = 0; i < thread_data->num_threads; i++)
     {
         tpool_start(thread_data + i);
-        thread_queue[i] = i;
+        thread_queue[i] = i;        
     }
 
     *threads_waiting = thread_data->num_threads;

@@ -357,7 +357,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 			
 		// update 16 at a time using AVX2
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1165,7 +1165,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 		
 		// update 16 at a time using avx2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1184,7 +1184,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 
 
 
@@ -2015,7 +2015,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
         // update 16 at a time using AVX2
-        sm_ptr = &dconf->sm_rootupdates[(v - 1) * bound];
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
         {
             small_update_t h;
 
@@ -2107,7 +2107,7 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
         // update 16 at a time using AVX2 and no branching		
-        sm_ptr = &dconf->sm_rootupdates[(v - 1) * bound];
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
         {
             small_update_t h;
 

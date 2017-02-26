@@ -1151,7 +1151,8 @@ uint64 _29_MASKS[29] = {
     0xfefffffff7ffffffULL,
     0xfdffffffefffffffULL };
 
-void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock)
+#ifdef USE_AVX2
+void pre_sieve_avx2(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock)
 {
     uint64 startprime = sdata->startprime;
     uint64 k;
@@ -1167,8 +1168,6 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
     // first handle the different startprime cases, going up through prime 13.
     if (startprime == 2)
     {
-#ifdef USE_AVX2
-
         for (k = 0, mask_step = _256_MOD_P[0], mask_num = ddata->offsets[2],
             mask_step2 = _256_MOD_P[1], mask_num2 = ddata->offsets[3];
             k < FLAGSIZE >> 8; k++)
@@ -1207,41 +1206,11 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
         ddata->offsets[4] = (uint32)mask_num;
         ddata->offsets[5] = (uint32)mask_num2;
 
-#else
 
-        for (k = 0, mask_step = _64_MOD_P[0], mask_num = ddata->offsets[2],
-            mask_step2 = _64_MOD_P[1], mask_num2 = ddata->offsets[3];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= (_5_MASKS[mask_num] & _7_MASKS[mask_num2]);
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 5 + mask_num;
-            mask_num2 -= mask_step2;
-            if (mask_num2 < 0) mask_num2 = 7 + mask_num2;
-        }
-        ddata->offsets[2] = (uint32)mask_num;
-        ddata->offsets[3] = (uint32)mask_num2;
-
-        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 11 + mask_num;
-            mask_num2 -= mask_step2;
-            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-        }
-        ddata->offsets[4] = (uint32)mask_num;
-        ddata->offsets[5] = (uint32)mask_num2;
-
-#endif
 
     }
     else if (startprime == 3)
     {
-
-#ifdef USE_AVX2
         for (k = 0, mask_step = _256_MOD_P[1], mask_num = ddata->offsets[3];
             k < FLAGSIZE >> 8; k++)
         {
@@ -1273,38 +1242,9 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
         ddata->offsets[4] = (uint32)mask_num;
         ddata->offsets[5] = (uint32)mask_num2;
 
-#else
-        for (k = 0, mask_step = _64_MOD_P[1], mask_num = ddata->offsets[3];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= _7_MASKS[mask_num];
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 7 + mask_num;
-        }
-        ddata->offsets[3] = (uint32)mask_num;
-
-        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 11 + mask_num;
-            mask_num2 -= mask_step2;
-            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-        }
-        ddata->offsets[4] = (uint32)mask_num;
-        ddata->offsets[5] = (uint32)mask_num2;
-
-#endif
-
-
-
     }
     else if (startprime == 4)
     {
-
-#ifdef USE_AVX2
         for (k = 0, mask_step = _256_MOD_P[2], mask_num = ddata->offsets[4],
             mask_step2 = _256_MOD_P[3], mask_num2 = ddata->offsets[5];
             k < FLAGSIZE >> 8; k++)
@@ -1325,28 +1265,9 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
         ddata->offsets[4] = (uint32)mask_num;
         ddata->offsets[5] = (uint32)mask_num2;
 
-#else
-
-        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
-            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 11 + mask_num;
-            mask_num2 -= mask_step2;
-            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
-        }
-        ddata->offsets[4] = (uint32)mask_num;
-        ddata->offsets[5] = (uint32)mask_num2;
-
-#endif
-
     }
     else if (startprime == 5)
     {
-
-#ifdef USE_AVX2
         for (k = 0, mask_step = _256_MOD_P[3], mask_num = ddata->offsets[5];
             k < FLAGSIZE >> 8; k++)
         {
@@ -1358,21 +1279,9 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
             if (mask_num < 0) mask_num = 13 + mask_num;
         }
         ddata->offsets[5] = (uint32)mask_num;
-#else
-
-        for (k = 0, mask_step = _64_MOD_P[3], mask_num = ddata->offsets[5];
-            k<FLAGSIZE >> 6; k++)
-        {
-            flagblock64[k] &= _13_MASKS[mask_num];
-            mask_num -= mask_step;
-            if (mask_num < 0) mask_num = 13 + mask_num;
-        }
-        ddata->offsets[5] = (uint32)mask_num;
-#endif
     }
 
     // then do some more presieving, starting at prime 17.
-#ifdef USE_AVX2
     for (k = 0, mask_step = _256_MOD_P[4], mask_num = ddata->offsets[6],
         mask_step2 = _256_MOD_P[5], mask_num2 = ddata->offsets[7];
         k < FLAGSIZE >> 8; k++)
@@ -1397,7 +1306,7 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
         __m256i vmaskp = _mm256_setr_epi32(23, 29, 31, 37, 41, 43, 47, 53);
         __m256i vmaskp1 = _mm256_setr_epi32(22, 28, 30, 36, 40, 42, 46, 52);
         __m256i vzero = _mm256_set1_epi32(0);
-        __m256i vmaskstep = _mm256_setr_epi32(3, 24, 8, 34, 10, 41, 21, 44);        
+        __m256i vmaskstep = _mm256_setr_epi32(3, 24, 8, 34, 10, 41, 21, 44);
         __m256i vmask, vmask2;
 #ifdef __INTEL_COMPILER
         __declspec(align(64)) uint32 t[8];
@@ -1496,10 +1405,10 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
         // quickly grows too big and the flag density too sparse, negating 
         // the benefits of this approach.
         for (j = 24; j < sdata->presieve_max_id; j += 8)
-        {        
-            vmaskp = _mm256_load_si256((__m256i *)(&presieve_primes[j-24]));
-            vmaskp1 = _mm256_load_si256((__m256i *)(&presieve_p1[j-24]));
-            vmaskstep = _mm256_load_si256((__m256i *)(&presieve_steps[j-24]));
+        {
+            vmaskp = _mm256_load_si256((__m256i *)(&presieve_primes[j - 24]));
+            vmaskp1 = _mm256_load_si256((__m256i *)(&presieve_p1[j - 24]));
+            vmaskstep = _mm256_load_si256((__m256i *)(&presieve_steps[j - 24]));
             vmasknums = _mm256_load_si256((__m256i *)(ddata->offsets + j));
 
             for (k = 0; k < FLAGSIZE >> 8; k++)
@@ -1507,28 +1416,28 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
                 __m256i vsieve = _mm256_load_si256((__m256i *)(&flagblock64[k * 4]));
                 _mm256_store_si256((__m256i *)t, vmasknums);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+0][t[0]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 0][t[0]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+1][t[1]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 1][t[1]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+2][t[2]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 2][t[2]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+3][t[3]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 3][t[3]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+4][t[4]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 4][t[4]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+5][t[5]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 5][t[5]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+6][t[6]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 6][t[6]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
-                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j-24+7][t[7]]));
+                vmask = _mm256_load_si256((__m256i *)(&presieve_largemasks[j - 24 + 7][t[7]]));
                 vsieve = _mm256_and_si256(vmask, vsieve);
 
                 _mm256_store_si256((__m256i *)(&flagblock64[k * 4]), vsieve);
@@ -1545,9 +1454,109 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
 
     }
 
-    
-#else
+    return;
+}
 
+#endif
+
+void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock)
+{
+    uint64 startprime = sdata->startprime;
+    uint64 k;
+    int i, j;
+    int mask_step, mask_step2, mask_step3, mask_step4;
+    int mask_num, mask_num2, mask_num3, mask_num4;
+    uint64 *flagblock64;
+
+    // flagblock is always a multiple of 8 bytes
+    flagblock64 = (uint64 *)flagblock;
+
+    // do the smallest primes in predetermined batches.
+    // first handle the different startprime cases, going up through prime 13.
+    if (startprime == 2)
+    {
+        for (k = 0, mask_step = _64_MOD_P[0], mask_num = ddata->offsets[2],
+            mask_step2 = _64_MOD_P[1], mask_num2 = ddata->offsets[3];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= (_5_MASKS[mask_num] & _7_MASKS[mask_num2]);
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 5 + mask_num;
+            mask_num2 -= mask_step2;
+            if (mask_num2 < 0) mask_num2 = 7 + mask_num2;
+        }
+        ddata->offsets[2] = (uint32)mask_num;
+        ddata->offsets[3] = (uint32)mask_num2;
+
+        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 11 + mask_num;
+            mask_num2 -= mask_step2;
+            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+        }
+        ddata->offsets[4] = (uint32)mask_num;
+        ddata->offsets[5] = (uint32)mask_num2;
+
+    }
+    else if (startprime == 3)
+    {
+        for (k = 0, mask_step = _64_MOD_P[1], mask_num = ddata->offsets[3];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= _7_MASKS[mask_num];
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 7 + mask_num;
+        }
+        ddata->offsets[3] = (uint32)mask_num;
+
+        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 11 + mask_num;
+            mask_num2 -= mask_step2;
+            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+        }
+        ddata->offsets[4] = (uint32)mask_num;
+        ddata->offsets[5] = (uint32)mask_num2;
+
+    }
+    else if (startprime == 4)
+    {
+        for (k = 0, mask_step = _64_MOD_P[2], mask_num = ddata->offsets[4],
+            mask_step2 = _64_MOD_P[3], mask_num2 = ddata->offsets[5];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= (_11_MASKS[mask_num] & _13_MASKS[mask_num2]);
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 11 + mask_num;
+            mask_num2 -= mask_step2;
+            if (mask_num2 < 0) mask_num2 = 13 + mask_num2;
+        }
+        ddata->offsets[4] = (uint32)mask_num;
+        ddata->offsets[5] = (uint32)mask_num2;
+
+    }
+    else if (startprime == 5)
+    {
+        for (k = 0, mask_step = _64_MOD_P[3], mask_num = ddata->offsets[5];
+            k<FLAGSIZE >> 6; k++)
+        {
+            flagblock64[k] &= _13_MASKS[mask_num];
+            mask_num -= mask_step;
+            if (mask_num < 0) mask_num = 13 + mask_num;
+        }
+        ddata->offsets[5] = (uint32)mask_num;
+
+    }
+
+    // then do some more presieving, starting at prime 17.
     for (k = 0, mask_step = _64_MOD_P[4], mask_num = ddata->offsets[6],
         mask_step2 = _64_MOD_P[5], mask_num2 = ddata->offsets[7];
         k<FLAGSIZE >> 6; k++)
@@ -1573,8 +1582,6 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
     }
     ddata->offsets[8] = (uint32)mask_num;
     ddata->offsets[9] = (uint32)mask_num2;
-
-#endif
 
     return;
 }

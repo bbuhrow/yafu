@@ -1,8 +1,13 @@
 #include <stdlib.h>
 #include <malloc.h>
+//#include <omp.h>
+
+//#define USE_TPOOL_AFFINITY
 
 #ifdef USE_TPOOL_AFFINITY
+#define __USE_GNU
 #include <sched.h>
+#include <unistd.h>
 #endif
 
 #if defined(WIN32)

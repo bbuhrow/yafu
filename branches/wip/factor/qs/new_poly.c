@@ -215,14 +215,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		} while ( mpz_cmp(tmp, target_a) > 0);
 
-#ifdef POLYA_DEBUG
-		printf("A factors = %u, %u, %u, A = %" PRIu64 "\n", 
-			fb->list->prime[poly->qlisort[0]], 
-			fb->list->prime[poly->qlisort[1]], 
-			fb->list->prime[poly->qlisort[2]], 
-			poly->poly_a);
-#endif
-
 		goto done;
 
 	}
@@ -264,14 +256,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		*s = j;
-
-#ifdef POLYA_DEBUG
-			printf("A id/factors = %d:%u, %d:%u, %d:%u, A = %s\n", 
-				qli[0],fb->list->prime[qli[0]], 
-				qli[1],fb->list->prime[qli[1]], 
-				qli[2],fb->list->prime[qli[2]], 
-				z2decstr(poly_a,&gstr1));
-#endif
 
 		goto done;
 
@@ -421,7 +405,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		mpz_mul_ui(poly_a, poly_a, fb->list->prime[randindex]); 
 #ifdef POLYA_DEBUG
-		printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
+        printf("afactor %d = %u\n", *s, fb->list->prime[randindex]);
+        printf("checking for duplicates...\n");
 #endif
 		afact[*s] = fb->list->prime[randindex];
 		qli[*s] = randindex;

@@ -171,7 +171,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -266,7 +266,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined (_WIN64))
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -285,7 +285,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}	
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 
 #else
 
@@ -585,6 +585,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_PROOTS(j);
@@ -592,12 +594,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -605,12 +605,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -618,12 +616,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -631,12 +627,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1070,7 +1064,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1091,7 +1085,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 		
 
 #else
@@ -1170,7 +1164,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
 
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1189,7 +1183,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B + j];
 		
 		
 #else
@@ -1487,6 +1481,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_NROOTS(j);
@@ -1494,12 +1490,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1507,12 +1501,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1520,12 +1512,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1533,12 +1523,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;

@@ -25,7 +25,7 @@ code to the public domain.
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
 
-#ifdef TARGET_KNC
+#if defined(TARGET_KNC)
 
 #include <immintrin.h>
 

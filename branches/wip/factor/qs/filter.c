@@ -497,8 +497,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fflush(stdout);
 				sconf->last_numfull = sconf->num_relations;
 				sconf->last_numcycles = sconf->num_cycles;
-			}
-
+			}            
 		}	
 		fclose(data);
 	}

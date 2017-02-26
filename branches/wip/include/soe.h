@@ -243,8 +243,6 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 void sieve_line(thread_soedata_t *thread_data);
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
-uint32 compute_8_bytes(soe_staticdata_t *sdata, 
-	uint32 pcount, uint64 *primes, uint64 byte_offset);
 uint32 compute_32_bytes(soe_staticdata_t *sdata,
     uint32 pcount, uint64 *primes, uint64 byte_offset);
 uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_data,
@@ -283,7 +281,16 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data);
 void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int count);
 void finalize_sieve(soe_staticdata_t *sdata,
 	thread_soedata_t *thread_data, int count, uint64 *primes);
+
 void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock);
+void pre_sieve_avx2(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblock);
+void (*pre_sieve_ptr)(soe_dynamicdata_t *, soe_staticdata_t *, uint8 *);
+
+uint32 compute_8_bytes(soe_staticdata_t *sdata,
+    uint32 pcount, uint64 *primes, uint64 byte_offset);
+uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
+    uint32 pcount, uint64 *primes, uint64 byte_offset);
+uint32 (*compute_8_bytes_ptr)(soe_staticdata_t *, uint32, uint64 *, uint64);
 
 // misc
 void primesum(uint64 lower, uint64 upper);
