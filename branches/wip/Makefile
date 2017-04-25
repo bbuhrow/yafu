@@ -48,7 +48,13 @@ endif
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-  #-march=core-avx2 -m64
+  
+ifeq ($(COMPILER),icc)
+  CFLAGS += -march=core-avx2
+else
+  CFLAGS += -mavx2 
+endif
+  # -m64
   #-march=core-avx2
 endif
 
