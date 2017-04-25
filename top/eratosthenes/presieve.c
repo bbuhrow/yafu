@@ -1,5 +1,5 @@
 #include "soe.h"
-#include <immintrin.h>
+#include <immintrin.h> //<immintrin.h>
 
 //masks for sieving multiple locations at once: small primes
 //that hit a 64 bit interval more than once.  

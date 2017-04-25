@@ -28,6 +28,21 @@ const uint64 nmasks64[8][8] = {
     { 64ULL, 16384ULL, 4194304ULL, 1073741824ULL, 274877906944ULL, 70368744177664ULL, 18014398509481984ULL, 4611686018427387904ULL },
     { 128ULL, 32768ULL, 8388608ULL, 2147483648ULL, 549755813888ULL, 140737488355328ULL, 36028797018963968ULL, 9223372036854775808ULL } };
 
+#ifdef USE_AVX2
+#ifdef __INTEL_COMPILER
+#define _trail_zcnt _tzcnt_u32
+#define _reset_lsb(x) _blsr_u32(x)
+#else
+#define _trail_zcnt __builtin_ctz
+    
+__inline uint32_t _reset_lsb(x) { \
+    __asm__ volatile ( \
+    "blsr %0, %0 \n\t" \
+    : "=r"(x) \
+    : "0"(x) );
+        return x; };
+#endif
+#endif
 
 void compute_primes_dispatch(void *vptr)
 {
@@ -67,7 +82,7 @@ void compute_primes_work_fcn(void *vptr)
 #ifdef __INTEL_COMPILER
     if (_may_i_use_cpu_feature(_FEATURE_AVX2))
 #else
-    if (__builtin_cpu_supports("avx2");
+    if (__builtin_cpu_supports("avx2"))
 #endif
     {
         if ((sdata->numclasses == 2) && (sdata->lowlimit == 0))
@@ -718,7 +733,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
             bmask = bmask & 0x88888888;
             bmask2 = bmask2 & 0x88888888;
 
-            while ((id = _tzcnt_u32(bmask)) < 32)
+            while ((id = _trail_zcnt(bmask)) < 32)
             {
                 prime = tmpstore[id / 4];
 
@@ -730,13 +745,13 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
                     primes[GLOBAL_OFFSET + pcount++] = prime;
                 }
 
-                bmask = _blsr_u32(bmask);
+                bmask = _reset_lsb(bmask);
             }
 
             // one vector store.  (extracting directly from the vector is not profitable...)
             _mm256_store_si256((__m256i *)tmpstore, vtmp4);
 
-            while ((id = _tzcnt_u32(bmask2)) < 32)
+            while ((id = _trail_zcnt(bmask2)) < 32)
             {
                 prime = tmpstore[id / 4];
 
@@ -749,7 +764,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
                     pcount2++;
                 }
 
-                bmask2 = _blsr_u32(bmask2);
+                bmask2 = _reset_lsb(bmask2);
             }
         }
 
@@ -919,7 +934,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
         // them to the output array.
         bmask = bmask & 0x88888888;
 
-        while ((id = _tzcnt_u32(bmask)) < 32)
+        while ((id = _trail_zcnt(bmask)) < 32)
         {
             prime = tmpstore[id / 4];
 
@@ -931,7 +946,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
                 primes[GLOBAL_OFFSET + pcount++] = prime;
             }
 
-            bmask = _blsr_u32(bmask);
+            bmask = _reset_lsb(bmask);
         }
     }
 
@@ -985,7 +1000,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
         // them to the output array.
         bmask = bmask & 0x88888888;
 
-        while ((id = _tzcnt_u32(bmask)) < 32)
+        while ((id = _trail_zcnt(bmask)) < 32)
         {
             prime = tmpstore[id / 4];
 
@@ -997,7 +1012,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
                 primes[GLOBAL_OFFSET + pcount++] = prime;
             }
 
-            bmask = _blsr_u32(bmask);
+            bmask = _reset_lsb(bmask);
         }
 
     }
@@ -1163,7 +1178,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
             bmask = bmask & 0x88888888;
             bmask2 = bmask2 & 0x88888888;
 
-            while ((id = _tzcnt_u32(bmask)) < 32)
+            while ((id = _trail_zcnt(bmask)) < 32)
             {
                 prime = tmpstore[id / 4];
 
@@ -1175,13 +1190,13 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
                     primes[GLOBAL_OFFSET + pcount++] = prime;
                 }
 
-                bmask = _blsr_u32(bmask);
+                bmask = _reset_lsb(bmask);
             }
 
             // one vector store.  (extracting directly from the vector is not profitable...)
             _mm256_store_si256((__m256i *)tmpstore, vtmp4);
 
-            while ((id = _tzcnt_u32(bmask2)) < 32)
+            while ((id = _trail_zcnt(bmask2)) < 32)
             {
                 prime = tmpstore[id / 4];
 
@@ -1194,7 +1209,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
                     pcount2++;
                 }
 
-                bmask2 = _blsr_u32(bmask2);
+                bmask2 = _reset_lsb(bmask2);
             }
         }
 
@@ -1307,7 +1322,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
         // them to the output array.
         bmask = bmask & 0x88888888;
 
-        while ((id = _tzcnt_u32(bmask)) < 32)
+        while ((id = _trail_zcnt(bmask)) < 32)
         {
             prime = tmpstore[id / 4];
 
@@ -1319,7 +1334,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
                 primes[GLOBAL_OFFSET + pcount++] = prime;
             }
 
-            bmask = _blsr_u32(bmask);
+            bmask = _reset_lsb(bmask);
         }
     }
 
@@ -1373,7 +1388,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
         // them to the output array.
         bmask = bmask & 0x88888888;
 
-        while ((id = _tzcnt_u32(bmask)) < 32)
+        while ((id = _trail_zcnt(bmask)) < 32)
         {
             prime = tmpstore[id / 4];
 
@@ -1385,7 +1400,7 @@ uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
                 primes[GLOBAL_OFFSET + pcount++] = prime;
             }
 
-            bmask = _blsr_u32(bmask);
+            bmask = _reset_lsb(bmask);
         }
 
     }

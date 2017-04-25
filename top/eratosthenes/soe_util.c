@@ -457,7 +457,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 #ifdef __INTEL_COMPILER
     if (_may_i_use_cpu_feature(_FEATURE_AVX2))
 #else
-    if (__builtin_cpu_supports("avx2");
+    if (__builtin_cpu_supports("avx2"))
 #endif
     {
         pre_sieve_ptr = &pre_sieve_avx2;
