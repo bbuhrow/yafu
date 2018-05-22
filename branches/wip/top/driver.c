@@ -32,7 +32,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 73
+#define NUMOPTIONS 74
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -52,7 +52,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
-	"ecmtime", "no_clk_test", "siqsTFSm"};
+	"ecmtime", "no_clk_test", "siqsTFSm", "script"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -73,7 +73,7 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,1,1,
 	1,1,1,1,1,
 	1,0,0,1,1,
-	1,0,1};
+	1,0,1,1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -115,6 +115,7 @@ int main(int argc, char *argv[])
     
 	int slog,is_cmdline_run=0;
 	FILE *logfile;
+    FILE *scriptfile = NULL;
 	fact_obj_t *fobj;
     int i;
 
@@ -189,6 +190,13 @@ int main(int argc, char *argv[])
 		is_cmdline_run = 1;		
 	}
 
+    if (strlen(scriptname) > 0)
+    {
+        scriptfile = fopen(scriptname, "r");
+        if (scriptfile != NULL)
+            is_cmdline_run = 1;
+    }
+
 	if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))	
 		strcpy(indup,input_exp);	//remember the input expression
 
@@ -238,7 +246,6 @@ int main(int argc, char *argv[])
     LCGSTATE = g_rand.low;
 #endif	
 
-
 	// command line
 	while (1)
 	{		
@@ -257,6 +264,14 @@ int main(int argc, char *argv[])
 			else if (code == 2)
 				continue;
 		}
+        else if (strlen(scriptname) > 0)
+        {
+            if (scriptfile != NULL)
+            {
+                if (fgets(input_exp, GSTR_MAXSIZE, scriptfile) == NULL)
+                    break;
+            }
+        }
 		else if (!is_cmdline_run)
 		{
 #if defined(__unix__)
@@ -319,6 +334,11 @@ int main(int argc, char *argv[])
 				// we just finished removed.
 				finalize_batchline();
 			}
+            else if (scriptfile != NULL)
+            {
+                if (feof(scriptfile))
+                    break;
+            }
 			else if (CMD_LINE_REPEAT > 0)
 			{
 				CMD_LINE_REPEAT--;
@@ -327,10 +347,17 @@ int main(int argc, char *argv[])
 			else
 				break;
 		}
-		else
-			printf(">> ");
+        else
+        {
+            printf(">> ");
+        }
 
 	}
+
+    if (scriptfile != NULL)
+    {
+        fclose(scriptfile);
+    }
 
 	if (slog)
 		fclose(logfile);
@@ -1156,6 +1183,7 @@ void set_default_globals(void)
 	CMD_LINE_REPEAT = 0;
 
 	strcpy(sessionname,"session.log");	
+    strcpy(scriptname, "");
 
 	// initial limit of cache of primes.
 	szSOEp = 1000000;	
@@ -2294,6 +2322,11 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
         //argument "siqsTFSm"
         fobj->qs_obj.gbl_override_small_cutoff = atoi(arg);
         fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[73]) == 0)
+    {
+        //argument "script"
+        sscanf(arg, "%s", scriptname);
     }
 	else
 	{

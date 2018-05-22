@@ -2526,7 +2526,7 @@ void factor(fact_obj_t *fobj)
 			add_to_factor_list(fobj,b);
 		}
 	}
-
+    
 	mpz_set(fobj->N, b);
 
 	gettimeofday (&stop, NULL);
