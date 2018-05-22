@@ -42,6 +42,7 @@ char choperands[5][80];
 mpz_t operands[5];
 int for_cnt = 0;
 int forp_cnt = 0;
+int forf_cnt = 0;
 int if_cnt = 0;
 
 void calc_with_assignment(str_t *in, fact_obj_t *fobj, int force_quiet);
@@ -49,6 +50,7 @@ void calc_with_assignment(str_t *in, fact_obj_t *fobj, int force_quiet);
 void reset_preprocessor(void) {
     for_cnt = 0;
     forp_cnt = 0;
+    forf_cnt = 0;
     if_cnt = 0;
     return;
 }
@@ -304,6 +306,32 @@ int preprocess(str_t *in)
             new_strvar(vname, str);
 
         sprintf(in->s, "forprime(%s_start, %s_stop, %s_body);", pre, pre, pre);
+    }
+
+    if ((ptr = strstr(in->s, "forfactors(")) != NULL)
+    {
+        // new for loop
+        char pre[8], vname[20];
+        sprintf(pre, "forf%d", forf_cnt++);
+
+        // tokenize the loop
+        ptr = strtok(&in->s[11], ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted forfactors loop: forfactors(init, body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_init", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+        ptr = strtok(NULL, "\0");
+        strncpy(str, ptr, strlen(ptr) - 1);
+        str[strlen(ptr) - 1] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, str))
+            new_strvar(vname, str);
+
+        sprintf(in->s, "forfactors(%s_init, %s_body);", pre, pre);
     }
 
     if ((ptr = strstr(in->s, "if(")) != NULL)
@@ -1351,7 +1379,7 @@ int getFunc(char *s, int *nargs)
 						"xor", "and", "or", "not", "frange",
 						"bpsw","aprcl","lte", "gte", "<", 
 						">","dummy","if","print", "for",
-                        "forprime", "dummy", "dummy", "dummy", "dummy",
+                        "forprime", "exit", "forfactors", "dummy", "dummy",
                         "dummy", "dummy", "dummy", "dummy", "dummy",
                         "dummy", "dummy", "dummy", "dummy", "dummy",
                         "dummy", "dummy", "dummy", "dummy", "dummy",
@@ -1372,7 +1400,7 @@ int getFunc(char *s, int *nargs)
 					2,2,2,1,2,
 					1,1,2,2,2,
 					2,2,3,1,4,
-                    3,-1,-1,-1,-1,
+                    3,0,2,-1,-1,
                     -1, -1, -1, -1, -1,
                     -1, -1, -1, -1, -1,
                     -1, -1, -1, -1, -1,
@@ -1536,7 +1564,27 @@ int feval(int func, int nargs, fact_obj_t *fobj)
 		mpz_set(fobj->N, operands[0]);
 		factor(fobj);
 		mpz_set(operands[0], fobj->N);
-		print_factors(fobj);
+        print_factors(fobj);
+
+        {
+            char vname[20];
+            for (i = 0; i < fobj->num_factors; i++)
+            {
+
+                sprintf(vname, "_f%d", i);
+                if (set_uvar(vname, fobj->fobj_factors[i].factor))
+                    new_uvar(vname, fobj->fobj_factors[i].factor);
+                sprintf(vname, "_fpow%d", i);
+                mpz_set_ui(operands[4], fobj->fobj_factors[i].count);
+                if (set_uvar(vname, operands[4]))
+                    new_uvar(vname, operands[4]);
+            }
+            sprintf(vname, "_fnum");
+            mpz_set_ui(operands[4], fobj->num_factors);
+            if (set_uvar(vname, operands[4]))
+                new_uvar(vname, operands[4]);
+        }
+
 		break;
 	case 8:
 		//rand - one argument
@@ -3428,8 +3476,10 @@ int feval(int func, int nargs, fact_obj_t *fobj)
         break;
     case 73:
         // print
-        // todo: honor the current OBASE setting
-        gmp_printf("%Zd\n", operands[0]);
+        if (OBASE == DEC)
+            gmp_printf("%Zd\n", operands[0]);
+        else if (OBASE == HEX)
+            gmp_printf("%Zx\n", operands[0]);
 
         break;
 
@@ -3464,24 +3514,17 @@ int feval(int func, int nargs, fact_obj_t *fobj)
                 nooutput = 0;
 
             // execute init expression
-            //toStr(init, &str);
             process_expression(init, fobj, 1);
 
             while (1)
             {
                 // execute body expression.
-                //toStr(body, &str);
-                //calc_with_assignment(&str, fobj, nooutput);
                 process_expression(body, fobj, nooutput);
 
                 // execute iter expression.
-                //toStr(iter, &str);
-                //calc_with_assignment(&str, fobj, 1);
                 process_expression(iter, fobj, 1);
 
                 // execute test expression.
-                //toStr(test, &str);
-                //calc_with_assignment(&str, fobj, 1);
                 process_expression(test, fobj, 1);
                 get_uvar("ans", operands[4]);
                 if (mpz_get_ui(operands[4]) == 0)
@@ -3565,6 +3608,64 @@ int feval(int func, int nargs, fact_obj_t *fobj)
         }
 
         break;
+
+    case 76:
+        // exit
+        exit(0);
+        break;
+
+    case 77:
+        // forfactors
+        if (nargs != 2)
+        {
+            printf("wrong number of arguments in forfactors loop\n");
+            break;
+        }
+
+        {
+            char body[80], init[80], name[80], *ptr;
+            int numf;
+            int nooutput;
+
+            get_strvar(choperands[0], init);
+            get_strvar(choperands[1], body);
+
+            if (CALC_VERBOSE)
+                fprintf(stderr, "Processing forfactors loop with init: %s, body: %s\n",
+                init, body);
+            
+            // look for a trailing semicolon
+            if (body[strlen(body) - 1] == ';')
+            {
+                nooutput = 1;
+                body[strlen(body) - 1] = '\0';
+            }
+            else
+                nooutput = 0;
+
+            // execute init expression
+            process_expression(init, fobj, 1);
+
+            get_uvar("_fnum", operands[4]);
+            numf = mpz_get_ui(operands[4]);
+            for (i = 0; i < numf; i++)
+            {
+                sprintf(name, "_f%d", i);
+                get_uvar(name, operands[4]);
+                if (set_uvar("_f", operands[4]))
+                    new_uvar("_f", operands[4]);
+
+                sprintf(name, "_fpow%d", i);
+                get_uvar(name, operands[4]);
+                if (set_uvar("_fpow", operands[4]))
+                    new_uvar("_fpow", operands[4]);
+
+                process_expression(body, fobj, nooutput);
+            }
+        }
+
+        break;
+
 	default:
 		printf("unrecognized function code\n");
 		mpz_set_ui(operands[0], 0);
