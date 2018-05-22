@@ -585,6 +585,8 @@ void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
 uint32 test_qn_res[128];
 
+uint64 spbrent(uint64 N, uint64 c, int imax);
+int mbrent(fact_obj_t *fobj);
 void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);

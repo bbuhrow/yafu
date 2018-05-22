@@ -51,7 +51,10 @@ code to the public domain.
 #endif
 
 //|| defined(TARGET_KNC)
-#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
+//#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
+#if (defined(TARGET_KNL) && defined(__INTEL_COMPILER))
+// this is the only path that will make use of AVX512 (via auto-vec)
+// for others, it is faster and easier to use the new superfast spBrent.
 #define USE_VEC_SQUFOF
 #endif
 
@@ -555,7 +558,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
                          static_conf_t *sconf, dynamic_conf_t *dconf);
-void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
+void tdiv_medprimes_32k_knl(uint32 *reports, uint32 num_reports, 
+                         uint8 parity, uint32 poly_id, uint32 bnum,
                          static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
@@ -567,6 +571,9 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_32k_knl(uint32 *reports, uint32 num_reports, 
+                         uint8 parity, uint32 poly_id, uint32 bnum,
                          static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);

@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
     tcgetattr(0, &oldtio);
     newtio = oldtio;
     newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK);
-    tcsetattr(0, TCSANOW, &newtio);
+    //tcsetattr(0, TCSANOW, &newtio);
 
     CMDHIST = (char **)malloc(CMDHIST_SIZE * sizeof(char *));
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -238,12 +238,13 @@ int main(int argc, char *argv[])
     LCGSTATE = g_rand.low;
 #endif	
 
+
 	// command line
 	while (1)
 	{		
 		reset_factobj(fobj);		
 
-		//handle a batch file, if passed in.
+		// handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
 			int code;
@@ -258,7 +259,13 @@ int main(int argc, char *argv[])
 		}
 		else if (!is_cmdline_run)
 		{
+#if defined(__unix__)
+            tcsetattr(0, TCSANOW, &newtio);
+#endif
             input_exp = get_input(input_exp, &insize);
+#if defined(__unix__)
+            tcsetattr(0, TCSANOW, &oldtio);
+#endif
 		}
 		else
 		{
@@ -274,7 +281,8 @@ int main(int argc, char *argv[])
 			break;
 		else
 		{
-			process_expression(input_exp, fobj);
+            reset_preprocessor();
+			process_expression(input_exp, fobj, 0);
 		}
 
 #if defined(WIN32)
@@ -341,7 +349,7 @@ int main(int argc, char *argv[])
     }
     free(CMDHIST);
 
-    tcsetattr(0, TCSANOW, &oldtio);
+    //tcsetattr(0, TCSANOW, &oldtio);
 #endif
 
 	return 0;
@@ -361,17 +369,17 @@ char * get_input(char *input_exp, uint32 *insize)
     {
         if (input_exp[strlen(input_exp) - 1] == 13 || input_exp[strlen(input_exp) - 1] == 10)
         {
-            //replace with a null char and continue
+            // replace with a null char and continue
             printf("\n");
             fflush(stdout);
-            input_exp[strlen(*input_exp) - 1] = '\0';
+            input_exp[strlen(input_exp) - 1] = '\0';
             break;
         }
         else
         {
-            //last char is not a carriage return means
-            //the input is longer than allocated.
-            //reallocate and get another chunk
+            // last char is not a carriage return means
+            // the input is longer than allocated.
+            // reallocate and get another chunk
             *insize += GSTR_MAXSIZE;
             input_exp = (char *)realloc(input_exp, *insize * sizeof(char));
             if (input_exp == NULL)
@@ -722,7 +730,16 @@ int invalid_dest(char *dest)
 		return 0;}
 
 	//check starting char not lower case letter or _ or `
-	if (dest[0] < 95 || dest[0] > 122) return 1;
+	if ((dest[0] < 95) || (dest[0] > 122) || (dest[0] == 96)) return 1;
+
+    // check that dest string doesn't contain any invalid characters.
+    // we allow non-leading characters to be a-z,A-Z,0-9,_
+    for (i = 1; i < strlen(dest); i++)
+        if ((dest[i] < 48) || (dest[i] > 122) ||
+            ((dest[i] > 90) && (dest[i] < 95)) ||
+            ((dest[i] > 57) && (dest[i] < 65)) ||
+            (dest[i] == 96))
+            return 1;
 
 	return 0;
 }
@@ -868,9 +885,10 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 
     // but it is more complicated, and broken, if running in a MSYS2 fake console:
     // from https://github.com/nodejs/node/issues/3006
-    // When running node in a fake console, it's useful to imagine that you're running it with input and output 
-    // redirected to files(e.g.node foobar.js <infile.txt >outfile.txt).That's basically what node thinks is 
-    // going on (a pipe and a file look more-or-less the same to node). Things that would work with file redirections 
+    // When running node in a fake console, it's useful to imagine that you're running it 
+    // with input and output redirected to files(e.g.node foobar.js <infile.txt >outfile.txt).
+    // That's basically what node thinks is going on (a pipe and a file look more-or-less 
+    // the same to node). Things that would work with file redirections 
     // will work in the fake console.
     //
     // not sure how to sort it out in the case of msys2.  recommended running in normal
@@ -2193,7 +2211,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[60]) == 0)
 	{
-		// argument "ecm_ext"
+		// argument "ext_ecm"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{

@@ -379,12 +379,10 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 			if ((iM2 += s) >= M2) iM2 -= M2;
 			if ((iM += s) >= M) iM -= M;
 
-			// some multpliers can lead to infinite loops.  bail out 
-			// if so.
+			// some multpliers can lead to infinite loops.  bail out if so.
 			if (++i64 > M) goto done;
 
-			// continue if either of the other residues indicates
-			// non-square.
+			// continue if either of the other residues indicates non-square.
 		} while (!getbit(mod1,iM1) || !getbit(mod2,iM2));
 
 		// form b^2 by incrementing by many factors of 2*a+1

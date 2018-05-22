@@ -19,6 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #include "yafu.h"
+#include <sys/types.h>
 
 #define LIMB_BLKSZ 10	
 #define MAX_DIGITS 100
@@ -32,6 +33,33 @@ code to the public domain.
 #define UNKNOWN 3
 
 #define fp_clamp(a)   { while ((a)->size && (a)->val[(a)->size-1] == 0) --((a)->size);}
+
+#ifdef USE_AVX2
+#ifdef __INTEL_COMPILER
+#define _trail_zcnt _tzcnt_u32
+#define _trail_zcnt64 _tzcnt_u64
+#define _reset_lsb(x) _blsr_u32(x)
+#define _reset_lsb64(x) _blsr_u64(x)
+#else
+#define _trail_zcnt __builtin_ctzl
+#define _trail_zcnt64 __builtin_ctzll
+#define _reset_lsb(x) _blsr_u32(x)
+#define _reset_lsb64(x) _blsr_u64(x)
+#endif
+#else
+#ifdef __GNUC__
+#define _trail_zcnt __builtin_ctzl
+#define _trail_zcnt64 __builtin_ctzll
+__inline uint32_t _reset_lsb(x) ((x) &= ((x)-1))
+#else
+#define _trail_zcnt _tzcnt_u32
+#define _trail_zcnt64 _tzcnt_u64
+#define _reset_lsb(x) _blsr_u32(x)
+//((x) &= ((x) - 1))
+#define _reset_lsb64(x) _blsr_u64(x)
+//((x) &= ((x) - 1))
+#endif
+#endif
 
 uint32 mp_modadd_1(uint32 a, uint32 b, uint32 p);
 uint32 mp_modsub_1(uint32 a, uint32 b, uint32 p);
@@ -116,6 +144,7 @@ fp_digit spGCD(fp_digit x, fp_digit y);
 uint64 spBinGCD(uint64 x, uint64 y);
 uint64 spBinGCD_odd(uint64 u, uint64 v);
 uint64 gcd64(uint64 x, uint64 y);
+uint64 bingcd64(uint64 x, uint64 y);
 void xGCD(z *a, z *b, z *x, z *y, z *g);
 void dblGCD(double x, double y, double *w);
 int dblFactorA(double *n, long p[], uint32 limit);

@@ -117,8 +117,8 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 
 #endif
 
-	//potentially misses the last few bytes
-	//use the simpler baseline method to get these few
+	// potentially misses the last few bytes
+	// use the simpler baseline method to get these few
 	flagblock = line;
 	for (k=0; k<(numlinebytes & 7);k++)
 	{
@@ -132,12 +132,12 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 		it += (flagblock[(i<<3)+k] & nmasks[7]);
 	}
 
-	//eliminate the primes flaged that are above or below the
-	//actual requested limits. as both of these can change to 
-	//facilitate sieving we'll need to compute them, and
-	//decrement the counter if so.
-	//this is a scarily nested loop, but it only should iterate
-	//a few times.
+	// eliminate the primes flaged that are above or below the
+	// actual requested limits. as both of these can change to 
+	// facilitate sieving we'll need to compute them, and
+	// decrement the counter if so.
+	// this is a scarily nested loop, but it only should iterate
+	// a few times.
 	done = 0;
 	for (ix=(int)numlinebytes-1;ix>=0 && !done;ix--)
 	{

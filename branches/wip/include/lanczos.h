@@ -109,7 +109,7 @@ typedef struct {
 
 } qs_msieve_thread_data_t;
 
-#define QS_MAX_THREADS 32
+#define QS_MAX_THREADS 64
 #define QS_MIN_NCOLS_TO_THREAD 200000
 
 /* struct representing a packed matrix */

@@ -273,9 +273,6 @@ void sCopy(str_t *dest, str_t *src)
 {
 	if (dest->alloc < src->nchars + 2)
 	{
-		//free(dest->s);
-		//dest->s = (char *)malloc((src->nchars+2) * sizeof(char));
-		//printf("growing str in sCopy...\n");
 		dest->s = (char *)realloc(dest->s, (src->nchars+2) * sizeof(char));
 		dest->alloc = src->nchars+2;
 	}
@@ -707,8 +704,18 @@ void generate_pseudoprime_list(int num, int bits)
 	for (i=0; i<num; i++)
 	{
 		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+        mpz_setbit(tmp3, bits/2-1);
 		zNextPrime(tmp3,tmp1,1);
-		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+        if (bits & 1)
+        {
+            mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
+            mpz_setbit(tmp3, bits/2);
+        }
+        else
+        {
+            mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+            mpz_setbit(tmp3, bits/2-1);
+        }
 		zNextPrime(tmp3,tmp2,1);
 		mpz_mul(tmp3,tmp2,tmp1);
 		gmp_fprintf(out,"%Zd,%Zd,%Zd\n",

@@ -23,8 +23,7 @@ code to the public domain.
 #include "util.h"
 #include "yafu_ecm.h"
 #include "gmp_xface.h"
-
-int mbrent(fact_obj_t *fobj);
+#include "monty.h"
 
 void brent_loop(fact_obj_t *fobj)
 {
@@ -173,7 +172,7 @@ int mbrent(fact_obj_t *fobj)
 
 	//starting state of algorithm.  
 	r = 1;
-	m = 10;
+	m = 256;
 	i = 0;
 	it = 0;
 
@@ -188,7 +187,7 @@ int mbrent(fact_obj_t *fobj)
 		{
 			mpz_mul(t1,y,y);		//y = (y*y + c) mod n
             mpz_add_ui(t1, t1, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
-			mpz_tdiv_r(t1, t1, fobj->rho_obj.gmp_n);			
+			mpz_tdiv_r(y, t1, fobj->rho_obj.gmp_n);			
 		}
 
 		k=0;
@@ -216,8 +215,7 @@ int mbrent(fact_obj_t *fobj)
 				mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 				goto free;
 			}
-			if (mpz_sgn(g) < 0)
-				mpz_neg(g, g); 
+
 		} while (k<r && (mpz_get_ui(g) == 1));
 		r*=2;
 	} while (mpz_get_ui(g) == 1);
@@ -225,7 +223,6 @@ int mbrent(fact_obj_t *fobj)
 	if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
 	{
 		//back track
-		it=0;
 		do
 		{
 			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
@@ -236,16 +233,9 @@ int mbrent(fact_obj_t *fobj)
 			if (mpz_sgn(t1) < 0)
 				mpz_add(t1, t1, fobj->rho_obj.gmp_n);
 			mpz_gcd(g, t1, fobj->rho_obj.gmp_n);
-			it++;
-			if (it>imax)
-			{
-				mpz_set_ui(fobj->rho_obj.gmp_f, 0);
-				goto free;
-			}
-			if (mpz_sgn(g) < 0)
-				mpz_neg(g, g); 
 		} while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
-		if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
+
+        if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
 		{
 			mpz_set_ui(fobj->rho_obj.gmp_f, 0);
 			goto free;
@@ -261,6 +251,7 @@ int mbrent(fact_obj_t *fobj)
 		mpz_set(fobj->rho_obj.gmp_f, g);
 		goto free;
 	}
+    
 
 free:
 	if (VFLAG >= 0)
@@ -275,3 +266,225 @@ free:
 	
 	return it;
 }
+
+int montybrent(fact_obj_t *fobj)
+{
+    /*
+    run pollard's rho algorithm on n with Brent's modification,
+    returning the first factor found in f, or else 0 for failure.
+    use f(x) = x^2 + c
+    see, for example, bressoud's book.
+    */
+
+    mpz_t c, x, y, q, g, ys, t1;
+    monty_t *mdata;
+
+    uint32 i = 0, k, r, m;
+    int it;
+    int imax = fobj->rho_obj.iterations;
+
+    //initialize local arbs
+    mpz_init(x);
+    mpz_init(y);
+    mpz_init(q);
+    mpz_init(g);
+    mpz_init(ys);
+    mpz_init(t1);
+    mpz_init(c);
+
+    //starting state of algorithm.  
+    r = 1;
+    m = 256;
+    i = 0;
+    it = 0;
+
+    mpz_set_ui(q, 1);
+    mpz_set_ui(y, 0);
+    mpz_set_ui(g, 1);
+    mpz_set_ui(c, fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly]);
+
+    mdata = monty_init(fobj->rho_obj.gmp_n);
+    to_monty(mdata, c);
+
+    do
+    {
+        mpz_set(x, y);
+        for (i = 0; i <= r; i++)
+        {
+            monty_mul(mdata, y, y, y);
+            monty_add(mdata, y, c, y);
+        }
+
+        k = 0;
+        do
+        {
+            mpz_set(ys, y);
+            for (i = 1; i <= MIN(m, r - k); i++)
+            {
+                monty_mul(mdata, y, y, y);
+                monty_add(mdata, y, c, y);
+                monty_sub(mdata, y, x, t1);
+                monty_mul(mdata, t1, q, q);
+            }
+            mpz_gcd(g, q, mdata->n);
+            k += m;
+            it++;
+
+            if (it>imax)
+            {
+                mpz_set_ui(fobj->rho_obj.gmp_f, 0);
+                goto free;
+            }
+
+        } while (k<r && (mpz_get_ui(g) == 1));
+        r *= 2;
+    } while (mpz_get_ui(g) == 1);
+
+    if (mpz_cmp(g, fobj->rho_obj.gmp_n) == 0)
+    {
+        //back track
+        do
+        {
+            monty_mul(mdata, ys, ys, ys);
+            monty_add(mdata, ys, c, ys);
+            monty_sub(mdata, ys, x, t1);
+            mpz_gcd(g, t1, mdata->n);
+        } while ((mpz_size(g) == 1) && (mpz_get_ui(g) == 1));
+
+        if (mpz_cmp(g, fobj->rho_obj.gmp_n) == 0)
+        {
+            mpz_set_ui(fobj->rho_obj.gmp_f, 0);
+            goto free;
+        }
+        else
+        {
+            mpz_set(fobj->rho_obj.gmp_f, g);
+            goto free;
+        }
+    }
+    else
+    {
+        mpz_set(fobj->rho_obj.gmp_f, g);
+        goto free;
+    }
+
+free:
+    if (VFLAG >= 0)
+    	printf("\n");
+
+    monty_free(mdata);
+    free(mdata);
+    mpz_clear(x);
+    mpz_clear(y);
+    mpz_clear(q);
+    mpz_clear(g);
+    mpz_clear(ys);
+    mpz_clear(t1);
+    mpz_clear(c);
+
+    return it;
+}
+
+
+uint64 spbrent(uint64 N, uint64 c, int imax)
+{
+    /*
+    run pollard's rho algorithm on n with Brent's modification,
+    returning the first factor found in f, or else 0 for failure.
+    use f(x) = x^2 + c
+    see, for example, bressoud's book.
+    */
+    uint64 x, y, q, g, ys, t1, f, nhat;
+    uint32 i = 0, k, r, m;
+    int it;
+
+    // start out checking gcd fairly often
+    r = 1;
+
+    // under 48 bits, don't defer gcd quite as long
+    i = _trail_zcnt64(N);
+    if (i > 20)
+        m = 32;
+    else if (i > 16)
+        m = 160;
+    else if (i > 3)
+        m = 256;
+    else
+        m = 384;
+
+    it = 0;
+    q = 1;
+    g = 1;
+
+    x = (((N + 2) & 4) << 1) + N; // here x*a==1 mod 2**4
+    x *= 2 - N * x;               // here x*a==1 mod 2**8
+    x *= 2 - N * x;               // here x*a==1 mod 2**16
+    x *= 2 - N * x;               // here x*a==1 mod 2**32         
+    x *= 2 - N * x;               // here x*a==1 mod 2**64
+    nhat = (uint64)0 - x;
+
+    // Montgomery representation of c
+    c = u64div(c, N);
+    y = c;
+
+    do
+    {
+        x = y;
+        for (i = 0; i <= r; i++)
+        {
+            y = mulredc63(y, y + c, N, nhat);
+        }
+
+        k = 0;
+        do
+        {
+            ys = y;
+            for (i = 1; i <= MIN(m, r - k); i++)
+            {
+                y = mulredc63(y, y + c, N, nhat);
+                t1 = x > y ? y - x + N : y - x;
+                q = mulredc63(q, t1, N, nhat);
+            }
+
+            g = bingcd64(N, q);
+            k += m;
+            it++;
+
+            if (it>imax)
+            {
+                f = 0;
+                goto done;
+            }
+
+        } while ((k<r) && (g == 1));
+        r *= 2;
+    } while (g == 1);
+
+    if (g == N)
+    {
+        //back track
+        do
+        {
+            ys = mulredc63(ys, ys + c, N, nhat);
+            t1 = x > ys ? ys - x + N : ys - x;
+            g = bingcd64(N, t1);
+        } while (g == 1);
+
+        if (g == N)
+        {
+            f = 0;
+        }
+        else
+        {
+            f = g;
+        }
+    }
+    else
+    {
+        f = g;
+    }
+
+done:
+    return f;
+}
+

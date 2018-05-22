@@ -215,9 +215,6 @@
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
@@ -271,6 +268,12 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\monty.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c">
+      <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -357,6 +360,12 @@
     </ClInclude>
     <ClInclude Include="..\..\top\threadpool.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\monty.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\cofactorize.h">
+      <Filter>Source Files\factoring\qs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

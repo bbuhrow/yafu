@@ -90,10 +90,23 @@ typedef struct
 
 typedef struct
 {
+    char name[40];
+    char *data;
+} strvar_t;
+
+typedef struct
+{
 	uvar_t *vars;
 	int num;
 	int alloc;
 } uvars_t;
+
+typedef struct
+{
+    strvar_t *vars;
+    int num;
+    int alloc;
+} strvars_t;
 
 typedef struct
 {

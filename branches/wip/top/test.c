@@ -23,6 +23,7 @@ code to the public domain.
 #include "util.h"
 #include "qs.h"
 #include "factor.h"
+#include <ecm.h>
 
 double spAcc(int m);
 double sqr_acc(int m, int sz);
@@ -319,7 +320,7 @@ void test_dlp_composites_par()
     struct timeval gstop;
     int nf;
     int num_files;
-    char filenames[6][80];
+    char filenames[15][80];
 
     mpz_init(gmptmp);
     comp = (uint64 *)malloc(2000000 * sizeof(uint64));
@@ -332,13 +333,20 @@ void test_dlp_composites_par()
     zInit(&t1);
     zInit(&t3);
 
-    strcpy(filenames[0], "pseudoprimes_37bit.dat");
-    strcpy(filenames[1], "pseudoprimes_41bit.dat");
-    strcpy(filenames[2], "pseudoprimes_48bit.dat");
-    strcpy(filenames[3], "pseudoprimes_51bit.dat");
-    strcpy(filenames[4], "pseudoprimes_55bit.dat");
-    strcpy(filenames[5], "pseudoprimes_59bit.dat");
-    num_files = 6;
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_37bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_41bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_51bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_59bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_61bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_62bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
+    num_files = 11;
 
     for (nf = 0; nf < num_files; nf++)
     {
@@ -363,7 +371,7 @@ void test_dlp_composites_par()
             i++;
         }
         num = i;
-        num = 10000;
+        num = 100000;
         fclose(in);
         stop = clock();
         t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
@@ -376,6 +384,12 @@ void test_dlp_composites_par()
 
         num_successes = par_shanks_loop(comp, f, num);
 
+        gettimeofday(&gstop, NULL);
+        t_time = my_difftime(&gstart, &gstop);
+
+        printf("par_squfof reported %d successes\n", num_successes);
+        printf("average squfof time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+
         correct = 0;
         for (i = 0; i < num; i++)
         {
@@ -383,15 +397,28 @@ void test_dlp_composites_par()
             {
                 correct++;
             }
+            else
+            {
+                int j;
+                for (j = 0; j < 3; j++)
+                {
+                    f[i] = spbrent(comp[i], j + 1, 8192);
+                    if ((f[i] == f1[i]) || (f[i] == f2[i]))
+                    {
+                        correct++;
+                        break;
+                    }
+                }
+            }
         }
-
+        
         gettimeofday(&gstop, NULL);
         t_time = my_difftime(&gstart, &gstop);
 
-        printf("par_squfof reported %d successes\n", num_successes);
-        printf("par_squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
-        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("overall got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("squfof percent correct = %.2f\n", 100.0*(double)num_successes / (double)num);
         printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+        
     }
 
     free(f);
@@ -417,7 +444,7 @@ void test_dlp_composites()
 	uint32 *f2, totBits,minBits,maxBits;
 	double t_time;
 	clock_t start, stop;
-	int i,j,num,correct;
+	int i,j,k,num,correct;
 	z tmp,tmp2,t1,t2,t3;
 	mpz_t gmptmp;
 	int64 queue[100];
@@ -425,7 +452,13 @@ void test_dlp_composites()
     struct timeval gstop;
     int nf;
     int num_files;
-    char filenames[6][80];
+    char filenames[15][80];
+
+    fact_obj_t *fobj2;
+
+    fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+    init_factobj(fobj2);
+
 
 	mpz_init(gmptmp);
 	comp = (uint64 *)malloc(2000000 * sizeof(uint64));
@@ -437,15 +470,22 @@ void test_dlp_composites()
 	zInit(&t1);
 	zInit(&t3);
 
-    strcpy(filenames[0], "pseudoprimes_37bit.dat");
-    strcpy(filenames[1], "pseudoprimes_41bit.dat");
-    strcpy(filenames[2], "pseudoprimes_48bit.dat");
-    strcpy(filenames[3], "pseudoprimes_51bit.dat");
-    strcpy(filenames[4], "pseudoprimes_55bit.dat");
-    strcpy(filenames[5], "pseudoprimes_59bit.dat");
-    num_files = 6;
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_37bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_41bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_51bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_59bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_61bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_62bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
+    num_files = 11;
 
-    for (nf = 0; nf < num_files; nf++)
+    for (nf = 0; nf < 0; nf++)
     {
         in = fopen(filenames[nf], "r");
 
@@ -468,7 +508,7 @@ void test_dlp_composites()
             i++;
         }
         num = i;
-        num = 10000;
+        num = 100000;
         fclose(in);
         stop = clock();
         t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
@@ -572,57 +612,406 @@ void test_dlp_composites()
         correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
         }
 
-        mpz_set_64(fobj2->qs_obj.gmp_n, comp[i]);
-        fobj2->qs_obj.flags = 12345;
-        smallmpqs(fobj2);
-
-        if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
-        {
-        correct++;
-        }
-
-        clear_factor_list(fobj2);
-
-        }
-
-        stop = clock();
-        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
-        printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
-        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
-        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
-        }
-
         */
 
 
         gettimeofday(&gstart, NULL);
 
-        for (j = 0; j < 1; j++)
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
         {
-            correct = 0;
-            for (i = 0; i < num; i++)
+            mpz_set_64(gmptmp, comp[i]);
+            f64 = sp_shanks_loop(gmptmp, NULL);
+
+            if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+                correct++;
+            else
             {
-                //if (i % 1000 == 0)
-                //{
-                //    printf("done with %d, %d correct, after %2.2f sec\n", i,
-                //        correct, (double)(clock() - start) / (double)CLOCKS_PER_SEC);
-                //}
-
-                mpz_set_64(gmptmp, comp[i]);
-                f64 = sp_shanks_loop(gmptmp, NULL);
-
-                if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
-                    correct++;
+                int p;
+                for (p = 0; p < 3; p++)
+                {
+                    f64 = spbrent(comp[i], p + 1, 8192);
+                    if ((f64 == f1[i]) || (f64 == f2[i]))
+                    {
+                        correct++;
+                        k++;
+                        break;
+                    }
+                }
             }
         }
 
         gettimeofday(&gstop, NULL);
         t_time = my_difftime(&gstart, &gstop);
 
-        printf("squfof got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("squfof got %d of %d correct in %2.2f sec (%d by rho)\n", correct, num, t_time, k);
         printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
         printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+    }
 
+    for (nf = 0; nf < 0; nf++)
+    {
+        in = fopen(filenames[nf], "r");
+
+        start = clock();
+        i = 0;
+        totBits = 0;
+        minBits = 999;
+        maxBits = 0;
+        //read in everything
+        while (!feof(in))
+        {
+            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            sp642z(comp[i], &tmp);
+            j = zBits(&tmp);
+            totBits += j;
+            if ((uint32)j > maxBits)
+                maxBits = j;
+            if ((uint32)j < minBits && j != 0)
+                minBits = j;
+            i++;
+        }
+        num = i;
+        num = 100000;
+        fclose(in);
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("data read in %2.4f sec\n", t_time);
+        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+        printf("minimum bits of input numbers = %d\n", minBits);
+        printf("maximum bits of input numbers = %d\n", maxBits);
+
+        gettimeofday(&gstart, NULL);
+
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
+        {
+            int p;
+            
+            for (p = 0; p < 3; p++)
+            {
+                f64 = spbrent(comp[i], p + 1, 8192);
+                if ((f64 == f1[i]) || (f64 == f2[i]))
+                {
+                    correct++;
+                    break;
+                }
+            }           
+
+            if (p ==3)
+            {
+                mpz_set_64(gmptmp, comp[i]);
+                f64 = sp_shanks_loop(gmptmp, NULL);
+                if ((f64 == f1[i]) || (f64 == f2[i]))
+                {
+                    correct++;
+                    k++;
+                }
+            }
+        }
+
+        gettimeofday(&gstop, NULL);
+        t_time = my_difftime(&gstart, &gstop);
+
+        printf("rho got %d of %d correct in %2.2f sec (%d by squfof)\n", correct, num, t_time, k);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+    }
+
+
+    for (nf = 5; nf < 0; nf++)
+    {
+        in = fopen(filenames[nf], "r");
+
+        start = clock();
+        i = 0;
+        totBits = 0;
+        minBits = 999;
+        maxBits = 0;
+        //read in everything
+        while (!feof(in))
+        {
+            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            sp642z(comp[i], &tmp);
+            j = zBits(&tmp);
+            totBits += j;
+            if ((uint32)j > maxBits)
+                maxBits = j;
+            if ((uint32)j < minBits && j != 0)
+                minBits = j;
+            i++;
+        }
+        num = i;
+        num = 10000;
+        fclose(in);
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("data read in %2.4f sec\n", t_time);
+        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+        printf("minimum bits of input numbers = %d\n", minBits);
+        printf("maximum bits of input numbers = %d\n", maxBits);
+
+        {
+            gettimeofday(&gstart, NULL);
+
+            correct = 0;
+            k = 0;
+            for (i = 0; i < num; i++)
+            {
+                mpz_set_64(fobj2->qs_obj.gmp_n, comp[i]);
+                fobj2->qs_obj.flags = 12345;
+                smallmpqs(fobj2);
+
+                if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
+                {
+                    correct++;
+                }
+
+                clear_factor_list(fobj2);
+            }
+
+            gettimeofday(&gstop, NULL);
+            t_time = my_difftime(&gstart, &gstop);
+
+            printf("smallmpqs got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+            printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+            printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+        }
+
+    }
+
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_70bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_80bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_90bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_100bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_110bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_120bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_125bit.dat");
+    num_files = 7;
+    num = 10000;
+
+    for (nf = 0; nf < 0; nf++)
+    {
+        mpz_t gmp_comp;
+        char buf[1024];
+        in = fopen(filenames[nf], "r");
+
+        mpz_init(gmp_comp);
+
+        gettimeofday(&gstart, NULL);
+
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
+        {
+            fgets(buf, 1024, in);
+            gmp_sscanf(buf, "%Zd", gmp_comp);
+            mpz_set(fobj2->qs_obj.gmp_n, gmp_comp);
+            fobj2->qs_obj.flags = 12345;
+            smallmpqs(fobj2);
+
+            if (mpz_cmp_ui(fobj2->qs_obj.gmp_n, 1) == 0)
+            {
+                correct++;
+            }
+
+            clear_factor_list(fobj2);
+        }
+
+        fclose(in);
+
+        gettimeofday(&gstop, NULL);
+        t_time = my_difftime(&gstart, &gstop);
+
+        printf("smallmpqs got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+        mpz_clear(gmp_comp);
+    }
+        
+
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_51bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_70bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_80bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_90bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_100bit.dat");
+    num_files = 8;
+    num = 10000;
+
+    for (nf = 0; nf < num_files; nf++)
+    {
+        mpz_t gmp_comp;
+        char buf[1024];
+        in = fopen(filenames[nf], "r");
+
+        mpz_init(gmp_comp);
+
+        gettimeofday(&gstart, NULL);
+
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
+        {
+            int p;
+
+            fgets(buf, 1024, in);
+            gmp_sscanf(buf, "%Zd", gmp_comp);            
+            mpz_set(fobj2->rho_obj.gmp_n, gmp_comp);
+            fobj2->rho_obj.iterations = 8192;
+            
+            for (p = 0; p < 3; p++)
+            {
+                fobj2->rho_obj.curr_poly = p;
+                mbrent(fobj2);
+
+                if (mpz_cmp_ui(fobj2->rho_obj.gmp_f, 1) > 0)
+                {
+                    correct++;
+                    if (p > 0)
+                        k++;
+                    break;
+                }
+            }
+
+            clear_factor_list(fobj2);
+        }
+
+        fclose(in);
+
+        gettimeofday(&gstop, NULL);
+        t_time = my_difftime(&gstart, &gstop);
+
+        printf("mbrent got %d of %d correct in %2.2f sec (%d with backup polynomial)\n", 
+            correct, num, t_time, k);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+        mpz_clear(gmp_comp);
+    }
+
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_55bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_63bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_70bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_80bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_90bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_100bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_110bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_120bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_125bit.dat");
+    num_files = 11;
+    num = 10000;
+
+    for (nf = 0; nf < 0; nf++)
+    {
+        mpz_t gmp_comp;
+        char buf[1024];
+        ecm_params my_ecm_params;
+        int curves;
+        int B1;
+        
+        ecm_init(my_ecm_params);
+
+        switch (nf)
+        {
+        case 0:
+            B1 = 200;
+            curves = 20;
+            break;
+        case 1:
+            B1 = 400;
+            curves = 20;
+            break;
+        case 2:
+        case 3:
+            B1 = 500;
+            curves = 50;
+            break;
+        case 4:
+            B1 = 600;
+            curves = 50;
+            break;
+        case 5:
+            B1 = 800;
+            curves = 50;
+            break;
+        case 6:
+            B1 = 1000;
+            curves = 50;
+            break;
+        case 7:
+            B1 = 1200;
+            curves = 50;
+            break;
+        case 8:
+            B1 = 1400;
+            curves = 50;
+            break;
+        default:
+            B1 = 2000;
+            curves = 50;
+            break;
+        }
+
+        in = fopen(filenames[nf], "r");
+
+        mpz_init(gmp_comp);
+
+        gettimeofday(&gstart, NULL);
+
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
+        {
+            int p;
+
+            fgets(buf, 1024, in);
+            gmp_sscanf(buf, "%Zd", gmp_comp);
+            
+            for (k = 0; k < curves; k++)
+            {
+                uint64 sigma = spRand(100, 1000000000);
+                my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
+                mpz_set_ui(my_ecm_params->x, (unsigned long)0);
+                mpz_set_ui(my_ecm_params->sigma, sigma);
+                my_ecm_params->method = ECM_ECM;
+                ecm_factor(fobj2->ecm_obj.gmp_f, gmp_comp, B1, my_ecm_params);
+                if ((mpz_cmp_ui(fobj2->ecm_obj.gmp_f, 1) > 0) &&
+                    (mpz_cmp(fobj2->ecm_obj.gmp_f, gmp_comp) < 0))
+                {
+                    correct++;
+                    break;
+                }
+            }
+        }
+
+        fclose(in);
+
+        gettimeofday(&gstop, NULL);
+        t_time = my_difftime(&gstart, &gstop);
+
+        printf("ecm got %d of %d correct in %2.2f sec\n",
+            correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
+        printf("average time per input = %.2f ms\n", 1000 * t_time / (double)num);
+
+        mpz_clear(gmp_comp);
+    }
 
         /*
         fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
@@ -711,7 +1100,7 @@ void test_dlp_composites()
         printf("percent correct = %.2f\n",100.0*(double)correct/(double)num);
         printf("average time per input = %.2f ms\n",1000*t_time/(double)num);
         */
-    }
+    
 
 	free(f1);
 	free(f2);

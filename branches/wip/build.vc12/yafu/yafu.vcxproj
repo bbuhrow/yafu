@@ -263,6 +263,7 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
@@ -274,6 +275,7 @@
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
     <ClCompile Include="..\..\factor\nfs\snfs.c" />
     <ClCompile Include="..\..\factor\nfs\winsupport.c" />
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
@@ -311,7 +313,6 @@
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
-    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
@@ -342,6 +343,7 @@
     <ClCompile Include="..\..\top\vecarith.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\factor\qs\cofactorize.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
@@ -358,6 +360,7 @@
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\include\monty.h" />
     <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\include\nfs.h" />

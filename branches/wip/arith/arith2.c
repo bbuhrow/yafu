@@ -198,6 +198,7 @@ uint32 modinv_1(uint32 a, uint32 p) {
 
 	uint32 ps1, ps2, parity, dividend, divisor, rem, q, t;
 
+
 	q = 1;
 	rem = a;
 	dividend = p;

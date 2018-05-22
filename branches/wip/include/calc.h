@@ -38,10 +38,11 @@ code to the public domain.
 #define RIGHT 1
 #define LEFT 0
 
-#define NUM_FUNC 71
+#define NUM_FUNC 100
 
 //arbitrary precision calculator
-int process_expression(char *input_exp, fact_obj_t *fobj);
+int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet);
+void reset_preprocessor(void);
 void testcalc(void);
 void handle_singleop(char *arg1, int op);
 int single_op(char s);
@@ -64,6 +65,10 @@ int new_uvar(const char *name, mpz_t data);
 int set_uvar(const char *name, mpz_t data);
 int get_uvar(const char *name, mpz_t data);
 void free_uvars();
+int new_strvar(const char *name, char *data);
+int set_strvar(const char *name, char *data);
+int get_strvar(const char *name, char *data);
+void free_strvars();
 int invalid_dest(char *dest);
 int invalid_num(char *num);
 int calc2(str_t *in);
@@ -73,5 +78,10 @@ int is_new_token(int el_type, int el_type2);
 void calc_finalize();
 int calc_init();
 
+#ifndef _MSC_VER
+#define strtok_s strtok_r
+#endif
+
 //user variables
 uvars_t uvars;
+strvars_t strvars;

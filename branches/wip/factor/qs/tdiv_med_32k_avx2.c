@@ -414,8 +414,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     bound13 = sconf->factor_base->fb_13bit_B;
 #endif
 
-
-
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
 

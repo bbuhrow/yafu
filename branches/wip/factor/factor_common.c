@@ -918,8 +918,11 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	{
 	case state_trialdiv:
 
-        // first do a perfect power check
-        if (mpz_perfect_power_p(b))
+        // if larger than a small bound, do a perfect power check
+        fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
+        
+        if ((mpz_cmp_ui(b, fobj->prime_threshold) > 1) && 
+            mpz_perfect_power_p(b))
         {
             FILE *flog;
 
@@ -944,7 +947,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         // then do all of the tdiv work requested
         if (VFLAG >= 0)
             printf("div: primes less than %d\n", fwork->tdiv_max_limit);
-        fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
+        
         mpz_set(fobj->div_obj.gmp_n, b);
         fobj->div_obj.print = 1;
         fobj->div_obj.limit = fwork->tdiv_max_limit;
@@ -2338,10 +2341,10 @@ void factor(fact_obj_t *fobj)
 
 			// remove any common factor so the input exactly matches
 			// the file
-			mpz_tdiv_q(b, b, g);
-			mpz_set(fobj->N, b);
-			mpz_set(origN, b);
-			mpz_set(copyN, b);
+			// mpz_tdiv_q(b, b, g);
+			// mpz_set(fobj->N, b);
+			// mpz_set(origN, b);
+			// mpz_set(copyN, b);
 
 			//override default choice
 			fact_state = state_qs;
