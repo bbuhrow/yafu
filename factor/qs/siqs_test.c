@@ -138,28 +138,84 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
 	{
-		//run MPQS, as SIQS doesn't work for smaller inputs
-		//MPQS will take over the log file, so close it now.
+		// run MPQS, as the main SIQS doesn't work for smaller inputs
 		int i;
+        mpz_t f1, f2;
 
-		// we've verified that the input is not odd or prime.  also
-		// do some very quick trial division before calling smallmpqs, which
-		// does none of these things.
-		for (i=1; i<25; i++)
-		{
-			if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
-				mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
-		}
+        mpz_init(f1);
+        mpz_init(f2);
 
-		smallmpqs(fobj);
-		return 1;	//tells SIQS to not try to close the logfile
+		// we've verified that the input is not even or prime.  also, if
+		// autofactoring is not active then do some very quick trial division 
+        // before calling smallmpqs.
+        if (!fobj->autofact_obj.autofact_active)
+        {
+            for (i = 1; i < 25; i++)
+            {
+                if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
+                    mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
+            }
+        }
+
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+        if (fobj->qs_obj.flags != 12345)
+        {
+            if (fobj->logfile != NULL)
+                logprint(fobj->logfile,
+                "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+        }
+
+        // todo: need to define alternate routines if this isn't defined...
+        i = tinyqs(fobj->qs_obj.gmp_n, f1, f2);
+#else
+        i = 0;
+#endif
+
+        if (i == 0)
+        {
+            // didn't find anything (rare).  try a different method.
+            smallmpqs(fobj);
+        }
+        else
+        {
+            // found factors, need to log them.
+            add_to_factor_list(fobj, f1);
+
+            if (fobj->qs_obj.flags != 12345)
+            {
+                if (fobj->logfile != NULL)
+                    logprint(fobj->logfile,
+                    "prp%d = %s\n", gmp_base10(f1),
+                    mpz_conv2str(&gstr1.s, 10, f1));
+            }
+
+            mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
+
+            add_to_factor_list(fobj, f2);
+
+            if (fobj->qs_obj.flags != 12345)
+            {
+                if (fobj->logfile != NULL)
+                    logprint(fobj->logfile,
+                    "prp%d = %s\n", gmp_base10(f2),
+                    mpz_conv2str(&gstr1.s, 10, f2));
+            }
+
+            mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
+        }
+
+        mpz_clear(f1);
+        mpz_clear(f2);
+
+        return 1;
 	}
 
-	if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
-	{
-		printf("input too big for SIQS\n");
-		return 1;
-	}
+	//if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
+	//{
+	//	printf("input too big for SIQS\n");
+	//	return 1;
+	//}
 
 	return 0;
 }

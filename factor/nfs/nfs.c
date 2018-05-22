@@ -237,6 +237,7 @@ void nfs(fact_obj_t *fobj)
 			// convert input to msieve bigint notation and initialize a list of factors
 			gmp2mp_t(fobj->nfs_obj.gmp_n, &mpN);
 			factor_list_init(&factor_list);
+            factor_list_add(obj, &factor_list, &mpN);
 
             if (fobj->nfs_obj.rangeq > 0)
             {
@@ -501,6 +502,13 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case NFS_STATE_SQRT:
+
+            // TODO:
+            // when the input has more than 2 factors we can continue 
+            // with dependencies until the input is completely factored.
+            // as it is now, we stop after the first one, potentially leaving
+            // a significant number behind (and deleting all data so that
+            // it can't be found manually either).
 
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT))

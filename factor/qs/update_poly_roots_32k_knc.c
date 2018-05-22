@@ -588,6 +588,9 @@ void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             CHECK_NEW_SLICE(j);
 
+            // load the current roots, associated primes, and polynomial
+            // update info (ptr).  Do the polynomial update and then
+            // mask off values that are larger than the sieving interval.
             vprime = _mm512_load_epi32((__m512i *)(&update_data.prime[j]));
             vroot1 = _mm512_load_epi32((__m512i *)(&update_data.firstroots1[j]));
             vroot2 = _mm512_load_epi32((__m512i *)(&update_data.firstroots2[j]));
@@ -616,6 +619,8 @@ void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             // extra big roots are much easier because they hit at most once
             // in the entire +side interval.  no need to iterate.
+            // gather/scatter was slower because masking reduces the population
+            // of the vector but does not remove the need to 
             while ((idx = _mm_tzcnt_32(mask1)) < 16)
             {
                 bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];

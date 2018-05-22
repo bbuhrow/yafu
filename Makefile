@@ -17,7 +17,7 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc
+CC = gcc-7.3.0
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g
@@ -45,12 +45,22 @@ ifeq ($(USE_SSE41),1)
 	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
+ifeq ($(SKYLAKEX),1)
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+endif
+
+
+ifeq ($(USE_BMI2),1)
+# -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
+  CFLAGS += -mbmi2 -mbmi
+endif
+
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
   
 ifeq ($(COMPILER),icc)
-  CFLAGS += -march=core-avx2
+  CFLAGS += -march=core-avx2  
 else
   CFLAGS += -mavx2 
 endif
@@ -59,7 +69,13 @@ endif
 endif
 
 ifeq ($(KNL),1)
-  CFLAGS += -DTARGET_KNL -xMIC-AVX512 
+  ifeq ($(COMPILER),icc)
+    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -xMIC-AVX512 
+    BINNAME = yafu_knl
+  else
+    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -march=knl
+    BINNAME = yafu_knl_gcc
+  endif
   #-openmp
 endif
 
@@ -143,6 +159,11 @@ else
 	LIBS += -lpthread -lm -ldl
 endif
 
+ifeq ($(COMPILER),icc)
+  LIBS +=  -lsvml
+# -L/apps/intel/parallel_studio_xe/2017_U1/compilers_and_libraries_2017.1.132/linux/compiler/lib/intel64/ 
+endif
+
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 
 x86: CFLAGS += -m32
@@ -194,6 +215,7 @@ YAFU_SRCS = \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
+  arith/monty.c \
 	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
@@ -205,9 +227,8 @@ YAFU_SRCS = \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c \
-	top/threadpool.c
-	
-
+	top/threadpool.c \
+  factor/qs/cofactorize_siqs.c
 		
 ifeq ($(USE_AVX2),1)
     
@@ -240,6 +261,7 @@ else
   
     YAFU_SRCS += factor/qs/tdiv_scan_knl.c
     YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+#    YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
   
   else
   
@@ -300,8 +322,10 @@ HEAD = include/yafu.h  \
 	include/yafu_stack.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
+  include/monty.h \
 	include/nfs.h \
-	top/threadpool.h
+	top/threadpool.h \
+  factor/qs/cofactorize.h
 
 ifeq ($(USE_AVX2),1)
 

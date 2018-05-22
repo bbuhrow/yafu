@@ -190,8 +190,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #else
 		dconf->attempted_squfof++;
-		mpz_set_64(dconf->gmptmp1, q64);
-		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+		//mpz_set_64(dconf->gmptmp1, q64);
+		//f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+        f64 = spbrent(q64, 1, 1024);
 		if (f64 > 1 && f64 != q64)
 		{
 			uint32 large_prime[2];

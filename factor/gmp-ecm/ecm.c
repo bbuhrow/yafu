@@ -268,21 +268,24 @@ int ecm_loop(fact_obj_t *fobj)
 	if (VFLAG >= 0)
 		printf("\n");
 
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for appending\n",fobj->flogname);
-		return 0;
-	}
+    if (strcmp(fobj->flogname, "") != 0)
+    {
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for appending\n", fobj->flogname);
+            return 0;
+        }
 
-	logprint(flog,"Finished %d curves using Lenstra ECM method on C%d input, ",
-		total_curves_run,input_digits);
+        logprint(flog, "Finished %d curves using Lenstra ECM method on C%d input, ",
+            total_curves_run, input_digits);
 
-	print_B1B2(fobj, flog);
-	fprintf(flog, "\n");
+        print_B1B2(fobj, flog);
+        fprintf(flog, "\n");
 
-	fclose(flog);
+        fclose(flog);
+    }
 
     // this is how we tell factor() to stop running curves at this level
     if (((bail_on_factor == 1) && (bail == 1)) || 
@@ -305,13 +308,16 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
 
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for appending\n",fobj->flogname);
-		return 0;
-	}
+    if (strcmp(fobj->flogname, "") == 0)
+        return 1;
+
+    flog = fopen(fobj->flogname, "a");
+    if (flog == NULL)
+    {
+        printf("fopen error: %s\n", strerror(errno));
+        printf("could not open %s for appending\n", fobj->flogname);
+        return 0;
+    }
 
 	if (is_mpz_prp(thread_data->gmp_factor))
 	{
@@ -379,6 +385,9 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 int ecm_check_input(fact_obj_t *fobj)
 {
 	FILE *flog;
+
+    if (strcmp(fobj->flogname,"") == 0)
+        return 1;
 
 	//open the log file
 	flog = fopen(fobj->flogname,"a");

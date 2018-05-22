@@ -27,7 +27,7 @@ code to the public domain.
 #define DEFINED 1
 #define NUM_SQUFOF_MULT 38
 
-#if defined (TARGET_KNC) || defined(TARGET_KNL)
+#if defined (TARGET_KNC) || defined(USE_AVX512F)
 #define NUM_LANES 16
 #else
 #define NUM_LANES 8
@@ -59,47 +59,6 @@ typedef struct
     int *rounds;
     int *multnum;
     int *active;
-
-    /*
-#ifdef __GNUC__
-    __attribute__((aligned(64))) uint64 N[NUM_LANES];
-    __attribute__((aligned(64))) uint64 mN[NUM_LANES];
-    __attribute__((aligned(64))) uint32 listref[NUM_LANES];
-    __attribute__((aligned(64))) uint32 mult[NUM_LANES];
-    __attribute__((aligned(64))) uint32 valid[NUM_LANES];
-    __attribute__((aligned(64))) uint32 P[NUM_LANES];
-    __attribute__((aligned(64))) uint32 bn[NUM_LANES];
-    __attribute__((aligned(64))) uint32 Qn[NUM_LANES];
-    __attribute__((aligned(64))) uint32 Q0[NUM_LANES];
-    __attribute__((aligned(64))) uint32 b0[NUM_LANES];
-    __attribute__((aligned(64))) uint32 it[NUM_LANES];
-    __attribute__((aligned(64))) uint32 imax[NUM_LANES];
-    __attribute__((aligned(64))) uint32 f[NUM_LANES];
-    __attribute__((aligned(64))) int maxrounds[NUM_LANES];
-    __attribute__((aligned(64))) int rounds[NUM_LANES];
-    __attribute__((aligned(64))) int multnum[NUM_LANES];
-    __attribute__((aligned(64))) int active[NUM_LANES];
-#else
-    __declspec(align(64)) uint64 N[NUM_LANES];
-    __declspec(align(64)) uint64 mN[NUM_LANES];
-    __declspec(align(64)) uint32 listref[NUM_LANES];
-    __declspec(align(64)) uint32 mult[NUM_LANES];
-    __declspec(align(64)) uint32 valid[NUM_LANES];
-    __declspec(align(64)) uint32 P[NUM_LANES];
-    __declspec(align(64)) uint32 bn[NUM_LANES];
-    __declspec(align(64)) uint32 Qn[NUM_LANES];
-    __declspec(align(64)) uint32 Q0[NUM_LANES];
-    __declspec(align(64)) uint32 b0[NUM_LANES];
-    __declspec(align(64)) uint32 it[NUM_LANES];
-    __declspec(align(64)) uint32 imax[NUM_LANES];
-    __declspec(align(64)) uint32 f[NUM_LANES];
-    __declspec(align(64)) int maxrounds[NUM_LANES];
-    __declspec(align(64)) int rounds[NUM_LANES];
-    __declspec(align(64)) int multnum[NUM_LANES];
-    __declspec(align(64)) int active[NUM_LANES];
-#endif
-    */
-
 } par_mult_t;
 
 typedef struct
@@ -157,14 +116,15 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 
 	if (mpz_sizeinbase(N,2) > 62)
 	{
-		printf("N too big (%d bits), exiting...\n", (int)mpz_sizeinbase(N,2));
+        if (VFLAG > 0)
+		    printf("N too big (%d bits), exiting...\n", (int)mpz_sizeinbase(N,2));
 		return 1;
 	}	
 
 	n64 = mpz_get_64(N);
 
 	if (mpz_sizeinbase(N,2) <= 40)
-		return LehmanFactor(n64, 3.5, 1, 0.1);
+		return LehmanFactor(n64, 3.5, 0, 0.1);
 
 	//default return value
 	f64 = 1;

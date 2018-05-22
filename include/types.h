@@ -215,6 +215,11 @@ code to the public domain.
 	//for gettimeofday using gcc
 	#include <sys/time.h>
 
+#if defined(__GNUC__) && defined(TARGET_KNL) && !defined(__INTEL_COMPILER)
+#define _MM_SCALE_1 1
+#define _MM_SCALE_4 4
+#endif
+
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
 	#if defined(__MINGW64__)
 		#include <mm_malloc.h>

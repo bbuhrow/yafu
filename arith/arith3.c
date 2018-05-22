@@ -556,6 +556,20 @@ uint64 spBinGCD_odd(uint64 u, uint64 v)
     return u;
 }
 
+// much faster version: assuming x is odd
+uint64 bingcd64(uint64 x, uint64 y)
+{
+    if (y) {
+        y >>= _trail_zcnt64(y);
+        while (x != y)
+            if (x < y)
+                y -= x, y >>= _trail_zcnt64(y);
+            else
+                x -= y, x >>= _trail_zcnt64(x);
+    }
+    return x;
+}
+
 
 uint64 gcd64(uint64 x, uint64 y)
 {
@@ -593,7 +607,7 @@ int llt(uint32 exp)
 	fp_digit d;
 
 	mpz_init(tmp);
-	mpz_set_ui(tmp, exp); //sp2z(exp,&tmp);
+	mpz_set_ui(tmp, exp);
 	if (!is_mpz_prp(tmp))
 	{
 		mpz_clear(tmp);
@@ -603,66 +617,56 @@ int llt(uint32 exp)
 
 	start = clock();
 	mpz_init(n);
-	mpz_set_ui(tmp, 4); //sp2z(4,&tmp);
+	mpz_set_ui(tmp, 4);
 	mpz_set_ui(n, 1);
-	mpz_mul_2exp(n, n, exp); //zShiftLeft(&n,&zOne,exp);
-	mpz_sub_ui(n, n, 1); //zShortSub(&n,1,&n);
+	mpz_mul_2exp(n, n, exp);
+	mpz_sub_ui(n, n, 1);
 	//should vary the depth depending on the size of p
-	for (i = 1; i< 1000000; i++)
+	for (i = 1; i < MIN(sqrt(exp)-1, 1000000); i++)
 	{
 		d = 2*i*(fp_digit)exp + 1;
 		if (mpz_tdiv_ui(n,d) == 0)
 		{
 			mpz_clear(n);
 			mpz_clear(tmp);
-			printf("2*%d*p+1 is a factor\n",i);
+            if (VFLAG > 1)
+			    printf("2*%d*p+1 is a factor\n",i);
 			return 0;
 		}
 	}
-	printf("trial division to %u bits is complete\n",
+    if (VFLAG > 1)
+	    printf("trial division to %u bits is complete\n",
 		(uint32)spBits(2*1000000*exp+1));
 
-	/*
-	t1 = POLLARD_STG1_MAX;
-	t2 = POLLARD_STG2_MAX;
-	POLLARD_STG1_MAX=1000;
-	POLLARD_STG2_MAX=50000;
-	i = (uint32)n.val[0];
-	zInit(&tmp2);
-	mpollard(&n,3,&tmp2);
-	POLLARD_STG1_MAX=t1;
-	POLLARD_STG2_MAX=t2;
-	if (n.val[0] != i)
-	{
-		printf("pm1 found a factor %s\n",z2decstr(&tmp2,&gstr1));
-		zFree(&n);
-		zFree(&tmp);
-		zFree(&tmp2);
-		return 0;
-	}
-	*/
-	
+    mpz_set_ui(tmp, 4);
 	mpz_init(tmp2);
 	nchars=0;
 	//else do the ll test
 	for (i=0;i<exp-2;i++)
 	{
-		mpz_mul(tmp, tmp, tmp); //zSqr(&tmp,&tmp);
-		mpz_sub_ui(tmp, tmp, 2); //zShortSub(&tmp,2,&tmp);
-		mpz_tdiv_r(tmp, tmp, n); //zDiv(&tmp,&n,&tmp2,&tmp);
-		if ((i & 511) == 0)
-		{
-			for (j=0;j<nchars;j++)
-				printf("\b");
-			nchars = printf("llt iteration %d",i);
-			fflush(stdout);
-		}
+		mpz_mul(tmp, tmp, tmp); 
+		mpz_sub_ui(tmp, tmp, 2);
+		mpz_tdiv_r(tmp, tmp, n);
+        if (VFLAG > 1)
+        {
+            if ((i & 511) == 0)
+            {
+                for (j = 0; j < nchars; j++)
+                    printf("\b");
+                nchars = printf("llt iteration %d", i);
+                fflush(stdout);
+            }
+        }
 	}
-	printf("\n");
+    if (VFLAG > 1)
+	    printf("\n");
 	
-	stop = clock();
-	t = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-	printf("elapsed time = %6.4f\n",t);
+    if (VFLAG > 1)
+    {
+        stop = clock();
+        t = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("elapsed time = %6.4f\n", t);
+    }
 
 	mpz_clear(tmp2);
 	mpz_clear(n);
