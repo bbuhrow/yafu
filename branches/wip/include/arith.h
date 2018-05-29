@@ -50,7 +50,8 @@ code to the public domain.
 #ifdef __GNUC__
 #define _trail_zcnt __builtin_ctzl
 #define _trail_zcnt64 __builtin_ctzll
-__inline uint32_t _reset_lsb(x) ((x) &= ((x)-1))
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1ULL))
 #else
 #define _trail_zcnt _tzcnt_u32
 #define _trail_zcnt64 _tzcnt_u64
@@ -204,6 +205,4 @@ char * mpz_conv2str(char **in, int base, mpz_t n);
 // we need to convert between yafu bigints and msieve bigints occasionally
 void mp_t2z(mp_t *src, z *dest);
 
-char * mp_print(mp_t *a, uint32 base, FILE *f, char *scratch);
-#define mp_sprintf(a, base, scratch) mp_print(a, base, NULL, scratch)
 
