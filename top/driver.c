@@ -94,6 +94,7 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr);
 void prepare_batchfile(char *input_exp);
 char * process_batchline(char *input_exp, char *indup, int *code);
 void finalize_batchline();
+int exp_is_open(char *line, int firstline);
 
 // functions to process all incoming arguments
 int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
@@ -111,20 +112,21 @@ static int CMDHIST_TAIL = 0;
 int main(int argc, char *argv[])
 {
 	uint32 insize = GSTR_MAXSIZE;
-	char *input_exp, *ptr, *indup;
+	char *input_exp, *ptr, *indup, *input_line;
+    str_t input_str;
     
 	int slog,is_cmdline_run=0;
 	FILE *logfile;
     FILE *scriptfile = NULL;
 	fact_obj_t *fobj;
     int i;
+    int firstline = 1;
 
 #if defined(__unix__)
     static struct termios oldtio, newtio;
     tcgetattr(0, &oldtio);
     newtio = oldtio;
     newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ECHOK);
-    //tcsetattr(0, TCSANOW, &newtio);
 
     CMDHIST = (char **)malloc(CMDHIST_SIZE * sizeof(char *));
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -136,7 +138,10 @@ int main(int argc, char *argv[])
 	//the input expression
 	input_exp = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	indup = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
+    input_line = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
+    sInit(&input_str);
 	strcpy(input_exp,"");
+    strcpy(input_line, "");
 	
 	//set defaults for various things
 	set_default_globals();
@@ -174,6 +179,7 @@ int main(int argc, char *argv[])
 
 	//check/process input arguments
 	is_cmdline_run = process_arguments(argc, argv, &input_exp, fobj);
+    strcpy(input_line, input_exp);
 
 	if (is_cmdline_run == 2)
 	{
@@ -249,13 +255,11 @@ int main(int argc, char *argv[])
 	// command line
 	while (1)
 	{		
-		reset_factobj(fobj);		
-
 		// handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
 			int code;
-			input_exp = process_batchline(input_exp, indup, &code);
+            input_line = process_batchline(input_line, indup, &code);
 			if (code == 1)
 			{
 				finalize_batchline();
@@ -268,7 +272,7 @@ int main(int argc, char *argv[])
         {
             if (scriptfile != NULL)
             {
-                if (fgets(input_exp, GSTR_MAXSIZE, scriptfile) == NULL)
+                if (fgets(input_line, GSTR_MAXSIZE, scriptfile) == NULL)
                     break;
             }
         }
@@ -277,7 +281,7 @@ int main(int argc, char *argv[])
 #if defined(__unix__)
             tcsetattr(0, TCSANOW, &newtio);
 #endif
-            input_exp = get_input(input_exp, &insize);
+            input_line = get_input(input_line, &insize);
 #if defined(__unix__)
             tcsetattr(0, TCSANOW, &oldtio);
 #endif
@@ -289,15 +293,27 @@ int main(int argc, char *argv[])
 		}
 		
 		// help, exit, or execute the current expression...
-		ptr = strstr(input_exp,"help");
+        ptr = strstr(input_line, "help");
 		if (ptr != NULL)
-			helpfunc(input_exp);
-		else if ((strcmp(input_exp,"quit") == 0) || (strcmp(input_exp,"exit") == 0))
+            helpfunc(input_line);
+        else if ((strcmp(input_line, "quit") == 0) || (strcmp(input_line, "exit") == 0))
 			break;
 		else
 		{
+            sAppend(input_line, &input_str);
+            if (exp_is_open(input_line, firstline))
+            {
+                if (strlen(input_line) > 0)
+                    sAppend(",", &input_str);
+                firstline = 0;
+                continue;
+            }
+
+            firstline = 1;
             reset_preprocessor();
-			process_expression(input_exp, fobj, 0);
+            //fprintf(stderr, "input: %s\n", input_str.s);
+            process_expression(input_str.s, fobj, 0);
+            sClear(&input_str);
 		}
 
 #if defined(WIN32)
@@ -315,14 +331,14 @@ int main(int argc, char *argv[])
 		// re-display the command prompt
 		if (CMD_LINE_REPEAT == 0)
 		{
-			input_exp = (char *)realloc(input_exp,GSTR_MAXSIZE*sizeof(char));
-			if (input_exp == NULL)
+            input_line = (char *)realloc(input_line, GSTR_MAXSIZE*sizeof(char));
+            if (input_line == NULL)
 			{
 				printf("couldn't reallocate string during cleanup\n");
 				exit(-1);
 			}
 
-			input_exp[0] = '\0';
+            input_line[0] = '\0';
 		}
 
 		if (is_cmdline_run)
@@ -342,7 +358,7 @@ int main(int argc, char *argv[])
 			else if (CMD_LINE_REPEAT > 0)
 			{
 				CMD_LINE_REPEAT--;
-				strcpy(input_exp, indup);
+                strcpy(input_line, indup);
 			}
 			else
 				break;
@@ -365,9 +381,11 @@ int main(int argc, char *argv[])
 	calc_finalize();
 	free_globals();	
 	free(input_exp);
+    free(input_line);
 	free(indup);	
 	free_factobj(fobj);
-	free(fobj);       
+	free(fobj);      
+    sFree(&input_str);
 
 #if defined(__unix__)
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -375,11 +393,36 @@ int main(int argc, char *argv[])
         free(CMDHIST[i]);
     }
     free(CMDHIST);
-
-    //tcsetattr(0, TCSANOW, &oldtio);
 #endif
 
 	return 0;
+}
+
+int exp_is_open(char *line, int firstline)
+{
+    int i;
+    static int openp, closedp, openb, closedb;
+
+    if (firstline)
+    {
+        openp = openb = closedp = closedb = 0;
+    }
+
+    for (i = 0; i < strlen(line); i++)
+    {
+        if (line[i] == '(') openp++;
+        if (line[i] == ')') closedp++;
+        if (line[i] == '{') openb++;
+        if (line[i] == '}') closedb++;
+    }
+    if ((openp == closedp) && (openb == closedb))
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 char * get_input(char *input_exp, uint32 *insize)
