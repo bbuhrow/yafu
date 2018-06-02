@@ -31,6 +31,11 @@ code to the public domain.
 #include <immintrin.h>
 #endif
 
+#ifdef USE_AVX512F
+#include <immintrin.h>
+#endif
+
+
 typedef struct
 {
 	uint8 *sieve;					//0
@@ -42,18 +47,21 @@ typedef struct
 	uint32 med_B;					//44
 } helperstruct_t;
 
-void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
-		uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
+    uint32 start_prime, uint8 s_init)
 {
-	uint32 i;
-	uint32 med_B;
-	
-	uint32 prime, root1, root2, tmp, stop;
-	uint8 logp;
+    uint32 i;
+    uint32 med_B;
 
-	helperstruct_t asm_input;
+    uint32 prime, root1, root2, tmp, stop;
+    uint8 logp;
 
-#ifdef TARGET_KNC
+    helperstruct_t asm_input;
+
+#if defined( TARGET_KNC ) || defined(USE_AVX512F)
+    __m512i vlomask = _mm512_set1_epi32(0x000000ff);
+    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
+    __m512i vlosieve1, vhisieve1, vlosieve2, vhisieve2;
     __m512i vpmul = _mm512_setr_epi32(
         0, 1, 2, 3, 
         4, 5, 6, 7, 
@@ -61,25 +69,27 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         12, 13, 14, 15);
 
     __m512i vblock = _mm512_set1_epi32(32768);
+    __m512i vzero = _mm512_setzero_epi32();
 
 #endif
 
-	med_B = full_fb->med_B;
-	
+    med_B = full_fb->med_B;
+
 #ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
+    gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	//initialize the block
-	BLOCK_INIT;
+    //initialize the block
+    BLOCK_INIT;
 
-    /*
+#if defined(USE_AVX512F)
     // beyond 11 bit we don't need to loop... 16 steps takes
     // us past blocksize all at once when prime > 2048
     for (i = start_prime; i < full_fb->fb_13bit_B; i++)
     {	
         __m512i vprime, vroot1, vroot2, vlogp, vidx1, vidx2, vbyte, v16p;
         __mmask16 mask1, mask2;
+        int steps1 = 0, steps2 = 0;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -97,58 +107,65 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
         mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
 
-        while (mask2 > 0)
+        // while all 16 steps hit the block, loop using only mask2 (larger offset):
+        do 
         {
-            vbyte = _mm512_mask_i32extgather_epi32(vzero, mask2, vidx1, sieve, 
-                _MM_UPCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
-
-            vbyte = _mm512_sub_epi32(vbyte, vlogp);
-
-            _mm512_mask_i32extscatter_epi32(sieve, mask2, vidx1, vbyte,
-                _MM_DOWNCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
-
-            vbyte = _mm512_mask_i32extgather_epi32(vzero, mask2, vidx2, sieve,
-                _MM_UPCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
-
-            vbyte = _mm512_sub_epi32(vbyte, vlogp);
-
-            _mm512_mask_i32extscatter_epi32(sieve, mask2, vidx2, vbyte,
-                _MM_DOWNCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
+            vhisieve2 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx2, sieve, _MM_SCALE_1);
+            vhisieve1 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx1, sieve, _MM_SCALE_1);
+            vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
+            vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
+            vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
+            vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
+            vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
+            vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
+            vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
+            vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
+            _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vlosieve2, _MM_SCALE_1);
+            _mm512_mask_i32scatter_epi32(sieve, mask2, vidx1, vlosieve1, _MM_SCALE_1);
 
             vidx1 = _mm512_mask_add_epi32(vidx1, mask2, vidx1, v16p);
             vidx2 = _mm512_mask_add_epi32(vidx2, mask2, vidx2, v16p);
+            steps1 += 16;            
+            steps2 += 16;
 
             mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
-        }
+        } while (mask2 == 0xffff);
 
+        // last iteration using separate mask1 and mask2
         mask1 = _mm512_cmp_epu32_mask(vidx1, vblock, _MM_CMPINT_LT);
 
-        if (mask1 > 0)
+        vhisieve2 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx2, sieve, _MM_SCALE_1);
+        vhisieve1 = _mm512_mask_i32gather_epi32(vzero, mask1, vidx1, sieve, _MM_SCALE_1);
+        vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
+        vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
+        vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
+        vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
+        vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
+        vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
+        vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
+        vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
+        _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vlosieve2, _MM_SCALE_1);
+        _mm512_mask_i32scatter_epi32(sieve, mask1, vidx1, vlosieve1, _MM_SCALE_1);
+
+        // test to see if lower offset (mask1) took more steps
+        // and determine the new roots.
+        steps1 += _mm_popcnt_u32(mask1);
+        steps2 += _mm_popcnt_u32(mask2);
+        if (steps1 > steps2)
         {
-            // some root1 step took an extra iteration so we need to swap
-            vbyte = _mm512_mask_i32extgather_epi32(vzero, mask1, vidx1, sieve,
-                _MM_UPCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
-
-            vbyte = _mm512_sub_epi32(vbyte, vlogp);
-
-            _mm512_mask_i32extscatter_epi32(sieve, mask1, vidx1, vbyte,
-                _MM_DOWNCONV_EPI32_UINT8, 1, _MM_HINT_NONE);
-
-            // find first root >= blocksize
-            // write idx vec, num trailing zeros in cmp mask + 1 id into idx vec
-            // root update
+            fb->root2[i] = (uint16)(steps1*prime - 32768);
+            fb->root1[i] = (uint16)(steps2*prime - 32768);
         }
         else
         {
-            // back up idx2 vec one step
-            // find first root >= blocksize
-            // extract, root update
+            fb->root1[i] = (uint16)(steps1*prime - 32768);
+            fb->root2[i] = (uint16)(steps2*prime - 32768);
         }
 
-    }
-    */
 
-#if defined(USE_ASM_SMALL_PRIME_SIEVING)
+    }
+
+#elif defined(USE_ASM_SMALL_PRIME_SIEVING)
 
 	asm_input.logptr = fb->logp;
 	asm_input.primeptr = fb->prime;

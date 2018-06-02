@@ -49,6 +49,9 @@ ifeq ($(SKYLAKEX),1)
 	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
 endif
 
+ifeq ($(SMALLINT),1)
+	CFLAGS += -DSMALL_SIQS_INTERVALS
+endif
 
 ifeq ($(USE_BMI2),1)
 # -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
@@ -64,16 +67,15 @@ ifeq ($(COMPILER),icc)
 else
   CFLAGS += -mavx2 
 endif
-  # -m64
-  #-march=core-avx2
+
 endif
 
 ifeq ($(KNL),1)
   ifeq ($(COMPILER),icc)
-    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -xMIC-AVX512 
+    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -xMIC-AVX512 
     BINNAME = yafu_knl
   else
-    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -march=knl
+    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -march=knl
     BINNAME = yafu_knl_gcc
   endif
   #-openmp
@@ -81,7 +83,6 @@ endif
 
 ifeq ($(KNC),1)
 	CFLAGS += -mmic -DTARGET_KNC -vec-report3
-	# -DFORCE_GENERIC 
 	BINNAME := ${BINNAME:%=%_knc}
 	OBJ_EXT = .mo
 	
@@ -98,9 +99,6 @@ else
 
 	INC += -I../gmp/include
 	LIBS += -L../gmp/lib/linux/x86_64
-
-	#INC += -I../gmp-ecm/include/linux
-	#LIBS += -L../gmp-ecm/lib/linux/x86_64
   
   INC += -I../../ecm-7.0.3/install/include/
 	LIBS += -L../../ecm-7.0.3/install/lib/

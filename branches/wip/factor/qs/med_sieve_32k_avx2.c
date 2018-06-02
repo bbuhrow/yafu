@@ -20,6 +20,10 @@ code to the public domain.
 
 #include "common.h"
 
+#ifdef USE_AVX512F
+#include <immintrin.h>
+#endif
+
 // protect avx2 code under MSVC builds.  USE_AVX2 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware
 #if defined( USE_AVX2 ) && defined (GCC_ASM64X)
@@ -408,7 +412,7 @@ code to the public domain.
 			"vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */ \
 			\
 			_8P_FINAL_STEP_SIEVE_AVX2					\
-			_FINALIZE_SORT_UPDATE_AVX2_MM \
+			_FINALIZE_SORT_UPDATE_AVX2 \
 			\
 			: \
 			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
@@ -689,6 +693,21 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	uint32 prime, root1, root2, tmp, stop;
 	uint8 logp;
 
+#if defined( TARGET_KNC ) || defined(USE_AVX512F)
+    __m512i vlomask = _mm512_set1_epi32(0x000000ff);
+    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
+    __m512i vlosieve1, vhisieve1, vlosieve2, vhisieve2;
+    __m512i vpmul = _mm512_setr_epi32(
+        0, 1, 2, 3,
+        4, 5, 6, 7,
+        8, 9, 10, 11,
+        12, 13, 14, 15);
+
+    __m512i vblock = _mm512_set1_epi32(32768);
+    __m512i vzero = _mm512_setzero_epi32();
+#endif
+
+
 	helperstruct_t asm_input;
 
 	med_B = full_fb->med_B;
@@ -704,12 +723,125 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
     CLEAN_AVX2;
 
+#if defined(USE_AVX512F) && defined(NOT_DEF)
+    // beyond 11 bit we don't need to loop... 16 steps takes
+    // us past blocksize all at once when prime > 2048
+    for (i = start_prime; i < full_fb->fb_11bit_B; i++)
+    {	
+        __m512i vprime, vroot1, vroot2, vlogp, vidx1, vidx2, v16p;
+        __m512i vnextprime, vnextroot1, vnextroot2, vnextidx1, vnextidx2;
+        __mmask16 mask1, mask2;
+        int steps1 = 0, steps2 = 0;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        vprime = _mm512_set1_epi32(prime);
+        vroot1 = _mm512_set1_epi32(root1);
+        vroot2 = _mm512_set1_epi32(root2);
+        vlogp = _mm512_set1_epi32(logp);
+        v16p = _mm512_slli_epi32(vprime, 4);
+        vidx2 = _mm512_mullo_epi32(vprime, vpmul);
+        vidx1 = _mm512_add_epi32(vroot1, vidx2);
+        vidx2 = _mm512_add_epi32(vroot2, vidx2);
+
+        mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
+
+        //printf("prime = %u, root1 = %u, root2 = %u, initial mask2 = %08x\n", prime, root1, root2, mask2);
+
+        // while all 16 steps hit the block, loop using only mask2 (larger offset):
+        while (mask2 == 0xffff)
+        {
+            vhisieve2 = _mm512_i32gather_epi32(vidx2, sieve, _MM_SCALE_1);
+            vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
+            vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
+            vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
+            vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
+            _mm512_i32scatter_epi32(sieve, vidx2, vlosieve2, _MM_SCALE_1);
+
+            vnextidx1 = _mm512_add_epi32(vidx1, v16p);
+            vnextidx2 = _mm512_add_epi32(vidx2, v16p);
+            mask2 = _mm512_cmp_epu32_mask(vnextidx2, vblock, _MM_CMPINT_LT);
+
+            vhisieve1 = _mm512_i32gather_epi32(vidx1, sieve, _MM_SCALE_1);
+            vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
+            vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
+            vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
+            vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
+            _mm512_i32scatter_epi32(sieve, vidx1, vlosieve1, _MM_SCALE_1);
+
+            vidx1 = vnextidx1;
+            vidx2 = vnextidx2;
+            steps1 += 16;            
+            steps2 += 16;
+
+            //printf("steps = %d, mask2 = %08x\n", steps1, mask2);
+        }
+
+        // last iteration using separate mask1 and mask2
+        mask1 = _mm512_cmp_epu32_mask(vidx1, vblock, _MM_CMPINT_LT);
+        //printf("steps1 = %d, mask1 = %08x, mask2 = %08x\n", steps1, mask1, mask2);
+        vhisieve2 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx2, sieve, _MM_SCALE_1);
+        vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
+        vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
+        vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
+        vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
+        _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vlosieve2, _MM_SCALE_1);
+
+        vhisieve1 = _mm512_mask_i32gather_epi32(vzero, mask1, vidx1, sieve, _MM_SCALE_1);
+        vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
+        vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
+        vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
+        vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
+        _mm512_mask_i32scatter_epi32(sieve, mask1, vidx1, vlosieve1, _MM_SCALE_1);
+
+        // test to see if lower offset (mask1) took more steps
+        // and determine the new roots.
+        steps1 += _mm_popcnt_u32(mask1);
+        steps2 += _mm_popcnt_u32(mask2);
+
+        //printf("steps1 = %d, steps2 = %d, mask1 = %08x, mask2 = %08x\n", steps1, steps2, mask1, mask2);
+
+        if (steps1 > steps2)
+        {
+            //printf("swapped\n");
+            fb->root2[i] = (uint16)(root1 + steps1*prime - 32768);
+            fb->root1[i] = (uint16)(root2 + steps2*prime - 32768);
+        }
+        else
+        {
+            fb->root1[i] = (uint16)(root1 + steps1*prime - 32768);
+            fb->root2[i] = (uint16)(root2 + steps2*prime - 32768);
+        }
+    }
+
+    asm_input.logptr = fb->logp;
+    asm_input.primeptr = fb->prime;
+    asm_input.root1ptr = fb->root1;
+    asm_input.root2ptr = fb->root2;
+    asm_input.sieve = sieve;
+    asm_input.startprime = i;
+    asm_input.med_B = full_fb->fb_13bit_B-8;
+
+    SIEVE_13b_ASM_AVX2;
+
+    i = asm_input.startprime;
+
+    //printf("small prime loop done\n");
+    //exit(1);
+
+#elif defined(USE_ASM_SMALL_PRIME_SIEVING)
 	// sieve primes less than 2^13 using optimized loops: it becomes
 	// inefficient to do fully unrolled sse2 loops as the number of
 	// steps through the block increases.  While I didn't specifically
 	// test whether 2^13 is the best point to start using loops, it seemed
 	// good enough.  any gains if it is not optmial will probably be minimal.
-#if defined(USE_ASM_SMALL_PRIME_SIEVING)
 
 	asm_input.logptr = fb->logp;
 	asm_input.primeptr = fb->prime;

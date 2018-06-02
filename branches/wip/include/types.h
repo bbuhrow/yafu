@@ -81,6 +81,8 @@ code to the public domain.
 
 	#define align_free _aligned_free	
 
+    #define ALIGNED_MEM __declspec(align(64))     
+
 	// check for _WIN64 first, because win64 also defines WIN32
 	#if defined(_WIN64)
 		//these types are for MSVC builds on a 64 bit compiler
@@ -215,8 +217,15 @@ code to the public domain.
 	//for gettimeofday using gcc
 	#include <sys/time.h>
 
-#if defined(__GNUC__) && defined(TARGET_KNL) && !defined(__INTEL_COMPILER)
+#if defined (__INTEL_COMPILER)
+#define ALIGNED_MEM __declspec(align(64))
+#else
+#define ALIGNED_MEM __attribute__((aligned(64)))
+#endif
+
+#if defined(__GNUC__) && defined(USE_AVX512F) && !defined(__INTEL_COMPILER)
 #define _MM_SCALE_1 1
+#define _MM_SCALE_2 2
 #define _MM_SCALE_4 4
 #endif
 

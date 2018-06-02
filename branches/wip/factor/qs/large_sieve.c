@@ -31,6 +31,11 @@ code to the public domain.
 #define NUM_LANES 16
 #endif
 
+#ifdef USE_AVX512F
+#include <immintrin.h>
+#define NUM_LANES 16
+#endif
+
 
 void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 		lp_bucket *lp, int side, dynamic_conf_t * dconf)
@@ -42,13 +47,13 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 #ifdef TARGET_KNC
     __m512i vmask = _mm512_set1_epi32(0x0000ffff);
 
-#if defined(__GNUC__)
-    __attribute__((aligned(64))) uint32 tmpvec[NUM_LANES];
-#else
-    __declspec(align(64)) uint32 tmpvec[NUM_LANES];
-#endif
+    ALIGNED_MEM uint32 tmpvec[NUM_LANES];
 
-
+#elif USE_AVX512F
+    __m512i vmask = _mm512_set1_epi32(0x0000ffff);
+    __m512i vlomask = _mm512_set1_epi32(0x000000ff);
+    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
+    __m512i vbuckets, vnextbuckets, vlosieve, vhisieve;
 #endif
 
 #ifdef USE_BATCHPOLY
@@ -104,6 +109,14 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 		//printf("dumping %d primes from slice %d, bucket %d\n",lpnum, j, bnum);
 		logp = *(lp->logp + j);
 
+#ifdef USE_AVX512F
+        __m512i vlogp = _mm512_set1_epi32(logp);
+#endif
+
+#ifdef  USE_AVX512F
+        vnextbuckets = _mm512_and_epi32(vmask, _mm512_load_epi32((__m512i *)(&bptr[0])));
+#endif
+
         for (i = 0; (uint32)i < (lpnum & (uint32)(~15)); i += 16)
         {
 
@@ -127,6 +140,28 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
             sieve[tmpvec[13]] -= logp;
             sieve[tmpvec[14]] -= logp;
             sieve[tmpvec[15]] -= logp;
+
+#elif USE_AVX512F
+
+            vbuckets = vnextbuckets; 
+            if ((i + 16) < lpnum)
+            {
+                vnextbuckets = _mm512_and_epi32(vmask, _mm512_load_epi32((__m512i *)(&bptr[i+16])));
+                _mm512_prefetch_i32scatter_ps(sieve, vnextbuckets, _MM_SCALE_1, _MM_HINT_T0);
+            }
+
+            // ignore conflicts...
+            vhisieve = _mm512_i32gather_epi32(vbuckets, sieve, _MM_SCALE_1);
+#if USE_AVX512BW
+            vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
+#else
+            vlosieve = _mm512_and_epi32(vhisieve, vlomask);
+            vhisieve = _mm512_and_epi32(vhisieve, vhimask);
+            vlosieve = _mm512_sub_epi32(vlosieve, vlogp);
+            vlosieve = _mm512_or_epi32(vhisieve, _mm512_and_epi32(vlosieve, vlomask));
+#endif
+            _mm512_i32scatter_epi32(sieve, vbuckets, vlosieve, _MM_SCALE_1);
+
 #else
 			sieve[bptr[i  ] & 0x0000ffff] -= logp;
 			sieve[bptr[i+1] & 0x0000ffff] -= logp;

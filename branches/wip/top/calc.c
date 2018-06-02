@@ -216,6 +216,32 @@ int is_closed(char *line, char *stopptr)
     }
 }
 
+int exp_is_closed(char *start, char *stop)
+{
+    int i;
+    int openp, closedp, openb, closedb;
+
+    openp = openb = closedp = closedb = 0;
+
+    i = 0;
+    while ((i < strlen(start)) && ((start + i) < stop))
+    {
+        if (start[i] == '(') openp++;
+        if (start[i] == ')') closedp++;
+        if (start[i] == '{') openb++;
+        if (start[i] == '}') closedb++;
+        i++;
+    }
+    if ((openp == closedp) && (openb == closedb))
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 str_t *preprocess(str_t *in, int *numlines)
 {
 	// preprocess the expression in 'in'.
@@ -285,7 +311,7 @@ str_t *preprocess(str_t *in, int *numlines)
     // components of the function.  The actual looping is handled by 
     // recursive calls to process_expression from within the function evaluator.
     if (((ptr = strstr(current->s, "for(")) != NULL) &&
-        is_closed(current->s, ptr))
+        exp_is_closed(current->s, ptr))
     {
         // new for loop
         char pre[8], vname[20];
@@ -320,26 +346,42 @@ str_t *preprocess(str_t *in, int *numlines)
         sprintf(vname, "%s_iter", pre);
         if (set_strvar(vname, ptr))
             new_strvar(vname, ptr);
-        ptr = strtok(NULL, ")");
-        if (ptr == NULL)
+
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
+        {
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
+
+        if (ptr[i] == '\0')
         {
             printf("badly formatted for loop: for(init; test; iter; body)\n");
             exit(3);
         }
-        //strncpy(str, ptr, strlen(ptr) - 1);
-        //str[strlen(ptr) - 1] = '\0';
-        *ptr = '\0';
+
+        ptr[i] = '\0';
         sprintf(vname, "%s_body", pre);
         if (set_strvar(vname, ptr))
             new_strvar(vname, ptr);
 
-        if (ptr[1] != '\0')
-            sprintf(current->s, "for(%s_init, %s_test, %s_iter, %s_body);%s",pre, pre, pre, pre, ptr);
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "for(%s_init, %s_test, %s_iter, %s_body);%s", pre, pre, pre, pre, str);
+        }
         else
             sprintf(current->s, "for(%s_init, %s_test, %s_iter, %s_body);", pre, pre, pre, pre);
     }
 
-    if ((ptr = strstr(current->s, "forprime(")) != NULL)
+    if (((ptr = strstr(current->s, "forprime(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
     {
         // new for loop
         char pre[8], vname[20];
@@ -364,22 +406,42 @@ str_t *preprocess(str_t *in, int *numlines)
         sprintf(vname, "%s_stop", pre);
         if (set_strvar(vname, ptr))
             new_strvar(vname, ptr);
-        ptr = strtok(NULL, "\0");
-        if (ptr == NULL)
+
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
         {
-            printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
+
+        if (ptr[i] == '\0')
+        {
+            printf("badly formatted for loop: forprime(var=start; stop; body)\n");
             exit(3);
         }
-        strncpy(str, ptr, strlen(ptr) - 1);
-        str[strlen(ptr) - 1] = '\0';
-        sprintf(vname, "%s_body", pre);
-        if (set_strvar(vname, str))
-            new_strvar(vname, str);
 
-        sprintf(current->s, "forprime(%s_start, %s_stop, %s_body);", pre, pre, pre);
+        ptr[i] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "forprime(%s_start, %s_stop, %s_body);%s", pre, pre, pre, str);
+        }
+        else
+            sprintf(current->s, "forprime(%s_start, %s_stop, %s_body);", pre, pre, pre);
     }
 
-    if ((ptr = strstr(current->s, "forfactors(")) != NULL)
+    if (((ptr = strstr(current->s, "forfactors(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
     {
         // new for loop
         char pre[8], vname[20];
@@ -395,17 +457,42 @@ str_t *preprocess(str_t *in, int *numlines)
         sprintf(vname, "%s_init", pre);
         if (set_strvar(vname, ptr))
             new_strvar(vname, ptr);
-        ptr = strtok(NULL, "\0");
-        strncpy(str, ptr, strlen(ptr) - 1);
-        str[strlen(ptr) - 1] = '\0';
-        sprintf(vname, "%s_body", pre);
-        if (set_strvar(vname, str))
-            new_strvar(vname, str);
+        
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
+        {
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
 
-        sprintf(current->s, "forfactors(%s_init, %s_body);", pre, pre);
+        if (ptr[i] == '\0')
+        {
+            printf("badly formatted for loop: forfactors(init, body)\n");
+            exit(3);
+        }
+
+        ptr[i] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "forfactors(%s_init, %s_body);%s", pre, pre, str);
+        }
+        else
+            sprintf(current->s, "forfactors(%s_init, %s_body);", pre, pre);
     }
 
-    if ((ptr = strstr(current->s, "if(")) != NULL)
+    if (((ptr = strstr(current->s, "if(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
     {
         // new if statement
         char pre[8], vname[20];
@@ -485,7 +572,6 @@ str_t *preprocess(str_t *in, int *numlines)
                 sprintf(current->s, "if(%s_cond, %s_body, %s_elsebody);", pre, pre, pre);
             }
         }
-
     }
 
     // search for commas within 'closed' areas and separate them into

@@ -18,8 +18,7 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-#CC = x86_64-w64-mingw32-gcc-4.5.1
-CFLAGS = -march=westmere -mtune=westmere
+#CFLAGS = -march=westmere -mtune=westmere
 #CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
@@ -45,18 +44,32 @@ ifeq ($(OPT_DEBUG),1)
 	CFLAGS += -DOPT_DEBUG
 endif
 
+# ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
 # appropriate files.  The executable will then choose between them based on the runtime
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
+endif
+
+ifeq ($(SKYLAKEX),1)
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+endif
+
+ifeq ($(SMALLINT),1)
+	CFLAGS += -DSMALL_SIQS_INTERVALS
+endif
+
+ifeq ($(USE_BMI2),1)
+# -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
+  CFLAGS += -mbmi2 -mbmi
+endif
+
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -mavx2 -mavx
-endif
-
-ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41
 endif
 
 ifeq ($(TIMING),1)
@@ -106,7 +119,6 @@ YAFU_SRCS = \
 	top/stack.c \
 	top/calc.c \
 	top/test.c \
-  top/threadpool.c \
 	top/aprcl/mpz_aprcl.c \
 	factor/factor_common.c \
 	factor/rho.c \
@@ -116,20 +128,16 @@ YAFU_SRCS = \
 	factor/qs/filter.c \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_med_32k.c \
-	factor/qs/tdiv_resieve_32k.c \
 	factor/qs/tdiv_large.c \
-	factor/qs/tdiv_scan.c \
 	factor/qs/large_sieve.c \
-	factor/qs/med_sieve_32k.c \
 	factor/qs/new_poly.c \
-	factor/qs/poly_roots_32k.c \
-	factor/qs/update_poly_roots_32k.c \
 	factor/qs/siqs_test.c \
 	factor/tinyqs/tinySIQS.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
 	factor/qs/SIQS.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/poly_roots_32k.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
@@ -138,6 +146,8 @@ YAFU_SRCS = \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
+  arith/monty.c \
+	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
 	top/eratosthenes/primes.c \
@@ -147,8 +157,9 @@ YAFU_SRCS = \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
-	top/eratosthenes/presieve.c \
-	top/eratosthenes/wrapper.c
+	top/eratosthenes/wrapper.c \
+	top/threadpool.c \
+  factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
@@ -162,6 +173,21 @@ ifeq ($(USE_SSE41),1)
 # these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
+endif
+
+YAFU_SRCS += factor/qs/update_poly_roots_32k.c
+YAFU_SRCS += factor/qs/tdiv_med_32k.c
+YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
+
+ifeq ($(KNL),1)
+  
+  YAFU_SRCS += factor/qs/tdiv_scan_knl.c
+  YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+  
+else
+  
+  YAFU_SRCS += factor/qs/tdiv_scan.c
+    
 endif
 
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
@@ -188,9 +214,12 @@ endif
 #---------------------------Header file lists -------------------------
 HEAD = include/yafu.h  \
 	include/qs.h  \
+	factor/qs/poly_macros_32k.h \
+	factor/qs/poly_macros_common.h \
+	factor/qs/sieve_macros_32k.h \
+	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
 	include/types.h  \
-	include/ecm.h \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
@@ -203,9 +232,12 @@ HEAD = include/yafu.h  \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
+	include/yafu_ecm.h \
 	include/gmp_xface.h \
+  include/monty.h \
 	include/nfs.h \
-  top/threadpool.h
+	top/threadpool.h \
+  factor/qs/cofactorize.h
 
 
 ifeq ($(USE_SSE41),1)

@@ -23,6 +23,7 @@ code to the public domain.
 #include "util.h"
 #include "gmp_xface.h"
 #include "threadpool.h"
+#include "cofactorize.h"
 
 //#define VDEBUG
 // opt debug will print out some info relevant to the process used to 
@@ -634,7 +635,7 @@ void *process_poly(void *vptr)
     static_conf_t *sconf = thread_data->sconf;
     dynamic_conf_t *dconf = thread_data->dconf;
 
-    //unpack stuff from the job data structure
+    // unpack stuff from the job data structure
     sieve_fb_compressed *fb_sieve_p = dconf->comp_sieve_p;
     sieve_fb_compressed *fb_sieve_n = dconf->comp_sieve_n;
     siqs_poly *poly = dconf->curr_poly;
@@ -645,26 +646,26 @@ void *process_poly(void *vptr)
     uint32 num_blocks = sconf->num_blocks;
     uint8 blockinit = sconf->blockinit;
 
-    //locals
+    // locals
     uint32 i;
 
-    //to get relations per second
+    // to get relations per second
     double t_time;
     struct timeval start, stop, st;
 
-    //this routine is handed a dconf structure which already has a
-    //new poly a coefficient (and some supporting data).  continue from
-    //there, first initializing the gray code...
+    // this routine is handed a dconf structure which already has a
+    // new poly a coefficient (and some supporting data).  continue from
+    // there, first initializing the gray code...
     gettimeofday(&start, NULL);
 
     // used to print a little more status info for huge jobs.
     if (sconf->digits_n > 110)
         gettimeofday(&st, NULL);
 
-    //update the gray code
+    // update the gray code
     get_gray_code(dconf->curr_poly);
 
-    //update roots, etc.
+    // update roots, etc.
     dconf->maxB = 1 << (dconf->curr_poly->s - 1);
     dconf->numB = 1;
     computeBl(sconf, dconf);
@@ -711,27 +712,28 @@ void *process_poly(void *vptr)
         }
 
         // print a little more status info for huge jobs.
-#if !defined( TARGET_KNC) && !defined(TARGET_KNL)
-        if (sconf->digits_n > 110)
+        if (THREADS < 32)
         {
-            gettimeofday(&stop, NULL);
-            t_time = my_difftime(&st, &stop);
-
-            if (t_time > 5)
+            if (sconf->digits_n > 110)
             {
-                // print some status
                 gettimeofday(&stop, NULL);
-                t_time = my_difftime(&start, &stop);
+                t_time = my_difftime(&st, &stop);
 
-                printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
-                    dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
-                    (double)dconf->buffered_rels / t_time);
+                if (t_time > 5)
+                {
+                    // print some status
+                    gettimeofday(&stop, NULL);
+                    t_time = my_difftime(&start, &stop);
 
-                // reset the timer
-                gettimeofday(&st, NULL);
+                    printf("Bpoly %u of %u: buffered %u rels, checked %u (%1.2f rels/sec)\n",
+                        dconf->numB, dconf->maxB, dconf->buffered_rels, dconf->num,
+                        (double)dconf->buffered_rels / t_time);
+
+                    // reset the timer
+                    gettimeofday(&st, NULL);
+                }
             }
         }
-#endif
 
         // next polynomial
         // use the stored Bl's and the gray code to find the next b
@@ -747,6 +749,16 @@ void *process_poly(void *vptr)
         {
             nextRoots_32k_knc_polybatch(sconf, dconf);
         }
+#elif defined(USE_AVX512F)
+        // every iteration we update the small-med prime's roots
+        nextRoots_32k_avx2_small(sconf, dconf);
+
+        // every N iterations we do the bucket sieve
+        if ((dconf->numB % dconf->poly_batchsize) == 1)
+        {
+            nextRoots_32k_knl_polybatch(sconf, dconf);
+        }
+
 #else
         // every iteration we update the small-med prime's roots
         nextRoots_32k_generic_small(sconf, dconf);
@@ -765,7 +777,7 @@ void *process_poly(void *vptr)
         nextRoots_32k_knc_small(sconf, dconf);
         nextRoots_32k_knc_bucket(sconf, dconf);
 
-#elif TARGET_KNL
+#elif USE_AVX512F
 
         nextRoots_32k_avx2_small(sconf, dconf);
         nextRoots_32k_knl_bucket(sconf, dconf);
@@ -777,12 +789,15 @@ void *process_poly(void *vptr)
 
 #endif
 
-#if defined(TARGET_KNC) || defined(TARGET_KNL)
-        // other threads may have got us past the threshold while we
-        // are still working on this 'A' poly... check if we can stop.
-        if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
-            break;
-#endif
+        if (THREADS >= 32)
+        {
+            // other threads may have got us past the threshold while we
+            // are still working on this 'A' poly... check if we can stop.
+            if ((sconf->num_found > sconf->num_needed) || (sconf->flag == 1))
+            {
+                break;
+            }
+        }
     }
 
 
@@ -797,9 +812,15 @@ void *process_poly(void *vptr)
         siqs_r *rel;
 
         //printf("attempting vector squfof on %d residues... ", dconf->num_64bit_residue);
-
+#if defined(__INTEL_COMPILER)
         f32 = par_shanks_loop(dconf->unfactored_residue, f, 
             dconf->num_64bit_residue);
+#else
+        for (i = 0; i < dconf->num_64bit_residue; i++)
+        {
+            f[i] = spbrent(dconf->unfactored_residue[i], 1, 1024);
+        }
+#endif
 
         //printf("vector squfof reported %d successes\n", f32);
 
@@ -993,8 +1014,8 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #elif defined(USE_AVX2)
     if (HAS_AVX2)
     {
-#ifdef TARGET_KNL
-        strcpy(inst_set, "KNL-AVX2");
+#if defined (USE_AVX512F)
+        strcpy(inst_set, "AVX512");
 #else
         strcpy(inst_set, "AVX2");
 #endif
@@ -1083,9 +1104,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		}
 		else
 		{
-			printf("\n==== sieving in progress (%2d threads): %7u relations needed ====\n",
+			printf("\n==== sieving in progress (%3d threads): %7u relations needed ====\n",
 				THREADS,sconf->factor_base->B + sconf->num_extra_relations);
-			printf(  "====            Press ctrl-c to abort and save state            ====\n");
+			printf(  "====             Press ctrl-c to abort and save state            ====\n");
 		}
 	}
 
@@ -1295,7 +1316,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             BUCKET_ALLOC * sizeof(uint32)));
 #endif
 
-        dconf->poly_batchsize = 4;
+        dconf->poly_batchsize = 8;
 
 #else
         dconf->poly_batchsize = 1;
@@ -1529,9 +1550,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     resieve_med_ptr = &resieve_medprimes_32k_knc;
 #endif
 
-#if defined(TARGET_KNL)
+#if defined(USE_AVX512F)
     //tdiv_med_ptr = &tdiv_medprimes_32k_knl;
-    //resieve_med_ptr = &resieve_medprimes_32k_knc;
+    resieve_med_ptr = &resieve_medprimes_32k_avx2;
 #endif
 		
 	sconf->qs_blocksize = 32768;
@@ -1711,6 +1732,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			break;
 	}
 	sconf->sieve_small_fb_start = i;
+
+    // ======================================================================
+    // set thresholds at various bit levels.  Note: many places in the code
+    // are extremely sensitive to these thresholds; the program can hang or
+    // crash unexpectedly if set incorrectly.  Adjust carefully!
+    // ======================================================================
 
 	for (; i < sconf->factor_base->B; i++)
 	{
@@ -1937,7 +1964,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		sconf->use_dlp = 0;
 	}
 
-#if defined(TARGET_KNC) || defined(TARGET_KNL)
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
     // so far have only implemented this one
     scan_ptr = &check_relations_siqs_16;
     sconf->scan_unrolling = 128;
@@ -2147,15 +2174,16 @@ int update_check(static_conf_t *sconf)
 	uint32 num_full = sconf->num_relations;
 	uint32 check_total = sconf->check_total;
 	uint32 check_inc = sconf->check_inc;
-#if defined( TARGET_KNC) || defined (TARGET_KNL)
-    double update_time = 0;
-#else
     double update_time = sconf->update_time;
-#endif
 	double t_update, t_time;	
 	//int i;
 	fb_list *fb = sconf->factor_base;
 	int retcode = 0;
+
+    // if we are working on a large problem or have a lot of
+    // threads, update as fast as we can.
+    if ((sconf->digits_n >= 90) || (THREADS >= 32))
+        update_time = 0;
 
 	mpz_init(tmp1);
 
@@ -2226,13 +2254,12 @@ int update_check(static_conf_t *sconf)
 			return 2;
 		}
 
-		//update status on screen
+		// update status on screen
 		sconf->num_r = sconf->num_relations + 
 		sconf->num_cycles +
 		sconf->components - sconf->vertices;
 
-		//also change rel sum to update_rels below...
-		t_time = my_difftime (&sconf->totaltime_start, &update_stop);
+		// also change rel sum to update_rels below...
 		if (VFLAG >= 0)
 		{
 			printf("%d rels found: %d full + "
@@ -2246,7 +2273,8 @@ int update_check(static_conf_t *sconf)
 			fflush(stdout);
 		}
 
-		gettimeofday(&sconf->update_start, NULL);
+        sconf->update_start.tv_sec = update_stop.tv_sec;
+        sconf->update_start.tv_usec = update_stop.tv_usec;
 		sconf->t_update = 0;
 		
 		if (sconf->num_r >= (fb->B + sconf->num_extra_relations))
@@ -2257,14 +2285,14 @@ int update_check(static_conf_t *sconf)
 		}
 		else
 		{
-			//need to keep sieving.  since the last time we checked, we've found
-			//(full->num_r + partial->act_r) - (last_numfull + last_numpartial)
-			//relations.  assume we'll find this many next time, and 
-			//scale how much longer we need to sieve to hit the target.
+			// need to keep sieving.  since the last time we checked, we've found
+			// (full->num_r + partial->act_r) - (last_numfull + last_numpartial)
+			// relations.  assume we'll find this many next time, and 
+			// scale how much longer we need to sieve to hit the target.
 
 			sconf->num_expected = sconf->num_r - sconf->last_numfull - sconf->last_numpartial;
-			//if the number expected to be found next time puts us over the needed amount, scale the 
-			//check total appropriately.  otherwise, just increment check_total by check_inc
+			// if the number expected to be found next time puts us over the needed amount, scale the 
+			// check total appropriately.  otherwise, just increment check_total by check_inc
 			if ((sconf->num_r + sconf->num_expected) > (fb->B + sconf->num_extra_relations))
 			{
 				sconf->num_needed = (fb->B + sconf->num_extra_relations) - sconf->num_r;
@@ -2273,7 +2301,7 @@ int update_check(static_conf_t *sconf)
 				sconf->check_total += sconf->num_extra_relations;
 				sconf->update_time *= (double)sconf->num_needed / (double)sconf->num_expected;
 				
-				//always go at least one more second.
+				// always go at least one more second.
 				if (sconf->update_time < 1)
 					sconf->update_time = 1;
 			}

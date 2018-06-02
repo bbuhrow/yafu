@@ -1160,14 +1160,14 @@ uint64 _29_MASKS[29] = {
 
 #ifdef USE_AVX512F
 
-__declspec(align(64)) uint64 _5_MASKS_512[8*5] = {
+ALIGNED_MEM uint64 _5_MASKS_512[8*5] = {
     0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,
     0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,
     0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,
     0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,
     0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL,0xbdef7bdef7bdef7bULL,0x7bdef7bdef7bdef7ULL,0xf7bdef7bdef7bdefULL,0xef7bdef7bdef7bdeULL,0xdef7bdef7bdef7bdULL};
 
-__declspec(align(64)) uint64 _7_MASKS_512[8*7] = {
+ALIGNED_MEM uint64 _7_MASKS_512[8*7] = {
     0x7efdfbf7efdfbf7eULL,0xbf7efdfbf7efdfbfULL,0xdfbf7efdfbf7efdfULL,0xefdfbf7efdfbf7efULL,0xf7efdfbf7efdfbf7ULL,0xfbf7efdfbf7efdfbULL,0xfdfbf7efdfbf7efdULL,0x7efdfbf7efdfbf7eULL,
     0xfdfbf7efdfbf7efdULL,0x7efdfbf7efdfbf7eULL,0xbf7efdfbf7efdfbfULL,0xdfbf7efdfbf7efdfULL,0xefdfbf7efdfbf7efULL,0xf7efdfbf7efdfbf7ULL,0xfbf7efdfbf7efdfbULL,0xfdfbf7efdfbf7efdULL,
     0xfbf7efdfbf7efdfbULL,0xfdfbf7efdfbf7efdULL,0x7efdfbf7efdfbf7eULL,0xbf7efdfbf7efdfbfULL,0xdfbf7efdfbf7efdfULL,0xefdfbf7efdfbf7efULL,0xf7efdfbf7efdfbf7ULL,0xfbf7efdfbf7efdfbULL,
@@ -1176,7 +1176,7 @@ __declspec(align(64)) uint64 _7_MASKS_512[8*7] = {
     0xdfbf7efdfbf7efdfULL,0xefdfbf7efdfbf7efULL,0xf7efdfbf7efdfbf7ULL,0xfbf7efdfbf7efdfbULL,0xfdfbf7efdfbf7efdULL,0x7efdfbf7efdfbf7eULL,0xbf7efdfbf7efdfbfULL,0xdfbf7efdfbf7efdfULL,
     0xbf7efdfbf7efdfbfULL,0xdfbf7efdfbf7efdfULL,0xefdfbf7efdfbf7efULL,0xf7efdfbf7efdfbf7ULL,0xfbf7efdfbf7efdfbULL,0xfdfbf7efdfbf7efdULL,0x7efdfbf7efdfbf7eULL,0xbf7efdfbf7efdfbfULL};
 
-__declspec(align(64)) uint64 _11_MASKS_512[8*11] = {
+ALIGNED_MEM uint64 _11_MASKS_512[8*11] = {
     0xff7feffdffbff7feULL,0xfdffbff7feffdffbULL,0xf7feffdffbff7fefULL,0xdffbff7feffdffbfULL,0x7feffdffbff7feffULL,0xffbff7feffdffbffULL,0xfeffdffbff7feffdULL,0xfbff7feffdffbff7ULL,
     0xfeffdffbff7feffdULL,0xfbff7feffdffbff7ULL,0xeffdffbff7feffdfULL,0xbff7feffdffbff7fULL,0xffdffbff7feffdffULL,0xff7feffdffbff7feULL,0xfdffbff7feffdffbULL,0xf7feffdffbff7fefULL,
     0xfdffbff7feffdffbULL,0xf7feffdffbff7fefULL,0xdffbff7feffdffbfULL,0x7feffdffbff7feffULL,0xffbff7feffdffbffULL,0xfeffdffbff7feffdULL,0xfbff7feffdffbff7ULL,0xeffdffbff7feffdfULL,
@@ -1189,7 +1189,7 @@ __declspec(align(64)) uint64 _11_MASKS_512[8*11] = {
     0xffdffbff7feffdffULL,0xff7feffdffbff7feULL,0xfdffbff7feffdffbULL,0xf7feffdffbff7fefULL,0xdffbff7feffdffbfULL,0x7feffdffbff7feffULL,0xffbff7feffdffbffULL,0xfeffdffbff7feffdULL,
     0xffbff7feffdffbffULL,0xfeffdffbff7feffdULL,0xfbff7feffdffbff7ULL,0xeffdffbff7feffdfULL,0xbff7feffdffbff7fULL,0xffdffbff7feffdffULL,0xff7feffdffbff7feULL,0xfdffbff7feffdffbULL};
 
-__declspec(align(64)) uint64 _13_MASKS_512[8*13] = {
+ALIGNED_MEM uint64 _13_MASKS_512[8*13] = {
     0xffefff7ffbffdffeULL,0xffdffefff7ffbffdULL,0xffbffdffefff7ffbULL,0xff7ffbffdffefff7ULL,0xfefff7ffbffdffefULL,0xfdffefff7ffbffdfULL,0xfbffdffefff7ffbfULL,0xf7ffbffdffefff7fULL,
     0xffdffefff7ffbffdULL,0xffbffdffefff7ffbULL,0xff7ffbffdffefff7ULL,0xfefff7ffbffdffefULL,0xfdffefff7ffbffdfULL,0xfbffdffefff7ffbfULL,0xf7ffbffdffefff7fULL,0xefff7ffbffdffeffULL,
     0xffbffdffefff7ffbULL,0xff7ffbffdffefff7ULL,0xfefff7ffbffdffefULL,0xfdffefff7ffbffdfULL,0xfbffdffefff7ffbfULL,0xf7ffbffdffefff7fULL,0xefff7ffbffdffeffULL,0xdffefff7ffbffdffULL,
@@ -1204,7 +1204,7 @@ __declspec(align(64)) uint64 _13_MASKS_512[8*13] = {
     0x7ffbffdffefff7ffULL,0xfff7ffbffdffefffULL,0xffefff7ffbffdffeULL,0xffdffefff7ffbffdULL,0xffbffdffefff7ffbULL,0xff7ffbffdffefff7ULL,0xfefff7ffbffdffefULL,0xfdffefff7ffbffdfULL,
     0xfff7ffbffdffefffULL,0xffefff7ffbffdffeULL,0xffdffefff7ffbffdULL,0xffbffdffefff7ffbULL,0xff7ffbffdffefff7ULL,0xfefff7ffbffdffefULL,0xfdffefff7ffbffdfULL,0xfbffdffefff7ffbfULL};
 
-__declspec(align(64)) uint64 _17_MASKS_512[8*17] = {
+ALIGNED_MEM uint64 _17_MASKS_512[8*17] = {
     0xfff7fffbfffdfffeULL,0xff7fffbfffdfffefULL,0xf7fffbfffdfffeffULL,0x7fffbfffdfffefffULL,0xfffbfffdfffeffffULL,0xffbfffdfffeffff7ULL,0xfbfffdfffeffff7fULL,0xbfffdfffeffff7ffULL,
     0xffeffff7fffbfffdULL,0xfeffff7fffbfffdfULL,0xeffff7fffbfffdffULL,0xffff7fffbfffdfffULL,0xfff7fffbfffdfffeULL,0xff7fffbfffdfffefULL,0xf7fffbfffdfffeffULL,0x7fffbfffdfffefffULL,
     0xffdfffeffff7fffbULL,0xfdfffeffff7fffbfULL,0xdfffeffff7fffbffULL,0xfffeffff7fffbfffULL,0xffeffff7fffbfffdULL,0xfeffff7fffbfffdfULL,0xeffff7fffbfffdffULL,0xffff7fffbfffdfffULL,
@@ -1223,7 +1223,7 @@ __declspec(align(64)) uint64 _17_MASKS_512[8*17] = {
     0xfffdfffeffff7fffULL,0xffdfffeffff7fffbULL,0xfdfffeffff7fffbfULL,0xdfffeffff7fffbffULL,0xfffeffff7fffbfffULL,0xffeffff7fffbfffdULL,0xfeffff7fffbfffdfULL,0xeffff7fffbfffdffULL,
     0xfffbfffdfffeffffULL,0xffbfffdfffeffff7ULL,0xfbfffdfffeffff7fULL,0xbfffdfffeffff7ffULL,0xfffdfffeffff7fffULL,0xffdfffeffff7fffbULL,0xfdfffeffff7fffbfULL,0xdfffeffff7fffbffULL};
 
-__declspec(align(64)) uint64 _19_MASKS_512[8*19] = {
+ALIGNED_MEM uint64 _19_MASKS_512[8*19] = {
     0xfdffffbffff7fffeULL,0xfffbffff7fffefffULL,0xbffff7fffeffffdfULL,0xff7fffeffffdffffULL,0xfffeffffdffffbffULL,0xeffffdffffbffff7ULL,0xffdffffbffff7fffULL,0xffffbffff7fffeffULL,
     0xfbffff7fffeffffdULL,0xfff7fffeffffdfffULL,0x7fffeffffdffffbfULL,0xfeffffdffffbffffULL,0xfffdffffbffff7ffULL,0xdffffbffff7fffefULL,0xffbffff7fffeffffULL,0xffff7fffeffffdffULL,
     0xf7fffeffffdffffbULL,0xffeffffdffffbfffULL,0xffffdffffbffff7fULL,0xfdffffbffff7fffeULL,0xfffbffff7fffefffULL,0xbffff7fffeffffdfULL,0xff7fffeffffdffffULL,0xfffeffffdffffbffULL,
@@ -1244,7 +1244,7 @@ __declspec(align(64)) uint64 _19_MASKS_512[8*19] = {
     0xff7fffeffffdffffULL,0xfffeffffdffffbffULL,0xeffffdffffbffff7ULL,0xffdffffbffff7fffULL,0xffffbffff7fffeffULL,0xfbffff7fffeffffdULL,0xfff7fffeffffdfffULL,0x7fffeffffdffffbfULL,
     0xfeffffdffffbffffULL,0xfffdffffbffff7ffULL,0xdffffbffff7fffefULL,0xffbffff7fffeffffULL,0xffff7fffeffffdffULL,0xf7fffeffffdffffbULL,0xffeffffdffffbfffULL,0xffffdffffbffff7fULL};
 
-__declspec(align(64)) uint64 _23_MASKS_512[8*23] = {
+ALIGNED_MEM uint64 _23_MASKS_512[8*23] = {
     0xffffbfffff7ffffeULL,0xfff7ffffefffffdfULL,0xfefffffdfffffbffULL,0xdfffffbfffff7fffULL,0xfffff7ffffefffffULL,0xfffefffffdfffffbULL,0xffdfffffbfffff7fULL,0xfbfffff7ffffefffULL,
     0xffff7ffffefffffdULL,0xffefffffdfffffbfULL,0xfdfffffbfffff7ffULL,0xbfffff7ffffeffffULL,0xffffefffffdfffffULL,0xfffdfffffbfffff7ULL,0xffbfffff7ffffeffULL,0xf7ffffefffffdfffULL,
     0xfffefffffdfffffbULL,0xffdfffffbfffff7fULL,0xfbfffff7ffffefffULL,0x7ffffefffffdffffULL,0xffffdfffffbfffffULL,0xfffbfffff7ffffefULL,0xff7ffffefffffdffULL,0xefffffdfffffbfffULL,
@@ -1269,7 +1269,7 @@ __declspec(align(64)) uint64 _23_MASKS_512[8*23] = {
     0xffffefffffdfffffULL,0xfffdfffffbfffff7ULL,0xffbfffff7ffffeffULL,0xf7ffffefffffdfffULL,0xfffffdfffffbffffULL,0xffffbfffff7ffffeULL,0xfff7ffffefffffdfULL,0xfefffffdfffffbffULL,
     0xffffdfffffbfffffULL,0xfffbfffff7ffffefULL,0xff7ffffefffffdffULL,0xefffffdfffffbfffULL,0xfffffbfffff7ffffULL,0xffff7ffffefffffdULL,0xffefffffdfffffbfULL,0xfdfffffbfffff7ffULL};
 
-__declspec(align(64)) uint64 _29_MASKS_512[8*29] = {
+ALIGNED_MEM uint64 _29_MASKS_512[8*29] = {
     0xfbffffffdffffffeULL,0xffefffffff7fffffULL,0xffffbffffffdffffULL,0xfffffefffffff7ffULL,0x7ffffffbffffffdfULL,0xfdffffffefffffffULL,0xfff7ffffffbfffffULL,0xffffdffffffeffffULL,
     0xf7ffffffbffffffdULL,0xffdffffffeffffffULL,0xffff7ffffffbffffULL,0xfffffdffffffefffULL,0xfffffff7ffffffbfULL,0xfbffffffdffffffeULL,0xffefffffff7fffffULL,0xffffbffffffdffffULL,
     0xefffffff7ffffffbULL,0xffbffffffdffffffULL,0xfffefffffff7ffffULL,0xfffffbffffffdfffULL,0xffffffefffffff7fULL,0xf7ffffffbffffffdULL,0xffdffffffeffffffULL,0xffff7ffffffbffffULL,
@@ -1300,7 +1300,7 @@ __declspec(align(64)) uint64 _29_MASKS_512[8*29] = {
     0xfefffffff7ffffffULL,0xfffbffffffdfffffULL,0xffffefffffff7fffULL,0xffffffbffffffdffULL,0xdffffffefffffff7ULL,0xff7ffffffbffffffULL,0xfffdffffffefffffULL,0xfffff7ffffffbfffULL,
     0xfdffffffefffffffULL,0xfff7ffffffbfffffULL,0xffffdffffffeffffULL,0xffffff7ffffffbffULL,0xbffffffdffffffefULL,0xfefffffff7ffffffULL,0xfffbffffffdfffffULL,0xffffefffffff7fffULL};
 
-__declspec(align(64)) uint64 _31_MASKS_512[8*31] = {
+ALIGNED_MEM uint64 _31_MASKS_512[8*31] = {
     0xbfffffff7ffffffeULL,0xefffffffdfffffffULL,0xfbfffffff7ffffffULL,0xfefffffffdffffffULL,0xffbfffffff7fffffULL,0xffefffffffdfffffULL,0xfffbfffffff7ffffULL,0xfffefffffffdffffULL,
     0x7ffffffefffffffdULL,0xdfffffffbfffffffULL,0xf7ffffffefffffffULL,0xfdfffffffbffffffULL,0xff7ffffffeffffffULL,0xffdfffffffbfffffULL,0xfff7ffffffefffffULL,0xfffdfffffffbffffULL,
     0xfffffffdfffffffbULL,0xbfffffff7ffffffeULL,0xefffffffdfffffffULL,0xfbfffffff7ffffffULL,0xfefffffffdffffffULL,0xffbfffffff7fffffULL,0xffefffffffdfffffULL,0xfffbfffffff7ffffULL,
@@ -1333,7 +1333,7 @@ __declspec(align(64)) uint64 _31_MASKS_512[8*31] = {
     0xefffffffdfffffffULL,0xfbfffffff7ffffffULL,0xfefffffffdffffffULL,0xffbfffffff7fffffULL,0xffefffffffdfffffULL,0xfffbfffffff7ffffULL,0xfffefffffffdffffULL,0xffffbfffffff7fffULL,
     0xdfffffffbfffffffULL,0xf7ffffffefffffffULL,0xfdfffffffbffffffULL,0xff7ffffffeffffffULL,0xffdfffffffbfffffULL,0xfff7ffffffefffffULL,0xfffdfffffffbffffULL,0xffff7ffffffeffffULL};
 
-__declspec(align(64)) uint64 _37_MASKS_512[8*37] = {
+ALIGNED_MEM uint64 _37_MASKS_512[8*37] = {
     0xffffffdffffffffeULL,0xffff7ffffffffbffULL,0xfdffffffffefffffULL,0xffffffffbfffffffULL,0xfffffefffffffff7ULL,0xfffbffffffffdfffULL,0xefffffffff7fffffULL,0xfffffffdffffffffULL,
     0xffffffbffffffffdULL,0xfffefffffffff7ffULL,0xfbffffffffdfffffULL,0xffffffff7fffffffULL,0xfffffdffffffffefULL,0xfff7ffffffffbfffULL,0xdffffffffeffffffULL,0xfffffffbffffffffULL,
     0xffffff7ffffffffbULL,0xfffdffffffffefffULL,0xf7ffffffffbfffffULL,0xfffffffeffffffffULL,0xfffffbffffffffdfULL,0xffefffffffff7fffULL,0xbffffffffdffffffULL,0xfffffff7ffffffffULL,
@@ -1372,7 +1372,7 @@ __declspec(align(64)) uint64 _37_MASKS_512[8*37] = {
     0xfffffff7ffffffffULL,0xffffdffffffffeffULL,0xff7ffffffffbffffULL,0xffffffffefffffffULL,0xffffffbffffffffdULL,0xfffefffffffff7ffULL,0xfbffffffffdfffffULL,0xffffffff7fffffffULL,
     0xffffffefffffffffULL,0xffffbffffffffdffULL,0xfefffffffff7ffffULL,0xffffffffdfffffffULL,0xffffff7ffffffffbULL,0xfffdffffffffefffULL,0xf7ffffffffbfffffULL,0xfffffffeffffffffULL};
 
-__declspec(align(64)) uint64 _41_MASKS_512[8*41] = {
+ALIGNED_MEM uint64 _41_MASKS_512[8*41] = {
     0xfffffdfffffffffeULL,0xf7fffffffffbffffULL,0xffffffefffffffffULL,0xffbfffffffffdfffULL,0xffffffff7fffffffULL,0xfffdfffffffffeffULL,0xfffffffffbffffffULL,0xffffeffffffffff7ULL,
     0xfffffbfffffffffdULL,0xeffffffffff7ffffULL,0xffffffdfffffffffULL,0xff7fffffffffbfffULL,0xfffffffeffffffffULL,0xfffbfffffffffdffULL,0xfffffffff7ffffffULL,0xffffdfffffffffefULL,
     0xfffff7fffffffffbULL,0xdfffffffffefffffULL,0xffffffbfffffffffULL,0xfeffffffffff7fffULL,0xfffffffdffffffffULL,0xfff7fffffffffbffULL,0xffffffffefffffffULL,0xffffbfffffffffdfULL,
@@ -1415,7 +1415,7 @@ __declspec(align(64)) uint64 _41_MASKS_512[8*41] = {
     0xffffff7fffffffffULL,0xfdfffffffffeffffULL,0xfffffffbffffffffULL,0xffeffffffffff7ffULL,0xffffffffdfffffffULL,0xffff7fffffffffbfULL,0xfffffffffeffffffULL,0xfffffbfffffffffdULL,
     0xfffffeffffffffffULL,0xfbfffffffffdffffULL,0xfffffff7ffffffffULL,0xffdfffffffffefffULL,0xffffffffbfffffffULL,0xfffeffffffffff7fULL,0xfffffffffdffffffULL,0xfffff7fffffffffbULL};
 
-__declspec(align(64)) uint64 _43_MASKS_512[8*43] = {
+ALIGNED_MEM uint64 _43_MASKS_512[8*43] = {
     0xfffff7fffffffffeULL,0xffffffffffbfffffULL,0xffffeffffffffffdULL,0xffffffffff7fffffULL,0xffffdffffffffffbULL,0xfffffffffeffffffULL,0xffffbffffffffff7ULL,0xfffffffffdffffffULL,
     0xffffeffffffffffdULL,0xffffffffff7fffffULL,0xffffdffffffffffbULL,0xfffffffffeffffffULL,0xffffbffffffffff7ULL,0xfffffffffdffffffULL,0xffff7fffffffffefULL,0xfffffffffbffffffULL,
     0xffffdffffffffffbULL,0xfffffffffeffffffULL,0xffffbffffffffff7ULL,0xfffffffffdffffffULL,0xffff7fffffffffefULL,0xfffffffffbffffffULL,0xfffeffffffffffdfULL,0xfffffffff7ffffffULL,
@@ -1459,7 +1459,7 @@ __declspec(align(64)) uint64 _43_MASKS_512[8*43] = {
     0xfffffeffffffffffULL, 0xbffffffffff7ffffULL, 0xfffffdffffffffffULL, 0x7fffffffffefffffULL, 0xfffffbffffffffffULL, 0xffffffffffdfffffULL, 0xfffff7fffffffffeULL, 0xffffffffffbfffffULL,
     0xfffffdffffffffffULL, 0x7fffffffffefffffULL, 0xfffffbffffffffffULL, 0xffffffffffdfffffULL, 0xfffff7fffffffffeULL, 0xffffffffffbfffffULL, 0xffffeffffffffffdULL, 0xffffffffff7fffffULL,
     0xfffffbffffffffffULL, 0xffffffffffdfffffULL, 0xfffff7fffffffffeULL, 0xffffffffffbfffffULL, 0xffffeffffffffffdULL, 0xffffffffff7fffffULL, 0xffffdffffffffffbULL, 0xfffffffffeffffffULL};
-__declspec(align(64)) uint64 _47_MASKS_512[8*47] = {
+ALIGNED_MEM uint64 _47_MASKS_512[8*47] = {
     0xffff7ffffffffffeULL, 0xffffffffbfffffffULL, 0xefffffffffffdfffULL, 0xfffff7ffffffffffULL, 0xfffffffffbffffffULL, 0xfefffffffffffdffULL, 0xffffff7fffffffffULL, 0xffffffffffbfffffULL,
     0xfffefffffffffffdULL, 0xffffffff7fffffffULL, 0xdfffffffffffbfffULL, 0xffffefffffffffffULL, 0xfffffffff7ffffffULL, 0xfdfffffffffffbffULL, 0xfffffeffffffffffULL, 0xffffffffff7fffffULL,
     0xfffdfffffffffffbULL, 0xfffffffeffffffffULL, 0xbfffffffffff7fffULL, 0xffffdfffffffffffULL, 0xffffffffefffffffULL, 0xfbfffffffffff7ffULL, 0xfffffdffffffffffULL, 0xfffffffffeffffffULL,
@@ -1508,7 +1508,7 @@ __declspec(align(64)) uint64 _47_MASKS_512[8*47] = {
     0xffffdfffffffffffULL, 0xffffffffefffffffULL, 0xfbfffffffffff7ffULL, 0xfffffdffffffffffULL, 0xfffffffffeffffffULL, 0xffbfffffffffff7fULL, 0xffffffdfffffffffULL, 0xffffffffffefffffULL,
     0xffffbfffffffffffULL, 0xffffffffdfffffffULL, 0xf7ffffffffffefffULL, 0xfffffbffffffffffULL, 0xfffffffffdffffffULL, 0xff7ffffffffffeffULL, 0xffffffbfffffffffULL, 0xffffffffffdfffffULL};
 
-__declspec(align(64)) uint64 _53_MASKS_512[8*53] = {
+ALIGNED_MEM uint64 _53_MASKS_512[8*53] = {
     0xffdffffffffffffeULL, 0xfffffbffffffffffULL, 0xffffffff7fffffffULL, 0xffffffffffefffffULL, 0xbffffffffffffdffULL, 0xfff7ffffffffffffULL, 0xfffffeffffffffffULL, 0xffffffffdfffffffULL,
     0xffbffffffffffffdULL, 0xfffff7ffffffffffULL, 0xfffffffeffffffffULL, 0xffffffffffdfffffULL, 0x7ffffffffffffbffULL, 0xffefffffffffffffULL, 0xfffffdffffffffffULL, 0xffffffffbfffffffULL,
     0xff7ffffffffffffbULL, 0xffffefffffffffffULL, 0xfffffffdffffffffULL, 0xffffffffffbfffffULL, 0xfffffffffffff7ffULL, 0xffdffffffffffffeULL, 0xfffffbffffffffffULL, 0xffffffff7fffffffULL,
@@ -1563,7 +1563,7 @@ __declspec(align(64)) uint64 _53_MASKS_512[8*53] = {
     0xfff7ffffffffffffULL, 0xfffffeffffffffffULL, 0xffffffffdfffffffULL, 0xfffffffffffbffffULL, 0xefffffffffffff7fULL, 0xfffdffffffffffffULL, 0xffffffbfffffffffULL, 0xfffffffff7ffffffULL,
     0xffefffffffffffffULL, 0xfffffdffffffffffULL, 0xffffffffbfffffffULL, 0xfffffffffff7ffffULL, 0xdffffffffffffeffULL, 0xfffbffffffffffffULL, 0xffffff7fffffffffULL, 0xffffffffefffffffULL};
 
-__declspec(align(64)) uint64 _59_MASKS_512[8*59] = {
+ALIGNED_MEM uint64 _59_MASKS_512[8*59] = {
     0xf7fffffffffffffeULL, 0xffbfffffffffffffULL, 0xfffdffffffffffffULL, 0xffffefffffffffffULL, 0xffffff7fffffffffULL, 0xfffffffbffffffffULL, 0xffffffffdfffffffULL, 0xfffffffffeffffffULL,
     0xeffffffffffffffdULL, 0xff7fffffffffffffULL, 0xfffbffffffffffffULL, 0xffffdfffffffffffULL, 0xfffffeffffffffffULL, 0xfffffff7ffffffffULL, 0xffffffffbfffffffULL, 0xfffffffffdffffffULL,
     0xdffffffffffffffbULL, 0xfeffffffffffffffULL, 0xfff7ffffffffffffULL, 0xffffbfffffffffffULL, 0xfffffdffffffffffULL, 0xffffffefffffffffULL, 0xffffffff7fffffffULL, 0xfffffffffbffffffULL,
@@ -1624,7 +1624,7 @@ __declspec(align(64)) uint64 _59_MASKS_512[8*59] = {
     0xfdffffffffffffffULL, 0xffefffffffffffffULL, 0xffff7fffffffffffULL, 0xfffffbffffffffffULL, 0xffffffdfffffffffULL, 0xfffffffeffffffffULL, 0xfffffffff7ffffffULL, 0xffffffffffbfffffULL,
     0xfbffffffffffffffULL, 0xffdfffffffffffffULL, 0xfffeffffffffffffULL, 0xfffff7ffffffffffULL, 0xffffffbfffffffffULL, 0xfffffffdffffffffULL, 0xffffffffefffffffULL, 0xffffffffff7fffffULL};
 
-__declspec(align(64)) uint64 _61_MASKS_512[8*61] = {
+ALIGNED_MEM uint64 _61_MASKS_512[8*61] = {
     0xdffffffffffffffeULL, 0xfbffffffffffffffULL, 0xff7fffffffffffffULL, 0xffefffffffffffffULL, 0xfffdffffffffffffULL, 0xffffbfffffffffffULL, 0xfffff7ffffffffffULL, 0xfffffeffffffffffULL,
     0xbffffffffffffffdULL, 0xf7ffffffffffffffULL, 0xfeffffffffffffffULL, 0xffdfffffffffffffULL, 0xfffbffffffffffffULL, 0xffff7fffffffffffULL, 0xffffefffffffffffULL, 0xfffffdffffffffffULL,
     0x7ffffffffffffffbULL, 0xefffffffffffffffULL, 0xfdffffffffffffffULL, 0xffbfffffffffffffULL, 0xfff7ffffffffffffULL, 0xfffeffffffffffffULL, 0xffffdfffffffffffULL, 0xfffffbffffffffffULL,
@@ -1687,7 +1687,7 @@ __declspec(align(64)) uint64 _61_MASKS_512[8*61] = {
     0xf7ffffffffffffffULL, 0xfeffffffffffffffULL, 0xffdfffffffffffffULL, 0xfffbffffffffffffULL, 0xffff7fffffffffffULL, 0xffffefffffffffffULL, 0xfffffdffffffffffULL, 0xffffffbfffffffffULL,
     0xefffffffffffffffULL, 0xfdffffffffffffffULL, 0xffbfffffffffffffULL, 0xfff7ffffffffffffULL, 0xfffeffffffffffffULL, 0xffffdfffffffffffULL, 0xfffffbffffffffffULL, 0xffffff7fffffffffULL};
 
-__declspec(align(64)) uint64 _67_MASKS_512[8*67] = {
+ALIGNED_MEM uint64 _67_MASKS_512[8*67] = {
     0xfffffffffffffffeULL, 0xfffffffffffffff7ULL, 0xffffffffffffffbfULL, 0xfffffffffffffdffULL, 0xffffffffffffefffULL, 0xffffffffffff7fffULL, 0xfffffffffffbffffULL, 0xffffffffffdfffffULL,
     0xfffffffffffffffdULL, 0xffffffffffffffefULL, 0xffffffffffffff7fULL, 0xfffffffffffffbffULL, 0xffffffffffffdfffULL, 0xfffffffffffeffffULL, 0xfffffffffff7ffffULL, 0xffffffffffbfffffULL,
     0xfffffffffffffffbULL, 0xffffffffffffffdfULL, 0xfffffffffffffeffULL, 0xfffffffffffff7ffULL, 0xffffffffffffbfffULL, 0xfffffffffffdffffULL, 0xffffffffffefffffULL, 0xffffffffff7fffffULL,
@@ -1756,7 +1756,7 @@ __declspec(align(64)) uint64 _67_MASKS_512[8*67] = {
     0xffffffffffffffffULL, 0xfffffffffffffffdULL, 0xffffffffffffffefULL, 0xffffffffffffff7fULL, 0xfffffffffffffbffULL, 0xffffffffffffdfffULL, 0xfffffffffffeffffULL, 0xfffffffffff7ffffULL,
     0xffffffffffffffffULL, 0xfffffffffffffffbULL, 0xffffffffffffffdfULL, 0xfffffffffffffeffULL, 0xfffffffffffff7ffULL, 0xffffffffffffbfffULL, 0xfffffffffffdffffULL, 0xffffffffffefffffULL};
 
-__declspec(align(64)) uint64 _71_MASKS_512[8*71] = {
+ALIGNED_MEM uint64 _71_MASKS_512[8*71] = {
     0xfffffffffffffffeULL, 0xffffffffffffff7fULL, 0xffffffffffffbfffULL, 0xffffffffffdfffffULL, 0xffffffffefffffffULL, 0xfffffff7ffffffffULL, 0xfffffbffffffffffULL, 0xfffdffffffffffffULL,
     0xfffffffffffffffdULL, 0xfffffffffffffeffULL, 0xffffffffffff7fffULL, 0xffffffffffbfffffULL, 0xffffffffdfffffffULL, 0xffffffefffffffffULL, 0xfffff7ffffffffffULL, 0xfffbffffffffffffULL,
     0xfffffffffffffffbULL, 0xfffffffffffffdffULL, 0xfffffffffffeffffULL, 0xffffffffff7fffffULL, 0xffffffffbfffffffULL, 0xffffffdfffffffffULL, 0xffffefffffffffffULL, 0xfff7ffffffffffffULL,
@@ -1829,7 +1829,7 @@ __declspec(align(64)) uint64 _71_MASKS_512[8*71] = {
     0xffffffffffffffffULL, 0xffffffffffffffdfULL, 0xffffffffffffefffULL, 0xfffffffffff7ffffULL, 0xfffffffffbffffffULL, 0xfffffffdffffffffULL, 0xfffffeffffffffffULL, 0xffff7fffffffffffULL,
     0xffffffffffffffffULL, 0xffffffffffffffbfULL, 0xffffffffffffdfffULL, 0xffffffffffefffffULL, 0xfffffffff7ffffffULL, 0xfffffffbffffffffULL, 0xfffffdffffffffffULL, 0xfffeffffffffffffULL};
 
-__declspec(align(64)) uint64 _73_MASKS_512[8*73] = {
+ALIGNED_MEM uint64 _73_MASKS_512[8*73] = {
     0xfffffffffffffffeULL, 0xfffffffffffffdffULL, 0xfffffffffffbffffULL, 0xfffffffff7ffffffULL, 0xffffffefffffffffULL, 0xffffdfffffffffffULL, 0xffbfffffffffffffULL, 0x7fffffffffffffffULL,
     0xfffffffffffffffdULL, 0xfffffffffffffbffULL, 0xfffffffffff7ffffULL, 0xffffffffefffffffULL, 0xffffffdfffffffffULL, 0xffffbfffffffffffULL, 0xff7fffffffffffffULL, 0xffffffffffffffffULL,
     0xfffffffffffffffbULL, 0xfffffffffffff7ffULL, 0xffffffffffefffffULL, 0xffffffffdfffffffULL, 0xffffffbfffffffffULL, 0xffff7fffffffffffULL, 0xfeffffffffffffffULL, 0xffffffffffffffffULL,
@@ -1904,7 +1904,7 @@ __declspec(align(64)) uint64 _73_MASKS_512[8*73] = {
     0xffffffffffffffffULL, 0xffffffffffffff7fULL, 0xfffffffffffeffffULL, 0xfffffffffdffffffULL, 0xfffffffbffffffffULL, 0xfffff7ffffffffffULL, 0xffefffffffffffffULL, 0xdfffffffffffffffULL,
     0xffffffffffffffffULL, 0xfffffffffffffeffULL, 0xfffffffffffdffffULL, 0xfffffffffbffffffULL, 0xfffffff7ffffffffULL, 0xffffefffffffffffULL, 0xffdfffffffffffffULL, 0xbfffffffffffffffULL};
 
-__declspec(align(64)) uint64 _79_MASKS_512[8*79] = {
+ALIGNED_MEM uint64 _79_MASKS_512[8*79] = {
     0xfffffffffffffffeULL, 0xffffffffffff7fffULL, 0xffffffffbfffffffULL, 0xffffdfffffffffffULL, 0xefffffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffff7ffULL, 0xfffffffffbffffffULL,
     0xfffffffffffffffdULL, 0xfffffffffffeffffULL, 0xffffffff7fffffffULL, 0xffffbfffffffffffULL, 0xdfffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffefffULL, 0xfffffffff7ffffffULL,
     0xfffffffffffffffbULL, 0xfffffffffffdffffULL, 0xfffffffeffffffffULL, 0xffff7fffffffffffULL, 0xbfffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffdfffULL, 0xffffffffefffffffULL,
@@ -1985,7 +1985,7 @@ __declspec(align(64)) uint64 _79_MASKS_512[8*79] = {
     0xffffffffffffffffULL, 0xffffffffffffdfffULL, 0xffffffffefffffffULL, 0xfffff7ffffffffffULL, 0xfbffffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffffdffULL, 0xfffffffffeffffffULL,
     0xffffffffffffffffULL, 0xffffffffffffbfffULL, 0xffffffffdfffffffULL, 0xffffefffffffffffULL, 0xf7ffffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffffbffULL, 0xfffffffffdffffffULL};
 
-__declspec(align(64)) uint64 _83_MASKS_512[8*83] = {
+ALIGNED_MEM uint64 _83_MASKS_512[8*83] = {
     0xfffffffffffffffeULL, 0xfffffffffff7ffffULL, 0xffffffbfffffffffULL, 0xfdffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffefffULL, 0xffffffff7fffffffULL, 0xfffbffffffffffffULL,
     0xfffffffffffffffdULL, 0xffffffffffefffffULL, 0xffffff7fffffffffULL, 0xfbffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffdfffULL, 0xfffffffeffffffffULL, 0xfff7ffffffffffffULL,
     0xfffffffffffffffbULL, 0xffffffffffdfffffULL, 0xfffffeffffffffffULL, 0xf7ffffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffbfffULL, 0xfffffffdffffffffULL, 0xffefffffffffffffULL,
@@ -2070,7 +2070,7 @@ __declspec(align(64)) uint64 _83_MASKS_512[8*83] = {
     0xffffffffffffffffULL, 0xfffffffffffdffffULL, 0xffffffefffffffffULL, 0xff7fffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffffbffULL, 0xffffffffdfffffffULL, 0xfffeffffffffffffULL,
     0xffffffffffffffffULL, 0xfffffffffffbffffULL, 0xffffffdfffffffffULL, 0xfeffffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffff7ffULL, 0xffffffffbfffffffULL, 0xfffdffffffffffffULL};
 
-__declspec(align(64)) uint64 _89_MASKS_512[8*89] = {
+ALIGNED_MEM uint64 _89_MASKS_512[8*89] = {
     0xfffffffffffffffeULL, 0xfffffffffdffffffULL, 0xfffbffffffffffffULL, 0xffffffffffffffffULL, 0xfffffffffffff7ffULL, 0xffffffefffffffffULL, 0xdfffffffffffffffULL, 0xffffffffffffffffULL,
     0xfffffffffffffffdULL, 0xfffffffffbffffffULL, 0xfff7ffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffefffULL, 0xffffffdfffffffffULL, 0xbfffffffffffffffULL, 0xffffffffffffffffULL,
     0xfffffffffffffffbULL, 0xfffffffff7ffffffULL, 0xffefffffffffffffULL, 0xffffffffffffffffULL, 0xffffffffffffdfffULL, 0xffffffbfffffffffULL, 0x7fffffffffffffffULL, 0xffffffffffffffffULL,
@@ -2318,11 +2318,8 @@ void pre_sieve_avx512(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *
         __m512i vmaskstep = _mm512_setr_epi32(6, 19, 16, 31, 20, 39, 42, 35, 40, 24, 43, 15, 1, 38, 14, 67);
         __m512i vmask, vmask2;
         __mmask16 mask16;
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[16];
-#else
+
         uint32 *t = ddata->presieve_scratch;
-#endif
 
         for (k = 0; k < FLAGSIZE >> 9; k++)
         {
@@ -2625,11 +2622,8 @@ void pre_sieve_avx2(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *fl
         __m256i vzero = _mm256_set1_epi32(0);
         __m256i vmaskstep = _mm256_setr_epi32(3, 24, 8, 34, 10, 41, 21, 44);
         __m256i vmask, vmask2;
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[8];
-#else
+
         uint32 *t = ddata->presieve_scratch;
-#endif
 
         for (k = 0; k < FLAGSIZE >> 8; k++)
         {

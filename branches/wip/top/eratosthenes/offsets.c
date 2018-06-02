@@ -158,13 +158,8 @@ void get_offsets(thread_soedata_t *thread_data)
                 __m256i vdiff = _mm256_set1_epi32(diff);
                 __m256i t1, t2, t3;
                 __m256i even, odd;
-#if defined(__GNUC__)
-                __attribute__((aligned(64))) uint64 tmp[8];
-                __attribute__((aligned(64))) uint32 tmp32[8];
-#else
-                __declspec(aligned(64)) uint64 tmp[8];
-                __declspec(aligned(64)) uint32 tmp32[8];
-#endif
+                ALIGNED_MEM uint64 tmp[8];
+                ALIGNED_MEM uint32 tmp32[8];
                 uint32 mask;
 
                 // condition to see if the current prime only hits the sieve interval once
@@ -475,11 +470,7 @@ void get_offsets(thread_soedata_t *thread_data)
                     __m256i vdiff = _mm256_set1_epi32(diff);
                     __m256i t1, t2, t3;
                     __m256i even, odd;
-#if defined(__GNUC__)
-                    __attribute__((aligned(64))) uint32 tmp[8];
-#else
-                    __declspec(aligned(64)) uint32 tmp[8];
-#endif
+                    ALIGNED_MEM uint32 tmp[8];
                     uint32 mask;
                     int j;
 
@@ -818,13 +809,8 @@ void get_offsets2(thread_soedata_t *thread_data)
                 __m256i vdiff = _mm256_set1_epi32(diff + FLAGSIZE * ddata->blockstart);
                 __m256i t1, t2, t3;
                 __m256i even, odd;
-#if defined(__GNUC__)
-                __attribute__((aligned(64))) uint64 tmp[8];
-                __attribute__((aligned(64))) uint32 tmp32[8];
-#else
-                __declspec(aligned(64)) uint64 tmp[8];
-                __declspec(aligned(64)) uint32 tmp32[8];
-#endif
+                ALIGNED_MEM uint64 tmp[8];
+                ALIGNED_MEM uint32 tmp32[8];
                 uint32 mask;
 
                 // condition to see if the current prime only hits the sieve interval once
@@ -1135,11 +1121,7 @@ void get_offsets2(thread_soedata_t *thread_data)
                     __m256i vdiff = _mm256_set1_epi32(diff + FLAGSIZE * ddata->blockstart);
                     __m256i t1, t2, t3;
                     __m256i even, odd;
-#if defined(__GNUC__)
-                    __attribute__((aligned(64))) uint32 tmp[8];
-#else
-                    __declspec(aligned(64)) uint32 tmp[8];
-#endif
+                    ALIGNED_MEM uint32 tmp[8];
                     uint32 mask;
                     int j;
 
