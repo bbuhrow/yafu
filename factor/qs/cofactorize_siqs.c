@@ -8,6 +8,7 @@
 #endif
 #include <time.h>
 #include "common.h"
+#include "types.h"
 #include "cofactorize.h"
 #include <immintrin.h>
 
@@ -247,26 +248,14 @@ typedef struct {
   u64 matrix[MAX_FB_SIZE_TINY][(MAX_RELATIONS_TINY+63) / 64];
 } tiny_qs_params;
 
-#if defined(__GNUC__)
-__attribute__((aligned(64)))  u8 glogprimes[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 gprimes[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 gmodsqrt[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 roots1[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 roots2[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 root_aux[MAX_POLY_FACTORS_TINY * MAX_FB_SIZE_TINY];      /* scratch value for initializing sieve roots */
-__attribute__((aligned(64)))  u32 grecip[MAX_FB_SIZE_TINY];
-__attribute__((aligned(64)))  u16 grecip16[MAX_FB_SIZE_TINY];
-#else
-__declspec(align(64))  u8 glogprimes[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 gprimes[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 gmodsqrt[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 roots1[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 roots2[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 root_aux[MAX_POLY_FACTORS_TINY * MAX_FB_SIZE_TINY];      /* scratch value for initializing sieve roots */
-__declspec(align(64))  u32 grecip[MAX_FB_SIZE_TINY];
-__declspec(align(64))  u16 grecip16[MAX_FB_SIZE_TINY];
-#endif
-
+ALIGNED_MEM  u8 glogprimes[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 gprimes[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 gmodsqrt[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 roots1[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 roots2[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 root_aux[MAX_POLY_FACTORS_TINY * MAX_FB_SIZE_TINY];      /* scratch value for initializing sieve roots */
+ALIGNED_MEM  u32 grecip[MAX_FB_SIZE_TINY];
+ALIGNED_MEM  u16 grecip16[MAX_FB_SIZE_TINY];
 
 /* the following is reused across factorizations */
 
@@ -1269,11 +1258,7 @@ Trial factor a relation that survived sieving
   
 #ifdef USE_8X_TD
 
-#if defined(__GNUC__)
-  __attribute__((aligned(64))) u16 bl_locs[16];
-#else
-  __declspec(align(64)) u16 bl_locs[16];
-#endif
+  ALIGNED_MEM u16 bl_locs[16];
   
   bl_locs[0] = sieve_offset;
   bl_locs[1] = sieve_offset;
@@ -1414,13 +1399,7 @@ Trial factor a relation that survived sieving
   #ifdef USE_8X_TD
   {
     s32 numdiv = 0;
-
-#if defined(__GNUC__)
-    __attribute__((aligned(64))) u16 buffer[32];
-#else
-    __declspec(align(64)) u16 buffer[32];
-#endif
-    
+    ALIGNED_MEM u16 buffer[32];   
     
     MOD_INIT_8X;
     

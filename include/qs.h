@@ -52,7 +52,7 @@ code to the public domain.
 
 //|| defined(TARGET_KNC)
 //#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
-#if (defined(TARGET_KNL) && defined(__INTEL_COMPILER))
+#if (defined(USE_AVX512F) && defined(__INTEL_COMPILER))
 // this is the only path that will make use of AVX512 (via auto-vec)
 // for others, it is faster and easier to use the new superfast spBrent.
 #define USE_VEC_SQUFOF

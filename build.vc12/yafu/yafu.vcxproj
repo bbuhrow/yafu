@@ -227,7 +227,7 @@
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>Default</StructMemberAlignment>
@@ -302,16 +302,20 @@
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\calc.c" />

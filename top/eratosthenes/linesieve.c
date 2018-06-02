@@ -53,24 +53,14 @@ void sieve_line(thread_soedata_t *thread_data)
 #ifdef USE_AVX512F
         uint32 *flagblock32 = (uint32 *)flagblock;
 
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[16];
-        __declspec(align(64)) uint32 t2[16];
-#else
-        __attribute__((aligned(64))) uint32 t[16];
-        __attribute__((aligned(64))) uint32 t2[16];
-#endif
+        ALIGNED_MEM uint32 t[16];
+        ALIGNED_MEM uint32 t2[16];
 
 #elif defined(USE_AVX2)
         uint32 *flagblock32 = (uint32 *)flagblock;        
 
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[8];
-        __declspec(align(64)) uint32 t2[8];
-#else
-        __attribute__((aligned(64))) uint32 t[8];
-        __attribute__((aligned(64))) uint32 t2[8];
-#endif
+        ALIGNED_MEM uint32 t[8];
+        ALIGNED_MEM uint32 t2[8];
 #endif
 
         if (sdata->num_bitmap_primes == 0)
@@ -649,24 +639,14 @@ void sieve_blocks(thread_soedata_t *thread_data)
 #ifdef USE_AVX512F
         uint32 *flagblock32 = (uint32 *)flagblock;
 
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[16];
-        __declspec(align(64)) uint32 t2[16];
-#else
-        __attribute__((aligned(64))) uint32 t[16];
-        __attribute__((aligned(64))) uint32 t2[16];
-#endif
+        ALIGNED_MEM uint32 t[16];
+        ALIGNED_MEM uint32 t2[16];
 
 #elif defined(USE_AVX2)
         uint32 *flagblock32 = (uint32 *)flagblock;
 
-#ifdef __INTEL_COMPILER
-        __declspec(align(64)) uint32 t[8];
-        __declspec(align(64)) uint32 t2[8];
-#else
-        __attribute__((aligned(64))) uint32 t[8];
-        __attribute__((aligned(64))) uint32 t2[8];
-#endif
+        ALIGNED_MEM uint32 t[8];
+        ALIGNED_MEM uint32 t2[8];
 #endif
 
         if (sdata->num_bitmap_primes == 0)

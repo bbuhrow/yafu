@@ -2552,7 +2552,7 @@ void factor(fact_obj_t *fobj)
 	//restore flags
 	fobj->ecm_obj.stg2_is_default = user_defined_ecm_b2;
 	fobj->pp1_obj.stg2_is_default = user_defined_pp1_b2;
-	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;
+	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;    
 
 	mpz_clear(origN);
 	mpz_clear(copyN);

@@ -996,37 +996,20 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
     //input N < 2^63
     //return 1 in f if no factor is found
     uint32 imax;
-    
-#if defined(__GNUC__)
-    uint32 *iterations = mult_save->it;
-    uint32 *P = mult_save->P;
-    uint32 *Qn = mult_save->Qn;
-    uint32 *Q0 = mult_save->Q0;
-    uint32 *bn = mult_save->bn;
-    uint32 *b0 = mult_save->b0;
-    __attribute__((aligned(64))) uint32 bbn[NUM_LANES];
-    __attribute__((aligned(64))) uint32 Ro[NUM_LANES];
-    __attribute__((aligned(64))) uint32 S[NUM_LANES];
-    __attribute__((aligned(64))) uint32 So[NUM_LANES];
-    __attribute__((aligned(64))) uint32 t1[NUM_LANES];
-    __attribute__((aligned(64))) uint32 t2[NUM_LANES];
-    __attribute__((aligned(64))) uint32 success_vec[NUM_LANES];
-#else
-    uint32 *iterations = mult_save->it;
-    uint32 *P = mult_save->P;
-    uint32 *Qn = mult_save->Qn;
-    uint32 *Q0 = mult_save->Q0;
-    uint32 *bn = mult_save->bn;
-    uint32 *b0 = mult_save->b0;
-    __declspec(align(64)) uint32 bbn[NUM_LANES];
-    __declspec(align(64)) uint32 Ro[NUM_LANES];
-    __declspec(align(64)) uint32 S[NUM_LANES];
-    __declspec(align(64)) uint32 So[NUM_LANES];
-    __declspec(align(64)) uint32 t1[NUM_LANES];
-    __declspec(align(64)) uint32 t2[NUM_LANES];
-    __declspec(align(64)) uint32 success_vec[NUM_LANES];
-#endif
 
+    uint32 *iterations = mult_save->it;
+    uint32 *P = mult_save->P;
+    uint32 *Qn = mult_save->Qn;
+    uint32 *Q0 = mult_save->Q0;
+    uint32 *bn = mult_save->bn;
+    uint32 *b0 = mult_save->b0;
+    ALIGNED_MEM uint32 bbn[NUM_LANES];
+    ALIGNED_MEM uint32 Ro[NUM_LANES];
+    ALIGNED_MEM uint32 S[NUM_LANES];
+    ALIGNED_MEM uint32 So[NUM_LANES];
+    ALIGNED_MEM uint32 t1[NUM_LANES];
+    ALIGNED_MEM uint32 t2[NUM_LANES];
+    ALIGNED_MEM uint32 success_vec[NUM_LANES];
 
     int j = 0;
     int i = 0;

@@ -62,30 +62,17 @@ enum soe_command {
 #ifdef USE_AVX2
 
 #ifdef USE_AVX512F
-#ifdef __GNUC__
-__attribute__((aligned(64))) uint64 presieve_largemasks[16][173][8];
-__attribute__((aligned(64))) uint32 presieve_steps[32];
-__attribute__((aligned(64))) uint32 presieve_primes[32];
-__attribute__((aligned(64))) uint32 presieve_p1[32];
-#else
-__declspec(align(64)) uint64 presieve_largemasks[16][173][8];
-__declspec(align(64)) uint32 presieve_steps[32];
-__declspec(align(64)) uint32 presieve_primes[32];
-__declspec(align(64)) uint32 presieve_p1[32];
-#endif
+ALIGNED_MEM uint64 presieve_largemasks[16][173][8];
+ALIGNED_MEM uint32 presieve_steps[32];
+ALIGNED_MEM uint32 presieve_primes[32];
+ALIGNED_MEM uint32 presieve_p1[32];
+
 #else
 // for storage of presieving lists from prime index 24 to 40 (97 to 173 inclusive)
-#ifdef __GNUC__
-__attribute__((aligned(64))) uint64 presieve_largemasks[16][173][4];
-__attribute__((aligned(64))) uint32 presieve_steps[32];
-__attribute__((aligned(64))) uint32 presieve_primes[32];
-__attribute__((aligned(64))) uint32 presieve_p1[32];
-#else
-__declspec(align(64)) uint64 presieve_largemasks[16][173][4];
-__declspec(align(64)) uint32 presieve_steps[32];
-__declspec(align(64)) uint32 presieve_primes[32];
-__declspec(align(64)) uint32 presieve_p1[32];
-#endif
+ALIGNED_MEM uint64 presieve_largemasks[16][173][4];
+ALIGNED_MEM uint32 presieve_steps[32];
+ALIGNED_MEM uint32 presieve_primes[32];
+ALIGNED_MEM uint32 presieve_p1[32];
 #endif
 
 // macros for Montgomery arithmetic - helpful for computing 

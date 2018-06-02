@@ -258,7 +258,7 @@ void get_params(static_conf_t *sconf)
 	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
-#if defined(TARGET_KNC) || defined(TARGET_KNL)
+#if defined(TARGET_KNC) || defined(SMALL_SIQS_INTERVALS)
 
     // does much better with much smaller sieve intervals.  maybe 
     // because smaller L2?
