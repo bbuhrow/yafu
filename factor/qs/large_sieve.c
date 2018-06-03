@@ -141,18 +141,20 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
             sieve[tmpvec[14]] -= logp;
             sieve[tmpvec[15]] -= logp;
 
-#elif USE_AVX512F
+#elif defined(USE_AVX512F)
 
             vbuckets = vnextbuckets; 
             if ((i + 16) < lpnum)
             {
                 vnextbuckets = _mm512_and_epi32(vmask, _mm512_load_epi32((__m512i *)(&bptr[i+16])));
+#ifdef USE_AVX512PF
                 _mm512_prefetch_i32scatter_ps(sieve, vnextbuckets, _MM_SCALE_1, _MM_HINT_T0);
+#endif
             }
 
             // ignore conflicts...
             vhisieve = _mm512_i32gather_epi32(vbuckets, sieve, _MM_SCALE_1);
-#if USE_AVX512BW
+#ifdef USE_AVX512BW
             vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
 #else
             vlosieve = _mm512_and_epi32(vhisieve, vlomask);

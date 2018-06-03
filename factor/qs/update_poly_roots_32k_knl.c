@@ -158,6 +158,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             
 
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
@@ -191,6 +192,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vroot1 = _mm512_add_epi32(vroot1, vprime);
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+#else
+            mask1 = 0xffff;
+#endif
             while (mask1 > 0)
             {
                 __mmask16 m = mask1;
@@ -213,6 +217,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));              
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -246,6 +251,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vroot2 = _mm512_add_epi32(vroot2, vprime);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+#else
+            mask2 = 0xffff;
+#endif
             while (mask2 > 0)
             {
                 __mmask16 m = mask2;
@@ -268,6 +276,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vnroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
@@ -301,6 +310,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vnroot1 = _mm512_add_epi32(vnroot1, vprime);
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+#else
+            mask1 = 0xffff;
+#endif
             while (mask1 > 0)
             {
                 __mmask16 m = mask1;
@@ -323,6 +335,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vnroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1));              
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
@@ -356,6 +369,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vnroot2 = _mm512_add_epi32(vnroot2, vprime);
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+#else
+            mask2 = 0xffff;
+#endif
             while (mask2 > 0)
             {
                 __mmask16 m = mask2;
@@ -744,6 +760,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
@@ -778,6 +795,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vroot1 = _mm512_add_epi32(vroot1, vprime);
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+#else
+            mask1 = 0xffff;
+#endif
             while (mask1 > 0)
             {
                 __mmask16 m = mask1;
@@ -800,6 +820,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -834,6 +855,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vroot2 = _mm512_add_epi32(vroot2, vprime);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+#else
+            mask2 = 0xffff;
+#endif
             while (mask2 > 0)
             {
                 __mmask16 m = mask2;
@@ -856,6 +880,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vnroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
@@ -890,6 +915,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vnroot1 = _mm512_add_epi32(vnroot1, vprime);
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+#else
+            mask1 = 0xffff;
+#endif
             while (mask1 > 0)
             {
                 __mmask16 m = mask1;
@@ -912,6 +940,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
+#ifdef USE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vnroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1));
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
@@ -946,6 +975,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // then the rest as they start to drop out of the interval
             vnroot2 = _mm512_add_epi32(vnroot2, vprime);
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+#else
+            mask2 = 0xffff;
+#endif
             while (mask2 > 0)
             {
                 __mmask16 m = mask2;
