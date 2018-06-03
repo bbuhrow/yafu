@@ -1920,14 +1920,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	// based on the size of the input, determine how to proceed.
     // this should maybe be tuned based on machine type and/or other
     // factors as well, not just instruction set used during compile.
-    // inputs as low as c70 can benefit from DLP, but it also seems
-    // that the probability of something going wrong in parallel squfof
-    // goes up.  occasionally a floating point exception occurs.  we
-    // can fix that within parallel squfof by looking for division by
-    // zero, but that slows down parallel squfof, and is a hack in any
-    // case.  The root cause of the floating exception (getting zeros
-    // in the denominator of squfof) is unknown or why it happens more
-    // often with smaller inputs.
 #if defined(USE_AVX2) || defined(USE_SSE41)
     dlp_cutoff = 70;
 #else
@@ -1964,7 +1956,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		sconf->use_dlp = 0;
 	}
 
-#if defined(TARGET_KNC) || defined(USE_AVX512F)
+#if defined(TARGET_KNC)
     // so far have only implemented this one
     scan_ptr = &check_relations_siqs_16;
     sconf->scan_unrolling = 128;

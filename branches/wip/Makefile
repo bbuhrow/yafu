@@ -17,7 +17,7 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc-7.3.0
+CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g
@@ -41,10 +41,6 @@ endif
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
-ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
-endif
-
 ifeq ($(SKYLAKEX),1)
 	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
 endif
@@ -61,13 +57,16 @@ endif
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-  
 ifeq ($(COMPILER),icc)
   CFLAGS += -march=core-avx2  
 else
   CFLAGS += -mavx2 
 endif
 
+endif
+
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
 ifeq ($(KNL),1)
@@ -81,11 +80,16 @@ ifeq ($(KNL),1)
   #-openmp
 endif
 
+ifeq ($(SKYLAKEX),1)
+# define KNL now for skylakex, after handling an actual command line KNL
+KNL=1
+endif
+
 ifeq ($(KNC),1)
 	CFLAGS += -mmic -DTARGET_KNC -vec-report3
 	BINNAME := ${BINNAME:%=%_knc}
 	OBJ_EXT = .mo
-	
+
 	INC += -I../msieve/zlib
 
 	INC += -I../gmp/include
@@ -93,15 +97,8 @@ ifeq ($(KNC),1)
 
 	INC += -I../gmp-ecm/include/linux
 	LIBS += -L../gmp-ecm/lib/phi/lib
-    
 else
 	OBJ_EXT = .o
-
-	INC += -I../gmp/include
-	LIBS += -L../gmp/lib/linux/x86_64
-  
-  INC += -I../../ecm-7.0.3/install/include/
-	LIBS += -L../../ecm-7.0.3/install/lib/
 endif
 
 
@@ -125,12 +122,11 @@ endif
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
 #	modify the following line for your particular msieve installation
-	
+
 	ifeq ($(KNC),1)
-		LIBS += -L../msieve/lib/phi
+		LIBS += -L../msieve/
 	else
-		LIBS += -L../msieve/lib/linux/x86_64 
-    #LIBS += -L../msieve
+		LIBS += -L../msieve-1019/
 	endif
 	LIBS += -lmsieve
 endif
@@ -213,7 +209,7 @@ YAFU_SRCS = \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
-  arith/monty.c \
+	arith/monty.c \
 	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
@@ -227,9 +223,9 @@ YAFU_SRCS = \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
   factor/qs/cofactorize_siqs.c
-		
+
 ifeq ($(USE_AVX2),1)
-    
+
   YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c 
   YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
   YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
@@ -238,16 +234,16 @@ ifeq ($(USE_AVX2),1)
 endif
 
 ifeq ($(USE_SSE41),1)
-  
-	# these files require SSE4.1 to compile
+
+# these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
-    
+
 endif
 
 ifeq ($(KNC),1)
-  
-	# these files target running on KNC hardware
+
+# these files target running on KNC hardware
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_knc.c
   YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
 	YAFU_SRCS += factor/qs/tdiv_resieve_32k_knc.c
@@ -256,17 +252,17 @@ ifeq ($(KNC),1)
 else
 
   ifeq ($(KNL),1)
-  
+
     YAFU_SRCS += factor/qs/tdiv_scan_knl.c
     YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
-#    YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
-  
+#YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
+
   else
-  
+
     YAFU_SRCS += factor/qs/tdiv_scan.c
-    
+
   endif
-  
+
   # won't build with KNC
   YAFU_SRCS += factor/qs/update_poly_roots_32k.c
   YAFU_SRCS += factor/qs/tdiv_med_32k.c

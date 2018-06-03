@@ -693,7 +693,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 	uint32 prime, root1, root2, tmp, stop;
 	uint8 logp;
 
-#if defined( TARGET_KNC ) || defined(USE_AVX512F)
+#if defined( TARGET_KNC ) || defined(noUSE_AVX512BW)
     __m512i vlomask = _mm512_set1_epi32(0x000000ff);
     __m512i vhimask = _mm512_set1_epi32(0xffffff00);
     __m512i vlosieve1, vhisieve1, vlosieve2, vhisieve2;
@@ -723,7 +723,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
     CLEAN_AVX2;
 
-#if defined(USE_AVX512F) && defined(NOT_DEF)
+#if defined(noUSE_AVX512BW)
     // beyond 11 bit we don't need to loop... 16 steps takes
     // us past blocksize all at once when prime > 2048
     for (i = start_prime; i < full_fb->fb_11bit_B; i++)
@@ -759,22 +759,16 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
         while (mask2 == 0xffff)
         {
             vhisieve2 = _mm512_i32gather_epi32(vidx2, sieve, _MM_SCALE_1);
-            vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
-            vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
-            vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
-            vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
-            _mm512_i32scatter_epi32(sieve, vidx2, vlosieve2, _MM_SCALE_1);
+            vhisieve2 = _mm512_sub_epi8(vhisieve2, vlogp);
+            _mm512_i32scatter_epi32(sieve, vidx2, vhisieve2, _MM_SCALE_1);
 
             vnextidx1 = _mm512_add_epi32(vidx1, v16p);
             vnextidx2 = _mm512_add_epi32(vidx2, v16p);
             mask2 = _mm512_cmp_epu32_mask(vnextidx2, vblock, _MM_CMPINT_LT);
 
             vhisieve1 = _mm512_i32gather_epi32(vidx1, sieve, _MM_SCALE_1);
-            vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
-            vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
-            vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
-            vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
-            _mm512_i32scatter_epi32(sieve, vidx1, vlosieve1, _MM_SCALE_1);
+            vhisieve1 = _mm512_sub_epi8(vhisieve1, vlogp);
+            _mm512_i32scatter_epi32(sieve, vidx1, vhisieve1, _MM_SCALE_1);
 
             vidx1 = vnextidx1;
             vidx2 = vnextidx2;
@@ -788,18 +782,12 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
         mask1 = _mm512_cmp_epu32_mask(vidx1, vblock, _MM_CMPINT_LT);
         //printf("steps1 = %d, mask1 = %08x, mask2 = %08x\n", steps1, mask1, mask2);
         vhisieve2 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx2, sieve, _MM_SCALE_1);
-        vlosieve2 = _mm512_and_epi32(vhisieve2, vlomask);
-        vhisieve2 = _mm512_and_epi32(vhisieve2, vhimask);
-        vlosieve2 = _mm512_sub_epi32(vlosieve2, vlogp);
-        vlosieve2 = _mm512_or_epi32(vhisieve2, _mm512_and_epi32(vlosieve2, vlomask));
-        _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vlosieve2, _MM_SCALE_1);
+        vhisieve2 = _mm512_sub_epi8(vhisieve2, vlogp);
+        _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vhisieve2, _MM_SCALE_1);
 
         vhisieve1 = _mm512_mask_i32gather_epi32(vzero, mask1, vidx1, sieve, _MM_SCALE_1);
-        vlosieve1 = _mm512_and_epi32(vhisieve1, vlomask);
-        vhisieve1 = _mm512_and_epi32(vhisieve1, vhimask);
-        vlosieve1 = _mm512_sub_epi32(vlosieve1, vlogp);
-        vlosieve1 = _mm512_or_epi32(vhisieve1, _mm512_and_epi32(vlosieve1, vlomask));
-        _mm512_mask_i32scatter_epi32(sieve, mask1, vidx1, vlosieve1, _MM_SCALE_1);
+        vhisieve1 = _mm512_sub_epi8(vhisieve1, vlogp);
+        _mm512_mask_i32scatter_epi32(sieve, mask1, vidx1, vhisieve1, _MM_SCALE_1);
 
         // test to see if lower offset (mask1) took more steps
         // and determine the new roots.
