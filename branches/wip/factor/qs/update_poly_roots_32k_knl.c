@@ -158,7 +158,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             
 
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
@@ -217,7 +217,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));              
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -276,7 +276,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vnroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
@@ -335,7 +335,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
             
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vnroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1));              
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
@@ -760,7 +760,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
@@ -820,7 +820,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1));
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
@@ -880,7 +880,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum1 = _mm512_srli_epi32(vnroot1, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1));
             mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
@@ -940,7 +940,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
 
             // do the first 16
-#ifdef USE_AVX512PF
+#ifdef noUSE_AVX512PF
             vbnum2 = _mm512_srli_epi32(vnroot2, 15);
             vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1));
             mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
