@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
     {
         CMDHIST[i] = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
     }
+
 #endif
 
 	//the input expression
@@ -316,7 +317,7 @@ int main(int argc, char *argv[])
             sClear(&input_str);
 		}
 
-#if defined(WIN32)
+#if defined(WIN32) && !defined(__MINGW32__)
 		fflush(stdin);	//important!  otherwise scanf will process printf's output
 		
 #else
@@ -366,6 +367,7 @@ int main(int argc, char *argv[])
         else
         {
             printf(">> ");
+            fflush(stdout);
         }
 
 	}
@@ -974,7 +976,19 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 
 		// detect if stdin is a pipe
 		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
-#if defined(WIN32) 
+        // But this doesn't work if we are running in a msys console because of how
+        // they interface with stdin/out/err through pipes, so there will always
+        // be a pipe.
+        // https://github.com/msys2/msys2/wiki/Porting
+#if defined(__MINGW32__)
+        // I'm not sure how to detect at runtime if this is an msys shell.
+        // So unfortunately if we compile with mingw we basically have to remove 
+        // the ability to process from pipes or redirects.  should be able to use 
+        // batchfiles via command line switch still.
+        if (0)
+        {
+
+#elif defined(WIN32) 
         if(_isatty(_fileno(stdin)) == 0)
 		{
 			fseek(stdin,-1,SEEK_END);
@@ -984,14 +998,13 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 #else
 		if (isatty(fileno(stdin)) == 0)
 		{			
-
 #endif
 
 			// ok, we also have incoming data.  This is just
 			// batchfile mode with the batchfile = stdin.
 			is_cmdline_run = 2;
 		}
-#if defined(WIN32)		//not complete, but ok for now
+#if defined(WIN32) && !defined(__MINGW32__)		//not complete, but ok for now
 		}
 #endif
 		else
@@ -1015,7 +1028,15 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 		// up in interactive mode
 		// detect if stdin is a pipe
 		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
-#if defined(WIN32)	//&& !defined(__MINGW32__)
+
+#if defined(__MINGW32__)
+
+        // see discussion above... using pipes/redirects in msys/mingw is
+        // problematic.  command switch batchfiles should still work.
+        if (0)
+        {
+
+#elif defined(WIN32)	//&& !defined(__MINGW32__)
 		if(_isatty(_fileno(stdin)) == 0)
 		{
 			fseek(stdin,-1,SEEK_END);
@@ -1033,7 +1054,7 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 			is_cmdline_run = 2;
 			strcpy(*input_exp, "factor(@)");
 		}
-#if defined(WIN32) 	//not complete, but ok for now
+#if defined(WIN32) && !defined(__MINGW32__) 	//not complete, but ok for now
         else
         {
             is_cmdline_run = 0;
@@ -1055,49 +1076,51 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 	if (VFLAG >= 0)
 		printf("\n\n");
 
-	if (VFLAG > 0 || !is_cmdline_run)
+	if ((VFLAG > 0) || !is_cmdline_run)
 	{	
 		logprint(NULL,"System/Build Info: \n");
+        fflush(stdout);
 	}
 	logprint(logfile,"System/Build Info: \n");
-	fflush(stdout);
 
-	if (VFLAG > 0 || !is_cmdline_run)
+    if ((VFLAG > 0) || !is_cmdline_run)
+    {
 #ifdef _MSC_MPIR_VERSION
 #ifdef ECM_VERSION
-		printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
-_MSC_MPIR_VERSION);
-		fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
-_MSC_MPIR_VERSION);
+        printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
+            _MSC_MPIR_VERSION);
+        fprintf(logfile, "Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
+            _MSC_MPIR_VERSION);
 #elif defined(VERSION)
 
-		printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
-_MSC_MPIR_VERSION);
-		fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
-_MSC_MPIR_VERSION);
+        printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+            _MSC_MPIR_VERSION);
+        fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+            _MSC_MPIR_VERSION);
 
 #else
-		printf("Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
-_MSC_MPIR_VERSION);
-		fprintf(logfile,"Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
-_MSC_MPIR_VERSION);
+        printf("Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
+            _MSC_MPIR_VERSION);
+        fprintf(logfile,"Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
+            _MSC_MPIR_VERSION);
 
 
 #endif
 #else
-	#ifdef ECM_VERSION
-		printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION, 
-			__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-		fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION,
-		__GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-	#else
-		printf("Using GMP-ECM, Powered by GMP\n");
-		fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
-	#endif
+#ifdef ECM_VERSION
+        printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION, 
+            __GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+        fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION,
+            __GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
+#else
+        printf("Using GMP-ECM, Powered by GMP\n");
+        fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
+#endif
 
 #endif
 
-	fflush(stdout);
+        fflush(stdout);
+    }
 
 	fprintf(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
 	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
@@ -1125,7 +1148,7 @@ _MSC_MPIR_VERSION);
 		printf("===============================================================\n");
 		printf("cached %u primes. pmax = %u\n\n",szSOEp,spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
-
+        fflush(stdout);
 	}
 
 	return;

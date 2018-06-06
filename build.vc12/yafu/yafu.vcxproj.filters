@@ -275,17 +275,17 @@
     <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c">
       <Filter>Source Files\factoring\qs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c">
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knl.c">
-      <Filter>Source Files\factoring\qs\poly</Filter>
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\tdiv_scan_knl.c">
-      <Filter>Source Files\factoring\qs\poly</Filter>
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c">
-      <Filter>Source Files\factoring\qs\poly</Filter>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

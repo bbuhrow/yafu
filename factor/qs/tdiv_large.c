@@ -781,29 +781,27 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 			}
 		}
 
-#elif defined(SCAN_16X)
+#elif defined(NOT_DEFINED)
 
         for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
         {
-            uint32 idx;
-
-            SCAN_16X;
-
-            if (result == 0)
-                continue;
-
-            result &= 0x22222222;
-            do 
-            {
-                idx = _trail_zcnt(result) >> 2;
-                i = fb_bound + (bptr[j + idx] >> 16);
-                prime = fb[i];
-                DIVIDE_ONE_PRIME;
-
-                result = _reset_lsb(result);
-            } while (result > 0);
+            SCAN_16X_VEC;
         }
 
+        for (r = 0; r < result; r++)
+        {
+            i = fb_bound + (bptr[buffer[r]] >> 16);
+            prime = fb[i];
+
+            // Is this only necessary with AVX2, or with the new vector approach?
+            if ((prime < 2) || (i >= sconf->factor_base->B))
+            {
+                dconf->lp_scan_failures++;
+                continue;
+            }
+
+            DIVIDE_ONE_PRIME;
+        }
 
         for (; (uint32)j < lpnum; j++)
         {
@@ -811,6 +809,12 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
             {
                 i = fb_bound + (bptr[j] >> 16);
                 prime = fb[i];
+
+                if ((prime < 2) || (i >= sconf->factor_base->B))
+                {
+                    dconf->lp_scan_failures++;
+                    continue;
+                }
 
                 DIVIDE_RESIEVED_PRIME(i);
             }
