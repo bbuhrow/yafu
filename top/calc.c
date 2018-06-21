@@ -412,15 +412,15 @@ str_t *preprocess(str_t *in, int *numlines)
             strcpy(start, "");
 
         // tokenize the loop
-        ptr = strtok(&current->s[9], ";");
+        ptr = strtok(ptr, ";");
         if (ptr == NULL)
         {
             printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
             exit(3);
         }
         sprintf(vname, "%s_start", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        if (set_strvar(vname, ptr + 9))
+            new_strvar(vname, ptr + 9);
         ptr = strtok(NULL, ";");
         if (ptr == NULL)
         {
@@ -483,15 +483,16 @@ str_t *preprocess(str_t *in, int *numlines)
             strcpy(start, "");
 
         // tokenize the loop
-        ptr = strtok(&current->s[11], ";");
+        //ptr = strtok(&current->s[11], ";");
+        ptr = strtok(ptr, ";");
         if (ptr == NULL)
         {
             printf("badly formatted forfactors loop: forfactors(init, body)\n");
             exit(3);
         }
         sprintf(vname, "%s_init", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        if (set_strvar(vname, ptr + 11))
+            new_strvar(vname, ptr + 11);
         
         // this can't just find any old ')', it has to find the matching one.
         ptr = ptr + strlen(ptr) + 1;
