@@ -76,7 +76,7 @@ uint64 mpz_get_64(mpz_t src)
 
 void mpz_set_64(mpz_t dest, uint64 src)
 {
-
+    //printf("%d %d %d\n", GMP_LIMB_BITS, sizeof(mp_limb_t), mp_bits_per_limb);
 #if GMP_LIMB_BITS == 64
 	dest->_mp_d[0] = src;
 	dest->_mp_size = (src ? 1 : 0);
@@ -149,7 +149,10 @@ void zCopy(z *src, z *dest)
 
 	//memcpy(dest->val,src->val,su * sizeof(fp_digit));
     for (i = 0; i < su; i++)
+    {
         dest->val[i] = src->val[i];
+    }
+
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -168,7 +171,10 @@ void zCopy32(z32 *src, z32 *dest)
 
 	//memcpy(dest->val,src->val,su * sizeof(uint32));
     for (i = 0; i < su; i++)
+    {
         dest->val[i] = src->val[i];
+    }
+
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -566,7 +572,6 @@ int ndigits(z *n)
 {
 	int i=0;
 	z nn,tmp;
-	fp_digit r;
 
 	//can get within one digit using zBits and logs, which would
 	//be tons faster.  Any way to 'correct' the +/- 1 error?
@@ -576,7 +581,7 @@ int ndigits(z *n)
 	while (tmp.size > 1)
 	{
 		zCopy(&tmp,&nn);
-		r = zShortDiv(&nn,MAX_DEC_WORD,&tmp);
+		zShortDiv(&nn,MAX_DEC_WORD,&tmp);
 		i += DEC_DIGIT_PER_WORD;
 	}
 	i += ndigits_1(tmp.val[0]);

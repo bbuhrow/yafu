@@ -40,7 +40,7 @@ Supports rudimentary scripting capability with looping and branching.
 char opchar[9] = { '=', '<', '>', '+', '-', '*', '/', '%', '^' }; // , '='};
 char imms[3] = {'!','#','-'};
 const int numopchars = 9;
-char choperands[5][80];
+char choperands[5][GSTR_MAXSIZE];
 mpz_t operands[5];
 int for_cnt = 0;
 int forp_cnt = 0;
@@ -254,7 +254,7 @@ str_t *preprocess(str_t *in, int *numlines)
     // the expression evaluator can deal with.
     // We return the number of lines found and an array of strings,
     // one line per string.  user must free 'out'.
-	int i,j;
+	int i,j,k;
     char *ptr;
     char str[1024];
     int openp, closedp, openb, closedb;
@@ -314,8 +314,18 @@ str_t *preprocess(str_t *in, int *numlines)
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], vname[20];
+        char pre[8], start[80], vname[20];
         sprintf(pre, "for%d", for_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
 
         // tokenize the loop
         //ptr = strtok(&current->s[4], ";");
@@ -374,18 +384,32 @@ str_t *preprocess(str_t *in, int *numlines)
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "for(%s_init, %s_test, %s_iter, %s_body);%s", pre, pre, pre, pre, str);
+            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);%s", 
+                start, pre, pre, pre, pre, str);
         }
         else
-            sprintf(current->s, "for(%s_init, %s_test, %s_iter, %s_body);", pre, pre, pre, pre);
+        {
+            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);",
+                start, pre, pre, pre, pre);
+        }
     }
 
     if (((ptr = strstr(current->s, "forprime(")) != NULL) &&
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], vname[20];
+        char pre[8], start[80], vname[20];
         sprintf(pre, "forp%d", forp_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
 
         // tokenize the loop
         ptr = strtok(&current->s[9], ";");
@@ -434,18 +458,29 @@ str_t *preprocess(str_t *in, int *numlines)
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "forprime(%s_start, %s_stop, %s_body);%s", pre, pre, pre, str);
+            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);%s", 
+                start, pre, pre, pre, str);
         }
         else
-            sprintf(current->s, "forprime(%s_start, %s_stop, %s_body);", pre, pre, pre);
+            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);", start, pre, pre, pre);
     }
 
     if (((ptr = strstr(current->s, "forfactors(")) != NULL) &&
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], vname[20];
+        char pre[8], start[80], vname[20];
         sprintf(pre, "forf%d", forf_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
 
         // tokenize the loop
         ptr = strtok(&current->s[11], ";");
@@ -485,18 +520,29 @@ str_t *preprocess(str_t *in, int *numlines)
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "forfactors(%s_init, %s_body);%s", pre, pre, str);
+            sprintf(current->s, "%sforfactors(%s_init, %s_body);%s", 
+                start, pre, pre, str);
         }
         else
-            sprintf(current->s, "forfactors(%s_init, %s_body);", pre, pre);
+            sprintf(current->s, "%sforfactors(%s_init, %s_body);", start, pre, pre);
     }
 
     if (((ptr = strstr(current->s, "if(")) != NULL) &&
         exp_is_closed(current->s, ptr))
     {
         // new if statement
-        char pre[8], vname[20];
+        char pre[8], start[80], vname[20];
         sprintf(pre, "if%d", if_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
 
         // tokenize the branch
         char *eptr;
@@ -524,7 +570,7 @@ str_t *preprocess(str_t *in, int *numlines)
             if (set_strvar(vname, str))
                 new_strvar(vname, str);
 
-            sprintf(current->s, "if(%s_cond, %s_body);", pre, pre);
+            sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
         }
         else
         {
@@ -543,7 +589,8 @@ str_t *preprocess(str_t *in, int *numlines)
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
                     new_strvar(vname, str);
-                sprintf(current->s, "if(%s_cond, %s_body, %s_elsebody);", pre, pre, pre);
+                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);", 
+                    start, pre, pre, pre);
             }
             else if (eptr[strlen(eptr) + 1] == ')')
             {
@@ -553,7 +600,7 @@ str_t *preprocess(str_t *in, int *numlines)
                 if (set_strvar(vname, str))
                     new_strvar(vname, str);
 
-                sprintf(current->s, "if(%s_cond, %s_body);", pre, pre);
+                sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
             }
             else
             {
@@ -569,7 +616,9 @@ str_t *preprocess(str_t *in, int *numlines)
                 sprintf(vname, "%s_elsebody", pre);
                 if (set_strvar(vname, str))
                     new_strvar(vname, str);
-                sprintf(current->s, "if(%s_cond, %s_body, %s_elsebody);", pre, pre, pre);
+
+                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);", 
+                    start, pre, pre, pre);
             }
         }
     }
@@ -587,25 +636,28 @@ str_t *preprocess(str_t *in, int *numlines)
     // time and count open/closed parens/braces, while looking for
     // commas.
     openp = openb = closedp = closedb = 0;
-    for (i = 0; i < strlen(in->s); i++)
+    k = strlen(current->s);
+    for (i = 0, j = 0; i < k; i++, j++)
     {
-        if (in->s[i] == '(') openp++;
-        if (in->s[i] == ')') closedp++;
-        if (in->s[i] == '{') openb++;
-        if (in->s[i] == '}') closedb++;
-        if (in->s[i] == ',') {
+        if (current->s[i] == '(') openp++;
+        if (current->s[i] == ')') closedp++;
+        if (current->s[i] == '{') openb++;
+        if (current->s[i] == '}') closedb++;
+        if (current->s[i] == ',') {
             if ((openp == closedp) && (openb == closedb))
             {
                 (*numlines)++;
                 out = (str_t *)realloc(out, *numlines * sizeof(str_t));
-                current = &out[*numlines - 2];
-                current->s[i] = '\0';
-                current = &out[(*numlines) - 1];
-                sInit(current);
-                toStr(&in->s[i+1], current);
+                out[*numlines - 2].s[i] = '\0';
+                sInit(&out[*numlines - 1]);
+                current = &out[*numlines - 1];
+                toStr(&out[*numlines - 2].s[i + 1], &out[*numlines - 1]);
+                k = current->nchars;
+                i = 0;
             }
         }
     }
+    //toStr(current->s, &out[*numlines - 1]);
 
 	return out;
 }
@@ -1045,7 +1097,7 @@ int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet)
 	out = preprocess(&str, &num);
 
 	// new factorization
-	//fobj->refactor_depth = 0;
+	fobj->refactor_depth = 0;
     for (i = 0; i < num; i++)
     {
         calc_with_assignment(&out[i], fobj, force_quiet);
@@ -3048,6 +3100,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
         else if (OBASE == HEX)
             gmp_printf("%Zx\n", operands[0]);
 
+        fflush(stdout);
         break;
 
     case 74:
@@ -3055,7 +3108,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
         if (check_args(funcnum, nargs)) break;
 
         {
-            char init[80], test[80], iter[80], body[80];
+            char init[GSTR_MAXSIZE], test[GSTR_MAXSIZE], iter[GSTR_MAXSIZE], body[GSTR_MAXSIZE];
             int nooutput;
 
             get_strvar(choperands[0], init);
@@ -3102,7 +3155,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
         if (check_args(funcnum, nargs)) break;
 
         {
-            char start[80], stop[80], body[80], name[80], *ptr;
+            char start[GSTR_MAXSIZE], stop[GSTR_MAXSIZE], body[GSTR_MAXSIZE], name[GSTR_MAXSIZE], *ptr;
             uint64 ustart, ustop;
             uint64 *plist, nump;
             int nooutput;
@@ -3178,7 +3231,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
         if (check_args(funcnum, nargs)) break;
 
         {
-            char body[80], init[80], name[80], *ptr;
+            char body[GSTR_MAXSIZE], init[GSTR_MAXSIZE], name[GSTR_MAXSIZE], *ptr;
             int numf;
             int nooutput;
 

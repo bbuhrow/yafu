@@ -157,7 +157,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
             }
         }
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
         if (fobj->qs_obj.flags != 12345)
         {
             if (fobj->logfile != NULL)
@@ -175,6 +175,13 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         if (i == 0)
         {
             // didn't find anything (rare).  try a different method.
+            if (fobj->qs_obj.flags != 12345)
+            {
+                if (fobj->logfile != NULL)
+                    logprint(fobj->logfile,
+                    "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+            }
             smallmpqs(fobj);
         }
         else

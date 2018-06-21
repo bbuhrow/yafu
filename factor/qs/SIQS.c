@@ -256,7 +256,7 @@ void siqs_dispatch(void *vptr)
         }
         else
         {
-            in_flight_rels = (tdata->num_threads - 1) * 0.9 * avg_rels_per_acoeff;
+            in_flight_rels = (tdata->num_threads - 1) * 0.75 * avg_rels_per_acoeff;
         }
         //printf("found %u rels so far in %d 'A' polys, avg rels_per_poly = %f, rels in flight = %f\n",
         //    udata->num_found, static_conf->total_poly_a + 1, avg_rels_per_acoeff, in_flight_rels);
@@ -281,6 +281,8 @@ void siqs_dispatch(void *vptr)
     else
     {
         static_conf->flag = 1;
+        //printf("\ncan stop working: found %d, %d in flight, need %d\n",
+        //    udata->num_found, (int)in_flight_rels, udata->num_needed);
         tdata->work_fcn_id = tdata->num_work_fcn;        
     }
 
@@ -314,7 +316,7 @@ void SIQS(fact_obj_t *fobj)
 	FILE *sieve_log;
 
 	// some locals	
-	int i;
+	int i,j,k;
 	clock_t start, stop;
 	double t_time;
 	struct timeval myTVend;
@@ -484,16 +486,16 @@ void SIQS(fact_obj_t *fobj)
     // we can get rid of the wrapper now...
     free(tpool_data);
 
-	//stop worker threads
+	// stop worker threads
     for (i = 0; i < THREADS; i++)
     {
         free_sieve(thread_data[i].dconf);
         free(thread_data[i].dconf->relation_buf);
     }
 	
-	//finialize savefile
+	// finalize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-	qs_savefile_close(&static_conf->obj->qs_obj.savefile);		
+    qs_savefile_close(&static_conf->obj->qs_obj.savefile);
 	
 	update_final(static_conf);
 
@@ -529,27 +531,48 @@ void SIQS(fact_obj_t *fobj)
 	
 	start = clock();
 
-	//filter the relation set and get ready for linear algebra
-	//all the polys and relations are on disk.
-	//read them in and build the cycle list to send to LA.
+	// filter the relation set and get ready for linear algebra
+	// all the polys and relations are on disk.
+	// read them in and build the cycle list to send to LA.
 	
-	//initialize the b list for the current a.  qs_filter_relations
-	//will change this as needed.
-	static_conf->curr_b = (mpz_t *)malloc(2 * sizeof(mpz_t));
-	for (i = 0; i < 2; i++)
-		mpz_init(static_conf->curr_b[i]);
-	static_conf->bpoly_alloc = 2;
+	// initialize the b list for the current a.  qs_filter_relations
+	// will change this as needed.
+    k = 0;
+    do
+    {
+        static_conf->curr_b = (mpz_t *)malloc(2 * sizeof(mpz_t));
+        for (i = 0; i < 2; i++)
+            mpz_init(static_conf->curr_b[i]);
+        static_conf->bpoly_alloc = 2;
 
-	//load and filter relations and polys.
-	yafu_qs_filter_relations(thread_data[0].sconf);
+        // load and filter relations and polys.
+        yafu_qs_filter_relations(thread_data[0].sconf);
 
-	cycle_list = static_conf->cycle_list;
-	num_cycles = static_conf->num_cycles;
-	relation_list = static_conf->relation_list;
+        cycle_list = static_conf->cycle_list;
+        num_cycles = static_conf->num_cycles;
+        relation_list = static_conf->relation_list;
 
-	//solve the system of equations
-	qs_solve_linear_system(static_conf->obj, static_conf->factor_base->B, 
-		&bitfield, relation_list, cycle_list, &num_cycles);
+        // solve the system of equations
+        switch (j = qs_solve_linear_system(static_conf->obj, static_conf->factor_base->B,
+            &bitfield, relation_list, cycle_list, &num_cycles))
+        {
+        case 0:
+            break;
+        case -1:
+            // not enough dependencies.  Sieve more...
+
+            break;
+        case -2:
+            // corrupt matrix.  try again?
+            k++;
+            qs_savefile_free(&static_conf->obj->qs_obj.savefile);
+            printf("attempting to rebuild matrix (%d of %d)\n", k, 10);
+            sleep(1);
+            qs_savefile_init(&static_conf->obj->qs_obj.savefile, fobj->qs_obj.siqs_savefile);
+            break;
+        }
+
+    } while ((j == -2) && (k < 10));
 
 	stop = clock();
 	static_conf->t_time1 = (double)(stop - start)/(double)CLOCKS_PER_SEC;
@@ -880,20 +903,14 @@ void *process_poly(void *vptr)
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
-	//printf("average utilization of buckets in slices\n");
-	//for (i=0; i<20; i++)
-	//	printf("%d: %1.1f ",i,average_primes_per_slice[i]);
-	//printf("\n");
-
-	//unlock_thread_from_core();
 	return 0;
 }
 
 uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-	//the sconf structure holds the master list of relations and cycles.
-	//merge everything we found in the last round of sieving into
-	//this table and save relations out to disk
+	// the sconf structure holds the master list of relations and cycles.
+	// merge everything we found in the last round of sieving into
+	// this table and save relations out to disk
 	uint32 i;
 	siqs_r *rel;
 	char buf[1024];
@@ -910,7 +927,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
     //printf("saving %d buffered relations\n", dconf->buffered_rels);
 #endif
 
-	//save the data and merge into master cycle structure
+	// save the data and merge into master cycle structure
 	for (i=0; i<dconf->buffered_rels; i++)
 	{
 		rel = dconf->relation_buf + i;
@@ -928,7 +945,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 			rel->parity, sconf);
 	}
 
-	//update some progress indicators
+	// update some progress indicators
     sconf->total_blocks += dconf->total_blocks;
     sconf->total_reports += dconf->total_reports;
     sconf->total_surviving_reports += dconf->total_surviving_reports;
@@ -941,7 +958,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	sconf->dlp_useful += dconf->dlp_useful;
     sconf->lp_scan_failures += dconf->lp_scan_failures;
 
-	//compute total relations found so far
+	// compute total relations found so far
 	sconf->num_r = sconf->num_relations + 
 		sconf->num_cycles +
 		sconf->components - sconf->vertices;
@@ -2151,7 +2168,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // no.  maybe for tinysiqs someday.
     sconf->in_mem = 0;
 
-	return 0;
+    return 0;
 }
 
 int update_check(static_conf_t *sconf)
@@ -2320,6 +2337,18 @@ int update_final(static_conf_t *sconf)
 
 	if (VFLAG >= 0)
 	{
+        struct timeval update_stop;
+        gettimeofday(&update_stop, NULL);
+        t_time = my_difftime(&sconf->totaltime_start, &update_stop);
+        printf("%d rels found: %d full + "
+            "%d from %d partial, (%6.2f rels/sec)\r",
+            sconf->num_r, sconf->num_relations,
+            sconf->num_cycles +
+            sconf->components - sconf->vertices,
+            sconf->num_cycles,
+            (double)(sconf->num_relations + sconf->num_cycles) / t_time);
+
+
 		mpz_set_ui(tmp1, sconf->tot_poly);					//total number of polys
 		mpz_mul_ui(tmp1, tmp1, sconf->num_blocks);	//number of blocks
 		mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
@@ -2537,18 +2566,18 @@ void free_filter_vars(static_conf_t *sconf)
 {
 	int i;
 
-	//list of a values used first to track all a coefficients
-	//generated during sieving for duplication, then used again during
-	//filtering
+	// list of a values used first to track all a coefficients
+	// generated during sieving for duplication, then used again during
+	// filtering
 	for (i=0; (uint32)i < sconf->total_poly_a; i++)
 		mpz_clear(sconf->poly_a_list[i]);
 	free(sconf->poly_a_list);
 
-	//cycle table stuff created at the beginning of the factorization
+	// cycle table stuff created at the beginning of the factorization
 	free(sconf->cycle_hashtable);
 	free(sconf->cycle_table);
 
-	//list of polys used in filtering and sqrt
+	// list of polys used in filtering and sqrt
 	if (sconf->curr_b != NULL)
 	{
 		for (i=0;(uint32)i < sconf->bpoly_alloc;i++)
@@ -2565,21 +2594,24 @@ void free_filter_vars(static_conf_t *sconf)
 
 	if (sconf->relation_list != NULL)
 	{
-		//free post-processed relations
-		//for (i=0; (uint32)i < sconf->num_relations; i++)
-		//	free(sconf->relation_list[i].fb_offsets);
+		// free post-processed relations
 		free(sconf->relation_list);
 	}
 
-	for (i=0;i<sconf->num_cycles;i++)
-	{
-		if (sconf->cycle_list[i].cycle.list != NULL)
-			free(sconf->cycle_list[i].cycle.list);
-		if (sconf->cycle_list[i].data != NULL)
-			free(sconf->cycle_list[i].data);
-	}
-	if (sconf->cycle_list != NULL)
-		free(sconf->cycle_list);
+    if (sconf->cycle_list != NULL)
+    {
+        for (i = 0; i < sconf->num_cycles; i++)
+        {
+            if (&sconf->cycle_list[i] != NULL)
+            {
+                if (sconf->cycle_list[i].cycle.list != NULL)
+                    free(sconf->cycle_list[i].cycle.list);
+                if (sconf->cycle_list[i].data != NULL)
+                    free(sconf->cycle_list[i].data);
+            }
+        }
+        free(sconf->cycle_list);
+    }
 
 	return;
 }
@@ -2745,3 +2777,15 @@ uint8 choose_multiplier_siqs(uint32 B, mpz_t n)
 	return best_mult;
 }
 
+void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relations)
+{
+    int i;
+    for (i = 0; i < num_relations; i++) {
+        siqs_r *r = relation_list + i;
+        if (r->large_prime[0] != r->large_prime[1]) {
+            yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0],
+                r->large_prime[1]);
+        }
+    }
+    return;
+}

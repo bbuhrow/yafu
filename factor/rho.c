@@ -162,7 +162,7 @@ int mbrent(fact_obj_t *fobj)
 	int it;
 	int imax = fobj->rho_obj.iterations;
 
-	//initialize local arbs
+	// initialize local arbs
 	mpz_init(x);
 	mpz_init(y);
 	mpz_init(q);
@@ -170,7 +170,7 @@ int mbrent(fact_obj_t *fobj)
 	mpz_init(ys);
 	mpz_init(t1);
 
-	//starting state of algorithm.  
+	// starting state of algorithm.  
 	r = 1;
 	m = 256;
 	i = 0;
@@ -210,6 +210,7 @@ int mbrent(fact_obj_t *fobj)
 			k+=m;
 			it++;
 
+            // abort after the specified number of gcd's
 			if (it>imax)
 			{
 				mpz_set_ui(fobj->rho_obj.gmp_f, 0);
@@ -222,7 +223,7 @@ int mbrent(fact_obj_t *fobj)
 
 	if (mpz_cmp(g,fobj->rho_obj.gmp_n) == 0)
 	{
-		//back track
+		// back track
 		do
 		{
 			mpz_mul(t1, ys, ys); //ys = (ys*ys + c) mod n
@@ -283,7 +284,7 @@ int montybrent(fact_obj_t *fobj)
     int it;
     int imax = fobj->rho_obj.iterations;
 
-    //initialize local arbs
+    // initialize local arbs
     mpz_init(x);
     mpz_init(y);
     mpz_init(q);
@@ -292,7 +293,7 @@ int montybrent(fact_obj_t *fobj)
     mpz_init(t1);
     mpz_init(c);
 
-    //starting state of algorithm.  
+    // starting state of algorithm.  
     r = 1;
     m = 256;
     i = 0;
@@ -342,7 +343,7 @@ int montybrent(fact_obj_t *fobj)
 
     if (mpz_cmp(g, fobj->rho_obj.gmp_n) == 0)
     {
-        //back track
+        // back track
         do
         {
             monty_mul(mdata, ys, ys, ys);

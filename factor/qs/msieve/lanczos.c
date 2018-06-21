@@ -49,7 +49,7 @@ static const uint64 qs_bitmask[64] = {
 #define QS_MIN_POST_LANCZOS_DIM 10000
 
 /*-------------------------------------------------------------------*/
-static uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows, 
+uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows, 
 				uint32 *dense_rows_out, uint32 ncols, 
 				qs_la_col_t *cols) {
 
@@ -792,7 +792,7 @@ static uint32 yafu_combine_cols(uint32 ncols,
 }
 
 /*-----------------------------------------------------------------------*/
-static void yafu_dump_lanczos_state(fact_obj_t *obj, 
+void yafu_dump_lanczos_state(fact_obj_t *obj, 
 			uint64 *x, uint64 **vt_v0, uint64 **v, 
 			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
 			uint32 n, uint32 dim_solved, uint32 iter,
@@ -831,7 +831,7 @@ static void yafu_dump_lanczos_state(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-static void yafu_read_lanczos_state(fact_obj_t *obj, 
+void yafu_read_lanczos_state(fact_obj_t *obj, 
 			uint64 *x, uint64 **vt_v0, uint64 **v, 
 			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
 			uint32 n, uint32 *dim_solved, uint32 *iter,
@@ -882,7 +882,7 @@ static void yafu_read_lanczos_state(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-static void yafu_init_lanczos_state(fact_obj_t *obj, 
+void yafu_init_lanczos_state(fact_obj_t *obj, 
 			qs_packed_matrix_t *packed_matrix,
 			uint64 *x, uint64 *v0, uint64 **vt_v0, uint64 **v, 
 			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
@@ -925,7 +925,7 @@ static void yafu_init_lanczos_state(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-static uint64 * yafu_block_lanczos_core(fact_obj_t *obj, 
+uint64 * yafu_block_lanczos_core(fact_obj_t *obj, 
 				qs_packed_matrix_t *packed_matrix,
 				uint32 *num_deps_found,
 				uint64 *post_lanczos_matrix,
@@ -1402,7 +1402,8 @@ uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows,
 		printf("matrix must have more columns than rows\n");
 		if (obj->logfile != NULL)
 			logprint(obj->logfile, "matrix must have more columns than rows\n");
-		exit(-1);
+        *num_deps_found = (uint32)-1;
+        return NULL;
 	}
 
 	/* optionally remove the densest rows of the matrix, and

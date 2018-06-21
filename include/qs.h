@@ -708,7 +708,7 @@ void siqsbench(fact_obj_t *fobj);
 		the only guarantee is that its final value is at least 
 		fb_size + NUM_EXTRA_RELATIONS */
 
-void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
+int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
 		    uint64 **bitfield, 
 		    siqs_r *relation_list, 
 		    qs_la_col_t *cycle_list,
@@ -755,7 +755,7 @@ uint32 yafu_factor_list_add(fact_obj_t *obj,
 /*-------------- CYCLE FINDING RELATED DECLARATIONS ------------------------*/
 /* pull out the large primes from a relation read from
    the savefile */
-
+void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relations);
 void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
 
 /* given the primes from a sieve relation, add
