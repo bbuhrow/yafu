@@ -200,8 +200,15 @@ int main(int argc, char *argv[])
     if (strlen(scriptname) > 0)
     {
         scriptfile = fopen(scriptname, "r");
-        if (scriptfile != NULL)
+        if (scriptfile == NULL)
+        {
+            printf("could not find %s\n", scriptname);
+            exit(1);
+        }
+        else
+        {
             is_cmdline_run = 1;
+        }
     }
 
 	if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))	

@@ -567,7 +567,11 @@ void SIQS(fact_obj_t *fobj)
             k++;
             qs_savefile_free(&static_conf->obj->qs_obj.savefile);
             printf("attempting to rebuild matrix (%d of %d)\n", k, 10);
+#ifdef _MSC_VER
+            Sleep(1000);
+#else
             sleep(1);
+#endif
             qs_savefile_init(&static_conf->obj->qs_obj.savefile, fobj->qs_obj.siqs_savefile);
             break;
         }
