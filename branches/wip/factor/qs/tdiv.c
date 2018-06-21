@@ -101,7 +101,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		}
 	}
 
-	//check if it completely factored by looking at the unfactored portion in tmp
+	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
@@ -238,13 +238,13 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
     dynamic_conf_t *conf, uint32 *polya_factors,
     uint32 num_polya_factors, uint64 unfactored_residue)
 {
-    //put this relations's info into a temporary buffer which
-    //will get merged with other such buffers (if multi-threaded) and
-    //dumped to file once the threads are joined.
+    // put this relations's info into a temporary buffer which
+    // will get merged with other such buffers (if multi-threaded) and
+    // dumped to file once the threads are joined.
     siqs_r *rel;
     uint32 i, j, k;
 
-    //first check that this relation won't overflow the buffer
+    // first check that this relation won't overflow the buffer
     if (conf->buffered_rels >= conf->buffered_rel_alloc)
     {
         printf("reallocating relation buffer\n");
@@ -259,7 +259,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
         conf->buffered_rel_alloc *= 2;
     }
 
-    //then stick all the info in the buffer
+    // then stick all the info in the buffer
     rel = conf->relation_buf + conf->buffered_rels;
 
     rel->sieve_offset = offset;

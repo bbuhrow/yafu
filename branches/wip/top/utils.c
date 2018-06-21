@@ -869,11 +869,9 @@ void build_RSA(int bits, mpz_t in)
 		gordon(bits/2,&p);
 		gordon(bits/2,&q);
 		zMul(&p,&q,&n);
-		//printf("trial %d has %d bits\n",i,zBits(n));
 		i++;
 	}
 
-	//printf("took %d trials\n",i);
 	mp2gmp(&n, in);
 	zFree(&n);
 	zFree(&p);

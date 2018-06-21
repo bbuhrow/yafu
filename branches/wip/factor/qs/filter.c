@@ -775,6 +775,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	{
 		/* skip over the first line */
 		qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
+        qs_savefile_rewind(&obj->qs_obj.savefile);
 		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
 
 		//we don't know beforehand how many rels to expect, so start
@@ -806,6 +807,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 					relation_list[i].large_prime[1] = prime2;
 					i++;
 				}
+                else
+                {
+                    //printf("could not find token L in relation %s \n", buf);
+                }
 				break;
 			}
 
@@ -825,7 +830,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		total_poly_a = sconf->total_poly_a;
 		num_relations = sconf->buffered_rels;
 	}
-		
+
+    if (VFLAG > 0)
+        printf("read %d relations\n", num_relations);
+    rebuild_graph(sconf, relation_list, num_relations);
+
 	num_relations = qs_purge_singletons(obj, relation_list, num_relations,
 					table, hashtable);
 
@@ -1133,13 +1142,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	sconf->components = 0;
 	sconf->cycle_table_size = 1;
 
-	for (i = 0; i < num_relations; i++) {
-		siqs_r *r = relation_list + i;
-		if (r->large_prime[0] != r->large_prime[1]) {		
-			yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], 
-					r->large_prime[1]);
-		}
-	}
+    rebuild_graph(sconf, relation_list, num_relations);
 	
 	/* compute the number of cycles to expect. Note that
 	   this number includes cycles from both full and partial
@@ -1511,9 +1514,9 @@ uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list,
 	uint32 passes = 0;
 
 	if (VFLAG > 0)
-		printf("begin with %u relations\n", num_relations);
+		printf("begin singleton removal with %u relations\n", num_relations);
 	if (obj->logfile != NULL)
-		logprint(obj->logfile, "begin with %u relations\n", num_relations);
+		logprint(obj->logfile, "begin singleton removal with %u relations\n", num_relations);
 
 	do {
 		num_left = num_relations;

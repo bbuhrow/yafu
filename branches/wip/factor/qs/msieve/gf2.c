@@ -31,7 +31,7 @@ static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 
 
 /*------------------------------------------------------------------*/
-void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
+int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
 		    uint64 **bitfield, siqs_r *relation_list, 
 		    qs_la_col_t *cycle_list, uint32 *num_cycles) {
 
@@ -59,22 +59,29 @@ void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size,
 
 	if (ncols == 0) {
 		printf("matrix is corrupt; skipping linear algebra\n");
-		free(cols);
+        cols = NULL;
 		*num_cycles = 0;
-		return;
+		return -2;
 	}
 
 	/* solve the linear system */
 
 	dependencies = qs_block_lanczos(obj, nrows, 0, ncols, cols, &num_deps);
 
+    if (num_deps == (uint32)-1)
+    {
+        return -2;
+    }
+
 	if (num_deps == 0) {
 		free(dependencies);
-		return;
+		return -1;
 	}
 
 	*bitfield = dependencies;
 	*num_cycles = ncols;
+
+    return 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -155,7 +162,7 @@ uint32 qs_merge_relations(uint32 *merge_array,
 /*------------------------------------------------------------------*/
 #define QS_MAX_COL_WEIGHT 1000
 
-static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
+void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
 
 	/* Convert lists of relations from the sieving stage
