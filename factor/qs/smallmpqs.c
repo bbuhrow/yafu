@@ -1315,7 +1315,7 @@ uint32 u32div(uint32 c, uint32 n)
 
 #endif
 
-#elif defined(GCC_ASM32X) || defined(__MINGW32__)
+#elif (defined(GCC_ASM32X) || defined(__MINGW32__)) && !defined(FORCE_GENERIC)
 	#define SM_SCAN_CLEAN asm volatile("emms");	
 	#define SM_SIMD_SIEVE_SCAN 1
 
@@ -1361,7 +1361,7 @@ uint32 u32div(uint32 c, uint32 n)
         return n;
     }
 
-#elif defined(MSC_ASM32A)
+#elif defined(MSC_ASM32A) && !defined(FORCE_GENERIC)
 	#define SM_SCAN_CLEAN ASM_M {emms};
 	#define SM_SIMD_SIEVE_SCAN 1
 
@@ -1378,7 +1378,27 @@ uint32 u32div(uint32 c, uint32 n)
 				ASM_M mov result, ecx};			\
 		} while (0);
 
-#elif defined(_WIN64)
+uint32 mulredc32(uint32 x, uint32 y, uint32 n, uint32 nhat)
+{
+    uint64 xx, yy;
+
+    xx = (uint64)x * (uint64)y;
+    yy = (xx & 0xffffffff) * (uint64)nhat;
+    yy = (yy & 0xffffffff) * (uint64)n;
+    yy += xx;
+    yy >>= 32;
+    if (yy >= n) yy -= n;
+
+    return (uint32)yy;
+}
+
+uint32 u32div(uint32 c, uint32 n)
+{
+    return ((uint64)c << 32) % (uint64)n;
+}
+
+
+#elif defined(_WIN64) && !defined(FORCE_GENERIC)
 	#define SM_SCAN_CLEAN /*nothing*/
 	#define SM_SIMD_SIEVE_SCAN 1
 
@@ -1398,17 +1418,25 @@ uint32 u32div(uint32 c, uint32 n)
 			result = _mm_movemask_epi8(local_block); \
 		} while (0);
 
-    __inline uint32 mulredc32(uint32 x, uint32 y, uint32 n, uint32 nhat)
-    {
-        
+uint32 mulredc32(uint32 x, uint32 y, uint32 n, uint32 nhat)
+{
+    uint64 xx, yy;
 
-        return x;
-    }
+    xx = (uint64)x * (uint64)y;
+    yy = (xx & 0xffffffff) * (uint64)nhat;
+    yy = (yy & 0xffffffff) * (uint64)n;
+    yy += xx;
+    yy >>= 32;
+    if (yy >= n) yy -= n;
 
-    __inline uint32 u32div(uint32 c, uint32 n)
-    {
-        return ((uint64)c << 32) % n;
-    }
+    return (uint32)yy;
+}
+
+uint32 u32div(uint32 c, uint32 n)
+{
+    return ((uint64)c << 32) % (uint64)n;
+}
+
 
 
 #else	/* compiler not recognized*/
@@ -1416,6 +1444,26 @@ uint32 u32div(uint32 c, uint32 n)
 	#define SM_SCAN_CLEAN /*nothing*/
 	#undef SM_SIMD_SIEVE_SCAN
 	#undef SM_SIMD_SIEVE_SCAN_VEC
+
+uint32 mulredc32(uint32 x, uint32 y, uint32 n, uint32 nhat)
+{
+    uint64 xx, yy;
+
+    xx = (uint64)x * (uint64)y;
+    yy = (xx & 0xffffffff) * (uint64)nhat;
+    yy = (yy & 0xffffffff) * (uint64)n;
+    yy += xx;
+    yy >>= 32;
+    if (yy >= n) yy -= n;
+
+    return (uint32)yy;
+}
+
+uint32 u32div(uint32 c, uint32 n)
+{
+    return ((uint64)c << 32) % (uint64)n;
+}
+
 
 #endif
 #define SM_SCAN_MASK 0x8080808080808080ULL

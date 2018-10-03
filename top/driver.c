@@ -263,6 +263,9 @@ int main(int argc, char *argv[])
 	// command line
 	while (1)
 	{		
+        // running interactively, reset the fobj every line.
+        reset_factobj(fobj);
+
 		// handle a batch file, if passed in.
 		if (USEBATCHFILE)
 		{
@@ -2215,9 +2218,15 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 				fobj->nfs_obj.poly_option = 2;
 			else if (strcmp(arg, "fast") == 0)
 				fobj->nfs_obj.poly_option = 0;
+            else if (strcmp(arg, "min") == 0)
+                fobj->nfs_obj.poly_option = 3;
+            else if (strcmp(arg, "avg") == 0)
+                fobj->nfs_obj.poly_option = 4;
+            else if (strcmp(arg, "good") == 0)
+                fobj->nfs_obj.poly_option = 5;
 			else
 			{
-				printf("option -psearch recognizes arguments 'deep', 'wide', or 'fast'.\n  see docfile.txt for details\n"); 
+				printf("option -psearch recognizes arguments 'deep', 'wide', 'fast', 'min', 'avg', or 'good'.\n  see docfile.txt for details\n"); 
 				exit(1);
 			}
 

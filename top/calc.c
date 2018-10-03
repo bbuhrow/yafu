@@ -192,7 +192,6 @@ int op_precedence(char *s1, char *s2, int assoc)
 		return p1 > p2;
 }
 
-
 int is_closed(char *line, char *stopptr)
 {
     int i;
@@ -240,6 +239,32 @@ int exp_is_closed(char *start, char *stop)
     {
         return 0;
     }
+}
+
+int find_offset_matching_brace(char *ptr, char type)
+{
+    // find the matching brace or paren.
+    // assume input string pointer starts just
+    // beyond the opening brace or paren.
+    int openp = 0, closedp = 0;
+    char openchar = '(';
+    int i;
+
+    if (type == ')')
+        openchar = '(';
+    if (type == '}')
+        openchar = '{';
+
+    for (i = 0; i < strlen(ptr); i++)
+    {
+        if (ptr[i] == openchar) openp++;
+        if (ptr[i] == type) {
+            closedp++;
+            if (closedp > openp)
+                break;
+        }
+    }
+    return i;
 }
 
 str_t *preprocess(str_t *in, int *numlines)
@@ -314,7 +339,8 @@ str_t *preprocess(str_t *in, int *numlines)
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], start[80], vname[20];
+        char pre[8], start[80], initname[20], itername[20], testname[20], bodyname[20];
+        char *nptr;
         sprintf(pre, "for%d", for_cnt++);
 
         // save the beginning part of the command, if any
@@ -328,47 +354,48 @@ str_t *preprocess(str_t *in, int *numlines)
             strcpy(start, "");
 
         // tokenize the loop
-        //ptr = strtok(&current->s[4], ";");
         ptr = strtok(ptr, ";");
         if (ptr == NULL)
         {
             printf("badly formatted for loop: for(init; test; iter; body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_init", pre);
-        if (set_strvar(vname, ptr+4))
-            new_strvar(vname, ptr+4);
+
+        // have we stored this command already? Create it if not.
+        nptr = &initname[0];
+        if ((nptr = get_strvarname(ptr + 4)) == NULL)
+        {
+            sprintf(initname, "%s_init", pre);
+            new_strvar(initname, ptr + 4);
+        }
         ptr = strtok(NULL, ";");
         if (ptr == NULL)
         {
             printf("badly formatted for loop: for(init; test; iter; body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_test", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &testname[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(testname, "%s_test", pre);
+            new_strvar(testname, ptr);
+        }
         ptr = strtok(NULL, ";");
         if (ptr == NULL)
         {
             printf("badly formatted for loop: for(init; test; iter; body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_iter", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &itername[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(itername, "%s_iter", pre);
+            new_strvar(itername, ptr);
+        }
 
         // this can't just find any old ')', it has to find the matching one.
         ptr = ptr + strlen(ptr) + 1;
-        openp = closedp = 0;
-        for (i = 0; i < strlen(ptr); i++)
-        {
-            if (ptr[i] == '(') openp++;
-            if (ptr[i] == ')') {
-                closedp++;
-                if (closedp > openp)
-                    break;
-            }
-        }
+        i = find_offset_matching_brace(ptr, ')');
 
         if (ptr[i] == '\0')
         {
@@ -377,20 +404,23 @@ str_t *preprocess(str_t *in, int *numlines)
         }
 
         ptr[i] = '\0';
-        sprintf(vname, "%s_body", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &bodyname[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(bodyname, "%s_body", pre);
+            new_strvar(bodyname, ptr);
+        }
 
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);%s", 
-                start, pre, pre, pre, pre, str);
+            sprintf(current->s, "%sfor(%s, %s, %s, %s);%s", 
+                start, initname, testname, itername, bodyname, str);
         }
         else
         {
-            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);",
-                start, pre, pre, pre, pre);
+            sprintf(current->s, "%sfor(%s, %s, %s, %s);",
+                start, initname, testname, itername, bodyname);
         }
     }
 
@@ -398,7 +428,8 @@ str_t *preprocess(str_t *in, int *numlines)
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], start[80], vname[20];
+        char pre[8], start[80], initname[20], stopname[20], bodyname[20];
+        char *nptr;
         sprintf(pre, "forp%d", forp_cnt++);
 
         // save the beginning part of the command, if any
@@ -418,31 +449,28 @@ str_t *preprocess(str_t *in, int *numlines)
             printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_start", pre);
-        if (set_strvar(vname, ptr + 9))
-            new_strvar(vname, ptr + 9);
+        nptr = &initname[0];
+        if ((nptr = get_strvarname(ptr + 9)) == NULL)
+        {
+            sprintf(initname, "%s_start", pre);
+            new_strvar(initname, ptr + 9);
+        }
         ptr = strtok(NULL, ";");
         if (ptr == NULL)
         {
             printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_stop", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &stopname[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(stopname, "%s_stop", pre);
+            new_strvar(stopname, ptr);
+        }
 
         // this can't just find any old ')', it has to find the matching one.
         ptr = ptr + strlen(ptr) + 1;
-        openp = closedp = 0;
-        for (i = 0; i < strlen(ptr); i++)
-        {
-            if (ptr[i] == '(') openp++;
-            if (ptr[i] == ')') {
-                closedp++;
-                if (closedp > openp)
-                    break;
-            }
-        }
+        i = find_offset_matching_brace(ptr, ')');
 
         if (ptr[i] == '\0')
         {
@@ -451,25 +479,29 @@ str_t *preprocess(str_t *in, int *numlines)
         }
 
         ptr[i] = '\0';
-        sprintf(vname, "%s_body", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &bodyname[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(bodyname, "%s_body", pre);
+            new_strvar(bodyname, ptr);
+        }
 
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);%s", 
-                start, pre, pre, pre, str);
+            sprintf(current->s, "%sforprime(%s, %s, %s);%s", 
+                start, initname, stopname, bodyname, str);
         }
         else
-            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);", start, pre, pre, pre);
+            sprintf(current->s, "%sforprime(%s, %s, %s);", start, initname, stopname, bodyname);
     }
 
     if (((ptr = strstr(current->s, "forfactors(")) != NULL) &&
         exp_is_closed(current->s, ptr))
     {
         // new for loop
-        char pre[8], start[80], vname[20];
+        char pre[8], start[80], initname[20], bodyname[20];
+        char *nptr;
         sprintf(pre, "forf%d", forf_cnt++);
 
         // save the beginning part of the command, if any
@@ -480,32 +512,27 @@ str_t *preprocess(str_t *in, int *numlines)
             start[n] = '\0';
         }
         else
+        {
             strcpy(start, "");
+        }
 
         // tokenize the loop
-        //ptr = strtok(&current->s[11], ";");
         ptr = strtok(ptr, ";");
         if (ptr == NULL)
         {
             printf("badly formatted forfactors loop: forfactors(init, body)\n");
             exit(3);
         }
-        sprintf(vname, "%s_init", pre);
-        if (set_strvar(vname, ptr + 11))
-            new_strvar(vname, ptr + 11);
+        nptr = &initname[0];
+        if ((nptr = get_strvarname(ptr + 11)) == NULL)
+        {
+            sprintf(initname, "%s_init", pre);
+            new_strvar(initname, ptr + 11);
+        }
         
         // this can't just find any old ')', it has to find the matching one.
         ptr = ptr + strlen(ptr) + 1;
-        openp = closedp = 0;
-        for (i = 0; i < strlen(ptr); i++)
-        {
-            if (ptr[i] == '(') openp++;
-            if (ptr[i] == ')') {
-                closedp++;
-                if (closedp > openp)
-                    break;
-            }
-        }
+        i = find_offset_matching_brace(ptr, ')');
 
         if (ptr[i] == '\0')
         {
@@ -514,25 +541,31 @@ str_t *preprocess(str_t *in, int *numlines)
         }
 
         ptr[i] = '\0';
-        sprintf(vname, "%s_body", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+        nptr = &bodyname[0];
+        if ((nptr = get_strvarname(ptr)) == NULL)
+        {
+            sprintf(bodyname, "%s_body", pre);
+            new_strvar(bodyname, ptr);
+        }
 
         if (ptr[i + 1] != '\0')
         {
             sprintf(str, "%s", ptr + i + 1);
-            sprintf(current->s, "%sforfactors(%s_init, %s_body);%s", 
-                start, pre, pre, str);
+            sprintf(current->s, "%sforfactors(%s, %s);%s", 
+                start, initname, bodyname, str);
         }
         else
-            sprintf(current->s, "%sforfactors(%s_init, %s_body);", start, pre, pre);
+        {
+            sprintf(current->s, "%sforfactors(%s, %s);", start, initname, bodyname);
+        }
     }
 
     if (((ptr = strstr(current->s, "if(")) != NULL) &&
         exp_is_closed(current->s, ptr))
     {
         // new if statement
-        char pre[8], start[80], vname[20];
+        char pre[8], start[80], testname[20], bodyname[20], ebodyname[20];
+        char *nptr;
         sprintf(pre, "if%d", if_cnt++);
 
         // save the beginning part of the command, if any
@@ -543,19 +576,26 @@ str_t *preprocess(str_t *in, int *numlines)
             start[n] = '\0';
         }
         else
+        {
             strcpy(start, "");
+        }
 
         // tokenize the branch
         char *eptr;
-        ptr = strtok(&current->s[3], ";");
+        ptr = strtok(ptr, ";");
         if (ptr == NULL)
         {
             printf("badly formatted if statement: if(condition; true-body; [false-body])\n");
             exit(3);
         }
-        sprintf(vname, "%s_cond", pre);
-        if (set_strvar(vname, ptr))
-            new_strvar(vname, ptr);
+
+        // have we stored this command already? Create it if not.
+        nptr = &testname[0];
+        if ((nptr = get_strvarname(ptr + 3)) == NULL)
+        {
+            sprintf(testname, "%s_cond", pre);
+            new_strvar(testname, ptr + 3);
+        }
         eptr = strtok(NULL, ";");
         if (eptr == NULL)
         {
@@ -567,11 +607,14 @@ str_t *preprocess(str_t *in, int *numlines)
             // no else statement and no output suppression character
             strncpy(str, eptr, strlen(eptr) - 1);
             str[strlen(eptr) - 1] = '\0';
-            sprintf(vname, "%s_body", pre);
-            if (set_strvar(vname, str))
-                new_strvar(vname, str);
 
-            sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
+            nptr = &bodyname[0];
+            if ((nptr = get_strvarname(str)) == NULL)
+            {
+                sprintf(bodyname, "%s_body", pre);
+                new_strvar(bodyname, str);
+            }
+            sprintf(current->s, "%sif(%s, %s);", start, testname, bodyname);
         }
         else
         {
@@ -580,46 +623,65 @@ str_t *preprocess(str_t *in, int *numlines)
             {
                 // both
                 sprintf(str, "%s;", eptr);
-                sprintf(vname, "%s_body", pre);
-                if (set_strvar(vname, str))
-                    new_strvar(vname, str);
+                
+                nptr = &bodyname[0];
+                if ((nptr = get_strvarname(str)) == NULL)
+                {
+                    sprintf(bodyname, "%s_body", pre);
+                    new_strvar(bodyname, str);
+                }
 
                 ptr = strtok(NULL, "\0");
                 strncpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
-                sprintf(vname, "%s_elsebody", pre);
-                if (set_strvar(vname, str))
-                    new_strvar(vname, str);
-                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);", 
-                    start, pre, pre, pre);
+                
+                nptr = &ebodyname[0];
+                if ((nptr = get_strvarname(str)) == NULL)
+                {
+                    sprintf(ebodyname, "%s_elsebody", pre);
+                    new_strvar(ebodyname, str);
+                }
+
+                sprintf(current->s, "%sif(%s, %s, %s);", 
+                    start, testname, bodyname, ebodyname);
             }
             else if (eptr[strlen(eptr) + 1] == ')')
             {
                 // just the if, with an output suppression character
                 sprintf(str, "%s;", eptr);
-                sprintf(vname, "%s_body", pre);
-                if (set_strvar(vname, str))
-                    new_strvar(vname, str);
 
-                sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
+                nptr = &bodyname[0];
+                if ((nptr = get_strvarname(str)) == NULL)
+                {
+                    sprintf(bodyname, "%s_body", pre);
+                    new_strvar(bodyname, str);
+                }
+
+                sprintf(current->s, "%sif(%s, %s);", start, testname, bodyname);
             }
             else
             {
                 // an else with no output suppression character
                 sprintf(str, "%s", eptr);
-                sprintf(vname, "%s_body", pre);
-                if (set_strvar(vname, str))
-                    new_strvar(vname, str);
+                nptr = &bodyname[0];
+                if ((nptr = get_strvarname(str)) == NULL)
+                {
+                    sprintf(bodyname, "%s_body", pre);
+                    new_strvar(bodyname, str);
+                }
 
                 ptr = strtok(NULL, "\0");
                 strncpy(str, ptr, strlen(ptr) - 1);
                 str[strlen(ptr) - 1] = '\0';
-                sprintf(vname, "%s_elsebody", pre);
-                if (set_strvar(vname, str))
-                    new_strvar(vname, str);
+                nptr = &ebodyname[0];
+                if ((nptr = get_strvarname(str)) == NULL)
+                {
+                    sprintf(ebodyname, "%s_elsebody", pre);
+                    new_strvar(ebodyname, str);
+                }
 
-                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);", 
-                    start, pre, pre, pre);
+                sprintf(current->s, "%sif(%s, %s, %s);", 
+                    start, testname, bodyname, ebodyname);
             }
         }
     }
@@ -1084,17 +1146,12 @@ int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet)
     toStr(input_exp, &str);
 
     // multi-line statement blocks:
-    // have the preprocessor check for open '{' while parsing
-    // statement bodies.  If we see an open bracket without
-    // a closing one, create a new variable with the name of
-    // the block.  E.g. if parsing a 2nd for loop, the name
-    // would be 'for1_block'.  Then we return, and get some more
-    // text.  A global will need to keep track of open/closed
-    // brackets to know whether to keep appending to a block 
-    // variable or to finialize it and increment to the next 
-    // statement.
-    // multi-statement lines:
-    // separate with commas?
+    // the preprocessor converts complex expressions into
+    // a series of expressions, possibly with an assigment
+    // in each.  The expressions consist of functions, operators,
+    // variables, or numbers that the existing expression 
+    // evaluator handles well.  Note that some functions like
+    // loops call this process_expression function recursively.
 	out = preprocess(&str, &num);
 
 	// new factorization
@@ -3415,6 +3472,15 @@ int get_uvar(const char *name, mpz_t data)
 		return 2;
 	}
 
+    if (strcmp(name, "strvars") == 0) {
+        printf("dumping string variable name data:\n");
+
+        for (i = 0; i<strvars.num; i++)
+            printf("%s      %s\n", strvars.vars[i].name, strvars.vars[i].data);
+
+        return 2;
+    }
+
 	return 1;
 }
 
@@ -3479,6 +3545,24 @@ int is_strvar(const char *name)
         }
     }
     return 0;
+}
+
+char * get_strvarname(const char *data)
+{
+    // look for 'data' in the global uvars structure
+    // if found, return the name of the variable
+    int i;
+    char *name = NULL;
+
+    for (i = 0; i<strvars.num; i++)
+    {
+        if (strcmp(strvars.vars[i].data, data) == 0)
+        {
+            name = strvars.vars[i].name;
+            break;
+        }
+    }
+    return name;
 }
 
 int get_strvar(const char *name, char *data)

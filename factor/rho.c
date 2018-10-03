@@ -146,7 +146,6 @@ void brent_loop(fact_obj_t *fobj)
 	return;
 }
 
-
 int mbrent(fact_obj_t *fobj)
 {
 	/*
@@ -386,18 +385,21 @@ free:
     return it;
 }
 
-
 uint64 spbrent(uint64 N, uint64 c, int imax)
 {
+
+
     /*
     run pollard's rho algorithm on n with Brent's modification,
     returning the first factor found in f, or else 0 for failure.
     use f(x) = x^2 + c
     see, for example, bressoud's book.
     */
-    uint64 x, y, q, g, ys, t1, f, nhat;
+    uint64 x, y, q, g, ys, t1, f = 0, nhat;
     uint32 i = 0, k, r, m;
     int it;
+
+#ifndef _MSC_VER
 
     // start out checking gcd fairly often
     r = 1;
@@ -486,6 +488,9 @@ uint64 spbrent(uint64 N, uint64 c, int imax)
     }
 
 done:
+
+#endif
     return f;
 }
+
 

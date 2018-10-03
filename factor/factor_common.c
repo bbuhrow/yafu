@@ -79,6 +79,7 @@ typedef struct
 	double ecm_55digit_time_per_curve;
 	double ecm_60digit_time_per_curve;
 	double ecm_65digit_time_per_curve;
+    double initial_work;
 
 	// amount of work we've done in various areas
 	uint32 tdiv_limit;
@@ -2026,10 +2027,11 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_55digit_curves = 0;
 	fwork->ecm_60digit_curves = 0;
 	fwork->ecm_65digit_curves = 0;
-	
+
+    
 	// preload work structure with curves appropriate to the amount
 	// of specified initial work
-	if (fobj->autofact_obj.initial_work >= 60.0)
+	if (fwork->initial_work >= 60.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2049,7 +2051,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_60digit_curves = get_max_ecm_curves(fwork, state_ecm_60digit);				
 		interp_state = state_ecm_65digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 55.0)
+    else if (fwork->initial_work >= 55.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2068,7 +2070,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_55digit_curves = get_max_ecm_curves(fwork, state_ecm_55digit);				
 		interp_state = state_ecm_60digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 50.0)
+    else if (fwork->initial_work >= 50.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2086,7 +2088,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_50digit_curves = get_max_ecm_curves(fwork, state_ecm_50digit);			
 		interp_state = state_ecm_55digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 45.0)
+    else if (fwork->initial_work >= 45.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2103,7 +2105,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_45digit_curves = get_max_ecm_curves(fwork, state_ecm_45digit);				
 		interp_state = state_ecm_50digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 40.0)
+    else if (fwork->initial_work >= 40.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2119,7 +2121,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_40digit_curves = get_max_ecm_curves(fwork, state_ecm_40digit);		
 		interp_state = state_ecm_45digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 35.0)
+    else if (fwork->initial_work >= 35.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2134,7 +2136,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_35digit_curves = get_max_ecm_curves(fwork, state_ecm_35digit);
 		interp_state = state_ecm_40digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 30.0)
+    else if (fwork->initial_work >= 30.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2146,7 +2148,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_30digit_curves = get_max_ecm_curves(fwork, state_ecm_30digit);
 		interp_state = state_ecm_35digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 25.0)
+    else if (fwork->initial_work >= 25.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pm1_max_lvl1_curves = 0;
@@ -2155,7 +2157,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_25digit_curves = get_max_ecm_curves(fwork, state_ecm_25digit);
 		interp_state = state_ecm_30digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 20.0) 
+    else if (fwork->initial_work >= 20.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pm1_max_lvl1_curves = 0;
@@ -2180,8 +2182,8 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
         double tmp_pretest = fobj->autofact_obj.only_pretest;
 
         fobj->autofact_obj.only_pretest = 0;
-        interp_and_set_curves(fwork, fobj, interp_state, fobj->autofact_obj.initial_work,
-            fobj->autofact_obj.initial_work, 0);
+        interp_and_set_curves(fwork, fobj, interp_state, fwork->initial_work,
+            fwork->initial_work, 0);
             
         // restore any pretest value
         fobj->autofact_obj.only_pretest = tmp_pretest;
@@ -2223,6 +2225,7 @@ void factor(fact_obj_t *fobj)
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
 	int quit_after_sieve_method = 0;
+    double initial_work = fobj->autofact_obj.initial_work;
 
 	//factor() always ignores user specified B2 values
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -2258,28 +2261,53 @@ void factor(fact_obj_t *fobj)
 		free(s);
 	}
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
-	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		logprint(flog,"custom pretest ratio is: %1.4f\n",
-		fobj->autofact_obj.target_pretest_ratio);
-	if (fobj->autofact_obj.only_pretest > 1)
-		logprint(flog, "custom pretesting limit is: %d\n",
-		fobj->autofact_obj.only_pretest);
+    if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+    {
+        logprint(flog, "custom pretest ratio is: %1.4f\n",
+            fobj->autofact_obj.target_pretest_ratio);
+    }
+    if (fobj->autofact_obj.only_pretest > 1)
+    {
+        logprint(flog, "custom pretesting limit is: %d\n",
+            fobj->autofact_obj.only_pretest);
+    }
 
 	if (check_tune_params(fobj))
 	{
-		if (fobj->autofact_obj.prefer_xover)
-			logprint(flog,"overriding tune info with qs/gnfs crossover of %1.0f digits\n",
-				fobj->autofact_obj.qs_gnfs_xover);
-		else
-			logprint(flog,"using tune info for qs/gnfs crossover\n");
+        if (fobj->autofact_obj.prefer_xover)
+        {
+            logprint(flog, "overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_gnfs_xover);
+        }
+        else
+        {
+            logprint(flog, "using tune info for qs/gnfs crossover\n");
+        }
 	}
-	else
-		logprint(flog,"no tune info: using qs/gnfs crossover of %1.0f digits\n",
-			fobj->autofact_obj.qs_gnfs_xover);
+    else
+    {
+        logprint(flog, "no tune info: using qs/gnfs crossover of %1.0f digits\n",
+            fobj->autofact_obj.qs_gnfs_xover);
+    }
 
-	if (fobj->autofact_obj.initial_work > 0.0)
-		logprint(flog,"input indicated to have been pretested to t%1.2f\n",
-			fobj->autofact_obj.initial_work);
+    // if the user input a scaling factor rather than a digit level
+    // then compute the effective digit number for this input.
+    if (fobj->autofact_obj.initial_work < 1.0)
+    {
+        initial_work = fobj->autofact_obj.initial_work * mpz_sizeinbase(fobj->N, 10);
+    }
+
+    // put the initial work done into the work structure.  It's important
+    // to not modify the autofact_obj.initial_work element because if it was
+    // input as a scaling factor then modifying it would destroy the scaling
+    // factor for other inputs on this run (potentially a batch job).
+    fwork.initial_work = initial_work;
+
+    if (initial_work > 0.0)
+    {       
+        logprint(flog, "input indicated to have been pretested to t%1.2f\n",
+            initial_work);
+    }
 
 	logprint(flog,"****************************\n");
 	fclose(flog);
@@ -2296,19 +2324,27 @@ void factor(fact_obj_t *fobj)
 			printf("fac: custom pretesting limit is: %d\n",fobj->autofact_obj.only_pretest);
 		if (check_tune_params(fobj))
 		{
-			if (fobj->autofact_obj.prefer_xover)
-				printf("fac: overriding tune info with qs/gnfs crossover of %1.0f digits\n",
-					fobj->autofact_obj.qs_gnfs_xover);
-			else
-				printf("fac: using tune info for qs/gnfs crossover\n");
+            if (fobj->autofact_obj.prefer_xover)
+            {
+                printf("fac: overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+                    fobj->autofact_obj.qs_gnfs_xover);
+            }
+            else
+            {
+                printf("fac: using tune info for qs/gnfs crossover\n");
+            }
 		}
-		else
-			printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
-				fobj->autofact_obj.qs_gnfs_xover);
+        else
+        {
+            printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_gnfs_xover);
+        }
 
-		if (fobj->autofact_obj.initial_work > 0.0)
-			printf("fac: input indicated to have been pretested to t%1.2f\n",
-				fobj->autofact_obj.initial_work);
+        if (initial_work > 0.0)
+        {
+            printf("fac: input indicated to have been pretested to t%1.2f\n",
+                initial_work);
+        }
 
 	}	
 

@@ -29,7 +29,7 @@ many of the arithmetic routines here are based
 
 /*
 implements routines to perform computations with 
-montgomery arithmatic
+montgomery arithmetic
 */
 
 // local routines

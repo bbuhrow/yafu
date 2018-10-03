@@ -218,7 +218,7 @@ typedef struct {
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 void *lasieve_launcher(void *ptr);
 void *polyfind_launcher(void *ptr);
-void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile);
+double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile);
 void msieve_to_ggnfs(fact_obj_t *fobj, nfs_job_t *job);
 void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job);
 void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job);

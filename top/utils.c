@@ -1967,6 +1967,33 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
     return  nRet;
 }
 
+uint32 * mergesort(uint32 *a, uint32 *b, int sz_a, int sz_b)
+{
+    uint32 *c = (uint32 *)malloc((sz_a + sz_b) * sizeof(uint32));
+    int i = 0, j = 0, k = 0;
+
+    while ((i < sz_a) && (j < sz_b)) {
+        if (a[i] < b[j]) {
+            c[k++] = a[i++];
+        }
+        else if (a[i] > b[j]) {
+            c[k++] = b[j++];
+        }
+        else {
+            c[k++] = a[i++];
+            c[k++] = b[j++];
+        }
+    }
+
+    while (i < sz_a)
+        c[k++] = a[i++];
+
+    while (j < sz_b)
+        c[k++] = b[j++];
+
+    return c;
+}
+
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input)
 {
 	int next = (idp + idm) / 2;
