@@ -1,6 +1,6 @@
 [help]
 
-YAFU Version 1.34
+YAFU Version 1.35-beta
 
 --------------------------------------------------------------------------------
 Introduction:
@@ -8,8 +8,9 @@ Introduction:
 YAFU is an interactive mathematical environment, similar to
 MATLAB, pari/gp, or bc.  You write expressions on the command line,
 and it will interpret and evaluate them.  Results can be assigned
-to variables, and variables can be used in expressions.  Use 'quit' 
-or 'exit' to exit the application.
+to variables, and variables can be used in expressions.  Some basic
+programming language syntax like "for" and "if/else" are also available.
+Use 'quit' or 'exit' to exit the application.
 
 You can also call yafu from the OS command line, either by providing
 an argument to yafu like this:
@@ -23,6 +24,11 @@ Or by redirecting input from somewhere else:
 echo "2+2" | yafu
 yafu < in.txt
 
+Or by providing the name of a script or batchfile that contains valid yafu syntax:
+
+yafu -script do_stuff.txt
+yafu -batchfile numbers_to_factor.txt
+
 The use of quotes around the expressions may or may not be necessary
 depending on the OS.  All expressions supported in the interactive
 environment are supported in this way.  
@@ -30,7 +36,7 @@ environment are supported in this way.
 In addition, when providing arguments to yafu you can specify 
 flags to change program behavior.  Supported flags are:
 
--p				run yafu at idle priority
+-p				        run yafu at idle priority
 -B1pm1	<num>   	B1 bound in the pm1 method
 -B1pp1	<num>   	B1 bound in the pp1 method
 -B1ecm	<num>   	B1 bound in the ECM method
@@ -39,75 +45,78 @@ flags to change program behavior.  Supported flags are:
 -B2pp1	<num>   	B2 bound in the pp1 method
 -B2ecm	<num>   	B2 bound in the ECM method
 -qssave	<name>  	Name of the siqs savefile to use in this session
--siqsR <num>		Stop after finding num relations in siqs
--siqsT <num>		Stop after num seconds in siqs
+-siqsR <num>		  Stop after finding num relations in siqs
+-siqsT <num>		  Stop after num seconds in siqs
 -logfile <name>		Name of the logfile to use in this session
 -seed <num,num> 	32 bit numbers for use in seeding the RNG <highseed,lowseed>
 -batchfile <name>	Name of batchfile to use in command line job.  Items are
-				removed from the batchfile as they are completed.
--sigma <num>		Input to ECM's sigma parameter.  Limited to 32 bits.
+				          removed from the batchfile as they are completed.
+-sigma <num>		  Input to ECM's sigma parameter.  Limited to 32 bits.
 -session <name>		Use name instead of the default session.log
 -threads <num>		Use num sieving threads in SIQS and ECM
--v 		        	Use to increase verbosity of output, can be used 
-				multiple times
--silent		    	No output except to log file (not available in interactive 
-				environment)
--pfile			Adding this flag causes the primes() function to output primes 
-				to primes.txt
--pscreen			Adding this flag causes the primes() function to output primes 
-				to the screen
--forceDLP			Adding this flag forces SIQS to use double large primes
--fmtmax <num>		max iterations for the fermat method
--noopt			flag to force siqs to not perform optimization on the small 
-				tf bound
--vproc			Increase verbosity of processor detection code on startup
--noecm			Set this flag to skip all ECM stages in the factor() function 
-				and instead proceed directly to QS/NFS after small factor 
-				detection.
--one				Tells factor() to stop factoring after finding one factor.
+-v 		        	  Use to increase verbosity of output, can be used 
+				          multiple times
+-silent		    	  No output except to log file (not available in interactive 
+				          environment)
+-pfile			      Adding this flag causes the primes() function to output primes 
+				          to primes.txt
+-pscreen			    Adding this flag causes the primes() function to output primes 
+				          to the screen
+-forceDLP			    Adding this flag forces SIQS to use double large primes
+-fmtmax <num>		  max iterations for the fermat method
+-noopt			      flag to force siqs to not perform optimization on the small 
+				          tf bound
+-vproc			      Increase verbosity of processor detection code on startup
+-noecm			      Set this flag to skip all ECM stages in the factor() function 
+				          and instead proceed directly to QS/NFS after small factor 
+				          detection.
+-one				      Tells factor() to stop factoring after finding one factor.
 -ggnfs_dir <path>	path to ggnfs binaries
--op <name>			Tells factor() to output primes and prps to file <name>.
--of <name>			Tells factor() to output an input number and all found factors 
-				to file <name>.
--ou <name>			Tells factor() to output unfactored composites to file <name>.
--no_expr			When outputting numbers to file, do not print expression form, 
-				show full decimal expansion.
--plan <name>		Tells factor() to follow one of the following pretesting plans:
-					<name> = none: do only trial division and rho
-					<name> = noecm: stop before first ecm step and start 
-						nfs/qs
-					<name> = light: pretest to t-level 2/7 the size of 
-						the input before starting qs/nfs
-					<name> = normal: pretest to t-level 4/13 the size of 
-						the input before starting qs/nfs
-					<name> = deep: pretest to t-level 1/3 the size of the  
-						input before starting qs/nfs
-					<name> = custom: pretest to t-level specified by the 
-						ratio in the –pretest_ratio option 
+-op <name>			  Tells factor() to output primes and prps to file <name>.
+-of <name>			  Tells factor() to output an input number and all found factors 
+				          to file <name>.
+-ou <name>			  Tells factor() to output unfactored composites to file <name>.
+-no_expr			    When outputting numbers to file, do not print expression form, 
+				          show full decimal expansion.
+-plan <name>		  Tells factor() to follow one of the following pretesting plans:
+					        <name> = none: do only trial division and rho
+					        <name> = noecm: stop before first ecm step and start 
+					        	nfs/qs
+					        <name> = light: pretest to t-level 2/7 the size of 
+					        	the input before starting qs/nfs
+					        <name> = normal: pretest to t-level 4/13 the size of 
+					        	the input before starting qs/nfs
+					        <name> = deep: pretest to t-level 1/3 the size of the  
+					        	input before starting qs/nfs
+					        <name> = custom: pretest to t-level specified by the 
+					        	ratio in the –pretest_ratio option 
 -pretest_ratio <num>	A fractional value used in the plan=custom mode of operation to 
-				determine the depth of pretesting.  Inputs are pretested 
-				to t-level equal to size of input * pretest_ratio
--work <num>		Assert to factor() that the input has already received pretesting 
-				equivalent to the specified t-level.  In other words, if you know 
-				that an input has received ~900 ecm curves at B1=1M, then 
-				specify –work 35.  This value may be input as floating point.
--xover <num>		Use this option to specify the decimal digit size beyond which nfs
-				should be used instead of qs.  Specifying this option overrides
-				any crossover point computed from tuning data.  May be entered
-				as a floating point number.
--pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
-				Optionally provide an integer value specifing the maximum level of
-				pretesting to do (up to "num" digits, or a t-level of "num")
+				          determine the depth of pretesting.  Inputs are pretested 
+				          to t-level equal to size of input * pretest_ratio
+-work <num>		    Assert to factor() that the input has already received pretesting 
+				          equivalent to the specified t-level.  In other words, if you know 
+				          that an input has received ~900 ecm curves at B1=1M, then 
+				          specify –work 35.  This value may be input as floating point.
+                          If the value input is less than 1.0, then the input acts as a
+                          scaling factor to the current input.  For example if a 213 digit
+                          number is input along with -work 0.1, work is interpreted as 21.3.
+-xover <num>		  Use this option to specify the decimal digit size beyond which nfs
+				          should be used instead of qs.  Specifying this option overrides
+				          any crossover point computed from tuning data.  May be entered
+				          as a floating point number.
+-pretest [num]	  Use this switch with factor() for ECM pretesting of the input number.
+				          Optionally provide an integer value specifing the maximum level of
+				          pretesting to do (up to "num" digits, or a t-level of "num")
 -ecm_path <path>	full path to ecm binary
--nprp <num>			Specify the number of witnesses to every Rabin-Miller test in yafu
--ext_ecm <num>	specify the B1 value beyond which yafu will attempt to use
-				external ecm binaries.  below the specified threshold it will use
-				built-in ecm code
--aprcl_p <num>	Specify the upper size limit of numbers to be proved prime by APR-CL
-				(in decimal digits, default = 300, hard upper limit = 6021)
--aprcl_d <num>	Specify the upper size limit of numbers that are proved prime by
-				APR-CL "silently".  Above this limit, APR-CL progress will be
-				printed (in decimal digits, default = 200)
+-nprp <num>			  Specify the number of witnesses to every Rabin-Miller test in yafu
+-ext_ecm <num>	  specify the B1 value beyond which yafu will attempt to use
+				          external ecm binaries.  below the specified threshold it will use
+				          built-in ecm code
+-aprcl_p <num>	  Specify the upper size limit of numbers to be proved prime by APR-CL
+				          (in decimal digits, default = 300, hard upper limit = 6021)
+-aprcl_d <num>	  Specify the upper size limit of numbers that are proved prime by
+				          APR-CL "silently".  Above this limit, APR-CL progress will be
+				          printed (in decimal digits, default = 200)
 				
 NFS BEHAVIOR OPTIONS - configuring phases to run
 general info: if none of these options are specified, yafu will perform all of
@@ -147,6 +156,13 @@ NFS BEHAVIOR OPTIONS - general
 					'deep' - normal time deadline, search every leading 
 					coefficient with N threads
 					Note that when N = 1, this option has no effect.
+                    'min' - stop poly search when a score of minimal quality is found
+                    'avg' - stop poly search when a score of average quality is found
+                    'good' - stop poly search when a score of good quality is found
+                    For options 'min', 'avg', and 'good', Batalov's heuristic is used:
+                    https://www.mersenneforum.org/showpost.php?p=305315&postcount=3
+                    with multipliers of 1.0, 1.036 and 1.072.  
+                    Default is 'avg'.
 -pbatch <num>		Size of blocks of leading coefficients to distribute during 
 				NFS polynomial selection.  Default is 250.
 -R				Must specify in order to restart when a previous savefile exists
@@ -250,19 +266,19 @@ The following are all the supported functions:
 
 utility			factoring		arithmetic
 ------------------------------------------------------------------------------------------
-rsa			factor			shift
-size			siqs			nroot
+rsa			    factor			shift
+size			  siqs			  nroot
 primes			smallmpqs		modexp
-nextprime		nfs			sqrt
-rand			squfof			lg2
-randb			pm1			log
-isprime			pp1			ln
-ispow			rho			gcd
-issquare		trial			jacobi
-sieverange		ecm			modinv
-testrange		fermat			fib
-bpsw			snfs			luc
-aprcl						llt
+nextprime		nfs			    sqrt
+rand			  squfof			lg2
+randb			  pm1			    log
+isprime			pp1			    ln
+ispow			  rho			    gcd
+issquare		trial			  jacobi
+sieverange	ecm			    modinv
+testrange   fermat			fib
+bpsw        snfs			  luc
+aprcl                   llt
 
 ----------
 Variables:

@@ -18,6 +18,9 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#ifndef MONTY_H
+#define MONTY_H
+
 #include "yafu.h"
 #include "arith.h"
 #include "common.h"
@@ -131,6 +134,7 @@ __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
+
 #else
 
 //https://msdn.microsoft.com/en-us/library/windows/desktop/82cxdw50(v=vs.85).aspx
@@ -144,10 +148,7 @@ __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
 //        t.l[1] -= n, t.l[1] + (n&((int64)t.l[1] >> 63)));
 //}
 
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat) {}
-__inline uint64 u64div(uint64 c, uint64 n) {}
-__inline uint64 addmod(uint64 x, uint64 y, uint64 n) {}
-__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat) {}
 
 #endif
 
+#endif

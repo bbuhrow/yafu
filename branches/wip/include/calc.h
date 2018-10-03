@@ -68,6 +68,7 @@ void free_uvars();
 int new_strvar(const char *name, char *data);
 int set_strvar(const char *name, char *data);
 int get_strvar(const char *name, char *data);
+char * get_strvarname(const char *data);
 int is_strvar(const char *name);
 void free_strvars();
 int invalid_dest(char *dest);

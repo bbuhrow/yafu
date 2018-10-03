@@ -310,12 +310,9 @@ void siqsbench(fact_obj_t *fobj)
 	//run through the list of benchmark siqs factorizations
 
 	char list[10][200];
-	char oldflogname[80];
 	enum cpu_type cpu;
 	FILE *log;
 	int i;
-
-	strcpy(oldflogname,fobj->flogname);
 
 	strcpy(list[0],"405461849292216354219321922871108605045931309");
 	strcpy(list[1],"29660734457033883936073030405220515257819037444591");
@@ -337,26 +334,27 @@ void siqsbench(fact_obj_t *fobj)
 		exit(1);
 	}
 
-	cpu = yafu_get_cpu_type();
-	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
-#if defined(TFM_X86) || defined(TFM_X86_MSVC)
-	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");
-#elif defined(TFM_X86_64)
-	fprintf(log,"Initialized with Tom's Fast Math (x86-64 asm)\n\n");
-#else
-	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
-#endif
+//	cpu = yafu_get_cpu_type();
+//	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
+//#if defined(TFM_X86) || defined(TFM_X86_MSVC)
+//	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");
+//#elif defined(TFM_X86_64)
+//	fprintf(log,"Initialized with Tom's Fast Math (x86-64 asm)\n\n");
+//#else
+//	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
+//#endif
 
+    fprintf(log, "commencing siqsbench on %s\n", CPU_ID_STR);
 	fclose(log);
 
 	for (i=0; i<10; i++)
 	{
-		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10); //str2hexz(list[i],&n);
+		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
 		SIQS(fobj);
 		clear_factor_list(fobj);
 	}
 
-	strcpy(fobj->flogname,oldflogname);
+    strcpy(fobj->flogname, "bench.log");
 
 	return;
 }

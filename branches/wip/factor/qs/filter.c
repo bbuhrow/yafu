@@ -775,7 +775,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	{
 		/* skip over the first line */
 		qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
-        qs_savefile_rewind(&obj->qs_obj.savefile);
 		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
 
 		//we don't know beforehand how many rels to expect, so start
@@ -807,10 +806,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 					relation_list[i].large_prime[1] = prime2;
 					i++;
 				}
-                else
-                {
-                    //printf("could not find token L in relation %s \n", buf);
-                }
 				break;
 			}
 
@@ -833,7 +828,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
     if (VFLAG > 0)
         printf("read %d relations\n", num_relations);
-    rebuild_graph(sconf, relation_list, num_relations);
+
+    if (sconf->charcount == 42)
+        rebuild_graph(sconf, relation_list, num_relations);
 
 	num_relations = qs_purge_singletons(obj, relation_list, num_relations,
 					table, hashtable);

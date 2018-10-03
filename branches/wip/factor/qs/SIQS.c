@@ -338,6 +338,27 @@ void SIQS(fact_obj_t *fobj)
 		sieve_log = fobj->logfile;
 	}
 
+    fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
+    fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
+
+    // print the "starting" line before we check for special cases.
+    // other applications (e.g., aliqeit) check for the starting
+    // line when parsing the factor.log file.  Should have always 
+    // printed it anyway, for consistency.
+    if (VFLAG >= 0)
+    {
+        gmp_printf("\nstarting SIQS on c%d: %Zd\n", 
+            fobj->digits, fobj->qs_obj.gmp_n);
+    }
+
+    if (sieve_log != NULL)
+    {
+        logprint(sieve_log, "starting SIQS on c%d: %s\n", fobj->digits,
+            mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+        logprint(sieve_log, "random seeds: %u, %u\n", g_rand.hi, g_rand.low);
+        fflush(sieve_log);
+    }
+
 	// check for special cases and bail if there is one
 	if ((i = check_specialcase(fobj->logfile,fobj)) > 0)
 	{
@@ -402,9 +423,7 @@ void SIQS(fact_obj_t *fobj)
 	// 3.) initialize data objects
 	// 4.) get ready to find the factor base
 
-	// fill in the factorization object
-	fobj->bits = mpz_sizeinbase(fobj->qs_obj.gmp_n, 2);
-	fobj->digits = gmp_base10(fobj->qs_obj.gmp_n);
+	// fill in the factorization object	
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strcpy(fobj->savefile_name,fobj->qs_obj.siqs_savefile);
 
@@ -429,21 +448,7 @@ void SIQS(fact_obj_t *fobj)
 	savefile_buf_off = 0;	
 		
 	// start a counter for the whole job
-	gettimeofday(&static_conf->totaltime_start, NULL);
-
-    if (VFLAG >= 0)
-    {
-        printf("\nstarting SIQS on c%d: %s\n", fobj->digits,
-            mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
-    }
-
-	if (sieve_log != NULL)
-	{
-		logprint(sieve_log,"starting SIQS on c%d: %s\n",fobj->digits,
-			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
-		logprint(sieve_log,"random seeds: %u, %u\n",g_rand.hi, g_rand.low);
-		fflush(sieve_log);
-	}
+	gettimeofday(&static_conf->totaltime_start, NULL);    
 
     udata.thread_data = thread_data;
 
@@ -567,6 +572,8 @@ void SIQS(fact_obj_t *fobj)
             k++;
             qs_savefile_free(&static_conf->obj->qs_obj.savefile);
             printf("attempting to rebuild matrix (%d of %d)\n", k, 10);
+            static_conf->charcount = 42;
+
 #ifdef _MSC_VER
             Sleep(1000);
 #else
@@ -845,7 +852,12 @@ void *process_poly(void *vptr)
 #else
         for (i = 0; i < dconf->num_64bit_residue; i++)
         {
+#ifdef _MSC_VER
+            mpz_set_64(dconf->gmptmp1, q64);
+            f[i] = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+#else
             f[i] = spbrent(dconf->unfactored_residue[i], 1, 1024);
+#endif
         }
 #endif
 
@@ -1481,9 +1493,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		printf("static memory usage:\n");
 	}
 
-    
-
-
 	// some things work different if the input is tiny
 	sconf->is_tiny = is_tiny;
 
@@ -1941,7 +1950,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	// based on the size of the input, determine how to proceed.
     // this should maybe be tuned based on machine type and/or other
     // factors as well, not just instruction set used during compile.
-#if defined(USE_AVX2) || defined(USE_SSE41)
+#if (defined(USE_AVX2) || defined(USE_SSE41))
     dlp_cutoff = 70;
 #else
     dlp_cutoff = 77;

@@ -623,7 +623,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
+double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -731,9 +731,9 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		job->last_leading_coeff = highest_c4;
 
 	if (!write_jobfile)
-		return;
+		return bestscore;
 
-	//open it again
+	// open it again
 	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
 	if (in == NULL)
@@ -747,7 +747,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 	job->startq = fobj->nfs_obj.sq_side < 0 ? job->rlim/2 : job->alim/2;
 	// use alim if side not specified
 
-	//always overwrites previous job files!
+	// always overwrites previous job files!
 	out = fopen(fobj->nfs_obj.job_infile,"w");
 	if (out == NULL)
 	{
@@ -756,7 +756,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		exit(1);
 	}
 
-	//go to the bestline
+	// go to the bestline
 	while (!feof(in))
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
@@ -787,7 +787,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		}
 	}
 
-	//copy n into the job file
+	// copy n into the job file
 	gmp_fprintf(out, "n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	if (VFLAG > 0)
@@ -804,8 +804,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		if (line[0] == '#')
 			break;
 
-		//prevent a "time" line from being copied into the .job file
-		//ggnfs will ignore it, but it can be prevented here.
+		// prevent a "time" line from being copied into the .job file
+		// ggnfs will ignore it, but it can be prevented here.
 		if (strlen(line) > 4)
 		{
 			if ((line[0] == 't') && (line[1] == 'i') &&
@@ -832,7 +832,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 	fclose(in);
 	fclose(out);
 
-	return;
+	return bestscore;
 }
 
 void msieve_to_ggnfs(fact_obj_t *fobj, nfs_job_t *job)

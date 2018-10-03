@@ -44,6 +44,8 @@ code to the public domain.
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024
 
+//#define FORCE_GENERIC 1
+
 //support libraries
 #include "types.h"
 #include <gmp.h>
