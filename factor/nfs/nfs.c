@@ -55,9 +55,11 @@ void nfsexit(int sig)
 
 int nfs_check_special_case(fact_obj_t *fobj)
 {
+    int size = gmp_base10(fobj->nfs_obj.gmp_n);
+	// below a certain amount, revert to SIQS
 
-	//below a certain amount, revert to SIQS
-	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
+    if ((size < fobj->autofact_obj.qs_snfs_xover) ||
+        ((size < fobj->nfs_obj.min_digits) && (fobj->autofact_obj.has_snfs_form != 1)))
 	{
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
@@ -401,6 +403,13 @@ void nfs(fact_obj_t *fobj)
 				nfs_state = NFS_STATE_SIEVE;
 			}
 
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = my_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
+
 			break;
 
 		case NFS_STATE_LINALG:
@@ -499,6 +508,12 @@ void nfs(fact_obj_t *fobj)
 			else // not doing linalg
 				nfs_state = NFS_STATE_SQRT;
 
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = my_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
 			break;
 
 		case NFS_STATE_SQRT:
@@ -645,6 +660,14 @@ void nfs(fact_obj_t *fobj)
 					nfs_state = NFS_STATE_DONE;
 				}
 			}
+
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = my_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
+
 			break;
 
 		case NFS_STATE_STARTNEW:
@@ -978,13 +1001,15 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 21
+#define GGNFS_TABLE_ROWS 23
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
 /* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
-	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
+    {75,  300000,   23, 46, 2.0, 11, 0, 2000 },
+    {80,  600000,   24, 48, 2.1, 11, 0, 5000 },
+    {85,  900000,   24, 48, 2.1, 11, 0, 10000},
 	{90,  1200000,  25, 50, 2.3, 11, 0, 10000},
 	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
 	{100, 1800000,  26, 52, 2.5, 12, 0, 20000},

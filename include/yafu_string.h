@@ -24,7 +24,7 @@ code to the public domain.
 void sInit(str_t *s);
 void sFree(str_t *s);
 void sClear(str_t *s);
-void sCopy(str_t *src, str_t *dest);
+void sCopy(str_t *dest, str_t *src);
 void sGrow(str_t *s, int size);
 void toStr(char *src, str_t *dest);
 void sAppend(const char *src, str_t *dest);

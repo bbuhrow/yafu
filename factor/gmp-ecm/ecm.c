@@ -739,7 +739,7 @@ int print_B1B2(fact_obj_t *fobj, FILE *fid)
 	}
 	else if (fobj->ecm_obj.B1 % 1000 == 0)
 	{
-		suffix = 'K';
+		suffix = 'k';
 		sprintf(stg1str,"%u%c",fobj->ecm_obj.B1 / 1000, suffix);
 	}
 	else
@@ -761,7 +761,7 @@ int print_B1B2(fact_obj_t *fobj, FILE *fid)
 		}
 		else if (fobj->ecm_obj.B2 % 1000 == 0)
 		{
-			suffix = 'K';
+			suffix = 'k';
 			sprintf(stg2str,"%" PRIu64 "%c",fobj->ecm_obj.B2 / 1000, suffix);
 		}
 		else

@@ -435,12 +435,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 					}
 					else
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 					}
 				}
@@ -448,12 +448,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
 					}
 					else
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
 					}
 				}
@@ -514,12 +514,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d + %d\n", c1, i, j, c2);
 					}
 					else
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d*%d^%d - %d\n", c1, i, j, c2);
 					}
 				}
@@ -527,12 +527,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				{
 					if (sign == POSITIVE)
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d^%d + %d\n", i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d\n", i, j, c2);
 					}
 					else
 					{
-						if (VFLAG > 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
+						if (VFLAG >= 0) printf("nfs: input divides %d^%d - %d\n", i, j, c2);
 						logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d\n", i, j, c2);
 					}
 				}
@@ -580,7 +580,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			char s[2048];
 
-			if (VFLAG > 0) gmp_printf("nfs: input divides %Zd^%d - 1\n", b, i);
+			if (VFLAG >= 0) gmp_printf("nfs: input divides %Zd^%d - 1\n", b, i);
 			logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d - 1\n", mpz_get_str(s, 10, b), i);
 			form->form_type = SNFS_BRENT;
 			form->coeff1 = 1;
@@ -613,7 +613,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 		{
 			char s[2048];
 
-			if (VFLAG > 0) gmp_printf("nfs: input divides %Zd^%d + 1\n", b, i);
+			if (VFLAG >= 0) gmp_printf("nfs: input divides %Zd^%d + 1\n", b, i);
 			logprint_oc(fobj->flogname, "a", "nfs: input divides %s^%d + 1\n", mpz_get_str(s, 10, b), i);
 			form->form_type = SNFS_BRENT;
 			form->coeff1 = 1;
@@ -764,7 +764,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_mod(r, g, n);
 				if (mpz_cmp_ui(r, 0) == 0)
 				{
-					if (VFLAG > 0) printf("nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
+					if (VFLAG >= 0) printf("nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
 					logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d^%d\n", i, k, j, k);
 					form->form_type = SNFS_H_CUNNINGHAM;
 					mpz_set_ui(form->base1, i);
@@ -789,7 +789,7 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_mod(r, g, n);
 				if (mpz_cmp_ui(r, 0) == 0)
 				{
-					if (VFLAG > 0) printf("nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
+					if (VFLAG >= 0) printf("nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
 					logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d - %d^%d\n", i, k, j, k);
 					form->form_type = SNFS_H_CUNNINGHAM;
 					mpz_set_ui(form->base1, i);
@@ -865,7 +865,7 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
 			mpz_mod(r, g, n);
 			if (mpz_cmp_ui(r, 0) == 0)
 			{
-				if (VFLAG > 0) printf("nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
+				if (VFLAG >= 0) printf("nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
 				logprint_oc(fobj->flogname, "a", "nfs: input divides %d^%d + %d^%d\n", x, y, y, x);
 				form->form_type = SNFS_XYYXF;
 				mpz_set_ui(form->base1, x);
@@ -1392,6 +1392,135 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         algebraic = 1;
 
     }
+    else if ((poly->exp1 % 35 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+    {
+        // a^(35k) +/- 1 is divisible by (a^k +/- 1) giving 
+        // either a quartic or sextic in a^k.  Choose which one based on difficulty.
+        double d4;
+        double d6;
+        double ratio;
+        int degree;
+
+        mpz_set(m, poly->base1);
+        k = poly->exp1 / 5;
+        d4 = log10(mpz_get_d(m)) * 4. * k;
+
+        k = poly->exp1 / 7;
+        d6 = log10(mpz_get_d(m)) * 6. * k;
+
+        // compare and choose one or the other based on difficulty.
+        // if d4 is over ~160 then d6 may be the way to go unless d6
+        // is much larger.  The ratio d6/d4 that is acceptable probably
+        // grows with increasing d4, because degree 4 becomes more and
+        // more undesirable with increasing size.  For now use this ad-hoc
+        // table:
+        ratio = d6 / d4;
+
+        printf("d4 difficulty = %1.4f, d6 difficult = %1.4f, ratio = %1.4f\n", d4, d6, ratio);
+
+        if (d4 > 220)
+        {
+            if (ratio < 1.2)
+            {
+                printf("d4 cutoff = 1.2: choosing degree 6\n");
+                degree = 6;
+            }
+            else
+            {
+                printf("d4 cutoff = 1.2: choosing degree 4\n");
+                degree = 4;
+            }
+        }
+        else if (d4 > 200)
+        {
+            if (ratio < 1.15)
+            {
+                printf("d4 cutoff = 1.15: choosing degree 6\n");
+                degree = 6;
+            }
+            else
+            {
+                printf("d4 cutoff = 1.15: choosing degree 4\n");
+                degree = 4;
+            }
+        }
+        else if (d4 > 180)
+        {
+            if (ratio < 1.1)
+            {
+                printf("d4 cutoff = 1.1: choosing degree 6\n");
+                degree = 6;
+            }
+            else
+            {
+                printf("d4 cutoff = 1.1: choosing degree 4\n");
+                degree = 4;
+            }
+        }
+        else if (d4 > 160)
+        {
+            if (ratio < 1.05)
+            {
+                printf("d4 cutoff = 1.05: choosing degree 6\n");
+                degree = 6;
+            }
+            else
+            {
+                printf("d4 cutoff = 1.05: choosing degree 4\n");
+                degree = 4;
+            }
+        }
+
+        if (degree == 4)
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(5k) +/- 1 is divisible by (a^k +/- 1) giving a quartic in a^k
+            polys->poly->alg.degree = 4;
+            fobj->nfs_obj.pref_degree = 4;
+            k = poly->exp1 / 5;
+            mpz_set_ui(polys->c[4], 1);
+            mpz_set_si(polys->c[3], -poly->coeff2);
+            mpz_set_ui(polys->c[2], 1);
+            mpz_set_si(polys->c[1], -poly->coeff2);
+            mpz_set_ui(polys->c[0], 1);
+            mpz_set(m, poly->base1);
+            polys->difficulty = log10(mpz_get_d(m)) * 4. * k;
+            mpz_pow_ui(polys->poly->m, m, k);
+            polys->poly->skew = 1.;
+
+            algebraic = 1;
+        }
+        else
+        {
+            polys = (snfs_t *)malloc(sizeof(snfs_t));
+            snfs_init(polys);
+            npoly = 1;
+            snfs_copy_poly(poly, polys);		// copy algebraic form
+
+            // a^(7k) +/- 1 is divisible by (a^k +/- 1) giving a sextic in a^k
+            polys->poly->alg.degree = 6;
+            fobj->nfs_obj.pref_degree = 6;
+            k = poly->exp1 / 7;
+            mpz_set_ui(polys->c[6], 1);
+            mpz_set_si(polys->c[5], -poly->coeff2);
+            mpz_set_ui(polys->c[4], 1);
+            mpz_set_si(polys->c[3], -poly->coeff2);
+            mpz_set_ui(polys->c[2], 1);
+            mpz_set_si(polys->c[1], -poly->coeff2);
+            mpz_set_ui(polys->c[0], 1);
+            mpz_set(m, poly->base1);
+            polys->difficulty = log10(mpz_get_d(m)) * 6. * k;
+            mpz_pow_ui(polys->poly->m, m, k);
+            polys->poly->skew = 1.;
+
+            algebraic = 1;
+        }
+
+    }
 	else if ((poly->exp1 % 5 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
@@ -1415,7 +1544,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		algebraic = 1;
 	}
-	else if ((poly->exp1 % 7 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
+	else if ((poly->exp1 % 7 == 0) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1) && 
+        (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) > 90))
 	{
 		polys = (snfs_t *)malloc(sizeof(snfs_t));
 		snfs_init(polys);

@@ -242,6 +242,164 @@ double my_difftime (struct timeval * start, struct timeval * end)
 	return secs + usecs / 1000000.;
 }
 
+uint64 lr_pmod64(uint64 b, uint64 e, uint64 m)
+{
+    int sz_b;
+    int i, j;
+    uint64 x;
+    uint64 s;
+    uint64 one;
+    uint64 mhat;
+    uint64 ee = e;
+    uint64 t = 1ULL << 63;
+    
+    x = (((m + 2) & 4) << 1) + m; // here x*a==1 mod 2**4
+    x *= 2 - m * x;               // here x*a==1 mod 2**8
+    x *= 2 - m * x;               // here x*a==1 mod 2**16
+    x *= 2 - m * x;               // here x*a==1 mod 2**32         
+    x *= 2 - m * x;               // here x*a==1 mod 2**64
+    mhat = (uint64)0 - x;
+    
+    x = b;
+    s = 1;
+    
+    // Montgomery representation
+    s = one = u64div(s, m);
+    x = u64div(x, m);
+    
+    while ((t & e) == 0)
+      t >>= 1;
+    
+    // L-R exponentiation
+    while (t)
+    {
+        s = mulredc(s, s, m, mhat);
+        if (e & t)
+            s = mulredc(x, s, m, mhat);
+        t >>= 1;
+    }
+
+    s = mulredc(s, 1, m, mhat);
+    //printf("%lu ^ %lu mod %lu = %lu (one = %lu, mhat = %lu)\n", b, e, m, s, one, mhat);
+    return s;
+}
+
+uint64 rl_pmod64(uint64 b, uint64 e, uint64 m)
+{
+    int sz_b;
+    int i, j;
+    uint64 x;
+    uint64 s;
+    uint64 one;
+    uint64 mhat;
+    uint64 ee = e;
+    
+    x = (((m + 2) & 4) << 1) + m; // here x*a==1 mod 2**4
+    x *= 2 - m * x;               // here x*a==1 mod 2**8
+    x *= 2 - m * x;               // here x*a==1 mod 2**16
+    x *= 2 - m * x;               // here x*a==1 mod 2**32         
+    x *= 2 - m * x;               // here x*a==1 mod 2**64
+    mhat = (uint64)0 - x;
+    
+    x = 1;
+    s = b;
+    
+    // Montgomery representation
+    x = one = u64div(x, m);
+    s = u64div(s, m);
+    
+    // R-L exponentiation
+    while (e)
+    {
+        if (e & 1)
+          x = mulredc(x, s, m, mhat);
+        s = mulredc(s, s, m, mhat);
+        e >>= 1;
+    }
+
+    x = mulredc(x, 1, m, mhat);
+    //printf("%lu ^ %lu mod %lu = %lu\n", b, ee, m, x);
+    return x;
+}
+
+uint64 lrwin_pmod64(uint64 b, uint64 e, uint64 m)
+{
+    int sz_b;
+    int i, j;
+    int bit; // = mpz_sizeinbase(e, 2) - 1;
+    int mask;
+    int nsqr, nmul;
+    int bstr;
+    int k; // = get_winsize();
+    //mpz_t g[256];
+    //mpz_t acc;
+
+    mask = 0;
+    for (j = 0; j < k; j++)
+    {
+        mask = (mask << 1) | 1;
+    }
+
+    //for (i = 0; i < 256; i++)
+    //    mpz_init(g[i]);
+
+    // setup accumulator: 1
+    //mpz_set_ui(x, 1);
+
+    // precomputations, b^i for 0 <= i < 2^k
+    //mpz_set(g[1], b);
+    //for (i = 2; i < (1 << k); i++)
+    //{
+    //    mpz_mul(g[i], g[i - 1], b);
+    //    mpz_mod(g[i], g[i], m);
+    //}
+
+    // L-R windowed exponentiation.  Scan the exponent bit-vector
+    // backward instead of flipping and shifting it.
+    while (bit >= 0)
+    {
+        if (bit < k)
+        {
+            // grab the last bits of the exponent.
+            // accommodates exponent lengths not divisible
+            // by the window size
+            mask = 0x0;
+            for (j = 0; j < (bit + 1); j++)
+            {
+                //mpz_mul(x, x, x);
+                //mpz_mod(x, x, m);
+                mask = (mask << 1) | 1;
+            }
+
+            //bstr = e->_mp_d[0] & mask;
+        }
+        else
+        {
+            // grab the next k bits of the exponent.
+            //bstr = get_bitwin(e, bit, k, mask);
+            for (j = 0; j < k; j++)
+            {
+                //mpz_mul(x, x, x);
+                //mpz_mod(x, x, m);
+            }
+        }
+
+        if (bstr > 0)
+        {
+            //mpz_mul(x, g[bstr], x);
+            //mpz_mod(x, x, m);
+        }
+
+        bit -= k;
+
+    }
+
+    //for (i = 0; i < 256; i++)
+    //    mpz_clear(g[i]);
+
+    return;
+}
+
 int main(int argc, char **argv)
 {
     FILE *in;
@@ -262,23 +420,23 @@ int main(int argc, char **argv)
     f2 = (uint32 *)malloc(200000 * sizeof(uint32));
 
     i = 0;
-    strcpy(filenames[i++], "pseudoprimes_36bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_38bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_42bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_44bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_46bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_50bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_52bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_54bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_56bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_58bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_36bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_38bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_40bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_42bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_44bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_46bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_48bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_50bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_52bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_54bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_56bit.dat");
+    //strcpy(filenames[i++], "pseudoprimes_58bit.dat");
     strcpy(filenames[i++], "pseudoprimes_60bit.dat");
     strcpy(filenames[i++], "pseudoprimes_62bit.dat");
     strcpy(filenames[i++], "pseudoprimes_63bit.dat");
     strcpy(filenames[i++], "pseudoprimes_64bit.dat");
-    num_files = 15;
+    num_files = 4;
     
     
     for (nf = 0; nf < num_files; nf++)
@@ -309,6 +467,21 @@ int main(int argc, char **argv)
         k = 0;
         for (i = 0; i < num; i++)
         {
+          
+            #if 1
+            int k;
+            uint64 x = 0;
+            for (k = 0; k < 100; k++)
+            {
+                //f64 = lr_pmod64(k+2, comp[i]-1, comp[i]);
+                f64 = rl_pmod64(k+2, comp[i]-1, comp[i]);
+                if (f64 == 1)
+                {
+                  correct++;
+                  printf("%lu is a base-%d fermat pseudoprime\n", comp[i], k+2);
+                }
+            }
+            #else
             int p;
             for (p = 0; p < 3; p++)
             {
@@ -321,7 +494,8 @@ int main(int argc, char **argv)
                       k++;
                     break;
                 }
-            }           
+            }    
+            #endif
         }
 
         gettimeofday(&gstop, NULL);

@@ -449,6 +449,8 @@ typedef struct
 {
 	//crossover between qs and gnfs
 	double qs_gnfs_xover;
+    //crossover between qs and snfs
+    double qs_snfs_xover;
 	int prefer_xover;
 
 	//balance of ecm and various sieve methods

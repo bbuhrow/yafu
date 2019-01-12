@@ -617,10 +617,8 @@ int llt(uint32 exp)
 
 	start = clock();
 	mpz_init(n);
-	mpz_set_ui(tmp, 4);
-	mpz_set_ui(n, 1);
-	mpz_mul_2exp(n, n, exp);
-	mpz_sub_ui(n, n, 1);
+    mpz_setbit(n, exp);
+    mpz_sub_ui(n, n, 1);
 	//should vary the depth depending on the size of p
 	for (i = 1; i < MIN(sqrt(exp)-1, 1000000); i++)
 	{
@@ -638,15 +636,24 @@ int llt(uint32 exp)
 	    printf("trial division to %u bits is complete\n",
 		(uint32)spBits(2*1000000*exp+1));
 
+    mpz_init(tmp2);
     mpz_set_ui(tmp, 4);
-	mpz_init(tmp2);
 	nchars=0;
 	//else do the ll test
 	for (i=0;i<exp-2;i++)
 	{
 		mpz_mul(tmp, tmp, tmp); 
 		mpz_sub_ui(tmp, tmp, 2);
-		mpz_tdiv_r(tmp, tmp, n);
+        /* Adapted from http://rosettacode.org/wiki/Lucas-Lehmer_test#GMP */
+        /* mpz_tdiv_r(tmp, tmp, n); but more efficiently done given mod 2^p-1 */
+        if (mpz_sgn(tmp) < 0) mpz_add(tmp, tmp, n);
+        /* while (n > mp) { n = (n >> p) + (n & mp) } if (n==mp) n=0 */
+        /* but in this case we can have at most one loop plus a carry */
+        mpz_tdiv_r_2exp(tmp2, tmp, exp);
+        mpz_tdiv_q_2exp(tmp, tmp, exp);
+        mpz_add(tmp, tmp, tmp2);
+        while (mpz_cmp(tmp, n) >= 0) mpz_sub(tmp, tmp, n);
+		
         if (VFLAG > 1)
         {
             if ((i & 511) == 0)
@@ -668,8 +675,8 @@ int llt(uint32 exp)
         printf("elapsed time = %6.4f\n", t);
     }
 
-	mpz_clear(tmp2);
 	mpz_clear(n);
+    mpz_clear(tmp2);
 
 	if (mpz_cmp_ui(tmp, 0) == 0)
 	{

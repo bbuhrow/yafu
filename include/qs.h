@@ -762,6 +762,7 @@ void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
    that relation to the graph used for tracking
    cycles */
 
+void yafu_add_to_cycles3(static_conf_t *conf, uint32 flags, uint32 *primes);
 void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2);
 
 /* perform postprocessing on a list of relations */
