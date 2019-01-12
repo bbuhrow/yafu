@@ -237,7 +237,7 @@ void tpool_go(tpool_t *thread_data)
     //printf("=== starting threadpool\n");
     while (1)
     {
-        int tid;
+        int tid = 0;
 
         // Process threads until there are no more waiting for their results to be collected
         while (*threads_waiting > 0)

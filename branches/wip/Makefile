@@ -17,7 +17,7 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc
+CC = gcc-7.3.0
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g
@@ -99,6 +99,12 @@ ifeq ($(KNC),1)
 	LIBS += -L../gmp-ecm/lib/phi/lib
 else
 	OBJ_EXT = .o
+  
+  INC += -I../gmp/include
+	LIBS += -L../gmp/lib/
+
+	INC += -I../gmp-ecm/include/
+	LIBS += -L../gmp-ecm/lib/
 endif
 
 
@@ -126,7 +132,7 @@ ifeq ($(NFS),1)
 	ifeq ($(KNC),1)
 		LIBS += -L../msieve/
 	else
-		LIBS += -L../msieve-1019/
+		LIBS += -L../msieve/lib/linux
 	endif
 	LIBS += -lmsieve
 endif
@@ -316,10 +322,10 @@ HEAD = include/yafu.h  \
 	include/yafu_stack.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
-  include/monty.h \
+    include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
-  factor/qs/cofactorize.h
+    factor/qs/cofactorize.h
 
 ifeq ($(USE_AVX2),1)
 

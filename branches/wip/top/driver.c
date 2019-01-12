@@ -32,7 +32,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 74
+#define NUMOPTIONS 76
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -52,7 +52,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"nc2", "nc3", "p", "work", "nprp",
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
-	"ecmtime", "no_clk_test", "siqsTFSm", "script"};
+	"ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
+    "snfs_xover"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -119,7 +120,6 @@ int main(int argc, char *argv[])
 	FILE *logfile;
     FILE *scriptfile = NULL;
 	fact_obj_t *fobj;
-    int i;
     int firstline = 1;
 
 #if defined(__unix__)
@@ -322,8 +322,9 @@ int main(int argc, char *argv[])
 
             firstline = 1;
             reset_preprocessor();
-            //fprintf(stderr, "input: %s\n", input_str.s);
+            logprint(logfile, "Processing: %s\n", input_str.s);
             process_expression(input_str.s, fobj, 0);
+            logprint(logfile, "Result    : %s\n", gstr3.s);
             sClear(&input_str);
 		}
 
@@ -439,9 +440,6 @@ int exp_is_open(char *line, int firstline)
 
 char * get_input(char *input_exp, uint32 *insize)
 {
-    int c;
-    int n = 0;
-
 #if !defined(__unix__)
 
     // get command from user
@@ -474,13 +472,14 @@ char * get_input(char *input_exp, uint32 *insize)
     }
 
 #else
-
+    
+    int n = 0;
     int p = CMDHIST_HEAD;
     strcpy(CMDHIST[p], "");
 
     while (1)
     {        
-        c = getc(stdin);
+        int c = getc(stdin);
 
         // is this an escape sequence?
         if (c == 27) {
@@ -817,12 +816,16 @@ int invalid_dest(char *dest)
     // check that dest string doesn't contain any invalid characters.
     // we allow non-leading characters to be a-z,A-Z,0-9,_
     for (i = 1; i < strlen(dest); i++)
+    {
         if ((dest[i] < 48) || (dest[i] > 122) ||
             ((dest[i] > 90) && (dest[i] < 95)) ||
             ((dest[i] > 57) && (dest[i] < 65)) ||
             (dest[i] == 96))
-            return 1;
-
+            {
+                return 1;
+            }
+    }
+    
 	return 0;
 }
 
@@ -1166,7 +1169,9 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 
 void get_computer_info(char *idstr)
 {
+#if !defined(WIN32)
 	int ret;
+#endif
 
 	//figure out cpu freq in order to scale qs time estimations
 	//0.1 seconds won't be very accurate, but hopefully close
@@ -1986,6 +1991,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument "xover"
 		sscanf(arg, "%lf", &fobj->autofact_obj.qs_gnfs_xover);
+        fobj->nfs_obj.min_digits = fobj->autofact_obj.qs_gnfs_xover;
 		fobj->autofact_obj.prefer_xover = 1;
 	}
 	else if (strcmp(opt,OptionArray[33]) == 0)
@@ -2409,6 +2415,17 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
     {
         //argument "script"
         sscanf(arg, "%s", scriptname);
+    }
+    else if (strcmp(opt, OptionArray[74]) == 0)
+    {
+        //argument "degree"
+
+    }
+    else if (strcmp(opt, OptionArray[75]) == 0)
+    {
+        //argument "snfs_xover"
+        sscanf(arg, "%lf", &fobj->autofact_obj.qs_snfs_xover);
+        fobj->autofact_obj.prefer_xover = 1;
     }
 	else
 	{

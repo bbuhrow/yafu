@@ -19,9 +19,10 @@
 
 CC = gcc
 #CFLAGS = -march=westmere -mtune=westmere
-#CFLAGS = -g
+CFLAGS = -g
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O3
+BINNAME = yafu-x64-mingw
 INC = -I. -Iinclude -Itop/aprcl -Itop/
 
 INC += -I../gmp/install/mingw/include
@@ -52,7 +53,14 @@ ifeq ($(USE_SSE41),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -march=skylake-avx512 
+    CFLAGS += -ffixed-xmm16 -ffixed-xmm17 -ffixed-xmm18 -ffixed-xmm19
+    CFLAGS += -ffixed-xmm20 -ffixed-xmm21 -ffixed-xmm22 -ffixed-xmm23
+    CFLAGS += -ffixed-xmm24 -ffixed-xmm25 -ffixed-xmm26 -ffixed-xmm27
+    CFLAGS += -ffixed-xmm28 -ffixed-xmm29 -ffixed-xmm30 -ffixed-xmm31
+    USE_AVX2=1
+    USE_SSE41=1
+#-DUSE_AVX512BW
 endif
 
 ifeq ($(SMALLINT),1)
@@ -66,7 +74,7 @@ endif
 
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_AVX2 -mavx2 -mavx
+	CFLAGS += -DUSE_AVX2  -DUSE_SSE41 -mavx2 -mavx
 endif
 
 ifeq ($(TIMING),1)
@@ -75,10 +83,16 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+	LIBS += -L../msieve_good/lib/mingw/x86_64 -lecm -lmsieve -lgmp
 else
 	LIBS += -lecm -lgmp
 endif
+
+ifeq ($(SKYLAKEX),1)
+# define KNL now for skylakex, after handling an actual command line KNL
+KNL=1
+endif
+
 
 #MINGW builds don't need -pthread
 #LIBS += -lm -pthread
@@ -143,7 +157,7 @@ YAFU_SRCS = \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
-  arith/monty.c \
+    arith/monty.c \
 	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
@@ -156,7 +170,7 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
-  factor/qs/cofactorize_siqs.c
+    factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
@@ -231,10 +245,10 @@ HEAD = include/yafu.h  \
 	include/yafu_stack.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
-  include/monty.h \
+    include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
-  factor/qs/cofactorize.h
+    factor/qs/cofactorize.h
 
 
 ifeq ($(USE_SSE41),1)
@@ -251,18 +265,8 @@ endif
 
 #---------------------------Make Targets -------------------------
 
-all:
-	@echo "pick a target:"
-	@echo "x86       32-bit Intel/AMD systems (required if gcc used)"
-	@echo "x86_64    64-bit Intel/AMD systems (required if gcc used)"
-	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
-	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
-
-x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-win32 $(LIBS)
-
-x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-x64-mingw $(LIBS)
+all: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
 
 
 clean:

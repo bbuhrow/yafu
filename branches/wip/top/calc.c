@@ -1158,7 +1158,12 @@ int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet)
 	fobj->refactor_depth = 0;
     for (i = 0; i < num; i++)
     {
+        //printf("sending to calc: %s\n", out[i].s);
         calc_with_assignment(&out[i], fobj, force_quiet);
+        //printf("returned from calc: %s\n", out[i].s);
+
+        // return the last result to anyone that might care
+        strncpy(gstr3.s, out[i].s, out[i].nchars);
         sFree(&out[i]);
     }
 
@@ -1203,7 +1208,8 @@ void calc_with_assignment(str_t *in, fact_obj_t *fobj, int force_quiet)
         if (strcmp(str.s, "") != 0)
         {
             mpz_set_str(tmp, str.s, 0);
-            sCopy(&str, in);
+            // it is important (to loops, for instance), that the input not change.
+            //sCopy(&str, in);
 
             // always set the default variable to the new answer
             set_uvar("ans", tmp);

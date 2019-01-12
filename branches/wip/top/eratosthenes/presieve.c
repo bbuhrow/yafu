@@ -2166,9 +2166,9 @@ void pre_sieve_avx512(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *
 {
     uint64 startprime = sdata->startprime;
     uint64 k;
-    int i, j;
-    int mask_step, mask_step2, mask_step3, mask_step4;
-    int mask_num, mask_num2, mask_num3, mask_num4;
+    int j;
+    int mask_step, mask_step2;
+    int mask_num, mask_num2;
     uint64 *flagblock64;
 
     // flagblock is always a multiple of 8 bytes
@@ -2314,9 +2314,8 @@ void pre_sieve_avx512(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *
     {
         __m512i vmasknums = _mm512_loadu_si512((__m512i *)(ddata->offsets + 8));
         __m512i vmaskp = _mm512_setr_epi32(23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89);
-        __m512i vzero = _mm512_set1_epi32(0);
         __m512i vmaskstep = _mm512_setr_epi32(6, 19, 16, 31, 20, 39, 42, 35, 40, 24, 43, 15, 1, 38, 14, 67);
-        __m512i vmask, vmask2;
+        __m512i vmask;
         __mmask16 mask16;
 
         uint32 *t = ddata->presieve_scratch;
@@ -2470,9 +2469,9 @@ void pre_sieve_avx2(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *fl
 {
     uint64 startprime = sdata->startprime;
     uint64 k;
-    int i, j;
-    int mask_step, mask_step2, mask_step3, mask_step4;
-    int mask_num, mask_num2, mask_num3, mask_num4;
+    int j;
+    int mask_step, mask_step2;
+    int mask_num, mask_num2;
     uint64 *flagblock64;
 
     // flagblock is always a multiple of 8 bytes
@@ -2619,9 +2618,8 @@ void pre_sieve_avx2(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *fl
         __m256i vmasknums = _mm256_load_si256((__m256i *)(ddata->offsets + 8));
         __m256i vmaskp = _mm256_setr_epi32(23, 29, 31, 37, 41, 43, 47, 53);
         __m256i vmaskp1 = _mm256_setr_epi32(22, 28, 30, 36, 40, 42, 46, 52);
-        __m256i vzero = _mm256_set1_epi32(0);
         __m256i vmaskstep = _mm256_setr_epi32(3, 24, 8, 34, 10, 41, 21, 44);
-        __m256i vmask, vmask2;
+        __m256i vmask;
 
         uint32 *t = ddata->presieve_scratch;
 
@@ -2773,9 +2771,8 @@ void pre_sieve(soe_dynamicdata_t *ddata, soe_staticdata_t *sdata, uint8 *flagblo
 {
     uint64 startprime = sdata->startprime;
     uint64 k;
-    int i, j;
-    int mask_step, mask_step2, mask_step3, mask_step4;
-    int mask_num, mask_num2, mask_num3, mask_num4;
+    int mask_step, mask_step2;
+    int mask_num, mask_num2;
     uint64 *flagblock64;
 
     // flagblock is always a multiple of 8 bytes

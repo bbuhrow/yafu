@@ -312,6 +312,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.want_output_unfactored = 0;
 	fobj->autofact_obj.want_output_expressions = 1;
 	fobj->autofact_obj.qs_gnfs_xover = 95;
+    fobj->autofact_obj.qs_snfs_xover = 75;
 	// use xover even when timing info is available
 	fobj->autofact_obj.prefer_xover = 0;			
 	fobj->autofact_obj.want_only_1_factor = 0;
@@ -1659,7 +1660,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// set target pretesting depth, depending on user selection and whether or not
 	// the input is both big enough and snfsable...
-    if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
+    if ((numdigits >= fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
     {
         mpz_set(fobj->nfs_obj.gmp_n, b);
 #ifdef USE_NFS
@@ -1742,7 +1743,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 		VFLAG = tmpV;
 
-		// and test the best one
+		// and test the best one, compared to gnfs or qs, depending on 
+        // which one will run.
 		gnfs_size = est_gnfs_size_via_poly(&polys[0]);
 
 		if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
@@ -1750,13 +1752,35 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
 			// the plan ratio in accord with the snfs job.
-			if (VFLAG > 0) 
+			if (VFLAG >= 0) 
 			{
 				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
 					target_digits, target_digits / 1.2857);
 			}
 			target_digits /= 1.2857;
 		}
+        else
+        {
+            if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+            {
+                // don't consider the qs/snfs cutoff any more
+                fobj->autofact_obj.has_snfs_form = 0;
+
+                if (VFLAG >= 0)
+                {
+                    printf("fac: ecm effort maintained at %1.2f: input better by qs\n",
+                        target_digits);
+                }
+            }
+            else
+            {
+                if (VFLAG >= 0)
+                {
+                    printf("fac: ecm effort maintained at %1.2f: input better by gnfs\n",
+                        target_digits);
+                }
+            }
+        }
 
         // don't need the poly anymore
         snfs_clear(poly);
@@ -1840,8 +1864,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		if (!have_tune || fobj->autofact_obj.prefer_xover)
 		{
 			// use a hard cutoff - within reason
-			if ((numdigits > fobj->autofact_obj.qs_gnfs_xover) &&
-				(numdigits >= 80))
+            if ((((numdigits > fobj->autofact_obj.qs_snfs_xover) && 
+                (fobj->autofact_obj.has_snfs_form)) ||
+                (numdigits > fobj->autofact_obj.qs_gnfs_xover)) &&
+				(numdigits >= 75))
 				return state_nfs;
 			else
 				return state_qs;			
@@ -2288,6 +2314,8 @@ void factor(fact_obj_t *fobj)
     {
         logprint(flog, "no tune info: using qs/gnfs crossover of %1.0f digits\n",
             fobj->autofact_obj.qs_gnfs_xover);
+        logprint(flog, "no tune info: using qs/snfs crossover of %1.0f digits\n",
+            fobj->autofact_obj.qs_snfs_xover);
     }
 
     // if the user input a scaling factor rather than a digit level
@@ -2338,6 +2366,8 @@ void factor(fact_obj_t *fobj)
         {
             printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
                 fobj->autofact_obj.qs_gnfs_xover);
+            printf("fac: no tune info: using qs/snfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_snfs_xover);
         }
 
         if (initial_work > 0.0)
@@ -2414,8 +2444,42 @@ void factor(fact_obj_t *fobj)
 
 		if (resume_check_input_match(tmpz, b, g))
 		{
-			if (VFLAG > 0)
-				printf("fac: found nfs job file, resuming nfs\n");
+            // check if this is a snfsable number.  If the input is
+            // really small and we don't check this, the resume
+            // may default back to siqs.
+            if ((mpz_sizeinbase(b,10) >= fobj->autofact_obj.qs_snfs_xover) && 
+                (fobj->autofact_obj.has_snfs_form < 0))
+            {
+                snfs_t *poly;
+                mpz_set(fobj->nfs_obj.gmp_n, b);
+#ifdef USE_NFS
+                poly = snfs_find_form(fobj);
+
+                if (poly != NULL)
+                {
+                    fobj->autofact_obj.has_snfs_form = 1;
+                    // The actual poly is not needed now, so just get rid of it.
+                    snfs_clear(poly);
+                    free(poly);
+
+                    if (VFLAG > 0)
+                        printf("fac: found nfs job file and snfs form, resuming snfs\n");
+                }
+                else
+                {
+                    fobj->autofact_obj.has_snfs_form = 0;
+                    if (VFLAG > 0)
+                        printf("fac: found nfs job file, resuming nfs\n");
+                }
+#else
+                fobj->autofact_obj.has_snfs_form = 0;
+#endif
+            }
+            else
+            {
+                if (VFLAG > 0)
+                    printf("fac: found nfs job file, resuming nfs\n");
+            }		
 
 			// remove any common factor so the input exactly matches
 			// the file
