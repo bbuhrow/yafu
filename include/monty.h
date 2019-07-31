@@ -25,6 +25,7 @@ code to the public domain.
 #include "arith.h"
 #include "common.h"
 
+/********************* arbitrary-precision Montgomery arith **********************/
 typedef struct
 {
     mpz_t rhat;
@@ -32,18 +33,53 @@ typedef struct
     mpz_t n;
     mpz_t r;
     mpz_t tmp;
+
+	mpz_t x;
+	mpz_t y;
+	mpz_t c; 
+	mpz_t q; 
+	mpz_t g; 
+	mpz_t ys; 
+	mpz_t t1;
+
 } monty_t;
 
-
-
-/********************* montgomery arith **********************/
-monty_t * monty_init(mpz_t n);
+monty_t * monty_alloc();
+void monty_init(mpz_t n, monty_t *mdata);
 void to_monty(monty_t *mdata, mpz_t x);
 void monty_add(monty_t *mdata, mpz_t x, mpz_t y, mpz_t res);
 void monty_mul(monty_t *mdata, mpz_t x, mpz_t y, mpz_t res);
 void monty_sub(monty_t *mdata, mpz_t x, mpz_t y, mpz_t res);
 void monty_free(monty_t *mdata);
 void monty_redc(monty_t *mdata, mpz_t x);
+
+/********************* 128-bit Montgomery arith **********************/
+typedef struct
+{
+	uint64 r[2];
+	uint64 n[2];
+	uint64 np[2];
+	uint64 nhat[2];
+	uint64 rhat[2];
+	uint64 rmask[2];
+	uint64 one[2];
+	uint64 mtmp1[2];
+	uint64 mtmp2[2];
+	uint64 mtmp3[2];
+	uint64 mtmp4[2];
+	uint64 rho;
+} monty128_t;
+
+
+void to_monty128(monty128_t *mdata, uint64 * x);
+void monty128_init(monty128_t * mdata, uint64 * n);
+void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata);
+void sqrmod128(uint64 * u, uint64 * w, monty128_t *mdata);
+void addmod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
+void submod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
+
+
+/********************* 64-bit Montgomery arith **********************/
 
 #if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
 

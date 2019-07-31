@@ -23,6 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "util.h"
 #include "common.h"
+#include "cofactorize.h"
 
 //#define SIQSDEBUG 1
 
@@ -54,8 +55,6 @@ this file contains code implementing 6) as well as other auxiliary routines
 
 */
 
-
-
 void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
 						 uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -65,6 +64,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	uint64 q64, f64;
 	int j,it;
 	uint32 prime;
+	int dlp_done = 0;
 	int smooth_num;
 	uint32 *fb_offsets;
 	uint32 polya_factors[20];
@@ -84,9 +84,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
 #endif
 
-	//check for additional factors of the a-poly factors
-	//make a separate list then merge it with fb_offsets
-	it=0;	//max 20 factors allocated for - should be overkill
+	// check for additional factors of the a-poly factors
+	// make a separate list then merge it with fb_offsets
+	it=0;	// max 20 factors allocated for - should be overkill
 	for (j = 0; (j < dconf->curr_poly->s) && (it < 20); j++)
 	{
         prime = fbc->prime[dconf->curr_poly->qlisort[j]]; // .prime;
@@ -105,10 +105,16 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
-		uint32 large_prime[2];
+		uint32 large_prime[3];
 		
 		large_prime[0] = (uint32)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 		large_prime[1] = 1;
+		large_prime[2] = 1;
+
+		if (large_prime[0] == 1)
+			dconf->num_full++;
+		else
+			dconf->num_slp++;
 
 		//add this one
 		if (sconf->is_tiny)
@@ -136,98 +142,428 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	if (sconf->use_dlp == 0)
 		return;
 
-	//quick check if Q is way too big for DLP (more than 64 bits)	
-    if (mpz_sizeinbase(dconf->Qvals[report_num], 2) >= 64)
-    {
-        dconf->dlp_outside_range++;
-        return;
-    }
-
-	q64 = mpz_get_64(dconf->Qvals[report_num]);
-
-	if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
-	{	
-		//quick prime check: compute 2^(residue-1) mod residue.  
+	// quick check if Q is way too big for DLP (more than 64 bits)	
+	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 64)
+	{
 		uint64 res;
 
-#if BITS_PER_DIGIT == 32
-		mpz_set_64(dconf->gmptmp1, q64);
-		mpz_set_64(dconf->gmptmp2, 2);
-		mpz_set_64(dconf->gmptmp3, q64-1);
+		q64 = mpz_get_64(dconf->Qvals[report_num]);
 
-		mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
-		res = mpz_get_64(dconf->gmptmp1);
-#elif defined (FORCE_GENERIC) && !defined(TARGET_KNC)
-        mpz_set_64(dconf->gmptmp1, q64);
-        mpz_set_64(dconf->gmptmp2, 2);
-        mpz_set_64(dconf->gmptmp3, q64-1);
-
-        mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
-        res = mpz_get_64(dconf->gmptmp1);
-#else
-		// meh, not really any faster, but fun to write...
-		res = spPRP2(q64);
-#endif
-
-		//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
-		//more important to quickly weed out probable primes than to spend more time to be
-		//more sure.
-		if (res == 1)
+		if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 		{
-#ifdef QS_TIMING
-			gettimeofday (&qs_timing_stop, NULL);
-            TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
+			//quick prime check: compute 2^(residue-1) mod residue.  
+
+#if BITS_PER_DIGIT == 32
+			mpz_set_64(dconf->gmptmp1, q64);
+			mpz_set_64(dconf->gmptmp2, 2);
+			mpz_set_64(dconf->gmptmp3, q64 - 1);
+
+			mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
+			res = mpz_get_64(dconf->gmptmp1);
+#elif defined (FORCE_GENERIC) && !defined(TARGET_KNC)
+			mpz_set_64(dconf->gmptmp1, q64);
+			mpz_set_64(dconf->gmptmp2, 2);
+			mpz_set_64(dconf->gmptmp3, q64 - 1);
+
+			mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
+			res = mpz_get_64(dconf->gmptmp1);
+#else
+			// meh, not really any faster, but fun to write...
+			res = spPRP2(q64);
 #endif
-			dconf->dlp_prp++;
-			return;
-		}
-		
-		//try to find a double large prime
+
+			//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
+			//more important to quickly weed out probable primes than to spend more time to be
+			//more sure.
+			if (res == 1)
+			{
+#ifdef QS_TIMING
+				gettimeofday(&qs_timing_stop, NULL);
+				TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
+#endif
+				dconf->dlp_prp++;
+				return;
+			}
+
+			//try to find a double large prime
 #ifdef USE_VEC_SQUFOF
 
-        buffer_relation(offset, NULL, smooth_num + 1,
-            fb_offsets, poly_id, parity, dconf, polya_factors, it, q64);
+            // the vector squfof routine acts on a buffer full of
+            // candidates at a time. 
+			buffer_relation(offset, NULL, smooth_num + 1,
+				fb_offsets, poly_id, parity, dconf, polya_factors, it, q64);
 
 #else
-		dconf->attempted_squfof++;
-		
+			dconf->attempted_squfof++;
+
 #ifdef _MSC_VER
-        mpz_set_64(dconf->gmptmp1, q64);
-		f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
+			mpz_set_64(dconf->gmptmp1, q64);
+			f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
 #else
-        f64 = spbrent(q64, 1, 1024);
+
+#if 1
+			{
+				int B1, curves, targetBits;
+
+				targetBits = spBits(q64) / 2;
+				if (targetBits <= 24)
+				{
+					B1 = 70;
+					curves = 24;
+				}
+				else if (targetBits <= 26)
+				{
+					B1 = 85;
+					curves = 24;
+				}
+				else if (targetBits <= 29)
+				{
+					B1 = 125;
+					curves = 24;
+				}
+				else if (targetBits <= 31)
+				{
+					B1 = 165;
+					curves = 32;
+				}
+				else if (targetBits <= 32)
+				{
+					B1 = 205;
+					curves = 32;
+				}
+				microecm(q64, &f64, B1, 25*B1, curves, 0);
+			}
+#elif 0
+			f64 = spbrent(q64, 1, 1024);
+			
+#else
+            f64 = LehmanFactor(q64, 0, 0, 0);
 #endif
-		if (f64 > 1 && f64 != q64)
-		{
-			uint32 large_prime[2];
+			
+			
+			
+#endif
+			if (f64 > 1 && f64 != q64)
+			{
+				uint32 large_prime[3];
 
-			large_prime[0] = (uint32)f64;
-			large_prime[1] = (uint32)(q64 / f64);
+				large_prime[0] = (uint32)f64;
+				large_prime[1] = (uint32)(q64 / f64);
+				large_prime[2] = 1;
 
-            if (large_prime[0] < sconf->large_prime_max
-                && large_prime[1] < sconf->large_prime_max)
-            {
-                //add this one
-                dconf->dlp_useful++;
-                buffer_relation(offset, large_prime, smooth_num + 1,
-                    fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
-            }
-				
+				if ((large_prime[0] < sconf->large_prime_max) &&
+					(large_prime[1] < sconf->large_prime_max))
+				{
+					//add this one
+					dconf->dlp_useful++;
+					buffer_relation(offset, large_prime, smooth_num + 1,
+						fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+				}
+			}
+			else
+			{
+				dconf->failed_squfof++;
+			}
+
+			// whether we found a DLP or not, we are done checking.
+			return;
+
+#endif
+
 		}
 		else
 		{
-			dconf->failed_squfof++;
+			dconf->dlp_outside_range++;
+			
+			// too big for DLP, but too small for TLP (if active).
+			return;
 		}
-
-#endif
-
-
 	}
-    else
+	else
     {
-        //gmp_printf("residue %Zd (%" PRIu64 ") is outside range\n", dconf->Qvals[report_num], q64);
         dconf->dlp_outside_range++;
     }
+
+	if (sconf->use_dlp < 2)
+		return;
+
+	// quick check if Q should be subjected to TLP factoring
+	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 96)
+	{
+		/*
+		ideas:
+		look at successful tlp relations and see if there is a predictor
+		in the number of normal factors or total size of factors found
+
+		fast ecm tuned for small inputs
+
+		adaptive TF cutoff tweaking to get about 10% success rate in tlp attempts
+
+		adaptive filtering passes or heuristic on when to start filtering
+		*/
+
+		uint64 res;
+		uint32 numit = 128;
+
+		double qfloat = mpz_get_d(dconf->Qvals[report_num]);
+
+//#define OUTPUT_TLP_ATTEMPT_DETAILS
+
+		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
+		//if (qfloat < sconf->large_prime_max3)
+		{
+			uint32 large_prime[3];
+			uint32 r;
+
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+			FILE *fid;
+			char fname[20];
+			sprintf(fname, "tlp_attempts.dat");
+#endif
+
+			//FILE *tlp;
+			//tlp = fopen("tlp_attempts.txt", "a");
+			//gmp_fprintf(tlp, "%Zd\n", dconf->Qvals[report_num]);
+			//fclose(tlp);
+
+			//mpz_set_ui(dconf->gmptmp1, 2);
+			//mpz_set(dconf->gmptmp2, dconf->Qvals[report_num]);
+			//mpz_sub_ui(dconf->gmptmp2, dconf->gmptmp2, 1);
+			//mpz_powm(dconf->gmptmp3, dconf->gmptmp1, dconf->gmptmp2, dconf->Qvals[report_num]);
+			res = mpz_probab_prime_p(dconf->Qvals[report_num], 1);
+
+			if (res) //mpz_cmp_ui(dconf->gmptmp3, 1) == 0)
+			{
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+				fid = fopen(fname, "a");
+				fprintf(fid, "%1.0lf,0\n", qfloat);
+				fclose(fid);
+#endif
+				dconf->tlp_prp++;
+				return;
+			}
+
+			// try to factor with cosiqs
+			dconf->attempted_cosiqs++;
+			//gmp_printf("attempting %Zd by cosiqs\n", dconf->Qvals[report_num]);
+
+			mpz_set_ui(dconf->gmptmp1, 0);
+			mpz_set_ui(dconf->gmptmp2, 0);
+			if (1)
+			{
+				int B1, B2, curves, bits = mpz_sizeinbase(dconf->Qvals[report_num], 2);
+				int targetBits = bits / 3 + 1;
+				if (targetBits <= 25)
+				{
+					B1 = 70;
+					curves = 16;
+				}
+				else if (targetBits <= 26)
+				{
+					B1 = 85;
+					curves = 16;
+				}
+				else if (targetBits <= 29)
+				{
+					B1 = 125;
+					curves = 16;
+				}
+				else if (targetBits <= 31)
+				{
+					B1 = 165;
+					curves = 24;
+				}
+				else if (targetBits <= 32)
+				{
+					B1 = 205;
+					curves = 24;
+				}
+				else
+				{
+					printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
+				}
+
+				tinyecm(dconf->Qvals[report_num], dconf->gmptmp1, B1, B1 * 25, curves, 0);
+				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+				{
+					return;
+				}
+
+				large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+				if ((large_prime[0] > 1) && (large_prime[0] < sconf->large_prime_max))
+				{
+					// first factor qualifies.  
+					// divide out factor with sanity check
+					r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
+					if (r != 0)
+					{
+						printf("tlp problem: r != 0\n");
+						dconf->failed_cosiqs++;
+						return;
+					}
+
+					if (mpz_sizeinbase(dconf->gmptmp2, 2) > 64)
+					{
+						return;
+					}
+
+					// check if the residue is prime.
+					res = mpz_probab_prime_p(dconf->gmptmp2, 1);
+
+					if (res)
+					{
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+						fid = fopen(fname, "a");
+						fprintf(fid, "%1.0lf,0\n", qfloat);
+						fclose(fid);
+#endif
+						dconf->tlp_prp++;
+						return;
+					}
+
+					// ok, so we have extracted one suitable factor, and the 
+					// cofactor is not prime.  Do more work to split the cofactor,
+					// which is now <= 64 bits in size.
+					q64 = mpz_get_ui(dconf->gmptmp2);
+					microecm(q64, &f64, 70, 1750, 24, 0);
+					mpz_set_ui(dconf->gmptmp1, f64);
+					if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+					{
+						return;
+					}
+
+					large_prime[1] = f64;
+					if ((large_prime[1] <= 1) || (f64 == q64))
+					{
+						dconf->failed_cosiqs++;
+						return;
+					}
+
+					// sanity check
+					r = q64 % large_prime[1];
+					if (r != 0)
+					{
+						printf("tlp problem: r != 0\n");
+						dconf->failed_cosiqs++;
+						return;
+					}
+
+					q64 /= large_prime[1];
+					mpz_set_ui(dconf->gmptmp1, q64);
+					if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+					{
+						return;
+					}
+
+					large_prime[2] = q64;
+
+					if (large_prime[2] <= 1)
+					{
+						dconf->failed_cosiqs++;
+						return;
+					}
+
+					if ((large_prime[0] < sconf->large_prime_max) &&
+						(large_prime[1] < sconf->large_prime_max) &&
+						(large_prime[2] < sconf->large_prime_max))
+					{
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+						fid = fopen(fname, "a");
+						fprintf(fid, "%1.0lf,1\n", qfloat);
+						fclose(fid);
+#endif
+
+						//gmp_printf("tlp: %Zd = %u,%u,%u\n", 
+						//	dconf->Qvals[report_num], large_prime[0], large_prime[1], large_prime[2]);
+						// add this one
+						dconf->tlp_useful++;
+						buffer_relation(offset, large_prime, smooth_num + 1,
+							fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+					}
+				}
+				else
+				{
+					return;
+				}
+
+			}
+			else if	(0) //(tinyqs(dconf->cosiqs, dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2))
+			{
+				// factors from tinyqs are prime
+				// large prime bound will never exceed 32 bits
+				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+					return;
+
+				if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+					return;
+
+				large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+				large_prime[1] = mpz_get_ui(dconf->gmptmp2);
+
+				// sanity checks
+				if ((large_prime[0] == 0) || (large_prime[1] == 0))
+					return;
+
+				r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
+				if (r != 0)
+				{
+					printf("tlp problem: r != 0\n");
+					dconf->failed_cosiqs++;
+					return;
+				}
+
+				r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, large_prime[1]);
+				if (r != 0)
+				{
+					printf("tlp problem: r != 0\n");
+					dconf->failed_cosiqs++;
+					return;
+				}
+
+				// large prime bound will never exceed 32 bits
+				if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+					return;
+
+				large_prime[2] = mpz_get_ui(dconf->gmptmp2);
+
+				if ((large_prime[0] < sconf->large_prime_max) &&
+					(large_prime[1] < sconf->large_prime_max) &&
+					(large_prime[2] < sconf->large_prime_max))
+				{
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+					fid = fopen(fname, "a");
+					fprintf(fid, "%1.0lf,1\n", qfloat);
+					fclose(fid);
+#endif
+
+					//if (large_prime[2] < (uint32)sconf->pmax)
+					//	printf("tlp with small 3rd prime: %u,%u,%u\n",
+					//		large_prime[0], large_prime[1], large_prime[2]);
+
+					//gmp_printf("tlp: %Zd = %u,%u,%u\n",
+					//	dconf->Qvals[report_num], large_prime[0], large_prime[1], large_prime[2]);
+
+					//add this one
+					dconf->tlp_useful++;
+					buffer_relation(offset, large_prime, smooth_num + 1,
+						fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+				}
+
+			}
+			else
+			{
+				dconf->failed_cosiqs++;
+			}
+		}
+		else
+		{
+			dconf->tlp_outside_range++;
+		}
+	}
+	else
+	{
+		dconf->tlp_outside_range++;
+	}
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
@@ -326,12 +662,14 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
     {
         rel->large_prime[0] = large_prime[0];
         rel->large_prime[1] = large_prime[1];
+        rel->large_prime[2] = large_prime[2];
     }
 
 #else
     
     rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
+	rel->large_prime[2] = large_prime[2];
 
 #endif
 
@@ -347,6 +685,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	char buf[1024];
 	fact_obj_t *obj = conf->obj;
 	uint32 i, k;
+	uint32 lp[3];
 
 	if (conf->in_mem)
 	{
@@ -371,6 +710,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 
 		r->large_prime[0] = large_prime[0];
 		r->large_prime[1] = large_prime[1];
+		r->large_prime[2] = large_prime[2];
 		r->num_factors = num_factors;
 		r->poly_idx = poly_id;
 		r->parity = parity;
@@ -381,7 +721,6 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	}
 	else
 	{
-
 		//store to file
 		i = sprintf(buf, "R ");
 
@@ -396,10 +735,68 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 		while (k < num_factors)
 			i += sprintf(buf + i, "%x ", fb_offsets[k++]);
 
-		if (large_prime[0] < large_prime[1])
-			i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
+		
+		if (conf->use_dlp == 2)
+		{
+            // store them sorted in ascending order
+			if (large_prime[0] < large_prime[1])
+			{
+				if (large_prime[1] < large_prime[2])
+				{
+					lp[0] = large_prime[0];
+					lp[1] = large_prime[1];
+					lp[2] = large_prime[2];
+				}
+				else
+				{
+					if (large_prime[2] < large_prime[0])
+					{
+						lp[0] = large_prime[2];
+						lp[1] = large_prime[0];
+						lp[2] = large_prime[1];
+					}
+					else
+					{
+						lp[0] = large_prime[0];
+						lp[1] = large_prime[2];
+						lp[2] = large_prime[1];
+					}
+				}
+			}
+			else
+			{
+				if (large_prime[0] < large_prime[2])
+				{
+					lp[0] = large_prime[1];
+					lp[1] = large_prime[0];
+					lp[2] = large_prime[2];
+				}
+				else
+				{
+					if (large_prime[2] < large_prime[1])
+					{
+						lp[0] = large_prime[2];
+						lp[1] = large_prime[1];
+						lp[2] = large_prime[0];
+					}
+					else
+					{
+						lp[0] = large_prime[1];
+						lp[1] = large_prime[2];
+						lp[2] = large_prime[0];
+					}
+				}
+			}
+
+			i += sprintf(buf + i, "L %x %x %x\n", lp[0], lp[1], lp[2]);
+		}
 		else
-			i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
+		{
+			if (large_prime[0] < large_prime[1])
+				i += sprintf(buf + i, "L %x %x\n", large_prime[0], large_prime[1]);
+			else
+				i += sprintf(buf + i, "L %x %x\n", large_prime[1], large_prime[0]);
+		}
 
 		qs_savefile_write_line(&obj->qs_obj.savefile, buf);		
 	}
@@ -407,12 +804,19 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	/* for partial relations, also update the bookeeping for
 		   tracking the number of fundamental cycles */
 
-	if (large_prime[0] != large_prime[1]) {
-		yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);
-		conf->num_cycles++;
+	if (conf->use_dlp == 2)
+	{
+		yafu_add_to_cycles3(conf, 0, lp);
 	}
-	else {
-		conf->num_relations++;
+	else
+	{
+		if (large_prime[0] != large_prime[1]) {
+			yafu_add_to_cycles(conf, obj->flags, large_prime[0], large_prime[1]);
+			conf->num_cycles++;
+		}
+		else {
+			conf->num_relations++;
+		}
 	}
 
 	return;

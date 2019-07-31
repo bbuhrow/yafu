@@ -421,7 +421,7 @@ int zSub(z *u, z *v, z *w)
 	//schoolbook subtraction, see knuth TAOCP, vol. 2
 
 	fp_digit k=0;
-	int i,j,m,su,sv,sw,sign=0;
+	int i,j,m,su,sv,sign=0;
 	z *bigger, *smaller;
 
 	if (u->size < 0)
@@ -469,7 +469,6 @@ int zSub(z *u, z *v, z *w)
 	{	
 		bigger = u;
 		smaller = v;
-		sw = su;
 		//realloc w if necessary.  make it a fixed block of limbs bigger, to
 		//prevent repeated reallocation if a bunch of adds are done in a row.
 		if (w->alloc < (su + 1))
@@ -480,7 +479,6 @@ int zSub(z *u, z *v, z *w)
 	{
 		bigger = v;
 		smaller = u;
-		sw = sv;
 		//realloc w if necessary.  make it a fixed block of limbs bigger, to
 		//prevent repeated reallocation if a bunch of adds are done in a row.
 		if (w->alloc < (sv + 1))

@@ -160,7 +160,7 @@ uint32 qs_merge_relations(uint32 *merge_array,
 }
 
 /*------------------------------------------------------------------*/
-#define QS_MAX_COL_WEIGHT 1000
+#define QS_MAX_COL_WEIGHT 10000
 
 void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
@@ -178,6 +178,8 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	   not used would have created the heaviest matrix columns
 	   anyway */
 	
+	printf("building matrix with %u columns\n", ncols);
+
 	for (i = 0; i < ncols; i++) {
 		uint32 buf[QS_MAX_COL_WEIGHT];
 		uint32 accum[QS_MAX_COL_WEIGHT];
@@ -190,6 +192,10 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 
 		for (j = weight = 0; j < col->cycle.num_relations; j++) {
 			siqs_r *r = &relation_list[col->cycle.list[j]];
+			if ((weight + r->num_factors) > QS_MAX_COL_WEIGHT)
+			{
+				printf("warning: max weight exceeded\n");
+			}
 			weight = qs_merge_relations(accum, buf, weight,
 						r->fb_offsets, r->num_factors);
 			memcpy(buf, accum, weight * sizeof(uint32));

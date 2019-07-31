@@ -23,7 +23,7 @@ CC = gcc-7.3.0
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O3
-INC = -I. -Iinclude -Itop/aprcl -Itop/
+INC = -I. -Iinclude -Itop/aprcl -Itop/ -I../msieve/zlib
 BINNAME = yafu
 
 
@@ -65,18 +65,26 @@ endif
 
 endif
 
+ifeq ($(NO_ZLIB),1)
+  CFLAGS += -DNO_ZLIB
+endif
+
 ifeq ($(USE_SSE41),1)
 	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
 ifeq ($(KNL),1)
-  ifeq ($(COMPILER),icc)
-    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -xMIC-AVX512 
-    BINNAME = yafu_knl
-  else
-    CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -march=knl
-    BINNAME = yafu_knl_gcc
-  endif
+    ifneq ($(USE_AVX2),1)
+        CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
+    endif
+    
+    ifeq ($(COMPILER),icc)
+        CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -xMIC-AVX512 
+        BINNAME = yafu_knl
+    else
+        CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -march=knl
+        BINNAME = yafu_knl_gcc
+    endif
   #-openmp
 endif
 
@@ -210,6 +218,8 @@ YAFU_SRCS = \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
+    factor/gmp-ecm/tinyecm.c \
+    factor/gmp-ecm/microecm.c \
 	factor/nfs/nfs.c \
 	arith/arith0.c \
 	arith/arith1.c \
@@ -228,7 +238,8 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
-  factor/qs/cofactorize_siqs.c
+    top/queue.c \
+    factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
 

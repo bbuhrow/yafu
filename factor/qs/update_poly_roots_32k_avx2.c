@@ -291,10 +291,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (sign > 0)
 	{
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -355,7 +351,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16)(prime - root1);
 			}
 		}
-			
+
 		// update 16 at a time using AVX2
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
@@ -376,13 +372,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}	
-
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
 
 		bound_index = 0;
 		bound_val = med_B;
@@ -413,6 +402,11 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.intervalm1 = interval-1;		//112
         helperstruct.filler = 42;
         helperstruct.scratch = dconf->polyscratch;        //120
+
+		if (VFLAG > 2)
+		{
+			printf("commencing 1\n");
+		}
 
         ASM_G (		\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -688,17 +682,12 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = helperstruct.bound_val;	
 		check_bound = helperstruct.check_bound;
 		bound_index = helperstruct.bound_index;
-		logp = helperstruct.logp;
-
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-			
-		
 		logp = update_data.logp[large_B-1];
+
+		if (VFLAG > 2)
+		{
+			printf("commencing 2\n");
+		}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1086,21 +1075,12 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
-
 	}
 	else
 	{
         /////////////////////////////////////////////////////////////////////////////////
         // sign < 0
         /////////////////////////////////////////////////////////////////////////////////
-
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
 
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
@@ -1186,20 +1166,15 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 
-
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 += my_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
 		bound_index = 0;
 		bound_val = med_B;
 		check_bound = med_B + BUCKET_ALLOC/2;
-		
-		
 		logp = update_data.logp[med_B-1];
+
+		if (VFLAG > 2)
+		{
+			printf("commencing 1n\n");
+		}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1224,8 +1199,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.intervalm1 = interval-1;		//112
         helperstruct.filler = 42;
         helperstruct.scratch = dconf->polyscratch;        //120
-
-
+		
         ASM_G (\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
             "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
@@ -1498,18 +1472,12 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_val = helperstruct.bound_val;	
 		check_bound = helperstruct.check_bound;
 		bound_index = helperstruct.bound_index;
-		logp = helperstruct.logp;
-
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 += = my_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-		
 		logp = update_data.logp[large_B-1];
 
+		if (VFLAG > 2)
+		{
+			printf("commencing 2n\n");
+		}
 
 		//load up our helper struct, so we don't have a list
 		//of a 100 things to stick into our asm block
@@ -1534,7 +1502,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		helperstruct.intervalm1 = interval-1;		//112
         helperstruct.filler = 42;
         helperstruct.scratch = dconf->polyscratch;        //120
-
 
         ASM_G ( \
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
@@ -1894,12 +1861,6 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
-
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 += my_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
 
 	}
 

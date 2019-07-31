@@ -2242,6 +2242,329 @@ done:
 	return;
 }
 
+mpz_t * mpqs(mpz_t n, uint32 *num_factors)
+{
+	sm_mpqs_rlist *full, *partial;
+	fb_list_sm_mpqs *fb;
+	smpqs_sieve_fb *fb_sieve_p, *fb_sieve_n;
+	sm_mpqs_poly *poly;
+	uint32 *modsqrt;
+
+	mpz_t *factors, tmp, tmp2, tmp3, sqrt_n;
+	uint64 *apoly, *bpoly;
+
+	double t_time;
+	struct timeval tstart, tend;
+	uint32 numpoly, polyalloc;
+	uint32 mul, i, j;
+	uint32 pmax;							//largest prime in factor base
+	uint32 cutoff;
+	uint32 sieve_interval;
+	uint32 start_prime;
+	uint32 num, max_f;
+	int digits_n, bits_n, pindex;
+	uint8 *sieve;							//sieve values
+	uint8 s_init;							//initial sieve value
+	uint8 closnuf, small_bits;
+
+	mpz_init(tmp);
+
+	// size in bits influences mpqs parameters
+	bits_n = mpz_sizeinbase(n, 2);
+
+	//empircal tuning of sieve interval based on digits in n
+	sm_get_params(bits_n, &j, &sm_sieve_params.large_mult, &sm_sieve_params.num_blocks);
+
+	mpz_init(tmp2);
+	mpz_init(tmp3);
+
+	//default mpqs parameters
+	sm_sieve_params.fudge_factor = 1.3;
+	//if (fobj->qs_obj.gbl_override_lpmult_flag != 0)
+	//	sm_sieve_params.large_mult = fobj->qs_obj.gbl_override_lpmult;
+
+	// how oversquare should we make the matrix?  32 works most of the time;
+	// it was observed to not work once, by kar_bon, where the input is comprised
+	// of many smallish primes and the matrix is exhaused before they are all found:
+	// 1000914215585288002972568692717.  however, calling factor() on this input works
+	// fine, and in fact never needs smallmpqs, so this isn't really this routine's
+	// fault.  thus it will stay 32...
+	sm_sieve_params.num_extra_relations = 32;
+
+	//allocate the space for the factor base
+	fb = (fb_list_sm_mpqs *)malloc(sizeof(fb_list_sm_mpqs));
+
+	//set fb size from above
+	//if (fobj->qs_obj.gbl_override_B_flag != 0)
+	//	fb->B = fobj->qs_obj.gbl_override_B;
+	//else
+	
+	fb->B = j;
+
+	//if (fobj->qs_obj.gbl_override_blocks_flag != 0)
+	//	sm_sieve_params.num_blocks = fobj->qs_obj.gbl_override_blocks;
+
+	//compute the number of digits in n 
+	digits_n = gmp_base10(n);
+
+	//set the sieve interval.  this depends on the size of n, but for now, just fix it.  as more data
+	//is gathered, use some sort of table lookup.
+	sieve_interval = SM_BLOCKSIZE * sm_sieve_params.num_blocks;
+
+	//allocate the space for the factor base
+	modsqrt = (uint32 *)malloc(fb->B * sizeof(uint32));
+	fb->list = (fb_element_sm_mpqs *)malloc((size_t)(sizeof(fb_element_sm_mpqs)));
+	fb->list->prime = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb->list->small_inv = (uint32 *)xmalloc_align(fb->B * sizeof(uint32));
+	fb->list->logprime = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb->list->proot1 = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb->list->proot2 = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb->list->nroot1 = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb->list->nroot2 = (uint16 *)xmalloc_align(fb->B * sizeof(uint16));
+	fb_sieve_p = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
+	fb_sieve_n = (smpqs_sieve_fb *)malloc((size_t)(fb->B * sizeof(smpqs_sieve_fb)));
+
+	//find multiplier
+	mul = (uint32)smpqs_choose_multiplier(n, fb->B);
+	mpz_mul_ui(n, n, mul);
+
+	//find new sqrt_n
+	mpz_init(sqrt_n);
+	mpz_sqrt(sqrt_n, n);
+
+	// these values are fixed...
+	fb->list->prime[0] = 1;
+	fb->list->prime[1] = 2;
+
+	//construct the factor base, and copy to the sieve factor base
+	smpqs_make_fb_mpqs(fb, modsqrt, n);
+
+	// small factors can be removed during factor base creation... now is a good
+	// time to see how big the number is, and use special methods if it is below 
+	// a threshold
+	bits_n = mpz_sizeinbase(n, 2);
+
+	// allocate storage for relations based on the factor base size
+	max_f = fb->B + 3 * sm_sieve_params.num_extra_relations;
+	full = (sm_mpqs_rlist *)malloc((size_t)(sizeof(sm_mpqs_rlist)));
+	full->allocated = max_f;
+	full->num_r = 0;
+	full->act_r = 0;
+	full->list = (sm_mpqs_r **)malloc((size_t)(max_f * sizeof(sm_mpqs_r *)));
+
+	// we will typically also generate max_f/2 * 10 partials (empirically determined)
+	partial = (sm_mpqs_rlist *)malloc((size_t)(sizeof(sm_mpqs_rlist)));
+	partial->allocated = 10 * fb->B;
+	partial->num_r = 0;
+	partial->act_r = 0;
+	partial->list = (sm_mpqs_r **)malloc((size_t)(10 * fb->B * sizeof(sm_mpqs_r *)));
+
+	for (i = 2; i < fb->B; i++)
+	{
+		fb_sieve_p[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
+		fb_sieve_n[i].prime_and_logp = (fb->list->prime[i] << 16) | (fb->list->logprime[i]);
+	}
+
+	// allocate the sieve
+	sieve = (uint8 *)xmalloc_align(SM_BLOCKSIZE * sizeof(uint8));
+
+	// allocate the current polynomial
+	poly = (sm_mpqs_poly *)malloc(sizeof(sm_mpqs_poly));
+	mpz_init(poly->poly_c);
+
+	// allocate the polynomial lists
+	polyalloc = 32;
+	apoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
+	bpoly = (uint64 *)malloc(polyalloc * sizeof(uint64));
+
+	// find upper bound of Q values
+	mpz_tdiv_q_2exp(tmp, n, 1);
+	mpz_sqrt(tmp2, tmp);
+	mpz_mul_ui(tmp, tmp2, sieve_interval);
+
+	// compute the first polynominal 'a' value.  we'll need it before creating the factor base in order
+	// to find the first roots
+	// 'a' values should be as close as possible to sqrt(2n)/M, they should be a quadratic residue mod N (d/N) = 1,
+	// and be a prime congruent to 3 mod 4.  this last requirement is so that b values can be computed without using the 
+	// shanks-tonelli algorithm, and instead use faster methods.
+	// since a = d^2, find a d value near to sqrt(sqrt(2n)/M)
+	mpz_mul_2exp(tmp, n, 1);
+	mpz_sqrt(tmp2, tmp);
+	mpz_tdiv_q_ui(tmp2, tmp2, sieve_interval);
+
+	mpz_sqrt(tmp, tmp2);
+	if (mpz_even_p(tmp))
+		mpz_add_ui(tmp, tmp, 1);
+
+	mpz_nextprime(tmp, tmp);
+	poly->poly_d = (uint64)mpz_get_ui(tmp);
+
+	if (spSOEprimes[szSOEp - 1] <= poly->poly_d)
+		smpqs_get_more_primes(poly);
+
+	pindex = bin_search_uint32(szSOEp, 0, poly->poly_d, spSOEprimes);
+	if (pindex < 0)
+	{
+		printf("prime not found in binary search\n");
+		exit(1);
+	}
+	poly->poly_d_idp = pindex;
+	poly->poly_d_idn = pindex;
+	poly->side = 1;
+	poly->use_only_p = 0;
+
+	smpqs_nextD(poly, n);
+	smpqs_computeB(poly, n);
+
+	// find the root locations of the factor base primes for this poly
+	smpqs_computeRoots(poly, fb, modsqrt, fb_sieve_p, fb_sieve_n, 2);
+
+	pmax = fb->list->prime[fb->B - 1];
+	cutoff = pmax * sm_sieve_params.large_mult;
+
+	// compute the number of bits in M/2*sqrt(N/2), the approximate value
+	// of residues in the sieve interval
+	// sieve locations greater than this are worthy of trial dividing
+	closnuf = (uint8)(double)((bits_n - 1) / 2);
+	closnuf += (uint8)(log((double)sieve_interval / 2) / log(2.0));
+	closnuf -= (uint8)(sm_sieve_params.fudge_factor * log(cutoff) / log(2.0));
+
+	closnuf += 6;
+
+	// small prime variation -- hand tuned small_bits correction (likely could be better)
+	small_bits = 7;
+	closnuf -= small_bits;
+	start_prime = 7;
+
+	s_init = closnuf;
+	numpoly = 0;
+	num = 0;
+
+	// arbitrary upper bound of polys to try.  if more than this, somethings wrong.
+	while (numpoly < 2048)
+	{
+		//copy current poly into the poly lists
+		if (numpoly < polyalloc)
+		{
+			apoly[numpoly] = poly->poly_a;
+			bpoly[numpoly] = poly->poly_b;
+		}
+		else
+		{
+			// get more space for the polys, if needed
+			polyalloc *= 2;
+			apoly = (uint64 *)realloc(apoly, polyalloc * sizeof(uint64));
+			bpoly = (uint64 *)realloc(bpoly, polyalloc * sizeof(uint64));
+
+			apoly[numpoly] = poly->poly_a;
+			bpoly[numpoly] = poly->poly_b;
+		}
+
+		// sieve one block only
+		smpqs_sieve_block(sieve, fb_sieve_p, start_prime, s_init, fb);
+
+		i = smpqs_check_relations(sieve_interval, 0, sieve, n, poly,
+			s_init, fb_sieve_p, fb, full, partial, cutoff, small_bits,
+			start_prime, 0, &num, numpoly);
+
+		smpqs_sieve_block(sieve, fb_sieve_n, start_prime, s_init, fb);
+
+		i = smpqs_check_relations(sieve_interval, 0, sieve, n, poly,
+			s_init, fb_sieve_n, fb, full, partial, cutoff, small_bits,
+			start_prime, 1, &num, numpoly);
+
+		if (partial->num_r > 0)
+		{
+			//check the partials for full relations
+			qsort(partial->list, partial->num_r, sizeof(sm_mpqs_r *), &qcomp_smpqs);
+			j = 0;
+			for (i = 0; i < partial->num_r - 1; i++)
+			{
+				if (partial->list[i]->largeprime == partial->list[i + 1]->largeprime)
+					j++;
+			}
+			partial->act_r = j;
+
+			if (j + (full->num_r) >= fb->B + sm_sieve_params.num_extra_relations)
+			{
+				//we've got enough total relations to stop
+				goto done;
+			}
+		}
+
+		//next polynomial
+		smpqs_nextD(poly, n);
+		smpqs_computeB(poly, n);
+		smpqs_computeRoots(poly, fb, modsqrt, fb_sieve_p, fb_sieve_n, start_prime);
+
+		numpoly++;
+	}
+
+done:
+
+	//can free sieving structures now
+	align_free(sieve);
+	free(fb_sieve_p);
+	free(fb_sieve_n);
+	mpz_clear(poly->poly_c);
+	free(poly);
+	free(modsqrt);
+
+	if (numpoly >= 2048)
+	{
+		*num_factors = 0;
+	}
+	else
+	{
+		*num_factors = 0;
+		factors = (mpz_t *)malloc(4 * sizeof(mpz_t));
+		for (i = 0; i < 4; i++)
+			mpz_init(factors[i]);
+
+		i = smpqs_BlockGauss(full, partial, apoly, bpoly, fb, n, mul,
+			factors, num_factors);
+
+		for (i = *num_factors; i < 4; i++)
+			mpz_clear(factors[i]);
+	}
+
+	mpz_clear(tmp);
+	mpz_clear(tmp2);
+	mpz_clear(tmp3);
+	mpz_clear(sqrt_n);
+
+	for (i = 0; i < full->num_r; i++)
+	{
+		free(full->list[i]->fboffset);
+		free(full->list[i]);
+	}
+	free(full->list);
+	free(full);
+
+	for (i = 0; i < partial->num_r; i++)
+	{
+		free(partial->list[i]->fboffset);
+		free(partial->list[i]);
+	}
+	free(partial->list);
+	free(partial);
+
+	free(apoly);
+	free(bpoly);
+
+	align_free(fb->list->prime);
+	align_free(fb->list->logprime);
+	align_free(fb->list->small_inv);
+	align_free(fb->list->proot1);
+	align_free(fb->list->proot2);
+	align_free(fb->list->nroot1);
+	align_free(fb->list->nroot2);
+	free(fb->list);
+	free(fb);
+
+	return factors;
+}
+
 void smpqs_get_more_primes(sm_mpqs_poly *poly)
 {
 	uint64 num_p;

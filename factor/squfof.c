@@ -23,6 +23,7 @@ code to the public domain.
 #include "common.h"
 #include "util.h"
 #include <gmp.h>
+#include "soe.h"
 
 #define DEFINED 1
 #define NUM_SQUFOF_MULT 38
@@ -2143,7 +2144,8 @@ and "easy locales" which
 are not obvious.  Also changing the tuning constants can alter the failure set.
 ***/
 
-uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac)
+//_WDS
+uint64 LehmanFactor_WDS(uint64 N, double Tune, int DoTrial, double CutFrac)
 {
 	uint32 b,p,k,r,B,U,Bred,inc,FirstCut,ip = 1;
 	uint64 a,c,kN,kN4,B2;
@@ -2324,103 +2326,470 @@ void init_lehman()
 }
 
 
-#ifdef NOTDEF
-void VecLehmanFactor(uint64 *N, double Tune, double CutFrac, uint64 *f, uint32 num)
-{
-    uint32 b, p, k, r, U, B, inc, FirstCut, ip = 1;
-    uint32 Bred[NUM_LANES];
-    uint64 a, c, kN, kN4;
-    uint64 B2[NUM_LANES];
-    double Tune2, Tune3, x, sqrtn;
-    mpz_t tmpz;
-    int vi;
-    int num_success;
-    int it;
+/**
+ * Trial division factor algorithm replacing division by multiplications.
+ *
+ * Instead of dividing N by consecutive primes, we store the reciprocals of those primes, too,
+ * and multiply N by those reciprocals. Only if such a result is near to an integer we need
+ * to do a division.
+ *
+ * Assuming that we want to identify "near integers" with a precision of 2^-d.
+ * Then the approach works for primes p if bitLength(p) >= bitLength(N) - 53 + d.
+ *
+ * @authors Thilo Harich + Tilman Neumann
+ */
 
-    num_success = 0;
-    mpz_init(tmpz);
+/*
 
-    for (vi = 0; vi < num; vi += NUM_LANES)
-    {
+Ported to C and released 7/31/19
+Ben Buhrow
 
-#pragma ivdep
-#pragma vector aligned
-        for (it = 0; it < NUM_LANES; it++)
-        {
-            mpz_set_64(tmpz, N[vi+it]);
-            mpz_root(tmpz, tmpz, 3);
-            B = Tune * (1 + (double)mpz_get_ui(tmpz));
+*/
 
-            FirstCut = CutFrac*B;
+#define DISCRIMINATOR_BITS 10 // experimental result
+#define DISCRIMINATOR  1.0 / (1 << DISCRIMINATOR_BITS)
+#define FACTORLIMIT (1<<21) + 1000
+#define MAXPRIMES 155678
 
-            //assures prime N will not activate "wrong" Lehman return
-            if (FirstCut < 84)
-                FirstCut = 84;
+int primes[MAXPRIMES];
+double reciprocals[MAXPRIMES];
 
-            if (FirstCut > 65535)
-                FirstCut = 65535;
-
-            Tune2 = Tune*Tune;
-            Tune3 = Tune2*Tune;
-            Bred[it] = B / Tune3;
-
-            B2[it] = B*B;
-            kN = 0;
-
-            //Lehman suggested (to get more average speed) trying highly-divisible k first. However,
-            //my experiments on trying to to that have usually slowed things down versus this simple loop:
-            sqrtn = sqrt((double)N);
-            for (k = 1; k <= Bred; k++)
-            {
-                if (k & 1)
-                {
-                    inc = 4;
-                    r = (k + N) % 4;
-                }
-                else
-                {
-                    inc = 2;
-                    r = 1;
-                }
-
-                kN += N;
-                kN4 = kN * 4;
-                if (k < 1024)
-                    x = sqrtn * sqr_tab[k];
-                else
-                    x = sqrt((double)kN);
-
-                a = x;
-                if ((uint64)a*(uint64)a == kN)
-                {
-                    B2 = gcd64((uint64)a, N);
-                    return(B2);
-                }
-
-                x *= 2;
-                a = x + 0.9999999665; //very carefully chosen.
-
-                b = a%inc;
-                b = a + (inc + r - b) % inc;   //b is a but adjusted upward to make b%inc=r.
-                c = (uint64)b*(uint64)b - kN4;  //this is the precision bottleneck.
-
-                U = x + B2 / (2 * x);
-
-                //Below loop is: for(all integers a with 0<=a*a-kN4<=B*B and with a%inc==r)
-                for (a = b; a <= U; c += inc*(a + a + inc), a += inc)
-                {
-                    b = sqrt(c + 0.9);
-                    if (b*b == c)
-                    {
-                        //square found
-                        B2 = gcd64((uint64)(a + b), N);
-                        return(B2);
-                    }
-                }
-            }
-        }
-    }
-
-    return num_success;
+/**
+	* Create a trial division algorithm that is capable of finding factors up to factorLimit.
+	* @param factorLimit
+	*/
+void TDiv63InverseSetup() {
+	int i;
+	for (i = 0; i < NUM_P; i++) {
+		primes[i] = PRIMES[i];
+		reciprocals[i] = 1.0 / primes[i];
+	}
 }
+
+int tdiv_inverse(int64 N, int pLimit) {
+	int i = 0;
+#ifdef __INTEL_COMPILER
+	int lbits = __lzcnt64(N);
+	int Nbits = 64 - lbits;
+#else
+	int lbits = __builtin_clzll(N);
+	int Nbits = 64 - lbits;
 #endif
+	int pMinBits = Nbits - 53 + DISCRIMINATOR_BITS;
+	if (pMinBits > 0) {
+		// for the smallest primes we must do standard trial division
+		int pMin = 1 << pMinBits;
+		//printf("standard trial division to limit %d on Nbits = %d, leading bits %d, top limit %d\n",
+		//	pMin, Nbits, lbits, pLimit);
+
+		for (; primes[i] < pMin; i++) {
+			if (N%primes[i] == 0) {
+				return primes[i];
+			}
+		}
+	}
+
+	// Now the primes are big enough to apply trial division by inverses
+	for (; primes[i] <= pLimit; i++) {
+		
+		int64 nDivPrime = (int64)(N*reciprocals[i] + DISCRIMINATOR);
+		//if (N == 346425669865991LL && primes[i] == 70163)
+		//	printf("nDivPrime = %ld, test = %ld\n", nDivPrime, nDivPrime * primes[i]);
+
+		if (nDivPrime * (int64)primes[i] == N) {
+			// nDivPrime is very near to an integer
+			if (N%primes[i] == 0) {
+				//printf("Found factor %d\n", primes[i]);
+				return primes[i];
+			}
+		}
+	}
+
+	// nothing found up to pLimit
+	return 0;
+}
+
+/*
+ * java-math-library is a Java library focused on number theory, but not necessarily limited to it. It is based on the PSIQS 4.0 factoring project.
+ * Copyright (C) 2018 Tilman Neumann (www.tilman-neumann.de)
+ *
+ * This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this program;
+ * if not, see <http://www.gnu.org/licenses/>.
+ */
+
+ /*
+
+ Ported to C and released 7/31/19
+ Ben Buhrow
+
+ */
+
+ /** This is a constant that is below 1 for rounding up double values to long. */
+#define SQRTBOUND ((1 << 21)+1)
+
+const double ROUND_UP_DOUBLE = 0.9999999665;
+static double sqRoot[SQRTBOUND];
+static double sqrtInv[SQRTBOUND];
+static int initialized = 0;
+
+int64 lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64 N, int64 fourN) {
+	int k;
+	for (k = kBegin; k <= kLimit; k += 6) {
+		int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE);
+		// make a == (k+N) (mod 4)
+		const int64 kPlusN = k + N;
+		if ((kPlusN & 3) == 0) {
+			a += ((kPlusN - a) & 7);
+		}
+		else {
+			a += ((kPlusN - a) & 3);
+		}
+		const int64 test = a * a - k * fourN;
+		//const int64 b = (int64)sqrt(test);
+		//if (b*b == test) {
+		//	return (int64)gcd64(a + b, N);
+		//}
+		//{
+		//	/* Step 1, reduce to 18% of inputs */
+		//	int64 m = test & 127;
+		//	if ((m * 0x8bc40d7d) & (m * 0xa1e2f5d1) & 0x14020a)  continue;
+		//	/* Step 2, reduce to 7% of inputs (mod 99 reduces to 4% but slower) */
+		//	//m = test % 240; if ((m * 0xfa445556) & (m * 0x8021feb1) & 0x614aaa0f) continue;
+		//	/* m = n % 99; if ((m*0x5411171d) & (m*0xe41dd1c7) & 0x80028a80) return 0; */
+		//	/* Step 3, do the square root instead of any more rejections */
+		//	const int64 b = (int64)sqrt(test);
+		//	if (b*b == test) {
+		//		return gcd64(a + b, N);
+		//	}
+		//}
+		//if (issq1024[test & 1023])
+		//{
+		//	if (issq4199[test % 3465] & 2)
+		//	{
+		//		if (issq4199[test % 4199] & 1)
+		//		{
+					const int64 b = (int64)sqrt(test);
+					if (b*b == test) {
+						return gcd64(a + b, N);
+					}
+		//		}
+		//	}
+		//}
+		//int t2 = test & 31;
+		//if (t2 == 0 || t2 == 1 || t2 == 4 ||
+		//	t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)
+		//{
+		//	const int64 b = (int64)sqrt(test);
+		//	if (b*b == test) {
+		//		return (int64)gcd64(a + b, N);
+		//	}
+		//}
+	}
+	return -1;
+}
+
+int64 lehmanEven(int kBegin, int kEnd, double sqrt4N, int64 N, int64 fourN) {
+	int k;
+	for (k = kBegin; k <= kEnd; k += 6) {
+		// k even -> a must be odd
+		const int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) | (int64)1;
+		const int64 test = a * a - k * fourN;
+		//const int64 b = (int64)sqrt(test);
+		//if (b*b == test) {
+		//	return (int64)gcd64(a + b, N);
+		//}
+		//{
+		//	/* Step 1, reduce to 18% of inputs */
+		//	int64 m = test & 127;
+		//	if ((m * 0x8bc40d7d) & (m * 0xa1e2f5d1) & 0x14020a)  continue;
+		//	/* Step 2, reduce to 7% of inputs (mod 99 reduces to 4% but slower) */
+		//	//m = test % 240; if ((m * 0xfa445556) & (m * 0x8021feb1) & 0x614aaa0f) continue;
+		//	/* m = n % 99; if ((m*0x5411171d) & (m*0xe41dd1c7) & 0x80028a80) return 0; */
+		//	/* Step 3, do the square root instead of any more rejections */
+		//	const int64 b = (int64)sqrt(test);
+		//	if (b*b == test) {
+		//		return gcd64(a + b, N);
+		//	}
+		//}
+		//if (issq1024[test & 1023])
+		//{
+		//	if (issq4199[test % 3465] & 2)
+		//	{
+		//		if (issq4199[test % 4199] & 1)
+		//		{
+					const int64 b = (int64)sqrt(test);
+					if (b*b == test) {
+						return gcd64(a + b, N);         
+					}
+		//		}
+		//	}
+		//}
+		//int t2 = test & 31;
+		//if (t2 == 0 || t2 == 1 || t2 == 4 ||
+		//	t2 == 9 || t2 == 16 || t2 == 17 || t2 == 25)
+		//{
+		//	const int64 b = (int64)sqrt(test);
+		//	if (b*b == test) {
+		//		return (int64)gcd64(a + b, N);
+		//	}
+		//}
+	}
+	return -1;
+}
+
+
+/**
+ * Fast implementation of Lehman's factor algorithm.
+ * Works flawlessly for N up to 60 bit.<br><br>
+ *
+ * It is quite surprising that the exact sqrt test of <code>test = a^2 - 4kN</code> works for N >= 45 bit.
+ * At that size, both a^2 and 4kN start to overflow Long.MAX_VALUE.
+ * But the error - comparing correct results vs. long results - is just the same for both a^2 and 4kN
+ * (and a multiple of 2^64).
+ *  Thus <code>test</code> is correct and <code>b</code> is correct, too. <code>a</code> is correct anyway.
+ *
+ * @authors Tilman Neumann + Thilo Harich
+ */
+
+ /*
+
+ Ported to C and released 7/31/19
+ Ben Buhrow
+
+ */
+
+uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
+{
+	int i;
+	int k;
+	int j;
+	int64 N = (int64)uN;
+	int64 fourN;
+	double sqrt4N;
+	int64 factor;
+	double sixthRootTerm;
+
+	if (!initialized)
+	{
+		// Precompute sqrts for all possible k. 2^21 entries are enough for N~2^63.
+		int kMax = 1 << 21;
+		for (i = 1; i < SQRTBOUND; i++) {
+			double sqrtI = sqrt((double)i);
+			sqRoot[i] = sqrtI;
+			sqrtInv[i] = 1.0 / sqrtI;
+		}
+
+		PRIMES = soe_wrapper(spSOEprimes, szSOEp, 0, FACTORLIMIT, 0, &NUM_P);
+		P_MIN = PRIMES[0];
+		P_MAX = PRIMES[NUM_P - 1];
+		TDiv63InverseSetup();
+		printf("prime list generated\n");
+		printf("PMAX = %lu, NUM_P = %lu\n", P_MAX, NUM_P);
+
+		initialized = 1;
+		printf("sqrt tables generated\n");
+		printf("check of sqrt(-1): %f, %d\n", sqrt(-1.), (int)sqrt(-1));
+
+		MakeIssq();
+		printf("issqr tables generated\n");
+	}
+
+	const int cbrt = (int)pow(N, 1./3);
+
+	// do trial division before Lehman loop, up to the cube root
+	if (DoTrialFirst)
+	{
+		//i = 0;
+		//while (PRIMES[i] < cbrt)
+		//{
+		//	if ((N % PRIMES[i]) == 0)
+		//		return PRIMES[i];
+		//	i++;
+		//}
+		if ((factor = tdiv_inverse(N, cbrt)) > 1) return factor;
+	}
+	
+
+	fourN = N << 2;
+	sqrt4N = sqrt(fourN);
+
+	// kLimit must be 0 mod 6, since we also want to search above of it
+	const int kLimit = ((cbrt + 6) / 6) * 6;
+	// For kTwoA = kLimit / 64 the range for a is at most 2. We make it 0 mod 6, too.
+	const int kTwoA = (((cbrt >> 6) + 6) / 6) * 6;
+
+	// We are investigating solutions of a^2 - sqrt(k*n) = y^2 in three k-ranges:
+	// * The "small range" is 1 <= k < kTwoA, where we may have more than two 'a'-solutions per k.
+	//   Thus, an inner 'a'-loop is required.
+	// * The "middle range" is kTwoA <= k < kLimit, where we have at most two possible 'a' values per k.
+	// * The "high range" is kLimit <= k < 2*kLimit. This range is not required for the correctness
+	//   of the algorithm, but investigating it for some k==0 (mod 6) improves performance.
+
+	// We start with the middle range cases k == 0 (mod 6) and k == 3 (mod 6),
+	// which have the highest chance to find a factor.
+	if ((factor = lehmanEven(kTwoA, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+	if ((factor = lehmanOdd(kTwoA + 3, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+
+	// Now investigate the small range
+	sixthRootTerm = 0.25 * pow(N, 1 / 6.0); // double precision is required for stability
+	for (k = 1; k < kTwoA; k++) {
+		int64 a;
+		const int64 fourkN = k * fourN;
+		const double sqrt4kN = sqrt4N * sqRoot[k];
+		// only use long values
+		const int64 aStart = (int64)(sqrt4kN + ROUND_UP_DOUBLE); // much faster than ceil() !
+		int64 aLimit = (int64)(sqrt4kN + sixthRootTerm * sqrtInv[k]);
+		int64 aStep;
+		if ((k & 1) == 0) {
+			// k even -> make sure aLimit is odd
+			aLimit |= 1LL;
+			aStep = 2;
+		}
+		else {
+			const int64 kPlusN = k + N;
+			if ((kPlusN & 3) == 0) {
+				aStep = 8;
+				aLimit += ((kPlusN - aLimit) & 7);
+			}
+			else {
+				aStep = 4;
+				aLimit += ((kPlusN - aLimit) & 3);
+			}
+		}
+
+		// processing the a-loop top-down is faster than bottom-up
+		for (a = aLimit; a >= aStart; a -= aStep) {
+			const int64 test = a * a - fourkN;
+			// Here test<0 is possible because of double to long cast errors in the 'a'-computation.
+			// But then b = sqrt(test) gives NaN (sic!) => NaN*NaN != test => no errors.
+			const int64 b = (int64)sqrt(test);
+			if (b*b == test) {
+				return (int64)gcd64(a + b, N);
+			}
+			//{
+			//	/* Step 1, reduce to 18% of inputs */
+			//	int64 m = test & 127;
+			//	if ((m * 0x8bc40d7d) & (m * 0xa1e2f5d1) & 0x14020a)  continue;
+			//	/* Step 2, reduce to 7% of inputs (mod 99 reduces to 4% but slower) */
+			//	//m = test % 240; if ((m * 0xfa445556) & (m * 0x8021feb1) & 0x614aaa0f) continue;
+			//	/* m = n % 99; if ((m*0x5411171d) & (m*0xe41dd1c7) & 0x80028a80) return 0; */
+			//	/* Step 3, do the square root instead of any more rejections */
+			//	const int64 b = (int64)sqrt(test);
+			//	if (b*b == test) {
+			//		return gcd64(a + b, N);
+			//	}
+			//}
+			
+		}
+	}
+
+	// k == 0 (mod 6) has the highest chance to find a factor; checking it in the high range boosts performance
+	if ((factor = lehmanEven(kLimit, kLimit << 1, sqrt4N, N, fourN)) > 1) return factor;
+
+	// Complete middle range
+	if ((factor = lehmanOdd(kTwoA + 1, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+	if ((factor = lehmanEven(kTwoA + 2, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+	if ((factor = lehmanEven(kTwoA + 4, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+	if ((factor = lehmanOdd(kTwoA + 5, kLimit, sqrt4N, N, fourN)) > 1) return factor;
+
+	// do trial division after Lehman loop ?
+	const int rt2 = sqrt(N);
+
+	// do trial division after Lehman loop
+	if (!DoTrialFirst)
+	{
+		//i = 0;
+		//while (PRIMES[i] < cbrt)
+		//{
+		//	if ((N % PRIMES[i]) == 0)
+		//		return PRIMES[i];
+		//	i++;
+		//}
+		if ((factor = tdiv_inverse(N, cbrt)) > 1) return factor;
+	}
+
+	// If sqrt(4kN) is very near to an exact integer then the fast ceil() in the 'aStart'-computation
+	// may have failed. Then we need a "correction loop":
+	for (k = kTwoA + 1; k <= kLimit; k++) {
+		int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) - 1;
+		int64 test = a * a - k * fourN;
+		int64 b = (int64)sqrt(test);
+		if (b*b == test) {
+			return gcd64(a + b, N);
+		}
+		//{
+		//	/* Step 1, reduce to 18% of inputs */
+		//	int64 m = test & 127;
+		//	if ((m * 0x8bc40d7d) & (m * 0xa1e2f5d1) & 0x14020a)  continue;
+		//	/* Step 2, reduce to 7% of inputs (mod 99 reduces to 4% but slower) */
+		//	//m = test % 240; if ((m * 0xfa445556) & (m * 0x8021feb1) & 0x614aaa0f) continue;
+		//	/* m = n % 99; if ((m*0x5411171d) & (m*0xe41dd1c7) & 0x80028a80) return 0; */
+		//	/* Step 3, do the square root instead of any more rejections */
+		//	const int64 b = (int64)sqrt(test);
+		//	if (b*b == test) {
+		//		return gcd64(a + b, N);
+		//	}
+		//}
+	}
+
+	return 0; // fail
+}
+
+
+	/**
+	 * Test.
+	 * @param args ignored
+	 
+	public static void main(String[] args) {
+		ConfigUtil.initProject();
+
+		// These test number were too hard for previous versions:
+		long[] testNumbers = new long[] {
+			5640012124823L,
+				7336014366011L,
+				19699548984827L,
+				52199161732031L,
+				73891306919159L,
+				112454098638991L,
+
+				32427229648727L,
+				87008511088033L,
+				92295512906873L,
+				338719143795073L,
+				346425669865991L,
+				1058244082458461L,
+				1773019201473077L,
+				6150742154616377L,
+
+				44843649362329L,
+				67954151927287L,
+				134170056884573L,
+				198589283218993L,
+				737091621253457L,
+				1112268234497993L,
+				2986396307326613L,
+
+				26275638086419L,
+				62246008190941L,
+				209195243701823L,
+				290236682491211L,
+				485069046631849L,
+				1239671094365611L,
+				2815471543494793L,
+				5682546780292609L,
+		};
+
+		Lehman_Fast lehman = new Lehman_Fast(true);
+		for (long N : testNumbers) {
+			long factor = lehman.findSingleFactor(N);
+			LOG.info("N=" + N + " has factor " + factor);
+		}
+	}
+	*/
+

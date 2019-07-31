@@ -161,7 +161,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				   into y until all of the sieve values
 				   for this relation have been processed */
 
-				for (k = 0; k < 2; k++) {
+				for (k = 0; k < 3; k++) {
 					prime = relation->large_prime[k];
 					if (prime == 1)
 						continue;
@@ -176,14 +176,20 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 						large_primes[2*m] = prime;
 						large_primes[2*m+1] = 1;
 						num_large_primes++;
+
+						if (num_large_primes >= 200)
+						{
+							printf("too many large primes when processing dependency\n");
+							exit(1);
+						}
 					}
 				}
 			}
 
 			for (j = 0; j < num_large_primes; j++) {
 				for (k = 0; k < large_primes[2*j+1]/2; k++) {
-					mpz_set_ui(factor, large_primes[2 * j]); //factor.val[0] = large_primes[2*j];
-					mpz_mul(y, y, factor); //zModMul(&y,&factor,n,&y);  
+					mpz_set_ui(factor, large_primes[2 * j]);
+					mpz_mul(y, y, factor);
 					mpz_tdiv_r(y, y, n);
 				}
 			}

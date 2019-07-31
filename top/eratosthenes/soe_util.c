@@ -23,18 +23,116 @@ uint64 estimate_primes_in_range(uint64 lowlimit, uint64 highlimit)
 // lines must remain in memory during the bitmap sieve - this gets
 // to be a lot for 480 classes!).  The same is true to a lesser
 // extent for 48... but above 10^18 it is still a win.
+// 
+// the tuning is different on a 5122 Gold SkylakeX processor...
+// likely it depends on cache size/speed.
+#if 1
 uint32 bitmap_bound_tab[4][5] = {
-/*        10^14,     10^15,     10^16,     10^17,     10^18*/
-/*2*/   { 200000,    700000,    500000,    700000,    200000  },
-/*8*/   { 999999999, 700000,    700000,    700000,    700000 },
-/*48*/  { 999999999, 999999999, 999999999, 999999999, 5000000   },
-/*480*/ { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+//	/*        10^14,     10^15,     10^16,     10^17,     10^18*/
+//	/*2*/   { 200000,    700000,    500000,    700000,    200000  },
+//	/*8*/   { 999999999, 700000,    700000,    700000,    700000 },
+//	/*48*/  { 999999999, 999999999, 999999999, 999999999, 5000000   },
+//	/*480*/ { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+/*            10^14,     10^15,     10^16,     10^17,     10^18*/
+/*2*/       { 200000,    700000,    500000,    700000,    500000  },
+/*8*/       { 999999999, 999999999, 999999999, 999999999, 999999999 },
+/*48*/      { 999999999, 999999999, 999999999, 999999999, 999999999 },
+/*480*/     { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+#else
+uint32 bitmap_bound_tab[4][5] = {
+	/*        10^14,     10^15,     10^16,     10^17,     10^18*/
+	/*2*/   { 999999999, 999999999, 999999999, 999999999, 999999999 },
+	/*8*/   { 999999999, 999999999, 999999999, 999999999, 999999999 },
+	/*48*/  { 999999999, 999999999, 999999999, 999999999, 999999999 },
+	/*480*/ { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+#endif
+
+
 
 void get_numclasses(uint64 highlimit, uint64 lowlimit, soe_staticdata_t *sdata)
 {
 	uint64 numclasses, prodN, startprime;
 
     sdata->use_monty = 0;
+
+	//#define BLOCKSIZE 32768
+	//#define FLAGSIZE 262144
+	//#define FLAGSIZEm1 262143
+	//#define FLAGBITS 18
+	//#define BUCKETSTARTI 33336
+
+	//#define BLOCKSIZE 1048576
+	//#define FLAGSIZE 8388608
+	//#define FLAGSIZEm1 8388607
+	//#define FLAGBITS 23
+	//#define BUCKETSTARTI 846248
+
+	//#define BLOCKSIZE 524288
+	//#define FLAGSIZE 4194304
+	//#define FLAGSIZEm1 4194303
+	//#define FLAGBITS 22
+	////#define BUCKETSTARTI 191308
+	//#define BUCKETSTARTI 443920
+
+	sieve_line_ptr = &sieve_line;
+
+	//SOEBLOCKSIZE = 524288;
+	FLAGSIZE = 8 * SOEBLOCKSIZE;
+	FLAGSIZEm1 = FLAGSIZE - 1;
+	switch (SOEBLOCKSIZE)
+	{
+	case 32768:
+		FLAGBITS = 18;
+		BUCKETSTARTI = 33336;
+#ifdef USE_AVX512
+		sieve_line_ptr = &sieve_line_avx512_32k;
+#elif defined(USE_AVX2)
+		sieve_line_ptr = &sieve_line_avx2_32k;
+#endif
+		break;
+	case 65536:
+		FLAGBITS = 19;
+		BUCKETSTARTI = 43392;
+		break;
+	case 131072:
+		FLAGBITS = 20;
+		BUCKETSTARTI = 123040;
+#ifdef USE_AVX512
+		sieve_line_ptr = &sieve_line_avx512_128k;
+#elif defined(USE_AVX2)
+		sieve_line_ptr = &sieve_line_avx2_128k;
+#endif
+		break;
+	case 262144:
+#ifdef USE_AVX512
+		sieve_line_ptr = &sieve_line_avx512_256k;
+#elif defined(USE_AVX2)
+
+#endif
+		FLAGBITS = 21;
+		BUCKETSTARTI = 233416;
+		break;
+	case 524288:
+#ifdef USE_AVX512
+		sieve_line_ptr = &sieve_line_avx512_512k;
+#elif defined(USE_AVX2)
+
+#endif
+		FLAGBITS = 22;
+		BUCKETSTARTI = 443920;
+		break;
+	case 1048576:
+		FLAGBITS = 23;
+		BUCKETSTARTI = 846248;
+		break;
+	default:
+		printf("Bad soe_block\n");
+		exit(1);
+	}
+
+	//printf("Sieve Parameters:\nBLOCKSIZE = %u\nFLAGSIZE = %u\nFLAGBITS = %u\nBUCKETSTARTI = %u\n",
+	//	SOEBLOCKSIZE, FLAGSIZE, FLAGBITS, BUCKETSTARTI);
+	
 
 	//more efficient to sieve using mod210 when the range is big
 	if ((highlimit - lowlimit) > 40000000000ULL)
@@ -274,7 +372,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
     // which represents integers spaced 'prodN' apart.
     sdata->blocks = (highlimit - lowlimit) / prodN / FLAGSIZE;
     if (((highlimit - lowlimit) / prodN) % FLAGSIZE != 0) sdata->blocks++;
-    sdata->numlinebytes = sdata->blocks * BLOCKSIZE;
+    sdata->numlinebytes = sdata->blocks * SOEBLOCKSIZE;
     numlinebytes = sdata->numlinebytes;
     highlimit = (uint64)((uint64)sdata->numlinebytes * (uint64)prodN * (uint64)BITSINBYTE + lowlimit);
     sdata->highlimit = highlimit;
