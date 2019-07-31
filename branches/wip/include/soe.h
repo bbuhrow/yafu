@@ -38,12 +38,26 @@ code to the public domain.
 //#define USE_AVX2 1
 #endif
 
-#define BLOCKSIZE 32768
-#define FLAGSIZE 262144
-#define FLAGSIZEm1 262143
-#define FLAGBITS 18
+//#define BLOCKSIZE 32768
+//#define FLAGSIZE 262144
+//#define FLAGSIZEm1 262143
+//#define FLAGBITS 18
+//#define BUCKETSTARTI 33336
+
+//#define BLOCKSIZE 1048576
+//#define FLAGSIZE 8388608
+//#define FLAGSIZEm1 8388607
+//#define FLAGBITS 23
+//#define BUCKETSTARTI 846248
+
+//#define BLOCKSIZE 524288
+//#define FLAGSIZE 4194304
+//#define FLAGSIZEm1 4194303
+//#define FLAGBITS 22
+////#define BUCKETSTARTI 191308
+//#define BUCKETSTARTI 443920
 //#define BUCKETSTARTP 393216 
-#define BUCKETSTARTI 33336
+
 #define BITSINBYTE 8
 #define MAXSIEVEPRIMECOUNT 100000000	//# primes less than ~2e9: limit of 2e9^2 = 4e18
 //#define DO_SPECIAL_COUNT
@@ -324,6 +338,18 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 
 // thread ready sieving functions
 void sieve_line(thread_soedata_t *thread_data);
+void sieve_line_avx2_32k(thread_soedata_t *thread_data);
+void sieve_line_avx2_64k(thread_soedata_t *thread_data);
+void sieve_line_avx2_128k(thread_soedata_t *thread_data);
+void sieve_line_avx2_256k(thread_soedata_t *thread_data);
+void sieve_line_avx512_32k(thread_soedata_t *thread_data);
+void sieve_line_avx512_64k(thread_soedata_t *thread_data);
+void sieve_line_avx512_128k(thread_soedata_t *thread_data);
+void sieve_line_avx512_256k(thread_soedata_t *thread_data);
+void sieve_line_avx512_512k(thread_soedata_t *thread_data);
+void(*sieve_line_ptr)(thread_soedata_t *);
+
+
 uint64 count_line(soe_staticdata_t *sdata, uint32 current_line);
 void count_line_special(thread_soedata_t *thread_data);
 uint32 compute_32_bytes(soe_staticdata_t *sdata,
@@ -388,5 +414,11 @@ static const uint8 nmasks[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 
 uint32 max_bucket_usage;
 uint64 GLOBAL_OFFSET;
 int NO_STORE;
+
+uint32 SOEBLOCKSIZE;
+uint32 FLAGSIZE;
+uint32 FLAGSIZEm1;
+uint32 FLAGBITS;
+uint32 BUCKETSTARTI;
 
 #endif // YAFU_SOE_H

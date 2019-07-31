@@ -26,7 +26,7 @@ code to the public domain.
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 {
-	int offset, lp[2], parity, num_factors;
+	int offset, lp[3], parity, num_factors;
 	int j,retval;
 	mpz_t Q, RHS;
 
@@ -36,11 +36,13 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 	offset = r->sieve_offset;
 	lp[0] = r->large_prime[0];
 	lp[1] = r->large_prime[1];
+	lp[2] = r->large_prime[2];
 	parity = r->parity;
 	num_factors = r->num_factors;
 
 	mpz_set_ui(RHS, lp[0]);
 	mpz_mul_ui(RHS, RHS, lp[1]);
+	mpz_mul_ui(RHS, RHS, lp[2]);
 	for (j=0; j<num_factors; j++)
 		mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
 
@@ -167,7 +169,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         }
 
         // todo: need to define alternate routines if this isn't defined...
-        i = tinyqs(fobj->qs_obj.gmp_n, f1, f2);
+        //i = tinyqs(fobj->qs_obj.gmp_n, f1, f2);
 #else
         i = 0;
 #endif

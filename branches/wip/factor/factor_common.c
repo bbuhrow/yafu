@@ -254,8 +254,12 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.gbl_override_tf = 0;
 	fobj->qs_obj.gbl_override_time_flag = 0;
 	fobj->qs_obj.gbl_override_time = 0;
+	fobj->qs_obj.gbl_override_mfbd = 0.;
+	fobj->qs_obj.gbl_override_mfbt = 0.;
+	fobj->qs_obj.gbl_override_lpb = 0;
 	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
+	fobj->qs_obj.gbl_force_TLP = 0;
 	fobj->qs_obj.qs_exponent = 0;
 	fobj->qs_obj.qs_multiplier = 0;
 	fobj->qs_obj.qs_tune_freq = 0;

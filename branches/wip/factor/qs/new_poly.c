@@ -77,10 +77,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_t tmp, tmp2, tmp3;
 	mpz_ptr poly_a = poly->mpz_poly_a;
 	int j, *qli = poly->qlisort, *s = &poly->s;
-	uint32 i,randindex = 0, mindiff,a1,poly_low_found=0,target_bits;
+	uint32 i, randindex = 0, mindiff, a1, poly_low_found = 0,target_bits;
 	uint32 potential_a_factor = 0, found_a_factor;
 	uint32 afact[20];
-	double target_mul = 0.9;
+	double target_mul = 0.9; // 2;	// note: smaller values harder to achieve
     int too_close, min_ratio, close_range;
 	FILE *sieve_log = sconf->obj->logfile;
 	uint32 upper_polypool_index, lower_polypool_index;
@@ -285,6 +285,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		min_ratio = 1000;
 	}
 
+	//printf("range of candidate factor pool: %d-%d (%u-%u)\n", lower_polypool_index,
+	//	upper_polypool_index, fb->list->prime[lower_polypool_index], 
+	//	fb->list->prime[upper_polypool_index]);
+
 
 	while (1)
 	{
@@ -466,6 +470,19 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 done:
 
+
+	if (VFLAG > 2)
+	{
+		printf("%d rels found: %d full + %d from %d partial\n",
+			sconf->num_r, sconf->num_relations,
+			sconf->num_cycles +
+			sconf->components - sconf->vertices,
+			sconf->num_cycles);
+
+		gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
+			(uint32)mpz_sizeinbase(target_a, 2), poly_a, (uint32)mpz_sizeinbase(poly_a, 2));
+	}
+
 	mpz_clear(tmp);
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
@@ -536,6 +553,10 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
 	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
 	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+
+	//gmp_printf("A = %Zd\n", poly->mpz_poly_a);
+	//gmp_printf("B = %Zd\n", poly->mpz_poly_b);
+	//gmp_printf("C = %Zd\n", poly->mpz_poly_c);
 
 	return;
 }

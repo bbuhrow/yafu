@@ -26,13 +26,9 @@ many of the arithmetic routines here are based
 #include "yafu.h"
 #include "util.h"
 #include "monty.h"
+#include "arith.h"
 
-/*
-implements routines to perform computations with 
-montgomery arithmetic
-*/
-
-// local routines
+/********************* arbitrary-precision Montgomery arith **********************/
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
 int fp_montgomery_setup(mpz_t n, mpz_t r, mpz_t nhat);
 
@@ -95,7 +91,7 @@ void to_monty(monty_t *mdata, mpz_t x)
 	return;
 }
 
-monty_t * monty_init(mpz_t n)
+monty_t * monty_alloc()
 {
 	//for a input modulus n, initialize constants for 
 	//montogomery representation
@@ -105,12 +101,29 @@ monty_t * monty_init(mpz_t n)
 	mdata = (monty_t *)malloc(sizeof(monty_t));
 
 	// initialize space such that we can use vectorized
-    mpz_init(mdata->n);
-    mpz_init(mdata->r);
-    mpz_init(mdata->rhat);
-    mpz_init(mdata->nhat);
-    mpz_init(mdata->tmp);
+	mpz_init(mdata->n);
+	mpz_init(mdata->r);
+	mpz_init(mdata->rhat);
+	mpz_init(mdata->nhat);
+	mpz_init(mdata->tmp);
+	mpz_init(mdata->x);
+	mpz_init(mdata->y);
+	mpz_init(mdata->c);
+	mpz_init(mdata->q);
+	mpz_init(mdata->g);
+	mpz_init(mdata->ys);
+	mpz_init(mdata->t1);
 
+	return mdata;
+}
+
+void monty_init(mpz_t n, monty_t *mdata)
+{
+	//for a input modulus n, initialize constants for 
+	//montogomery representation
+	//this assumes that n is relatively prime to 2, i.e. is odd.	
+
+	// initialize space such that we can use vectorized
     mpz_set(mdata->n, n);
 
     fp_montgomery_calc_normalization(mdata->r, mdata->rhat, mdata->n);
@@ -118,7 +131,7 @@ monty_t * monty_init(mpz_t n)
 
     mpz_sub_ui(mdata->r, mdata->r, 1);
 
-	return mdata;
+	return;
 }
 
 void monty_add(monty_t *mdata, mpz_t u, mpz_t v, mpz_t w)
@@ -159,6 +172,13 @@ void monty_free(monty_t *mdata)
     mpz_clear(mdata->rhat);
     mpz_clear(mdata->r);
     mpz_clear(mdata->tmp);
+	mpz_clear(mdata->x);
+	mpz_clear(mdata->y);
+	mpz_clear(mdata->q);
+	mpz_clear(mdata->c);
+	mpz_clear(mdata->g);
+	mpz_clear(mdata->ys);
+	mpz_clear(mdata->t1);
 
 	return;
 }
@@ -176,3 +196,389 @@ void monty_redc(monty_t *mdata, mpz_t x)
         mpz_sub(x, x, mdata->n);
 }
 
+/********************* 128-bit Montgomery arith **********************/
+void to_monty128(monty128_t *mdata, uint64 * x)
+{
+	//given a number x in normal (hexadecimal) representation, 
+	//find its montgomery representation
+
+	//this uses some precomputed monty constants
+	//xhat = (x * r) mod n
+	// = x * R^2 / R mod n
+	// = REDC(x * R^2)
+	mpz_t m;
+	mpz_t n;
+
+	mpz_init(m);
+	mpz_init(n);
+
+	mpz_set_ui(m, x[1]);
+	mpz_mul_2exp(m, m, 64);
+	mpz_add_ui(m, m, x[0]);
+	
+	mpz_set_ui(n, mdata->n[1]);
+	mpz_mul_2exp(n, n, 64);
+	mpz_add_ui(n, n, mdata->n[0]);
+
+	// implied R = 2^128
+	mpz_mul_2exp(m, m, 128);
+	mpz_mod(m, m, n);
+
+	x[0] = mpz_get_ui(m);
+	mpz_tdiv_q_2exp(m, m, 64);
+	x[1] = mpz_get_ui(m);
+
+	mpz_clear(m);
+	mpz_clear(n);
+
+	return;
+}
+
+void monty128_init(monty128_t * mdata, uint64 * n)
+{
+	//for a input modulus n, initialize constants for 
+	//montogomery representation
+	//this assumes that n is relatively prime to 2, i.e. is odd.	
+	uint64 b = n[0];
+	uint64 x;
+
+	mdata->n[0] = n[0];
+	mdata->n[1] = n[1];
+
+	// invert (odd) n mod 2^64
+	x = (((b + 2) & 4) << 1) + b; // here x*a==1 mod 2**4
+	x *= 2 - b * x;               // here x*a==1 mod 2**8
+	x *= 2 - b * x;               // here x*a==1 mod 2**16
+	x *= 2 - b * x;               // here x*a==1 mod 2**32         
+	x *= 2 - b * x;               // here x*a==1 mod 2**64
+
+	mdata->rho = (uint64)((uint64)0 - ((uint64)x));
+
+	mdata->one[0] = 1;
+	mdata->one[1] = 0;
+	to_monty128(mdata, mdata->one);
+	
+	return;
+}
+
+void ciosFullMul128x(uint64 *u, uint64 *v, uint64 rho, uint64 *n, uint64 *w)
+{
+	__asm__(
+		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
+		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
+		"movq 0(%1), %%r9	\n\t"		/* v[0] ptr in r9 */
+
+		/* begin s += u * v */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+		"mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(u[0] * v)         */
+		"addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+		"mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(u[1] * v)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+		"addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+		"adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+
+		"movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+		"mulx %4, %%r9, %%r14	\n\t"   /* m = rho * w[0]         */
+		"movq %3, %%r10	\n\t"			/* n ptr in r10 */
+
+		/* begin s = (s + n * m) >> 64 */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+		"mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(n[0] * m)         */
+		"addq 0(%%r11), %%r12  \n\t"    /* r12 = w[0] (could be rdx) + LO(n[0] * m) */
+
+		/* r12 should be 0 here */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+		"mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(n[1] * m)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+		"xorq %%r14, %%r14 \n\t"
+		"addq 8(%%r11), %%r12  \n\t"
+		"movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+		"adcq 16(%%r11), %%r13 \n\t"
+		"movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+		"adcq $0, %%r14 \n\t"
+		"movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+		/* round 2 */
+
+		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
+		"movq 8(%1), %%r9	\n\t"		/* v[1] ptr in r9 */
+
+		/* begin s += u * v */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+		"mulx %%r9, %%r12, %%r14 \n\t"  /* r14 = HI(u[0] * v)         */
+		"addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+		"mulx %%r9, %%r12, %%r13 \n\t"  /* r13 = HI(u[1] * v)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+		"addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+		"adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+
+		"movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+		"mulx %4, %4, %%r14	\n\t"       /* m = rho * w[0]         */
+		"movq %3, %%r10	\n\t"			/* n ptr in r10 */
+
+		/* begin s = (s + n * m) >> 64 */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+		"mulx %4, %%r12, %%r14	\n\t"   /* r14 = HI(n[0] * m)         */
+		"addq 0(%%r11), %%r12  \n\t"    /* r12 = w[0] (could be rdx) + LO(n[0] * m) */
+
+		/* r12 should be 0 here */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+		"mulx %4, %%r12, %%r13	\n\t"   /* r13 = HI(n[1] * m)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+		"xorq %%r14, %%r14 \n\t"
+		"addq 8(%%r11), %%r12  \n\t"
+		"movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+		"adcq 16(%%r11), %%r13 \n\t"
+		"movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+		"adcq $0, %%r14 \n\t"
+		"movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+
+
+		:
+		: "r"(u), "r"(v), "r"(w), "r"(n), "r"(rho)
+		: "r9", "r10", "rdx", "r11", "r12", "r13", "r14", "cc", "memory");
+
+	return;
+}
+
+
+void ciosMul128x(uint64 *u, uint64 v, uint64 rho, uint64 *n, uint64 *w)
+{
+	__asm__(
+		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
+		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
+
+		/* begin s += u * v */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+		"mulx %1, %%r12, %%r14	\n\t"   /* r14 = HI(u[0] * v)         */
+		"addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+		"mulx %1, %%r12, %%r13	\n\t"   /* r13 = HI(u[1] * v)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+		"addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+		"adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+
+		"movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+		"mulx %4, %4, %%r14	\n\t"       /* m = rho * w[0]         */
+		"movq %3, %%r10	\n\t"			/* n ptr in r10 */
+
+		/* begin s = (s + n * m) >> 64 */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+		"mulx %4, %%r12, %%r14	\n\t"   /* r14 = HI(n[0] * m)         */
+		"addq 0(%%r11), %%r12  \n\t"    /* we just need the potential carry bit */
+
+		/* r12 should be 0 here */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+		"mulx %4, %%r12, %%r13	\n\t"   /* r13 = HI(n[1] * m)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+		"xorq %%r14, %%r14 \n\t"
+		"addq 8(%%r11), %%r12  \n\t"    
+		"movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+		"adcq 16(%%r11), %%r13 \n\t"    
+		"movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+		"adcq $0, %%r14 \n\t"
+		"movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+		:
+		: "r"(u), "r"(v), "r"(w), "r"(n), "r"(rho)
+		: "r10", "rdx", "r11", "r12", "r13", "r14", "cc", "memory");
+
+	return;
+}
+
+void ciosMul128x_1(uint64 *u, uint64 v, uint64 rho, uint64 *n, uint64 *w)
+{
+	__asm__(
+		"movq %0, %%r10	\n\t"			/* u ptr in r10 */
+		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
+
+		/* begin s += u * v */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by u[0]  */
+		"mulx %1, %%r12, %%r14	\n\t"   /* r14 = HI(u[0] * v)         */
+		"addq %%r12, 0(%%r11) \n\t"     /* w[0] = w[0] + LO(u[0] * v) */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by u[1]  */
+		"mulx %1, %%r12, %%r13	\n\t"   /* r13 = HI(u[1] * v)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(u[0] * v) + LO(u[1] * v) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(u[1] * v) + prevcarry                */
+		"addq %%r12, 8(%%r11) \n\t"		/* w[1] = w[1] + HI(u[0] * v) + LO(u[1] * v)*/
+		"adcq %%r13, 16(%%r11) \n\t"	/* w[2] = w[2] + HI(u[1] * v) + prevcarry */
+		:
+	: "r"(u), "r"(v), "r"(w), "r"(n), "r"(rho)
+		: "r10", "rdx", "r11", "r12", "r13", "r14", "cc", "memory");
+
+	return;
+}
+
+void ciosMul128x_2(uint64 *u, uint64 v, uint64 rho, uint64 *n, uint64 *w)
+{
+	__asm__(
+		"movq %2, %%r11	\n\t"			/* w ptr in r11 */
+		"movq %3, %%r10	\n\t"			/* n ptr in r10 */
+		"movq 0(%%r11), %%rdx	\n\t"   /* ready to multiply by w[0]  */
+		"mulx %4, %4, %%r14	\n\t"       /* m = rho * w[0]         */
+
+		/* begin s = (s + n * m) >> 64 */
+		"movq 0(%%r10), %%rdx	\n\t"   /* ready to multiply by n[0]  */
+		"mulx %4, %%r12, %%r14	\n\t"   /* r14 = HI(n[0] * m)         */
+		"addq 0(%%r11), %%r12  \n\t"    /* r12 = w[0] (could be rdx) + LO(n[0] * m) */
+
+		/* r12 should be 0 here */
+
+		"movq 8(%%r10), %%rdx	\n\t"   /* ready to multiply by n[1]  */
+		"mulx %4, %%r12, %%r13	\n\t"   /* r13 = HI(n[1] * m)         */
+		"adcq %%r14, %%r12 \n\t"        /* r12 = HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+		"adcq $0, %%r13 \n\t"           /* r13 = HI(n[1] * m) + prevcarry                */
+		"xorq %%r14, %%r14 \n\t"
+		"addq 8(%%r11), %%r12  \n\t"
+		"movq %%r12, 0(%%r11)	\n\t"	/* w[0] = w[1] + HI(n[0] * m) + LO(n[1] * m) + prevcarry */
+
+		"adcq 16(%%r11), %%r13 \n\t"
+		"movq %%r13, 8(%%r11)	\n\t"	/* w[1] = w[2] + HI(n[1] * m) + prevcarry */
+		"adcq $0, %%r14 \n\t"
+		"movq %%r14, 16(%%r11)	\n\t"   /* w[2] = carry out */
+
+		:
+	: "r"(u), "r"(v), "r"(w), "r"(n), "r"(rho)
+		: "r10", "rdx", "r11", "r12", "r13", "r14", "cc", "memory");
+
+	return;
+}
+
+void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata)
+{
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64 s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+	//printf("u: %016lx%016lx\n", u[1], u[0]);
+	//printf("v: %016lx%016lx\n", v[1], v[0]);
+	//printf("n: %016lx%016lx\n", mdata->n[1], mdata->n[0]);
+
+	//ciosMul128x(u, v[0], mdata->rho, mdata->n, s);
+	//ciosMul128x(u, v[1], mdata->rho, mdata->n, s);
+	ciosFullMul128x(u, v, mdata->rho, mdata->n, s);
+
+	if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
+	{
+		__asm__(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+			: "r"(s[0]), "r"(s[1]), "r"(mdata->n[0]), "r"(mdata->n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+
+	//printf("final result: %016lx%016lx\n", w[1], w[0]);
+
+	return;
+}
+
+void sqrmod128(uint64 * u, uint64 * w, monty128_t *mdata)
+{
+	// integrate multiply and reduction steps, alternating
+	// between iterations of the outer loops.
+	uint64 s[3];
+
+	s[0] = 0;
+	s[1] = 0;
+	s[2] = 0;
+
+	//ciosMul128x(u, u[0], mdata->rho, mdata->n, s);
+	//ciosMul128x(u, u[1], mdata->rho, mdata->n, s);
+	ciosFullMul128x(u, u, mdata->rho, mdata->n, s);
+
+	if ((s[2]) || (s[1] > mdata->n[1]) || ((s[1] == mdata->n[1]) && (s[0] > mdata->n[0])))
+	{
+		__asm__(
+			"movq %4, %%r11 \n\t"
+			"movq %0, 0(%%r11) \n\t"
+			"movq %1, 8(%%r11) \n\t"
+			"subq %2, 0(%%r11) \n\t"
+			"sbbq %3, 8(%%r11) \n\t"
+			:
+			: "r"(s[0]), "r"(s[1]), "r"(mdata->n[0]), "r"(mdata->n[1]), "r"(w)
+			: "r11", "cc", "memory");
+	}
+	else
+	{
+		w[0] = s[0];
+		w[1] = s[1];
+	}
+
+	return;
+}
+
+void addmod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
+{
+	w[1] = a[1];
+	w[0] = a[0];
+	__asm__(
+		"movq %0, %%r8 \n\t"
+		"movq %1, %%r9 \n\t"
+		"subq %4, %%r8 \n\t"		/* t = x - n */
+		"sbbq %5, %%r9 \n\t"
+		"addq %2, %0 \n\t"			/* x += y */
+		"adcq %3, %1 \n\t"
+		"addq %2, %%r8 \n\t"		/* t += y */
+		"adcq %3, %%r9 \n\t"
+		"cmovc %%r8, %0 \n\t"
+		"cmovc %%r9, %1 \n\t"
+		: "+r"(w[0]), "+r"(w[1])
+		: "r"(b[0]), "r"(b[1]), "r"(n[0]), "r"(n[1])
+		: "r8", "r9", "cc", "memory");
+
+	return;
+}
+
+void submod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
+{
+	__asm__(
+		"movq %6, %%r11 \n\t"
+		"xorq %%r8, %%r8 \n\t"
+		"xorq %%r9, %%r9 \n\t"
+		"movq %0, 0(%%r11) \n\t"
+		"movq %1, 8(%%r11) \n\t"
+		"subq %2, 0(%%r11) \n\t"
+		"sbbq %3, 8(%%r11) \n\t"
+		"cmovc %4, %%r8 \n\t"
+		"cmovc %5, %%r9 \n\t"
+		"addq %%r8, 0(%%r11) \n\t"
+		"adcq %%r9, 8(%%r11) \n\t"
+		"1: \n\t"
+		:
+	: "r"(a[0]), "r"(a[1]), "r"(b[0]), "r"(b[1]), "r"(n[0]), "r"(n[1]), "r"(w)
+		: "r8", "r9", "r11", "cc", "memory");
+
+	return;
+}

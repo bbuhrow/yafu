@@ -24,11 +24,12 @@ code to the public domain.
 #include "yafu.h"
 #include "arith.h"
 #include "util.h"
+#include "monty.h"
 
 //#define NO_ZLIB
 
 #if !defined(NO_ZLIB) && !defined(__MINGW32__) 
-#include <zlib.h>
+#include "zlib.h"
 #else
 #define NO_ZLIB
 #endif
@@ -376,6 +377,10 @@ typedef struct
 	int gbl_override_lpmult_flag;
 	uint32 gbl_override_lpmult;		//override the large prime multiplier
 	int gbl_force_DLP;
+	int gbl_force_TLP;
+	uint32 gbl_override_lpb;		// override the large prime bound (specified in bits)
+	double gbl_override_mfbt;		// override the mfbt exponent
+	double gbl_override_mfbd;		// override the mfbd exponent
 
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
@@ -588,11 +593,15 @@ void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 uint32 test_qn_res[128];
 
 uint64 spbrent(uint64 N, uint64 c, int imax);
+uint64 spbrent64(uint64 N, int imax);
 int mbrent(fact_obj_t *fobj);
+int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32 a, uint32 imax);
 void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
+void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);
+void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();
@@ -602,6 +611,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
+mpz_t * mpqs(mpz_t n, uint32 *num_factors);
 //void tinySIQS(fact_obj_t *fobj);
 int par_shanks_loop(uint64 *N, uint64 *f, int num_in);
 void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);

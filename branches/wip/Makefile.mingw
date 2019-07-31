@@ -54,10 +54,10 @@ endif
 
 ifeq ($(SKYLAKEX),1)
 	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -march=skylake-avx512 
-    CFLAGS += -ffixed-xmm16 -ffixed-xmm17 -ffixed-xmm18 -ffixed-xmm19
-    CFLAGS += -ffixed-xmm20 -ffixed-xmm21 -ffixed-xmm22 -ffixed-xmm23
-    CFLAGS += -ffixed-xmm24 -ffixed-xmm25 -ffixed-xmm26 -ffixed-xmm27
-    CFLAGS += -ffixed-xmm28 -ffixed-xmm29 -ffixed-xmm30 -ffixed-xmm31
+    CFLAGS += -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
+    CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
+    CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
+    CFLAGS += -fcall-used-xmm28 -fcall-used-xmm29 -fcall-used-xmm30 -fcall-used-xmm31
     USE_AVX2=1
     USE_SSE41=1
 #-DUSE_AVX512BW

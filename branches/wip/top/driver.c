@@ -32,7 +32,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 76
+#define NUMOPTIONS 81
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -53,7 +53,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
 	"ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
-    "snfs_xover"};
+    "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
+	"siqsMFBT"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -74,7 +75,9 @@ int needsArg[NUMOPTIONS] = {
 	0,0,0,1,1,
 	1,1,1,1,1,
 	1,0,0,1,1,
-	1,0,1,1};
+	1,0,1,1,1,
+	1,1,0,1,1,
+	1};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -123,6 +126,8 @@ int main(int argc, char *argv[])
     int firstline = 1;
 
 #if defined(__unix__)
+	int i;
+
     static struct termios oldtio, newtio;
     tcgetattr(0, &oldtio);
     newtio = oldtio;
@@ -250,6 +255,7 @@ int main(int argc, char *argv[])
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
+	
 	srand(g_rand.low);
 	gmp_randinit_default(gmp_randstate);
 	gmp_randseed_ui(gmp_randstate, g_rand.low);
@@ -259,6 +265,78 @@ int main(int argc, char *argv[])
 #else
     LCGSTATE = g_rand.low;
 #endif	
+
+	if (0)
+	{
+		// generate a test file of TLP's, where we have three 32-bit factors.
+		uint64 *p, *pbig1, *pbig2;
+		uint64 np;
+		int i;
+		FILE *fid;
+		mpz_t g, h, x;
+
+		mpz_init(g);
+		mpz_init(h);
+		mpz_init(x);
+
+		p = soe_wrapper(spSOEprimes, szSOEp, (1ULL << 31), (1ULL << 31) + (1ULL << 30), 0, &np);
+
+		printf("found %lu primes in range\n", np);
+		fid = fopen("semiprimes_tlp_32x32x32.txt", "w");
+
+		for (i = 0; i < 10000; i++)
+		{
+			uint64 p1 = p[spRand(0, np)];
+			uint64 p2 = p[spRand(0, np)];
+			uint64 p3 = p[spRand(0, np)];
+
+			mpz_set_ui(g, p1);
+			mpz_mul_ui(g, g, p2);
+			mpz_mul_ui(g, g, p3);
+			gmp_fprintf(fid, "%Zd,%u,%u,%u\n", g, p1, p2, p3);
+		}
+
+		fclose(fid);
+
+		fid = fopen("semiprimes_tlp_32x64.txt", "w");
+
+		for (i = 0; i < 10000; i++)
+		{
+			uint64 p1 = p[spRand(0, np)];
+			uint64 p2 = p[spRand(0, np)];
+			uint64 p3 = p[spRand(0, np)];
+
+			mpz_set_ui(g, p2 * p3);
+			mpz_nextprime(g, g);
+			mpz_mul_ui(g, g, p1);
+
+			gmp_fprintf(fid, "%Zd,%lu,%lu\n", g, p1, p2 * p3);
+		}
+
+		fclose(fid);
+
+		fid = fopen("semiprimes_tlp_48x48.txt", "w");
+
+		for (i = 0; i < 10000; i++)
+		{
+			mpz_urandomb(g, gmp_randstate, 48);
+			mpz_nextprime(g, g);
+			mpz_urandomb(h, gmp_randstate, 48);
+			mpz_nextprime(h, h);
+			mpz_mul(x, g, h);
+
+			gmp_fprintf(fid, "%Zd,%Zd,%Zd\n", x, g, h);
+		}
+
+		fclose(fid);
+
+
+		mpz_clear(g);
+		mpz_clear(h);
+		mpz_clear(x);
+	}
+
+	//test_dlp_composites();
 
 	// command line
 	while (1)
@@ -1256,6 +1334,8 @@ void set_default_globals(void)
 	PRIMES_TO_SCREEN = 0;
 	GLOBAL_OFFSET = 0;
     NO_CLK_TEST = 0;
+
+	SOEBLOCKSIZE = 32768;
 	
 	USEBATCHFILE = 0;
 	USERSEED = 0;
@@ -1768,7 +1848,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[8]) == 0)
 	{
-		//argument should be all numeric
+		//argument siqsB should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -1783,7 +1863,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[9]) == 0)
 	{
-		//argument should be all numeric
+		//argument siqsTF should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -1798,7 +1878,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[10]) == 0)
 	{
-		//argument should be all numeric
+		//argument siqsR should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -1813,7 +1893,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[11]) == 0)
 	{
-		//argument should be all numeric
+		//argument siqsT should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -1828,7 +1908,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[12]) == 0)
 	{
-		//argument should be all numeric
+		//argument siqsNB should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -1843,7 +1923,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[13]) == 0)
 	{
-		//argument should be all numeric
+		// argument siqsM should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
 			if (!isdigit(arg[i]))
@@ -2427,6 +2507,35 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
         sscanf(arg, "%lf", &fobj->autofact_obj.qs_snfs_xover);
         fobj->autofact_obj.prefer_xover = 1;
     }
+	else if (strcmp(opt, OptionArray[76]) == 0)
+	{
+		//argument "soe_block"
+		SOEBLOCKSIZE = strtoul(arg, NULL, 10);
+	}
+	else if (strcmp(opt, OptionArray[77]) == 0)
+	{
+		fobj->qs_obj.gbl_force_TLP = 1;
+	}
+	else if (strcmp(opt, OptionArray[78]) == 0)
+	{
+		//argument "siqsLPB"
+		// the maximum allowed large prime, in bits, in SIQS
+		sscanf(arg, "%d", &fobj->qs_obj.gbl_override_lpb);
+	}
+	else if (strcmp(opt, OptionArray[79]) == 0)
+	{
+		//argument "siqsMFBD"
+		// the exponent of the large prime bound such that residues larger than
+		// lpb^siqsMFBD are subjected to double large prime factorization attempts
+		sscanf(arg, "%lf", &fobj->qs_obj.gbl_override_mfbd);
+	}
+	else if (strcmp(opt, OptionArray[80]) == 0)
+	{
+		//argument "siqsMFBT"
+		// the exponent of the large prime bound such that residues larger than
+		// lpb^siqsMFBT are subjected to triple large prime factorization attempts
+		sscanf(arg, "%lf", &fobj->qs_obj.gbl_override_mfbt);
+	}
 	else
 	{
 		printf("invalid option %s\n",opt);

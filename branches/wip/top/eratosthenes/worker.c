@@ -101,13 +101,13 @@ void *soe_worker_thread_main(void *thread_data) {
         {
             t->sdata.lines[t->current_line] = 
                 (uint8 *)xmalloc_align(t->sdata.numlinebytes * sizeof(uint8));
-            sieve_line(t);
+            sieve_line_ptr(t);
             t->linecount = count_line(&t->sdata, t->current_line);
             free(t->sdata.lines[t->current_line]);
         }
         else if (t->command == SOE_COMMAND_SIEVE_AND_COMPUTE)
         {
-            sieve_line(t);
+            sieve_line_ptr(t);
         }
         else if (t->command == SOE_COMPUTE_ROOTS)
         {
@@ -288,13 +288,13 @@ void *soe_worker_thread_main(void *thread_data) {
 		{
 			t->sdata.lines[t->current_line] = 
 				(uint8 *)malloc(t->sdata.numlinebytes * sizeof(uint8));
-			sieve_line(t);
+			sieve_line_ptr(t);
 			t->linecount = count_line(&t->sdata, t->current_line);
 			free(t->sdata.lines[t->current_line]);
 		}
 		else if (t->command == SOE_COMMAND_SIEVE_AND_COMPUTE)
 		{
-			sieve_line(t);
+			sieve_line_ptr(t);
 		}
 		else if (t->command == SOE_COMPUTE_ROOTS)
 		{

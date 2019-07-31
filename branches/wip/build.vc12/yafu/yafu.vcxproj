@@ -265,8 +265,10 @@
   <ItemGroup>
     <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
@@ -376,6 +378,7 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
+    <ClInclude Include="..\..\top\queue.h" />
     <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>

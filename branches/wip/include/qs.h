@@ -26,6 +26,8 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 #include "common.h"
+#include "monty.h"
+#include "cofactorize.h"
 
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
@@ -55,7 +57,7 @@ code to the public domain.
 #if (defined(USE_AVX512F) && defined(__INTEL_COMPILER))
 // this is the only path that will make use of AVX512 (via auto-vec)
 // for others, it is faster and easier to use the new superfast spBrent.
-#define USE_VEC_SQUFOF
+// #define USE_VEC_SQUFOF
 #endif
 
 //#define QS_TIMING
@@ -193,7 +195,7 @@ typedef struct
 /************************* SIQS types and functions *****************/
 typedef struct
 {
-	uint32 large_prime[2];		//large prime in the pd.
+	uint32 large_prime[3];		//large prime in the pd.
 	uint32 sieve_offset;		//offset specifying Q (the quadratic polynomial)
 	uint32 poly_idx;			//which poly this relation uses
 	uint32 parity;				//the sign of the offset (x) 0 is positive, 1 is negative
@@ -355,7 +357,12 @@ typedef struct {
 	uint32 large_prime_max;		// the cutoff value for keeping a partial
 								// relation; actual value, not a multiplier
 	uint64 max_fb2;					// the square of the largest factor base prime 
-	uint64 large_prime_max2;			// the cutoff value for factoring partials 
+	uint64 large_prime_max2;			// the cutoff value for factoring dlp-partials 
+	double dlp_exp;
+
+	double max_fb3;					// the cube of the largest factor base prime 
+	double large_prime_max3;			// the cutoff value for factoring tlp-partials 
+	double tlp_exp;
 
 	//master list of cycles
 	qs_cycle_t *cycle_table;		/* list of all the vertices in the graph */
@@ -367,8 +374,10 @@ typedef struct {
 	uint32 num_relations;		/* number of relations in list */
 	uint32 num_cycles;			/* number of cycles in list */
 	uint32 num_r;				// total relations found
-	uint32 num;					// sieve locations we've subjected to trial division
+	uint64 num;					// sieve locations we've subjected to trial division
     uint32 num_found;
+	uint32 num_slp;
+	uint32 num_full;
 
 	//used to check on progress of the factorization	
 	struct timeval update_start;	// time at which we last assessed the situation
@@ -379,18 +388,25 @@ typedef struct {
 	uint32 last_numfull;		// relations found since the last update as a guide
 	uint32 last_numpartial;		// to when to assess the situation
 	uint32 last_numcycles;		// used in computing rels/sec
+	double last_fullrate;		// used in tlp to predict relations/batch
+	double last_cycrate;		// used in tlp to predict relations/batch
 	uint32 num_needed;
 	uint32 num_expected;
 	int charcount;				// characters on the screen
 	uint32 tot_poly;
 	uint32 failed_squfof;
 	uint32 attempted_squfof;
+	uint32 failed_cosiqs;
+	uint32 attempted_cosiqs;
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
-    uint32 total_reports;
-    uint32 total_surviving_reports;
-    uint32 total_blocks;
+	uint32 tlp_outside_range;
+	uint32 tlp_prp;
+	uint32 tlp_useful;
+    uint64 total_reports;
+    uint64 total_surviving_reports;
+    uint64 total_blocks;
     uint32 lp_scan_failures;
 
 	//master time record
@@ -464,12 +480,24 @@ typedef struct {
 	int *smooth_num;			//how many factors are there for each valid Q
 	uint32 failed_squfof;
 	uint32 attempted_squfof;
+	uint32 num_slp;
+	uint32 num_full;
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
-    uint32 total_reports;
-    uint32 total_surviving_reports;
-    uint32 total_blocks;
+	uint32 failed_cosiqs;
+	uint32 attempted_cosiqs;
+	uint32 tlp_outside_range;
+	uint32 tlp_prp;
+	uint32 tlp_useful;
+    uint64 total_reports;
+    uint64 total_surviving_reports;
+    uint64 total_blocks;
+
+	// various things to support tlp co-factorization
+	monty_t *mdata;		// monty brent attempt
+	fact_obj_t *fobj2;	// smallmpqs attempt
+	tiny_qs_params *cosiqs;
 
 #ifdef USE_8X_MOD_ASM
 	uint16 *bl_sizes;
@@ -496,7 +524,7 @@ typedef struct {
 
 	//counters and timers
     uint32 lp_scan_failures;
-	uint32 num;					// sieve locations we've subjected to trial division
+	uint64 num;					// sieve locations we've subjected to trial division
 	double rels_per_sec;
 
 	char buf[512];
@@ -648,14 +676,25 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf);
 uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
 				uint32 num_relations,
 				qs_cycle_t *table, uint32 *hashtable);
+uint32 qs_purge_singletons3(fact_obj_t *obj, siqs_r *list,
+	uint32 num_relations,
+	qs_cycle_t *table, uint32 *hashtable);
 uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 				siqs_r *rlist, 
 				uint32 num_relations);
+uint32 qs_purge_duplicate_relations3(fact_obj_t *obj,
+	siqs_r *rlist,
+	uint32 num_relations);
 void qs_enumerate_cycle(fact_obj_t *obj, 
 			    qs_la_col_t *c, 
 			    qs_cycle_t *table,
 			    qs_cycle_t *entry1, qs_cycle_t *entry2,
 			    uint32 final_relation);
+void qs_enumerate_cycle3(fact_obj_t *obj,
+	qs_la_col_t *c,
+	qs_cycle_t *table,
+	qs_cycle_t *entry1, qs_cycle_t *entry2, qs_cycle_t *entry3,
+	uint32 final_relation);
 int yafu_sort_cycles(const void *x, const void *y);
 
 //aux
@@ -756,7 +795,9 @@ uint32 yafu_factor_list_add(fact_obj_t *obj,
 /* pull out the large primes from a relation read from
    the savefile */
 void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relations);
+void rebuild_graph3(static_conf_t *sconf, siqs_r *relation_list, int num_relations);
 void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
+void yafu_read_tlp(char *buf, uint32 *primes);
 
 /* given the primes from a sieve relation, add
    that relation to the graph used for tracking
@@ -764,6 +805,12 @@ void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
 
 void yafu_add_to_cycles3(static_conf_t *conf, uint32 flags, uint32 *primes);
 void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2);
+
+qs_la_col_t * find_cycles(fact_obj_t *obj, uint32 *hashtable, qs_cycle_t *table,
+	siqs_r *relation_list, uint32 num_relations, uint32 *numcycles, uint32 *numpasses);
+
+qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
+	siqs_r *relation_list, uint32 num_relations, uint32 *numcycles, uint32 *numpasses);
 
 /* perform postprocessing on a list of relations */
 void yafu_qs_filter_relations(static_conf_t *sconf);

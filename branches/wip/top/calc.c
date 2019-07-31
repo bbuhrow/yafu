@@ -1701,7 +1701,7 @@ static char func[NUM_FUNC][11] = {
     "xor", "and", "or", "not", "frange",
     "bpsw", "aprcl", "lte", "gte", "<",
     ">", "dummy", "if", "print", "for",
-    "forprime", "exit", "forfactors", "dummy", "dummy",
+    "forprime", "exit", "forfactors", "abs", "dummy",
     "dummy", "dummy", "dummy", "dummy", "dummy",
     "dummy", "dummy", "dummy", "dummy", "dummy",
     "dummy", "dummy", "dummy", "dummy", "dummy",
@@ -1723,7 +1723,7 @@ static int args[NUM_FUNC] = {
     2, 2, 2, 1, 2,
     1, 1, 2, 2, 2,
     2, 2, 3, 1, 4,
-    3, 0, 2, -1, -1,
+    3, 0, 2, 1, -1,
     -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1,
@@ -2483,7 +2483,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 
 		break;
 	case 53:
-		//testrange - 4 arguments
+		//testrange - 4 arguments (low, high, depth, witnesses)
         if (check_args(funcnum, nargs)) break;
 
         // move to soe library...
@@ -3337,6 +3337,13 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
         }
 
         break;
+
+	case 78:
+		// abs
+		if (check_args(funcnum, nargs)) break;
+		mpz_abs(operands[0], operands[0]);
+
+		break;
 
 	default:
 		printf("unrecognized function code\n");

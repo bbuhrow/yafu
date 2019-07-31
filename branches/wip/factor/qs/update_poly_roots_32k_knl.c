@@ -130,6 +130,11 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC/2;
 
+		if (VFLAG > 2)
+		{
+			printf("commencing 1\n");
+		}
+
         logp = update_data.logp[med_B];
         for (j=med_B;j<large_B;j+=16,ptr+=16)				
         {			
@@ -395,6 +400,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                         
         }
 
+		if (VFLAG > 2)
+		{
+			printf("commencing 2\n");
+		}
 
         logp = update_data.logp[j - 1];
         for (j = large_B; j<bound; j += 16, ptr += 16)
@@ -459,37 +468,38 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             if (_mm_popcnt_u32(mask1) > KNL_XLARGE_METHOD_1_CUTOFF)
             {                
-
-            // get the conflicted indices.  Note that the mask is a *writemask*... all
-            // lanes will participate in the read and conflict instruction.  
-            vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
-            
-            // identify the location of the last index of each unique block.  This location
-            // will eventually hold the largest increment for each unique block.
-            munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
-            
-            // gather the num_p values for the blocks that are hit
-            vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
-
-            // try scatter prefetching?
+				
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+                
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+                
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
+			    
+                // try scatter prefetching?
 #ifdef KNL_SCATTER_PREFETCH
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
-            _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
 #endif
 
-            // start out having "processed" those indices that don't hit the interval.
-            mNotProc = mask1;
-            #ifdef XLARGE_BUCKET_DEBUG
-            printf("begin CFGS loop1: unique mask = %08x\n", munique);
-            k = 0;
-            #endif
-            while (mNotProc != 0)   
-            {     
-              
-              // set a mask of non-conflicted indices that are also interval hits
-              mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-              
-              #ifdef XLARGE_BUCKET_DEBUG
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+                #ifdef XLARGE_BUCKET_DEBUG
+                    printf("begin CFGS loop1: unique mask = %08x\n", munique);
+                    k = 0;
+                #endif
+
+                while (mNotProc != 0)   
+                {     
+                  
+                     // set a mask of non-conflicted indices that are also interval hits
+                     mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                     
+                     #ifdef XLARGE_BUCKET_DEBUG
               _mm512_store_epi32((__m512i *)b1, vbnum1);
               printf("CF mask = %08x for processed %08x and blocknums: ", mconflictfree, mprocessed);
               for (i = 15; i >= 0; i--)
@@ -510,57 +520,57 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
               k++;
               if (k > 16)
                 break;
-              #endif
+                     #endif
+			         
+                     // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+                     
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                     vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                     
+                     // remove the lanes we wrote this time
+                     mNotProc &= (~mconflictfree);
+			         
+                     // increment the counters that are still conflicted
+                     vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
 
-              // write the bucket elements.
-              // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
-              // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
-              //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
-              
-              // adjust the conflict masks (clear the conflicted bits that we've just identified)
-              vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-              
-              // remove the lanes we wrote this time
-              mNotProc &= (~mconflictfree);
-
-              // increment the counters that are still conflicted
-              vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
-            }
-
-            // compute the bucket indices
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
-            _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
-              
-            // update the num_p values (increment)
-            vnum = _mm512_add_epi32(vnum, vone);
-            _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
-            
-            #ifdef XLARGE_BUCKET_DEBUG
-            printf("final vnum: \n");
-            _mm512_store_epi32((__m512i *)e1, vnum);
-            for (i = 15; i >= 0; i--)
-              printf("%u ", e1[i]);
-            printf("\n");
-            exit(1);
-            #endif
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
+                  
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+                
+                #ifdef XLARGE_BUCKET_DEBUG
+                printf("final vnum: \n");
+                _mm512_store_epi32((__m512i *)e1, vnum);
+                for (i = 15; i >= 0; i--)
+                    printf("%u ", e1[i]);
+                printf("\n");
+                exit(1);
+                #endif
             
             }
             else
             {
               
-              _mm512_store_epi32((__m512i *)b1, vbnum1);
-              _mm512_store_epi32((__m512i *)e1, velement1);
-
-              // extra big roots are much easier because they hit at most once
-              // in the entire +side interval.  no need to iterate.
-              while (mask1 > 0)  
-              {
-                  idx = _trail_zcnt(mask1);
-                  bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
-                  *bptr = e1[idx];
-                  numptr_p[b1[idx]]++;
-                  mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
-              }
+                 _mm512_store_epi32((__m512i *)b1, vbnum1);
+                 _mm512_store_epi32((__m512i *)e1, velement1);
+			     
+                 // extra big roots are much easier because they hit at most once
+                 // in the entire +side interval.  no need to iterate.
+                 while (mask1 > 0)  
+                 {
+                     idx = _trail_zcnt(mask1);
+                     bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                     *bptr = e1[idx];
+                     numptr_p[b1[idx]]++;
+                     mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+                 }
 
             }
 
@@ -573,43 +583,43 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             if (_mm_popcnt_u32(mask2) > KNL_XLARGE_METHOD_1_CUTOFF)
             {
 
-            vindex = _mm512_mask_conflict_epi32(vzero, mask2, vbnum2);
-            munique = ~_mm512_mask_reduce_or_epi32(mask2, vindex);
-            vnum = _mm512_mask_i32gather_epi32(vzero, mask2, vbnum2, numptr_p, _MM_SCALE_4);
-
+                vindex = _mm512_mask_conflict_epi32(vzero, mask2, vbnum2);
+                munique = ~_mm512_mask_reduce_or_epi32(mask2, vindex);
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask2, vbnum2, numptr_p, _MM_SCALE_4);
+			    
 #ifdef KNL_SCATTER_PREFETCH
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
-            _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask2, vaddr, 4, KNL_SCATTER_PREFETCH);
-            //_mm512_mask_prefetch_i32scatter_ps(numptr_p, munique & mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
+				vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
+				_mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask2, vaddr, 4, KNL_SCATTER_PREFETCH);
+				//_mm512_mask_prefetch_i32scatter_ps(numptr_p, munique & mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
 
-            mNotProc = mask2;
-            while (mNotProc != 0)   
-            {     
-              mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-              vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-              mNotProc &= (~mconflictfree);
-              vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
-            }
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
-            _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
-            vnum = _mm512_add_epi32(vnum, vone);
-            _mm512_mask_i32scatter_epi32(numptr_p, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
-            }
-            else
-            {
-              _mm512_store_epi32((__m512i *)b2, vbnum2);
-              _mm512_store_epi32((__m512i *)e2, velement2);
+				mNotProc = mask2;
+				while (mNotProc != 0)   
+				{     
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+				}
+				vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
+				_mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
+				vnum = _mm512_add_epi32(vnum, vone);
+				_mm512_mask_i32scatter_epi32(numptr_p, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
+			}
+			else
+			{
+				_mm512_store_epi32((__m512i *)b2, vbnum2);
+				_mm512_store_epi32((__m512i *)e2, velement2);
 
-              while (mask2 > 0)  
-              {
-                  idx = _trail_zcnt(mask2);
-                  bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
-                  *bptr = e2[idx];
-                  numptr_p[b2[idx]]++;
-                  mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
-              }
-            }
+				while (mask2 > 0)  
+				{
+				    idx = _trail_zcnt(mask2);
+				    bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
+				    *bptr = e2[idx];
+				    numptr_p[b2[idx]]++;
+				    mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
+				}
+			}
             
             // and the -side roots; same story.
             vroot1 = _mm512_sub_epi32(vprime, vroot1);
@@ -630,9 +640,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             if (_mm_popcnt_u32(mask1) > KNL_XLARGE_METHOD_1_CUTOFF)
             {
-            vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
-            munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
-            vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
+				vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+				munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+				vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
 
 #ifdef KNL_SCATTER_PREFETCH
             vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
@@ -640,32 +650,32 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             //_mm512_mask_prefetch_i32scatter_ps(numptr_n, munique & mask1, vbnum1, 4, KNL_SCATTER_PREFETCH);
 #endif
 
-            mNotProc = mask1;
-            while (mNotProc != 0)   
-            {     
-              mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-              vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-              mNotProc &= (~mconflictfree);
-              vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
-            }
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
-            _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
-            vnum = _mm512_add_epi32(vnum, vone);
-            _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+				mNotProc = mask1;
+				while (mNotProc != 0)   
+				{     
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+				}
+				vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+				_mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
+				vnum = _mm512_add_epi32(vnum, vone);
+				_mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
             }
             else
             {
-              _mm512_store_epi32((__m512i *)b1, vbnum1);
-              _mm512_store_epi32((__m512i *)e1, velement1);
-              
-              while (mask1 > 0)  
-              {
-                  idx = _trail_zcnt(mask1);
-                  bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
-                  *bptr = e1[idx];
-                  numptr_n[b1[idx]]++;
-                  mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
-              }
+				_mm512_store_epi32((__m512i *)b1, vbnum1);
+				_mm512_store_epi32((__m512i *)e1, velement1);
+				
+				while (mask1 > 0)  
+				{
+				    idx = _trail_zcnt(mask1);
+				    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+				    *bptr = e1[idx];
+				    numptr_n[b1[idx]]++;
+				    mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+				}
             }
             
 #ifdef KNL_SCATTER_PREFETCH_NUM
@@ -674,9 +684,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             if (_mm_popcnt_u32(mask2) > KNL_XLARGE_METHOD_1_CUTOFF)
             {
-            vindex = _mm512_mask_conflict_epi32(vzero, mask2, vbnum2);
-            munique = ~_mm512_mask_reduce_or_epi32(mask2, vindex);
-            vnum = _mm512_mask_i32gather_epi32(vzero, mask2, vbnum2, numptr_n, _MM_SCALE_4);
+				vindex = _mm512_mask_conflict_epi32(vzero, mask2, vbnum2);
+				munique = ~_mm512_mask_reduce_or_epi32(mask2, vindex);
+				vnum = _mm512_mask_i32gather_epi32(vzero, mask2, vbnum2, numptr_n, _MM_SCALE_4);
 
 #ifdef KNL_SCATTER_PREFETCH
             vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
@@ -684,32 +694,32 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             //_mm512_mask_prefetch_i32scatter_ps(numptr_n, munique & mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
 
-            mNotProc = mask2;
-            while (mNotProc != 0)   
-            {     
-              mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-              vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-              mNotProc &= (~mconflictfree);
-              vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
-            }
-            vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
-            _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
-            vnum = _mm512_add_epi32(vnum, vone);
-            _mm512_mask_i32scatter_epi32(numptr_n, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
+				mNotProc = mask2;
+				while (mNotProc != 0)   
+				{     
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+				}
+				vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
+				_mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
+				vnum = _mm512_add_epi32(vnum, vone);
+				_mm512_mask_i32scatter_epi32(numptr_n, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
             }
             else
             {
-              _mm512_store_epi32((__m512i *)b2, vbnum2);
-              _mm512_store_epi32((__m512i *)e2, velement2);
-              
-              while (mask2 > 0)  
-              {
-                  idx = _trail_zcnt(mask2);
-                  bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
-                  *bptr = e2[idx];
-                  numptr_n[b2[idx]]++;
-                  mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
-              }
+				_mm512_store_epi32((__m512i *)b2, vbnum2);
+				_mm512_store_epi32((__m512i *)e2, velement2);
+				
+				while (mask2 > 0)  
+				{
+				    idx = _trail_zcnt(mask2);
+				    bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
+				    *bptr = e2[idx];
+				    numptr_n[b2[idx]]++;
+				    mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
+				}
             }
 
         }
@@ -728,6 +738,11 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_index = 0;
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC / 2;
+
+		if (VFLAG > 2)
+		{
+			printf("commencing 1n\n");
+		}
 
         logp = update_data.logp[med_B];
         for (j = med_B; j<large_B; j += 16, ptr += 16)
@@ -1002,6 +1017,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
  
         }
 
+		if (VFLAG > 2)
+		{
+			printf("commencing 2n\n");
+		}
 
         logp = update_data.logp[j - 1];
         for (j = large_B; j<bound; j += 16, ptr += 16)
@@ -1112,10 +1131,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -1169,10 +1188,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask1;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -1214,10 +1233,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -1409,10 +1428,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask1;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, vidx, _MM_SCALE_4);
@@ -1464,10 +1483,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, vidx, _MM_SCALE_4);
@@ -1519,10 +1538,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask1;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, vidx, _MM_SCALE_4);
@@ -1574,10 +1593,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, vidx, _MM_SCALE_4);
@@ -1648,10 +1667,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask1;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, vidx, _MM_SCALE_4);
@@ -1703,10 +1722,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, vidx, _MM_SCALE_4);
@@ -1758,10 +1777,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask1;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, vidx, _MM_SCALE_4);
@@ -1813,10 +1832,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mNotProc = mask2;
                 while (mNotProc != 0)   
                 {     
-                  mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                  vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                  mNotProc &= (~mconflictfree);
-                  vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+					mNotProc &= (~mconflictfree);
+					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, vidx, _MM_SCALE_4);
@@ -2008,10 +2027,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask1;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2051,10 +2070,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask2;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2105,10 +2124,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask1;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2148,10 +2167,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask2;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2211,10 +2230,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask1;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2254,10 +2273,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask2;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2308,10 +2327,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask1;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2351,10 +2370,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mNotProc = mask2;
                     while (mNotProc != 0)   
                     {     
-                      mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-                      vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-                      mNotProc &= (~mconflictfree);
-                      vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+						mNotProc &= (~mconflictfree);
+						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
