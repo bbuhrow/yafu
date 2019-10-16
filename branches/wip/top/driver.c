@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 	strcpy(input_exp,"");
     strcpy(input_line, "");
 	
-	//set defaults for various things
+	// set defaults for various things
 	set_default_globals();
 
 	// a factorization object that gets passed around to any factorization routine
@@ -166,10 +166,9 @@ int main(int argc, char *argv[])
     get_computer_info(CPU_ID_STR);
 #endif
 
-	//now check for an .ini file, which will override these defaults
-	//command line arguments will override the .ini file
-	readINI(fobj);	
-
+    // now check for an .ini file, which will override these defaults
+    // command line arguments will override the .ini file
+    readINI(fobj);
 
 #if !defined( TARGET_KNC )
     // now that we've processed arguments, spit out vproc info if requested
@@ -362,7 +361,10 @@ int main(int argc, char *argv[])
             if (scriptfile != NULL)
             {
                 if (fgets(input_line, GSTR_MAXSIZE, scriptfile) == NULL)
-                    break;
+                {
+                    //    break;
+                }
+                
             }
         }
 		else if (!is_cmdline_run)
@@ -443,7 +445,23 @@ int main(int argc, char *argv[])
             else if (scriptfile != NULL)
             {
                 if (feof(scriptfile))
-                    break;
+                {
+                    if (CMD_LINE_REPEAT > 0)
+                    {
+                        CMD_LINE_REPEAT--;
+                        fclose(scriptfile);
+                        scriptfile = fopen(scriptname, "r");
+                        if (scriptfile == NULL)
+                        {
+                            printf("could not find %s\n", scriptname);
+                            exit(1);
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
             }
 			else if (CMD_LINE_REPEAT > 0)
 			{
@@ -2550,6 +2568,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 {
 	int i,j;
 	char cpustr[80], osstr[80];
+    int xover;
 
 	//read up to the first comma - this is the cpu id string
 	j=0;
@@ -2575,8 +2594,11 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 	osstr[j] = '\0';
 
 	//printf("found OS = %s and CPU = %s in tune_info field, this cpu is %s\n",
- //       osstr, cpustr, CPU_ID_STR);
+    //    osstr, cpustr, CPU_ID_STR);
 
+    // "xover" trumps tune info.  I.e., if a specific crossover has been
+    // specified, prefer this to whatever may be in the tune_info string.
+    xover = fobj->autofact_obj.qs_gnfs_xover;
 
 #if defined(_WIN64)
 	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
@@ -2628,6 +2650,10 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 	//	fobj->qs_obj.qs_multiplier, fobj->qs_obj.qs_exponent,
 	//	fobj->nfs_obj.gnfs_multiplier, fobj->nfs_obj.gnfs_exponent, 
 	//	fobj->autofact_obj.qs_gnfs_xover, fobj->qs_obj.qs_tune_freq);
+
+    // restore the user's xover if preferred.
+    if (fobj->autofact_obj.prefer_xover)
+        fobj->autofact_obj.qs_gnfs_xover = xover;
 
 	return;
 }

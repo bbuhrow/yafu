@@ -1315,6 +1315,20 @@ int check_tune_params(fact_obj_t *fobj)
 		fobj->nfs_obj.gnfs_exponent == 0 || 
 		fobj->nfs_obj.gnfs_tune_freq == 0)
 	{
+        if (VFLAG >= 0)
+        {
+            printf("check tune params contained invalid parameter(s), ignoring tune info.\n");
+        }
+
+        if (VFLAG > 0)
+        {
+            printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
+            printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
+            printf("\tqs_freq = %e\n", fobj->qs_obj.qs_tune_freq);
+            printf("\tnfs_mult = %e\n", fobj->nfs_obj.gnfs_multiplier);
+            printf("\tnfs_exp = %e\n", fobj->nfs_obj.gnfs_exponent);
+            printf("\tnfs_freq = %e\n", fobj->nfs_obj.gnfs_tune_freq);
+        }
 		return 0;
 	}
 
@@ -2306,8 +2320,10 @@ void factor(fact_obj_t *fobj)
 	{
         if (fobj->autofact_obj.prefer_xover)
         {
-            logprint(flog, "overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+            logprint(flog, "using specified qs/gnfs crossover of %1.0f digits\n",
                 fobj->autofact_obj.qs_gnfs_xover);
+            logprint(flog, "using specified qs/snfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_snfs_xover);
         }
         else
         {
@@ -2358,8 +2374,10 @@ void factor(fact_obj_t *fobj)
 		{
             if (fobj->autofact_obj.prefer_xover)
             {
-                printf("fac: overriding tune info with qs/gnfs crossover of %1.0f digits\n",
+                printf("fac: using specified qs/gnfs crossover of %1.0f digits\n",
                     fobj->autofact_obj.qs_gnfs_xover);
+                printf("fac: using specified qs/snfs crossover of %1.0f digits\n",
+                    fobj->autofact_obj.qs_snfs_xover);
             }
             else
             {

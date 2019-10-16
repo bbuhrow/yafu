@@ -1350,8 +1350,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             snfs_copy_poly(poly, polys);		// copy algebraic form
 
             // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
-            // the quadratic can be converted into a sextic...
-            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            // the quadratic can be converted into a sextic in q with k = 3q + 1.
+            // (this brings in factors of base2 in hcunn forms).
             k = (poly->exp1 - 3) / 9;
 
             mpz_set(polys->c[6], poly->base1);
@@ -1359,7 +1359,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             mpz_set_si(polys->c[3], -poly->coeff2);
             mpz_mul(polys->c[3], polys->c[3], poly->base1);
             mpz_mul(polys->c[3], polys->c[3], poly->base2);
-            mpz_set_ui(polys->c[0], 1);
+            mpz_mul(polys->c[0], poly->base2, poly->base2);
 
             polys->poly->skew = pow(mpz_get_d(poly->base1) / mpz_get_d(poly->base2), -1. / 3.);
             polys->difficulty = log10(mpz_get_d(m)) * (6. * k + 2);
@@ -1373,8 +1373,8 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
             snfs_copy_poly(poly, polys);		// copy algebraic form
 
             // a^(3k) +/- 1, k odd, is divisible by (a^k +/- 1) giving a quadratic in a^k.
-            // the quadratic can be converted into a sextic...
-            // see: http://www.mersennewiki.org/index.php/SNFS_Polynomial_Selection
+            // the quadratic can be converted into a sextic in q with k = 3q - 1.
+            // (this brings in factors of base2 in hcunn forms).
             k = (poly->exp1 + 3) / 9;
 
             mpz_mul(polys->c[6], poly->base2, poly->base2);
