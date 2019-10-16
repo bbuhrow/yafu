@@ -15,6 +15,7 @@ double best_linear_fit(double *x, double *y, int numpts,
 	double *slope, double *intercept);
 void update_INI(double mult, double exponent, double mult2, double exponent2, double xover);
 void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
+void check_siever(fact_obj_t* fobj, char* sname, int siever);
 
 //----------------------- TUNE ENTRY POINT ------------------------------------//
 void factor_tune(fact_obj_t *inobj)
@@ -33,6 +34,7 @@ void factor_tune(fact_obj_t *inobj)
 	// should be repeated.
 	char siqslist[9][200];
 	char nfslist[6][200];
+    char sievername[1024];
 	z n;
 	int i, tmpT;
 	struct timeval stop;	// stop time of this job
@@ -66,6 +68,16 @@ void factor_tune(fact_obj_t *inobj)
 	if (THREADS != 1)
 		printf("Setting THREADS = 1 for tuning\n");
 	THREADS = 1;
+
+    if (VFLAG >= 0)
+        printf("checking for NFS sievers... ");
+
+    check_siever(inobj, sievername, 11);
+    check_siever(inobj, sievername, 12);
+    check_siever(inobj, sievername, 13);
+
+    if (VFLAG >= 0)
+        printf("done.\n");
 
 #if defined(USE_AVX2) || defined(USE_SSE41)
     // as of version 1.35, c70 and above use DLP in SIQS for these CPUs:
@@ -152,7 +164,7 @@ void factor_tune(fact_obj_t *inobj)
 	// for each of the gnfs inputs
 	for (i=0; i<NUM_GNFS_PTS; i++)
 	{
-		char syscmd[1024], sievername[1024];
+		char syscmd[1024];
 		FILE *in;
 		uint32 startq, qrange;		
 		double t_time2, d;
@@ -272,7 +284,7 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 
 void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
 {
-	FILE *out, *test;
+	FILE *out;
 	int siever;
 
 	out = fopen("tune.job","w");
@@ -440,41 +452,50 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 
 	}
 
-	switch (siever)
-	{
-	case 11:
-		sprintf(sname, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 12:
-		sprintf(sname, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 13:
-		sprintf(sname, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 14:
-		sprintf(sname, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 15:
-		sprintf(sname, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	}
-
-#if defined(WIN32)
-	sprintf(sname, "%s.exe", sname);
-#endif
-
-	// test for existence of the siever
-	test = fopen(sname, "rb");
-	if (test == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not find %s, bailing\n",sname);
-		exit(-1);
-	}
+    check_siever(fobj, sname, siever);
 	
 	fclose(out);
 
 	return;
+}
+
+void check_siever(fact_obj_t *fobj, char* sname, int siever)
+{
+    FILE* test;
+
+    switch (siever)
+    {
+    case 11:
+        sprintf(sname, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 12:
+        sprintf(sname, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 13:
+        sprintf(sname, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 14:
+        sprintf(sname, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 15:
+        sprintf(sname, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    }
+
+#if defined(WIN32)
+    sprintf(sname, "%s.exe", sname);
+#endif
+
+    // test for existence of the siever
+    test = fopen(sname, "rb");
+    if (test == NULL)
+    {
+        printf("fopen error: %s\n", strerror(errno));
+        printf("could not find %s, bailing\n", sname);
+        exit(-1);
+    }
+
+    return;
 }
 
 void update_INI(double mult, double exponent, double mult2, double exponent2, double xover)
