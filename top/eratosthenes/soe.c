@@ -834,13 +834,13 @@ void finalize_sieve(soe_staticdata_t *sdata,
 	}
 	else
 	{
-		//now we need to raster vertically down the lines and horizontally
-		//across the lines in order to compute the primes in order.
+		// now we need to raster vertically down the lines and horizontally
+		// across the lines in order to compute the primes in order.
 
-		//first put in any sieve primes if necessary.
-		//if we are in this loop, and we are sieving a range, then offset
-		//is a single precision number and we need to increment the 'prime'
-		//we found above by it.
+		// first put in any sieve primes if necessary.
+		// if we are in this loop, and we are sieving a range, then offset
+		// is a single precision number and we need to increment the 'prime'
+		// we found above by it.
 		uint64 ui_offset;
 			
 		if (sdata->sieve_range)
@@ -860,8 +860,8 @@ void finalize_sieve(soe_staticdata_t *sdata,
 		if (sdata->sieve_range)
 			sdata->min_sieved_val += ui_offset;
 
-		//PRIMES is already sized appropriately by the wrapper
-		//load in the sieve primes that we need
+		// PRIMES is already sized appropriately by the wrapper
+		// load in the sieve primes that we need
 		j = 0;
 		i = 0;
 		while (((uint64)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
@@ -876,7 +876,7 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 	}
 
-	//update count of found primes
+	// update count of found primes
 	sdata->num_found = num_p;
 
 	for (i=0; i<THREADS; i++)

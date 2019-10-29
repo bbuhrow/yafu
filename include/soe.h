@@ -76,17 +76,17 @@ enum soe_command {
 #ifdef USE_AVX2
 
 #ifdef USE_AVX512F
-ALIGNED_MEM uint64 presieve_largemasks[16][173][8];
-ALIGNED_MEM uint32 presieve_steps[32];
-ALIGNED_MEM uint32 presieve_primes[32];
-ALIGNED_MEM uint32 presieve_p1[32];
+extern ALIGNED_MEM uint64 presieve_largemasks[16][173][8];
+extern ALIGNED_MEM uint32 presieve_steps[32];
+extern ALIGNED_MEM uint32 presieve_primes[32];
+extern ALIGNED_MEM uint32 presieve_p1[32];
 
 #else
 // for storage of presieving lists from prime index 24 to 40 (97 to 173 inclusive)
-ALIGNED_MEM uint64 presieve_largemasks[16][173][4];
-ALIGNED_MEM uint32 presieve_steps[32];
-ALIGNED_MEM uint32 presieve_primes[32];
-ALIGNED_MEM uint32 presieve_p1[32];
+extern ALIGNED_MEM uint64 presieve_largemasks[16][173][4];
+extern ALIGNED_MEM uint32 presieve_steps[32];
+extern ALIGNED_MEM uint32 presieve_primes[32];
+extern ALIGNED_MEM uint32 presieve_p1[32];
 #endif
 
 // macros for Montgomery arithmetic - helpful for computing 
@@ -398,7 +398,7 @@ void (*pre_sieve_ptr)(soe_dynamicdata_t *, soe_staticdata_t *, uint8 *);
 
 uint32 compute_8_bytes(soe_staticdata_t *sdata,
     uint32 pcount, uint64 *primes, uint64 byte_offset);
-uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
+uint32 compute_8_bytes_bmi2(soe_staticdata_t *sdata,
     uint32 pcount, uint64 *primes, uint64 byte_offset);
 uint32 (*compute_8_bytes_ptr)(soe_staticdata_t *, uint32, uint64 *, uint64);
 

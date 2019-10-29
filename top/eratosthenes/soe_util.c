@@ -1,6 +1,19 @@
 #include "soe.h"
 #include <immintrin.h>
 
+#ifdef USE_AVX512F
+ALIGNED_MEM uint64 presieve_largemasks[16][173][8];
+ALIGNED_MEM uint32 presieve_steps[32];
+ALIGNED_MEM uint32 presieve_primes[32];
+ALIGNED_MEM uint32 presieve_p1[32];
+
+#else
+// for storage of presieving lists from prime index 24 to 40 (97 to 173 inclusive)
+ALIGNED_MEM uint64 presieve_largemasks[16][173][4];
+ALIGNED_MEM uint32 presieve_steps[32];
+ALIGNED_MEM uint32 presieve_primes[32];
+ALIGNED_MEM uint32 presieve_p1[32];
+#endif
 uint64 estimate_primes_in_range(uint64 lowlimit, uint64 highlimit)
 {
 	uint64 hi_est, lo_est;
@@ -193,8 +206,8 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 	sdata->orig_hlimit = highlimit;
 	sdata->orig_llimit = lowlimit;
 
-	//the wrapper should handle this, but just in case we are called
-	//directly and not via the wrapper...
+	// the wrapper should handle this, but just in case we are called
+	// directly and not via the wrapper...
 	if (highlimit - lowlimit < 1000000)
 		highlimit = lowlimit + 1000000;
 
@@ -210,15 +223,7 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 		return 1;
 	}
 
-    //printf("range = %lu - %lu, countflag = %d\n", lowlimit, highlimit, sdata->only_count);
-
-    //if (((highlimit - lowlimit) > 2147483648) && (sdata->only_count == 0))
-    //{
-    //    printf("range too big when computing primes\n");
-    //    return 1;
-    //}
-
-	//set sieve primes in the local data structure to the ones that were passed in
+	// set sieve primes in the local data structure to the ones that were passed in
 	sdata->sieve_p = sieve_p;	
 	
 	if (offset == NULL)
@@ -230,21 +235,19 @@ int check_input(uint64 highlimit, uint64 lowlimit, uint32 num_sp, uint32 *sieve_
 		{
 			printf("found %d primes, max = %u: not enough sieving primes\n", 
                 num_sp, sieve_p[num_sp - 1]);
-
-            //for (i = 0; i < num_sp; i++)
-            //    printf("%u\n", sieve_p[i]);
-
 			exit(1);
 		}
 
-		//find the highest index that we'll need.  Much of the rest of the code is 
-		//sensitive to this.  Note that this could be slow for large numbers of
-		//sieve primes... could replace with a binary search.
+		// find the highest index that we'll need.  Much of the rest of the code is 
+		// sensitive to this.  Note that this could be slow for large numbers of
+		// sieve primes... could replace with a binary search.
 		for (i=0; i<num_sp; i++)
 		{
 			// stop when we have enough for this input
-			if (sieve_p[i] > sdata->pbound)
-				break;
+            if (sieve_p[i] > sdata->pbound)
+            {
+                break;
+            }
 		}
 		sdata->pboundi = i;	
 
@@ -577,22 +580,39 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 
 #endif
 
+#if defined(USE_BMI2) || defined(USE_AVX512F)
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_BMI))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("bmi2"))
+#else
+    if (0)
+#endif
+    {
+        compute_8_bytes_ptr = &compute_8_bytes_bmi2;
+    }
+    else
+    {
+        compute_8_bytes_ptr = &compute_8_bytes;
+    }
+#else
+    compute_8_bytes_ptr = &compute_8_bytes;
+#endif
 
-
-#ifdef USE_AVX2
+#if defined(USE_AVX2)
 #ifdef __INTEL_COMPILER
     if (_may_i_use_cpu_feature(_FEATURE_AVX2))
-#else
+#elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx2"))
+#else
+    if (1)
 #endif
     {
         pre_sieve_ptr = &pre_sieve_avx2;
-        compute_8_bytes_ptr = &compute_8_bytes_avx2;
     }
     else
     {
         pre_sieve_ptr = &pre_sieve;
-        compute_8_bytes_ptr = &compute_8_bytes;
         sdata->presieve_max_id = 10;
     }
 
@@ -605,7 +625,6 @@ uint64 init_sieve(soe_staticdata_t *sdata)
     // we find that AVX2 isn't supported, use the portable version
     // of these routines.
     pre_sieve_ptr = &pre_sieve;
-    compute_8_bytes_ptr = &compute_8_bytes;
     sdata->presieve_max_id = 10;
 #endif
 

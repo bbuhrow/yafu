@@ -178,7 +178,7 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	   not used would have created the heaviest matrix columns
 	   anyway */
 	
-	printf("building matrix with %u columns\n", ncols);
+	//printf("building matrix with %u columns\n", ncols);
 
 	for (i = 0; i < ncols; i++) {
 		uint32 buf[QS_MAX_COL_WEIGHT];

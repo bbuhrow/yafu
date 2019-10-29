@@ -138,17 +138,17 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
-	{
-		// run MPQS, as the main SIQS doesn't work for smaller inputs
-		int i;
+    if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 2) < 115)
+    {
+        // run MPQS, as the main SIQS doesn't work for smaller inputs
+        int i;
         mpz_t f1, f2;
 
         mpz_init(f1);
         mpz_init(f2);
 
-		// we've verified that the input is not even or prime.  also, if
-		// autofactoring is not active then do some very quick trial division 
+        // we've verified that the input is not even or prime.  also, if
+        // autofactoring is not active then do some very quick trial division 
         // before calling smallmpqs.
         if (!fobj->autofact_obj.autofact_active)
         {
@@ -164,12 +164,71 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         {
             if (fobj->logfile != NULL)
                 logprint(fobj->logfile,
-                "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
-                mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                    "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
         }
 
-        // todo: need to define alternate routines if this isn't defined...
-        //i = tinyqs(fobj->qs_obj.gmp_n, f1, f2);
+        {
+            tiny_qs_params *params;
+            int j;
+
+            // todo: need to define alternate routines if this isn't defined...
+            params = init_tinyqs();
+            i = tinyqs(params, fobj->qs_obj.gmp_n, f1, f2);
+            params = free_tinyqs(params);
+
+            for (j = 0; j < i; j++)
+            {
+                if (j == 0)
+                {
+                    add_to_factor_list(fobj, f1);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(f1),
+                                mpz_conv2str(&gstr1.s, 10, f1));
+                    }
+
+                    mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
+                }
+                else
+                {
+                    add_to_factor_list(fobj, f2);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(f2),
+                                mpz_conv2str(&gstr1.s, 10, f2));
+                    }
+
+                    mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
+                }
+            }
+
+            if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
+            {
+                if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
+                {
+                    add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                                mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                    }
+
+                    mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+                }
+            }
+        }
+
+        
 #else
         i = 0;
 #endif
@@ -185,33 +244,6 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
                     mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
             }
             smallmpqs(fobj);
-        }
-        else
-        {
-            // found factors, need to log them.
-            add_to_factor_list(fobj, f1);
-
-            if (fobj->qs_obj.flags != 12345)
-            {
-                if (fobj->logfile != NULL)
-                    logprint(fobj->logfile,
-                    "prp%d = %s\n", gmp_base10(f1),
-                    mpz_conv2str(&gstr1.s, 10, f1));
-            }
-
-            mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
-
-            add_to_factor_list(fobj, f2);
-
-            if (fobj->qs_obj.flags != 12345)
-            {
-                if (fobj->logfile != NULL)
-                    logprint(fobj->logfile,
-                    "prp%d = %s\n", gmp_base10(f2),
-                    mpz_conv2str(&gstr1.s, 10, f2));
-            }
-
-            mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
         }
 
         mpz_clear(f1);

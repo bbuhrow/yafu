@@ -538,8 +538,6 @@ void SIQS(fact_obj_t *fobj)
 	// can use it (unless we are doing in-mem)
 	if (!static_conf->in_mem)
 	{
-		printf("freeing %u poly_a's\n", static_conf->total_poly_a);
-
 		for (i = 0; i < static_conf->total_poly_a + 1; i++)
 			mpz_clear(static_conf->poly_a_list[i]);
 		free(static_conf->poly_a_list);
@@ -565,7 +563,7 @@ void SIQS(fact_obj_t *fobj)
 
 #if defined (TARGET_KNC) || defined(TARGET_KNL)
     // for now, just do timing on the sieving portion.  LA is really slow.
-    exit(1);
+    //exit(1);
 #endif
 
 	fobj->qs_obj.qs_time = t_time;	
@@ -610,7 +608,7 @@ void SIQS(fact_obj_t *fobj)
             printf("attempting to rebuild matrix (%d of %d)\n", k, 10);
             static_conf->charcount = 42;
 
-#ifdef _MSC_VER
+#ifdef _WIN32
             Sleep(1000);
 #else
             sleep(1);
@@ -1634,7 +1632,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(TARGET_KNC)
     nextRoots_ptr = &nextRoots_32k_knc_small;
 
-#elif defined(USE_AVX2)
+#elif defined(USE_AVX2) && !defined(_MSC_VER)
     if (HAS_AVX2)
     {
         if (VFLAG > 1)
@@ -1669,7 +1667,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     med_sieve_ptr = &med_sieveblock_32k;
 	// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
 	// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
-#if defined(USE_AVX2)
+#if defined(USE_AVX2) && !defined(_MSC_VER)
 	if (HAS_AVX2)
 	{
         if (VFLAG > 1)
@@ -1708,11 +1706,21 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         if (VFLAG > 1)
         {
             printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
-            printf("assigning resieve_medprimes_32k_avx2 ptr\n");
         }
 		tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
-		resieve_med_ptr = &resieve_medprimes_32k_avx2;
 	}
+#endif
+
+
+#if defined(USE_AVX2)
+    if (HAS_AVX2)
+    {
+        if (VFLAG > 1)
+        {
+            printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+        }
+        resieve_med_ptr = &resieve_medprimes_32k_avx2;
+    }
 #endif
 
 
@@ -2505,6 +2513,7 @@ int update_check(static_conf_t *sconf)
 					sconf->tlp_prp / 1000,
 					(double)(sconf->num_relations + sconf->dlp_useful + 
 						sconf->tlp_useful) / t_time);
+                fflush(stdout);
 			}
 			else
 			{

@@ -392,7 +392,7 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
 
 
         // run parallel squfof
-#if (USE_AVX2)
+#if (USE_AVX2) && !defined(_MSC_VER)
 #if defined(__INTEL_COMPILER)
         par_shanks_mult_unit(&mult_batch);
 #else
@@ -1392,7 +1392,7 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
     }
 }
 
-#if defined(USE_AVX2)
+#if defined(USE_AVX2) && !defined(_MSC_VER)
 
 void par_shanks_mult_unit_asm(par_mult_t *mult_save)
 {
@@ -2368,13 +2368,9 @@ void TDiv63InverseSetup() {
 
 int tdiv_inverse(int64 N, int pLimit) {
 	int i = 0;
-#ifdef __INTEL_COMPILER
-	int lbits = __lzcnt64(N);
+    int lbits = _lead_zcnt64(N);
 	int Nbits = 64 - lbits;
-#else
-	int lbits = __builtin_clzll(N);
-	int Nbits = 64 - lbits;
-#endif
+
 	int pMinBits = Nbits - 53 + DISCRIMINATOR_BITS;
 	if (pMinBits > 0) {
 		// for the smallest primes we must do standard trial division
@@ -2589,15 +2585,15 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 		P_MIN = PRIMES[0];
 		P_MAX = PRIMES[NUM_P - 1];
 		TDiv63InverseSetup();
-		printf("prime list generated\n");
-		printf("PMAX = %lu, NUM_P = %lu\n", P_MAX, NUM_P);
+		//printf("prime list generated\n");
+		//printf("PMAX = %lu, NUM_P = %lu\n", P_MAX, NUM_P);
 
 		initialized = 1;
-		printf("sqrt tables generated\n");
-		printf("check of sqrt(-1): %f, %d\n", sqrt(-1.), (int)sqrt(-1));
+		//printf("sqrt tables generated\n");
+		//printf("check of sqrt(-1): %f, %d\n", sqrt(-1.), (int)sqrt(-1));
 
 		MakeIssq();
-		printf("issqr tables generated\n");
+		//printf("issqr tables generated\n");
 	}
 
 	const int cbrt = (int)pow(N, 1./3);

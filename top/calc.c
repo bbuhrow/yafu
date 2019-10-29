@@ -1696,7 +1696,7 @@ static char func[NUM_FUNC][11] = {
     "*", "/", "!", "#", "eq",
     "<<", ">>", "%", "^", "redc",
     "puzzle", "sieve", "algebraic", "llt", "siqsbench",
-    "dummy", "dummy", "smallmpqs", "testrange", "siqstune",
+    "sigma", "totient", "smallmpqs", "testrange", "siqstune",
     "ptable", "sieverange", "fermat", "nfs", "tune",
     "xor", "and", "or", "not", "frange",
     "bpsw", "aprcl", "lte", "gte", "<",
@@ -1718,7 +1718,7 @@ static int args[NUM_FUNC] = {
     2, 2, 1, 1, 2,
     2, 2, 2, 2, 2,
     2, 2, 2, 1, 0,
-    0, 5, 1, 4, 1,
+    2, 1, 1, 4, 1,
     0, 4, 3, 1, 0,
     2, 2, 2, 1, 2,
     1, 1, 2, 2, 2,
@@ -1782,6 +1782,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 	mpz_init(tmp1);
 	mpz_init(tmp2);
 	sInit(&str);
+    int oldvflag = VFLAG;
 
 	switch (funcnum)
 	{
@@ -2455,14 +2456,60 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 		break;
 
 	case 50:
-		
+		// sigma - sum of divisors function
+        if (check_args(funcnum, nargs)) break;
+
+        oldvflag = VFLAG;
+        if (mpz_sizeinbase(operands[0], 2) < 192)
+        {
+            VFLAG = -1;
+        }
+
+        mpz_set(mp2, operands[0]);
+        mpz_set(fobj->N, operands[0]);
+        k = mpz_get_ui(operands[1]);
+        factor(fobj);
+
+        mpz_set_ui(mp2, 1);
+        for (i = 0; i < fobj->num_factors; i++)
+        {
+            mpz_set_ui(mp1, 1);
+            for (j = 1; j <= fobj->fobj_factors[i].count; j++)
+            {
+                mpz_pow_ui(mp3, fobj->fobj_factors[i].factor, j * k);
+                mpz_add(mp1, mp1, mp3);
+            }
+            mpz_mul(mp2, mp2, mp1);
+        }
+        mpz_set(operands[0], mp2);
+        VFLAG = oldvflag;
 
 		break;
 	case 51: 
+        // Euler's totient function
+        if (check_args(funcnum, nargs)) break;
 
-		// small factorization test routine
-        // this functionality is mostly in test.c, 
-        // test_dlp_composites_par and test_dlp_composites
+        oldvflag = VFLAG;
+        if (mpz_sizeinbase(operands[0], 2) < 192)
+        {
+            VFLAG = -1;
+        }
+
+        mpz_set(mp2, operands[0]);
+        mpz_set(fobj->N, operands[0]);
+        factor(fobj);
+        mpz_set(operands[0], mp2);
+        mpz_tdiv_q(mp1, mp2, fobj->fobj_factors[0].factor);
+        mpz_sub(operands[0], operands[0], mp1);
+
+        for (i = 1; i < fobj->num_factors; i++)
+        {
+            mpz_tdiv_q(mp1, mp2, fobj->fobj_factors[i].factor);
+            mpz_sub(mp1, mp2, mp1);
+            mpz_mul(operands[0], operands[0], mp1);
+            mpz_tdiv_q(operands[0], operands[0], mp2);
+        }
+        VFLAG = oldvflag;
 
 		break;
 

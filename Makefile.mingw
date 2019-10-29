@@ -20,9 +20,13 @@
 CC = gcc
 #CFLAGS = -march=westmere -mtune=westmere
 CFLAGS = -g
+#CFLAGS += -m64 -march=skylake-avx512 -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
+#CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
+#CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
+#CFLAGS += -fcall-used-xmm28 -fcall-used-xmm29 -fcall-used-xmm30 -fcall-used-xmm31
 WARN_FLAGS = -Wall #-W -Wconversion
-OPT_FLAGS = -O3
-BINNAME = yafu-x64-mingw
+OPT_FLAGS = -O2
+BINNAME = yafu-x64-mingw.exe
 INC = -I. -Iinclude -Itop/aprcl -Itop/
 
 INC += -I../gmp/install/mingw/include
@@ -35,7 +39,7 @@ ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
 else
-	OPT_FLAGS += -fomit-frame-pointer
+#OPT_FLAGS += -fomit-frame-pointer
 endif
 
 ifeq ($(OPT_DEBUG),1)
@@ -61,6 +65,10 @@ ifeq ($(SKYLAKEX),1)
     USE_AVX2=1
     USE_SSE41=1
 #-DUSE_AVX512BW
+else
+SKYLAKEX=0
+#assume this base level architecture (MMX, SSE, SSE2, SSE3 and SSSE3 instruction set support.)
+#CFLAGS += -march=core2
 endif
 
 ifeq ($(SMALLINT),1)
@@ -69,12 +77,16 @@ endif
 
 ifeq ($(USE_BMI2),1)
 # -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
-  CFLAGS += -mbmi2 -mbmi
+  CFLAGS += -mbmi2 -mbmi -DUSE_BMI2
 endif
 
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2  -DUSE_SSE41 -mavx2 -mavx
+endif
+
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
 ifeq ($(TIMING),1)
@@ -102,9 +114,6 @@ ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
 endif
 
-ifeq ($(CC),icc)
-	CFLAGS += -mtune=core2 -march=core2
-endif
 
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	
@@ -152,12 +161,14 @@ YAFU_SRCS = \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
+	factor/gmp-ecm/tinyecm.c \
+    factor/gmp-ecm/microecm.c \
 	factor/nfs/nfs.c \
 	arith/arith0.c \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
-    arith/monty.c \
+	arith/monty.c \
 	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
@@ -170,6 +181,7 @@ YAFU_SRCS = \
 	top/eratosthenes/soe_util.c \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
+    top/queue.c \
     factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
@@ -190,16 +202,11 @@ YAFU_SRCS += factor/qs/update_poly_roots_32k.c
 YAFU_SRCS += factor/qs/tdiv_med_32k.c
 YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
 
-ifeq ($(KNL),1)
-  
-  YAFU_SRCS += factor/qs/tdiv_scan_knl.c
-  YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
-  
-else
-  
-  YAFU_SRCS += factor/qs/tdiv_scan.c
-    
+ifeq ($(SKYLAKEX),0)
+    YAFU_SRCS += factor/qs/tdiv_scan_knl.c
 endif
+YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+YAFU_SRCS += factor/qs/tdiv_scan.c
 
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
@@ -248,7 +255,7 @@ HEAD = include/yafu.h  \
     include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
-    factor/qs/cofactorize.h
+    include/cofactorize.h
 
 
 ifeq ($(USE_SSE41),1)
