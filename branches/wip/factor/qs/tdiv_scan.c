@@ -315,7 +315,7 @@ this file contains code implementing 1)
 				ASM_M mov result, ecx};			\
 		} while (0);
 
-#elif defined(_WIN64)
+#elif defined(_WIN64) && defined(_MSC_VER)
 	#define SCAN_CLEAN /*nothing*/
 
 	//top level sieve scanning with SSE2
@@ -373,6 +373,35 @@ this file contains code implementing 1)
 			local_block = _mm_or_si128(local_block, local_block8); \
 			result = _mm_movemask_epi8(local_block); \
 		} while (0);
+
+#if defined(USE_AVX2)
+
+
+#define SIEVE_SCAN_32_VEC					\
+__m256i v_blk = _mm256_load_si256(sieveblock + j); \
+uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
+result = 0; \
+while (_BitScanForward(&pos, msk32)) { \
+            buffer[result++] = pos; \
+            _reset_lsb(msk32); \
+        }
+
+#define SIEVE_SCAN_64_VEC				\
+__m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
+uint32 pos; \
+uint64 msk64 = _mm256_movemask_epi8(v_blk); \
+result = 0; \
+if (msk64 > 0) { \
+v_blk = _mm256_load_si256(sieveblock + j + 4); \
+msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
+v_blk = _mm256_load_si256(sieveblock + j); \
+msk64 |= _mm256_movemask_epi8(v_blk); \
+while (_BitScanForward64(&pos, msk64)) { \
+            buffer[result++] = (uint8)pos; \
+            _reset_lsb64(msk64); \
+        }}
+#endif
+
 
 #else	/* compiler not recognized*/
 

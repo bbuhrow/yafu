@@ -15,6 +15,7 @@ benefit from your work.
 #include "soe.h"
 #include "threadpool.h"
 #include <immintrin.h>
+#include <stdint.h>
 
 //for testing one of 8 bits in a byte in one of 8 lines.
 //bit num picks the row, lines num picks the col.	
@@ -62,16 +63,18 @@ void compute_primes_work_fcn(void *vptr)
         t->linecount = 0;
     }
 
-#ifdef USE_AVX2
+#if defined(USE_BMI2) || defined(USE_AVX512F)
 #ifdef __INTEL_COMPILER
-    if (_may_i_use_cpu_feature(_FEATURE_AVX2))
+    if (_may_i_use_cpu_feature(_FEATURE_BMI))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("bmi2"))
 #else
-    if (__builtin_cpu_supports("avx2"))
+    if (0)
 #endif
     {
         for (i = t->startid; i < t->stopid; i += 8)
         {
-            t->linecount = compute_8_bytes_avx2(sdata, t->linecount, t->ddata.primes, i);
+            t->linecount = compute_8_bytes_bmi2(sdata, t->linecount, t->ddata.primes, i);
         }
     }
     else
@@ -272,7 +275,6 @@ uint64 primes_from_lineflags(soe_staticdata_t *sdata, thread_soedata_t *thread_d
 	return pcount;
 }
 
-
 uint32 compute_8_bytes(soe_staticdata_t *sdata, 
 	uint32 pcount, uint64 *primes, uint64 byte_offset)
 {
@@ -346,7 +348,7 @@ uint32 compute_8_bytes(soe_staticdata_t *sdata,
 }
 
 
-#ifdef USE_AVX2
+#if defined(USE_BMI2) || defined(USE_AVX512F)
 
 __inline uint64_t interleave_avx2_bmi2_pdep2x32(uint32_t x1, uint32_t x2)
 {
@@ -373,8 +375,7 @@ __inline uint64_t interleave_avx2_bmi2_pdep(uint8_t x1,
         _pdep_u64(x8, 0x8080808080808080ull);
 }
 
-
-uint32 compute_8_bytes_avx2(soe_staticdata_t *sdata,
+uint32 compute_8_bytes_bmi2(soe_staticdata_t *sdata,
     uint32 pcount, uint64 *primes, uint64 byte_offset)
 {    
     uint32 nc = sdata->numclasses;

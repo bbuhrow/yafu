@@ -20,11 +20,8 @@
 #define M_SQRT2	1.41421356237309504880
 #endif
 
-// gcc -O3 -march=core-avx2 cofactorize_siqs.c -o tsiqs2 -I/sppdg/scratch/buhrow/projects/factoring/gmp/include -L /sppdg/scratch/buhrow/projects/factoring/gmp/lib/linux/x86_64 -lm -lgmp
-
 //#define VERBOSE 1
 //#define DO_RESIEVE
-#define USE_8X_TD
 // BRB: I didn't see much variation when all functions are static, or not.
 // But, if they are static then it was much harder to read anything in
 // gprof profiling output... so being able to quickly remove the static
@@ -32,9 +29,12 @@
 //#define func_static static
 #define func_static
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && \
+    defined(USE_AVX2) && \
+    !defined(FORCE_GENERIC) && \
+    !defined(TARGET_KNC) //&& defined(NOT_DEFINED)
 #define USE_ASM
-// todo: need to define alternate routines if this isn't defined...
+#define USE_8X_TD
 #endif
 
 /* High-throughput, low-overhead implementation of the self-
@@ -297,6 +297,28 @@ func_static tiny_qs_params * init_tinyqs(void)
   mpz_init(p->gmptmp5);
 
   return p;
+}
+
+func_static tiny_qs_params * free_tinyqs(tiny_qs_params *params)
+{
+    int j;
+    mpz_clear(params->gmptmp1);
+    mpz_clear(params->gmptmp2);
+    mpz_clear(params->gmptmp3);
+    mpz_clear(params->gmptmp4);
+    mpz_clear(params->gmptmp5);
+    mpz_clear(params->n);
+
+    for (j = 0; j < MAX_POLY_TINY; j++) {
+        mpz_clear(params->poly_list[j].b);
+    }
+
+    for (j = 0; j < MAX_POLY_FACTORS_TINY; j++) {
+        mpz_clear(params->poly_b_aux[j]);
+    }
+
+    free(params);
+    return params;
 }
 
 /* Implementation of the modified Knuth-Schroeppel multiplier
@@ -618,6 +640,11 @@ Core sieving routine
       
       root1 = params->roots1[i];
       root2 = params->roots2[i];
+
+      if (root2 < root1)
+      {
+          printf("ordering error\n"); fflush(stdout);
+      }
       
       while (root2 < SIEVE_SIZE_TINY) {
         sieve_block[root1] -= logprime;
@@ -714,7 +741,40 @@ Core sieving routine
       
 #else
 
-#define SM_SIEVE_SCAN_64_VEC
+#define SM_SIEVE_SCAN_64_VEC \
+{ \
+int it; \
+for (it = 0; it < 8; it++) { \
+        int thisloc; \
+        if ((packed_sieve_block[i + it] & 0x8080808080808080ULL) == (uint64)(0)) \
+            continue; \
+        if ((result + 8) >= SIEVE_BATCH_SIZE_TINY) { printf("too many results\n"); break; } \
+        thisloc = ((it) << 3) + 0; \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 1;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 2;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 3;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 4;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 5;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 6;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+        thisloc = ((it) << 3) + 7;                         \
+        if ((sieve_block[i * 8 + thisloc] & 0x80) != 0)    \
+            buffer[result++] = thisloc;                    \
+} \
+}
 
 #endif
 
@@ -731,7 +791,6 @@ are probably useful
   u8 *sieve_block = params->sieve_block;
   u64 *packed_sieve_block = (u64 *)params->sieve_block;
      
-
   /* standard technique for testing sieve locations
      in parallel: initialize each byte to the target
      sieve value, and subtract logs of the factor base
@@ -746,7 +805,7 @@ are probably useful
     u32 result = 0;
     u8 buffer[SIEVE_BATCH_SIZE_TINY];
 		
-		SM_SIEVE_SCAN_64_VEC;
+    SM_SIEVE_SCAN_64_VEC;
 
 		if (result == 0)
 			continue;
@@ -814,7 +873,7 @@ are probably useful
     u32 result = 0;
     u8 buffer[SIEVE_BATCH_SIZE_TINY];
 		
-		SM_SIEVE_SCAN_64_VEC;
+    SM_SIEVE_SCAN_64_VEC;
 
 		if (result == 0)
 			continue;
@@ -942,7 +1001,7 @@ on all the relations previously found
   }
 }
 
-#ifdef USE_ASM
+#ifdef USE_8X_TD
 
 #define MOD_INIT_8X												\
 		__asm__ (														\
@@ -1033,13 +1092,6 @@ on all the relations previously found
 				"r" (params->grecip16 + i), "r" (params->roots1 + i), \
 			  "r" (params->roots2 + i), "r"(buffer), "r"(i) \
 			: "r9", "r8", "r10", "r11", "rcx", "ymm2", "ymm3", "ymm4", "ymm6", "memory", "cc");
-
-#else
-
-#define MOD_INIT_8X
-#define MOD_INIT_16X
-#define MOD_CMP_8X_vec(xtra_bits)
-#define MOD_CMP_16X_vec(xtra_bits)
 
 #endif
 
@@ -1611,7 +1663,7 @@ B values
 			"movl   $2, %%eax \n\t"	/* eax = start */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%0, %%eax \n\t"	\
-			"jge	1f \n\t"	\ 
+			"jge	1f \n\t"	\
 			"0: \n\t"	\
 			/* compute 16 new roots on the P side */	\
 			"vmovdqu    (%4, %%rax, 2), %%ymm3 \n\t"			/* xmm3 = next 16 updates */	\
@@ -1748,9 +1800,56 @@ B values
 			: "xmm0", "xmm1", "xmm2", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10","rax", "cc", "memory");
       
 #else
-#define COMPUTE_16X_SMALL_PROOTS_AVX2
-#define COMPUTE_16X_SMALL_NROOTS_AVX2
-#define FLIP_ROOTS_AVX2
+#define COMPUTE_16X_SMALL_PROOTS_AVX2 \
+{ \
+int p; \
+for (p = 2; p < fb_size; p++)         \
+{                                            \
+    int prime = params->gprimes[p];                     \
+    int root1 = params->roots1[p];               \
+    int root2 = params->roots2[p];               \
+    root1 = (root1 > 0 ? prime - root1 : 0 - root1);         \
+    root2 = (root2 > 0 ? prime - root2 : 0 - root2);         \
+	root1 = root1 - (int)row[p];               \
+	root2 = root2 - (int)row[p];               \
+	root1 += ((root1 < 0) * prime);        \
+	root2 += ((root2 < 0) * prime);	     \
+    if (root2 < root1) {                     \
+        params->roots1[p] = (u16)root2;   \
+        params->roots2[p] = (u16)root1;   \
+    }                                        \
+    else {                                   \
+        params->roots1[p] = (u16)root1;   \
+        params->roots2[p] = (u16)root2;   \
+    }                                        \
+}                                            \
+}
+
+#define COMPUTE_16X_SMALL_NROOTS_AVX2 \
+{ \
+int p; \
+for (p = 2; p < fb_size; p++)         \
+{                                            \
+    int prime = params->gprimes[p];                     \
+    int root1 = params->roots1[p];               \
+    int root2 = params->roots2[p];               \
+    root1 = (root1 > 0 ? prime - root1 : 0 - root1);         \
+    root2 = (root2 > 0 ? prime - root2 : 0 - root2);         \
+	root1 = root1 + (int)row[p];		        \
+	root2 = root2 + (int)row[p];		        \
+	root1 -= ((root1 >= prime) * prime);	\
+	root2 -= ((root2 >= prime) * prime);	\
+    if (root2 < root1) {                     \
+        params->roots1[p] = (u16)root2;   \
+        params->roots2[p] = (u16)root1;   \
+    }                                        \
+    else {                                   \
+        params->roots1[p] = (u16)root1;   \
+        params->roots2[p] = (u16)root2;   \
+    }                                        \
+}                                            \
+}
+#define FLIP_ROOTS_AVX2 printf("trying to flip roots\n"); 
 #endif
       
 /***********************************/
@@ -1759,7 +1858,7 @@ func_static void find_next_poly_b(tiny_qs_params *params, mpz_t a, mpz_t b, mpz_
 Initialize B values beyond the first
 ************************************/
 {
-  s32 i, j;
+  s32 i;
   s32 num_a_factors = params->num_a_factors;
   s32 fb_size = params->fb_size;
   tiny_poly *poly = params->poly_list + params->poly_num;
@@ -1859,14 +1958,14 @@ Do all the sieving for one polynomial
 
   /* generate the polynomial */
 
-  if (!(poly_num & ((1 << (params->num_a_factors-1))-1))) {
-    i = find_poly_a(params, a);
-    if (i)
-      return i;
-    find_first_poly_b(params, a, b, c);
+  if (!(poly_num & ((1 << (params->num_a_factors - 1)) - 1))) {
+      i = find_poly_a(params, a);
+      if (i)
+          return i;
+      find_first_poly_b(params, a, b, c);
   }
   else {
-    find_next_poly_b(params, a, b, c);
+      find_next_poly_b(params, a, b, c);
   }
 
   /* compute the cutoff beyond which trial factoring
@@ -1897,6 +1996,9 @@ Do all the sieving for one polynomial
   //fill_sieve_block_tiny(i);
   
   num_surviving = mark_sieve_block_tiny(params);
+
+  //printf("checking %d possible locations\n", num_surviving);
+
   if (num_surviving) {
 #ifdef DO_RESIEVE
     resieve_tiny();
@@ -1909,9 +2011,7 @@ Do all the sieving for one polynomial
         return 0;
     }
   }
-  
-  //FLIP_ROOTS_AVX2;
-      
+        
   /* flip the sieve roots from positive to
      negative values */
   for (i = MIN_FB_OFFSET_TINY + 1;  i < fb_size; i++) {
@@ -1958,7 +2058,7 @@ Do all the sieving for one polynomial
         return 0;
     }
   }
-      
+        
   return 0;
 }
 
@@ -2527,7 +2627,7 @@ func_static u32 find_factors_tiny(tiny_qs_params *params, mpz_t factor1,
 		/* otherwise try the next dependency */
 	}
 
-	return 0;
+	return num_found;
 }
 
 typedef struct {
@@ -2636,10 +2736,13 @@ successful, returns 0 otherwise
   
 #ifdef VERBOSE
   gmp_printf("input = %Zu\n", n);
-  printf("fbsize = %u, largest prime = %u\n", fb_size, gprimes[fb_size - 1]);
+  printf("fbsize = %u, largest prime = %u\n", fb_size, params->gprimes[fb_size - 1]);
   printf("large_prime_mult = %u\n", large_prime_mult);
   printf("config->num_poly_factors = %u\n", config->num_poly_factors);
-  printf("first sieved primes = %u, %u, %u\n", gprimes[7], gprimes[8], gprimes[9]);
+  printf("first sieved primes = %u, %u, %u\n", params->gprimes[7], params->gprimes[8], params->gprimes[9]);
+  printf("sizeof(partial_hash) = %d\n", sizeof(params->partial_hash));
+  printf("sizeof(roots1 = %d)\n", sizeof(params->roots1));
+  printf("sizeof(roots2 = %d)\n", sizeof(params->roots2));
 #endif
 
   /* do the sieving! */
@@ -2670,6 +2773,11 @@ successful, returns 0 otherwise
       solve_linear_system_tiny(params);
       status = find_factors_tiny(params, factor1, factor2);
   }
+
+  #ifdef VERBOSE
+  gmp_printf("found factors %Zu,%Zu; status is %u\n", factor1, factor2, status);
+  #endif
+
 
   return status;
 }

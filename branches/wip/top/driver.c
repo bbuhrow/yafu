@@ -306,10 +306,10 @@ int main(int argc, char *argv[])
 			uint64 p3 = p[spRand(0, np)];
 
 			mpz_set_ui(g, p2 * p3);
-			mpz_nextprime(g, g);
-			mpz_mul_ui(g, g, p1);
+			mpz_nextprime(h, g);
+			mpz_mul_ui(g, h, p1);
 
-			gmp_fprintf(fid, "%Zd,%lu,%lu\n", g, p1, p2 * p3);
+			gmp_fprintf(fid, "%Zd,%lu,%Zd\n", g, p1, h);
 		}
 
 		fclose(fid);
@@ -1125,9 +1125,13 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 			// default function call
 			if (strstr(*input_exp, "(") == NULL)
 			{
-				char s[1024];
-				sprintf(s, "factor(%s)", *input_exp);
-				strcpy(*input_exp, s);
+                int currentlen = strlen(*input_exp);
+                char* tmp;
+                *input_exp = xrealloc(*input_exp, (strlen(*input_exp) + 10) * sizeof(char));
+                tmp = (char*)xmalloc((currentlen + 10) * sizeof(char));
+				sprintf(tmp, "factor(%s)", *input_exp);
+                strcpy(*input_exp, tmp);
+                free(tmp);
 			}
 		}
 	}

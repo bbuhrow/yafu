@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -22,31 +22,32 @@
     <ProjectGuid>{F55BD26F-47C3-410B-8FEA-D71469BEE544}</ProjectGuid>
     <RootNamespace>yafu</RootNamespace>
     <ProjectName>yafu</ProjectName>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -218,6 +219,10 @@
       <HeaderFileName>
       </HeaderFileName>
     </Midl>
+    <YASM>
+      <Defines>_WIN64</Defines>
+      <ObjectFile>$(IntDir)</ObjectFile>
+    </YASM>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -334,6 +339,7 @@
     <ClCompile Include="..\..\top\eratosthenes\worker.c" />
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
+    <ClCompile Include="..\..\top\queue.c" />
     <ClCompile Include="..\..\top\stack.c" />
     <ClCompile Include="..\..\top\test.c" />
     <ClCompile Include="..\..\top\threadpool.c" />
@@ -349,7 +355,6 @@
     <ClCompile Include="..\..\top\vecarith.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\factor\qs\cofactorize.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
     <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
@@ -361,12 +366,14 @@
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\calc.h" />
+    <ClInclude Include="..\..\include\cofactorize.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
     <ClInclude Include="..\..\include\monty.h" />
+    <ClInclude Include="..\..\include\queue.h" />
     <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\include\nfs.h" />
@@ -378,7 +385,6 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
-    <ClInclude Include="..\..\top\queue.h" />
     <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>

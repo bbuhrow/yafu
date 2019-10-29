@@ -49,7 +49,11 @@ code to the public domain.
 
 
 #if defined(USE_AVX2)
+#ifdef _MSC_VER
+#define CLEAN_AVX2 _mm256_zeroupper();
+#else
 #define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
+#endif
 #endif
 
 //|| defined(TARGET_KNC)
@@ -132,7 +136,7 @@ double TF_SPECIAL;
 	#define USE_ASM_SMALL_PRIME_SIEVING
 #endif
 
-#if !defined (FORCE_GENERIC) && (defined(GCC_ASM64X) || defined(__MINGW64__))
+#if !defined (FORCE_GENERIC) && (defined(GCC_ASM64X) || defined(__MINGW64__) || (defined(_MSC_VER) && defined(USE_AVX2)))
 	//assume we have sse2, set defines to use the sse2 code available
 	#define SIMD_SIEVE_SCAN 1
 	#define SIMD_SIEVE_SCAN_VEC 1

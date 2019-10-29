@@ -22,7 +22,7 @@ CC = gcc-7.3.0
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
-OPT_FLAGS = -O3
+OPT_FLAGS = -O2
 INC = -I. -Iinclude -Itop/aprcl -Itop/ -I../msieve/zlib
 BINNAME = yafu
 
@@ -42,7 +42,7 @@ endif
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
 ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
 endif
 
 ifeq ($(SMALLINT),1)
@@ -51,7 +51,7 @@ endif
 
 ifeq ($(USE_BMI2),1)
 # -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
-  CFLAGS += -mbmi2 -mbmi
+  CFLAGS += -mbmi2 -mbmi -DUSE_BMI2
 endif
 
 ifeq ($(USE_AVX2),1)
@@ -336,7 +336,7 @@ HEAD = include/yafu.h  \
     include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
-    factor/qs/cofactorize.h
+    include/cofactorize.h
 
 ifeq ($(USE_AVX2),1)
 

@@ -293,6 +293,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
       <Filter>Source Files\factoring\gmp-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\queue.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -382,10 +385,10 @@
     <ClInclude Include="..\..\include\monty.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\factor\qs\cofactorize.h">
+    <ClInclude Include="..\..\include\cofactorize.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\top\queue.h">
+    <ClInclude Include="..\..\include\queue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

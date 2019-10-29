@@ -84,6 +84,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
 #endif
 
+    //gmp_printf("commencing tdiv on %Zd\n", dconf->Qvals[report_num]);
+
 	// check for additional factors of the a-poly factors
 	// make a separate list then merge it with fb_offsets
 	it=0;	// max 20 factors allocated for - should be overkill
@@ -100,7 +102,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #endif
 		}
 	}
-
+    
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
@@ -141,6 +143,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	if (sconf->use_dlp == 0)
 		return;
+
+    //gmp_printf("before DLP = %Zd\n", dconf->Qvals[report_num]);
 
 	// quick check if Q is way too big for DLP (more than 64 bits)	
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 64)
@@ -196,11 +200,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #else
 			dconf->attempted_squfof++;
 
-#ifdef _MSC_VER
-			mpz_set_64(dconf->gmptmp1, q64);
-			f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
-#else
-
 #if 1
 			{
 				int B1, curves, targetBits;
@@ -208,41 +207,47 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 				targetBits = spBits(q64) / 2;
 				if (targetBits <= 24)
 				{
-					B1 = 70;
-					curves = 24;
+                    f64 = LehmanFactor(q64, 0, 0, 0);
+                    //B1 = 70;
+                    //curves = 24;
+                    //microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
 				else if (targetBits <= 26)
 				{
 					B1 = 85;
 					curves = 24;
+                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
 				else if (targetBits <= 29)
 				{
 					B1 = 125;
 					curves = 24;
+                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
 				else if (targetBits <= 31)
 				{
 					B1 = 165;
 					curves = 32;
+                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
 				else if (targetBits <= 32)
 				{
 					B1 = 205;
 					curves = 32;
+                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
-				microecm(q64, &f64, B1, 25*B1, curves, 0);
+				
 			}
 #elif 0
 			f64 = spbrent(q64, 1, 1024);
-			
+
+#elif 0
+            mpz_set_64(dconf->gmptmp1, q64);
+            f64 = sp_shanks_loop(dconf->gmptmp1, sconf->obj);		
 #else
             f64 = LehmanFactor(q64, 0, 0, 0);
 #endif
 			
-			
-			
-#endif
 			if (f64 > 1 && f64 != q64)
 			{
 				uint32 large_prime[3];
@@ -286,6 +291,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	if (sconf->use_dlp < 2)
 		return;
+
+    //gmp_printf("before TLP = %Zd\n", dconf->Qvals[report_num]);
 
 	// quick check if Q should be subjected to TLP factoring
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 96)
@@ -397,7 +404,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
 					if (r != 0)
 					{
-						printf("tlp problem: r != 0\n");
+						gmp_printf("tlp0 problem: r != 0, Q = %Zd, LP = %u\n", 
+                            dconf->Qvals[report_num], large_prime[0]);
 						dconf->failed_cosiqs++;
 						return;
 					}
@@ -443,7 +451,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					r = q64 % large_prime[1];
 					if (r != 0)
 					{
-						printf("tlp problem: r != 0\n");
+                        printf("tlp1 problem: r != 0, Q = %lu, LP = %u\n",
+                            q64, large_prime[1]);
 						dconf->failed_cosiqs++;
 						return;
 					}

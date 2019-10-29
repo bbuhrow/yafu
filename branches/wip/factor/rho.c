@@ -89,6 +89,11 @@ void brent_loop(fact_obj_t *fobj)
 		//call brent's rho algorithm
 		mbrent(fobj);
 
+        if (VFLAG >= 0)
+        {
+            printf("\n");
+        }
+
 		//check to see if 'f' is non-trivial
 		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
@@ -368,6 +373,34 @@ free:
     return it;
 }
 
+#ifdef _MSC_VER
+
+__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
+{
+    uint64 th, tl, u, ah, al;
+    tl = _umul128(x, y, &th);
+    u = tl * nhat;
+    al = _umul128(u, n, &ah);
+    tl = _addcarry_u64(0, al, tl, &al);
+    th = _addcarry_u64(tl, th, ah, &x);
+    return x;
+}
+
+__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
+{
+    uint64 th, tl, u, ah, al;
+    tl = _umul128(x, y, &th);
+    u = tl * nhat;
+    al = _umul128(u, n, &ah);
+    tl = _addcarry_u64(0, al, tl, &al);
+    th = _addcarry_u64(tl, th, ah, &x);
+    x = ((x >= n) || th) ? x - n : x;
+    return x;
+}
+
+
+#endif
+
 uint64 spbrent(uint64 N, uint64 c, int imax)
 {
 
@@ -381,9 +414,7 @@ uint64 spbrent(uint64 N, uint64 c, int imax)
     uint64 x, y, q, g, ys, t1, f = 0, nhat;
     uint32 i = 0, k, r, m;
     int it;
-
-#ifndef _MSC_VER
-
+    
     // start out checking gcd fairly often
     r = 1;
 
@@ -472,7 +503,6 @@ uint64 spbrent(uint64 N, uint64 c, int imax)
 
 done:
 
-#endif
     return f;
 }
 
@@ -490,8 +520,6 @@ uint64 spbrent64(uint64 N, int imax)
 	uint64 c = 1;
 	uint32 i = 0, k, r, m;
 	int it;
-
-#ifndef _MSC_VER
 
 	// start out checking gcd fairly often
 	r = 1;
@@ -580,8 +608,6 @@ uint64 spbrent64(uint64 N, int imax)
 	}
 
 done:
-
-#endif
 
 	return f;
 }

@@ -1,4 +1,6 @@
 #include "queue.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 Queue_t * newQueue(uint32_t sz)
 {

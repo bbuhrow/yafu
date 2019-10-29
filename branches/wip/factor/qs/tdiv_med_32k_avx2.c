@@ -21,9 +21,10 @@ code to the public domain.
 #include "common.h"
 
 
-#if defined( USE_AVX2 ) && defined (GCC_ASM64X)
+#if defined( USE_AVX2 )
 
 #include "qs.h"
+#include <immintrin.h>
 
 #ifdef USE_YAFU_TDIV
 #define DIVIDE_ONE_PRIME \
@@ -81,6 +82,8 @@ code to the public domain.
             }
 #endif
 
+#if defined(GCC_ASM64X)
+
 #define TDIV_MED_CLEAN asm volatile("emms");
 
 
@@ -92,7 +95,7 @@ code to the public domain.
 			"vmovdqa (%4), %%xmm6 \n\t"		/* move in root1s */							\
 			"vpmulhuw	(%3), %%xmm4, %%xmm4 \n\t"	/* (unsigned) multiply by inverses */		\
 			"vmovdqa (%5), %%xmm2 \n\t"		/* move in root2s */							\
-			"vpsrlw	$" xtra_bits ", %%xmm4, %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
+			"vpsrlw	$" STRING(xtra_bits) ", %%xmm4, %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
 			"vpaddw	%%xmm3, %%xmm1, %%xmm7 \n\t"	/* add primes and block_loc */					\
 			"vpmullw	%%xmm3, %%xmm4, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
 			"vpsubw	%%xmm0, %%xmm7, %%xmm7 \n\t"	/* substract blocksize */						\
@@ -126,69 +129,6 @@ code to the public domain.
 			: "r9", "r8", "r10", "r11", "rcx", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
 
 
-#define MOD_CMP_16X_vec_b(xtra_bits)																		\
-		__asm__ (																				\
-            /* top half... load and work on last 8 roots */ \
-            "vmovdqa    16(%1), %%xmm3 \n\t"		        /* move in primes */							\
-			"vpsubw	    %%ymm1, %%ymm0, %%ymm4 \n\t"	    /* BLOCKSIZE - block_loc */						\
-			"vpaddw	    16(%2), %%xmm4, %%xmm4 \n\t"		/* apply corrections */							\
-			"vmovdqa    16(%4), %%xmm6 \n\t"		        /* move in root1s */							\
-			"vpmulhuw	16(%3), %%xmm4, %%xmm4 \n\t"	    /* (unsigned) multiply by inverses */		\
-			"vmovdqa    16(%5), %%xmm2 \n\t"		        /* move in root2s */							\
-			"vpsrlw	    $" xtra_bits ", %%xmm4, %%xmm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
-			"vpaddw	    %%ymm3, %%ymm1, %%ymm7 \n\t"	    /* add primes and block_loc */					\
-			"vpmullw	%%xmm3, %%xmm4, %%xmm4 \n\t"	    /* (signed) multiply by primes */				\
-			"vpsubw	    %%ymm0, %%ymm7, %%ymm7 \n\t"	    /* substract blocksize */						\
-			"vpaddw	    %%ymm7, %%ymm4, %%ymm4 \n\t"	    /* add in block_loc + primes - blocksize */		\
-			"vpcmpeqw	%%ymm4, %%ymm6, %%ymm6 \n\t"	    /* compare to root1s */						\
-			"vpcmpeqw	%%ymm4, %%ymm2, %%ymm2 \n\t"	    /* compare to root2s */						\
-			"vpor	    %%ymm6, %%ymm2, %%ymm2 \n\t"	    /* combine compares */							\
-			"vpmovmskb  %%ymm2, %%r9 \n\t"		            /* export to result */							\
-            /* bottom half... load and work on first 8 roots */ \
-			"vmovdqa    (%1), %%ymm3 \n\t"		            /* move in primes */							\
-			"vpsubw	    %%ymm1, %%ymm0, %%ymm4 \n\t"	    /* BLOCKSIZE - block_loc */						\
-			"vpaddw	    (%2), %%ymm4, %%ymm4 \n\t"		    /* apply corrections */							\
-			"vmovdqa    (%4), %%ymm6 \n\t"		            /* move in root1s */							\
-			"vpmulhuw	(%3), %%xmm4, %%xmm4 \n\t"	        /* (unsigned) multiply by inverses */		\
-            "salq       $16,%%r9    \n\t"                   /* move to top half of 32-bit word */ \
-			"vmovdqa    (%5), %%ymm2 \n\t"		            /* move in root2s */							\
-			"vpsrlw	$" xtra_bits ", %%ymm4, %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
-			"vpaddw	    %%ymm3, %%ymm1, %%ymm7 \n\t"	    /* add primes and block_loc */					\
-			"vpmullw	%%xmm3, %%xmm4, %%xmm4 \n\t"	    /* (signed) multiply by primes */				\
-			"vpsubw	    %%ymm0, %%ymm7, %%ymm7 \n\t"	    /* substract blocksize */						\
-			"vpaddw	    %%ymm7, %%ymm4, %%ymm4 \n\t"	    /* add in block_loc + primes - blocksize */		\
-			"vpcmpeqw	%%ymm4, %%ymm6, %%ymm6 \n\t"	    /* compare to root1s */						\
-			"vpcmpeqw	%%ymm4, %%ymm2, %%ymm2 \n\t"	    /* compare to root2s */						\
-			"vpor	    %%ymm6, %%ymm2, %%ymm2 \n\t"	    /* combine compares */							\
-			"vpmovmskb  %%ymm2, %%r8 \n\t"		            /* export to result */							\
-            /* search... look for bits that are set in r8  */ \
-            /* and move the indices that are set to a temp buffer */ \
-            "orq    %%r9, %%r8  \n\t"                       /* now has 16 comparisons (taking 32 bits) */ \
-            "movl	%0,%%r11d		\n\t"		            /* initialize count of set bits */ \
-            "xorq	%%r10,%%r10		\n\t"		            /* initialize bit scan offset */ \
-            "andl   $0xaaaaaaaa,%%r8d   \n\t"               /* mask the bits we don't care about */ \
-            "1:			\n\t"					            /* top of bit scan loop */ \
-            "bsfl	%%r8d,%%ecx		\n\t"		            /* put least significant set bit index into rcx */ \
-            "jz 2f	\n\t"						            /* jump out if zero (no hits).  high percentage. */ \
-            "addl	%%ecx,%%r10d	\n\t"			        /* add in the offset of this index */ \
-            "movl   %%r10d,%%r9d \n\t"                      /* copy offset so we can modify it */    \
-            "shrl   $1,%%r9d \n\t"                          /* divide by two  */    \
-            "addl   %7,%%r9d \n\t"                          /* and add it loop counter */        \
-            "movw	%%r9w, (%6, %%r11, 2) \n\t"		        /* put the bit index into the output buffer */ \
-            "shrq	%%cl,%%r8	\n\t"			            /* shift the bit scan register up to the bit we just processed */ \
-            "incl	%%r11d		\n\t"			            /* increment the count of set bits */ \
-            "incq	%%r10		\n\t"			            /* increment the index */ \
-            "shrq	$1, %%r8 \n\t"				            /* clear the bit */ \
-            "jmp 1b		\n\t"					            /* loop if so */ \
-            "2:		\n\t"						            /*  */ \
-            "movl	%%r11d, %0 \n\t"			            /* return the count of set bits */ \
-            : "+r" (tmp3)																	\
-            : "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
-            "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
-            "r" (fbc->root2 + i), "r"(buffer), "r"(i) \
-            : "r9", "r8", "r10", "r11", "rcx", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
-
-
 // for some reason, using ymm registers with either multiply instruction
 // causes other parts of yafu to significantly slow down.  no idea why.
 // so we workaround it by extract/inserting the high parts and doing
@@ -203,7 +143,7 @@ code to the public domain.
             "vpmulhuw	16(%3), %%xmm4, %%xmm4 \n\t"	/* high 8 words, (unsigned) multiply by inverses */		\
             "vinserti128   $1, %%xmm4, %%ymm5, %%ymm4 \n\t" /* combine low and high parts */ \
 			"vmovdqa (%5), %%ymm2 \n\t"		/* move in root2s */							\
-			"vpsrlw	$" xtra_bits ", %%ymm4, %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
+			"vpsrlw	$" STRING(xtra_bits) ", %%ymm4, %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
 			"vpaddw	%%ymm3, %%ymm1, %%ymm7 \n\t"	/* add primes and block_loc */					\
             "vextracti128  $1, %%ymm4, %%xmm5 \n\t" /* put high part of op1 into xmm5 */ \
             "vextracti128  $1, %%ymm3, %%xmm8 \n\t" /* put high part of op2 into xmm8 */ \
@@ -240,46 +180,6 @@ code to the public domain.
             "r" (fbc->root2 + i), "r"(buffer), "r"(i)	 \
             : "r9", "r8", "r10", "r11", "rcx", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
 
-#define MOD_CMP_16X_vec_c(xtra_bits)																		\
-		__asm__ (																				\
-			"vmovdqa (%1), %%ymm3 \n\t"		/* move in primes */							\
-			"vpsubw	%%ymm1, %%ymm0, %%ymm4 \n\t"	/* BLOCKSIZE - block_loc */						\
-			"vpaddw	(%2), %%ymm4, %%ymm4 \n\t"		/* apply corrections */							\
-			"vmovdqa (%4), %%ymm6 \n\t"		/* move in root1s */							\
-			"vpmulhuw	(%3), %%ymm4, %%ymm4 \n\t"	/* low 8 words, (unsigned) multiply by inverses */		\
-			"vmovdqa (%5), %%ymm2 \n\t"		/* move in root2s */							\
-			"vpsrlw	$" xtra_bits ", %%ymm4, %%ymm4 \n\t"		/* to get to total shift of 24/26/28 bits */			\
-			"vpaddw	%%ymm3, %%ymm1, %%ymm7 \n\t"	/* add primes and block_loc */					\
-            "vpmullw	%%xmm3, %%xmm4, %%xmm4 \n\t"	/* (signed) multiply by primes */				\
-			"vpsubw	%%ymm0, %%ymm7, %%ymm7 \n\t"	/* substract blocksize */						\
-			"vpaddw	%%ymm7, %%ymm4, %%ymm4 \n\t"	/* add in block_loc + primes - blocksize */		\
-			"vpcmpeqw	%%ymm4, %%ymm6, %%ymm6 \n\t"	/* compare to root1s */						\
-			"vpcmpeqw	%%ymm4, %%ymm2, %%ymm2 \n\t"	/* compare to root2s */						\
-			"vpor	%%ymm6, %%ymm2, %%ymm2 \n\t"	/* combine compares */							\
-			"vpmovmskb %%ymm2, %%r8 \n\t"		/* export to result */							\
-            "andl   $0xaaaaaaaa,%%r8d   \n\t"   /* mask the bits we don't care about */ \
-            "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
-            "xorl	%%r10d,%%r10d		\n\t"		/* initialize bit scan offset */ \
-            "1:			\n\t"					/* top of bit scan loop */ \
-            "bsfl	%%r8d,%%ecx		\n\t"		/* put least significant set bit index into rcx */ \
-            "jz 2f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
-            "addl	%%ecx,%%r10d	\n\t"			/* add in the offset of this index */ \
-            "movl   %%r10d,%%r9d \n\t" \
-            "shrl   $1,%%r9d \n\t"   \
-            "addl   %7,%%r9d \n\t"   \
-            "movw	%%r9w, (%6, %%r11, 2) \n\t"		/* put the bit index into the output buffer */ \
-            "shrl	%%cl,%%r8d	\n\t"			/* shift the bit scan register up to the bit we just processed */ \
-            "incl	%%r11d		\n\t"			/* increment the count of set bits */ \
-            "incl	%%r10d		\n\t"			/* increment the index */ \
-            "shrl	$1, %%r8d \n\t"				/* clear the bit */ \
-            "jmp 1b		\n\t"					/* loop if so */ \
-            "2:		\n\t"						/*  */ \
-            "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
-            : "+r" (tmp3)																	\
-            : "r" (fbc->prime + i), "r" (fullfb_ptr->correction + i), \
-            "r" (fullfb_ptr->small_inv + i), "r" (fbc->root1 + i), \
-            "r" (fbc->root2 + i), "r"(buffer), "r"(i)	 \
-            : "r9", "r8", "r10", "r11", "rcx", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "memory", "cc");
 
 #define MOD_INIT_16X												\
 		__asm__ (														\
@@ -288,7 +188,65 @@ code to the public domain.
 			:														\
 			: "r" (bl_sizes), "r" (bl_locs)		\
 			: "xmm0", "xmm1");
+#else
 
+#define TDIV_MED_CLEAN
+
+#define MOD_CMP_8X_vec(xtra_bits)				{ \
+        __m128i v_primes, v_y4, v_y7, v_r1, v_r2;       \
+        v_primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+        v_y4 = _mm_sub_epi16(v_blksz128, v_blkloc128); \
+        v_y4 = _mm_add_epi16(v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->correction + i))); \
+        v_r1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+        v_y4 = _mm_mulhi_epu16(v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i))); \
+        v_r2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+        v_y4 = _mm_srli_epi16(v_y4, xtra_bits); \
+        v_y7 = _mm_add_epi16(v_blkloc128, v_primes); \
+        v_y4 = _mm_mullo_epi16(v_y4, v_primes); \
+        v_y7 = _mm_sub_epi16(v_y7, v_blksz128); \
+        v_y4 = _mm_add_epi16(v_y7, v_y4); \
+        v_r1 = _mm_cmpeq_epi16(v_y4, v_r1); \
+        v_r2 = _mm_cmpeq_epi16(v_y4, v_r2); \
+        v_y4 = _mm_or_si128(v_r1, v_r2); \
+        msk32 = _mm_movemask_epi8(v_y4); \
+        msk32 &= 0xaaaaaaaa; \
+        while (_BitScanForward(&pos, msk32)) { \
+            buffer[tmp3++] = (pos >> 1) + i; \
+            _reset_lsb(msk32); \
+        }}
+
+#define MOD_CMP_16X_vec(xtra_bits)				{ \
+        __m256i v_primes, v_y4, v_y7, v_r1, v_r2;       \
+        v_primes = _mm256_load_si256((__m256i *)(fbc->prime + i)); \
+        v_y4 = _mm256_sub_epi16(v_blksz, v_blkloc); \
+        v_y4 = _mm256_add_epi16(v_y4, _mm256_load_si256((__m256i *)(fullfb_ptr->correction + i))); \
+        v_r1 = _mm256_load_si256((__m256i *)(fbc->root1 + i)); \
+        v_y4 = _mm256_mulhi_epu16(v_y4, _mm256_load_si256((__m256i *)(fullfb_ptr->small_inv + i))); \
+        v_r2 = _mm256_load_si256((__m256i *)(fbc->root2 + i)); \
+        v_y4 = _mm256_srli_epi16(v_y4, xtra_bits); \
+        v_y7 = _mm256_add_epi16(v_blkloc, v_primes); \
+        v_y4 = _mm256_mullo_epi16(v_y4, v_primes); \
+        v_y7 = _mm256_sub_epi16(v_y7, v_blksz); \
+        v_y4 = _mm256_add_epi16(v_y7, v_y4); \
+        v_r1 = _mm256_cmpeq_epi16(v_y4, v_r1); \
+        v_r2 = _mm256_cmpeq_epi16(v_y4, v_r2); \
+        v_y4 = _mm256_or_si256(v_r1, v_r2); \
+        msk32 = _mm256_movemask_epi8(v_y4); \
+        msk32 &= 0xaaaaaaaa; \
+        while (_BitScanForward(&pos, msk32)) { \
+            buffer[tmp3++] = (pos >> 1) + i; \
+            _reset_lsb(msk32); \
+        }}
+
+#define MOD_INIT_16X									\
+        __m256i v_blksz = _mm256_load_si256((__m256i *)bl_sizes);  \
+        __m256i v_blkloc = _mm256_load_si256((__m256i *)bl_locs);  \
+        __m128i v_blksz128 = _mm_load_si128((__m128i *)bl_sizes);  \
+        __m128i v_blkloc128 = _mm_load_si128((__m128i *)bl_locs);  \
+        uint32 msk32, pos;
+
+
+#endif
 
 
 //#define SIQSDEBUG 1
@@ -320,8 +278,6 @@ this file contains code implementing 3)
 
 
 */
-
-#define DO_16X
 
 void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -363,8 +319,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     bl_sizes[5] = 32768;
     bl_sizes[6] = 32768;
     bl_sizes[7] = 32768;
-
-#ifdef DO_16X
     bl_sizes[8] = 32768;
     bl_sizes[9] = 32768;
     bl_sizes[10] = 32768;
@@ -373,10 +327,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     bl_sizes[13] = 32768;
     bl_sizes[14] = 32768;
     bl_sizes[15] = 32768;
-#endif
-
-
-#ifdef DO_16X
 
     // 16x trial division
     if ((sconf->factor_base->fb_10bit_B & 15) == 0)
@@ -407,12 +357,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     {
         bound13 = MAX(sconf->factor_base->fb_13bit_B - 8, sconf->factor_base->fb_12bit_B);
     }
-
-#else
-    bound10 = sconf->factor_base->fb_10bit_B;
-    bound12 = sconf->factor_base->fb_12bit_B;
-    bound13 = sconf->factor_base->fb_13bit_B;
-#endif
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
@@ -469,11 +413,7 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         i = sconf->sieve_small_fb_start;
 
         // single-up test until i is a multiple of 8
-#ifdef DO_16X
         while ((i < bound10) && ((i & 15) != 0))
-#else
-        while ((i < bound10) && ((i & 7) != 0))
-#endif
         {
             prime = fbc->prime[i];
             root1 = fbc->root1[i];
@@ -505,7 +445,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
         CLEAN_AVX2;
 
-
         bl_locs[0] = block_loc;
         bl_locs[1] = block_loc;
         bl_locs[2] = block_loc;
@@ -514,8 +453,6 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         bl_locs[5] = block_loc;
         bl_locs[6] = block_loc;
         bl_locs[7] = block_loc;
-
-#ifdef DO_16X
         bl_locs[8] = block_loc;
         bl_locs[9] = block_loc;
         bl_locs[10] = block_loc;
@@ -526,21 +463,11 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         bl_locs[15] = block_loc;
 
         MOD_INIT_16X;
-#else
-        MOD_INIT_8X;
-#endif
-
-
 
         while (i < bound10)
         {
-#ifdef DO_16X
-            MOD_CMP_16X_vec("8");
+            MOD_CMP_16X_vec(8);
             i += 16;
-#else
-            MOD_CMP_8X_vec("8");
-            i += 8;
-#endif
         }
 
 
@@ -549,9 +476,9 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         {
             if ((i + 16) < sconf->factor_base->fb_12bit_B)
             {
-                MOD_CMP_8X_vec("8");
+                MOD_CMP_8X_vec(8);
                 i += 8;
-                MOD_CMP_8X_vec("10");
+                MOD_CMP_8X_vec(10);
                 i += 8;
             }
             else
@@ -586,13 +513,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
         while (i < bound12)
         {
-#ifdef DO_16X
-            MOD_CMP_16X_vec("10");
+            MOD_CMP_16X_vec(10);
             i += 16;
-#else
-            MOD_CMP_8X_vec("10");
-            i += 8;
-#endif
         }
 
         // transition to beginning of 13-bit loop
@@ -600,9 +522,9 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         {
             if ((i + 16) < sconf->factor_base->fb_13bit_B)
             {
-                MOD_CMP_8X_vec("10");
+                MOD_CMP_8X_vec(10);
                 i += 8;
-                MOD_CMP_8X_vec("12");
+                MOD_CMP_8X_vec(12);
                 i += 8;
             }
             else
@@ -638,13 +560,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
         while (i < bound13)
         {
-#ifdef DO_16X
-            MOD_CMP_16X_vec("12");
+            MOD_CMP_16X_vec(12);
             i += 16;
-#else
-            MOD_CMP_8X_vec("12");
-            i += 8;
-#endif
         }
 
         // transition to beginning of 14-bit loop
@@ -652,7 +569,7 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         {
             if ((i + 8) <= sconf->factor_base->fb_13bit_B)
             {
-                MOD_CMP_8X_vec("12");
+                MOD_CMP_8X_vec(12);
             }
         }
 
