@@ -1,4 +1,3 @@
-<<<<<<< .mine
 #ifndef _COFACTORIZE_H_
 #define _COFACTORIZE_H_
 
@@ -225,8 +224,8 @@ u32 tinyqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2);
 tiny_qs_params *free_tinyqs(tiny_qs_params *g_params);
 
 #endif /* !_COFACTORIZE_H_ */
-||||||| .r0
-=======
+
+
 #ifndef _COFACTORIZE_H_
 #define _COFACTORIZE_H_
 
@@ -472,4 +471,4 @@ tiny_qs_params * init_tinyqs(void);
 u32 tinyqs(tiny_qs_params *g_params, mpz_t n, mpz_t factor1, mpz_t factor2);
 
 #endif /* !_COFACTORIZE_H_ */
->>>>>>> .r381
+
