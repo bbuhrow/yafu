@@ -24,14 +24,7 @@ code to the public domain.
 
 #include "qs.h"
 
-#ifdef USE_YAFU_TDIV
-#define DIVIDE_RESIEVED_PRIME(j) \
-        	while (zShortMod32(tmp32, fbc->prime[i+j]) == 0)	\
-                    	{	\
-		fb_offsets[++smooth_num] = i+j;	\
-		zShortDiv32(tmp32, fbc->prime[i+j], tmp32);	\
-                    	}
-#else
+
 #define DIVIDE_RESIEVED_PRIME(j) \
         	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
                     	{						\
@@ -50,7 +43,6 @@ code to the public domain.
 	    fb_offsets[++smooth_num] = j;	\
 	    mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]);		\
                         }
-#endif
 
 
 #define INIT_CORRECTIONS \
@@ -597,10 +589,6 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
-        
-#ifdef USE_YAFU_TDIV
-        z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif
 
         if (!dconf->valid_Qs[report_num])
             continue;

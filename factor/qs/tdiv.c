@@ -80,10 +80,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 	offset = (bnum << sconf->qs_blockbits) + block_loc;
 
-#ifdef USE_YAFU_TDIV
-	z32_to_mpz(&dconf->Qvals32[report_num], dconf->Qvals[report_num]);
-#endif
-
     //gmp_printf("commencing tdiv on %Zd\n", dconf->Qvals[report_num]);
 
 	// check for additional factors of the a-poly factors
@@ -207,10 +203,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 				targetBits = spBits(q64) / 2;
 				if (targetBits <= 24)
 				{
-                    f64 = LehmanFactor(q64, 0, 0, 0);
-                    //B1 = 70;
-                    //curves = 24;
-                    //microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    // multi-thread issue here...
+                    //f64 = LehmanFactor(q64, 0, 0, 0);
+                    B1 = 70;
+                    curves = 24;
+                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
 				}
 				else if (targetBits <= 26)
 				{

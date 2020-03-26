@@ -460,14 +460,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 #endif
 
-#ifdef USE_YAFU_TDIV
-#define DIVIDE_ONE_PRIME \
-	do	\
-	{	\
-		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(tmp32, prime,tmp32);	\
-	} while (zShortMod32(tmp32, prime) == 0);
-#else
+
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
@@ -481,7 +474,6 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 		fb_offsets[++smooth_num] = j;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
                                     	}
-#endif
 
 void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -497,10 +489,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
     uint16 buffer[32];    
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
     __m512i vmask, vblock;
-#endif
-
-#ifdef USE_YAFU_TDIV
-	z32 *tmp32 = &dconf->Qvals32[report_num];
 #endif
 
 #ifdef USE_BATCHPOLY

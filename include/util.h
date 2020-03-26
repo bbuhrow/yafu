@@ -165,6 +165,9 @@ void test_dlp_composites(void);
 void modtest(int it);
 void test_qsort(void);
 void arith_timing(int num);
+void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum);
+void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum);
+void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *sum);
 
 /* for turning on CPU-specific code */
 

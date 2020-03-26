@@ -52,16 +52,6 @@ this file contains code implementing 2)
 
 */
 
-#ifdef USE_YAFU_TDIV
-#define DIVIDE_ONE_PRIME(x) \
-	do	\
-	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
-		zShortDiv32(tmp32, prime, tmp32);	\
-		bits += logp;	\
-	} while (zShortMod32(tmp32, prime) == 0);
-#else
-
 
 #ifdef SPARSE_STORE
 #define DIVIDE_ONE_PRIME(x) \
@@ -80,7 +70,6 @@ this file contains code implementing 2)
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
 #endif
 
-#endif
 //#define DO_4X_SPV 1
 
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
@@ -129,9 +118,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 		uint64 q64;
-#ifdef USE_YAFU_TDIV
-		z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif		
 
 		//this one qualifies to check further, log that fact.
 		dconf->num++;
@@ -173,19 +159,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		bits = sieve[dconf->reports[report_num]];
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
-#ifdef USE_YAFU_TDIV
-		mpz_to_z32(dconf->Qvals[report_num], tmp32);
-
-		//take care of powers of two
-		while ((tmp32->val[0] & 0x1) == 0)
-		{
-			zShiftRight32_x(tmp32, tmp32, 1);
-			dconf->fb_offsets[report_num][++smooth_num] = 1;
-			bits++;
-		}
-
-#else
-
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
@@ -198,7 +171,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 #endif
 			bits++;
 		}
-#endif
 
 		i=2;
 		//explicitly trial divide by small primes which we have not

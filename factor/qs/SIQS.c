@@ -1515,12 +1515,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// in the pathological case that every sieve location is a report
 	dconf->reports = (uint32 *)malloc(MAX_SIEVE_REPORTS * sizeof(uint32));
 	dconf->num_reports = 0;
-		
-#ifdef USE_YAFU_TDIV
-	dconf->Qvals32 = (z32 *)malloc(MAX_SIEVE_REPORTS * sizeof(z32));
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		zInit32(&dconf->Qvals32[i]);
-#endif
 	dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 		mpz_init(dconf->Qvals[i]); //, 2*sconf->bits);
@@ -1663,7 +1657,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #endif
 		
 	testRoots_ptr = &testfirstRoots_32k;
-
     med_sieve_ptr = &med_sieveblock_32k;
 	// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
 	// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
@@ -2994,7 +2987,7 @@ int update_final(static_conf_t *sconf)
 
 			if (sconf->use_dlp)
 			{
-				printf("brent-rho: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
+				printf("dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
 					sconf->failed_squfof, sconf->attempted_squfof,
 					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
 			}
@@ -3034,7 +3027,7 @@ int update_final(static_conf_t *sconf)
 
 			if (sconf->use_dlp)
 			{
-				logprint(sieve_log, "brent-rho: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
+				logprint(sieve_log, "dlp-ecm: %u failures, %u attempts, %u outside range, %u prp, %u useful\n",
 					sconf->failed_squfof, sconf->attempted_squfof,
 					sconf->dlp_outside_range, sconf->dlp_prp, sconf->dlp_useful);
 			}
@@ -3205,11 +3198,6 @@ int free_sieve(dynamic_conf_t *dconf)
 
 	//free sieve scan report stuff
 	free(dconf->reports);
-#ifdef USE_YAFU_TDIV
-	for (i=0; i<MAX_SIEVE_REPORTS; i++)
-		zFree32(&dconf->Qvals32[i]);
-	free(dconf->Qvals32);
-#endif
 	
 	for (i=0; i<MAX_SIEVE_REPORTS; i++)
 	{

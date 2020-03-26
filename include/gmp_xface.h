@@ -50,13 +50,12 @@ static INLINE void gmp2mp_t(mpz_t src, mp_t *dest) {
 static INLINE void uint64_2gmp(uint64 src, mpz_t dest) {
 
 #if GMP_LIMB_BITS == 64
-	dest->_mp_d[0] = src;
-	dest->_mp_size = (src ? 1 : 0);
+    mpz_set_ui(dest, src);
 #else
-	/* mpz_import is terribly slow */
-	mpz_set_ui(dest, (uint32)(src >> 32));
-	mpz_mul_2exp(dest, dest, 32);
-	mpz_add_ui(dest, dest, (uint32)src);
+    /* mpz_import is terribly slow */
+    mpz_set_ui(dest, src >> 32);
+    mpz_mul_2exp(dest, dest, 32);
+    mpz_set_ui(dest, src & 0xffffffff)
 #endif
 }
 

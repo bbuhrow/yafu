@@ -86,9 +86,6 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-#ifdef USE_YAFU_TDIV
-		z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif
 
 		if (!dconf->valid_Qs[report_num])
 			continue;
