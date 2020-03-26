@@ -672,27 +672,6 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         }
     }
 
- //   for (i = 0, j = 0; j < dconf->num_reports; j++)
- //   {
- //       if (dconf->valid_Qs[j])
- //       {
- //           survive_locs[i++] = j;
- //       }
- //   }
- //   resieve_medprimes_32k_knl(survive_locs, i, parity, dconf->numB - 1, blocknum, sconf, dconf);
-
-	//// factor all reports in this block
-	//for (j=0; j<dconf->num_reports; j++)
-	//{
-	//	if (dconf->valid_Qs[j])
-	//	{
- //           //resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
- //           dconf->total_surviving_reports++;
-	//		tdiv_LP(j, parity, blocknum, sconf, dconf);
-	//		trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
-	//	}
-	//}
-
 	return 0;
 }
 

@@ -44,7 +44,7 @@ code to the public domain.
 // The same basic functionality exists with the 
 // bsf and bsr instructions that are standard x86, if
 // those requirements are not met.
-#ifdef USE_BMI2
+#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
 #define _reset_lsb(x) _blsr_u32(x)
 #define _reset_lsb64(x) _blsr_u64(x)
 #define _lead_zcnt64 __lzcnt64
@@ -79,7 +79,7 @@ __inline uint64 _lead_zcnt64(uint64 x)
 }
 #endif
 #elif defined(__GNUC__)
-#ifdef USE_BMI2
+#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
 #define _reset_lsb(x) _blsr_u32(x)
 #define _reset_lsb64(x) _blsr_u64(x)
 #define _lead_zcnt64 __builtin_clzll
@@ -88,30 +88,10 @@ __inline uint64 _lead_zcnt64(uint64 x)
 #else
 #define _reset_lsb(x) ((x) &= ((x) - 1))
 #define _reset_lsb64(x) ((x) &= ((x) - 1))
-__inline uint32 _trail_zcnt(uint32 x)
-{
-    uint32 pos;
-    if (_BitScanForward(&pos, x))
-        return pos;
-    else
-        return 32;
-}
-__inline uint64 _trail_zcnt64(uint64 x)
-{
-    uint64 pos;
-    if (_BitScanForward64(&pos, x))
-        return pos;
-    else
-        return 64;
-}
-__inline uint64 _lead_zcnt64(uint64 x)
-{
-    uint64 pos;
-    if (_BitScanReverse64(&pos, x))
-        return pos;
-    else
-        return 64;
-}
+#define _lead_zcnt64 __builtin_clzll
+#define _trail_zcnt __builtin_ctzl
+#define _trail_zcnt64 __builtin_ctzll
+
 #endif
 #elif defined(_MSC_VER)
 #include <intrin.h>
@@ -354,8 +334,6 @@ double rint(double x);
 int is_mpz_prp(mpz_t n);
 uint64 mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64 src);
-void mpz_to_z32(mpz_t src, z32 *dest);
-void z32_to_mpz(z32 *src, mpz_t dest);
 char * mpz_conv2str(char **in, int base, mpz_t n);
 
 // we need to convert between yafu bigints and msieve bigints occasionally

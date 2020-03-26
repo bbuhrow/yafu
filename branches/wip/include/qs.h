@@ -58,10 +58,10 @@ code to the public domain.
 
 //|| defined(TARGET_KNC)
 //#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
-#if (defined(USE_AVX512F) && defined(__INTEL_COMPILER))
+#if (defined(TARGET_KNL) && defined(__INTEL_COMPILER))
 // this is the only path that will make use of AVX512 (via auto-vec)
 // for others, it is faster and easier to use the new superfast spBrent.
-// #define USE_VEC_SQUFOF
+//#define USE_VEC_SQUFOF
 #endif
 
 //#define QS_TIMING
@@ -114,7 +114,6 @@ double TF_SPECIAL;
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
 
-//#define USE_YAFU_TDIV 1
 
 // always use these optimizations using sse2
 #ifdef TARGET_KNC
@@ -475,9 +474,6 @@ typedef struct {
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
 	uint32 num_reports;	
-#ifdef USE_YAFU_TDIV
-	z32 *Qvals32;
-#endif
 	mpz_t *Qvals;
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];

@@ -126,24 +126,14 @@ void u128_to_mpz(uint64 *in, mpz_t out)
 
 void mpz_to_u128(mpz_t in, uint64 *out)
 {
-    //gmp_printf("mpz_to_u128 function: in = %Zx, in[1] = %016lx, in[0] = %016lx, in.sz = %d\n",
-    //    in, in->_mp_d[1], in->_mp_d[0], in->_mp_size);
-
     out[0] = mpz_get_ui(in);
     mpz_tdiv_q_2exp(in, in, 64);
     out[1] = mpz_get_ui(in);
-
-    //printf("out = %" PRIx64 ",%" PRIx64 "\n", out[1], out[0]);
 
     // restore input
     mpz_mul_2exp(in, in, 64);
     mpz_add_ui(in, in, out[0]);
 
-	//if (in->_mp_size == 2)
-	//	out[1] = in->_mp_d[1];
-	//else
-	//	out[1] = 0;
-	//out[0] = in->_mp_d[0];
 	return;
 }
 

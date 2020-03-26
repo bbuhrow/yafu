@@ -2076,7 +2076,6 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 	case 23:
 		//modinv - two arguments
         if (check_args(funcnum, nargs)) break;
-        //printf("modinv_1 = %u\n", modinv_1(operands[0]->_mp_d[0], operands[1]->_mp_d[0]));
 		mpz_invert(operands[0], operands[0], operands[1]);        
 		break;
 	case 24:

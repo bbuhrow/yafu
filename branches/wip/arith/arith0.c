@@ -78,63 +78,15 @@ void mpz_set_64(mpz_t dest, uint64 src)
 {
     //printf("%d %d %d\n", GMP_LIMB_BITS, sizeof(mp_limb_t), mp_bits_per_limb);
 #if GMP_LIMB_BITS == 64
-	dest->_mp_d[0] = src;
-	dest->_mp_size = (src ? 1 : 0);
+    mpz_set_ui(dest, src);
 #else
 	/* mpz_import is terribly slow */
-	mpz_set_ui(dest, (uint32)(src >> 32));
-	mpz_mul_2exp(dest, dest, 32);
-	mpz_add_ui(dest, dest, (uint32)src);
+    mpz_set_ui(dest, src >> 32);
+    mpz_mul_2exp(dest, dest, 32);
+    mpz_set_ui(dest, src & 0xffffffff)
 #endif
 
 }
-
-void mpz_to_z32(mpz_t src, z32 *dest)
-{
-	int i;
-
-#if GMP_LIMB_BITS == 32
-	for (i=0; i < mpz_size(src); i++)
-		dest->val[i] = mpz_getlimbn(src, i);
-
-	dest->size = mpz_size(src);
-#else
-	int j = 0;
-	for (i=0; i < mpz_size(src); i++)
-	{
-		uint64 tmp = mpz_getlimbn(src, i);
-		dest->val[j] = (uint32)tmp;
-		dest->val[j+1] = (uint32)(tmp >> 32);
-		j += 2;
-	}
-	if (dest->val[j-1] == 0)
-		dest->size = j-1;
-	else
-		dest->size = j;
-#endif
-	return;
-}
-
-void z32_to_mpz(z32 *src, mpz_t dest)
-{
-	int i;
-#if GMP_LIMB_BITS == 32
-	for (i=0; i < src->size; i++)
-		dest->_mp_d[i] = src->val[i];
-	dest->_mp_size = src->size;
-#else
-	int j=0;
-	if (src->size & 1)
-		src->val[src->size] = 0;
-
-	for (i=0; i < src->size; i+=2)
-		dest->_mp_d[j++] = (uint64)src->val[i] | ((uint64)src->val[i+1] << 32);
-	dest->_mp_size = j;
-
-#endif
-	return;
-}
-
 
 void zCopy(z *src, z *dest)
 {

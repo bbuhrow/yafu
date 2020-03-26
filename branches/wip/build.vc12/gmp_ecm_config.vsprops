@@ -6,11 +6,11 @@
 	>
 	<Tool
 		Name="VCCLCompilerTool"
-		AdditionalIncludeDirectories="..\..\..\mpir;..\..\..\gmp-ecm"
+		AdditionalIncludeDirectories="..\..\..\mpir\lib\$(IntDir);..\..\..\gmp-ecm\"
 		PreprocessorDefinitions="HAVE_GMP;HAVE_GMP_ECM"
 	/>
 	<Tool
 		Name="VCLinkerTool"
-		AdditionalDependencies="..\..\..\mpir\build.vc9\lib\$(PlatformName)\$(ConfigurationName)\mpir.lib ..\..\..\gmp-ecm\build.vc9\$(PlatformName)\$(ConfigurationName)\ecm.lib"
+		AdditionalDependencies="..\..\..\mpir\lib\$(PlatformName)\$(ConfigurationName)\mpir.lib ..\..\..\gmp-ecm\lib\$(PlatformName)\$(ConfigurationName)\ecm.lib"
 	/>
 </VisualStudioPropertySheet>

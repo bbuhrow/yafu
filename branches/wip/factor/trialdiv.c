@@ -188,6 +188,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	// provided by 'neonsignal'
 	mpz_t a, b2, tmp, multN, a2;
 	int i;
+    int sqchecks = 0;
 	int numChars;
 	uint64 reportIt, reportInc;
 	uint64 count;
@@ -362,6 +363,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	numChars = 0;
 	reportIt = limit / 100;
 	reportInc = reportIt;
+    
 	do
 	{
 		d = 0;
@@ -393,7 +395,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		// accumulate so that we can reset d 
 		// (and thus keep it single precision)
 		mpz_add_ui(a2, a2, d*2);
-
+        
 		count += d;
 		if (count > limit)
 			break;
@@ -407,8 +409,12 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 			fflush(stdout);
 			reportIt += reportInc;
 		}
+        sqchecks++;
+        
 	} while (!mpz_perfect_square_p(b2));
 
+    if (VFLAG > 1)
+        printf("fmt: performed %d perfect square checks\n", sqchecks);
 
 found:
 
