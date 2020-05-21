@@ -267,7 +267,428 @@ int find_offset_matching_brace(char *ptr, char type)
     return i;
 }
 
-str_t *preprocess(str_t *in, int *numlines)
+str_t* preprocess(str_t* in, int* numlines)
+{
+    // preprocess the expression in 'in'.
+    // the expression evaluator is good at evaluating single-line
+    // expressions (not assignments) that can be converted into
+    // a post-fix notation consisting of operands, numbers, or variables.
+    // The expression evaluator is therefore not able to handle assigments,
+    // multiple lines, or compound expressions.
+    // This preprocessor converts such complex syntax into a notation that
+    // the expression evaluator can deal with.
+    // We return the number of lines found and an array of strings,
+    // one line per string.  user must free 'out'.
+    int i, j, k;
+    char* ptr;
+    char str[1024];
+    int openp, closedp, openb, closedb;
+    str_t* out;
+    str_t* current;
+
+    if (in->s[0] == '{')
+    {
+        // if the first character is a open brace '{', then we need to
+        // reformat this block expression by removing one level of
+        // braces and removing leading or trailing commas.  The driver
+        // will have placed commas between separate lines within the braces.
+        strcpy(in->s, in->s + 1);
+        in->s[strlen(in->s) - 1] = '\0';
+        i = 0;
+        while (in->s[i] == ',')
+            in->s[i++] = ' ';
+
+        i = 1;
+        while ((in->s[strlen(in->s) - i] == ',') ||
+            (in->s[strlen(in->s) - i] == '}') ||
+            (in->s[strlen(in->s) - i] == ')'))
+        {
+            if ((in->s[strlen(in->s) - i] == ',') ||
+                (in->s[strlen(in->s) - i] == '}'))
+                in->s[strlen(in->s) - i] = ' ';
+            i++;
+        }
+    }
+
+    j = 0;
+    // remove white space from the input
+    for (i = 0; i < in->nchars; i++)
+    {
+        if (isspace(in->s[i]))
+            continue;
+
+        in->s[j] = in->s[i];
+        j++;
+    }
+    in->s[j] = '\0';
+
+    // copy input to first output location
+    *numlines = 1;
+    out = (str_t*)malloc(sizeof(str_t));
+    current = &out[0];
+    sInit(current);
+    sCopy(current, in);
+
+    // algebraic simplification (this would be cool...)    
+
+    // reformat 'for', 'forprime', 'if', and 'forfactors' tokens as functions 
+    // taking string arguments, where the arguments are the various text
+    // components of the function.  The actual looping is handled by 
+    // recursive calls to process_expression from within the function evaluator.
+    if (((ptr = strstr(current->s, "for(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
+    {
+        // new for loop
+        char pre[8], start[80], vname[20];
+        sprintf(pre, "for%d", for_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
+
+        // tokenize the loop
+        //ptr = strtok(&current->s[4], ";");
+        ptr = strtok(ptr, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted for loop: for(init; test; iter; body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_init", pre);
+        if (set_strvar(vname, ptr + 4))
+            new_strvar(vname, ptr + 4);
+        ptr = strtok(NULL, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted for loop: for(init; test; iter; body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_test", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+        ptr = strtok(NULL, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted for loop: for(init; test; iter; body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_iter", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
+        {
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
+
+        if (ptr[i] == '\0')
+        {
+            printf("badly formatted for loop: for(init; test; iter; body)\n");
+            exit(3);
+        }
+
+        ptr[i] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);%s",
+                start, pre, pre, pre, pre, str);
+        }
+        else
+        {
+            sprintf(current->s, "%sfor(%s_init, %s_test, %s_iter, %s_body);",
+                start, pre, pre, pre, pre);
+        }
+    }
+
+    if (((ptr = strstr(current->s, "forprime(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
+    {
+        // new for loop
+        char pre[8], start[80], vname[20];
+        sprintf(pre, "forp%d", forp_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
+
+        // tokenize the loop
+        ptr = strtok(ptr, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_start", pre);
+        if (set_strvar(vname, ptr + 9))
+            new_strvar(vname, ptr + 9);
+        ptr = strtok(NULL, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted forprime loop: forprime(var=start; stop; body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_stop", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
+        {
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
+
+        if (ptr[i] == '\0')
+        {
+            printf("badly formatted for loop: forprime(var=start; stop; body)\n");
+            exit(3);
+        }
+
+        ptr[i] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);%s",
+                start, pre, pre, pre, str);
+        }
+        else
+            sprintf(current->s, "%sforprime(%s_start, %s_stop, %s_body);", start, pre, pre, pre);
+    }
+
+    if (((ptr = strstr(current->s, "forfactors(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
+    {
+        // new for loop
+        char pre[8], start[80], vname[20];
+        sprintf(pre, "forf%d", forf_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
+
+        // tokenize the loop
+        //ptr = strtok(&current->s[11], ";");
+        ptr = strtok(ptr, ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted forfactors loop: forfactors(init, body)\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_init", pre);
+        if (set_strvar(vname, ptr + 11))
+            new_strvar(vname, ptr + 11);
+
+        // this can't just find any old ')', it has to find the matching one.
+        ptr = ptr + strlen(ptr) + 1;
+        openp = closedp = 0;
+        for (i = 0; i < strlen(ptr); i++)
+        {
+            if (ptr[i] == '(') openp++;
+            if (ptr[i] == ')') {
+                closedp++;
+                if (closedp > openp)
+                    break;
+            }
+        }
+
+        if (ptr[i] == '\0')
+        {
+            printf("badly formatted for loop: forfactors(init, body)\n");
+            exit(3);
+        }
+
+        ptr[i] = '\0';
+        sprintf(vname, "%s_body", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+
+        if (ptr[i + 1] != '\0')
+        {
+            sprintf(str, "%s", ptr + i + 1);
+            sprintf(current->s, "%sforfactors(%s_init, %s_body);%s",
+                start, pre, pre, str);
+        }
+        else
+            sprintf(current->s, "%sforfactors(%s_init, %s_body);", start, pre, pre);
+    }
+
+    if (((ptr = strstr(current->s, "if(")) != NULL) &&
+        exp_is_closed(current->s, ptr))
+    {
+        // new if statement
+        char pre[8], start[80], vname[20];
+        sprintf(pre, "if%d", if_cnt++);
+
+        // save the beginning part of the command, if any
+        if (ptr != current->s)
+        {
+            int n = (int)(ptr - current->s);
+            strncpy(start, current->s, MIN(n, 79));
+            start[n] = '\0';
+        }
+        else
+            strcpy(start, "");
+
+        // tokenize the branch
+        char* eptr;
+        ptr = strtok(&current->s[3], ";");
+        if (ptr == NULL)
+        {
+            printf("badly formatted if statement: if(condition; true-body; [false-body])\n");
+            exit(3);
+        }
+        sprintf(vname, "%s_cond", pre);
+        if (set_strvar(vname, ptr))
+            new_strvar(vname, ptr);
+        eptr = strtok(NULL, ";");
+        if (eptr == NULL)
+        {
+            printf("badly formatted if statement: if(condition; true-body; [false-body])\n");
+            exit(3);
+        }
+        else if (eptr[strlen(eptr) + 1] == '\0')
+        {
+            // no else statement and no output suppression character
+            strncpy(str, eptr, strlen(eptr) - 1);
+            str[strlen(eptr) - 1] = '\0';
+            sprintf(vname, "%s_body", pre);
+            if (set_strvar(vname, str))
+                new_strvar(vname, str);
+
+            sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
+        }
+        else
+        {
+            // either an else statement or an output suppression character or both
+            if (eptr[strlen(eptr) + 1] == ';')
+            {
+                // both
+                sprintf(str, "%s;", eptr);
+                sprintf(vname, "%s_body", pre);
+                if (set_strvar(vname, str))
+                    new_strvar(vname, str);
+
+                ptr = strtok(NULL, "\0");
+                strncpy(str, ptr, strlen(ptr) - 1);
+                str[strlen(ptr) - 1] = '\0';
+                sprintf(vname, "%s_elsebody", pre);
+                if (set_strvar(vname, str))
+                    new_strvar(vname, str);
+                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);",
+                    start, pre, pre, pre);
+            }
+            else if (eptr[strlen(eptr) + 1] == ')')
+            {
+                // just the if, with an output suppression character
+                sprintf(str, "%s;", eptr);
+                sprintf(vname, "%s_body", pre);
+                if (set_strvar(vname, str))
+                    new_strvar(vname, str);
+
+                sprintf(current->s, "%sif(%s_cond, %s_body);", start, pre, pre);
+            }
+            else
+            {
+                // an else with no output suppression character
+                sprintf(str, "%s", eptr);
+                sprintf(vname, "%s_body", pre);
+                if (set_strvar(vname, str))
+                    new_strvar(vname, str);
+
+                ptr = strtok(NULL, "\0");
+                strncpy(str, ptr, strlen(ptr) - 1);
+                str[strlen(ptr) - 1] = '\0';
+                sprintf(vname, "%s_elsebody", pre);
+                if (set_strvar(vname, str))
+                    new_strvar(vname, str);
+
+                sprintf(current->s, "%sif(%s_cond, %s_body, %s_elsebody);",
+                    start, pre, pre, pre);
+            }
+        }
+    }
+
+    // search for commas within 'closed' areas and separate them into
+    // a sequence of individual expressions.  A 'closed' area is text
+    // that is not inside any parenthesis or brace.
+    // for example, "i=0,j=0" should be parsed as the two expressions
+    // i=0
+    // j=0
+    // but "for(i=0,j=0;..." is ignored because the comma is inside
+    // an open parenthesis (it will eventually show up here without
+    // the surrounding 'for')
+    // to do this we go through the input string one character at a 
+    // time and count open/closed parens/braces, while looking for
+    // commas.
+    openp = openb = closedp = closedb = 0;
+    k = strlen(current->s);
+    for (i = 0, j = 0; i < k; i++, j++)
+    {
+        if (current->s[i] == '(') openp++;
+        if (current->s[i] == ')') closedp++;
+        if (current->s[i] == '{') openb++;
+        if (current->s[i] == '}') closedb++;
+        if (current->s[i] == ',') {
+            if ((openp == closedp) && (openb == closedb))
+            {
+                (*numlines)++;
+                out = (str_t*)realloc(out, *numlines * sizeof(str_t));
+                out[*numlines - 2].s[i] = '\0';
+                sInit(&out[*numlines - 1]);
+                current = &out[*numlines - 1];
+                toStr(&out[*numlines - 2].s[i + 1], &out[*numlines - 1]);
+                k = current->nchars;
+                i = 0;
+            }
+        }
+    }
+    //toStr(current->s, &out[*numlines - 1]);
+
+    return out;
+}
+
+str_t *preprocess_new(str_t *in, int *numlines)
 {
 	// preprocess the expression in 'in'.
     // the expression evaluator is good at evaluating single-line
@@ -989,7 +1410,7 @@ int hasOperatorAS(char *str)
 	return 0;
 }
 
-void get_expression(char *in, str_t *out)
+void get_expression_new(char *in, str_t *out)
 {
 	char *tok;
 	char delim[] = {' ', '\0'};
@@ -1134,7 +1555,7 @@ void get_expression(char *in, str_t *out)
 	free(tmp2);
 }
 
-int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet)
+int process_expression_new(char *input_exp, fact_obj_t *fobj, int force_quiet)
 {
 	str_t str;
     str_t *out;
@@ -1172,7 +1593,7 @@ int process_expression(char *input_exp, fact_obj_t *fobj, int force_quiet)
 	return 0;
 }
 
-void calc_with_assignment(str_t *in, fact_obj_t *fobj, int force_quiet)
+void calc_with_assignment_new(str_t *in, fact_obj_t *fobj, int force_quiet)
 {
     char *ptr;
     char varname[80];
@@ -1210,6 +1631,258 @@ void calc_with_assignment(str_t *in, fact_obj_t *fobj, int force_quiet)
             mpz_set_str(tmp, str.s, 0);
             // it is important (to loops, for instance), that the input not change.
             //sCopy(&str, in);
+
+            // always set the default variable to the new answer
+            set_uvar("ans", tmp);
+            // and optionally any assigned variable as well.
+            if (set_uvar(varname, tmp))
+                new_uvar(varname, tmp);
+
+            if ((nooutput == 0) && (force_quiet == 0))
+            {
+                if (OBASE == DEC)
+                {
+                    if (VFLAG > 0)
+                        gmp_printf("\n%s = %Zd\n\n", varname, tmp);
+                    else
+                        gmp_printf("%Zd\n", tmp);
+                }
+                else if (OBASE == HEX)
+                {
+                    if (VFLAG > 0)
+                        gmp_printf("\n%s = %Zx\n\n", varname, tmp);
+                    else
+                        gmp_printf("%Zx\n", tmp);
+                }
+            }
+        }
+    }
+
+    mpz_clear(tmp);
+    sFree(&str);
+    return;
+}
+
+void get_expression(char* in, str_t* out)
+{
+    char* tok;
+    char delim[] = { ' ', '\0' };
+    int invalid_string = 0;
+    bstack_t stk;
+    str_t* tmp, * tmp1, * tmp2;
+
+    // if there is no input to process, we are done... 
+    if (in == NULL) return;
+
+    stack_init(20, &stk, STACK);
+    tmp = (str_t*)malloc(sizeof(str_t));
+    sInit(tmp);
+    tmp1 = (str_t*)malloc(sizeof(str_t));
+    sInit(tmp1);
+    tmp2 = (str_t*)malloc(sizeof(str_t));
+    sInit(tmp2);
+
+    tok = strtok(in, delim);
+    while (tok != NULL)
+    {
+        // if token is a number, push it onto the stack... 
+        if (isNumber(tok))
+        {
+            toStr(tok, tmp);
+            push(tmp, &stk);
+        }
+        else if (isOperator(tok))
+        {
+            if (tok[0] == '!' || tok[0] == '#')
+            {
+                // factorial and primorial are unary operators
+                if (pop(tmp1, &stk) == 0)
+                {
+                    invalid_string = 1;
+                    break;
+                }
+                if (hasOperator(tmp1->s))
+                {
+                    sClear(tmp);
+                    sAppend("(", tmp);
+                    sAppend(tmp1->s, tmp);
+                    sAppend(")", tmp);
+                    sAppend(tok, tmp);
+                }
+                else
+                {
+                    sClear(tmp);
+                    sAppend(tmp1->s, tmp);
+                    sAppend(tok, tmp);
+                }
+                push(tmp, &stk);
+            }
+            else if (tok[0] == '+')
+            {
+                // pop off two elements a,b
+                // push back on "(aOPb)" 
+                if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+                {
+                    invalid_string = 1;
+                    break; // bad input string, don't parse any more...
+                }
+                sClear(tmp);
+                sAppend(tmp1->s, tmp);
+                sAppend(tok, tmp);
+                sAppend(tmp2->s, tmp);
+                push(tmp, &stk);
+            }
+            else if (tok[0] == '-')
+            {
+                // pop off two elements a,b
+                //   push back on "(aOPb)" 
+                if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+                {
+                    invalid_string = 1;
+                    break; // bad input string, don't parse any more... 
+                }
+                sClear(tmp);
+                sAppend(tmp1->s, tmp);
+                sAppend(tok, tmp);
+                if (hasOperatorAS(tmp2->s))
+                {
+                    sAppend("(", tmp);
+                    sAppend(tmp2->s, tmp);
+                    sAppend(")", tmp);
+                }
+                else
+                {
+                    sAppend(tmp2->s, tmp);
+                }
+                push(tmp, &stk);
+            }
+            else
+            {
+                // pop off two elements a,b
+                // push back on "(aOPb)"
+                if ((pop(tmp2, &stk) == 0) || (pop(tmp1, &stk) == 0))
+                {
+                    invalid_string = 1;
+                    break; // bad input string, don't parse any more... 
+                }
+                sClear(tmp);
+                if (hasOperator(tmp1->s))
+                {
+                    sAppend("(", tmp);
+                    sAppend(tmp1->s, tmp);
+                    sAppend(")", tmp);
+                }
+                else
+                    sAppend(tmp1->s, tmp);
+
+                sAppend(tok, tmp);
+
+                if (hasOperator(tmp2->s))
+                {
+                    sAppend("(", tmp);
+                    sAppend(tmp2->s, tmp);
+                    sAppend(")", tmp);
+                }
+                else
+                    sAppend(tmp2->s, tmp);
+
+                push(tmp, &stk);
+            }
+        }
+        else
+        {
+            // non-number and non-operator encountered, we're done grabbing the input string
+            break;
+        }
+        tok = strtok(NULL, delim);
+    }
+
+    if (!invalid_string) pop(out, &stk);
+
+    stack_free(&stk);
+    sFree(tmp);
+    free(tmp);
+    sFree(tmp1);
+    free(tmp1);
+    sFree(tmp2);
+    free(tmp2);
+}
+
+int process_expression(char* input_exp, fact_obj_t* fobj, int force_quiet)
+{
+    str_t str;
+    str_t* out;
+    char* ptr;
+    int num;
+    int i;
+
+    sInit(&str);
+    toStr(input_exp, &str);
+
+    // multi-line statement blocks:
+    // have the preprocessor check for open '{' while parsing
+    // statement bodies.  If we see an open bracket without
+    // a closing one, create a new variable with the name of
+    // the block.  E.g. if parsing a 2nd for loop, the name
+    // would be 'for1_block'.  Then we return, and get some more
+    // text.  A global will need to keep track of open/closed
+    // brackets to know whether to keep appending to a block 
+    // variable or to finialize it and increment to the next 
+    // statement.
+    // multi-statement lines:
+    // separate with commas?
+    out = preprocess(&str, &num);
+
+    // new factorization
+    fobj->refactor_depth = 0;
+    for (i = 0; i < num; i++)
+    {
+        calc_with_assignment(&out[i], fobj, force_quiet);
+        sFree(&out[i]);
+    }
+
+    sFree(&str);
+    free(out);
+    return 0;
+}
+
+void calc_with_assignment(str_t* in, fact_obj_t* fobj, int force_quiet)
+{
+    char* ptr;
+    char varname[80];
+    int offset = 0;
+    int nooutput;
+    str_t str;
+    mpz_t tmp;
+
+    mpz_init(tmp);
+    sInit(&str);
+
+    if ((ptr = strchr(in->s, '=')) != NULL)
+    {
+        offset = (ptr - in->s);
+        strncpy(varname, in->s, offset);
+        varname[offset++] = '\0';
+    }
+    else
+        strcpy(varname, "ans");
+
+    // look for a trailing semicolon
+    if (in->s[strlen(in->s) - 1] == ';')
+    {
+        nooutput = 1;
+        in->s[strlen(in->s) - 1] = '\0';
+    }
+    else
+        nooutput = 0;
+
+    toStr(in->s + offset, &str);
+    if (!calc(&str, fobj))
+    {
+        if (strcmp(str.s, "") != 0)
+        {
+            mpz_set_str(tmp, str.s, 0);
+            sCopy(&str, in);
 
             // always set the default variable to the new answer
             set_uvar("ans", tmp);
