@@ -376,6 +376,9 @@ typedef struct
 	uint32 gbl_override_blocks;		//override the # of blocks used
 	int gbl_override_lpmult_flag;
 	uint32 gbl_override_lpmult;		//override the large prime multiplier
+    int gbl_override_bdiv_flag;
+    float gbl_override_bdiv;        // override the lpmax divider for batch GCD
+    uint32 gbl_btarget;             // the target number of batch relations
 	int gbl_force_DLP;
 	int gbl_force_TLP;
 	uint32 gbl_override_lpb;		// override the large prime bound (specified in bits)
@@ -602,6 +605,7 @@ void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
 void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);
 void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
+uint64 do_uecm(uint64 q);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();

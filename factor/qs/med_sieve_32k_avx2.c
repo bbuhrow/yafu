@@ -35,6 +35,18 @@ code to the public domain.
 #include "sieve_macros_32k_avx2.h"
 
 
+// bitonic sort the inputs?  trying to get some greater
+// fraction of writes to be to the same cache line at the
+// expense of additional in-register computation.
+// could maybe even just do the first half of the sort, stopping
+// just before the two half-lists are merged.
+// with AVX512BW, could maybe do this with two 32-word lists.
+
+// _mm512_cmp_epu16_mask 
+// _mm512_mask_blend_epi16
+
+
+
 // vpext uses p0 and p5
 // subb uses 2p0156 2p237 p4
 // vpext avoids read port conflicts; subb is free to use p237
@@ -896,7 +908,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 		UPDATE_ROOTS;
 	}
 
-	// sieve primes 8 at a time, where 8192 < p < blocksize/3
+	// sieve primes 8 at a time, where 8192 < p < blocksize/3 (10923)
 	_INIT_AVX2_SMALL_PRIME_SIEVE;
 	_AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
 

@@ -492,6 +492,7 @@ done:
 		(sconf->total_poly_a + 1) * sizeof(mpz_t));
 	mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 	mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
+    poly->index = sconf->total_poly_a;
 
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);

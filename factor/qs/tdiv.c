@@ -24,6 +24,9 @@ code to the public domain.
 #include "util.h"
 #include "common.h"
 #include "cofactorize.h"
+#ifdef USE_BATCH_FACTOR
+#include "batch_factor.h"
+#endif
 
 //#define SIQSDEBUG 1
 
@@ -62,7 +65,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	uint64 q64, f64;
-	int j,it;
+	int j, i, it;
 	uint32 prime;
 	int dlp_done = 0;
 	int smooth_num;
@@ -98,6 +101,21 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #endif
 		}
 	}
+
+#if 0 //def SPARSE_STORE
+    // only actually store indices of primes larger than med_B.
+    // If the relation ultimately proves useful during filtering
+    // then we will trial divide it there to recover its divisors,
+    // including any factors of the A poly.
+    for (j = 0, i = 0; j <= smooth_num; j++)
+    {
+        if (fb_offsets[j] >= sconf->factor_base->med_B)
+        {
+            fb_offsets[i++] = fb_offsets[j];
+        }
+    }
+    smooth_num = i - 1;
+#endif
     
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
@@ -117,16 +135,13 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		//add this one
 		if (sconf->is_tiny)
 		{	
-			// we need to encode both the a_poly and b_poly index
-			// in poly_id
-			poly_id |= (sconf->total_poly_a << 16);
 			buffer_relation(offset,large_prime,smooth_num+1,
-				fb_offsets,poly_id,parity,dconf,polya_factors,it, 1);
+				fb_offsets, dconf->curr_poly->index, poly_id,parity,dconf,polya_factors,it, 1);
 		}
         else
         {
             buffer_relation(offset, large_prime, smooth_num + 1,
-                fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+                fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf, polya_factors, it, 1);
         }
 
 #ifdef QS_TIMING
@@ -170,6 +185,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 #else
 			// meh, not really any faster, but fun to write...
 			res = spPRP2(q64);
+            //res = pow2m(q64 - 1, q64);
 #endif
 
 			//if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
@@ -191,7 +207,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
             // the vector squfof routine acts on a buffer full of
             // candidates at a time. 
 			buffer_relation(offset, NULL, smooth_num + 1,
-				fb_offsets, poly_id, parity, dconf, polya_factors, it, q64);
+				fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf, polya_factors, it, q64);
 
 #else
 			dconf->attempted_squfof++;
@@ -245,7 +261,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
             f64 = LehmanFactor(q64, 0, 0, 0);
 #endif
 			
-			if (f64 > 1 && f64 != q64)
+			if ((f64 > 1) && (f64 != q64) && (q64 % f64 == 0))
 			{
 				uint32 large_prime[3];
 
@@ -259,7 +275,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					//add this one
 					dconf->dlp_useful++;
 					buffer_relation(offset, large_prime, smooth_num + 1,
-						fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+						fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf, polya_factors, it, 1);
 				}
 			}
 			else
@@ -294,18 +310,6 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	// quick check if Q should be subjected to TLP factoring
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 96)
 	{
-		/*
-		ideas:
-		look at successful tlp relations and see if there is a predictor
-		in the number of normal factors or total size of factors found
-
-		fast ecm tuned for small inputs
-
-		adaptive TF cutoff tweaking to get about 10% success rate in tlp attempts
-
-		adaptive filtering passes or heuristic on when to start filtering
-		*/
-
 		uint64 res;
 		uint32 numit = 128;
 
@@ -313,8 +317,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 //#define OUTPUT_TLP_ATTEMPT_DETAILS
 
-		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
-		//if (qfloat < sconf->large_prime_max3)
+		//if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
+		if (qfloat < sconf->large_prime_max3)
 		{
 			uint32 large_prime[3];
 			uint32 r;
@@ -324,6 +328,123 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			char fname[20];
 			sprintf(fname, "tlp_attempts.dat");
 #endif
+
+            if (dconf->do_batch)
+            {
+                int32 soffset = offset;
+                
+                if (parity)
+                {
+                    soffset *= -1;
+                }
+                mpz_set_ui(dconf->gmptmp1, 0);
+                dconf->attempted_cosiqs++;
+                relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
+                    dconf->Qvals[report_num], NULL, 0, dconf->gmptmp1, NULL, &dconf->rb);
+
+                // the relation batch persists across polynomials.  When we've 
+                // reached our watermark the following batch processing will
+                // save valid relations off to a buffer.  That buffer in turn
+                // will get merged into the top-level relation structure and
+                // eventual TLP filtering.  Reset the batch structure when finished.
+                //printf("batched %u of %u target relations\n", 
+                //    dconf->rb.num_relations, dconf->rb.target_relations);
+
+                // rough in a flag that we can eventually toggle from calling code,
+                // forcing the batch to be processed (for example on abort or after
+                // determination that we have enough relations for final filtering).
+                // right now this flag isn't used and any relations in the batch
+                // buffer are lost on abort or when post-processing starts.
+
+                // one other thing we could do is switch to non-batch processing
+                // when post-processing is getting close...
+
+                //if ((dconf->rb.num_relations >= sconf->rb.target_relations) &&
+                //    (dconf->batch_run_override == 1))
+
+                // start processing the relations in the indicated buffer.
+                if (dconf->batch_run_override > 0)
+                {
+                    relation_batch_t *rb;
+                    int i;
+
+                    rb = &sconf->rb[dconf->batch_run_override - 1];
+
+                    //if (dconf->batch_run_override == 1)
+                    //{
+                    //    rb = &sconf->rb;
+                    //}
+                    //else
+                    //{
+                    //    rb = &sconf->rb2;
+                    //}
+                    
+                    if (VFLAG > 1)
+                    {
+                        printf("now processing %u relations in batch %d in thread %d\n",
+                            rb->num_relations, dconf->batch_run_override, dconf->tid);
+                    }
+
+                    //if (VFLAG > 0)
+                    //{
+                    //    printf("processing batch relations\n");
+                    //}
+
+                    //relation_batch_run(&dconf->rb);
+                    relation_batch_run(rb);
+
+                    //dconf->rb.conversion_ratio = 
+                    //    (double)dconf->rb.num_success / (double)dconf->rb.num_relations;
+                    rb->conversion_ratio =
+                          (double)rb->num_success / (double)rb->num_relations;
+
+                    //if (VFLAG > 0)
+                    //{
+                    //    printf("found %u new relations in batch of %u\n", 
+                    //        dconf->rb.num_success, dconf->rb.num_relations);
+                    //}
+
+                    //for (i = 0; i < dconf->rb.num_relations; i++)
+                    for (i = 0; i < rb->num_relations; i++)
+                    {
+                        cofactor_t *c = rb->relations + i;
+                        uint32 *f = rb->factors + c->factor_list_word;
+
+                        if (c->success)
+                        {
+                            uint8 parity = c->signed_offset < 0 ? 1 : 0;
+
+                            if (c->success == 3)
+                                dconf->tlp_useful++;
+                            else if (c->success == 2)
+                                dconf->dlp_useful++;
+                            else if (c->success == 1)
+                                dconf->num_slp++;
+
+                            buffer_relation(abs(c->signed_offset), c->lp_r, c->num_factors_r,
+                                f, c->a, c->b, parity, dconf, NULL, 0, 1);
+                        }
+                    }
+
+                    if (VFLAG > 1)
+                    {
+                        printf("done processing batch %d in thread %d, found %u relations\n",
+                            dconf->batch_run_override, dconf->tid, rb->num_success);
+                    }
+
+                    // clear the relation batch now that we are done processing it.
+                    rb->num_relations = 0;
+                    rb->num_success = 0;
+                    rb->num_factors = 0;
+
+                    // signal we are done processing the batch.
+                    dconf->batch_run_override = -1;
+                }
+
+                
+
+                return;
+            }
 
 			//FILE *tlp;
 			//tlp = fopen("tlp_attempts.txt", "a");
@@ -353,6 +474,74 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 			mpz_set_ui(dconf->gmptmp1, 0);
 			mpz_set_ui(dconf->gmptmp2, 0);
+
+#if defined(__MINGW64__)
+            // TODO: get tinyqs working on mingw64
+            if (tinyqs(dconf->cosiqs, dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2))
+            {
+                // factors from tinyqs are prime
+                // large prime bound will never exceed 32 bits
+                if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+                    return;
+
+                if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+                    return;
+
+                large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+                large_prime[1] = mpz_get_ui(dconf->gmptmp2);
+
+                // sanity checks
+                if ((large_prime[0] == 0) || (large_prime[1] == 0))
+                    return;
+
+                r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
+                if (r != 0)
+                {
+                    printf("tlp problem: r != 0\n");
+                    dconf->failed_cosiqs++;
+                    return;
+                }
+
+                r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, large_prime[1]);
+                if (r != 0)
+                {
+                    printf("tlp problem: r != 0\n");
+                    dconf->failed_cosiqs++;
+                    return;
+                }
+
+                // large prime bound will never exceed 32 bits
+                if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+                    return;
+
+                large_prime[2] = mpz_get_ui(dconf->gmptmp2);
+
+                if ((large_prime[0] < sconf->large_prime_max) &&
+                    (large_prime[1] < sconf->large_prime_max) &&
+                    (large_prime[2] < sconf->large_prime_max))
+                {
+#ifdef OUTPUT_TLP_ATTEMPT_DETAILS
+                    fid = fopen(fname, "a");
+                    fprintf(fid, "%1.0lf,1\n", qfloat);
+                    fclose(fid);
+#endif
+
+                    //if (large_prime[2] < (uint32)sconf->pmax)
+                    //	printf("tlp with small 3rd prime: %u,%u,%u\n",
+                    //		large_prime[0], large_prime[1], large_prime[2]);
+
+                    //gmp_printf("tlp: %Zd = %u,%u,%u\n",
+                    //	dconf->Qvals[report_num], large_prime[0], large_prime[1], large_prime[2]);
+
+                    //add this one
+                    dconf->tlp_useful++;
+                    buffer_relation(offset, large_prime, smooth_num + 1,
+                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
+                        polya_factors, it, 1);
+                }
+
+            }
+#else
 			if (1)
 			{
 				int B1, B2, curves, bits = mpz_sizeinbase(dconf->Qvals[report_num], 2);
@@ -484,7 +673,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 						// add this one
 						dconf->tlp_useful++;
 						buffer_relation(offset, large_prime, smooth_num + 1,
-							fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
+							fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
+                            polya_factors, it, 1);
 					}
 				}
 				else
@@ -493,69 +683,71 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 				}
 
 			}
-			else if	(0) //(tinyqs(dconf->cosiqs, dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2))
-			{
-				// factors from tinyqs are prime
-				// large prime bound will never exceed 32 bits
-				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
-					return;
+            else if (0) //(tinyqs(dconf->cosiqs, dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2))
+            {
+                // factors from tinyqs are prime
+                // large prime bound will never exceed 32 bits
+                if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
+                    return;
 
-				if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
-					return;
+                if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+                    return;
 
-				large_prime[0] = mpz_get_ui(dconf->gmptmp1);
-				large_prime[1] = mpz_get_ui(dconf->gmptmp2);
+                large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+                large_prime[1] = mpz_get_ui(dconf->gmptmp2);
 
-				// sanity checks
-				if ((large_prime[0] == 0) || (large_prime[1] == 0))
-					return;
+                // sanity checks
+                if ((large_prime[0] == 0) || (large_prime[1] == 0))
+                    return;
 
-				r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
-				if (r != 0)
-				{
-					printf("tlp problem: r != 0\n");
-					dconf->failed_cosiqs++;
-					return;
-				}
+                r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->Qvals[report_num], large_prime[0]);
+                if (r != 0)
+                {
+                    printf("tlp problem: r != 0\n");
+                    dconf->failed_cosiqs++;
+                    return;
+                }
 
-				r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, large_prime[1]);
-				if (r != 0)
-				{
-					printf("tlp problem: r != 0\n");
-					dconf->failed_cosiqs++;
-					return;
-				}
+                r = mpz_tdiv_q_ui(dconf->gmptmp2, dconf->gmptmp2, large_prime[1]);
+                if (r != 0)
+                {
+                    printf("tlp problem: r != 0\n");
+                    dconf->failed_cosiqs++;
+                    return;
+                }
 
-				// large prime bound will never exceed 32 bits
-				if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
-					return;
+                // large prime bound will never exceed 32 bits
+                if (mpz_sizeinbase(dconf->gmptmp2, 2) > 32)
+                    return;
 
-				large_prime[2] = mpz_get_ui(dconf->gmptmp2);
+                large_prime[2] = mpz_get_ui(dconf->gmptmp2);
 
-				if ((large_prime[0] < sconf->large_prime_max) &&
-					(large_prime[1] < sconf->large_prime_max) &&
-					(large_prime[2] < sconf->large_prime_max))
-				{
+                if ((large_prime[0] < sconf->large_prime_max) &&
+                    (large_prime[1] < sconf->large_prime_max) &&
+                    (large_prime[2] < sconf->large_prime_max))
+                {
 #ifdef OUTPUT_TLP_ATTEMPT_DETAILS
-					fid = fopen(fname, "a");
-					fprintf(fid, "%1.0lf,1\n", qfloat);
-					fclose(fid);
+                    fid = fopen(fname, "a");
+                    fprintf(fid, "%1.0lf,1\n", qfloat);
+                    fclose(fid);
 #endif
 
-					//if (large_prime[2] < (uint32)sconf->pmax)
-					//	printf("tlp with small 3rd prime: %u,%u,%u\n",
-					//		large_prime[0], large_prime[1], large_prime[2]);
+                    //if (large_prime[2] < (uint32)sconf->pmax)
+                    //	printf("tlp with small 3rd prime: %u,%u,%u\n",
+                    //		large_prime[0], large_prime[1], large_prime[2]);
 
-					//gmp_printf("tlp: %Zd = %u,%u,%u\n",
-					//	dconf->Qvals[report_num], large_prime[0], large_prime[1], large_prime[2]);
+                    //gmp_printf("tlp: %Zd = %u,%u,%u\n",
+                    //	dconf->Qvals[report_num], large_prime[0], large_prime[1], large_prime[2]);
 
-					//add this one
-					dconf->tlp_useful++;
-					buffer_relation(offset, large_prime, smooth_num + 1,
-						fb_offsets, poly_id, parity, dconf, polya_factors, it, 1);
-				}
+                    //add this one
+                    dconf->tlp_useful++;
+                    buffer_relation(offset, large_prime, smooth_num + 1,
+                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
+                        polya_factors, it, 1);
+                }
 
-			}
+            }
+#endif
 			else
 			{
 				dconf->failed_cosiqs++;
@@ -580,7 +772,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 }
 
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
-    uint32 *fb_offsets, uint32 poly_id, uint32 parity,
+    uint32 *fb_offsets, uint32 apoly_id, uint32 bpoly_id, uint32 parity,
     dynamic_conf_t *conf, uint32 *polya_factors,
     uint32 num_polya_factors, uint64 unfactored_residue)
 {
@@ -610,7 +802,8 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 
     rel->sieve_offset = offset;
     rel->parity = parity;
-    rel->poly_idx = poly_id;
+    rel->apoly_idx = apoly_id;
+    rel->poly_idx = bpoly_id;
 
     if ((num_polya_factors + num_factors) > MAX_SMOOTH_PRIMES)
     {
@@ -622,6 +815,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
     // extra factors of polya are not added to the list of factors. they will be added
     // during filtering on only the relations that survive singleton removal.
     memcpy(rel->fb_offsets, fb_offsets, sizeof(uint32) * num_factors);
+    rel->num_factors = num_factors;
 
 #else
     //merge in extra factors of the apoly factors
@@ -642,9 +836,11 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
         rel->fb_offsets[i++] = fb_offsets[k++];
     while (j < num_polya_factors)
         rel->fb_offsets[i++] = polya_factors[j++];
-#endif
 
     rel->num_factors = num_factors + num_polya_factors;
+#endif
+
+    
 
 #ifdef USE_VEC_SQUFOF
 
@@ -812,6 +1008,8 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 
 	if (conf->use_dlp == 2)
 	{
+        // when using TLP, cycle counting is a lot more complicated.
+        // hand it off here.
 		yafu_add_to_cycles3(conf, 0, lp);
 	}
 	else

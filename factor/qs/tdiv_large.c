@@ -469,11 +469,20 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
 
 #define DIVIDE_RESIEVED_PRIME(j) \
-            	while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
-                                    	{						\
+    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
+    {						\
 		fb_offsets[++smooth_num] = j;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
-                                    	}
+    }
+
+#define DIVIDE_VLP_PRIME(j) \
+    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
+    {						\
+        count++; \
+        /*gmp_printf("vlp prime %u divides %Zu\n", prime, dconf->Qvals[report_num]); */ \
+		fb_offsets[++smooth_num] = j;	\
+		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
+    }
 
 void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -555,11 +564,21 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         uint32 lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
 #else
         uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+        //uint32 lpnum = bptr[0];
 #endif
 
         int r, q;
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result = 0;
+
+#ifdef DO_VLP_OPT
+        if (dconf->buckets->fb_bounds[k] == 0xffffffff)
+        {
+            //printf("found flag, commencing vlp tdiv for loc %u, current slice is %d\n", block_loc, k);
+            //printf("next 3 bucket entries are: %u, %u, %u\n", bptr[0], bptr[1], bptr[2]);
+            break;
+        }
+#endif
 
 #if defined (_MSC_VER)
         for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
@@ -951,6 +970,49 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 		bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
 		basebucket += (sconf->num_blocks << 1);
 	}
+
+#ifdef DO_VLP_OPT
+    uint32 count = 0;
+    vblock = _mm512_add_epi32(_mm512_set1_epi32(bnum * BLOCKSIZE), vblock);
+    for ( k = sconf->factor_base->large_B; k < sconf->factor_base->B; k += 16)
+    {
+        uint32 result = 0;
+        
+
+        // scan for large fb primes that hit this sieve location.
+        // previously we did this by scanning the bucket entries for
+        // matches to this sieve location, then dividing by the 
+        // prime indicated by the saved fb_offset for that entry.
+        // now, without the saved fb_offsets, the location (root)
+        // data is not useful.  So instead we scan the factor base 
+        // prime roots and check for equality to this
+        // sieve location.  We have to scan more things, but can
+        // at least scan them 16 at a time.
+
+        uint32 idx;
+        __m512i vroot1 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots1[k]));
+        __m512i vroot2 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots2[k]));
+
+        result = _mm512_cmp_epi32_mask(vblock, vroot1, _MM_CMPINT_EQ);
+        result |= _mm512_cmp_epi32_mask(vblock, vroot2, _MM_CMPINT_EQ);
+
+        while (result > 0)
+        {
+            idx = _trail_zcnt(result);
+            prime = fb[k + idx];
+            DIVIDE_VLP_PRIME(k + idx);
+            result = _reset_lsb(result);
+        }
+    }
+
+    //printf("divided %u primes from location %u\n", count, block_loc);
+
+    //if (sconf->factor_base->B > sconf->factor_base->large_B)
+    //    exit(1);
+
+#endif
+
+    
 
 	SCAN_CLEAN;
 
