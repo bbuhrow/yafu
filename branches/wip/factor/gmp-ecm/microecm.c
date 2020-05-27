@@ -1595,3 +1595,46 @@ int ucheck_factor(uint64 Z, uint64 n, uint64 * f)
 	return status;
 }
 
+
+
+uint64 do_uecm(uint64 q64)
+{
+    int B1, curves, targetBits;
+    uint64 f64;
+
+    targetBits = spBits(q64) / 2;
+    if (targetBits <= 24)
+    {
+        // multi-thread issue here...
+        //f64 = LehmanFactor(q64, 0, 0, 0);
+        B1 = 70;
+        curves = 24;
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+    }
+    else if (targetBits <= 26)
+    {
+        B1 = 85;
+        curves = 24;
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+    }
+    else if (targetBits <= 29)
+    {
+        B1 = 125;
+        curves = 24;
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+    }
+    else if (targetBits <= 31)
+    {
+        B1 = 165;
+        curves = 32;
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+    }
+    else if (targetBits <= 32)
+    {
+        B1 = 205;
+        curves = 32;
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+    }
+
+    return f64;
+}

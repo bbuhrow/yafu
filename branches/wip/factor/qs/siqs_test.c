@@ -61,7 +61,9 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 
 	if (mpz_cmp(Q,RHS) != 0)
 	{
-		printf("error Q != RHS\n");
+        if (VFLAG > 1)
+		    printf("error Q != RHS\n");
+
 		//gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
           //      printf("fb_offsets:primes:\n");
           //      for (j = 0; j < num_factors; j++)

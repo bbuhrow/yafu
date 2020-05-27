@@ -57,11 +57,12 @@ endif
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-ifeq ($(COMPILER),icc)
-  CFLAGS += -march=core-avx2  
-else
-  CFLAGS += -mavx2 
-endif
+
+    ifeq ($(COMPILER),icc)
+      CFLAGS += -march=core-avx2  
+    else
+      CFLAGS += -mavx2 
+    endif
 
 endif
 
@@ -77,7 +78,7 @@ ifeq ($(KNL),1)
     ifneq ($(USE_AVX2),1)
         CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
     endif
-    
+
     ifeq ($(COMPILER),icc)
         CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -xMIC-AVX512 
         BINNAME = yafu_knl
@@ -89,8 +90,8 @@ ifeq ($(KNL),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-# define KNL now for skylakex, after handling an actual command line KNL
-KNL=1
+    # define KNL now for skylakex, after handling an actual command line KNL
+    KNL=1
 endif
 
 ifeq ($(KNC),1)
@@ -108,8 +109,14 @@ ifeq ($(KNC),1)
 else
 	OBJ_EXT = .o
   
-  INC += -I../gmp/include
-	LIBS += -L../gmp/lib/
+    ifeq ($(SKYLAKEX),1)
+        INC += -I../../gmp_install/gmp-6.2.0/include
+        LIBS += -L../../gmp_install/gmp-6.2.0/lib/
+    else
+        # for non avx512 systems
+        INC += -I../gmp/include
+        LIBS += -L../gmp/lib/
+    endif
 
 	INC += -I../gmp-ecm/include/
 	LIBS += -L../gmp-ecm/lib/
@@ -140,7 +147,11 @@ ifeq ($(NFS),1)
 	ifeq ($(KNC),1)
 		LIBS += -L../msieve/
 	else
-		LIBS += -L../msieve/lib/linux
+        ifeq ($(COMPILER),icc)
+            LIBS += -L../msieve/lib/linux
+        else
+            LIBS += -L../msieve/lib/linux/gcc73
+        endif
 	endif
 	LIBS += -lmsieve
 endif
@@ -155,7 +166,12 @@ ifeq ($(FORCE_GENERIC),1)
 	CFLAGS += -DFORCE_GENERIC
 endif
 
-LIBS += -lecm -lgmp
+ifeq ($(SKYLAKEX),1)
+    LIBS += -lecm /sppdg/scratch/buhrow/projects/gmp_install/gmp-6.2.0/lib/libgmp.a
+else
+    LIBS += -lecm -lgmp
+endif
+
 
 # attempt to get static builds to work... unsuccessful so far
 ifeq ($(STATIC),1)
@@ -239,20 +255,22 @@ YAFU_SRCS = \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
     top/queue.c \
+    factor/prime_sieve.c \
+    factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
 
-  YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c 
-  YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
-  YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
-  YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
+    YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c 
+    YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
+    YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
+    YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 
 endif
 
 ifeq ($(USE_SSE41),1)
 
-# these files require SSE4.1 to compile
+    # these files require SSE4.1 to compile
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
 
@@ -260,31 +278,30 @@ endif
 
 ifeq ($(KNC),1)
 
-# these files target running on KNC hardware
+    # these files target running on KNC hardware
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_knc.c
-  YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
+    YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
 	YAFU_SRCS += factor/qs/tdiv_resieve_32k_knc.c
 	YAFU_SRCS += factor/qs/tdiv_scan_knc.c
 
 else
 
-  ifeq ($(KNL),1)
+    ifeq ($(KNL),1)
 
-    YAFU_SRCS += factor/qs/tdiv_scan_knl.c
-    YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
-#YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
+        YAFU_SRCS += factor/qs/tdiv_scan_knl.c
+        YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+        #YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
 
-  else
+    else
 
-    YAFU_SRCS += factor/qs/tdiv_scan.c
+        YAFU_SRCS += factor/qs/tdiv_scan.c
 
-  endif
+    endif
 
-  # won't build with KNC
-  YAFU_SRCS += factor/qs/update_poly_roots_32k.c
-  YAFU_SRCS += factor/qs/tdiv_med_32k.c
-  YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
-
+    # won't build with KNC
+    YAFU_SRCS += factor/qs/update_poly_roots_32k.c
+    YAFU_SRCS += factor/qs/tdiv_med_32k.c
+    YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
 
 endif
 
@@ -336,6 +353,8 @@ HEAD = include/yafu.h  \
     include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
+    include/prime_sieve.h \
+    include/batch_factor.h \
     include/cofactorize.h
 
 ifeq ($(USE_AVX2),1)

@@ -257,6 +257,9 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.gbl_override_mfbd = 0.;
 	fobj->qs_obj.gbl_override_mfbt = 0.;
 	fobj->qs_obj.gbl_override_lpb = 0;
+    fobj->qs_obj.gbl_override_bdiv_flag = 0;
+    fobj->qs_obj.gbl_override_bdiv = 3;
+    fobj->qs_obj.gbl_btarget = 500000;
 	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
 	fobj->qs_obj.gbl_force_TLP = 0;

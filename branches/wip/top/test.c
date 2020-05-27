@@ -546,7 +546,7 @@ tinyecm_start:
 
     goto tinyqs_marker;
 	//goto brent_marker;
-	//goto tinyecm_marker;
+	goto tinyecm_marker;
 
 	
 	for (i = 0; i < 29; i++)
@@ -1302,3 +1302,901 @@ tinyecm_marker:
 	return;
 }
 
+#if 1
+void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *foo, z *bar)
+{
+    mpz_t cubesum, squaresum, sum;
+    //various counters
+    uint64 n64;
+    uint32 j;
+    uint64 pcount = 0;
+    uint64 *PRIMES = (uint64 *)malloc(520000000 * sizeof(uint64));
+    uint64 tmpsum[5] = { 0,0,0,0,0 };
+    uint64 tmpsqrsum[5] = { 0,0,0,0,0 };
+    uint64 tmpcubesum[5] = { 0,0,0,0,0 };
+
+    //stuff for timing
+    double t;
+    struct timeval tstart, tstop;
+
+    //mananging batches
+    uint64 inc, tmpupper = 0;
+
+    //tracking the modulus to check
+    uint64 cubemod, squaremod, summod;
+
+    //logfile
+    FILE *out;
+
+    //for fast divisibility checks
+    uint64 powof2cube, powof2m1cube, powof2sqr, powof2m1sqr, powof2sum, powof2m1sum;
+
+    //tmpsum = (uint64 *)malloc(5 * sizeof(uint64));
+    //tmpsqrsum = (uint64 *)malloc(5 * sizeof(uint64));
+
+    mpz_init(cubesum);
+    mpz_init(squaresum);
+    mpz_init(sum);
+
+    //initialize both the sum and square modulus
+    n64 = cubemod = squaremod = summod = startmod;
+
+    //set batch size based on input range
+    if (upper - lower > 10000000000)
+        inc = 10000000000;
+    else
+        inc = upper - lower;
+
+    //paranoia.
+    if (startmod == 0)
+        startmod = 10;
+
+    //count the number of factors of 2 in the modulus
+    powof2sqr = 0;
+    while ((n64 & 1) == 0)
+    {
+        n64 >>= 1;
+        powof2sqr++;
+    }
+    //store this power minus 1, for fast remaindering
+    powof2m1sqr = (1 << powof2sqr) - 1;
+
+    //track of the powers of two in the sum and sqr modulus separately.
+    powof2m1sum = powof2m1cube = powof2m1sqr;
+    powof2sum = powof2cube = powof2sqr;
+
+    //lets not print all this stuff to the screen...
+    PRIMES_TO_SCREEN = 0;
+    PRIMES_TO_FILE = 0;
+
+    tmpupper = lower;
+    while (tmpupper < upper)
+    {
+        //set the bounds for the next batch
+        tmpupper = lower + inc;
+        if (tmpupper > upper)
+            tmpupper = upper;
+
+        gettimeofday(&tstart, NULL);
+
+        //get a new batch of primes.
+        //PRIMES = soe_wrapper(spSOEprimes, szSOEp, lower, tmpupper, 0, &NUM_P);
+        NUM_P = spSOE(spSOEprimes, szSOEp, NULL, lower, &tmpupper, 0, PRIMES);
+
+        //keep a running sum of how many we've found
+        pcount += n64;
+
+        //status update
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
+
+        gettimeofday(&tstart, NULL);
+        //now add up the squares.  NUM_P is set by the soe_wrapper to the number of primes
+        //found the last time it was called.
+        for (j = 0; j < NUM_P; j++)
+        {
+            //soe wrapper should truncate the prime array so that we don't have to do this,
+            //but doublecheck that we don't include primes outside the requested batch.
+            if ((PRIMES[j] > tmpupper) || (PRIMES[j] < lower))
+                break;
+
+#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+
+            ASM_G(
+                "addq %%rax, (%%rcx) \n\t"
+                "adcq $0, 8(%%rcx) \n\t"
+                "mulq %1		\n\t"
+                "addq %%rax, (%%rbx)		\n\t"
+                "adcq %%rdx, 8(%%rbx)		\n\t"
+                "adcq $0, 16(%%rbx)	\n\t"
+                :
+            : "b"(tmpsqrsum), "a"(PRIMES[j]), "c"(tmpsum)
+                : "rdx", "memory", "cc");
+
+#else
+            sp642z(PRIMES[j], &mp1);
+            zSqr(&mp1, &mp1);
+            zAdd(squaresum, &mp1, squaresum);
+            zShortAdd(sum, PRIMES[j], sum);
+
+#endif
+
+            //check if the squaresum is 0 modulo the current power of 10
+            if ((tmpsqrsum[0] & powof2m1sqr) == 0)
+            {
+                //we have the right number of twos.  do a full check for divisibility.
+                //first adjust the bigint size, since the ASM doesn't do this and zShortMod
+                //would like size to be correct.
+                mpz_set_ui(squaresum, tmpsqrsum[2]);
+                mpz_mul_2exp(squaresum, squaresum, 64);
+                mpz_add_ui(squaresum, squaresum, tmpsqrsum[1]);
+                mpz_mul_2exp(squaresum, squaresum, 64);
+                mpz_add_ui(squaresum, squaresum, tmpsqrsum[0]);
+
+                while (mpz_tdiv_ui(squaresum, squaremod) == 0)
+                {
+                    out = fopen("sum_of_squares.csv", "a");
+                    gmp_printf("**** %" PRIu64 " divides prime square sum up to %" PRIu64 ", sum is %Zd ****\n", 
+                        squaremod, PRIMES[j], squaresum);
+                    fprintf(out,
+                        "**** %" PRIu64 " divides prime square sum up to %" PRIu64 ", sum is %Zd ****\n",
+                        squaremod, PRIMES[j], squaresum);
+                    fclose(out);
+                    //start looking for the next power of 10
+                    squaremod *= 10;
+                    //recompute the fast divisibility check
+                    powof2sqr++;
+                    powof2m1sqr = (1 << powof2sqr) - 1;
+                }
+            }
+
+            //now check the sum.
+            if ((tmpsum[0] & powof2m1sum) == 0)
+            {
+                //we have the right number of twos.  do a full check for divisibility.
+                //adjust the size, since the ASM doesn't do this and zShortMod
+                //would like size to be correct.
+                mpz_set_ui(sum, tmpsum[2]);
+                mpz_mul_2exp(sum, sum, 64);
+                mpz_add_ui(sum, sum, tmpsum[1]);
+                mpz_mul_2exp(sum, sum, 64);
+                mpz_add_ui(sum, sum, tmpsum[0]);
+
+                while (mpz_tdiv_ui(sum, summod) == 0)
+                {
+                    out = fopen("sum_of_squares.csv", "a");
+                    gmp_printf("**** %" PRIu64 " divides prime sum up to %" PRIu64 ", sum is %Zd ****\n", 
+                        summod, PRIMES[j], sum);
+                    gmp_fprintf(out,
+                        "**** %" PRIu64 " divides prime sum up to %" PRIu64 ", sum is %Zd ****\n",
+                        summod, PRIMES[j], sum);
+                    fclose(out);
+                    summod *= 10;
+                    powof2sum++;
+                    powof2m1sum = (1 << powof2sum) - 1;
+                }
+            }
+        }
+
+        //all done with this batch.  status update again.  first get the sum
+        //sizes right, for the benefit of z2decstr
+        mpz_set_ui(squaresum, tmpsqrsum[2]);
+        mpz_mul_2exp(squaresum, squaresum, 64);
+        mpz_add_ui(squaresum, squaresum, tmpsqrsum[1]);
+        mpz_mul_2exp(squaresum, squaresum, 64);
+        mpz_add_ui(squaresum, squaresum, tmpsqrsum[0]);
+
+        mpz_set_ui(sum, tmpsum[2]);
+        mpz_mul_2exp(sum, sum, 64);
+        mpz_add_ui(sum, sum, tmpsum[1]);
+        mpz_mul_2exp(sum, sum, 64);
+        mpz_add_ui(sum, sum, tmpsum[0]);
+
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("sum complete in %6.4f sec\n", t);
+        gmp_printf("sum complete in %6.4f sec, squaresum = %Zd, sum = %Zd\n",
+            t, squaresum, sum);
+
+        out = fopen("sum_of_squares.csv", "a");
+        gmp_fprintf(out, "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%Zd,%Zd\n",
+            upper, n64, pcount, sum, squaresum);
+        fclose(out);
+
+        //next range.
+        lower += inc;
+    }
+
+    mpz_clear(cubesum);
+    mpz_clear(squaresum);
+    mpz_clear(sum);
+
+    return;
+}
+
+
+
+#include "threadpool.h"
+
+typedef struct
+{
+    uint64 *primes_rd_only;
+    uint64 pp[1024];    // batch of p^p results
+    mpz_t base, pp_gmp, maxmod; // used per thread
+    mpz_t pp_sum;       // accessed atomically.
+    uint64 maxp, minp;  // max and min prime to process in current threadpool.
+    int startid;        // index into primes where this batch starts
+    int stopid;         // index into batch where this batch stopped.
+    int maxid;          // maximum id in current threadpool.
+    int batches_to_run; // total number of batches to run
+} primesum_p_t;
+
+void primesum_p_work_fcn(void *ptr)
+{
+    // each thread calls this function after being
+    // dispatched by the master thread.  This is
+    // where one type of work gets done.
+    tpool_t *tdata = (tpool_t *)ptr;
+    primesum_p_t *udata = (primesum_p_t *)tdata->user_data;
+    primesum_p_t *thread_data = &udata[tdata->tindex];
+    int j;
+
+    for (j = 0; (j < 1024) && ((thread_data->startid + j) < thread_data->maxid); j++)
+    {
+        uint64 p = thread_data->primes_rd_only[thread_data->startid + j];
+
+        if ((p > thread_data->maxp) || (p < thread_data->minp))
+            break;
+
+        mpz_set_ui(thread_data->base, p);
+        // p^p quickly gets out of hand, so we have to do
+        // a modexp and just track the lower N digits of the sum.
+        mpz_powm_ui(thread_data->pp_gmp, thread_data->base, p, thread_data->maxmod);
+        thread_data->pp[j] = mpz_get_ui(thread_data->pp_gmp);
+    }
+
+    thread_data->stopid = j;
+
+    return;
+}
+
+void primesum_p_sync_fcn(void *ptr)
+{
+    // master thread calls this after work finishes. 
+    // typically where we accumulate results into a
+    // main data structure.
+    tpool_t *tdata = (tpool_t *)ptr;
+    primesum_p_t *udata = (primesum_p_t *)tdata->user_data;
+    primesum_p_t *thread_data = &udata[tdata->tindex];
+    uint64 powof2m1pp, ppmod, powof2pp;     // need to be tied to thread-shared structure.
+    int j;
+
+    for (j = 0; j < thread_data->stopid; j++)
+    {
+        mpz_add(thread_data->pp_sum, thread_data->pp_sum, thread_data->pp_gmp);
+
+        //check if the squaresum is 0 modulo the current power of 10
+        if ((mpz_get_ui(thread_data->pp_sum) & powof2m1pp) == 0)
+        {
+            //we have the right number of twos.  do a full check for divisibility.
+            while (mpz_tdiv_ui(thread_data->pp_sum, ppmod) == 0)
+            {
+                FILE *out = fopen("sum_of_p_to_p.csv", "a");
+                gmp_printf("**** %" PRIu64 " divides prime power sum up to %" PRIu64 ", sum is %Zd ****\n",
+                    ppmod, PRIMES[j], thread_data->pp_sum);
+                gmp_fprintf(out,
+                    "**** %" PRIu64 " divides prime power sum up to %" PRIu64 ", sum is %Zd ****\n",
+                    ppmod, PRIMES[j], thread_data->pp_sum);
+                fclose(out);
+                //start looking for the next power of 10
+                ppmod *= 10;
+                //recompute the fast divisibility check
+                powof2pp++;
+                powof2m1pp = (1 << powof2pp) - 1;
+
+                if (powof2pp > 64)
+                {
+                    printf("something went wrong\n");
+                    exit(1);
+                }
+            }
+        }
+    }
+
+    return;
+}
+
+void primesum_p_dispatch_fcn(void *ptr)
+{
+    // master thread calls this prior to starting new work.
+    // typically where we evaluate whether we need to
+    // do more work, or what type of work to do.
+    tpool_t *tdata = (tpool_t *)ptr;
+    primesum_p_t *udata = (primesum_p_t *)tdata->user_data;
+    primesum_p_t *thread_data = &udata[tdata->tindex];
+
+    // the way we have configured the work function
+    // means that we'll only need one call, and the
+    // work should be pretty balanced. So we are done.
+    tdata->work_fcn_id = tdata->num_work_fcn;
+
+    return;
+}
+
+void primesum_p_start_fcn(tpool_t *ptr)
+{
+    tpool_t *tpool = (tpool_t *)ptr;
+    primesum_p_t *udata = (primesum_p_t *)tpool->user_data;
+    primesum_p_t *thread_data = &udata[tpool->tindex];
+
+    mpz_init(thread_data->base);
+    mpz_init(thread_data->maxmod);
+    mpz_init(thread_data->pp_gmp);
+    mpz_set_ui(thread_data->maxmod, 1000000000000000000ULL);
+    return;
+}
+
+void primesum_p_stop_fcn(tpool_t *ptr)
+{
+    tpool_t *tpool = (tpool_t *)ptr;
+    primesum_p_t *udata = (primesum_p_t *)tpool->user_data;
+    primesum_p_t *thread_data = &udata[tpool->tindex];
+
+    mpz_clear(thread_data->base);
+    mpz_clear(thread_data->maxmod);
+    mpz_clear(thread_data->pp_gmp);
+    return;
+}
+
+
+void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *foo)
+{
+    mpz_t pp_sum, pp, base, maxmod;
+    //various counters
+    uint64 n64;
+    uint32 j;
+    uint64 pcount = 0;
+    uint64 *PRIMES = (uint64 *)malloc(520000000 * sizeof(uint64));
+    char start_sum[1024];
+    //stuff for timing
+    double t;
+    struct timeval tstart, tstop;
+
+    //mananging batches
+    uint64 inc, tmpupper = 0;
+
+    //tracking the modulus to check
+    uint64 ppmod;
+
+    //logfile
+    FILE *out;
+
+    //for fast divisibility checks
+    uint64 powof2pp, powof2m1pp;
+
+    // threading structures
+    tpool_t *tpool_data;
+    primesum_p_t *thread_data;		//an array of thread data objects
+    int threads = 16;
+
+    mpz_init(pp_sum);
+    mpz_init(pp);
+    mpz_init(maxmod);
+    mpz_init(base);
+    mpz_set_ui(maxmod, 1000000000000000000ULL);
+    
+    //lower = 400000000000ULL;
+    //strcpy(start_sum, "7790479606568817137530180122");
+    //startmod = 10000000000ULL;
+    //mpz_set_str(pp_sum, start_sum);
+
+    thread_data = (primesum_p_t *)malloc(threads * sizeof(primesum_p_t));
+    
+    tpool_data = tpool_setup(threads, &primesum_p_start_fcn, &primesum_p_stop_fcn, 
+        &primesum_p_sync_fcn, &primesum_p_dispatch_fcn, thread_data);
+
+    //initialize both the sum and square modulus
+    n64 = ppmod = startmod;
+
+    //set batch size based on input range
+    if (upper - lower > 10000000000)
+        inc = 10000000000;
+    else
+        inc = upper - lower;
+
+    //paranoia.
+    if (startmod == 0)
+        startmod = 10;
+
+    //count the number of factors of 2 in the modulus
+    powof2pp = 0;
+    while ((n64 & 1) == 0)
+    {
+        n64 >>= 1;
+        powof2pp++;
+    }
+    //store this power minus 1, for fast remaindering
+    powof2m1pp = (1 << powof2pp) - 1;
+
+    //lets not print all this stuff to the screen...
+    PRIMES_TO_SCREEN = 0;
+    PRIMES_TO_FILE = 0;
+
+    tmpupper = lower;
+    while (tmpupper < upper)
+    {
+        //set the bounds for the next batch
+        tmpupper = lower + inc;
+        if (tmpupper > upper)
+            tmpupper = upper;
+
+        gettimeofday(&tstart, NULL);
+
+        //get a new batch of primes.
+        //PRIMES = soe_wrapper(spSOEprimes, szSOEp, lower, tmpupper, 0, &NUM_P);
+        NUM_P = spSOE(spSOEprimes, szSOEp, NULL, lower, &tmpupper, 0, PRIMES);
+
+        //keep a running sum of how many we've found
+        pcount += n64;
+
+        //status update
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
+
+        gettimeofday(&tstart, NULL);
+        //now add up the squares.  NUM_P is set by the soe_wrapper to the number of primes
+        //found the last time it was called.
+        
+        // instead of loop, run this:
+        //tpool_add_work_fcn(tpool_data, &primesum_p_work_fcn);
+        //tpool_go(tpool_data);
+
+        for (j = 0; j < NUM_P; j++)
+        {
+            //soe wrapper should truncate the prime array so that we don't have to do this,
+            //but doublecheck that we don't include primes outside the requested batch.
+            if ((PRIMES[j] > tmpupper) || (PRIMES[j] < lower))
+                break;
+
+            mpz_set_ui(base, PRIMES[j]);
+            // p^p quickly gets out of hand, so we have to do
+            // a modexp and just track the lower N digits of the sum.
+            mpz_powm_ui(pp, base, PRIMES[j], maxmod);
+            mpz_add(pp_sum, pp_sum, pp);
+
+            //check if the squaresum is 0 modulo the current power of 10
+            if ((mpz_get_ui(pp_sum) & powof2m1pp) == 0)
+            {
+                //we have the right number of twos.  do a full check for divisibility.
+                while (mpz_tdiv_ui(pp_sum, ppmod) == 0)
+                {
+                    out = fopen("sum_of_p_to_p.csv", "a");
+                    gmp_printf("**** %" PRIu64 " divides prime power sum up to %" PRIu64 ", sum is %Zd ****\n",
+                        ppmod, PRIMES[j], pp_sum);
+                    gmp_fprintf(out,
+                        "**** %" PRIu64 " divides prime power sum up to %" PRIu64 ", sum is %Zd ****\n",
+                        ppmod, PRIMES[j], pp_sum);
+                    fclose(out);
+                    //start looking for the next power of 10
+                    ppmod *= 10;
+                    //recompute the fast divisibility check
+                    powof2pp++;
+                    powof2m1pp = (1 << powof2pp) - 1;
+
+                    if (powof2pp > 64)
+                    {
+                        printf("something went wrong\n");
+                        exit(1);
+                    }
+                }
+            }
+        }
+
+        //all done with this batch.  status update again.
+
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("sum complete in %6.4f sec\n", t);
+        gmp_printf("sum complete in %6.4f sec, prime power sum = %Zd\n",
+            t, pp_sum);
+
+        out = fopen("sum_of_p_to_p.csv", "a");
+        gmp_fprintf(out, "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%Zd\n",
+            upper, n64, pcount, pp_sum);
+        fclose(out);
+
+        //next range.
+        lower += inc;
+    }
+
+    mpz_clear(pp_sum);
+    mpz_clear(pp);
+    free(thread_data);
+    free(tpool_data);
+
+    return;
+}
+
+void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
+{
+    z mp1;
+    uint32 i = 0;
+    uint64 n64;
+    uint32 j;
+    uint64 count, tmpupper = 0;
+
+    double t;
+    struct timeval tstart, tstop;
+    uint64 inc, summod, pcount = 0;
+
+    FILE *out;
+    uint64 powof2sum, powof2m1sum;
+
+    zInit(&mp1);
+    zClear(&mp1);
+
+    //initialize both the sum and square modulus
+    n64 = summod = startmod;
+
+    if (upper - lower > 1000000000)
+    {
+        inc = 1000000000;
+        count = (upper - lower) / inc;
+    }
+    else
+    {
+        inc = upper - lower;
+        count = 0;
+    }
+
+    if (startmod == 0)
+        startmod = 10;
+
+    powof2sum = 0;
+    //count the number of factors of 2 in the modulus
+    while ((n64 & 1) == 0)
+    {
+        n64 >>= 1;
+        powof2sum++;
+    }
+    powof2m1sum = (1 << powof2sum) - 1;
+
+    PRIMES_TO_SCREEN = 0;
+    PRIMES_TO_FILE = 0;
+
+    //for each chunk
+    for (i = 0; i < count; i++)
+    {
+        tmpupper = lower + inc;
+        gettimeofday(&tstart, NULL);
+        n64 = soe_wrapper(lower, tmpupper, 0);
+        pcount += n64;
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
+
+
+        gettimeofday(&tstart, NULL);
+        //now add up the squares
+        for (j = 0; j < NUM_P; j++)
+        {
+
+            if ((PRIMES[j] > tmpupper) || (PRIMES[j] < lower))
+                break;
+
+#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+
+            /*
+                fast method to cube a number and sum with a 3-word fixed precision
+                bigint
+
+                                p
+                *               p
+                  ---------------
+                          d     a
+                *               p
+                  ---------------
+                  dpd dpa+apd apa
+                +  s2    s1    s0
+                  ---------------
+                   s2    s1    s0
+
+
+                where d,a are the high,low words of p^2,
+                apd,apa are the high,low words of p * a and,
+                dpd,dpa are the high,low words of p * d.
+                we then sum these three words with our fixed precision cumulative sum s2,s1,s0:
+                s0 = s0 + apa
+                s1 = s1 + dpa + apd + carry
+                s2 = s2 + dpd + carry
+            */
+
+
+            ASM_G(
+                "movq %1, %%rcx \n\t"			/* store prime */
+                "mulq %%rcx		\n\t"			/* square it */
+                "movq %%rax, %%r8 \n\t"			/* save p^2 lo (a) */
+                "movq %%rdx, %%r9 \n\t"			/* save p^2 hi (d) */
+                "mulq %%rcx	\n\t"				/* p * a */
+                "movq %%rax, %%r10 \n\t"		/* save p*a lo (apa) */
+                "movq %%rdx, %%r11 \n\t"		/* save p*a hi (apd) */
+                "movq %%r9, %%rax \n\t"			/* p * d */
+                "mulq %%rcx \n\t"				/* lo part in rax (dpa), hi in rdx (dpd) */
+                "addq %%r10, (%%rbx) \n\t"		/* sum0 = sum0 + apa */
+                "adcq %%rax, 8(%%rbx) \n\t"		/* sum1 = sum1 + dpa + carry */
+                "adcq %%rdx, 16(%%rbx) \n\t"	/* sum2 = sum2 + dpd + carry */
+                "addq %%r11, 8(%%rbx) \n\t"		/* sum1 = sum1 + apd */
+                "adcq $0, 16(%%rbx)	\n\t"		/* sum2 = sum2 + carry */
+                :
+            : "b"(sum->val), "a"(PRIMES[j])
+                : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc");
+
+#else
+            sp642z(PRIMES[j], &mp1);
+            zSqr(&mp1, &mp1);
+            zShortMul(&mp1, PRIMES[j], &mp1);
+            zAdd(sum, &mp1, sum);
+
+#endif
+
+            //check if the sum is 0 modulo the current power of 10
+            if ((sum->val[0] & powof2m1sum) == 0)
+            {
+                //adjust the size, since the ASM doesn't do this and zShortMod
+                //would like size to be correct.
+                sum->size = 3;
+                while (sum->val[sum->size - 1] == 0)
+                {
+                    sum->size--;
+                    if (sum->size == 0)
+                        break;
+                }
+
+                if (sum->size == 0)
+                    sum->size = 1;
+
+                //then we have the right number of twos.  check for divisibility.
+                while (zShortMod(sum, summod) == 0)
+                {
+                    out = fopen("sum_of_cubes.csv", "a");
+                    printf("**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum = %s ****\n",
+                        summod, PRIMES[j], z2decstr(sum, &gstr1));
+                    fprintf(out,
+                        "**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum is %s ****\n",
+                        summod, PRIMES[j], z2decstr(sum, &gstr1));
+                    fclose(out);
+                    summod *= 10;
+                    powof2sum++;
+                    powof2m1sum = (1 << powof2sum) - 1;
+                }
+            }
+        }
+
+        sum->size = 3;
+        while (sum->val[sum->size - 1] == 0)
+        {
+            sum->size--;
+            if (sum->size == 0)
+                break;
+        }
+
+        if (sum->size == 0)
+            sum->size = 1;
+
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("sum complete in %6.4f sec, sum = %s\n",
+            t, z2decstr(sum, &gstr2));
+
+        out = fopen("sum_of_cubes.csv", "a");
+        fprintf(out, "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%s\n",
+            tmpupper, n64, pcount, z2decstr(sum, &gstr1));
+        fclose(out);
+
+        lower = tmpupper;
+        tmpupper += inc;
+    }
+
+    //printf("done looping.  lower = %" PRIu64 ", upper = %" PRIu64 ", tmpupper = %" PRIu64 "\n",lower,upper,tmpupper);
+    if (upper - lower > 0)
+    {
+        gettimeofday(&tstart, NULL);
+        n64 = soe_wrapper(lower, upper, 0);
+        pcount += n64;
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, upper, t);
+
+        gettimeofday(&tstart, NULL);
+        //now add up the squares
+        for (j = 0; j < NUM_P; j++)
+        {
+
+            if ((PRIMES[j] > upper) || (PRIMES[j] < lower))
+                break;
+
+#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+
+            ASM_G(
+                "movq %1, %%rcx \n\t"
+                "mulq %%rcx		\n\t"
+                "movq %%rax, %%r8 \n\t" /* pp lo (a) */
+                "movq %%rdx, %%r9 \n\t" /* pp hi (d) */
+                "mulq %%rcx		\n\t"
+                "movq %%rax, %%r10 \n\t" /* ap lo */
+                "movq %%rdx, %%r11 \n\t" /* ap hi */
+                "movq %%r9, %%rax \n\t"
+                "mulq %%rcx \n\t" /* dp lo (rax), dp hi (rdx) */
+                "addq %%r10, (%%rbx)		\n\t"
+                "adcq %%rax, 8(%%rbx)		\n\t"
+                "adcq %%rdx, 16(%%rbx)	\n\t" /* sum(2) += f + carry */
+                "addq %%r11, 8(%%rbx) \n\t" /* sum(1) += e */
+                "adcq $0, 16(%%rbx)	\n\t" /* sum(2) += f + carry */
+                :
+            : "b"(sum->val), "a"(PRIMES[j])
+                : "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc");
+
+#else
+            sp642z(PRIMES[j], &mp1);
+            zSqr(&mp1, &mp1);
+            zShortMul(&mp1, PRIMES[j], &mp1);
+            zAdd(sum, &mp1, sum);
+
+#endif
+
+            //printf("%d:%" PRIu64 ":%s\n",j,PRIMES[j],z2decstr(sum,&gstr1));
+            //check if the sum is 0 modulo the current power of 10
+            if ((sum->val[0] & powof2m1sum) == 0)
+            {
+                //adjust the size, since the ASM doesn't do this and zShortMod
+                //would like size to be correct.
+                sum->size = 3;
+                while (sum->val[sum->size - 1] == 0)
+                {
+                    sum->size--;
+                    if (sum->size == 0)
+                        break;
+                }
+
+                if (sum->size == 0)
+                    sum->size = 1;
+
+                //then we have the right number of twos.  check for divisibility.
+                while (zShortMod(sum, summod) == 0)
+                {
+                    out = fopen("sum_of_cubes.csv", "a");
+                    printf("**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum = %s ****\n",
+                        summod, PRIMES[j], z2decstr(sum, &gstr1));
+                    fprintf(out,
+                        "**** %" PRIu64 " divides prime cube sum up to %" PRIu64 ", sum is %s ****\n",
+                        summod, PRIMES[j], z2decstr(sum, &gstr1));
+                    fclose(out);
+                    summod *= 10;
+                    powof2sum++;
+                    powof2m1sum = (1 << powof2sum) - 1;
+                }
+            }
+
+        }
+
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("sum complete in %6.4f sec, sum = %s\n",
+            t, z2decstr(sum, &gstr2));
+    }
+
+    zFree(&mp1);
+    return;
+}
+
+void primesum(uint64 lower, uint64 upper)
+{
+    z mp1, mp2, mp3, *squaresum, *sum;
+    uint64 n64;
+    uint32 j;
+    uint64 tmpupper = 0;
+
+    double t;
+    struct timeval tstart, tstop;
+    uint64 inc, pcount = 0;
+
+    zInit(&mp1);
+    zInit(&mp2);
+    zInit(&mp3);
+    zClear(&mp1);
+    squaresum = &mp2;
+    sum = &mp3;
+
+    //set batch size based on input range
+    if (upper - lower > 1000000000)
+        inc = 1000000000;
+    else
+        inc = upper - lower;
+
+    tmpupper = lower;
+    while (tmpupper != upper)
+    {
+        //set the bounds for the next batch
+        tmpupper = lower + inc;
+        if (tmpupper > upper)
+            tmpupper = upper;
+
+        gettimeofday(&tstart, NULL);
+        n64 = soe_wrapper(lower, tmpupper, 0);
+        pcount += n64;
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
+
+
+        gettimeofday(&tstart, NULL);
+        //now add up the squares
+        for (j = 0; j < NUM_P; j++)
+        {
+
+            if ((PRIMES[j] > tmpupper) || (PRIMES[j] < lower))
+                break;
+
+#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
+
+            ASM_G(
+                "addq %%rax, (%%rcx) \n\t"
+                "adcq $0, 8(%%rcx) \n\t"
+                "mulq %1		\n\t"
+                "addq %%rax, (%%rbx)		\n\t"
+                "adcq %%rdx, 8(%%rbx)		\n\t"
+                "adcq $0, 16(%%rbx)	\n\t"
+                :
+            : "b"(squaresum->val), "a"(PRIMES[j]), "c"(sum->val)
+                : "rdx", "memory", "cc");
+
+#else
+            sp642z(PRIMES[j], &mp1);
+            zSqr(&mp1, &mp1);
+            zAdd(squaresum, &mp1, squaresum);
+            zShortAdd(sum, PRIMES[j], sum);
+
+#endif
+
+        }
+
+        squaresum->size = 3;
+        while (squaresum->val[squaresum->size - 1] == 0)
+        {
+            squaresum->size--;
+            if (squaresum->size == 0)
+                break;
+        }
+
+        if (squaresum->size == 0)
+            squaresum->size = 1;
+
+        sum->size = 2;
+        while (sum->val[sum->size - 1] == 0)
+        {
+            sum->size--;
+            if (sum->size == 0)
+                break;
+        }
+
+        if (sum->size == 0)
+            sum->size = 1;
+
+        gettimeofday(&tstop, NULL);
+        t = my_difftime(&tstart, &tstop);
+        printf("sum complete in %6.4f sec, sum = %s, squaresum = %s\n",
+            t, z2decstr(sum, &gstr1), z2decstr(squaresum, &gstr2));
+
+        lower = tmpupper;
+        tmpupper += inc;
+    }
+
+    zFree(&mp1);
+    zFree(&mp2);
+    zFree(&mp3);
+    return;
+}
+
+#endif

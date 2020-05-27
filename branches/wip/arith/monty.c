@@ -31,7 +31,7 @@ many of the arithmetic routines here are based
 // fixme:
 // 128 bit monty doesn't work without the stuff defined
 // with avx2... probably due to the mul but maybe other stuff.
-#if !defined( USE_AVX2 ) && defined(GCC_ASM64X)
+#if !defined( USE_AVX2 ) && defined(GCC_ASM64X) && !defined(__MINGW64__)
 #include <x86intrin.h>
 __inline uint64 _umul128(uint64 a, uint64 b, uint64 *c)
 {

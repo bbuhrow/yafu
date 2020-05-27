@@ -402,12 +402,11 @@ while (_BitScanForward64(&pos, msk64)) { \
         }}
 #endif
 
-
 #else	/* compiler not recognized*/
 
-	#define SCAN_CLEAN /*nothing*/
-	#undef SIMD_SIEVE_SCAN
-	#undef SIMD_SIEVE_SCAN_VEC
+#define SCAN_CLEAN /*nothing*/
+#undef SIMD_SIEVE_SCAN
+#undef SIMD_SIEVE_SCAN_VEC
 
 #endif
 

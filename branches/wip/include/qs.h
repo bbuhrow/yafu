@@ -48,6 +48,9 @@ code to the public domain.
 #endif
 
 
+//#define DO_VLP_OPT
+
+
 #if defined(USE_AVX2)
 #ifdef _MSC_VER
 #define CLEAN_AVX2 _mm256_zeroupper();
@@ -62,6 +65,12 @@ code to the public domain.
 // this is the only path that will make use of AVX512 (via auto-vec)
 // for others, it is faster and easier to use the new superfast spBrent.
 //#define USE_VEC_SQUFOF
+#endif
+
+#define USE_BATCH_FACTOR
+
+#ifdef USE_BATCH_FACTOR
+#include "batch_factor.h"
 #endif
 
 //#define QS_TIMING
@@ -200,7 +209,8 @@ typedef struct
 {
 	uint32 large_prime[3];		//large prime in the pd.
 	uint32 sieve_offset;		//offset specifying Q (the quadratic polynomial)
-	uint32 poly_idx;			//which poly this relation uses
+    uint32 apoly_idx;           // the index of the a-poly this relation uses
+	uint32 poly_idx;			//which b-poly this relation uses
 	uint32 parity;				//the sign of the offset (x) 0 is positive, 1 is negative
     uint32 fb_offsets[MAX_SMOOTH_PRIMES];			//offsets of factor base primes dividing Q(offset).  
 								//note that other code limits the max # of fb primes to < 2^16
@@ -276,6 +286,7 @@ typedef struct
 	char *gray;		//2^s - 1 length array of signs for the graycode
 	char *nu;		//2^s - 1 length array of Bl values to use in the graycode
 	int s;
+    int index;      // index within the master list of poly_a's
 } siqs_poly;
 
 typedef struct
@@ -354,6 +365,8 @@ typedef struct {
 	uint32 tf_large_cutoff;
     //uint32 poly_batch_size;     // how many polys to update at one time?
 
+    mpz_t prime_product;
+
 	
 	struct timeval totaltime_start;	// start time of this job
 
@@ -411,6 +424,8 @@ typedef struct {
     uint64 total_surviving_reports;
     uint64 total_blocks;
     uint32 lp_scan_failures;
+    uint64 num_scatter_opp;
+    uint64 num_scatter;
 
 	//master time record
 	double t_time1;				// sieve time
@@ -446,12 +461,25 @@ typedef struct {
 	uint32 buffered_rel_alloc;
 	siqs_r *in_mem_relations;
 
+    int do_batch;
+    int batch_buffer_id;
+    int batch_run_override;
+#ifdef USE_BATCH_FACTOR
+    // ping-pong relation batches so we can be processing
+    // while loading data into one that's unused.
+    relation_batch_t *rb;
+    int num_alloc_rb;
+    int num_active_rb;
+    int max_active_rb;
+#endif
+
 } static_conf_t;
 
 typedef struct {
 	// the stuff in this structure is continuously being updated
 	// during the course of the factorization, but we want it all
 	// in one place so the data can be passed around easily
+    int tid;
 
 	//small prime sieving
 	uint8 *sieve;				// scratch space used for one sieve block 
@@ -493,6 +521,8 @@ typedef struct {
     uint64 total_reports;
     uint64 total_surviving_reports;
     uint64 total_blocks;
+    uint64 num_scatter_opp;
+    uint64 num_scatter;
 
 	// various things to support tlp co-factorization
 	monty_t *mdata;		// monty brent attempt
@@ -531,6 +561,11 @@ typedef struct {
 	uint32 cutoff;
 
 	uint32 tf_small_cutoff;		// bit level to determine whether to bail early from tf
+    int do_batch;
+    int batch_run_override;
+#ifdef USE_BATCH_FACTOR
+    relation_batch_t rb;
+#endif
 	
 } dynamic_conf_t;
 
@@ -613,7 +648,7 @@ void trial_divide_Q_siqs(uint32 report_num,
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
 
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
+						  uint32 *fb_offsets, uint32 apoly_id, uint32 poly_id, uint32 parity,
 						  dynamic_conf_t *conf, uint32 *polya_factors, 
 						  uint32 num_polya_factors, uint64 unfactored_residue);
 

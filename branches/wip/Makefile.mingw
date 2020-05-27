@@ -182,6 +182,8 @@ YAFU_SRCS = \
 	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
     top/queue.c \
+    factor/prime_sieve.c \
+    factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
@@ -255,6 +257,8 @@ HEAD = include/yafu.h  \
     include/monty.h \
 	include/nfs.h \
 	top/threadpool.h \
+    include/prime_sieve.h \
+    include/batch_factor.h \
     include/cofactorize.h
 
 
