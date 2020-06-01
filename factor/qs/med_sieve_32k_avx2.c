@@ -24,6 +24,11 @@ code to the public domain.
 #include <immintrin.h>
 #endif
 
+#ifdef _MSC_VER
+#define USE_AVX2
+#define GCC_ASM64X
+#endif
+
 // protect avx2 code under MSVC builds.  USE_AVX2 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware
 #if defined( USE_AVX2 ) && defined (GCC_ASM64X)
@@ -33,19 +38,6 @@ code to the public domain.
 #include "qs.h"
 #include "sieve_macros_32k.h"
 #include "sieve_macros_32k_avx2.h"
-
-
-// bitonic sort the inputs?  trying to get some greater
-// fraction of writes to be to the same cache line at the
-// expense of additional in-register computation.
-// could maybe even just do the first half of the sort, stopping
-// just before the two half-lists are merged.
-// with AVX512BW, could maybe do this with two 32-word lists.
-
-// _mm512_cmp_epu16_mask 
-// _mm512_mask_blend_epi16
-
-
 
 // vpext uses p0 and p5
 // subb uses 2p0156 2p237 p4
@@ -182,6 +174,8 @@ code to the public domain.
 	"je 1f \n\t"							/* jump past R/M/W if so */ \
 	"subb	%%sil, (%%rdx, %%rbx, 1) \n\t"	/* read/modify/write sieve */ \
 	"1: \n\t"								/* both root1 and root2 were >= blocksize */
+
+
 
 #ifdef NOTDEF
 #define _16P_FINAL_STEP_SIEVE_AVX2 \
@@ -459,24 +453,6 @@ code to the public domain.
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", \
 				"rsi", "rdi", "cc", "memory");
 
-
-#define _AVX2_SMALL_PRIME_SIEVE_x16_b \
-	for (; i < med_B; i += 16) \
-		asm (			\
-			"movq	%0,	%%rdx \n\t"					/* sieve array address */ \
-			"movq	$15, %%rsi \n\t"				/* logp's range from 15 to 16... call 'em = 15 */ \
-			"vmovdqa	(%1), %%ymm0 \n\t"				/* bring in 16 primes */ \
-			"vmovdqa	(%2), %%ymm1 \n\t"				/* bring in 16 root1's */ \
-			"vmovdqa	(%3), %%ymm2 \n\t"				/* bring in 16 root2's */ \
-			\
-			_8P_FINAL_STEP_SIEVE_AVX2					\
-			_FINALIZE_SORT_UPDATE_AVX2_x16 \
-			\
-			: \
-			: "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i) \
-			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", \
-				"rsi", "rdi", "cc", "memory");
-
 #define _AVX2_SMALL_PRIME_SIEVE_32k_DIV3 \
 	for (; i < full_fb->fb_32k_div3-8; i += 8) \
 		asm ( \
@@ -532,6 +508,57 @@ code to the public domain.
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx", "rdx", "rsi", \
 				"rdi", "cc", "memory");
 
+#define _AVX512_SMALL_PRIME_SIEVE_15b \
+    for (k = i; k < full_fb->fb_15bit_B - 32; k += 32) \
+    asm(                                                                                         \
+        "movq	%0,	%%rdx \n\t"					/* sieve array address */                             \
+        "movq	$15, %%rsi \n\t"				/* logp's range from 14 to 15... call 'em = 15 */     \
+        "vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */                           \
+        "vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                          \
+        "vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                          \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	16(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	16(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	16(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	32(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	32(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	32(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	48(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	48(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	48(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        : \
+        : "r"(sieve), "r"(fb->prime + k), "r"(fb->root1 + k), "r"(fb->root2 + k)                  \
+        : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx",    \
+            "rdx", "rsi", "rdi", "cc", "memory"); \
+
+#define _AVX512_15b \
+    asm(                                                                                         \
+        "movq	%0,	%%rdx \n\t"					/* sieve array address */                             \
+        "movq	$15, %%rsi \n\t"				/* logp's range from 14 to 15... call 'em = 15 */     \
+        "vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */                           \
+        "vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                          \
+        "vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                          \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	16(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	16(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	16(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	32(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	32(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	32(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        "vmovdqa	48(%1), %%xmm0 \n\t"				/* bring in 8 primes */                       \
+        "vmovdqa	48(%2), %%xmm1 \n\t"				/* bring in 8 root1's */                      \
+        "vmovdqa	48(%3), %%xmm2 \n\t"				/* bring in 8 root2's */                      \
+        _8P_STEP_SIEVE_AVX2                                                                           \
+        : \
+        : "r"(sieve), "r"(fb->prime + i), "r"(fb->root1 + i), "r"(fb->root2 + i)                  \
+        : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx",    \
+            "rdx", "rsi", "rdi", "cc", "memory");
+
 // registers clobbered in this loop:
 // r9,r10,r14,rax,rcx,rdx,rsi,rdi
 // protected registers:
@@ -539,32 +566,6 @@ code to the public domain.
 // free registers:
 // none
 
-#ifdef NOTDEF
-
-"movl   %%r9d,%%edx \n\t" \
-"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
-"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
-"addl   %%r10d,%%edi \n\t" \
-"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
-"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
-"addl   %%r10d,%%r9d \n\t" \
-"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
-
-
-"leaq   (%%rbx,%%r9d,1),%%rdx \n\t" \
-"leaq   (%%rbx,%%rdi,1),%%rax \n\t"			 \
-"addl   %%r10d,%%edi \n\t" \
-"addl   %%r10d,%%r9d \n\t" \
-"subb   %%sil,(%%rdx)	 \n\t"	/* rbx holds sieve */ \
-"subb   %%sil,(%%rax) \n\t" \
-"leaq   (%%rcx,%%r9d,1),%%rdx \n\t" \
-"leaq   (%%rcx,%%rdi,1),%%rax \n\t"			 \
-"subb   %%sil,(%%rcx,%%rdx,1)	 \n\t"	/* rcx holds sieve2 */ \
-"subb   %%sil,(%%rcx,%%rax,1) \n\t" \
-"prefetcht0 (%%r11) \n\t" \
-"prefetcht0 (%%r13) \n\t" \
-
-#endif
 
 #define SIEVE_2X_BLOCK_ASM(id) \
     "vpextrw $" id ", %%xmm2, %%r10d \n\t"	    /* bring in prime */	 \
@@ -696,14 +697,18 @@ typedef struct
 	uint32 med_B;					//44
 } helperstruct_t;
 
-void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
-		uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32 start_prime, uint8 s_init)
 {
-	uint32 i;
-	uint32 med_B;
-	
-	uint32 prime, root1, root2, tmp, stop;
-	uint8 logp;
+    uint32 i;
+    uint32 med_B;
+
+    uint32 prime, root1, root2, tmp, stop;
+    uint8 logp;
+
+#ifdef USE_AVX512BW
+    __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
+#endif
 
 #if defined( TARGET_KNC ) || defined(noUSE_AVX512BW)
     __m512i vlomask = _mm512_set1_epi32(0x000000ff);
@@ -720,18 +725,18 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 #endif
 
 
-	helperstruct_t asm_input;
+    helperstruct_t asm_input;
 
-	med_B = full_fb->med_B;
+    med_B = full_fb->med_B;
 
     CLEAN_AVX2;
-	
+
 #ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
+    gettimeofday(&qs_timing_start, NULL);
 #endif
 
-	//initialize the block
-	BLOCK_INIT;
+    //initialize the block
+    BLOCK_INIT;
 
     CLEAN_AVX2;
 
@@ -739,7 +744,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
     // beyond 11 bit we don't need to loop... 16 steps takes
     // us past blocksize all at once when prime > 2048
     for (i = start_prime; i < full_fb->fb_11bit_B; i++)
-    {	
+    {
         __m512i vprime, vroot1, vroot2, vlogp, vidx1, vidx2, v16p;
         __m512i vnextprime, vnextroot1, vnextroot2, vnextidx1, vnextidx2;
         __mmask16 mask1, mask2;
@@ -784,7 +789,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
 
             vidx1 = vnextidx1;
             vidx2 = vnextidx2;
-            steps1 += 16;            
+            steps1 += 16;
             steps2 += 16;
 
             //printf("steps = %d, mask2 = %08x\n", steps1, mask2);
@@ -811,13 +816,13 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
         if (steps1 > steps2)
         {
             //printf("swapped\n");
-            fb->root2[i] = (uint16)(root1 + steps1*prime - 32768);
-            fb->root1[i] = (uint16)(root2 + steps2*prime - 32768);
+            fb->root2[i] = (uint16)(root1 + steps1 * prime - 32768);
+            fb->root1[i] = (uint16)(root2 + steps2 * prime - 32768);
         }
         else
         {
-            fb->root1[i] = (uint16)(root1 + steps1*prime - 32768);
-            fb->root2[i] = (uint16)(root2 + steps2*prime - 32768);
+            fb->root1[i] = (uint16)(root1 + steps1 * prime - 32768);
+            fb->root2[i] = (uint16)(root2 + steps2 * prime - 32768);
         }
     }
 
@@ -827,7 +832,7 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
     asm_input.root2ptr = fb->root2;
     asm_input.sieve = sieve;
     asm_input.startprime = i;
-    asm_input.med_B = full_fb->fb_13bit_B-8;
+    asm_input.med_B = full_fb->fb_13bit_B - 8;
 
     SIEVE_13b_ASM_AVX2;
 
@@ -837,23 +842,23 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
     //exit(1);
 
 #elif defined(USE_ASM_SMALL_PRIME_SIEVING)
-	// sieve primes less than 2^13 using optimized loops: it becomes
-	// inefficient to do fully unrolled sse2 loops as the number of
-	// steps through the block increases.  While I didn't specifically
-	// test whether 2^13 is the best point to start using loops, it seemed
-	// good enough.  any gains if it is not optmial will probably be minimal.
+    // sieve primes less than 2^13 using optimized loops: it becomes
+    // inefficient to do fully unrolled sse2 loops as the number of
+    // steps through the block increases.  While I didn't specifically
+    // test whether 2^13 is the best point to start using loops, it seemed
+    // good enough.  any gains if it is not optmial will probably be minimal.
 
-	asm_input.logptr = fb->logp;
-	asm_input.primeptr = fb->prime;
-	asm_input.root1ptr = fb->root1;
-	asm_input.root2ptr = fb->root2;
-	asm_input.sieve = sieve;
-	asm_input.startprime = start_prime;
-	asm_input.med_B = full_fb->fb_10bit_B;
+    asm_input.logptr = fb->logp;
+    asm_input.primeptr = fb->prime;
+    asm_input.root1ptr = fb->root1;
+    asm_input.root2ptr = fb->root2;
+    asm_input.sieve = sieve;
+    asm_input.startprime = start_prime;
+    asm_input.med_B = full_fb->fb_10bit_B;
 
-	SIEVE_13b_ASM;
+    SIEVE_13b_ASM;
 
-	i = asm_input.startprime;
+    i = asm_input.startprime;
 
     asm_input.logptr = fb->logp;
     asm_input.primeptr = fb->prime;
@@ -861,138 +866,347 @@ void med_sieveblock_32k_avx2(uint8 *sieve, sieve_fb_compressed *fb, fb_list *ful
     asm_input.root2ptr = fb->root2;
     asm_input.sieve = sieve;
     asm_input.startprime = i;
-    asm_input.med_B = full_fb->fb_13bit_B-8;
+    asm_input.med_B = full_fb->fb_13bit_B - 8;
 
     SIEVE_13b_ASM_AVX2;
 
     i = asm_input.startprime;
 
 #else
-	for (i=start_prime;i< full_fb->fb_13bit_B-8;i++)
-	{	
-		uint8 *s2;		
+    for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
+    {
+        uint8* s2;
 
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
 
-		SIEVE_2X;
-		SIEVE_1X;
-		SIEVE_LAST;
-		UPDATE_ROOTS;
-	}
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
 #endif
 
-	// the small prime sieve stops just before prime exceeds 2^13
-	// the next sse2 sieve assumes primes exceed 2^13.  since
-	// some of the primes in the next set of 8 primes could be less
-	// than the cutoff and some are greater than, we have to do this
-	// small set of crossover primes manually, one at a time.
-	for (; i<full_fb->fb_13bit_B; i++)
-	{	
-		uint8 *s2;		
+    // the small prime sieve stops just before prime exceeds 2^13
+    // the next sse2 sieve assumes primes exceed 2^13.  since
+    // some of the primes in the next set of 8 primes could be less
+    // than the cutoff and some are greater than, we have to do this
+    // small set of crossover primes manually, one at a time.
+    for (; i < full_fb->fb_13bit_B; i++)
+    {
+        uint8* s2;
 
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
 
-		// invalid root (part of poly->a)
-		if (prime == 0) 
-			continue;
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
 
-		SIEVE_2X;
-		SIEVE_1X;
-		SIEVE_LAST;
-		UPDATE_ROOTS;
-	}
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
 
-	// sieve primes 8 at a time, where 8192 < p < blocksize/3 (10923)
-	_INIT_AVX2_SMALL_PRIME_SIEVE;
-	_AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
+    // sieve primes 8 at a time, where 8192 < p < blocksize/3 (10923)
+    _INIT_AVX2_SMALL_PRIME_SIEVE;
+    _AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
 
-	// the sse2 sieve stops just before prime exceeds blocksize/3
-	// the next sse2 sieve assumes primes exceed blocksize/3.  since
-	// some of the primes in the next set of 8 primes could be less
-	// than the cutoff and some are greater than, we have to do this
-	// small set of crossover primes manually, one at a time.
-	for (; i < full_fb->fb_32k_div3; i++)
-	{	
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
+    // the sse2 sieve stops just before prime exceeds blocksize/3
+    // the next sse2 sieve assumes primes exceed blocksize/3.  since
+    // some of the primes in the next set of 8 primes could be less
+    // than the cutoff and some are greater than, we have to do this
+    // small set of crossover primes manually, one at a time.
+    for (; i < full_fb->fb_32k_div3; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
 
-		// invalid root (part of poly->a)
-		if (prime == 0) 
-			continue;
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
 
-		SIEVE_1X;
-		SIEVE_LAST;
+        SIEVE_1X;
+        SIEVE_LAST;
 
-		UPDATE_ROOTS;
-	}
+        UPDATE_ROOTS;
+    }
 
-	// sieve primes 8 at a time, where blocksize/3 < p < 2^14
-	_INIT_AVX2_SMALL_PRIME_SIEVE;
-	_AVX2_SMALL_PRIME_SIEVE_14b;
+    // sieve primes 8 at a time, where blocksize/3 < p < 2^14
+    _INIT_AVX2_SMALL_PRIME_SIEVE;
+    _AVX2_SMALL_PRIME_SIEVE_14b;
 
-	// do this small set of crossover primes manually, one at a time,
-	// this time for the 14 bit crossover.
-	for (; i < full_fb->fb_14bit_B; i++)
-	{	
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 14 bit crossover.
+    for (; i < full_fb->fb_14bit_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
 
-		// invalid root (part of poly->a)
-		if (prime == 0) 
-			continue;
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
 
-		SIEVE_1X;
-		SIEVE_LAST;
+        SIEVE_1X;
+        SIEVE_LAST;
 
-		UPDATE_ROOTS;
-	}
+        UPDATE_ROOTS;
+    }
 
-	// sieve primes 8 at a time, 2^14 < p < 2^15
-	_INIT_AVX2_SMALL_PRIME_SIEVE;
-	_AVX2_SMALL_PRIME_SIEVE_15b;
 
-	// do this small set of crossover primes manually, one at a time,
-	// this time for the 15 bit crossover.
-	for (i = full_fb->fb_15bit_B - 8; i<med_B; i++)
-	{	
-		prime = fb->prime[i];
-		root1 = fb->root1[i];
-		root2 = fb->root2[i];
-		logp = fb->logp[i];
+#ifdef USE_AVX512BW
+    
+    __m512i vp;
+    __m512i vr1;
+    __m512i vr2;
+    __m512i vi;
+    __mmask32 result2;
+    __mmask32 result1;
+    __mmask32 mfinal;
+    uint32 res2;
+    uint32 res1;
+    uint16* r1;
+    uint16* r2;
+    int k;
 
-		if ((prime > 32768) && ((i&15) == 0))
-			break;
+    // sieve primes 8 at a time, 2^14 < p < 2^15
+#if 1
+    _INIT_AVX2_SMALL_PRIME_SIEVE;
+    _AVX2_SMALL_PRIME_SIEVE_15b;
+#else
+    __m128i vp_128;
+    __m128i vr1_128;
+    __m128i vr2_128;
+    __m128i vi_128;
+    __m128i vblock_128 = _mm_set1_epi16(BLOCKSIZE);
+    __mmask8 result2_128;
+    __mmask8 result1_128;
+    __mmask8 mfinal_128;
 
-		// invalid root (part of poly->a)
-		if (prime == 0) 
-			continue;
+    logp = 15;
+    for (; i < full_fb->fb_15bit_B - 8; i += 8) {
+        //printf("loading from index %d\n", i); fflush(stdout);
+        r1 = fb->root1 + i;
+        r2 = fb->root2 + i;
 
-		SIEVE_1X;
-		SIEVE_LAST;
+        // all hit at least once.
+        sieve[r1[0]] -= logp;
+        sieve[r2[0]] -= logp;
+        sieve[r1[1]] -= logp;
+        sieve[r2[1]] -= logp;
+        sieve[r1[2]] -= logp;
+        sieve[r2[2]] -= logp;
+        sieve[r1[3]] -= logp;
+        sieve[r2[3]] -= logp;
+        sieve[r1[4]] -= logp;
+        sieve[r2[4]] -= logp;
+        sieve[r1[5]] -= logp;
+        sieve[r2[5]] -= logp;
+        sieve[r1[6]] -= logp;
+        sieve[r2[6]] -= logp;
+        sieve[r1[7]] -= logp;
+        sieve[r2[7]] -= logp;
 
-		UPDATE_ROOTS;
-	}
+#ifdef __CYGWIN__
+        vp_128 = _mm_load_si128((__m128i *)(fb->prime + i));
+        vr1_128 = _mm_load_si128((__m128i *)(fb->root1 + i));
+        vr2_128 = _mm_load_si128((__m128i *)(fb->root2 + i));
+#else
+        vp_128 = _mm_load_epi32((fb->prime + i));
+        vr1_128 = _mm_load_epi32((fb->root1 + i));
+        vr2_128 = _mm_load_epi32((fb->root2 + i));
+#endif
+
+        vr1_128 = _mm_add_epi16(vr1_128, vp_128);
+        vr2_128 = _mm_add_epi16(vr2_128, vp_128);
+
+        result2_128 = _mm_cmp_epu16_mask(vr2_128, vblock_128, _MM_CMPINT_LT);
+        res2 = result2_128;
+
+        while (res2 > 0) {
+            int idx = _trail_zcnt(res2);
+            sieve[fb->root2[i + idx]] -= logp;
+            sieve[fb->root1[i + idx]] -= logp;
+            res2 = _reset_lsb(res2);
+        }
+
+        // res1 will have fewer set bits this way, so we
+        // have fewer overall loop iterations
+        result1_128 = _mm_cmp_epu16_mask(vr1_128, vblock_128, _MM_CMPINT_LT);
+        res1 = result1_128 & (~result2_128);
+
+        while (res1 > 0) {
+            int idx = _trail_zcnt(res1);
+            sieve[fb->root1[i + idx]] -= logp;
+            res1 = _reset_lsb(res1);
+        }
+
+        vr1_128 = _mm_mask_add_epi16(vr1_128, result1_128, vr1_128, vp_128);
+        vr2_128 = _mm_mask_add_epi16(vr2_128, result2_128, vr2_128, vp_128);
+        vr1_128 = _mm_sub_epi16(vr1_128, vblock_128);
+        vr2_128 = _mm_sub_epi16(vr2_128, vblock_128);
+
+#ifdef __CYGWIN__
+        _mm_store_si128((__m128i *)(fb->root1 + i), _mm_min_epu16(vr1_128, vr2_128));
+        _mm_store_si128((__m128i *)(fb->root2 + i), _mm_max_epu16(vr1_128, vr2_128));
+#else
+        _mm_store_epi32(fb->root1 + i, _mm_min_epu16(vr1_128, vr2_128));
+        _mm_store_epi32(fb->root2 + i, _mm_max_epu16(vr1_128, vr2_128));
+#endif
+    }
+#endif
+
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 15 bit crossover.
+    for (i = full_fb->fb_15bit_B - 8; i < med_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if ((prime > 32768) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+    }
+
+    // sieve primes 32 at a time, 2^15 < p < med_B
+    logp = 15;
+__assume_aligned(fb->prime, 64); 
+__assume_aligned(fb->root1, 64); 
+__assume_aligned(fb->root2, 64); 
+    for (; i < med_B - 32; i += 32) {
+        //printf("loading from index %d\n", i); fflush(stdout);
+        vp = _mm512_load_epi32((fb->prime + i));
+        vr1 = _mm512_load_epi32((fb->root1 + i));
+        vr2 = _mm512_load_epi32((fb->root2 + i));
+
+        result2 = _mm512_cmp_epu16_mask(vr2, vblock, _MM_CMPINT_LT);
+        res2 = result2;
+
+        while (res2 > 0) {
+            int idx = _trail_zcnt(res2);
+            sieve[fb->root2[i + idx]] -= logp;
+            sieve[fb->root1[i + idx]] -= logp;
+            res2 = _reset_lsb(res2);
+        }
+
+        // res1 will have fewer set bits this way, so we
+        // have fewer overall loop iterations
+        result1 = _mm512_cmp_epu16_mask(vr1, vblock, _MM_CMPINT_LT);
+        res1 = result1 & (~result2);
+
+        while (res1 > 0) {
+            int idx = _trail_zcnt(res1);
+            sieve[fb->root1[i + idx]] -= logp;
+            res1 = _reset_lsb(res1);
+        }
+
+        vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
+        vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
+        vr1 = _mm512_sub_epi16(vr1, vblock);
+        vr2 = _mm512_sub_epi16(vr2, vblock);
+        _mm512_store_epi32(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
+        _mm512_store_epi32(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
+    }
+
+    // do the final iteration with any excessive indices masked.
+    vi = _mm512_set1_epi16(i);
+    vi = _mm512_add_epi16(vi, _mm512_set_epi16(0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23,
+        24, 25, 26, 27, 28, 29, 30, 31));
+    mfinal = _mm512_cmp_epi16_mask(vi, _mm512_set1_epi16(med_B), _MM_CMPINT_LT);
+
+    vp = _mm512_maskz_load_epi32(mfinal, (fb->prime + i));
+    vr1 = _mm512_maskz_load_epi32(mfinal, (fb->root1 + i));
+    vr2 = _mm512_maskz_load_epi32(mfinal, (fb->root2 + i));
+
+    result2 = _mm512_mask_cmp_epu16_mask(mfinal, vr2, vblock, _MM_CMPINT_LT);
+    res2 = result2;
+
+    while (res2 > 0) {
+        int idx = _trail_zcnt(res2);
+        sieve[fb->root2[i + idx]] -= logp;
+        sieve[fb->root1[i + idx]] -= logp;
+        res2 = _reset_lsb(res2);
+    }
+
+    // res1 will have fewer set bits this way, so we
+    // have fewer overall loop iterations
+    result1 = _mm512_mask_cmp_epu16_mask(mfinal, vr1, vblock, _MM_CMPINT_LT);
+    res1 = result1 & (~result2);
+
+    while (res1 > 0) {
+        int idx = _trail_zcnt(res1);
+        sieve[fb->root1[i + idx]] -= logp;
+        res1 = _reset_lsb(res1);
+    }
+
+    vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
+    vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
+    vr1 = _mm512_sub_epi16(vr1, vblock);
+    vr2 = _mm512_sub_epi16(vr2, vblock);
+    _mm512_mask_store_epi32(fb->root1 + i, mfinal, _mm512_min_epu16(vr1, vr2));
+    _mm512_mask_store_epi32(fb->root2 + i, mfinal, _mm512_max_epu16(vr1, vr2));
+
+#else
+
+    // sieve primes 8 at a time, 2^14 < p < 2^15
+    _INIT_AVX2_SMALL_PRIME_SIEVE;
+    _AVX2_SMALL_PRIME_SIEVE_15b;
+
+
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 15 bit crossover.
+    for (i = full_fb->fb_15bit_B - 8; i < med_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if ((prime > 32768) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+    }
 
 	// sieve primes 8 at a time, 2^15 < p < med_B
 	_INIT_AVX2_SMALL_PRIME_SIEVE;
 	_AVX2_SMALL_PRIME_SIEVE;
 
+#endif
     CLEAN_AVX2;
 
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG1 += my_difftime (&qs_timing_start, &qs_timing_stop);
+    SIEVE_STG1 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 

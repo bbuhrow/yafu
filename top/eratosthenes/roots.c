@@ -566,7 +566,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     if (VFLAG > 1)
     {
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {
@@ -628,7 +628,7 @@ void getRoots(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
     {
         gettimeofday(&tstop, NULL);
 
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {

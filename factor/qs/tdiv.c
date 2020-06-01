@@ -146,7 +146,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        TF_STG6 +=  my_difftime (&qs_timing_start, &qs_timing_stop);
+        TF_STG6 +=  yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 		return;
@@ -195,7 +195,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			{
 #ifdef QS_TIMING
 				gettimeofday(&qs_timing_stop, NULL);
-				TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
+				TF_STG6 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 				dconf->dlp_prp++;
 				return;
@@ -765,7 +765,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG6 += my_difftime(&qs_timing_start, &qs_timing_stop);
+    TF_STG6 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 	
 	return;

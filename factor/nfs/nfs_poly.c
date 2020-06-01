@@ -543,10 +543,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 			//check the total time spent so far
 			gettimeofday(&stopt, NULL);
-            t_time = my_difftime(&startt, &stopt);
+            t_time = yafu_difftime(&startt, &stopt);
 
 			//update the estimated range time			
-            this_range_time = my_difftime(&t->thread_start_time, &stopt);
+            this_range_time = yafu_difftime(&t->thread_start_time, &stopt);
 
 			if (!is_startup)
 			{
@@ -737,7 +737,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	}	
 
 	gettimeofday(&stopt, NULL);
-    t_time = my_difftime(&startt, &stopt);
+    t_time = yafu_difftime(&startt, &stopt);
 
 	if (fobj->nfs_obj.polyrange > 0)
 	{		

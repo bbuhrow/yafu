@@ -905,17 +905,6 @@ void check_batch_relation(relation_batch_t *rb,
     return;
 }
 
-void print_relation_dummy(savefile_t *savefile, int64 a, uint32 b,
-    uint32 *factors_r, uint32 num_factors_r,
-    uint32 lp_r[MAX_LARGE_PRIMES],
-    uint32 *factors_a, uint32 num_factors_a,
-    uint32 lp_a[MAX_LARGE_PRIMES])
-
-{
-
-    return;
-}
-
 /*------------------------------------------------------------------*/
 void compute_remainder_tree(uint32 first, uint32 last,
 				relation_batch_t *rb,
@@ -967,7 +956,7 @@ void compute_remainder_tree(uint32 first, uint32 last,
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 			uint32 min_prime, uint32 max_prime,
 			uint32 lp_cutoff_r, uint32 lp_cutoff_a, 
-			savefile_t *savefile,
+			qs_savefile_t *savefile,
 			print_relation_t print_relation,
             int do_prime_product) {
 

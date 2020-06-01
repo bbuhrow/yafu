@@ -715,7 +715,7 @@ void SIQS(fact_obj_t *fobj)
 	}
 
 	gettimeofday(&myTVend, NULL);
-	t_time = my_difftime(&static_conf->totaltime_start, &myTVend);
+	t_time = yafu_difftime(&static_conf->totaltime_start, &myTVend);
 
 	if (VFLAG > 0)
 	{
@@ -812,7 +812,7 @@ void SIQS(fact_obj_t *fobj)
 	static_conf->t_time2= (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 	gettimeofday (&myTVend, NULL);
-    static_conf->t_time3 = my_difftime(&static_conf->totaltime_start, &myTVend);
+    static_conf->t_time3 = yafu_difftime(&static_conf->totaltime_start, &myTVend);
 	
 	if (VFLAG > 0)
 	{
@@ -948,7 +948,7 @@ void *process_poly(void *vptr)
         if (sconf->digits_n > 110)
         {
             gettimeofday(&stop, NULL);
-            t_time = my_difftime(&st, &stop);
+            t_time = yafu_difftime(&st, &stop);
 
             if (t_time > 5)
             {
@@ -960,7 +960,7 @@ void *process_poly(void *vptr)
 
 					// print some status
 					gettimeofday(&stop, NULL);
-					t_time = my_difftime(&start, &stop);
+					t_time = yafu_difftime(&start, &stop);
 
 					if (sconf->use_dlp == 2)
 					{
@@ -1178,7 +1178,7 @@ void *process_poly(void *vptr)
 
 
 	gettimeofday (&stop, NULL);
-    t_time = my_difftime(&start, &stop);
+    t_time = yafu_difftime(&start, &stop);
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
@@ -2298,7 +2298,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > 32768)  &&
-            (i % nump == 0)) break;
+            (i % 32 == 0)) break;
 	}
 	sconf->factor_base->fb_15bit_B = i;
 
@@ -2308,14 +2308,15 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//wait until the index is a multiple of 16 so that we can enter
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
-		//don't let med_B grow larger than 1.5 * the blocksize
+		//don't let med_B grow larger than ~1.5 * the blocksize
 		if ((sconf->factor_base->list->prime[i] > (uint32)(1.5 * (double)sconf->qs_blocksize))  &&
-			(i % 16 == 0))
+			((i % 16) == 0))
 			break;
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
 		{
+            printf("probably never get here\n");
 			i -= i%16;
 			break;
 		}
@@ -2475,17 +2476,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // not sure why, but batch factoring completely fails when using mingw64.
     if (sconf->use_dlp == 2)
     {
-        
-
-#ifdef TARGET_KNL
-        // this is not as efficient, but we have to watch memory 
-        // consumption with very large numbers of threads.
-        relation_batch_init(stdout, &sconf->rb, sconf->pmax, sconf->large_prime_max / 3,
-            sconf->large_prime_max, sconf->large_prime_max, NULL, (print_relation_t)NULL, 1);
-
-        sconf->rb.target_relations = 100000;
-#else
-
         sconf->rb = (relation_batch_t *)xmalloc(THREADS * sizeof(relation_batch_t));
         sconf->num_alloc_rb = THREADS;
         sconf->num_active_rb = 0;
@@ -2515,8 +2505,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         sconf->max_active_rb = 0;
         sconf->batch_buffer_id = 1;
         sconf->batch_run_override = 0;
-
-#endif
         sconf->do_batch = 1;
     }
 #endif
@@ -2787,7 +2775,7 @@ int update_check(static_conf_t *sconf)
 	mpz_init(tmp1);
 
 	gettimeofday(&update_stop, NULL);
-    t_update = my_difftime(&sconf->update_start, &update_stop);
+    t_update = yafu_difftime(&sconf->update_start, &update_stop);
 
 	if ((num_full >= check_total) || (t_update > update_time))
 	{
@@ -2835,7 +2823,7 @@ int update_check(static_conf_t *sconf)
 			return 2;
 		}
 
-        t_time = my_difftime(&sconf->totaltime_start, &update_stop);
+        t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
 		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(t_time > sconf->obj->qs_obj.gbl_override_time))
 		{
@@ -2978,7 +2966,7 @@ int update_check(static_conf_t *sconf)
 
 				printf("\nreached deadline of %u (%u) relations saved\n", 
 					total_rels, check_total);
-				t_time = my_difftime(&sconf->totaltime_start, &filt_start);
+				t_time = yafu_difftime(&sconf->totaltime_start, &filt_start);
 				printf("QS elasped time is now %1.2f sec\n", t_time);
 				printf("reading relations\n");
 
@@ -3056,7 +3044,7 @@ int update_check(static_conf_t *sconf)
 				num_relations = i;
 
                 gettimeofday(&filt_stop, NULL);
-                tmp = my_difftime(&filt_start, &filt_stop);
+                tmp = yafu_difftime(&filt_start, &filt_stop);
 
 				printf("read %u relations in %1.2f seconds\n", i, tmp);
 				printf("building graph\n");
@@ -3388,7 +3376,7 @@ int update_check(static_conf_t *sconf)
                 printf("new filtering deadline is %u relations\n", sconf->check_total);
 
 				gettimeofday(&filt_stop, NULL);
-				sconf->t_time4 += my_difftime(&filt_start, &filt_stop);
+				sconf->t_time4 += yafu_difftime(&filt_start, &filt_stop);
 			}
 
 		}
@@ -3449,7 +3437,7 @@ int update_final(static_conf_t *sconf)
 	{
         struct timeval update_stop;
         gettimeofday(&update_stop, NULL);
-        t_time = my_difftime(&sconf->totaltime_start, &update_stop);
+        t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
 
 		if (sconf->use_dlp == 2)
 		{
@@ -3597,7 +3585,7 @@ int update_final(static_conf_t *sconf)
 	}
 	
 	gettimeofday (&myTVend, NULL);
-    t_time = my_difftime(&sconf->totaltime_start, &myTVend);
+    t_time = yafu_difftime(&sconf->totaltime_start, &myTVend);
 
 	if (sieve_log != NULL)
 	{

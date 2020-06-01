@@ -57,7 +57,7 @@ void ecm_sync_fcn(void *ptr)
             double est_time;
             double curves_left;
 
-            curve_time = my_difftime(&thread_data->start, &thread_data->stop);
+            curve_time = yafu_difftime(&thread_data->start, &thread_data->stop);
             *thread_data->total_time += curve_time;
             avg_curve_time = *thread_data->total_time / (double)(*thread_data->total_curves_run);
             curves_left = (int)fobj->ecm_obj.num_curves - *thread_data->total_curves_run;

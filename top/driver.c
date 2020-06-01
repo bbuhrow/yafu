@@ -669,7 +669,7 @@ int main(int argc, char *argv[])
 
         gettimeofday(&tstop, NULL);
 
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("recovered %u dlp (of %u) and %u tlp (of %u) in %6.4f sec using yafu tdiv\n", 
             found2lp * 10, num2lp, found3lp * 10, num3lp, t * 10);
         
@@ -816,7 +816,7 @@ int main(int argc, char *argv[])
             relation_batch_run(&rb2);
 
             gettimeofday(&tstop, NULL);
-            t = my_difftime(&tstart, &tstop);
+            t = yafu_difftime(&tstart, &tstop);
 
             for (i = 0; i < rb2.num_relations; i++)
             {
@@ -859,7 +859,7 @@ int main(int argc, char *argv[])
             relation_batch_run(&rb2);
 
             gettimeofday(&tstop, NULL);
-            t = my_difftime(&tstart, &tstop);
+            t = yafu_difftime(&tstart, &tstop);
 
             for (i = 0; i < rb2.num_relations; i++)
             {
@@ -895,7 +895,7 @@ int main(int argc, char *argv[])
             relation_batch_run(&rb2);
 
             gettimeofday(&tstop, NULL);
-            t = my_difftime(&tstart, &tstop);
+            t = yafu_difftime(&tstart, &tstop);
 
             for (i = 0; i < rb2.num_relations; i++)
             {

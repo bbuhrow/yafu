@@ -108,7 +108,7 @@ void test_dlp_composites_par()
         num_successes = par_shanks_loop(comp, f, num);
 
         gettimeofday(&gstop, NULL);
-        t_time = my_difftime(&gstart, &gstop);
+        t_time = yafu_difftime(&gstart, &gstop);
 
         printf("par_squfof reported %d successes\n", num_successes);
         printf("average squfof time per input = %1.4f ms\n", 1000 * t_time / (double)num);
@@ -136,7 +136,7 @@ void test_dlp_composites_par()
         }
         
         gettimeofday(&gstop, NULL);
-        t_time = my_difftime(&gstart, &gstop);
+        t_time = yafu_difftime(&gstart, &gstop);
 
         printf("overall got %d of %d correct in %2.2f sec\n", correct, num, t_time);
         printf("squfof percent correct = %.2f\n", 100.0*(double)num_successes / (double)num);
@@ -448,7 +448,7 @@ void test_dlp_composites()
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = my_difftime(&gstart, &gstop);
+		t_time = yafu_difftime(&gstart, &gstop);
 
 		printf("ecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("attempts had an average of %1.2f bits, %d min, %d max\n", 
@@ -483,7 +483,7 @@ cosiqs_start:
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = my_difftime(&gstart, &gstop);
+		t_time = yafu_difftime(&gstart, &gstop);
 
 		printf("cosiqs found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
@@ -517,7 +517,7 @@ tinyecm_start:
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = my_difftime(&gstart, &gstop);
+		t_time = yafu_difftime(&gstart, &gstop);
 
 		printf("tinyecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
@@ -646,7 +646,7 @@ brent_marker:
 		}
 
 		gettimeofday(&gstop, NULL);
-		t_time = my_difftime(&gstart, &gstop);
+		t_time = yafu_difftime(&gstart, &gstop);
 
 		printf("Lehman got %d of %d correct in %2.2f sec\n", correct, num, t_time);
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -719,7 +719,7 @@ brent_marker:
         }
 
         gettimeofday(&gstop, NULL);
-        t_time = my_difftime(&gstart, &gstop);
+        t_time = yafu_difftime(&gstart, &gstop);
 
         printf("rho got %d of %d correct in %2.2f sec (%d by squfof)\n", correct, num, t_time, k);
         printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -789,7 +789,7 @@ brent_marker:
 		}
 
 		gettimeofday(&gstop, NULL);
-		t_time = my_difftime(&gstart, &gstop);
+		t_time = yafu_difftime(&gstart, &gstop);
 
 		printf("squfof got %d of %d correct in %2.2f sec (%d by rho)\n", correct, num, t_time, k);
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -857,7 +857,7 @@ tinyqs_marker:
             fclose(in);
 
             gettimeofday(&gstop, NULL);
-            t_time = my_difftime(&gstart, &gstop);
+            t_time = yafu_difftime(&gstart, &gstop);
 
             printf("tinyqs got %d of %d correct in %2.2f sec\n", correct, num, t_time);
             printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -926,7 +926,7 @@ tinyqs_marker:
         fclose(in);
 
         gettimeofday(&gstop, NULL);
-        t_time = my_difftime(&gstart, &gstop);
+        t_time = yafu_difftime(&gstart, &gstop);
 
         printf("mbrent got %d of %d correct in %2.2f sec (%d with backup polynomial)\n", 
             correct, num, t_time, k);
@@ -1048,7 +1048,7 @@ tinyqs_marker:
         fclose(in);
 
         gettimeofday(&gstop, NULL);
-        t_time = my_difftime(&gstart, &gstop);
+        t_time = yafu_difftime(&gstart, &gstop);
 
         printf("ecm got %d of %d correct in %2.2f sec\n",
             correct, num, t_time);
@@ -1177,7 +1177,7 @@ tinyecm_marker:
 			fclose(in);
 
 			gettimeofday(&gstop, NULL);
-			t_time = my_difftime(&gstart, &gstop);
+			t_time = yafu_difftime(&gstart, &gstop);
 
 			printf("microecm got %d of %d correct in %2.2f sec\n",
 				correct, num, t_time);
@@ -1276,7 +1276,7 @@ tinyecm_marker:
 			fclose(in);
 
 			gettimeofday(&gstop, NULL);
-			t_time = my_difftime(&gstart, &gstop);
+			t_time = yafu_difftime(&gstart, &gstop);
 
 			printf("tinyecm got %d of %d correct in %2.2f sec\n",
 				correct, num, t_time);
@@ -1388,7 +1388,7 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *foo, z *ba
 
         //status update
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
 
         gettimeofday(&tstart, NULL);
@@ -1494,7 +1494,7 @@ void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *foo, z *ba
         mpz_add_ui(sum, sum, tmpsum[0]);
 
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("sum complete in %6.4f sec\n", t);
         gmp_printf("sum complete in %6.4f sec, squaresum = %Zd, sum = %Zd\n",
             t, squaresum, sum);
@@ -1742,7 +1742,7 @@ void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *foo)
 
         //status update
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
 
         gettimeofday(&tstart, NULL);
@@ -1797,7 +1797,7 @@ void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *foo)
         //all done with this batch.  status update again.
 
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("sum complete in %6.4f sec\n", t);
         gmp_printf("sum complete in %6.4f sec, prime power sum = %Zd\n",
             t, pp_sum);
@@ -1874,7 +1874,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
         n64 = soe_wrapper(lower, tmpupper, 0);
         pcount += n64;
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
 
 
@@ -1986,7 +1986,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
             sum->size = 1;
 
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("sum complete in %6.4f sec, sum = %s\n",
             t, z2decstr(sum, &gstr2));
 
@@ -2006,7 +2006,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
         n64 = soe_wrapper(lower, upper, 0);
         pcount += n64;
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, upper, t);
 
         gettimeofday(&tstart, NULL);
@@ -2082,7 +2082,7 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum)
         }
 
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("sum complete in %6.4f sec, sum = %s\n",
             t, z2decstr(sum, &gstr2));
     }
@@ -2127,7 +2127,7 @@ void primesum(uint64 lower, uint64 upper)
         n64 = soe_wrapper(lower, tmpupper, 0);
         pcount += n64;
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("\nfound %" PRIu64 " primes in range %" PRIu64 " to %" PRIu64 " in %6.4f sec\n", NUM_P, lower, tmpupper, t);
 
 
@@ -2185,7 +2185,7 @@ void primesum(uint64 lower, uint64 upper)
             sum->size = 1;
 
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
         printf("sum complete in %6.4f sec, sum = %s, squaresum = %s\n",
             t, z2decstr(sum, &gstr1), z2decstr(squaresum, &gstr2));
 

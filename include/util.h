@@ -122,7 +122,7 @@ get_rand(uint32 *rand_seed, uint32 *rand_carry) {
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-double my_difftime (struct timeval *, struct timeval *);
+double yafu_difftime (struct timeval *, struct timeval *);
 
 //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
 #if defined (_MSC_VER)

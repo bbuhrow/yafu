@@ -303,7 +303,7 @@ void resieve_medprimes_32k_knl(uint32 *reports, uint32 num_reports,
         
 #ifdef QS_TIMING
     gettimeofday(&qs_timing_stop, NULL);
-    TF_STG4 += my_difftime(&qs_timing_start, &qs_timing_stop);
+    TF_STG4 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     return;

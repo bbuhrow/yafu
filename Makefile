@@ -89,10 +89,6 @@ ifeq ($(KNL),1)
   #-openmp
 endif
 
-ifeq ($(SKYLAKEX),1)
-    # define KNL now for skylakex, after handling an actual command line KNL
-    KNL=1
-endif
 
 ifeq ($(KNC),1)
 	CFLAGS += -mmic -DTARGET_KNC -vec-report3
@@ -112,16 +108,25 @@ else
     ifeq ($(SKYLAKEX),1)
         INC += -I../../gmp_install/gmp-6.2.0/include
         LIBS += -L../../gmp_install/gmp-6.2.0/lib/
+        INC += -I../gmp-ecm/include/
+        LIBS += -L../gmp-ecm/lib/
     else
-        # for non avx512 systems
-        INC += -I../gmp/include
-        LIBS += -L../gmp/lib/
+        ifeq ($(KNL),1)
+            INC += -I../../gmp_install/gmp-6.2.0-knl/include
+            LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
+            INC += -I../../ecm_install_gmp620_knl/include/
+            LIBS += -L../../ecm_install_gmp620_knl/lib/
+        else
+            # for non avx512 systems
+            INC += -I../gmp/include
+            LIBS += -L../gmp/lib/
+            INC += -I../gmp-ecm/include/
+            LIBS += -L../gmp-ecm/lib/
+        endif
     endif
 
-	INC += -I../gmp-ecm/include/
-	LIBS += -L../gmp-ecm/lib/
+	
 endif
-
 
 # ===================== feature options =========================
 ifeq ($(PROFILE),1)
@@ -171,6 +176,14 @@ ifeq ($(SKYLAKEX),1)
 else
     LIBS += -lecm -lgmp
 endif
+
+
+ifeq ($(SKYLAKEX),1)
+    # define KNL now for skylakex, after handling an actual command line KNL
+    KNL=1
+endif
+
+
 
 
 # attempt to get static builds to work... unsuccessful so far

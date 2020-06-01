@@ -289,7 +289,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG1 += my_difftime (&qs_timing_start, &qs_timing_stop);
+    TF_STG1 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 

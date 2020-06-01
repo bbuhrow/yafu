@@ -29,11 +29,17 @@ OPT_FLAGS = -O2
 BINNAME = yafu-x64-mingw.exe
 INC = -I. -Iinclude -Itop/aprcl -Itop/
 
-INC += -I../gmp/install/mingw/include
-LIBS += -L../gmp/install/mingw/lib
+#INC += -I../gmp/install/mingw/include
+#LIBS += -L../gmp/install/mingw/lib
+#
+#INC += -I../gmp-ecm/install/mingw/include
+#LIBS += -L../gmp-ecm/install/mingw/lib
 
-INC += -I../gmp-ecm/install/mingw/include
-LIBS += -L../gmp-ecm/install/mingw/lib
+INC += -I../../gmp_install/gmp-6.2.0-mingw/include
+LIBS += -L../../gmp_install/gmp-6.2.0-mingw/lib
+
+INC += -I../../ecm_install_mingw/include
+LIBS += -L../../ecm_install_mingw/lib
 
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
@@ -57,7 +63,7 @@ ifeq ($(USE_SSE41),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -march=skylake-avx512 
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
     CFLAGS += -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
     CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
     CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
@@ -95,7 +101,9 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve_good/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+    INC += -I../msieve/zlib
+	#LIBS += -L../msieve_good/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+    LIBS += -L../msieve/lib/mingw/ -lecm -lmsieve -lgmp
 else
 	LIBS += -lecm -lgmp
 endif
