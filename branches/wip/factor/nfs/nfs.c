@@ -406,7 +406,7 @@ void nfs(fact_obj_t *fobj)
             if (VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
-                t_time = my_difftime(&start, &stop);
+                t_time = yafu_difftime(&start, &stop);
                 printf("Elapsed time is now %6.4f seconds.\n", t_time);
             }
 
@@ -511,7 +511,7 @@ void nfs(fact_obj_t *fobj)
             if (VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
-                t_time = my_difftime(&start, &stop);
+                t_time = yafu_difftime(&start, &stop);
                 printf("Elapsed time is now %6.4f seconds.\n", t_time);
             }
 			break;
@@ -596,7 +596,7 @@ void nfs(fact_obj_t *fobj)
 
 			gettimeofday(&stop, NULL);
 
-            t_time = my_difftime(&start, &stop);
+            t_time = yafu_difftime(&start, &stop);
 
 			if (VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
@@ -632,7 +632,7 @@ void nfs(fact_obj_t *fobj)
 				uint32 est_time;
 
 				gettimeofday(&bstop, NULL);
-                t_time = my_difftime(&bstart, &bstop);
+                t_time = yafu_difftime(&bstart, &bstop);
 
 				est_time = (uint32)((job.min_rels - job.current_rels) * 
 					(t_time / (job.current_rels - pre_batch_rels)));				
@@ -664,7 +664,7 @@ void nfs(fact_obj_t *fobj)
             if (VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
-                t_time = my_difftime(&start, &stop);
+                t_time = yafu_difftime(&start, &stop);
                 printf("Elapsed time is now %6.4f seconds.\n", t_time);
             }
 
@@ -881,7 +881,7 @@ void nfs(fact_obj_t *fobj)
 
 		//after every state, check elasped time against a specified timeout value
 		gettimeofday(&stop, NULL);
-        t_time = my_difftime(&start, &stop);
+        t_time = yafu_difftime(&start, &stop);
 
 		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
 		{

@@ -751,9 +751,9 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         //find a^-1 mod p = inv(a mod p) mod p
         inv = modinv_1(amodp, prime);
 
-        COMPUTE_FIRST_ROOTS
+        COMPUTE_FIRST_ROOTS;
 
-            root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
+        root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
         root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
 
         update_data.firstroots1[i] = root1;

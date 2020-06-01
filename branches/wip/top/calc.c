@@ -2794,7 +2794,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 
 			mpz_set_64(operands[0], n64);
 			gettimeofday (&tstop, NULL);
-			t = my_difftime (&tstart, &tstop);
+			t = yafu_difftime (&tstart, &tstop);
 
 			printf("elapsed time = %6.4f\n",t);
 			break;
@@ -3276,7 +3276,7 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 				soe_wrapper(spSOEprimes, szSOEp, lower, upper, 1, &n64);
 				count += n64;
 				gettimeofday (&tstop, NULL);
-				t = my_difftime (&tstart, &tstop);
+				t = yafu_difftime (&tstart, &tstop);
 				lower = upper;
 				printf("%" PRIu64 ": %" PRIu64 ", elapsed time = %6.4f\n",upper,count,t);
 			}

@@ -122,7 +122,7 @@ typedef struct {
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     uint32 min_prime, uint32 max_prime,
     uint32 lp_cutoff_r, uint32 lp_cutoff_a,
-    savefile_t *savefile,
+    qs_savefile_t *savefile,
     print_relation_t print_relation,
     int do_prime_product);
 

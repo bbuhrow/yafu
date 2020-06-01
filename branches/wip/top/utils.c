@@ -883,7 +883,7 @@ void build_RSA(int bits, mpz_t in)
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-double my_difftime (struct timeval * start, struct timeval * end)
+double yafu_difftime (struct timeval * start, struct timeval * end)
 {
     double secs;
     double usecs;
@@ -1109,7 +1109,7 @@ int qcomp_double(const void *x, const void *y)
 		do
 		{
 			gettimeofday (&stop, NULL);
-            t_time = my_difftime (&start, &stop);
+            t_time = yafu_difftime (&start, &stop);
 		}
 		while (t_time < 0.1);
 		cycles = yafu_read_clock() - cycles;

@@ -2130,7 +2130,7 @@ done:
 			partial->act_r+full->num_r,full->num_r,partial->act_r,partial->num_r,numpoly);
 
 	gettimeofday (&tend, NULL);
-    t_time = my_difftime(&tstart, &tend);
+    t_time = yafu_difftime(&tstart, &tend);
 
 	if (VFLAG > 0)
 		printf("QS elapsed time = %6.4f seconds.\n",t_time);
@@ -2177,7 +2177,7 @@ done:
 			factors,&num_factors);
 
 		gettimeofday (&tend, NULL);
-        t_time = my_difftime(&tstart, &tend);
+        t_time = yafu_difftime(&tstart, &tend);
 	
 		if (VFLAG > 0)
 			printf("Gauss elapsed time = %6.4f seconds.\n",t_time);

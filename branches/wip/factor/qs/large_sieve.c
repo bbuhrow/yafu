@@ -308,7 +308,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG2 += my_difftime (&qs_timing_start, &qs_timing_stop);
+    SIEVE_STG2 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

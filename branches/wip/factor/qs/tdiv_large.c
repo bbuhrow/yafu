@@ -1018,7 +1018,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG5 += my_difftime (&qs_timing_start, &qs_timing_stop);
+    TF_STG5 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	dconf->smooth_num[report_num] = smooth_num;
@@ -1113,7 +1113,7 @@ void tdiv_LP_2x(uint32 *report_num, uint8 parity, uint32 bnum,
 
 #ifdef QS_TIMING
     gettimeofday(&qs_timing_stop, NULL);
-    TF_STG5 += my_difftime(&qs_timing_start, &qs_timing_stop);
+    TF_STG5 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     dconf->smooth_num[report_num] = smooth_num;

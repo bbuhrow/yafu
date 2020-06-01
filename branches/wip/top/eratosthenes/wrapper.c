@@ -254,7 +254,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 					*num_p += spSOE(sieve_p, num_sp, NULL, tmpl, &tmph, 1, NULL);
 
 					gettimeofday (&stop, NULL);
-                    t_time = my_difftime(&start, &stop);
+                    t_time = yafu_difftime(&start, &stop);
 
 					if (VFLAG > 1)
 						printf("so far, found %" PRIu64 " primes in %1.1f seconds\n",*num_p, t_time);

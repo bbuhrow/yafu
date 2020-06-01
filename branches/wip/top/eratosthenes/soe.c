@@ -495,7 +495,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
     if (VFLAG > 1)
     {
         gettimeofday(&tstop, NULL);
-        t = my_difftime(&tstart, &tstop);
+        t = yafu_difftime(&tstart, &tstop);
 
         if (VFLAG > 2)
         {
@@ -712,7 +712,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
         if (VFLAG > 1)
         {
             gettimeofday(&tstop, NULL);
-            t = my_difftime(&tstart, &tstop);
+            t = yafu_difftime(&tstart, &tstop);
 
             if (VFLAG > 2)
             {
@@ -778,7 +778,7 @@ void do_soe_sieving(soe_staticdata_t *sdata, thread_soedata_t *thread_data, int 
 	if (VFLAG > 1)
 	{
 		gettimeofday(&tstop, NULL);
-		t = my_difftime(&tstart, &tstop);
+		t = yafu_difftime(&tstart, &tstop);
 		printf("linesieve took %1.6f seconds\n", t);
 	}
     

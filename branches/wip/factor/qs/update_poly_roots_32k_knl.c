@@ -42,7 +42,7 @@ code to the public domain.
 // when not enough primes in a set of 16 hit an interval
 // it is better to just loop through the ones that hit
 // using _trail_zcnt and update buckets one at a time.
-//#define KNL_XLARGE_METHOD_1_CUTOFF 12
+//#define KNL_XLARGE_METHOD_1_CUTOFF 7
 //#define XLARGE_BUCKET_DEBUG
 
 #define SCATTER_COMPRESSED_VECTOR_P \
@@ -481,21 +481,17 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
-            idx = _mm_popcnt_u32(mask1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
-            idx += _mm_popcnt_u32(mask2);
+            
 
 #ifdef KNL_XLARGE_METHOD_1_CUTOFF
             dconf->num_scatter_opp++;
-            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF) && (idx <= 16))
-            {
-                vbnum1 = _mm512_load_epi32((__m512i*)b1);
-                velement1 = _mm512_load_epi32((__m512i*)e1);
 
-                mask1 = (1 << idx) - 1;
+            idx = _mm_popcnt_u32(mask1);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
 
                 dconf->num_scatter++;
                 // get the conflicted indices.  Note that the mask is a *writemask*... all
@@ -547,8 +543,89 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
             }
             else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+
+                SCATTER_COMPRESSED_VECTOR_P;
+            }
+
+            idx = _mm_popcnt_u32(mask2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                vbnum1 = vbnum2;
+                velement1 = velement2;
+                mask1 = mask2;
+
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
+
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+            }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask2, velement2);
+
+                SCATTER_COMPRESSED_VECTOR_P;
+            }
 #else
             {
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                idx += _mm_popcnt_u32(mask2);
+
                 SCATTER_COMPRESSED_VECTOR_P;
             }
 #endif
@@ -564,21 +641,14 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
-            idx = _mm_popcnt_u32(mask1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
-            idx += _mm_popcnt_u32(mask2);
-
 #ifdef KNL_XLARGE_METHOD_1_CUTOFF
             dconf->num_scatter_opp++;
-            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF) && (idx <= 16))
+            idx = _mm_popcnt_u32(mask1);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
             {
-                vbnum1 = _mm512_load_epi32((__m512i*)b1);
-                velement1 = _mm512_load_epi32((__m512i*)e1);
-
-                mask1 = (1 << idx) - 1;
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
 
                 dconf->num_scatter++;
                 // get the conflicted indices.  Note that the mask is a *writemask*... all
@@ -590,7 +660,75 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
 
                 // gather the num_p values for the blocks that are hit
-                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_n, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+            }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+
+                SCATTER_COMPRESSED_VECTOR_N;
+            }
+
+            idx = _mm_popcnt_u32(mask2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                vbnum1 = vbnum2;
+                velement1 = velement2;
+                mask1 = mask2;
+
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
+
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
 
                 // try scatter prefetching?
 #ifdef KNL_SCATTER_PREFETCH
@@ -623,15 +761,28 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 // compute the bucket indices
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
-                _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
 
                 // update the num_p values (increment)
                 vnum = _mm512_add_epi32(vnum, vone);
-                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
             }
             else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask2, velement2);
+
+                SCATTER_COMPRESSED_VECTOR_N;
+            }
 #else
             {
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                idx += _mm_popcnt_u32(mask2);
+
                 SCATTER_COMPRESSED_VECTOR_N;
             }
 #endif
@@ -1006,18 +1157,152 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
-            _mm512_mask_compressstoreu_epi32((__m512i *)b1, mask1, vbnum1);
-            _mm512_mask_compressstoreu_epi32((__m512i *)e1, mask1, velement1);
+#ifdef KNL_XLARGE_METHOD_1_CUTOFF
+            dconf->num_scatter_opp++;
 
             idx = _mm_popcnt_u32(mask1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
 
-            // extra big roots are much easier because they hit at most once
-            // in the entire +side interval.  no need to iterate.
-            idx += _mm_popcnt_u32(mask2);
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
 
-            SCATTER_COMPRESSED_VECTOR_P;
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+                }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+
+                SCATTER_COMPRESSED_VECTOR_P;
+            }
+
+            idx = _mm_popcnt_u32(mask2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                vbnum1 = vbnum2;
+                velement1 = velement2;
+                mask1 = mask2;
+
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
+
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_p, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+            }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask2, velement2);
+
+                SCATTER_COMPRESSED_VECTOR_P;
+            }
+#else
+            {
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                idx += _mm_popcnt_u32(mask2);
+
+                SCATTER_COMPRESSED_VECTOR_P;
+            }
+#endif
 
             // and the -side roots; same story.
             vroot1 = _mm512_sub_epi32(vprime, vroot1);
@@ -1030,18 +1315,151 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
-            _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
-
+#ifdef KNL_XLARGE_METHOD_1_CUTOFF
+            dconf->num_scatter_opp++;
             idx = _mm_popcnt_u32(mask1);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
-            _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
 
-            // extra big roots are much easier because they hit at most once
-            // in the entire +side interval.  no need to iterate.
-            idx += _mm_popcnt_u32(mask2);
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
 
-            SCATTER_COMPRESSED_VECTOR_N;
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_n, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+            }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+
+                SCATTER_COMPRESSED_VECTOR_N;
+            }
+
+            idx = _mm_popcnt_u32(mask2);
+            if ((idx >= KNL_XLARGE_METHOD_1_CUTOFF))
+            {
+                vbnum1 = vbnum2;
+                velement1 = velement2;
+                mask1 = mask2;
+
+                //vbnum1 = _mm512_load_epi32((__m512i*)b1);
+                //velement1 = _mm512_load_epi32((__m512i*)e1);
+                //mask1 = (1 << idx) - 1;
+
+                dconf->num_scatter++;
+                // get the conflicted indices.  Note that the mask is a *writemask*... all
+                // lanes will participate in the read and conflict instruction.  
+                vindex = _mm512_mask_conflict_epi32(vzero, mask1, vbnum1);
+
+                // identify the location of the last index of each unique block.  This location
+                // will eventually hold the largest increment for each unique block.
+                munique = ~_mm512_mask_reduce_or_epi32(mask1, vindex);
+
+                // gather the num_p values for the blocks that are hit
+                vnum = _mm512_mask_i32gather_epi32(vzero, mask1, vbnum1, numptr_n, _MM_SCALE_4);
+
+                // try scatter prefetching?
+#ifdef KNL_SCATTER_PREFETCH
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_prefetch_i32scatter_ps(sliceptr_p, mask1, vaddr, 4, KNL_SCATTER_PREFETCH);
+#endif
+
+                // start out having "processed" those indices that don't hit the interval.
+                mNotProc = mask1;
+
+                while (mNotProc != 0)
+                {
+
+                    // set a mask of non-conflicted indices that are also interval hits
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    // write the bucket elements.
+                     // instead of scatter in the loop, compress-write to a register and do scatter once at the end?
+                     // yes, this is better.  in fact, we just need to update vnum in a conflict-free manner.
+                     //_mm512_mask_i32scatter_epi32(sliceptr_p, mconflictfree & ~mprocessed, vaddr, velement1, _MM_SCALE_4);                           
+
+                     // adjust the conflict masks (clear the conflicted bits that we've just identified)
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+
+                    // remove the lanes we wrote this time
+                    mNotProc &= (~mconflictfree);
+
+                    // increment the counters that are still conflicted
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                }
+
+                // compute the bucket indices
+                vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
+                _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
+
+                // update the num_p values (increment)
+                vnum = _mm512_add_epi32(vnum, vone);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+            }
+            else
+            {
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask2, velement2);
+
+                SCATTER_COMPRESSED_VECTOR_N;
+            }
+#else
+            {
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                idx += _mm_popcnt_u32(mask2);
+
+                SCATTER_COMPRESSED_VECTOR_N;
+            }
+#endif
 
         }
 
