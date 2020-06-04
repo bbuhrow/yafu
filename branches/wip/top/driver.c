@@ -32,7 +32,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 83
+#define NUMOPTIONS 85
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -54,7 +54,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
 	"ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
-	"siqsMFBT", "siqsBDiv", "siqsBT" };
+	"siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1" };
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -77,7 +77,7 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	1,0,1,1,1,
 	1,1,0,1,1,
-	1,1};
+	1,1,1,0,0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -1460,6 +1460,7 @@ void readINI(fact_obj_t *fobj)
 	char *key;
 	char *value;
 	int len;
+    int linenum = 0;
 
 	doc = fopen("yafu.ini","r");
 
@@ -1469,9 +1470,16 @@ void readINI(fact_obj_t *fobj)
 	str = (char *)malloc(1024*sizeof(char));
 	while (fgets(str,1024,doc) != NULL)
 	{
-		//if first character is a % sign, skip this line
+        //linenum++;
+        //printf("line %d length %d: %s", linenum, strlen(str), str);
+
+		//if first character is a % sign, skip this line.
 		if (str[0] == '%')
 			continue;
+
+        //if first character is a blank, skip this line.
+        if (str[0] == ' ')
+            continue;
 
 		//if last character of line is newline, remove it
 		do 
@@ -1485,18 +1493,34 @@ void readINI(fact_obj_t *fobj)
 				break;
 		} while (len > 0);
 
+        //if line is now blank, skip it.
+        if (strlen(str) == 0)
+            continue;
+
+
 		//read keyword by looking for an equal sign
 		key = strtok(str,"=");
 
 		if (key == NULL)
 		{
-			printf("Invalid line in yafu.ini, use Keyword=Value pairs"
-				"See docfile.txt for valid keywords");
-			continue;
-		}
+            // no longer insist on having an argument
+            key = str;
+            value = NULL;
 
-		//read value
-		value = strtok((char *)0,"=");
+            //printf("applying option %s\n", key);
+			//printf("Invalid line in yafu.ini, use Keyword=Value pairs"
+			//	"See docfile.txt for valid keywords");
+			//continue;
+		}
+        else
+        {
+            //read value
+            value = strtok((char*)0, "=");
+            //printf("applying option %s=%s\n", key, value);
+        }
+
+        
+        printf("applying option %s=%s\n", key, value);
 
 		//if (value == NULL)
 		//{
@@ -2445,6 +2469,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	ptr = NULL;
 	if (strcmp(opt,OptionArray[0]) == 0)
 	{
+        //"B1pm1"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2466,6 +2491,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[1]) == 0)
 	{
+        //"B1pp1"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2487,6 +2513,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[2]) == 0)
 	{
+        //"B1ecm"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2508,6 +2535,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[3]) == 0)
 	{
+        //"rhomax"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2522,6 +2550,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[4]) == 0)
 	{
+        //"B2pm1"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2537,6 +2566,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[5]) == 0)
 	{
+        // "B2pp1"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2552,6 +2582,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[6]) == 0)
 	{
+        // "B2ecm"
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
@@ -2831,7 +2862,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt,OptionArray[36]) == 0)
 	{
-		//argument "out".  argument is a string
+		//argument "ou".  argument is a string
 		if (strlen(arg) < 1024)
 		{
 			strcpy(fobj->autofact_obj.ou_str,arg);
@@ -3242,6 +3273,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	}
 	else if (strcmp(opt, OptionArray[77]) == 0)
 	{
+        //argument "forceTLP"
 		fobj->qs_obj.gbl_force_TLP = 1;
 	}
 	else if (strcmp(opt, OptionArray[78]) == 0)
@@ -3277,6 +3309,17 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
         //argument "siqsBT" ("Batch Target")
         // How many relations to batch up before they are processed
         sscanf(arg, "%u", &fobj->qs_obj.gbl_btarget);
+    }
+    else if (strcmp(opt, OptionArray[83]) == 0)
+    {
+        // argument "prefer_gmpecm"
+        fobj->ecm_obj.prefer_gmpecm = 1;
+        fobj->ecm_obj.ecm_ext_xover = 48000;
+    }
+    else if (strcmp(opt, OptionArray[84]) == 0)
+    {
+        //argument "save_b1"
+        fobj->ecm_obj.save_b1 = 1;
     }
 	else
 	{

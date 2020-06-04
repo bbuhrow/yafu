@@ -227,6 +227,8 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->ecm_obj.ecm_multiplier = 0;
 	fobj->ecm_obj.ecm_tune_freq = 0;
     fobj->ecm_obj.bail_on_factor = 1;
+    fobj->ecm_obj.save_b1 = 0;
+    
 
 	// unlike ggnfs, ecm does not *require* external binaries.  
 	// an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -234,7 +236,13 @@ void init_factobj(fact_obj_t *fobj)
 	// an external binary
 	strcpy(fobj->ecm_obj.ecm_path,"");
 	fobj->ecm_obj.use_external = 0;
-	fobj->ecm_obj.ecm_ext_xover = 40000;
+#ifdef USE_AVX512F
+    fobj->ecm_obj.prefer_gmpecm = 0;
+    fobj->ecm_obj.ecm_ext_xover = 40000000;
+#else
+    fobj->ecm_obj.prefer_gmpecm = 1;
+	fobj->ecm_obj.ecm_ext_xover = 48000;
+#endif
 
 	// initialize stuff for squfof
 	fobj->squfof_obj.num_factors = 0;	

@@ -115,6 +115,15 @@ typedef struct
 	mpz_t factor;
 	int count;
 	int type;
+    // new parameters to support returning factors
+    // from avx-ecm.  In general I think it makes sense
+    // to have this structure contain information not
+    // only about the factor itself but how it was found.
+    int method;     // factorization method used
+    uint32 curve_num;   // curve found
+    uint64 sigma;   // sigma value
+    int tid;        // thread found
+    int vid;        // vector position found
 } factor_t;
 
 typedef struct

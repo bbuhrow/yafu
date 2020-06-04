@@ -36,6 +36,7 @@ typedef struct
     int tstartup;
     int num_threads;
     int done;
+    int debug;
 
     volatile enum tpool_state state;
 

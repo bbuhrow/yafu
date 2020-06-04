@@ -4,6 +4,7 @@
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI tpool_worker_main(LPVOID thread_data);
 #else
+#include <errno.h>
 void *tpool_worker_main(void *thread_data);
 #endif
 void tpool_start(tpool_t *t);
@@ -14,6 +15,11 @@ void tpool_start(tpool_t *t)
 
     // create a thread and execute any user defined start function
     t->state = TPOOL_STATE_INIT;
+
+    if (t->debug > 1)
+    {
+        printf("tpool: starting thread %d\n", t->tindex);
+    }
 
     if (t->tpool_start_fcn != NULL)
     {
@@ -46,11 +52,21 @@ void tpool_start(tpool_t *t)
         pthread_cond_wait(&t->run_cond, &t->run_lock);
     pthread_mutex_unlock(&t->run_lock);
 #endif
+
+    if (t->debug > 1)
+    {
+        printf("tpool: thread %d started\n", t->tindex);
+    }
 }
 
-void tpool_stop(tpool_t *t)
+void tpool_stop(tpool_t* t)
 {
     t->state = TPOOL_STATE_END;
+
+    if (t->debug > 1)
+    {
+        printf("tpool: stopping thread %d\n", t->tindex);
+    }
 
     if (t->tpool_stop_fcn != NULL)
     {
@@ -58,7 +74,7 @@ void tpool_stop(tpool_t *t)
     }
 
 #if defined(WIN32) || defined(_WIN64)
-    
+
     SetEvent(t->run_event);
     WaitForSingleObject(t->thread_id, INFINITE);
     CloseHandle(t->thread_id);
@@ -66,13 +82,54 @@ void tpool_stop(tpool_t *t)
     CloseHandle(t->finish_event);
     CloseHandle(*t->queue_event);
 #else
-    pthread_mutex_lock(&t->run_lock);
+
+    //pthread_mutex_lock(&t->run_lock);
+    int count = 0;
+    while (1)
+    {
+        int retval = pthread_mutex_trylock(&t->run_lock);
+
+        if (retval == EDEADLK)
+        {
+            printf("deadlock in tpool_stop, thread %d attempted to re-lock mutex run_lock\n",
+                t->tindex);
+            printf("attempting to ignore problem...\n");
+            return;
+            //exit(10);
+        }
+        else if (retval == EBUSY)
+        {
+            count++;
+
+            //printf("run_lock is busy in thread %d, (count = %d)\n",
+            //    t->tindex, count);
+            usleep(1);
+
+            if (count > 100)
+            {
+                printf("too many attempts to lock mutex run_lock in thread %d\n",
+                    t->tindex);
+                printf("attempting to ignore problem...\n");
+                return;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
     pthread_cond_signal(&t->run_cond);
     pthread_mutex_unlock(&t->run_lock);
     pthread_join(t->thread_id, NULL);
     pthread_cond_destroy(&t->run_cond);
     pthread_mutex_destroy(&t->run_lock);
 #endif
+
+    if (t->debug > 1)
+    {
+        printf("tpool: thread %d stopped\n", t->tindex);
+    }
+
 }
 
 
@@ -100,6 +157,11 @@ void *tpool_worker_main(void *thread_data) {
 
     while (1) {
 
+        if (t->debug > 1)
+        {
+            printf("tpool: thread %d waiting for work\n", t->tindex);
+        }
+
         /* wait forever for work to do */
 #if defined(WIN32) || defined(_WIN64)
         WaitForSingleObject(t->run_event, INFINITE);
@@ -113,10 +175,20 @@ void *tpool_worker_main(void *thread_data) {
         /* do work */
         if (t->state == TPOOL_STATE_WORK)
         {
+            if (t->debug > 1)
+            {
+                printf("tpool: thread %d executing work_fcn %d\n", t->tindex, t->work_fcn_id);
+            }
+
             (t->tpool_work_fcn[t->work_fcn_id])(t);
         }
         else if (t->state == TPOOL_STATE_END)
         {
+            if (t->debug > 1)
+            {
+                printf("tpool: thread %d state end\n", t->tindex);
+            }
+
             break;
         }
 
@@ -136,8 +208,8 @@ void *tpool_worker_main(void *thread_data) {
         pthread_mutex_unlock(&t->run_lock);
 
         // lock the work queue and insert my thread ID into it
-        // this tells the master that my results should be collected
-        // and I should be dispatched another polynomial
+        // this tells the master that my results should be synced
+        // and I should be dispatched more work
         pthread_mutex_lock(t->queue_lock);
         t->thread_queue[(*(t->threads_waiting))++] = t->tindex;
         pthread_cond_signal(t->queue_cond);
@@ -194,8 +266,15 @@ void tpool_go(tpool_t *thread_data)
     pthread_cond_init(&queue_cond, NULL);
 #endif
 
+    
+
     for (i = 0; i<thread_data->num_threads; i++)
     {
+        if (thread_data[i].debug > 1)
+        {
+            printf("tpool: thread %d go init\n", thread_data[i].tindex);
+        }
+
         thread_data[i].tindex = i;
         thread_data[i].tstartup = 1;
         // assign all threads a pointer to the waiting queue.  access to 
@@ -234,7 +313,15 @@ void tpool_go(tpool_t *thread_data)
     pthread_mutex_lock(&queue_lock);
 #endif
 
-    //printf("=== starting threadpool\n");
+    if (thread_data[0].debug > 1)
+    {
+        printf("tpool: main thread starting threadpool\n");
+    }
+    // we enter this loop with the main thread and num_threads other
+    // threads running in parallel. This loop in the main thread is
+    // responsible for calling the sync and dispatch functions as threads
+    // in the pool finish, one at a time.  The other threads will write
+    // to an array to indicate when they are done.
     while (1)
     {
         int tid = 0;
@@ -254,10 +341,15 @@ void tpool_go(tpool_t *thread_data)
 #if defined(WIN32) || defined(_WIN64)
             ReleaseMutex(queue_lock);
 #endif
-
-            // if not in startup...
+            
+            if (thread_data[tid].debug > 1)
+            {
+                printf("tpool: main thread sync %d\n", thread_data[tid].tindex);
+            }
+            
             if (thread_data[tid].tstartup == 0)
             {
+                // if not in startup...
                 if (thread_data[tid].tpool_sync_fcn != NULL)
                     (thread_data[tid].tpool_sync_fcn)(&thread_data[tid]);
 
@@ -270,6 +362,11 @@ void tpool_go(tpool_t *thread_data)
             }
 
             // user dispatch function
+            if (thread_data[tid].debug > 1)
+            {
+                printf("tpool: main thread dispatch to %d\n", thread_data[tid].tindex);
+            }
+
             (thread_data[tid].tpool_dispatch_fcn)(&thread_data[tid]);
 
             // in the dispatch function the user will determine
@@ -277,6 +374,13 @@ void tpool_go(tpool_t *thread_data)
             if (thread_data[tid].work_fcn_id < thread_data[tid].num_work_fcn)
             {
                 thread_data[tid].state = TPOOL_STATE_WORK;
+
+                if (thread_data[tid].debug > 1)
+                {
+                    printf("tpool: main thread unlocking %d to execute work_fcn %d\n",
+                        thread_data[tid].tindex, thread_data[tid].work_fcn_id);
+                }
+
                 // send the thread a signal to start processing the poly we just generated for it
 #if defined(WIN32) || defined(_WIN64)
                 SetEvent(thread_data[tid].run_event);
@@ -285,16 +389,30 @@ void tpool_go(tpool_t *thread_data)
                 pthread_cond_signal(&thread_data[tid].run_cond);
                 pthread_mutex_unlock(&thread_data[tid].run_lock);
 #endif
-
                 // this thread is now busy, so increment the count of working threads
                 threads_working++;
             }
+            else if (thread_data[tid].debug > 1)
+            {
+                printf("tpool: main thread no work for %d, now %d threads waiting and %d threads working\n",
+                    thread_data[tid].tindex, *threads_waiting, threads_working);
+            }
 
-        } // while (*threads_waiting > 0)
+        }
 
-        // if all threads are done, break out
+        // if all threads are done, break out.
+        // I believe this is the source of a possible race condition lock-up.
+        // threads_working is modified in this main loop, so it is possible this
+        // will be zero and we break out of this loop before the thread
+        // actually stops (by seeing the TPOOL_STATE_END flag and exiting out of
+        // its tpool_worker_main loop).
         if (threads_working == 0)
             break;
+
+        if (thread_data[0].debug > 1)
+        {
+            printf("tpool: main thread entering wait state\n");
+        }
 
         // wait for a thread to finish and put itself in the waiting queue
 #if defined(WIN32) || defined(_WIN64)
@@ -306,10 +424,18 @@ void tpool_go(tpool_t *thread_data)
 #else
         pthread_cond_wait(&queue_cond, &queue_lock);
 #endif
+
+        if (thread_data[0].debug > 1)
+        {
+            printf("tpool: main thread leaving wait state\n");
+        }
         
     }
 
-    //printf("=== work finished\n");
+    if (thread_data[0].debug > 1)
+    {
+        printf("tpool: main thread work finished\n");
+    }
 
     //stop worker threads
     for (i = 0; i<thread_data[0].num_threads; i++)
@@ -317,7 +443,10 @@ void tpool_go(tpool_t *thread_data)
         tpool_stop(thread_data + i);
     }
 
-    //printf("=== threadpool stopped\n");
+    if (thread_data[0].debug > 1)
+    {
+        printf("tpool: main thread threadpool stopped\n");
+    }
 
     free(thread_queue);
     free(threads_waiting);
@@ -349,6 +478,7 @@ tpool_t * tpool_setup(int num_threads, void *start_fcn, void *stop_fcn,
         t[i].num_work_fcn = 0;
         t[i].tindex = i;
         t[i].user_data = udata;
+        t[i].debug = 0;
     }
 
     return t;

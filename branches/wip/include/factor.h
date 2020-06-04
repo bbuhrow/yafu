@@ -294,6 +294,8 @@ typedef struct
 	mpz_t gmp_n;
 	mpz_t gmp_f;
 
+    int save_b1;
+    int prefer_gmpecm;
 	char ecm_path[1024];
 	int use_external;
 	uint32 B1;
@@ -603,6 +605,9 @@ void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
+factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1, 
+    uint64 B2, int threads, int *numfactors, int verbose, 
+    int save_b1, uint32 *curves_run);
 void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);
 void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
 uint64 do_uecm(uint64 q);

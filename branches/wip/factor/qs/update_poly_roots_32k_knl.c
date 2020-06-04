@@ -151,10 +151,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC/2;
 
-		if (VFLAG > 2)
-		{
-			printf("commencing 1\n");
-		}
+		//if (VFLAG > 2)
+		//{
+		//	printf("commencing 1\n");
+		//}
 
         logp = update_data.logp[med_B];
         for (j=med_B;j<large_B;j+=16,ptr+=16)				
@@ -330,10 +330,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 
-		if (VFLAG > 2)
-		{
-			printf("commencing 2\n");
-		}
+		//if (VFLAG > 2)
+		//{
+		//	printf("commencing 2\n");
+		//}
 
         logp = update_data.logp[j - 1];
 
@@ -808,10 +808,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC / 2;
 
-		if (VFLAG > 2)
-		{
-			printf("commencing 1n\n");
-		}
+		//if (VFLAG > 2)
+		//{
+		//	printf("commencing 1n\n");
+		//}
 
         logp = update_data.logp[med_B];
         for (j = med_B; j<large_B; j += 16, ptr += 16)
@@ -1020,10 +1020,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
  
         }
         
-		if (VFLAG > 2)
-		{
-			printf("commencing 2n\n");
-		}
+		//if (VFLAG > 2)
+		//{
+		//	printf("commencing 2n\n");
+		//}
 
         logp = update_data.logp[j - 1];
 
