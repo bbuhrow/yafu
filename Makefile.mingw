@@ -192,7 +192,12 @@ YAFU_SRCS = \
     top/queue.c \
     factor/prime_sieve.c \
     factor/batch_factor.c \
-    factor/qs/cofactorize_siqs.c
+    factor/qs/cofactorize_siqs.c \
+    factor/avx-ecm/ecm.c \
+    factor/avx-ecm/avx_ecm_main.c \
+    factor/avx-ecm/vec_common.c \
+    factor/avx-ecm/vecarith.c \
+    factor/avx-ecm/vecarith52.c
 
 ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
@@ -267,7 +272,8 @@ HEAD = include/yafu.h  \
 	top/threadpool.h \
     include/prime_sieve.h \
     include/batch_factor.h \
-    include/cofactorize.h
+    include/cofactorize.h \
+    factor/avx-ecm/avx_ecm.h
 
 
 ifeq ($(USE_SSE41),1)
