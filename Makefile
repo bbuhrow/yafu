@@ -155,7 +155,7 @@ ifeq ($(NFS),1)
         ifeq ($(COMPILER),icc)
             LIBS += -L../msieve/lib/linux
         else
-            LIBS += -L../msieve/lib/linux/gcc73
+            LIBS += -L../msieve/lib/linux/gcc73/
         endif
 	endif
 	LIBS += -lmsieve

@@ -45,13 +45,16 @@ void brent_loop(fact_obj_t *fobj)
 		return;
 
 	//open the log file
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for writing\n",fobj->flogname);
-		return;
-	}
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for writing\n", fobj->flogname);
+            return;
+        }
+    }
 
 	//initialize some local args
 	mpz_init(d);
@@ -144,7 +147,10 @@ void brent_loop(fact_obj_t *fobj)
 	}
 
 	fobj->rho_obj.ttime = tt;
-	fclose(flog);
+    if (LOGFLAG)
+    {
+        fclose(flog);
+    }
 	mpz_clear(d);
 	mpz_clear(t);
 

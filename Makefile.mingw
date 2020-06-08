@@ -19,7 +19,7 @@
 
 CC = gcc
 #CFLAGS = -march=westmere -mtune=westmere
-CFLAGS = -g
+CFLAGS = -g -fPIC
 #CFLAGS += -m64 -march=skylake-avx512 -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
 #CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
 #CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27

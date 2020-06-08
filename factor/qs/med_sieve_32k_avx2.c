@@ -1089,9 +1089,9 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
     // sieve primes 32 at a time, 2^15 < p < med_B
     logp = 15;
-__assume_aligned(fb->prime, 64); 
-__assume_aligned(fb->root1, 64); 
-__assume_aligned(fb->root2, 64); 
+//__assume_aligned(fb->prime, 64); 
+//__assume_aligned(fb->root1, 64); 
+//__assume_aligned(fb->root2, 64); 
     for (; i < med_B - 32; i += 32) {
         //printf("loading from index %d\n", i); fflush(stdout);
         vp = _mm512_load_epi32((fb->prime + i));

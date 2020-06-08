@@ -570,7 +570,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	}
 
-    //out = fopen("rupdate_info.csv", "w");
 	logp = fb->list->logprime[fb->large_B-1];
 
 #ifdef DO_VLP_OPT

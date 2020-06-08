@@ -163,7 +163,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			jobs[i].startq = jobs[i].alim; // ditto
 		}
 
-		flog = fopen(fobj->flogname, "a");
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+        }
 
 		//create the afb/rfb - we don't want the time it takes to do this to
 		//pollute the sieve timings		
@@ -186,8 +189,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			side, jobs[i].startq, jobs[i].startq + spq_range);
 		logprint(flog, "test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + spq_range);
-		print_job(&jobs[i], flog);
-		fclose(flog);
+		
+        if (LOGFLAG)
+        {
+            print_job(&jobs[i], flog);
+            fclose(flog);
+        }
 
 		gettimeofday(&start, NULL);
 		system(syscmd);
@@ -265,7 +272,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			// be conservative about estimates
 		}
 
-		flog = fopen(fobj->flogname, "a");
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+        }
 
 		if( score[i] < min_score )
 		{
@@ -397,7 +407,11 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				time_from_secs(time, (unsigned long)score[i]), THREADS);
 		}
 
-		fclose(flog);
+        if (LOGFLAG)
+        {
+            fclose(flog);
+        }
+
 		remove(tmpbuf); // clean up after ourselves
 
         if (!are_files)
@@ -428,12 +442,15 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(filenames);
 	}
 
-	flog = fopen(fobj->flogname, "a");
-	gettimeofday(&stop2, NULL);
-    t_time = yafu_difftime(&start2, &stop2);
-		
-	if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
-	logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        gettimeofday(&stop2, NULL);
+        t_time = yafu_difftime(&start2, &stop2);
+
+        if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
+        logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);
+    }
 
 	return minscore_id;
 }
@@ -496,17 +513,20 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		job->startq += t->job.qrange;
 	}
 
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
-		fclose(logfile);
-	}
+    if (LOGFLAG)
+    {
+        logfile = fopen(fobj->flogname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open yafu logfile for appending\n");
+        }
+        else
+        {
+            logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", THREADS);
+            fclose(logfile);
+        }
+    }
 
 	// create a new lasieve process in each thread and watch it
 	for (i = 0; i < THREADS; i++) 
@@ -566,17 +586,20 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (VFLAG > 0) printf("nfs: adding %u rels from rels.add\n",count);
 
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open yafu logfile for appending\n");
-		}
-		else
-		{
-			logprint(logfile, "nfs: adding %u rels from rels.add\n",count);
-			fclose(logfile);
-		}
+        if (LOGFLAG)
+        {
+            logfile = fopen(fobj->flogname, "a");
+            if (logfile == NULL)
+            {
+                printf("fopen error: %s\n", strerror(errno));
+                printf("could not open yafu logfile for appending\n");
+            }
+            else
+            {
+                logprint(logfile, "nfs: adding %u rels from rels.add\n", count);
+                fclose(logfile);
+            }
+        }
 
 		savefile_concat("rels.add",fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 		remove("rels.add");

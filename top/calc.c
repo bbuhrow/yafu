@@ -3191,12 +3191,18 @@ int feval(int funcnum, int nargs, fact_obj_t *fobj)
 
 		mpz_set(fobj->N, operands[0]);
 		mpz_set(fobj->qs_obj.gmp_n, operands[0]);
-		fobj->logfile = fopen(fobj->flogname,"a");
-		if (fobj->logfile == NULL)
-			printf("fopen error: %s\n", strerror(errno));
+        if (LOGFLAG)
+        {
+            fobj->logfile = fopen(fobj->flogname, "a");
+            if (fobj->logfile == NULL)
+                printf("fopen error: %s\n", strerror(errno));
+        }
 		smallmpqs(fobj);		
-		if (fobj->logfile != NULL)
-			fclose(fobj->logfile);
+        if (LOGFLAG)
+        {
+            if (fobj->logfile != NULL)
+                fclose(fobj->logfile);
+        }
 		mpz_set(operands[0], fobj->qs_obj.gmp_n);
 		print_factors(fobj);
 

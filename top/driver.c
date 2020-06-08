@@ -224,15 +224,23 @@ int main(int argc, char *argv[])
 		VFLAG = 0;
 
 	//session log
-	logfile = fopen(sessionname,"a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("couldn't open %s for appending\n",sessionname);
-		slog = 0;
-	}
-	else
-		slog = 1;	
+    if (LOGFLAG)
+    {
+        logfile = fopen(sessionname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("couldn't open %s for appending\n", sessionname);
+            slog = 0;
+        }
+        else
+            slog = 1;
+    }
+    else
+    {
+        logfile = NULL;
+        slog = 0;
+    }
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(is_cmdline_run, logfile, CPU_ID_STR);	
@@ -1932,19 +1940,19 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 #ifdef ECM_VERSION
         printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
             _MSC_MPIR_VERSION);
-        fprintf(logfile, "Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
+        logprint(logfile, "Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
             _MSC_MPIR_VERSION);
 #elif defined(VERSION)
 
         printf("Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
             _MSC_MPIR_VERSION);
-        fprintf(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
+        logprint(logfile,"Using GMP-ECM %s, Powered by MPIR %s\n", VERSION,
             _MSC_MPIR_VERSION);
 
 #else
         printf("Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
             _MSC_MPIR_VERSION);
-        fprintf(logfile,"Using GMP-ECM <unknown>, Powered by MPIR %s\n", 
+        logprint(logfile,"Using GMP-ECM <unknown>, Powered by MPIR %s\n",
             _MSC_MPIR_VERSION);
 
 
@@ -1953,11 +1961,11 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 #ifdef ECM_VERSION
         printf("Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION, 
             __GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
-        fprintf(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION,
+        logprint(logfile,"Using GMP-ECM %s, Powered by GMP %d.%d.%d\n", ECM_VERSION,
             __GNU_MP_VERSION,__GNU_MP_VERSION_MINOR,__GNU_MP_VERSION_PATCHLEVEL);
 #else
         printf("Using GMP-ECM, Powered by GMP\n");
-        fprintf(logfile,"Using GMP-ECM, Powered by GMP\n");
+        logprint(logfile,"Using GMP-ECM, Powered by GMP\n");
 #endif
 
 #endif
@@ -1965,15 +1973,13 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
         fflush(stdout);
     }
 
-	fprintf(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
-	fprintf(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+    logprint(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
+    logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		idstr,L1CACHE,L2CACHE,CLSIZE);
-	fprintf(logfile,"measured cpu frequency ~= %f\n",
+    logprint(logfile,"measured cpu frequency ~= %f\n",
 		MEAS_CPU_FREQUENCY);
-	fprintf(logfile,"using %u random witnesses for Rabin-Miller PRP checks\n\n",
+    logprint(logfile,"using %u random witnesses for Rabin-Miller PRP checks\n\n",
 			NUM_WITNESSES);
-
-	fflush(logfile);
 
 	if (VFLAG > 0 || !is_cmdline_run)
 	{		
@@ -2698,10 +2704,20 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	else if (strcmp(opt,OptionArray[14]) == 0)
 	{
 		//argument is a string
-		if (strlen(arg) < 1024)
-			strcpy(fobj->flogname,arg);
-		else
-			printf("*** argument to logfile too long, ignoring ***\n");
+        if ((strlen(arg) == 0) || (strcmp(arg, "NUL") == 0) || 
+            (strcmp(arg, "NULL") == 0) || (strcmp(arg, "nul") == 0) ||
+            (strcmp(arg, "null") == 0))
+        {
+            strcpy(fobj->flogname, "");
+            LOGFLAG = 0;
+        }
+        else
+        {
+            if (strlen(arg) < 1024)
+                strcpy(fobj->flogname, arg);
+            else
+                printf("*** argument to logfile too long, ignoring ***\n");
+        }
 	}
 	else if (strcmp(opt,OptionArray[15]) == 0)
 	{
@@ -2737,11 +2753,13 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	{
 		//argument is a string
 		if (strlen(arg) < 1024)
-		{
+        {
 			strcpy(sessionname,arg);
 		}
-		else
-			printf("*** argument to sessionname too long, ignoring ***\n");
+        else
+        {
+            printf("*** argument to sessionname too long, ignoring ***\n");
+        }
 	}
 	else if (strcmp(opt,OptionArray[19]) == 0)
 	{
