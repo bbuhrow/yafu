@@ -30,7 +30,7 @@ code to the public domain.
 // paths must use these prototypes
 void pp1_init(fact_obj_t *fobj);
 void pp1_finalize(fact_obj_t *fobj);
-void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog);
+void pp1_print_B1_B2(fact_obj_t *fobj);
 int pp1_wrapper(fact_obj_t *fobj);
 void pp1exit(int sig);
 uint64 TMP_STG2_MAX;
@@ -122,7 +122,6 @@ void williams_loop(fact_obj_t *fobj)
 	//expects the input in pp1_obj->gmp_n
 	mpz_t d,t;
 	int i,it,trials = fobj->pp1_obj.numbases;
-	FILE *flog;
 	clock_t start, stop;
 	double tt;
 		
@@ -132,15 +131,6 @@ void williams_loop(fact_obj_t *fobj)
 
 	if (mpz_cmp_ui(fobj->pp1_obj.gmp_n, 2) == 0)
 		return;
-
-	//open the log file
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for appending\n",fobj->flogname);
-		return;
-	}
 
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
@@ -166,7 +156,7 @@ void williams_loop(fact_obj_t *fobj)
 		start = clock();
 		if (is_mpz_prp(fobj->pp1_obj.gmp_n))
 		{
-			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n),
+            logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n),
 				mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_n));
 
 			add_to_factor_list(fobj, fobj->pp1_obj.gmp_n);
@@ -179,7 +169,7 @@ void williams_loop(fact_obj_t *fobj)
 		
 		fobj->pp1_obj.base = spRand(3,MAX_DIGIT);
 
-		pp1_print_B1_B2(fobj,flog);
+        pp1_print_B1_B2(fobj);
 
 		it = pp1_wrapper(fobj);
 		
@@ -200,7 +190,7 @@ void williams_loop(fact_obj_t *fobj)
 					gmp_printf("pp1: found prp%d factor = %Zd\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
 
-				logprint(flog,"prp%d = %s\n",
+                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),
 					mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
@@ -212,7 +202,7 @@ void williams_loop(fact_obj_t *fobj)
 					gmp_printf("pp1: found c%d factor = %Zd\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
 
-				logprint(flog,"c%d = %s\n",
+				logprint_oc(fobj->flogname, "a", "c%d = %s\n",
 					gmp_base10(fobj->pp1_obj.gmp_f),
 					mpz_conv2str(&gstr1.s, 10, fobj->pp1_obj.gmp_f));
 			}
@@ -228,8 +218,6 @@ void williams_loop(fact_obj_t *fobj)
 		i++;
 	}
 
-	fclose(flog);
-
 	pp1_finalize(fobj);
 	signal(SIGINT,NULL);
 	mpz_clear(d);
@@ -238,7 +226,7 @@ void williams_loop(fact_obj_t *fobj)
 	return;
 }
 
-void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
+void pp1_print_B1_B2(fact_obj_t *fobj)
 {
 	char suffix;
 	char stg1str[20];
@@ -295,7 +283,8 @@ void pp1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 			,stg1str,stg2str, (int)gmp_base10(fobj->pp1_obj.gmp_n));
 		fflush(stdout);	
 	}
-	logprint(flog, "pp1: starting B1 = %s, B2 = %s on C%d\n"
+
+	logprint_oc(fobj->flogname, "a", "pp1: starting B1 = %s, B2 = %s on C%d\n"
 		,stg1str,stg2str, (int)gmp_base10(fobj->pp1_obj.gmp_n));
 
 		//need a new line to make screen output look right, when

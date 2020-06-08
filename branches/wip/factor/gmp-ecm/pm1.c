@@ -33,7 +33,7 @@ void pm1_init(fact_obj_t *fobj);
 void pm1_finalize(fact_obj_t *fobj);
 void pm1exit(int sig);
 int pm1_wrapper(fact_obj_t *fobj);
-void pm1_print_B1_B2(fact_obj_t *fobj, FILE *flog);
+void pm1_print_B1_B2(fact_obj_t *fobj);
 
 
 uint64 TMP_STG2_MAX;
@@ -120,7 +120,6 @@ void pollard_loop(fact_obj_t *fobj)
 	//32 bit random base
 	//expects the input in pm1_obj->gmp_n
 	mpz_t d,t;
-	FILE *flog;
 	clock_t start, stop;
 	double tt;
 		
@@ -133,18 +132,9 @@ void pollard_loop(fact_obj_t *fobj)
 		
 	start = clock();
 
-	//open the log file
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for writing\n",fobj->flogname);
-		return;
-	}
-
 	if (is_mpz_prp(fobj->pm1_obj.gmp_n))
 	{
-		logprint(flog,"prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n),
+		logprint(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n),
 			mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_n));
 
 		add_to_factor_list(fobj, fobj->pm1_obj.gmp_n);
@@ -152,7 +142,6 @@ void pollard_loop(fact_obj_t *fobj)
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
 		mpz_set_ui(fobj->pm1_obj.gmp_n, 1);
-		fclose(flog);
 		return;
 	}
 
@@ -167,7 +156,7 @@ void pollard_loop(fact_obj_t *fobj)
 
 	pm1_init(fobj);
 		
-	pm1_print_B1_B2(fobj,flog);
+	pm1_print_B1_B2(fobj);
 	pm1_wrapper(fobj);
 		
 	//check to see if 'f' is non-trivial
@@ -186,7 +175,7 @@ void pollard_loop(fact_obj_t *fobj)
 				gmp_printf("pm1: found prp%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
-			logprint(flog,"prp%d = %s\n",
+			logprint_oc(fobj->flogname, "a","prp%d = %s\n",
 				gmp_base10(fobj->pm1_obj.gmp_f),
 				mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_f));
 		}
@@ -198,7 +187,7 @@ void pollard_loop(fact_obj_t *fobj)
 				gmp_printf("pm1: found c%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
-			logprint(flog,"c%d = %s\n",
+			logprint_oc(fobj->flogname, "a","c%d = %s\n",
 				gmp_base10(fobj->pm1_obj.gmp_f),
 				mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_f));
 		}
@@ -207,8 +196,6 @@ void pollard_loop(fact_obj_t *fobj)
 		//reduce input
 		mpz_tdiv_q(fobj->pm1_obj.gmp_n, fobj->pm1_obj.gmp_n, fobj->pm1_obj.gmp_f);
 	}
-
-	fclose(flog);
 
 	pm1_finalize(fobj);
 
@@ -226,7 +213,7 @@ void pollard_loop(fact_obj_t *fobj)
 	return;
 }
 
-void pm1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
+void pm1_print_B1_B2(fact_obj_t *fobj)
 {
 	char suffix;
 	char stg1str[20];
@@ -283,7 +270,8 @@ void pm1_print_B1_B2(fact_obj_t *fobj, FILE *flog)
 			stg1str,stg2str, (int)gmp_base10(fobj->pm1_obj.gmp_n));
 		fflush(stdout);	
 	}
-	logprint(flog,"pm1: starting B1 = %s, B2 = %s on C%d\n",
+
+	logprint_oc(fobj->flogname, "a", "pm1: starting B1 = %s, B2 = %s on C%d\n",
 		stg1str,stg2str, (int)gmp_base10(fobj->pm1_obj.gmp_n));
 
 		//need a new line to make screen output look right, when

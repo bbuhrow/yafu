@@ -127,7 +127,15 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	if (VFLAG > 0 && npoly > 1)
 	{		
 		int np = MIN(npoly, NUM_SNFS_POLYS);
-		f = fopen(fobj->flogname, "a");
+
+        if (LOGFLAG)
+        {
+            f = fopen(fobj->flogname, "a");
+        }
+        else
+        {
+            f = NULL;
+        }
 		
 		printf("\ngen: ========================================================\n"
 			"gen: best %d polynomials:\n"
@@ -178,7 +186,14 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	if (VFLAG > 0)
 	{
-		f = fopen(fobj->flogname, "a");
+        if (LOGFLAG)
+        {
+            f = fopen(fobj->flogname, "a");
+        }
+        else
+        {
+            f = NULL;
+        }
 
 		printf("\ngen: ========================================================\n");
 		printf("gen: selected polynomial:\n");
@@ -311,20 +326,23 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 				printf("nfs: resuming poly search: reducing deadline by %u seconds\n",
 					job->poly_time);
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-			{
-				printf("could not open yafu logfile for appending\n");
-				printf("fopen error: %s\n", strerror(errno));
-			}
-			else
-			{
-				logprint(logfile, "nfs: resuming poly search, reducing deadline by %u seconds\n",
-					job->poly_time);
-				logprint(logfile, "nfs: resuming poly search, starting at last coefficient %u\n",
-					job->last_leading_coeff);
-				fclose(logfile);
-			}
+            if (LOGFLAG)
+            {
+                logfile = fopen(fobj->flogname, "a");
+                if (logfile == NULL)
+                {
+                    printf("could not open yafu logfile for appending\n");
+                    printf("fopen error: %s\n", strerror(errno));
+                }
+                else
+                {
+                    logprint(logfile, "nfs: resuming poly search, reducing deadline by %u seconds\n",
+                        job->poly_time);
+                    logprint(logfile, "nfs: resuming poly search, starting at last coefficient %u\n",
+                        job->last_leading_coeff);
+                    fclose(logfile);
+                }
+            }
 
 			// pick up where we left off.
 			total_time = job->poly_time;
@@ -457,25 +475,28 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	}
 
 	// log that we are starting
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: commencing poly selection with %d threads\n",THREADS);
-		logprint(logfile, "nfs: setting deadline of %u seconds\n",deadline);
-        logprint(logfile, "nfs: expecting degree %d poly E from %.2le to > %.2le\n",
-            fobj->nfs_obj.pref_degree, e0, 1.15 * e0);
-        if (fobj->nfs_obj.poly_option > 2)
+    if (LOGFLAG)
+    {
+        logfile = fopen(fobj->flogname, "a");
+        if (logfile == NULL)
         {
-            logprint(logfile, "nfs: searching for %s quality poly E > %.2le\n", 
-                quality, e0 * quality_mult);
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open yafu logfile for appending\n");
         }
-		fclose(logfile);
-	}
+        else
+        {
+            logprint(logfile, "nfs: commencing poly selection with %d threads\n", THREADS);
+            logprint(logfile, "nfs: setting deadline of %u seconds\n", deadline);
+            logprint(logfile, "nfs: expecting degree %d poly E from %.2le to > %.2le\n",
+                fobj->nfs_obj.pref_degree, e0, 1.15 * e0);
+            if (fobj->nfs_obj.poly_option > 2)
+            {
+                logprint(logfile, "nfs: searching for %s quality poly E > %.2le\n",
+                    quality, e0 * quality_mult);
+            }
+            fclose(logfile);
+        }
+    }
 
 	// determine the start and range values
 	get_polysearch_params(fobj, &start, &range);	
@@ -749,18 +770,21 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             t_time, deadline);
     }
 	
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: completed %u ranges of size %" PRIu64 " in %6.4f seconds\n",
-			num_ranges, range, t_time);
-		fclose(logfile);
-	}
+    if (LOGFLAG)
+    {
+        logfile = fopen(fobj->flogname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open yafu logfile for appending\n");
+        }
+        else
+        {
+            logprint(logfile, "nfs: completed %u ranges of size %" PRIu64 " in %6.4f seconds\n",
+                num_ranges, range, t_time);
+            fclose(logfile);
+        }
+    }
 
 	//stop worker threads
 	for (i=0; i<THREADS; i++)

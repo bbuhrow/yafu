@@ -270,7 +270,7 @@ int ecm_loop(fact_obj_t *fobj)
         if (VFLAG >= 0)
             printf("\n");
 
-        if (strcmp(fobj->flogname, "") != 0)
+        if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -279,14 +279,16 @@ int ecm_loop(fact_obj_t *fobj)
                 printf("could not open %s for appending\n", fobj->flogname);
                 return 0;
             }
+            else
+            {
+                logprint(flog, "Finished %d curves using GMP-ECM method on C%d input, ",
+                    total_curves_run, input_digits);
 
-            logprint(flog, "Finished %d curves using GMP-ECM method on C%d input, ",
-                total_curves_run, input_digits);
+                print_B1B2(fobj, flog);
+                fprintf(flog, "\n");
 
-            print_B1B2(fobj, flog);
-            fprintf(flog, "\n");
-
-            fclose(flog);
+                fclose(flog);
+            }
         }
 
         // this is how we tell factor() to stop running curves at this level
@@ -324,7 +326,7 @@ int ecm_loop(fact_obj_t *fobj)
             B2, THREADS, &numfactors, VFLAG, fobj->ecm_obj.save_b1,
             &curves_run);
 
-        if (strcmp(fobj->flogname, "") != 0)
+        if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -367,7 +369,7 @@ int ecm_loop(fact_obj_t *fobj)
                     gmp_printf("\necm: found prp%d factor = %Zd\n",
                         gmp_base10(F), F);
 
-                if (strcmp(fobj->flogname, "") != 0)
+                if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
                     logprint(flog, "prp%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
                         gmp_base10(F),
@@ -383,7 +385,7 @@ int ecm_loop(fact_obj_t *fobj)
                     gmp_printf("\necm: found c%d factor = %Zd\n",
                         gmp_base10(F), F);
 
-                if (strcmp(fobj->flogname, "") != 0)
+                if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
                     logprint(flog, "c%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
                         gmp_base10(F),
@@ -428,32 +430,22 @@ int ecm_loop(fact_obj_t *fobj)
 
 int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 {
-	FILE *flog;
 	fact_obj_t *fobj = thread_data->fobj;
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
-
-    if (strcmp(fobj->flogname, "") == 0)
-        return 1;
-
-    flog = fopen(fobj->flogname, "a");
-    if (flog == NULL)
-    {
-        printf("fopen error: %s\n", strerror(errno));
-        printf("could not open %s for appending\n", fobj->flogname);
-        return 0;
-    }
 
 	if (is_mpz_prp(thread_data->gmp_factor))
 	{
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 
-		if (VFLAG > 0)
-			gmp_printf("\necm: found prp%d factor = %Zd\n", 
-			gmp_base10(thread_data->gmp_factor),
-			thread_data->gmp_factor);
+        if (VFLAG > 0)
+        {
+            gmp_printf("\necm: found prp%d factor = %Zd\n",
+                gmp_base10(thread_data->gmp_factor),
+                thread_data->gmp_factor);
+        }
 
-		logprint(flog,"prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
+		logprint_oc(fobj->flogname, "a", "prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			gmp_base10(thread_data->gmp_factor),
 			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
 			*thread_data->total_curves_run + 1, thread_data->stagefound,
@@ -463,19 +455,19 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	{
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 		
-		if (VFLAG > 0)
-			gmp_printf("\necm: found c%d factor = %Zd\n", 
-			gmp_base10(thread_data->gmp_factor),
-			thread_data->gmp_factor);
+        if (VFLAG > 0)
+        {
+            gmp_printf("\necm: found c%d factor = %Zd\n",
+                gmp_base10(thread_data->gmp_factor),
+                thread_data->gmp_factor);
+        }
 
-		logprint(flog,"c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
+		logprint_oc(fobj->flogname, "a", "c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
 			gmp_base10(thread_data->gmp_factor),
 			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
             *thread_data->total_curves_run + 1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
-
-	fclose(flog);
 
 	return 1;
 }
@@ -509,32 +501,16 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 
 int ecm_check_input(fact_obj_t *fobj)
 {
-	FILE *flog;
-
-    if (strcmp(fobj->flogname,"") == 0)
-        return 1;
-
-	//open the log file
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for appending\n",fobj->flogname);
-		return 0;
-	}
-
 	//check for trivial cases
 	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 0) == 0)
 	{
-		logprint(flog,"Trivial input == 0 in ECM\n");
-		fclose(flog);
+		logprint_oc(fobj->flogname, "a","Trivial input == 0 in ECM\n");
 		return 0;
 	}
 
 	if (mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) == 0)
 	{
-		logprint(flog,"Trivial input == 1 in ECM\n");
-		fclose(flog);
+		logprint_oc(fobj->flogname, "a","Trivial input == 1 in ECM\n");
 		return 0;
 	}
 
@@ -545,8 +521,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_set_ui(tmp, 3);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
 		add_to_factor_list(fobj, tmp);
-		logprint(flog,"Trivial factor of 3 found in ECM\n");
-		fclose(flog);
+		logprint_oc(fobj->flogname, "a","Trivial factor of 3 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
 	}
@@ -558,8 +533,7 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
 		add_to_factor_list(fobj, tmp);
-		logprint(flog,"Trivial factor of 2 found in ECM\n");
-		fclose(flog);
+		logprint_oc(fobj->flogname, "a","Trivial factor of 2 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
 	}
@@ -569,15 +543,11 @@ int ecm_check_input(fact_obj_t *fobj)
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
 		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
-		logprint(flog,"prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), 
+		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n),
 			mpz_conv2str(&gstr1.s, 10, fobj->ecm_obj.gmp_n));		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
-		fclose(flog);
 		return 0;
 	}
-
-	//close the log file for until we have something further to report
-	fclose(flog);
 
 	return 1;
 }

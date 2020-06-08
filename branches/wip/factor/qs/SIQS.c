@@ -516,7 +516,7 @@ void SIQS(fact_obj_t *fobj)
 
 	// logfile for this factorization
 	// must ensure it is only written to by main thread
-	if (fobj->qs_obj.flags != 12345)
+	if (LOGFLAG && (fobj->qs_obj.flags != 12345))
 	{
 		fobj->logfile = fopen(fobj->flogname, "a");
 		sieve_log = fobj->logfile;

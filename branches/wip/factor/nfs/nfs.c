@@ -111,27 +111,18 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		
 		factor_perfect_power(fobj, fobj->nfs_obj.gmp_n);
 
-		flog = fopen(fobj->flogname, "a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for appending\n", fobj->flogname);
-			exit(1);
-		}
-
-		logprint(flog,"input is a perfect power\n");
+		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
 
 		for (j=0; j<fobj->num_factors; j++)
 		{
 			uint32 k;
 			for (k=0; k<fobj->fobj_factors[j].count; k++)
 			{
-				logprint(flog,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
+				logprint_oc(fobj->flogname, "a", "prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor),
 					mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
 			}
 		}
 
-		fclose(flog);
 		return 1;
 	}
 

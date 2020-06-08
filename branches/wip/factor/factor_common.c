@@ -941,20 +941,12 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         if ((mpz_cmp_ui(b, fobj->prime_threshold) > 1) && 
             mpz_perfect_power_p(b))
         {
-            FILE *flog;
-
             if (VFLAG > 0)
             {
                 printf("fac: input is a perfect power\n");
             }
 
-            flog = fopen(fobj->flogname, "a");
-            if (flog != NULL)
-            {
-                logprint(flog, "input is a perfect power\n");
-                fclose(flog);
-            }
-
+            logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
             factor_perfect_power(fobj, b);
 
             mpz_set(fobj->N, b);
@@ -1612,7 +1604,7 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log)
 	uint32 curves_done;
 	int i, j;
 
-    if (log != NULL)
+    if (LOGFLAG && (log != NULL))
     {
         logprint(log, "ecm work completed:\n");
     }
@@ -1634,7 +1626,7 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log)
             printf("\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
         }
 
-        if ((log != NULL) && (tlevels[i] > 0.01))
+        if (LOGFLAG && (log != NULL) && (tlevels[i] > 0.01))
         {
             logprint(log, "\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
         }
@@ -1867,14 +1859,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		((work_done > fobj->autofact_obj.only_pretest) && 
 		(fobj->autofact_obj.only_pretest > 1)))
 	{
-		flog = fopen(fobj->flogname,"a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for writing\n",fobj->flogname);
-			flog = stderr;
-		}
-		logprint(flog,"final ECM pretested depth: %1.2f\n", work_done);		
+		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.2f\n", work_done);
 
 		// if the user specified -pretest, with or without arguments,
 		// we should stop factoring now that ecm is done.  this covers the
@@ -1882,13 +1867,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// too large as determined by factor
 		if (fobj->autofact_obj.only_pretest)
 		{
-			fclose(flog);
 			return state_done;
 		}
 
-		logprint(flog,"scheduler: switching to sieve method\n");
-		if (flog != stderr)
-			fclose(flog);
+		logprint_oc(fobj->flogname, "a", "scheduler: switching to sieve method\n");
 
 		if (!have_tune || fobj->autofact_obj.prefer_xover)
 		{
@@ -1935,7 +1917,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// figure out how many curves at this level need to be done 
 			// to get to the target level
 			interp_and_set_curves(fwork, fobj, next_state, work_done,
-				target_digits, 1);
+				target_digits, LOGFLAG);
 
 			break;
 
@@ -1970,7 +1952,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	work_high = get_max_ecm_curves(fwork, state);		
 	work = (work_low + work_high) / 2;
 
-    if ((VFLAG >= 1) && log_results)
+    if (VFLAG >= 1)
     {
         printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n",
             fwork->B1, work_low, work_high);
@@ -2005,13 +1987,13 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
     }
 
-    if ((VFLAG >= 1) && log_results)
+    if ((VFLAG >= 1) && LOGFLAG)
     {
         printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n",
             fwork->curves, fwork->B1, target_digits);
     }
 
-    if (log_results)
+    if (LOGFLAG)
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
@@ -2305,16 +2287,25 @@ void factor(fact_obj_t *fobj)
 	
 	gettimeofday(&start, NULL);
 
-	flog = fopen(fobj->flogname,"a");
-	logprint(flog,"\n");
-	logprint(flog,"****************************\n");
-	{
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        logprint(flog, "\n");
+        logprint(flog, "****************************\n");
+
 		char *s;
 		s = mpz_get_str(NULL, 10, b);
 		// use ... when we have very big numbers?
 		logprint(flog,"Starting factorization of %s\n", s);
 		free(s);
 	}
+    else
+    {
+        // calls to logprint won't use this because they
+        // are also protected by LOGFLAG
+        flog = NULL;
+    }
+
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
     if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
     {
@@ -2561,10 +2552,16 @@ void factor(fact_obj_t *fobj)
                 FILE *flog;
                 double work_done;
 
-                flog = fopen(fobj->flogname, "a");
+                if (LOGFLAG)
+                {
+                    flog = fopen(fobj->flogname, "a");
+                }
                 work_done = compute_ecm_work_done(&fwork, 1, flog);
-                logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
-                fclose(flog);
+                if (LOGFLAG)
+                {
+                    logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
+                    fclose(flog);
+                }
                 fact_state = state_done;
             }
         }
@@ -2644,18 +2641,14 @@ void factor(fact_obj_t *fobj)
 	{
 		if (is_mpz_prp(b))
 		{
-			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"prp%d cofactor = %s\n",gmp_base10(b),
+			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n",gmp_base10(b),
 				mpz_conv2str(&gstr1.s, 10, b));
-			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 		else
 		{
-			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"c%d cofactor = %s\n",gmp_base10(b),
+			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n",gmp_base10(b),
 				mpz_conv2str(&gstr1.s, 10, b));
-			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 	}
@@ -2668,17 +2661,7 @@ void factor(fact_obj_t *fobj)
 	if (VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);
 
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("Could not open %s for appending\n",fobj->flogname);
-	}
-	else
-	{
-		logprint(flog,"Total factoring time = %6.4f seconds\n",t_time);
-		fclose(flog);
-	}
+	logprint_oc(fobj->flogname, "a", "Total factoring time = %6.4f seconds\n",t_time);
 
 	fobj->autofact_obj.autofact_active=0;
 
