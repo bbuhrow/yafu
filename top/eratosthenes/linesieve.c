@@ -50,6 +50,20 @@ void sieve_line(thread_soedata_t *thread_data)
 	// and bucket sieve large primes
 	get_offsets(thread_data);
 
+    // one is not a prime
+    if (sdata->sieve_range == 0)
+    {
+        if ((sdata->rclass[current_line] == 1) &&
+            (sdata->lowlimit <= 1))
+            flagblock[0] &= 0xfe;
+    }
+    else
+    {
+        if ((sdata->rclass[current_line] == 1) &&
+            (mpz_cmp_ui(*sdata->offset, 1) <= 0))
+            flagblock[0] &= 0xfe;
+    }
+
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)
 	{
@@ -77,20 +91,6 @@ void sieve_line(thread_soedata_t *thread_data)
 		
 		// smallest primes use special methods
 		pre_sieve_ptr(ddata, sdata, flagblock);
-		
-		// one is not a prime
-		if (sdata->sieve_range == 0)
-		{
-			if ((sdata->rclass[current_line] == 1) &&
-				(sdata->lowlimit <= 1) && (i == 0))
-				flagblock[0] &= 0xfe;
-		}
-		else
-		{
-			if ((sdata->rclass[current_line] == 1) &&
-				(mpz_cmp_ui(*sdata->offset, 1) <= 0) && (i == 0))
-				flagblock[0] &= 0xfe;
-		}		
 
         // start where presieving left off, which is different for various cpus.
         j = sdata->presieve_max_id;
@@ -642,6 +642,8 @@ void sieve_line_avx512_32k(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)
 	{
+        uint32* flagblock32 = (uint32*)flagblock;
+
 		ALIGNED_MEM uint32 t[16];
 		ALIGNED_MEM uint32 t2[16];
 
@@ -1032,6 +1034,8 @@ void sieve_line_avx512_128k(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)
 	{
+        uint32* flagblock32 = (uint32*)flagblock;
+
 		ALIGNED_MEM uint32 t[16];
 		ALIGNED_MEM uint32 t2[16];
 
@@ -1422,6 +1426,8 @@ void sieve_line_avx512_256k(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)
 	{
+        uint32* flagblock32 = (uint32*)flagblock;
+
 		ALIGNED_MEM uint32 t[16];
 		ALIGNED_MEM uint32 t2[16];
 
@@ -1812,6 +1818,8 @@ void sieve_line_avx512_512k(thread_soedata_t *thread_data)
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)
 	{
+        uint32* flagblock32 = (uint32*)flagblock;
+
 		ALIGNED_MEM uint32 t[16];
 		ALIGNED_MEM uint32 t2[16];
 

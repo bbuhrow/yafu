@@ -122,12 +122,14 @@ uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp,
 				
 		GLOBAL_OFFSET = 0;
 		tmpl = lowlimit;
-		tmph = lowlimit + maxrange;
+        // maxrange - 1, so that we don't count the upper
+        // limit twice (again on the next iteration's lower bound).
+		tmph = lowlimit + maxrange - 1;
 		for (j = 0; j < num_ranges; j++)
 		{
 			tmpcount += spSOE(sieve_p, num_sp, offset, tmpl, &tmph, 0, primes);
 			tmpl += maxrange;
-			tmph = tmpl + maxrange;
+			tmph = tmpl + maxrange - 1;
 			GLOBAL_OFFSET = tmpcount;
 		}
 				
@@ -246,7 +248,9 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 				
 				*num_p = 0;
 				tmpl = lowlimit;
-				tmph = lowlimit + maxrange;
+                // maxrange - 1, so that we don't count the upper
+                // limit twice (again on the next iteration's lower bound).
+				tmph = lowlimit + maxrange - 1;
 				gettimeofday (&start, NULL);
 
 				for (j = 0; j < num_ranges; j++)
@@ -259,7 +263,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 					if (VFLAG > 1)
 						printf("so far, found %" PRIu64 " primes in %1.1f seconds\n",*num_p, t_time);
 					tmpl += maxrange;
-					tmph = tmpl + maxrange;
+					tmph = tmpl + maxrange - 1;
 				}
 				
 				if (remainder > 0)
@@ -411,14 +415,16 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 				
 				*num_p = 0;
 				tmpl = 0;
-				tmph = tmpl + maxrange;
+                // maxrange - 1, so that we don't count the upper
+                // limit twice (again on the next iteration's lower bound).
+				tmph = tmpl + maxrange - 1;
 				for (j = 0; j < num_ranges; j++)
 				{
 					*num_p += spSOE(seed_p, num_sp, offset, tmpl, &tmph, 1, NULL);
 					if (VFLAG > 1)
 						printf("so far, found %" PRIu64 " primes\n",*num_p);
 					tmpl += maxrange;
-					tmph = tmpl + maxrange;
+					tmph = tmpl + maxrange - 1;
 				}
 				
 				if (remainder > 0)
