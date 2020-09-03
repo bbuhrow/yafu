@@ -241,6 +241,7 @@ typedef struct
 #endif
 	uint32 *prime;
 	uint32 *logprime;
+    uint64* binv;
 } fb_element_siqs;
 
 // we trade a few bit operations per prime 
@@ -461,6 +462,8 @@ typedef struct {
 	uint32 buffered_rel_alloc;
 	siqs_r *in_mem_relations;
 
+    int do_periodic_tlp_filter;
+    uint32 est_raw_rels_needed;
     int do_batch;
     int batch_buffer_id;
     int batch_run_override;

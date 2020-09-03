@@ -1302,7 +1302,7 @@ tinyecm_marker:
 	return;
 }
 
-#if 1
+#if 0
 void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *foo, z *bar)
 {
     mpz_t cubesum, squaresum, sum;

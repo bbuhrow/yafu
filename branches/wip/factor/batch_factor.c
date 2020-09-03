@@ -19,6 +19,110 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 
 /*------------------------------------------------------------------*/
 
+typedef struct 
+{
+    mpz_t prod;
+    uint32 low;
+    uint32 high;
+    uint32 complete;
+    int left_id;
+    int right_id;
+} bintree_element_t;
+
+typedef struct
+{
+    bintree_element_t* nodes;
+    uint32 size;
+    uint32 alloc;
+} bintree_t;
+
+uint32 getNode(bintree_t* tree, uint32 low, uint32 high)
+{
+    uint32 nodeid = 0;
+    bintree_element_t* node = &tree->nodes[nodeid];
+
+    //printf("commencing tree search for (%u:%u)\n", low, high);
+    while (node != NULL)
+    {
+        //printf("node is now %d: (%u:%u)\n", nodeid, node->low, node->high);
+        if ((node->low == low) && (node->high == high))
+        {
+            return nodeid;
+        }
+        else 
+        {
+            if (node->left_id == -1)
+                return -1;
+
+            if (high <= tree->nodes[node->left_id].high)
+            {
+                //printf("taking left path\n");
+                nodeid = node->left_id;
+                node = &tree->nodes[node->left_id];
+            }
+            else
+            {
+                if (node->right_id == -1)
+                    return -1;
+
+                //printf("taking right path\n");
+                nodeid = node->right_id;
+                node = &tree->nodes[node->right_id];
+            }
+        }
+    }
+
+    return -1;
+}
+
+void addNode(bintree_t* tree, int id, int side, uint32 low, uint32 high, mpz_t prod)
+{
+    uint32 nodeid = 0;
+    bintree_element_t* node = &tree->nodes[id];
+
+    if (tree->size == tree->alloc)
+    {
+        //printf("growing the tree to size %u\n", tree->alloc + 16);
+        tree->alloc *= 2;
+        tree->nodes = (bintree_element_t*)xrealloc(tree->nodes,
+            tree->alloc * sizeof(bintree_element_t));
+    }
+
+    if ((side == 0) && (node->left_id != -1))
+    {
+        printf("node %d already has a left child\n", id);
+        exit(1);
+    }
+    if ((side == 1) && (node->right_id != -1))
+    {
+        printf("node %d already has a right child\n", id);
+        exit(1);
+    }
+
+    //printf("adding node %d as %d-child of %d: (%u:%u)\n", tree->size, side, id, low, high);
+    tree->nodes[tree->size].low = low;
+    tree->nodes[tree->size].high = high;
+    mpz_init(tree->nodes[tree->size].prod);
+    if (prod != NULL)
+        mpz_set(tree->nodes[tree->size].prod, prod);
+    tree->nodes[tree->size].left_id = -1;
+    tree->nodes[tree->size].right_id = -1;
+    tree->nodes[tree->size].complete = 0;
+    if (side == 0)
+        tree->nodes[id].left_id = tree->size;
+    else
+        tree->nodes[id].right_id = tree->size;
+    
+    //printf("added new node %d and assigned to node %d side %d\n", tree->size, id, side);
+    tree->size++;
+
+    return;
+}
+
+#define USE_TREE
+#define TREE_CUTOFF 16
+
+
 #define BREAKOVER_WORDS 50
 void multiply_primes(uint32 first, uint32 last,
     prime_sieve_t *sieve, mpz_t prod) {
@@ -133,7 +237,7 @@ void relation_to_gmp(relation_batch_t *rb,
 }
 
 /*------------------------------------------------------------------*/
-void multiply_relations(uint32 first, uint32 last, 
+void multiply_relations(bintree_t* tree, uint32 first, uint32 last,
 				relation_batch_t *rb,
 				mpz_t prod) {
 	mpz_t half_prod;
@@ -145,6 +249,7 @@ void multiply_relations(uint32 first, uint32 last,
 	/* base case of recursion */
 
 	if (first == last) {
+        //printf("leaf relation %u\n", first);
 		relation_to_gmp(rb, first, prod);
 		return;
 	}
@@ -153,18 +258,93 @@ void multiply_relations(uint32 first, uint32 last,
 
 	mpz_init(half_prod);
 	if (last == first + 1) {
+        //printf("forming product (prod(%u) * prod(%u))\n", first, last);
 		relation_to_gmp(rb, first, half_prod);
 		relation_to_gmp(rb, last, prod);
 	}
 	else {
-		uint32 mid = (last + first) / 2;
-		multiply_relations(first, mid, rb, prod);
-		multiply_relations(mid + 1, last, rb, half_prod);
+        uint32 mid = (last + first) / 2;
+
+#ifdef USE_TREE
+        uint32 pnode;
+        pnode = getNode(tree, first, last);
+
+        if ((pnode >= 0) && ((mid - first) > TREE_CUTOFF))
+        {
+            uint32 node;
+            node = getNode(tree, first, mid);
+            if ((node != -1) && (tree->nodes[node].complete))
+            {
+                //printf("getting half-product (prod(%u:%u)\n", first, mid);
+                mpz_set(prod, tree->nodes[node].prod);
+            }
+            else
+            {
+                //printf("forming half-product (prod(%u:%u)\n", first, mid);
+                addNode(tree, pnode, 0, first, mid, NULL);
+                multiply_relations(tree, first, mid, rb, prod);
+            }
+
+
+            node = getNode(tree, mid + 1, last);
+            if ((node != -1) && (tree->nodes[node].complete))
+            {
+                //printf("getting half-product (prod(%u:%u)\n", mid + 1, last);
+                mpz_set(prod, tree->nodes[node].prod);
+            }
+            else
+            {
+                //printf("forming half-product (prod(%u:%u)\n", mid + 1, last);
+                addNode(tree, pnode, 1, mid + 1, last, NULL);
+                multiply_relations(tree, mid + 1, last, rb, half_prod);
+            }
+        }
+        else
+        {
+            multiply_relations(tree, first, mid, rb, prod);
+            multiply_relations(tree, mid + 1, last, rb, half_prod);
+        }
+#else
+        multiply_relations(tree, first, mid, rb, prod);
+        multiply_relations(tree, mid + 1, last, rb, half_prod);
+#endif
+		
 	}
 
 	/* multiply the halves */
+#ifdef USE_TREE
+    if ((last - first) > TREE_CUTOFF)
+    {
+        uint32 pnode;
+        pnode = getNode(tree, first, last);
+        if (pnode == -1)
+        {
+            printf("could not find parent node for full product (%u:%u)\n", first, last);
+            exit(1);
+        }
 
-	mpz_mul(prod, prod, half_prod);
+        if (tree->nodes[pnode].complete)
+        {
+            //printf("getting product (prod(%u:%u)\n", first, last);
+            mpz_set(prod, tree->nodes[pnode].prod);
+        }
+        else
+        {
+            //printf("forming product (prod(%u:%u)\n", first, last);
+            mpz_mul(prod, prod, half_prod);
+            
+            mpz_set(tree->nodes[pnode].prod, prod);
+            tree->nodes[pnode].complete = 1;
+        }
+    }
+    else
+    {
+        mpz_mul(prod, prod, half_prod);
+    }
+#else
+    mpz_mul(prod, prod, half_prod);
+#endif
+
 	mpz_clear(half_prod);
 }
 
@@ -177,7 +357,15 @@ uint64_t pow2m(uint64_t b, uint64_t n)
     int i;
     int j;
     int bstr;
+    
+
+#ifdef __INTEL_COMPILER
+    int bits = 64 - _lead_zcnt64(b);
+#elif defined(__GNUC__)
     int bits = 64 - __builtin_clzll(b);
+#elif defined _MSC_VER
+    int bits = 64 - _lead_zcnt64(b);
+#endif
 
     x = (((n + 2) & 4) << 1) + n;   // here x*a==1 mod 2**4
     x *= 2 - n * x;                 // here x*a==1 mod 2**8
@@ -319,34 +507,16 @@ void check_batch_relation(relation_batch_t *rb,
             {
                 mpz_tdiv_q(f2r, n, f1r);
             }
-
-            //if (mpz_cmp(f1r, n) == 0)
-            //{
-            //    gmp_printf("all factors found in gcd, n = %Zd, f1r = %Zd, (%u bits)\n",
-            //        n, f1r, mpz_sizeinbase(f1r, 2));
-            //}
-
-			//if (mp_is_one(&f1r))
-			//	mp_copy(&n, &f2r);
-			//else
-			//	mp_div(&n, &f1r, &f2r);
 		}
-
-        //gmp_printf("f1r = %Zx\n", f1r);
-        //gmp_printf("f2r = %Zx\n", f2r);
 
 		/* give up on this relation if
 		     - f1r has a single factor, and that factor
 		       exceeds the rational large prime cutoff
 		     - f1r is more than 3 words long */
 
-		//if (f1r.nwords > 3 ||
-		//    (f1r.nwords == 1 && f1r.val[0] > rb->lp_cutoff_r))
-		//	return;
         if ((mpz_sizeinbase(f1r, 2) > 96) || 
             ((mpz_sizeinbase(f1r, 2) < 32) && (mpz_get_ui(f1r) > rb->lp_cutoff_r)))
         {
-            //printf("abort 1\n");
             return;
         }
 
@@ -364,20 +534,6 @@ void check_batch_relation(relation_batch_t *rb,
 		       largest prime in rb->prime_product, and it would be
 		       much too expensive to find out anything more */
 
-		//if (f2r.nwords >= 3 ||
-		//    (f2r.nwords == 2 && 
-		//     		(mp_cmp(&f2r, &rb->max_prime2) <= 0 ||
-		//     		 mp_cmp(&f2r, &rb->lp_cutoff_r2) > 0)) ||
-		//    (f2r.nwords == 1 && f2r.val[0] > rb->lp_cutoff_r))
-		//	return;
-
-        //if (mpz_cmp(f1r, f2r) > 0)
-        //{
-        //    mpz_set(n, f1r);
-        //    mpz_set(f1r, f2r);
-        //    mpz_set(f2r, n);
-        //}
-
         uint32 r_cutoff_bits = spBits(rb->lp_cutoff_r) * 2;
 
         if ((mpz_sizeinbase(f2r, 2) > r_cutoff_bits) || ((mpz_get_ui(f2r) > 1) &&
@@ -386,7 +542,6 @@ void check_batch_relation(relation_batch_t *rb,
                 ((mpz_cmp(f2r, rb->max_prime2) <= 0) ||
                  (mpz_cmp(f2r, rb->lp_cutoff_r2) > 0))))))
         {
-            //gmp_printf("abort 2: f1r = %Zd, f2r = %Zd\n", f1r, f2r);
             return;
         }
 
@@ -465,34 +620,6 @@ void check_batch_relation(relation_batch_t *rb,
             return;
         }
 
-
-        //if (mpz_sizeinbase(f2r, 2) > 64)
-        //{
-        //    //gmp_printf("abort 2: f2r > 64 bits, f2r = %Zd\n", f2r);
-        //    return;
-        //}
-        //
-        //if (mpz_get_ui(f2r) > 1)
-        //{
-        //    if ((mpz_sizeinbase(f2r, 2) < 32) && (mpz_get_ui(f2r) > rb->lp_cutoff_r))
-        //    {
-        //        //gmp_printf("abort 2: f2r > lp_cutoff_r (%u), f2r = %Zd\n", rb->lp_cutoff_r, f2r);
-        //        return;
-        //    }
-        //
-        //    if (mpz_cmp(f2r, rb->max_prime2) <= 0)
-        //    {
-        //        //gmp_printf("abort 2: f2r < max_prime2 (%Zd), f2r = %Zd\n", rb->max_prime2, f2r);
-        //        return;
-        //    }
-        //
-        //    if (mpz_cmp(f2r, rb->lp_cutoff_r2) > 0)
-        //    {
-        //        //gmp_printf("abort 2: f2r > lp_cutoff_r2 (%Zd), f2r = %Zd\n", rb->lp_cutoff_r2, f2r);
-        //        return;
-        //    }
-        //}
-
 	}
 	else {
         mpz_set_ui(f1r, 0);
@@ -565,7 +692,6 @@ void check_batch_relation(relation_batch_t *rb,
         uint64 e = mpz_get_ui(f2r);
         if (pow2m(e - 1, e) == 1)
         {
-            //printf("abort 3\n");
             return;
         }
     }
@@ -595,7 +721,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            //printf("abort 4\n");
             return;
         }
         lp_r[num_r++] = f64;
@@ -603,7 +728,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if ((mpz_sizeinbase(f1r, 2) > 32) || (mpz_get_ui(f1r) > rb->lp_cutoff_r))
         {
-            //printf("abort 5\n");
             return;
         }
 
@@ -621,7 +745,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            //printf("abort 6\n");
             return;
         }
 
@@ -630,7 +753,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if ((mpz_sizeinbase(f2r, 2) > 32) || (mpz_get_ui(f2r) > rb->lp_cutoff_r))
         {
-            //printf("abort 7\n");
             return;
         }
 
@@ -649,14 +771,10 @@ void check_batch_relation(relation_batch_t *rb,
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
         lp_a[num_a++] = f64;
-        //mp_divrem_1(&f1r, i, &f1r);
         mpz_tdiv_q_ui(f1a, f1a, f64);
 
         if ((mpz_sizeinbase(f1a, 2) > 32) || (mpz_get_ui(f1a) > rb->lp_cutoff_a))
             return;
-
-        //if (f1r.nwords > 1 || f1r.val[0] > rb->lp_cutoff_r)
-        //    return;
 
         lp_a[num_a++] = mpz_get_ui(f1a);
     }
@@ -674,14 +792,10 @@ void check_batch_relation(relation_batch_t *rb,
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
         lp_a[num_a++] = f64;
-        //mp_divrem_1(&f1r, i, &f1r);
         mpz_tdiv_q_ui(f2a, f2a, f64);
 
         if ((mpz_sizeinbase(f2a, 2) > 32) || (mpz_get_ui(f2a) > rb->lp_cutoff_a))
             return;
-
-        //if (f1r.nwords > 1 || f1r.val[0] > rb->lp_cutoff_r)
-        //    return;
 
         lp_a[num_a++] = mpz_get_ui(f2a);
     }
@@ -765,7 +879,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_r))
         {
-            //printf("abort 8\n");
             return;
         }
 
@@ -776,7 +889,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
-            //printf("abort 9\n");
             return;
         }
 
@@ -785,7 +897,6 @@ void check_batch_relation(relation_batch_t *rb,
 
         if ((mpz_sizeinbase(large, 2) > 32) || (mpz_get_ui(large) > rb->lp_cutoff_r))
         {
-            //printf("abort 10\n");
             return;
         }
 
@@ -906,7 +1017,7 @@ void check_batch_relation(relation_batch_t *rb,
 }
 
 /*------------------------------------------------------------------*/
-void compute_remainder_tree(uint32 first, uint32 last,
+void compute_remainder_tree(bintree_t* tree, uint32 first, uint32 last,
 				relation_batch_t *rb,
 				mpz_t numerator) {
 
@@ -933,21 +1044,21 @@ void compute_remainder_tree(uint32 first, uint32 last,
 
 	mpz_init(relation_prod);
 	mpz_init(remainder);
-	multiply_relations(first, last, rb, relation_prod);
+	multiply_relations(tree, first, last, rb, relation_prod);
 
 	/* use the remainder to deal with the left and right
 	   halves of the relation list */
 
 	if (mpz_cmp(numerator, relation_prod) < 0) {
 		mpz_clear(relation_prod);
-		compute_remainder_tree(first, mid, rb, numerator);
-		compute_remainder_tree(mid + 1, last, rb, numerator);
+		compute_remainder_tree(tree, first, mid, rb, numerator);
+		compute_remainder_tree(tree, mid + 1, last, rb, numerator);
 	}
 	else {
 		mpz_tdiv_r(remainder, numerator, relation_prod);
 		mpz_clear(relation_prod);
-		compute_remainder_tree(first, mid, rb, remainder);
-		compute_remainder_tree(mid + 1, last, rb, remainder);
+		compute_remainder_tree(tree, first, mid, rb, remainder);
+		compute_remainder_tree(tree, mid + 1, last, rb, remainder);
 	}
 	mpz_clear(remainder);
 }
@@ -1149,12 +1260,79 @@ void relation_batch_add(uint32 a, uint32 b, int32 offset,
 }
 	
 /*------------------------------------------------------------------*/
-uint32 relation_batch_run(relation_batch_t *rb) {
 
+/*
+R. Gerbicz: https://www.mersenneforum.org/showpost.php?p=521621&postcount=144
+
+Nice code, now understand more of this, at least for me it was new, so:
+Set S = p[0] * p[1] * ... * p[m - 1] where p[i] is the i - th prime and also
+using a product tree get Z = r[0] * r[1] * ... * r[n - 1], where you want to 
+get only the smooth parts of r[].
+Then using a remainder tree get v[i] = S mod r[i].
+Trivially the i - th number's smooth part is gcd(r[i],v[i]) !
+
+What I don't understand is that you could make a (balanced) remainder tree 
+in an explicit way, instead of your recursion. With that you'd compute the 
+product tree for Z only once, not computing multiple times the same subproducts 
+in the tree while you are doing the remainder tree algorithm.
+But you need more memory for that, by a factor of log2(n).
+
+https://www.mersenneforum.org/showpost.php?p=521656&postcount=147
+Then a "hybrid" method would work here, build up the whole subtree in memory 
+if you can hold it (otherwise do recursion), surely at
+depth=tree height-6 you should be able to do that:
+(where size is the size of integer in the root)
+to hold the subtree in memory you need
+size/64*(height-6)<size (because even height<64 is true), and that's not much, 
+you need more memory to do the multiplication/division in the root of the tree.
+
+*/
+
+uint32 relation_batch_run(relation_batch_t *rb) {
+    // recursive batch GCD, with a tree storage enhancement
+    // to avoid re-calculating many of the product, at a cost
+    // of additional RAM.
+    // with TreeCutoff = 16 and ~500k relations in a batch, the
+    // tree occupies about 64MB per thread and yields a speedup
+    // of about 2x for the whole batch processing.
 	rb->num_success = 0;
 	if (rb->num_relations > 0) {
-		compute_remainder_tree(0, rb->num_relations - 1,
+
+        bintree_t tree;
+        int i;
+
+        tree.nodes = (bintree_element_t*)xmalloc(16 * sizeof(bintree_element_t));
+        tree.alloc = 16;
+        tree.size = 1;
+
+        // root node holds the product of all relations and initially
+        // is empty.
+        mpz_init(tree.nodes[0].prod);
+        tree.nodes[0].low = 0;
+        tree.nodes[0].high = rb->num_relations - 1;
+        tree.nodes[0].left_id = -1;
+        tree.nodes[0].right_id = -1;
+        tree.nodes[0].complete = 0;
+        //printf("\n\n");
+        //printf("created tree root at (%u:%u)\n", 0, rb->num_relations - 1);
+
+        // this already traverses the tree... just build in
+        // the capability to add and reuse nodes and we 
+        // should be there (?)
+		compute_remainder_tree(&tree, 0, rb->num_relations - 1,
 					rb, rb->prime_product);
+
+        uint32 bytes = 0;
+        for (i = 0; i < tree.size; i++)
+        {
+            bytes += mpz_sizeinbase(tree.nodes[i].prod, 2) / 8;
+            mpz_clear(tree.nodes[i].prod);
+        }
+
+        //printf("cleaned up %u nodes occupying ~ %u bytes\n", 
+        //    tree.size, bytes + tree.size * sizeof(bintree_element_t));
+        
+        free(tree.nodes);
 	}
 
 	/* wipe out batched relations */

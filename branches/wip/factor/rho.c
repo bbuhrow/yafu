@@ -379,7 +379,7 @@ free:
     return it;
 }
 
-#ifdef _MSC_VER
+#ifdef _MSC_VERasdf
 
 __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
 {

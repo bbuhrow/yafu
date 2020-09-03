@@ -317,8 +317,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 //#define OUTPUT_TLP_ATTEMPT_DETAILS
 
-		//if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
-		if (qfloat < sconf->large_prime_max3)
+		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
+		//if (qfloat < sconf->large_prime_max3)
 		{
 			uint32 large_prime[3];
 			uint32 r;
@@ -337,6 +337,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                 {
                     soffset *= -1;
                 }
+
                 mpz_set_ui(dconf->gmptmp1, 0);
                 dconf->attempted_cosiqs++;
                 relation_batch_add(dconf->curr_poly->index, poly_id, soffset, fb_offsets, smooth_num + 1,
@@ -363,12 +364,19 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                 //    (dconf->batch_run_override == 1))
 
                 // start processing the relations in the indicated buffer.
-                if (dconf->batch_run_override > 0)
+                if ((dconf->batch_run_override > 0) ||
+                    ((THREADS == 1) && (sconf->rb[0].num_relations > sconf->rb[0].target_relations)))
                 {
+                    struct timeval start;
+                    struct timeval stop;
+                    double ttime;
                     relation_batch_t *rb;
                     int i;
 
-                    rb = &sconf->rb[dconf->batch_run_override - 1];
+                    if (THREADS == 1)
+                        rb = &sconf->rb[0];
+                    else
+                        rb = &sconf->rb[dconf->batch_run_override - 1];
 
                     //if (dconf->batch_run_override == 1)
                     //{
@@ -391,7 +399,17 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     //}
 
                     //relation_batch_run(&dconf->rb);
+
+                    gettimeofday(&start, NULL);
                     relation_batch_run(rb);
+                    gettimeofday(&stop, NULL);
+
+                    ttime = yafu_difftime(&start, &stop);
+                    if (VFLAG > 1)
+                    {
+                        printf("relation_batch_run took %1.4f sec producing %u tlp's\n", 
+                            ttime, rb->num_success);
+                    }
 
                     //dconf->rb.conversion_ratio = 
                     //    (double)dconf->rb.num_success / (double)dconf->rb.num_relations;
@@ -438,7 +456,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     rb->num_factors = 0;
 
                     // signal we are done processing the batch.
-                    dconf->batch_run_override = -1;
+                    if (THREADS > 1)
+                        dconf->batch_run_override = -1;
                 }
 
                 

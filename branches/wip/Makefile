@@ -271,7 +271,7 @@ YAFU_SRCS = \
     factor/prime_sieve.c \
     factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c \
-    factor/avx-ecm/ecm.c \
+    factor/avx-ecm/avxecm.c \
     factor/avx-ecm/avx_ecm_main.c \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \

@@ -377,6 +377,31 @@ this file contains code implementing 1)
 			result = _mm_movemask_epi8(local_block); \
 		} while (0);
 
+
+    #define SIEVE_SCAN_32_VEC					\
+        __m256i v_blk = _mm256_load_si256(sieveblock + j); \
+        uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
+        result = 0; \
+        while (_BitScanForward(&pos, msk32)) { \
+            buffer[result++] = pos; \
+            _reset_lsb(msk32); \
+        }
+
+    #define SIEVE_SCAN_64_VEC				\
+        __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
+        uint32 pos; \
+        uint64 msk64 = _mm256_movemask_epi8(v_blk); \
+        result = 0; \
+        if (msk64 > 0) { \
+            v_blk = _mm256_load_si256(sieveblock + j + 4); \
+            msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
+            v_blk = _mm256_load_si256(sieveblock + j); \
+            msk64 |= _mm256_movemask_epi8(v_blk); \
+            while (_BitScanForward64(&pos, msk64)) { \
+                buffer[result++] = (uint8)pos; \
+                _reset_lsb64(msk64); \
+            } }
+
 #else	/* compiler not recognized*/
 
 	#define SCAN_CLEAN /*nothing*/
@@ -431,47 +456,6 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	sieveblock = (uint64 *)dconf->sieve;
 	dconf->num_reports = 0;
 
-
-#ifdef USE_AVX512no
-{
-	__m128i vmask = _mm_set1_epi32(0x80808080);
-uint32 *sieveblock32;
-
-    sieveblock32 = (uint32 *)dconf->sieve;
-
-    for (j = 0; j < 4096; j += 2)	
-    {		
-        __mmask16 r_msk;
-        int idx;
-        int k;
-
-        __m128i vsieve = _mm_load_si128((__m128i *)(&sieveblock[j]));
-        r_msk = _mm_test_epi32_mask(vsieve, vmask);
-
-        thisloc = j * 8;
-    
-        while (r_msk > 0)
-        {
-            uint32 a_msk;
-
-            idx = __builtin_ctzl(r_msk);
-            a_msk = sieveblock32[thisloc / 2 + idx] & 0x80808080;
-
-            do
-	    {
-		k = __builtin_ctzl(a_msk) >> 3;
-		dconf->reports[dconf->num_reports++] = thisloc + k + idx*4;
-		a_msk = _blsr_u32(a_msk);
-	    } while (a_msk > 0);
-
-            r_msk = _blsr_u32(r_msk);
-        }
-      
-    }
-}
-
-#else
-
 	for (j=0;j<it;j+=4)	
 	{		
 		uint32 result;
@@ -503,10 +487,6 @@ uint32 *sieveblock32;
             }
         }
 	}
-
-
-#endif
-
 
 	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
 		dconf->num_reports = MAX_SIEVE_REPORTS-1;
@@ -576,8 +556,10 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
         }
 	}
 
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-		dconf->num_reports = MAX_SIEVE_REPORTS-1;
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+    {
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+    }
 
     dconf->total_reports += dconf->num_reports;
     dconf->total_blocks++;
@@ -632,7 +614,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         {
             uint32 a_msk;
            
-            idx = __builtin_ctzl(r_msk);
+            idx = _trail_zcnt(r_msk);
             
             // each lit bit identifies 4 possible bytes meeting our criteria
             // for a possible relation.
@@ -640,7 +622,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
             do 
             {
-                k = __builtin_ctzl(a_msk) >> 3;
+                k = _trail_zcnt(a_msk) >> 3;
                 dconf->reports[dconf->num_reports++] = thisloc + k + idx*4;
                 a_msk = _blsr_u32(a_msk);
             } while (a_msk > 0);

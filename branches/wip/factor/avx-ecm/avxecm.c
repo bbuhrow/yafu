@@ -2124,8 +2124,10 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	// find the first '1' bit then skip it
 #ifdef __INTEL_COMPILER
 	mask = 1ULL << (64 - _lzcnt_u64((uint64_t)c) - 2);
-#else
+#elif defined(__GNUC__)
 	mask = 1ULL << (64 - __builtin_clzll((uint64_t)c) - 2);
+#elif defined _MSC_VER
+    mask = 1ULL << (64 - _lzcnt_u64((uint64_t)c) - 2);
 #endif
 
 	//goal is to compute x_c, z_c using montgomery's addition
@@ -2375,7 +2377,7 @@ void vececm(thread_data_t *tdata)
         if (verbose > 1)
             printf("Stage 1 took %1.4f seconds\n", t_time);
 	
-        if (tdata[i].save_b1)
+        if (tdata[0].save_b1)
         {
             sprintf(fname, "save_b1.txt");
             save = fopen(fname, "a");
@@ -2453,7 +2455,7 @@ void vececm(thread_data_t *tdata)
                     //    j, tdata[j].numfactors, tmp_factor);
                 }
 
-                if (tdata[i].save_b1)
+                if (tdata[0].save_b1)
                 {
                     fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
                         tdata[j].sigma[i], STAGE1_MAX);
@@ -2469,7 +2471,7 @@ void vececm(thread_data_t *tdata)
 
         }
 
-        if (tdata[i].save_b1)
+        if (tdata[0].save_b1)
         {
             fclose(save);
         }
@@ -3092,7 +3094,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
 		} while ((c * q) < stg1);
 	
 #ifdef SKYLAKEX
-		if ((verbose == 1) && ((i & 8191) == 0))
+		if ((verbose > 1) && ((i & 8191) == 0))
 #else
         if ((verbose > 1) && ((i & 511) == 0))
 #endif
@@ -3323,6 +3325,9 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 // imply that Px=Qx.  We need to cancel the Z-coordinates.
 // to cancel a z-coord we can multiply a point by z^-1, then
 // we have (Px/Pz:1).
+// the cross product we compute and accumulate is:
+// (Ax - Bx) * (Az + Bz) + BxBz - AxAz
+// AxBz - BxAz
 // In the baby-step giant-step algorithm for stage 2 we can normalize
 // all pre-computed Pb's by the batch-inversion process.
 // Likewise if we precompute all Pa's we can normalize in the same way.
@@ -3333,6 +3338,7 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 
 
 
+// _TEST
 #define CROSS_PRODUCT_TEST \
 vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, work->n);          \
 vecmulmod_ptr(acc, work->tt1, acc, work->n, work->tt4, mdata);        

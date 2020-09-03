@@ -89,9 +89,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_init(tmp2);
 	mpz_init(tmp3);
 
-	//determine polypool indexes.  
-	//this really should be done once after generating the factor base
-	//these will be set to more appropriate values below
+	// determine polypool indexes.  
+	// this really should be done once after generating the factor base
+	// these will be set to more appropriate values below
 	lower_polypool_index = 2;
 	upper_polypool_index = fb->small_B - 1;
 

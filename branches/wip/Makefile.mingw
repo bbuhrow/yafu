@@ -20,14 +20,16 @@
 CC = gcc
 #CFLAGS = -march=westmere -mtune=westmere
 CFLAGS = -g -fPIC
-#CFLAGS += -m64 -march=skylake-avx512 -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
-#CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
-#CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
-#CFLAGS += -fcall-used-xmm28 -fcall-used-xmm29 -fcall-used-xmm30 -fcall-used-xmm31
 WARN_FLAGS = -Wall #-W -Wconversion
 OPT_FLAGS = -O2
 BINNAME = yafu-x64-mingw.exe
 INC = -I. -Iinclude -Itop/aprcl -Itop/
+
+#INC += -I../gmp/include/mingw/
+#LIBS += -L../gmp/lib/mingw/
+#
+#INC += -I../gmp-ecm/include/mingw/
+#LIBS += -L../gmp-ecm/lib/mingw/
 
 #INC += -I../gmp/install/mingw/include
 #LIBS += -L../gmp/install/mingw/lib
@@ -35,8 +37,8 @@ INC = -I. -Iinclude -Itop/aprcl -Itop/
 #INC += -I../gmp-ecm/install/mingw/include
 #LIBS += -L../gmp-ecm/install/mingw/lib
 
-INC += -I../../gmp_install/gmp-6.2.0-mingw/include
-LIBS += -L../../gmp_install/gmp-6.2.0-mingw/lib
+INC += -I../../gmp_install_mingw/include
+LIBS += -L../../gmp_install_mingw/lib
 
 INC += -I../../ecm_install_mingw/include
 LIBS += -L../../ecm_install_mingw/lib
@@ -63,7 +65,9 @@ ifeq ($(USE_SSE41),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -march=skylake-avx512 
+    #only if new enough mingw that recognizes more cpu flags
+    #CFLAGS += -DUSE_AVX512BW
     CFLAGS += -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
     CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
     CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
@@ -103,7 +107,7 @@ ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
     INC += -I../msieve/zlib
 	#LIBS += -L../msieve_good/lib/mingw/x86_64 -lecm -lmsieve -lgmp
-    LIBS += -L../msieve/lib/mingw/ -lecm -lmsieve -lgmp
+    LIBS += -L../msieve/lib/mingw/ -lecm -lmsieve /y/projects/gmp_install_mingw/lib/libgmp.a
 else
 	LIBS += -lecm -lgmp
 endif
@@ -193,7 +197,7 @@ YAFU_SRCS = \
     factor/prime_sieve.c \
     factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c \
-    factor/avx-ecm/ecm.c \
+    factor/avx-ecm/avxecm.c \
     factor/avx-ecm/avx_ecm_main.c \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \
@@ -217,7 +221,7 @@ YAFU_SRCS += factor/qs/update_poly_roots_32k.c
 YAFU_SRCS += factor/qs/tdiv_med_32k.c
 YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
 
-ifeq ($(SKYLAKEX),0)
+ifeq ($(SKYLAKEX),1)
     YAFU_SRCS += factor/qs/tdiv_scan_knl.c
 endif
 YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
