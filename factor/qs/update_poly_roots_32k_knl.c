@@ -25,10 +25,6 @@ code to the public domain.
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
 
-#ifdef _MSC_VER
-#define USE_AVX512F
-#endif
-
 #ifdef USE_AVX512F
 
 #include <immintrin.h>
@@ -78,20 +74,21 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
     uint32 large_B = sconf->factor_base->large_B;
 
     uint32 j, interval;
-    int k,numblocks,idx, idx_n;
-    uint32 root1, root2, prime;
+    int k,numblocks,idx;
+    //uint32 root1, prime;
 
     int bound_index=0;
     int check_bound = BUCKET_ALLOC/2 - 1;
     uint32 bound_val = med_B;
     uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
-    uint64 *sliceptr64_p, *sliceptr64_n, *bptr64;
+    //uint64* sliceptr64_p, *sliceptr64_n, *bptr64;
 
     uint32 *bptr;
-    int bnum, room;
+    int room;
+    // int bnum, idx_n;
 
     uint8 logp=0;
-    polysieve_t helperstruct;
+    //polysieve_t helperstruct;
 
     __m512i vshifted_index = _mm512_setr_epi32(
         0, 65536, 131072, 196608, 
@@ -99,16 +96,18 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         524288,589824, 655360, 720896, 
         786432,851968, 917504, 983040);
 
-    __m512i vnroot1, vnroot2, vzero = _mm512_setzero_epi32(), vone = _mm512_set1_epi32(1);
-    __m512i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval, vindex, vnum, vaddr;
-    __m512i velement1, velement2, vbsize, vidx, vblockm1 = _mm512_set1_epi32(32767);
-    __mmask16 mask1, mask2, mconflictfree, munique;
-    __mmask16 mNotProc;
+    __m512i vnroot1, vnroot2;
+    //__m512i vone = _mm512_set1_epi32(1), vzero = _mm512_setzero_epi32();
+    __m512i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval;
+    __m512i velement1, velement2, vblockm1 = _mm512_set1_epi32(32767);
+    __mmask16 mask1, mask2;
+
+    // for scatter/gather:
+    //__mmask16 mNotProc, mconflictfree, munique;;
+    // __m512i vaddr, vidx, vnum, vbsize;
     
     ALIGNED_MEM uint32 e1[32]; //e1[65536];
-    ALIGNED_MEM uint32 e2[32]; //e2[65536];
     ALIGNED_MEM uint32 b1[32]; //b1[65536];
-    ALIGNED_MEM uint32 b2[32]; //b2[65536];
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -151,15 +150,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC/2;
 
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 1\n");
-		//}
-
         logp = update_data.logp[med_B];
         for (j=med_B;j<large_B;j+=16,ptr+=16)				
         {			
-            int i;
+            //int i;
 
 #ifdef DO_VLP_OPT
             if (j >= check_bound)
@@ -221,6 +215,108 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             _mm512_store_epi32((__m512i *)(&update_data.firstroots2[j]), vroot2);
             velement1 = _mm512_add_epi32(_mm512_set1_epi32((j - bound_val) << 16), vshifted_index);
 
+            // we loop over roots below, so have to compute these before we
+            // clobber them.
+            vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+            vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+#ifdef _MSC_VER
+            // msvc currently has a bug in the new _mm512_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+
+            mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+            while (mask1 > 0)
+            {
+                __mmask16 m = mask1;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _blsr_u32(m);
+                }
+
+                vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+            while (mask2 > 0)
+            {
+                __mmask16 m = mask2;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot2, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+            while (mask1 > 0)
+            {
+                __mmask16 m = mask1;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+            while (mask2 > 0)
+            {
+                __mmask16 m = mask2;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot2, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
+                mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+            }
+
+#else
+
+
+
+
             // idea: don't store the prime indices, just the block locations.
             // this will make bucket sorting and lp_sieve way easier, but lp_tdiv
             // harder.  Could do lp_tdiv with a resieve maybe?
@@ -250,10 +346,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             // could also keep the prime index info so we can keep mostly the
             // same lp_tdiv.
            
-            // we loop over roots below, so have to compute these before we
-            // clobber them.
-            vnroot1 = _mm512_sub_epi32(vprime, vroot1);
-            vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+            
 
             mask1 = 0xffff;
             mask2 = 0xffff;
@@ -277,17 +370,19 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
                 if ((mask1 | mask2) == 0)
+                {
                     break;
+                }
 
                 _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vroot1, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
                     _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
-
+                
                 idx = _mm_popcnt_u32(mask1);
                 _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vroot2, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
                     _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
-
+                
                 idx += _mm_popcnt_u32(mask2);
             } while (idx > 0);
 
@@ -313,27 +408,25 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT); 
                 
                 if ((mask1 | mask2) == 0)
+                {
                     break;
+                }
 
                 _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
                     _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
-
+                
                 idx = _mm_popcnt_u32(mask1);
                 _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vnroot2, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
                     _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
-
+                
                 idx += _mm_popcnt_u32(mask2);
             } while (idx > 0);
                         
+#endif
+
         }
-
-
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 2\n");
-		//}
 
         logp = update_data.logp[j - 1];
 
@@ -456,7 +549,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         for (j = large_B; j < bound; j += 16, ptr += 16)
         {
-            int i;
+            //int i;
             int k;
 
             CHECK_NEW_SLICE(j);
@@ -481,7 +574,6 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
             mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
-            
 
 #ifdef KNL_XLARGE_METHOD_1_CUTOFF
             dconf->num_scatter_opp++;
@@ -617,6 +709,39 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 SCATTER_COMPRESSED_VECTOR_P;
             }
+
+#elif defined(_MSC_VER)
+
+            // msvc currently has a bug in the new _mm512_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+            _mm512_store_epi32((__m512i*)b1, vbnum1);
+            _mm512_store_epi32((__m512i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (mask1 > 0)
+            {
+                idx = _trail_zcnt(mask1);
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm512_store_epi32((__m512i*)b1, vbnum2);
+            _mm512_store_epi32((__m512i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (mask2 > 0)
+            {
+                idx = _trail_zcnt(mask2);
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                mask2 = _reset_lsb(mask2); //mask1 ^= (1 << idx);
+            }
+
 #else
             {
                 idx = _mm_popcnt_u32(mask1);
@@ -774,6 +899,36 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 SCATTER_COMPRESSED_VECTOR_N;
             }
+
+#elif defined(_MSC_VER)
+
+            // msvc currently has a bug in the new _mm512_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+
+            _mm512_store_epi32((__m512i*)b1, vbnum1);
+            _mm512_store_epi32((__m512i*)e1, velement1);
+
+            while (mask1 > 0)
+            {
+                idx = _trail_zcnt(mask1);
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm512_store_epi32((__m512i*)b1, vbnum2);
+            _mm512_store_epi32((__m512i*)e1, velement2);
+
+            while (mask2 > 0)
+            {
+                idx = _trail_zcnt(mask2);
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
+            }
+
 #else
             {
                 idx = _mm_popcnt_u32(mask1);
@@ -808,15 +963,11 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC / 2;
 
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 1n\n");
-		//}
 
         logp = update_data.logp[med_B];
         for (j = med_B; j<large_B; j += 16, ptr += 16)
         {
-            int i;
+            //int i;
 
 #ifdef DO_VLP_OPT
             if (j >= check_bound)
@@ -886,6 +1037,98 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             vnroot1 = _mm512_sub_epi32(vprime, vroot1);
             vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
+#ifdef _MSC_VER
+
+            mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+            while (mask1 > 0)
+            {
+                __mmask16 m = mask1;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _reset_lsb(m);
+                }
+
+                vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+            while (mask2 > 0)
+            {
+                __mmask16 m = mask2;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot2, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
+                mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+            while (mask1 > 0)
+            {
+                __mmask16 m = mask1;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+            }
+
+            mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+            while (mask2 > 0)
+            {
+                __mmask16 m = mask2;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot2, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = _trail_zcnt(m);
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
+                mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+            }
+
+#else
+
             mask1 = 0xffff;
             mask2 = 0xffff;
             idx = 32;
@@ -908,7 +1151,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
                 if ((mask1 | mask2) == 0)
+                {
                     break;
+                }
 
                 _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vroot1, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
@@ -944,7 +1189,9 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
 
                 if ((mask1 | mask2) == 0)
+                {
                     break;
+                }
 
                 _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
                 _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
@@ -958,72 +1205,10 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 idx += _mm_popcnt_u32(mask2);
             } while (idx > 0);
 
-            //mask1 = 0xffff;
-            //mask2 = 0xffff;
-            //while ((mask1 | mask2) > 0)
-            //{
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vroot1, 15));
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
-            //        _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
-            //
-            //    idx = _mm_popcnt_u32(mask1);
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vroot2, 15));
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
-            //        _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
-            //
-            //    // extra big roots are much easier because they hit at most once
-            //    // in the entire +side interval.  no need to iterate.
-            //    idx += _mm_popcnt_u32(mask2);
-            //    for (k = 0; k < idx; k++)
-            //    {
-            //        bptr = sliceptr_p + (b1[k] << BUCKET_BITS) + numptr_p[b1[k]];
-            //        *bptr = e1[k];
-            //        numptr_p[b1[k]]++;
-            //    }
-            //
-            //    vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
-            //    vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
-            //    mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
-            //    mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
-            //}
-            //
-            //
-            //mask1 = 0xffff;
-            //mask2 = 0xffff;
-            //while ((mask1 | mask2) > 0)
-            //{
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
-            //        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
-            //
-            //    idx = _mm_popcnt_u32(mask1);
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vnroot2, 15));
-            //    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
-            //        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
-            //
-            //    // extra big roots are much easier because they hit at most once
-            //    // in the entire +side interval.  no need to iterate.
-            //    idx += _mm_popcnt_u32(mask2);
-            //    for (k = 0; k < idx; k++)
-            //    {
-            //        bptr = sliceptr_n + (b1[k] << BUCKET_BITS) + numptr_n[b1[k]];
-            //        *bptr = e1[k];
-            //        numptr_n[b1[k]]++;
-            //    }
-            //
-            //    vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
-            //    vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
-            //    mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
-            //    mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
-            //}
-            
- 
+#endif
+
+
         }
-        
-		//if (VFLAG > 2)
-		//{
-		//	printf("commencing 2n\n");
-		//}
 
         logp = update_data.logp[j - 1];
 
@@ -1133,7 +1318,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         for (j = large_B; j<bound; j += 16, ptr += 16)
         {
-            int i;
+            //int i;
 
             CHECK_NEW_SLICE(j);
 
@@ -1291,6 +1476,36 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 SCATTER_COMPRESSED_VECTOR_P;
             }
+#elif defined(_MSC_VER)
+
+            _mm512_store_epi32((__m512i*)b1, vbnum1);
+            _mm512_store_epi32((__m512i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (mask1 > 0)
+            {
+                idx = _trail_zcnt(mask1);
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm512_store_epi32((__m512i*)b1, vbnum2);
+            _mm512_store_epi32((__m512i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (mask2 > 0)
+            {
+                idx = _trail_zcnt(mask2);
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                mask2 = _reset_lsb(mask2); //mask1 ^= (1 << idx);
+            }
+
 #else
             {
                 idx = _mm_popcnt_u32(mask1);
@@ -1448,6 +1663,32 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                 SCATTER_COMPRESSED_VECTOR_N;
             }
+#elif defined(_MSC_VER)
+
+            _mm512_store_epi32((__m512i*)b1, vbnum1);
+            _mm512_store_epi32((__m512i*)e1, velement1);
+
+            while (mask1 > 0)
+            {
+                idx = _trail_zcnt(mask1);
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                mask1 = _reset_lsb(mask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm512_store_epi32((__m512i*)b1, vbnum2);
+            _mm512_store_epi32((__m512i*)e1, velement2);
+
+            while (mask2 > 0)
+            {
+                idx = _trail_zcnt(mask2);
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
+            }
+
 #else
             {
                 idx = _mm_popcnt_u32(mask1);
@@ -1489,7 +1730,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         root2 -= ((root2 >= prime) * prime); \
 
 
-
+#ifdef USE_BATCHPOLY
 void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     int *rootupdates = dconf->rootupdates;
@@ -1518,6 +1759,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
     uint32 *bptr;
     int bnum, room;
     uint8 logp = 0;
+    int p;
 
     __m512i vshifted_index = _mm512_setr_epi32(
         0, 65536, 131072, 196608, 
@@ -1527,16 +1769,20 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     __m512i vnroot1, vnroot2, vzero = _mm512_setzero_epi32(), vone = _mm512_set1_epi32(1);
     __m512i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval, vindex, vnum, vaddr;
-    __m512i vtmproot1, vtmproot2;
+    __m512i vtmproot1, vtmproot2, vtmp;
     __m512i velement1, velement2, vbsize, vidx, vblockm1 = _mm512_set1_epi32(32767);
     __mmask16 mask1, mask2, mconflictfree, munique;
     __mmask16 mNotProc;
+
+    uint32 gmask[64];
     
-    ALIGNED_MEM uint32 e1[16];
-    ALIGNED_MEM uint32 e2[16];
-    ALIGNED_MEM uint32 b1[16];
-    ALIGNED_MEM uint32 b2[16];
-    
+    ALIGNED_MEM uint32 e1[32];
+    ALIGNED_MEM uint32 e2[32];
+    ALIGNED_MEM uint32 b1[32];
+    ALIGNED_MEM uint32 b2[32];
+
+
+#if 0
     // good for up to 16 polynomial batches...
     ALIGNED_MEM uint32 prootstore1[256];
     ALIGNED_MEM uint32 prootstore2[256];
@@ -1546,6 +1792,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
     int num_prootstore2;
     int num_nrootstore1;
     int num_nrootstore2;
+#endif
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -1575,6 +1822,18 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
         numptr_p = NULL;
         numptr_n = NULL;
     }
+
+    for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
+    {
+        if (gray[numB + p] > 0)
+        {
+            gmask[p] = 0xffff;
+        }
+        else
+        {
+            gmask[p] = 0;
+        }
+    }
    
     bound_index = 0;
     bound_val = med_B;
@@ -1583,7 +1842,6 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
     logp = update_data.logp[med_B];
     for (j = med_B; j < large_B; j += 16)
     {
-        int p;
         
         CHECK_NEW_SLICE_BATCH(j);        
         
@@ -1591,6 +1849,141 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
         vroot1 = _mm512_load_epi32((__m512i *)(&update_data.firstroots1[j]));
         vroot2 = _mm512_load_epi32((__m512i *)(&update_data.firstroots2[j]));
         
+#if 1
+        for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
+        {
+
+            __mmask16 gm = gmask[p];
+
+            vpval = _mm512_load_epi32((__m512i*)(&rootupdates[(nu[numB + p] - 1) * bound + j]));
+
+            //vpval = _mm512_mask_add_epi32(vpval, gm, vpval, _mm512_set1_epi32(0x80000000));
+            //vtmp = _mm512_mask_add_epi32(vprime, gm, vprime, _mm512_set1_epi32(0x80000000));
+            //
+            //vroot1 = _mm512_add_epi32(vroot1, vpval);
+            //vroot2 = _mm512_add_epi32(vroot2, vpval);
+            //mask1 = _mm512_cmp_epu32_mask(vroot1, vprime, _MM_CMPINT_GE);
+            //mask2 = _mm512_cmp_epu32_mask(vroot2, vprime, _MM_CMPINT_GE);
+            //vroot1 = _mm512_mask_sub_epi32(vroot1, mask1, vroot1, vtmp);
+            //vroot2 = _mm512_mask_sub_epi32(vroot2, mask2, vroot2, vtmp);
+
+
+            //if (gray[numB + p] > 0)
+            mask1 = _mm512_mask_cmp_epu32_mask(gm, vpval, vroot1, _MM_CMPINT_GT);
+            mask2 = _mm512_mask_cmp_epu32_mask(gm, vpval, vroot2, _MM_CMPINT_GT);
+            vroot1 = _mm512_mask_sub_epi32(vroot1, gm, vroot1, vpval);
+            vroot2 = _mm512_mask_sub_epi32(vroot2, gm, vroot2, vpval);
+            vroot1 = _mm512_mask_add_epi32(vroot1, gm & mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi32(vroot2, gm & mask2, vroot2, vprime);
+            
+            //else
+            vroot1 = _mm512_mask_add_epi32(vroot1, ~gm, vroot1, vpval);
+            vroot2 = _mm512_mask_add_epi32(vroot2, ~gm, vroot2, vpval);
+            mask1 |= _mm512_mask_cmp_epu32_mask(~gm, vroot1, vprime, _MM_CMPINT_GE);
+            mask2 |= _mm512_mask_cmp_epu32_mask(~gm, vroot2, vprime, _MM_CMPINT_GE);
+            vroot1 = _mm512_mask_sub_epi32(vroot1, ~gm & mask1, vroot1, vprime);
+            vroot2 = _mm512_mask_sub_epi32(vroot2, ~gm & mask2, vroot2, vprime);
+
+
+            vbnum1 = _mm512_srli_epi32(vroot1, 15);
+            vbnum2 = _mm512_srli_epi32(vroot2, 15);
+            velement1 = _mm512_add_epi32(_mm512_set1_epi32((j - bound_val) << 16), vshifted_index);
+
+            // we loop over roots below, so have to compute these before we
+            // clobber them.
+            vnroot1 = _mm512_sub_epi32(vprime, vroot1);
+            vnroot2 = _mm512_sub_epi32(vprime, vroot2);
+
+
+            mask1 = 0xffff;
+            mask2 = 0xffff;
+            idx = 32;
+
+            _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot1, 15));
+            _mm512_store_epi32((__m512i*)e1,
+                _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
+
+            _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vroot2, 15));
+            _mm512_store_epi32((__m512i*)(&(e1[16])),
+                _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
+
+            vtmproot1 = vroot1;
+            vtmproot2 = vroot2;
+
+            do
+            {
+                SCATTER_COMPRESSED_VECTOR_P;
+
+                vtmproot1 = _mm512_mask_add_epi32(vtmproot1, mask1, vtmproot1, vprime);
+                vtmproot2 = _mm512_mask_add_epi32(vtmproot2, mask2, vtmproot2, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vtmproot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vtmproot2, vinterval, _MM_CMPINT_LT);
+
+                if ((mask1 | mask2) == 0)
+                {
+                    break;
+                }
+
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vtmproot1, 15));
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot1, vblockm1)));
+
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vtmproot2, 15));
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot2, vblockm1)));
+
+                idx += _mm_popcnt_u32(mask2);
+            } while (idx > 0);
+
+            mask1 = 0xffff;
+            mask2 = 0xffff;
+            idx = 32;
+
+            _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+            _mm512_store_epi32((__m512i*)e1,
+                _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+            _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vnroot2, 15));
+            _mm512_store_epi32((__m512i*)(&(e1[16])),
+                _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+            do
+            {
+                SCATTER_COMPRESSED_VECTOR_N;
+
+                vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
+                vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
+                mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                if ((mask1 | mask2) == 0)
+                {
+                    break;
+                }
+
+                _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
+                _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                idx = _mm_popcnt_u32(mask1);
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vnroot2, 15));
+                _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                idx += _mm_popcnt_u32(mask2);
+            } while (idx > 0);
+
+
+            // advance pointers
+            sliceptr_p += poly_offset * BUCKET_ALLOC;
+            sliceptr_n += poly_offset * BUCKET_ALLOC;
+            numptr_p += poly_offset;
+            numptr_n += poly_offset;
+        }
+
+#else
+
         for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
         {
             if (gray[numB + p] > 0)
@@ -1611,6 +2004,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vnroot1 = _mm512_sub_epi32(vprime, vroot1);
                 vnroot2 = _mm512_sub_epi32(vprime, vroot2);
                 
+#if 0
                 // do the first 16
                 vbnum1 = _mm512_srli_epi32(vroot1, 15);
                 vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
@@ -1831,6 +2225,89 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
                 }
 
+#else
+
+                mask1 = 0xffff;
+                mask2 = 0xffff;
+                idx = 32;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
+
+                _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vroot2, 15));
+                _mm512_store_epi32((__m512i*)(&(e1[16])),
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
+
+                vtmproot1 = vroot1;
+                vtmproot2 = vroot2;
+
+                do
+                {
+                    SCATTER_COMPRESSED_VECTOR_P;
+
+                    vtmproot1 = _mm512_mask_add_epi32(vtmproot1, mask1, vtmproot1, vprime);
+                    vtmproot2 = _mm512_mask_add_epi32(vtmproot2, mask2, vtmproot2, vprime);
+                    mask1 = _mm512_cmp_epu32_mask(vtmproot1, vinterval, _MM_CMPINT_LT);
+                    mask2 = _mm512_cmp_epu32_mask(vtmproot2, vinterval, _MM_CMPINT_LT);
+
+                    if ((mask1 | mask2) == 0)
+                    {
+                        break;
+                    }
+
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vtmproot1, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot1, vblockm1)));
+
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vtmproot2, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot2, vblockm1)));
+
+                    idx += _mm_popcnt_u32(mask2);
+                } while (idx > 0);
+
+                mask1 = 0xffff;
+                mask2 = 0xffff;
+                idx = 32;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vnroot2, 15));
+                _mm512_store_epi32((__m512i*)(&(e1[16])),
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                do
+                {
+                    SCATTER_COMPRESSED_VECTOR_N;
+
+                    vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
+                    vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
+                    mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                    mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                    if ((mask1 | mask2) == 0)
+                    {
+                        break;
+                    }
+
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vnroot2, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                    idx += _mm_popcnt_u32(mask2);
+                } while (idx > 0);
+
+#endif
+
             }
             else
             {
@@ -1850,6 +2327,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 vnroot1 = _mm512_sub_epi32(vprime, vroot1);
                 vnroot2 = _mm512_sub_epi32(vprime, vroot2);
 
+#if 0
                 // do the first 16
                 vbnum1 = _mm512_srli_epi32(vroot1, 15);
                 vidx = _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1));
@@ -1869,17 +2347,17 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                 mNotProc = mask1;
-                while (mNotProc != 0)   
-                {     
-					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-					mNotProc &= (~mconflictfree);
-					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                while (mNotProc != 0)
+                {
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                    mNotProc &= (~mconflictfree);
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, vidx, _MM_SCALE_4);
                 vnum = _mm512_add_epi32(vnum, vone);
-                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique& mask1, vbnum1, vnum, _MM_SCALE_4);
 
                 // then the rest as they start to drop out of the interval
                 vtmproot1 = _mm512_add_epi32(vroot1, vprime);
@@ -1888,11 +2366,11 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 {
                     __mmask16 m = mask1;
 
-                    _mm512_store_epi32((__m512i *)b1, _mm512_srli_epi32(vtmproot1, 15));
-                    _mm512_store_epi32((__m512i *)e1,
+                    _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vtmproot1, 15));
+                    _mm512_store_epi32((__m512i*)e1,
                         _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot1, vblockm1)));
 
-                    while (m > 0)  
+                    while (m > 0)
                     {
                         idx = _trail_zcnt(m);
                         bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
@@ -1924,17 +2402,17 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                 mNotProc = mask2;
-                while (mNotProc != 0)   
-                {     
-					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-					mNotProc &= (~mconflictfree);
-					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                while (mNotProc != 0)
+                {
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                    mNotProc &= (~mconflictfree);
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, vidx, _MM_SCALE_4);
                 vnum = _mm512_add_epi32(vnum, vone);
-                _mm512_mask_i32scatter_epi32(numptr_p, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(numptr_p, munique& mask2, vbnum2, vnum, _MM_SCALE_4);
 
                 // then the rest as they start to drop out of the interval
                 vtmproot2 = _mm512_add_epi32(vroot2, vprime);
@@ -1943,11 +2421,11 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 {
                     __mmask16 m = mask2;
 
-                    _mm512_store_epi32((__m512i *)b1, _mm512_srli_epi32(vtmproot2, 15));
-                    _mm512_store_epi32((__m512i *)e1,
+                    _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vtmproot2, 15));
+                    _mm512_store_epi32((__m512i*)e1,
                         _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot2, vblockm1)));
 
-                    while (m > 0)  
+                    while (m > 0)
                     {
                         idx = _trail_zcnt(m);
                         bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
@@ -1979,17 +2457,17 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                 mNotProc = mask1;
-                while (mNotProc != 0)   
-                {     
-					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-					mNotProc &= (~mconflictfree);
-					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                while (mNotProc != 0)
+                {
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                    mNotProc &= (~mconflictfree);
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, vidx, _MM_SCALE_4);
                 vnum = _mm512_add_epi32(vnum, vone);
-                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask1, vbnum1, vnum, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique& mask1, vbnum1, vnum, _MM_SCALE_4);
 
                 // then the rest as they start to drop out of the interval
                 vnroot1 = _mm512_add_epi32(vnroot1, vprime);
@@ -1998,11 +2476,11 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 {
                     __mmask16 m = mask1;
 
-                    _mm512_store_epi32((__m512i *)b1, _mm512_srli_epi32(vnroot1, 15));
-                    _mm512_store_epi32((__m512i *)e1,
+                    _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+                    _mm512_store_epi32((__m512i*)e1,
                         _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
 
-                    while (m > 0)  
+                    while (m > 0)
                     {
                         idx = _trail_zcnt(m);
                         bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
@@ -2034,17 +2512,17 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                 mNotProc = mask2;
-                while (mNotProc != 0)   
-                {     
-					mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-					vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-					mNotProc &= (~mconflictfree);
-					vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                while (mNotProc != 0)
+                {
+                    mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                    vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                    mNotProc &= (~mconflictfree);
+                    vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                 }
                 vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                 _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, vidx, _MM_SCALE_4);
                 vnum = _mm512_add_epi32(vnum, vone);
-                _mm512_mask_i32scatter_epi32(numptr_n, munique & mask2, vbnum2, vnum, _MM_SCALE_4);
+                _mm512_mask_i32scatter_epi32(numptr_n, munique& mask2, vbnum2, vnum, _MM_SCALE_4);
 
                 // then the rest as they start to drop out of the interval
                 vnroot2 = _mm512_add_epi32(vnroot2, vprime);
@@ -2053,11 +2531,11 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 {
                     __mmask16 m = mask2;
 
-                    _mm512_store_epi32((__m512i *)b1, _mm512_srli_epi32(vnroot2, 15));
-                    _mm512_store_epi32((__m512i *)e1,
+                    _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot2, 15));
+                    _mm512_store_epi32((__m512i*)e1,
                         _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
 
-                    while (m > 0)  
+                    while (m > 0)
                     {
                         idx = _trail_zcnt(m);
                         bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
@@ -2069,10 +2547,94 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                     vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
                     mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
                 }
-            
+
+#else
+                mask1 = 0xffff;
+                mask2 = 0xffff;
+                idx = 32;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot1, vblockm1)));
+
+                _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vroot2, 15));
+                _mm512_store_epi32((__m512i*)(&(e1[16])),
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vroot2, vblockm1)));
+
+                vtmproot1 = vroot1;
+                vtmproot2 = vroot2;
+
+                do
+                {
+                    SCATTER_COMPRESSED_VECTOR_P;
+
+                    vtmproot1 = _mm512_mask_add_epi32(vtmproot1, mask1, vtmproot1, vprime);
+                    vtmproot2 = _mm512_mask_add_epi32(vtmproot2, mask2, vtmproot2, vprime);
+                    mask1 = _mm512_cmp_epu32_mask(vtmproot1, vinterval, _MM_CMPINT_LT);
+                    mask2 = _mm512_cmp_epu32_mask(vtmproot2, vinterval, _MM_CMPINT_LT);
+
+                    if ((mask1 | mask2) == 0)
+                    {
+                        break;
+                    }
+
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vtmproot1, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot1, vblockm1)));
+
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vtmproot2, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vtmproot2, vblockm1)));
+
+                    idx += _mm_popcnt_u32(mask2);
+                } while (idx > 0);
+
+                mask1 = 0xffff;
+                mask2 = 0xffff;
+                idx = 32;
+
+                _mm512_store_epi32((__m512i*)b1, _mm512_srli_epi32(vnroot1, 15));
+                _mm512_store_epi32((__m512i*)e1,
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                _mm512_store_epi32((__m512i*)(&(b1[16])), _mm512_srli_epi32(vnroot2, 15));
+                _mm512_store_epi32((__m512i*)(&(e1[16])),
+                    _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                do
+                {
+                    SCATTER_COMPRESSED_VECTOR_N;
+
+                    vnroot1 = _mm512_mask_add_epi32(vnroot1, mask1, vnroot1, vprime);
+                    vnroot2 = _mm512_mask_add_epi32(vnroot2, mask2, vnroot2, vprime);
+                    mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
+                    mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
+
+                    if ((mask1 | mask2) == 0)
+                    {
+                        break;
+                    }
+
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, _mm512_srli_epi32(vnroot1, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot1, vblockm1)));
+
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, _mm512_srli_epi32(vnroot2, 15));
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2,
+                        _mm512_or_epi32(velement1, _mm512_and_epi32(vnroot2, vblockm1)));
+
+                    idx += _mm_popcnt_u32(mask2);
+                } while (idx > 0);
+
+#endif
                 
+
                 
             }
+
+
 
             // advance pointers
             sliceptr_p += poly_offset * BUCKET_ALLOC;
@@ -2080,6 +2642,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
             numptr_p += poly_offset;
             numptr_n += poly_offset;
         }
+
+
+
+#endif
         
         _mm512_store_epi32((__m512i *)(&update_data.firstroots1[j]), vroot1);
         _mm512_store_epi32((__m512i *)(&update_data.firstroots2[j]), vroot2);
@@ -2196,15 +2762,37 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
         
         for (p = 0; (p < dconf->poly_batchsize) && ((numB + p) < dconf->maxB); p++)
         {
-            if (gray[numB + p] > 0)
-            {                
+            //if (gray[numB + p] > 0)
+            {         
+                __mmask16 gm = gmask[p];
+
                 vpval = _mm512_load_epi32((__m512i *)(&rootupdates[(nu[numB + p] - 1) * bound + j]));
-                mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
-                mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
-                vroot1 = _mm512_sub_epi32(vroot1, vpval);
-                vroot2 = _mm512_sub_epi32(vroot2, vpval);
-                vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
-                vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);                
+
+
+                //mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
+                //mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
+                //vroot1 = _mm512_sub_epi32(vroot1, vpval);
+                //vroot2 = _mm512_sub_epi32(vroot2, vpval);
+                //vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
+                //vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);     
+
+                //if (gray[numB + p] > 0)
+                mask1 = _mm512_mask_cmp_epu32_mask(gm, vpval, vroot1, _MM_CMPINT_GT);
+                mask2 = _mm512_mask_cmp_epu32_mask(gm, vpval, vroot2, _MM_CMPINT_GT);
+                vroot1 = _mm512_mask_sub_epi32(vroot1, gm, vroot1, vpval);
+                vroot2 = _mm512_mask_sub_epi32(vroot2, gm, vroot2, vpval);
+                vroot1 = _mm512_mask_add_epi32(vroot1, gm & mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_add_epi32(vroot2, gm & mask2, vroot2, vprime);
+
+                //else
+                vroot1 = _mm512_mask_add_epi32(vroot1, ~gm, vroot1, vpval);
+                vroot2 = _mm512_mask_add_epi32(vroot2, ~gm, vroot2, vpval);
+                mask1 |= _mm512_mask_cmp_epu32_mask(~gm, vroot1, vprime, _MM_CMPINT_GE);
+                mask2 |= _mm512_mask_cmp_epu32_mask(~gm, vroot2, vprime, _MM_CMPINT_GE);
+                vroot1 = _mm512_mask_sub_epi32(vroot1, ~gm & mask1, vroot1, vprime);
+                vroot2 = _mm512_mask_sub_epi32(vroot2, ~gm & mask2, vroot2, vprime);
+
+
                 vbnum1 = _mm512_srli_epi32(vroot1, 15);
                 vbnum2 = _mm512_srli_epi32(vroot2, 15);
                 velement1 = _mm512_add_epi32(_mm512_set1_epi32((j - bound_val) << 16), vshifted_index);
@@ -2213,6 +2801,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
                 mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
 
+#if 0
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_p, mask1, vbnum1, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2230,12 +2819,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask1;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2245,10 +2834,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b1, vbnum1);
-                    _mm512_store_epi32((__m512i *)e1, velement1);
+                    _mm512_store_epi32((__m512i*)b1, vbnum1);
+                    _mm512_store_epi32((__m512i*)e1, velement1);
 
-                    while (mask1 > 0)  
+                    while (mask1 > 0)
                     {
                         idx = _trail_zcnt(mask1);
                         bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
@@ -2257,7 +2846,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask1 = _reset_lsb(mask1);
                     }
                 }
-                
+
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_p, mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2275,12 +2864,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask2;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2290,10 +2879,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b2, vbnum2);
-                    _mm512_store_epi32((__m512i *)e2, velement2);
+                    _mm512_store_epi32((__m512i*)b2, vbnum2);
+                    _mm512_store_epi32((__m512i*)e2, velement2);
 
-                    while (mask2 > 0)  
+                    while (mask2 > 0)
                     {
                         idx = _trail_zcnt(mask2);
                         bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
@@ -2302,6 +2891,20 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask2 = _reset_lsb(mask2);
                     }
                 }
+#else
+                {
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                    idx += _mm_popcnt_u32(mask2);
+
+                    SCATTER_COMPRESSED_VECTOR_P;
+                }
+#endif
+
+
 
                 // and the -side roots; same story.
                 vnroot1 = _mm512_sub_epi32(vprime, vroot1);
@@ -2314,6 +2917,8 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
                 mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
 
+
+#if 0
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_n, mask1, vbnum1, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2334,12 +2939,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask1;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     // latency 17
@@ -2351,10 +2956,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b1, vbnum1);
-                    _mm512_store_epi32((__m512i *)e1, velement1);
+                    _mm512_store_epi32((__m512i*)b1, vbnum1);
+                    _mm512_store_epi32((__m512i*)e1, velement1);
 
-                    while (mask1 > 0)  
+                    while (mask1 > 0)
                     {
                         idx = _trail_zcnt(mask1);
                         bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
@@ -2363,7 +2968,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask1 = _reset_lsb(mask1);
                     }
                 }
-                
+
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_n, mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2381,12 +2986,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask2;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2396,10 +3001,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b2, vbnum2);
-                    _mm512_store_epi32((__m512i *)e2, velement2);
+                    _mm512_store_epi32((__m512i*)b2, vbnum2);
+                    _mm512_store_epi32((__m512i*)e2, velement2);
 
-                    while (mask2 > 0)  
+                    while (mask2 > 0)
                     {
                         idx = _trail_zcnt(mask2);
                         bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
@@ -2408,9 +3013,25 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask2 = _reset_lsb(mask2);
                     }
                 }
+#else
+                {
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                    idx += _mm_popcnt_u32(mask2);
+
+                    SCATTER_COMPRESSED_VECTOR_N;
+                }
+#endif
+
+
                 
                 
             }
+
+#if 0
             else
             {
                 vpval = _mm512_load_epi32((__m512i *)(&rootupdates[(nu[numB + p] - 1) * bound + j]));
@@ -2428,7 +3049,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
                 mask2 = _mm512_cmp_epu32_mask(vroot2, vinterval, _MM_CMPINT_LT);
          
-                
+#if 0
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_p, mask1, vbnum1, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2446,12 +3067,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask1;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2461,10 +3082,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b1, vbnum1);
-                    _mm512_store_epi32((__m512i *)e1, velement1);
+                    _mm512_store_epi32((__m512i*)b1, vbnum1);
+                    _mm512_store_epi32((__m512i*)e1, velement1);
 
-                    while (mask1 > 0)  
+                    while (mask1 > 0)
                     {
                         idx = _trail_zcnt(mask1);
                         bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
@@ -2473,7 +3094,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask1 = _reset_lsb(mask1);
                     }
                 }
-                
+
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_p, mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2491,12 +3112,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask2;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_p, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2506,10 +3127,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b2, vbnum2);
-                    _mm512_store_epi32((__m512i *)e2, velement2);
+                    _mm512_store_epi32((__m512i*)b2, vbnum2);
+                    _mm512_store_epi32((__m512i*)e2, velement2);
 
-                    while (mask2 > 0)  
+                    while (mask2 > 0)
                     {
                         idx = _trail_zcnt(mask2);
                         bptr = sliceptr_p + (b2[idx] << BUCKET_BITS) + numptr_p[b2[idx]];
@@ -2518,6 +3139,20 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask2 = _reset_lsb(mask2); //mask2 ^= (1 << idx);
                     }
                 }
+#else
+                {
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                    idx += _mm_popcnt_u32(mask2);
+
+                    SCATTER_COMPRESSED_VECTOR_P;
+                }
+#endif
+
+
 
                 // and the -side roots; same story.
                 vnroot1 = _mm512_sub_epi32(vprime, vroot1);
@@ -2530,6 +3165,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 mask1 = _mm512_cmp_epu32_mask(vnroot1, vinterval, _MM_CMPINT_LT);
                 mask2 = _mm512_cmp_epu32_mask(vnroot2, vinterval, _MM_CMPINT_LT);
 
+#if 0
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_n, mask1, vbnum1, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2547,12 +3183,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask1;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum1, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask1, vaddr, velement1, _MM_SCALE_4);
@@ -2562,10 +3198,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b1, vbnum1);
-                    _mm512_store_epi32((__m512i *)e1, velement1);
+                    _mm512_store_epi32((__m512i*)b1, vbnum1);
+                    _mm512_store_epi32((__m512i*)e1, velement1);
 
-                    while (mask1 > 0)  
+                    while (mask1 > 0)
                     {
                         idx = _trail_zcnt(mask1);
                         bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
@@ -2574,7 +3210,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask1 = _reset_lsb(mask1);
                     }
                 }
-                
+
 #ifdef KNL_SCATTER_PREFETCH_NUM
                 _mm512_mask_prefetch_i32scatter_ps(numptr_n, mask2, vbnum2, 4, KNL_SCATTER_PREFETCH);
 #endif
@@ -2592,12 +3228,12 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 #endif
 
                     mNotProc = mask2;
-                    while (mNotProc != 0)   
-                    {     
-						mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
-						vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
-						mNotProc &= (~mconflictfree);
-						vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
+                    while (mNotProc != 0)
+                    {
+                        mconflictfree = _mm512_cmp_epu32_mask(vindex, vzero, _MM_CMPINT_EQ);
+                        vindex = _mm512_mask_and_epi32(vindex, mNotProc, _mm512_set1_epi32(~mconflictfree), vindex);
+                        mNotProc &= (~mconflictfree);
+                        vnum = _mm512_mask_add_epi32(vnum, mNotProc, vnum, vone);
                     }
                     vaddr = _mm512_add_epi32(_mm512_slli_epi32(vbnum2, BUCKET_BITS), vnum);
                     _mm512_mask_i32scatter_epi32(sliceptr_n, mask2, vaddr, velement2, _MM_SCALE_4);
@@ -2607,10 +3243,10 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                 else
 #endif
                 {
-                    _mm512_store_epi32((__m512i *)b2, vbnum2);
-                    _mm512_store_epi32((__m512i *)e2, velement2);
+                    _mm512_store_epi32((__m512i*)b2, vbnum2);
+                    _mm512_store_epi32((__m512i*)e2, velement2);
 
-                    while (mask2 > 0)  
+                    while (mask2 > 0)
                     {
                         idx = _trail_zcnt(mask2);
                         bptr = sliceptr_n + (b2[idx] << BUCKET_BITS) + numptr_n[b2[idx]];
@@ -2619,9 +3255,24 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
                         mask2 = _reset_lsb(mask2);
                     }
                 }
-                
+
+#else
+                {
+                    idx = _mm_popcnt_u32(mask1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)b1, mask1, vbnum1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)e1, mask1, velement1);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(b1[idx])), mask2, vbnum2);
+                    _mm512_mask_compressstoreu_epi32((__m512i*)(&(e1[idx])), mask2, velement2);
+                    idx += _mm_popcnt_u32(mask2);
+
+                    SCATTER_COMPRESSED_VECTOR_N;
+                }
+#endif
+
+
                 
             }
+#endif
 
             // advance pointers
             sliceptr_p += poly_offset * BUCKET_ALLOC;
@@ -2650,6 +3301,6 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     return;
 }
-
+#endif
 
 #endif

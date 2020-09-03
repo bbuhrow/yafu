@@ -267,6 +267,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.gbl_override_lpb = 0;
     fobj->qs_obj.gbl_override_bdiv_flag = 0;
     fobj->qs_obj.gbl_override_bdiv = 3;
+    fobj->qs_obj.gbl_override_3lp_bat = 0;
     fobj->qs_obj.gbl_btarget = 500000;
 	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
@@ -1318,7 +1319,7 @@ int check_tune_params(fact_obj_t *fobj)
 		fobj->nfs_obj.gnfs_exponent == 0 || 
 		fobj->nfs_obj.gnfs_tune_freq == 0)
 	{
-        if (VFLAG >= 0)
+        if (VFLAG > 0)
         {
             printf("check tune params contained invalid parameter(s), ignoring tune info.\n");
         }
@@ -1891,10 +1892,28 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			qs_time_est = get_qs_time_estimate(fobj, b);
 			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
 
-			if (qs_time_est < gnfs_time_est)
-				return state_qs;
-			else
-				return state_nfs;
+            if (VFLAG > 0)
+            {
+                printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
+                    qs_time_est, gnfs_time_est);
+            }
+
+            if (qs_time_est < gnfs_time_est)
+            {
+                if (VFLAG > 0)
+                {
+                    printf("fac: tune params scheduling SIQS work\n");
+                }
+                return state_qs;
+            }
+            else
+            {
+                if (VFLAG > 0)
+                {
+                    printf("fac: tune params scheduling NFS work\n");
+                }
+                return state_nfs;
+            }
 		}
 	}
 

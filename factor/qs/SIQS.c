@@ -386,7 +386,8 @@ void siqs_dispatch(void *vptr)
             // instruct this thread to start processing batched relations.
             if ((static_conf->use_dlp == 2) &&
                 (src_rb->num_relations > src_rb->target_relations) &&
-                (static_conf->num_active_rb < static_conf->num_alloc_rb))
+                (static_conf->num_active_rb < static_conf->num_alloc_rb) &&
+                (THREADS > 1))
                 //(static_conf->batch_run_override == 0)) 
             {
                 int i;
@@ -918,13 +919,25 @@ void *process_poly(void *vptr)
     for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
     {
         uint32 invalid_root_marker = 0xFFFFFFFF;
+        uint32 minblock;
+        mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
+        mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+        if (mpz_sgn(dconf->gmptmp1) < 0)
+            mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+
+        mpz_set(dconf->gmptmp3, dconf->gmptmp1);
+        mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
+        minblock = mpz_get_ui(dconf->gmptmp1);
 
         for (i = 0; i < num_blocks; i++)
         {
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
-            med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+            if (i == minblock)
+                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+            else
+                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
             lp_sieveblock(sieve, i, num_blocks, buckets, 0, dconf);
 
             // set the roots for the factors of a to force the following routine
@@ -935,7 +948,10 @@ void *process_poly(void *vptr)
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
-            med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
+            if (i == minblock)
+                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+            else
+                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
             lp_sieveblock(sieve, i, num_blocks, buckets, 1, dconf);
 
             // set the roots for the factors of a to force the following routine
@@ -1303,7 +1319,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
                 x, NULL, 0, tmp, NULL, dest_rb);
         }
 
-        if (VFLAG > 1)
+        if (VFLAG > 2)
         {
             printf("merged %d relations from thread %d into batch buffer %d\n",
                 rb->num_relations, dconf->tid, sconf->batch_buffer_id);
@@ -1729,7 +1745,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
                 BUCKET_ALLOC * sizeof(uint32)));
 #endif
 
-        dconf->poly_batchsize = 8;
+        dconf->poly_batchsize = 4;
 
 #else
         dconf->poly_batchsize = 1;
@@ -1801,7 +1817,10 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->num_reports = 0;
     dconf->Qvals = (mpz_t *)malloc(MAX_SIEVE_REPORTS * sizeof(mpz_t));
     for (i = 0; i < MAX_SIEVE_REPORTS; i++)
+    {
         mpz_init(dconf->Qvals[i]); //, 2*sconf->bits);
+        mpz_set_ui(dconf->Qvals[i], 0);
+    }
 
     dconf->valid_Qs = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
     dconf->smooth_num = (int *)malloc(MAX_SIEVE_REPORTS * sizeof(int));
@@ -1906,6 +1925,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->large_mult = 30;
 	sconf->num_blocks = 40;
 	sconf->num_extra_relations = 64;
+
+    // can raise this if we also raise TFSm and lower TF bounds
+    // and get about the same speed... 
 	sconf->small_limit = 256;
 	sconf->use_dlp = 0;
 
@@ -1961,7 +1983,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     med_sieve_ptr = &med_sieveblock_32k;
 	// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
 	// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
-#if defined(USE_AVX2) && !defined(_MSC_VER)
+#if defined(USE_AVX2) //&& !defined(_MSC_VER)
 	if (HAS_AVX2)
 	{
         if (VFLAG > 1)
@@ -2091,15 +2113,18 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			sconf->factor_base->B * sizeof(uint32));
 		sconf->factor_base->list->prime = (uint32 *)xmalloc_align(
 			(size_t)(sconf->factor_base->B * sizeof(uint32)));
+        sconf->factor_base->list->binv = (uint64*)xmalloc_align(
+            (size_t)(sconf->factor_base->B * sizeof(uint64)));
+
 
 		sconf->factor_base->tinylist->prime = (uint32 *)xmalloc_align(
-			(size_t)(256 * sizeof(uint32)));
+			(size_t)(512 * sizeof(uint32)));
 		sconf->factor_base->tinylist->small_inv = (uint32 *)xmalloc_align(
-			(size_t)(256 * sizeof(uint32)));
+			(size_t)(512 * sizeof(uint32)));
 		sconf->factor_base->tinylist->correction = (uint32 *)xmalloc_align(
-			(size_t)(256 * sizeof(uint32)));
+			(size_t)(512 * sizeof(uint32)));
 		sconf->factor_base->tinylist->logprime = (uint32 *)xmalloc_align(
-			(size_t)(256 * sizeof(uint32)));
+			(size_t)(512 * sizeof(uint32)));
 
 #ifdef USE_8X_MOD_ASM
 		sconf->factor_base->list->small_inv = (uint16 *)xmalloc_align(
@@ -2154,6 +2179,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 			mpz_tdiv_q_ui(sconf->n, sconf->n, sconf->multiplier);
 			free(sconf->modsqrt_array);
 			align_free(sconf->factor_base->list->prime);
+            align_free(sconf->factor_base->list->binv);
 			align_free(sconf->factor_base->list->small_inv);
 			align_free(sconf->factor_base->list->correction);
 			align_free(sconf->factor_base->list->logprime);
@@ -2180,9 +2206,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	//adjust for various architectures
 	if (sconf->qs_blocksize == 32768)
-		sconf->num_blocks *= 2;
-	else if (sconf->qs_blocksize == 65536)
 		sconf->num_blocks *= 1;
+	else if (sconf->qs_blocksize == 65536)
+		sconf->num_blocks /= 2;
 	else
 	{
 		printf("unknown block size!\n");
@@ -2469,12 +2495,16 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     sconf->scan_unrolling = 128;
 #endif
 
-    sconf->do_batch = 0;
+    sconf->do_batch = 1;
+    if (sconf->obj->qs_obj.gbl_override_3lp_bat)
+    {
+        sconf->do_batch = 0;
+    }
     sconf->batch_run_override = 0;
 
 #if !defined( __MINGW64__)
     // not sure why, but batch factoring completely fails when using mingw64.
-    if (sconf->use_dlp == 2)
+    if ((sconf->use_dlp == 2) && (sconf->do_batch == 1))
     {
         sconf->rb = (relation_batch_t *)xmalloc(THREADS * sizeof(relation_batch_t));
         sconf->num_alloc_rb = THREADS;
@@ -2506,6 +2536,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         sconf->batch_buffer_id = 1;
         sconf->batch_run_override = 0;
         sconf->do_batch = 1;
+
+        sconf->do_periodic_tlp_filter = 1;
+        //sconf->est_raw_rels_needed = 20938 + 234867 + 962109 + 33970;
     }
 #endif
 
@@ -2779,7 +2812,7 @@ int update_check(static_conf_t *sconf)
 
 	if ((num_full >= check_total) || (t_update > update_time))
 	{
-		//watch for an abort
+		// watch for an abort
 		if (SIQS_ABORT)
 		{
 			//for fun, compute the total number of locations sieved over
@@ -2799,6 +2832,7 @@ int update_check(static_conf_t *sconf)
 			exit(1);
 		}
 
+        // if we are only collecting a specified number of relations
 		if 	(sconf->obj->qs_obj.gbl_override_rel_flag && 
 			((num_full + sconf->num_cycles) > sconf->obj->qs_obj.gbl_override_rel))
 		{
@@ -2823,6 +2857,7 @@ int update_check(static_conf_t *sconf)
 			return 2;
 		}
 
+        // if we are only running a specified amount of time
         t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
 		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(t_time > sconf->obj->qs_obj.gbl_override_time))
@@ -2858,8 +2893,7 @@ int update_check(static_conf_t *sconf)
 			sconf->num_r = sconf->last_numfull + sconf->last_numpartial;
 		}
 
-
-		// also change rel sum to update_rels below...
+		// update screen
 		if (VFLAG >= 0)
 		{
             uint32 total_rels = sconf->num_full + sconf->num_slp +
@@ -2920,7 +2954,7 @@ int update_check(static_conf_t *sconf)
 					sconf->num_cycles,
 					(double)(sconf->num_relations + sconf->num_cycles) / t_time);
 			}
-
+            
 			fflush(stdout);
 		}
 
@@ -2931,14 +2965,36 @@ int update_check(static_conf_t *sconf)
 		// TLP c135 leyland et. al testcase
 		// 116915434112329921568236283928181979297762987646390347857868153872054154807376462439621333455331738807075404918922573575454310187518221
 
+        // if we are using TLP, this is where we periodically filter to
+        // test cycle formation.
 		if (sconf->use_dlp == 2)
 		{
-			uint32 total_rels = sconf->num_full + sconf->num_slp +
+	        uint32 total_rels = sconf->num_full + sconf->num_slp +
 				sconf->dlp_useful + sconf->tlp_useful;
 
-			if ((total_rels > check_total) && 
-                //(sconf->batch_run_override == 0) && 
-                (sconf->num_found < sconf->factor_base->B))
+            if (0) //!sconf->do_periodic_tlp_filter)
+            {
+                // if we are not doing periodic filtering, it means that
+                // we know approximately how many relations are needed for
+                // this input and parameters.  When we reach that point,
+                // exit sieving and start filtering.  If filtering fails
+                // we'll need to build in the capability to come back into
+                // the sieve loop.
+                // This process is complicated by the fact that we may have
+                // many threads running right now.  We should take into 
+                // account the relations in-flight and if it looks like we
+                // are done, notify the other running threads to stop.
+
+                if (total_rels > sconf->est_raw_rels_needed)
+                {
+                    //we've got enough total relations to stop
+                    mpz_clear(tmp1);
+                    return 1;
+                }
+            }
+			
+            if ((total_rels > check_total) && 
+                (sconf->num_found < (sconf->factor_base->B + sconf->num_extra_relations)))
 			{
 				fact_obj_t *obj = sconf->obj;
 				siqs_r *relation_list;
@@ -3378,7 +3434,12 @@ int update_check(static_conf_t *sconf)
 				gettimeofday(&filt_stop, NULL);
 				sconf->t_time4 += yafu_difftime(&filt_start, &filt_stop);
 			}
-
+            else if (sconf->num_found >= (sconf->factor_base->B + sconf->num_extra_relations))
+            {
+                // we've got enough total relations to stop
+                retcode = 1;
+            }
+            
 		}
 		else
 		{
@@ -3798,6 +3859,7 @@ int free_siqs(static_conf_t *sconf)
 	mpz_clear(sconf->curr_a);	
     align_free(sconf->modsqrt_array);
 	align_free(sconf->factor_base->list->prime);
+    align_free(sconf->factor_base->list->binv);
 	align_free(sconf->factor_base->list->small_inv);
 	align_free(sconf->factor_base->list->correction);
 	align_free(sconf->factor_base->list->logprime);

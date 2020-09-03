@@ -580,7 +580,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         }
 #endif
 
-#if defined (_MSC_VER)
+#if (defined (_MSC_VER) && !defined(USE_AVX512F))
         for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
         {
             SCAN_16X;

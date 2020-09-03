@@ -83,6 +83,32 @@ void submod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 
+#if defined(USE_AVX512F) || defined(USE_BMI2)
+__inline uint64 mulx64(uint64 x, uint64 y, uint64* hi) {
+    __asm__(
+        "mulx %3, %0, %1	\n\t"
+        : "=&d"(x), "=&a"(y)
+        : "0"(x), "1"(y)
+    );
+
+    *hi = y;
+    return x;
+}
+#endif
+__inline uint64 mul64(uint64 x, uint64 y, uint64* hi) {
+    __asm__(
+        "mulq %3	\n\t"
+        : "=&a"(x), "=&d"(y)
+        : "0"(x), "1"(y)
+        : "cc"
+    );
+
+    *hi = y;
+    return x;
+}
+
+
+
 __inline uint64 submod(uint64 a, uint64 b, uint64 n)
 {
     __asm__(
@@ -381,7 +407,7 @@ __inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
 #endif
 
 
-#elif _MSC_VERasdf
+#elif _MSC_VER
 
 // TODO: need something portable to replace 64-bit assembler versions
 // of modular multiplication.  This is getting closer, but for now these things
@@ -405,14 +431,14 @@ __inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
 __inline uint64 u64div(uint64 c, uint64 n)
 {
     uint64 r;
-    mpz_t a;
-    mpz_init(a);
-    mpz_set_ui(a, c);
-    mpz_mul_2exp(a, a, 64);
-    r = mpz_tdiv_ui(a, n);
-    mpz_clear(a);
+    //mpz_t a;
+    //mpz_init(a);
+    //mpz_set_ui(a, c);
+    //mpz_mul_2exp(a, a, 64);
+    //r = mpz_tdiv_ui(a, n);
+    //mpz_clear(a);
     // first available in Visual Studio 2019
-    //_udiv128(c, 0, n, &r);
+    _udiv128(c, 0, n, &r);
 
     return r;
 }
@@ -486,6 +512,38 @@ __inline uint64 addmod(uint64 x, uint64 y, uint64 n)
     //    r -= n;
     //}
 }
+
+
+// good to 60 bit inputs
+__inline uint64 sqrredc60(uint64 x, uint64 n, uint64 nhat)
+{
+    uint64 th, tl, u, ah, al;
+    uint8 c;
+    tl = _umul128(x, x, &th);
+    u = tl * nhat;
+    al = _umul128(u, n, &ah);
+    c = _addcarry_u64(0, al, tl, &al);
+    _addcarry_u64(c, th, ah, &x);
+    return x;
+}
+
+
+// good to 60 bit inputs
+__inline uint64 mulredc60(uint64 x, uint64 y, uint64 n, uint64 nhat)
+{
+    uint64 th, tl, u, ah, al;
+    uint8 c;
+    tl = _umul128(x, y, &th);
+    u = tl * nhat;
+    al = _umul128(u, n, &ah);
+    c = _addcarry_u64(0, al, tl, &al);
+    _addcarry_u64(c, th, ah, &x);
+    return x;
+}
+
+
+// this works if inputs are 62 bits or less
+#define addmod60(x, y, n) ((x) + (y))
 
 #else
 

@@ -158,7 +158,7 @@ void resieve_medprimes_32k_knl(uint32 *reports, uint32 num_reports,
             meq1 |= _mm512_mask_cmp_epi32_mask(lanemask2, vblock, vresieve16b, _MM_CMPINT_EQ);
 
             // scan to find all set bits and trial divide with the appropriate prime
-            while ((idx = _mm_tzcnt_32(meq1)) < 16)
+            while ((idx = _tzcnt_u32(meq1)) < 16)
             {
                 id = i+idx*2;
                 while (mpz_tdiv_ui(dconf->Qvals[reports[j]], fbc->prime[id]) == 0)

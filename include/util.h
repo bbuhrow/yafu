@@ -214,4 +214,27 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 }
 #endif
 
+
+
+
+typedef struct
+{
+    uint8** hashBins;
+    uint64** hashKey;
+    uint32* binSize;
+    uint32 numBins;
+    uint32 numBinsPow2;
+    uint32 numStored;
+    uint32 elementSizeB;
+} hash_t;
+
+hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements);
+void deleteHash(hash_t* hash);
+void hashPut(hash_t* hash, uint8* element, uint64 key);
+void hashGet(hash_t* hash, uint64 key, uint8* element);
+
+
+
+
+
 #endif /* _UTIL_H_ */

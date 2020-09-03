@@ -66,6 +66,100 @@ const char* szFeatures[] =
     "Pending Break Enable"
 };
 
+
+
+
+hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements)
+{
+    hash_t *hashTable;
+    int i;
+
+    hashTable = (hash_t*)xmalloc(sizeof(hash_t));
+    hashTable->hashKey = (uint64**)xmalloc((1 << pow2numElements) * sizeof(uint64*));
+    hashTable->hashBins = (uint8 **)xmalloc((1 << pow2numElements) * sizeof(uint8*));
+    hashTable->binSize = (uint32*)xcalloc((1 << pow2numElements), sizeof(uint32));
+    hashTable->elementSizeB = elementSizeB;
+    hashTable->numStored = 0;
+    hashTable->numBinsPow2 = pow2numElements;
+    hashTable->numBins = 1 << pow2numElements;
+
+    printf("initialized hash array of size %u with elements of size %u\n",
+        hashTable->numBins, hashTable->elementSizeB);
+
+    for (i = 0; i < hashTable->numBins; i++)
+    {
+        hashTable->hashBins[i] = (uint8*)xmalloc(elementSizeB);
+        hashTable->hashKey[i] = (uint64*)xmalloc(sizeof(uint64));
+    }
+
+    return hashTable;
+}
+
+void deleteHash(hash_t* hash)
+{
+    int i;
+
+    for (i = 0; i < hash->numBins; i++)
+    {
+        free(hash->hashBins[i]);
+        free(hash->hashKey[i]);
+    }
+
+    free(hash->hashBins);
+    free(hash->hashKey);
+    free(hash->binSize);
+    hash->numStored = 0;
+    hash->numBins = 0;
+    free(hash);
+}
+
+void hashPut(hash_t* hash, uint8* element, uint64 key)
+{
+    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
+    //printf("hashPut into bin %u with key %u\n", binNum, key);
+
+    if (hash->binSize[binNum] > 0)
+    {
+        //printf("growing bin %u size to %u\n", binNum + 1, hash->binSize[binNum] + 1);
+        hash->hashBins[binNum] = (uint8*)xrealloc(hash->hashBins[binNum],
+            (hash->binSize[binNum] + 1) * hash->elementSizeB);
+        hash->hashKey[binNum] = (uint64*)xrealloc(hash->hashKey[binNum],
+            (hash->binSize[binNum] + 1) * sizeof(uint64));
+        memcpy(&hash->hashBins[binNum][hash->elementSizeB * hash->binSize[binNum]],
+            element, hash->elementSizeB);
+        hash->hashKey[binNum][hash->binSize[binNum]] = key;
+        hash->binSize[binNum]++;
+    }
+    else
+    {
+        memcpy(hash->hashBins[binNum], element, hash->elementSizeB);
+        hash->hashKey[binNum][hash->binSize[binNum]] = key;
+        hash->binSize[binNum]++;
+    }
+
+    hash->numStored++;
+
+    return;
+}
+
+void hashGet(hash_t* hash, uint64 key, uint8*element)
+{
+    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
+    int i;
+    
+    for (i = 0; i < hash->binSize[binNum]; i++)
+    {
+        if (hash->hashKey[binNum][i] == key)
+        {
+            memcpy(element, &hash->hashBins[binNum][hash->elementSizeB * i],
+                hash->elementSizeB);
+            return;
+        }
+    }
+    return;
+}
+
+
 fp_digit spRand(fp_digit lower, fp_digit upper)
 {
 	// advance the state of the LCG and return the appropriate result
@@ -197,7 +291,6 @@ void zRand(z *n, uint32 ndigits)
 
 	return;
 }
-
 
 void sInit(str_t *s)
 {

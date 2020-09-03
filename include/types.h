@@ -31,7 +31,6 @@ code to the public domain.
     #include <malloc.h>
 #endif
 
-
 #if defined(WIN32)
 
 	#define WIN32_LEAN_AND_MEAN
@@ -230,7 +229,7 @@ code to the public domain.
 #endif
 
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
-	#if defined(__MINGW64__)
+	#if defined(__MINGW64__) || defined(__MSYS__)
 		#include <mm_malloc.h>
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit _strtoui64

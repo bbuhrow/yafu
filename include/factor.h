@@ -386,6 +386,7 @@ typedef struct
 	uint32 gbl_override_lpb;		// override the large prime bound (specified in bits)
 	double gbl_override_mfbt;		// override the mfbt exponent
 	double gbl_override_mfbd;		// override the mfbd exponent
+    uint32 gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
 
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method

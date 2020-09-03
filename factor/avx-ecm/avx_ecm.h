@@ -30,16 +30,17 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "util.h"
 #include "queue.h"
+#include "types.h"
 #include <stdint.h>
 
 //#define HALF_VEC
 #define INV_2_POW_64 5.4210108624275221700372640043497e-20
 
-#if defined (__INTEL_COMPILER)
-#define ALIGNED_MEM __declspec(align(64))
-#else
-#define ALIGNED_MEM __attribute__((aligned(64)))
-#endif
+//#if defined (__INTEL_COMPILER)
+//#define ALIGNED_MEM __declspec(align(64))
+//#else
+//#define ALIGNED_MEM __attribute__((aligned(64)))
+//#endif
 
 #define DEFINED 1
 #define MAX_WINSIZE 8

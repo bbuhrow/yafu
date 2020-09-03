@@ -55,6 +55,8 @@ this file contains code implementing 1)
 */
 
 
+#ifndef USE_AVX512F
+
 
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SCAN_CLEAN asm volatile("emms");	
@@ -377,29 +379,29 @@ this file contains code implementing 1)
 #if defined(USE_AVX2)
 
 
-#define SIEVE_SCAN_32_VEC					\
-__m256i v_blk = _mm256_load_si256(sieveblock + j); \
-uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
-result = 0; \
-while (_BitScanForward(&pos, msk32)) { \
+    #define SIEVE_SCAN_32_VEC					\
+        __m256i v_blk = _mm256_load_si256(sieveblock + j); \
+        uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
+        result = 0; \
+        while (_BitScanForward(&pos, msk32)) { \
             buffer[result++] = pos; \
             _reset_lsb(msk32); \
         }
 
 #define SIEVE_SCAN_64_VEC				\
-__m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
-uint32 pos; \
-uint64 msk64 = _mm256_movemask_epi8(v_blk); \
-result = 0; \
-if (msk64 > 0) { \
-v_blk = _mm256_load_si256(sieveblock + j + 4); \
-msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
-v_blk = _mm256_load_si256(sieveblock + j); \
-msk64 |= _mm256_movemask_epi8(v_blk); \
-while (_BitScanForward64(&pos, msk64)) { \
-            buffer[result++] = (uint8)pos; \
-            _reset_lsb64(msk64); \
-        }}
+    __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
+    uint32 pos; \
+    uint64 msk64 = _mm256_movemask_epi8(v_blk); \
+    result = 0; \
+    if (msk64 > 0) { \
+        v_blk = _mm256_load_si256(sieveblock + j + 4); \
+        msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
+        v_blk = _mm256_load_si256(sieveblock + j); \
+        msk64 |= _mm256_movemask_epi8(v_blk); \
+        while (_BitScanForward64(&pos, msk64)) { \
+                    buffer[result++] = (uint8)pos; \
+                    _reset_lsb64(msk64); \
+        } }
 #endif
 
 #else	/* compiler not recognized*/
@@ -1001,4 +1003,4 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-
+#endif
