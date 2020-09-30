@@ -32,7 +32,7 @@ code to the public domain.
 #endif
 
 // the number of recognized command line options
-#define NUMOPTIONS 85
+#define NUMOPTIONS 86
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 
@@ -54,7 +54,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 	"filt_bump", "nc1", "gnfs", "e", "repeat",
 	"ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
-	"siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1" };
+	"siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
+    "siqsNobat"};
 
 // indication of whether or not an option needs a corresponding argument
 // 0 = no argument
@@ -77,7 +78,8 @@ int needsArg[NUMOPTIONS] = {
 	1,0,0,1,1,
 	1,0,1,1,1,
 	1,1,0,1,1,
-	1,1,1,0,0};
+	1,1,1,0,0,
+    0};
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);
@@ -272,784 +274,6 @@ int main(int argc, char *argv[])
 #else
     LCGSTATE = g_rand.low;
 #endif	
-
-
-
-#include "batch_factor.h"
-
-    
-    if (0)
-    {
-        // testing batch factoring
-        // batch size, tdiv,  tdiv %, batch, batch %, speedup
-        // 1000000,    184.2, 88%,    23.2,  47%,     7.9x
-        // 500000,     91.6,  89%,    11.1,  47%,     8.2x
-        // 250000,     45.9,  89%,    5.7,   47%,     8.1x
-        // 125000,     22.8,  89%,    3.3,   47%,     7x
-
-        // generate TLP's and put into relation structures.
-        uint64 *p, *pbig1, *pbig2;
-        uint64 np;
-        int i, j;
-        FILE *fid;
-        mpz_t g, h, x;
-        gmp_randstate_t randstate;
-        relation_batch_t rb;
-        relation_batch_t rb2;
-        savefile_t svf;
-        uint32 num_relations = 500000;
-        
-        uint32 lpmaxbits = 29;
-        uint32 lpmax = 1 << lpmaxbits;
-        uint32 minprime = 6397991; // ;
-        //uint32 maxprime = (double)lpmax/(3.0);
-        //uint32 maxprime = lpmax / 2;
-        //uint32 maxprime = lpmax / 4;
-        uint32 maxprime = lpmax;
-
-        double pmax3 = (double)minprime * (double)minprime * (double)minprime;
-        double lpmax3 = pow((double)lpmax, 3); // (double)lpmax * (double)lpmax * (double)lpmax;
-        uint32 num_success = 0;
-        uint32 num3lp = 0;
-        uint32 num2lp = 0;
-        uint32 found3lp = 0;
-        uint32 found2lp = 0;
-
-        mpz_init(g);
-        mpz_init(h);
-        mpz_init(x);
-        gmp_randinit_default(randstate);
-
-        printf("initializing batch with minprime = %u, maxprime = %u\n", minprime, maxprime);
-
-        relation_batch_init(stdout, &rb, minprime, maxprime, lpmax, lpmax, &svf,
-            (print_relation_t)NULL, 1);
-        rb.target_relations = 1000000;
-
-        //relation_batch_init(stdout, &rb2, minprime, maxprime, lpmax, lpmax, &svf,
-        //    (print_relation_t)NULL, 0);
-
-        //mpz_set(rb2.prime_product, rb.prime_product);
-
-        for (i = 0; i < num_relations; i++)
-        {
-            uint64 r = spRand(0, 1000);
-
-            if (r < 400)
-            {
-                // 40% of the time, generate large primes
-                mpz_urandomb(x, randstate, lpmaxbits * 3);
-                mpz_nextprime(x, x);
-            }
-            else if (r < 900)
-            {
-                // 50% of the time, generate a good prime and a large prime
-                //mpz_urandomb(x, randstate, lpmaxbits);
-                mpz_set_ui(x, spRand(minprime, lpmax));
-                mpz_nextprime(x, x);
-                mpz_urandomb(g, randstate, lpmaxbits * 2);
-                mpz_nextprime(g, g);
-                mpz_mul(x, x, g);
-            }
-            else if (r < 980)
-            {
-                // 8% of the time, generate a DLP
-                mpz_set_ui(x, spRand(minprime, lpmax));
-                mpz_nextprime(x, x);
-                mpz_set_ui(g, spRand(minprime, lpmax));
-                mpz_nextprime(g, g);
-                mpz_mul(x, x, g);
-                num2lp++;
-            }
-            else //if (r < 950)
-            {
-                // generate a random TLP
-                mpz_set_ui(x, spRand(minprime, lpmax));
-                mpz_nextprime(x, x);
-                mpz_set_ui(g, spRand(minprime, lpmax));
-                mpz_nextprime(g, g);
-                mpz_mul(x, x, g);
-                mpz_set_ui(g, spRand(minprime, lpmax));
-                mpz_nextprime(g, g);
-                mpz_mul(x, x, g);
-                num3lp++;
-            }
-            //else
-            //{
-            //    // 5% of the time, generate a TLP that will all be found by the gcd
-            //    // and thus require the big guns
-            //    mpz_set_ui(x, spRand(minprime, maxprime));
-            //    mpz_nextprime(x, x);
-            //    mpz_set_ui(g, spRand(minprime, maxprime));
-            //    mpz_nextprime(g, g);
-            //    mpz_mul(x, x, g);
-            //    mpz_set_ui(g, spRand(minprime, maxprime));
-            //    mpz_nextprime(g, g);
-            //    mpz_mul(x, x, g);
-            //    num3lp++;
-            //}
-
-            mpz_set_ui(g, 0);
-            //if (mpz_get_d(x) < ((double)pow(lpmax, 2.8)))
-                relation_batch_add(1, 1, 1, NULL, 0, x, NULL, 0, g, h, &rb);
-        }
-
-        printf("generated %u relations with %u dlp and %u tlp\n", rb.num_relations, num2lp, num3lp);
-
-        double t;
-        struct timeval tstart, tstop;
-        uint32 *f;
-
-        gettimeofday(&tstart, NULL);
-
-        for (i = 0; i < rb.num_relations / 10; i++)
-        {
-            cofactor_t *c = rb.relations + i;
-            uint32 *f = rb.factors + c->factor_list_word;
-            uint32 *lp1 = f + c->num_factors_r + c->num_factors_a;
-
-            mpz_set_ui(x, lp1[c->lp_r_num_words - 1]);
-            for (j = c->lp_r_num_words - 2; j >= 0; j--)
-            {
-                mpz_mul_2exp(x, x, 32);
-                mpz_add_ui(x, x, lp1[j]);
-            }
-
-            if ((mpz_size(x) == 1) &&
-                (mpz_cmp_ui(x, lpmax) < 0))
-            {
-                //gmp_printf("%Zd = %u\n", x, mpz_get_ui(x));
-                num_success++;
-                continue;
-            }
-
-            // quick check if Q is way too big for DLP (more than 64 bits)	
-            if (mpz_sizeinbase(x, 2) < 64)
-            {
-                uint64 res;
-
-                uint64 q64 = mpz_get_64(x);
-
-                if ((q64 > ((uint64)minprime * (uint64)minprime)) && 
-                    (q64 < ((uint64)lpmax * (uint64)lpmax)))
-                {
-                    //quick prime check: compute 2^(residue-1) mod residue.  
-                    res = spPRP2(q64);
-
-                    //if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
-                    //more important to quickly weed out probable primes than to spend more time to be
-                    //more sure.
-                    if (res == 1)
-                    {
-                        continue;
-                    }
-
-                    //try to find a double large prime
-
-                    uint64 f64 = do_uecm(q64);
-
-                    if (f64 > 1 && f64 != q64)
-                    {
-                        uint32 large_prime[3];
-
-                        large_prime[0] = (uint32)f64;
-                        large_prime[1] = (uint32)(q64 / f64);
-                        large_prime[2] = 1;
-
-                        if ((large_prime[0] < lpmax) &&
-                            (large_prime[1] < lpmax))
-                        {
-                            //add this one
-                            //gmp_printf("%Zd = %u * %u\n", x, large_prime[0], large_prime[1]);
-                            found2lp++;
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        continue;
-                    }
-
-                    // whether we found a DLP or not, we are done checking.
-                    continue;
-
-                }
-                else
-                {
-                    // too big for DLP, but too small for TLP (if active).
-                    continue;
-                }
-            }
-            else
-            {
-                //dconf->dlp_outside_range++;
-                //continue;
-            }
-
-            // quick check if Q should be subjected to TLP factoring
-            if (mpz_sizeinbase(x, 2) < 96)
-            {
-                /*
-                ideas:
-                look at successful tlp relations and see if there is a predictor
-                in the number of normal factors or total size of factors found
-
-                fast ecm tuned for small inputs
-
-                adaptive TF cutoff tweaking to get about 10% success rate in tlp attempts
-
-                adaptive filtering passes or heuristic on when to start filtering
-                */
-
-                uint64 res;
-                uint32 numit = 128;
-
-                double qfloat = mpz_get_d(x);
-
-                //#define OUTPUT_TLP_ATTEMPT_DETAILS
-
-                if ((qfloat > (double)pmax3) && (qfloat < lpmax3))
-                {
-                    uint32 large_prime[3];
-                    uint32 r;
-
-                    res = mpz_probab_prime_p(x, 1);
-
-                    if (res)
-                    {
-                        //dconf->tlp_prp++;
-                        continue;
-                    }
-
-                    // try to factor with cosiqs
-                    //dconf->attempted_cosiqs++;
-
-                    mpz_set_ui(g, 0);
-                    mpz_set_ui(h, 0);
-                    if (1)
-                    {
-                        int B1, B2, curves, bits = mpz_sizeinbase(x, 2);
-                        int targetBits = bits / 3 + 1;
-                        if (targetBits <= 25)
-                        {
-                            B1 = 70;
-                            curves = 16;
-                        }
-                        else if (targetBits <= 26)
-                        {
-                            B1 = 85;
-                            curves = 16;
-                        }
-                        else if (targetBits <= 29)
-                        {
-                            B1 = 125;
-                            curves = 16;
-                        }
-                        else if (targetBits <= 31)
-                        {
-                            B1 = 165;
-                            curves = 24;
-                        }
-                        else if (targetBits <= 32)
-                        {
-                            B1 = 205;
-                            curves = 24;
-                        }
-                        else
-                        {
-                            printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
-                        }
-
-                        tinyecm(x, g, B1, B1 * 25, curves, 0);
-                        if (mpz_sizeinbase(g, 2) > 32)
-                        {
-                            continue;
-                        }
-
-                        large_prime[0] = mpz_get_ui(g);
-                        if ((large_prime[0] > 1) && (large_prime[0] < lpmax))
-                        {
-                            // first factor qualifies.  
-                            // divide out factor with sanity check
-                            r = mpz_tdiv_q_ui(h, x, large_prime[0]);
-                            if (r != 0)
-                            {
-                                gmp_printf("tlp0 problem: r != 0, Q = %Zd, LP = %u\n",
-                                    x, large_prime[0]);
-                                //dconf->failed_cosiqs++;
-                                continue;
-                            }
-
-                            if (mpz_sizeinbase(h, 2) > 64)
-                            {
-                                continue;
-                            }
-
-                            // check if the residue is prime.
-                            res = mpz_probab_prime_p(h, 1);
-
-                            if (res)
-                            {
-                                //dconf->tlp_prp++;
-                                continue;
-                            }
-
-                            // ok, so we have extracted one suitable factor, and the 
-                            // cofactor is not prime.  Do more work to split the cofactor,
-                            // which is now <= 64 bits in size.
-                            uint64 q64 = mpz_get_ui(h);
-                            uint64 f64 = do_uecm(q64);
-                            mpz_set_ui(g, f64);
-                            if (mpz_sizeinbase(g, 2) > 32)
-                            {
-                                continue;
-                            }
-
-                            large_prime[1] = f64;
-                            if ((large_prime[1] <= 1) || (f64 == q64))
-                            {
-                                //dconf->failed_cosiqs++;
-                                continue;
-                            }
-
-                            // sanity check
-                            r = q64 % large_prime[1];
-                            if (r != 0)
-                            {
-                                printf("tlp1 problem: r != 0, Q = %lu, LP = %u\n",
-                                    q64, large_prime[1]);
-                                //dconf->failed_cosiqs++;
-                                continue;
-                            }
-
-                            q64 /= large_prime[1];
-                            mpz_set_ui(g, q64);
-                            if (mpz_sizeinbase(g, 2) > 32)
-                            {
-                                continue;
-                            }
-
-                            large_prime[2] = q64;
-
-                            if (large_prime[2] <= 1)
-                            {
-                                //dconf->failed_cosiqs++;
-                                continue;
-                            }
-
-                            if ((large_prime[0] < lpmax) &&
-                                (large_prime[1] < lpmax) &&
-                                (large_prime[2] < lpmax))
-                            {
-                                // add this one
-                                //dconf->tlp_useful++;
-                                //gmp_printf("%Zd = %u * %u * %u\n", x, 
-                                //    large_prime[0], large_prime[1], large_prime[2]);
-                                found3lp++;
-                                continue;
-                            }
-                        }
-                        else
-                        {
-                            continue;
-                        }
-
-                    }
-                    else
-                    {
-                        //dconf->failed_cosiqs++;
-                        continue;
-                    }
-                }
-                else
-                {
-                    //dconf->tlp_outside_range++;
-                    continue;
-                }
-            }
-            else
-            {
-                //dconf->tlp_outside_range++;
-                continue;
-            }
-
-        }
-
-        gettimeofday(&tstop, NULL);
-
-        t = yafu_difftime(&tstart, &tstop);
-        printf("recovered %u dlp (of %u) and %u tlp (of %u) in %6.4f sec using yafu tdiv\n", 
-            found2lp * 10, num2lp, found3lp * 10, num3lp, t * 10);
-        
-        int run;
-        double e;
-        int last_d = 1;
-        int steps = 6;
-        relation_batch_init(stdout, &rb2, minprime, lpmax / last_d, lpmax, lpmax, &svf,
-                (print_relation_t)NULL, 1);
-                
-        for (run = 0; run < steps * steps; run++)
-        {
-            int d;
-
-            e = 3 - 0.05 * (run % steps);
-            d = 1 + (int)(run / steps);
-
-            if (d != last_d)
-            {
-                relation_batch_free(&rb2);
-                relation_batch_init(stdout, &rb2, minprime, lpmax / d, lpmax, lpmax, &svf,
-                    (print_relation_t)NULL, 1);
-            }
-            last_d = d;
-
-            lpmax3 = pow((double)lpmax, e);
-
-            gettimeofday(&tstart, NULL);
-
-            found2lp = found3lp = 0;
-
-            for (i = 0; i < rb.num_relations; i++)
-            {
-                cofactor_t *c = rb.relations + i;
-                uint32 *f = rb.factors + c->factor_list_word;
-                uint32 *lp1 = f + c->num_factors_r + c->num_factors_a;
-
-                mpz_set_ui(x, lp1[c->lp_r_num_words - 1]);
-                for (j = c->lp_r_num_words - 2; j >= 0; j--)
-                {
-                    mpz_mul_2exp(x, x, 32);
-                    mpz_add_ui(x, x, lp1[j]);
-                }
-
-                if ((mpz_size(x) == 1) &&
-                    (mpz_cmp_ui(x, lpmax) < 0))
-                {
-                    //gmp_printf("%Zd = %u\n", x, mpz_get_ui(x));
-                    num_success++;
-                    continue;
-                }
-
-                // quick check if Q is way too big for DLP (more than 64 bits)	
-                if (mpz_sizeinbase(x, 2) < 64)
-                {
-                    uint64 res;
-
-                    uint64 q64 = mpz_get_64(x);
-
-                    if ((q64 > ((uint64)minprime * (uint64)minprime)) &&
-                        (q64 < ((uint64)lpmax * (uint64)lpmax)))
-                    {
-                        //quick prime check: compute 2^(residue-1) mod residue.  
-                        res = spPRP2(q64);
-
-                        //if equal to 1, assume it is prime.  this may be wrong sometimes, but we don't care.
-                        //more important to quickly weed out probable primes than to spend more time to be
-                        //more sure.
-                        if (res == 1)
-                        {
-                            continue;
-                        }
-
-                        //try to find a double large prime
-
-                        uint64 f64 = do_uecm(q64);
-
-                        if (f64 > 1 && f64 != q64)
-                        {
-                            uint32 large_prime[3];
-
-                            large_prime[0] = (uint32)f64;
-                            large_prime[1] = (uint32)(q64 / f64);
-                            large_prime[2] = 1;
-
-                            if ((large_prime[0] < lpmax) &&
-                                (large_prime[1] < lpmax))
-                            {
-                                //add this one
-                                //gmp_printf("%Zd = %u * %u\n", x, large_prime[0], large_prime[1]);
-                                found2lp++;
-                                continue;
-                            }
-                        }
-                        else
-                        {
-                            continue;
-                        }
-
-                        // whether we found a DLP or not, we are done checking.
-                        continue;
-
-                    }
-                    else
-                    {
-                        // too big for DLP, but too small for TLP (if active).
-                        continue;
-                    }
-                }
-                else
-                {
-                    //dconf->dlp_outside_range++;
-                    //continue;
-                }
-
-                // quick check if Q should be subjected to TLP factoring
-                if (mpz_sizeinbase(x, 2) < 96)
-                {
-                    /*
-                    ideas:
-                    look at successful tlp relations and see if there is a predictor
-                    in the number of normal factors or total size of factors found
-
-                    fast ecm tuned for small inputs
-
-                    adaptive TF cutoff tweaking to get about 10% success rate in tlp attempts
-
-                    adaptive filtering passes or heuristic on when to start filtering
-                    */
-
-                    double qfloat = mpz_get_d(x);
-
-                    //#define OUTPUT_TLP_ATTEMPT_DETAILS
-
-                    if (qfloat < lpmax3)
-                    {
-                        mpz_set_ui(g, 0);
-                        relation_batch_add(1, 1, 1, NULL, 0, x, NULL, 0, g, h, &rb2);
-                    }
-                }
-            }
-
-            printf("processing batch of %u relations\n", rb.num_relations);
-            relation_batch_run(&rb2);
-
-            gettimeofday(&tstop, NULL);
-            t = yafu_difftime(&tstart, &tstop);
-
-            for (i = 0; i < rb2.num_relations; i++)
-            {
-                cofactor_t *c = rb2.relations + i;
-                uint32 *f = rb2.factors + c->factor_list_word;
-
-                if (c->success == 3)
-                {
-                    //mpz_set_ui(x, c->lp_r[0]);
-                    //mpz_mul_ui(x, x, c->lp_r[1]);
-                    //mpz_mul_ui(x, x, c->lp_r[2]);
-                    //gmp_printf("%Zd = %u * %u * %u\n", x,
-                    //    c->lp_r[0], c->lp_r[1], c->lp_r[2]);
-                    found3lp++;
-                }
-                else if (c->success == 2)
-                {
-                    found2lp++;
-                }
-            }
-
-            printf("recovered %u dlp (of %u) and %u tlp (of %u) in %6.4f sec using batch factoring with lpmax / %d and e = %f\n",
-                found2lp, num2lp, found3lp, num3lp, t, d, e);
-            fflush(stdout);
-
-            rb2.num_relations = 0;
-            rb2.num_success = 0;
-            //relation_batch_free(&rb2);
-        }
-
-        if (0)
-        {
-            rb2.lp_cutoff_r = lpmax / 2;
-            mpz_set_ui(rb2.lp_cutoff_r2, rb2.lp_cutoff_r);
-            mpz_mul_ui(rb2.lp_cutoff_r2, rb2.lp_cutoff_r2, rb2.lp_cutoff_r);
-
-            gettimeofday(&tstart, NULL);
-
-            found2lp = found3lp = 0;
-            relation_batch_run(&rb2);
-
-            gettimeofday(&tstop, NULL);
-            t = yafu_difftime(&tstart, &tstop);
-
-            for (i = 0; i < rb2.num_relations; i++)
-            {
-                cofactor_t *c = rb2.relations + i;
-                uint32 *f = rb2.factors + c->factor_list_word;
-
-                if (c->success == 3)
-                {
-                    //mpz_set_ui(x, c->lp_r[0]);
-                    //mpz_mul_ui(x, x, c->lp_r[1]);
-                    //mpz_mul_ui(x, x, c->lp_r[2]);
-                    //gmp_printf("%Zd = %u * %u * %u\n", x,
-                    //    c->lp_r[0], c->lp_r[1], c->lp_r[2]);
-                    found3lp++;
-                }
-                else if (c->success == 2)
-                {
-                    found2lp++;
-                }
-            }
-
-            printf("recovered %u dlp (of %u) and %u tlp (of %u) in %6.4f sec using batch factoring with lpmax/2\n",
-                found2lp, num2lp, found3lp, num3lp, t);
-            fflush(stdout);
-
-            rb2.lp_cutoff_r = lpmax / 3;
-            mpz_set_ui(rb2.lp_cutoff_r2, rb2.lp_cutoff_r);
-            mpz_mul_ui(rb2.lp_cutoff_r2, rb2.lp_cutoff_r2, rb2.lp_cutoff_r);
-
-            gettimeofday(&tstart, NULL);
-
-            found2lp = found3lp = 0;
-            relation_batch_run(&rb2);
-
-            gettimeofday(&tstop, NULL);
-            t = yafu_difftime(&tstart, &tstop);
-
-            for (i = 0; i < rb2.num_relations; i++)
-            {
-                cofactor_t *c = rb2.relations + i;
-                uint32 *f = rb2.factors + c->factor_list_word;
-
-                if (c->success == 3)
-                {
-                    //mpz_set_ui(x, c->lp_r[0]);
-                    //mpz_mul_ui(x, x, c->lp_r[1]);
-                    //mpz_mul_ui(x, x, c->lp_r[2]);
-                    //gmp_printf("%Zd = %u * %u * %u\n", x,
-                    //    c->lp_r[0], c->lp_r[1], c->lp_r[2]);
-                    found3lp++;
-                }
-                else if (c->success == 2)
-                {
-                    found2lp++;
-                }
-            }
-
-            printf("recovered %u dlp (of %u) and %u tlp (of %u) in %6.4f sec using batch factoring with lpmax/3\n",
-                found2lp, num2lp, found3lp, num3lp, t);
-            fflush(stdout);
-        }
-
-        exit(0);
-    }
-
-
-	if (0)
-	{
-		// generate a test file of TLP's, where we have three 32-bit factors.
-		uint64 *p, *pbig1, *pbig2;
-		uint64 np;
-		int i, j;
-		FILE *fid;
-		mpz_t g, h, x;
-        gmp_randstate_t randstate;
-
-		mpz_init(g);
-		mpz_init(h);
-		mpz_init(x);
-        gmp_randinit_default(randstate);
-
-        for (j = 24; j <= 40; j += 2)
-        {
-            char s[20];
-            sprintf(s, "testdata_%dbit", j);
-            fid = fopen(s, "w");
-            for (i = 0; i < 100000; i++)
-            {
-                int b1, b2;
-                if (j < 32)
-                {
-                    b1 = spRand(j / 2 - 1, j - (j / 2 - 1));
-                    b2 = j - ((j / 2) - 1);
-                }
-                else
-                {
-                    b1 = spRand(15, j - 15);
-                    b2 = j - 15;
-                }
-
-                mpz_rrandomb(g, randstate, b1);
-                mpz_rrandomb(h, randstate, b2);
-                mpz_nextprime(g, g);
-                mpz_nextprime(h, h);
-                mpz_mul(x, g, h);
-                uint64 a = mpz_get_ui(g);
-                uint64 b = mpz_get_ui(h);
-
-                gmp_fprintf(fid, "%Zu, %llu,%llu\n", x, a, b);
-            }
-
-            fclose(fid);
-        }
-
-        exit(0);
-
-
-		p = soe_wrapper(spSOEprimes, szSOEp, (1ULL << 31), (1ULL << 31) + (1ULL << 30), 0, &np);
-
-		printf("found %lu primes in range\n", np);
-		fid = fopen("semiprimes_tlp_32x32x32.txt", "w");
-
-		for (i = 0; i < 10000; i++)
-		{
-			uint64 p1 = p[spRand(0, np)];
-			uint64 p2 = p[spRand(0, np)];
-			uint64 p3 = p[spRand(0, np)];
-
-			mpz_set_ui(g, p1);
-			mpz_mul_ui(g, g, p2);
-			mpz_mul_ui(g, g, p3);
-			gmp_fprintf(fid, "%Zd,%u,%u,%u\n", g, p1, p2, p3);
-		}
-
-		fclose(fid);
-
-		fid = fopen("semiprimes_tlp_32x64.txt", "w");
-
-		for (i = 0; i < 10000; i++)
-		{
-			uint64 p1 = p[spRand(0, np)];
-			uint64 p2 = p[spRand(0, np)];
-			uint64 p3 = p[spRand(0, np)];
-
-			mpz_set_ui(g, p2 * p3);
-			mpz_nextprime(h, g);
-			mpz_mul_ui(g, h, p1);
-
-			gmp_fprintf(fid, "%Zd,%lu,%Zd\n", g, p1, h);
-		}
-
-		fclose(fid);
-
-		fid = fopen("semiprimes_tlp_48x48.txt", "w");
-
-		for (i = 0; i < 10000; i++)
-		{
-			mpz_urandomb(g, gmp_randstate, 48);
-			mpz_nextprime(g, g);
-			mpz_urandomb(h, gmp_randstate, 48);
-			mpz_nextprime(h, h);
-			mpz_mul(x, g, h);
-
-			gmp_fprintf(fid, "%Zd,%Zd,%Zd\n", x, g, h);
-		}
-
-		fclose(fid);
-
-
-		mpz_clear(g);
-		mpz_clear(h);
-		mpz_clear(x);
-	}
-
-	//test_dlp_composites();
-    if (0)
-    {
-        z squaresum, sum;
-        //primesum_check12(0, 10000000000000ULL, 10, &squaresum, &sum);
-        primesum_check_p(0, 10000000000000ULL, 10, &squaresum);
-        exit(0);
-    }
 
 	// command line
 	while (1)
@@ -1468,7 +692,6 @@ void readINI(fact_obj_t *fobj)
 	char *key;
 	char *value;
 	int len;
-    int linenum = 0;
 
 	doc = fopen("yafu.ini","r");
 
@@ -1527,8 +750,11 @@ void readINI(fact_obj_t *fobj)
             //printf("applying option %s=%s\n", key, value);
         }
 
-        
-        printf("applying option %s=%s\n", key, value);
+        if (VFLAG > 1)
+        {
+            // you would have to list -v first to have this do anything
+            printf("applying option %s=%s\n", key, value);
+        }
 
 		//if (value == NULL)
 		//{
@@ -1561,7 +787,7 @@ void helpfunc(char *s)
 	if (s[j] == '\0')
 		j = 0;
 	else
-		while (isspace(s[j])) j++;		//skip white space
+		while (isspace((int)s[j])) j++;		//skip white space
 	func = s + j;
 
 	//func now points to a string with the desired help topic
@@ -2479,7 +1705,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2501,7 +1727,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2523,7 +1749,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2545,7 +1771,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2560,7 +1786,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2576,7 +1802,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2592,7 +1818,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2616,7 +1842,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument siqsB should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2631,7 +1857,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument siqsTF should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2646,7 +1872,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument siqsR should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2661,7 +1887,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument siqsT should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2676,7 +1902,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument siqsNB should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2691,7 +1917,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		// argument siqsM should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2740,7 +1966,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2766,7 +1992,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -2800,7 +2026,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -3126,7 +2352,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -3146,7 +2372,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -3188,7 +2414,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 		//argument should be all numeric
 		for (i=0;i<(int)strlen(arg);i++)
 		{
-			if (!isdigit(arg[i]))
+			if (!isdigit((int)arg[i]))
 			{
 				printf("expected numeric input for option %s\n",opt);
 				exit(1);
@@ -3339,6 +2565,12 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
         //argument "save_b1"
         fobj->ecm_obj.save_b1 = 1;
     }
+    else if (strcmp(opt, OptionArray[85]) == 0)
+    {
+        //argument "siqsNobat"
+        // Whether or not to use batch factoring in 3LP
+        fobj->qs_obj.gbl_override_3lp_bat = 1;
+    }
 	else
 	{
 		printf("invalid option %s\n",opt);
@@ -3438,7 +2670,9 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 
     // restore the user's xover if preferred.
     if (fobj->autofact_obj.prefer_xover)
+    {
         fobj->autofact_obj.qs_gnfs_xover = xover;
+    }
 
 	return;
 }
