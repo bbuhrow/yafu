@@ -525,6 +525,7 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
 		if (VFLAG > 1)
 		{
 			gettimeofday(&tstart, NULL);
+            printf("commencing bitmap sieve\n");
 		}
 
         res_table = (int *)malloc(sdata.prodN * sizeof(int));
@@ -721,6 +722,9 @@ uint64 spSOE(uint32 *sieve_p, uint32 num_sp, mpz_t *offset,
         }
     }
 
+    //printf("commencing sieve from %lu - %lu (originally %lu - %lu)\n",
+    //    sdata.lowlimit, sdata.highlimit, sdata.orig_llimit, sdata.orig_hlimit);
+
 	//get 'r done.
 	do_soe_sieving(&sdata, thread_data, count);
 
@@ -824,13 +828,20 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 		// PRIMES is already sized appropriately by the wrapper
 		// load in the sieve primes that we need
+        //printf("min_sieved_val = %lu\n", sdata->min_sieved_val);
+
 		i = 0;
+        //printf("adding sieve primes to count\n");
 		while (((uint64)sdata->sieve_p[i] < sdata->min_sieved_val) && (i < sdata->bucket_start_id))
 		{
-			if (sdata->sieve_p[i] >= (sdata->orig_llimit + ui_offset))		
-				num_p++;
+            if (sdata->sieve_p[i] >= (sdata->orig_llimit + ui_offset))
+            {
+                //printf("%u ", sdata->sieve_p[i]);
+                num_p++;
+            }
 			i++;
 		}
+        //printf("\n");
 	}
 	else
 	{

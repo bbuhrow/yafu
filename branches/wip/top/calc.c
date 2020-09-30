@@ -1881,11 +1881,15 @@ void calc_with_assignment(str_t* in, fact_obj_t* fobj, int force_quiet)
     {
         if (strcmp(str.s, "") != 0)
         {
+            // this hacks the result into a global that is read in the 
+            // top-level driver loop as a final return value.
+            sCopy(&gstr3, &str);
+            
+            // always set the default variable to the new answer
             mpz_set_str(tmp, str.s, 0);
             sCopy(&str, in);
-
-            // always set the default variable to the new answer
             set_uvar("ans", tmp);
+
             // and optionally any assigned variable as well.
             if (set_uvar(varname, tmp))
                 new_uvar(varname, tmp);

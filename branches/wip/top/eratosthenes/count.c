@@ -25,10 +25,58 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 	uint64 *flagblock64 = (uint64 *)line;
 	uint8 *flagblock = line;
 	uint64 i, k, it = 0;
+    uint32 lastbyte;
+    uint64 extra;
+    uint64 stopcount = (numlinebytes >> 5);
 	int ix;
 	int done, kx;
 	uint64 prime;
 
+    //printf("orig lolimit: %lu\n", sdata->orig_llimit);
+    //printf("orig hilimit: %lu\n", sdata->orig_hlimit);
+    //printf("line start: %lu\n", (uint64)sdata->rclass[current_line] + lowlimit);
+    //printf("line stop:  %lu\n", (uint64)sdata->rclass[current_line] + lowlimit + prodN * numlinebytes * 8);
+    extra = (uint64)sdata->rclass[current_line] + lowlimit + prodN * numlinebytes * 8;
+    extra -= sdata->orig_hlimit;
+
+    //printf("extra numbers beyond orig hlimit: %lu\n", extra);
+    //printf("extra flags beyond orig hlimit: %lu\n", (extra / prodN) + ((extra % prodN) > 0));
+
+    // translate the amount of extra number-line covered to
+    // the number of extra flags (which are spaced by prodN).
+    lastbyte = (extra / prodN);
+
+    // convert from an amount of extra bytes measured relative
+    // from the end of the line to the last used byte as measured
+    // from the beginning of the line.  Same for the extra bits.
+    if (lastbyte > 8)
+        lastbyte = numlinebytes - lastbyte / 8 + 1;
+    else
+        lastbyte = numlinebytes;
+
+    // now crawl backwards from this point and zero out bits 
+    // until we reach the exact original high-limit point.
+    for (ix = lastbyte * 8 - 1; ix > 0; ix--)
+    {
+        prime = prodN * (uint64)ix + (uint64)sdata->rclass[current_line] + lowlimit;
+
+        if (prime > sdata->orig_hlimit)
+        {
+            flagblock[ix >> 3] &= masks[ix & 7];
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // now zero out full bytes until we reach a 256-bit boundary.
+    // that will be the stopping point for the counting routine below.
+    for (i = lastbyte; (i < numlinebytes) && ((i & 63) > 0); i++)
+    {
+        flagblock[i] = 0;
+    }
+    
 
 #ifdef USE_AVX2
 
@@ -44,7 +92,9 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
     // process 256 bits at a time by using Warren's algorithm (the same
     // one that non-simd code uses, below) to compute the popcount
     // for four 64-bit words simultaneously.
-    for (i = 0; i < (numlinebytes >> 5); i+=2)
+    //for (i = 0; i < (numlinebytes >> 5); i+=2)
+    stopcount = i / 32;
+    for (i = 0; i < stopcount; i += 2)
     {
         __m256i t1, t2, t3, t4;
         __m256i x = _mm256_load_si256((__m256i *)(&flagblock[32 * i]));
@@ -94,7 +144,8 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 
 #else
 
-	for (i=0;i<(numlinebytes >> 3);i++)
+    stopcount = i / 8;
+    for (i = 0; i < stopcount; i++)
 	{
 		/* Convert to 64-bit unsigned integer */    
 		uint64 x = flagblock64[i];
@@ -139,25 +190,6 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 	// this is a scarily nested loop, but it only should iterate
 	// a few times.
 	done = 0;
-	for (ix=(int)numlinebytes-1;ix>=0 && !done;ix--)
-	{
-		for (kx=BITSINBYTE-1;kx>=0;kx--)
-		{
-			if (line[ix] & nmasks[kx])
-			{
-				prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
-					(uint64)sdata->rclass[current_line] + lowlimit;
-				if (prime > sdata->orig_hlimit)
-					it--;
-				else
-				{
-					done = 1;
-					break;
-				}
-			}
-		}
-	}
-	done = 0;
 	for (ix=0;ix<numlinebytes && !done;ix++)
 	{
 		for (kx=0;kx<8;kx++)
@@ -167,7 +199,10 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 				prime = prodN * ((uint64)ix * (uint64)BITSINBYTE + (uint64)kx) + 
 					(uint64)sdata->rclass[current_line] + lowlimit;
 				if (prime < sdata->orig_llimit)
-					it--;
+                {
+                    //printf("omitting prime %lu\n", prime);
+                    it--;
+                }
 				else
 				{
 					done = 1;
@@ -176,6 +211,7 @@ uint64 count_line(soe_staticdata_t *sdata, uint32 current_line)
 			}
 		}
 	}
+
 
 	return it;
 }

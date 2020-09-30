@@ -407,6 +407,43 @@
 	root1s = _mm_add_epi16(root1s, primes); \
 	root2s = _mm_add_epi16(root2s, primes);
 
+#define _8P_STEP_SIEVE_alt {\
+    uint64 a = 0; \
+    uint64 b = 0; \
+    a = _mm_extract_epi16(root1s, 0); \
+    b = _mm_extract_epi16(root2s, 0); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+    a = _mm_extract_epi16(root1s, 1); \
+    b = _mm_extract_epi16(root2s, 1); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 2); \
+    b = _mm_extract_epi16(root2s, 2); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 3); \
+    b = _mm_extract_epi16(root2s, 3); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 4); \
+    b = _mm_extract_epi16(root2s, 4); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 5); \
+    b = _mm_extract_epi16(root2s, 5); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 6); \
+    b = _mm_extract_epi16(root2s, 6); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	a = _mm_extract_epi16(root1s, 7); \
+    b = _mm_extract_epi16(root2s, 7); \
+	sieve[a] -= logp; \
+	sieve[b] -= logp; \
+	root1s = _mm_add_epi16(root1s, primes); \
+	root2s = _mm_add_epi16(root2s, primes); }
 
 #define _8P_FINAL_STEP_SIEVE \
 	tmp1 = root1s; \
@@ -461,6 +498,68 @@
 		if (root2mask & 0x8000) \
 			sieve[_mm_extract_epi16 (root2s, 7)] -= logp; \
 	}
+
+#define _8P_FINAL_STEP_SIEVE_alt \
+	tmp1 = root1s; \
+	tmp2 = root2s; \
+	tmp1 = _mm_subs_epu16 (tmp1, blocksize_m1); \
+	tmp2 = _mm_subs_epu16 (tmp2, blocksize_m1); \
+	tmp1 = _mm_cmpeq_epi16(tmp1, zeros); \
+	tmp2 = _mm_cmpeq_epi16(tmp2, zeros); \
+	root1mask = _mm_movemask_epi8(tmp1); \
+	root2mask = _mm_movemask_epi8(tmp2); \
+	if (root2mask & 0x2) { \
+		sieve[_mm_extract_epi16 (root1s, 0)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 0)] -= logp; \
+	} else if (root1mask & 0x2) { \
+        sieve[_mm_extract_epi16(root1s, 0)] -= logp; \
+    } \
+	if (root2mask & 0x8) { \
+		sieve[_mm_extract_epi16 (root1s, 1)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 1)] -= logp; \
+	} else if (root1mask & 0x8) { \
+        sieve[_mm_extract_epi16(root1s, 1)] -= logp; \
+    } \
+	tmp1 = _mm_and_si128(tmp1, primes); \
+	if (root2mask & 0x20) { \
+		sieve[_mm_extract_epi16 (root1s, 2)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 2)] -= logp; \
+	} else if (root1mask & 0x20) { \
+        sieve[_mm_extract_epi16(root1s, 2)] -= logp; \
+    } \
+	tmp2 = _mm_and_si128(tmp2, primes); \
+	if (root2mask & 0x80) { \
+		sieve[_mm_extract_epi16 (root1s, 3)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 3)] -= logp; \
+	} else if (root1mask & 0x80) { \
+        sieve[_mm_extract_epi16(root1s, 3)] -= logp; \
+    } \
+	tmp1 = _mm_sub_epi16(tmp1, blocksize); \
+	if (root2mask & 0x200) { \
+		sieve[_mm_extract_epi16 (root1s, 4)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 4)] -= logp; \
+	} else if (root1mask & 0x200) { \
+        sieve[_mm_extract_epi16(root1s, 4)] -= logp; \
+    } \
+	tmp2 = _mm_sub_epi16(tmp2, blocksize); \
+	if (root2mask & 0x800) { \
+		sieve[_mm_extract_epi16 (root1s, 5)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 5)] -= logp; \
+	} else if (root1mask & 0x800) { \
+        sieve[_mm_extract_epi16(root1s, 5)] -= logp; \
+    } \
+	if (root2mask & 0x2000) { \
+		sieve[_mm_extract_epi16 (root1s, 6)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 6)] -= logp; \
+	} else if (root1mask & 0x2000) { \
+        sieve[_mm_extract_epi16(root1s, 6)] -= logp; \
+    } \
+	if (root2mask & 0x8000) { \
+		sieve[_mm_extract_epi16 (root1s, 7)] -= logp; \
+        sieve[_mm_extract_epi16 (root2s, 7)] -= logp; \
+	} else if (root1mask & 0x8000) { \
+        sieve[_mm_extract_epi16(root1s, 7)] -= logp; \
+    }
 
 #define _FINALIZE_SORT_UPDATE_SSE2 \
 	root1s = _mm_add_epi16(root1s, tmp1); \

@@ -46,11 +46,19 @@ uint32 bitmap_bound_tab[4][5] = {
 //	/*8*/   { 999999999, 700000,    700000,    700000,    700000 },
 //	/*48*/  { 999999999, 999999999, 999999999, 999999999, 5000000   },
 //	/*480*/ { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+#if 1
 /*            10^14,     10^15,     10^16,     10^17,     10^18*/
 /*2*/       { 200000,    700000,    500000,    700000,    500000  },
-/*8*/       { 999999999, 999999999, 999999999, 999999999, 999999999 },
+/*8*/       { 999999999, 999999999, 999999999, 999999999, 700000 },
 /*48*/      { 999999999, 999999999, 999999999, 999999999, 999999999 },
 /*480*/     { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+#else
+/*            10^14,     10^15,     10^16,     10^17,     10^18*/
+/*2*/   { 200000,    700000,    500000,    700000,    200000  },
+/*8*/   { 999999999, 700000,    700000,    700000,    700000 },
+/*48*/  { 999999999, 999999999, 999999999, 999999999, 5000000 },
+/*480*/ { 999999999, 999999999, 999999999, 999999999, 999999999 } };
+#endif
 #else
 uint32 bitmap_bound_tab[4][5] = {
 	/*        10^14,     10^15,     10^16,     10^17,     10^18*/
@@ -88,69 +96,75 @@ void get_numclasses(uint64 highlimit, uint64 lowlimit, soe_staticdata_t *sdata)
 	//#define BUCKETSTARTI 443920
 
 	sieve_line_ptr = &sieve_line;
+    FLAGBITS = 18;
+    BUCKETSTARTI = 33336;
 
 	//SOEBLOCKSIZE = 524288;
 	FLAGSIZE = 8 * SOEBLOCKSIZE;
 	FLAGSIZEm1 = FLAGSIZE - 1;
-	switch (SOEBLOCKSIZE)
-	{
-	case 32768:
-		FLAGBITS = 18;
-		BUCKETSTARTI = 33336;
-#ifdef USE_AVX512
-		sieve_line_ptr = &sieve_line_avx512_32k;
+
+    switch (SOEBLOCKSIZE)
+    {
+    case 32768:
+        FLAGBITS = 18;
+        BUCKETSTARTI = 33336;
+
+        // the avx2 version is faster on avx512 capable cpus...
+#ifdef USE_AVX512Fa
+        sieve_line_ptr = &sieve_line_avx512_32k;
 #elif defined(USE_AVX2)
-		sieve_line_ptr = &sieve_line_avx2_32k;
+        sieve_line_ptr = &sieve_line_avx2_32k;
 #endif
-		break;
-	case 65536:
-		FLAGBITS = 19;
-		BUCKETSTARTI = 43392;
-		break;
-	case 131072:
-		FLAGBITS = 20;
-		BUCKETSTARTI = 123040;
-#ifdef USE_AVX512
-		sieve_line_ptr = &sieve_line_avx512_128k;
+        break;
+    case 65536:
+        FLAGBITS = 19;
+        BUCKETSTARTI = 43392;
+        break;
+    case 131072:
+        FLAGBITS = 20;
+        BUCKETSTARTI = 123040;
+#ifdef USE_AVX512F
+        sieve_line_ptr = &sieve_line_avx512_128k;
 #elif defined(USE_AVX2)
-		sieve_line_ptr = &sieve_line_avx2_128k;
+        sieve_line_ptr = &sieve_line_avx2_128k;
 #endif
-		break;
-	case 262144:
-#ifdef USE_AVX512
-		sieve_line_ptr = &sieve_line_avx512_256k;
+        break;
+    case 262144:
+#ifdef USE_AVX512F
+        sieve_line_ptr = &sieve_line_avx512_256k;
 #elif defined(USE_AVX2)
 
 #endif
-		FLAGBITS = 21;
-		BUCKETSTARTI = 233416;
-		break;
-	case 524288:
-#ifdef USE_AVX512
-		sieve_line_ptr = &sieve_line_avx512_512k;
+        FLAGBITS = 21;
+        BUCKETSTARTI = 233416;
+        break;
+    case 524288:
+#ifdef USE_AVX512F
+        sieve_line_ptr = &sieve_line_avx512_512k;
 #elif defined(USE_AVX2)
-
+        // the non-avx2 sieve is better, at least,
+        // for huge offsets when you might be using this blocksize.
+        //sieve_line_ptr = &sieve_line_avx2_512k;
 #endif
-		FLAGBITS = 22;
-		BUCKETSTARTI = 443920;
-		break;
-	case 1048576:
-		FLAGBITS = 23;
-		BUCKETSTARTI = 846248;
-		break;
-	default:
-		printf("Bad soe_block\n");
-		exit(1);
-	}
+        FLAGBITS = 22;
+        BUCKETSTARTI = 443920;
+        break;
+    case 1048576:
+        FLAGBITS = 23;
+        BUCKETSTARTI = 846248;
+        break;
+    default:
+        printf("Bad soe_block\n");
+        exit(1);
+    }
 
 	//printf("Sieve Parameters:\nBLOCKSIZE = %u\nFLAGSIZE = %u\nFLAGBITS = %u\nBUCKETSTARTI = %u\n",
 	//	SOEBLOCKSIZE, FLAGSIZE, FLAGBITS, BUCKETSTARTI);
-	
 
 	//more efficient to sieve using mod210 when the range is big
 	if ((highlimit - lowlimit) > 40000000000ULL)
 	{
-        if (lowlimit < 1000000000000000ULL)
+        if (lowlimit < 100000000000000ULL)
         {
             numclasses = 480;
             prodN = 2310;
@@ -511,7 +525,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 #ifdef USE_AVX2
     // during presieveing, storing precomputed lists will start to get unwieldy, so
     // generate the larger lists here.
-#ifdef USE_AVX512F
+#ifdef USE_AVX512Fa
 #define DYNAMIC_BOUND 512
 #else
 #define DYNAMIC_BOUND 256
@@ -544,7 +558,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
             presieve_largemasks[j - 24][i][1] = interval[1];
             presieve_largemasks[j - 24][i][2] = interval[2];
             presieve_largemasks[j - 24][i][3] = interval[3];
-#ifdef USE_AVX512F
+#ifdef USE_AVX512Fa
             //printf(", %016lx, %016lx, %016lx, %016lx", 
             //    interval[4], interval[5], interval[6], interval[7]);
             presieve_largemasks[j - 24][i][4] = interval[4];
@@ -616,7 +630,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
         sdata->presieve_max_id = 10;
     }
 
-#ifdef USE_AVX512F
+#ifdef USE_AVX512Fa
     pre_sieve_ptr = &pre_sieve_avx512;
 #endif
 

@@ -342,6 +342,7 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data);
 void sieve_line_avx2_64k(thread_soedata_t *thread_data);
 void sieve_line_avx2_128k(thread_soedata_t *thread_data);
 void sieve_line_avx2_256k(thread_soedata_t *thread_data);
+void sieve_line_avx2_512k(thread_soedata_t* thread_data);
 void sieve_line_avx512_32k(thread_soedata_t *thread_data);
 void sieve_line_avx512_64k(thread_soedata_t *thread_data);
 void sieve_line_avx512_128k(thread_soedata_t *thread_data);
@@ -411,6 +412,24 @@ void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum);
 //the negation of these masks, and are filled in within the spSOE function.
 static const uint8 masks[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
 static const uint8 nmasks[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
+static const uint32 masks32[32] = { 
+    0xfffffffe, 0xfffffffd, 0xfffffffb, 0xfffffff7, 
+    0xffffffef, 0xffffffdf, 0xffffffbf, 0xffffff7f,
+    0xfffffeff, 0xfffffdff, 0xfffffbff, 0xfffff7ff,
+    0xffffefff, 0xffffdfff, 0xffffbfff, 0xffff7fff,
+    0xfffeffff, 0xfffdffff, 0xfffbffff, 0xfff7ffff,
+    0xffefffff, 0xffdfffff, 0xffbfffff, 0xff7fffff,
+    0xfeffffff, 0xfdffffff, 0xfbffffff, 0xf7ffffff,
+    0xefffffff, 0xdfffffff, 0xbfffffff, 0x7fffffff};
+static const uint32 nmasks32[32] = { 
+    0x00000001, 0x00000002, 0x00000004, 0x00000008, 
+    0x00000010, 0x00000020, 0x00000040, 0x00000080,
+    0x00000100, 0x00000200, 0x00000400, 0x00000800,
+    0x00001000, 0x00002000, 0x00004000, 0x00008000, 
+    0x00010000, 0x00020000, 0x00040000, 0x00080000, 
+    0x00100000, 0x00200000, 0x00400000, 0x00800000, 
+    0x01000000, 0x02000000, 0x04000000, 0x08000000, 
+    0x10000000, 0x20000000, 0x40000000, 0x80000000};
 uint32 max_bucket_usage;
 uint64 GLOBAL_OFFSET;
 int NO_STORE;
