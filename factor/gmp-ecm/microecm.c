@@ -177,7 +177,7 @@ static const uint32_t primes[801] = {
 static uint8 marks[D];
 static uint8 nmarks[D];
 
-#ifdef _MSC_VER
+#ifdef _MSC_VERasdf
 
 #include <immintrin.h>
 #include <intrin.h>
@@ -210,19 +210,6 @@ __inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-// good to 60 bit inputs
-__inline uint64 mulredc60(uint64 x, uint64 y, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    uint8 c;
-    tl = _umul128(x, y, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    c = _addcarry_u64(0, al, tl, &al);
-    _addcarry_u64(c, th, ah, &x);
-    return x;
-}
-
 __inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
 {
     uint64 th, tl, u, ah, al;
@@ -235,18 +222,6 @@ __inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
     return x;
 }
 
-// good to 60 bit inputs
-__inline uint64 sqrredc60(uint64 x, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    uint8 c;
-    tl = _umul128(x, x, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    c = _addcarry_u64(0, al, tl, &al);
-    _addcarry_u64(c, th, ah, &x);
-    return x;
-}
 
 __inline uint64 submod(uint64 a, uint64 b, uint64 n)
 {
@@ -266,8 +241,6 @@ __inline uint64 addmod(uint64 x, uint64 y, uint64 n)
     return r;
 }
 
-// this works if inputs are 62 bits or less
-#define addmod60(x, y, n) ((x) + (y))
 
 #endif
 
