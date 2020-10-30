@@ -33,6 +33,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "queue.h"
 #include "gmp.h"
 #include "util.h"
+#include "nfs.h"
 
 // performance comparison
 // http://www.mersenneforum.org/showthread.php?t=16480&page=20
@@ -178,8 +179,30 @@ uint64_t hash64(uint64_t in)
     return hash;
 }
 
+factor_t* ecm_add_factor(factor_t* factors, int *numfactors, 
+    mpz_t gmp_factor, int stg_id, int thread_id, int vec_id, 
+    int curve_id, uint64_t sigma)
+{
+    if (*numfactors == 0)
+    {
+        factors = (factor_t*)malloc(1 * sizeof(factor_t));
+    }
+    else
+    {
+        factors = (factor_t*)realloc(factors, (*numfactors + 1) * sizeof(factor_t));
+    }
+    mpz_init(factors[*numfactors].factor);
+    mpz_set(factors[*numfactors].factor, gmp_factor);
+    factors[*numfactors].method = stg_id;
+    factors[*numfactors].tid = thread_id;
+    factors[*numfactors].vid = vec_id;
+    factors[*numfactors].sigma = sigma;
+    factors[*numfactors].curve_num = curve_id;
+    (*numfactors)++;
+    return factors;
+}
 
-factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1, 
+factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
     uint64 B2, int threads, int* numfactors, int verbose, 
     int save_b1, uint32 *curves_run)
 {
@@ -188,13 +211,13 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
     mpz_t g, r;
 	uint32_t *siglist;
 	uint32_t numcurves_per_thread;
-	uint32_t b1 = B1;
+	uint64_t b1 = B1;
 	uint32_t i, j;
 	char **nextptr;
 	vec_monty_t *montyconst;
 	int pid = getpid();
     uint64_t limit;
-    int size_n;
+    int size_n, isMersenne = 0, forceNoMersenne = 0;
     factor_t * factors;
     
     // primes
@@ -205,10 +228,6 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
 	struct timeval stopt;	// stop time of this job
 	struct timeval startt;	// start time of this job
 	double t_time;
-	
-    //printf("ECM has been configured with MAXBITS = %d, NWORDS = %d, "
-    //    "VECLEN = %d\n", 
-    //    MAXBITS, NWORDS, VECLEN);
 
 	gettimeofday(&startt, NULL);
 
@@ -218,15 +237,79 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
     if (verbose > 1)
 	    printf("process id is %d\n", pid);
 
+    *numfactors = 0;
     mpz_init(g);
     mpz_init(r);
 
-    if (verbose > 1)
-        gmp_printf("commencing parallel ecm on %Zd\n", N);
+    // check for Mersenne inputs
     size_n = mpz_sizeinbase(N, 2);
-	STAGE1_MAX = b1;
-	STAGE2_MAX = 100ULL * (uint64_t)b1;
 
+    for (i = size_n; i < 2048; i++)
+    {
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, i);
+        mpz_sub_ui(r, r, 1);
+        mpz_mod(g, r, N);
+        if (mpz_cmp_ui(g, 0) == 0)
+        {
+            size_n = i;
+            isMersenne = 1;
+            break;
+        }
+    }
+
+    // if the input is Mersenne and still contains algebraic factors, remove them.
+    if (isMersenne)
+    {
+        snfs_t poly;
+
+        snfs_init(&poly);
+        poly.form_type = SNFS_BRENT;
+        mpz_set_ui(poly.base1, 2);
+        poly.coeff1 = 1;
+        poly.coeff2 = -1;
+        poly.exp1 = size_n;
+        find_primitive_factor(&poly);
+
+        mpz_tdiv_q(g, N, poly.primitive);
+        mpz_gcd(N, N, poly.primitive);
+        factors = ecm_add_factor(factors, numfactors, g,
+            0, 0, -1, -1, 0);
+
+        snfs_clear(&poly);
+    }
+
+    // force no Mersenne Mod, either specified by user or if the actual
+    // input is smaller than the base Mersenne such that the arithmetic
+    // becomes faster using fewer-digit Montgomery mod.
+    // rough data for DIGITBITS 52 (Gold 6248 CPU @ 2.5 GHz)
+    // NBLOCKS 6 MERSENNEMOD is faster than NBLOCKS 5 REDC ratio 0.83
+    // NBLOCKS 5 MERSENNEMOD is faster than NBLOCKS 4 REDC ratio 0.8
+    // NBLOCKS 4 MERSENNEMOD is faster than NBLOCKS 3 REDC ratio 0.75
+    // NBLOCKS 3 MERSENNEMOD is slower than NBLOCKS 2 REDC ratio 0.66 (barely slower)
+    
+    // compute NBLOCKS if using the actual size of the input (non-Mersenne)
+    if (DIGITBITS == 52)
+    {
+        MAXBITS = 208;
+        while (MAXBITS <= mpz_sizeinbase(N, 2))
+        {
+            MAXBITS += 208;
+        }
+    }
+    else
+    {
+        MAXBITS = 128;
+        while (MAXBITS <= mpz_sizeinbase(N, 2))
+        {
+            MAXBITS += 128;
+        }
+    }
+
+    NWORDS = MAXBITS / DIGITBITS;
+    NBLOCKS = NWORDS / BLOCKWORDS;
+
+    // and compute NBLOCKS if using Mersenne mod
     if (DIGITBITS == 52)
     {
         MAXBITS = 208;
@@ -244,8 +327,79 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
         }
     }
 
-    NWORDS = MAXBITS / DIGITBITS;
-    NBLOCKS = NWORDS / BLOCKWORDS;
+    if (verbose > 0)
+        gmp_printf("commencing parallel ecm on %Zd\n", N);
+
+    if ((double)NWORDS / ((double)MAXBITS / (double)DIGITBITS) < 0.7)
+    {
+        if (verbose > 0)
+            printf("Mersenne input 2^%d - 1 determined to be faster by REDC\n", size_n);
+        forceNoMersenne = 1;
+    }
+    else
+    {
+        NWORDS = MAXBITS / DIGITBITS;
+        NBLOCKS = NWORDS / BLOCKWORDS;
+    }
+
+    if (forceNoMersenne)
+    {
+        isMersenne = 0;
+        size_n = mpz_sizeinbase(N, 2);
+    }
+
+    STAGE1_MAX = b1;
+    STAGE2_MAX = 100ULL * (uint64_t)b1;
+
+    // now that we know NWORDS, can allocate the monty structure.
+    montyconst = vec_monty_alloc();
+    tdata = (thread_data_t*)malloc(threads * sizeof(thread_data_t));
+
+    if (isMersenne)
+    {
+        // TBD: may want to check if the input number is small
+        // enough compared to the base Mersenne that normal Montgomery
+        // arithmetic would be faster.
+        montyconst->isMersenne = 1;
+        montyconst->nbits = size_n;
+        mpz_set(montyconst->nhat, N);           // remember input N
+        // do all math w.r.t the Mersenne number
+        mpz_set_ui(N, 1);
+        mpz_mul_2exp(N, N, size_n);
+        mpz_sub_ui(N, N, 1);
+        broadcast_mpz_to_vec(montyconst->n, N);
+
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, DIGITBITS * NWORDS);
+        //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
+        //mpz_invert(montyconst->nhat, N, r);
+        //mpz_sub(montyconst->nhat, r, montyconst->nhat);
+        mpz_invert(montyconst->rhat, r, N);
+        broadcast_mpz_to_vec(montyconst->n, N);
+        broadcast_mpz_to_vec(montyconst->r, r);
+        broadcast_mpz_to_vec(montyconst->vrhat, montyconst->rhat);
+        broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
+        //mpz_tdiv_r(r, r, N);
+        mpz_set_ui(r, 1);
+        broadcast_mpz_to_vec(montyconst->one, r);
+    }
+    else
+    {
+        montyconst->isMersenne = 0;
+        montyconst->nbits = mpz_sizeinbase(N, 2);
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, DIGITBITS * NWORDS);
+        //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
+        mpz_invert(montyconst->nhat, N, r);
+        mpz_sub(montyconst->nhat, r, montyconst->nhat);
+        mpz_invert(montyconst->rhat, r, N);
+        broadcast_mpz_to_vec(montyconst->n, N);
+        broadcast_mpz_to_vec(montyconst->r, r);
+        broadcast_mpz_to_vec(montyconst->vrhat, montyconst->rhat);
+        broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
+        mpz_tdiv_r(r, r, N);
+        broadcast_mpz_to_vec(montyconst->one, r);
+    }
 
     if (verbose > 1)
         printf("ECM has been configured with DIGITBITS = %u, VECLEN = %d, GMP_LIMB_BITS = %d\n",
@@ -293,22 +447,6 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
         printf("Processing in batches of %u primes\n", PRIME_RANGE);
     }
 
-    tdata = (thread_data_t *)malloc(threads * sizeof(thread_data_t));
-    // expects n to be in packed 64-bit form
-    montyconst = vec_monty_alloc();
-
-    mpz_set_ui(r, 1);
-    mpz_mul_2exp(r, r, DIGITBITS * NWORDS);
-    //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
-    mpz_invert(montyconst->nhat, N, r);
-    mpz_sub(montyconst->nhat, r, montyconst->nhat);
-    mpz_invert(montyconst->rhat, r, N);
-    broadcast_mpz_to_vec(montyconst->n, N);
-    broadcast_mpz_to_vec(montyconst->r, r);
-    broadcast_mpz_to_vec(montyconst->vrhat, montyconst->rhat);
-    broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
-    mpz_tdiv_r(r, r, N);
-    broadcast_mpz_to_vec(montyconst->one, r);
     //gmp_printf("n = %Zx\n", gmpn);
     //gmp_printf("rhat = %Zx\n", montyconst->rhat);
     //gmp_printf("nhat = %Zx\n", montyconst->nhat);
@@ -321,8 +459,18 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
     
     if (DIGITBITS == 52)
     {
-        vecmulmod_ptr = &vecmulmod52;
-        vecsqrmod_ptr = &vecsqrmod52;
+        if (montyconst->isMersenne)
+        {
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+        }
+        else
+        {
+            vecmulmod_ptr = &vecmulmod52;
+            vecsqrmod_ptr = &vecsqrmod52;
+        }
+        
         vecaddmod_ptr = &vecaddmod52;
         vecsubmod_ptr = &vecsubmod52;
         vecaddsubmod_ptr = &vec_simul_addsub52;
@@ -367,29 +515,16 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1,
 	    printf("\n");
 
     // clean up thread data
-    *numfactors = 0;
 	for (i = 0; i < threads; i++)
 	{
         //printf("thread %d found %d factors\n", i, tdata[i].numfactors);
         for (j = 0; j < tdata[i].numfactors; j++)
         {
-            if (*numfactors == 0)
-            {
-                factors = (factor_t*)malloc(1 * sizeof(factor_t));
-            }
-            else
-            {
-                factors = (factor_t*)realloc(factors, (*numfactors + 1) * sizeof(factor_t));
-            }
-            mpz_init(factors[*numfactors].factor);
-            mpz_set(factors[*numfactors].factor, tdata[i].factors[j].factor);
+            factors = ecm_add_factor(factors, numfactors, tdata[i].factors[j].factor,
+                tdata[i].factors[j].stg_id, tdata[i].factors[j].thread_id,
+                tdata[i].factors[j].vec_id, tdata[i].factors[j].curve_id, 
+                tdata[i].factors[j].sigma);
             mpz_clear(tdata[i].factors[j].factor);
-            factors[*numfactors].method = tdata[i].factors[j].stg_id;
-            factors[*numfactors].tid = tdata[i].factors[j].thread_id;
-            factors[*numfactors].vid = tdata[i].factors[j].vec_id;
-            factors[*numfactors].sigma = tdata[i].factors[j].sigma;
-            factors[*numfactors].curve_num = tdata[i].factors[j].curve_id;
-            (*numfactors)++;
         }
 
         // if no factors are found the structure will not
@@ -483,6 +618,8 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata)
     vecCopy(mdata->one, tdata->mdata->one);
     vecCopy(mdata->vnhat, tdata->mdata->vnhat);
     vecCopy(mdata->vrhat, tdata->mdata->vrhat);
+    tdata->mdata->nbits = mdata->nbits;
+    tdata->mdata->isMersenne = mdata->isMersenne;
     memcpy(tdata->mdata->vrho, mdata->vrho, VECLEN * sizeof(base_t));
 
     return;

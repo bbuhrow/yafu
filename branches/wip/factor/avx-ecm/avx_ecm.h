@@ -50,6 +50,7 @@ either expressed or implied, of the FreeBSD Project.
 //#ifndef MAXBITS
 //#define MAXBITS 1040
 //#endif
+//#define DIGITBITS 32
 
 #ifndef DIGITBITS
 #define DIGITBITS 52
@@ -115,6 +116,8 @@ typedef struct
     vec_bignum_t **g;             // storage for windowed method precomputation
     base_t *vrho;
     base_t rho;
+    int nbits;
+    int isMersenne;
 } vec_monty_t;
 
 void print_hexbignum(vec_bignum_t *a, const char *pre);
@@ -134,6 +137,8 @@ void vecmulmod52_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c, vec_bignum_t *n,
 void vecredc52_base(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
+void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
 void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
 void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, vec_bignum_t *n);
@@ -274,7 +279,7 @@ void vec_ecm_work_free(ecm_work *work);
 base_t nump;
 
 // global limits
-base_t STAGE1_MAX;
+uint64_t STAGE1_MAX;
 uint64_t STAGE2_MAX;
 uint32_t PRIME_RANGE;
 int DO_STAGE2;

@@ -919,13 +919,25 @@ void finalize_sieve(soe_staticdata_t *sdata,
 
 	}
 
-	if (!sdata->only_count)
+	//if (!sdata->only_count)
+    if ((sdata->only_count == 0) || (sdata->num_bitmap_primes > 0))
 	{
-		align_free(sdata->lines[0]);
+		//align_free(sdata->lines[0]);
+        for (i = 0; i < sdata->numclasses; i++)
+        {
+            //sdata->lines[i] = sdata->lines[0] + i * numlinebytes;
+            align_free(sdata->lines[i]);
+        }
+        align_free(sdata->lines);
 	}
-    align_free(sdata->lines);
-    free(sdata->root);
-	free(sdata->lower_mod_prime);
+    else
+    {
+        align_free(sdata->lines);
+    }
+
+    align_free(sdata->r2modp);
+    align_free(sdata->root);
+    align_free(sdata->lower_mod_prime);
 	free(thread_data);
 	free(sdata->rclass);
 
