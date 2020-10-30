@@ -298,7 +298,7 @@ typedef struct
     int prefer_gmpecm;
 	char ecm_path[1024];
 	int use_external;
-	uint32 B1;
+	uint64 B1;
 	uint64 B2;
 	int stg2_is_default;
 	int curves_run;
@@ -307,7 +307,7 @@ typedef struct
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
-	uint32 ecm_ext_xover;
+	uint64 ecm_ext_xover;
     int bail_on_factor;
     enum ecm_exit_cond_e exit_cond;              // exit condition
 
@@ -606,7 +606,7 @@ void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
-factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint32 B1, 
+factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
     uint64 B2, int threads, int *numfactors, int verbose, 
     int save_b1, uint32 *curves_run);
 void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);

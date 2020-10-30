@@ -2004,9 +2004,9 @@ void sieve_line_avx2_32k(thread_soedata_t *thread_data)
 	// and bucket sieve large primes
 	get_offsets(thread_data);
 
-    if (sdata->numclasses == 480)
-        printf("the offset for p=%u (root %u) is %u\n", sdata->sieve_p[5], 
-            sdata->root[5], ddata->offsets[5]);
+    // if (sdata->numclasses == 480)
+    //     printf("the offset for p=%u (root %u) is %u\n", sdata->sieve_p[5], 
+    //         sdata->root[5], ddata->offsets[5]);
 
 	flagblock = line;
 	for (i = 0; i < sdata->blocks; i++)

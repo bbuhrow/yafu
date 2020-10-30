@@ -2281,7 +2281,17 @@ void vececm(thread_data_t *tdata)
     mpz_init(gmpn);
     mpz_init(tmp_factor);
 
-    extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->n, 0, NWORDS);
+    // in this function, gmpn is only used to for screen output and to 
+    // check factors.  So if this is a Mersenne input, use the original
+    // input number.  (all math is still done relative to the base Mersenne.)
+    if (tdata[0].mdata->isMersenne)
+    {
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, NWORDS);
+    }
+    else
+    {
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->n, 0, NWORDS);
+    }
 
 	for (i = 0; i < VECLEN; i++)
 	{
@@ -2309,13 +2319,13 @@ void vececm(thread_data_t *tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%u, B2=100*B1\r",
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
         else if (verbose > 1)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%u, B2=100*B1\n",
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\n",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
@@ -2368,37 +2378,141 @@ void vececm(thread_data_t *tdata)
             }
 
             if (verbose > 1)
-			    printf("commencing Stage 1 @ prime %lu\n", P_MIN);
+            {
+                printf("commencing Stage 1 @ prime %lu\n", P_MIN);
+            }
+
+            // start the stage 1 thread pool
             tpool_go(tpool_data);
+
+            if (p < STAGE1_MAX)
+            {
+                // record results for this batch of primes
+                if (tdata[0].save_b1) // && (save_intermediate)
+                {
+                    sprintf(fname, "save_b1_intermediate.txt");
+                    save = fopen(fname, "a");
+                }
+
+                gettimeofday(&stopt, NULL);
+                t_time = yafu_difftime(&startt, &stopt);
+                if (verbose > 1)
+                    printf("Stage 1 current elapsed time is %1.4f seconds\n", t_time);
+
+                for (j = 0; j < threads; j++)
+                {
+
+                    // GMP-ECM wants X/Z.
+                    // or, equivalently, X and Z listed separately.
+                    vecmulmod_ptr(tdata[j].P->X, one, tdata[j].work->tt4, tdata[j].work->n,
+                        tdata[j].work->tt2, tdata[j].mdata);
+
+                    vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
+                        tdata[j].work->tt2, tdata[j].mdata);
+
+                    //print_vechexbignum(tdata[j].P->Z, "Z point\n");
+
+                    for (i = 0; i < VECLEN; i++)
+                    {
+                        extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+
+                        if (mpz_cmp_ui(gmpt, 0) == 0)
+                        {
+                            printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                        }
+
+                        result = vec_check_factor(gmpt, gmpn, tmp_factor);
+                        if (result == 1)
+                        {
+
+                            //FILE *out = fopen("ecm_results.txt", "a");
+
+                            if (verbose > 1)
+                            {
+                                gmp_printf("\nfound factor %Zd in stage 1 in thread %d, vec position %d, with sigma = ",
+                                    tmp_factor, j, i);
+                                printf("%"PRIu64"\n", tdata[j].sigma[i]);
+                            }
+
+                            //if (out != NULL)
+                            //{
+                            //	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
+                            //		"in thread %d, vec position %d, with sigma = ",
+                            //        tmp_factor, threads * curve + j * VECLEN + i, j, i);
+                            //    fprintf(out, "%"PRIu64"\n", tdata[j].sigma[i]);
+                            //	fclose(out);
+                            //}
+                            //
+                            //fflush(stdout);
+                            found = 1;
+
+                            if (tdata[j].numfactors == 0)
+                            {
+                                tdata[j].factors = (avx_ecm_factor_t*)malloc(1 * sizeof(avx_ecm_factor_t));
+                            }
+                            else
+                            {
+                                tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
+                                    (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                            }
+
+                            tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                            tdata[j].factors[tdata[j].numfactors].stg_id = 1;
+                            tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
+                            tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                            tdata[j].factors[tdata[j].numfactors].curve_id =
+                                (curve * threads) + (j * VECLEN) + i;
+                            mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
+                            mpz_set(tdata[j].factors[tdata[j].numfactors++].factor, tmp_factor);
+
+                            //gmp_printf("thread %d now has %d factors in stg1: %Zd\n",
+                            //    j, tdata[j].numfactors, tmp_factor);
+                        }
+
+                        if (tdata[0].save_b1)
+                        {
+                            fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
+                                tdata[j].sigma[i], PRIMES[tdata[j].work->last_pid - 1]);
+                            gmp_fprintf(save, "N=0x%Zx; ", gmpn);
+
+                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
+                            gmp_fprintf(save, "X=0x%Zx; ", gmpt);
+
+                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt3, i, NWORDS);
+                            gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                        }
+                    }
+
+                }
+
+                if (tdata[0].save_b1)
+                {
+                    fclose(save);
+                }
+            }
         }
 
-        gettimeofday(&stopt, NULL);
-        t_time = yafu_difftime(&startt, &stopt);
-        if (verbose > 1)
-            printf("Stage 1 took %1.4f seconds\n", t_time);
-	
-        if (tdata[0].save_b1)
+        // record results for this batch of primes
+        if (tdata[0].save_b1) // && (save_intermediate)
         {
             sprintf(fname, "save_b1.txt");
             save = fopen(fname, "a");
         }
 
-        curves_run += VECLEN * threads;
-
         for (j = 0; j < threads; j++)
-        {            
+        {
 
-			// GMP-ECM wants X/Z.
-			// or, equivalently, X and Z listed separately.
-			vecmulmod_ptr(tdata[j].P->X, one, tdata[j].work->tt4, tdata[j].work->n,
-				tdata[j].work->tt2, tdata[j].mdata);
+            // GMP-ECM wants X/Z.
+            // or, equivalently, X and Z listed separately.
+            vecmulmod_ptr(tdata[j].P->X, one, tdata[j].work->tt4, tdata[j].work->n,
+                tdata[j].work->tt2, tdata[j].mdata);
 
-			vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
-				tdata[j].work->tt2, tdata[j].mdata);
+            vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
+                tdata[j].work->tt2, tdata[j].mdata);
 
             //print_vechexbignum(tdata[j].P->Z, "Z point\n");
 
-			for (i = 0; i < VECLEN; i++)
+            for (i = 0; i < VECLEN; i++)
             {
                 extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
 
@@ -2411,7 +2525,7 @@ void vececm(thread_data_t *tdata)
                 if (result == 1)
                 {
 
-					//FILE *out = fopen("ecm_results.txt", "a");
+                    //FILE *out = fopen("ecm_results.txt", "a");
 
                     if (verbose > 1)
                     {
@@ -2419,38 +2533,38 @@ void vececm(thread_data_t *tdata)
                             tmp_factor, j, i);
                         printf("%"PRIu64"\n", tdata[j].sigma[i]);
                     }
-					
-					//if (out != NULL)
-					//{
-					//	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
-					//		"in thread %d, vec position %d, with sigma = ",
+
+                    //if (out != NULL)
+                    //{
+                    //	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
+                    //		"in thread %d, vec position %d, with sigma = ",
                     //        tmp_factor, threads * curve + j * VECLEN + i, j, i);
                     //    fprintf(out, "%"PRIu64"\n", tdata[j].sigma[i]);
-					//	fclose(out);
-					//}
+                    //	fclose(out);
+                    //}
                     //
                     //fflush(stdout);
                     found = 1;
 
                     if (tdata[j].numfactors == 0)
                     {
-                        tdata[j].factors = (avx_ecm_factor_t *)malloc(1 * sizeof(avx_ecm_factor_t));
+                        tdata[j].factors = (avx_ecm_factor_t*)malloc(1 * sizeof(avx_ecm_factor_t));
                     }
                     else
                     {
                         tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
                             (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
                     }
-                    
+
                     tdata[j].factors[tdata[j].numfactors].thread_id = j;
                     tdata[j].factors[tdata[j].numfactors].stg_id = 1;
                     tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
                     tdata[j].factors[tdata[j].numfactors].vec_id = i;
-                    tdata[j].factors[tdata[j].numfactors].curve_id = 
+                    tdata[j].factors[tdata[j].numfactors].curve_id =
                         (curve * threads) + (j * VECLEN) + i;
                     mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
                     mpz_set(tdata[j].factors[tdata[j].numfactors++].factor, tmp_factor);
-                    
+
                     //gmp_printf("thread %d now has %d factors in stg1: %Zd\n",
                     //    j, tdata[j].numfactors, tmp_factor);
                 }
@@ -2458,7 +2572,7 @@ void vececm(thread_data_t *tdata)
                 if (tdata[0].save_b1)
                 {
                     fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
-                        tdata[j].sigma[i], STAGE1_MAX);
+                        tdata[j].sigma[i], PRIMES[tdata[j].work->last_pid - 1]);
                     gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
                     extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
@@ -2475,6 +2589,13 @@ void vececm(thread_data_t *tdata)
         {
             fclose(save);
         }
+
+        gettimeofday(&stopt, NULL);
+        t_time = yafu_difftime(&startt, &stopt);
+        if (verbose > 1)
+            printf("Stage 1 took %1.4f seconds\n", t_time);
+	
+        curves_run += VECLEN * threads;
 
         // always stop when a factor is found
         //if (found)
@@ -2615,7 +2736,7 @@ void vececm(thread_data_t *tdata)
 
         if (verbose >= 0)
         {
-            printf("ecm: %d/%d curves on C%d @ B1=%u, B2=100*B1\r",
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
                 (int)gmp_base10(gmpn), STAGE1_MAX);
         }
@@ -2627,7 +2748,7 @@ void vececm(thread_data_t *tdata)
 
     if (verbose > 1)
     {
-        printf("ecm: %d/%d curves on C%d @ B1=%u, B2=100*B1\n",
+        printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\n",
             curves_run, tdata[0].curves * threads,
             (int)gmp_base10(gmpn), STAGE1_MAX);
     }
@@ -2869,12 +2990,23 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         mpz_mul(X, X, t1);
         mpz_set_ui(Z, 1);
 
-        mpz_mul_2exp(X, X, DIGITBITS * NWORDS);
-        mpz_tdiv_r(X, X, n);
-        mpz_mul_2exp(Z, Z, DIGITBITS * NWORDS);
-        mpz_tdiv_r(Z, Z, n);
-        mpz_mul_2exp(A, A, DIGITBITS * NWORDS);
-        mpz_tdiv_r(A, A, n);
+        if (mdata->isMersenne)
+        {
+            // into Monty rep
+            mpz_mul_2exp(X, X, DIGITBITS * NWORDS);
+            mpz_tdiv_r(X, X, n);
+            mpz_mul_2exp(Z, Z, DIGITBITS * NWORDS);
+            mpz_tdiv_r(Z, Z, n);
+            mpz_mul_2exp(A, A, DIGITBITS * NWORDS);
+            mpz_tdiv_r(A, A, n);
+        }
+        else
+        {
+            mpz_tdiv_r(X, X, n);
+            mpz_tdiv_r(Z, Z, n);
+            mpz_tdiv_r(A, A, n);
+        }
+        
 
         //gmp_printf("X = %Zx\n", X);
         //gmp_printf("Z = %Zx\n", Z);

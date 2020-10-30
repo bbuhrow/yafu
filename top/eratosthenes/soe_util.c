@@ -433,7 +433,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
     sdata->large_bucket_start_prime = sdata->blocks * FLAGSIZE;
 
     // allocate space for the root of each sieve prime (used by the bucket sieve)
-    sdata->root = (int *)malloc(sdata->bitmap_start_id * sizeof(int));
+    sdata->root = (int *)xmalloc_align(sdata->bitmap_start_id * sizeof(int));
     allocated_bytes += sdata->bitmap_start_id * sizeof(uint32);
     if (sdata->root == NULL)
     {
@@ -478,7 +478,7 @@ uint64 init_sieve(soe_staticdata_t *sdata)
 
 
     // these are used by the bucket sieve
-    sdata->lower_mod_prime = (uint32 *)malloc(sdata->bitmap_start_id * sizeof(uint32));
+    sdata->lower_mod_prime = (uint32 *)xmalloc_align(sdata->bitmap_start_id * sizeof(uint32));
     allocated_bytes += sdata->bitmap_start_id * sizeof(uint32);
     if (sdata->lower_mod_prime == NULL)
     {
@@ -501,17 +501,18 @@ uint64 init_sieve(soe_staticdata_t *sdata)
     if ((sdata->only_count == 0) || (sdata->num_bitmap_primes > 0))
     {
         //actually allocate all of the lines as a continuous linear array of bytes
-        sdata->lines[0] = (uint8 *)xmalloc_align(numlinebytes * sdata->numclasses * sizeof(uint8));
-        if (sdata->lines[0] == NULL)
-        {
-            printf("error allocated sieve lines\n");
-            exit(-1);
-        }
+        //sdata->lines[0] = (uint8 *)xmalloc_align(numlinebytes * sdata->numclasses * sizeof(uint8));
+        //if (sdata->lines[0] == NULL)
+        //{
+        //    printf("error allocated sieve lines\n");
+        //    exit(-1);
+        //}
         numbytes += sdata->numclasses * numlinebytes * sizeof(uint8);
 
         for (i = 0; i < sdata->numclasses; i++)
         {
-            sdata->lines[i] = sdata->lines[0] + i * numlinebytes;
+            //sdata->lines[i] = sdata->lines[0] + i * numlinebytes;
+            sdata->lines[i] = (uint8*)xmalloc_align(numlinebytes * sizeof(uint8));
         }
     }
     else
@@ -721,6 +722,7 @@ uint64 alloc_threaddata(soe_staticdata_t *sdata, thread_soedata_t *thread_data)
         thread->ddata.presieve_scratch = (uint32 *)xmalloc_align(16 * sizeof(uint32));
 
 		// allocate a bound for each block
+        //printf("allocated space for %d blocks in pbounds\n", sdata->blocks);
 		thread->ddata.pbounds = (uint64 *)malloc(
 			sdata->blocks * sizeof(uint64));
 		allocated_bytes += sdata->blocks * sizeof(uint64);

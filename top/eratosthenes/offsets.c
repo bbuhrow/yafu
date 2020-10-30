@@ -70,8 +70,10 @@ void get_offsets(thread_soedata_t *thread_data)
             // a block, start that prime in the next block.
             if (sdata->sieve_p[i] > ddata->blk_b_sqrt)
             {
+                //printf("pbounds block %d = %u\n", block, i);
                 ddata->pbounds[block] = i;
-                block++;
+                if (block < sdata->blocks)
+                    block++;
                 ddata->lblk_b = ddata->ublk_b + prodN;
                 ddata->ublk_b += sdata->blk_r;
                 ddata->blk_b_sqrt = (uint64)(sqrt((int64)(ddata->ublk_b + prodN))) + 1;

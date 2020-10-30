@@ -1756,7 +1756,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 			}
 		}
 
-		fobj->ecm_obj.B1 = strtoul(arg,ptr,10);
+		fobj->ecm_obj.B1 = strtoull(arg,ptr,10);
 		if (fobj->pp1_obj.stg2_is_default)
 		{
 			//stg2 hasn't been specified yet, so set it to the default value
@@ -2421,7 +2421,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 			}
 		}
 
-		fobj->ecm_obj.ecm_ext_xover = strtoul(arg,NULL,10);
+		fobj->ecm_obj.ecm_ext_xover = strtoull(arg,NULL,10);
 	}
 	else if (strcmp(opt,OptionArray[61]) == 0)
 	{
