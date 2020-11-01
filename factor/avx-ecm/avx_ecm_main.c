@@ -261,6 +261,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     // if the input is Mersenne and still contains algebraic factors, remove them.
     if (isMersenne)
     {
+#ifdef USE_NFS
         snfs_t poly;
 
         snfs_init(&poly);
@@ -277,6 +278,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
             0, 0, -1, -1, 0);
 
         snfs_clear(&poly);
+#endif
     }
 
     // force no Mersenne Mod, either specified by user or if the actual
