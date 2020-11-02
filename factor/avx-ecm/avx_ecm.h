@@ -139,9 +139,14 @@ void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t
 void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecmulmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
-void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
-void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
-void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, vec_bignum_t *n);
+void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
+void vecsubmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
+void vecaddmod52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, 
+    vec_monty_t* mdata);
+void vec_simul_addsub52_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* sum, vec_bignum_t* diff,
+    vec_monty_t* mdata);
 void vec_bignum52_mask_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, uint32_t wmask);
 void vec_bignum52_mask_rshift_1(vec_bignum_t * u, uint32_t wmask);
 uint32_t vec_bignum52_mask_lshift_1(vec_bignum_t * u, uint32_t wmask);
@@ -153,9 +158,11 @@ void vec_bignum52_add_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c);
 // 32-BIT functions
 void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
 void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);
-void vecsubmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
-void vecaddmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n);
-void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, vec_bignum_t *n);
+void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+void vecsqrmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+void vecsubmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
+void vecaddmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
+void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, vec_monty_t* mdata);
 void vec_bignum_mask_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, uint32_t wmask);
 void vec_bignum_mask_rshift_1(vec_bignum_t * u, uint32_t wmask);
 uint32_t vec_bignum_mask_lshift_1(vec_bignum_t * u, uint32_t wmask);
@@ -168,9 +175,9 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane);
 
 void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
 void(*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-void(*vecaddmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *);
-void(*vecsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *);
-void(*vecaddsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *);
+void(*vecaddmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+void(*vecsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+void(*vecaddsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
 
 // ecm stuff
 typedef struct 

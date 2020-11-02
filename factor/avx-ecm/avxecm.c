@@ -1271,7 +1271,7 @@ void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout)
     vecmulmod_ptr(work->diff1, work->sum2, work->tt1, work->n, work->tt4, mdata);	//U
     vecmulmod_ptr(work->sum1, work->diff2, work->tt2, work->n, work->tt4, mdata);	//V
 
-    vecaddsubmod_ptr(work->tt1, work->tt2, work->tt3, work->tt4, work->n);
+    vecaddsubmod_ptr(work->tt1, work->tt2, work->tt3, work->tt4, mdata);
     vecsqrmod_ptr(work->tt3, work->tt1, work->n, work->tt5, mdata);					//(U + V)^2
     vecsqrmod_ptr(work->tt4, work->tt2, work->n, work->tt5, mdata);					//(U - V)^2
 
@@ -1302,9 +1302,9 @@ void vec_duplicate(vec_monty_t *mdata, ecm_work *work, vec_bignum_t *insum, vec_
     vecsqrmod_ptr(insum, work->tt2, work->n, work->tt4, mdata);			        // U=(x1 + z1)^2
     vecmulmod_ptr(work->tt1, work->tt2, P->X, work->n, work->tt4, mdata);       // x=U*V
 
-    vecsubmod_ptr(work->tt2, work->tt1, work->tt3, work->n);	                // w = U-V
+    vecsubmod_ptr(work->tt2, work->tt1, work->tt3, mdata);	                // w = U-V
     vecmulmod_ptr(work->tt3, work->s, work->tt2, work->n, work->tt4, mdata);    // t = (A+2)/4 * w
-    vecaddmod_ptr(work->tt2, work->tt1, work->tt2, work->n);                    // t = t + V
+    vecaddmod_ptr(work->tt2, work->tt1, work->tt2, mdata);                    // t = t + V
     vecmulmod_ptr(work->tt2, work->tt3, P->Z, work->n, work->tt4, mdata);       // Z = t*w
 	work->stg1Doub++;
     return;
@@ -1563,8 +1563,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	vecCopy(P->Z, work->pt2.Z);
 	vecCopy(P->X, work->pt3.X);
 	vecCopy(P->Z, work->pt3.Z);
-	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, work->n);
-	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, work->n);
+	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, mdata);
+	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, mdata);
 
 	// point2 is [2]P
 	vec_duplicate(mdata, work, s1, d1, &work->pt1);
@@ -1591,18 +1591,18 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			d = (2 * d - e) / 3;
 			e = (e - d) / 2;
             
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4); // T = A + B (C)
 
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt2, &work->pt5); // T2 = T + A (B)
 
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt2); // B = B + T (A)
 
@@ -1624,8 +1624,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 2 */
 			d = (d - e) / 2;
 			
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt2);		// B = A + B (C)
 			vec_duplicate(mdata, work, s1, d1, &work->pt1);		// A = 2A
@@ -1638,8 +1638,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 3 */
 			d -= e;
 			
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4);		// T = B + A (C)
 			//add3(xT, zT, xB, zB, xA, zA, xC, zC, n, u, v, w); /* T = f(B,A,C) */
@@ -1668,8 +1668,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 4 */
 			d = (d - e) / 2;
 
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt2);		// B = B + A (C)
 			vec_duplicate(mdata, work, s2, d2, &work->pt1);		// A = 2A
@@ -1682,8 +1682,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 5 */
 			d /= 2;
 			
-            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt2, &work->pt3);		// C = C + A (B)
 			vec_duplicate(mdata, work, s2, d2, &work->pt1);		// A = 2A
@@ -1696,20 +1696,20 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 6 */
 			d = d / 3 - e;
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
 
 			vec_duplicate(mdata, work, s1, d1, &work->pt4);		// T = 2A
 
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt5);		// T2 = A + B (C)
 			
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt1);		// A = T + A (A)
 
-            vecaddsubmod_ptr(work->pt5.X, work->pt5.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt5.X, work->pt5.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4);		// T = T + T2 (C)
 
@@ -1742,20 +1742,20 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		{ /* condition 7 */
 			d = (d - 2 * e) / 3;
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4);		// T = A + B (C)
 
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt2, &work->pt2);		// B = T + A (B)
 
 			vec_duplicate(mdata, work, s2, d2, &work->pt4);		// T = 2A
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt1);		// A = A + T (A) = 3A
 
@@ -1769,13 +1769,13 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			d = (d - e) / 3;
             // in a run with B1=100M, this condition only executed a few times.
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt3, &work->pt4);		// T = A + B (C)
 
-            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt2, &work->pt3);		// C = C + A (B)
 
@@ -1790,12 +1790,12 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			work->pt4.X->data = sw_x;
 			work->pt4.Z->data = sw_z;
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
 			vec_duplicate(mdata, work, s2, d2, &work->pt4);		// T = 2A
 
-            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt1);		// A = A + T (A) = 3A
 
@@ -1807,8 +1807,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			e /= 2;
             // in a run with B1=100M, this condition never executed.
 
-            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, work->n);
-            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, work->n);
+            vecaddsubmod_ptr(work->pt3.X, work->pt3.Z, s1, d1, mdata);
+            vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
 			vec_add(mdata, work, &work->pt1, &work->pt3);		// C = C + B (A)
 			vec_duplicate(mdata, work, s2, d2, &work->pt2);		// B = 2B
@@ -1818,10 +1818,10 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 		}
 	}
 
-	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, work->n);
-	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, work->n);
-	vecsubmod_ptr(work->pt2.X, work->pt2.Z, d2, work->n);
-	vecaddmod_ptr(work->pt2.X, work->pt2.Z, s2, work->n);
+	vecsubmod_ptr(work->pt1.X, work->pt1.Z, d1, mdata);
+	vecaddmod_ptr(work->pt1.X, work->pt1.Z, s1, mdata);
+	vecsubmod_ptr(work->pt2.X, work->pt2.Z, d2, mdata);
+	vecaddmod_ptr(work->pt2.X, work->pt2.Z, s2, mdata);
 
 	vec_add(mdata, work, &work->pt3, P);		// A = A + B (C)
 
@@ -1914,8 +1914,8 @@ void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	vecCopy(P->Z, z1);
 	vecCopy(P->X, x3);
 	vecCopy(P->Z, z3);
-	vecsubmod_ptr(P->X, P->Z, d1, work->n);
-	vecaddmod_ptr(P->X, P->Z, s1, work->n);
+	vecsubmod_ptr(P->X, P->Z, d1, mdata);
+	vecaddmod_ptr(P->X, P->Z, s1, mdata);
 
 	d = 1;
 	x = 2;
@@ -1947,8 +1947,8 @@ void euclid(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	{
 		// both add and dup require the sum and difference 
 		// of the X and Z coords of the two points we are tracking.
-		vecaddsubmod_ptr(x2, z2, s2, d2, work->n);
-		vecaddsubmod_ptr(x1, z1, s1, d1, work->n);
+		vecaddsubmod_ptr(x2, z2, s2, d2, mdata);
+		vecaddsubmod_ptr(x1, z1, s1, d1, mdata);
 
 		if (seq[i] == 1)
 		{
@@ -2107,8 +2107,8 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 
 	vecCopy(P->X, x1);
 	vecCopy(P->Z, z1);
-	vecsubmod_ptr(P->X, P->Z, d1, work->n);
-	vecaddmod_ptr(P->X, P->Z, s1, work->n);
+	vecsubmod_ptr(P->X, P->Z, d1, mdata);
+	vecaddmod_ptr(P->X, P->Z, s1, mdata);
 	vec_duplicate(mdata, work, s1, d1, &work->pt2);
 
 	//mulcnt[tid] += 3;
@@ -2142,8 +2142,8 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	e = 2;
 	while (mask > 0)
 	{
-		vecaddsubmod_ptr(x2, z2, s2, d2, work->n);
-		vecaddsubmod_ptr(x1, z1, s1, d1, work->n);
+		vecaddsubmod_ptr(x2, z2, s2, d2, mdata);
+		vecaddsubmod_ptr(x1, z1, s1, d1, mdata);
 
 		//if the bit is 1
 		if (c & mask)
@@ -2990,7 +2990,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         mpz_mul(X, X, t1);
         mpz_set_ui(Z, 1);
 
-        if (mdata->isMersenne)
+        if (!mdata->isMersenne)
         {
             // into Monty rep
             mpz_mul_2exp(X, X, DIGITBITS * NWORDS);
@@ -3209,8 +3209,8 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
 	q = 2;
 	while (q < STAGE1_MAX)
 	{
-		vecsubmod_ptr(P->X, P->Z, work->diff1, work->n);
-		vecaddmod_ptr(P->X, P->Z, work->sum1, work->n);
+		vecsubmod_ptr(P->X, P->Z, work->diff1, mdata);
+		vecaddmod_ptr(P->X, P->Z, work->sum1, mdata);
 		vec_duplicate(mdata, work, work->sum1, work->diff1, P);
 		q *= 2;
 	}
@@ -3300,9 +3300,9 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 	// [2]Q
 	vecCopy(P->Z, Pb[2].Z);
 	vecCopy(P->X, Pb[2].X);
-    vecaddsubmod_ptr(P->X, P->Z, work->sum1, work->diff1, work->n);
-	//vecsubmod_ptr(P->X, P->Z, work->diff1, work->n);
-	//vecaddmod_ptr(P->X, P->Z, work->sum1, work->n);
+    vecaddsubmod_ptr(P->X, P->Z, work->sum1, work->diff1, mdata);
+	//vecsubmod_ptr(P->X, P->Z, work->diff1, mdata);
+	//vecaddmod_ptr(P->X, P->Z, work->sum1, mdata);
 	vec_duplicate(mdata, work, work->sum1, work->diff1, &Pb[2]);
 	vecmulmod_ptr(Pb[2].X, Pb[2].Z, Pbprod[2], work->n, work->tt4, mdata);
 
@@ -3333,19 +3333,19 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 		//z- = original z
 
 		// compute Sd from Sd-1 + S1, requiring Sd-1 - S1 = Sd-2
-        vecaddsubmod_ptr(P1->X, P1->Z, work->sum1, work->diff1, work->n);
-        //vecsubmod_ptr(P1->X, P1->Z, work->diff1, work->n);
-		//vecaddmod_ptr(P1->X, P1->Z, work->sum1, work->n);
-        vecaddsubmod_ptr(P2->X, P2->Z, work->sum2, work->diff2, work->n);
-		//vecsubmod_ptr(P2->X, P2->Z, work->diff2, work->n);
-		//vecaddmod_ptr(P2->X, P2->Z, work->sum2, work->n);
+        vecaddsubmod_ptr(P1->X, P1->Z, work->sum1, work->diff1, mdata);
+        //vecsubmod_ptr(P1->X, P1->Z, work->diff1, mdata);
+		//vecaddmod_ptr(P1->X, P1->Z, work->sum1, mdata);
+        vecaddsubmod_ptr(P2->X, P2->Z, work->sum2, work->diff2, mdata);
+		//vecsubmod_ptr(P2->X, P2->Z, work->diff2, mdata);
+		//vecaddmod_ptr(P2->X, P2->Z, work->sum2, mdata);
 
 		vecmulmod_ptr(work->diff1, work->sum2, work->tt1, work->n, work->tt4, mdata);	//U
 		vecmulmod_ptr(work->sum1, work->diff2, work->tt2, work->n, work->tt4, mdata);	//V
 
-        vecaddsubmod_ptr(work->tt1, work->tt2, Pout->X, Pout->Z, work->n);
-		//vecaddmod_ptr(work->tt1, work->tt2, Pout->X, work->n);		//U + V
-		//vecsubmod_ptr(work->tt1, work->tt2, Pout->Z, work->n);		//U - V
+        vecaddsubmod_ptr(work->tt1, work->tt2, Pout->X, Pout->Z, mdata);
+		//vecaddmod_ptr(work->tt1, work->tt2, Pout->X, mdata);		//U + V
+		//vecsubmod_ptr(work->tt1, work->tt2, Pout->Z, mdata);		//U - V
 		vecsqrmod_ptr(Pout->X, work->tt1, work->n, work->tt4, mdata);					//(U + V)^2
 		vecsqrmod_ptr(Pout->Z, work->tt2, work->n, work->tt4, mdata);					//(U - V)^2
 
@@ -3396,10 +3396,10 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 	if (verbose & (debug == 2))
 		printf("Pad = [%lu]Q\n", work->A - ainc);
 
-	vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, work->n);
-	vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, work->n);
-	vecsubmod_ptr(Pa[0].X, Pa[0].Z, work->diff1, work->n);
-	vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, work->n);
+	vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, mdata);
+	vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
+	vecsubmod_ptr(Pa[0].X, Pa[0].Z, work->diff1, mdata);
+	vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
 	vec_add(mdata, work, work->Pad, &Pa[1]);
 	vecmulmod_ptr(Pa[1].X, Pa[1].Z, Paprod[1], work->n, work->tt4, mdata);
 
@@ -3415,12 +3415,12 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 		//z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
 		//x- = [a-d]x
 		//z- = [a-d]z
-		//vecaddmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->n);
-		//vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, work->n);
-		//vecsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->diff1, work->n);
-		//vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, work->n);
-        vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, work->n);
-        vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, work->n);
+		//vecaddmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, mdata);
+		//vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
+		//vecsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->diff1, mdata);
+		//vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
+        vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, mdata);
+        vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, mdata);
 		vec_add(mdata, work, &Pa[i - 2], &Pa[i]);
 
 		work->A += ainc;
@@ -3472,17 +3472,17 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 
 // _TEST
 #define CROSS_PRODUCT_TEST \
-vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, work->n);          \
+vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
 vecmulmod_ptr(acc, work->tt1, acc, work->n, work->tt4, mdata);        
 
 // pre-computing the sum/diff multiplies is not efficient - many
 // of the sum/diff product combinations will never be used
 #define CROSS_PRODUCT \
-vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, work->n);          \
-vecaddmod_ptr(Pa[pa].Z, Pb[rprime_map_U[pb]].Z, work->tt2, work->n);          \
+vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
+vecaddmod_ptr(Pa[pa].Z, Pb[rprime_map_U[pb]].Z, work->tt2, mdata);          \
 vecmulmod_ptr(work->tt1, work->tt2, work->tt3, work->n, work->tt4, mdata);    \
-vecaddmod_ptr(work->tt3, Pbprod[rprime_map_U[pb]], work->tt1, work->n);       \
-vecsubmod_ptr(work->tt1, Paprod[pa], work->tt2, work->n);                     \
+vecaddmod_ptr(work->tt3, Pbprod[rprime_map_U[pb]], work->tt1, mdata);       \
+vecsubmod_ptr(work->tt1, Paprod[pa], work->tt2, mdata);                     \
 vecmulmod_ptr(acc, work->tt2, acc, work->n, work->tt4, mdata);                
 
 
@@ -3648,12 +3648,12 @@ void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 				//z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
 				//x- = [a-d]x
 				//z- = [a-d]z
-				//vecaddmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->n);
-				//vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, work->n);
-				//vecsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->diff1, work->n);
-				//vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, work->n);
-                vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, work->n);
-                vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, work->n);
+				//vecaddmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, mdata);
+				//vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
+				//vecsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->diff1, mdata);
+				//vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
+                vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, mdata);
+                vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, mdata);
 				vec_add(mdata, work, &Pa[i - 2], &Pa[i]);
 
 				//and Paprod
@@ -4146,11 +4146,11 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
 
     /* active: x1 z1 x2 z2 */
     //mpresn_addsub(w, z1, x1, z1, n); /* w = x1+z1, z1 = x1-z1 */
-    vecaddsubmod_ptr(x1, z1, w, z1, n);
+    vecaddsubmod_ptr(x1, z1, w, z1, mdata);
 
     /* active: w z1 x2 z2 */
     //mpresn_addsub(x1, x2, x2, z2, n); /* x1 = x2+z2, x2 = x2-z2 */
-    vecaddsubmod_ptr(x2, z2, x1, x2, n);
+    vecaddsubmod_ptr(x2, z2, x1, x2, mdata);
     /* active: w z1 x1 x2 */
 
     //mpresn_mul(z2, w, x2, n); /* w = (x1+z1)(x2-z2) */
@@ -4171,7 +4171,7 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
     /* active: x1 z1 t x2 z2 */
 
     //mpresn_sub(w, z1, t, n);   /* w = (x1+z1)^2 - (x1-z1)^2 */
-    vecsubmod_ptr(z1, t, w, n);
+    vecsubmod_ptr(z1, t, w, mdata);
     /* active: x1 w t x2 z2 */
 
     //mpresn_mul_1(z1, w, d_prime, n); /* z1 = d * ((x1+z1)^2 - (x1-z1)^2) */
@@ -4180,8 +4180,8 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
     /* active: x1 z1 w t x2 z2 */
 
     //mpresn_add(t, t, z1, n);  /* t = (x1-z1)^2 - d* ((x1+z1)^2 - (x1-z1)^2) */
-    vecaddmod_ptr(z1, t, t, n);
-    //vecsubmod_ptr(z1, t, t, n);
+    vecaddmod_ptr(z1, t, t, mdata);
+    //vecsubmod_ptr(z1, t, t, mdata);
 
     /* active: x1 w t x2 z2 */
     //mpresn_mul(z1, w, t, n); /* zdup = w * [(x1-z1)^2 - d* ((x1+z1)^2 - (x1-z1)^2)] */
@@ -4189,7 +4189,7 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
     /* active: x1 z1 x2 z2 */
 
     //mpresn_addsub(w, z2, x2, z2, n);
-    vecaddsubmod_ptr(x2, z2, w, z2, n);
+    vecaddsubmod_ptr(x2, z2, w, z2, mdata);
     /* active: x1 z1 w z2 */
 
     //mpresn_sqr(x2, w, n);
@@ -4199,7 +4199,7 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
     vecsqrmod_ptr(z2, w, n, s, mdata);
     /* active: x1 z1 x2 w */
     //mpresn_add(z2, w, w, n);
-    vecaddmod_ptr(w, w, z2, n);
+    vecaddmod_ptr(w, w, z2, mdata);
 
     //vecFree(t2);
 }
