@@ -465,22 +465,34 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         {
             vecmulmod_ptr = &vecmulmod52_mersenne;
             vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
             printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
         }
         else
         {
             vecmulmod_ptr = &vecmulmod52;
             vecsqrmod_ptr = &vecsqrmod52;
+            vecaddmod_ptr = &vecaddmod52;
+            vecaddsubmod_ptr = &vec_simul_addsub52;
+            vecsubmod_ptr = &vecsubmod52;
         }
-        
-        vecaddmod_ptr = &vecaddmod52;
-        vecsubmod_ptr = &vecsubmod52;
-        vecaddsubmod_ptr = &vec_simul_addsub52;
     }
     else
     {
-        vecmulmod_ptr = &vecmulmod;
-        vecsqrmod_ptr = &vecsqrmod;
+        if (montyconst->isMersenne)
+        {
+            vecmulmod_ptr = &vecmulmod_mersenne;
+            vecsqrmod_ptr = &vecsqrmod_mersenne;
+            printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+        }
+        else
+        {
+            vecmulmod_ptr = &vecmulmod;
+            vecsqrmod_ptr = &vecsqrmod;
+        }
+
         vecaddmod_ptr = &vecaddmod;
         vecsubmod_ptr = &vecsubmod;
         vecaddsubmod_ptr = &vec_simul_addsub;
