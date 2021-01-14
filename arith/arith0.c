@@ -76,70 +76,22 @@ uint64 mpz_get_64(mpz_t src)
 
 void mpz_set_64(mpz_t dest, uint64 src)
 {
-
+    //printf("%d %d %d\n", GMP_LIMB_BITS, sizeof(mp_limb_t), mp_bits_per_limb);
 #if GMP_LIMB_BITS == 64
-	dest->_mp_d[0] = src;
-	dest->_mp_size = (src ? 1 : 0);
+    mpz_set_ui(dest, src);
 #else
 	/* mpz_import is terribly slow */
-	mpz_set_ui(dest, (uint32)(src >> 32));
-	mpz_mul_2exp(dest, dest, 32);
-	mpz_add_ui(dest, dest, (uint32)src);
+    mpz_set_ui(dest, src >> 32);
+    mpz_mul_2exp(dest, dest, 32);
+    mpz_set_ui(dest, src & 0xffffffff)
 #endif
 
 }
-
-void mpz_to_z32(mpz_t src, z32 *dest)
-{
-	int i;
-
-#if GMP_LIMB_BITS == 32
-	for (i=0; i < mpz_size(src); i++)
-		dest->val[i] = mpz_getlimbn(src, i);
-
-	dest->size = mpz_size(src);
-#else
-	int j = 0;
-	for (i=0; i < mpz_size(src); i++)
-	{
-		uint64 tmp = mpz_getlimbn(src, i);
-		dest->val[j] = (uint32)tmp;
-		dest->val[j+1] = (uint32)(tmp >> 32);
-		j += 2;
-	}
-	if (dest->val[j-1] == 0)
-		dest->size = j-1;
-	else
-		dest->size = j;
-#endif
-	return;
-}
-
-void z32_to_mpz(z32 *src, mpz_t dest)
-{
-	int i;
-#if GMP_LIMB_BITS == 32
-	for (i=0; i < src->size; i++)
-		dest->_mp_d[i] = src->val[i];
-	dest->_mp_size = src->size;
-#else
-	int j=0;
-	if (src->size & 1)
-		src->val[src->size] = 0;
-
-	for (i=0; i < src->size; i+=2)
-		dest->_mp_d[j++] = (uint64)src->val[i] | ((uint64)src->val[i+1] << 32);
-	dest->_mp_size = j;
-
-#endif
-	return;
-}
-
 
 void zCopy(z *src, z *dest)
 {
 	//physically copy the digits of u into the digits of v
-	int su = abs(src->size);
+	int i,su = abs(src->size);
 	
 	if (src == dest)
 		return;
@@ -147,7 +99,12 @@ void zCopy(z *src, z *dest)
 	if (dest->alloc < su)
 		zGrow(dest,su);
 
-	memcpy(dest->val,src->val,su * sizeof(fp_digit));
+	//memcpy(dest->val,src->val,su * sizeof(fp_digit));
+    for (i = 0; i < su; i++)
+    {
+        dest->val[i] = src->val[i];
+    }
+
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -156,7 +113,7 @@ void zCopy(z *src, z *dest)
 void zCopy32(z32 *src, z32 *dest)
 {
 	//physically copy the digits of u into the digits of v
-	int su = abs(src->size);
+	int i,su = abs(src->size);
 	
 	if (src == dest)
 		return;
@@ -164,7 +121,12 @@ void zCopy32(z32 *src, z32 *dest)
 	if (dest->alloc < su)
 		zGrow32(dest,su);
 
-	memcpy(dest->val,src->val,su * sizeof(uint32));
+	//memcpy(dest->val,src->val,su * sizeof(uint32));
+    for (i = 0; i < su; i++)
+    {
+        dest->val[i] = src->val[i];
+    }
+
 	dest->size = src->size;
 	dest->type = src->type;
 	return;
@@ -303,10 +265,13 @@ char *z2decstr(z *n, str_t *s)
 		//print the rest
 		for (i=sza - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%09u",(uint32)a.val[i]);
-			memcpy(s->s + s->nchars, tmp, 9);
+			//memcpy(s->s + s->nchars, tmp, 9);
+            for (j=0; j<9; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 9;
 		}
 #else
@@ -316,10 +281,13 @@ char *z2decstr(z *n, str_t *s)
 		//print the rest
 		for (i=sza - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%019" PRIu64,a.val[i]);
-			memcpy(s->s + s->nchars, tmp, 19);
+			//memcpy(s->s + s->nchars, tmp, 19);
+            for (j = 0; j<19; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 19;
 		}
 #endif
@@ -367,10 +335,13 @@ char *z2hexstr(z *n, str_t *s)
 		//print the rest
 		for (i=szn - 2; i>=0; i--)
 		{
+            int j;
 			//sprintf(s->s,"%s%09u",s->s,a.val[i]);
 			//s->nchars += 9;
 			sprintf(tmp,"%08x",(uint32)n->val[i]);
-			memcpy(s->s + s->nchars, tmp, 8);
+			//memcpy(s->s + s->nchars, tmp, 8);
+            for (j = 0; j<8; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 8;
 		}
 #else
@@ -381,8 +352,11 @@ char *z2hexstr(z *n, str_t *s)
 		//print the rest
 		for (i=szn - 2; i>=0; i--)
 		{
+            int j;
 			sprintf(tmp,"%016" PRIx64,n->val[i]);
-			memcpy(s->s + s->nchars, tmp, 16);
+			//memcpy(s->s + s->nchars, tmp, 16);
+            for (j = 0; j<16; j++)
+                s->s[j] = tmp[j];
 			s->nchars += 16;
 		}
 #endif
@@ -419,144 +393,6 @@ void str2hexz(char in[], z *u)
 	gmp2mp(t, u);
 	mpz_clear(t);
 	return;
-
-
-	/*
-	//convert a string to a bigint
-	char *s2,*s,*incpy;
-	char **ptr = NULL;
-	int i,j,su,base,step,sign=0;
-
-	//work with a copy of in
-	i = strlen(in);
-	incpy = (char *)malloc((i+10)*sizeof(char));
-	strcpy(incpy,in);
-	s = incpy;
-
-	j=0;
-	//remove white space
-	for (i=0;(uint32)i<strlen(s);i++)
-	{
-		if (isspace(s[i]))
-			continue;
-		
-		s[j] = s[i];
-		j++;
-	}
-	s[j] = '\0';
-
-	//check for sign
-	if (s[0] == '-')
-	{
-		sign = 1;
-		s++;
-	}
-
-	//determine base of s by looking for 0x (hex) 0b (bin) or 0o (oct).  if 
-	//none of these, go with the input base.
-	if (s[0] == '0' && s[1] == 'x')
-	{
-		step = HEX_DIGIT_PER_WORD;
-		base = HEX;
-		s += 2;
-	}
-	else if (s[0] == '0' && s[1] == 'b')
-	{
-		step = BITS_PER_DIGIT;
-		base = BIN;
-		s += 2;
-	}
-	else if (s[0] == '0' && s[1] == 'o')
-	{
-		step = 10;
-		base = OCT;
-		s += 2;
-	}
-	else if (s[0] == '0' && s[1] == 'd')
-	{
-		step = DEC_DIGIT_PER_WORD;
-		base = DEC;
-		s += 2;
-	}
-	else
-	{
-		base = IBASE;
-		if (base == HEX)
-			step = HEX_DIGIT_PER_WORD;
-		else if (base == DEC)
-			step = DEC_DIGIT_PER_WORD;
-		else if (base == BIN)
-			step = BITS_PER_DIGIT;
-		else
-			step = 20;	//fixme
-	}
-
-	//check for non-numeric characters
-	for (i=0; i<(int)strlen(s); i++)
-	{
-		switch (base)
-		{
-		default:
-		case DEC:
-			if (isdigit(s[i]) == 0)
-			{
-				printf("invalid character in str2hexz\n");
-				free(incpy);
-				zClear(u);
-				u->size = 0;	//error flag
-				return;
-			}
-			break;
-		case HEX:
-			if (isxdigit(s[i]) == 0)
-			{
-				printf("invalid character in str2hexz\n");
-				free(incpy);
-				zClear(u);
-				u->size = 0;	//error flag
-				return;
-			}
-			break;
-		}
-	}
-
-	su = strlen(s)/step + (strlen(s)%step != 0);
-	if (u->alloc < su)
-		zGrow(u,(su + 2));		
-	zClear(u);
-
-	//read and convert step characters of s at a time
-	j=0;
-	for (i=0;i<su-1;i++)
-	{
-		s2 = &s[strlen(s)] - step;
-		u->val[j] = strto_fpdigit(s2,ptr,base);
-		s2[0] = '\0';
-		j++;
-	}
-
-	if (strlen(s) > 0)
-	{
-		s2 = s;
-		ptr = &s2;
-		u->val[j] = strto_fpdigit(s2,ptr,base);
-	}
-	u->size = j+1;
-
-	if (sign)
-		u->size *= -1;
-
-	//all routines work on binary data, so get the output in hex
-	if (base == DEC || base == OCT)
-	{
-		//the way OCT is read in, it ends up just like dec in u.
-		zDec2Hex(u,u);
-	}
-
-	free(incpy);
-	return;
-
-	*/
 }
 
 void mp_t2z(mp_t *src, z *dest)
@@ -688,7 +524,6 @@ int ndigits(z *n)
 {
 	int i=0;
 	z nn,tmp;
-	fp_digit r;
 
 	//can get within one digit using zBits and logs, which would
 	//be tons faster.  Any way to 'correct' the +/- 1 error?
@@ -698,7 +533,7 @@ int ndigits(z *n)
 	while (tmp.size > 1)
 	{
 		zCopy(&tmp,&nn);
-		r = zShortDiv(&nn,MAX_DEC_WORD,&tmp);
+		zShortDiv(&nn,MAX_DEC_WORD,&tmp);
 		i += DEC_DIGIT_PER_WORD;
 	}
 	i += ndigits_1(tmp.val[0]);

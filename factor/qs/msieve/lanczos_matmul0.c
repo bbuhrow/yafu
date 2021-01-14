@@ -614,7 +614,11 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 
 	/* determine the number of threads to use */
 
-	num_threads = obj->num_threads;
+    if (LATHREADS > 1)
+        num_threads = LATHREADS;
+    else
+	    num_threads = obj->num_threads;
+
 	if (num_threads < 2 || ncols < QS_MIN_NCOLS_TO_THREAD)
 		num_threads = 1;
 	p->num_threads = num_threads = MIN(num_threads, QS_MAX_THREADS);

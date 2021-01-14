@@ -15,6 +15,7 @@ double best_linear_fit(double *x, double *y, int numpts,
 	double *slope, double *intercept);
 void update_INI(double mult, double exponent, double mult2, double exponent2, double xover);
 void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
+void check_siever(fact_obj_t* fobj, char* sname, int siever);
 
 //----------------------- TUNE ENTRY POINT ------------------------------------//
 void factor_tune(fact_obj_t *inobj)
@@ -33,17 +34,19 @@ void factor_tune(fact_obj_t *inobj)
 	// should be repeated.
 	char siqslist[9][200];
 	char nfslist[6][200];
+    char sievername[1024];
 	z n;
 	int i, tmpT;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
-	TIME_DIFF *	difference;
 	double t_time;
 
 	//uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
 	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
-		63709, 143984, 242825, 589192, 847299, 1272852, 1709598};
+		63709, 143984, 242825, 589192, 847299, 1272852, 1709598}; // 2397232, 3293925
+    uint32 siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
+        15, 13, 16, 20, 18, 19, 20 }; // 20, 20
 
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
@@ -65,6 +68,24 @@ void factor_tune(fact_obj_t *inobj)
 	if (THREADS != 1)
 		printf("Setting THREADS = 1 for tuning\n");
 	THREADS = 1;
+
+    if (VFLAG >= 0)
+        printf("checking for NFS sievers... ");
+
+    check_siever(inobj, sievername, 11);
+    check_siever(inobj, sievername, 12);
+    check_siever(inobj, sievername, 13);
+
+    if (VFLAG >= 0)
+        printf("done.\n");
+
+#if defined(USE_AVX2) || defined(USE_SSE41)
+    // as of version 1.35, c70 and above use DLP in SIQS for these CPUs:
+    // need to modify the actual relations needed.
+    siqs_actualrels[2] = 97812;
+    siqs_actualrels[3] = 243854;
+    siqs_actualrels[4] = 418664;
+#endif
 
 	//siqs: start with c60, increment by 5 digits, up to a c100
 	//this will allow determination of NFS/QS crossover as well as provide enough
@@ -88,24 +109,37 @@ void factor_tune(fact_obj_t *inobj)
 	strcpy(nfslist[3],"1802716097522165018257858828415111497060066282677325501816640492782221110851604465066510547671104729");
 	strcpy(nfslist[4],"466734409955806375058988820327650664396976790744285564594552020197119774272189758795312820988691316775181");
 	strcpy(nfslist[5],"48178889479314834847826896738914354061668125063983964035428538278448985505047157633738779051249185304620494013");
-		
+
+	// c135 from TMPQS
+	// 116915434112329921568236283928181979297762987646390347857868153872054154807376462439621333455331738807075404918922573575454310187518221
+
+	// RSA-120
+	// 227010481295437363334259960947493668895875336466084780038173258247009162675779735389791151574049166747880487470296548479
+
+	// RSA-129 (The magic words are squeamish ossifrage)
+	// 114381625757888867669235779976146612010218296721242362562561842935706935245733897830597123563958705058989075147599290026879543541
+
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 		init_factobj(fobj);		
 
-		//measure how long it takes to gather a fixed number of relations 		
+		// measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);
 		fobj->qs_obj.gbl_override_rel_flag = 1;
 		fobj->qs_obj.gbl_override_rel = 10000;	
+
+        // also set the tf_small_cutoff to its known best value so we
+        // don't pollute the measurement with the optimization process.
+        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+        fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
+
 		gettimeofday(&start, NULL);
 		mp2gmp(&n,fobj->qs_obj.gmp_n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time = yafu_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
 		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
@@ -130,7 +164,7 @@ void factor_tune(fact_obj_t *inobj)
 	// for each of the gnfs inputs
 	for (i=0; i<NUM_GNFS_PTS; i++)
 	{
-		char syscmd[1024], sievername[1024];
+		char syscmd[1024];
 		FILE *in;
 		uint32 startq, qrange;		
 		double t_time2, d;
@@ -154,9 +188,8 @@ void factor_tune(fact_obj_t *inobj)
 
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time2 = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time2 = yafu_difftime(&start, &stop);
+		
 		printf("afb generation took %6.4f seconds.\n",t_time2);
 		remove("tune.job.afb.0");
 		MySleep(.1);
@@ -171,9 +204,7 @@ void factor_tune(fact_obj_t *inobj)
 			startq, startq + qrange);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);			
+        t_time = yafu_difftime(&start, &stop);
 
 		//count relations
 		in = fopen("tunerels.out","r");
@@ -253,7 +284,7 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 
 void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
 {
-	FILE *out, *test;
+	FILE *out;
 	int siever;
 
 	out = fopen("tune.job","w");
@@ -421,41 +452,50 @@ void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, 
 
 	}
 
-	switch (siever)
-	{
-	case 11:
-		sprintf(sname, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 12:
-		sprintf(sname, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 13:
-		sprintf(sname, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 14:
-		sprintf(sname, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	case 15:
-		sprintf(sname, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
-		break;
-	}
-
-#if defined(WIN32)
-	sprintf(sname, "%s.exe", sname);
-#endif
-
-	// test for existence of the siever
-	test = fopen(sname, "rb");
-	if (test == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not find %s, bailing\n",sname);
-		exit(-1);
-	}
+    check_siever(fobj, sname, siever);
 	
 	fclose(out);
 
 	return;
+}
+
+void check_siever(fact_obj_t *fobj, char* sname, int siever)
+{
+    FILE* test;
+
+    switch (siever)
+    {
+    case 11:
+        sprintf(sname, "%sgnfs-lasieve4I11e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 12:
+        sprintf(sname, "%sgnfs-lasieve4I12e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 13:
+        sprintf(sname, "%sgnfs-lasieve4I13e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 14:
+        sprintf(sname, "%sgnfs-lasieve4I14e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    case 15:
+        sprintf(sname, "%sgnfs-lasieve4I15e", fobj->nfs_obj.ggnfs_dir);
+        break;
+    }
+
+#if defined(WIN32)
+    sprintf(sname, "%s.exe", sname);
+#endif
+
+    // test for existence of the siever
+    test = fopen(sname, "rb");
+    if (test == NULL)
+    {
+        printf("fopen error: %s\n", strerror(errno));
+        printf("could not find %s, bailing\n", sname);
+        exit(-1);
+    }
+
+    return;
 }
 
 void update_INI(double mult, double exponent, double mult2, double exponent2, double xover)

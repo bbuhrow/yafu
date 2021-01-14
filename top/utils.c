@@ -66,6 +66,100 @@ const char* szFeatures[] =
     "Pending Break Enable"
 };
 
+
+
+
+hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements)
+{
+    hash_t *hashTable;
+    int i;
+
+    hashTable = (hash_t*)xmalloc(sizeof(hash_t));
+    hashTable->hashKey = (uint64**)xmalloc((1 << pow2numElements) * sizeof(uint64*));
+    hashTable->hashBins = (uint8 **)xmalloc((1 << pow2numElements) * sizeof(uint8*));
+    hashTable->binSize = (uint32*)xcalloc((1 << pow2numElements), sizeof(uint32));
+    hashTable->elementSizeB = elementSizeB;
+    hashTable->numStored = 0;
+    hashTable->numBinsPow2 = pow2numElements;
+    hashTable->numBins = 1 << pow2numElements;
+
+    printf("initialized hash array of size %u with elements of size %u\n",
+        hashTable->numBins, hashTable->elementSizeB);
+
+    for (i = 0; i < hashTable->numBins; i++)
+    {
+        hashTable->hashBins[i] = (uint8*)xmalloc(elementSizeB);
+        hashTable->hashKey[i] = (uint64*)xmalloc(sizeof(uint64));
+    }
+
+    return hashTable;
+}
+
+void deleteHash(hash_t* hash)
+{
+    int i;
+
+    for (i = 0; i < hash->numBins; i++)
+    {
+        free(hash->hashBins[i]);
+        free(hash->hashKey[i]);
+    }
+
+    free(hash->hashBins);
+    free(hash->hashKey);
+    free(hash->binSize);
+    hash->numStored = 0;
+    hash->numBins = 0;
+    free(hash);
+}
+
+void hashPut(hash_t* hash, uint8* element, uint64 key)
+{
+    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
+    //printf("hashPut into bin %u with key %u\n", binNum, key);
+
+    if (hash->binSize[binNum] > 0)
+    {
+        //printf("growing bin %u size to %u\n", binNum + 1, hash->binSize[binNum] + 1);
+        hash->hashBins[binNum] = (uint8*)xrealloc(hash->hashBins[binNum],
+            (hash->binSize[binNum] + 1) * hash->elementSizeB);
+        hash->hashKey[binNum] = (uint64*)xrealloc(hash->hashKey[binNum],
+            (hash->binSize[binNum] + 1) * sizeof(uint64));
+        memcpy(&hash->hashBins[binNum][hash->elementSizeB * hash->binSize[binNum]],
+            element, hash->elementSizeB);
+        hash->hashKey[binNum][hash->binSize[binNum]] = key;
+        hash->binSize[binNum]++;
+    }
+    else
+    {
+        memcpy(hash->hashBins[binNum], element, hash->elementSizeB);
+        hash->hashKey[binNum][hash->binSize[binNum]] = key;
+        hash->binSize[binNum]++;
+    }
+
+    hash->numStored++;
+
+    return;
+}
+
+void hashGet(hash_t* hash, uint64 key, uint8*element)
+{
+    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
+    int i;
+    
+    for (i = 0; i < hash->binSize[binNum]; i++)
+    {
+        if (hash->hashKey[binNum][i] == key)
+        {
+            memcpy(element, &hash->hashBins[binNum][hash->elementSizeB * i],
+                hash->elementSizeB);
+            return;
+        }
+    }
+    return;
+}
+
+
 fp_digit spRand(fp_digit lower, fp_digit upper)
 {
 	// advance the state of the LCG and return the appropriate result
@@ -198,7 +292,6 @@ void zRand(z *n, uint32 ndigits)
 	return;
 }
 
-
 void sInit(str_t *s)
 {
 	s->s = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
@@ -273,9 +366,6 @@ void sCopy(str_t *dest, str_t *src)
 {
 	if (dest->alloc < src->nchars + 2)
 	{
-		//free(dest->s);
-		//dest->s = (char *)malloc((src->nchars+2) * sizeof(char));
-		//printf("growing str in sCopy...\n");
 		dest->s = (char *)realloc(dest->s, (src->nchars+2) * sizeof(char));
 		dest->alloc = src->nchars+2;
 	}
@@ -707,8 +797,18 @@ void generate_pseudoprime_list(int num, int bits)
 	for (i=0; i<num; i++)
 	{
 		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+        mpz_setbit(tmp3, bits/2-1);
 		zNextPrime(tmp3,tmp1,1);
-		mpz_urandomb(tmp3, gmp_randstate, bits/2);
+        if (bits & 1)
+        {
+            mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
+            mpz_setbit(tmp3, bits/2);
+        }
+        else
+        {
+            mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+            mpz_setbit(tmp3, bits/2-1);
+        }
 		zNextPrime(tmp3,tmp2,1);
 		mpz_mul(tmp3,tmp2,tmp1);
 		gmp_fprintf(out,"%Zd,%Zd,%Zd\n",
@@ -862,11 +962,9 @@ void build_RSA(int bits, mpz_t in)
 		gordon(bits/2,&p);
 		gordon(bits/2,&q);
 		zMul(&p,&q,&n);
-		//printf("trial %d has %d bits\n",i,zBits(n));
 		i++;
 	}
 
-	//printf("took %d trials\n",i);
 	mp2gmp(&n, in);
 	zFree(&n);
 	zFree(&p);
@@ -878,25 +976,26 @@ void build_RSA(int bits, mpz_t in)
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-TIME_DIFF * my_difftime (struct timeval * start, struct timeval * end)
+double yafu_difftime (struct timeval * start, struct timeval * end)
 {
-	TIME_DIFF * diff = (TIME_DIFF *) malloc ( sizeof (TIME_DIFF) );
+    double secs;
+    double usecs;
 
 	if (start->tv_sec == end->tv_sec) {
-		diff->secs = 0;
-		diff->usecs = end->tv_usec - start->tv_usec;
+		secs = 0;
+		usecs = end->tv_usec - start->tv_usec;
 	}
 	else {
-		diff->usecs = 1000000 - start->tv_usec;
-		diff->secs = end->tv_sec - (start->tv_sec + 1);
-		diff->usecs += end->tv_usec;
-		if (diff->usecs >= 1000000) {
-			diff->usecs -= 1000000;
-			diff->secs += 1;
+		usecs = 1000000 - start->tv_usec;
+		secs = end->tv_sec - (start->tv_sec + 1);
+		usecs += end->tv_usec;
+		if (usecs >= 1000000) {
+			usecs -= 1000000;
+			secs += 1;
 		}
 	}
 	
-	return diff;
+	return secs + usecs / 1000000.;
 }
 
 //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
@@ -1096,7 +1195,6 @@ int qcomp_double(const void *x, const void *y)
 		uint64 cycles;
 		struct timeval start, stop;
 		double t_time;
-		TIME_DIFF *	difference;
 
 		gettimeofday(&start,NULL);
 
@@ -1104,10 +1202,7 @@ int qcomp_double(const void *x, const void *y)
 		do
 		{
 			gettimeofday (&stop, NULL);
-			difference = my_difftime (&start, &stop);
-			t_time = ((double)difference->secs + 
-				(double)difference->usecs / 1000000);
-			free(difference);
+            t_time = yafu_difftime (&start, &stop);
 		}
 		while (t_time < 0.1);
 		cycles = yafu_read_clock() - cycles;
@@ -1963,6 +2058,33 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 		printf("\n\n\tAVX2 Extensions\n");
 
     return  nRet;
+}
+
+uint32 * mergesort(uint32 *a, uint32 *b, int sz_a, int sz_b)
+{
+    uint32 *c = (uint32 *)malloc((sz_a + sz_b) * sizeof(uint32));
+    int i = 0, j = 0, k = 0;
+
+    while ((i < sz_a) && (j < sz_b)) {
+        if (a[i] < b[j]) {
+            c[k++] = a[i++];
+        }
+        else if (a[i] > b[j]) {
+            c[k++] = b[j++];
+        }
+        else {
+            c[k++] = a[i++];
+            c[k++] = b[j++];
+        }
+    }
+
+    while (i < sz_a)
+        c[k++] = a[i++];
+
+    while (j < sz_b)
+        c[k++] = b[j++];
+
+    return c;
 }
 
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input)

@@ -55,12 +55,32 @@ this file contains code implementing 5)
 
 */
 
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+#include <immintrin.h>
+#endif
 
-#if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
-	//these compilers support SIMD 
-	#define SCAN_CLEAN asm volatile("emms");	
+const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
+0x10, 0x20, 0x40, 0x80,
+0x100, 0x200, 0x400, 0x800,
+0x1000, 0x2000, 0x4000, 0x8000 };
 
-    #if defined(USE_AVX2)
+#if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__))
+	
+    #if defined(TARGET_KNC)
+
+        #define SCAN_CLEAN
+
+        #define SCAN_16X	do {		\
+            __m512i velements = _mm512_load_epi32(bptr + j); \
+            velements = _mm512_and_epi32(velements, vmask); \
+            result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ); \
+            } while (0);
+
+    #elif defined(USE_AVX2)
+
+        // these systems support SIMD 
+        #define SCAN_CLEAN asm volatile("emms");	
+
 
         #define SCAN_16X_VEC_b			\
 			asm volatile (			\
@@ -145,9 +165,46 @@ this file contains code implementing 5)
                 : "r"(bptr + j), "r"(mask), "r"(buffer), "r"(j)	\
                 : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "cc", "memory");
 
+        // the following are attempts to do less asm.  Just do the
+        // SIMD stuff and let the complier optimize the rest 
+        // using a bitscan loop.  However the above seems to be 
+        // slightly faster.
+        #define SCAN_16X_b			\
+			asm volatile (			\
+				"vmovdqa (%2), %%ymm0	\n\t"	/*move mask into xmm0*/	\
+				"vmovdqa (%1), %%ymm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+				"vmovdqa 32(%1), %%ymm2	\n\t"		\
+                "movq   $0x2222222222222222,%%r8    \n\t" /* clear the bytemask results we don't care about */ \
+				"vpcmpeqw %%ymm0, %%ymm1, %%ymm1	\n\t"	/*compare to mask*/	\
+				"vpcmpeqw %%ymm0, %%ymm2, %%ymm2	\n\t"		\
+                "vpmovmskb %%ymm1, %0   \n\t"		/* 1st 4 comparisons in 32 bits of r8  */		\
+                "vpmovmskb %%ymm2, %%r9   \n\t"		/* 2nd 4 comparisons in 32 bits of r9  */		\              
+                "salq $32, %%r9		\n\t"			/*  */ \
+                "orq	%%r9,%0		\n\t"		/* r8 now holds 16 comparisons in 64 bits */ \
+                "andq   %%r8,%0    \n\t"                /* clear the bytemask results we don't care about */ \
+                : "=r"(result64)						\
+                : "r"(bptr + j), "r"(mask) \
+                : "r8", "r9", "xmm0", "xmm1", "xmm2", "cc", "memory");
+
+        #define SCAN_16X			\
+			asm volatile (			\
+				"vmovdqa (%3), %%ymm0	\n\t"	/*move mask into xmm0*/	\
+				"vmovdqa (%2), %%ymm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
+				"vmovdqa 32(%2), %%ymm2	\n\t"		\
+				"vpcmpeqw %%ymm0, %%ymm1, %%ymm1	\n\t"	/*compare to mask*/	\
+				"vpcmpeqw %%ymm0, %%ymm2, %%ymm2	\n\t"		\
+                "vpmovmskb %%ymm1, %0   \n\t"		/* 1st 4 comparisons in 32 bits of r8  */		\
+                "vpmovmskb %%ymm2, %1   \n\t"		/* 2nd 4 comparisons in 32 bits of r9  */		\              
+                : "=r"(r.r32[0]), "=r"(r.r32[1])	\
+                : "r"(bptr + j), "r"(mask) \
+                : "xmm0", "xmm1", "xmm2", "cc", "memory");
 
 
 	#elif defined(HAS_SSE2)
+
+        // these systems support SIMD 
+        #define SCAN_CLEAN asm volatile("emms");	
+
 		// top level sieve scanning with SSE2
         // the block_loc that we are looking for is in the
         // bottom half of each 32-bit value of bptr, so each
@@ -199,9 +256,6 @@ this file contains code implementing 5)
 			    : "r"(bptr + j), "r"(mask), "r"(buffer), "r"(j)	\
                 : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "cc", "memory");	
 
-    #endif
-
-    #if defined(HAS_SSE2)
 
 		#define SCAN_16X			\
 			asm volatile (			\
@@ -262,6 +316,17 @@ this file contains code implementing 5)
 				: "%mm0", "%mm1", "%mm2", "%mm3", "%mm4", "%ebx", "cc");	
 
 	#else
+
+        #define SCAN_16X_VEC \
+            for (i=0; i<16; i++) { \
+                if ((bptr[j+i] & 0x0000ffff) == block_loc) { \
+                    buffer[result++] = j+i; \
+                } \
+            }
+
+
+        #define SCAN_CLEAN
+
 		#define SCAN_16X	\
 			result = 0xffff;	/*dont know what compiler this is. force the normal method*/
 	#endif
@@ -382,7 +447,7 @@ this file contains code implementing 5)
 	#else
 
 		#define SCAN_16X	\
-			result = 1;	/* force the normal method*/
+			result = 0xffff;	/* force the normal method*/
 
 	#endif
 
@@ -395,14 +460,7 @@ this file contains code implementing 5)
 
 #endif
 
-#ifdef USE_YAFU_TDIV
-#define DIVIDE_ONE_PRIME \
-	do	\
-	{	\
-		fb_offsets[++smooth_num] = i;	\
-		zShortDiv32(tmp32, prime,tmp32);	\
-	} while (zShortMod32(tmp32, prime) == 0);
-#else
+
 #define DIVIDE_ONE_PRIME \
 	do \
 	{						\
@@ -411,12 +469,20 @@ this file contains code implementing 5)
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
 
 #define DIVIDE_RESIEVED_PRIME(j) \
-            	while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
-                                    	{						\
+    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
+    {						\
 		fb_offsets[++smooth_num] = j;	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
-                                    	}
-#endif
+    }
+
+#define DIVIDE_VLP_PRIME(j) \
+    while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0) \
+    {						\
+        count++; \
+        /*gmp_printf("vlp prime %u divides %Zu\n", prime, dconf->Qvals[report_num]); */ \
+		fb_offsets[++smooth_num] = j;	\
+		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
+    }
 
 void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -426,13 +492,27 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	uint32 *bptr;
-	sieve_fb *fb;
+    uint32 *fb = sconf->sieve_primes;
 	uint32 block_loc;
 	uint16 *mask = dconf->mask;
-    uint16 buffer[32];
+    uint16 buffer[32];    
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+    __m512i vmask, vblock;
+#endif
 
-#ifdef USE_YAFU_TDIV
-	z32 *tmp32 = &dconf->Qvals32[report_num];
+#ifdef USE_BATCHPOLY
+    int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+
+    if (dconf->numB == 1)
+    {
+        poly_offset = 0;
+    }
+    else if (poly_offset < 0)
+    {
+        poly_offset += dconf->poly_batchsize;
+    }
+    poly_offset = poly_offset * 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+
 #endif
 
 #ifdef QS_TIMING
@@ -443,46 +523,65 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
 
-	mask[0] = block_loc;
-	mask[2] = block_loc;
-	mask[4] = block_loc;
-	mask[6] = block_loc;
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+    // 16 copies of the 16-bit block_loc in the lower half of
+    // each of the 32-bit vector elements.
+    vblock = _mm512_set1_epi32(block_loc);
+    vmask = _mm512_set1_epi32(0x0000ffff);
+#else
+    mask[0] = block_loc;
+    mask[2] = block_loc;
+    mask[4] = block_loc;
+    mask[6] = block_loc;
     mask[8] = block_loc;
     mask[10] = block_loc;
     mask[12] = block_loc;
     mask[14] = block_loc;
-	
-	if (parity)
-		fb = dconf->fb_sieve_n;
-	else
-		fb = dconf->fb_sieve_p;
+#endif
 
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
 	//current block index.
+#ifdef USE_BATCHPOLY
+    bptr = dconf->buckets->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
+#else
 	bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
-	if (parity)
-	{
-		bptr += (sconf->num_blocks << BUCKET_BITS);
-		basebucket = sconf->num_blocks;
-	}
+#endif
+
+    if (parity)
+    {
+        bptr += (sconf->num_blocks << BUCKET_BITS);
+        basebucket = sconf->num_blocks;
+    }
     else
     {
         basebucket = 0;
     }
 
-
-
 	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
 	{
-		uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
-        int r;
+#ifdef USE_BATCHPOLY
+        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
+#else
+        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+        //uint32 lpnum = bptr[0];
+#endif
+
+        int r, q;
 		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
 		uint32 result = 0;
 
+#ifdef DO_VLP_OPT
+        if (dconf->buckets->fb_bounds[k] == 0xffffffff)
+        {
+            //printf("found flag, commencing vlp tdiv for loc %u, current slice is %d\n", block_loc, k);
+            //printf("next 3 bucket entries are: %u, %u, %u\n", bptr[0], bptr[1], bptr[2]);
+            break;
+        }
+#endif
 
-#if defined (_MSC_VER) || defined (FORCE_GENERIC)
-        for (j=0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+#if (defined (_MSC_VER) && !defined(USE_AVX512F))
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
         {
             SCAN_16X;
 
@@ -496,25 +595,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 4] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 4] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 8] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 8] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 12] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 12] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -524,25 +623,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 1] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 1] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 5] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 5] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 9] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 9] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 13] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 13] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -552,25 +651,25 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 2] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 2] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 6] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 6] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 10] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 10] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 14] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 14] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
@@ -580,36 +679,38 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
                 if ((bptr[j + 3] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 3] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 7] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 7] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 11] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 11] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
                 if ((bptr[j + 15] & 0x0000ffff) == block_loc)
                 {
                     i = fb_bound + (bptr[j + 15] >> 16);
-                    prime = fb[i].prime;
+                    prime = fb[i];
                     DIVIDE_ONE_PRIME;
                 }
             }
+
         }
 
+        // leftover bucket elements to check after doing 16x at a time
         for (; (uint32)j < lpnum; j++)
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
                 i = fb_bound + (bptr[j] >> 16);
-                prime = fb[i].prime;
+                prime = fb[i];
                 //printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
                 //	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
                 DIVIDE_ONE_PRIME;
@@ -618,7 +719,28 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #else
 
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
 
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            uint32 idx;
+            __m512i velements = _mm512_load_epi32(bptr + j);
+            velements = _mm512_and_epi32(velements, vmask);
+            result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+            while (result > 0)
+            {
+                idx = _trail_zcnt(result);
+                i = fb_bound + (bptr[j+idx] >> 16);
+                prime = fb[i];
+                DIVIDE_RESIEVED_PRIME(i);
+
+                result = _reset_lsb(result);
+            }
+            
+        }
+
+#elif defined(USE_AVX2)
 
 #if defined(USE_AVX2)
         CLEAN_AVX2;
@@ -636,7 +758,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         for (r = 0; r < result; r++)
         {
             i = fb_bound + (bptr[buffer[r]] >> 16);
-            prime = fb[i].prime;
+            prime = fb[i];
 
             // Is this only necessary with AVX2, or with the new vector approach?
             if ((prime < 2) || (i >= sconf->factor_base->B))
@@ -654,7 +776,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 			if ((bptr[j] & 0x0000ffff) == block_loc)
 			{
 				i = fb_bound + (bptr[j] >> 16);
-				prime = fb[i].prime;
+                prime = fb[i];
 
                 if ((prime < 2) || (i >= sconf->factor_base->B))
                 {
@@ -666,6 +788,182 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 			}
 		}
 
+#elif defined(NOT_DEFINED)
+
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            SCAN_16X_VEC;
+        }
+
+        for (r = 0; r < result; r++)
+        {
+            i = fb_bound + (bptr[buffer[r]] >> 16);
+            prime = fb[i];
+
+            // Is this only necessary with AVX2, or with the new vector approach?
+            if ((prime < 2) || (i >= sconf->factor_base->B))
+            {
+                dconf->lp_scan_failures++;
+                continue;
+            }
+
+            DIVIDE_ONE_PRIME;
+        }
+
+        for (; (uint32)j < lpnum; j++)
+        {
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i];
+
+                if ((prime < 2) || (i >= sconf->factor_base->B))
+                {
+                    dconf->lp_scan_failures++;
+                    continue;
+                }
+
+                DIVIDE_RESIEVED_PRIME(i);
+            }
+        }
+
+#else
+
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            SCAN_16X;
+
+            if (result == 0)
+                continue;
+
+            //noticably faster to not put these in a loop!
+            if (result & 0x2)
+            {
+                // could be j = 0, 4, 8, or 12
+                if ((bptr[j] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 4] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 4] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 8] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 8] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 12] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 12] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x20)
+            {
+                // could be j = 1, 5, 9, or 13
+                if ((bptr[j + 1] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 1] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 5] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 5] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 9] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 9] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 13] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 13] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x200)
+            {
+                // could be j = 2, 6, 10, or 14
+                if ((bptr[j + 2] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 2] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 6] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 6] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 10] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 10] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 14] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 14] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+            if (result & 0x2000)
+            {
+                // could be j= 3, 7, 11, or 15
+                if ((bptr[j + 3] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 3] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 7] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 7] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 11] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 11] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+                if ((bptr[j + 15] & 0x0000ffff) == block_loc)
+                {
+                    i = fb_bound + (bptr[j + 15] >> 16);
+                    prime = fb[i];
+                    DIVIDE_ONE_PRIME;
+                }
+            }
+        }
+
+        for (; (uint32)j < lpnum; j++)
+        {
+            if ((bptr[j] & 0x0000ffff) == block_loc)
+            {
+                i = fb_bound + (bptr[j] >> 16);
+                prime = fb[i];
+                //printf("block_loc = %u, bptr = %u, fb_bound = %u, fb_index = %u, prime = %u, Q mod prime = %u\n",
+                //	block_loc, bptr[j].loc, fb_bound, bptr[j].fb_index, prime, zShortMod32(Q,prime));
+                DIVIDE_ONE_PRIME;
+            }
+        }
+
+#endif
 #endif
 
 		//point to the next slice of primes
@@ -673,14 +971,54 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 		basebucket += (sconf->num_blocks << 1);
 	}
 
+#ifdef DO_VLP_OPT
+    uint32 count = 0;
+    vblock = _mm512_add_epi32(_mm512_set1_epi32(bnum * BLOCKSIZE), vblock);
+    for ( k = sconf->factor_base->large_B; k < sconf->factor_base->B; k += 16)
+    {
+        uint32 result = 0;
+        
+
+        // scan for large fb primes that hit this sieve location.
+        // previously we did this by scanning the bucket entries for
+        // matches to this sieve location, then dividing by the 
+        // prime indicated by the saved fb_offset for that entry.
+        // now, without the saved fb_offsets, the location (root)
+        // data is not useful.  So instead we scan the factor base 
+        // prime roots and check for equality to this
+        // sieve location.  We have to scan more things, but can
+        // at least scan them 16 at a time.
+
+        uint32 idx;
+        __m512i vroot1 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots1[k]));
+        __m512i vroot2 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots2[k]));
+
+        result = _mm512_cmp_epi32_mask(vblock, vroot1, _MM_CMPINT_EQ);
+        result |= _mm512_cmp_epi32_mask(vblock, vroot2, _MM_CMPINT_EQ);
+
+        while (result > 0)
+        {
+            idx = _trail_zcnt(result);
+            prime = fb[k + idx];
+            DIVIDE_VLP_PRIME(k + idx);
+            result = _reset_lsb(result);
+        }
+    }
+
+    //printf("divided %u primes from location %u\n", count, block_loc);
+
+    //if (sconf->factor_base->B > sconf->factor_base->large_B)
+    //    exit(1);
+
+#endif
+
+    
+
 	SCAN_CLEAN;
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG5 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    TF_STG5 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	dconf->smooth_num[report_num] = smooth_num;
@@ -689,5 +1027,98 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 }
 
 
+#if 0
+void tdiv_LP_2x(uint32 *report_num, uint8 parity, uint32 bnum,
+    static_conf_t *sconf, dynamic_conf_t *dconf)
+{
+    int i, j, k;
+    uint32 basebucket, prime;
+    int smooth_num;
+    uint32 *fb_offsets;
+    uint32 *bptr;
+    uint32 *fb = sconf->sieve_primes;
+    uint32 block_loc;
+    uint16 *mask = dconf->mask;
+    uint16 buffer[32];
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+    __m512i vmask, vblock;
+#endif
 
+#ifdef QS_TIMING
+    gettimeofday(&qs_timing_start, NULL);
+#endif
+
+    fb_offsets = &dconf->fb_offsets[report_num][0];
+    smooth_num = dconf->smooth_num[report_num];
+    block_loc = dconf->reports[report_num];
+
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+    // 16 copies of the 16-bit block_loc in the lower half of
+    // each of the 32-bit vector elements.
+    vblock = _mm512_set1_epi32(block_loc);
+    vmask = _mm512_set1_epi32(0x0000ffff);
+#endif
+
+    //primes bigger than med_B are bucket sieved, so we need
+    //only search through the bucket and see if any locations match the
+    //current block index.
+    bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
+
+    if (parity)
+    {
+        bptr += (sconf->num_blocks << BUCKET_BITS);
+        basebucket = sconf->num_blocks;
+    }
+    else
+    {
+        basebucket = 0;
+    }
+
+    for (k = 0; (uint32)k < dconf->buckets->num_slices; k++)
+    {
+        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+        int r, q;
+        uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
+        uint32 result = 0;
+
+#if defined(TARGET_KNC) || defined(USE_AVX512F)
+
+        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        {
+            uint32 idx;
+            __m512i velements = _mm512_load_epi32(bptr + j);
+            velements = _mm512_and_epi32(velements, vmask);
+            result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+            if (result == 0)
+                continue;
+
+            while (_BitScanForward(&idx, result))
+            {
+                i = fb_bound + (bptr[j + idx] >> 16);
+                prime = fb[i];
+                DIVIDE_RESIEVED_PRIME(i);
+
+                result ^= (1 << idx);
+            }
+
+        }
+
+#endif
+
+        //point to the next slice of primes
+        bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
+        basebucket += (sconf->num_blocks << 1);
+    }
+
+#ifdef QS_TIMING
+    gettimeofday(&qs_timing_stop, NULL);
+    TF_STG5 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
+#endif
+
+    dconf->smooth_num[report_num] = smooth_num;
+
+    return;
+}
+#endif
 

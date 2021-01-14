@@ -105,13 +105,15 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
 
+            fb->list->binv[j] = (1ULL << 32) / (uint64)prime;
+
 			//store a couple things so we can replace single precision
 			//mods with shifts and muls during trial division
 			//the shift determines how big the dividends can be - it should be 
 			//greater than the max possible dividend.  The shift should not be too
 			//big though.  Max word size (inverse * dividend) >> shift should leave
 			//more bits than the max divisor.
-			if (prime < 256)
+			if (prime < sconf->small_limit)
 			{
 				fb->tinylist->prime[j] = prime;
 				fb->tinylist->logprime[j] = logp;
@@ -182,10 +184,12 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
 
+            fb->list->binv[j] = (1ULL << 32) / (uint64)prime;
+
 			//store a couple things so we can replace single precision
 			//mods with shifts and muls during trial division
 			//this is very fragile... need better range checking.
-			if (prime < 256)
+			if (prime < sconf->small_limit)
 			{
 				fb->tinylist->prime[j] = prime;
 				fb->tinylist->logprime[j] = logp;
@@ -258,39 +262,118 @@ void get_params(static_conf_t *sconf)
 	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
-	int param_table[NUM_PARAM_ROWS][4] = {
-		{50,	30,	30,	1},
-		{60,	36,	40,	1},
-		{70,	50,	40,	1},
-		{80,	80,	40,	1},
-		{90,	120,	40,	1},
-		{100,	175,	50,	1},
-		{110,	275,	50,	1},	
-		{120,	375,	50,	1},
+#if defined(TARGET_KNC) || defined(SMALL_SIQS_INTERVALS)
 
-		{140,	828,	50,	1},
-		{149,	1028,	60,	1},
-		{165,	1228,	60,	1},
-		{181,	2247,	70,	1},
-		{198,	3485,	70,	2},
-		{215,	6357,	80,	2},	
-		{232,	12132,	80,	3},
-		{248,	26379,	90,	4},
-		{265,	47158,	90,	5},
-		{281,	60650,	100,	6},
-		{298,	71768,	120,	7},
-		{310,	86071,	120,	8},
-		{320,	99745,	140,	9},
-		{330,	115500, 150,    10},
-		{340,	138600, 150,    12},
-		{350,	166320, 150,    14},
-		{360,	199584, 150,    16},
-		{370,	239500, 150,    18},
-		{380,	287400, 175,    22},
-		{390,	344881, 175,    26},
-		{400,	413857, 175,    30},
-		{410,	496628, 175,    32},
-	};
+    // does much better with much smaller sieve intervals.  maybe 
+    // because smaller L2?
+    int param_table[NUM_PARAM_ROWS][4] = {
+        {50,	30,	30,	1},
+        { 60, 36, 40, 1 },
+        { 70, 50, 40, 1 },
+        { 80, 80, 40, 1 },
+        { 90, 120, 40, 1 },
+        { 100, 175, 50, 1 },
+        { 110, 275, 50, 1 },
+        { 120, 375, 50, 1 },
+
+        { 140, 828, 50, 1 },
+        { 149, 1028, 60, 1 },
+        { 165, 1228, 60, 1 },
+        { 181, 2247, 70, 1 },
+        { 198, 3485, 70, 1 },
+        { 215, 6357, 80, 1 },
+        { 232, 12132, 80, 1 },      // 70 digits
+        { 248, 26379, 90, 1 },
+        { 265, 47158, 90, 1 },      // 80 digits
+        { 281, 60650, 100, 2 },
+        { 298, 71768, 120, 3 },     // 90 digits
+        { 310, 86071, 120, 3 },
+        { 320, 99745, 140, 4 },
+        { 330, 115500, 150, 4 },     // 100 digits
+        { 340, 138600, 150, 5 },
+        { 350, 166320, 150, 5 },    // 105 digits
+        { 360, 199584, 150, 6 },
+        { 370, 239500, 150, 6 },    // 110 digits
+        { 380, 287400, 175, 7 },
+        { 390, 344881, 175, 7 },
+        { 400, 413857, 175, 8 },
+        { 410, 496628, 175, 8 },
+};
+
+#else
+
+    // Haswell also likes smaller sieve intervals for the 
+    // larger numbers... maybe this table needs to be 
+    // processor dependent...
+#if defined(USE_AVX512F)
+    // another adjustment smaller (testing on skylake-x)
+    int param_table[NUM_PARAM_ROWS][4] = {
+        {50,	30,	    30,	    1},             // this gets transformed to 2 blocks, 
+        {60,	36,	    40,	    1},             // because the main routine archaicly 
+        {70,	50,	    40,	    1},             // assumses these numbers refer to 64k blocks.
+        {80,	80,	    40,	    1},             // I'm sure these sizes would be better off
+        {90,	120,	40,	    1},         // using only one 32k block.  Maybe well up
+        {100,	175,	50,	    2},         // into the 100-bit range.
+        {110,	275,	50,	    2},
+        {120,	375,	50,	    2},
+        {140,	828,	50,	    2},
+        {149,	1028,	60,	    2},
+        {165,	1228,	60,	    2},
+        {181,	2247,	70,	    2},
+        {198,	3485,	70,	    2},
+        {215,	6357,	80,	    2},
+        {232,	12132,	80,	    4},         // 70 digits
+        {248,	26379,	90,	    6},         // 75 digits
+        {265,	47158,	90,	    6},         // 80 digits
+        {281,	60650,	100,	8},
+        {298,	71768,	120,	8},     // 90 digits
+        {310,	86071 ,	120,	10},
+        {320,	99745 ,	140,	10},     // 95 digits
+        {330,	115500, 150,    12},     // 100 digits 
+        {340,	138600, 150,    12},     // above 100 these are based on less data, but seem to work ok.
+        {350,	166320, 150,    14},     // 105 digits
+        {360,   199584, 150,    14},
+        {370,	239500, 150,    16},     // 110 digits
+        {380,	287400, 175,    16},
+        {390,	344881, 175,    18},
+        {400,	413857, 175,    20},
+        {410,	496628, 175,    22},
+    }; 
+#else
+    int param_table[NUM_PARAM_ROWS][4] = {
+        {50,	30,	    30,	    2},
+        {60,	36,	    40,	    2},
+        {70,	50,	    40,	    2},
+        {80,	80,	    40,	    2},
+        {90,	120,	40,	    2},
+        {100,	175,	50,	    2},
+        {110,	275,	50,	    2},
+        {120,	375,	50,	    2},
+        {140,	828,	50,	    2},
+        {149,	1028,	60,	    2},
+        {165,	1228,	60,	    2},
+        {181,	2247,	70,	    2},
+        {198,	3485,	70,	    4},
+        {215,	6357,	80,	    4},
+        {232,	12132,	80,	    6},      // 70 digits
+        {248,	26379,	90,	    8},
+        {265,	47158,	90,	    10},     // 80 digits
+        {281,	60650,	100,	12},
+        {298,	71768,	120,	12},     // 90 digits
+        {310,	86071 ,	120,	14},
+        {320,	99745 ,	140,	16},     // 95 digits
+        {330,	115500, 150,    16},     // 100 digits 
+        {340,	138600, 150,    18},     // above 100 it is basically guesswork
+        {350,	166320, 150,    18},     // 105 digits
+        {360,   199584, 150,    20},
+        {370,	239500, 150,    22},     // 110 digits
+        {380,	287400, 175,    24},
+        {390,	344881, 175,    26},
+        {400,	413857, 175,    28},
+        {410,	496628, 175,    30},
+    };
+#endif
+#endif
 
     int param_table_bkup[NUM_PARAM_ROWS][4] = {
         { 50, 30, 30, 1 },
@@ -308,17 +391,17 @@ void get_params(static_conf_t *sconf)
         { 181, 2247, 50, 1 },
         { 198, 3485, 60, 2 },
         { 215, 6357, 60, 2 },
-        { 232, 12132, 70, 3 },
+        { 232, 12132, 70, 3 },      // 70 digits
         { 248, 26379, 80, 4 },
-        { 265, 47158, 90, 5 },
+        { 265, 47158, 90, 5 },      // 80 digits
         { 281, 60650, 100, 6 },
-        { 298, 71768, 120, 7 },
-        { 310, 86071, 120, 8 },
-        { 320, 99745, 140, 9 },
-        { 330, 115500, 150, 10 },
+        { 298, 71768, 120, 7 },     // 90 digits
+        { 310, 86071, 120, 8 },     
+        { 320, 99745, 140, 9 },     // 95 digits (for benchmark c95)
+        { 330, 115500, 150, 10 },   // 100 digits
         { 340, 138600, 150, 12 },
         { 350, 166320, 150, 14 },
-        { 360, 199584, 150, 16 },
+        { 360, 199584, 150, 16 },   // 110 digits
         { 370, 239500, 150, 18 },
         { 380, 287400, 175, 22 },
         { 390, 344881, 175, 26 },
@@ -328,15 +411,15 @@ void get_params(static_conf_t *sconf)
 
 	/*
 	int param_table[22][4] = {
-		{140,	600,	40,	1},
-		{149,	875,	40,	1},
-		{165,	1228,	50,	1},
-		{181,	2247,	50,	1},
-		{198,	3485,	60,	2},
-		{215,	6357,	60,	2},	
-		{232,	12132,	70,	3},
-		{248,	26379,	80,	4},
-		{265,	42871,	90,	6},
+		{140,	600,	40,	    1},
+		{149,	875,	40,	    1},
+		{165,	1228,	50,	    1},
+		{181,	2247,	50,	    1},
+		{198,	3485,	60,	    2},
+		{215,	6357,	60,	    2},	
+		{232,	12132,	70,	    3},
+		{248,	26379,	80,	    4},
+		{265,	42871,	90,	    6},
 		{281,	55137,	100,	8},
 		{298,	65244,	120,	10},
 		{310,	78247,	120,	12},
@@ -449,15 +532,46 @@ void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s,
 	int i;
 	fb_list *fullfb = sconf->factor_base;
 
+    /* invalid roots are currently marked by being set to 65535.  this works when we
+    explicitly check the root against the blocksize before sieving it, but here where
+    we've completely unrolled the loop it doesn't work.  what we could do is set roots
+    and primes == 0 when roots are invalid instead of setting roots to 65535 for the
+    range of primes that are going to be treated this way.  then only the first location
+    in every block gets hosed and we can tell tdiv to always ignore that location.  the
+    snippet of code below sets roots and primes = 0 for invalid roots */
+
+
+    if (action == 1)
+    {
+        for (i = 0; i<s; i++)
+        {
+            if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
+            {
+                fb->root1[qli[i]] = 0;
+                fb->prime[qli[i]] = 0;
+                fb->root2[qli[i]] = 0;
+            }
+            else
+            {
+                fb->root1[qli[i]] = 0xffff;
+                fb->root2[qli[i]] = 0xffff;
+            }
+        }
+    }
+    else
+    {
+        for (i = 0; i < s; i++)
+        {
+            fb->root1[qli[i]] = 0xffff;
+            fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
+            fb->root2[qli[i]] = 0xffff;
+        }
+    }
+
+    /*
 	for (i=0;i<s;i++)
 	{		
-		/* invalid roots are currently marked by being set to 65536.  this works when we
-			explicitly check the root against the blocksize before sieving it, but here where
-			we've completely unrolled the loop it doesn't work.  what we could do is set roots
-			and primes == 0 when roots are invalid instead of setting roots to 65536 for the
-			range of primes that are going to be treated this way.  then only the first location
-			in every block gets hosed and we can tell tdiv to always ignore that location.  the
-			snippet of code below sets roots and primes = 0 for invalid roots */
+		
 		if ((fullfb->list->prime[qli[i]] > 8192)) // && (fullfb->list->prime[qli[i]] < sconf->qs_blocksize))
 		{
 			if (action == 1)
@@ -470,17 +584,19 @@ void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s,
 			else
 			{
 				//printf("restoring roots and primes at index %d, prime = %u\n", qli[i], fullfb->list->prime[qli[i]]);
-				fb->root1[qli[i]] = (uint16)(val & 0xFFFF);
+				fb->root1[qli[i]] = 0xffff;
 				fb->prime[qli[i]] = fullfb->list->prime[qli[i]];
-				fb->root2[qli[i]] = (uint16)(val >> 16);
+				fb->root2[qli[i]] = 0xffff;
 			}
 		}
 		else
 		{
-			fb->root1[qli[i]] = (uint16)(val & 0xFFFF);
-			fb->root2[qli[i]] = (uint16)(val >> 16);
+			fb->root1[qli[i]] = 0xffff;
+			fb->root2[qli[i]] = 0xffff;
 		}
 	}
+    */
+
 	return;
 }
 

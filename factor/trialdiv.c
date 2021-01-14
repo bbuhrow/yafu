@@ -35,13 +35,16 @@ void zTrial(fact_obj_t *fobj)
 	mpz_t tmp;
 	mpz_init(tmp);
 
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for writing\n",fobj->flogname);
-		return;
-	}
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for writing\n", fobj->flogname);
+            return;
+        }
+    }
 
 	if (P_MAX < limit)
 	{
@@ -82,7 +85,11 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
-	fclose(flog);
+    if (LOGFLAG)
+    {
+        fclose(flog);
+    }
+
 	mpz_clear(tmp);
 }
 
@@ -97,14 +104,17 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 	mpz_init(base);
 	mpz_init(ans);
 
-	//open the log file
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open %s for writing\n",fobj->flogname);
-		return;
-	}
+    if (LOGFLAG)
+    {
+        //open the log file
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for writing\n", fobj->flogname);
+            return;
+        }
+    }
 
 	for (i=2; i<bits; i++)
 	{
@@ -174,7 +184,11 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 
 	mpz_clear(base);
 	mpz_clear(ans);
-	fclose(flog);
+
+    if (LOGFLAG)
+    {
+        fclose(flog);
+    }
 
 	return;
 }
@@ -188,6 +202,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	// provided by 'neonsignal'
 	mpz_t a, b2, tmp, multN, a2;
 	int i;
+    int sqchecks = 0;
 	int numChars;
 	uint64 reportIt, reportInc;
 	uint64 count;
@@ -216,13 +231,16 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	if (mpz_perfect_square_p(fobj->div_obj.gmp_n))
 	{
 		//open the log file
-		flog = fopen(fobj->flogname,"a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for writing\n",fobj->flogname);
-			return;
-		}
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+            if (flog == NULL)
+            {
+                printf("fopen error: %s\n", strerror(errno));
+                printf("could not open %s for writing\n", fobj->flogname);
+                return;
+            }
+        }
 
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
 		if (is_mpz_prp(fobj->div_obj.gmp_n))
@@ -248,7 +266,11 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		mpz_set_ui(fobj->div_obj.gmp_n, 1);
-		fclose(flog);
+        
+        if (LOGFLAG)
+        {
+            fclose(flog);
+        }
 		return;
 	}
 
@@ -362,6 +384,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	numChars = 0;
 	reportIt = limit / 100;
 	reportInc = reportIt;
+    
 	do
 	{
 		d = 0;
@@ -379,12 +402,10 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 			if ((iM2 += s) >= M2) iM2 -= M2;
 			if ((iM += s) >= M) iM -= M;
 
-			// some multpliers can lead to infinite loops.  bail out 
-			// if so.
+			// some multpliers can lead to infinite loops.  bail out if so.
 			if (++i64 > M) goto done;
 
-			// continue if either of the other residues indicates
-			// non-square.
+			// continue if either of the other residues indicates non-square.
 		} while (!getbit(mod1,iM1) || !getbit(mod2,iM2));
 
 		// form b^2 by incrementing by many factors of 2*a+1
@@ -395,7 +416,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		// accumulate so that we can reset d 
 		// (and thus keep it single precision)
 		mpz_add_ui(a2, a2, d*2);
-
+        
 		count += d;
 		if (count > limit)
 			break;
@@ -409,8 +430,12 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 			fflush(stdout);
 			reportIt += reportInc;
 		}
+        sqchecks++;
+        
 	} while (!mpz_perfect_square_p(b2));
 
+    if (VFLAG > 1)
+        printf("fmt: performed %d perfect square checks\n", sqchecks);
 
 found:
 
@@ -426,14 +451,17 @@ found:
 		mpz_add(tmp, a, tmp);
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
-		flog = fopen(fobj->flogname,"a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for writing\n",fobj->flogname);
-			goto done;
-		}
-		logprint(flog, "Fermat method found factors:\n");
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+            if (flog == NULL)
+            {
+                printf("fopen error: %s\n", strerror(errno));
+                printf("could not open %s for writing\n", fobj->flogname);
+                goto done;
+            }
+            logprint(flog, "Fermat method found factors:\n");
+        }
 
 		add_to_factor_list(fobj, tmp);
 		if (is_mpz_prp(tmp))
@@ -484,8 +512,10 @@ done:
 	free(mod1);
 	free(mod2);
 	free(skip);
-	if (flog != NULL)
-		fclose(flog);
+    if (LOGFLAG && (flog != NULL))
+    {
+        fclose(flog);
+    }
 	return;
 
 }

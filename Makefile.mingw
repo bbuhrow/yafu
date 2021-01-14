@@ -18,45 +18,85 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-#CC = x86_64-w64-mingw32-gcc-4.5.1
-CFLAGS = -march=westmere -mtune=westmere
-#CFLAGS = -g
+#CFLAGS = -march=westmere -mtune=westmere
+CFLAGS = -g -fPIC
 WARN_FLAGS = -Wall #-W -Wconversion
-OPT_FLAGS = -O3
-INC = -I. -Iinclude -Itop/aprcl
+OPT_FLAGS = -O2
+BINNAME = yafu-x64-mingw.exe
+INC = -I. -Iinclude -Itop/aprcl -Itop/
 
-INC += -I../gmp/include/mingw
-LIBS += -L../gmp/lib/mingw/x86_64
+#INC += -I../gmp/include/mingw/
+#LIBS += -L../gmp/lib/mingw/
+#
+#INC += -I../gmp-ecm/include/mingw/
+#LIBS += -L../gmp-ecm/lib/mingw/
 
-INC += -I../gmp-ecm/include
-LIBS += -L../gmp-ecm/lib/mingw/x86_64
+#INC += -I../gmp/install/mingw/include
+#LIBS += -L../gmp/install/mingw/lib
+#
+#INC += -I../gmp-ecm/install/mingw/include
+#LIBS += -L../gmp-ecm/install/mingw/lib
 
-#INC += -I/d/Programming/gmp-ecm/svn_2529_mw64_gmp512
-#LIBS += -L/d/Programming/gmp-ecm/svn_2529_mw64_gmp512/.libs
+INC += -I../../gmp_install_mingw/include
+LIBS += -L../../gmp_install_mingw/lib
+
+INC += -I../../ecm_install_mingw/include
+LIBS += -L../../ecm_install_mingw/lib
 
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
 else
-	OPT_FLAGS += -fomit-frame-pointer
+#OPT_FLAGS += -fomit-frame-pointer
 endif
 
 ifeq ($(OPT_DEBUG),1)
 	CFLAGS += -DOPT_DEBUG
 endif
 
+# ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
 # appropriate files.  The executable will then choose between them based on the runtime
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
+endif
+
+ifeq ($(SKYLAKEX),1)
+	CFLAGS += -DUSE_AVX2 -DUSE_AVX512F -march=skylake-avx512 
+    #only if new enough mingw that recognizes more cpu flags
+    #CFLAGS += -DUSE_AVX512BW
+    CFLAGS += -fcall-used-xmm16 -fcall-used-xmm17 -fcall-used-xmm18 -fcall-used-xmm19
+    CFLAGS += -fcall-used-xmm20 -fcall-used-xmm21 -fcall-used-xmm22 -fcall-used-xmm23
+    CFLAGS += -fcall-used-xmm24 -fcall-used-xmm25 -fcall-used-xmm26 -fcall-used-xmm27
+    CFLAGS += -fcall-used-xmm28 -fcall-used-xmm29 -fcall-used-xmm30 -fcall-used-xmm31
+    USE_AVX2=1
+    USE_SSE41=1
+#-DUSE_AVX512BW
+else
+SKYLAKEX=0
+#assume this base level architecture (MMX, SSE, SSE2, SSE3 and SSSE3 instruction set support.)
+#CFLAGS += -march=core2
+endif
+
+ifeq ($(SMALLINT),1)
+	CFLAGS += -DSMALL_SIQS_INTERVALS
+endif
+
+ifeq ($(USE_BMI2),1)
+# -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
+  CFLAGS += -mbmi2 -mbmi -DUSE_BMI2
+endif
+
 ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
-	CFLAGS += -DUSE_AVX2 -mavx2 -mavx
+	CFLAGS += -DUSE_AVX2  -DUSE_SSE41 -mavx2 -mavx
 endif
 
 ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41
+	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
 endif
 
 ifeq ($(TIMING),1)
@@ -65,10 +105,18 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-	LIBS += -L../msieve/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+    INC += -I../msieve/zlib
+	#LIBS += -L../msieve_good/lib/mingw/x86_64 -lecm -lmsieve -lgmp
+    LIBS += -L../msieve/lib/mingw/ -lecm -lmsieve /y/projects/gmp_install_mingw/lib/libgmp.a
 else
 	LIBS += -lecm -lgmp
 endif
+
+ifeq ($(SKYLAKEX),1)
+# define KNL now for skylakex, after handling an actual command line KNL
+KNL=1
+endif
+
 
 #MINGW builds don't need -pthread
 #LIBS += -lm -pthread
@@ -78,9 +126,6 @@ ifeq ($(FORCE_MODERN),1)
 	CFLAGS += -DFORCE_MODERN
 endif
 
-ifeq ($(CC),icc)
-	CFLAGS += -mtune=core2 -march=core2
-endif
 
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
 	
@@ -115,28 +160,28 @@ YAFU_SRCS = \
 	factor/qs/filter.c \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_med_32k.c \
-	factor/qs/tdiv_resieve_32k.c \
 	factor/qs/tdiv_large.c \
-	factor/qs/tdiv_scan.c \
 	factor/qs/large_sieve.c \
-	factor/qs/med_sieve_32k.c \
 	factor/qs/new_poly.c \
-	factor/qs/poly_roots_32k.c \
-	factor/qs/update_poly_roots_32k.c \
 	factor/qs/siqs_test.c \
 	factor/tinyqs/tinySIQS.c \
 	factor/qs/siqs_aux.c \
 	factor/qs/smallmpqs.c \
 	factor/qs/SIQS.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/poly_roots_32k.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
+	factor/gmp-ecm/tinyecm.c \
+    factor/gmp-ecm/microecm.c \
 	factor/nfs/nfs.c \
 	arith/arith0.c \
 	arith/arith1.c \
 	arith/arith2.c \
 	arith/arith3.c \
+	arith/monty.c \
+	top/eratosthenes/presieve.c \
 	top/eratosthenes/count.c \
 	top/eratosthenes/offsets.c \
 	top/eratosthenes/primes.c \
@@ -146,7 +191,17 @@ YAFU_SRCS = \
 	top/eratosthenes/tiny.c \
 	top/eratosthenes/worker.c \
 	top/eratosthenes/soe_util.c \
-	top/eratosthenes/wrapper.c
+	top/eratosthenes/wrapper.c \
+	top/threadpool.c \
+    top/queue.c \
+    factor/prime_sieve.c \
+    factor/batch_factor.c \
+    factor/qs/cofactorize_siqs.c \
+    factor/avx-ecm/avxecm.c \
+    factor/avx-ecm/avx_ecm_main.c \
+    factor/avx-ecm/vec_common.c \
+    factor/avx-ecm/vecarith.c \
+    factor/avx-ecm/vecarith52.c
 
 ifeq ($(USE_AVX2),1)
 # these files require AVX2 to compile
@@ -161,6 +216,16 @@ ifeq ($(USE_SSE41),1)
 	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
 	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c
 endif
+
+YAFU_SRCS += factor/qs/update_poly_roots_32k.c
+YAFU_SRCS += factor/qs/tdiv_med_32k.c
+YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
+
+ifeq ($(SKYLAKEX),1)
+    YAFU_SRCS += factor/qs/tdiv_scan_knl.c
+endif
+YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
+YAFU_SRCS += factor/qs/tdiv_scan.c
 
 YAFU_OBJS = $(YAFU_SRCS:.c=.o)
 
@@ -186,9 +251,12 @@ endif
 #---------------------------Header file lists -------------------------
 HEAD = include/yafu.h  \
 	include/qs.h  \
+	factor/qs/poly_macros_32k.h \
+	factor/qs/poly_macros_common.h \
+	factor/qs/sieve_macros_32k.h \
+	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
 	include/types.h  \
-	include/ecm.h \
 	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
@@ -201,8 +269,15 @@ HEAD = include/yafu.h  \
 	include/arith.h  \
 	include/msieve.h  \
 	include/yafu_stack.h  \
+	include/yafu_ecm.h \
 	include/gmp_xface.h \
-	include/nfs.h
+    include/monty.h \
+	include/nfs.h \
+	top/threadpool.h \
+    include/prime_sieve.h \
+    include/batch_factor.h \
+    include/cofactorize.h \
+    factor/avx-ecm/avx_ecm.h
 
 
 ifeq ($(USE_SSE41),1)
@@ -219,18 +294,8 @@ endif
 
 #---------------------------Make Targets -------------------------
 
-all:
-	@echo "pick a target:"
-	@echo "x86       32-bit Intel/AMD systems (required if gcc used)"
-	@echo "x86_64    64-bit Intel/AMD systems (required if gcc used)"
-	@echo "add 'TIMING=1' to make with expanded QS timing info (slower) "
-	@echo "add 'PROFILE=1' to make with profiling enabled (slower) "
-
-x86: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) -m32 $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-win32 $(LIBS)
-
-x86_64: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o yafu-x64 $(LIBS)
+all: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
 
 
 clean:

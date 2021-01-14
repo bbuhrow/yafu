@@ -18,7 +18,11 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#ifndef ARITH_H
+#define ARITH_H
+
 #include "yafu.h"
+#include <sys/types.h>
 
 #define LIMB_BLKSZ 10	
 #define MAX_DIGITS 100
@@ -33,8 +37,171 @@ code to the public domain.
 
 #define fp_clamp(a)   { while ((a)->size && (a)->val[(a)->size-1] == 0) --((a)->size);}
 
-uint32 mp_modadd_1(uint32 a, uint32 b, uint32 p);
-uint32 mp_modsub_1(uint32 a, uint32 b, uint32 p);
+
+#ifdef __INTEL_COMPILER
+// leading and trailing zero count are ABM instructions
+// that require haswell or later on Intel or ABM on AMD.
+// The same basic functionality exists with the 
+// bsf and bsr instructions that are standard x86, if
+// those requirements are not met.
+#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
+#define _reset_lsb(x) _blsr_u32(x)
+#define _reset_lsb64(x) _blsr_u64(x)
+#define _lead_zcnt64 __lzcnt64
+#define _trail_zcnt _tzcnt_u32
+#define _trail_zcnt64 _tzcnt_u64
+#else
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+__inline uint32 _trail_zcnt(uint32 x)
+{
+    uint32 pos;
+    if (_BitScanForward(&pos, x))
+        return pos;
+    else
+        return 32;
+}
+__inline uint64 _trail_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (_BitScanForward64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+__inline uint64 _lead_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (_BitScanReverse64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+#endif
+#elif defined(__GNUC__)
+#if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
+#define _reset_lsb(x) _blsr_u32(x)
+#define _reset_lsb64(x) _blsr_u64(x)
+#define _lead_zcnt64 __builtin_clzll
+#define _trail_zcnt __builtin_ctzl
+#define _trail_zcnt64 __builtin_ctzll
+#else
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+#define _lead_zcnt64 __builtin_clzll
+#define _trail_zcnt __builtin_ctzl
+#define _trail_zcnt64 __builtin_ctzll
+
+#endif
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#ifdef USE_BMI2
+#define _lead_zcnt64 __lzcnt64
+#define _trail_zcnt _tzcnt_u32
+#define _trail_zcnt64 _tzcnt_u64
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+#else
+__inline uint32 _trail_zcnt(uint32 x)
+{
+    uint32 pos;
+    if (_BitScanForward(&pos, x))
+        return pos;
+    else
+        return 32;
+}
+__inline uint64 _trail_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (_BitScanForward64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+__inline uint64 _lead_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (_BitScanReverse64(&pos, x))
+        return pos;
+    else
+        return 64;
+}
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+#endif
+
+#else
+
+__inline uint64 _lead_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (x)
+    {
+        pos = 0;
+        for (pos = 0; ; pos++)
+        {
+            if (x & (1ULL << (63 - pos)))
+                break;
+        }
+    }
+    else
+    {
+#ifdef CHAR_BIT
+        pos = CHAR_BIT * sizeof(x);
+#else
+        pos = 8 * sizeof(x);
+#endif
+    }
+    return pos;
+}
+
+__inline uint32 _trail_zcnt(uint32 x)
+{
+    uint32 pos;
+    if (x)
+    {
+        x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
+        for (pos = 0; x; pos++)
+        {
+            x >>= 1;
+        }
+    }
+    else
+    {
+#ifdef CHAR_BIT
+        pos = CHAR_BIT * sizeof(x);
+#else
+        pos = 8 * sizeof(x);
+#endif
+    }
+    return pos;
+}
+
+__inline uint64 _trail_zcnt64(uint64 x)
+{
+    uint64 pos;
+    if (x)
+    {
+        x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
+        for (pos = 0; x; pos++)
+        {
+            x >>= 1;
+        }
+    }
+    else
+    {
+#ifdef CHAR_BIT
+        pos = CHAR_BIT * sizeof(x);
+#else
+        pos = 8 * sizeof(x);
+#endif
+    }
+    return pos;
+}
+#define _reset_lsb(x) ((x) &= ((x) - 1))
+#define _reset_lsb64(x) ((x) &= ((x) - 1))
+
+#endif
 
 //basic arbitrary precision arith routines
 //contents of arith1.c
@@ -52,6 +219,7 @@ fp_digit spBits(fp_digit n);
 int bits64(uint64 n);
 uint32 modinv_1(uint32 a, uint32 p);
 uint32 modinv_1b(uint32 a, uint32 p);
+uint32 modinv_1c(uint32 a, uint32 p);
 int shortCompare(fp_digit p[2], fp_digit t[2]);
 int shortSubtract(fp_digit p[2], fp_digit t[2], fp_digit w[2]);
 uint64 spModExp_asm(uint64 b, uint64 e, uint64 m);
@@ -60,11 +228,9 @@ uint64 spPRP2(uint64 p);
 /********************* arbitrary precision arith **********************/
 //add
 void zAdd(z *u, z *v, z *w);
-void zAddb(z *u, z *v, z *y);
 void zShortAdd(z *u, fp_digit v, z *w);
 //sub
 int zSub(z *u, z *v, z *w);
-int zSubb(z *u, z *v, z *y);
 void zShortSub(z *u, fp_digit v, z *w);
 
 //mul
@@ -115,6 +281,7 @@ fp_digit spGCD(fp_digit x, fp_digit y);
 uint64 spBinGCD(uint64 x, uint64 y);
 uint64 spBinGCD_odd(uint64 u, uint64 v);
 uint64 gcd64(uint64 x, uint64 y);
+uint64 bingcd64(uint64 x, uint64 y);
 void xGCD(z *a, z *b, z *x, z *y, z *g);
 void dblGCD(double x, double y, double *w);
 int dblFactorA(double *n, long p[], uint32 limit);
@@ -167,13 +334,9 @@ double rint(double x);
 int is_mpz_prp(mpz_t n);
 uint64 mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64 src);
-void mpz_to_z32(mpz_t src, z32 *dest);
-void z32_to_mpz(z32 *src, mpz_t dest);
 char * mpz_conv2str(char **in, int base, mpz_t n);
 
 // we need to convert between yafu bigints and msieve bigints occasionally
 void mp_t2z(mp_t *src, z *dest);
 
-char * mp_print(mp_t *a, uint32 base, FILE *f, char *scratch);
-#define mp_sprintf(a, base, scratch) mp_print(a, base, NULL, scratch)
-
+#endif

@@ -295,26 +295,6 @@ void zAdd(z *u, z *v, z *w)
 			for (;i<sw;++i)
 				spAdd3(bigger->val[i],0,k,w->val+i,&k);
 
-			/*
-
-			for (;i<sw;++i)
-			{
-				fp_digit c = 0;
-				fp_digit s = 0;
-				fp_digit big = bigger->val[i];
-
-				__asm
-				{
-					mov eax, big
-					add eax, k
-					mov s, eax
-					adc c, 0
-				}
-
-				w->val[i] = s;
-				k=c;
-			}
-			*/
 
 #elif defined(GCC_ASM32A) && !defined(ASM_ARITH_DEBUG)
 
@@ -441,7 +421,7 @@ int zSub(z *u, z *v, z *w)
 	//schoolbook subtraction, see knuth TAOCP, vol. 2
 
 	fp_digit k=0;
-	int i,j,m,su,sv,sw,sign=0;
+	int i,j,m,su,sv,sign=0;
 	z *bigger, *smaller;
 
 	if (u->size < 0)
@@ -489,7 +469,6 @@ int zSub(z *u, z *v, z *w)
 	{	
 		bigger = u;
 		smaller = v;
-		sw = su;
 		//realloc w if necessary.  make it a fixed block of limbs bigger, to
 		//prevent repeated reallocation if a bunch of adds are done in a row.
 		if (w->alloc < (su + 1))
@@ -500,7 +479,6 @@ int zSub(z *u, z *v, z *w)
 	{
 		bigger = v;
 		smaller = u;
-		sw = sv;
 		//realloc w if necessary.  make it a fixed block of limbs bigger, to
 		//prevent repeated reallocation if a bunch of adds are done in a row.
 		if (w->alloc < (sv + 1))
@@ -543,29 +521,6 @@ beginsub:
 
 	for (j=0;j<m;++j)
 		spSub3(bigger->val[j],smaller->val[j],k,w->val+j,&k);
-
-	/*
-
-	for (j=0;j<m;++j)
-	{
-		fp_digit s = smaller->val[j];
-		fp_digit b = 0;
-		fp_digit big = bigger->val[j];
-
-		__asm
-		{
-			mov eax, big
-			sub eax, s
-			adc b, 0
-			sub eax, k
-			adc b, 0
-			mov s, eax
-		}
-
-		w->val[j] = s;
-		k = b;
-	}
-	*/
 
 #elif defined(GCC_ASM32A) && !defined(ASM_ARITH_DEBUG)
 
@@ -647,28 +602,6 @@ beginsub:
 
 			for (;j<m;++j)
 				spSub3(bigger->val[j],0,k,w->val+j,&k);
-
-			/*
-
-			for (;j<m;++j)
-			{
-				fp_digit s = 0;
-				fp_digit b = 0;
-				fp_digit big = bigger->val[j];
-
-				__asm
-				{
-					mov eax, big
-					sub eax, k
-					adc b, 0
-					mov s, eax
-				}
-
-				w->val[j] = s;
-				k = b;
-			}
-
-			*/
 
 #elif defined(GCC_ASM32A) && !defined(ASM_ARITH_DEBUG)
 
@@ -2700,7 +2633,7 @@ uint64 spPRP2(uint64 p)
 		"shrq	$1, %%rcx \n\t"		/* base >>= 1 */
 		"addq	$1, %%rbx \n\t"
 		"mulq	%%rax \n\t"			/* acc = acc * acc*/
-		"cmpq	$5, %%rbx \n\t"		/* exp == 0? */
+		"cmpq	$5, %%rbx \n\t"		/* 5 iterations? */
 		"jb 0b \n\t"
 		"3:	\n\t"					/* begin loop */					
 		"test	$1, %%rcx \n\t"		/* exp & 0x1 */

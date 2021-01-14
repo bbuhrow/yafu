@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -22,31 +22,32 @@
     <ProjectGuid>{F55BD26F-47C3-410B-8FEA-D71469BEE544}</ProjectGuid>
     <RootNamespace>yafu</RootNamespace>
     <ProjectName>yafu</ProjectName>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>false</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -141,7 +142,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top;..\..\top\aprcl;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -187,7 +188,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -218,6 +219,10 @@
       <HeaderFileName>
       </HeaderFileName>
     </Midl>
+    <YASM>
+      <Defines>_WIN64</Defines>
+      <ObjectFile>$(IntDir)</ObjectFile>
+    </YASM>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -226,8 +231,8 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>Default</StructMemberAlignment>
@@ -263,15 +268,12 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
-    <ClCompile Include="..\..\factor\gpu_squfof.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
     <ClCompile Include="..\..\factor\nfs\nfs.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
     <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
@@ -280,6 +282,7 @@
     <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
     <ClCompile Include="..\..\factor\nfs\snfs.c" />
     <ClCompile Include="..\..\factor\nfs\winsupport.c" />
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
     <ClCompile Include="..\..\factor\qs\filter.c" />
     <ClCompile Include="..\..\factor\qs\large_sieve.c" />
     <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
@@ -305,21 +308,29 @@
     <ClCompile Include="..\..\factor\qs\tdiv_med.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_med_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c" />
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knl.c" />
     <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
-    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\calc.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\eratosthenes\count.c" />
     <ClCompile Include="..\..\top\eratosthenes\linesieve.c" />
     <ClCompile Include="..\..\top\eratosthenes\offsets.c" />
+    <ClCompile Include="..\..\top\eratosthenes\presieve.c" />
     <ClCompile Include="..\..\top\eratosthenes\primes.c" />
     <ClCompile Include="..\..\top\eratosthenes\roots.c" />
     <ClCompile Include="..\..\top\eratosthenes\soe.c" />
@@ -328,8 +339,10 @@
     <ClCompile Include="..\..\top\eratosthenes\worker.c" />
     <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
+    <ClCompile Include="..\..\top\queue.c" />
     <ClCompile Include="..\..\top\stack.c" />
     <ClCompile Include="..\..\top\test.c" />
+    <ClCompile Include="..\..\top\threadpool.c" />
     <ClCompile Include="..\..\top\utils.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\rho.c" />
@@ -339,6 +352,7 @@
     <ClCompile Include="..\..\arith\arith1.c" />
     <ClCompile Include="..\..\arith\arith2.c" />
     <ClCompile Include="..\..\arith\arith3.c" />
+    <ClCompile Include="..\..\top\vecarith.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
@@ -352,11 +366,14 @@
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\calc.h" />
+    <ClInclude Include="..\..\include\cofactorize.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
     <ClInclude Include="..\..\include\gmp_xface.h" />
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\include\monty.h" />
+    <ClInclude Include="..\..\include\queue.h" />
     <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\include\nfs.h" />
@@ -368,14 +385,7 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\factor\gpu_squfof.cu">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </None>
+    <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

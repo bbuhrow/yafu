@@ -65,12 +65,10 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
     uint32 bound, tmp, prime, root1, root2, report_num;
     int smooth_num;
     uint32 *fb_offsets;
-    sieve_fb *fb;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32 block_loc;
-    uint16 buffer[16];
-    uint16 buffer2[16];
+    uint16 buffer[32];
     uint32 tmp3 = 0;
     int r;
     int starti;
@@ -83,12 +81,10 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
     fullfb_ptr = fullfb;
     if (parity)
     {
-        fb = dconf->fb_sieve_n;
         fbc = dconf->comp_sieve_n;
     }
     else
     {
-        fb = dconf->fb_sieve_p;
         fbc = dconf->comp_sieve_p;
     }
 
@@ -98,9 +94,6 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
-#ifdef USE_YAFU_TDIV
-        z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif
 
         if (!dconf->valid_Qs[report_num])
             continue;
@@ -147,30 +140,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         i = sconf->sieve_small_fb_start;
 
-
-        //printf("start index = %u\n", i);
-        //printf("10-bit bound = %u\n", sconf->factor_base->fb_10bit_B);
-        //printf("12-bit bound = %u\n", sconf->factor_base->fb_12bit_B);
-        //printf("13-bit bound = %u\n", sconf->factor_base->fb_13bit_B);
-
-
         // 8x trial division
-#ifdef USE_AVX2
-
-        if ((sconf->factor_base->fb_10bit_B & 15) == 0)
-        {
-            bound = sconf->factor_base->fb_10bit_B;
-            //printf("10 bit bound divisible by 16: %u\n", sconf->factor_base->fb_10bit_B); fflush(stdout);
-        }
-        else
-        {
-            bound = MAX(sconf->factor_base->fb_10bit_B - 8, sconf->sieve_small_fb_start);
-            //printf("10 bit bound not divisible by 16, new bound: %u\n", bound); fflush(stdout);
-        }
-
-#else
         bound = sconf->factor_base->fb_10bit_B;
-#endif
 
         // single-up test until i is a multiple of 8
         while ((uint32)i < bound && ((i & 7) != 0))
@@ -202,7 +173,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         starti = i;
 
-#ifdef USE_8X_MOD_ASM
+
+#if defined(USE_8X_MOD_ASM)
 
         bl_sizes[0] = 32768;
         bl_sizes[1] = 32768;
@@ -455,10 +427,12 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         TDIV_MED_CLEAN;
 
+#if defined(HAS_SSE2) && defined(GCC_ASM64X)
         for (r = 0; r < tmp3; r++)
         {
-            DIVIDE_ONE_PRIME_2((buffer[r]));
+            DIVIDE_RESIEVED_PRIME_2((buffer[r]));
         }
+#endif
 
 #else
 
@@ -502,10 +476,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
     gettimeofday(&qs_timing_stop, NULL);
-    qs_timing_diff = my_difftime(&qs_timing_start, &qs_timing_stop);
-
-    TF_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-    free(qs_timing_diff);
+    TF_STG2 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     return;

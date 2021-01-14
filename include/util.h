@@ -54,13 +54,13 @@ extern "C" {
 static INLINE void * xmalloc_align(size_t len)
 {
 #if defined (_MSC_VER) || defined(__MINGW32__)
-	void *ptr = _aligned_malloc(len, 32);
+	void *ptr = _aligned_malloc(len, 64);
 
 #elif defined (__APPLE__)
 	void *ptr = malloc(len);
 
 #elif defined (__GNUC__)
-	void *ptr = memalign(32, len);
+	void *ptr = memalign(64, len);
 
 #else
 	void *ptr = malloc(len);
@@ -122,7 +122,7 @@ get_rand(uint32 *rand_seed, uint32 *rand_carry) {
 //http://cboard.cprogramming.com/cplusplus-programming/
 //101085-how-measure-time-multi-core-machines-pthreads.html
 //
-TIME_DIFF * my_difftime (struct timeval *, struct timeval *);
+double yafu_difftime (struct timeval *, struct timeval *);
 
 //http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
 #if defined (_MSC_VER)
@@ -165,6 +165,9 @@ void test_dlp_composites(void);
 void modtest(int it);
 void test_qsort(void);
 void arith_timing(int num);
+void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum);
+void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum);
+void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *sum);
 
 /* for turning on CPU-specific code */
 
@@ -199,7 +202,7 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 #define HAS_CMOV
 
 // assme this is a modern cpu that has at least up through sse2.
-#if !defined(USE_MIC) && !defined(FORCE_GENERIC)
+#ifndef FORCE_GENERIC
 #define HAS_MMX 1
 #define HAS_SSE 1
 #define HAS_SSE2 1
@@ -210,5 +213,28 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 #ifdef __cplusplus
 }
 #endif
+
+
+
+
+typedef struct
+{
+    uint8** hashBins;
+    uint64** hashKey;
+    uint32* binSize;
+    uint32 numBins;
+    uint32 numBinsPow2;
+    uint32 numStored;
+    uint32 elementSizeB;
+} hash_t;
+
+hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements);
+void deleteHash(hash_t* hash);
+void hashPut(hash_t* hash, uint8* element, uint64 key);
+void hashGet(hash_t* hash, uint64 key, uint8* element);
+
+
+
+
 
 #endif /* _UTIL_H_ */

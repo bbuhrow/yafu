@@ -52,7 +52,6 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	
 	struct timeval stop, stop2;	// stop time of this job
 	struct timeval start, start2;	// start time of this job
-	TIME_DIFF *	difference;
 
 	if( score == NULL )
 	{
@@ -119,7 +118,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 				printf("malloc failed\n");
 				exit(-1);
 			}
-			sprintf(filenames[i], "test-sieve-%d.poly", i);
+            sprintf(filenames[i], "test-sieve-%d.poly", i);
 			out = fopen(filenames[i], "w");
 			if( !out )
 			{
@@ -147,6 +146,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		char syscmd[GSTR_MAXSIZE], tmpbuf[GSTR_MAXSIZE], side[32];
 		FILE* in;
 
+        if (VFLAG > 0)
+            printf("\ntest: trial sieving %s\n", filenames[i]);
+
 		// should probably scale the range of special-q to test based
 		// on input difficulty, but not sure how to do that easily...
 
@@ -161,7 +163,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			jobs[i].startq = jobs[i].alim; // ditto
 		}
 
-		flog = fopen(fobj->flogname, "a");
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+        }
 
 		//create the afb/rfb - we don't want the time it takes to do this to
 		//pollute the sieve timings		
@@ -170,9 +175,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&start, &stop);
+
 		if (VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
 		logprint(flog, "test: fb generation took %6.4f seconds\n", t_time);
 		MySleep(.1);
@@ -185,15 +189,17 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			side, jobs[i].startq, jobs[i].startq + spq_range);
 		logprint(flog, "test: commencing test sieving of polynomial %d on the %s side over range %u-%u\n", i, 
 			side, jobs[i].startq, jobs[i].startq + spq_range);
-		print_job(&jobs[i], flog);
-		fclose(flog);
+		
+        if (LOGFLAG)
+        {
+            print_job(&jobs[i], flog);
+            fclose(flog);
+        }
 
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);		
+        t_time = yafu_difftime(&start, &stop);
 		
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
@@ -266,7 +272,10 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			// be conservative about estimates
 		}
 
-		flog = fopen(fobj->flogname, "a");
+        if (LOGFLAG)
+        {
+            flog = fopen(fobj->flogname, "a");
+        }
 
 		if( score[i] < min_score )
 		{
@@ -392,16 +401,25 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
      	}
 		else
 		{
-			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n", 
+			if (VFLAG > 0) printf("test: estimated total sieving time = %s (with %d threads)\n\n", 
 				time_from_secs(time, (unsigned long)score[i]), THREADS);
 			logprint(flog, "test: estimated total sieving time = %s (with %d threads)\n", 
 				time_from_secs(time, (unsigned long)score[i]), THREADS);
 		}
 
-		fclose(flog);
+        if (LOGFLAG)
+        {
+            fclose(flog);
+        }
+
 		remove(tmpbuf); // clean up after ourselves
-		sprintf(tmpbuf, "%s", filenames[i]);
-		remove(tmpbuf);
+
+        if (!are_files)
+        {
+            sprintf(tmpbuf, "%s", filenames[i]);
+            remove(tmpbuf);
+        }
+
 		sprintf(tmpbuf, "%s.afb.0", filenames[i]);
 		remove(tmpbuf);
 	}
@@ -409,6 +427,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	// clean up memory allocated
 	if( are_files )
 	{
+        // TODO: need to write parameter adjustments to file
 		for(i = 0; i < njobs; i++)
 		{
 			mpz_polys_free(jobs[i].poly);
@@ -423,13 +442,15 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		free(filenames);
 	}
 
-	flog = fopen(fobj->flogname, "a");
-	gettimeofday(&stop2, NULL);
-	difference = my_difftime (&start2, &stop2);
-	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);			
-	if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
-	logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        gettimeofday(&stop2, NULL);
+        t_time = yafu_difftime(&start2, &stop2);
+
+        if (VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
+        logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);
+    }
 
 	return minscore_id;
 }
@@ -454,6 +475,14 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		thread_data[i].job.lpba = job->lpba;
 		thread_data[i].job.mfbr = job->mfbr;
 		thread_data[i].job.mfba = job->mfba;
+        // if the user specified a range of q to sieve, then divvy up that
+        // range over the threads.  otherwise divvy up the qrange that was
+        // determined to be good for this input.
+        // todo: in the user-specified case the range may be large which
+        // can cause problems with abort-restarts because only a small fraction
+        // of each range actually gets done.  better would be to use the qrange
+        // that was determined to be good for this input and run multiple 
+        // such ranges until the user-range is met.
 		if (fobj->nfs_obj.rangeq > 0)
 			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
 		else
@@ -484,17 +513,20 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 		job->startq += t->job.qrange;
 	}
 
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
-		fclose(logfile);
-	}
+    if (LOGFLAG)
+    {
+        logfile = fopen(fobj->flogname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open yafu logfile for appending\n");
+        }
+        else
+        {
+            logprint(logfile, "nfs: commencing lattice sieving with %d threads\n", THREADS);
+            fclose(logfile);
+        }
+    }
 
 	// create a new lasieve process in each thread and watch it
 	for (i = 0; i < THREADS; i++) 
@@ -554,17 +586,20 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 
 		if (VFLAG > 0) printf("nfs: adding %u rels from rels.add\n",count);
 
-		logfile = fopen(fobj->flogname, "a");
-		if (logfile == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open yafu logfile for appending\n");
-		}
-		else
-		{
-			logprint(logfile, "nfs: adding %u rels from rels.add\n",count);
-			fclose(logfile);
-		}
+        if (LOGFLAG)
+        {
+            logfile = fopen(fobj->flogname, "a");
+            if (logfile == NULL)
+            {
+                printf("fopen error: %s\n", strerror(errno));
+                printf("could not open yafu logfile for appending\n");
+            }
+            else
+            {
+                logprint(logfile, "nfs: adding %u rels from rels.add\n", count);
+                fclose(logfile);
+            }
+        }
 
 		savefile_concat("rels.add",fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 		remove("rels.add");
@@ -583,225 +618,6 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	return;
 }
 
-/*
-void do_sieving_pool(fact_obj_t *fobj, nfs_job_t *job)
-{
-	nfs_threaddata_t *thread_data;		//an array of thread data objects
-	int i;
-	FILE *logfile;
-
-	// thread work-queue controls
-    int threads_working = 0;
-    int *thread_queue, *threads_waiting;
-#if defined(WIN32) || defined(_WIN64)
-	HANDLE queue_lock;
-	HANDLE *queue_events = NULL;
-#else
-    pthread_mutex_t queue_lock;
-    pthread_cond_t queue_cond;
-#endif
-
-	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
-
-	// allocate the queue of threads waiting for work
-    thread_queue = (int *)malloc(THREADS * sizeof(int));
-    threads_waiting = (int *)malloc(sizeof(int));
-
-	if (THREADS > 1)
-	{
-#if defined(WIN32) || defined(_WIN64)
-		queue_lock = CreateMutex( 
-			NULL,              // default security attributes
-			FALSE,             // initially not owned
-			NULL);             // unnamed mutex
-		queue_events = (HANDLE *)malloc(THREADS * sizeof(HANDLE));
-#else
-		pthread_mutex_init(&queue_lock, NULL);
-		pthread_cond_init(&queue_cond, NULL);
-#endif
-	}
-
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: commencing lattice sieving with %d threads\n",THREADS);
-		fclose(logfile);
-	}
-
-	thread_data = (nfs_threaddata_t *)malloc(THREADS * sizeof(nfs_threaddata_t));
-	for (i=0; i<THREADS; i++)
-	{
-		thread_data[i].fobj = fobj;
-		sprintf(thread_data[i].outfilename, "rels%d.dat", i);
-		thread_data[i].job.poly = job->poly; // no sense copying the whole struct
-		thread_data[i].job.rlim = job->rlim;
-		thread_data[i].job.alim = job->alim;
-		thread_data[i].job.rlambda = job->rlambda;
-		thread_data[i].job.alambda = job->alambda;
-		thread_data[i].job.lpbr = job->lpbr;
-		thread_data[i].job.lpba = job->lpba;
-		thread_data[i].job.mfbr = job->mfbr;
-		thread_data[i].job.mfba = job->mfba;
-		thread_data[i].job.min_rels = job->min_rels;
-		thread_data[i].job.current_rels = job->current_rels;
-		thread_data[i].siever = fobj->nfs_obj.siever;
-		thread_data[i].job.startq = job->startq;
-		strcpy(thread_data[i].job.sievername, job->sievername);
-		thread_data[i].is_poly_select = 0;
-		thread_data[i].fobj = fobj;
-		thread_data[i].tindex = i;
-
-		// todo: break this up into smaller chunks, in an effort to keep 
-		// threads from idleing less at the end of a range.  will need
-		// to compute and store the afb first
-		if (fobj->nfs_obj.rangeq > 0)
-			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
-		else
-			thread_data[i].job.qrange = ceil((double)job->qrange / (double)THREADS);
-
-		// assign all thread's a pointer to the waiting queue.  access to 
-		// the array will be controlled by a mutex
-        thread_data[i].thread_queue = thread_queue;
-        thread_data[i].threads_waiting = threads_waiting;
-
-		if (THREADS > 1)
-		{
-#if defined(WIN32) || defined(_WIN64)
-			// assign a pointer to the mutex
-			thread_data[i].queue_lock = &queue_lock;
-			thread_data[i].queue_event = &queue_events[i];
-#else
-			thread_data[i].queue_lock = &queue_lock;
-			thread_data[i].queue_cond = &queue_cond;
-#endif
-		}
-	}
-
-
-	if (THREADS > 1)
-	{
-#if defined(WIN32) || defined(_WIN64)
-		// nothing
-#else
-		pthread_mutex_lock(&queue_lock);
-#endif
-	}
-
-    while (1)
-	{
-
-		// Process threads until there are no more waiting for their results to be collected
-		while (*threads_waiting > 0)
-		{
-			int tid;
-			
-			if (THREADS > 1)
-			{
-				// Pop a waiting thread off the queue (OK, it's stack not a queue)
-#if defined(WIN32) || defined(_WIN64)
-				WaitForSingleObject( 
-					queue_lock,    // handle to mutex
-					INFINITE);  // no time-out interval
-#endif
-  
-				tid = thread_queue[--(*threads_waiting)];
-
-#if defined(WIN32) || defined(_WIN64)
-				ReleaseMutex(queue_lock);
-#endif
-			}
-			else
-				tid = 0;
-
-			// Check whether the thread has any results to collect. This should only be false at the 
-			// very beginning, when the thread hasn't actually done anything yet.
-			if (thread_data[tid].dconf->buffered_rels)
-			{				
-				num_found = siqs_merge_data(thread_data[tid].dconf,static_conf);
-
-				//check whether to continue or not, and update the screen
-				updatecode = update_check(static_conf);
-
-				// this thread is done, so decrement the count of working threads
-				threads_working--;
-			}
-
-			// if we have enough relations, or if there was a break signal, stop dispatching
-			// any more threads
-			if (updatecode == 0 && num_found < num_needed) 
-			{
-
-				// generate a new poly A value for the thread we pulled out of the queue
-				// using its dconf.  this is done by the master thread because it also 
-				// stores the coefficients in a master list
-				static_conf->total_poly_a++;
-				new_poly_a(static_conf,thread_data[tid].dconf);
-
-				if (THREADS > 1)
-				{
-					// send the thread a signal to start processing the poly we just generated for it
-#if defined(WIN32) || defined(_WIN64)
-					thread_data[tid].command = COMMAND_RUN;
-					SetEvent(thread_data[tid].run_event);
-#else
-					pthread_mutex_lock(&thread_data[tid].run_lock);
-					thread_data[tid].command = COMMAND_RUN;
-					pthread_cond_signal(&thread_data[tid].run_cond);
-					pthread_mutex_unlock(&thread_data[tid].run_lock);
-#endif
-				}
-				
-				// this thread is now busy, so increment the count of working threads
-				threads_working++;
-			}
-
-			if (THREADS == 1)
-				*threads_waiting = 0;
-	
-		} // while (*threads_waiting > 0)
-
-		// if all threads are done, break out
-		if (threads_working == 0)
-			break;
-
-		if (THREADS > 1)
-		{
-			// wait for a thread to finish and put itself in the waiting queue
-#if defined(WIN32) || defined(_WIN64)
-			j = WaitForMultipleObjects(
-				THREADS,
-				queue_events,
-				FALSE,
-				INFINITE);
-#else
-			pthread_cond_wait(&queue_cond, &queue_lock);
-#endif
-		}
-		else
-		{
-			//do some work
-			nfs_threaddata_t *t = thread_data + 0;
-
-			lasieve_launcher(t);
-			*threads_waiting = 1;
-		}
-	}
-
-	//stop worker threads
-	for (i=0; i<THREADS; i++)
-	{
-		if (THREADS > 1)
-			nfs_stop_worker_thread(thread_data + i);
-	}
-
-	return;
-}
-*/
 
 void *lasieve_launcher(void *ptr)
 {
@@ -826,6 +642,7 @@ void *lasieve_launcher(void *ptr)
 	//		fobj->nfs_obj.job_infile, thread_data->job.startq, 
 	//		thread_data->job.qrange, thread_data->outfilename, thread_data->tindex);
 
+    // todo: add command line input of arbitrary argument string to append to this command
 	// but not this:
 	sprintf(syscmd,"%s%s -f %u -c %u -o %s -n %d -%c %s ",
 			thread_data->job.sievername, VFLAG>0?" -v":"", thread_data->job.startq, 
@@ -845,9 +662,13 @@ void *lasieve_launcher(void *ptr)
 	// so check for abnormal exit from the system command.
 	// -1073741819 is apparently what ggnfs returns when it crashes, which
 	// we don't want to interpret as an abort.
-	if (!((cmdret == 0) || cmdret == -1073741819))
-		if( NFS_ABORT < 1 )
-			NFS_ABORT = 1;
+    if (!((cmdret == 0) || cmdret == -1073741819))
+    {
+        if (NFS_ABORT < 1)
+        {
+            NFS_ABORT = 1;
+        }
+    }
 
 	// count the relations produced
 	MySleep(100);

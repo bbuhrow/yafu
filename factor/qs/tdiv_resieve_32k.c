@@ -65,7 +65,6 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 	uint32 bound, report_num;
 	int smooth_num;
 	uint32 *fb_offsets;
-	sieve_fb *fb;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
@@ -74,12 +73,10 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
-		fb = dconf->fb_sieve_n;
 		fbc = dconf->comp_sieve_n;
 	}
 	else
 	{
-		fb = dconf->fb_sieve_p;
 		fbc = dconf->comp_sieve_p;
 	}		
 
@@ -89,9 +86,6 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-#ifdef USE_YAFU_TDIV
-		z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif
 
 		if (!dconf->valid_Qs[report_num])
 			continue;
@@ -164,7 +158,6 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 			i += 8;
 		}
 
-
 		// after either resieving or standard trial division, record
 		// how many factors we've found so far.
 		dconf->smooth_num[report_num] = smooth_num;	
@@ -173,10 +166,7 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 			
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
+    TF_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

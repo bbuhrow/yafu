@@ -83,12 +83,9 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_p = lp_bucket_p->num;
 		numptr_n = lp_bucket_p->num + numblocks;
 		
-		//reuse this for a sec...
-		prime = 2*numblocks*lp_bucket_p->alloc_slices;
-
-		//reset lp_buckets
-		for (j=0;j<prime;j++)
-			numptr_p[j] = 0;
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+            numptr_p[j] = 0;
 	
 		lp_bucket_p->num_slices = 0;
 
@@ -174,7 +171,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -269,7 +266,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined (_WIN64))
 		// update 8 at a time using SSE2 and no branching
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -288,7 +285,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}	
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 
 #else
 
@@ -328,11 +325,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 +=  yafu_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -592,6 +585,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_PROOTS(j);
@@ -599,12 +594,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -612,12 +605,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -625,12 +616,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -638,12 +627,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -678,11 +665,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
@@ -1006,10 +989,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}
@@ -1084,7 +1064,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
 #if defined(GCC_ASM64X) || defined(_MSC_VER) //NOTDEF //GCC_ASM64X
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1105,7 +1085,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B + j];
 		
 
 #else
@@ -1184,7 +1164,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 #if defined(GCC_ASM64X) || (defined(_MSC_VER) && defined(_WIN64))
 
 		// update 8 at a time using SSE2 and no branching		
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound];
+		sm_ptr = &dconf->sm_rootupdates[(v-1) * med_B];
 		{
 			small_update_t h;
 			
@@ -1203,7 +1183,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			j = h.stop;
 		}
-		sm_ptr = &dconf->sm_rootupdates[(v-1) * bound + j];
+        sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B + j];
 		
 		
 #else
@@ -1243,11 +1223,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG2 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG2 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1505,6 +1481,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_NROOTS(j);
@@ -1512,12 +1490,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1525,12 +1501,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1538,12 +1512,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1551,12 +1523,10 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 			root1 = update_data.firstroots1[j];
 			root2 = update_data.firstroots2[j];
 			prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
 
 			FILL_ONE_PRIME_LOOP_P(j);
-
-			root1 = (prime - update_data.firstroots1[j]);
-			root2 = (prime - update_data.firstroots2[j]);
-
 			FILL_ONE_PRIME_LOOP_N(j);
 
 			j++;
@@ -1591,11 +1561,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG3 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
-
+        POLY_STG3 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1921,10 +1887,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-		qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-		POLY_STG4 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-		free(qs_timing_diff);
+        POLY_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}

@@ -242,7 +242,6 @@ void testfirstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		check_bound += BUCKET_ALLOC >> 1;					\
 	}
 
-
 #if defined(MSC_ASM32A)
 
 	#define COMPUTE_FIRST_ROOTS	\
@@ -424,6 +423,23 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			tmp = q64 >> 32; 
 			x = t2 - tmp * prime;
 
+            // the root updates for each poly are spaced apart
+            // from each other by the number of factor base primes.
+            // The root updates for groups of primes are contiguous
+            // for each poly.  This allows for SIMD processing
+            // during root update calculations.
+            // if we wanted to compute root updates for batches of
+            // polys at a time then we can use a striping approach:
+            // put N primes contiguous for each of polys 1 to M.
+            // then the next N primes for the same polys.  Then
+            // repeat the whole business for the next M polys, etc.
+            // no... nevermind, this won't work.  we only store
+            // info for the s Bl values, for a total of B*s entries
+            // in the rootupdate table.  but to stripe all of the
+            // info would require B*(2^(s-1)) entries (a lot more...).
+            // the update code will just have to load new sections
+            // of update info as it needs them (and sign info).
+
 			rootupdates[(j)*fb->B+i] = x;
 		}
 	}
@@ -508,7 +524,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = t2 - tmp * prime;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
 		}
 	}
 

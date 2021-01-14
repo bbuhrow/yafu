@@ -79,6 +79,7 @@ typedef struct
 	double ecm_55digit_time_per_curve;
 	double ecm_60digit_time_per_curve;
 	double ecm_65digit_time_per_curve;
+    double initial_work;
 
 	// amount of work we've done in various areas
 	uint32 tdiv_limit;
@@ -174,7 +175,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
 void set_work_params(factor_work_t *fwork, enum factorization_state state);
 int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
-double compute_ecm_work_done(factor_work_t *fwork, int disp);
+double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
 	enum factorization_state state, double work_done,
@@ -225,6 +226,9 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->ecm_obj.ecm_exponent = 0;
 	fobj->ecm_obj.ecm_multiplier = 0;
 	fobj->ecm_obj.ecm_tune_freq = 0;
+    fobj->ecm_obj.bail_on_factor = 1;
+    fobj->ecm_obj.save_b1 = 0;
+    
 
 	// unlike ggnfs, ecm does not *require* external binaries.  
 	// an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -232,7 +236,13 @@ void init_factobj(fact_obj_t *fobj)
 	// an external binary
 	strcpy(fobj->ecm_obj.ecm_path,"");
 	fobj->ecm_obj.use_external = 0;
-	fobj->ecm_obj.ecm_ext_xover = 40000;
+#ifdef USE_AVX512F
+    fobj->ecm_obj.prefer_gmpecm = 0;
+    fobj->ecm_obj.ecm_ext_xover = 40000000;
+#else
+    fobj->ecm_obj.prefer_gmpecm = 1;
+	fobj->ecm_obj.ecm_ext_xover = 48000;
+#endif
 
 	// initialize stuff for squfof
 	fobj->squfof_obj.num_factors = 0;	
@@ -240,6 +250,8 @@ void init_factobj(fact_obj_t *fobj)
 	// initialize stuff for qs	
 	fobj->qs_obj.gbl_override_B_flag = 0;
 	fobj->qs_obj.gbl_override_B = 0;
+    fobj->qs_obj.gbl_override_small_cutoff_flag = 0;
+    fobj->qs_obj.gbl_override_small_cutoff = 0;
 	fobj->qs_obj.gbl_override_blocks_flag = 0;
 	fobj->qs_obj.gbl_override_blocks = 0 ;
 	fobj->qs_obj.gbl_override_lpmult_flag = 0;
@@ -250,8 +262,16 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->qs_obj.gbl_override_tf = 0;
 	fobj->qs_obj.gbl_override_time_flag = 0;
 	fobj->qs_obj.gbl_override_time = 0;
+	fobj->qs_obj.gbl_override_mfbd = 0.;
+	fobj->qs_obj.gbl_override_mfbt = 0.;
+	fobj->qs_obj.gbl_override_lpb = 0;
+    fobj->qs_obj.gbl_override_bdiv_flag = 0;
+    fobj->qs_obj.gbl_override_bdiv = 3;
+    fobj->qs_obj.gbl_override_3lp_bat = 0;
+    fobj->qs_obj.gbl_btarget = 500000;
 	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
+	fobj->qs_obj.gbl_force_TLP = 0;
 	fobj->qs_obj.qs_exponent = 0;
 	fobj->qs_obj.qs_multiplier = 0;
 	fobj->qs_obj.qs_tune_freq = 0;
@@ -308,6 +328,7 @@ void init_factobj(fact_obj_t *fobj)
 	fobj->autofact_obj.want_output_unfactored = 0;
 	fobj->autofact_obj.want_output_expressions = 1;
 	fobj->autofact_obj.qs_gnfs_xover = 95;
+    fobj->autofact_obj.qs_snfs_xover = 75;
 	// use xover even when timing info is available
 	fobj->autofact_obj.prefer_xover = 0;			
 	fobj->autofact_obj.want_only_1_factor = 0;
@@ -907,7 +928,6 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	uint64 tmp2;	
 	struct timeval tstart, tstop;
 	double t_time;
-	TIME_DIFF *	difference;
 	uint32 curves_done;
 
 	gettimeofday(&tstart, NULL);
@@ -916,23 +936,18 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 	{
 	case state_trialdiv:
 
-        // first do a perfect power check
-        if (mpz_perfect_power_p(b))
+        // if larger than a small bound, do a perfect power check
+        fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
+        
+        if ((mpz_cmp_ui(b, fobj->prime_threshold) > 1) && 
+            mpz_perfect_power_p(b))
         {
-            FILE *flog;
-
             if (VFLAG > 0)
             {
                 printf("fac: input is a perfect power\n");
             }
 
-            flog = fopen(fobj->flogname, "a");
-            if (flog != NULL)
-            {
-                logprint(flog, "input is a perfect power\n");
-                fclose(flog);
-            }
-
+            logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
             factor_perfect_power(fobj, b);
 
             mpz_set(fobj->N, b);
@@ -942,7 +957,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         // then do all of the tdiv work requested
         if (VFLAG >= 0)
             printf("div: primes less than %d\n", fwork->tdiv_max_limit);
-        fobj->prime_threshold = fwork->tdiv_max_limit * fwork->tdiv_max_limit;
+        
         mpz_set(fobj->div_obj.gmp_n, b);
         fobj->div_obj.print = 1;
         fobj->div_obj.limit = fwork->tdiv_max_limit;
@@ -954,9 +969,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
         // measure time for this completed work
         gettimeofday(&tstop, NULL);
-        difference = my_difftime(&tstart, &tstop);
-        t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-        free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
         fwork->trialdiv_time = t_time;
         fwork->total_time += t_time;
@@ -975,9 +988,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->rho_time = t_time;
 		fwork->total_time += t_time;
@@ -996,9 +1007,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->fermat_time = t_time;
 		fwork->total_time += t_time;
@@ -1033,9 +1042,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->ecm_time += t_time;
 		fwork->total_time += t_time;
@@ -1065,9 +1072,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->pp1_time += t_time;
 		fwork->total_time += t_time;
@@ -1096,9 +1101,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->pm1_time += t_time;
 		fwork->total_time += t_time;
@@ -1111,9 +1114,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->qs_time = t_time;
 		if (VFLAG > 0)
@@ -1128,9 +1129,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-		difference = my_difftime (&tstart, &tstop);
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);
+        t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->nfs_time = t_time;
 		if (VFLAG > 0)
@@ -1320,6 +1319,20 @@ int check_tune_params(fact_obj_t *fobj)
 		fobj->nfs_obj.gnfs_exponent == 0 || 
 		fobj->nfs_obj.gnfs_tune_freq == 0)
 	{
+        if (VFLAG > 0)
+        {
+            printf("check tune params contained invalid parameter(s), ignoring tune info.\n");
+        }
+
+        if (VFLAG > 0)
+        {
+            printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
+            printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
+            printf("\tqs_freq = %e\n", fobj->qs_obj.qs_tune_freq);
+            printf("\tnfs_mult = %e\n", fobj->nfs_obj.gnfs_multiplier);
+            printf("\tnfs_exp = %e\n", fobj->nfs_obj.gnfs_exponent);
+            printf("\tnfs_freq = %e\n", fobj->nfs_obj.gnfs_tune_freq);
+        }
 		return 0;
 	}
 
@@ -1583,7 +1596,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
 	return max_curves;
 }
 
-double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
+double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log)
 {
 	// there is probably a more elegant way to do this involving dickman's function
 	// or something, but we can get a reasonable estimate using empirical data
@@ -1591,6 +1604,11 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 	double tlevels[NUM_ECM_LEVELS];
 	uint32 curves_done;
 	int i, j;
+
+    if (LOGFLAG && (log != NULL))
+    {
+        logprint(log, "ecm work completed:\n");
+    }
 
 	// compute the %done of each tlevel
 	for (i=0; i < NUM_ECM_LEVELS; i++)
@@ -1606,7 +1624,12 @@ double compute_ecm_work_done(factor_work_t *fwork, int disp_levels)
 
         if ((VFLAG >= 1) && disp_levels && (tlevels[i] > 0.01))
         {
-            printf("fac: t%d: %1.2f\n", ecm_levels[i], tlevels[i]);
+            printf("\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
+        }
+
+        if (LOGFLAG && (log != NULL) && (tlevels[i] > 0.01))
+        {
+            logprint(log, "\tt%d: %1.2f\n", ecm_levels[i], tlevels[i]);
         }
 	}
 
@@ -1659,7 +1682,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 	// set target pretesting depth, depending on user selection and whether or not
 	// the input is both big enough and snfsable...
-    if ((numdigits >= fobj->autofact_obj.qs_gnfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
+    if ((numdigits >= fobj->autofact_obj.qs_snfs_xover) && (fobj->autofact_obj.has_snfs_form < 0))
     {
         mpz_set(fobj->nfs_obj.gmp_n, b);
 #ifdef USE_NFS
@@ -1742,7 +1765,8 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 		VFLAG = tmpV;
 
-		// and test the best one
+		// and test the best one, compared to gnfs or qs, depending on 
+        // which one will run.
 		gnfs_size = est_gnfs_size_via_poly(&polys[0]);
 
 		if (gnfs_size <= (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3))
@@ -1750,13 +1774,35 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
 			// the plan ratio in accord with the snfs job.
-			if (VFLAG > 0) 
+			if (VFLAG >= 0) 
 			{
 				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
 					target_digits, target_digits / 1.2857);
 			}
 			target_digits /= 1.2857;
 		}
+        else
+        {
+            if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+            {
+                // don't consider the qs/snfs cutoff any more
+                fobj->autofact_obj.has_snfs_form = 0;
+
+                if (VFLAG >= 0)
+                {
+                    printf("fac: ecm effort maintained at %1.2f: input better by qs\n",
+                        target_digits);
+                }
+            }
+            else
+            {
+                if (VFLAG >= 0)
+                {
+                    printf("fac: ecm effort maintained at %1.2f: input better by gnfs\n",
+                        target_digits);
+                }
+            }
+        }
 
         // don't need the poly anymore
         snfs_clear(poly);
@@ -1789,7 +1835,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			if (VFLAG >= 1)
 				printf("fac: setting target pretesting digits to %1.2f\n", target_digits);
 			
-			work_done = compute_ecm_work_done(fwork, 1);
+			work_done = compute_ecm_work_done(fwork, 1, NULL);
 			
 			if (VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.2f\n", work_done);
@@ -1797,7 +1843,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			break;
 
 		default:
-			work_done = compute_ecm_work_done(fwork, 0);
+			work_done = compute_ecm_work_done(fwork, 0, NULL);
 			break;
 	}
 
@@ -1814,14 +1860,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		((work_done > fobj->autofact_obj.only_pretest) && 
 		(fobj->autofact_obj.only_pretest > 1)))
 	{
-		flog = fopen(fobj->flogname,"a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for writing\n",fobj->flogname);
-			flog = stderr;
-		}
-		logprint(flog,"final ECM pretested depth: %1.2f\n", work_done);		
+		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.2f\n", work_done);
 
 		// if the user specified -pretest, with or without arguments,
 		// we should stop factoring now that ecm is done.  this covers the
@@ -1829,19 +1868,18 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// too large as determined by factor
 		if (fobj->autofact_obj.only_pretest)
 		{
-			fclose(flog);
 			return state_done;
 		}
 
-		logprint(flog,"scheduler: switching to sieve method\n");
-		if (flog != stderr)
-			fclose(flog);
+		logprint_oc(fobj->flogname, "a", "scheduler: switching to sieve method\n");
 
 		if (!have_tune || fobj->autofact_obj.prefer_xover)
 		{
 			// use a hard cutoff - within reason
-			if ((numdigits > fobj->autofact_obj.qs_gnfs_xover) &&
-				(numdigits >= 80))
+            if ((((numdigits > fobj->autofact_obj.qs_snfs_xover) && 
+                (fobj->autofact_obj.has_snfs_form)) ||
+                (numdigits > fobj->autofact_obj.qs_gnfs_xover)) &&
+				(numdigits >= 75))
 				return state_nfs;
 			else
 				return state_qs;			
@@ -1854,10 +1892,28 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			qs_time_est = get_qs_time_estimate(fobj, b);
 			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
 
-			if (qs_time_est < gnfs_time_est)
-				return state_qs;
-			else
-				return state_nfs;
+            if (VFLAG > 0)
+            {
+                printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
+                    qs_time_est, gnfs_time_est);
+            }
+
+            if (qs_time_est < gnfs_time_est)
+            {
+                if (VFLAG > 0)
+                {
+                    printf("fac: tune params scheduling SIQS work\n");
+                }
+                return state_qs;
+            }
+            else
+            {
+                if (VFLAG > 0)
+                {
+                    printf("fac: tune params scheduling NFS work\n");
+                }
+                return state_nfs;
+            }
 		}
 	}
 
@@ -1880,7 +1936,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// figure out how many curves at this level need to be done 
 			// to get to the target level
 			interp_and_set_curves(fwork, fobj, next_state, work_done,
-				target_digits, 1);
+				target_digits, LOGFLAG);
 
 			break;
 
@@ -1915,7 +1971,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	work_high = get_max_ecm_curves(fwork, state);		
 	work = (work_low + work_high) / 2;
 
-    if ((VFLAG >= 1) && log_results)
+    if (VFLAG >= 1)
     {
         printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n",
             fwork->B1, work_low, work_high);
@@ -1927,7 +1983,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         double compute;
 
 		set_ecm_curves_done(fwork, state, (uint32)work);       
-        compute = compute_ecm_work_done(fwork, 0);
+        compute = compute_ecm_work_done(fwork, 0, NULL);
 
 		if (compute > target_digits)
 		{
@@ -1950,13 +2006,13 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
     }
 
-    if ((VFLAG >= 1) && log_results)
+    if ((VFLAG >= 1) && LOGFLAG)
     {
         printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n",
             fwork->curves, fwork->B1, target_digits);
     }
 
-    if (log_results)
+    if (LOGFLAG)
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
@@ -1987,6 +2043,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_max_60digit_curves = 42017;	//260M
 	fwork->ecm_max_65digit_curves = 69408;	//850M
 	fwork->tdiv_max_limit = fobj->div_obj.limit;
+    fwork->fermat_iterations = 0;
 	fwork->fermat_max_iterations = fobj->div_obj.fmtlimit;
 	fwork->rho_max_bases = 3;
 	fwork->rho_max_iterations = fobj->rho_obj.iterations;
@@ -2026,10 +2083,11 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	fwork->ecm_55digit_curves = 0;
 	fwork->ecm_60digit_curves = 0;
 	fwork->ecm_65digit_curves = 0;
-	
+
+    
 	// preload work structure with curves appropriate to the amount
 	// of specified initial work
-	if (fobj->autofact_obj.initial_work >= 60.0)
+	if (fwork->initial_work >= 60.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2049,7 +2107,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_60digit_curves = get_max_ecm_curves(fwork, state_ecm_60digit);				
 		interp_state = state_ecm_65digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 55.0)
+    else if (fwork->initial_work >= 55.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2068,7 +2126,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_55digit_curves = get_max_ecm_curves(fwork, state_ecm_55digit);				
 		interp_state = state_ecm_60digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 50.0)
+    else if (fwork->initial_work >= 50.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2086,7 +2144,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_50digit_curves = get_max_ecm_curves(fwork, state_ecm_50digit);			
 		interp_state = state_ecm_55digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 45.0)
+    else if (fwork->initial_work >= 45.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2103,7 +2161,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_45digit_curves = get_max_ecm_curves(fwork, state_ecm_45digit);				
 		interp_state = state_ecm_50digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 40.0)
+    else if (fwork->initial_work >= 40.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2119,7 +2177,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_40digit_curves = get_max_ecm_curves(fwork, state_ecm_40digit);		
 		interp_state = state_ecm_45digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 35.0)
+    else if (fwork->initial_work >= 35.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2134,7 +2192,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_35digit_curves = get_max_ecm_curves(fwork, state_ecm_35digit);
 		interp_state = state_ecm_40digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 30.0)
+    else if (fwork->initial_work >= 30.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pp1_max_lvl2_curves = 0;
@@ -2146,7 +2204,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_30digit_curves = get_max_ecm_curves(fwork, state_ecm_30digit);
 		interp_state = state_ecm_35digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 25.0)
+    else if (fwork->initial_work >= 25.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pm1_max_lvl1_curves = 0;
@@ -2155,7 +2213,7 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 		fwork->ecm_25digit_curves = get_max_ecm_curves(fwork, state_ecm_25digit);
 		interp_state = state_ecm_30digit;
 	}
-	else if (fobj->autofact_obj.initial_work >= 20.0) 
+    else if (fwork->initial_work >= 20.0)
 	{
 		fwork->pp1_max_lvl1_curves = 0;
 		fwork->pm1_max_lvl1_curves = 0;
@@ -2180,8 +2238,8 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
         double tmp_pretest = fobj->autofact_obj.only_pretest;
 
         fobj->autofact_obj.only_pretest = 0;
-        interp_and_set_curves(fwork, fobj, interp_state, fobj->autofact_obj.initial_work,
-            fobj->autofact_obj.initial_work, 0);
+        interp_and_set_curves(fwork, fobj, interp_state, fwork->initial_work,
+            fwork->initial_work, 0);
             
         // restore any pretest value
         fobj->autofact_obj.only_pretest = tmp_pretest;
@@ -2217,13 +2275,13 @@ void factor(fact_obj_t *fobj)
 	FILE *flog;
 	struct timeval start, stop;
 	double t_time;
-	TIME_DIFF *	difference;
 	int user_defined_ecm_b2 = fobj->ecm_obj.stg2_is_default;
 	int user_defined_pp1_b2 = fobj->pp1_obj.stg2_is_default;
 	int user_defined_pm1_b2 = fobj->pm1_obj.stg2_is_default;
 	FILE *data;
 	char tmpstr[GSTR_MAXSIZE];
 	int quit_after_sieve_method = 0;
+    double initial_work = fobj->autofact_obj.initial_work;
 
 	//factor() always ignores user specified B2 values
 	fobj->ecm_obj.stg2_is_default = 1;
@@ -2248,39 +2306,77 @@ void factor(fact_obj_t *fobj)
 	
 	gettimeofday(&start, NULL);
 
-	flog = fopen(fobj->flogname,"a");
-	logprint(flog,"\n");
-	logprint(flog,"****************************\n");
-	{
+    if (LOGFLAG)
+    {
+        flog = fopen(fobj->flogname, "a");
+        logprint(flog, "\n");
+        logprint(flog, "****************************\n");
+
 		char *s;
 		s = mpz_get_str(NULL, 10, b);
 		// use ... when we have very big numbers?
 		logprint(flog,"Starting factorization of %s\n", s);
 		free(s);
 	}
+    else
+    {
+        // calls to logprint won't use this because they
+        // are also protected by LOGFLAG
+        flog = NULL;
+    }
+
 	logprint(flog,"using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
-	if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
-		logprint(flog,"custom pretest ratio is: %1.4f\n",
-		fobj->autofact_obj.target_pretest_ratio);
-	if (fobj->autofact_obj.only_pretest > 1)
-		logprint(flog, "custom pretesting limit is: %d\n",
-		fobj->autofact_obj.only_pretest);
+    if (fobj->autofact_obj.yafu_pretest_plan == PRETEST_CUSTOM)
+    {
+        logprint(flog, "custom pretest ratio is: %1.4f\n",
+            fobj->autofact_obj.target_pretest_ratio);
+    }
+    if (fobj->autofact_obj.only_pretest > 1)
+    {
+        logprint(flog, "custom pretesting limit is: %d\n",
+            fobj->autofact_obj.only_pretest);
+    }
 
 	if (check_tune_params(fobj))
 	{
-		if (fobj->autofact_obj.prefer_xover)
-			logprint(flog,"overriding tune info with qs/gnfs crossover of %1.0f digits\n",
-				fobj->autofact_obj.qs_gnfs_xover);
-		else
-			logprint(flog,"using tune info for qs/gnfs crossover\n");
+        if (fobj->autofact_obj.prefer_xover)
+        {
+            logprint(flog, "using specified qs/gnfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_gnfs_xover);
+            logprint(flog, "using specified qs/snfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_snfs_xover);
+        }
+        else
+        {
+            logprint(flog, "using tune info for qs/gnfs crossover\n");
+        }
 	}
-	else
-		logprint(flog,"no tune info: using qs/gnfs crossover of %1.0f digits\n",
-			fobj->autofact_obj.qs_gnfs_xover);
+    else
+    {
+        logprint(flog, "no tune info: using qs/gnfs crossover of %1.0f digits\n",
+            fobj->autofact_obj.qs_gnfs_xover);
+        logprint(flog, "no tune info: using qs/snfs crossover of %1.0f digits\n",
+            fobj->autofact_obj.qs_snfs_xover);
+    }
 
-	if (fobj->autofact_obj.initial_work > 0.0)
-		logprint(flog,"input indicated to have been pretested to t%1.2f\n",
-			fobj->autofact_obj.initial_work);
+    // if the user input a scaling factor rather than a digit level
+    // then compute the effective digit number for this input.
+    if (fobj->autofact_obj.initial_work < 1.0)
+    {
+        initial_work = fobj->autofact_obj.initial_work * mpz_sizeinbase(fobj->N, 10);
+    }
+
+    // put the initial work done into the work structure.  It's important
+    // to not modify the autofact_obj.initial_work element because if it was
+    // input as a scaling factor then modifying it would destroy the scaling
+    // factor for other inputs on this run (potentially a batch job).
+    fwork.initial_work = initial_work;
+
+    if (initial_work > 0.0)
+    {       
+        logprint(flog, "input indicated to have been pretested to t%1.2f\n",
+            initial_work);
+    }
 
 	logprint(flog,"****************************\n");
 	fclose(flog);
@@ -2297,19 +2393,31 @@ void factor(fact_obj_t *fobj)
 			printf("fac: custom pretesting limit is: %d\n",fobj->autofact_obj.only_pretest);
 		if (check_tune_params(fobj))
 		{
-			if (fobj->autofact_obj.prefer_xover)
-				printf("fac: overriding tune info with qs/gnfs crossover of %1.0f digits\n",
-					fobj->autofact_obj.qs_gnfs_xover);
-			else
-				printf("fac: using tune info for qs/gnfs crossover\n");
+            if (fobj->autofact_obj.prefer_xover)
+            {
+                printf("fac: using specified qs/gnfs crossover of %1.0f digits\n",
+                    fobj->autofact_obj.qs_gnfs_xover);
+                printf("fac: using specified qs/snfs crossover of %1.0f digits\n",
+                    fobj->autofact_obj.qs_snfs_xover);
+            }
+            else
+            {
+                printf("fac: using tune info for qs/gnfs crossover\n");
+            }
 		}
-		else
-			printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
-				fobj->autofact_obj.qs_gnfs_xover);
+        else
+        {
+            printf("fac: no tune info: using qs/gnfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_gnfs_xover);
+            printf("fac: no tune info: using qs/snfs crossover of %1.0f digits\n",
+                fobj->autofact_obj.qs_snfs_xover);
+        }
 
-		if (fobj->autofact_obj.initial_work > 0.0)
-			printf("fac: input indicated to have been pretested to t%1.2f\n",
-				fobj->autofact_obj.initial_work);
+        if (initial_work > 0.0)
+        {
+            printf("fac: input indicated to have been pretested to t%1.2f\n",
+                initial_work);
+        }
 
 	}	
 
@@ -2342,10 +2450,10 @@ void factor(fact_obj_t *fobj)
 
 			// remove any common factor so the input exactly matches
 			// the file
-			mpz_tdiv_q(b, b, g);
-			mpz_set(fobj->N, b);
-			mpz_set(origN, b);
-			mpz_set(copyN, b);
+			// mpz_tdiv_q(b, b, g);
+			// mpz_set(fobj->N, b);
+			// mpz_set(origN, b);
+			// mpz_set(copyN, b);
 
 			//override default choice
 			fact_state = state_qs;
@@ -2379,8 +2487,42 @@ void factor(fact_obj_t *fobj)
 
 		if (resume_check_input_match(tmpz, b, g))
 		{
-			if (VFLAG > 0)
-				printf("fac: found nfs job file, resuming nfs\n");
+            // check if this is a snfsable number.  If the input is
+            // really small and we don't check this, the resume
+            // may default back to siqs.
+            if ((mpz_sizeinbase(b,10) >= fobj->autofact_obj.qs_snfs_xover) && 
+                (fobj->autofact_obj.has_snfs_form < 0))
+            {
+                snfs_t *poly;
+                mpz_set(fobj->nfs_obj.gmp_n, b);
+#ifdef USE_NFS
+                poly = snfs_find_form(fobj);
+
+                if (poly != NULL)
+                {
+                    fobj->autofact_obj.has_snfs_form = 1;
+                    // The actual poly is not needed now, so just get rid of it.
+                    snfs_clear(poly);
+                    free(poly);
+
+                    if (VFLAG > 0)
+                        printf("fac: found nfs job file and snfs form, resuming snfs\n");
+                }
+                else
+                {
+                    fobj->autofact_obj.has_snfs_form = 0;
+                    if (VFLAG > 0)
+                        printf("fac: found nfs job file, resuming nfs\n");
+                }
+#else
+                fobj->autofact_obj.has_snfs_form = 0;
+#endif
+            }
+            else
+            {
+                if (VFLAG > 0)
+                    printf("fac: found nfs job file, resuming nfs\n");
+            }		
 
 			// remove any common factor so the input exactly matches
 			// the file
@@ -2405,8 +2547,12 @@ void factor(fact_obj_t *fobj)
 	// state machine to factor the number using a variety of methods
 	while (fact_state != state_done)
 	{	
+        // do the next item of work
 		do_work(fact_state, &fwork, b, fobj);
 
+        // check if we are done:
+        // * number is completely factored
+        // * sieve method was performed and either finished or was interrupted.
         if (check_if_done(fobj, origN) ||
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
@@ -2416,7 +2562,30 @@ void factor(fact_obj_t *fobj)
         {
             fact_state = state_done;
         }
+        else if ((fact_state >= state_ecm_15digit) && (fact_state <= state_ecm_65digit))
+        {
+            // if we ran ecm, check the ecm exit code and
+            // handle appropriately.
+            if (fobj->ecm_obj.exit_cond == ECM_EXIT_ABORT)
+            {
+                FILE *flog;
+                double work_done;
 
+                if (LOGFLAG)
+                {
+                    flog = fopen(fobj->flogname, "a");
+                }
+                work_done = compute_ecm_work_done(&fwork, 1, flog);
+                if (LOGFLAG)
+                {
+                    logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
+                    fclose(flog);
+                }
+                fact_state = state_done;
+            }
+        }
+
+        // if not done, figure out the next item of work.
         if (fact_state != state_done)
         {
             fact_state = schedule_work(&fwork, b, fobj);
@@ -2491,50 +2660,34 @@ void factor(fact_obj_t *fobj)
 	{
 		if (is_mpz_prp(b))
 		{
-			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"prp%d cofactor = %s\n",gmp_base10(b),
+			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n",gmp_base10(b),
 				mpz_conv2str(&gstr1.s, 10, b));
-			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 		else
 		{
-			flog = fopen(fobj->flogname,"a");
-			logprint(flog,"c%d cofactor = %s\n",gmp_base10(b),
+			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n",gmp_base10(b),
 				mpz_conv2str(&gstr1.s, 10, b));
-			fclose(flog);
 			add_to_factor_list(fobj,b);
 		}
 	}
-
+    
 	mpz_set(fobj->N, b);
 
 	gettimeofday (&stop, NULL);
-	difference = my_difftime (&start, &stop);
-	t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+    t_time = yafu_difftime(&start, &stop);
 
 	if (VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);
 
-	flog = fopen(fobj->flogname,"a");
-	if (flog == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("Could not open %s for appending\n",fobj->flogname);
-	}
-	else
-	{
-		logprint(flog,"Total factoring time = %6.4f seconds\n",t_time);
-		fclose(flog);
-	}
+	logprint_oc(fobj->flogname, "a", "Total factoring time = %6.4f seconds\n",t_time);
 
 	fobj->autofact_obj.autofact_active=0;
 
 	//restore flags
 	fobj->ecm_obj.stg2_is_default = user_defined_ecm_b2;
 	fobj->pp1_obj.stg2_is_default = user_defined_pp1_b2;
-	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;
+	fobj->pm1_obj.stg2_is_default = user_defined_pm1_b2;    
 
 	mpz_clear(origN);
 	mpz_clear(copyN);
@@ -2547,7 +2700,6 @@ void spfactorlist(uint64 nstart, uint64 nrange)
 	int i, c, s, e, m;
 	double t;
 	struct timeval tstart, tstop;
-	TIME_DIFF *	difference;
 	mpz_t tmp;
 	fact_obj_t f;
 	uint64 sf;
@@ -2659,9 +2811,7 @@ void spfactorlist(uint64 nstart, uint64 nrange)
 	free_factobj(&f);
 	mpz_clear(tmp);
 	gettimeofday (&tstop, NULL);
-	difference = my_difftime (&tstart, &tstop);
-	t = ((double)difference->secs + (double)difference->usecs / 1000000);
-	free(difference);
+	t = yafu_difftime (&tstart, &tstop);
 
 	printf("completed %d factorizations (%d SQUFOF, %d fermat, %d rho) "
 		"in %6.4f seconds\n", c, s, m, e, t);

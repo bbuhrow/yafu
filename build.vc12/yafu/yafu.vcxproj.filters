@@ -215,12 +215,6 @@
     <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\tinyqs\tinySIQS.c">
-      <Filter>Source Files\factoring\qs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gpu_squfof.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
@@ -253,6 +247,54 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\poly_roots.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\eratosthenes\presieve.c">
+      <Filter>Source Files\sieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\threadpool.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\vecarith.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knc.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knc.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\monty.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c">
+      <Filter>Source Files\factoring\qs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c">
+      <Filter>Source Files\factoring\qs\poly</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knl.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_scan_knl.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c">
+      <Filter>Source Files\factoring\qs\tdiv</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c">
+      <Filter>Source Files\factoring\gmp-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
+      <Filter>Source Files\factoring\gmp-ecm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\queue.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -337,11 +379,18 @@
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\factor\gpu_squfof.cu">
-      <Filter>Source Files\factoring</Filter>
-    </None>
+    <ClInclude Include="..\..\top\threadpool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\monty.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\cofactorize.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\queue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

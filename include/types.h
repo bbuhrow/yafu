@@ -31,7 +31,6 @@ code to the public domain.
     #include <malloc.h>
 #endif
 
-
 #if defined(WIN32)
 
 	#define WIN32_LEAN_AND_MEAN
@@ -80,6 +79,8 @@ code to the public domain.
 #if defined(_MSC_VER)
 
 	#define align_free _aligned_free	
+
+    #define ALIGNED_MEM __declspec(align(64))     
 
 	// check for _WIN64 first, because win64 also defines WIN32
 	#if defined(_WIN64)
@@ -215,8 +216,20 @@ code to the public domain.
 	//for gettimeofday using gcc
 	#include <sys/time.h>
 
+#if defined (__INTEL_COMPILER)
+#define ALIGNED_MEM __declspec(align(64))
+#else
+#define ALIGNED_MEM __attribute__((aligned(64)))
+#endif
+
+#if defined(__GNUC__) && defined(USE_AVX512F) && !defined(__INTEL_COMPILER)
+#define _MM_SCALE_1 1
+#define _MM_SCALE_2 2
+#define _MM_SCALE_4 4
+#endif
+
 	//check for MINGWXX first, because mingw also defines x86_64 and/or i386
-	#if defined(__MINGW64__)
+	#if defined(__MINGW64__) || defined(__MSYS__)
 		#include <mm_malloc.h>
 		#define align_free _aligned_free //_mm_free
 		#define strto_fpdigit _strtoui64
@@ -293,8 +306,9 @@ code to the public domain.
 		#endif
 
 	#elif defined(__x86_64__)
-		//sleep in milliseconds
-		#define MySleep(x) usleep((x)*1000)
+
+        // sleep in milliseconds		
+        #define MySleep(x) usleep((x)*1000)	
 		#define strto_fpdigit strtoull
 		#define strto_uint64 strtoull
 
@@ -319,13 +333,14 @@ code to the public domain.
 		#define PRId64 "ld"
 		#define PRIu64 "lu"
 		#define PRIx64 "lx"
-		
+
 		#ifndef RS6K
 		typedef char int8;
 		typedef short int16;
 		typedef int32_t int32;
 		typedef int64_t int64;
 		#endif
+
 
 	#elif defined(__i386__)
 	

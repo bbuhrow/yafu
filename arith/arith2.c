@@ -198,6 +198,7 @@ uint32 modinv_1(uint32 a, uint32 p) {
 
 	uint32 ps1, ps2, parity, dividend, divisor, rem, q, t;
 
+
 	q = 1;
 	rem = a;
 	dividend = p;
@@ -300,6 +301,69 @@ uint32 modinv_1b(uint32 a, uint32 p) {
 	else
 		return 0xFFFFFFFF - ps1 + 1;
 }
+
+uint32 modinv_1c(uint32 a, uint32 p) {
+
+    /* thanks to the folks at www.mersenneforum.org */
+    // for use when it is known that p >> a, in which case
+    // the first set of if/else blocks can be skipped
+    uint32 ps1, ps2, parity, dividend, divisor, rem, q, t;
+
+    q = p / a;
+    rem = p % a;
+    dividend = a;
+    divisor = rem;
+    ps1 = q;
+    ps2 = 1;
+    parity = ~0;
+
+    while (divisor > 1) {
+        rem = dividend - divisor;
+        t = rem - divisor;
+        if (rem >= divisor) {
+            q += ps1; rem = t; t -= divisor;
+            if (rem >= divisor) {
+                q += ps1; rem = t; t -= divisor;
+                if (rem >= divisor) {
+                    q += ps1; rem = t; t -= divisor;
+                    if (rem >= divisor) {
+                        q += ps1; rem = t; t -= divisor;
+                        if (rem >= divisor) {
+                            q += ps1; rem = t; t -= divisor;
+                            if (rem >= divisor) {
+                                q += ps1; rem = t; t -= divisor;
+                                if (rem >= divisor) {
+                                    q += ps1; rem = t; t -= divisor;
+                                    if (rem >= divisor) {
+                                        q += ps1; rem = t;
+                                        if (rem >= divisor) {
+                                            q = dividend / divisor;
+                                            rem = dividend % divisor;
+                                            q *= ps1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        q += ps2;
+        parity = ~parity;
+        dividend = divisor;
+        divisor = rem;
+        ps2 = ps1;
+        ps1 = q;
+    }
+
+    if (parity == 0)
+        return ps1;
+    else
+        return p - ps1;
+}
+
 
 int zExp(uint32 e, z *u, z *w)
 {
@@ -418,7 +482,8 @@ void zModExp(z *a, z *b, z *m, z *u)
 	zFree(&q);
 	zFree(&r);
 	zFree(&t);
-	return;
+
+    return;
 }
 
 void zModExp_1(z *a, fp_digit b, fp_digit m, fp_digit *u)

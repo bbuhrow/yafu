@@ -55,9 +55,11 @@ void nfsexit(int sig)
 
 int nfs_check_special_case(fact_obj_t *fobj)
 {
+    int size = gmp_base10(fobj->nfs_obj.gmp_n);
+	// below a certain amount, revert to SIQS
 
-	//below a certain amount, revert to SIQS
-	if (gmp_base10(fobj->nfs_obj.gmp_n) < fobj->nfs_obj.min_digits)
+    if ((size < fobj->autofact_obj.qs_snfs_xover) ||
+        ((size < fobj->nfs_obj.min_digits) && (fobj->autofact_obj.has_snfs_form != 1)))
 	{
 		mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 		SIQS(fobj);
@@ -109,27 +111,18 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		
 		factor_perfect_power(fobj, fobj->nfs_obj.gmp_n);
 
-		flog = fopen(fobj->flogname, "a");
-		if (flog == NULL)
-		{
-			printf("fopen error: %s\n", strerror(errno));
-			printf("could not open %s for appending\n", fobj->flogname);
-			exit(1);
-		}
-
-		logprint(flog,"input is a perfect power\n");
+		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
 
 		for (j=0; j<fobj->num_factors; j++)
 		{
 			uint32 k;
 			for (k=0; k<fobj->fobj_factors[j].count; k++)
 			{
-				logprint(flog,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
+				logprint_oc(fobj->flogname, "a", "prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor),
 					mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
 			}
 		}
 
-		fclose(flog);
 		return 1;
 	}
 
@@ -155,7 +148,6 @@ void nfs(fact_obj_t *fobj)
 	struct timeval start;	// start time of this job
 	struct timeval bstop;	// stop time of sieving batch
 	struct timeval bstart;	// start time of sieving batch
-	TIME_DIFF *	difference;
 	double t_time;
 	uint32 pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];
@@ -217,24 +209,33 @@ void nfs(fact_obj_t *fobj)
 
 			// before we get started, check to make sure we can find ggnfs sievers
 			// if we are going to be doing sieving
-			if (check_for_sievers(fobj, 1) == 1)
-				nfs_state = NFS_STATE_DONE;
+            if (check_for_sievers(fobj, 1) == 1)
+            {
+                nfs_state = NFS_STATE_DONE;
+            }
 
-			if (VFLAG >= 0 && nfs_state != NFS_STATE_DONE)
-				gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
-					gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+            if ((VFLAG >= 0) && (nfs_state != NFS_STATE_DONE))
+            {
+                gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
+                    gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
+            }
 
-			if (nfs_state != NFS_STATE_DONE)
-				logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
-					gmp_base10(fobj->nfs_obj.gmp_n),
-					mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+            if (nfs_state != NFS_STATE_DONE)
+            {
+                logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
+                    gmp_base10(fobj->nfs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+            }
 
 			// convert input to msieve bigint notation and initialize a list of factors
-			gmp2mp_t(fobj->nfs_obj.gmp_n,&mpN);
+			gmp2mp_t(fobj->nfs_obj.gmp_n, &mpN);
 			factor_list_init(&factor_list);
+            factor_list_add(obj, &factor_list, &mpN);
 
-			if (fobj->nfs_obj.rangeq > 0)
-				job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+            if (fobj->nfs_obj.rangeq > 0)
+            {
+                job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+            }
 
 			break;
 
@@ -323,16 +324,29 @@ void nfs(fact_obj_t *fobj)
 			// for instance if we only want to post-process, but filtering 
 			// doesn't produce a matrix.  if we don't want to sieve in that case,
 			// then we're done.
-			if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
-				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
-				!(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
-				do_sieving(fobj, &job);
-			else
-				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+            if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+                (fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
+                !(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
+            {
+                // this is not a threadpool, so there can be imbalances between
+                // threads on multi-threaded runs where we end up waiting
+                // for the last one to finish.
+                // todo: make do_sieving a threadpool that incorporates the 
+                // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
+                // so that we can keep sieving until it is actually time to
+                // filter.
+                do_sieving(fobj, &job);
+            }
+            else
+            {
+                fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+            }
 
 			// if this has been previously marked, then go ahead and exit.
-			if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
-				process_done = 1;
+            if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
+            {
+                process_done = 1;
+            }
 			
 			// if user specified -ns with a fixed start and range,
 			// then mark that we're done sieving.  
@@ -379,6 +393,13 @@ void nfs(fact_obj_t *fobj)
 
 				nfs_state = NFS_STATE_SIEVE;
 			}
+
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = yafu_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
 
 			break;
 
@@ -478,9 +499,22 @@ void nfs(fact_obj_t *fobj)
 			else // not doing linalg
 				nfs_state = NFS_STATE_SQRT;
 
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = yafu_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
 			break;
 
 		case NFS_STATE_SQRT:
+
+            // TODO:
+            // when the input has more than 2 factors we can continue 
+            // with dependencies until the input is completely factored.
+            // as it is now, we stop after the first one, potentially leaving
+            // a significant number behind (and deleting all data so that
+            // it can't be found manually either).
 
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT))
@@ -553,10 +587,7 @@ void nfs(fact_obj_t *fobj)
 
 			gettimeofday(&stop, NULL);
 
-			difference = my_difftime (&start, &stop);
-
-			t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-			free(difference);	
+            t_time = yafu_difftime(&start, &stop);
 
 			if (VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
@@ -592,9 +623,7 @@ void nfs(fact_obj_t *fobj)
 				uint32 est_time;
 
 				gettimeofday(&bstop, NULL);
-				difference = my_difftime (&bstart, &bstop);
-				t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-				free(difference);
+                t_time = yafu_difftime(&bstart, &bstop);
 
 				est_time = (uint32)((job.min_rels - job.current_rels) * 
 					(t_time / (job.current_rels - pre_batch_rels)));				
@@ -622,6 +651,14 @@ void nfs(fact_obj_t *fobj)
 					nfs_state = NFS_STATE_DONE;
 				}
 			}
+
+            if (VFLAG > 0)
+            {
+                gettimeofday(&stop, NULL);
+                t_time = yafu_difftime(&start, &stop);
+                printf("Elapsed time is now %6.4f seconds.\n", t_time);
+            }
+
 			break;
 
 		case NFS_STATE_STARTNEW:
@@ -682,6 +719,8 @@ void nfs(fact_obj_t *fobj)
 			// 5) user wants to resume sieving (either with a solo -ns or no arguements)
 			//		and a data file and special-q was found
 			// 6) it contains poly->time info (in which case we'll be in NFS_STATE_RESUMEPOLY)
+            printf("nfs: resumesieve; last_spq = %u, nfs_phases = %u\n",
+                last_specialq, fobj->nfs_obj.nfs_phases);
 
 			strcpy(tmpstr, "");
 			if ((last_specialq == 0) &&
@@ -833,10 +872,8 @@ void nfs(fact_obj_t *fobj)
 
 		//after every state, check elasped time against a specified timeout value
 		gettimeofday(&stop, NULL);
-		difference = my_difftime (&start, &stop);
+        t_time = yafu_difftime(&start, &stop);
 
-		t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-		free(difference);	
 		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
 		{
 			if (VFLAG >= 0)
@@ -955,13 +992,15 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //entries based on statistics gathered from many factorizations done
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
-#define GGNFS_TABLE_ROWS 21
+#define GGNFS_TABLE_ROWS 23
 static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/
 /* digits, r/alim, lpbr/a, mfbr/a, r/alambda, siever, min-rels, q-range */
-	{85,  900000,   24, 48, 2.1, 11, 0, 10000},
+    {75,  300000,   23, 46, 2.0, 11, 0, 2000 },
+    {80,  600000,   24, 48, 2.1, 11, 0, 5000 },
+    {85,  900000,   24, 48, 2.1, 11, 0, 10000},
 	{90,  1200000,  25, 50, 2.3, 11, 0, 10000},
 	{95,  1500000,  25, 50, 2.5, 12, 0, 20000},
 	{100, 1800000,  26, 52, 2.5, 12, 0, 20000},
@@ -1185,11 +1224,13 @@ void trial_sieve(fact_obj_t* fobj)
 	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
 	{
 		filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+        memset(filenames[i], 0, GSTR_MAXSIZE);
 		//printf("pointer: %p\n", filenames[i]);
-		strncpy(filenames[i++], arg, ptr-arg+1);
+		strncpy(filenames[i++], arg, ptr-arg);
 		arg = ptr + 1;
 	}
 	filenames[i] = (char*)malloc(GSTR_MAXSIZE*sizeof(char));
+    memset(filenames[i], 0, GSTR_MAXSIZE);
 	strcpy(filenames[i++], arg);
 
 	me = test_sieve(fobj, filenames, i, 1);

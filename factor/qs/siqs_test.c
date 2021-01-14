@@ -26,7 +26,7 @@ code to the public domain.
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 {
-	int offset, lp[2], parity, num_factors;
+	int offset, lp[3], parity, num_factors;
 	int j,retval;
 	mpz_t Q, RHS;
 
@@ -36,11 +36,13 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 	offset = r->sieve_offset;
 	lp[0] = r->large_prime[0];
 	lp[1] = r->large_prime[1];
+	lp[2] = r->large_prime[2];
 	parity = r->parity;
 	num_factors = r->num_factors;
 
 	mpz_set_ui(RHS, lp[0]);
 	mpz_mul_ui(RHS, RHS, lp[1]);
+	mpz_mul_ui(RHS, RHS, lp[2]);
 	for (j=0; j<num_factors; j++)
 		mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
 
@@ -59,8 +61,14 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
 
 	if (mpz_cmp(Q,RHS) != 0)
 	{
-		//printf("failure to equate relation\n");
+        if (VFLAG > 1)
+		    printf("error Q != RHS\n");
+
 		//gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
+          //      printf("fb_offsets:primes:\n");
+          //      for (j = 0; j < num_factors; j++)
+          //          printf("%u:%u ", r->fb_offsets[j], fb->list->prime[r->fb_offsets[j]]);
+          //      printf("\n");
 		retval = 1;
 	}
 
@@ -132,30 +140,125 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (mpz_sizeinbase(fobj->qs_obj.gmp_n,2) < 115)
-	{
-		//run MPQS, as SIQS doesn't work for smaller inputs
-		//MPQS will take over the log file, so close it now.
-		int i;
+    if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 2) < 115)
+    {
+        // run MPQS, as the main SIQS doesn't work for smaller inputs
+        int i;
+        mpz_t f1, f2;
 
-		// we've verified that the input is not odd or prime.  also
-		// do some very quick trial division before calling smallmpqs, which
-		// does none of these things.
-		for (i=1; i<25; i++)
-		{
-			if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
-				mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
-		}
+        mpz_init(f1);
+        mpz_init(f2);
 
-		smallmpqs(fobj);
-		return 1;	//tells SIQS to not try to close the logfile
+        // we've verified that the input is not even or prime.  also, if
+        // autofactoring is not active then do some very quick trial division 
+        // before calling smallmpqs.
+        if (!fobj->autofact_obj.autofact_active)
+        {
+            for (i = 1; i < 25; i++)
+            {
+                if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
+                    mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
+            }
+        }
+
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+        if (fobj->qs_obj.flags != 12345)
+        {
+            if (fobj->logfile != NULL)
+                logprint(fobj->logfile,
+                    "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+        }
+
+        {
+            tiny_qs_params *params;
+            int j;
+
+            // todo: need to define alternate routines if this isn't defined...
+            params = init_tinyqs();
+            i = tinyqs(params, fobj->qs_obj.gmp_n, f1, f2);
+            params = free_tinyqs(params);
+
+            for (j = 0; j < i; j++)
+            {
+                if (j == 0)
+                {
+                    add_to_factor_list(fobj, f1);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(f1),
+                                mpz_conv2str(&gstr1.s, 10, f1));
+                    }
+
+                    mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
+                }
+                else
+                {
+                    add_to_factor_list(fobj, f2);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(f2),
+                                mpz_conv2str(&gstr1.s, 10, f2));
+                    }
+
+                    mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
+                }
+            }
+
+            if (mpz_cmp_ui(fobj->qs_obj.gmp_n, 1) > 0)
+            {
+                if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
+                {
+                    add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+
+                    if (fobj->qs_obj.flags != 12345)
+                    {
+                        if (fobj->logfile != NULL)
+                            logprint(fobj->logfile,
+                                "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                                mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                    }
+
+                    mpz_set_ui(fobj->qs_obj.gmp_n, 1);
+                }
+            }
+        }
+
+        
+#else
+        i = 0;
+#endif
+
+        if (i == 0)
+        {
+            // didn't find anything (rare).  try a different method.
+            if (fobj->qs_obj.flags != 12345)
+            {
+                if (fobj->logfile != NULL)
+                    logprint(fobj->logfile,
+                    "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
+                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+            }
+            smallmpqs(fobj);
+        }
+
+        mpz_clear(f1);
+        mpz_clear(f2);
+
+        return 1;
 	}
 
-	if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
-	{
-		printf("input too big for SIQS\n");
-		return 1;
-	}
+	//if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
+	//{
+	//	printf("input too big for SIQS\n");
+	//	return 1;
+	//}
 
 	return 0;
 }
@@ -243,12 +346,9 @@ void siqsbench(fact_obj_t *fobj)
 	//run through the list of benchmark siqs factorizations
 
 	char list[10][200];
-	char oldflogname[80];
 	enum cpu_type cpu;
 	FILE *log;
 	int i;
-
-	strcpy(oldflogname,fobj->flogname);
 
 	strcpy(list[0],"405461849292216354219321922871108605045931309");
 	strcpy(list[1],"29660734457033883936073030405220515257819037444591");
@@ -270,26 +370,27 @@ void siqsbench(fact_obj_t *fobj)
 		exit(1);
 	}
 
-	cpu = yafu_get_cpu_type();
-	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
-#if defined(TFM_X86) || defined(TFM_X86_MSVC)
-	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");
-#elif defined(TFM_X86_64)
-	fprintf(log,"Initialized with Tom's Fast Math (x86-64 asm)\n\n");
-#else
-	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
-#endif
+//	cpu = yafu_get_cpu_type();
+//	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
+//#if defined(TFM_X86) || defined(TFM_X86_MSVC)
+//	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");
+//#elif defined(TFM_X86_64)
+//	fprintf(log,"Initialized with Tom's Fast Math (x86-64 asm)\n\n");
+//#else
+//	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
+//#endif
 
+    fprintf(log, "commencing siqsbench on %s\n", CPU_ID_STR);
 	fclose(log);
 
 	for (i=0; i<10; i++)
 	{
-		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10); //str2hexz(list[i],&n);
+		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
 		SIQS(fobj);
 		clear_factor_list(fobj);
 	}
 
-	strcpy(fobj->flogname,oldflogname);
+    strcpy(fobj->flogname, "bench.log");
 
 	return;
 }

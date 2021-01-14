@@ -138,17 +138,21 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			printf("A data file (.dat) exists in the current directory.  It must either be "
 				"removed or -R specified to resume nfs\n");
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not open yafu logfile for appending\n");
-			}
-			else
-			{
-				logprint(logfile, "nfs: refusing to resume without -R option\n");
-				fclose(logfile);
-			}
+            if (LOGFLAG)
+            {
+                logfile = fopen(fobj->flogname, "a");
+                if (logfile == NULL)
+                {
+                    printf("fopen error: %s\n", strerror(errno));
+                    printf("could not open yafu logfile for appending\n");
+                }
+                else
+                {
+                    logprint(logfile, "nfs: refusing to resume without -R option\n");
+                    fclose(logfile);
+                }
+            }
+
 			// if we are inside factor, don't try to continue past this error
 			fobj->flags |= FACTOR_INTERRUPT;
 			*last_spq = 0;
@@ -313,17 +317,20 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			{
 				printf("nfs: must specify -R to resume when a polyfile already exists\n");	
 
-				logfile = fopen(fobj->flogname, "a");
-				if (logfile == NULL)
-				{
-					printf("fopen error: %s\n", strerror(errno));
-					printf("could not open yafu logfile for appending\n");
-				}
-				else
-				{
-					logprint(logfile, "nfs: refusing to resume poly select without -R option\n");
-					fclose(logfile);
-				}
+                if (LOGFLAG)
+                {
+                    logfile = fopen(fobj->flogname, "a");
+                    if (logfile == NULL)
+                    {
+                        printf("fopen error: %s\n", strerror(errno));
+                        printf("could not open yafu logfile for appending\n");
+                    }
+                    else
+                    {
+                        logprint(logfile, "nfs: refusing to resume poly select without -R option\n");
+                        fclose(logfile);
+                    }
+                }
 
 				*last_spq = 0;
 				return NFS_STATE_DONE;
@@ -342,9 +349,11 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		if (!savefile_exists(&mobj->savefile))
 		{
 			// data file doesn't exist, return flag to start sieving from the beginning
-			if (VFLAG > 0)
-				printf("nfs: no data file found\n");
-			*last_spq = 0;
+            *last_spq = 0;
+            if (VFLAG > 0)
+            {
+                printf("nfs: no data file found\n");
+            }
 		}
 		else if (fobj->nfs_obj.restart_flag)
 		{
@@ -381,18 +390,21 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			if (VFLAG > 0)
 				printf("nfs: commencing search for last special-q\n");
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not open yafu logfile for appending\n");
-			}
-			else
-			{
-				logprint(logfile, "nfs: previous data file found - "
-					"commencing search for last special-q\n");
-				fclose(logfile);
-			}
+            if (LOGFLAG)
+            {
+                logfile = fopen(fobj->flogname, "a");
+                if (logfile == NULL)
+                {
+                    printf("fopen error: %s\n", strerror(errno));
+                    printf("could not open yafu logfile for appending\n");
+                }
+                else
+                {
+                    logprint(logfile, "nfs: previous data file found - "
+                        "commencing search for last special-q\n");
+                    fclose(logfile);
+                }
+            }
 
 			//tail isn't good enough, because prior filtering steps could have inserted
 			//free relations, which don't have a special q to read.
@@ -471,17 +483,20 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		{
 			printf("nfs: must specify -R to resume when a savefile already exists\n");
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not open yafu logfile for appending\n");
-			}
-			else
-			{
-				logprint(logfile, "nfs: refusing to resume without -R option\n");
-				fclose(logfile);
-			}
+            if (LOGFLAG)
+            {
+                logfile = fopen(fobj->flogname, "a");
+                if (logfile == NULL)
+                {
+                    printf("fopen error: %s\n", strerror(errno));
+                    printf("could not open yafu logfile for appending\n");
+                }
+                else
+                {
+                    logprint(logfile, "nfs: refusing to resume without -R option\n");
+                    fclose(logfile);
+                }
+            }
 
 			fobj->flags |= FACTOR_INTERRUPT;
 			*last_spq = 0;
@@ -514,17 +529,20 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 	if (VFLAG > 0)
 		printf("nfs: parsing special-q from .dat file\n");
 
-	logfile = fopen(fobj->flogname, "a");
-	if (logfile == NULL)
-	{
-		printf("fopen error: %s\n", strerror(errno));
-		printf("could not open yafu logfile for appending\n");
-	}
-	else
-	{
-		logprint(logfile, "nfs: parsing special-q from .dat file\n");
-		fclose(logfile);
-	}
+    if (LOGFLAG)
+    {
+        logfile = fopen(fobj->flogname, "a");
+        if (logfile == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open yafu logfile for appending\n");
+        }
+        else
+        {
+            logprint(logfile, "nfs: parsing special-q from .dat file\n");
+            fclose(logfile);
+        }
+    }
 
 	ans = 0;
 	// grab the entry in both the rational side and algebraic side
@@ -621,7 +639,7 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 
 }
 
-void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
+double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 {
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
@@ -729,9 +747,9 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		job->last_leading_coeff = highest_c4;
 
 	if (!write_jobfile)
-		return;
+		return bestscore;
 
-	//open it again
+	// open it again
 	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
 	if (in == NULL)
@@ -745,7 +763,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 	job->startq = fobj->nfs_obj.sq_side < 0 ? job->rlim/2 : job->alim/2;
 	// use alim if side not specified
 
-	//always overwrites previous job files!
+	// always overwrites previous job files!
 	out = fopen(fobj->nfs_obj.job_infile,"w");
 	if (out == NULL)
 	{
@@ -754,7 +772,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		exit(1);
 	}
 
-	//go to the bestline
+	// go to the bestline
 	while (!feof(in))
 	{
 		ptr = fgets(line,GSTR_MAXSIZE,in);
@@ -769,23 +787,26 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 			if (VFLAG > 0)
 				printf("best poly: \n%s",line);
 
-			logfile = fopen(fobj->flogname, "a");
-			if (logfile == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not open yafu logfile for appending\n");
-			}
-			else
-			{
-				logprint(logfile, "nfs: best poly = %s",line);
-				fclose(logfile);
-			}
+            if (LOGFLAG)
+            {
+                logfile = fopen(fobj->flogname, "a");
+                if (logfile == NULL)
+                {
+                    printf("fopen error: %s\n", strerror(errno));
+                    printf("could not open yafu logfile for appending\n");
+                }
+                else
+                {
+                    logprint(logfile, "nfs: best poly = %s", line);
+                    fclose(logfile);
+                }
+            }
 
 			break;
 		}
 	}
 
-	//copy n into the job file
+	// copy n into the job file
 	gmp_fprintf(out, "n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	if (VFLAG > 0)
@@ -802,8 +823,8 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 		if (line[0] == '#')
 			break;
 
-		//prevent a "time" line from being copied into the .job file
-		//ggnfs will ignore it, but it can be prevented here.
+		// prevent a "time" line from being copied into the .job file
+		// ggnfs will ignore it, but it can be prevented here.
 		if (strlen(line) > 4)
 		{
 			if ((line[0] == 't') && (line[1] == 'i') &&
@@ -830,7 +851,7 @@ void find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile)
 	fclose(in);
 	fclose(out);
 
-	return;
+	return bestscore;
 }
 
 void msieve_to_ggnfs(fact_obj_t *fobj, nfs_job_t *job)
@@ -1221,8 +1242,9 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
 			printf("nfs: couldn't fill job file, will try sieving anyway\n");
 			return;
 		}
-		//else if (VFLAG > 0)
-		//	printf("nfs: job file is missing params, filling them\n");
+		
+        if (VFLAG > 0)
+			printf("nfs: job file is missing params, filling them\n");
 
 		// make sure we start on a new line if we are filling anything
 		fprintf(out, "\n");

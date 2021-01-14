@@ -26,7 +26,7 @@ code to the public domain.
 
 #define _CRT_SECURE_NO_WARNINGS 
 
-#define VERSION_STRING "1.34.5"
+#define VERSION_STRING "1.35-beta"
 
 //basics
 #define POSITIVE 0
@@ -39,10 +39,12 @@ code to the public domain.
 #define BIN 2
 
 //max words for fixed precision msieve bignum
-#define MAX_MP_WORDS 32
+#define MAX_MP_WORDS 64
 
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024
+
+//#define FORCE_GENERIC 1
 
 //support libraries
 #include "types.h"
@@ -90,6 +92,12 @@ typedef struct
 
 typedef struct
 {
+    char name[40];
+    char *data;
+} strvar_t;
+
+typedef struct
+{
 	uvar_t *vars;
 	int num;
 	int alloc;
@@ -97,9 +105,25 @@ typedef struct
 
 typedef struct
 {
+    strvar_t *vars;
+    int num;
+    int alloc;
+} strvars_t;
+
+typedef struct
+{
 	mpz_t factor;
 	int count;
 	int type;
+    // new parameters to support returning factors
+    // from avx-ecm.  In general I think it makes sense
+    // to have this structure contain information not
+    // only about the factor itself but how it was found.
+    int method;     // factorization method used
+    uint32 curve_num;   // curve found
+    uint64 sigma;   // sigma value
+    int tid;        // thread found
+    int vid;        // vector position found
 } factor_t;
 
 typedef struct
@@ -116,15 +140,6 @@ typedef struct
 	uint32 hi;
 	uint32 low;
 } rand_t;
-
-//user dimis:
-//http://cboard.cprogramming.com/cplusplus-programming/
-//101085-how-measure-time-multi-core-machines-pthreads.html
-//
-typedef struct {
-	long		secs;
-	long		usecs;
-} TIME_DIFF;
 
 //global variables
 
@@ -148,6 +163,7 @@ int USERSEED;
 int CMD_LINE_REPEAT;
 char batchfilename[1024];
 char sessionname[1024];
+char scriptname[1024];
 int NO_CLK_TEST;
 
 // random numbers - used everywhere

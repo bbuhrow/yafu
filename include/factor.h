@@ -24,11 +24,12 @@ code to the public domain.
 #include "yafu.h"
 #include "arith.h"
 #include "util.h"
+#include "monty.h"
 
 //#define NO_ZLIB
 
 #if !defined(NO_ZLIB) && !defined(__MINGW32__) 
-#include <zlib.h>
+#include "zlib.h"
 #else
 #define NO_ZLIB
 #endif
@@ -92,6 +93,12 @@ enum nfs_phase_flags
 enum factor_flags
 {
 	FACTOR_INTERRUPT = 1
+};
+
+enum ecm_exit_cond_e
+{
+    ECM_EXIT_NORMAL = 0,
+    ECM_EXIT_ABORT = 0x1
 };
 
 enum msieve_flags {
@@ -166,6 +173,7 @@ typedef struct {
 				      is to keep sieving until all necessary 
 				      relations are found. */
 
+    uint32 which_gpu;         /* ordinal ID of GPU to use */
 	uint32 cache_size1;       /* bytes in level 1 cache */
 	uint32 cache_size2;       /* bytes in level 2 cache */
 	enum cpu_type cpu;
@@ -184,10 +192,6 @@ typedef struct {
 	uint32 mpi_la_row_rank;
 	uint32 mpi_la_col_rank;
 #endif
-
-
-
-	uint32 which_gpu;         /* ordinal ID of GPU to use */
 
 	char *mp_sprintf_buf;    /* scratch space for printing big integers */
 
@@ -290,9 +294,11 @@ typedef struct
 	mpz_t gmp_n;
 	mpz_t gmp_f;
 
+    int save_b1;
+    int prefer_gmpecm;
 	char ecm_path[1024];
 	int use_external;
-	uint32 B1;
+	uint64 B1;
 	uint64 B2;
 	int stg2_is_default;
 	int curves_run;
@@ -301,7 +307,9 @@ typedef struct
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
 	double ttime;
-	uint32 ecm_ext_xover;
+	uint64 ecm_ext_xover;
+    int bail_on_factor;
+    enum ecm_exit_cond_e exit_cond;              // exit condition
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
@@ -358,6 +366,8 @@ typedef struct
 
 	int gbl_override_B_flag;
 	uint32 gbl_override_B;			//override the # of factor base primes
+    int gbl_override_small_cutoff_flag;
+    uint32 gbl_override_small_cutoff;			//override the tf_small_cutoff value
 	int gbl_override_tf_flag;
 	uint32 gbl_override_tf;			//extra reduction of the TF bound by X bits
 	int gbl_override_time_flag;
@@ -368,7 +378,15 @@ typedef struct
 	uint32 gbl_override_blocks;		//override the # of blocks used
 	int gbl_override_lpmult_flag;
 	uint32 gbl_override_lpmult;		//override the large prime multiplier
+    int gbl_override_bdiv_flag;
+    float gbl_override_bdiv;        // override the lpmax divider for batch GCD
+    uint32 gbl_btarget;             // the target number of batch relations
 	int gbl_force_DLP;
+	int gbl_force_TLP;
+	uint32 gbl_override_lpb;		// override the large prime bound (specified in bits)
+	double gbl_override_mfbt;		// override the mfbt exponent
+	double gbl_override_mfbd;		// override the mfbd exponent
+    uint32 gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
 
 	uint32 num_factors;			//number of factors found in this method
 	z *factors;					//array of bigint factors found in this method
@@ -442,6 +460,8 @@ typedef struct
 {
 	//crossover between qs and gnfs
 	double qs_gnfs_xover;
+    //crossover between qs and snfs
+    double qs_snfs_xover;
 	int prefer_xover;
 
 	//balance of ecm and various sieve methods
@@ -578,10 +598,20 @@ void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
 uint32 test_qn_res[128];
 
+uint64 spbrent(uint64 N, uint64 c, int imax);
+uint64 spbrent64(uint64 N, int imax);
+int mbrent(fact_obj_t *fobj);
+int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32 a, uint32 imax);
 void brent_loop(fact_obj_t *fobj);
 void pollard_loop(fact_obj_t *fobj);
 void williams_loop(fact_obj_t *fobj);
 int ecm_loop(fact_obj_t *fobj);
+factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
+    uint64 B2, int threads, int *numfactors, int verbose, 
+    int save_b1, uint32 *curves_run);
+void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);
+void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
+uint64 do_uecm(uint64 q);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();
@@ -591,6 +621,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
+mpz_t * mpqs(mpz_t n, uint32 *num_factors);
 //void tinySIQS(fact_obj_t *fobj);
 int par_shanks_loop(uint64 *N, uint64 *f, int num_in);
 void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);

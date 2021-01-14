@@ -77,11 +77,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_t tmp, tmp2, tmp3;
 	mpz_ptr poly_a = poly->mpz_poly_a;
 	int j, *qli = poly->qlisort, *s = &poly->s;
-	uint32 i,randindex = 0, mindiff,a1,poly_low_found=0,target_bits;
+	uint32 i, randindex = 0, mindiff, a1, poly_low_found = 0,target_bits;
 	uint32 potential_a_factor = 0, found_a_factor;
 	uint32 afact[20];
-	double target_mul = 0.9;
-	int too_close, min_ratio;
+	double target_mul = 0.9; // 2;	// note: smaller values harder to achieve
+    int too_close, min_ratio, close_range;
 	FILE *sieve_log = sconf->obj->logfile;
 	uint32 upper_polypool_index, lower_polypool_index;
 
@@ -89,9 +89,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_init(tmp2);
 	mpz_init(tmp3);
 
-	//determine polypool indexes.  
-	//this really should be done once after generating the factor base
-	//these will be set to more appropriate values below
+	// determine polypool indexes.  
+	// this really should be done once after generating the factor base
+	// these will be set to more appropriate values below
 	lower_polypool_index = 2;
 	upper_polypool_index = fb->small_B - 1;
 
@@ -215,14 +215,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		} while ( mpz_cmp(tmp, target_a) > 0);
 
-#ifdef POLYA_DEBUG
-		printf("A factors = %u, %u, %u, A = %" PRIu64 "\n", 
-			fb->list->prime[poly->qlisort[0]], 
-			fb->list->prime[poly->qlisort[1]], 
-			fb->list->prime[poly->qlisort[2]], 
-			poly->poly_a);
-#endif
-
 		goto done;
 
 	}
@@ -265,14 +257,6 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 		*s = j;
 
-#ifdef POLYA_DEBUG
-			printf("A id/factors = %d:%u, %d:%u, %d:%u, A = %s\n", 
-				qli[0],fb->list->prime[qli[0]], 
-				qli[1],fb->list->prime[qli[1]], 
-				qli[2],fb->list->prime[qli[2]], 
-				z2decstr(poly_a,&gstr1));
-#endif
-
 		goto done;
 
 	}
@@ -297,8 +281,13 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		//brute force the poly to be somewhat close to the target
 		target_bits = (uint32)((double)mpz_sizeinbase(target_a, 2) * target_mul);
 		too_close = 10;
+        close_range = 5;
 		min_ratio = 1000;
 	}
+
+	//printf("range of candidate factor pool: %d-%d (%u-%u)\n", lower_polypool_index,
+	//	upper_polypool_index, fb->list->prime[lower_polypool_index], 
+	//	fb->list->prime[upper_polypool_index]);
 
 
 	while (1)
@@ -354,7 +343,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				*s=0;
 				continue;
 			}
-			else if (j < (too_close + 5))
+			else if (j < (too_close + close_range))
 			{
 				//close enough to pick a last factor
 #ifdef POLYA_DEBUG
@@ -365,9 +354,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		//at this point, poly_a is too small by one factor, find the closest factor
-		mpz_set(tmp, target_a); //zCopy(target_a,&tmp);
+		mpz_set(tmp, target_a); 
 		mpz_tdiv_q(tmp2, tmp, poly_a);
-		//zDiv(&tmp,poly_a,&tmp2,&tmp3);
 
 		mindiff = 0xffffffff;
 		a1 = mpz_get_ui(tmp2);
@@ -420,9 +408,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 		mpz_mul_ui(poly_a, poly_a, fb->list->prime[randindex]); 
-		//zShortMul(poly_a,fb->list->prime[randindex],poly_a);
 #ifdef POLYA_DEBUG
-		printf("afactor %d = %u\n",*s,fb->list[randindex].prime);
+        printf("afactor %d = %u\n", *s, fb->list->prime[randindex]);
+        printf("checking for duplicates...\n");
 #endif
 		afact[*s] = fb->list->prime[randindex];
 		qli[*s] = randindex;
@@ -482,6 +470,19 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 done:
 
+
+	if (VFLAG > 2)
+	{
+		printf("%d rels found: %d full + %d from %d partial\n",
+			sconf->num_r, sconf->num_relations,
+			sconf->num_cycles +
+			sconf->components - sconf->vertices,
+			sconf->num_cycles);
+
+		gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
+			(uint32)mpz_sizeinbase(target_a, 2), poly_a, (uint32)mpz_sizeinbase(poly_a, 2));
+	}
+
 	mpz_clear(tmp);
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
@@ -491,6 +492,7 @@ done:
 		(sconf->total_poly_a + 1) * sizeof(mpz_t));
 	mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 	mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
+    poly->index = sconf->total_poly_a;
 
 	//sort the indices of factors of 'a'
 	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
@@ -505,10 +507,10 @@ done:
 
 void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	//ql = array of factors of a
-	//Bl = array of generated Bl values
-	//notation of polynomials, here and elsewhere, generally follows
-	//contini's notation
+	// ql = array of factors of a
+	// Bl = array of generated Bl values
+	// notation of polynomials, here and elsewhere, generally follows
+	// contini's notation
 
 	uint32 root1, root2, prime, gamma;
 	uint32 amodql;	//(a/ql)^-1 mod ql = inv(a/ql mod ql) mod ql
@@ -553,17 +555,21 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
 	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
 
+	//gmp_printf("A = %Zd\n", poly->mpz_poly_a);
+	//gmp_printf("B = %Zd\n", poly->mpz_poly_b);
+	//gmp_printf("C = %Zd\n", poly->mpz_poly_c);
+
 	return;
 }
 
 void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-	//compute the ith b value for this polya
-	//using a Gray code
-	//b_i+1 = bi + 2*(-1)^ceil(i/2^v)*Bv
-	//where 2^v is the highest power of 2 that divides 2*i
-	//notation of polynomials, here and elsewhere, generally follows
-	//contini's notation
+	// compute the ith b value for this polya
+	// using a Gray code
+	// b_i+1 = bi + 2*(-1)^ceil(i/2^v)*Bv
+	// where 2^v is the highest power of 2 that divides 2*i
+	// notation of polynomials, here and elsewhere, generally follows
+	// contini's notation
 	uint32 Bnum = dconf->numB;
 	siqs_poly *poly = dconf->curr_poly;
 	mpz_ptr n = sconf->n;

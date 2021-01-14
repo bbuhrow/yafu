@@ -52,23 +52,24 @@ this file contains code implementing 2)
 
 */
 
-#ifdef USE_YAFU_TDIV
+
+#ifdef SPARSE_STORE
 #define DIVIDE_ONE_PRIME(x) \
-	do	\
-	{	\
-		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
-		zShortDiv32(tmp32, prime, tmp32);	\
-		bits += logp;	\
-	} while (zShortMod32(tmp32, prime) == 0);
+    do	\
+    {	\
+        mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
+        bits += logp;	\
+    } while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
 #else
 #define DIVIDE_ONE_PRIME(x) \
 	do	\
-	{	\
+    	{	\
 		dconf->fb_offsets[report_num][++smooth_num] = (x);	\
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);	\
 		bits += logp;	\
 	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0);
 #endif
+
 //#define DO_4X_SPV 1
 
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
@@ -79,38 +80,37 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	int i;
 	uint32 bound, tmp, prime, root1, root2;
 	int smooth_num;
-	sieve_fb *fb;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
 	uint8 logp, bits;
-	uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
+    uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
+    // the minimum value of the poly (near its root)
+    uint32 minoffset = mpz_get_ui(dconf->gmptmp3);
 
 	fullfb_ptr = fullfb;
 	if (parity)
 	{
-		fb = dconf->fb_sieve_n;
 		fbc = dconf->comp_sieve_n;
 	}
 	else
 	{
-		fb = dconf->fb_sieve_p;
 		fbc = dconf->comp_sieve_p;
 	}
 
 	//the minimum value for the current poly_a and poly_b occur at offset (-b + sqrt(N))/a
 	//make it slightly easier for a number to go through full trial division for
 	//nearby blocks, since these offsets are more likely to factor over the FB.
-	mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
-	mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
-	if (mpz_sgn(dconf->gmptmp1) < 0)
-		mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
-
-	mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
-	if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 0)
-		dconf->tf_small_cutoff = sconf->tf_small_cutoff - 5;
-	else if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 1)
-		dconf->tf_small_cutoff = sconf->tf_small_cutoff - 3;
-	else 
+	//mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
+	//mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+	//if (mpz_sgn(dconf->gmptmp1) < 0)
+	//	mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+    //
+	//mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
+	//if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 0)
+	//	dconf->tf_small_cutoff = sconf->tf_small_cutoff - 3;
+	//else if (abs(bnum - mpz_get_ui(dconf->gmptmp1)) == 1)
+	//	dconf->tf_small_cutoff = sconf->tf_small_cutoff - 1;
+	//else 
 		dconf->tf_small_cutoff = sconf->tf_small_cutoff;
 
 #ifdef QS_TIMING
@@ -120,9 +120,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 		uint64 q64;
-#ifdef USE_YAFU_TDIV
-		z32 *tmp32 = &dconf->Qvals32[report_num];
-#endif		
 
 		//this one qualifies to check further, log that fact.
 		dconf->num++;
@@ -151,7 +148,6 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		if (mpz_sgn(dconf->Qvals[report_num]) < 0)
 		{
 			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
-			dconf->fb_offsets[report_num][++smooth_num] = 0;
 		}
 
 		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
@@ -165,29 +161,18 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		bits = sieve[dconf->reports[report_num]];
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
 
-#ifdef USE_YAFU_TDIV
-		mpz_to_z32(dconf->Qvals[report_num], tmp32);
-
-		//take care of powers of two
-		while ((tmp32->val[0] & 0x1) == 0)
-		{
-			zShiftRight32_x(tmp32, tmp32, 1);
-			dconf->fb_offsets[report_num][++smooth_num] = 1;
-			bits++;
-		}
-
-#else
-
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
 		{
 			//zShiftRight32_x(Q,Q,1);
 			mpz_tdiv_q_2exp(dconf->Qvals[report_num], dconf->Qvals[report_num], 1);
+
+#ifndef SPARSE_STORE
 			dconf->fb_offsets[report_num][++smooth_num] = 1;
+#endif
 			bits++;
 		}
-#endif
 
 		i=2;
 		//explicitly trial divide by small primes which we have not
@@ -296,7 +281,11 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			i++;
 		}
 
-		if (bits < (sconf->tf_closnuf + dconf->tf_small_cutoff))
+        // don't reject a sieve hit if it is within a small distance
+        // of the poly root as these locations are much more likely
+        // to factor over the fb.
+		if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
+            abs(offset - minoffset) > 2000)
 			dconf->valid_Qs[report_num] = 0;
 		else
 			dconf->valid_Qs[report_num] = 1;
@@ -306,11 +295,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-	qs_timing_diff = my_difftime (&qs_timing_start, &qs_timing_stop);
-
-	TF_STG1 += ((double)qs_timing_diff->secs + (double)qs_timing_diff->usecs / 1000000);
-	free(qs_timing_diff);
-
+    TF_STG1 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
 	gettimeofday(&qs_timing_start, NULL);
 #endif
 

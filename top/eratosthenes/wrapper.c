@@ -13,6 +13,56 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "soe.h"
+#include "threadpool.h"
+
+void compute_prps_dispatch(void *vptr)
+{
+    tpool_t *tdata = (tpool_t *)vptr;
+    soe_userdata_t *t = (soe_userdata_t *)tdata->user_data;
+    soe_staticdata_t *sdata = t->sdata;
+
+    if (sdata->sync_count < THREADS)
+    {
+        tdata->work_fcn_id = 0;
+        sdata->sync_count++;
+    }
+    else
+    {
+        tdata->work_fcn_id = tdata->num_work_fcn;
+    }
+
+    return;
+}
+
+void compute_prps_work_fcn(void *vptr)
+{
+    tpool_t *tdata = (tpool_t *)vptr;
+    soe_userdata_t *udata = (soe_userdata_t *)tdata->user_data;
+    soe_staticdata_t *sdata = udata->sdata;
+    thread_soedata_t *t = &udata->ddata[tdata->tindex];
+    int i;
+    
+    t->linecount = 0;
+    for (i = t->startid; i < t->stopid; i++)
+    {
+        if (((i & 127) == 0) && (VFLAG > 0))
+        {
+            printf("thread %d progress: %d%%\r", tdata->tindex, 
+                (int)((double)(i - t->startid) / (double)(t->stopid - t->startid) * 100.0));
+            fflush(stdout);
+        }
+
+        mpz_add_ui(t->tmpz, t->offset, t->ddata.primes[i - t->startid]);
+        if ((mpz_cmp(t->tmpz, t->lowlimit) >= 0) && (mpz_cmp(t->highlimit, t->tmpz) >= 0))
+        {
+            //if (is_mpz_prp(t->tmpz))
+            if (mpz_extrastrongbpsw_prp(t->tmpz))
+                t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
+        }
+    }
+
+    return;
+}
 
 uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp, 
 	mpz_t *offset, uint64 lowlimit, uint64 highlimit, uint64 *num_p)
@@ -72,12 +122,14 @@ uint64 *GetPRIMESRange(uint32 *sieve_p, uint32 num_sp,
 				
 		GLOBAL_OFFSET = 0;
 		tmpl = lowlimit;
-		tmph = lowlimit + maxrange;
+        // maxrange - 1, so that we don't count the upper
+        // limit twice (again on the next iteration's lower bound).
+		tmph = lowlimit + maxrange - 1;
 		for (j = 0; j < num_ranges; j++)
 		{
 			tmpcount += spSOE(sieve_p, num_sp, offset, tmpl, &tmph, 0, primes);
 			tmpl += maxrange;
-			tmph = tmpl + maxrange;
+			tmph = tmpl + maxrange - 1;
 			GLOBAL_OFFSET = tmpcount;
 		}
 				
@@ -120,7 +172,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 		//primes in the interval	
 		max_p = (uint32)sqrt((int64)(highlimit)) + 65536;
 		range_est = (uint32)estimate_primes_in_range(0, (uint64)max_p);
-		sieve_p = (uint32 *)malloc((size_t) (range_est * sizeof(uint32)));
+		sieve_p = (uint32 *)xmalloc_align((size_t) (range_est * sizeof(uint32)));
 
 		if (sieve_p == NULL)
 		{
@@ -143,7 +195,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 	else
 	{
 		//seed primes are enough
-		sieve_p = (uint32 *)malloc((size_t) (num_sp * sizeof(uint32)));
+        sieve_p = (uint32 *)xmalloc_align((size_t)(num_sp * sizeof(uint32)));
 		//NO_STORE = 1;
 
 		if (sieve_p == NULL)
@@ -193,11 +245,12 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 				//to get time per range
 				double t_time;
 				struct timeval start, stop;
-				TIME_DIFF *	difference;
 				
 				*num_p = 0;
 				tmpl = lowlimit;
-				tmph = lowlimit + maxrange;
+                // maxrange - 1, so that we don't count the upper
+                // limit twice (again on the next iteration's lower bound).
+				tmph = lowlimit + maxrange - 1;
 				gettimeofday (&start, NULL);
 
 				for (j = 0; j < num_ranges; j++)
@@ -205,15 +258,12 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 					*num_p += spSOE(sieve_p, num_sp, NULL, tmpl, &tmph, 1, NULL);
 
 					gettimeofday (&stop, NULL);
-					difference = my_difftime (&start, &stop);
-
-					t_time = ((double)difference->secs + (double)difference->usecs / 1000000);
-					free(difference);
+                    t_time = yafu_difftime(&start, &stop);
 
 					if (VFLAG > 1)
 						printf("so far, found %" PRIu64 " primes in %1.1f seconds\n",*num_p, t_time);
 					tmpl += maxrange;
-					tmph = tmpl + maxrange;
+					tmph = tmpl + maxrange - 1;
 				}
 				
 				if (remainder > 0)
@@ -297,7 +347,7 @@ uint64 *soe_wrapper(uint32 *seed_p, uint32 num_sp,
 		}			
 	}
 
-	free(sieve_p);
+	align_free(sieve_p);
 	return primes;
 }
 
@@ -365,14 +415,16 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 				
 				*num_p = 0;
 				tmpl = 0;
-				tmph = tmpl + maxrange;
+                // maxrange - 1, so that we don't count the upper
+                // limit twice (again on the next iteration's lower bound).
+				tmph = tmpl + maxrange - 1;
 				for (j = 0; j < num_ranges; j++)
 				{
 					*num_p += spSOE(seed_p, num_sp, offset, tmpl, &tmph, 1, NULL);
 					if (VFLAG > 1)
 						printf("so far, found %" PRIu64 " primes\n",*num_p);
 					tmpl += maxrange;
-					tmph = tmpl + maxrange;
+					tmph = tmpl + maxrange - 1;
 				}
 				
 				if (remainder > 0)
@@ -424,24 +476,24 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 
 		if (num_witnesses > 0)
 		{
-			int pchar = 0;
 			thread_soedata_t *thread_data;		//an array of thread data objects
 			uint32 lastid;
 			int j;
+
+            // threading structures
+            tpool_t *tpool_data;
+            soe_userdata_t udata;
 
 			//allocate thread data structure
 			thread_data = (thread_soedata_t *)malloc(THREADS * sizeof(thread_soedata_t));
 			
 			// conduct PRP tests on all surviving values
-			if (VFLAG > 0)
-				printf("starting PRP tests with %d witnesses on %" PRIu64 " surviving candidates\n", 
-					num_witnesses, *num_p);
-
-			// start the threads
-			for (i = 0; i < THREADS - 1; i++)
-				start_soe_worker_thread(thread_data + i, 0);
-
-			start_soe_worker_thread(thread_data + i, 1);
+            if (VFLAG > 0)
+            {
+                printf("starting PRP tests with %d witnesses on "
+                    "%" PRIu64 " surviving candidates using %d threads\n",
+                    num_witnesses, *num_p, THREADS);
+            }
 
 			range = *num_p / THREADS;
 			lastid = 0;
@@ -455,134 +507,69 @@ uint64 *sieve_to_depth(uint32 *seed_p, uint32 num_sp,
 				t->stopid = t->startid + range;
 				lastid = t->stopid;
 
-				if (VFLAG > 2)
-					printf("thread %d computing PRPs from %u to %u\n", 
-						(int)i, t->startid, t->stopid);
+                if (VFLAG > 2)
+                {
+                    printf("thread %d computing PRPs from %u to %u\n",
+                        (int)j, t->startid, t->stopid);
+                }
 			}
 
 			// the last one gets any leftover
-			if (thread_data[THREADS-1].stopid != (uint32)*num_p)
-				thread_data[THREADS-1].stopid = (uint32)*num_p;
+            if (thread_data[THREADS - 1].stopid != (uint32)*num_p)
+            {
+                thread_data[THREADS - 1].stopid = (uint32)*num_p;
+            }
 
 			// allocate space for stuff in the threads
-			if (THREADS == 1)
-			{
-				thread_data[0].ddata.primes = values;
-			}
-			else
-			{
-				for (j = 0; j < THREADS; j++)
-				{
-					thread_soedata_t *t = thread_data + j;
-
-					mpz_init(t->tmpz);
-					mpz_init(t->offset);
-					mpz_init(t->lowlimit);
-					mpz_init(t->highlimit);
-					mpz_set(t->offset, *offset);
-					mpz_set(t->lowlimit, lowlimit);
-					mpz_set(t->highlimit, highlimit);
-					t->current_line = (uint64)num_witnesses;
-
-					t->ddata.primes = (uint64 *)malloc((t->stopid - t->startid) * sizeof(uint64));
-					for (i = t->startid; i < t->stopid; i++)
-						t->ddata.primes[i - t->startid] = values[i];
-				}
-			}
-
-			// now run with the threads
 			for (j = 0; j < THREADS; j++)
 			{
 				thread_soedata_t *t = thread_data + j;
 
-				if (j == (THREADS - 1)) 
-				{	
-					t->linecount = 0;
-					for (i = t->startid; i < t->stopid; i++)
-					{
-						if (((i & 128) == 0) && (VFLAG > 0))
-						{
-							int k;
-							for (k = 0; k<pchar; k++)
-								printf("\b");
-							pchar = printf("progress: %d%%",(int)((double)i / (double)(*num_p) * 100.0));
-							fflush(stdout);
-						}
+				mpz_init(t->tmpz);
+				mpz_init(t->offset);
+				mpz_init(t->lowlimit);
+				mpz_init(t->highlimit);
+				mpz_set(t->offset, *offset);
+				mpz_set(t->lowlimit, lowlimit);
+				mpz_set(t->highlimit, highlimit);
+				t->current_line = (uint64)num_witnesses;
 
-						mpz_add_ui(tmpz, *offset, t->ddata.primes[i - t->startid]);
-						if ((mpz_cmp(tmpz, lowlimit) >= 0) && (mpz_cmp(highlimit, tmpz) >= 0))
-						{
-							if (is_mpz_prp(tmpz))
-								t->ddata.primes[t->linecount++] = t->ddata.primes[i - t->startid];
-						}
-					}
-				}
-				else
-				{
-					t->command = SOE_COMPUTE_PRPS;
-
-#if defined(WIN32) || defined(_WIN64)
-					SetEvent(t->run_event);
-#else
-					pthread_cond_signal(&t->run_cond);
-					pthread_mutex_unlock(&t->run_lock);
-#endif
-
-				}
+				t->ddata.primes = (uint64 *)malloc((t->stopid - t->startid) * sizeof(uint64));
+				for (i = t->startid; i < t->stopid; i++)
+					t->ddata.primes[i - t->startid] = values[i];
 			}
 
-			//wait for each thread to finish
-			for (i = 0; i < THREADS; i++) 
+			// now run with the threads.  don't really need the 
+            // threadpool since we are statically dividing up the range
+            // to test, but it is easy so we use it.
+            udata.sdata = &thread_data->sdata;
+            udata.ddata = thread_data;
+            tpool_data = tpool_setup(THREADS, NULL, NULL, NULL,
+                &compute_prps_dispatch, &udata);
+
+            thread_data->sdata.sync_count = 0;
+            tpool_add_work_fcn(tpool_data, &compute_prps_work_fcn);
+            tpool_go(tpool_data);
+
+            free(tpool_data);
+
+			// combine results and free stuff
+			retval = 0;
+			for (i=0; i<THREADS; i++)
 			{
 				thread_soedata_t *t = thread_data + i;
 
-				if (i < (THREADS - 1)) 
-				{
-#if defined(WIN32) || defined(_WIN64)
-					WaitForSingleObject(t->finish_event, INFINITE);
-#else
-					pthread_mutex_lock(&t->run_lock);
-					while (t->command != SOE_COMMAND_WAIT)
-						pthread_cond_wait(&t->run_cond, &t->run_lock);
-#endif
-				}
-			}
+				for (j=0; j < t->linecount; j++)
+					values[retval++] = t->ddata.primes[j];
 
-			//stop the worker threads
-			for (i=0; i<THREADS - 1; i++)
-				stop_soe_worker_thread(thread_data + i, 0);
-
-			// combine results and free stuff
-			if (THREADS == 1)
-			{
-				retval = thread_data[0].linecount;
-			}
-			else
-			{
-				retval = 0;
-				for (i=0; i<THREADS; i++)
-				{
-					thread_soedata_t *t = thread_data + i;
-
-					for (j=0; j < t->linecount; j++)
-						values[retval++] = t->ddata.primes[j];
-
-					free(t->ddata.primes);
-					mpz_clear(t->tmpz);
-					mpz_clear(t->offset);
-					mpz_clear(t->lowlimit);
-					mpz_clear(t->highlimit);
-				}
+				free(t->ddata.primes);
+				mpz_clear(t->tmpz);
+				mpz_clear(t->offset);
+				mpz_clear(t->lowlimit);
+				mpz_clear(t->highlimit);
 			}
 
 			free(thread_data);
-
-			if (VFLAG > 0)
-			{
-				int k;
-				for (k = 0; k<pchar; k++)
-					printf("\b");
-			}
 
 			*num_p = retval;
 			if (VFLAG > 0)

@@ -31,7 +31,7 @@ static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 
 
 /*------------------------------------------------------------------*/
-void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
+int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
 		    uint64 **bitfield, siqs_r *relation_list, 
 		    qs_la_col_t *cycle_list, uint32 *num_cycles) {
 
@@ -59,22 +59,29 @@ void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size,
 
 	if (ncols == 0) {
 		printf("matrix is corrupt; skipping linear algebra\n");
-		free(cols);
+        cols = NULL;
 		*num_cycles = 0;
-		return;
+		return -2;
 	}
 
 	/* solve the linear system */
 
 	dependencies = qs_block_lanczos(obj, nrows, 0, ncols, cols, &num_deps);
 
+    if (num_deps == (uint32)-1)
+    {
+        return -2;
+    }
+
 	if (num_deps == 0) {
 		free(dependencies);
-		return;
+		return -1;
 	}
 
 	*bitfield = dependencies;
 	*num_cycles = ncols;
+
+    return 0;
 }
 
 /*------------------------------------------------------------------*/
@@ -153,9 +160,9 @@ uint32 qs_merge_relations(uint32 *merge_array,
 }
 
 /*------------------------------------------------------------------*/
-#define QS_MAX_COL_WEIGHT 1000
+#define QS_MAX_COL_WEIGHT 10000
 
-static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
+void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
 
 	/* Convert lists of relations from the sieving stage
@@ -171,6 +178,8 @@ static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	   not used would have created the heaviest matrix columns
 	   anyway */
 	
+	//printf("building matrix with %u columns\n", ncols);
+
 	for (i = 0; i < ncols; i++) {
 		uint32 buf[QS_MAX_COL_WEIGHT];
 		uint32 accum[QS_MAX_COL_WEIGHT];
@@ -183,6 +192,10 @@ static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 
 		for (j = weight = 0; j < col->cycle.num_relations; j++) {
 			siqs_r *r = &relation_list[col->cycle.list[j]];
+			if ((weight + r->num_factors) > QS_MAX_COL_WEIGHT)
+			{
+				printf("warning: max weight exceeded\n");
+			}
 			weight = qs_merge_relations(accum, buf, weight,
 						r->fb_offsets, r->num_factors);
 			memcpy(buf, accum, weight * sizeof(uint32));

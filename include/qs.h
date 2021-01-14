@@ -26,37 +26,57 @@ code to the public domain.
 #include "util.h"
 #include "lanczos.h"
 #include "common.h"
+#include "monty.h"
+#include "cofactorize.h"
 
-#ifdef HAVE_CUDA
-#include <cuda.h>
-#include <builtin_types.h>
-//#include <drvapi_error_string.h>
-#endif
+// I've been unable to get this to run any faster, for
+// either generic or knc codebases...
+//#define USE_BATCHPOLY
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
 // if defined, compile the sse41 functions into the fat binary.  the global
 // flag HAS_SSE41 is set at runtime on compatible hardware to enable the functions
 // to be used.  For gcc and mingw64 builds, USE_SSE41 is enabled in the makefile.
-#define USE_SSE41 1
+#ifdef USE_BATCHPOLY
+    #define FORCE_GENERIC 1
+#else
+    #define USE_SSE41 1
+#endif
+
 //#define USE_AVX2 1
 #endif
 
 
+//#define DO_VLP_OPT
+
+
 #if defined(USE_AVX2)
+#ifdef _MSC_VER
+#define CLEAN_AVX2 _mm256_zeroupper();
+#else
 #define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
 #endif
-
-#if defined(USE_AVX2) || defined(USE_SSE41)
-#define USE_VEC_SQUFOF
 #endif
 
-//#define HAVE_CUDA
+//|| defined(TARGET_KNC)
+//#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
+#if (defined(TARGET_KNL) && defined(__INTEL_COMPILER))
+// this is the only path that will make use of AVX512 (via auto-vec)
+// for others, it is faster and easier to use the new superfast spBrent.
+//#define USE_VEC_SQUFOF
+#endif
+
+#define USE_BATCH_FACTOR
+
+#ifdef USE_BATCH_FACTOR
+#include "batch_factor.h"
+#endif
+
 //#define QS_TIMING
 
 #ifdef QS_TIMING
 struct timeval qs_timing_start, qs_timing_stop;
-TIME_DIFF *qs_timing_diff;
 double START;
 double TF_STG1;
 double TF_STG2;
@@ -82,7 +102,15 @@ double TF_SPECIAL;
 #define BLOCKSIZEm1 32767
 #define BLOCKSIZE 32768
 
-#define MAX_SMOOTH_PRIMES 100	//maximum number of factors for a smooth, including duplicates
+// store only largish smooth factors of relations; trial divide during filtering
+#define SPARSE_STORE
+
+#ifdef SPARSE_STORE
+#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#else
+#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#endif
+
 #define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
@@ -95,11 +123,11 @@ double TF_SPECIAL;
 #define HALFBUCKET_ALLOCtxt "1024"
 #define BUCKET_BITStxt "11"
 
-//#define USE_YAFU_TDIV 1
 
 // always use these optimizations using sse2
-#ifdef TARGET_MIC
-
+#ifdef TARGET_KNC
+#define USE_ASM_SMALL_PRIME_SIEVING
+#define USE_8X_MOD_ASM 1
 #elif !defined (FORCE_GENERIC)
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
@@ -116,7 +144,7 @@ double TF_SPECIAL;
 	#define USE_ASM_SMALL_PRIME_SIEVING
 #endif
 
-#if !defined (FORCE_GENERIC) && (defined(GCC_ASM64X) || defined(__MINGW64__))
+#if !defined (FORCE_GENERIC) && (defined(GCC_ASM64X) || defined(__MINGW64__) || (defined(_MSC_VER) && defined(USE_AVX2)))
 	//assume we have sse2, set defines to use the sse2 code available
 	#define SIMD_SIEVE_SCAN 1
 	#define SIMD_SIEVE_SCAN_VEC 1
@@ -129,8 +157,8 @@ double TF_SPECIAL;
 
 #elif !defined (FORCE_GENERIC) && defined(_WIN64)
 	#define SIMD_SIEVE_SCAN 1
-
 #endif
+
 
 
 // these were used in an experiment to check how many times a routine was called
@@ -166,14 +194,6 @@ typedef struct
 //factor base elements into cache during the sieve
 typedef struct
 {
-	uint32 prime;
-	uint32 root1;
-	uint32 root2;
-	uint8 logprime;
-} sieve_fb;
-
-typedef struct
-{
 	uint16 *prime;			
 	uint16 *root1;				
 	uint16 *root2;
@@ -187,11 +207,12 @@ typedef struct
 /************************* SIQS types and functions *****************/
 typedef struct
 {
-	uint32 large_prime[2];		//large prime in the pd.
+	uint32 large_prime[3];		//large prime in the pd.
 	uint32 sieve_offset;		//offset specifying Q (the quadratic polynomial)
-	uint32 poly_idx;			//which poly this relation uses
+    uint32 apoly_idx;           // the index of the a-poly this relation uses
+	uint32 poly_idx;			//which b-poly this relation uses
 	uint32 parity;				//the sign of the offset (x) 0 is positive, 1 is negative
-	uint32 *fb_offsets;			//offsets of factor base primes dividing Q(offset).  
+    uint32 fb_offsets[MAX_SMOOTH_PRIMES];			//offsets of factor base primes dividing Q(offset).  
 								//note that other code limits the max # of fb primes to < 2^16
 	uint32 num_factors;			//number of factor base factors in the factorization of Q
 } siqs_r;
@@ -220,6 +241,7 @@ typedef struct
 #endif
 	uint32 *prime;
 	uint32 *logprime;
+    uint64* binv;
 } fb_element_siqs;
 
 // we trade a few bit operations per prime 
@@ -265,6 +287,7 @@ typedef struct
 	char *gray;		//2^s - 1 length array of signs for the graycode
 	char *nu;		//2^s - 1 length array of Bl values to use in the graycode
 	int s;
+    int index;      // index within the master list of poly_a's
 } siqs_poly;
 
 typedef struct
@@ -312,6 +335,7 @@ typedef struct {
 	mpz_t n;					// the number to factor (scaled by multiplier)
 	mpz_t sqrt_n;				// sqrt of n
 	fb_list *factor_base;       // the factor base to use
+    uint32 *sieve_primes;            // sieve primes
 	uint32 num_sieve_blocks;	// number of sieve blocks in sieving interval
 	uint32 sieve_small_fb_start;// starting FB offset for sieving
 	mpz_t target_a;				// optimal value of 'a' 
@@ -340,6 +364,9 @@ typedef struct {
 	uint32 tf_med_recip1_cutoff;
 	uint32 tf_med_recip2_cutoff;
 	uint32 tf_large_cutoff;
+    //uint32 poly_batch_size;     // how many polys to update at one time?
+
+    mpz_t prime_product;
 
 	
 	struct timeval totaltime_start;	// start time of this job
@@ -347,7 +374,12 @@ typedef struct {
 	uint32 large_prime_max;		// the cutoff value for keeping a partial
 								// relation; actual value, not a multiplier
 	uint64 max_fb2;					// the square of the largest factor base prime 
-	uint64 large_prime_max2;			// the cutoff value for factoring partials 
+	uint64 large_prime_max2;			// the cutoff value for factoring dlp-partials 
+	double dlp_exp;
+
+	double max_fb3;					// the cube of the largest factor base prime 
+	double large_prime_max3;			// the cutoff value for factoring tlp-partials 
+	double tlp_exp;
 
 	//master list of cycles
 	qs_cycle_t *cycle_table;		/* list of all the vertices in the graph */
@@ -359,7 +391,10 @@ typedef struct {
 	uint32 num_relations;		/* number of relations in list */
 	uint32 num_cycles;			/* number of cycles in list */
 	uint32 num_r;				// total relations found
-	uint32 num;					// sieve locations we've subjected to trial division
+	uint64 num;					// sieve locations we've subjected to trial division
+    uint32 num_found;
+	uint32 num_slp;
+	uint32 num_full;
 
 	//used to check on progress of the factorization	
 	struct timeval update_start;	// time at which we last assessed the situation
@@ -370,19 +405,28 @@ typedef struct {
 	uint32 last_numfull;		// relations found since the last update as a guide
 	uint32 last_numpartial;		// to when to assess the situation
 	uint32 last_numcycles;		// used in computing rels/sec
+	double last_fullrate;		// used in tlp to predict relations/batch
+	double last_cycrate;		// used in tlp to predict relations/batch
 	uint32 num_needed;
 	uint32 num_expected;
 	int charcount;				// characters on the screen
 	uint32 tot_poly;
 	uint32 failed_squfof;
 	uint32 attempted_squfof;
+	uint32 failed_cosiqs;
+	uint32 attempted_cosiqs;
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
-    uint32 total_reports;
-    uint32 total_surviving_reports;
-    uint32 total_blocks;
+	uint32 tlp_outside_range;
+	uint32 tlp_prp;
+	uint32 tlp_useful;
+    uint64 total_reports;
+    uint64 total_surviving_reports;
+    uint64 total_blocks;
     uint32 lp_scan_failures;
+    uint64 num_scatter_opp;
+    uint64 num_scatter;
 
 	//master time record
 	double t_time1;				// sieve time
@@ -408,19 +452,28 @@ typedef struct {
 	qs_la_col_t *cycle_list;	// cycles derived from relations
 	siqs_poly *curr_poly;		// current poly during filtering
 
+    int is_restart;
 	int is_tiny;
 	int in_mem;
+    int flag;
 
 	//storage of relations found during in-mem sieving
 	uint32 buffered_rels;
 	uint32 buffered_rel_alloc;
 	siqs_r *in_mem_relations;
 
-#ifdef HAVE_CUDA
-	CUdevice cuDevice;
-	CUcontext cuContext;
-	CUmodule cuModule;
-	CUfunction cu_squfof;
+    int do_periodic_tlp_filter;
+    uint32 est_raw_rels_needed;
+    int do_batch;
+    int batch_buffer_id;
+    int batch_run_override;
+#ifdef USE_BATCH_FACTOR
+    // ping-pong relation batches so we can be processing
+    // while loading data into one that's unused.
+    relation_batch_t *rb;
+    int num_alloc_rb;
+    int num_active_rb;
+    int max_active_rb;
 #endif
 
 } static_conf_t;
@@ -429,13 +482,12 @@ typedef struct {
 	// the stuff in this structure is continuously being updated
 	// during the course of the factorization, but we want it all
 	// in one place so the data can be passed around easily
+    int tid;
 
 	//small prime sieving
 	uint8 *sieve;				// scratch space used for one sieve block 
 	sieve_fb_compressed *comp_sieve_p;		// scratch space for a packed versions of fb
 	sieve_fb_compressed *comp_sieve_n;		// for use during sieving smallish primes
-	sieve_fb *fb_sieve_p;		// scratch space for a packed versions of fb
-	sieve_fb *fb_sieve_n;		// for use during sieving smallish primes
 
 	//large prime sieving
 	update_t update_data;		// data for updating root values
@@ -453,21 +505,32 @@ typedef struct {
 	uint16 *mask;
 	uint32 *reports;			//sieve locations to submit to trial division
 	uint32 num_reports;	
-#ifdef USE_YAFU_TDIV
-	z32 *Qvals32;
-#endif
 	mpz_t *Qvals;
 	int *valid_Qs;				//which of the report are still worth persuing after SPV check
 	uint32 fb_offsets[MAX_SIEVE_REPORTS][MAX_SMOOTH_PRIMES];
 	int *smooth_num;			//how many factors are there for each valid Q
 	uint32 failed_squfof;
 	uint32 attempted_squfof;
+	uint32 num_slp;
+	uint32 num_full;
 	uint32 dlp_outside_range;
 	uint32 dlp_prp;
 	uint32 dlp_useful;
-    uint32 total_reports;
-    uint32 total_surviving_reports;
-    uint32 total_blocks;
+	uint32 failed_cosiqs;
+	uint32 attempted_cosiqs;
+	uint32 tlp_outside_range;
+	uint32 tlp_prp;
+	uint32 tlp_useful;
+    uint64 total_reports;
+    uint64 total_surviving_reports;
+    uint64 total_blocks;
+    uint64 num_scatter_opp;
+    uint64 num_scatter;
+
+	// various things to support tlp co-factorization
+	monty_t *mdata;		// monty brent attempt
+	fact_obj_t *fobj2;	// smallmpqs attempt
+	tiny_qs_params *cosiqs;
 
 #ifdef USE_8X_MOD_ASM
 	uint16 *bl_sizes;
@@ -478,6 +541,7 @@ typedef struct {
 	siqs_poly *curr_poly;		// current poly during sieving	
 	mpz_t *Bl;					// array of Bl values used to compute new B polys
 	uint32 tot_poly, numB, maxB;// polynomial counters
+    int poly_batchsize;
 
 	//storage of relations found during sieving
 	uint32 buffered_rels;
@@ -488,54 +552,29 @@ typedef struct {
     uint64 *residue_factors;
     uint32 num_64bit_residue;
 
-#ifdef HAVE_CUDA
-	uint64 *squfof_candidates;
-	uint32 *buf_id;
-	uint32 num_squfof_cand;
-#endif
-
     uint32 *polyscratch;
 	uint16 *corrections;
 
 	//counters and timers
     uint32 lp_scan_failures;
-	uint32 num;					// sieve locations we've subjected to trial division
+	uint64 num;					// sieve locations we've subjected to trial division
 	double rels_per_sec;
 
 	char buf[512];
 	uint32 cutoff;
 
 	uint32 tf_small_cutoff;		// bit level to determine whether to bail early from tf
+    int do_batch;
+    int batch_run_override;
+#ifdef USE_BATCH_FACTOR
+    relation_batch_t rb;
+#endif
 	
 } dynamic_conf_t;
 
 typedef struct {
 	static_conf_t *sconf;
 	dynamic_conf_t *dconf;
-
-    int tindex;
-
-	/* fields for thread pool synchronization */
-	volatile enum thread_command command;
-    volatile int *thread_queue, *threads_waiting;
-
-#if defined(WIN32) || defined(_WIN64)
-	HANDLE thread_id;
-	HANDLE run_event;
-
-	HANDLE finish_event;
-	HANDLE *queue_event;
-	HANDLE *queue_lock;
-
-#else
-	pthread_t thread_id;
-	pthread_mutex_t run_lock;
-	pthread_cond_t run_cond;
-
-	pthread_mutex_t *queue_lock;
-	pthread_cond_t *queue_cond;
-#endif
-
 } thread_sievedata_t;
 
 // used in multiplier selection
@@ -583,6 +622,11 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void tdiv_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
+void tdiv_medprimes_32k_knl(uint32 *reports, uint32 num_reports, 
+                         uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
 void tdiv_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*tdiv_med_ptr)(uint8 , uint32 , uint32 , 
@@ -592,6 +636,11 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
+void resieve_medprimes_32k_knl(uint32 *reports, uint32 num_reports, 
+                         uint8 parity, uint32 poly_id, uint32 bnum,
+                         static_conf_t *sconf, dynamic_conf_t *dconf);
 void resieve_medprimes_64k(uint8 parity, uint32 poly_id, uint32 bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*resieve_med_ptr)(uint8 , uint32 , uint32 , 
@@ -602,7 +651,7 @@ void trial_divide_Q_siqs(uint32 report_num,
 						  static_conf_t *sconf, dynamic_conf_t *dconf);
 
 void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
+						  uint32 *fb_offsets, uint32 apoly_id, uint32 poly_id, uint32 parity,
 						  dynamic_conf_t *conf, uint32 *polya_factors, 
 						  uint32 num_polya_factors, uint64 unfactored_residue);
 
@@ -610,15 +659,12 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
 						  static_conf_t *conf);
 
-void stop_worker_thread(thread_sievedata_t *t);
-void start_worker_thread(thread_sievedata_t *t);
 
-#if defined(WIN32) || defined(_WIN64)
-DWORD WINAPI worker_thread_main(LPVOID thread_data);
-#else
-void *worker_thread_main(void *thread_data);
-#endif
-
+// threading and misc
+void siqs_sync(void *vptr);
+void siqs_dispatch(void *vptr);
+void siqs_work_fcn(void *vptr);
+void siqs_thread_start(void *vptr);
 void *process_poly(void *ptr);
 int free_sieve(dynamic_conf_t *dconf);
 int update_final(static_conf_t *sconf);
@@ -638,9 +684,19 @@ void (*firstRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc(static_conf_t *sconf, dynamic_conf_t *dconf);
 void nextRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*nextRoots_ptr)(static_conf_t *, dynamic_conf_t *);
 		   
+void nextRoots_32k_generic_small(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf);
+
+void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf);
+void nextRoots_32k_knc_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf);
+
 void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void testfirstRoots_64k(static_conf_t *sconf, dynamic_conf_t *dconf);
 void (*testRoots_ptr)(static_conf_t *, dynamic_conf_t *);
@@ -658,14 +714,25 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf);
 uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
 				uint32 num_relations,
 				qs_cycle_t *table, uint32 *hashtable);
+uint32 qs_purge_singletons3(fact_obj_t *obj, siqs_r *list,
+	uint32 num_relations,
+	qs_cycle_t *table, uint32 *hashtable);
 uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 				siqs_r *rlist, 
 				uint32 num_relations);
+uint32 qs_purge_duplicate_relations3(fact_obj_t *obj,
+	siqs_r *rlist,
+	uint32 num_relations);
 void qs_enumerate_cycle(fact_obj_t *obj, 
 			    qs_la_col_t *c, 
 			    qs_cycle_t *table,
 			    qs_cycle_t *entry1, qs_cycle_t *entry2,
 			    uint32 final_relation);
+void qs_enumerate_cycle3(fact_obj_t *obj,
+	qs_la_col_t *c,
+	qs_cycle_t *table,
+	qs_cycle_t *entry1, qs_cycle_t *entry2, qs_cycle_t *entry3,
+	uint32 final_relation);
 int yafu_sort_cycles(const void *x, const void *y);
 
 //aux
@@ -674,12 +741,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny);
 int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf);
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf);
 uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf);
-
-#ifdef HAVE_CUDA
-int InitCUDA(static_conf_t *sconf);
-double gpu_squfof_batch(uint64 *batch, uint32 numin, uint32 *factors, 
-	static_conf_t *sconf);
-#endif
 
 void get_params(static_conf_t *sconf);
 void get_gray_code(siqs_poly *poly);
@@ -724,7 +785,7 @@ void siqsbench(fact_obj_t *fobj);
 		the only guarantee is that its final value is at least 
 		fb_size + NUM_EXTRA_RELATIONS */
 
-void qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
+int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
 		    uint64 **bitfield, 
 		    siqs_r *relation_list, 
 		    qs_la_col_t *cycle_list,
@@ -771,18 +832,29 @@ uint32 yafu_factor_list_add(fact_obj_t *obj,
 /*-------------- CYCLE FINDING RELATED DECLARATIONS ------------------------*/
 /* pull out the large primes from a relation read from
    the savefile */
-
+void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relations);
+void rebuild_graph3(static_conf_t *sconf, siqs_r *relation_list, int num_relations);
 void yafu_read_large_primes(char *buf, uint32 *prime1, uint32 *prime2);
+void yafu_read_tlp(char *buf, uint32 *primes);
 
 /* given the primes from a sieve relation, add
    that relation to the graph used for tracking
    cycles */
 
+void yafu_add_to_cycles3(static_conf_t *conf, uint32 flags, uint32 *primes);
 void yafu_add_to_cycles(static_conf_t *conf, uint32 flags, uint32 prime1, uint32 prime2);
+
+qs_la_col_t * find_cycles(fact_obj_t *obj, uint32 *hashtable, qs_cycle_t *table,
+	siqs_r *relation_list, uint32 num_relations, uint32 *numcycles, uint32 *numpasses);
+
+qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
+	siqs_r *relation_list, uint32 num_relations, uint32 *numcycles, uint32 *numpasses);
 
 /* perform postprocessing on a list of relations */
 void yafu_qs_filter_relations(static_conf_t *sconf);
 
+
+/*--------------           GLOBALS                  ------------------------*/
 #define SAVEFILE_BUF_SIZE 2048
 char savebuf[2048];
 int savefile_buf_off;
