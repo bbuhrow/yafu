@@ -36,7 +36,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 b,j,r,k;
 	uint32 prime, root1, root2;
 	uint8 logp;
-	uint32 urange = 10000000;
+    uint32 urange = sconf->factor_base->B * sconf->multiplier * 1.1; // 10000000;
 	uint32 lrange = 0;
 	fp_digit f;
 #ifdef USE_8X_MOD_ASM
@@ -48,6 +48,8 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	mpz_ptr n = sconf->n;
 	uint32 mul = sconf->multiplier;
 	uint32 *modsqrt = sconf->modsqrt_array;
+
+    //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
 
 	free(PRIMES);
 	PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
@@ -63,6 +65,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			lrange = urange + 1;
 			urange = lrange + 10000000;
 			free(PRIMES);
+            //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
 			PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 			P_MIN = PRIMES[0];
 			P_MAX = PRIMES[NUM_P-1];
@@ -452,7 +455,7 @@ void get_params(static_conf_t *sconf)
 	}
 	else
 	{
-		for (i=0;i<NUM_PARAM_ROWS;i++)
+		for (i=0;i<NUM_PARAM_ROWS-1;i++)
 		{
 			if (bits > param_table[i][0] && bits <= param_table[i+1][0])
 			{
@@ -666,7 +669,12 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 
 void siqsexit(int sig)
 {
-	printf("\nAborting...\n");
+    if (SIQS_ABORT == 1)
+    {
+        exit(1);
+    }
+	printf("\nAborting... threads will finish their current poly\n");
+    printf("Press Ctrl-C again to exit immediately and lose in-progress data\n");
 	SIQS_ABORT = 1;
 	return;
 }

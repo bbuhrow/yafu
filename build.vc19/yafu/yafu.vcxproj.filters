@@ -42,12 +42,12 @@
     <Filter Include="Source Files\factoring\avx-ecm">
       <UniqueIdentifier>{9f267715-3567-4695-8a81-2d6d06e2a145}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\frontend">
+      <UniqueIdentifier>{e4c128c2-ce52-4467-9ec8-fb4f0964f940}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\top\calc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\stack.c">
@@ -323,6 +323,12 @@
     <ClCompile Include="..\..\arith\barrett.c">
       <Filter>Source Files\arith</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\cmdParser\cmdOptions.c">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\top\driver.c">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
@@ -426,6 +432,9 @@
     </ClInclude>
     <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h">
       <Filter>Source Files\factoring\avx-ecm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\cmdParser\cmdOptions.h">
+      <Filter>Source Files\frontend</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

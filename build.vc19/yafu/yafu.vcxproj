@@ -340,6 +340,7 @@
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\calc.c" />
+    <ClCompile Include="..\..\top\cmdParser\cmdOptions.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\eratosthenes\count.c" />
     <ClCompile Include="..\..\top\eratosthenes\linesieve.c" />
@@ -402,6 +403,7 @@
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\include\yafu_stack.h" />
     <ClInclude Include="..\..\include\yafu_string.h" />
+    <ClInclude Include="..\..\top\cmdParser\cmdOptions.h" />
     <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>

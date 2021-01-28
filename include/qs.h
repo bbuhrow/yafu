@@ -114,7 +114,7 @@ double TF_SPECIAL;
 #define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
-#define MAX_A_FACTORS 20
+#define MAX_A_FACTORS 22
 //hold all the elements in a bucket of large primes
 //1 bucket = 1 block
 #define BUCKET_ALLOC 2048

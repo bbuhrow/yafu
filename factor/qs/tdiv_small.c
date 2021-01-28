@@ -75,14 +75,16 @@ this file contains code implementing 2)
 void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf)
 {
-	//we have flagged this sieve offset as likely to produce a relation
-	//nothing left to do now but check and see.
+	// we have flagged this sieve offset as likely to produce a relation
+	// nothing left to do now but check and see.
 	int i;
 	uint32 bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
-	uint8 logp, bits;
+	uint8 logp;
+    uint8 bits;
+    //uint8 sm_bits;
     uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
     // the minimum value of the poly (near its root)
     uint32 minoffset = mpz_get_ui(dconf->gmptmp3);
@@ -97,9 +99,9 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		fbc = dconf->comp_sieve_p;
 	}
 
-	//the minimum value for the current poly_a and poly_b occur at offset (-b + sqrt(N))/a
-	//make it slightly easier for a number to go through full trial division for
-	//nearby blocks, since these offsets are more likely to factor over the FB.
+	// the minimum value for the current poly_a and poly_b occur at offset (-b + sqrt(N))/a
+	// make it slightly easier for a number to go through full trial division for
+	// nearby blocks, since these offsets are more likely to factor over the FB.
 	//mpz_sub(dconf->gmptmp1, sconf->sqrt_n, dconf->curr_poly->mpz_poly_b);
 	//mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
 	//if (mpz_sgn(dconf->gmptmp1) < 0)
@@ -121,18 +123,15 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 	{
 		uint64 q64;
 
-		//this one qualifies to check further, log that fact.
+		// this one qualifies to check further, log that fact.
 		dconf->num++;
 
 		smooth_num = -1;
 
-		//this one is close enough, compute 
-		//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-		//Q(x)/a = (ax + 2b)x + c;	
+		// this one is close enough, compute 
+		// Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+		// Q(x)/a = (ax + 2b)x + c;	
 		offset = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
-
-		//multiple precision arithmetic.  all the qstmp's are a global hack
-		//but I don't want to Init/Free millions of times if I don't have to.
 
 		mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1); 
 		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
@@ -150,17 +149,16 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
 		}
 
-		//we have two signs to worry about.  the sign of the offset tells us how to calculate ax + b, while
-		//the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
-		//the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
-		//offset is stored standalone in the relation structure.
-	
-		//compute the bound for small primes.  if we can't find enough small
-		//primes, then abort the trial division early because it is likely to fail to
-		//produce even a partial relation.
+		// we have two signs to deal with.  the sign of the offset tells us how to calculate ax + b, while
+		// the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
+		// the square root phase will need to know both.  fboffset holds the sign of Q(x).  the sign of the 
+		// offset is stored standalone in the relation structure.
+	       
+		// compute the bound for small primes.  if we can't find enough small
+		// primes, then abort the trial division early because it is likely to fail to
+		// produce even a partial relation.
 		bits = sieve[dconf->reports[report_num]];
 		bits = (255 - bits) + sconf->tf_closnuf + 1;
-
 
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
@@ -175,16 +173,16 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		}
 
 		i=2;
-		//explicitly trial divide by small primes which we have not
-		//been sieving.  because we haven't been sieving, their progressions
-		//have not been updated and thus we can't use the faster methods
-		//seen below.  fortunately, there shouldn't be many of these to test.
-		//to speed things up, use multiplication by inverse rather than 
-		//division, and do things in batches of 4 so we can use
-		//the whole cache line at once (16 byte structure)
+		// explicitly trial divide by small primes which we have not
+		// been sieving.  because we haven't been sieving, their progressions
+		// have not been updated and thus we can't use the faster methods
+		// seen below.  fortunately, there shouldn't be many of these to test.
+		// to speed things up, use multiplication by inverse rather than 
+		// division, and do things in batches of 4 so we can use
+		// the whole cache line at once (16 byte structure)
 
 
-		//do the small primes in optimized batches of 4
+		// do the small primes in optimized batches of 4
 		bound = (sconf->sieve_small_fb_start - 4);
 		
 		while ((uint32)i < bound)
@@ -192,9 +190,9 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			tmp1 = offset + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> 32; 
-			//at this point tmp1 is offset / prime
+			// at this point tmp1 is offset / prime
 			tmp1 = offset - tmp1 * fullfb_ptr->prime[i];
-			//now tmp1 is offset % prime
+			// now tmp1 is offset % prime
 
 			tmp2 = offset + fullfb_ptr->correction[i+1];
 			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
@@ -254,7 +252,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
             i += 4;
 		}
 
-		//finish up the rest of the small primes
+		// finish up the rest of the small primes
 		while ((uint32)i < sconf->sieve_small_fb_start)
 		{
 			uint64 q64;
@@ -264,16 +262,16 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			root2 = fbc->root2[i];
 			logp = fbc->logp[i];
 			
-			//this is just offset % prime (but divisionless!)
+			// this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
 			q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
 			tmp = q64 >>  32; 
 			tmp = offset - tmp * prime;
 
-			//if offset % prime == either root, it's on the progression.  also
-			//need to check for the case if root1 or root2 == prime at the same
-			//time as offset mod prime = 0.  for small primes, this happens fairly
-			//often.  the simple offset % prime check will miss these cases.
+			// if offset % prime == either root, it's on the progression.  also
+			// need to check for the case if root1 or root2 == prime at the same
+			// time as offset mod prime = 0.  for small primes, this happens fairly
+			// often.  the simple offset % prime check will miss these cases.
 			if (tmp == root1 || tmp == root2)
 			{
                 DIVIDE_ONE_PRIME(i);

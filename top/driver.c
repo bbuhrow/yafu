@@ -38,48 +38,50 @@ code to the public domain.
 
 // command line options visible to driver.c
 char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
-	"B1pm1", "B1pp1", "B1ecm", "rhomax", "B2pm1",
-	"B2pp1", "B2ecm", "qssave", "siqsB", "siqsTF",
-	"siqsR", "siqsT", "siqsNB", "siqsM", "logfile",
-	"batchfile", "seed", "sigma", "session", "threads",
-	"v", "silent", "pfile", "pscreen", "forceDLP",
-	"fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
-	"tune_info", "pretest_ratio", "xover", "one", "op",
-	"of", "ou", "plan", "pretest", "no_expr",
-	"o", "a", "r", "ggnfsT", "job", 
-	"ns", "np", "nc", "psearch", "R",
-	"pbatch", "ecm_path", "siever", "ncr", "lathreads",
-	"nc2", "nc3", "p", "work", "nprp",
-	"ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-	"filt_bump", "nc1", "gnfs", "e", "repeat",
-	"ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
+    "B1pm1", "B1pp1", "B1ecm", "rhomax", "B2pm1",
+    "B2pp1", "B2ecm", "qssave", "siqsB", "siqsTF",
+    "siqsR", "siqsT", "siqsNB", "siqsM", "logfile",
+    "batchfile", "seed", "sigma", "session", "threads",
+    "v", "silent", "pfile", "pscreen", "forceDLP",
+    "fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
+    "tune_info", "pretest_ratio", "xover", "one", "op",
+    "of", "ou", "plan", "pretest", "no_expr",
+    "o", "a", "r", "ggnfsT", "job",
+    "ns", "np", "nc", "psearch", "R",
+    "pbatch", "ecm_path", "siever", "ncr", "lathreads",
+    "nc2", "nc3", "p", "work", "nprp",
+    "ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
+    "filt_bump", "nc1", "gnfs", "e", "repeat",
+    "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
-	"siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat"};
+    "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
+    "siqsNobat" };
 
-// indication of whether or not an option needs a corresponding argument
+
+// indication of whether or not an option needs a corresponding argument.
+// needs to be the same length as the above two arrays.
 // 0 = no argument
 // 1 = argument required
 // 2 = argument optional
 int needsArg[NUMOPTIONS] = {
-	1,1,1,1,1,
-	1,1,1,1,1,
-	1,1,1,1,1,
-	1,1,1,1,1,
-	0,0,0,0,0,
-	1,0,0,0,1,
-	1,1,1,0,1,
-	1,1,1,2,0,
-	1,0,0,1,1,
-	2,2,0,1,0,
-	1,1,1,0,1,
-	0,0,0,1,1,
-	1,1,1,1,1,
-	1,0,0,1,1,
-	1,0,1,1,1,
-	1,1,0,1,1,
-	1,1,1,0,0,
-    0};
+    1,1,1,1,1,
+    1,1,1,1,1,
+    1,1,1,1,1,
+    1,1,1,1,1,
+    0,0,0,0,0,
+    1,0,0,0,1,
+    1,1,1,0,1,
+    1,1,1,2,0,
+    1,0,0,1,1,
+    2,2,0,1,0,
+    1,1,1,0,1,
+    0,0,0,1,1,
+    1,1,1,1,1,
+    1,0,0,1,1,
+    1,0,1,1,1,
+    1,1,0,1,1,
+    1,1,1,0,0,
+    0 };
 
 // function to read the .ini file and populate options
 void readINI(fact_obj_t *fobj);

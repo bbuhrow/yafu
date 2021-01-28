@@ -268,7 +268,19 @@ void init_factobj(fact_obj_t *fobj)
     fobj->qs_obj.gbl_override_bdiv_flag = 0;
     fobj->qs_obj.gbl_override_bdiv = 3;
     fobj->qs_obj.gbl_override_3lp_bat = 0;
-    fobj->qs_obj.gbl_btarget = 500000;
+    // larger batches of relations in TLP are more efficient
+    // to run in the batch GCD:
+    // 100k: 11314 rels/sec 
+    // 500k: 19230 rels/sec
+    // 1000k: 25784 rels/sec
+    // but there are a couple tradeoffs.  One, the GCD uses
+    // more memory and two, it both takes longer to gather
+    // the batch and the processing takes longer.  These two
+    // issues can significantly extend runtimes toward the
+    // end of a factorization when not many more relations are
+    // needed and when the cycle formation rate is very high.
+    // so we start this out fairly high and gradually decrease it.
+    fobj->qs_obj.gbl_btarget = 1000000;
 	fobj->qs_obj.flags = 0;
 	fobj->qs_obj.gbl_force_DLP = 0;
 	fobj->qs_obj.gbl_force_TLP = 0;

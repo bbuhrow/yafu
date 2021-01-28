@@ -108,10 +108,11 @@ else
     ifeq ($(SKYLAKEX),1)
         INC += -I../../gmp_install/gmp-6.2.0/include
         LIBS += -L../../gmp_install/gmp-6.2.0/lib/
-        INC += -I../gmp-ecm/include/
-        LIBS += -L../gmp-ecm/lib/
+        INC += -I../../ecm_install/include/
+        LIBS += -L../../ecm_install/lib/
     else
         ifeq ($(KNL),1)
+			OBJ_EXT = .ko
             INC += -I../../gmp_install/gmp-6.2.0-knl/include
             LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
             INC += -I../../ecm_install_gmp620_knl/include/
@@ -153,9 +154,9 @@ ifeq ($(NFS),1)
 		LIBS += -L../msieve/
 	else
         ifeq ($(COMPILER),icc)
-            LIBS += -L../msieve/lib/linux
+            LIBS += -L../../msieve/lib/linux
         else
-            LIBS += -L../msieve/lib/linux/gcc73/
+            LIBS += -L../../msieve/lib/linux/gcc73/
         endif
 	endif
 	LIBS += -lmsieve
@@ -172,7 +173,7 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /sppdg/scratch/buhrow/projects/gmp_install/gmp-6.2.0/lib/libgmp.a
+    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a
 else
     LIBS += -lecm -lgmp
 endif

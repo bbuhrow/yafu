@@ -292,7 +292,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	while (1)
 	{
-		//generate poly_a's until the residue is 'small enough'
+		// generate poly_a's until the residue is 'small enough'
 #ifdef POLYA_DEBUG
 		printf("*******new trial a********\n");
 #endif
@@ -302,7 +302,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		*s=0;
 		for (;;)
 		{
-			//randomly pick a new unique factor
+			// randomly pick a new unique factor
 			found_a_factor = 0;
 			while (!found_a_factor)
 			{
@@ -311,19 +311,19 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				//randindex = lower_polypool_index + 
 				//	(uint32)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);
 				potential_a_factor = fb->list->prime[randindex];
-				//make sure we haven't already randomly picked this one
+				// make sure we haven't already randomly picked this one
 				found_a_factor = 1;
-				for (j=0;j<*s;j++)
-				{
-					if (afact[j] == potential_a_factor)
-					{
-						found_a_factor = 0;
-						break;
-					}
-				}
+                for (j = 0; j < *s; j++)
+                {
+                    if (afact[j] == potential_a_factor)
+                    {
+                        found_a_factor = 0;
+                        break;
+                    }
+                }
 			}
 			
-			//build up poly_a
+			// build up poly_a
 			mpz_mul_ui(poly_a, poly_a, potential_a_factor); //zShortMul(poly_a,potential_a_factor,poly_a);
 #ifdef POLYA_DEBUG
 			printf("afactor %d = %u\n",*s,potential_a_factor);
@@ -331,11 +331,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			afact[*s]=potential_a_factor;
 			qli[*s] = randindex;
 			*s = *s + 1;
-			//compute how close we are to target_a
+			// compute how close we are to target_a
 			j = mpz_sizeinbase(target_a, 2) - mpz_sizeinbase(poly_a, 2);
 			if (j < too_close)
 			{
-				//too close, we want the last factor to be between 15 and 10 bits
+				// too close, we want the last factor to be between 15 and 10 bits
 #ifdef POLYA_DEBUG
 				printf("target_a too close for last factor\n");
 #endif
@@ -345,7 +345,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else if (j < (too_close + close_range))
 			{
-				//close enough to pick a last factor
+				// close enough to pick a last factor
 #ifdef POLYA_DEBUG
 				printf("picking last factor\n");
 #endif
@@ -353,7 +353,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 		}
 
-		//at this point, poly_a is too small by one factor, find the closest factor
+		// at this point, poly_a is too small by one factor, find the closest factor
 		mpz_set(tmp, target_a); 
 		mpz_tdiv_q(tmp2, tmp, poly_a);
 
@@ -370,31 +370,31 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		randindex = 0;
 		for (i=0;i<fb->small_B;i++)
 		{
-			if ((uint32)abs(a1 - fb->list->prime[i]) < mindiff)
-			{
-				mindiff = abs(a1 - fb->list->prime[i]);
-				randindex = i;
-			}
+            if ((uint32)abs(a1 - fb->list->prime[i]) < mindiff)
+            {
+                mindiff = abs(a1 - fb->list->prime[i]);
+                randindex = i;
+            }
 		}
-		//randindex should be the index of the best prime
-		//check to make sure it's unique
+		// randindex should be the index of the best prime
+		// check to make sure it's unique
 		found_a_factor = 0;
 		do
 		{
 			potential_a_factor = fb->list->prime[randindex];
-			//make sure we haven't already randomly picked this one
+			// make sure we haven't already randomly picked this one
 			found_a_factor = 1;
-			for (j=0;j<*s;j++)
-			{
-				if (afact[j] == potential_a_factor)
-				{
-					found_a_factor = 0;
-					break;
-				}
-			}
+            for (j = 0; j < *s; j++)
+            {
+                if (afact[j] == potential_a_factor)
+                {
+                    found_a_factor = 0;
+                    break;
+                }
+            }
 			if (!found_a_factor)
 			{
-				//this one is taken.  for now, just try the next bigger one
+				// this one is taken.  for now, just try the next bigger one
 				randindex++;
 			}
 		} while (!found_a_factor);
@@ -410,13 +410,13 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		mpz_mul_ui(poly_a, poly_a, fb->list->prime[randindex]); 
 #ifdef POLYA_DEBUG
         printf("afactor %d = %u\n", *s, fb->list->prime[randindex]);
-        printf("checking for duplicates...\n");
+        printf("checking for duplicate and size requirements...\n");
 #endif
 		afact[*s] = fb->list->prime[randindex];
 		qli[*s] = randindex;
 		*s = *s + 1;
 
-		//check if 'close enough'
+		// check if 'close enough'
 		mpz_sub(tmp, target_a, poly_a); 
 
 		if ((uint32)mpz_sizeinbase(tmp, 2) < target_bits)
@@ -434,9 +434,9 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 			if (found_a_factor)
 			{
-				//increase the target bound, so it is easier to find a factor.
-				//very rarely, inputs seem to generate many duplicates, and
-				//in that case we make it easier to find a non-duplicate
+				// increase the target bound, so it is easier to find a factor.
+				// very rarely, inputs seem to generate many duplicates, and
+				// in that case we make it easier to find a non-duplicate
 				if (target_bits > 1000)
 				{
 					printf("running away.  POLYPOOL bounds were: %u to %u (%d primes)\nkilling... \n",
@@ -459,13 +459,19 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			}
 			else break;
 			
-			//check that this poly has at least 2 factors different from all
-			//previous polys.  this requires all previous polys to be factored, since
-			//we don't store the factors, just the polya coefficient, but trial
-			//division is fast.
+			// check that this poly has at least 2 factors different from all
+			// previous polys.  this requires all previous polys to be factored, since
+			// we don't store the factors, just the polya coefficient, but trial
+			// division is fast.
 
 
 		}
+#ifdef POLYA_DEBUG
+        else
+        {
+            printf("poly not close enough to target\n");
+        }
+#endif
 	}
 
 done:
@@ -473,12 +479,6 @@ done:
 
 	if (VFLAG > 2)
 	{
-		printf("%d rels found: %d full + %d from %d partial\n",
-			sconf->num_r, sconf->num_relations,
-			sconf->num_cycles +
-			sconf->components - sconf->vertices,
-			sconf->num_cycles);
-
 		gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
 			(uint32)mpz_sizeinbase(target_a, 2), poly_a, (uint32)mpz_sizeinbase(poly_a, 2));
 	}
@@ -487,20 +487,23 @@ done:
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
 
-	//record this a in the list
+	// record this a in the list
 	sconf->poly_a_list = (mpz_t *)realloc(sconf->poly_a_list,
 		(sconf->total_poly_a + 1) * sizeof(mpz_t));
 	mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 	mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
     poly->index = sconf->total_poly_a;
 
-	//sort the indices of factors of 'a'
-	qsort(poly->qlisort,poly->s,sizeof(int),&qcomp_int);
+	// sort the indices of factors of 'a'
+	qsort(poly->qlisort, poly->s, sizeof(int), &qcomp_int);
+
+    // fill the remaining indices with foxes
 	memset(&poly->qlisort[poly->s], 255, (MAX_A_FACTORS - poly->s) * sizeof(int));	
 
-#ifdef POLYA_DEBUG
-		printf("done generating poly_a\n");
-#endif
+    if (VFLAG > 2)
+    {
+        printf("done generating poly_a with %d factors\n", poly->s);
+    }
 
 	return;
 }

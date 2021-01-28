@@ -637,6 +637,27 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					sconf->last_numpartial = sconf->num_r - sconf->num_relations;
 					sconf->last_numcycles = num_relations;
 
+                    double percent_complete =
+                        ((double)sconf->last_numfull + (double)sconf->last_numpartial) /
+                        (double)sconf->factor_base->B;
+
+                    if (percent_complete < 0.2)
+                    {
+                        sconf->check_total = 0.05 * sconf->factor_base->B;
+                    }
+                    else if (percent_complete < 0.33)
+                    {
+                        sconf->check_total = 0.03 * sconf->factor_base->B;
+                    }
+                    else if (percent_complete < 0.5)
+                    {
+                        sconf->check_total = 0.02 * sconf->factor_base->B;
+                    }
+                    else
+                    {
+                        sconf->check_total = 0.01 * sconf->factor_base->B;
+                    }
+
 					for (j = 0; j < num_cycles; j++)
 					{
 						free(cycle_list[j].cycle.list);
