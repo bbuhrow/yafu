@@ -25,6 +25,7 @@ code to the public domain.
 #include "arith.h"
 #include "util.h"
 #include "monty.h"
+#include "cmdOptions.h"
 
 //#define NO_ZLIB
 
@@ -314,7 +315,10 @@ typedef struct
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
 	double ecm_multiplier;
-	double ecm_tune_freq;		
+    double ecm_tune_freq;
+
+    uint32 rand_seed1;
+    uint32 rand_seed2;
 
 } ecm_obj_t;
 
@@ -542,10 +546,11 @@ typedef struct
 	uint32 allocated_factors;
 	int do_logging;
 	int refactor_depth;
+    options_t* options;
 
 } fact_obj_t;
 
-void init_factobj(fact_obj_t *fobj);
+void init_factobj(fact_obj_t *fobj, options_t *options);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void alloc_factobj(fact_obj_t *fobj);
@@ -628,7 +633,6 @@ void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);
 
 int sptestsqr(uint64 n);
 uint64 spfermat(uint64 n, uint64 limit);
-void spfactorlist(uint64 nstart, uint64 nrange);
 
 //auto factor routine
 void factor(fact_obj_t *fobj);

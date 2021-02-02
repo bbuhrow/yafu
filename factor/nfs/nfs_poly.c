@@ -835,7 +835,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	//create an msieve_obj.  for poly select, the intermediate output file should be specified in
 	//the savefile field
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
-		g_rand.low, g_rand.hi, (uint32)0,
+		fobj->seed1, fobj->seed2, (uint32)0,
 		obj->cpu, (uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 
 	//pointers to things that are static during poly select

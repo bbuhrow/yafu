@@ -147,7 +147,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 
 				// load the new fobj with this number
 				fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-				init_factobj(fobj_refactor);
+				init_factobj(fobj_refactor, fobj->options);
 				mpz_set(fobj_refactor->N, base);
 
 				// recurse on factor

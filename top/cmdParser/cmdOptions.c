@@ -77,90 +77,90 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
 char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): B1 bound of P-1 algorithm",
     "(Integer < 32-bit): B1 bound of P+1 algorithm",
-    "(Integer < 32-bit): B1 bound of ECM algorithm",
+    "(Integer < 64-bit): B1 bound of ECM algorithm",
     "(Integer < 32-bit): Iteration limit of Rho algorithm",
     "(Integer < 64-bit): B2 bound of P-1 algorithm",
     "(Integer < 64-bit): B2 bound of P+1 algorithm",
     "(Integer < 64-bit): B2 bound of ECM algorithm",
-    "",
-    "",
-    "", 
-    "", 
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    "",
-    "", 
-    "",
-    "",
-    "",
-    ""};
+    "(String)          : name of SIQS save file",
+    "(Integer < 32-bit): Size of SIQS factor base (number of primes)",
+    "(Integer < 32-bit): SIQS trial factoring bound", 
+    "(Integer < 32-bit): SIQS Number of relations to gather", 
+    "(Integer < 32-bit): SIQS timeout in seconds", 
+    "(Integer < 32-bit): SIQS Number of sieve blocks",
+    "(Integer < 32-bit): SIQS Large prime variation multiplier",
+    "(String)          : Name of factoring logfile",
+    "(String)          : Name of input batchfile",
+    "(Integer < 64-bit): Seed for RNG", 
+    "(Integer < 64-bit): ECM sigma",
+    "(String)          : Name of session logfile",
+    "(Integer < 32-bit): Number of threads",
+    "                  : Increase verbosity",
+    "                  : Set verbosity to -1 (no output)", 
+    "                  : Output primes to file primes.dat",
+    "                  : Output primes to screen",
+    "                  : Force use of DLP variation in SIQS",
+    "(Integer < 32-bit): Max iteration for Fermat factorization method",
+    "                  : Do not optimize small prime variation cutoff in SIQS", 
+    "                  : Verbose output of processor info",
+    "                  : Do not use ECM in factor()",
+    "(String)          : Directory containing ggnfs executables",
+    "(String)          : Input tuning information for SIQS/NFS crossover",
+    "(Floating point)  : ECM/NFS pretesting ratio: projected-difficulty * ratio = ECM depth", 
+    "(Floating point)  : SIQS/NFS crossover point (decimal digits)",
+    "                  : Stop after one factor found"
+    "(String)          : Filename where primes found during factor() are output",
+    "(String)          : Filename where factors found during factor() are output",
+    "(String)          : Filename where unfactored residues remaining after factor() are output",
+    "(String)          : ECM pretesting plan (light = 2/9, deep = 1/3, normal = 4/13, none, or custom (pretest_ratio)",
+    "(Integer < 32-bit): Only ECM pretest (no NFS or SIQS) to specified digit level",
+    "                  : For use with op, of, or ou, to output expressions",
+    "(String)          : NFS output filename",
+    "                  : Algebraic side GGNFS sieving", 
+    "                  : Rational side GGNFS sieving",
+    "(Integer < 32-bit): NFS sieving timeout in seconds",
+    "(String)          : NFS input jobfile name",
+    "(Start,Stop)      : Perform only sieving phase of NFS within specified 32-bit start,stop lattice Q's",
+    "(Start,Stop)      : Perform only poly-search phase of NFS within specified 32-bit start,stop leading coefficients",
+    "                  : Perform only post-processing phase of NFS, starting with filtering",
+    "(String)          : NFS poly-search methology ('deep', 'wide', 'fast', 'min', 'avg', or 'good')",
+    "                  : Resume NFS with an existing data/job file",
+    "(Integer < 32-bit): Range of leading coefficients to distribute to threads during NFS poly-search",
+    "(String)          : Path of GMP-ECM executable",
+    "(Integer < 32-bit): Version of GGNFS to use (11,12,13,14,15,16)",
+    "                  : Restart LA phase of NFS from an existing checkpoint",
+    "(Integer < 32-bit): Number of threads to use in LA (if different from -threads)",
+    "                  : Perform only LA phase of NFS",
+    "                  : Perform only SQRT post-processing phase of NFS",
+    "                  : Set yafu to idle priority",
+    "(Floating point)  : Input work level (prior ECM work to specified number of digits)",
+    "(Integer < 32-bit): Number of witnesses to use in Miller-Rabin PRP tests",
+    "(Integer < 64-bit): B1 bound crossover point for switching to external ECM executable",
+    "(Integer < 32-bit): Difficulty level above which SNFS testsieving is automatically performed to select best poly", 
+    "(String)          : Comma-delimited list of job files to GNFS test sieve", 
+    "(Integer < 32-bit): setting the threshold below which numbers are proved prime using APR-CL",
+    "(Integer < 32-bit): setting the threshold above which numbers that are proved prime using APR-CL have additional verbosity",
+    "(Floating point)  : If NFS filtering fails to produce a matrix, increment relations by specified percentage", 
+    "                  : Perform only filtering phase of NFS ",
+    "                  : Force GNFS instead of SNFS", 
+    "(String)          : Supplies expression to execution", 
+    "(Integer < 32-bit): Repeat input command line specified number of times",
+    "(Integer < 32-bit): Not currently implemented", 
+    "                  : Do not test clock speed when yafu initializes", 
+    "(Integer < 32-bit): SIQS small prime variation trial factoring bound",
+    "(String)          : Filename of script to execute", 
+    "(Integer < 32-bit): Not currently implemented",
+    "(Floating point)  : QS/SNFS crossover", 
+    "(Integer < 32-bit): Sieve of Eratosthenes block size in bytes", 
+    "                  : Force use of TLP variation in SIQS",
+    "(Integer < 32-bit): SIQS large prime bound, in bits (2^bits)",
+    "(Floating point)  : Exponent of SIQS DLP: attempt to split residues up to LPB^exponent",
+    "(Floating point)  : Exponent of SIQS TLP: attempt to split residues up to LPB^exponent",
+    "(Floating point)  : SIQS Batch Divisor: specifies max prime to include in batch GCD as divisor of max factorbase prime",
+    "(Integer < 32-bit): SIQS Batch Target: how many residues to batch before doing batch GCD", 
+    "                  : Uses external GMP-ECM instead of internal AVX-ECM", 
+    "                  : Create savefile with B1 residues in AVX-ECM",
+    "                  : Do not use SIQS Batch GCD" };
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -213,6 +213,19 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
 
 
 // ========================================================================
+int enforce_numeric(char* arg, char *opt)
+{
+    int i;
+    for (i = 0; i < (int)strlen(arg); i++)
+    {
+        if (!isdigit((int)arg[i]))
+        {
+            printf("expected numeric input for option %s\n", opt);
+            exit(1);
+        }
+    }
+    return 0;
+}
 
 
 // ========================================================================
@@ -222,7 +235,9 @@ void applyArg(char* arg, int argNum, options_t* options)
 {
     if (argNum == 0)
     {
-        strcpy(options->inputArg, arg);
+        options->inputExpr = (char*)realloc(options->inputExpr, 
+            strlen(arg) * sizeof(char));
+        strcpy(options->inputExpr, arg);
     }
 
     return;
@@ -234,28 +249,719 @@ void applyArg(char* arg, int argNum, options_t* options)
 // ========================================================================
 void applyOpt(char* opt, char* arg, options_t* options)
 {
-    if (strcmp(opt, options->OptionArray[0]) == 0)
+    int i;
+    char** ptr;
+
+    if (strcmp(opt, OptionArray[0]) == 0)
     {
-        options->optionInt = atoi(arg);
+        //"B1pm1"
+        enforce_numeric(arg, opt);
+        options->B1pm1 = strtoul(arg, ptr, 10);
     }
-    else if (strcmp(opt, options->OptionArray[1]) == 0)
+    else if (strcmp(opt, OptionArray[1]) == 0)
     {
-        if (arg == NULL)
+        //"B1pp1"
+        enforce_numeric(arg, opt);
+        options->B1pp1 = strtoul(arg, ptr, 10);
+    }
+    else if (strcmp(opt, OptionArray[2]) == 0)
+    {
+        //"B1ecm"
+        enforce_numeric(arg, opt);
+        options->B1ecm = strtoull(arg, ptr, 10);
+    }
+    else if (strcmp(opt, OptionArray[3]) == 0)
+    {
+        //"rhomax"
+        enforce_numeric(arg, opt);
+        options->rhomax = strtoul(arg, ptr, 10);
+    }
+    else if (strcmp(opt, OptionArray[4]) == 0)
+    {
+        //"B2pm1"
+        enforce_numeric(arg, opt);
+        options->B2pm1 = strtoull(arg, ptr, 10);
+        //fobj->pm1_obj.stg2_is_default = 0;
+    }
+    else if (strcmp(opt, OptionArray[5]) == 0)
+    {
+        // "B2pp1"
+        enforce_numeric(arg, opt);
+        options->B2pp1 = strtoull(arg, ptr, 10);
+        //fobj->pp1_obj.stg2_is_default = 0;
+    }
+    else if (strcmp(opt, OptionArray[6]) == 0)
+    {
+        // "B2ecm"
+        enforce_numeric(arg, opt);
+        options->B2ecm = strtoull(arg, ptr, 10);
+        //fobj->ecm_obj.stg2_is_default = 0;
+    }
+    else if (strcmp(opt, OptionArray[7]) == 0)
+    {
+        // qssave
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->qssave, arg);
+        else
+            printf("*** argument to savefile too long, ignoring ***\n");
+    }
+    else if (strcmp(opt, OptionArray[8]) == 0)
+    {
+        // siqsB
+        enforce_numeric(arg, opt);
+        options->siqsB = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_B_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[9]) == 0)
+    {
+        // siqsTF
+        enforce_numeric(arg, opt);
+        options->siqsTF = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_tf_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[10]) == 0)
+    {
+        // siqsR
+        enforce_numeric(arg, opt);
+        options->siqsR = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_rel_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[11]) == 0)
+    {
+        // siqsT
+        enforce_numeric(arg, opt);
+        options->siqsT = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_time_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[12]) == 0)
+    {
+        // siqsNB
+        enforce_numeric(arg, opt);
+        options->siqsNB = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_blocks_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[13]) == 0)
+    {
+        // siqsM
+        enforce_numeric(arg, opt);
+        options->siqsM = strtoul(arg, ptr, 10);
+        //fobj->qs_obj.gbl_override_lpmult_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[14]) == 0)
+    {
+        //argument is a string
+        if ((strlen(arg) == 0) || (strcmp(arg, "NUL") == 0) ||
+            (strcmp(arg, "NULL") == 0) || (strcmp(arg, "nul") == 0) ||
+            (strcmp(arg, "null") == 0))
         {
-            strcpy(options->optionStr, "This is the secondary default option string");
+            strcpy(options->factorlog, "");
+            //LOGFLAG = 0;
         }
         else
         {
-            strcpy(options->optionStr, arg);
+            if (strlen(arg) < MAXARGLEN)
+                strcpy(options->factorlog, arg);
+            else
+                printf("*** argument to logfile too long, ignoring ***\n");
         }
     }
-    else if (strcmp(opt, options->OptionArray[2]) == 0)
+    else if (strcmp(opt, OptionArray[15]) == 0)
     {
-        sscanf(arg, "%lf", &options->optionDbl);
+        //argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->batchfile, arg);
+            //USEBATCHFILE = 1;
+        }
+        else
+            printf("*** argument to batchfile too long, ignoring ***\n");
     }
-    else if (strcmp(opt, options->OptionArray[3]) == 0)
+    else if (strcmp(opt, OptionArray[16]) == 0)
     {
-        options->optionNoarg++;
+        //USERSEED = 1;
+        //sscanf(arg, "%u,%u", &g_rand.hi, &g_rand.low);
+        options->rand_seed = strtoull(arg, ptr, 10);
+    }
+    else if (strcmp(opt, OptionArray[17]) == 0)
+    {
+        enforce_numeric(arg, opt);
+        options->sigma = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[18]) == 0)
+    {
+        //argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->sessionlog, arg);
+        }
+        else
+        {
+            printf("*** argument to sessionname too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[19]) == 0)
+    {
+        enforce_numeric(arg, opt);
+        options->threads = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[20]) == 0)
+    {
+        options->verbosity++;
+    }
+    else if (strcmp(opt, OptionArray[21]) == 0)
+    {
+        options->verbosity = -1;
+    }
+    else if (strcmp(opt, OptionArray[22]) == 0)
+    {
+        options->pfile = 1;
+    }
+    else if (strcmp(opt, OptionArray[23]) == 0)
+    {
+        options->pscreen = 1;
+    }
+    else if (strcmp(opt, OptionArray[24]) == 0)
+    {
+        options->siqsForceDLP = 1;
+    }
+    else if (strcmp(opt, OptionArray[25]) == 0)
+    {
+        enforce_numeric(arg, opt);
+        options->fermat_max = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[26]) == 0)
+    {
+        options->no_opt = 1;
+    }
+    else if (strcmp(opt, OptionArray[27]) == 0)
+    {
+        options->vproc++;
+    }
+    else if (strcmp(opt, OptionArray[28]) == 0)
+    {
+        strcpy(options->fact_plan, "PRETEST_NOECM");
+    }
+    else if (strcmp(opt, OptionArray[29]) == 0)
+    {
+        //argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->ggnfs_dir, arg);
+        }
+        else
+        {
+            printf("*** argument to ggnfs_dir too long, ignoring ***\n");
+        }
+            
+    }
+    else if (strcmp(opt, OptionArray[30]) == 0)
+    {
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->tune_info, arg);
+        }
+        else
+        {
+            printf("*** argument to tune_info too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[31]) == 0)
+    {
+        //argument "pretest_ratio"
+        sscanf(arg, "%lf", &options->pretest_ratio);
+    }
+    else if (strcmp(opt, OptionArray[32]) == 0)
+    {
+        //argument "xover"
+        sscanf(arg, "%lf", &options->xover);
+        //fobj->nfs_obj.min_digits = fobj->autofact_obj.qs_gnfs_xover;
+        //fobj->autofact_obj.prefer_xover = 1;
+    }
+    else if (strcmp(opt, OptionArray[33]) == 0)
+    {
+        //argument "one"
+        options->one_factor = 1;
+    }
+    else if (strcmp(opt, OptionArray[34]) == 0)
+    {
+        //argument "op".  argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->opfile, arg);
+            //fobj->autofact_obj.want_output_primes = 1;
+        }
+        else
+        {
+            printf("*** argument to -op too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[35]) == 0)
+    {
+        //argument "of".  argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->offile, arg);
+            //fobj->autofact_obj.want_output_factors = 1;
+        }
+        else
+        {
+            printf("*** argument to -of too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[36]) == 0)
+    {
+        //argument "ou".  argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->oufile, arg);
+            //fobj->autofact_obj.want_output_unfactored = 1;
+        }
+        else
+        {
+            printf("*** argument to -ou too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[37]) == 0)
+    {
+        //argument "plan".  argument is a string
+        if (strlen(arg) < MAXARGLEN)
+        {
+            // test for recognized options.  
+            if (strcmp(arg, "none") == 0)
+                strcpy(options->fact_plan, "none");
+            else if (strcmp(arg, "noecm") == 0)
+                strcpy(options->fact_plan, "noecm");
+            else if (strcmp(arg, "light") == 0)
+                strcpy(options->fact_plan, "light");
+            else if (strcmp(arg, "deep") == 0)
+                strcpy(options->fact_plan, "deep");
+            else if (strcmp(arg, "normal") == 0)
+                strcpy(options->fact_plan, "normal");
+            else if (strcmp(arg, "custom") == 0)
+                strcpy(options->fact_plan, "custom");
+            else
+            {
+                printf("*** unknown plan option, ignoring ***\n");
+                strcpy(options->fact_plan, "normal");
+            }
+        }
+        else
+        {
+            printf("*** argument to -plan too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[38]) == 0)
+    {
+        //argument "pretest"
+        if (arg == NULL)
+        {
+            // no argument, use the value "1" to signify doing 
+            // pretesting to the bounds computed by factor()
+            options->pretest = 1;
+        }
+        else
+        {
+            // an optional argument to pretest is interpreted as
+            // a maximum t-level to pretest to
+            options->pretest = strtoul(arg, NULL, 10);
+        }
+    }
+    else if (strcmp(opt, OptionArray[39]) == 0)
+    {
+        //argument "no_expr"
+        options->want_output_expr = 0;
+    }
+    else if (strcmp(opt, OptionArray[40]) == 0)
+    {
+        //argument "o".  Indicates output filename ggnfs sieving.
+        //char* cptr;
+
+        if (strlen(arg) < MAXARGLEN)
+        {
+            //char tmp[MAXARGLEN];
+            strcpy(options->nfs_outfile, arg);
+
+            //strcpy(tmp, fobj->nfs_obj.outputfile);
+            //cptr = strchr(tmp, 46);
+            //if (cptr == NULL)
+            //{
+            //    //no . in provided filename
+            //    sprintf(fobj->nfs_obj.logfile, "%s.log", fobj->nfs_obj.outputfile);
+            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", fobj->nfs_obj.outputfile);
+            //}
+            //else
+            //{
+            //    cptr[0] = '\0';
+            //    sprintf(fobj->nfs_obj.logfile, "%s.log", tmp);
+            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", tmp);
+            //}
+        }
+        else
+        {
+            printf("*** argument to -o too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[41]) == 0)
+    {
+        //argument "a".  Indicates algebraic side special Q.
+        options->alg_side = 1;
+    }
+    else if (strcmp(opt, OptionArray[42]) == 0)
+    {
+        //argument "r".  Indicates rational side special Q.
+        //fobj->nfs_obj.sq_side = 0;
+       options->rat_side = 1;
+    }
+    else if (strcmp(opt, OptionArray[43]) == 0)
+    {
+        //argument "ggnfsT".  Indicates timeout (in seconds) for NFS job.
+        options->nfs_timeout = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[44]) == 0)
+    {
+        //argument "job".  Indicates input .job file automated NFS.
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->nfs_jobfile, arg);
+        }
+        else
+        {
+            printf("*** argument to -job too long, ignoring ***\n");
+        }
+    }
+    else if (strcmp(opt, OptionArray[45]) == 0)
+    {
+        //argument "ns".  do nfs sieving
+        char** nextptr = &arg;
+
+        
+        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
+
+        if (arg != NULL)
+        {
+            // if an argument was supplied, parse the start and range of 
+            //special Q in the format X,Y
+            options->sieveQstart = strtoul(arg, nextptr, 10);
+
+            if (*nextptr[0] != ',')
+            {
+                printf("format of sieving argument is START,STOP\n");
+                exit(1);
+            }
+            options->sieveQstop = strtoul(*nextptr + 1, NULL, 10);
+
+            //if (fobj->nfs_obj.startq >= fobj->nfs_obj.rangeq)
+            //{
+            //    printf("format of sieving argument is START,STOP; STOP must be > START\n");
+            //    exit(1);
+            //}
+            //fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
+        }
+        else
+        {
+            //fobj->nfs_obj.startq = 0;
+            //fobj->nfs_obj.rangeq = 0;
+            options->sieveQstart = 0;
+            options->sieveQstop = 0;
+        }
+
+    }
+    else if (strcmp(opt, OptionArray[46]) == 0)
+    {
+        char** nextptr = &arg;
+
+        //argument "np".  do poly finding.
+        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
+
+        if (arg != NULL)
+        {
+            // if an argument was supplied, parse the start and stop coefficient range in the
+            // format X,Y
+            options->polystart = strtoul(arg, nextptr, 10);
+
+            if (*nextptr[0] != ',')
+            {
+                printf("format of poly select argument is START,STOP\n");
+                exit(1);
+            }
+            options->polystop = strtoul(*nextptr + 1, NULL, 10);
+
+            //if (fobj->nfs_obj.polystart >= fobj->nfs_obj.polyrange)
+            //{
+            //    printf("format of poly select argument is START,STOP; STOP must be > START\n");
+            //    exit(1);
+            //}
+            //fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
+        }
+        else
+        {
+            options->polystart = 0;
+            options->polystop = 0;
+        }
+    }
+    else if (strcmp(opt, OptionArray[47]) == 0)
+    {
+        //argument "nc".  Do post processing, starting with filtering
+        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
+        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
+        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
+        options->nc = 1;
+    }
+    else if (strcmp(opt, OptionArray[48]) == 0)
+    {
+        //argument "psearch".  modify poly search methodology
+        if (strlen(arg) < MAXARGLEN)
+        {
+            strcpy(options->poly_method, arg);
+
+            if (strcmp(arg, "wide") == 0)
+                strcpy(options->poly_method, arg); // fobj->nfs_obj.poly_option = 1;
+            else if (strcmp(arg, "deep") == 0)
+                strcpy(options->poly_method, arg); //fobj->nfs_obj.poly_option = 2;
+            else if (strcmp(arg, "fast") == 0)
+                strcpy(options->poly_method, arg); //fobj->nfs_obj.poly_option = 0;
+            else if (strcmp(arg, "min") == 0)
+                strcpy(options->poly_method, arg); //fobj->nfs_obj.poly_option = 3;
+            else if (strcmp(arg, "avg") == 0)
+                strcpy(options->poly_method, arg); //fobj->nfs_obj.poly_option = 4;
+            else if (strcmp(arg, "good") == 0)
+                strcpy(options->poly_method, arg); //fobj->nfs_obj.poly_option = 5;
+            else
+            {
+                printf("option -psearch recognizes arguments 'deep', 'wide', 'fast', 'min', 'avg', or 'good'.\n  see docfile.txt for details\n");
+                exit(1);
+            }
+
+        }
+        else
+        {
+            printf("*** argument to -psearch too long, ignoring ***\n");
+        }
+
+    }
+    else if (strcmp(opt, OptionArray[49]) == 0)
+    {
+        //argument "R".  nfs restart flag
+        options->nfs_resume = 1;
+    }
+    else if (strcmp(opt, OptionArray[50]) == 0)
+    {
+        //argument "pbatch".  Indicates size of blocks of leading coefficients to
+        //distribute to each thread in threaded NFS poly selection.
+        options->poly_batch = strtoul(arg, NULL, 10);
+        //if (fobj->nfs_obj.polybatch == 0)
+        //    fobj->nfs_obj.polybatch = 250;
+    }
+    else if (strcmp(opt, OptionArray[51]) == 0)
+    {
+        // argument "ecm_path"
+        //argument is a string
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->ecm_path, arg);
+        else
+            printf("*** argument to ecm_path too long, ignoring ***\n");
+    }
+    else if (strcmp(opt, OptionArray[52]) == 0)
+    {
+        // argument "siever"
+        enforce_numeric(arg, opt);
+        options->ggnfs_siever = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[53]) == 0)
+    {
+        //argument "ncr".  linear algebra restart flag
+        options->ncr = 1;
+    }
+    else if (strcmp(opt, OptionArray[54]) == 0)
+    {
+        // argument "lathreads"
+        enforce_numeric(arg, opt);
+        options->lathreads = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[55]) == 0)
+    {
+        //argument "nc2".  do linear algebra.
+        options->nc2 = 1;
+    }
+    else if (strcmp(opt, OptionArray[56]) == 0)
+    {
+        //argument "nc3".  do nfs sqrt
+        options->nc3 = 1;
+    }
+    else if (strcmp(opt, OptionArray[57]) == 0)
+    {
+        //argument "p".  set to idle priority.
+        options->yafu_idle = 1;
+    }
+    else if (strcmp(opt, OptionArray[58]) == 0)
+    {
+        //argument "work"
+        sscanf(arg, "%lf", &options->work);
+    }
+    else if (strcmp(opt, OptionArray[59]) == 0)
+    {
+        //argument "nprp"
+        options->num_prp_witnesses = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[60]) == 0)
+    {
+        // argument "ext_ecm"
+        enforce_numeric(arg, opt);
+        options->ext_ecm_xover = strtoull(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[61]) == 0)
+    {
+        //argument "testsieve"
+        options->snfs_testsieve_threshold = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[62]) == 0)
+    {
+        // argument "nt"
+        if (arg == NULL)
+        {
+            printf("expected argument for option %s\n", opt);
+            exit(1);
+        }
+        else if (strlen(arg) < MAXARGLEN)
+        {
+            printf("*** argument to nt too long, ignoring ***\n");
+        }
+        else
+        {
+            strcpy(options->testsieve, arg);
+        }
+    }
+    else if (strcmp(opt, OptionArray[63]) == 0)
+    {
+        // argument "aprcl_p", setting the threshold below which numbers
+        // are proved prime using APR-CL
+        options->aprcl_p = strtoul(arg, NULL, 10);
+        //if (fobj->aprcl_prove_cutoff > 6021)
+        //{
+        //    printf("APR-CL primality proving is possible only for numbers less"
+        //        " than 6021 digits... setting limit to 6021 digits\n");
+        //    fobj->aprcl_prove_cutoff = 6021;
+        //}
+    }
+    else if (strcmp(opt, OptionArray[64]) == 0)
+    {
+        // argument "aprcl_d", setting the threshold above which numbers
+        // that are proved prime using APR-CL have additional verbosity enabled
+        options->aprcl_d = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[65]) == 0)
+    {
+        //argument "filt_bump"
+        sscanf(arg, "%lf", &options->filt_bump);
+        //fobj->nfs_obj.filter_min_rels_nudge = 1 + fobj->nfs_obj.filter_min_rels_nudge / 100;
+    }
+    else if (strcmp(opt, OptionArray[66]) == 0)
+    {
+        //argument "nc1".  do msieve filtering.
+        options->nc1 = 1;
+    }
+    else if (strcmp(opt, OptionArray[67]) == 0)
+    {
+        //argument "gnfs"
+        options->force_gnfs = 1;
+    }
+    else if (strcmp(opt, OptionArray[69]) == 0)			// NOTE: we skip -e because it is handled 
+    {													// specially by process_flags
+        //argument "repeat"
+        options->repeat = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[70]) == 0)
+    {
+        //argument "ecmtime"
+
+    }
+    else if (strcmp(opt, OptionArray[71]) == 0)
+    {
+        //argument "no_clk_test"
+        options->no_clk_test = 1;
+    }
+    else if (strcmp(opt, OptionArray[72]) == 0)
+    {
+        //argument "siqsTFSm"
+        options->siqsTFSm = atoi(arg);
+        //fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
+    }
+    else if (strcmp(opt, OptionArray[73]) == 0)
+    {
+        //argument "script"
+        sscanf(arg, "%s", options->scriptfile);
+    }
+    else if (strcmp(opt, OptionArray[74]) == 0)
+    {
+        //argument "degree"
+
+    }
+    else if (strcmp(opt, OptionArray[75]) == 0)
+    {
+        //argument "snfs_xover"
+        sscanf(arg, "%lf", &options->qs_snfs_xover);
+        //fobj->autofact_obj.prefer_xover = 1;
+    }
+    else if (strcmp(opt, OptionArray[76]) == 0)
+    {
+        //argument "soe_block"
+        options->soe_blocksize = strtoul(arg, NULL, 10);
+    }
+    else if (strcmp(opt, OptionArray[77]) == 0)
+    {
+        //argument "forceTLP"
+        options->siqsForceTLP = 1;
+    }
+    else if (strcmp(opt, OptionArray[78]) == 0)
+    {
+        //argument "siqsLPB"
+        // the maximum allowed large prime, in bits, in SIQS
+        sscanf(arg, "%d", &options->siqsLPB);
+    }
+    else if (strcmp(opt, OptionArray[79]) == 0)
+    {
+        //argument "siqsMFBD"
+        // the exponent of the large prime bound such that residues larger than
+        // lpb^siqsMFBD are subjected to double large prime factorization attempts
+        sscanf(arg, "%lf", &options->siqsMFBD);
+    }
+    else if (strcmp(opt, OptionArray[80]) == 0)
+    {
+        //argument "siqsMFBT"
+        // the exponent of the large prime bound such that residues larger than
+        // lpb^siqsMFBT are subjected to triple large prime factorization attempts
+        sscanf(arg, "%lf", &options->siqsMFBT);
+    }
+    else if (strcmp(opt, OptionArray[81]) == 0)
+    {
+        //argument "siqsBDiv"
+        // The divider of large_prime_max as the upper bound for
+        // primes to multiply when using batch GCD in TLP factorizations.
+        //fobj->qs_obj.gbl_override_bdiv_flag = 1;
+        sscanf(arg, "%lf", &options->siqsBDiv);
+    }
+    else if (strcmp(opt, OptionArray[82]) == 0)
+    {
+        //argument "siqsBT" ("Batch Target")
+        // How many relations to batch up before they are processed
+        sscanf(arg, "%u", &options->siqsBT);
+    }
+    else if (strcmp(opt, OptionArray[83]) == 0)
+    {
+        // argument "prefer_gmpecm"
+        options->prefer_gmpecm = 1;
+        //fobj->ecm_obj.ecm_ext_xover = 48000;
+    }
+    else if (strcmp(opt, OptionArray[84]) == 0)
+    {
+        //argument "save_b1"
+        options->saveB1 = 1;
+    }
+    else if (strcmp(opt, OptionArray[85]) == 0)
+    {
+        //argument "siqsNobat"
+        // Whether or not to use batch factoring in 3LP
+        options->siqsNobat = 1;
     }
     else
     {
@@ -294,24 +1000,138 @@ options_t* initOpt(void)
     // ========================================================================
     // define how many required and optional arguments there are
     options->numArguments = 1;
-    options->numRequired = 1;
+    options->numRequired = 0;
     // ========================================================================
 
 
     // ========================================================================
     // default values assigned to optional arguments here
-
+    options->inputExpr = (char*)malloc(MAXARGLEN * sizeof(char));
+    strcpy(options->inputExpr, "");
     // ========================================================================
 
 
     // ========================================================================
     // default values assigned to switches here:
-    options->optionNoarg = 0;
-    strcpy(options->optionStr, "This is the default option string");
-    options->optionInt = 42;
-    options->optionDbl = 299792458.0;
-    // ========================================================================
+    
+    // general options
+    options->yafu_idle = 0;
+    strcpy(options->factorlog, "factor.log");
+    strcpy(options->batchfile, "batchfile.txt");
+    strcpy(options->sessionlog, "session.log");
+    strcpy(options->scriptfile, "");
+    options->rand_seed = 0;
+    options->threads = 1;
+    options->verbosity = 0;
+    options->vproc = 0;
 
+    // autofact options
+    options->no_ecm = 0;
+    options->pretest_ratio = 4.0 / 13.0;
+    options->xover = 95;
+    options->one_factor = 0;
+    strcpy(options->opfile, "");
+    strcpy(options->offile, "");
+    strcpy(options->oufile, "");
+    strcpy(options->fact_plan, "normal");
+    options->pretest = 0;
+    options->want_output_expr = 1;
+    strcpy(options->tune_info, "");
+    
+    // nfs options
+    strcpy(options->nfs_outfile, "nfs.dat");
+    options->alg_side = 0;
+    options->rat_side = 0;
+    options->nfs_timeout = 0;
+    strcpy(options->nfs_jobfile, "nfs.job");
+    options->sieveQstart = 0;
+    options->sieveQstop = 0;
+    options->polystart = 0;
+    options->polystop = 0;
+    options->nc = 0;
+    options->nc1 = 0;
+    options->nc2 = 0;
+    options->nc3 = 0;
+    options->ncr = 0;
+    options->lathreads = 1;
+    options->filt_bump = 5;
+    options->force_gnfs = 0;
+    options->qs_snfs_xover = 75;
+    strcpy(options->expr, "");
+    options->repeat = 0;
+    options->no_clk_test = 1;
+    options->snfs_testsieve_threshold = 160;
+    strcpy(options->testsieve, "");
+    strcpy(options->poly_method, "fast");
+    options->nfs_resume = 0;
+    options->poly_batch = 250;
+    options->ggnfs_siever = 0;
+    strcpy(options->ggnfs_dir, "");
+    
+    // prime finding options
+    options->soe_blocksize = 32768;
+    options->aprcl_p = 500;
+    options->aprcl_d = 200;
+    options->num_prp_witnesses = 1;
+    options->pfile = 0;
+    options->pscreen = 0;
+
+    // siqs options
+    strcpy(options->qssave, "siqs.dat");
+    options->siqsB = 0;
+    options->siqsTF = 0;
+    options->siqsR = 0;
+    options->siqsT = 0;
+    options->siqsNB = 0;
+    options->siqsM = 0;
+    options->siqsForceDLP = 0;
+    options->siqsTFSm = 0;
+    options->siqsNobat = 0;
+    options->siqsForceTLP = 0;
+    options->siqsLPB = 0;
+    options->siqsMFBD = 1.85;
+    options->siqsMFBT = 2.9;
+    options->siqsBDiv = 3.0;
+    // larger batches of relations in TLP are more efficient
+    // to run in the batch GCD:
+    // 100k: 11314 rels/sec 
+    // 500k: 19230 rels/sec
+    // 1000k: 25784 rels/sec
+    // but there are a couple tradeoffs.  One, the GCD uses
+    // more memory and two, it both takes longer to gather
+    // the batch and the processing takes longer.  These two
+    // issues can significantly extend runtimes toward the
+    // end of a factorization when not many more relations are
+    // needed and when the cycle formation rate is very high.
+    // so we start this out fairly high and gradually decrease it.
+    options->siqsBT = 1000000;
+    options->no_opt = 0;
+
+    // ecm options
+    strcpy(options->ecm_path, "");
+    options->work = 0;
+    options->sigma = 0;
+    // if we can use AVX-ECM, do so, and save B1 checkpoints.
+#ifdef USE_AVX512F
+    options->prefer_gmpecm = 0;
+    options->saveB1 = 1;
+    options->ext_ecm_xover = 40000000;
+#else
+    options->prefer_gmpecm = 1;
+    options->saveB1 = 0;
+    options->ext_ecm_xover = 48000;
+#endif
+    options->B1pm1 = 100000;
+    options->B1pp1 = 20000;
+    options->B1ecm = 11000;
+    options->rhomax = 1000;
+    options->B2pm1 = 0;
+    options->B2pp1 = 0;
+    options->B2ecm = 0;
+    options->fermat_max = 1000000;
+    
+    
+    // ========================================================================
     return options;
 }
 
@@ -513,5 +1333,77 @@ void printUsage(options_t* options)
             }
         }
     }
+    return;
+}
+
+// ========================================================================
+// this function should not need to be changed:
+// parse options from a .ini (or other) file.
+// ========================================================================
+void readINI(const char* filename, options_t* options)
+{
+    FILE* doc;
+    char* str;
+    char* key;
+    char* value;
+    int len;
+
+    doc = fopen(filename, "r");
+
+    if (doc == NULL)
+    {
+        printf("warning: could not open %s, no options parsed\n", filename);
+        return;
+    }
+
+    str = (char*)malloc(1024 * sizeof(char));
+    while (fgets(str, 1024, doc) != NULL)
+    {
+        //if first character is a % sign, skip this line.
+        if (str[0] == '%')
+            continue;
+
+        //if first character is a blank, skip this line.
+        if (str[0] == ' ')
+            continue;
+
+        //if last character of line is newline, remove it
+        do
+        {
+            len = strlen(str);
+            if (str[len - 1] == 10)
+                str[len - 1] = '\0';
+            else if (str[len - 1] == 13)
+                str[len - 1] = '\0';
+            else
+                break;
+        } while (len > 0);
+
+        //if line is now blank, skip it.
+        if (strlen(str) == 0)
+            continue;
+
+        //read keyword by looking for an equal sign
+        key = strtok(str, "=");
+
+        if (key == NULL)
+        {
+            // no longer insist on having an argument
+            key = str;
+            value = NULL;
+        }
+        else
+        {
+            //read value
+            value = strtok((char*)0, "=");
+        }
+
+        //apply the option... same routine command line options use
+        applyOpt(key, value, options);
+    }
+
+    fclose(doc);
+    free(str);
+
     return;
 }

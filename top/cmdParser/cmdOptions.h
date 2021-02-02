@@ -35,6 +35,8 @@ SOFTWARE.
 extern "C" {
 #endif
 
+#include <stdint.h>
+
     // the number of recognized command line options
 #define NUMOPTIONS 86
 // maximum length of command line option strings
@@ -70,7 +72,7 @@ typedef struct
 
     // ========================================================================
     // These variables define the required and optional arguments
-    char inputArg[MAXARGLEN];
+    char *inputExpr;
     // ========================================================================
 
 
@@ -78,10 +80,104 @@ typedef struct
     // These variables define things that change program behavior and can be
     // set via command line switches.  I.e., these need a "-" or "--" in
     // front of them on the command line... add items here as necessary
-    int optionInt;
-    char optionStr[MAXARGLEN];
-    double optionDbl;
-    int optionNoarg;
+
+    // general options
+    uint64_t rand_seed;
+    char sessionlog[MAXARGLEN];
+    uint32_t threads;
+    uint32_t verbosity;
+    uint32_t vproc;
+    char tune_info[MAXARGLEN];
+    uint32_t yafu_idle;
+    char expr[MAXARGLEN];
+    char scriptfile[MAXARGLEN];
+    uint32_t repeat;
+    uint32_t no_clk_test;
+
+    // qs options
+    uint32_t siqsB;
+    uint32_t siqsTF;
+    uint32_t siqsTFSm;
+    uint32_t siqsNobat;
+    uint32_t siqsR;
+    uint32_t siqsT;
+    uint32_t siqsNB;
+    uint32_t siqsM;
+    uint32_t siqsForceDLP;
+    uint32_t siqsForceTLP;
+    uint32_t siqsLPB;
+    uint32_t siqsBT;
+    double siqsMFBD;
+    double siqsMFBT;
+    double siqsBDiv;
+    uint32_t no_opt;
+    char factorlog[MAXARGLEN];
+    char batchfile[MAXARGLEN];
+    char qssave[MAXARGLEN];
+
+    // nfs options
+    char ggnfs_dir[MAXARGLEN];
+    char nfs_outfile[MAXARGLEN];
+    char nfs_jobfile[MAXARGLEN];
+    char poly_method[MAXARGLEN];
+    char testsieve[MAXARGLEN];
+    uint32_t nfs_resume;
+    uint32_t poly_batch;
+    uint32_t sieveQstart, sieveQstop;
+    uint32_t polystart, polystop;
+    double filt_bump;
+    uint32_t ggnfs_siever;
+    uint32_t lathreads;
+    uint32_t nc;
+    uint32_t nc1;
+    uint32_t nc2;
+    uint32_t nc3;
+    uint32_t ncr;
+    uint32_t alg_side;
+    uint32_t rat_side;
+    uint32_t nfs_timeout;
+    uint32_t force_gnfs;
+
+    // ecm/pp1/pm1/rho/tdiv options
+    uint32_t B1pm1;
+    uint32_t B1pp1;
+    uint64_t B1ecm;
+    uint32_t rhomax;
+    uint64_t B2pm1;
+    uint64_t B2pp1;
+    uint64_t B2ecm;
+    uint64_t sigma;
+    uint32_t fermat_max;
+    uint32_t saveB1;
+    char ecm_path[MAXARGLEN];
+    uint32_t prefer_gmpecm;
+
+    // autofactor options
+    uint32_t no_ecm;
+    double pretest_ratio;
+    double xover;
+    uint32_t one_factor;
+    char opfile[MAXARGLEN];
+    char offile[MAXARGLEN];
+    char oufile[MAXARGLEN];
+    char fact_plan[MAXARGLEN];
+    uint32_t pretest;
+    uint32_t want_output_expr;
+    uint64_t ext_ecm_xover;
+    uint32_t snfs_testsieve_threshold;
+    double work;
+    double qs_snfs_xover;
+    
+
+    // prime finding options
+    uint32_t pfile;
+    uint32_t pscreen;
+    uint32_t num_prp_witnesses;
+    uint32_t aprcl_p;
+    uint32_t aprcl_d;
+    uint32_t soe_blocksize;
+
+
     // ========================================================================
 
 } options_t;
@@ -89,7 +185,7 @@ typedef struct
 extern options_t* initOpt(void);
 extern void applyOpt(char* opt, char* arg, options_t* options);
 extern int processOpts(int argc, char** argv, options_t* options);
-
+extern void readINI(const char* filename, options_t* options);
 
 
 #ifdef __cplusplus

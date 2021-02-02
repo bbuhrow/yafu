@@ -134,7 +134,7 @@ void pollard_loop(fact_obj_t *fobj)
 
 	if (is_mpz_prp(fobj->pm1_obj.gmp_n))
 	{
-		logprint(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n),
+		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n),
 			mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_n));
 
 		add_to_factor_list(fobj, fobj->pm1_obj.gmp_n);

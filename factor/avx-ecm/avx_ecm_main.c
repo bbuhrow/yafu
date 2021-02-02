@@ -500,6 +500,8 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
 
 	gettimeofday(&stopt, NULL);
 
+    rand_t rnum;
+    get_random_seeds(&rnum);
     for (i = 0; i < threads; i++)
     {
         int j;
@@ -510,7 +512,8 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         // each thread gets a random LCG state that folds in the current pid,
         // this session's rand_t, and the current microsecond timer.  Plus the
         // thread id to make it unique per-thread.
-		tdata[i].lcg_state = hash64(stopt.tv_usec + i) + hash64(pid) + hash64(g_rand.low); // 
+		tdata[i].lcg_state = hash64(stopt.tv_usec) + hash64(pid) + hash64(i+1) + 
+            rnum.low + (uint64)rnum.hi << 32;
         tdata[i].total_threads = threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;

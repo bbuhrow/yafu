@@ -167,12 +167,13 @@ void ecm_start_fcn(tpool_t *ptr)
     tpool_t *tpool = (tpool_t *)ptr;
     ecm_thread_data_t *udata = (ecm_thread_data_t *)tpool->user_data;
     ecm_thread_data_t *tdata = &udata[tpool->tindex];
-
+    
     //initialize everything for all threads using GMP-ECM
     mpz_init(tdata->gmp_n);
     mpz_init(tdata->gmp_factor);
     ecm_init(tdata->params);
-    gmp_randseed_ui(tdata->params->rng, get_rand(&g_rand.low, &g_rand.hi));
+    gmp_randseed_ui(tdata->params->rng,
+        get_rand(&tdata->fobj->ecm_obj.rand_seed1, &tdata->fobj->ecm_obj.rand_seed2));
     mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
     tdata->curves_run = 0;
@@ -638,11 +639,12 @@ void ecm_process_free(fact_obj_t *fobj)
 
 void ecm_thread_init(ecm_thread_data_t *tdata)
 {
-    //initialize everything for all threads using GMP-ECM
+    // initialize everything for all threads using GMP-ECM
     mpz_init(tdata->gmp_n);
     mpz_init(tdata->gmp_factor);
     ecm_init(tdata->params);
-    gmp_randseed_ui(tdata->params->rng, get_rand(&g_rand.low, &g_rand.hi));
+    gmp_randseed_ui(tdata->params->rng, 
+        get_rand(&tdata->fobj->ecm_obj.rand_seed1, &tdata->fobj->ecm_obj.rand_seed2));
     mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
     tdata->curves_run = 0;
@@ -672,7 +674,7 @@ void ecm_thread_free(ecm_thread_data_t *tdata)
 
 void *ecm_do_one_curve(void *ptr)
 {
-	//unpack the data structure and stuff inside it
+	// unpack the data structure and stuff inside it
     tpool_t *tpool = (tpool_t *)ptr;
     ecm_thread_data_t *udata = (ecm_thread_data_t *)tpool->user_data;
     ecm_thread_data_t *thread_data = &udata[tpool->tindex];

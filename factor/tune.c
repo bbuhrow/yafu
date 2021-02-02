@@ -4,6 +4,7 @@
 #include "qs.h"
 #include "gnfs.h"
 #include "gmp_xface.h"
+#include "cmdOptions.h"
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 9
@@ -123,7 +124,8 @@ void factor_tune(fact_obj_t *inobj)
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-		init_factobj(fobj);		
+        options_t* options = initOpt();
+		init_factobj(fobj, options);
 
 		// measure how long it takes to gather a fixed number of relations 		
 		str2hexz(siqslist[i],&n);

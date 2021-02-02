@@ -25,6 +25,7 @@ code to the public domain.
 #include "factor.h"
 #include "monty.h"
 #include "cofactorize.h"
+#include "cmdOptions.h"
 #include <ecm.h>
 
 void test_dlp_composites_par()
@@ -529,9 +530,9 @@ tinyecm_start:
 
 	
 
-
+    options_t* options = initOpt();
 	fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj2);
+	init_factobj(fobj2, options);
 
 
 	mpz_init(gmptmp);

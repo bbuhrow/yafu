@@ -192,7 +192,7 @@ void nfs(fact_obj_t *fobj)
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-				fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+				fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
 				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 			fobj->nfs_obj.mobj = obj;
 
@@ -432,7 +432,7 @@ void nfs(fact_obj_t *fobj)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
 						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, nfs_args);
 				}
 
@@ -490,7 +490,7 @@ void nfs(fact_obj_t *fobj)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-						fobj->nfs_obj.fbfile, g_rand.low, g_rand.hi, (uint32)0, cpu,
+						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
 						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
 				}
 

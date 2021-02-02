@@ -570,7 +570,7 @@ void SIQS(fact_obj_t *fobj)
 	{
 		logprint(sieve_log, "starting SIQS on c%d: %s\n", fobj->digits,
 			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
-		logprint(sieve_log, "random seeds: %u, %u\n", g_rand.hi, g_rand.low);
+		logprint(sieve_log, "random seed: %" PRIu64 "\n", fobj->options->rand_seed);
 		fflush(sieve_log);
 	}
 
@@ -1893,10 +1893,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
     dconf->mdata = monty_alloc();
 
-    dconf->fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-    init_factobj(dconf->fobj2);
-
+    // ?? can't remember what this was for but it's no longer needed.
+    //dconf->fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+    //init_factobj(dconf->fobj2, sconf->obj->options);
+    // also not needed, except for maybe with mingw?
+#if defined(__MINGW64__)
     dconf->cosiqs = init_tinyqs();
+#endif
 
     dconf->batch_run_override = 0;
 

@@ -31,6 +31,7 @@ code to the public domain.
 #include <termios.h>
 #endif
 
+/*
 // the number of recognized command line options
 #define NUMOPTIONS 86
 // maximum length of command line option strings
@@ -82,9 +83,12 @@ int needsArg[NUMOPTIONS] = {
     1,1,0,1,1,
     1,1,1,0,0,
     0 };
+    */
+
+#include "cmdOptions.h"
+
 
 // function to read the .ini file and populate options
-void readINI(fact_obj_t *fobj);
 void apply_tuneinfo(fact_obj_t *fobj, char *arg);
 
 // functions to populate the global options with default values, and to free
@@ -105,9 +109,9 @@ void finalize_batchline();
 int exp_is_open(char *line, int firstline);
 
 // functions to process all incoming arguments
-int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
-void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression);
+//int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
+//void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
+//unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression);
 char * get_input(char *input_exp, uint32 *insize);
 
 #if defined(__unix__)
@@ -128,6 +132,7 @@ int main(int argc, char *argv[])
     FILE *scriptfile = NULL;
 	fact_obj_t *fobj;
     int firstline = 1;
+    options_t *options;
 
 #if defined(__unix__)
 	int i;
@@ -153,15 +158,21 @@ int main(int argc, char *argv[])
 	strcpy(input_exp,"");
     strcpy(input_line, "");
 	
-	// set defaults for various things
+	// set defaults for various things and read the .ini file, if any.
 	set_default_globals();
+    options = initOpt();
+    readINI("yafu.ini", options);
+
+    // then process the command line, overriding any .ini settings.
+    processOpts(argc, argv, options);
+    VFLAG = options->verbosity;
+    THREADS = options->threads;
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
-	// this is not used.  the factor object must be initialized prior to parsing
-	// input options in order to make those options stick.
+	// this is not used.  initialize and pass in all of the options.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj);	
+	init_factobj(fobj, options);
 
 #if !defined( TARGET_KNC )
     //get the computer name, cache sizes, etc.  store in globals
@@ -169,10 +180,6 @@ int main(int argc, char *argv[])
     // any tune_info lines are applied correctly.
     get_computer_info(CPU_ID_STR);
 #endif
-
-    // now check for an .ini file, which will override these defaults
-    // command line arguments will override the .ini file
-    readINI(fobj);
 
 #if !defined( TARGET_KNC )
     // now that we've processed arguments, spit out vproc info if requested
@@ -187,8 +194,18 @@ int main(int argc, char *argv[])
 #endif
 
 	//check/process input arguments
-	is_cmdline_run = process_arguments(argc, argv, &input_exp, fobj);
-    strcpy(input_line, input_exp);
+	//is_cmdline_run = process_arguments(argc, argv, &input_exp, fobj);
+    if (strlen(options->inputExpr) > 0)
+    {
+        is_cmdline_run = 1;
+    }
+    else
+    {
+        is_cmdline_run = 0;
+    }
+
+    strcpy(input_line, options->inputExpr); // input_exp);
+    strcpy(input_exp, options->inputExpr);
 
 	if (is_cmdline_run == 2)
 	{
@@ -249,32 +266,25 @@ int main(int argc, char *argv[])
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(is_cmdline_run, logfile, CPU_ID_STR);	
 	
-	//start the calculator
-	//right now this just allocates room for user variables
+	// start the calculator
+	// right now this just allocates room for user variables
 	calc_init();				
 		
-	if (USERSEED)
-	{
-		logprint(logfile,"User random seed:  %u\n\n",g_rand.low);
-	}
-	else
-	{		
-		logprint(logfile,"New random seeds: %u, %u\n\n",g_rand.hi,g_rand.low);
-	}
+	logprint(logfile,"Random seed: %" PRIu64 "\n\n", options->rand_seed);
 	fflush(logfile);
 
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
 	
-	srand(g_rand.low);
+    srand((unsigned int)options->rand_seed);
 	gmp_randinit_default(gmp_randstate);
-	gmp_randseed_ui(gmp_randstate, g_rand.low);
+	gmp_randseed_ui(gmp_randstate, (unsigned int)options->rand_seed);
 
 #if BITS_PER_DIGIT == 64
-	LCGSTATE = (uint64)g_rand.hi << 32 | (uint64)g_rand.low;
+	LCGSTATE = options->rand_seed;
 #else
-    LCGSTATE = g_rand.low;
+    LCGSTATE = (uint32)options->rand_seed;
 #endif	
 
 	// command line
@@ -687,7 +697,8 @@ char * get_input(char *input_exp, uint32 *insize)
     return input_exp;
 }
 
-void readINI(fact_obj_t *fobj)
+/*
+void readINIold(fact_obj_t *fobj)
 {
 	FILE *doc;
 	char *str;
@@ -773,6 +784,7 @@ void readINI(fact_obj_t *fobj)
 
 	return;
 }
+*/
 
 void helpfunc(char *s)
 {
@@ -1013,6 +1025,7 @@ void prepare_batchfile(char *input_exp)
 	return;
 }
 
+/*
 int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 {
 	int is_cmdline_run=0;
@@ -1149,6 +1162,7 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
 	return is_cmdline_run;
 
 }
+*/
 
 void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 {
@@ -1372,9 +1386,6 @@ void set_default_globals(void)
 	P_MIN = 0; 
 	P_MAX = PRIMES[(uint32)NUM_P-1];
 
-	// random seeds
-	get_random_seeds(&g_rand);	
-
 	return;
 }
 
@@ -1566,6 +1577,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	return input_exp;;
 }
 
+/*
 unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression)
 {
     int ch = 0, i,j,valid;
@@ -1692,7 +1704,7 @@ unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expressio
     return 1;
 }
 
-void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
+void applyOptold(char *opt, char *arg, fact_obj_t *fobj)
 {
 	char **ptr;
 	int i;
@@ -2582,6 +2594,7 @@ void applyOpt(char *opt, char *arg, fact_obj_t *fobj)
 	zFree(&tmp);
 	return;
 }
+*/
 
 void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 {

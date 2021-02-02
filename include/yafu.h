@@ -167,7 +167,6 @@ char scriptname[1024];
 int NO_CLK_TEST;
 
 // random numbers - used everywhere
-rand_t g_rand;
 gmp_randstate_t gmp_randstate;
 uint64 LCGSTATE;
 

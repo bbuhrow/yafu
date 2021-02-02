@@ -23,7 +23,7 @@ CC = gcc-7.3.0
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/ -I../msieve/zlib
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib
 BINNAME = yafu
 
 
@@ -227,6 +227,7 @@ YAFU_SRCS = \
 	top/calc.c \
 	top/test.c \
 	top/aprcl/mpz_aprcl.c \
+	top/cmdParser/cmdOptions.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -375,7 +376,8 @@ HEAD = include/yafu.h  \
     include/prime_sieve.h \
     include/batch_factor.h \
     include/cofactorize.h \
-    factor/avx-ecm/avx_ecm.h
+    factor/avx-ecm/avx_ecm.h \
+	top/cmdParser/cmdOptions.h
 
 ifeq ($(USE_AVX2),1)
 
