@@ -31,62 +31,7 @@ code to the public domain.
 #include <termios.h>
 #endif
 
-/*
-// the number of recognized command line options
-#define NUMOPTIONS 86
-// maximum length of command line option strings
-#define MAXOPTIONLEN 20
-
-// command line options visible to driver.c
-char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
-    "B1pm1", "B1pp1", "B1ecm", "rhomax", "B2pm1",
-    "B2pp1", "B2ecm", "qssave", "siqsB", "siqsTF",
-    "siqsR", "siqsT", "siqsNB", "siqsM", "logfile",
-    "batchfile", "seed", "sigma", "session", "threads",
-    "v", "silent", "pfile", "pscreen", "forceDLP",
-    "fmtmax", "noopt", "vproc", "noecm", "ggnfs_dir",
-    "tune_info", "pretest_ratio", "xover", "one", "op",
-    "of", "ou", "plan", "pretest", "no_expr",
-    "o", "a", "r", "ggnfsT", "job",
-    "ns", "np", "nc", "psearch", "R",
-    "pbatch", "ecm_path", "siever", "ncr", "lathreads",
-    "nc2", "nc3", "p", "work", "nprp",
-    "ext_ecm", "testsieve", "nt", "aprcl_p", "aprcl_d",
-    "filt_bump", "nc1", "gnfs", "e", "repeat",
-    "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
-    "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
-    "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat" };
-
-
-// indication of whether or not an option needs a corresponding argument.
-// needs to be the same length as the above two arrays.
-// 0 = no argument
-// 1 = argument required
-// 2 = argument optional
-int needsArg[NUMOPTIONS] = {
-    1,1,1,1,1,
-    1,1,1,1,1,
-    1,1,1,1,1,
-    1,1,1,1,1,
-    0,0,0,0,0,
-    1,0,0,0,1,
-    1,1,1,0,1,
-    1,1,1,2,0,
-    1,0,0,1,1,
-    2,2,0,1,0,
-    1,1,1,0,1,
-    0,0,0,1,1,
-    1,1,1,1,1,
-    1,0,0,1,1,
-    1,0,1,1,1,
-    1,1,0,1,1,
-    1,1,1,0,0,
-    0 };
-    */
-
 #include "cmdOptions.h"
-
 
 // function to read the .ini file and populate options
 void apply_tuneinfo(fact_obj_t *fobj, char *arg);
@@ -109,9 +54,7 @@ void finalize_batchline();
 int exp_is_open(char *line, int firstline);
 
 // functions to process all incoming arguments
-//int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj);
-//void applyOpt(char *opt, char *arg, fact_obj_t *fobj);
-//unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression);
+int check_expression(options_t *options);
 char * get_input(char *input_exp, uint32 *insize);
 
 #if defined(__unix__)
@@ -165,8 +108,11 @@ int main(int argc, char *argv[])
 
     // then process the command line, overriding any .ini settings.
     processOpts(argc, argv, options);
+
+    // some things go into globals, but this is being phased out
     VFLAG = options->verbosity;
     THREADS = options->threads;
+    CMD_LINE_REPEAT = options->repeat;
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -193,19 +139,24 @@ int main(int argc, char *argv[])
 #endif
 #endif
 
-	//check/process input arguments
-	//is_cmdline_run = process_arguments(argc, argv, &input_exp, fobj);
-    if (strlen(options->inputExpr) > 0)
+	// check/process input arguments
+	is_cmdline_run = check_expression(options);
+    if (is_cmdline_run == 3)
     {
+        // a default function applied to text that has no other function.
+        int len = strlen(options->inputExpr) + 9;
+        options->inputExpr = (char*)xrealloc(options->inputExpr, len);
+        input_exp = (char*)xrealloc(input_exp, len);
+        sprintf(input_exp, "factor(%s)", options->inputExpr);
+        strcpy(options->inputExpr, input_exp);
+        strcpy(input_line, options->inputExpr);
         is_cmdline_run = 1;
     }
     else
     {
-        is_cmdline_run = 0;
+        strcpy(input_line, options->inputExpr);
+        strcpy(input_exp, options->inputExpr);
     }
-
-    strcpy(input_line, options->inputExpr); // input_exp);
-    strcpy(input_exp, options->inputExpr);
 
 	if (is_cmdline_run == 2)
 	{
@@ -218,7 +169,7 @@ int main(int argc, char *argv[])
 	{
 		prepare_batchfile(input_exp);		
 		
-		//batchfile jobs are command line in nature
+		// batchfile jobs are command line in nature
 		is_cmdline_run = 1;		
 	}
 
@@ -236,13 +187,17 @@ int main(int argc, char *argv[])
         }
     }
 
-	if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))	
-		strcpy(indup,input_exp);	//remember the input expression
+    if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))
+    {
+        strcpy(indup, input_exp);	//remember the input expression
+    }
 
 	//never run silently when run interactively, else the results of
 	//calculations will never be displayed.
-	if (!is_cmdline_run && VFLAG < 0)
-		VFLAG = 0;
+    if (!is_cmdline_run && VFLAG < 0)
+    {
+        VFLAG = 0;
+    }
 
 	//session log
     if (LOGFLAG)
@@ -434,8 +389,10 @@ int main(int argc, char *argv[])
         fclose(scriptfile);
     }
 
-	if (slog)
-		fclose(logfile);
+    if (slog)
+    {
+        fclose(logfile);
+    }
 
 	calc_finalize();
 	free_globals();	
@@ -445,6 +402,7 @@ int main(int argc, char *argv[])
 	free_factobj(fobj);
 	free(fobj);      
     sFree(&input_str);
+    free(options->inputExpr);
 
 #if defined(__unix__)
     for (i = 0; i < CMDHIST_SIZE; i++)
@@ -697,95 +655,6 @@ char * get_input(char *input_exp, uint32 *insize)
     return input_exp;
 }
 
-/*
-void readINIold(fact_obj_t *fobj)
-{
-	FILE *doc;
-	char *str;
-	char *key;
-	char *value;
-	int len;
-
-	doc = fopen("yafu.ini","r");
-
-	if (doc == NULL)
-		return;
-
-	str = (char *)malloc(1024*sizeof(char));
-	while (fgets(str,1024,doc) != NULL)
-	{
-        //linenum++;
-        //printf("line %d length %d: %s", linenum, strlen(str), str);
-
-		//if first character is a % sign, skip this line.
-		if (str[0] == '%')
-			continue;
-
-        //if first character is a blank, skip this line.
-        if (str[0] == ' ')
-            continue;
-
-		//if last character of line is newline, remove it
-		do 
-		{
-			len = strlen(str);
-			if (str[len - 1] == 10)
-				str[len - 1] = '\0';
-			else if (str[len - 1] == 13)
-				str[len - 1] = '\0';
-			else
-				break;
-		} while (len > 0);
-
-        //if line is now blank, skip it.
-        if (strlen(str) == 0)
-            continue;
-
-
-		//read keyword by looking for an equal sign
-		key = strtok(str,"=");
-
-		if (key == NULL)
-		{
-            // no longer insist on having an argument
-            key = str;
-            value = NULL;
-
-            //printf("applying option %s\n", key);
-			//printf("Invalid line in yafu.ini, use Keyword=Value pairs"
-			//	"See docfile.txt for valid keywords");
-			//continue;
-		}
-        else
-        {
-            //read value
-            value = strtok((char*)0, "=");
-            //printf("applying option %s=%s\n", key, value);
-        }
-
-        if (VFLAG > 1)
-        {
-            // you would have to list -v first to have this do anything
-            printf("applying option %s=%s\n", key, value);
-        }
-
-		//if (value == NULL)
-		//{
-		//	printf("expected value after keyword %s\n",key);
-		//	continue;
-		//}
-
-		//apply the option... same routine command line options use
-		applyOpt(key,value,fobj);
-	}
-
-	fclose(doc);
-	free(str);
-
-	return;
-}
-*/
-
 void helpfunc(char *s)
 {
 	//search the docfile for the right entry
@@ -1017,33 +886,29 @@ void prepare_batchfile(char *input_exp)
 	ptr = strchr(input_exp,'@');
 	if (ptr == NULL)
 	{
-		printf("missing variable indicator (@) in input expression\n");
-		printf("ignoring any input expression: interpreting batchfile lines as input expressions\n");
+		printf("no variable indicator (@): interpreting batchfile lines as input expressions\n");
 		sprintf(input_exp,"@");
 	}
 
 	return;
 }
 
-/*
-int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
+int check_expression(options_t* options)
 {
-	int is_cmdline_run=0;
+    int is_cmdline_run = 0;
 
-	// now check for and handle any incoming arguments, whatever
-	// their source.  
-	if (argc > 1)
-	{
-		// user input one or more arguments - process them
-		process_flags(argc-1, &argv[1], fobj, input_exp);
-	}
+    if (strlen(options->inputExpr) > 0)
+    {
+        // there was an expression on the command line.
+        is_cmdline_run = 1;
+    }
 
-	// we might have gotten an expression to execute with the above
-	// or we might not have.  And we also might have stuff in
-	// a pipe or redirect to work on.
-	// sort it out.
+    // now check for incoming pipes or redirects.  If we see one, ignore the
+    // command line expression and process the pipe/redirect.
 
-    // but it is more complicated, and broken, if running in a MSYS2 fake console:
+    // Different ways to detect depending on the environment.  Here's an attempt
+    // to cover them; msys2 is difficult.
+    // if running in a MSYS2 fake console:
     // from https://github.com/nodejs/node/issues/3006
     // When running node in a fake console, it's useful to imagine that you're running it 
     // with input and output redirected to files(e.g.node foobar.js <infile.txt >outfile.txt).
@@ -1053,116 +918,59 @@ int process_arguments(int argc, char **argv, char **input_exp, fact_obj_t *fobj)
     //
     // not sure how to sort it out in the case of msys2.  recommended running in normal
     // windows cmd terminal once it is built.
-
-	if (strlen(*input_exp) != 0)
-	{
-		// process_flags found an expression to execute.  check for
-		// incoming data:
-		//if (stdin != NULL)
-		//if (fgets(buf, GSTR_MAXSIZE, stdin) != NULL)
-		//if (fread(buf, 1, GSTR_MAXSIZE, stdin) != 0)
-
-		// detect if stdin is a pipe
-		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
-        // But this doesn't work if we are running in a msys console because of how
-        // they interface with stdin/out/err through pipes, so there will always
-        // be a pipe.
-        // https://github.com/msys2/msys2/wiki/Porting
+    // detect if stdin is a pipe
+    // http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
+    // But this doesn't work if we are running in a msys console because of how
+    // they interface with stdin/out/err through pipes, so there will always
+    // be a pipe.
+    // https://github.com/msys2/msys2/wiki/Porting
 #if defined(__MINGW32__)
-        // I'm not sure how to detect at runtime if this is an msys shell.
-        // So unfortunately if we compile with mingw we basically have to remove 
-        // the ability to process from pipes or redirects.  should be able to use 
-        // batchfiles via command line switch still.
-        if (0)
-        {
+    // I'm not sure how to detect at runtime if this is an msys shell.
+    // So unfortunately if we compile with mingw we basically have to remove 
+    // the ability to process from pipes or redirects.  should be able to use 
+    // batchfiles via command line switch still.
+    if (0)
+    {
 
 #elif defined(WIN32) 
-        if(_isatty(_fileno(stdin)) == 0)
-		{
-			fseek(stdin,-1,SEEK_END);
-			if (ftell(stdin) >= 0)
-			{
-				rewind(stdin);
+    if (_isatty(_fileno(stdin)) == 0)
+    {
+        fseek(stdin, -1, SEEK_END);
+        if (ftell(stdin) >= 0)
+        {
+            rewind(stdin);
 #else
-		if (isatty(fileno(stdin)) == 0)
-		{			
+        if (isatty(fileno(stdin)) == 0)
+        {
 #endif
 
-			// ok, we also have incoming data.  This is just
-			// batchfile mode with the batchfile = stdin.
-			is_cmdline_run = 2;
-		}
+            // ok, we also have incoming data.  This is just
+            // batchfile mode with the batchfile = stdin.
+            is_cmdline_run = 2;
+        }
 #if defined(WIN32) && !defined(__MINGW32__)		//not complete, but ok for now
-		}
+    }
 #endif
-		else
-		{
-			// no incoming data, just execute the provided expression
-			is_cmdline_run = 1;
-
-			// special check: if there is no function call, insert a 
-			// default function call
-			if (strstr(*input_exp, "(") == NULL)
-			{
-                int currentlen = strlen(*input_exp);
-                char* tmp;
-                *input_exp = xrealloc(*input_exp, (strlen(*input_exp) + 10) * sizeof(char));
-                tmp = (char*)xmalloc((currentlen + 10) * sizeof(char));
-				sprintf(tmp, "factor(%s)", *input_exp);
-                strcpy(*input_exp, tmp);
-                free(tmp);
-			}
-		}
-	}
-	else
-	{
-		// no expression provided.  if also no input pipe, start
-		// up in interactive mode
-		// detect if stdin is a pipe
-		// http://stackoverflow.com/questions/1312922/detect-if-stdin-is-a-terminal-or-pipe-in-c-c-qt
+    else
+    {
+        // no incoming data, just execute the provided expression, if any,
+        // or start up an interactive session.
+        // special check: if there is no function call, insert a 
+        // default function call
+        if ((is_cmdline_run == 1) && (strstr(options->inputExpr, "(") == NULL))
+        {
+            // this indicates we have an input expression with no function call
+            is_cmdline_run = 3;
+        }
+    }
 
 #if defined(__MINGW32__)
-
-        // see discussion above... using pipes/redirects in msys/mingw is
-        // problematic.  command switch batchfiles should still work.
-        if (0)
-        {
-
-#elif defined(WIN32)	//&& !defined(__MINGW32__)
-		if(_isatty(_fileno(stdin)) == 0)
-		{
-			fseek(stdin,-1,SEEK_END);
-			if (ftell(stdin) >= 0)
-			{
-				rewind(stdin);
-#else
-		if (isatty(fileno(stdin)) == 0)
-		{			
-
+    }
 #endif
-
-			// we have an input pipe with no provided expression.
-			// insert a default function call in batch mode
-			is_cmdline_run = 2;
-			strcpy(*input_exp, "factor(@)");
-		}
-#if defined(WIN32) && !defined(__MINGW32__) 	//not complete, but ok for now
-        else
-        {
-            is_cmdline_run = 0;
-        }
-        
-        }
-#endif
-		else
-			is_cmdline_run = 0;
-
-	}
 
 	return is_cmdline_run;
 
 }
-*/
 
 void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 {
@@ -1576,1025 +1384,6 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	*code = 0;
 	return input_exp;;
 }
-
-/*
-unsigned process_flags(int argc, char **argv, fact_obj_t *fobj, char **expression)
-{
-    int ch = 0, i,j,valid;
-	char optbuf[MAXOPTIONLEN];
-    char argbuf[GSTR_MAXSIZE];
-
-	*expression[0] = '\0';
-
-    //argument loop
-	i = 0;
-	while (i < argc)
-	{
-		//read in the option
-		ch = argv[i][0];
-		if (ch != '-')
-		{
-			if (i == 0)
-			{
-				// no switch is ok if it's the first argument... assume
-				// it is the input expression (legacy support)
-                *expression = (char *)realloc(*expression,
-                    (strlen(argv[i]) + 2) * sizeof(char));
-                strcpy(*expression, argv[i]);
-				i++;
-				continue;
-			}
-			else
-			{
-				printf("no switch detected in argument %d\n", i);
-				exit(1);
-			}
-		}
-        
-        if (strlen(argv[i]) >= MAXOPTIONLEN)
-        {
-            printf("unknown long option name %s\n", argv[i]);
-            exit(1);
-        }
-
-		strcpy(optbuf,argv[i]);
-
-		// check for the special "-e" argument, signifying an input expression
-		if (strcmp(optbuf+1, "e") == 0)
-		{
-			// check to see if an argument was supplied
-			if (((i+1) == argc) || argv[i+1][0] == '-')
-			{
-				// no option supplied.
-				printf("expected input expression\n");
-				exit(1);
-			}
-			else
-			{
-				// an option was supplied, pass it on
-				i++;				
-                *expression = (char *)realloc(*expression,
-                    (strlen(argv[i]) + 2) * sizeof(char));
-                strcpy(*expression, argv[i]);
-				i++;
-				continue;
-			}
-		}
-
-		//check if it's valid option
-		valid = 0;
-		for (j=0; j<NUMOPTIONS;j++)
-		{
-			if (strcmp(OptionArray[j],optbuf+1) == 0)
-			{
-				valid = 1;
-				break;
-			}
-		}
-		if (valid == 0)
-		{
-			printf("invalid option %s\n",optbuf);
-			exit(1);
-		}
-
-		//check to see if this option requires an argument
-		if (needsArg[j] == 1)
-		{
-			i++;
-			if ((i == argc) || (argv[i][0] == '-'))
-			{
-				printf("argument expected for %s\n",optbuf);
-				exit(1);
-			}
-			strcpy(argbuf,argv[i]);
-
-			//now apply -option argument
-			//printf("applying option %s with argument %s\n",optbuf+1,argbuf);
-			applyOpt(optbuf+1,argbuf,fobj);
-		}
-		else if (needsArg[j] == 2)
-		{
-			// check to see if an argument was supplied
-			if (((i+1) == argc) || argv[i+1][0] == '-')
-			{
-				// no option supplied.  use default option
-				applyOpt(optbuf+1,NULL,fobj);
-			}
-			else
-			{
-				i++;
-				// an option was supplied, pass it on
-				strcpy(argbuf,argv[i]);
-
-				//now apply -option argument
-				applyOpt(optbuf+1,argbuf,fobj);
-			}
-
-		}
-		else
-		{
-			//apply -option
-			//now apply -option argument
-			applyOpt(optbuf+1,NULL,fobj);
-
-		}
-		i++;
-	}
-
-    return 1;
-}
-
-void applyOptold(char *opt, char *arg, fact_obj_t *fobj)
-{
-	char **ptr;
-	int i;
-	z tmp;
-
-	zInit(&tmp);
-
-	ptr = NULL;
-	if (strcmp(opt,OptionArray[0]) == 0)
-	{
-        //"B1pm1"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->pm1_obj.B1 = strtoul(arg,ptr,10);
-		if (fobj->pm1_obj.stg2_is_default)
-		{
-			//stg2 hasn't been specified yet, so set it to the default value
-			fobj->pm1_obj.B2 = 100 * (uint64)fobj->pm1_obj.B1;
-			//else, we have already specified a B2, so don't overwrite it with
-			//the default
-		}
-	}
-	else if (strcmp(opt,OptionArray[1]) == 0)
-	{
-        //"B1pp1"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->pp1_obj.B1 = strtoul(arg,ptr,10);
-		if (fobj->pp1_obj.stg2_is_default)
-		{
-			//stg2 hasn't been specified yet, so set it to the default value
-			fobj->pp1_obj.B2 = 50 * (uint64)fobj->pp1_obj.B1;
-			//else, we have already specified a B2, so don't overwrite it with
-			//the default
-		}
-	}
-	else if (strcmp(opt,OptionArray[2]) == 0)
-	{
-        //"B1ecm"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->ecm_obj.B1 = strtoull(arg,ptr,10);
-		if (fobj->pp1_obj.stg2_is_default)
-		{
-			//stg2 hasn't been specified yet, so set it to the default value
-			fobj->ecm_obj.B2 = 25 * (uint64)fobj->ecm_obj.B1;
-			//else, we have already specified a B2, so don't overwrite it with
-			//the default
-		}
-	}
-	else if (strcmp(opt,OptionArray[3]) == 0)
-	{
-        //"rhomax"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->rho_obj.iterations = strtoul(arg,ptr,10);
-	}
-	else if (strcmp(opt,OptionArray[4]) == 0)
-	{
-        //"B2pm1"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->pm1_obj.B2 = strto_uint64(arg,ptr,10);
-		fobj->pm1_obj.stg2_is_default = 0;
-	}
-	else if (strcmp(opt,OptionArray[5]) == 0)
-	{
-        // "B2pp1"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->pp1_obj.B2 = strto_uint64(arg,ptr,10);
-		fobj->pp1_obj.stg2_is_default = 0;
-	}
-	else if (strcmp(opt,OptionArray[6]) == 0)
-	{
-        // "B2ecm"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->ecm_obj.B2 = strto_uint64(arg,ptr,10);
-		fobj->ecm_obj.stg2_is_default = 0;
-	}
-	else if (strcmp(opt,OptionArray[7]) == 0)
-	{
-		//argument is a string
-	
-		if (strlen(arg) < 1024)
-			strcpy(fobj->qs_obj.siqs_savefile,arg);
-		else
-			printf("*** argument to savefile too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[8]) == 0)
-	{
-		//argument siqsB should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_B = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_B_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[9]) == 0)
-	{
-		//argument siqsTF should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_tf = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_tf_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[10]) == 0)
-	{
-		//argument siqsR should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_rel = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_rel_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[11]) == 0)
-	{
-		//argument siqsT should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_time = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_time_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[12]) == 0)
-	{
-		//argument siqsNB should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_blocks = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_blocks_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[13]) == 0)
-	{
-		// argument siqsM should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->qs_obj.gbl_override_lpmult = strtoul(arg,ptr,10);
-		fobj->qs_obj.gbl_override_lpmult_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[14]) == 0)
-	{
-		//argument is a string
-        if ((strlen(arg) == 0) || (strcmp(arg, "NUL") == 0) || 
-            (strcmp(arg, "NULL") == 0) || (strcmp(arg, "nul") == 0) ||
-            (strcmp(arg, "null") == 0))
-        {
-            strcpy(fobj->flogname, "");
-            LOGFLAG = 0;
-        }
-        else
-        {
-            if (strlen(arg) < 1024)
-                strcpy(fobj->flogname, arg);
-            else
-                printf("*** argument to logfile too long, ignoring ***\n");
-        }
-	}
-	else if (strcmp(opt,OptionArray[15]) == 0)
-	{
-		//argument is a string
-		if (strlen(arg) < 80)
-		{
-			strcpy(batchfilename,arg);
-			USEBATCHFILE = 1;
-		}
-		else
-			printf("*** argument to batchfile too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[16]) == 0)
-	{
-		USERSEED = 1;
-		sscanf(arg,"%u,%u",&g_rand.hi,&g_rand.low);
-	}
-	else if (strcmp(opt,OptionArray[17]) == 0)
-	{
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->ecm_obj.sigma = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[18]) == 0)
-	{
-		//argument is a string
-		if (strlen(arg) < 1024)
-        {
-			strcpy(sessionname,arg);
-		}
-        else
-        {
-            printf("*** argument to sessionname too long, ignoring ***\n");
-        }
-	}
-	else if (strcmp(opt,OptionArray[19]) == 0)
-	{
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		THREADS = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[20]) == 0)
-	{
-		VFLAG++;
-	}
-	else if (strcmp(opt,OptionArray[21]) == 0)
-	{
-		VFLAG = -1;
-	}
-	else if (strcmp(opt,OptionArray[22]) == 0)
-	{
-		PRIMES_TO_FILE = 1;
-	}
-	else if (strcmp(opt,OptionArray[23]) == 0)
-	{
-		PRIMES_TO_SCREEN = 1;
-	}
-	else if (strcmp(opt,OptionArray[24]) == 0)
-	{
-		fobj->qs_obj.gbl_force_DLP = 1;
-	}
-	else if (strcmp(opt,OptionArray[25]) == 0)
-	{
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->div_obj.fmtlimit = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[26]) == 0)
-	{
-		fobj->qs_obj.no_small_cutoff_opt = 1;
-	}
-	else if (strcmp(opt,OptionArray[27]) == 0)
-	{
-//#ifdef __APPLE__
-//		printf("extended cpuid not supported\n");
-//#else
-		VERBOSE_PROC_INFO++;
-//#endif
-	}
-	else if (strcmp(opt,OptionArray[28]) == 0)
-	{
-		fobj->autofact_obj.yafu_pretest_plan = PRETEST_NOECM;
-	}
-	else if (strcmp(opt,OptionArray[29]) == 0)
-	{
-		//argument is a string
-		if (strlen(arg) < 1024)
-			strcpy(fobj->nfs_obj.ggnfs_dir,arg);
-		else
-			printf("*** argument to ggnfs_dir too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[30]) == 0)
-	{
-		//parse the tune_info string and if it matches the current OS and CPU, 
-		//set the appropriate globals
-		apply_tuneinfo(fobj, arg);
-	}
-	else if (strcmp(opt,OptionArray[31]) == 0)
-	{
-		//argument "pretest_ratio"
-		sscanf(arg, "%lf", &fobj->autofact_obj.target_pretest_ratio);
-	}
-	else if (strcmp(opt,OptionArray[32]) == 0)
-	{
-		//argument "xover"
-		sscanf(arg, "%lf", &fobj->autofact_obj.qs_gnfs_xover);
-        fobj->nfs_obj.min_digits = fobj->autofact_obj.qs_gnfs_xover;
-		fobj->autofact_obj.prefer_xover = 1;
-	}
-	else if (strcmp(opt,OptionArray[33]) == 0)
-	{
-		//argument "one"
-		fobj->autofact_obj.want_only_1_factor = 1;
-	}
-	else if (strcmp(opt,OptionArray[34]) == 0)
-	{
-		//argument "op".  argument is a string
-		if (strlen(arg) < 1024)
-		{
-			strcpy(fobj->autofact_obj.op_str,arg);
-			fobj->autofact_obj.want_output_primes = 1;
-		}
-		else
-			printf("*** argument to -op too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[35]) == 0)
-	{
-		//argument "of".  argument is a string
-		if (strlen(arg) < 1024)
-		{
-			strcpy(fobj->autofact_obj.of_str,arg);
-			fobj->autofact_obj.want_output_factors = 1;
-		}
-		else
-			printf("*** argument to -of too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[36]) == 0)
-	{
-		//argument "ou".  argument is a string
-		if (strlen(arg) < 1024)
-		{
-			strcpy(fobj->autofact_obj.ou_str,arg);
-			fobj->autofact_obj.want_output_unfactored = 1;
-		}
-		else
-			printf("*** argument to -ou too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[37]) == 0)
-	{
-		//argument "plan".  argument is a string
-		if (strlen(arg) < 1024)
-		{
-			strcpy(fobj->autofact_obj.plan_str,arg);
-
-			// test for recognized options.  
-			if (strcmp(fobj->autofact_obj.plan_str, "none") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NONE;
-			else if (strcmp(fobj->autofact_obj.plan_str, "noecm") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NOECM;
-			else if (strcmp(fobj->autofact_obj.plan_str, "light") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_LIGHT;
-			else if (strcmp(fobj->autofact_obj.plan_str, "deep") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
-			else if (strcmp(fobj->autofact_obj.plan_str, "normal") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
-			else if (strcmp(fobj->autofact_obj.plan_str, "custom") == 0)
-				fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
-			else			
-			{
-				printf("*** unknown plan option, ignoring ***\n");
-				strcpy(fobj->autofact_obj.plan_str,"normal");
-			}
-		}
-		else
-			printf("*** argument to -plan too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[38]) == 0)
-	{
-		//argument "pretest"
-		if (arg == NULL)
-		{
-			// no argument, use the value "1" to signify doing 
-			// pretesting to the bounds computed by factor()
-			fobj->autofact_obj.only_pretest = 1;
-		}
-		else
-		{
-			// an optional argument to pretest is interpreted as
-			// a maximum t-level to pretest to
-			fobj->autofact_obj.only_pretest = strtoul(arg,NULL,10);
-			
-			// default behavior
-			if (fobj->autofact_obj.only_pretest == 0)
-				fobj->autofact_obj.only_pretest = 1;
-		}
-	}
-	else if (strcmp(opt,OptionArray[39]) == 0)
-	{
-		//argument "no_expr"
-		fobj->autofact_obj.want_output_expressions = 0;
-	}	
-	else if (strcmp(opt,OptionArray[40]) == 0)
-	{
-		//argument "o".  Indicates output filename ggnfs sieving.
-		char *cptr;
-
-		if (strlen(arg) < 1024)
-		{
-			char tmp[1024];
-			strcpy(fobj->nfs_obj.outputfile,arg);			
-			strcpy(tmp,fobj->nfs_obj.outputfile);
-			cptr = strchr(tmp,46);
-			if (cptr == NULL)
-			{
-				//no . in provided filename
-				sprintf(fobj->nfs_obj.logfile, "%s.log",fobj->nfs_obj.outputfile);
-				sprintf(fobj->nfs_obj.fbfile, "%s.fb",fobj->nfs_obj.outputfile);
-			}
-			else
-			{				
-				cptr[0] = '\0';
-				sprintf(fobj->nfs_obj.logfile, "%s.log",tmp);
-				sprintf(fobj->nfs_obj.fbfile, "%s.fb",tmp);
-			}
-		}
-		else
-			printf("*** argument to -o too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[41]) == 0)
-	{
-		//argument "a".  Indicates algebraic side special Q.
-		fobj->nfs_obj.sq_side = 1;
-	}
-	else if (strcmp(opt,OptionArray[42]) == 0)
-	{
-		//argument "r".  Indicates rational side special Q.
-		//fobj->nfs_obj.sq_side = 0;
-		fobj->nfs_obj.sq_side = -1;
-	}
-	else if (strcmp(opt,OptionArray[43]) == 0)
-	{
-		//argument "ggnfsT".  Indicates timeout (in seconds) for NFS job.
-		fobj->nfs_obj.timeout = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[44]) == 0)
-	{
-		//argument "job".  Indicates input .job file automated NFS.
-		if (strlen(arg) < 1024)
-		{
-			strcpy(fobj->nfs_obj.job_infile,arg);
-		}
-		else
-			printf("*** argument to -job too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[45]) == 0)
-	{
-		char **nextptr = &arg;
-
-		//argument "ns".  do nfs sieving
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
-		
-		if (arg != NULL)
-		{
-			// if an argument was supplied, parse the start and range of 
-			//special Q in the format X,Y
-			fobj->nfs_obj.startq = strtoul(arg,nextptr,10);
-
-			if (*nextptr[0] != ',')
-			{
-				printf("format of sieving argument is START,STOP\n");
-				exit(1);
-			}
-			fobj->nfs_obj.rangeq = strtoul(*nextptr + 1,NULL,10);
-
-			if (fobj->nfs_obj.startq >= fobj->nfs_obj.rangeq)
-			{
-				printf("format of sieving argument is START,STOP; STOP must be > START\n");
-				exit(1);
-			}
-			fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
-		}
-		else
-		{
-			fobj->nfs_obj.startq = 0;
-			fobj->nfs_obj.rangeq = 0;
-		}
-
-	}
-	else if (strcmp(opt,OptionArray[46]) == 0)
-	{
-		char **nextptr = &arg;
-
-		//argument "np".  do poly finding.
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
-
-		if (arg != NULL)
-		{
-			// if an argument was supplied, parse the start and stop coefficient range in the
-			// format X,Y
-			fobj->nfs_obj.polystart = strtoul(arg,nextptr,10);
-
-			if (*nextptr[0] != ',')
-			{
-				printf("format of poly select argument is START,STOP\n");
-				exit(1);
-			}
-			fobj->nfs_obj.polyrange = strtoul(*nextptr + 1,NULL,10);
-
-			if (fobj->nfs_obj.polystart >= fobj->nfs_obj.polyrange)
-			{
-				printf("format of poly select argument is START,STOP; STOP must be > START\n");
-				exit(1);
-			}
-			fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
-		}
-		else
-		{
-			fobj->nfs_obj.polystart = 0;
-			fobj->nfs_obj.polyrange = 0;
-		}
-	}
-	else if (strcmp(opt,OptionArray[47]) == 0)
-	{
-		//argument "nc".  Do post processing, starting with filtering
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
-	}
-	else if (strcmp(opt,OptionArray[48]) == 0)
-	{
-		//argument "psearch".  modify poly search methodology
-		if (strlen(arg) < 1024)
-		{
-			if (strcmp(arg, "wide") == 0)
-				fobj->nfs_obj.poly_option = 1;
-			else if (strcmp(arg, "deep") == 0)
-				fobj->nfs_obj.poly_option = 2;
-			else if (strcmp(arg, "fast") == 0)
-				fobj->nfs_obj.poly_option = 0;
-            else if (strcmp(arg, "min") == 0)
-                fobj->nfs_obj.poly_option = 3;
-            else if (strcmp(arg, "avg") == 0)
-                fobj->nfs_obj.poly_option = 4;
-            else if (strcmp(arg, "good") == 0)
-                fobj->nfs_obj.poly_option = 5;
-			else
-			{
-				printf("option -psearch recognizes arguments 'deep', 'wide', 'fast', 'min', 'avg', or 'good'.\n  see docfile.txt for details\n"); 
-				exit(1);
-			}
-
-		}
-		else
-			printf("*** argument to -psearch too long, ignoring ***\n");
-
-	}
-	else if (strcmp(opt,OptionArray[49]) == 0)
-	{
-		//argument "R".  nfs restart flag
-		fobj->nfs_obj.restart_flag = 1;
-	}
-	else if (strcmp(opt,OptionArray[50]) == 0)
-	{
-		//argument "pbatch".  Indicates size of blocks of leading coefficients to
-		//distribute to each thread in threaded NFS poly selection.
-		fobj->nfs_obj.polybatch = strtoul(arg,NULL,10);
-		if (fobj->nfs_obj.polybatch == 0)
-			fobj->nfs_obj.polybatch = 250;
-	}
-	else if (strcmp(opt,OptionArray[51]) == 0)
-	{
-		// argument "ecm_path"
-		//argument is a string
-		if (strlen(arg) < 1024)
-			strcpy(fobj->ecm_obj.ecm_path,arg);
-		else
-			printf("*** argument to ecm_path too long, ignoring ***\n");
-	}
-	else if (strcmp(opt,OptionArray[52]) == 0)
-	{
-		// argument "siever"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->nfs_obj.siever = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[53]) == 0)
-	{
-		//argument "ncr".  linear algebra restart flag
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA_RESUME;
-	}
-	else if (strcmp(opt,OptionArray[54]) == 0)
-	{
-		// argument "lathreads"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		LATHREADS = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[55]) == 0)
-	{
-		//argument "nc2".  do linear algebra.
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
-	}
-	else if (strcmp(opt,OptionArray[56]) == 0)
-	{
-		//argument "nc3".  do nfs sqrt
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
-	}
-	else if (strcmp(opt, OptionArray[57]) == 0)
-	{
-		//argument "p".  set to idle priority.
-		//TODO: check to see if ggnfs and ecm binaries called through system
-		//retain idle priority
-		yafu_set_idle_priority();
-	}
-	else if (strcmp(opt,OptionArray[58]) == 0)
-	{
-		//argument "work"
-		sscanf(arg, "%lf", &fobj->autofact_obj.initial_work);
-	}
-	else if (strcmp(opt,OptionArray[59]) == 0)
-	{
-		//argument "nprp"
-		NUM_WITNESSES = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[60]) == 0)
-	{
-		// argument "ext_ecm"
-		//argument should be all numeric
-		for (i=0;i<(int)strlen(arg);i++)
-		{
-			if (!isdigit((int)arg[i]))
-			{
-				printf("expected numeric input for option %s\n",opt);
-				exit(1);
-			}
-		}
-
-		fobj->ecm_obj.ecm_ext_xover = strtoull(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[61]) == 0)
-	{
-		//argument "testsieve"
-		fobj->nfs_obj.snfs_testsieve_threshold = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[62]) == 0)
-	{
-		// argument "nt"
-		if (arg == NULL)
-		{
-			printf("expected argument for option %s\n", opt);
-			exit(1);
-		}
-		else
-			strcpy(fobj->nfs_obj.filearg, arg);
-	}
-	else if (strcmp(opt,OptionArray[63]) == 0)
-	{
-		// argument "aprcl_p", setting the threshold below which numbers
-		// are proved prime using APR-CL
-		fobj->aprcl_prove_cutoff = strtoul(arg,NULL,10);
-		if (fobj->aprcl_prove_cutoff > 6021)
-		{
-			printf("APR-CL primality proving is possible only for numbers less"
-				" than 6021 digits... setting limit to 6021 digits\n");
-			fobj->aprcl_prove_cutoff = 6021;
-		}
-	}
-	else if (strcmp(opt,OptionArray[64]) == 0)
-	{
-		// argument "aprcl_d", setting the threshold above which numbers
-		// that are proved prime using APR-CL have additional verbosity enabled
-		fobj->aprcl_display_cutoff = strtoul(arg,NULL,10);
-	}
-	else if (strcmp(opt,OptionArray[65]) == 0)
-	{
-		//argument "filt_bump"
-		sscanf(arg, "%lf", &fobj->nfs_obj.filter_min_rels_nudge);
-		fobj->nfs_obj.filter_min_rels_nudge = 1 + fobj->nfs_obj.filter_min_rels_nudge / 100;
-	}
-	else if (strcmp(opt,OptionArray[66]) == 0)
-	{
-		//argument "nc1".  do msieve filtering.
-		fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
-	}
-	else if (strcmp(opt,OptionArray[67]) == 0)
-	{
-		//argument "gnfs"
-		fobj->nfs_obj.gnfs = 1;
-	}
-	else if (strcmp(opt,OptionArray[69]) == 0)			// NOTE: we skip -e because it is handled 
-	{													// specially by process_flags
-		//argument "repeat"
-		CMD_LINE_REPEAT = atoi(arg);
-	}
-    else if (strcmp(opt, OptionArray[70]) == 0)
-    {
-        //argument "ecmtime"
-        
-    }
-    else if (strcmp(opt, OptionArray[71]) == 0)			
-    {													
-        //argument "no_clk_test"
-        NO_CLK_TEST = 1;
-    }
-    else if (strcmp(opt, OptionArray[72]) == 0)
-    {
-        //argument "siqsTFSm"
-        fobj->qs_obj.gbl_override_small_cutoff = atoi(arg);
-        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
-    }
-    else if (strcmp(opt, OptionArray[73]) == 0)
-    {
-        //argument "script"
-        sscanf(arg, "%s", scriptname);
-    }
-    else if (strcmp(opt, OptionArray[74]) == 0)
-    {
-        //argument "degree"
-
-    }
-    else if (strcmp(opt, OptionArray[75]) == 0)
-    {
-        //argument "snfs_xover"
-        sscanf(arg, "%lf", &fobj->autofact_obj.qs_snfs_xover);
-        fobj->autofact_obj.prefer_xover = 1;
-    }
-	else if (strcmp(opt, OptionArray[76]) == 0)
-	{
-		//argument "soe_block"
-		SOEBLOCKSIZE = strtoul(arg, NULL, 10);
-	}
-	else if (strcmp(opt, OptionArray[77]) == 0)
-	{
-        //argument "forceTLP"
-		fobj->qs_obj.gbl_force_TLP = 1;
-	}
-	else if (strcmp(opt, OptionArray[78]) == 0)
-	{
-		//argument "siqsLPB"
-		// the maximum allowed large prime, in bits, in SIQS
-		sscanf(arg, "%d", &fobj->qs_obj.gbl_override_lpb);
-	}
-	else if (strcmp(opt, OptionArray[79]) == 0)
-	{
-		//argument "siqsMFBD"
-		// the exponent of the large prime bound such that residues larger than
-		// lpb^siqsMFBD are subjected to double large prime factorization attempts
-		sscanf(arg, "%lf", &fobj->qs_obj.gbl_override_mfbd);
-	}
-	else if (strcmp(opt, OptionArray[80]) == 0)
-	{
-		//argument "siqsMFBT"
-		// the exponent of the large prime bound such that residues larger than
-		// lpb^siqsMFBT are subjected to triple large prime factorization attempts
-		sscanf(arg, "%lf", &fobj->qs_obj.gbl_override_mfbt);
-	}
-    else if (strcmp(opt, OptionArray[81]) == 0)
-    {
-        //argument "siqsBDiv"
-        // The divider of large_prime_max as the upper bound for
-        // primes to multiply when using batch GCD in TLP factorizations.
-        fobj->qs_obj.gbl_override_bdiv_flag = 1;
-        sscanf(arg, "%f", &fobj->qs_obj.gbl_override_bdiv);
-    }
-    else if (strcmp(opt, OptionArray[82]) == 0)
-    {
-        //argument "siqsBT" ("Batch Target")
-        // How many relations to batch up before they are processed
-        sscanf(arg, "%u", &fobj->qs_obj.gbl_btarget);
-    }
-    else if (strcmp(opt, OptionArray[83]) == 0)
-    {
-        // argument "prefer_gmpecm"
-        fobj->ecm_obj.prefer_gmpecm = 1;
-        fobj->ecm_obj.ecm_ext_xover = 48000;
-    }
-    else if (strcmp(opt, OptionArray[84]) == 0)
-    {
-        //argument "save_b1"
-        fobj->ecm_obj.save_b1 = 1;
-    }
-    else if (strcmp(opt, OptionArray[85]) == 0)
-    {
-        //argument "siqsNobat"
-        // Whether or not to use batch factoring in 3LP
-        fobj->qs_obj.gbl_override_3lp_bat = 1;
-    }
-	else
-	{
-		printf("invalid option %s\n",opt);
-		exit(1);
-	}
-
-	zFree(&tmp);
-	return;
-}
-*/
 
 void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 {

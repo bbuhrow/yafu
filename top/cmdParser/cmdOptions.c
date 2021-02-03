@@ -108,7 +108,7 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : Input tuning information for SIQS/NFS crossover",
     "(Floating point)  : ECM/NFS pretesting ratio: projected-difficulty * ratio = ECM depth", 
     "(Floating point)  : SIQS/NFS crossover point (decimal digits)",
-    "                  : Stop after one factor found"
+    "                  : Stop after one factor found",
     "(String)          : Filename where primes found during factor() are output",
     "(String)          : Filename where factors found during factor() are output",
     "(String)          : Filename where unfactored residues remaining after factor() are output",
@@ -1306,18 +1306,27 @@ void printUsage(options_t* options)
     printf("supported options are: \n");
     for (j = 0; j < NUMOPTIONS; j++)
     {
+        int n;
         if (strlen(options->LongOptionAliases[j]) > 0)
         {
             if (options->needsArg[j])
             {
-                printf("%s <value>: %s (alias --%s)\n",
-                    options->OptionArray[j], options->OptionHelp[j],
+                n = printf("%s <value>",
+                    options->OptionArray[j]);
+                for (; n < MAXOPTIONLEN + 8; n++)
+                    printf(" ");
+                printf(": %s (alias --%s)\n",
+                    options->OptionHelp[j],
                     options->LongOptionAliases[j]);
             }
             else
             {
-                printf("%s        : %s (alias --%s)\n",
-                    options->OptionArray[j], options->OptionHelp[j],
+                n = printf("%s        ",
+                    options->OptionArray[j]);
+                for (; n < MAXOPTIONLEN + 8; n++)
+                    printf(" ");
+                printf(": %s (alias --%s)\n",
+                    options->OptionHelp[j],
                     options->LongOptionAliases[j]);
             }
         }
@@ -1325,11 +1334,19 @@ void printUsage(options_t* options)
         {
             if (options->needsArg[j])
             {
-                printf("%s <value>: %s\n", options->OptionArray[j], options->OptionHelp[j]);
+                n = printf("%s <value>",
+                    options->OptionArray[j]);
+                for (; n < MAXOPTIONLEN + 8; n++)
+                    printf(" ");
+                printf(": %s\n", options->OptionHelp[j]);
             }
             else
             {
-                printf("%s        : %s\n", options->OptionArray[j], options->OptionHelp[j]);
+                n = printf("%s        ",
+                    options->OptionArray[j]);
+                for (; n < MAXOPTIONLEN + 8; n++)
+                    printf(" ");
+                printf(": %s\n", options->OptionHelp[j]);
             }
         }
     }
