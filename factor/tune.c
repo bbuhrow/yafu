@@ -1,4 +1,3 @@
-#include "yafu_string.h"
 #include "arith.h"
 #include "factor.h"
 #include "qs.h"
@@ -14,7 +13,8 @@
 //----------------------- LOCAL FUNCTIONS -------------------------------------//
 double best_linear_fit(double *x, double *y, int numpts, 
 	double *slope, double *intercept);
-void update_INI(double mult, double exponent, double mult2, double exponent2, double xover);
+void update_INI(double mult, double exponent, double mult2, 
+    double exponent2, double xover, double cpu_freq, char *cpu_str);
 void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
 void check_siever(fact_obj_t* fobj, char* sname, int siever);
 
@@ -36,8 +36,8 @@ void factor_tune(fact_obj_t *inobj)
 	char siqslist[9][200];
 	char nfslist[6][200];
     char sievername[1024];
-	z n;
 	int i, tmpT;
+    mpz_t n;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	double t_time;
@@ -62,22 +62,21 @@ void factor_tune(fact_obj_t *inobj)
 	uint32 count;
 	char tmpbuf[GSTR_MAXSIZE];
 
-	zInit(&n);	
+    mpz_init(n);
+	tmpT = inobj->THREADS;
 
-	tmpT = THREADS;
-
-	if (THREADS != 1)
+	if (inobj->THREADS != 1)
 		printf("Setting THREADS = 1 for tuning\n");
-	THREADS = 1;
+    inobj->THREADS = 1;
 
-    if (VFLAG >= 0)
+    if (inobj->VFLAG >= 0)
         printf("checking for NFS sievers... ");
 
     check_siever(inobj, sievername, 11);
     check_siever(inobj, sievername, 12);
     check_siever(inobj, sievername, 13);
 
-    if (VFLAG >= 0)
+    if (inobj->VFLAG >= 0)
         printf("done.\n");
 
 #if defined(USE_AVX2) || defined(USE_SSE41)
@@ -128,7 +127,7 @@ void factor_tune(fact_obj_t *inobj)
 		init_factobj(fobj, options);
 
 		// measure how long it takes to gather a fixed number of relations 		
-		str2hexz(siqslist[i],&n);
+        mpz_set_str(n, siqslist[i], 10);
 		fobj->qs_obj.gbl_override_rel_flag = 1;
 		fobj->qs_obj.gbl_override_rel = 10000;	
 
@@ -138,7 +137,7 @@ void factor_tune(fact_obj_t *inobj)
         fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
 
 		gettimeofday(&start, NULL);
-		mp2gmp(&n,fobj->qs_obj.gmp_n);
+        mpz_set(fobj->qs_obj.gmp_n, n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
         t_time = yafu_difftime(&start, &stop);
@@ -150,7 +149,8 @@ void factor_tune(fact_obj_t *inobj)
 		// 2% of the total sieve time
 		siqs_extraptime[i] += 0.02 * siqs_extraptime[i];
 
-		printf("elapsed time for ~10k relations of c%d = %6.4f seconds.\n",ndigits(&n),t_time);
+		printf("elapsed time for ~10k relations of c%d = %6.4f seconds.\n",
+            mpz_sizeinbase(n, 10), t_time);
 		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
 
 		clear_factor_list(fobj);
@@ -243,7 +243,7 @@ void factor_tune(fact_obj_t *inobj)
 	}
 
 	// set THREADS back the way it was
-	THREADS = tmpT;
+    inobj->THREADS = tmpT;
 
 	fit = best_linear_fit(gnfs_sizes, gnfs_extraptime, NUM_GNFS_PTS, &a2, &b2);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a2,b2,fit);
@@ -253,9 +253,10 @@ void factor_tune(fact_obj_t *inobj)
 	printf("QS/NFS crossover occurs at %2.1f digits\n",xover);
 
 	//write the coefficients to the .ini file
-	update_INI(pow(BASE_e,b),a,pow(BASE_e,b2),a2,xover);
+	update_INI(pow(BASE_e,b),a,pow(BASE_e,b2),a2,xover,
+        inobj->MEAS_CPU_FREQUENCY, inobj->CPU_ID_STR);
 
-	zFree(&n);
+	mpz_clear(n);
 	return;
 }
 
@@ -500,7 +501,8 @@ void check_siever(fact_obj_t *fobj, char* sname, int siever)
     return;
 }
 
-void update_INI(double mult, double exponent, double mult2, double exponent2, double xover)
+void update_INI(double mult, double exponent, double mult2, 
+    double exponent2, double xover, double cpu_freq, char* cpu_str)
 {
 	FILE *in, *out;
 	int i,j;
@@ -603,39 +605,39 @@ void update_INI(double mult, double exponent, double mult2, double exponent2, do
 
 
 #if defined(_WIN64)
-			if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
+			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "WIN64") == 0))
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
 				sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-					CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
 #elif defined(WIN32)
-			if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
+			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "WIN32") == 0))
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
 				sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-					CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
 #elif BITS_PER_DIGIT == 64
-			if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
+			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "LINUX64") == 0))
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
 				sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-					CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
 #else 
-			if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
+			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "LINUX32") == 0))
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
 				sprintf(newline, "tune_info=%s,LINUX32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-					CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
 #endif
@@ -655,24 +657,24 @@ void update_INI(double mult, double exponent, double mult2, double exponent2, do
 	if (!found_entry)
 	{
 #if defined(_WIN64)
-		printf("Adding tune_info entry for WIN64 - %s\n",CPU_ID_STR);
+		printf("Adding tune_info entry for WIN64 - %s\n", cpu_str);
 		sprintf(newline, "tune_info=%s,WIN64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-			CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
 #elif defined(WIN32)
-		printf("Adding tune_info entry for WIN32 - %s\n",CPU_ID_STR);
+		printf("Adding tune_info entry for WIN32 - %s\n", cpu_str);
 		sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-			CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
 #elif BITS_PER_DIGIT == 64
-		printf("Adding tune_info entry for LINUX64 - %s\n",CPU_ID_STR);
+		printf("Adding tune_info entry for LINUX64 - %s\n", cpu_str);
 		sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-			CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
 #else 
-		printf("Adding tune_info entry for LINUX32 - %s\n",CPU_ID_STR);
+		printf("Adding tune_info entry for LINUX32 - %s\n", cpu_str);
 		sprintf(newline, "tune_info=%s,LINUX32,%lg,%lg,%lg,%lg,%lg,%lg\n",
-			CPU_ID_STR,mult,exponent,mult2,exponent2,xover,MEAS_CPU_FREQUENCY);
+            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
 #endif
 	}

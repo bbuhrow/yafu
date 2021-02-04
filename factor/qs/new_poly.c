@@ -84,6 +84,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
     int too_close, min_ratio, close_range;
 	FILE *sieve_log = sconf->obj->logfile;
 	uint32 upper_polypool_index, lower_polypool_index;
+    int VFLAG = sconf->obj->VFLAG;
 
 	mpz_init(tmp);
 	mpz_init(tmp2);
@@ -446,9 +447,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 				}
 
 				target_bits++;
-				printf("poly %s is a duplicate of #%d = %s\n",
-					mpz_conv2str(&gstr1.s, 10, poly_a), j, 
-					mpz_conv2str(&gstr2.s, 10, sconf->poly_a_list[j]));
+                char* s1 = mpz_get_str(NULL, 10, poly_a);
+                char* s2 = mpz_get_str(NULL, 10, sconf->poly_a_list[j]);
+				printf("poly %s is a duplicate of #%d = %s\n",	s1, j, s2);
+                free(s1);
+                free(s2);
 				printf("rejecting duplicate poly_a, new target = %d\n",target_bits);
 				printf("primes in a: ");
 				for (i=0;i<*s;i++)

@@ -24,7 +24,7 @@ code to the public domain.
 #include "util.h"
 #include "gmp_xface.h"
 
-int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n)
+int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 {
 	int offset, lp[3], parity, num_factors;
 	int j,retval;
@@ -88,13 +88,14 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (is_mpz_prp(fobj->qs_obj.gmp_n))
+	if (is_mpz_prp(fobj->qs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
+        char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), 
-			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
+        free(s);
 		return 1;
 	}
 
@@ -102,22 +103,21 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 	{
 		mpz_sqrt(fobj->qs_obj.gmp_n,fobj->qs_obj.gmp_n);
 
+        char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), 
-			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
 		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
-
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
+        free(s);
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
 		return 1;
 	}
 
 	if (mpz_perfect_power_p(fobj->qs_obj.gmp_n))
 	{
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("input is a perfect power\n");
 		
 		factor_perfect_power(fobj, fobj->qs_obj.gmp_n);
@@ -129,12 +129,13 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 			for (j=0; j<fobj->num_factors; j++)
 			{
+                char* s = mpz_get_str(NULL, 10, fobj->fobj_factors[j].factor);
 				uint32 k;
 				for (k=0; k<fobj->fobj_factors[j].count; k++)
 				{
-					logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), 
-						mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
+					logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), s);
 				}
+                free(s);
 			}
 		}
 		return 1;
@@ -165,13 +166,16 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         if (fobj->qs_obj.flags != 12345)
         {
             if (fobj->logfile != NULL)
+            {
+                char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
                 logprint(fobj->logfile,
-                    "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
-                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                    "starting tinyqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+                free(s);
+            }
         }
 
         {
-            tiny_qs_params *params;
+            tiny_qs_params* params;
             int j;
 
             // todo: need to define alternate routines if this isn't defined...
@@ -188,9 +192,12 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
                     if (fobj->qs_obj.flags != 12345)
                     {
                         if (fobj->logfile != NULL)
+                        {
+                            char* s = mpz_get_str(NULL, 10, f1);
                             logprint(fobj->logfile,
-                                "prp%d = %s\n", gmp_base10(f1),
-                                mpz_conv2str(&gstr1.s, 10, f1));
+                                "prp%d = %s\n", gmp_base10(f1), s);
+                            free(s);
+                        }
                     }
 
                     mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f1);
@@ -202,9 +209,12 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
                     if (fobj->qs_obj.flags != 12345)
                     {
                         if (fobj->logfile != NULL)
+                        {
+                            char* s = mpz_get_str(NULL, 10, f2);
                             logprint(fobj->logfile,
-                                "prp%d = %s\n", gmp_base10(f2),
-                                mpz_conv2str(&gstr1.s, 10, f2));
+                                "prp%d = %s\n", gmp_base10(f2), s);
+                            free(s);
+                        }
                     }
 
                     mpz_tdiv_q(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, f2);
@@ -220,9 +230,12 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
                     if (fobj->qs_obj.flags != 12345)
                     {
                         if (fobj->logfile != NULL)
+                        {
+                            char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
                             logprint(fobj->logfile,
-                                "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
-                                mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                                "prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+                            free(s);
+                        }
                     }
 
                     mpz_set_ui(fobj->qs_obj.gmp_n, 1);
@@ -241,9 +254,12 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
             if (fobj->qs_obj.flags != 12345)
             {
                 if (fobj->logfile != NULL)
+                {
+                    char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
                     logprint(fobj->logfile,
-                    "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n),
-                    mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+                        "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+                    free(s);
+                }
             }
             smallmpqs(fobj);
         }
@@ -253,12 +269,6 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
         return 1;
 	}
-
-	//if (gmp_base10(fobj->qs_obj.gmp_n) > 140)
-	//{
-	//	printf("input too big for SIQS\n");
-	//	return 1;
-	//}
 
 	return 0;
 }
@@ -282,11 +292,15 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 
 	if (mpz_cmp(t3,t4) != 0)
 	{
-		printf("\nError in checkpoly: %s^2 !== N mod %s\n", 
-			mpz_conv2str(&gstr1.s, 10, poly->mpz_poly_b),
-			mpz_conv2str(&gstr2.s, 10, poly->mpz_poly_a));
-		if (mpz_sgn(poly->mpz_poly_b) < 0)
-			printf("b is negative\n");
+        char* s1 = mpz_get_str(NULL, 10, poly->mpz_poly_b);
+        char* s2 = mpz_get_str(NULL, 10, poly->mpz_poly_a);
+		printf("\nError in checkpoly: %s^2 !== N mod %s\n", s1, s2);
+        if (mpz_sgn(poly->mpz_poly_b) < 0)
+        {
+            printf("b is negative\n");
+        }
+        free(s1);
+        free(s2);
 	}
 
 	if (mpz_kronecker(n, poly->mpz_poly_a) != 1)
@@ -321,8 +335,12 @@ int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
 
 		mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
 		mpz_mul(t1, t2, t2); //zSqr(&t2,&t1);
-		if (mpz_tdiv_ui(t1,p) % mpz_tdiv_ui(n,p) != 0)
-			printf("%s^2 mod %u != N mod %u\n",mpz_conv2str(&gstr1.s, 10, Bl[i]),p,p);
+        if (mpz_tdiv_ui(t1, p) % mpz_tdiv_ui(n, p) != 0)
+        {
+            char* s = mpz_get_str(NULL, 10, Bl[i]);
+            printf("%s^2 mod %u != N mod %u\n", s, p, p);
+            free(s);
+        }
 
 		for (j=0;j<s;j++)
 		{
@@ -331,8 +349,12 @@ int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
 
 			q = fb->list->prime[qli[j]];
 			mpz_tdiv_q_2exp(t2, Bl[i], 1); //zShiftRight(&t2,&Bl[i],1);
-			if (mpz_tdiv_ui(t2,q) != 0)
-				printf("%s mod %u != 0\n",mpz_conv2str(&gstr1.s, 10, Bl[i]),q);
+            if (mpz_tdiv_ui(t2, q) != 0)
+            {
+                char* s = mpz_get_str(NULL, 10, Bl[i]);
+                printf("%s mod %u != 0\n", s, q);
+                free(s);
+            }
 		}
 	}
 
@@ -380,7 +402,7 @@ void siqsbench(fact_obj_t *fobj)
 //	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
 //#endif
 
-    fprintf(log, "commencing siqsbench on %s\n", CPU_ID_STR);
+    fprintf(log, "commencing siqsbench on %s\n", fobj->CPU_ID_STR);
 	fclose(log);
 
 	for (i=0; i<10; i++)
@@ -474,182 +496,3 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 
 	return;
 }
-
-/*
-void siqstune(int bits)
-{
-	FILE *res;
-	char fstr[80];
-	int i,x,y,w,n;
-	z input;
-	uint32 B, M, NB;
-	//dimension 1 = number of primes
-	//dimension 2 = number of blocks
-	//dimension 3 = large prime multiplier
-	uint32 Bvec[5], NBvec[3];
-	fact_obj_t *fobj;
-	double rels_per_sec, qs_time, tot_time;
-	double rels_per_sec_norm[45], qs_time_norm[45], tot_time_norm[45];
-
-	zInit(&input);
-
-	for (n=150; n <= 275; n+=25)
-	{
-		for (i=0; i<5; i++)
-		{
-			//pick a random N bits number
-			build_RSA(n, &input);
-
-			//get the default parameters for this input
-			get_dummy_params(n, &B, &M, &NB);
-
-			//adjust for various architectures
-			if (BLOCKSIZE == 32768)
-				NB *= 2;
-			if (BLOCKSIZE == 16384)
-				NB *= 4;
-
-			//and adjust for really small jobs
-			if (bits <= 140)
-				NB = 1;
-			
-			//build up the test vector.  
-			//vary # of blocks +/- 20%
-			//vary # of primes +/- 10% and +/- 5%
-			//vary lp mult +/- 20%
-			//Bvec[0] = (uint32)((double)B * 0.9);
-			Bvec[0] = (uint32)((double)B * 0.95); 
-			Bvec[1] = (uint32)((double)B * 1);
-			Bvec[2] = (uint32)((double)B * 1.05); 
-			//Bvec[4] = (uint32)((double)B * 1.1);
-
-			//Mvec[0] = (uint32)(floor((double)M * 0.8));
-			//Mvec[1] = (uint32)((double)M * 1); 
-			//Mvec[2] = (uint32)(ceil((double)M * 1.2));
-
-			NBvec[0] = (uint32)MAX(floor(((double)NB * 0.8)),1);
-			NBvec[1] = (uint32)MAX(((double)NB * 1),1); 
-			NBvec[2] = (uint32)MAX(ceil(((double)NB * 1.2)),1);
-
-			sprintf(fstr,"tune_results_%d.csv",n);
-			res = fopen(fstr,"a");
-			fprintf(res,"N: %s\n",z2decstr(&input,&gstr1));
-			fclose(res);
-
-			//loop over the test vectors
-			for (x=0; x<3; x++)
-			{
-				for (y=0; y<3; y++)
-				{
-					//for (w=0; w<3; w++)
-					//{
-
-						//new factorization object
-						fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-						init_factobj(fobj);
-
-						//force these parameters into SIQS
-						fobj->qs_obj.gbl_override_B_flag = 1;
-						fobj->qs_obj.gbl_override_B = Bvec[x];
-
-						fobj->qs_obj.gbl_override_blocks_flag = 1;
-						fobj->qs_obj.gbl_override_blocks = NBvec[y];
-
-						//gbl_override_lpmult_flag = 1;
-						//gbl_override_lpmult = Mvec[w];
-
-						//notification of progress
-						//printf("\n\n================ RUN %d of %d =================\n\n",
-						//	i*45 + x*9 + y*3 + w + 1,3*5*3*3);
-						printf("\n\n================ RUN %d of %d =================\n\n",
-							i*9 + x*3 + y + 1,5*3*3);
-
-						//run siqs
-						mp2gmp(&input,fobj->qs_obj.gmp_n);
-						SIQS(fobj);
-
-						//get timing from fact_obj
-						rels_per_sec = fobj->qs_obj.rels_per_sec;
-						qs_time = fobj->qs_obj.qs_time;
-						tot_time = fobj->qs_obj.total_time;
-						rels_per_sec_norm[i*9 + x*3 + y] = fobj->qs_obj.rels_per_sec;
-						qs_time_norm[i*9 + x*3 + y] = fobj->qs_obj.qs_time;
-						tot_time_norm[i*9 + x*3 + y] = fobj->qs_obj.total_time;					
-
-						//clean up
-						system("rm siqs.dat");
-						free_factobj(fobj);
-						free(fobj);
-
-					//}
-				}
-			}
-
-			sprintf(fstr,"tune_results_%d.csv",n);
-			res = fopen(fstr,"a");
-			fprintf(res,"# primes,# blocks,rels/sec,qs time,tot time,norm rels/sec,"
-				"norm qs time,norm tot time\n");
-			for (y=0; y<3; y++)
-			{
-				for (w=0; w<3; w++)
-				{
-					
-					//fprintf(res,"%d,%d,%d,%f,%f,%f,%f,%f,%f\n",
-					//	Bvec[x],
-					//	NBvec[y],
-					//	Mvec[w],
-					//	rels_per_sec_norm[x*9 + y*3 + w],
-					//	qs_time_norm[x*9 + y*3 + w],
-					//	tot_time_norm[x*9 + y*3 + w],
-					//	rels_per_sec_norm[x*9 + y*3 + w] / rels_per_sec_norm[2*9 + 1*3 + 1],
-					//	qs_time_norm[x*9 + y*3 + w] / qs_time_norm[2*9 + 1*3 + 1],
-					//	tot_time_norm[x*9 + y*3 + w] / tot_time_norm[2*9 + 1*3 + 1]);
-						
-					fprintf(res,"%d,%d,%f,%f,%f,%f,%f,%f\n",
-						Bvec[y],
-						NBvec[w],
-						rels_per_sec_norm[i*9 + y*3 + w],
-						qs_time_norm[i*9 + y*3 + w],
-						tot_time_norm[i*9 + y*3 + w],
-						rels_per_sec_norm[i*9 + y*3 + w] / rels_per_sec_norm[i*9 + 1*3 + 1],
-						qs_time_norm[i*9 + y*3 + w] / qs_time_norm[i*9 + 1*3 + 1],
-						tot_time_norm[i*9 + y*3 + w] / tot_time_norm[i*9 + 1*3 + 1]);
-				}
-			}
-			fclose(res);
-		}
-
-		//write to results file
-		sprintf(fstr,"tune_results_%d.csv",n);
-		res = fopen(fstr,"a");
-		fprintf(res,"AVERAGES\n");
-		fprintf(res,"# primes,# blocks,avg rels/sec norm,avg qs time norm,avg tot time norm\n");
-		for (x=0; x<3; x++)
-		{
-			for (y=0; y<3; y++)
-			{
-				rels_per_sec = 0;
-				qs_time = 0;
-				tot_time = 0;
-				for (w=0; w<5; w++)
-				{
-					rels_per_sec += rels_per_sec_norm[w*9 + x*3 + y] / rels_per_sec_norm[w*9 + 1*3 + 1];
-					qs_time += qs_time_norm[w*9 + x*3 + y] / qs_time_norm[w*9 + 1*3 + 1];
-					tot_time += tot_time_norm[w*9 + x*3 + y] / tot_time_norm[w*9 + 1*3 + 1];
-				}
-				fprintf(res,"%d,%d,%f,%f,%f\n",
-					Bvec[x],
-					NBvec[y],
-					rels_per_sec / 5,
-					qs_time / 5,
-					tot_time / 5);
-			}
-		}
-		fclose(res);
-	}
-
-	zFree(&input);
-	return;
-}
-*/
-

@@ -45,7 +45,7 @@ void brent_loop(fact_obj_t *fobj)
 		return;
 
 	//open the log file
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         flog = fopen(fobj->flogname, "a");
         if (flog == NULL)
@@ -66,21 +66,22 @@ void brent_loop(fact_obj_t *fobj)
 		//for each different constant, first check primalty because each
 		//time around the number may be different
 		start = clock();
-		if (is_mpz_prp(fobj->rho_obj.gmp_n))
+		if (is_mpz_prp(fobj->rho_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
-			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n),
-				mpz_conv2str(&gstr1.s, 10, fobj->rho_obj.gmp_n));
+            char* s = mpz_get_str(NULL, 10, fobj->rho_obj.gmp_n);
+			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n), s);
 
 			add_to_factor_list(fobj, fobj->rho_obj.gmp_n);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			mpz_set_ui(fobj->rho_obj.gmp_n, 1);
+            free(s);
 			break;
 		}
 
 		//verbose: print status to screen
-		if (VFLAG >= 0)
+		if (fobj->VFLAG >= 0)
 			printf("rho: x^2 + %u, starting %d iterations on C%u ",
 			fobj->rho_obj.polynomials[fobj->rho_obj.curr_poly], fobj->rho_obj.iterations, 
 			(int)gmp_base10(fobj->rho_obj.gmp_n));
@@ -92,7 +93,7 @@ void brent_loop(fact_obj_t *fobj)
 		//call brent's rho algorithm
 		mbrent(fobj);
 
-        if (VFLAG >= 0)
+        if (fobj->VFLAG >= 0)
         {
             printf("\n");
         }
@@ -101,35 +102,36 @@ void brent_loop(fact_obj_t *fobj)
 		if ((mpz_cmp_ui(fobj->rho_obj.gmp_f, 1) > 0)
 			&& (mpz_cmp(fobj->rho_obj.gmp_f, fobj->rho_obj.gmp_n) < 0))
 		{				
+            char* s = mpz_get_str(NULL, 10, fobj->rho_obj.gmp_f);
+
 			//non-trivial factor found
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 			//check if the factor is prime
-			if (is_mpz_prp(fobj->rho_obj.gmp_f))
+			if (is_mpz_prp(fobj->rho_obj.gmp_f, fobj->NUM_WITNESSES))
 			{
 				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
 
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"prp%d = %s\n",
-					gmp_base10(fobj->rho_obj.gmp_f),
-					mpz_conv2str(&gstr1.s, 10, fobj->rho_obj.gmp_f));
+					gmp_base10(fobj->rho_obj.gmp_f), s);
 			}
 			else
 			{
 				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
 
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
 					gmp_base10(fobj->rho_obj.gmp_f),fobj->rho_obj.gmp_f);
 
 				logprint(flog,"c%d = %s\n",
-					gmp_base10(fobj->rho_obj.gmp_f),
-					mpz_conv2str(&gstr1.s, 10, fobj->rho_obj.gmp_f));
+					gmp_base10(fobj->rho_obj.gmp_f), s);
 			}
+            free(s);
 			start = clock();
 
 			//reduce input
@@ -147,7 +149,7 @@ void brent_loop(fact_obj_t *fobj)
 	}
 
 	fobj->rho_obj.ttime = tt;
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         fclose(flog);
     }
@@ -265,7 +267,7 @@ int mbrent(fact_obj_t *fobj)
     
 
 free:
-	//if (VFLAG >= 0)
+	//if (fobj->VFLAG >= 0)
 	//	printf("\n");
 
 	mpz_clear(x);

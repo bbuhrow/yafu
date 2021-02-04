@@ -98,7 +98,7 @@ void siqs_start(void *vptr)
     siqs_static_init(udata->thread_data[0].sconf, 0);
 
     // allocate structures for use in sieving with threads
-    for (i = 0; i < THREADS; i++)
+    for (i = 0; i < fobj->THREADS; i++)
     {
         siqs_dynamic_init(udata->thread_data[i].dconf, static_conf);
     }
@@ -289,7 +289,7 @@ void siqs_dispatch(void *vptr)
             // concurrently running threads to perform batch filtering so that
             // we run it with our full data set.
             int i;
-            for (i = 0; i < THREADS; i++);
+            for (i = 0; i < fobj->THREADS; i++);
             {
                 t[tid].dconf->batch_run_override = 1;
             }
@@ -329,7 +329,7 @@ void siqs_dispatch(void *vptr)
                 int i;
                 double ratio = 0;
                 uint32 rels = 0;
-                for (i = 0; i < THREADS; i++)
+                for (i = 0; i < fobj->THREADS; i++)
                 {
                     ratio += t[i].dconf->rb.conversion_ratio;
                     rels += t[i].dconf->rb.num_relations;
@@ -371,7 +371,7 @@ void siqs_dispatch(void *vptr)
             if ((static_conf->use_dlp == 2) &&
                 (t[tid].dconf->batch_run_override == -1))
             {
-                if (VFLAG > 1)
+                if (fobj->VFLAG > 1)
                 {
                     printf("thread %d done processing batch %d\n",
                         tid, t[tid].dconf->batch_run_override);
@@ -387,7 +387,7 @@ void siqs_dispatch(void *vptr)
             if ((static_conf->use_dlp == 2) &&
                 (src_rb->num_relations > src_rb->target_relations) &&
                 (static_conf->num_active_rb < static_conf->num_alloc_rb) &&
-                (THREADS > 1))
+                (fobj->THREADS > 1))
                 //(static_conf->batch_run_override == 0)) 
             {
                 int i;
@@ -395,15 +395,15 @@ void siqs_dispatch(void *vptr)
                 int first_free = -1;
                 uint8* rb_active;
 
-                rb_active = (uint8*)xmalloc(THREADS * sizeof(uint8));
-                memset(rb_active, 0, THREADS * sizeof(uint8));
+                rb_active = (uint8*)xmalloc(fobj->THREADS * sizeof(uint8));
+                memset(rb_active, 0, fobj->THREADS * sizeof(uint8));
 
                 // tell this thread to process the batched relations
                 // and switch to another batch buffer for incoming batched
                 // relations from other threads.
                 static_conf->batch_run_override = 1;
 
-                if (VFLAG > 1)
+                if (fobj->VFLAG > 1)
                 {
                     printf("signalling thread %d to process batch %d\n",
                         tid, static_conf->batch_buffer_id);
@@ -411,7 +411,7 @@ void siqs_dispatch(void *vptr)
 
                 if (mpz_cmp_ui(static_conf->rb[static_conf->batch_buffer_id].prime_product, 0) == 0)
                 {
-                    if (VFLAG > 1)
+                    if (fobj->VFLAG > 1)
                     {
                         printf("copying prime_product to batch buffer %d, mem use +%u bytes\n",
                             static_conf->batch_buffer_id,
@@ -423,7 +423,7 @@ void siqs_dispatch(void *vptr)
 
                 t[tid].dconf->batch_run_override = static_conf->batch_buffer_id;
 
-                for (i = 0; i < THREADS; i++)
+                for (i = 0; i < fobj->THREADS; i++)
                 {
                     if (t[i].dconf->batch_run_override > 0)
                     {
@@ -434,7 +434,7 @@ void siqs_dispatch(void *vptr)
                 static_conf->num_active_rb = count;
                 static_conf->max_active_rb = MAX(count, static_conf->max_active_rb);
 
-                for (i = 1; i < THREADS; i++)
+                for (i = 1; i < fobj->THREADS; i++)
                 {
                     if (rb_active[i] == 0)
                     {
@@ -449,7 +449,7 @@ void siqs_dispatch(void *vptr)
                     first_free = 0;
                 }
 
-                if (VFLAG > 1)
+                if (fobj->VFLAG > 1)
                 {
                     printf("there are now %d active batch processing threads\n", count);
                 }
@@ -465,7 +465,7 @@ void siqs_dispatch(void *vptr)
                 //    static_conf->batch_buffer_id = 1;
                 //}
 
-                if (VFLAG > 1)
+                if (fobj->VFLAG > 1)
                 {
                     printf("now gathering relations into batch buffer %d\n",
                         static_conf->batch_buffer_id);
@@ -542,7 +542,7 @@ void SIQS(fact_obj_t *fobj)
 
 	// logfile for this factorization
 	// must ensure it is only written to by main thread
-	if (LOGFLAG && (fobj->qs_obj.flags != 12345))
+	if (fobj->LOGFLAG && (fobj->qs_obj.flags != 12345))
 	{
 		fobj->logfile = fopen(fobj->flogname, "a");
 		sieve_log = fobj->logfile;
@@ -560,7 +560,7 @@ void SIQS(fact_obj_t *fobj)
 	// other applications (e.g., aliqeit) check for the starting
 	// line when parsing the factor.log file.  Should have always 
 	// printed it anyway, for consistency.
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 	{
 		gmp_printf("\nstarting SIQS on c%d: %Zd\n",
 			fobj->digits, fobj->qs_obj.gmp_n);
@@ -568,8 +568,9 @@ void SIQS(fact_obj_t *fobj)
 
 	if (sieve_log != NULL)
 	{
-		logprint(sieve_log, "starting SIQS on c%d: %s\n", fobj->digits,
-			mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
+        char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
+		logprint(sieve_log, "starting SIQS on c%d: %s\n", fobj->digits, s);
+        free(s);
 		logprint(sieve_log, "random seed: %" PRIu64 "\n", fobj->options->rand_seed);
 		fflush(sieve_log);
 	}
@@ -602,7 +603,7 @@ void SIQS(fact_obj_t *fobj)
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
-		if (resume_check_input_match(tmpz, fobj->qs_obj.gmp_n, g))
+		if (resume_check_input_match(tmpz, fobj->qs_obj.gmp_n, g, fobj->VFLAG))
 		{
 			// remove any common factor so the input exactly matches
 			// the file.  
@@ -647,8 +648,8 @@ void SIQS(fact_obj_t *fobj)
 	static_conf = (static_conf_t *)malloc(sizeof(static_conf_t));
 	static_conf->obj = fobj;
 
-	thread_data = (thread_sievedata_t *)malloc(THREADS * sizeof(thread_sievedata_t));
-	for (i = 0; i < THREADS; i++)
+	thread_data = (thread_sievedata_t *)malloc(fobj->THREADS * sizeof(thread_sievedata_t));
+	for (i = 0; i < fobj->THREADS; i++)
 	{
 		thread_data[i].dconf = (dynamic_conf_t *)malloc(sizeof(dynamic_conf_t));
         thread_data[i].dconf->tid = i;
@@ -668,7 +669,7 @@ void SIQS(fact_obj_t *fobj)
 
 	udata.thread_data = thread_data;
 
-	tpool_data = tpool_setup(THREADS, NULL, NULL,
+	tpool_data = tpool_setup(fobj->THREADS, NULL, NULL,
 		&siqs_sync, &siqs_dispatch, &udata);
 	tpool_add_work_fcn(tpool_data, &process_poly);
 
@@ -677,7 +678,7 @@ void SIQS(fact_obj_t *fobj)
 	// routines in an attempt to clean up this toplevel function.
 	siqs_start(tpool_data);
 
-	if (THREADS == 1)
+	if (fobj->THREADS == 1)
 	{
 		// it is noticably faster to remove the tpool overhead
 		// if we just have one thread.  This is basically what
@@ -708,17 +709,17 @@ void SIQS(fact_obj_t *fobj)
 	free(tpool_data);
 
     uint32 missed_batch_rels = 0;
-	for (i = 0; i < THREADS; i++)
+	for (i = 0; i < fobj->THREADS; i++)
 	{
         missed_batch_rels += thread_data[i].dconf->rb.num_relations;
 		free_sieve(thread_data[i].dconf);
 		free(thread_data[i].dconf->relation_buf);
 	}
 
-    if ((static_conf->do_batch) && (VFLAG > 0))
-    {
-        printf("threw away %u batched relations\n", missed_batch_rels);
-    }
+    //if ((static_conf->do_batch) && (fobj->VFLAG > 0))
+    //{
+    //    printf("threw away %u batched relations\n", missed_batch_rels);
+    //}
 
 	// finalize savefile
 	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
@@ -743,7 +744,7 @@ void SIQS(fact_obj_t *fobj)
 	gettimeofday(&myTVend, NULL);
 	t_time = yafu_difftime(&static_conf->totaltime_start, &myTVend);
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 	{
 		if (static_conf->use_dlp == 2)
 			printf("TLP filtering time = %6.4f seconds.\n", static_conf->t_time4);
@@ -840,14 +841,14 @@ void SIQS(fact_obj_t *fobj)
 	gettimeofday (&myTVend, NULL);
     static_conf->t_time3 = yafu_difftime(&static_conf->totaltime_start, &myTVend);
 	
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 	{
 		printf("Lanczos elapsed time = %6.4f seconds.\n",static_conf->t_time1);
 		printf("Sqrt elapsed time = %6.4f seconds.\n",static_conf->t_time2);
 		
 	}
 
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 	{
 		printf("SIQS elapsed time = %6.4f seconds.\n", static_conf->t_time3);
 	}
@@ -879,7 +880,7 @@ done:
         fclose(sieve_log);
     }
 
-	for (i=0; i<THREADS; i++)
+	for (i=0; i<fobj->THREADS; i++)
 	{
 		free(thread_data[i].dconf);
 	}
@@ -1132,7 +1133,7 @@ void *process_poly(void *vptr)
 
 #endif
 
-        if (THREADS >= 32)
+        if (sconf->obj->THREADS >= 32)
         {
             // other threads may have got us past the threshold while we
             // are still working on this 'A' poly... check if we can stop.
@@ -1363,7 +1364,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
                 x, NULL, 0, tmp, NULL, dest_rb);
         }
 
-        if (VFLAG > 2)
+        if (sconf->obj->VFLAG > 2)
         {
             printf("merged %d relations from thread %d into batch buffer %d\n",
                 rb->num_relations, dconf->tid, sconf->batch_buffer_id);
@@ -1461,7 +1462,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     strcpy(inst_set, "KNC");
 
 #elif defined(USE_AVX2)
-    if (HAS_AVX2)
+    if (sconf->obj->HAS_AVX2)
     {
 #if defined (USE_AVX512F)
         strcpy(inst_set, "AVX512");
@@ -1469,7 +1470,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         strcpy(inst_set, "AVX2");
 #endif
     }
-    else if (HAS_SSE41)
+    else if (sconf->obj->HAS_SSE41)
     {
         strcpy(inst_set, "SSE4.1");
     }
@@ -1482,11 +1483,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         strcpy(inst_set, "generic C");
     }
 #elif defined(USE_SSE41)
-    if (HAS_SSE41)
+    if (sconf->obj->HAS_SSE41)
     {
         strcpy(inst_set, "SSE4.1");
     }
-    else if (HAS_SSE2)
+    else if (sconf->obj->HAS_SSE2)
     {
         strcpy(inst_set, "SSE2");
     }
@@ -1495,7 +1496,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         strcpy(inst_set, "generic C");
     }
 #elif defined(HAS_SSE2)
-    if (HAS_SSE2)
+    if (sconf->obj->HAS_SSE2)
     {
         strcpy(inst_set, "SSE2");
     }
@@ -1507,7 +1508,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     strcpy(inst_set, "generic C");
 #endif
 
-    if (VFLAG > 0)
+    if (sconf->obj->VFLAG > 0)
     {
         printf("\n==== sieve params ====\n");
         printf("n = %d digits, %d bits\n", sconf->digits_n, sconf->bits);
@@ -1560,9 +1561,9 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		printf("trial factoring cutoff at %d bits\n",sconf->tf_closnuf);
 	}
 
-	if (VFLAG >= 0)
+	if (sconf->obj->VFLAG >= 0)
 	{
-		if (THREADS == 1)
+		if (sconf->obj->THREADS == 1)
 		{
 			printf("\n==== sieving in progress (1 thread): %7u relations needed ====\n",
 				sconf->factor_base->B + sconf->num_extra_relations);
@@ -1571,7 +1572,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		else
 		{
 			printf("\n==== sieving in progress (%3d threads): %7u relations needed ====\n",
-				THREADS,sconf->factor_base->B + sconf->num_extra_relations);
+                sconf->obj->THREADS,sconf->factor_base->B + sconf->num_extra_relations);
 			printf(  "====             Press ctrl-c to abort and save state            ====\n");
 		}
 	}
@@ -1629,10 +1630,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
 			sconf->tf_closnuf);
-		if (THREADS == 1)
+		if (sconf->obj->THREADS == 1)
 			logprint(sconf->obj->logfile,"==== sieving started (1 thread) ====\n");
 		else
-			logprint(sconf->obj->logfile,"==== sieving started (%2d threads) ====\n",THREADS);
+			logprint(sconf->obj->logfile,"==== sieving started (%2d threads) ====\n",
+                sconf->obj->THREADS);
 	}
 
 	return;
@@ -1644,7 +1646,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     //various things used during sieving.
     uint32 i, memsize;
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         printf("memory usage during sieving:\n");
     }
@@ -1664,7 +1666,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS * sizeof(int));
     dconf->curr_poly->gray = (char *)malloc((1 << (MAX_A_FACTORS - 1)) * sizeof(char));
     dconf->curr_poly->nu = (char *)malloc((1 << (MAX_A_FACTORS - 1)) * sizeof(char));
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = MAX_A_FACTORS * sizeof(int);
         memsize += (1 << (MAX_A_FACTORS - 1)) * sizeof(char);
@@ -1677,7 +1679,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->buffered_rel_alloc = 32768;
     dconf->buffered_rels = 0;
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = 32768 * sizeof(siqs_r);
         printf("\trelation buffer: %d bytes\n", memsize);
@@ -1724,13 +1726,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(MAX_A_FACTORS * sconf->factor_base->med_B * sizeof(uint16)));
 
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->factor_base->med_B * sizeof(sieve_fb_compressed) * 2;
         printf("\tfactor bases: %d bytes\n", memsize);
     }
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->factor_base->B * sizeof(int) * 2;
         memsize += sconf->factor_base->B * sizeof(uint32);
@@ -1745,7 +1747,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8)));
     dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->qs_blocksize * sizeof(uint8);
         printf("\tsieve: %d bytes\n", memsize);
@@ -1794,7 +1796,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
                 BUCKET_ALLOC * sizeof(uint32)));
 #else
-        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / THREADS /
+        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / fobj->THREADS /
             (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
                 BUCKET_ALLOC * sizeof(uint32)));
 #endif
@@ -1829,7 +1831,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->buckets->num_slices = 0;
     }
 
-    if (VFLAG > 2)
+    if (sconf->obj->VFLAG > 2)
     {
         memsize = dconf->buckets->list_size * sizeof(uint32);
         memsize += dconf->buckets->alloc_slices * sizeof(uint32);
@@ -1958,6 +1960,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	double sum, avg, sd;
     uint32 dlp_cutoff;
 	uint32 tlp_cutoff;
+    int VFLAG = sconf->obj->VFLAG;
+    int THREADS = sconf->obj->THREADS;
 
     // this pretty much has to stay "8".  the reason is that many of the specialized routines
     // have picky requirements about how large or small the primes can be for them
@@ -2007,7 +2011,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     nextRoots_ptr = &nextRoots_32k_knc_small;
 
 #elif defined(USE_AVX2) && !defined(_MSC_VER)
-    if (HAS_AVX2)
+    if (obj->HAS_AVX2)
     {
         if (VFLAG > 1)
         {
@@ -2015,7 +2019,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         }
         nextRoots_ptr = &nextRoots_32k_avx2;
     }
-    else if (HAS_SSE41)
+    else if (obj->HAS_SSE41)
     {
         if (VFLAG > 1)
         {
@@ -2025,9 +2029,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     }
 
 #elif defined(USE_SSE41)
-	if (HAS_SSE41)
+	if (obj->HAS_SSE41)
 	{
-        if (VFLAG > 1)
+        if (sconf->obj->VFLAG > 1)
         {
             printf("assigning nextRoots_32k_sse41 ptr\n");
         }
@@ -2041,7 +2045,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
 	// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
 #if defined(USE_AVX2) //&& !defined(_MSC_VER)
-	if (HAS_AVX2)
+	if (obj->HAS_AVX2)
 	{
         if (VFLAG > 1)
         {
@@ -2049,7 +2053,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         }
 		med_sieve_ptr = &med_sieveblock_32k_avx2;
 	}
-	else if (HAS_SSE41)
+	else if (obj->HAS_SSE41)
 	{
         if (VFLAG > 1)
         {
@@ -2059,7 +2063,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	}
 
 #elif defined(USE_SSE41)
-	if (HAS_SSE41)
+	if (obj->HAS_SSE41)
 	{
         if (VFLAG > 1)
         {
@@ -2074,9 +2078,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     resieve_med_ptr = &resieve_medprimes_32k;
 
 #if defined(USE_AVX2)
-	if (HAS_AVX2)
+	if (obj->HAS_AVX2)
 	{
-        if (VFLAG > 1)
+        if (sconf->obj->VFLAG > 1)
         {
             printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
         }
@@ -2086,9 +2090,9 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 
 #if defined(USE_AVX2)
-    if (HAS_AVX2)
+    if (obj->HAS_AVX2)
     {
-        if (VFLAG > 1)
+        if (sconf->obj->VFLAG > 1)
         {
             printf("assigning resieve_medprimes_32k_avx2 ptr\n");
         }
@@ -2105,7 +2109,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(USE_AVX512F)
 	tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
     resieve_med_ptr = &resieve_medprimes_32k_avx2;
-    if (VFLAG > 1)
+    if (sconf->obj->VFLAG > 1)
     {
         printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
         printf("assigning resieve_medprimes_32k_avx2 ptr\n");
@@ -2572,10 +2576,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         uint32 memuse = 0;
         struct timeval locstart, locstop;
 
-        sconf->rb = (relation_batch_t *)xmalloc(THREADS * sizeof(relation_batch_t));
-        sconf->num_alloc_rb = THREADS;
+        sconf->rb = (relation_batch_t *)xmalloc(obj->THREADS * sizeof(relation_batch_t));
+        sconf->num_alloc_rb = obj->THREADS;
         sconf->num_active_rb = 0;
-        memuse += THREADS * sizeof(relation_batch_t);
+        memuse += obj->THREADS * sizeof(relation_batch_t);
 
         //relation_batch_init(stdout, &sconf->rb, sconf->pmax, sconf->large_prime_max,
         //    sconf->large_prime_max, sconf->large_prime_max, NULL, (print_relation_t)NULL, 1);
@@ -2591,7 +2595,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
 
         gettimeofday(&locstop, NULL);
-        if (VFLAG > 0)
+        if (obj->VFLAG > 0)
         {
             printf("batch init took %1.4f sec\n", yafu_difftime(&locstart, &locstop));
         }
@@ -2627,7 +2631,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         sconf->do_periodic_tlp_filter = 1;
         //sconf->est_raw_rels_needed = 20938 + 234867 + 962109 + 33970;
         
-        if (VFLAG > 0)
+        if (obj->VFLAG > 0)
         {
             printf("memory use for relation batch structures: %u bytes\n", memuse);
         }
@@ -2916,7 +2920,7 @@ int update_check(static_conf_t *sconf)
 
     // if we are working on a large problem or have a lot of
     // threads, update as fast as we can.
-    if ((sconf->digits_n >= 90) || (THREADS >= 32))
+    if ((sconf->digits_n >= 90) || (sconf->obj->THREADS >= 32))
         update_time = 0;
 
 	mpz_init(tmp1);
@@ -3000,7 +3004,7 @@ int update_check(static_conf_t *sconf)
 		}
 
 		// update screen
-		if (VFLAG >= 0)
+		if (sconf->obj->VFLAG >= 0)
 		{
             uint32 total_rels = sconf->num_full + sconf->num_slp +
                 sconf->dlp_useful + sconf->tlp_useful;
@@ -3673,7 +3677,7 @@ int update_final(static_conf_t *sconf)
     gettimeofday(&myTVend, NULL);
     t_time = yafu_difftime(&sconf->totaltime_start, &myTVend);
 
-	if (VFLAG >= 0)
+	if (sconf->obj->VFLAG >= 0)
 	{
         struct timeval update_stop;
         gettimeofday(&update_stop, NULL);
@@ -3707,7 +3711,7 @@ int update_final(static_conf_t *sconf)
 		mpz_mul_2exp(tmp1, tmp1, 1);			//pos and neg sides
 		mpz_mul_2exp(tmp1, tmp1, sconf->qs_blockbits);	//sieve locations per block	
 
-		if (VFLAG > 0)
+		if (sconf->obj->VFLAG > 0)
 		{
 			printf("\n\nsieving required %u total polynomials (%u 'A' polynomials)\n",
 				sconf->tot_poly, sconf->total_poly_a);
@@ -3752,8 +3756,10 @@ int update_final(static_conf_t *sconf)
 
 		if (sieve_log != NULL)
 		{
+            char* s = mpz_get_str(NULL, 10, tmp1);
 			logprint(sieve_log, "trial division touched %u sieve locations out of %s\n",
-				sconf->num, mpz_conv2str(&gstr1.s, 10, tmp1));
+				sconf->num, s);
+            free(s);
 
 			logprint(sieve_log, "total reports = %lu, total surviving reports = %lu\n", sconf->total_reports,
 				sconf->total_surviving_reports);
@@ -3855,8 +3861,10 @@ int update_final(static_conf_t *sconf)
 				(double)(sconf->num_relations + sconf->num_cycles) / t_time);
 		}
 
+        char* s = mpz_get_str(NULL, 10, tmp1);
 		logprint(sieve_log, "trial division touched %lu sieve locations out of %s\n",
-			sconf->num, mpz_conv2str(&gstr1.s, 10, tmp1));
+			sconf->num, s);
+        free(s);
 		logprint(sieve_log,"==== post processing stage (msieve-1.38) ====\n");
 	}
 

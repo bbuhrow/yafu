@@ -21,7 +21,6 @@ code to the public domain.
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"
-#include "yafu_string.h"
 #include "util.h"
 #include "factor.h"
 #include "gmp.h"
@@ -34,23 +33,18 @@ code to the public domain.
 #include "cmdOptions.h"
 
 // function to read the .ini file and populate options
-void apply_tuneinfo(fact_obj_t *fobj, char *arg);
-
-// functions to populate the global options with default values, and to free
-// those which allocate memory
-void set_default_globals(void);
-void free_globals(void);
+void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg);
 
 // function containing system commands to get the computer name
-void get_computer_info(char *idstr);
+void get_computer_info(yafu_obj_t* yobj, char *idstr);
 
 // function to print the splash screen to file/screen
-void print_splash(int is_cmdline_run, FILE *logfile, char *idstr);
+void print_splash(yafu_obj_t* yobj, int is_cmdline_run, FILE *logfile, char *idstr);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
 void prepare_batchfile(char *input_exp);
-char * process_batchline(char *input_exp, char *indup, int *code);
-void finalize_batchline();
+char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code);
+void finalize_batchline(yafu_obj_t* yobj);
 int exp_is_open(char *line, int firstline);
 
 // functions to process all incoming arguments
@@ -76,9 +70,12 @@ int main(int argc, char *argv[])
 	fact_obj_t *fobj;
     int firstline = 1;
     options_t *options;
+    meta_t calc_metadata;
+    yafu_obj_t yafu_obj;
+    soe_staticdata_t *sdata;
+    int i;
 
 #if defined(__unix__)
-	int i;
 
     static struct termios oldtio, newtio;
     tcgetattr(0, &oldtio);
@@ -102,7 +99,7 @@ int main(int argc, char *argv[])
     strcpy(input_line, "");
 	
 	// set defaults for various things and read the .ini file, if any.
-	set_default_globals();
+	yafu_init(&yafu_obj);
     options = initOpt();
     readINI("yafu.ini", options);
 
@@ -110,34 +107,91 @@ int main(int argc, char *argv[])
     processOpts(argc, argv, options);
 
     // some things go into globals, but this is being phased out
-    VFLAG = options->verbosity;
-    THREADS = options->threads;
-    CMD_LINE_REPEAT = options->repeat;
+    yafu_obj.VFLAG = options->verbosity;
+    yafu_obj.THREADS = options->threads;
+    yafu_obj.CMD_LINE_REPEAT = options->repeat;
+    yafu_obj.VERBOSE_PROC_INFO = options->vproc;
+    yafu_obj.LATHREADS = options->lathreads;
+    if (strlen(options->factorlog) == 0)
+    {
+        yafu_obj.LOGFLAG = 0;
+    }
+    if (strlen(options->batchfile) > 0)
+    {
+        yafu_obj.USEBATCHFILE = 1;
+    }
+    if (options->rand_seed == 0)
+    {
+        uint32 seed1, seed2;
+        get_random_seeds(&seed1, &seed2);
+        options->rand_seed = ((uint64)seed2 << 32) | (uint64)seed1;
+    }
+    else
+    {
+        yafu_obj.USERSEED = 1;
+    }
 
-	// a factorization object that gets passed around to any factorization routine
-	// called out in the input expression.  if no factorization routine is specified,
-	// this is not used.  initialize and pass in all of the options.
-	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj, options);
+    sdata = soe_init(options->verbosity, options->threads, options->soe_blocksize);
+
+    //find, and hold globally, primes less than some N
+    //bootstrap the process by finding some initial sieve primes.
+    //if the requested offset+range is large we may need to find more - 
+    //we can use these primes to accomplish that.
+    //PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, 0, szSOEp, &limit);
+    
+    // initial limit of cache of primes.
+    szSOEp = 10000000; 
+    PRIMES = soe_wrapper(sdata, 0, szSOEp, 0, &NUM_P, 0, 0);
+
+    //save a batch of sieve primes too.
+    spSOEprimes = (uint32*)malloc((size_t)(NUM_P * sizeof(uint32)));
+    for (i = 0; i < NUM_P; i++)
+    {
+        spSOEprimes[i] = (uint32)PRIMES[i];
+    }
+
+    P_MIN = 0;
+    P_MAX = PRIMES[(uint32)NUM_P - 1];
+
 
 #if !defined( TARGET_KNC )
-    //get the computer name, cache sizes, etc.  store in globals
-    // we need to have the cpu id string before calling readINI so that
+    // get the computer name, cache sizes, etc.  store in globals
+    // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    get_computer_info(CPU_ID_STR);
+    get_computer_info(&yafu_obj, yafu_obj.CPU_ID_STR);
 #endif
 
 #if !defined( TARGET_KNC )
     // now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
     // 
-    if (VERBOSE_PROC_INFO)
+    if (yafu_obj.VERBOSE_PROC_INFO)
     {
-        extended_cpuid(CPU_ID_STR, &CLSIZE, &HAS_SSE41, &HAS_AVX,
-            &HAS_AVX2, VERBOSE_PROC_INFO);
+        extended_cpuid(yafu_obj.CPU_ID_STR, &yafu_obj.CLSIZE, 
+            &yafu_obj.HAS_SSE41, &yafu_obj.HAS_AVX,
+            &yafu_obj.HAS_AVX2, yafu_obj.VERBOSE_PROC_INFO);
     }
 #endif
 #endif
+
+	// a factorization object that gets passed around to any factorization routine
+	// called out in the input expression.  if no factorization routine is specified,
+	// this is not used.  initialize and pass in all of the options.
+	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
+	init_factobj(fobj, options);
+    if (strlen(options->tune_info) > 0)
+    {
+        printf("tune_info: %s\n", options->tune_info);
+        apply_tuneinfo(&yafu_obj, fobj, options->tune_info);
+    }
+    fobj->MEAS_CPU_FREQUENCY = yafu_obj.MEAS_CPU_FREQUENCY;
+    strcpy(fobj->CPU_ID_STR, yafu_obj.CPU_ID_STR);
+    fobj->HAS_AVX2 = yafu_obj.HAS_AVX2;
+    fobj->HAS_AVX = yafu_obj.HAS_AVX;
+    fobj->HAS_SSE41 = yafu_obj.HAS_SSE41;
+    fobj->NUM_WITNESSES = yafu_obj.NUM_WITNESSES;
+    calc_metadata.fobj = fobj;
+    calc_metadata.options = options;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
@@ -161,11 +215,11 @@ int main(int argc, char *argv[])
 	if (is_cmdline_run == 2)
 	{
 		// batchfile from stdin
-		USEBATCHFILE = 2;
+        yafu_obj.USEBATCHFILE = 2;
 	}
 
 	// get the batchfile ready, if requested
-	if (USEBATCHFILE)
+	if (yafu_obj.USEBATCHFILE)
 	{
 		prepare_batchfile(input_exp);		
 		
@@ -173,12 +227,12 @@ int main(int argc, char *argv[])
 		is_cmdline_run = 1;		
 	}
 
-    if (strlen(scriptname) > 0)
+    if (strlen(yafu_obj.scriptname) > 0)
     {
-        scriptfile = fopen(scriptname, "r");
+        scriptfile = fopen(yafu_obj.scriptname, "r");
         if (scriptfile == NULL)
         {
-            printf("could not find %s\n", scriptname);
+            printf("could not find %s\n", yafu_obj.scriptname);
             exit(1);
         }
         else
@@ -187,26 +241,26 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (USEBATCHFILE || (CMD_LINE_REPEAT > 0))
+    if (yafu_obj.USEBATCHFILE || (yafu_obj.CMD_LINE_REPEAT > 0))
     {
         strcpy(indup, input_exp);	//remember the input expression
     }
 
 	//never run silently when run interactively, else the results of
 	//calculations will never be displayed.
-    if (!is_cmdline_run && VFLAG < 0)
+    if (!is_cmdline_run && yafu_obj.VFLAG < 0)
     {
-        VFLAG = 0;
+        yafu_obj.VFLAG = 0;
     }
 
 	//session log
-    if (LOGFLAG)
+    if (yafu_obj.LOGFLAG)
     {
-        logfile = fopen(sessionname, "a");
+        logfile = fopen(yafu_obj.sessionname, "a");
         if (logfile == NULL)
         {
             printf("fopen error: %s\n", strerror(errno));
-            printf("couldn't open %s for appending\n", sessionname);
+            printf("couldn't open %s for appending\n", yafu_obj.sessionname);
             slog = 0;
         }
         else
@@ -219,7 +273,7 @@ int main(int argc, char *argv[])
     }
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
-	print_splash(is_cmdline_run, logfile, CPU_ID_STR);	
+	print_splash(&yafu_obj, is_cmdline_run, logfile, yafu_obj.CPU_ID_STR);
 	
 	// start the calculator
 	// right now this just allocates room for user variables
@@ -231,13 +285,10 @@ int main(int argc, char *argv[])
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
-	
     srand((unsigned int)options->rand_seed);
-	gmp_randinit_default(gmp_randstate);
-	gmp_randseed_ui(gmp_randstate, (unsigned int)options->rand_seed);
 
 #if BITS_PER_DIGIT == 64
-	LCGSTATE = options->rand_seed;
+    LCGSTATE = options->rand_seed;
 #else
     LCGSTATE = (uint32)options->rand_seed;
 #endif	
@@ -249,19 +300,19 @@ int main(int argc, char *argv[])
         reset_factobj(fobj);
 
 		// handle a batch file, if passed in.
-		if (USEBATCHFILE)
+		if (yafu_obj.USEBATCHFILE)
 		{
 			int code;
-            input_line = process_batchline(input_line, indup, &code);
+            input_line = process_batchline(&yafu_obj, input_line, indup, &code);
 			if (code == 1)
 			{
-				finalize_batchline();
+				finalize_batchline(&yafu_obj);
 				break;
 			}
 			else if (code == 2)
 				continue;
 		}
-        else if (strlen(scriptname) > 0)
+        else if (strlen(yafu_obj.scriptname) > 0)
         {
             if (scriptfile != NULL)
             {
@@ -296,6 +347,7 @@ int main(int argc, char *argv[])
 			break;
 		else
 		{
+            char* result;
             sAppend(input_line, &input_str);
             if (exp_is_open(input_line, firstline))
             {
@@ -308,9 +360,13 @@ int main(int argc, char *argv[])
             firstline = 1;
             reset_preprocessor();
             logprint(logfile, "Processing: %s\n", input_str.s);
-            process_expression(input_str.s, fobj, 0);
-            logprint(logfile, "Result    : %s\n", gstr3.s);
+            result = process_expression(input_str.s, &calc_metadata, 0, 0);
+            logprint(logfile, "Result    : %s\n", result);
             sClear(&input_str);
+            if (result != NULL)
+            {
+                free(result);
+            }
 		}
 
 #if defined(WIN32) && !defined(__MINGW32__)
@@ -326,7 +382,7 @@ int main(int argc, char *argv[])
 
 		// get the next expression, if running a batchfile, or
 		// re-display the command prompt
-		if (CMD_LINE_REPEAT == 0)
+		if (yafu_obj.CMD_LINE_REPEAT == 0)
 		{
             input_line = (char *)realloc(input_line, GSTR_MAXSIZE*sizeof(char));
             if (input_line == NULL)
@@ -340,25 +396,25 @@ int main(int argc, char *argv[])
 
 		if (is_cmdline_run)
 		{
-			if (USEBATCHFILE)
+			if (yafu_obj.USEBATCHFILE)
 			{
 				// the line from the batchfile finished.  make the temporary file
 				// created in processs_batchline the new batchfile, with the line
 				// we just finished removed.
-				finalize_batchline();
+				finalize_batchline(&yafu_obj);
 			}
             else if (scriptfile != NULL)
             {
                 if (feof(scriptfile))
                 {
-                    if (CMD_LINE_REPEAT > 0)
+                    if (yafu_obj.CMD_LINE_REPEAT > 0)
                     {
-                        CMD_LINE_REPEAT--;
+                        yafu_obj.CMD_LINE_REPEAT--;
                         fclose(scriptfile);
-                        scriptfile = fopen(scriptname, "r");
+                        scriptfile = fopen(yafu_obj.scriptname, "r");
                         if (scriptfile == NULL)
                         {
-                            printf("could not find %s\n", scriptname);
+                            printf("could not find %s\n", yafu_obj.scriptname);
                             exit(1);
                         }
                     }
@@ -368,9 +424,9 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-			else if (CMD_LINE_REPEAT > 0)
+			else if (yafu_obj.CMD_LINE_REPEAT > 0)
 			{
-				CMD_LINE_REPEAT--;
+                yafu_obj.CMD_LINE_REPEAT--;
                 strcpy(input_line, indup);
 			}
 			else
@@ -395,7 +451,7 @@ int main(int argc, char *argv[])
     }
 
 	calc_finalize();
-	free_globals();	
+	yafu_finalize(&yafu_obj);	
 	free(input_exp);
     free(input_line);
 	free(indup);	
@@ -713,171 +769,6 @@ void helpfunc(char *s)
 	return;
 }
 
-int invalid_dest(char *dest)
-{
-	//return 1 if invalid, 0 otherwise
-	int i;
-
-	if (getFunc(dest,&i) >= 0)
-		return 1;	//is a function name
-
-	//global vars are ok
-	if (strcmp(dest,"POLLARD_STG1_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"POLLARD_STG2_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"WILL_STG1_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"WILL_STG2_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"ECM_STG1_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"ECM_STG2_MAX") == 0) {
-		return 0;}
-	else if (strcmp(dest,"BRENT_MAX_IT") == 0) {
-		return 0;}
-	else if (strcmp(dest,"IBASE") == 0) {
-		return 0;}
-	else if (strcmp(dest,"OBASE") == 0) {
-		return 0;}
-	else if (strcmp(dest,"QS_DUMP_CUTOFF") == 0) {
-		return 0;}
-	else if (strcmp(dest,"NUM_WITNESSES") == 0) {
-		return 0;}
-	else if (strcmp(dest,"LOGFLAG") == 0) {
-		return 0;}
-	else if (strcmp(dest,"VFLAG") == 0) {
-		return 0;}
-	else if (strcmp(dest,"PRIMES_TO_FILE") == 0) {
-		return 0;}
-	else if (strcmp(dest,"PRIMES_TO_SCREEN") == 0) {
-		return 0;}
-
-	//check starting char not lower case letter or _ or `
-	if ((dest[0] < 95) || (dest[0] > 122) || (dest[0] == 96)) return 1;
-
-    // check that dest string doesn't contain any invalid characters.
-    // we allow non-leading characters to be a-z,A-Z,0-9,_
-    for (i = 1; i < strlen(dest); i++)
-    {
-        if ((dest[i] < 48) || (dest[i] > 122) ||
-            ((dest[i] > 90) && (dest[i] < 95)) ||
-            ((dest[i] > 57) && (dest[i] < 65)) ||
-            (dest[i] == 96))
-            {
-                return 1;
-            }
-    }
-    
-	return 0;
-}
-
-int invalid_num(char *num)
-{
-	//check that num consists of only numeric or alphanumeric characters
-	int i=0;
-	int nchars = strlen(num);
-	
-	if (nchars == 0) return 1;
-
-	if (num[0] == '-')
-		i++;
-	
-	//check for 0x, 0d, 0b, or 0o.  nchars must be > 3-i in this case
-	if (num[i] == '0' && num[i+1] == 'x' && ((nchars-i) > 2))
-	{
-		//num is hex, and can have lower or upper case alpha characters
-		i += 2;
-		for (;i<nchars;i++)
-		{ 
-			if (num[i] > 102)	//102 == f
-				return 1;
-			else if (num[i] < 48) 
-				return 1;
-			else if (num[i] > 57 && num[i] < 65)
-				return 1;
-			else if (num[i] > 70 && num[i] < 97)	//97 == a
-				return 1;
-		}
-	}
-	else if (num[i] == '0' && num[i+1] == 'd' && ((nchars-i) > 2))
-	{
-		//num is dec, and can have only digits 0 - 9
-		i += 2;
-		for (;i<nchars;i++)
-		{ 
-			if (num[i] < 48 || num[i] > 57) 
-				return 1;
-		}
-	}
-	else if (num[i] == '0' && num[i+1] == 'b' && ((nchars-i) > 2))
-	{
-		//num is bin, and can have only digits 0 - 1
-		i += 2;
-		for (;i<nchars;i++)
-		{ 
-			if (num[i] < 48 || num[i] > 49) 
-				return 1;
-		}
-	}
-	else if (num[i] == '0' && num[i+1] == 'o' && ((nchars-i) > 2))
-	{
-		//num is oct, and can have only digits 0 - 7
-		i += 2;
-		for (;i<nchars;i++)
-		{ 
-			if (num[i] < 48 || num[i] > 55) 
-				return 1;
-		}
-	}
-	else
-	{
-		//no base designator, go by IBASE
-		if (IBASE == HEX)
-		{
-			//num is hex, and can have only upper case alpha characters
-			for (;i<nchars;i++)
-			{ 
-				if (num[i] < 48) 
-					return 1;
-				else if (num[i] > 57 && num[i] < 65)
-					return 1;
-				else if (num[i] > 70)	//70 == F
-					return 1;
-			}
-		}
-		else if (IBASE == DEC)
-		{
-			//num is dec, and can have only digits 0 - 9
-			for (;i<nchars;i++)
-			{ 
-				if (num[i] < 48 || num[i] > 57) 
-					return 1;
-			}
-		}
-		else if (IBASE == BIN)
-		{
-			//num is bin, and can have only digits 0 - 1
-			for (;i<nchars;i++)
-			{ 
-				if (num[i] < 48 || num[i] > 49) 
-					return 1;
-			}
-		}
-		else if (IBASE == OCT)
-		{
-			//num is oct, and can have only digits 0 - 7
-			for (;i<nchars;i++)
-			{ 
-				if (num[i] < 48 || num[i] > 55) 
-					return 1;
-			}
-		}
-	}
-
-	return 0;
-}
-
 void prepare_batchfile(char *input_exp)
 {
 	char *ptr;
@@ -972,19 +863,19 @@ int check_expression(options_t* options)
 
 }
 
-void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
+void print_splash(yafu_obj_t *yobj, int is_cmdline_run, FILE *logfile, char *idstr)
 {
-	if (VFLAG >= 0)
+	if (yobj->VFLAG >= 0)
 		printf("\n\n");
 
-	if ((VFLAG > 0) || !is_cmdline_run)
+	if ((yobj->VFLAG > 0) || !is_cmdline_run)
 	{	
 		logprint(NULL,"System/Build Info: \n");
         fflush(stdout);
 	}
 	logprint(logfile,"System/Build Info: \n");
 
-    if ((VFLAG > 0) || !is_cmdline_run)
+    if ((yobj->VFLAG > 0) || !is_cmdline_run)
     {
 #ifdef _MSC_MPIR_VERSION
 #ifdef ECM_VERSION
@@ -1023,29 +914,31 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
         fflush(stdout);
     }
 
-    logprint(logfile,"cached %u primes. pmax = %u\n",szSOEp,spSOEprimes[szSOEp-1]);
+    logprint(logfile,"cached %u primes. pmax = %u\n", 
+        szSOEp, spSOEprimes[szSOEp-1]);
     logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-		idstr,L1CACHE,L2CACHE,CLSIZE);
+		idstr, yobj->L1CACHE, yobj->L2CACHE, yobj->CLSIZE);
     logprint(logfile,"measured cpu frequency ~= %f\n",
-		MEAS_CPU_FREQUENCY);
+        yobj->MEAS_CPU_FREQUENCY);
     logprint(logfile,"using %u random witnesses for Rabin-Miller PRP checks\n\n",
-			NUM_WITNESSES);
+        yobj->NUM_WITNESSES);
 
-	if (VFLAG > 0 || !is_cmdline_run)
+	if (yobj->VFLAG > 0 || !is_cmdline_run)
 	{		
 		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-			idstr,L1CACHE,L2CACHE,CLSIZE);
+			idstr, yobj->L1CACHE, yobj->L2CACHE, yobj->CLSIZE);
 		printf("measured cpu frequency ~= %f\n",
-			MEAS_CPU_FREQUENCY);
+            yobj->MEAS_CPU_FREQUENCY);
 		printf("using %u random witnesses for Rabin-Miller PRP checks\n\n",
-			NUM_WITNESSES);
+            yobj->NUM_WITNESSES);
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
 		printf("=======             bbuhrow@gmail.com                   =======\n");
 		printf("=======     Type help at any time, or quit to quit      =======\n");
 		printf("===============================================================\n");
-		printf("cached %u primes. pmax = %u\n\n",szSOEp,spSOEprimes[szSOEp-1]);
+		printf("cached %u primes. pmax = %u\n\n", 
+            szSOEp, spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
         fflush(stdout);
 	}
@@ -1053,7 +946,7 @@ void print_splash(int is_cmdline_run, FILE *logfile, char *idstr)
 	return;
 }
 
-void get_computer_info(char *idstr)
+void get_computer_info(yafu_obj_t* yobj, char *idstr)
 {
 #if !defined(WIN32)
 	int ret;
@@ -1062,10 +955,10 @@ void get_computer_info(char *idstr)
 	//figure out cpu freq in order to scale qs time estimations
 	//0.1 seconds won't be very accurate, but hopefully close
 	//enough for the rough scaling we'll be doing anyway.
-    if (NO_CLK_TEST == 0)
-        MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
+    if (yobj->NO_CLK_TEST == 0)
+        yobj->MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
     else
-        MEAS_CPU_FREQUENCY = 42;
+        yobj->MEAS_CPU_FREQUENCY = 42;
 	
 #ifdef __APPLE__
 	// something in extended cpuid causes a segfault on mac builds.
@@ -1079,37 +972,37 @@ void get_computer_info(char *idstr)
 
 #else
 	//read cache sizes
-	yafu_get_cache_sizes(&L1CACHE,&L2CACHE);
+	yafu_get_cache_sizes(&yobj->L1CACHE,&yobj->L2CACHE);
 
 	// run an extended cpuid command to get the cache line size, and
 	// optionally print a bunch of info to the screen
-	extended_cpuid(idstr, &CLSIZE, &HAS_SSE41, &HAS_AVX, &HAS_AVX2, 
-		VERBOSE_PROC_INFO);
+	extended_cpuid(idstr, &yobj->CLSIZE, &yobj->HAS_SSE41, &yobj->HAS_AVX, &yobj->HAS_AVX2,
+        yobj->VERBOSE_PROC_INFO);
 
     if (0)
     {
-        if (HAS_SSE41)
+        if (yobj->HAS_SSE41)
             printf("CPU has SSE4.1\n");
 
-        if (HAS_AVX2)
+        if (yobj->HAS_AVX2)
             printf("CPU has AVX2\n");
     }
 
 	#if defined(WIN32)
 
-		sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
-		GetComputerName(sysname,&sysname_sz);
+    yobj->sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
+	GetComputerName(yobj->sysname,&yobj->sysname_sz);
 	
 	#else
 
-		ret = gethostname(sysname,sizeof(sysname) / sizeof(*sysname));
-		sysname[(sizeof(sysname)-1)/sizeof(*sysname)] = 0;	// null terminate
-		if (ret != 0)
-		{
-			printf("error occured when getting host name\n");
-			strcpy(sysname, "N/A");
-		}
-		sysname_sz = strlen(sysname);
+	ret = gethostname(yobj->sysname,sizeof(yobj->sysname) / sizeof(*yobj->sysname));
+    yobj->sysname[(sizeof(yobj->sysname)-1)/sizeof(*yobj->sysname)] = 0;	// null terminate
+	if (ret != 0)
+	{
+		printf("error occured when getting host name\n");
+		strcpy(yobj->sysname, "N/A");
+	}
+    yobj->sysname_sz = strlen(yobj->sysname);
 	
 	#endif
 
@@ -1127,98 +1020,42 @@ void yafu_set_idle_priority(void) {
 #endif
 }
 
-void set_default_globals(void)
+void yafu_init(yafu_obj_t* yobj)
 {
 	uint64 limit, i;
 	uint32 seed_p[6542], num_sp;
 	
-	VFLAG = 0;
-	VERBOSE_PROC_INFO = 0;
-	LOGFLAG = 1;
+    yobj->VFLAG = 0;
+    yobj->VERBOSE_PROC_INFO = 0;
+    yobj->LOGFLAG = 1;
+    yobj->NUM_WITNESSES = 1;
+    yobj->NO_CLK_TEST = 0;
+    yobj->USEBATCHFILE = 0;
+    yobj->USERSEED = 0;
+    yobj->THREADS = 1;
+    yobj->LATHREADS = 0;
+    yobj->CMD_LINE_REPEAT = 0;
 
-	NUM_WITNESSES = 1;
-	
-	PRIMES_TO_FILE = 0;
-	PRIMES_TO_SCREEN = 0;
-	GLOBAL_OFFSET = 0;
-    NO_CLK_TEST = 0;
-
-	SOEBLOCKSIZE = 32768;
-	
-	USEBATCHFILE = 0;
-	USERSEED = 0;
-	THREADS = 1;
-	LATHREADS = 0;
-	CMD_LINE_REPEAT = 0;
-
-	strcpy(sessionname,"session.log");	
-    strcpy(scriptname, "");
-
-	// initial limit of cache of primes.
-	szSOEp = 10000000;	
-
-	//set some useful globals
-	zInit(&zZero);
-	zInit(&zOne);
-	zInit(&zTwo);
-	zInit(&zThree);
-	zInit(&zFive);
-	zOne.val[0] = 1;
-	zTwo.val[0] = 2;
-	zThree.val[0] = 3;
-	zFive.val[0] = 5;
-
-	//global strings, used mostly for logprint stuff
-	sInit(&gstr1);
-	sInit(&gstr2);
-	sInit(&gstr3);
-
-	//global i/o base
-	IBASE = DEC;
-	OBASE = DEC;
-
-	//find, and hold globally, primes less than some N
-	//bootstrap the process by finding some initial sieve primes.
-	//if the requested offset+range is large we may need to find more - 
-	//we can use these primes to accomplish that.
-	num_sp = tiny_soe(65537, seed_p);
-	PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, 0, szSOEp, &limit);
-
-	//save a batch of sieve primes too.
-	spSOEprimes = (uint32 *)malloc((size_t) (limit * sizeof(uint32)));
-	for (i=0;i<limit;i++)
-		spSOEprimes[i] = (uint32)PRIMES[i];
-
-	szSOEp = limit;
-	NUM_P = limit;
-	P_MIN = 0; 
-	P_MAX = PRIMES[(uint32)NUM_P-1];
+	strcpy(yobj->sessionname,"session.log");
+    strcpy(yobj->scriptname, "");
 
 	return;
 }
 
-void free_globals()
+void yafu_finalize(yafu_obj_t* yobj)
 {
-	zFree(&zZero);
-	zFree(&zOne);
-	zFree(&zTwo);
-	zFree(&zThree);
-	zFree(&zFive);
 	free(spSOEprimes);
 	free(PRIMES);
-	sFree(&gstr1);
-	sFree(&gstr2);
-	sFree(&gstr3);
 
 	return;
 }
 
-void finalize_batchline()
+void finalize_batchline(yafu_obj_t* yobj)
 {
-	if (USEBATCHFILE == 1)
+	if (yobj->USEBATCHFILE == 1)
 	{
-		rename(batchfilename,"_bkup");
-		rename("__tmpbatchfile",batchfilename);
+		rename(yobj->batchfilename,"_bkup");
+		rename("__tmpbatchfile", yobj->batchfilename);
 		remove("_bkup");
 		remove("__tmpbatchfile");
 	}
@@ -1226,22 +1063,22 @@ void finalize_batchline()
 	return;
 }
 
-char * process_batchline(char *input_exp, char *indup, int *code)
+char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *code)
 {
 	int nChars, j, i;
 	char *line, tmpline[GSTR_MAXSIZE], *ptr, *ptr2;
 	FILE *batchfile, *tmpfile;
 
 	//try to open the file
-	if (USEBATCHFILE == 2)
+	if (yobj->USEBATCHFILE == 2)
 		batchfile = stdin;
 	else
-		batchfile = fopen(batchfilename,"r");	
+		batchfile = fopen(yobj->batchfilename,"r");
 
 	if (batchfile == NULL)
 	{
 		printf("fopen error: %s\n", strerror(errno));
-		printf("couldn't open %s for reading\n",batchfilename);
+		printf("couldn't open %s for reading\n", yobj->batchfilename);
 		exit(-1);
 	}	
 
@@ -1306,7 +1143,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	} while (strlen(line) == 0);	
 
 	// this only applies for non-stdin batchfiles
-	if (USEBATCHFILE == 1)
+	if (yobj->USEBATCHFILE == 1)
 	{
 		// copy everything in the file after the line we just read to
 		// a temporary file.  if the expression we just read finishes, 
@@ -1372,7 +1209,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	}
 	input_exp[nChars++] = '\0';
 
-	if (VFLAG >= 0)
+	if (yobj->VFLAG >= 0)
 	{
 		printf("=== Starting work on batchfile expression ===\n");
 		printf("%s\n",input_exp);
@@ -1385,7 +1222,7 @@ char * process_batchline(char *input_exp, char *indup, int *code)
 	return input_exp;;
 }
 
-void apply_tuneinfo(fact_obj_t *fobj, char *arg)
+void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 {
 	int i,j;
 	char cpustr[80], osstr[80];
@@ -1422,7 +1259,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
     xover = fobj->autofact_obj.qs_gnfs_xover;
 
 #if defined(_WIN64)
-	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
+	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
 	{
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
@@ -1434,7 +1271,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 
 	}
 #elif defined(WIN32)
-	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
+	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
 	{
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
@@ -1444,7 +1281,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #elif BITS_PER_DIGIT == 64
-	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
+	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
 	{
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
@@ -1455,7 +1292,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #else 
-	if ((strcmp(cpustr,CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
+	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
 	{
 		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
@@ -1482,7 +1319,7 @@ void apply_tuneinfo(fact_obj_t *fobj, char *arg)
 }
 
 //function get_random_seeds courtesy of Jason Papadopoulos
-void get_random_seeds(rand_t *r) {
+void get_random_seeds(uint32 *seed1, uint32 *seed2) {
 
 	uint32 tmp_seed1, tmp_seed2;
 
@@ -1524,7 +1361,7 @@ void get_random_seeds(rand_t *r) {
 	/* The final seeds are the result of a multiplicative
 	   hash of the initial seeds */
 
-	r->low = tmp_seed1 * ((uint32)40499 * 65543);
-	r->hi = tmp_seed2 * ((uint32)40499 * 65543);
+	*seed1 = tmp_seed1 * ((uint32)40499 * 65543);
+	*seed2 = tmp_seed2 * ((uint32)40499 * 65543);
 }
 

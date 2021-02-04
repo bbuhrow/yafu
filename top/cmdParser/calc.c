@@ -48,7 +48,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 75
+#define NUM_FUNC 76
 
 // symbols in calc
 #define EOE 1
@@ -136,31 +136,6 @@ gmp_randstate_t gmp_randstate;
 uvars_t uvars;
 strvars_t strvars;
 
-// snfs - two arguments
-        // rsa - one argument
-        // factor - one argument
-        // pm1 - one argument
-        // pp1 - two arguments, one optional
-        // rho - one argument
-        // trial - two arguments
-        // shanks - one argument
-        // siqs - one argument
-        // primes
-        // torture - two arguments
-        // ecm - two arguments
-        // lucas lehmer test
-        // siqsbench
-        // sigma - sum of divisors function
-        // Euler's totient function
-        // smallmpqs - 1 argument
-        // testrange - 4 arguments (low, high, depth, witnesses)
-        // sieverange - 4 arguments
-        // fermat - three arguments
-        // nfs - one argument
-        // tune, no arguments
-        // bpsw, 1 argument
-        // aprcl, one argument};
-
 static char function_names[NUM_FUNC][11] = {
     "fib", "luc", "expr", "gcd", "jacobi",
     "rand", "lg2", "log", "ln", "size",
@@ -175,15 +150,15 @@ static char function_names[NUM_FUNC][11] = {
     "hamdist", "snfs", "rsa", "factor", "pm1",
     "pp1", "rho", "trial", "shanks", "siqs",
     "primes", "torture", "ecm", "llt", "siqsbench",
-    "sigma", "totient", "smallmpqs", "testrange",
-    "sieverange", "fermat", "nfs", "tune", "bpsw",
-    "aprcl" }
+    "sigma", "totient", "smallmpqs", "testrange", "sieverange",
+    "fermat", "nfs", "tune", "bpsw", "aprcl",
+    "semiprimes"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
     1, 1, 1, 1, 1, 
     1, 1, 1, 2, 3,
-    2, 2, 1, 1, 2, 
+    2, 2, 1, 1, 2,
     2, 2, 2, 1, 1, 
     2, 2, 2, 2, 2, 
     3, 2, 2, 2, 1,
@@ -192,9 +167,10 @@ static int function_nargs[NUM_FUNC] = {
     2, 1, 2, 2, 1,
     2, 2, 1, 1, 1, 
     3, 1, 2, 1, 1, 
-    1, 2, 2, 1, 0, 
+    3, 2, 2, 1, 0, 
     1, 1, 1, 4, 4, 
-    3, 1, 0 1, 1};
+    3, 1, 0, 1, 1,
+    2};
 
 
 // =====================================================================
@@ -2439,7 +2415,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("Paranoid, huh?  This might take a minute\n");
         }
 
-        build_RSA(mpz_get_ui(operands[0]), operands[0]);
+        build_RSA(mpz_get_ui(operands[0]), operands[0], gmp_randstate);
         break;
     case 53:
         // factor - one argument
@@ -2651,15 +2627,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // lucas lehmer test
         if (check_args(funcnum, nargs)) break;
 
-        if (llt(mpz_get_ui(operands[0])))
+        if (llt(mpz_get_ui(operands[0]), fobj->VFLAG))
         {
-            if (VFLAG > 1)
+            if (fobj->VFLAG > 1)
                 gmp_printf("%Zd is prime!\n", operands[0]);
             mpz_set_ui(operands[0], 1);
         }
         else
         {
-            if (VFLAG > 1)
+            if (fobj->VFLAG > 1)
                 gmp_printf("%Zd is composite.\n", operands[0]);
             mpz_set_ui(operands[0], 0);
         }
@@ -2675,10 +2651,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // sigma - sum of divisors function
         if (check_args(funcnum, nargs)) break;
 
-        int oldvflag = VFLAG;
+        int oldvflag = fobj->VFLAG;
         if (mpz_sizeinbase(operands[0], 2) < 192)
         {
-            VFLAG = -1;
+            fobj->VFLAG = -1;
         }
 
         mpz_set(mp2, operands[0]);
@@ -2698,17 +2674,17 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_mul(mp2, mp2, mp1);
         }
         mpz_set(operands[0], mp2);
-        VFLAG = oldvflag;
+        fobj->VFLAG = oldvflag;
 
         break;
     case 66:
         // Euler's totient function
         if (check_args(funcnum, nargs)) break;
 
-        oldvflag = VFLAG;
+        oldvflag = fobj->VFLAG;
         if (mpz_sizeinbase(operands[0], 2) < 192)
         {
-            VFLAG = -1;
+            fobj->VFLAG = -1;
         }
 
         mpz_set(mp2, operands[0]);
@@ -2725,7 +2701,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_mul(operands[0], operands[0], mp1);
             mpz_tdiv_q(operands[0], operands[0], mp2);
         }
-        VFLAG = oldvflag;
+        fobj->VFLAG = oldvflag;
 
         break;
 
@@ -2735,14 +2711,14 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         mpz_set(fobj->N, operands[0]);
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
-        if (LOGFLAG)
+        if (strlen(fobj->flogname) > 0)
         {
             fobj->logfile = fopen(fobj->flogname, "a");
             if (fobj->logfile == NULL)
                 printf("fopen error: %s\n", strerror(errno));
         }
         smallmpqs(fobj);
-        if (LOGFLAG)
+        if (strlen(fobj->flogname) > 0)
         {
             if (fobj->logfile != NULL)
                 fclose(fobj->logfile);
@@ -2942,6 +2918,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("\nInput is prime.  P%d\n", gmp_base10(operands[0]));
         }
 
+        break;
+
+    case 75:
+        // semiprime list generation: two arguments (count, bits)
+        if (check_args(funcnum, nargs)) break;
+
+        generate_semiprime_list(mpz_get_ui(operands[0]), mpz_get_ui(operands[1]), gmp_randstate);
         break;
 
 	default:
@@ -3193,21 +3176,60 @@ void free_strvars()
 
 int invalid_dest(char* dest)
 {
-    // return 1 if invalid, 0 otherwise
+    //return 1 if invalid, 0 otherwise
     int i;
 
     if (getFunc(dest, &i) >= 0)
         return 1;	//is a function name
 
-    // global vars are ok
-    if (strcmp(dest, "IBASE") == 0) {
+    //global vars are ok
+    if (strcmp(dest, "POLLARD_STG1_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "POLLARD_STG2_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "WILL_STG1_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "WILL_STG2_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "ECM_STG1_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "ECM_STG2_MAX") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "BRENT_MAX_IT") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "IBASE") == 0) {
         return 0;
     }
     else if (strcmp(dest, "OBASE") == 0) {
         return 0;
     }
-    
-    // check starting char not lower case letter or _ or `
+    else if (strcmp(dest, "QS_DUMP_CUTOFF") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "NUM_WITNESSES") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "LOGFLAG") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "VFLAG") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "PRIMES_TO_FILE") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "PRIMES_TO_SCREEN") == 0) {
+        return 0;
+    }
+
+    //check starting char not lower case letter or _ or `
     if ((dest[0] < 95) || (dest[0] > 122) || (dest[0] == 96)) return 1;
 
     // check that dest string doesn't contain any invalid characters.

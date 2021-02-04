@@ -228,10 +228,10 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 #endif
 
 	//read the offset
-	this_offset = strtoul(substr,&nextstr,HEX);	//convert
+	this_offset = strtoul(substr,&nextstr,16);	//convert
 	substr = nextstr;
 
-	this_id = strtoul(substr,&nextstr,HEX);
+	this_id = strtoul(substr,&nextstr,16);
 	substr = nextstr;
 
 	if (this_offset & 0x80000000)
@@ -245,7 +245,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	j=0;
 	do
 	{
-		this_val = strtoul(substr,&nextstr,HEX);
+		this_val = strtoul(substr,&nextstr,16);
         if (this_val == (uint32)(-1))
         {
             printf("error parsing relation: strtoul returned error code\n");
@@ -258,17 +258,17 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	this_num_factors = j;
 
 	substr += 2;
-	this_val = strtoul(substr,&nextstr,HEX);
+	this_val = strtoul(substr,&nextstr,16);
 	substr = nextstr;
 	lp[0] = this_val;
 
-	this_val = strtoul(substr,&nextstr,HEX);
+	this_val = strtoul(substr,&nextstr,16);
 	substr = nextstr;
     lp[1] = this_val;
 
 	if (sconf->use_dlp == 2)
 	{
-		this_val = strtoul(substr, &nextstr, HEX);
+		this_val = strtoul(substr, &nextstr, 16);
 		substr = nextstr;
 		lp[2] = this_val;
 	}
@@ -451,7 +451,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	if (sconf->use_dlp == 2)
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG))
 		{
 			yafu_add_to_cycles3(sconf, 0, lp);
 		}
@@ -464,7 +464,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	else
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG))
 		{
 			if (lp[0] != lp[1]) {
 				yafu_add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
@@ -491,7 +491,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	char *str, *substr;
 	FILE *data;
 	uint32 lp[2],pmax = sconf->large_prime_max / sconf->large_mult;
-	//fact_obj_t *obj = sconf->obj;
+	fact_obj_t *fobj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	data = fopen(sconf->obj->qs_obj.siqs_savefile,"r");
@@ -507,7 +507,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// multiplier applied (the file saved N does not include the multiplier).
 		if (mpz_cmp(dconf->gmptmp1, sconf->obj->qs_obj.gmp_n) == 0)
 		{
-			if (VFLAG > 1)
+			if (fobj->VFLAG > 1)
 				printf("restarting siqs from saved data set\n");
 
 			fflush(stdout);
@@ -752,7 +752,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 					sconf->num_cycles +
 					sconf->components - sconf->vertices;
 
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 				{
 					printf("%d relations found: %d full + "
 						"%d from %d partial\n",
@@ -1641,7 +1641,7 @@ pbr_t *get_pbr_entry(pbr_t *table, uint32 *hashtable, uint32 rid) {
 	return entry;
 }
 
-qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
+qs_la_col_t * find_cycles3(fact_obj_t *fobj, static_conf_t *sconf,
 	siqs_r *relation_list, uint32 num_relations, uint32 *numcycles, uint32 *numpasses)
 {
 	// assume that we've kept a backup of all relation data, so feel free to modify it.
@@ -1912,7 +1912,7 @@ qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
 							has3lp = 1;
 						}
 
-						if (VFLAG > 2)
+						if (fobj->VFLAG > 2)
 						{
 							printf("found cycle of length %d\n", length);
 
@@ -1940,7 +1940,7 @@ qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
 								has3lp = 1;
 							}
 
-							if (VFLAG > 2)
+							if (fobj->VFLAG > 2)
 							{
 								printf("relation %08d: %u,%u,%u\n", rid,
 									relation_list[rid].large_prime[0],
@@ -1962,7 +1962,7 @@ qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
 								has3lp = 1;
 							}
 
-							if (VFLAG > 2)
+							if (fobj->VFLAG > 2)
 							{
 								printf("relation %08d: %u,%u,%u\n", rid,
 									relation_list[rid].large_prime[0],
@@ -2037,13 +2037,13 @@ qs_la_col_t * find_cycles3(fact_obj_t *obj, static_conf_t *sconf,
 	printf("maximum cycle length = %u\n", max_length);
 	printf("%1.1f%% of cycles from partials involve a tlp\n", (double)num3lp / (double)(curr_cycle - numfull) * 100.0);
 
-	if (obj->logfile != NULL)
+	if (fobj->logfile != NULL)
 	{
-		logprint(obj->logfile, "expected %u cycles, found %u cycles\n",
+		logprint(fobj->logfile, "expected %u cycles, found %u cycles\n",
 			pbr_table_size - rbp_table_size, curr_cycle);
-		logprint(obj->logfile, "found %u cycles from partial relations\n", curr_cycle - numfull);
-		logprint(obj->logfile, "maximum cycle length = %u\n", max_length);
-		logprint(obj->logfile, "%1.1f%% of cycles from partials involve a tlp\n", 
+		logprint(fobj->logfile, "found %u cycles from partial relations\n", curr_cycle - numfull);
+		logprint(fobj->logfile, "maximum cycle length = %u\n", max_length);
+		logprint(fobj->logfile, "%1.1f%% of cycles from partials involve a tlp\n", 
 			(double)num3lp / (double)(curr_cycle - numfull) * 100.0);
 
 	}
@@ -2085,7 +2085,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   should be taken to avoid wasting huge amounts of
 	   memory */
 
-	fact_obj_t *obj = sconf->obj;
+	fact_obj_t *fobj = sconf->obj;
 	uint32 *hashtable = sconf->cycle_hashtable;
 	qs_cycle_t *table = sconf->cycle_table;
 	uint32 num_derived_poly;
@@ -2120,14 +2120,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (!sconf->in_mem)
 	{
 		/* skip over the first line */
-		qs_savefile_open(&obj->qs_obj.savefile, SAVEFILE_READ);
-		qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+		qs_savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
+		qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 
 		//we don't know beforehand how many rels to expect, so start
 		//with some amount and allow it to increase as we read them
 		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
-		while (!qs_savefile_eof(&obj->qs_obj.savefile)) {
+		while (!qs_savefile_eof(&fobj->qs_obj.savefile)) {
 			char *start;
 
 			switch (buf[0]) {
@@ -2171,7 +2171,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				break;
 			}
 
-			qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		num_relations = i;
 	}
@@ -2188,7 +2188,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		num_relations = sconf->buffered_rels;
 	}
 
-    if (VFLAG > 0)
+    if (fobj->VFLAG > 0)
         printf("read %d relations\n", num_relations);
 
 	// re-filtering
@@ -2201,7 +2201,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		// tlp variation may not have built graph as it progressed... do it now.
 		rebuild_graph3(sconf, relation_list, num_relations);
 
-		num_relations = qs_purge_singletons3(obj, relation_list, num_relations,
+		num_relations = qs_purge_singletons3(fobj, relation_list, num_relations,
 			table, hashtable);
 
 		// the loop below will rebuild the graph again with relations that
@@ -2215,7 +2215,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 	else
 	{
-		num_relations = qs_purge_singletons(obj, relation_list, num_relations,
+		num_relations = qs_purge_singletons(fobj, relation_list, num_relations,
 			table, hashtable);
 	}
 
@@ -2254,14 +2254,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	curr_a_idx = (uint32)(-1);
 	poly_saved = 0;
 	sconf->poly_list_alloc = 0;
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("attempting to read %u relations\n", num_relations);
 
 	/* Read in the relations and the polynomials they use
 	   at the same time. */
 
 	if (!sconf->in_mem)
-		qs_savefile_rewind(&obj->qs_obj.savefile);
+		qs_savefile_rewind(&fobj->qs_obj.savefile);
 	else
 		this_rel = 0;
 
@@ -2275,9 +2275,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		/* read in the next entity */
 		if (!sconf->in_mem)
 		{
-			if (qs_savefile_eof(&obj->qs_obj.savefile))
+			if (qs_savefile_eof(&fobj->qs_obj.savefile))
 				break;
-			qs_savefile_read_line(buf, sizeof(buf), &obj->qs_obj.savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		else
 		{
@@ -2392,10 +2392,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				if (process_rel(subbuf, sconf->factor_base,
 					sconf->n, sconf, sconf->obj, r)) {
 
-						if (obj->logfile != NULL)
-							logprint(obj->logfile, "failed to read relation %d\n", 
+						if (fobj->logfile != NULL)
+							logprint(fobj->logfile, "failed to read relation %d\n", 
 								curr_expected - 1);
-						if (VFLAG > 1)
+						if (fobj->VFLAG > 1)
 							printf("failed to read relation %d\n", 
 								curr_expected - 1);
 					break;
@@ -2444,10 +2444,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				r->poly_idx = rel->poly_idx;
 
 				if (!check_relation(sconf->curr_a,
-						sconf->curr_b[r->poly_idx], r, sconf->factor_base, sconf->n))
+					sconf->curr_b[r->poly_idx], r, sconf->factor_base, 
+                    sconf->n, fobj->VFLAG))
 				{
 					if (r->large_prime[0] != r->large_prime[1]) {
-						yafu_add_to_cycles(sconf, obj->flags, 
+						yafu_add_to_cycles(sconf, fobj->flags, 
 							r->large_prime[0], r->large_prime[1]);
 						sconf->num_cycles++;
 					}
@@ -2493,19 +2494,19 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   and polynomials actually recovered */
 
 	num_relations = curr_saved;
-	if (obj->logfile != NULL)
+	if (fobj->logfile != NULL)
 	{
-		logprint(obj->logfile, "recovered %u relations\n", num_relations);
-		logprint(obj->logfile, "recovered %u polynomials\n", i);
+		logprint(fobj->logfile, "recovered %u relations\n", num_relations);
+		logprint(fobj->logfile, "recovered %u polynomials\n", i);
 	}
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 	{
 		printf("recovered %u relations\n", num_relations);
 		printf("recovered %u polynomials\n", i);
 	}
 
 	if (!sconf->in_mem)
-		qs_savefile_close(&obj->qs_obj.savefile);
+		qs_savefile_close(&fobj->qs_obj.savefile);
 
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,
@@ -2517,7 +2518,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	if (sconf->use_dlp == 2)
 	{
-		num_relations = qs_purge_duplicate_relations3(obj,
+		num_relations = qs_purge_duplicate_relations3(fobj,
 			relation_list, num_relations);
 
 		num_cycles = sconf->vertices;
@@ -2530,12 +2531,12 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 		rebuild_graph3(sconf, relation_list, num_relations);
 
-		cycle_list = find_cycles3(obj, sconf, relation_list,
+		cycle_list = find_cycles3(fobj, sconf, relation_list,
 			num_relations, &num_cycles, &passes);
 	}
 	else
 	{
-		num_relations = qs_purge_duplicate_relations(obj,
+		num_relations = qs_purge_duplicate_relations(fobj,
 			relation_list, num_relations);
 
 		memset(hashtable, 0, sizeof(uint32) * (1 << QS_LOG2_CYCLE_HASH));
@@ -2551,22 +2552,22 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 		num_cycles = num_relations + sconf->components - sconf->vertices;
 
-		if (obj->logfile != NULL)
-			logprint(obj->logfile, "attempting to build %u cycles\n", num_cycles);
-		if (VFLAG > 0)
+		if (fobj->logfile != NULL)
+			logprint(fobj->logfile, "attempting to build %u cycles\n", num_cycles);
+		if (fobj->VFLAG > 0)
 		{
 			printf("attempting to build %u cycles\n", num_cycles);
 			fflush(stdout);
 		}
 
-		cycle_list = find_cycles(obj, hashtable, table, relation_list,
+		cycle_list = find_cycles(fobj, hashtable, table, relation_list,
 			num_relations, &num_cycles, &passes);
 	}
 
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "found %u cycles from %u relations in %u passes\n", 
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "found %u cycles from %u relations in %u passes\n", 
 			num_cycles, num_relations, passes);
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("found %u cycles from %u relations in %u passes\n", 
 			num_cycles, num_relations, passes);
 	
@@ -2594,35 +2595,35 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			cycle_bins[num_relations - 1]++;
 	}
 
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "distribution of cycle lengths:\n");
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "distribution of cycle lengths:\n");
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("distribution of cycle lengths:\n");
 	for (i = 0; i < NUM_CYCLE_BINS; i++) {
 		if (cycle_bins[i]) {
-			if (obj->logfile != NULL)
-				logprint(obj->logfile, "   length %d : %d\n", 
+			if (fobj->logfile != NULL)
+				logprint(fobj->logfile, "   length %d : %d\n", 
 					i + 1, cycle_bins[i]);
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("   length %d : %d\n", 
 					i + 1, cycle_bins[i]);
 		}
 	}
 	if (cycle_bins[i])
 	{
-		if (obj->logfile != NULL)
-			logprint(obj->logfile, "   length %u+: %u\n", i + 1, cycle_bins[i]);
+		if (fobj->logfile != NULL)
+			logprint(fobj->logfile, "   length %u+: %u\n", i + 1, cycle_bins[i]);
 
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("   length %u+: %u\n", i + 1, cycle_bins[i]);
 	}
 	
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "largest cycle: %u relations\n",
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
 }
@@ -2707,7 +2708,7 @@ static int compare_relations3(const void *x, const void *y) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
+uint32 qs_purge_duplicate_relations(fact_obj_t *fobj,
 				siqs_r *rlist, 
 				uint32 num_relations) {
 
@@ -2740,10 +2741,10 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *obj,
 	j++;
 	if (j != num_relations)
 	{
-		if (obj->logfile != NULL)
-			logprint(obj->logfile, "freed %d duplicate relations\n", 
+		if (fobj->logfile != NULL)
+			logprint(fobj->logfile, "freed %d duplicate relations\n", 
 					num_relations - j);
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("freed %d duplicate relations\n", 
 					num_relations - j);
 	}
@@ -2787,7 +2788,7 @@ uint32 qs_purge_duplicate_relations3(fact_obj_t *obj,
 		if (obj->logfile != NULL)
 			logprint(obj->logfile, "freed %d duplicate relations\n",
 				num_relations - j);
-		if (VFLAG > 0)
+		if (obj->VFLAG > 0)
 			printf("freed %d duplicate relations\n",
 				num_relations - j);
 	}
@@ -2881,7 +2882,7 @@ void yafu_read_tlp(char *buf, uint32 *primes) {
 	return;
 }
 
-uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list, 
+uint32 qs_purge_singletons(fact_obj_t *fobj, siqs_r *list, 
 				uint32 num_relations,
 				qs_cycle_t *table, uint32 *hashtable) {
 	
@@ -2896,10 +2897,10 @@ uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list,
 	uint32 i, j, k;
 	uint32 passes = 0;
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("begin singleton removal with %u relations\n", num_relations);
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "begin singleton removal with %u relations\n", num_relations);
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "begin singleton removal with %u relations\n", num_relations);
 
 	do {
 		num_left = num_relations;
@@ -2959,16 +2960,16 @@ uint32 qs_purge_singletons(fact_obj_t *obj, siqs_r *list,
 
 	} while (num_left != num_relations);
 			
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "reduce to %u relations in %u passes\n", 
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "reduce to %u relations in %u passes\n", 
 				num_left, passes);
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("reduce to %u relations in %u passes\n", 
 				num_left, passes);
 	return num_left;
 }
 
-uint32 qs_purge_singletons3(fact_obj_t *obj, siqs_r *list,
+uint32 qs_purge_singletons3(fact_obj_t *fobj, siqs_r *list,
 	uint32 num_relations,
 	qs_cycle_t *table, uint32 *hashtable) {
 
@@ -2983,11 +2984,11 @@ uint32 qs_purge_singletons3(fact_obj_t *obj, siqs_r *list,
 	uint32 i, j, k;
 	uint32 passes = 0;
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("begin singleton removal with %u relations\n", 
 			num_relations);
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "begin singleton removal with %u relations\n", num_relations);
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "begin singleton removal with %u relations\n", num_relations);
 
 	// start with all unique possible primes in table
 
@@ -3054,10 +3055,10 @@ uint32 qs_purge_singletons3(fact_obj_t *obj, siqs_r *list,
 
 	} while (num_left != num_relations);
 
-	if (obj->logfile != NULL)
-		logprint(obj->logfile, "reduce to %u relations in %u passes\n",
+	if (fobj->logfile != NULL)
+		logprint(fobj->logfile, "reduce to %u relations in %u passes\n",
 			num_left, passes);
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("reduce to %u relations in %u passes\n",
 			num_left, passes);
 	return num_left;

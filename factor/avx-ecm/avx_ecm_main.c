@@ -270,7 +270,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         poly.coeff1 = 1;
         poly.coeff2 = -1;
         poly.exp1 = size_n;
-        find_primitive_factor(&poly);
+        find_primitive_factor(&poly, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
@@ -500,8 +500,8 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
 
 	gettimeofday(&stopt, NULL);
 
-    rand_t rnum;
-    get_random_seeds(&rnum);
+    uint32_t seed1, seed2;
+    get_random_seeds(&seed1, &seed2);
     for (i = 0; i < threads; i++)
     {
         int j;
@@ -513,7 +513,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         // this session's rand_t, and the current microsecond timer.  Plus the
         // thread id to make it unique per-thread.
 		tdata[i].lcg_state = hash64(stopt.tv_usec) + hash64(pid) + hash64(i+1) + 
-            rnum.low + (uint64)rnum.hi << 32;
+            seed1 + (uint64)seed2 << 32;
         tdata[i].total_threads = threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;

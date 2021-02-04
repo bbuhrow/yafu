@@ -271,6 +271,7 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\arith\arith.c" />
     <ClCompile Include="..\..\arith\barrett.c" />
     <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\avx-ecm\avxecm.c" />
@@ -339,23 +340,11 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
     <ClCompile Include="..\..\factor\tune.c" />
-    <ClCompile Include="..\..\top\calc.c" />
+    <ClCompile Include="..\..\top\cmdParser\calc.c" />
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c" />
     <ClCompile Include="..\..\top\driver.c" />
-    <ClCompile Include="..\..\top\eratosthenes\count.c" />
-    <ClCompile Include="..\..\top\eratosthenes\linesieve.c" />
-    <ClCompile Include="..\..\top\eratosthenes\offsets.c" />
-    <ClCompile Include="..\..\top\eratosthenes\presieve.c" />
-    <ClCompile Include="..\..\top\eratosthenes\primes.c" />
-    <ClCompile Include="..\..\top\eratosthenes\roots.c" />
-    <ClCompile Include="..\..\top\eratosthenes\soe.c" />
-    <ClCompile Include="..\..\top\eratosthenes\soe_util.c" />
-    <ClCompile Include="..\..\top\eratosthenes\tiny.c" />
-    <ClCompile Include="..\..\top\eratosthenes\worker.c" />
-    <ClCompile Include="..\..\top\eratosthenes\wrapper.c" />
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
     <ClCompile Include="..\..\top\queue.c" />
-    <ClCompile Include="..\..\top\stack.c" />
     <ClCompile Include="..\..\top\test.c" />
     <ClCompile Include="..\..\top\threadpool.c" />
     <ClCompile Include="..\..\top\utils.c" />
@@ -363,10 +352,6 @@
     <ClCompile Include="..\..\factor\rho.c" />
     <ClCompile Include="..\..\factor\squfof.c" />
     <ClCompile Include="..\..\factor\trialdiv.c" />
-    <ClCompile Include="..\..\arith\arith0.c" />
-    <ClCompile Include="..\..\arith\arith1.c" />
-    <ClCompile Include="..\..\arith\arith2.c" />
-    <ClCompile Include="..\..\arith\arith3.c" />
     <ClCompile Include="..\..\top\vecarith.c" />
   </ItemGroup>
   <ItemGroup>
@@ -382,7 +367,6 @@
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\arith.h" />
     <ClInclude Include="..\..\include\batch_factor.h" />
-    <ClInclude Include="..\..\include\calc.h" />
     <ClInclude Include="..\..\include\cofactorize.h" />
     <ClInclude Include="..\..\include\common.h" />
     <ClInclude Include="..\..\include\factor.h" />
@@ -401,8 +385,7 @@
     <ClInclude Include="..\..\include\util.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />
-    <ClInclude Include="..\..\include\yafu_stack.h" />
-    <ClInclude Include="..\..\include\yafu_string.h" />
+    <ClInclude Include="..\..\top\cmdParser\calc.h" />
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h" />
     <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>

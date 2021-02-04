@@ -1,5 +1,4 @@
 #include "gnfs.h"
-#include "yafu_string.h"
 #include "arith.h"
 #include "factor.h"
 #include "qs.h"
@@ -260,11 +259,11 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *poly);
 snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys); // the workhorse
 snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys);
 int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
-void check_poly(snfs_t *poly);
+void check_poly(snfs_t *poly, int VFLAG);
 void print_snfs(snfs_t *poly, FILE *out);
 void snfs_copy_poly(snfs_t *src, snfs_t *dest);
 void approx_norms(snfs_t *poly);
-void snfs_scale_difficulty(snfs_t *polys, int npoly);
+void snfs_scale_difficulty(snfs_t *polys, int npoly, int VFLAG);
 int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly);
 int qcomp_snfs_sdifficulty(const void *x, const void *y);
 int qcomp_snfs_murphy(const void *x, const void *y);
@@ -273,7 +272,7 @@ void snfs_make_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
-void find_primitive_factor(snfs_t *poly);
+void find_primitive_factor(snfs_t *poly, int VFLAG);
 void nfs_set_min_rels(nfs_job_t *job);
 void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);

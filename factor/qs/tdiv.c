@@ -76,6 +76,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
+    int VFLAG = sconf->obj->VFLAG;
+    int THREADS = sconf->obj->THREADS;
 	
 #ifdef QS_TIMING
 	gettimeofday(&qs_timing_start, NULL);

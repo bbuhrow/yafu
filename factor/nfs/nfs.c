@@ -67,17 +67,18 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		return 1;
 	}
 
-	if (is_mpz_prp(fobj->nfs_obj.gmp_n))
+	if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		
-		if (VFLAG >= 0)
+		if (fobj->VFLAG >= 0)
 			gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->nfs_obj.gmp_n),
 				fobj->nfs_obj.gmp_n);
 		
+        char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "PRP%d = %s\n",
-			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));	
+			gmp_base10(fobj->nfs_obj.gmp_n), s);	
+        free(s);
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
 		return 1;
@@ -88,14 +89,14 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+        char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			gmp_base10(fobj->nfs_obj.gmp_n), s);
 
 		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-			gmp_base10(fobj->nfs_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+			gmp_base10(fobj->nfs_obj.gmp_n), s);
+        free(s);
 
 		mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
 		return 1;
@@ -106,7 +107,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		FILE *flog;
 		uint32 j;
 
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("input is a perfect power\n");
 		
 		factor_perfect_power(fobj, fobj->nfs_obj.gmp_n);
@@ -116,11 +117,13 @@ int nfs_check_special_case(fact_obj_t *fobj)
 		for (j=0; j<fobj->num_factors; j++)
 		{
 			uint32 k;
+            char* s = mpz_get_str(NULL, 10, fobj->fobj_factors[j].factor);
 			for (k=0; k<fobj->fobj_factors[j].count; k++)
 			{
-				logprint_oc(fobj->flogname, "a", "prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor),
-					mpz_conv2str(&gstr1.s, 10, fobj->fobj_factors[j].factor));
+				logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                    gmp_base10(fobj->fobj_factors[j].factor), s);
 			}
+            free(s);
 		}
 
 		return 1;
@@ -164,7 +167,7 @@ void nfs(fact_obj_t *fobj)
 
 	if (fobj->nfs_obj.filearg[0] != '\0')
 	{
-		if (VFLAG > 0) printf("test: starting trial sieving\n");
+		if (fobj->VFLAG > 0) printf("test: starting trial sieving\n");
 		trial_sieve(fobj);
 		return;
 	}
@@ -183,17 +186,23 @@ void nfs(fact_obj_t *fobj)
 	process_done = 0;
 	while (!process_done)
 	{
+        char* s;
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
 			// write the input bigint as a string
-			input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
+			//input = mpz_conv2str(&input, 10, fobj->nfs_obj.gmp_n);
+
+            s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+            strcpy(input, s);
+            free(s);
 
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
 				fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-				(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
+				(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
+                (uint32)fobj->THREADS, (uint32)0, nfs_args);
 			fobj->nfs_obj.mobj = obj;
 
 			// initialize these before checking existing files.  If poly
@@ -214,7 +223,7 @@ void nfs(fact_obj_t *fobj)
                 nfs_state = NFS_STATE_DONE;
             }
 
-            if ((VFLAG >= 0) && (nfs_state != NFS_STATE_DONE))
+            if ((fobj->VFLAG >= 0) && (nfs_state != NFS_STATE_DONE))
             {
                 gmp_printf("nfs: commencing nfs on c%d: %Zd\n",
                     gmp_base10(fobj->nfs_obj.gmp_n), fobj->nfs_obj.gmp_n);
@@ -222,9 +231,10 @@ void nfs(fact_obj_t *fobj)
 
             if (nfs_state != NFS_STATE_DONE)
             {
+                char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
                 logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
-                    gmp_base10(fobj->nfs_obj.gmp_n),
-                    mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+                    gmp_base10(fobj->nfs_obj.gmp_n), s);
+                free(s);
             }
 
 			// convert input to msieve bigint notation and initialize a list of factors
@@ -234,7 +244,7 @@ void nfs(fact_obj_t *fobj)
 
             if (fobj->nfs_obj.rangeq > 0)
             {
-                job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)THREADS);
+                job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
             }
 
 			break;
@@ -264,7 +274,7 @@ void nfs(fact_obj_t *fobj)
 
 					if (better_by_gnfs && !(job.snfs == NULL))
 					{
-                        if (VFLAG >= 0)
+                        if (fobj->VFLAG >= 0)
                         {
                             printf("nfs: input snfs form is better done by gnfs: "
                                 "difficulty = %1.2f, size = %d, actual size = %d\n",
@@ -384,7 +394,7 @@ void nfs(fact_obj_t *fobj)
 				else
 					job.min_rels *= fobj->nfs_obj.filter_min_rels_nudge;
 
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					printf("nfs: raising min_rels by %1.2f percent to %u\n", 
 					100*(fobj->nfs_obj.filter_min_rels_nudge-1), job.min_rels);
 
@@ -394,7 +404,7 @@ void nfs(fact_obj_t *fobj)
 				nfs_state = NFS_STATE_SIEVE;
 			}
 
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
                 t_time = yafu_difftime(&start, &stop);
@@ -412,7 +422,7 @@ void nfs(fact_obj_t *fobj)
 				// msieve: build matrix
 				flags = 0;
 				flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 				flags = flags | MSIEVE_FLAG_NFS_LA;
 
@@ -422,18 +432,19 @@ void nfs(fact_obj_t *fobj)
 
 				obj->flags = flags;
 
-				if (VFLAG >= 0)
+				if (fobj->VFLAG >= 0)
 					printf("nfs: commencing msieve linear algebra\n");
 
 				logprint_oc(fobj->flogname, "a", "nfs: commencing msieve linear algebra\n");
 
 				// use a different number of threads for the LA, if requested
-				if (LATHREADS > 0)
+				if (fobj->LATHREADS > 0)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
 						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)LATHREADS, (uint32)0, nfs_args);
+						(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
+                        (uint32)fobj->LATHREADS, (uint32)0, nfs_args);
 				}
 
 				// try this hack - store a pointer to the msieve obj so that
@@ -486,12 +497,13 @@ void nfs(fact_obj_t *fobj)
 
 				// set the msieve threads back to where it was if we used
 				// a different amount for linalg
-				if (LATHREADS > 0)
+				if (fobj->LATHREADS > 0)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
 						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-						(uint32)L1CACHE, (uint32)L2CACHE, (uint32)THREADS, (uint32)0, nfs_args);
+						(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
+                        (uint32)fobj->THREADS, (uint32)0, nfs_args);
 				}
 
 				obj_ptr = NULL;
@@ -499,7 +511,7 @@ void nfs(fact_obj_t *fobj)
 			else // not doing linalg
 				nfs_state = NFS_STATE_SQRT;
 
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
                 t_time = yafu_difftime(&start, &stop);
@@ -524,12 +536,12 @@ void nfs(fact_obj_t *fobj)
 				// msieve: find factors
 				flags = 0;
 				flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 				flags = flags | MSIEVE_FLAG_NFS_SQRT;
 				obj->flags = flags;
 
-				if (VFLAG >= 0)
+				if (fobj->VFLAG >= 0)
 					printf("nfs: commencing msieve sqrt\n");
 
 				logprint_oc(fobj->flogname, "a", "nfs: commencing msieve sqrt\n");
@@ -553,7 +565,7 @@ void nfs(fact_obj_t *fobj)
 				}
 				else
 				{
-					if (VFLAG >= 0)
+					if (fobj->VFLAG >= 0)
 					{
 						printf("nfs: failed to find factors... possibly no dependencies found\n");
 						printf("nfs: continuing with sieving\n");
@@ -589,7 +601,7 @@ void nfs(fact_obj_t *fobj)
 
             t_time = yafu_difftime(&start, &stop);
 
-			if (VFLAG >= 0)
+			if (fobj->VFLAG >= 0)
 				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
 
 			logprint_oc(fobj->flogname, "a", "NFS elapsed time = %6.4f seconds.\n",t_time);
@@ -607,7 +619,7 @@ void nfs(fact_obj_t *fobj)
 		case NFS_STATE_FILTCHECK:
 			if (job.current_rels >= job.min_rels)
 			{
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					printf("nfs: found %u relations, need at least %u, proceeding with filtering ...\n",
 					job.current_rels, job.min_rels);
 				
@@ -632,7 +644,7 @@ void nfs(fact_obj_t *fobj)
 				if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 					(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 				{
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
 							job.current_rels, job.min_rels, est_time / 3600, 
@@ -642,7 +654,7 @@ void nfs(fact_obj_t *fobj)
 				}
 				else
 				{
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), sieving not selected, finishing ...\n",
 							job.current_rels, job.min_rels, est_time / 3600, 
@@ -652,7 +664,7 @@ void nfs(fact_obj_t *fobj)
 				}
 			}
 
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 gettimeofday(&stop, NULL);
                 t_time = yafu_difftime(&start, &stop);
@@ -834,7 +846,7 @@ void nfs(fact_obj_t *fobj)
 				}				
 			}
 
-			if (VFLAG >= 0)
+			if (fobj->VFLAG >= 0)
 				printf("%s", tmpstr);
 
 			logprint_oc(fobj->flogname, "a", "%s", tmpstr);
@@ -854,7 +866,7 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case NFS_STATE_RESUMEPOLY:
-			if (VFLAG > 1) printf("nfs: resuming poly select\n");
+			if (fobj->VFLAG > 1) printf("nfs: resuming poly select\n");
 			fobj->nfs_obj.polystart = job.last_leading_coeff;
 
 			nfs_state = NFS_STATE_POLY;
@@ -876,7 +888,7 @@ void nfs(fact_obj_t *fobj)
 
 		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
 		{
-			if (VFLAG >= 0)
+			if (fobj->VFLAG >= 0)
 				printf("NFS timeout after %6.4f seconds.\n",t_time);
 
 			logprint_oc(fobj->flogname, "a", "NFS timeout after %6.4f seconds.\n",t_time);
@@ -1040,7 +1052,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	double lambda;
 
 	/*
-	if (job->snfs == N && job->size != 0 && job->size != d && VFLAG > 0)
+	if (job->snfs == N && job->size != 0 && job->size != d && fobj->VFLAG > 0)
 		printf("nfs: warning: size param in job file does not match size of "
 			"number, ignoring param\n");	*/
 
@@ -1048,7 +1060,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	{
 		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
 		{
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: detected snfs job but no snfs difficulty; "
 					"assuming size of number is the snfs difficulty\n");
 		}
@@ -1057,7 +1069,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
 		i = est_gnfs_size(job);
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("nfs: guessing snfs difficulty %d is roughly equal to "
 				"gnfs difficulty %d\n", d, i);
 		d = i;
@@ -1103,7 +1115,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
         job->poly->side = fobj->nfs_obj.sq_side > 0 ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
     }
 
-    if (VFLAG > 0)
+    if (fobj->VFLAG > 0)
     {
         printf("nfs: creating ggnfs job parameters for input of size %u\n", d);
         fflush(stdout);
@@ -1219,7 +1231,7 @@ void trial_sieve(fact_obj_t* fobj)
 	char* ptr, * arg = fobj->nfs_obj.filearg;
 	int i = 0, me;
 
-	if (VFLAG < 0) VFLAG = 0;
+	if (fobj->VFLAG < 0) fobj->VFLAG = 0;
 
 	while((ptr = strchr(arg, ','))) // this sort of thing is what's absolutely brilliant about C
 	{

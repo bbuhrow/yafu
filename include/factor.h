@@ -306,7 +306,6 @@ typedef struct
 	uint32 num_curves;
 	uint32 sigma;				//sigma value of successful curve
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	double ttime;
 	uint64 ecm_ext_xover;
     int bail_on_factor;
@@ -341,7 +340,6 @@ typedef struct
 	uint32 limit;				//trial div limit
 	uint32 fmtlimit;			//fermat max iterations
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method	
 	double ttime;
 	int print;
 
@@ -352,7 +350,6 @@ typedef struct
 	mpz_t gmp_n;
 	mpz_t gmp_f;
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	double ttime;
 
 } squfof_obj_t;
@@ -393,7 +390,6 @@ typedef struct
     uint32 gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
 
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;					//array of bigint factors found in this method
 	uint32 flags;				//each bit corresponds to a location in the 
 								//flags enum
 	double rels_per_sec;
@@ -439,7 +435,6 @@ typedef struct
 	uint32 min_digits;
 
 	uint32 num_factors;			//number of factors found in this method
-	z *factors;				//array of bigint factors found in this method
 	double ttime;
 	
 	// an object used to carry around information needed by the msieve library
@@ -507,7 +502,6 @@ typedef struct
 typedef struct
 {
 	mpz_t N;					//numerical representation of input
-	str_t str_N;				//string representation of input (expression form)
 	uint32 digits;				//number of digits in input
 	uint32 bits;				//number of bits in input
 	char flogname[1024];		//name of the factorization logfile to use
@@ -515,7 +509,7 @@ typedef struct
 	char savefile_name[80];		//data savefile name
 	uint32 flags;				//state flags
 
-	//info for work done in various places during this factorization
+	// info for work done in various places during this factorization
 	div_obj_t div_obj;			//info for any trial division work 
 	squfof_obj_t squfof_obj;	//info for any squfof work 
 	rho_obj_t rho_obj;			//info for any rho work 
@@ -540,13 +534,28 @@ typedef struct
 	// if a number is > aprcl_display_cutoff, we will show the APRCL progress
 	int aprcl_display_cutoff;
 
-	//global storage for a list of factors
+	// global storage for a list of factors
 	factor_t *fobj_factors;
 	uint32 num_factors;
 	uint32 allocated_factors;
 	int do_logging;
 	int refactor_depth;
     options_t* options;
+
+    // configurable options
+    int VFLAG;
+    int THREADS;
+    int LOGFLAG;
+    double MEAS_CPU_FREQUENCY;
+    int LATHREADS;
+    char CPU_ID_STR[80];
+    int HAS_SSE41;
+    int HAS_AVX;
+    int HAS_AVX2;
+    int L1CACHE;
+    int L2CACHE;
+    int L3CACHE;
+    int NUM_WITNESSES;
 
 } fact_obj_t;
 
@@ -590,12 +599,10 @@ void savefile_rewind(savefile_t *s);
 //msieve
 void factor_list_init(factor_list_t *list);
 uint32 factor_list_max_composite(factor_list_t *list);
-void factor_list_free(z *n, factor_list_t *list, fact_obj_t *obj);
 
 //yafu
 void add_to_factor_list(fact_obj_t *fobj, mpz_t n);
 void print_factors(fact_obj_t *fobj);
-void free_factor_list(fact_obj_t *fobj);
 void clear_factor_list(fact_obj_t *fobj);
 void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
 
@@ -626,10 +633,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 void nfs(fact_obj_t *fobj);
 void SIQS(fact_obj_t *fobj);
 void smallmpqs(fact_obj_t *fobj);
-mpz_t * mpqs(mpz_t n, uint32 *num_factors);
-//void tinySIQS(fact_obj_t *fobj);
 int par_shanks_loop(uint64 *N, uint64 *f, int num_in);
-void tinySIQS(mpz_t n, mpz_t *factors, uint32 *num_factors);
 
 int sptestsqr(uint64 n);
 uint64 spfermat(uint64 n, uint64 limit);
@@ -638,7 +642,7 @@ uint64 spfermat(uint64 n, uint64 limit);
 void factor(fact_obj_t *fobj);
 
 // factoring related utility
-int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact);
+int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG);
 
 /* Factor a number using GNFS. Returns
    1 if any factors were found and 0 if not */

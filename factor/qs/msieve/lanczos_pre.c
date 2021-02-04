@@ -82,14 +82,14 @@ void count_qs_matrix_nonzero(fact_obj_t *obj,
 		}
 	}
 
-	if (VFLAG > 0)
+	if (obj->VFLAG > 0)
 		printf("matrix is %u x %u (%.1f MB) with "
 			"weight %u (%5.2f/col)\n", 
 				nrows, ncols, 
 				(double)mem_use / 1048576,
 				total_weight, 
 				(double)total_weight / ncols);
-	if (VFLAG > 0)
+	if (obj->VFLAG > 0)
 		printf("sparse part has weight %u (%5.2f/col)\n", 
 				sparse_weight, 
 				(double)sparse_weight / ncols);
@@ -365,7 +365,7 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 		return;
 	}
 
-	if (VFLAG > 0)
+	if (obj->VFLAG > 0)
 		printf("filtering completed in %u passes\n", passes);
 
 	if (obj->logfile != NULL)

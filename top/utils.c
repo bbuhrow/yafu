@@ -27,7 +27,6 @@ code to the public domain.
 #include "common.h"
 #include "util.h"
 #include "arith.h"
-#include "yafu_string.h"
 #include "soe.h"
 
 const char* szFeatures[] =
@@ -66,100 +65,6 @@ const char* szFeatures[] =
     "Pending Break Enable"
 };
 
-
-
-
-hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements)
-{
-    hash_t *hashTable;
-    int i;
-
-    hashTable = (hash_t*)xmalloc(sizeof(hash_t));
-    hashTable->hashKey = (uint64**)xmalloc((1 << pow2numElements) * sizeof(uint64*));
-    hashTable->hashBins = (uint8 **)xmalloc((1 << pow2numElements) * sizeof(uint8*));
-    hashTable->binSize = (uint32*)xcalloc((1 << pow2numElements), sizeof(uint32));
-    hashTable->elementSizeB = elementSizeB;
-    hashTable->numStored = 0;
-    hashTable->numBinsPow2 = pow2numElements;
-    hashTable->numBins = 1 << pow2numElements;
-
-    printf("initialized hash array of size %u with elements of size %u\n",
-        hashTable->numBins, hashTable->elementSizeB);
-
-    for (i = 0; i < hashTable->numBins; i++)
-    {
-        hashTable->hashBins[i] = (uint8*)xmalloc(elementSizeB);
-        hashTable->hashKey[i] = (uint64*)xmalloc(sizeof(uint64));
-    }
-
-    return hashTable;
-}
-
-void deleteHash(hash_t* hash)
-{
-    int i;
-
-    for (i = 0; i < hash->numBins; i++)
-    {
-        free(hash->hashBins[i]);
-        free(hash->hashKey[i]);
-    }
-
-    free(hash->hashBins);
-    free(hash->hashKey);
-    free(hash->binSize);
-    hash->numStored = 0;
-    hash->numBins = 0;
-    free(hash);
-}
-
-void hashPut(hash_t* hash, uint8* element, uint64 key)
-{
-    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
-    //printf("hashPut into bin %u with key %u\n", binNum, key);
-
-    if (hash->binSize[binNum] > 0)
-    {
-        //printf("growing bin %u size to %u\n", binNum + 1, hash->binSize[binNum] + 1);
-        hash->hashBins[binNum] = (uint8*)xrealloc(hash->hashBins[binNum],
-            (hash->binSize[binNum] + 1) * hash->elementSizeB);
-        hash->hashKey[binNum] = (uint64*)xrealloc(hash->hashKey[binNum],
-            (hash->binSize[binNum] + 1) * sizeof(uint64));
-        memcpy(&hash->hashBins[binNum][hash->elementSizeB * hash->binSize[binNum]],
-            element, hash->elementSizeB);
-        hash->hashKey[binNum][hash->binSize[binNum]] = key;
-        hash->binSize[binNum]++;
-    }
-    else
-    {
-        memcpy(hash->hashBins[binNum], element, hash->elementSizeB);
-        hash->hashKey[binNum][hash->binSize[binNum]] = key;
-        hash->binSize[binNum]++;
-    }
-
-    hash->numStored++;
-
-    return;
-}
-
-void hashGet(hash_t* hash, uint64 key, uint8*element)
-{
-    uint32 binNum = (uint32)((((key)+18932479UL) * 2654435761UL) >> (64 - hash->numBinsPow2));
-    int i;
-    
-    for (i = 0; i < hash->binSize[binNum]; i++)
-    {
-        if (hash->hashKey[binNum][i] == key)
-        {
-            memcpy(element, &hash->hashBins[binNum][hash->elementSizeB * i],
-                hash->elementSizeB);
-            return;
-        }
-    }
-    return;
-}
-
-
 fp_digit spRand(fp_digit lower, fp_digit upper)
 {
 	// advance the state of the LCG and return the appropriate result
@@ -195,185 +100,6 @@ fp_digit spRand(fp_digit lower, fp_digit upper)
 
 }
 
-void zRandb(z *n, int bits)
-{
-	//generate random number of 'bits' bits or less
-	int full_words = bits/BITS_PER_DIGIT;
-	int last_bits = bits%BITS_PER_DIGIT;
-	fp_digit mask;
-	int i;
-
-	if (bits == 0)
-	{
-		zCopy(&zZero, n);
-		return;
-	}
-
-	if (n->alloc < full_words + 1)
-		zGrow(n,full_words+1);
-
-	for (i=0;i<full_words;i++)
-		n->val[i] = spRand(0,MAX_DIGIT);
-
-	mask = HIBITMASK;
-	if (last_bits == 0)
-	{
-		//then bits_per_digit divides bits, and we
-		//need to ensure the top bit is set
-		n->val[full_words-1] |= mask;
-	}
-	else
-	{
-		fp_digit last_word = spRand(0,MAX_DIGIT);
-		//need to generate a last word
-		mask = 1;
-		for (i=0; i<last_bits; i++)
-			mask |= mask << 1;
-
-		n->val[full_words] = mask & last_word;
-	}
-
-	n->size = full_words + (last_bits > 0);
-
-	//truncate leading 0 digits
-	for(i = n->size - 1; i >= 0; i--)
-	{
-		if (n->val[i] != 0)
-			break;
-	}
-	n->size = i+1;
-
-	if (n->size == 0)
-	{
-		n->val[0] = 0;
-		n->size = 1;
-	}
-
-	return;
-}
-
-void zRand(z *n, uint32 ndigits)
-{
-	int full_words = ndigits/DEC_DIGIT_PER_WORD;
-	int rem = ndigits%DEC_DIGIT_PER_WORD;
-	int i;
-	
-	if (ndigits == 0)
-	{ 
-		zCopy(&zZero, n);
-		return;
-	}
-
-	if (full_words+1 > n->alloc)
-		zGrow(n,full_words + LIMB_BLKSZ);	
-
-	for (i=0;i<full_words;i++)
-		n->val[i] = spRand(0,MAX_DIGIT);
-
-	if (rem)
-	{
-		n->val[i] = spRand(0,(fp_digit)pow(10,rem));
-		i++;
-	}
-
-	for(;i>=0;i--)
-	{
-		if (n->val[i] != 0)
-			break;
-	}
-	n->size = i+1;
-
-	if (n->size == 0)
-	{
-		n->val[0] = 0;
-		n->size = 1;
-	}
-
-	return;
-}
-
-void sInit(str_t *s)
-{
-	s->s = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
-	if (s->s == NULL)
-	{
-		printf("couldn't allocate str_t in sInit\n");
-		exit(-1);
-	}
-	s->s[0] = '\0';
-	s->nchars = 1;
-	s->alloc = GSTR_MAXSIZE;
-	return;
-}
-
-void sFree(str_t *s)
-{
-	free(s->s);
-	return;
-}
-
-void sClear(str_t *s)
-{
-	s->s[0] = '\0';
-	s->nchars = 1;
-	return;
-}
-
-void toStr(char *src, str_t *dest)
-{
-	if ((int)strlen(src) > dest->alloc)
-	{
-		sGrow(dest,strlen(src) + 10);
-		dest->alloc = strlen(src) + 10;
-	}
-	memcpy(dest->s,src,strlen(src) * sizeof(char));
-	dest->s[strlen(src)] = '\0';
-	dest->nchars = strlen(src) + 1;
-
-	return;
-}
-
-void sGrow(str_t *str, int size)
-{
-	//printf("growing str_t size...\n");
-	str->s = (char *)realloc(str->s,size * sizeof(char));
-	if (str->s == NULL)
-	{
-		printf("unable to reallocate string in sGrow\n");
-		exit(-1);
-	}
-	str->alloc = size;
-
-	return;
-}
-
-void sAppend(const char *src, str_t *dest)
-{
-	if (((int)strlen(src) + dest->nchars) >= dest->alloc)
-	{
-		sGrow(dest,strlen(src) + dest->nchars + 10);
-		dest->alloc = strlen(src) + dest->nchars + 10;
-	}
-
-	memcpy(dest->s + dest->nchars - 1,src,strlen(src) * sizeof(char));
-	dest->nchars += strlen(src);	//already has a null char accounted for
-	dest->s[dest->nchars - 1] = '\0';
-
-	return;
-}
-
-void sCopy(str_t *dest, str_t *src)
-{
-	if (dest->alloc < src->nchars + 2)
-	{
-		dest->s = (char *)realloc(dest->s, (src->nchars+2) * sizeof(char));
-		dest->alloc = src->nchars+2;
-	}
-	memcpy(dest->s,src->s,src->nchars * sizeof(char));
-	dest->nchars = src->nchars;
-	return;
-}
-
 void logprint(FILE *infile, char *args, ...)
 {
 	va_list ap;
@@ -381,7 +107,7 @@ void logprint(FILE *infile, char *args, ...)
 	struct tm *loctime;
 	char *s;
 
-	if (!LOGFLAG)
+    if (infile == NULL)
 		return;
 
 	s = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
@@ -397,7 +123,8 @@ void logprint(FILE *infile, char *args, ...)
 	//print the date and version stamp
 	strftime(s,256,"%m/%d/%y %H:%M:%S",loctime);
 	//fprintf(infile,"%s v%d.%02d @ %s, ",s,MAJOR_VER,MINOR_VER,sysname);
-	fprintf(infile,"%s v%s @ %s, ",s,VERSION_STRING,sysname);
+	//fprintf(infile,"%s v%s @ %s, ",s,VERSION_STRING,sysname);
+    fprintf(infile, "%s v%s, ", s, VERSION_STRING);
 
 	vfprintf(infile,args,ap);
 
@@ -416,7 +143,7 @@ void logprint_oc(const char *name, const char *method, char *args, ...)
 	char *s;
 	FILE *logfile;
 
-	if (!LOGFLAG)
+    if (strlen(name) == 0)
 		return;
 
 	logfile = fopen(name, method);
@@ -437,7 +164,8 @@ void logprint_oc(const char *name, const char *method, char *args, ...)
 	//print the date and version stamp
 	strftime(s,256,"%m/%d/%y %H:%M:%S",loctime);
 	//fprintf(infile,"%s v%d.%02d @ %s, ",s,MAJOR_VER,MINOR_VER,sysname);
-	fprintf(logfile,"%s v%s @ %s, ",s,VERSION_STRING,sysname);
+	//fprintf(logfile,"%s v%s @ %s, ",s,VERSION_STRING,sysname);
+    fprintf(logfile, "%s v%s, ", s, VERSION_STRING);
 
 	vfprintf(logfile,args,ap);
 
@@ -495,289 +223,10 @@ char * time_from_secs(char *str, unsigned long time)
 	return str;
 }
 
-void zNextPrime(mpz_t n, mpz_t p, int dir)
+void generate_semiprime_list(int num, int bits, gmp_randstate_t gmp_randstate)
 {
-	//return the next prime after n, in the direction indicated by dir
-	//if dir is positive, next higher else, next lower prime
-	//n may get altered
-	uint32 a = 0;
-
-	if (mpz_sizeinbase(n, 10) > 1000)
-	{
-		// for really big inputs, proceed with a windowed sieve approach.
-		uint64 *values;
-		uint64 num;
-		uint32 batch = 2048;
-		mpz_t l,h;
-
-		mpz_init(h);
-		mpz_init(l);
-		values = (uint64 *)malloc(batch * sizeof(uint64));
-
-		mpz_set(l, n);
-		mpz_set(h, n);
-
-		while (1)
-		{
-			uint64 i;
-
-			if (dir > 0)
-				mpz_add_ui(h, l, batch);
-			else
-				mpz_sub_ui(l, h, batch);
-
-			// sieve with however many primes we have available, not to exceed 100k primes
-			values = sieve_to_depth(spSOEprimes, szSOEp > 100000 ? 100000 : szSOEp, l, h, 0, 0, &num);
-
-			for (i=0; i<num; i++)
-			{
-
-				if (VFLAG > 0) {
-					if (dir > 0)
-						printf("checking input + %u...\r", a + (uint32)values[i]);						
-					else
-						printf("checking input - %u...\r", a + (batch - (uint32)values[num-i-1]));
-					fflush(stdout);
-				}
-
-				if (dir > 0)
-					mpz_add_ui(p, l, values[i]);
-				else
-					mpz_add_ui(p, l, values[num-i-1]);
-
-				if (is_mpz_prp(p))
-				{
-
-					if (VFLAG > 0)
-						printf("\n");
-
-					goto done;
-				}
-			}
-
-			a += batch;
-			if (dir > 0)
-				mpz_set(l, h);
-			else
-				mpz_set(h, l);
-		}
-
-done:
-
-		mpz_clear(l);
-		mpz_clear(h);
-		free(values);
-
-		return;
-	}
-
-	// gmp has built-in support for increasing primes... 
-	if (dir > 0)
-	{
-		//... but it is 25% slower than 
-		// my naive implementation that does a tiny amount of trial division first!
-		//mpz_nextprime(p, n);
-
-		// start on an odd number
-		mpz_set(p, n);
-		if (mpz_even_p(n))
-		{
-			mpz_add_ui(p, p, 1);
-			a++;
-			if ((VFLAG > 0) &&
-				(mpz_sizeinbase(n,10) > 1024)) {
-				printf("checking input + %u...\r",a);
-				fflush(stdout);
-			}
-
-			if (is_mpz_prp(p))
-			{
-
-				if ((VFLAG > 0) &&
-					(mpz_sizeinbase(n,10) > 1024))
-					printf("\n");
-
-				return;
-			}
-		}
-
-		while (1)
-		{
-			mpz_add_ui(p, p, 2);
-			a += 2;
-			if (mpz_tdiv_ui(p, 5) == 0) { 
-				a += 2;
-				mpz_add_ui(p, p, 2);
-			}
-			if (mpz_tdiv_ui(p, 7) == 0) {
-				a += 2;
-				mpz_add_ui(p, p, 2);
-			}
-			if (mpz_tdiv_ui(p, 11) == 0) {
-				a += 2;
-				mpz_add_ui(p, p, 2);
-			}
-
-			if ((VFLAG > 0) &&
-				(mpz_sizeinbase(n,10) > 1024)) {
-				printf("checking input + %u...\r",a);
-				fflush(stdout);
-			}
-
-			if (is_mpz_prp(p))
-			{
-
-				if ((VFLAG > 0) &&
-					(mpz_sizeinbase(n,10) > 1024))
-					printf("\n");
-
-				return;
-			}
-		}
-
-		return;
-	}
-	else
-	{
-		// for next decreasing prime, here is a straighforward naive implementation		
-		if (mpz_cmp_ui(n, 3) <= 0)
-			mpz_set_ui(p, 2);
-		else if (mpz_cmp_ui(n, 5) <= 0)
-			mpz_set_ui(p, 3);
-		else if (mpz_cmp_ui(n, 7) <= 0)
-			mpz_set_ui(p, 5);
-		else if (mpz_cmp_ui(n, 11) <= 0)
-			mpz_set_ui(p, 7);
-		else if (mpz_cmp_ui(n, 13) <= 0)
-			mpz_set_ui(p, 11);
-		else if (mpz_cmp_ui(n, 17) <= 0)
-			mpz_set_ui(p, 13);
-		else
-		{
-			// start on an odd number
-			mpz_set(p, n);
-			if (mpz_even_p(n))
-			{
-				mpz_sub_ui(p, p, 1);
-				a++;
-
-				if ((VFLAG > 0) &&
-					(mpz_sizeinbase(n,10) > 1024)) {
-					printf("checking input - %u...\r",a);
-					fflush(stdout);
-				}
-
-				if (is_mpz_prp(p))
-				{
-
-					if ((VFLAG > 0) &&
-						(mpz_sizeinbase(n,10) > 1024))
-						printf("\n");
-
-					return;
-				}
-			}
-
-			while (1)
-			{
-				mpz_sub_ui(p, p, 2);
-				a += 2;
-				if (mpz_tdiv_ui(p, 5) == 0) {
-					a += 2;
-					mpz_sub_ui(p, p, 2);
-				}
-				if (mpz_tdiv_ui(p, 7) == 0) {
-					a += 2;
-					mpz_sub_ui(p, p, 2);
-				}
-				if (mpz_tdiv_ui(p, 11) == 0) {
-					a += 2;
-					mpz_sub_ui(p, p, 2);
-				}
-
-				if ((VFLAG > 0) &&
-					(mpz_sizeinbase(n,10) > 1024)) {
-					printf("checking input - %u...\r",a);
-					fflush(stdout);
-				}
-
-				if (is_mpz_prp(p))
-				{
-
-					if ((VFLAG > 0) &&
-						(mpz_sizeinbase(n,10) > 1024))
-						printf("\n");
-
-					return;
-				}
-			}
-		}
-	}
-}
-
-void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir)
-{
-	//return the next prime after n, in the direction indicated by dir
-	//if dir is positive, next higher else, next lower prime
-
-	if (n <= 3)
-	{
-		// handle special cases of really small inputs
-		if (dir > 0)
-		{
-			if (n == 3)
-				*p = 5;
-			else if (n == 2)
-				*p = 3;
-			else
-				*p = 2;
-		}
-		else
-		{
-			*p = 2;
-		}
-		return;
-	}
-
-	//make sure start is odd
-	if (!(n & 1))
-	{
-		if (dir>0)
-			*p = n+1;
-		else
-			*p = n-1;
-	}
-	else
-		*p = n;
-
-	while (1)
-	{			
-		if (dir > 0)
-		{
-			*p += 2;
-			if (((*p % 5) == 0))
-				*p += 2;
-		}
-		else
-		{
-			*p -= 2;
-			if (((*p % 5) == 0) && (*p != 5))
-				*p -= 2;
-		}
-
-		sp2z(*p,work);
-		work->type = UNKNOWN;
-		if (isPrime(work))
-			break;
-	}	
-
-	return;
-}
-
-void generate_pseudoprime_list(int num, int bits)
-{
-	//generate a list of 'num' pseudoprimes, each of size 'bits'
-	//save to pseudoprimes.dat
+	// generate a list of 'num' semiprimes, each of size 'bits'
+	// save to semiprimes.dat
 
 	FILE *out;
 	int i;
@@ -787,10 +236,10 @@ void generate_pseudoprime_list(int num, int bits)
 	mpz_init(tmp2);
 	mpz_init(tmp3);
 
-	out = fopen("pseudoprimes.dat","w");
+	out = fopen("semiprimes.dat","w");
 	if (out == NULL)
 	{
-		printf("couldn't open pseudoprimes.dat for writing\n");
+		printf("couldn't open semiprimes.dat for writing\n");
 		return;
 	}
 	
@@ -798,7 +247,7 @@ void generate_pseudoprime_list(int num, int bits)
 	{
 		mpz_urandomb(tmp3, gmp_randstate, bits/2);
         mpz_setbit(tmp3, bits/2-1);
-		zNextPrime(tmp3,tmp1,1);
+        mpz_nextprime(tmp1, tmp3);
         if (bits & 1)
         {
             mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
@@ -809,166 +258,17 @@ void generate_pseudoprime_list(int num, int bits)
             mpz_urandomb(tmp3, gmp_randstate, bits / 2);
             mpz_setbit(tmp3, bits/2-1);
         }
-		zNextPrime(tmp3,tmp2,1);
+        mpz_nextprime(tmp2, tmp3);
 		mpz_mul(tmp3,tmp2,tmp1);
 		gmp_fprintf(out,"%Zd,%Zd,%Zd\n",
 			tmp3, tmp1, tmp2);
 	}
 	fclose(out);
 
-	printf("generated %d pseudoprimes in file pseudoprimes.dat\n",num);
+	printf("generated %d semiprimes in file semiprimes.dat\n",num);
 	mpz_clear(tmp1);
 	mpz_clear(tmp2);
 	mpz_clear(tmp3);
-	return;
-}
-
-void gordon(int bits, z *p)
-{
-	//find a random strong prime of size 'bits'
-	//follows the Handbook of applied cryptography
-	/*
-	SUMMARY: a strong prime p is generated.
-	1. Generate two large random primes s and t of roughly equal bitlength (see Note 4.54).
-	2. Select an integer i0. Find the first prime in the sequence 2it + 1, for i = i0; i0 +
-		1; i0 + 2; : : : (see Note 4.54). Denote this prime by r = 2it+ 1.
-	3. Compute p0 = 2(sr-2 mod r)s - 1.
-	4. Select an integer j0. Find the first prime in the sequence p0 +2jrs, for j = j0; j0 +
-		1; j0 + 2; : : : (see Note 4.54). Denote this prime by p = p0 + 2jrs.
-	5. Return(p).
-
-  4.54 Note (implementing Gordon’s algorithm)
-	(i) The primes s and t required in step 1 can be probable primes generated by Algorithm
-	4.44. TheMiller-Rabin test (Algorithm 4.24) can be used to test each candidate
-	for primality in steps 2 and 4, after ruling out candidates that are divisible by a small
-	prime less than some boundB. See Note 4.45 for guidance on selecting B. Since the
-	Miller-Rabin test is a probabilistic primality test, the output of this implementation
-	of Gordon’s algorithm is a probable prime.
-	(ii) By carefully choosing the sizes of primes s, t and parameters i0, j0, one can control
-	the exact bitlength of the resulting prime p. Note that the bitlengths of r and s will
-	be about half that of p, while the bitlength of t will be slightly less than that of r.
-	*/
-	
-	int i,j,s_len,n_words;
-	z s,t,r,tmp,tmp2,p0;
-
-	zInit(&s);
-	zInit(&t);
-	zInit(&r);
-	zInit(&tmp);
-	zInit(&tmp2);
-	zInit(&p0);
-
-	//need to check allocation of tmp vars.  how big do they get?
-
-	//1. s and t should be about half the bitlength of p
-	//random s of bitlength bits/2
-	s_len = bits/2 - 4;
-	n_words = s_len/BITS_PER_DIGIT;
-	s.size = n_words + (s_len % BITS_PER_DIGIT != 0);
-	for (i=0; i<s_len; i++)
-		s.val[i/BITS_PER_DIGIT] |= (fp_digit)(rand() & 0x1) << (fp_digit)(i%BITS_PER_DIGIT);
-	
-	//force the most significant bit = 1, to keep the bitlength about right
-	s.val[s.size - 1] |= (fp_digit)0x1 << (fp_digit)((s_len-1)%BITS_PER_DIGIT);
-
-	//random t of bitlength bits/2
-	t.size = n_words + (s_len % BITS_PER_DIGIT != 0);
-	for (i=0; i<s_len; i++)
-		t.val[i/BITS_PER_DIGIT] |= (fp_digit)(rand() & 0x1) << (fp_digit)(i%BITS_PER_DIGIT);
-	
-	//force the most significant bit = 1, to keep the bitlength about right
-	t.val[t.size - 1] |= (fp_digit)0x1 << (fp_digit)((s_len-1)%BITS_PER_DIGIT);
-
-	//2. Select an integer i0. Find the first prime in the sequence 2it + 1, for i = i0; i0 +
-	//1; i0 + 2; : : : (see Note 4.54). Denote this prime by r = 2it+ 1.
-	i=1;
-	zShiftLeft(&r,&t,1);
-	zShortAdd(&r,1,&r);
-	while (!isPrime(&r))
-	{
-		i++;
-		zShiftLeft(&r,&t,1);
-		zShortMul(&r,i,&r);
-		zShortAdd(&r,1,&r);
-	}
-
-	//3. Compute p0 = 2(sr-2 mod r)s - 1.
-	zMul(&s,&r,&tmp);
-	zShortSub(&tmp,2,&p0);
-	zDiv(&p0,&r,&tmp,&tmp2);
-	zMul(&tmp2,&s,&p0);
-	zShiftLeft(&p0,&p0,1);
-	zShortSub(&p0,1,&p0);
-
-	//4. Select an integer j0. Find the first prime in the sequence p0 +2jrs, for j = j0; j0 +
-	//1; j0 + 2; : : : (see Note 4.54). Denote this prime by p = p0 + 2jrs.
-	j=1;
-	zMul(&r,&s,&tmp);
-	zShiftLeft(&tmp,&tmp,1);
-	zAdd(&p0,&tmp,p);
-	while (!isPrime(p))
-	{
-		j++;
-		zMul(&r,&s,&tmp);
-		zShiftLeft(&tmp,&tmp,1);
-		zShortMul(&tmp,j,&tmp);
-		zAdd(&p0,&tmp,p);
-	}
-
-	zFree(&s);
-	zFree(&t);
-	zFree(&r);
-	zFree(&tmp);
-	zFree(&tmp2);
-	zFree(&p0);
-	return;
-}
-
-void build_RSA(int bits, mpz_t in)
-{
-	z p,q,n;
-	int i;
-	int words,subwords;
-
-	if (bits < 65)
-	{
-		printf("bitlength too small\n");
-		return;
-	}
-
-	zInit(&n);
-	zInit(&p);
-	zInit(&q);
-
-	gmp2mp(in, &n);
-
-	words = bits/BITS_PER_DIGIT + (bits%BITS_PER_DIGIT != 0);
-	subwords = (int)ceil((double)words/2.0);
-
-	if (subwords > p.alloc)
-		zGrow(&p,subwords + LIMB_BLKSZ);
-
-	if (subwords > q.alloc)
-		zGrow(&q,subwords + LIMB_BLKSZ);
-
-	if (words > n.alloc)
-		zGrow(&n, words + LIMB_BLKSZ);
-
-	zClear(&n);
-	i=0;
-	while (zBits(&n) != bits)
-	{
-		gordon(bits/2,&p);
-		gordon(bits/2,&q);
-		zMul(&p,&q,&n);
-		i++;
-	}
-
-	mp2gmp(&n, in);
-	zFree(&n);
-	zFree(&p);
-	zFree(&q);
 	return;
 }
 
@@ -1337,8 +637,8 @@ void yafu_get_cache_sizes(uint32 *level1_size_out,
 	   Otherwise, you have the source so just fill in
 	   the correct number. */
 
-	uint32 cache_size1 = DEFAULT_L1_CACHE_SIZE; 
-	uint32 cache_size2 = DEFAULT_L2_CACHE_SIZE; 
+	uint32 cache_size1 = 32768; 
+	uint32 cache_size2 = 512 * 1024; 
 
 #if defined(HAS_CPUID) && !defined(__APPLE__)
 
@@ -2058,33 +1358,6 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 		printf("\n\n\tAVX2 Extensions\n");
 
     return  nRet;
-}
-
-uint32 * mergesort(uint32 *a, uint32 *b, int sz_a, int sz_b)
-{
-    uint32 *c = (uint32 *)malloc((sz_a + sz_b) * sizeof(uint32));
-    int i = 0, j = 0, k = 0;
-
-    while ((i < sz_a) && (j < sz_b)) {
-        if (a[i] < b[j]) {
-            c[k++] = a[i++];
-        }
-        else if (a[i] > b[j]) {
-            c[k++] = b[j++];
-        }
-        else {
-            c[k++] = a[i++];
-            c[k++] = b[j++];
-        }
-    }
-
-    while (i < sz_a)
-        c[k++] = a[i++];
-
-    while (j < sz_b)
-        c[k++] = b[j++];
-
-    return c;
 }
 
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input)

@@ -40,7 +40,7 @@ void ecm_sync_fcn(void *ptr)
     (*thread_data->curves_in_flight)--;
 
     // progress report
-    if (VFLAG >= 0)
+    if (fobj->VFLAG >= 0)
     {
         printf("ecm: %d/%d curves on C%d, ",
             *thread_data->total_curves_run, fobj->ecm_obj.num_curves,
@@ -62,7 +62,7 @@ void ecm_sync_fcn(void *ptr)
             avg_curve_time = *thread_data->total_time / (double)(*thread_data->total_curves_run);
             curves_left = (int)fobj->ecm_obj.num_curves - *thread_data->total_curves_run;
             if (curves_left < 0) curves_left = 0.;
-            est_time = (double)(curves_left / THREADS) * avg_curve_time;
+            est_time = (double)(curves_left / fobj->THREADS) * avg_curve_time;
 
             if (est_time > 3600)
                 printf(", ETA: %1.2f hrs ", est_time / 3600);
@@ -118,7 +118,8 @@ void ecm_dispatch_fcn(void *ptr)
         {
             *thread_data->ok_to_stop = 1;
         }
-        else if (is_mpz_prp(thread_data->fobj->ecm_obj.gmp_n))
+        else if (is_mpz_prp(thread_data->fobj->ecm_obj.gmp_n, 
+            thread_data->fobj->NUM_WITNESSES))
         {
             // todo: should check primality in the work function so
             // this prp check doesn't bottleneck dispatching to
@@ -242,8 +243,8 @@ int ecm_loop(fact_obj_t *fobj)
         //init ecm process
         ecm_process_init(fobj);
 
-        thread_data = (ecm_thread_data_t*)malloc(THREADS * sizeof(ecm_thread_data_t));
-        for (i = 0; i < THREADS; i++)
+        thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+        for (i = 0; i < fobj->THREADS; i++)
         {
             // several things in the thread structure need to be tied
             // to one master copy for syncronization purposes.
@@ -259,7 +260,7 @@ int ecm_loop(fact_obj_t *fobj)
             thread_data[i].curves_in_flight = &curves_in_flight;
         }
 
-        tpool_data = tpool_setup(THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
+        tpool_data = tpool_setup(fobj->THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
             &ecm_dispatch_fcn, thread_data);
 
         total_curves_run = 0;
@@ -268,10 +269,10 @@ int ecm_loop(fact_obj_t *fobj)
 
         free(tpool_data);
 
-        if (VFLAG >= 0)
+        if (fobj->VFLAG >= 0)
             printf("\n");
 
-        if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+        if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -324,10 +325,10 @@ int ecm_loop(fact_obj_t *fobj)
 
         mpz_set(N, fobj->ecm_obj.gmp_n);
         factors = vec_ecm_main(N, fobj->ecm_obj.num_curves, fobj->ecm_obj.B1,
-            B2, THREADS, &numfactors, VFLAG, fobj->ecm_obj.save_b1,
+            B2, fobj->THREADS, &numfactors, fobj->VFLAG, fobj->ecm_obj.save_b1,
             &curves_run);
 
-        if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+        if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -364,36 +365,40 @@ int ecm_loop(fact_obj_t *fobj)
 
             add_to_factor_list(fobj, F);
             
-            if (is_mpz_prp(F))
+            if (is_mpz_prp(F, fobj->NUM_WITNESSES))
             {
-                if (VFLAG > 0)
+                if (fobj->VFLAG > 0)
                     gmp_printf("\necm: found prp%d factor = %Zd\n",
                         gmp_base10(F), F);
 
-                if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
+                    char* s = mpz_get_str(NULL, 10, F);
                     logprint(flog, "prp%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
                         gmp_base10(F),
-                        mpz_conv2str(&gstr1.s, 10, F),
+                        s,
                         factors[i].curve_num, factors[i].method,
                         fobj->ecm_obj.B1, B2, factors[i].sigma,
                         factors[i].tid, factors[i].vid);
+                    free(s);
                 }
             }
             else
             {
-                if (VFLAG > 0)
+                if (fobj->VFLAG > 0)
                     gmp_printf("\necm: found c%d factor = %Zd\n",
                         gmp_base10(F), F);
 
-                if (LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
+                    char* s = mpz_get_str(NULL, 10, F);
                     logprint(flog, "c%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
                         gmp_base10(F),
-                        mpz_conv2str(&gstr1.s, 10, F),
+                        s,
                         factors[i].curve_num, factors[i].method,
                         fobj->ecm_obj.B1, B2, factors[i].sigma,
                         factors[i].tid, factors[i].vid);
+                    free(s);
                 }
             }
 
@@ -435,37 +440,38 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	int curves_run = thread_data->curves_run;
 	int thread_num = thread_data->thread_num;
 
-	if (is_mpz_prp(thread_data->gmp_factor))
+	if (is_mpz_prp(thread_data->gmp_factor, fobj->NUM_WITNESSES))
 	{
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 
-        if (VFLAG > 0)
+        if (fobj->VFLAG > 0)
         {
             gmp_printf("\necm: found prp%d factor = %Zd\n",
                 gmp_base10(thread_data->gmp_factor),
                 thread_data->gmp_factor);
         }
 
+        char* s = mpz_get_str(NULL, 10, thread_data->gmp_factor);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			gmp_base10(thread_data->gmp_factor),
-			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
+			gmp_base10(thread_data->gmp_factor), s,
 			*thread_data->total_curves_run + 1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
+        free(s);
 	}
 	else
 	{
 		add_to_factor_list(fobj, thread_data->gmp_factor);
 		
-        if (VFLAG > 0)
+        if (fobj->VFLAG > 0)
         {
             gmp_printf("\necm: found c%d factor = %Zd\n",
                 gmp_base10(thread_data->gmp_factor),
                 thread_data->gmp_factor);
         }
 
+        char* s = mpz_get_str(NULL, 10, thread_data->gmp_factor);
 		logprint_oc(fobj->flogname, "a", "c%d = %s (curve %d stg%d B1=%u sigma=%u thread=%d)\n",
-			gmp_base10(thread_data->gmp_factor),
-			mpz_conv2str(&gstr1.s, 10, thread_data->gmp_factor),
+			gmp_base10(thread_data->gmp_factor), s,
             *thread_data->total_curves_run + 1, thread_data->stagefound,
 			fobj->ecm_obj.B1, thread_data->sigma, thread_num);
 	}
@@ -539,14 +545,15 @@ int ecm_check_input(fact_obj_t *fobj)
 		return 0;
 	}
 
-	if (is_mpz_prp(fobj->ecm_obj.gmp_n))
+	if (is_mpz_prp(fobj->ecm_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
 		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
-		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->ecm_obj.gmp_n));		
+        char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
+		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), s);		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
+        free(s);
 		return 0;
 	}
 
@@ -557,7 +564,7 @@ void ecm_process_init(fact_obj_t *fobj)
 {
 	// initialize things which all threads will need when using
 	// GMP-ECM
-	TMP_THREADS = THREADS;
+	TMP_THREADS = fobj->THREADS;
 	TMP_STG2_MAX = fobj->ecm_obj.B2;
 
     if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
@@ -577,7 +584,7 @@ void ecm_process_init(fact_obj_t *fobj)
         }
     }
 	
-	if (THREADS > 1)
+	if (fobj->THREADS > 1)
 	{
         float ver;
 
@@ -596,11 +603,11 @@ void ecm_process_init(fact_obj_t *fobj)
             }
             else
             {
-                if (VFLAG >= 2)
+                if (fobj->VFLAG >= 2)
                 {
                     printf("GMP-ECM does not support multiple threads... running single threaded\n");
                 }
-                THREADS = 1;
+                fobj->THREADS = 1;
             }
 		}
 		else
@@ -613,7 +620,7 @@ void ecm_process_init(fact_obj_t *fobj)
                 }
                 else
                 {
-                    THREADS = 1;                    
+                    fobj->THREADS = 1;                    
                 }
                 fobj->ecm_obj.use_external = 0;
 			}
@@ -632,7 +639,7 @@ void ecm_process_init(fact_obj_t *fobj)
 
 void ecm_process_free(fact_obj_t *fobj)
 {
-	THREADS = TMP_THREADS;
+	fobj->THREADS = TMP_THREADS;
 	fobj->ecm_obj.B2 = TMP_STG2_MAX;
 	return;
 }
@@ -694,8 +701,8 @@ void *ecm_do_one_curve(void *ptr)
 		int status;
 
 		thread_data->params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
-		if (VFLAG >= 3)
-			thread_data->params->verbose = VFLAG - 2;		
+		if (fobj->VFLAG >= 3)
+			thread_data->params->verbose = fobj->VFLAG - 2;		
 		mpz_set_ui(thread_data->params->x, (unsigned long)0);
 		mpz_set_ui(thread_data->params->sigma, thread_data->sigma);
 

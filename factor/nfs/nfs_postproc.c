@@ -25,7 +25,7 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	char nfs_args[80];
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		flags = flags | MSIEVE_FLAG_LOG_TO_STDOUT;
 	flags = flags | MSIEVE_FLAG_NFS_FILTER;
 	obj->flags = flags;
@@ -34,16 +34,16 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 	{
 		sprintf(nfs_args, "filter_maxrels=%u", job->use_max_rels);
 		obj->nfs_args = nfs_args;
-		if (VFLAG >= 0)
+		if (fobj->VFLAG >= 0)
 			printf("nfs: commencing msieve filtering with reduced relation set\n");
 	}
 	else
 	{
-		if (VFLAG >= 0)
+		if (fobj->VFLAG >= 0)
 			printf("nfs: commencing msieve filtering\n");
 	}
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         logfile = fopen(fobj->flogname, "a");
         if (logfile == NULL)
@@ -87,7 +87,7 @@ uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 				}
 				else
 				{
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						printf("nfs: warning: .fb file didn't match current job, overwriting\n");
 					fclose(tmp);
 					ggnfs_to_msieve(fobj, job);
@@ -130,7 +130,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, tmp);
 
 		//check if its prime and log accordingly
-		if (is_mpz_prp(tmp))
+		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{
 			//need to convert to yafu bigint to store
 			add_to_factor_list(fobj, tmp);
@@ -142,7 +142,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			strncpy(c,"C",2);
 		}
 
-        if (LOGFLAG)
+        if (fobj->LOGFLAG)
         {
             logfile = fopen(fobj->flogname, "a");
             if (logfile == NULL)
@@ -152,9 +152,10 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             }
             else
             {
-                logprint(logfile, "%s%d = %s\n", c,
-                    gmp_base10(tmp), mpz_conv2str(&gstr1.s, 10, tmp));
+                char* s = mpz_get_str(NULL, 10, tmp);
+                logprint(logfile, "%s%d = %s\n", c, s);
                 fclose(logfile);
+                free(s);
             }
         }
 
@@ -167,7 +168,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 	{
 		char c[4];
 
-		if (is_mpz_prp(fobj->nfs_obj.gmp_n))
+		if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
 			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
 			strncpy(c,"prp",4);			
@@ -178,7 +179,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 			strncpy(c,"C",2);
 		}
 		
-        if (LOGFLAG)
+        if (fobj->LOGFLAG)
         {
             logfile = fopen(fobj->flogname, "a");
             if (logfile == NULL)
@@ -188,10 +189,11 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             }
             else
             {
+                char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
                 logprint(logfile, "%s%d = %s\n", c,
-                    gmp_base10(fobj->nfs_obj.gmp_n),
-                    mpz_conv2str(&gstr1.s, 10, fobj->nfs_obj.gmp_n));
+                    gmp_base10(fobj->nfs_obj.gmp_n), s);
                 fclose(logfile);
+                free(s);
             }
         }
 

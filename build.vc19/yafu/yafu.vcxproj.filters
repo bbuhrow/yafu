@@ -15,9 +15,6 @@
       <UniqueIdentifier>{2fb2f2c2-4f91-44ce-8cac-46f944abad64}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
     </Filter>
-    <Filter Include="Source Files\sieve">
-      <UniqueIdentifier>{deea1bcc-709f-4fc6-9ed6-d7ea2f1a1786}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\factoring\qs">
       <UniqueIdentifier>{3d086396-99eb-43de-b3ea-952bfd26b590}</UniqueIdentifier>
     </Filter>
@@ -47,12 +44,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\top\calc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\stack.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\top\test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -71,47 +62,8 @@
     <ClCompile Include="..\..\factor\trialdiv.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\arith\arith0.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\arith1.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\arith2.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\arith3.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\tune.c">
       <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\count.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\linesieve.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\offsets.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\primes.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\roots.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\soe.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\tiny.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\worker.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\wrapper.c">
-      <Filter>Source Files\sieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c">
       <Filter>Source Files\factoring\gmp-ecm</Filter>
@@ -182,9 +134,6 @@
     <ClCompile Include="..\..\factor\nfs\nfs_postproc.c">
       <Filter>Source Files\factoring\nfs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\soe_util.c">
-      <Filter>Source Files\sieve</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\tdiv.c">
       <Filter>Source Files\factoring\qs\tdiv</Filter>
     </ClCompile>
@@ -250,9 +199,6 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\qs\poly_roots.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\eratosthenes\presieve.c">
-      <Filter>Source Files\sieve</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\threadpool.c">
       <Filter>Source Files</Filter>
@@ -329,12 +275,15 @@
     <ClCompile Include="..\..\top\driver.c">
       <Filter>Source Files\frontend</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\top\cmdParser\calc.c">
+      <Filter>Source Files\frontend</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\arith\arith.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\calc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\common.h">
@@ -365,12 +314,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\yafu_ecm.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\yafu_stack.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\yafu_string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\gnfs.h">
@@ -434,6 +377,9 @@
       <Filter>Source Files\factoring\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h">
+      <Filter>Source Files\frontend</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\top\cmdParser\calc.h">
       <Filter>Source Files\frontend</Filter>
     </ClInclude>
   </ItemGroup>

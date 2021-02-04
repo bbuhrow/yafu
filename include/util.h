@@ -15,8 +15,8 @@ Date:		11/24/09
 Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
-#ifndef _UTIL_H_
-#define _UTIL_H_
+#ifndef _YAFU_UTIL_H_
+#define _YAFU_UTIL_H_
 
 #include "yafu.h"
 
@@ -97,7 +97,7 @@ static INLINE void * xrealloc(void *iptr, size_t len) {
 	return ptr;
 }
 
-void get_random_seeds(rand_t *r);
+void get_random_seeds(uint32* seed1, uint32* seed2);
 
 static INLINE uint32 
 get_rand(uint32 *rand_seed, uint32 *rand_carry) {
@@ -134,15 +134,8 @@ void logprint(FILE *infile, char *args, ...);
 void logprint_oc(const char *name, const char *method, char *args, ...);
 char *gettimever(char *s);
 char * time_from_secs(char *str, unsigned long time);
-void dbl2z(double n, z *a);
 //char *strrev(char *str);
 fp_digit spRand(fp_digit lower, fp_digit upper);
-void zRand(z *n, uint32 ndigits);
-void zRandb(z *n, int bits);
-void build_RSA(int bits, mpz_t n);
-void gordon(int bits, z *p);
-void zNextPrime(mpz_t n, mpz_t p, int dir);
-void zNextPrime_1(fp_digit n, fp_digit *p, z *work, int dir);
 void helpfunc(char *s);
 int qcomp_int(const void *x, const void *y);
 void * aligned_malloc(size_t len, uint32 align);
@@ -156,18 +149,12 @@ int qcomp_uint16(const void *x, const void *y);
 int qcomp_uint32(const void *x, const void *y);
 int qcomp_uint64(const void *x, const void *y);
 int qcomp_double(const void *x, const void *y);
-void generate_pseudoprime_list(int num, int bits);
 void yafu_set_idle_priority(void);
 int bin_search_uint32(int idp, int idm, uint32 q, uint32 *input);
 
 //routines for testing various aspects of code
 void test_dlp_composites(void);
-void modtest(int it);
-void test_qsort(void);
-void arith_timing(int num);
-void primesum_check12(uint64 lower, uint64 upper, uint64 startmod, z *squaresum, z *sum);
-void primesum_check3(uint64 lower, uint64 upper, uint64 startmod, z *sum);
-void primesum_check_p(uint64 lower, uint64 upper, uint64 startmod, z *sum);
+void generate_semiprime_list(int num, int bits, gmp_randstate_t gmp_randstate);
 
 /* for turning on CPU-specific code */
 
@@ -216,25 +203,4 @@ int extended_cpuid(char *idstr, int *cachelinesize, char *bSSE41Extensions,
 
 
 
-
-typedef struct
-{
-    uint8** hashBins;
-    uint64** hashKey;
-    uint32* binSize;
-    uint32 numBins;
-    uint32 numBinsPow2;
-    uint32 numStored;
-    uint32 elementSizeB;
-} hash_t;
-
-hash_t* initHash(uint32 elementSizeB, uint32 pow2numElements);
-void deleteHash(hash_t* hash);
-void hashPut(hash_t* hash, uint8* element, uint64 key);
-void hashGet(hash_t* hash, uint64 key, uint8* element);
-
-
-
-
-
-#endif /* _UTIL_H_ */
+#endif /* _YAFU_UTIL_H_ */

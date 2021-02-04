@@ -604,7 +604,7 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 
 	//block_size = 32768;
 
-	if (VFLAG > 0)
+	if (obj->VFLAG > 0)
 		printf("using block size %u for "
 			"processor cache size %u kB\n", 
 				block_size, obj->cache_size2 / 1024);
@@ -614,8 +614,8 @@ void yafu_packed_matrix_init(fact_obj_t *obj,
 
 	/* determine the number of threads to use */
 
-    if (LATHREADS > 1)
-        num_threads = LATHREADS;
+    if (obj->LATHREADS > 1)
+        num_threads = obj->LATHREADS;
     else
 	    num_threads = obj->num_threads;
 

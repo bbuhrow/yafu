@@ -643,10 +643,13 @@ uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 
 	if (isnew)
 	{
-		if (obj->logfile != NULL)
-			logprint(obj->logfile,
-				"prp%d = %s\n",gmp_base10(new_factor),
-				mpz_conv2str(&gstr1.s, 10, new_factor));
+        if (obj->logfile != NULL)
+        {
+            char* s = mpz_get_str(NULL, 10, new_factor);
+            logprint(obj->logfile,
+                "prp%d = %s\n", gmp_base10(new_factor), s);
+            free(s);
+        }
 
 		list->final_factors[list->num_factors] = (final_factor_t *)malloc(
 			sizeof(final_factor_t));

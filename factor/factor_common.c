@@ -25,7 +25,6 @@ code to the public domain.
 #include "nfs.h"
 #include "yafu_ecm.h"
 #include "util.h"
-#include "yafu_string.h"
 #include "mpz_aprcl.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
@@ -175,7 +174,7 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state);
 void set_work_params(factor_work_t *fwork, enum factorization_state state);
 int check_tune_params(fact_obj_t *fobj);
 enum factorization_state get_next_state(factor_work_t *fwork, fact_obj_t *fobj);
-double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log);
+double compute_ecm_work_done(factor_work_t *fwork, int disp, FILE *log, int VFLAG, int LOGFLAG);
 void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
 	enum factorization_state state, double work_done,
@@ -184,7 +183,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 
 void init_factobj(fact_obj_t *fobj, options_t *options)
 {
-    rand_t g_rand;
+    uint32 seed1, seed2;
 
 	// get space for everything
 	alloc_factobj(fobj);
@@ -197,10 +196,10 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
     if (options->rand_seed == 0)
     {
         // random seeds
-        get_random_seeds(&g_rand);
-        fobj->seed1 = options->rand_seed = g_rand.low;
-        fobj->seed2 = g_rand.hi;
-        options->rand_seed += (uint64)g_rand.hi << 32;
+        get_random_seeds(&seed1, &seed2);
+        fobj->seed1 = options->rand_seed = seed1;
+        fobj->seed2 = seed2;
+        options->rand_seed += (uint64)seed2 << 32;
     }
     else
     {
@@ -465,6 +464,9 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	// if a number is >= aprcl_display_cutoff, we will show the APRCL progress
 	fobj->aprcl_display_cutoff = options->aprcl_d;
 
+    fobj->VFLAG = options->verbosity;
+
+
 	return;
 }
 
@@ -485,45 +487,20 @@ void free_factobj(fact_obj_t *fobj)
 	mpz_clear(fobj->pp1_obj.gmp_n);
 	mpz_clear(fobj->pp1_obj.gmp_f);
 
-	// free any factors found in ecm
-	for (i=0; i<fobj->ecm_obj.num_factors; i++)
-		zFree(&fobj->ecm_obj.factors[i]);
-	free(fobj->ecm_obj.factors);
-
 	// then free other stuff in ecm
 	mpz_clear(fobj->ecm_obj.gmp_n);
 	mpz_clear(fobj->ecm_obj.gmp_f);
-
-	// free any factors found in squfof
-	for (i=0; i<fobj->squfof_obj.num_factors; i++)
-		zFree(&fobj->squfof_obj.factors[i]);
-	free(fobj->squfof_obj.factors);
 
 	// then free other stuff in squfof
 	mpz_clear(fobj->squfof_obj.gmp_n);
 	mpz_clear(fobj->squfof_obj.gmp_f);
 
-	// free any factors found in qs
-	for (i=0; i<fobj->qs_obj.num_factors; i++)
-		zFree(&fobj->qs_obj.factors[i]);
-	free(fobj->qs_obj.factors);
-
 	// then free other stuff in qs
 	mpz_clear(fobj->qs_obj.gmp_n);
-
-	// free any factors found in div
-	for (i=0; i<fobj->div_obj.num_factors; i++)
-		zFree(&fobj->div_obj.factors[i]);
-	free(fobj->div_obj.factors);
 
 	// then free other stuff in div
 	mpz_clear(fobj->div_obj.gmp_n);
 	mpz_clear(fobj->div_obj.gmp_f);
-
-	// free any factors found in nfs
-	for (i=0; i<fobj->nfs_obj.num_factors; i++)
-		zFree(&fobj->nfs_obj.factors[i]);
-	free(fobj->nfs_obj.factors);
 
 	// then free other stuff in nfs
 	mpz_clear(fobj->nfs_obj.gmp_n);
@@ -531,7 +508,6 @@ void free_factobj(fact_obj_t *fobj)
 
 	//free general fobj stuff
 	mpz_clear(fobj->N);
-	sFree(&fobj->str_N);
 
 	clear_factor_list(fobj);
 	free(fobj->fobj_factors);
@@ -544,7 +520,6 @@ void alloc_factobj(fact_obj_t *fobj)
 	int i;
 	
 	mpz_init(fobj->N);
-	sInit(&fobj->str_N);	
 
 	fobj->rho_obj.num_poly = 3;
 	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
@@ -560,22 +535,17 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->pp1_obj.gmp_n);
 	mpz_init(fobj->pp1_obj.gmp_f);
 
-	fobj->ecm_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
 
-	fobj->squfof_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
 
-	fobj->qs_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->qs_obj.gmp_n);
 
-	fobj->div_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->div_obj.gmp_n);
 	mpz_init(fobj->div_obj.gmp_f);
 
-	fobj->nfs_obj.factors = (z *)malloc(sizeof(z));
 	mpz_init(fobj->nfs_obj.gmp_n);
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
 
@@ -638,7 +608,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 	{
 		int ret = 0;
 
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			v = (gmp_base10(n) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 		else
 			v = APRTCLE_VERBOSE0;
@@ -664,7 +634,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 			fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
 		}
 	}
-	else if (is_mpz_prp(n))
+	else if (is_mpz_prp(n, fobj->NUM_WITNESSES))
 	{
 		if (mpz_cmp_ui(n, 100000000) < 0)
 			fobj->fobj_factors[fobj->num_factors].type = PRIME;
@@ -723,7 +693,7 @@ void clear_factor_list(fact_obj_t *fobj)
 	return;
 }
 
-int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact)
+int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG)
 {
 	// see if the value we
 	// read from the file is really the same as the input number.
@@ -772,7 +742,7 @@ void print_factors(fact_obj_t *fobj)
 	mpz_t tmp, tmp2;
 
 	//always print factors unless complete silence is requested
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 	{
 		printf("\n\n***factors found***\n\n");
 		mpz_init(tmp);
@@ -816,7 +786,7 @@ void print_factors(fact_obj_t *fobj)
 				if (gmp_base10(fobj->fobj_factors[i].factor) <= fobj->aprcl_prove_cutoff)
 				{
 					int ret = 0;
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						v = (gmp_base10(fobj->fobj_factors[i].factor) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
@@ -854,7 +824,7 @@ void print_factors(fact_obj_t *fobj)
 						}
 					}
 				}
-				else if (is_mpz_prp(fobj->fobj_factors[i].factor))
+				else if (is_mpz_prp(fobj->fobj_factors[i].factor, fobj->NUM_WITNESSES))
 				{
 					for (j=0;j<fobj->fobj_factors[i].count;j++)
 					{
@@ -891,7 +861,7 @@ void print_factors(fact_obj_t *fobj)
 				if (gmp_base10(tmp2) <= fobj->aprcl_prove_cutoff)
 				{
 					int ret = 0;
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						v = (gmp_base10(tmp2) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
@@ -919,7 +889,7 @@ void print_factors(fact_obj_t *fobj)
 							gmp_base10(tmp2), tmp2);
 					}
 				}
-				else if (is_mpz_prp(tmp2))
+				else if (is_mpz_prp(tmp2, fobj->NUM_WITNESSES))
 				{
 					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
 						gmp_base10(tmp2), tmp2);
@@ -945,7 +915,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	//compute how long we think siqs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
-	double freq = MEAS_CPU_FREQUENCY;
+	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
 	cpu = yafu_get_cpu_type();
@@ -956,7 +926,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	//adjust for multi-threaded qs
 	//if we assume threading is perfect, we'll get a smaller estimate for
 	//qs than we can really achieve, resulting in less ECM, so fudge it a bit
-	if (THREADS > 1)
+	if (fobj->THREADS > 1)
 	{
 		switch (cpu)
 		{
@@ -969,20 +939,20 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 		case 6:
 		case 7:
 		case 8:
-			estimate = estimate / ((double)THREADS * 0.75);
+			estimate = estimate / ((double)fobj->THREADS * 0.75);
 			break;
 		case 9:
 		case 10:
-			estimate = estimate / ((double)THREADS * 0.90);
+			estimate = estimate / ((double)fobj->THREADS * 0.90);
 			break;
 
 		default:
-			estimate = estimate / ((double)THREADS * 0.75);
+			estimate = estimate / ((double)fobj->THREADS * 0.75);
 			break;
 		}
 	}
 
-	if (VFLAG >= 2)
+	if (fobj->VFLAG >= 2)
 		printf("fac: QS time estimation from tune data = %1.2f sec\n", estimate);
 
 	return estimate;
@@ -995,7 +965,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	//compute how long we think gnfs would take to finish a factorization
 	enum cpu_type cpu;
 	double estimate;
-	double freq = MEAS_CPU_FREQUENCY;
+	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
 	cpu = yafu_get_cpu_type();
@@ -1006,7 +976,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	//adjust for multi-threaded nfs
 	//if we assume threading is perfect, we'll get a smaller estimate for
 	//nfs than we can really achieve, resulting in less ECM, so fudge it a bit
-	if (THREADS > 1)
+	if (fobj->THREADS > 1)
 	{
 		switch (cpu)
 		{
@@ -1019,20 +989,20 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 		case 6:
 		case 7:
 		case 8:
-			estimate = estimate / ((double)THREADS * 0.75);
+			estimate = estimate / ((double)fobj->THREADS * 0.75);
 			break;
 		case 9:
 		case 10:
-			estimate = estimate / ((double)THREADS * 0.90);
+			estimate = estimate / ((double)fobj->THREADS * 0.90);
 			break;
 
 		default:
-			estimate = estimate / ((double)THREADS * 0.75);
+			estimate = estimate / ((double)fobj->THREADS * 0.75);
 			break;
 		}
 	}
 
-	if (VFLAG >= 2)
+	if (fobj->VFLAG >= 2)
 		printf("fac: GNFS time estimation from tune data = %1.2f sec\n", estimate);
 
 	return estimate;
@@ -1059,7 +1029,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         if ((mpz_cmp_ui(b, fobj->prime_threshold) > 1) && 
             mpz_perfect_power_p(b))
         {
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 printf("fac: input is a perfect power\n");
             }
@@ -1072,7 +1042,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         }
 
         // then do all of the tdiv work requested
-        if (VFLAG >= 0)
+        if (fobj->VFLAG >= 0)
             printf("div: primes less than %d\n", fwork->tdiv_max_limit);
         
         mpz_set(fobj->div_obj.gmp_n, b);
@@ -1113,7 +1083,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 	case state_fermat:
 		// do all of the fermat work requested
-		if (VFLAG >= 0)
+		if (fobj->VFLAG >= 0)
 			printf("fmt: %d iterations\n", fwork->fermat_max_iterations);
 		mpz_set(fobj->div_obj.gmp_n,b);
 		zFermat(fwork->fermat_max_iterations, 1, fobj);
@@ -1234,7 +1204,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->qs_time = t_time;
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("pretesting / qs ratio was %1.2f\n", 
 				fwork->total_time / t_time); 
 		break;
@@ -1249,7 +1219,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
         t_time = yafu_difftime(&tstart, &tstop);
 
 		fwork->nfs_time = t_time;
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("pretesting / nfs ratio was %1.2f\n", 
 				fwork->total_time / t_time); 
 		break;
@@ -1295,7 +1265,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			done = 1;
 			for (i=0; i<fobj->num_factors; i++)
 			{
-				if (!is_mpz_prp(fobj->fobj_factors[i].factor))
+				if (!is_mpz_prp(fobj->fobj_factors[i].factor, fobj->NUM_WITNESSES))
 				{
 					fobj->refactor_depth++;
 					if (fobj->refactor_depth > 3)
@@ -1310,7 +1280,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						fact_obj_t *fobj_refactor;
 						int j;
 
-						if (VFLAG > 0)
+						if (fobj->VFLAG > 0)
 							printf("\nComposite result found, starting re-factorization\n");
 
 						// load the new fobj with this number
@@ -1436,12 +1406,12 @@ int check_tune_params(fact_obj_t *fobj)
 		fobj->nfs_obj.gnfs_exponent == 0 || 
 		fobj->nfs_obj.gnfs_tune_freq == 0)
 	{
-        if (VFLAG > 0)
+        if (fobj->VFLAG > 0)
         {
             printf("check tune params contained invalid parameter(s), ignoring tune info.\n");
         }
 
-        if (VFLAG > 0)
+        if (fobj->VFLAG > 0)
         {
             printf("\tqs_mult = %e\n", fobj->qs_obj.qs_multiplier);
             printf("\tqs_exp = %e\n", fobj->qs_obj.qs_exponent);
@@ -1713,7 +1683,8 @@ uint32 get_max_ecm_curves(factor_work_t *fwork, enum factorization_state state)
 	return max_curves;
 }
 
-double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log)
+double compute_ecm_work_done(factor_work_t *fwork, int disp_levels, FILE *log, 
+    int VFLAG, int LOGFLAG)
 {
 	// there is probably a more elegant way to do this involving dickman's function
 	// or something, but we can get a reasonable estimate using empirical data
@@ -1856,12 +1827,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
 		// ECM factor), but this goes fast.
 		// temporarily set verbosity high so we don't spam the screen.  
-		int tmpV = VFLAG;
+		int tmpV = fobj->VFLAG;
 		snfs_t *polys = NULL;
 		int npoly;
 		int gnfs_size;
 
-		VFLAG = -1;
+        fobj->VFLAG = -1;
 
 		mpz_set(fobj->nfs_obj.gmp_n, b);
 		poly = snfs_find_form(fobj);
@@ -1877,10 +1848,10 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
         }
 
 		// then scale and rank them
-		snfs_scale_difficulty(polys, npoly);
+		snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
 		npoly = snfs_rank_polys(fobj, polys, npoly);
 
-		VFLAG = tmpV;
+        fobj->VFLAG = tmpV;
 
 		// and test the best one, compared to gnfs or qs, depending on 
         // which one will run.
@@ -1891,7 +1862,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// Finally - to the best of our knowledge this will be a SNFS job.
 			// Since we are in factor(), we'll proceed with any ecm required, but adjust 
 			// the plan ratio in accord with the snfs job.
-			if (VFLAG >= 0) 
+			if (fobj->VFLAG >= 0)
 			{
 				printf("fac: ecm effort reduced from %1.2f to %1.2f: input has snfs form\n",
 					target_digits, target_digits / 1.2857);
@@ -1905,7 +1876,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
                 // don't consider the qs/snfs cutoff any more
                 fobj->autofact_obj.has_snfs_form = 0;
 
-                if (VFLAG >= 0)
+                if (fobj->VFLAG >= 0)
                 {
                     printf("fac: ecm effort maintained at %1.2f: input better by qs\n",
                         target_digits);
@@ -1913,7 +1884,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
             }
             else
             {
-                if (VFLAG >= 0)
+                if (fobj->VFLAG >= 0)
                 {
                     printf("fac: ecm effort maintained at %1.2f: input better by gnfs\n",
                         target_digits);
@@ -1949,25 +1920,25 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_55digit:
 		case state_ecm_60digit:
 		case state_ecm_65digit:
-			if (VFLAG >= 1)
+			if (fobj->VFLAG >= 1)
 				printf("fac: setting target pretesting digits to %1.2f\n", target_digits);
 			
-			work_done = compute_ecm_work_done(fwork, 1, NULL);
+			work_done = compute_ecm_work_done(fwork, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
 			
-			if (VFLAG >= 1)
+			if (fobj->VFLAG >= 1)
 				printf("fac: estimated sum of completed work is t%1.2f\n", work_done);
 
 			break;
 
 		default:
-			work_done = compute_ecm_work_done(fwork, 0, NULL);
+			work_done = compute_ecm_work_done(fwork, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
 			break;
 	}
 
 	// if there is a trivial amount of ecm to do, skip directly to a sieve method
 	if ((target_digits < 15) && (numdigits <= 45))
 	{
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("fac: trivial ECM work to do... skipping to sieve method\n");
 		next_state = state_nfs;
 	}
@@ -2009,7 +1980,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			qs_time_est = get_qs_time_estimate(fobj, b);
 			gnfs_time_est = get_gnfs_time_estimate(fobj, b);
 
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 printf("fac: tune params predict %1.2f sec for SIQS and %1.2f sec for NFS\n",
                     qs_time_est, gnfs_time_est);
@@ -2017,7 +1988,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
             if (qs_time_est < gnfs_time_est)
             {
-                if (VFLAG > 0)
+                if (fobj->VFLAG > 0)
                 {
                     printf("fac: tune params scheduling SIQS work\n");
                 }
@@ -2025,7 +1996,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
             }
             else
             {
-                if (VFLAG > 0)
+                if (fobj->VFLAG > 0)
                 {
                     printf("fac: tune params scheduling NFS work\n");
                 }
@@ -2053,7 +2024,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 			// figure out how many curves at this level need to be done 
 			// to get to the target level
 			interp_and_set_curves(fwork, fobj, next_state, work_done,
-				target_digits, LOGFLAG);
+				target_digits, fobj->LOGFLAG);
 
 			break;
 
@@ -2088,7 +2059,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	work_high = get_max_ecm_curves(fwork, state);		
 	work = (work_low + work_high) / 2;
 
-    if (VFLAG >= 1)
+    if (fobj->VFLAG >= 1)
     {
         printf("fac: work done at B1=%u: %1.0f curves, max work = %1.0f curves\n",
             fwork->B1, work_low, work_high);
@@ -2100,7 +2071,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         double compute;
 
 		set_ecm_curves_done(fwork, state, (uint32)work);       
-        compute = compute_ecm_work_done(fwork, 0, NULL);
+        compute = compute_ecm_work_done(fwork, 0, NULL, fobj->VFLAG, fobj->LOGFLAG);
 
 		if (compute > target_digits)
 		{
@@ -2123,13 +2094,13 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
         fwork->curves = get_max_ecm_curves(fwork, state) - tmp_curves;
     }
 
-    if ((VFLAG >= 1) && LOGFLAG)
+    if ((fobj->VFLAG >= 1) && fobj->LOGFLAG)
     {
         printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n",
             fwork->curves, fwork->B1, target_digits);
     }
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
@@ -2423,7 +2394,7 @@ void factor(fact_obj_t *fobj)
 	
 	gettimeofday(&start, NULL);
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         flog = fopen(fobj->flogname, "a");
         logprint(flog, "\n");
@@ -2500,7 +2471,7 @@ void factor(fact_obj_t *fobj)
 
 	fobj->autofact_obj.autofact_active = 1;
 
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 	{
 		gmp_printf("fac: factoring %Zd\n",b);
 		printf("fac: using pretesting plan: %s\n",fobj->autofact_obj.plan_str);
@@ -2560,9 +2531,9 @@ void factor(fact_obj_t *fobj)
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
-		if (resume_check_input_match(tmpz, b, g))
+		if (resume_check_input_match(tmpz, b, g, fobj->VFLAG))
 		{
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("fac: found siqs savefile, resuming siqs\n");
 
 			// remove any common factor so the input exactly matches
@@ -2602,7 +2573,7 @@ void factor(fact_obj_t *fobj)
 		substr = tmpstr + 2;
 		mpz_set_str(tmpz, substr, 0);	//auto detect the base
 
-		if (resume_check_input_match(tmpz, b, g))
+		if (resume_check_input_match(tmpz, b, g, fobj->VFLAG))
 		{
             // check if this is a snfsable number.  If the input is
             // really small and we don't check this, the resume
@@ -2622,13 +2593,13 @@ void factor(fact_obj_t *fobj)
                     snfs_clear(poly);
                     free(poly);
 
-                    if (VFLAG > 0)
+                    if (fobj->VFLAG > 0)
                         printf("fac: found nfs job file and snfs form, resuming snfs\n");
                 }
                 else
                 {
                     fobj->autofact_obj.has_snfs_form = 0;
-                    if (VFLAG > 0)
+                    if (fobj->VFLAG > 0)
                         printf("fac: found nfs job file, resuming nfs\n");
                 }
 #else
@@ -2637,7 +2608,7 @@ void factor(fact_obj_t *fobj)
             }
             else
             {
-                if (VFLAG > 0)
+                if (fobj->VFLAG > 0)
                     printf("fac: found nfs job file, resuming nfs\n");
             }		
 
@@ -2688,12 +2659,12 @@ void factor(fact_obj_t *fobj)
                 FILE *flog;
                 double work_done;
 
-                if (LOGFLAG)
+                if (fobj->LOGFLAG)
                 {
                     flog = fopen(fobj->flogname, "a");
                 }
-                work_done = compute_ecm_work_done(&fwork, 1, flog);
-                if (LOGFLAG)
+                work_done = compute_ecm_work_done(&fwork, 1, flog, fobj->VFLAG, fobj->LOGFLAG);
+                if (fobj->LOGFLAG)
                 {
                     logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
                     fclose(flog);
@@ -2720,7 +2691,7 @@ void factor(fact_obj_t *fobj)
 			else
 			{
 				if (fobj->autofact_obj.want_output_expressions)
-					fprintf(fobj->autofact_obj.op_file, "%s\n", fobj->str_N.s);
+					gmp_fprintf(fobj->autofact_obj.op_file, "%Zd\n", fobj->N);
 				else
 					gmp_fprintf(fobj->autofact_obj.op_file, "%Zd\n", origN);
 				if (fclose(fobj->autofact_obj.op_file) != 0)
@@ -2738,7 +2709,7 @@ void factor(fact_obj_t *fobj)
 				int i;
 				//fprintf(fobj->autofact_obj.of_file, "%s\n", z2decstr(&origN,&gstr1));
 				if (fobj->autofact_obj.want_output_expressions)
-					fprintf(fobj->autofact_obj.of_file, "(%s)", fobj->str_N.s);
+					gmp_fprintf(fobj->autofact_obj.of_file, "(%Zd)", fobj->N);
 				else
 					gmp_fprintf(fobj->autofact_obj.of_file, "%Zd", origN);
 				for (i=0; i<fobj->num_factors; i++)
@@ -2763,7 +2734,7 @@ void factor(fact_obj_t *fobj)
 			else
 			{
 				if (fobj->autofact_obj.want_output_expressions)
-					fprintf(fobj->autofact_obj.ou_file, "%s\n", fobj->str_N.s);
+					gmp_fprintf(fobj->autofact_obj.ou_file, "%Zd\n", fobj->N);
 				else
 					gmp_fprintf(fobj->autofact_obj.ou_file, "%s\n", origN);
 				if (fclose(fobj->autofact_obj.ou_file) != 0)
@@ -2775,17 +2746,19 @@ void factor(fact_obj_t *fobj)
 		
 	if (mpz_cmp_ui(b, 1) != 0)
 	{
-		if (is_mpz_prp(b))
+		if (is_mpz_prp(b, fobj->NUM_WITNESSES))
 		{
-			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n",gmp_base10(b),
-				mpz_conv2str(&gstr1.s, 10, b));
+            char* s = mpz_get_str(NULL, 10, b);
+			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n", mpz_sizeinbase(b, 10), s);
 			add_to_factor_list(fobj,b);
+            free(s);
 		}
 		else
 		{
-			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n",gmp_base10(b),
-				mpz_conv2str(&gstr1.s, 10, b));
+            char* s = mpz_get_str(NULL, 10, b);
+			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n", mpz_sizeinbase(b, 10), s);
 			add_to_factor_list(fobj,b);
+            free(s);
 		}
 	}
     
@@ -2794,7 +2767,7 @@ void factor(fact_obj_t *fobj)
 	gettimeofday (&stop, NULL);
     t_time = yafu_difftime(&start, &stop);
 
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);
 
 	logprint_oc(fobj->flogname, "a", "Total factoring time = %6.4f seconds\n",t_time);

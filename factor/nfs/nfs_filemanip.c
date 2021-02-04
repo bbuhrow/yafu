@@ -138,7 +138,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			printf("A data file (.dat) exists in the current directory.  It must either be "
 				"removed or -R specified to resume nfs\n");
 
-            if (LOGFLAG)
+            if (fobj->LOGFLAG)
             {
                 logfile = fopen(fobj->flogname, "a");
                 if (logfile == NULL)
@@ -164,12 +164,12 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 	do_poly_check = 0;
 	ans = NFS_STATE_STARTNEW;
 
-	if (VFLAG > 0) printf("nfs: checking for job file - ");
+	if (fobj->VFLAG > 0) printf("nfs: checking for job file - ");
 	in = fopen(fobj->nfs_obj.job_infile,"r");
 	if (in == NULL)
 	{
 		do_poly_check = 1;			// no job file.
-		if (VFLAG > 0) printf("no job file found\n");
+		if (fobj->VFLAG > 0) printf("no job file found\n");
 	}
 	else
 	{
@@ -177,12 +177,12 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		if (ptr == NULL)
 		{
 			do_poly_check = 1;		// job file empty.
-			if (VFLAG > 0) printf("job file empty\n");
+			if (fobj->VFLAG > 0) printf("job file empty\n");
 			fclose(in);
 		}
 		else
 		{
-			if (VFLAG > 0) printf("job file found, testing for matching input\n");
+			if (fobj->VFLAG > 0) printf("job file found, testing for matching input\n");
 			while (ptr != NULL)
 			{
 				if (line[0] == '#')
@@ -190,7 +190,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 				else if (line[0] != 'n')
 				{
 					do_poly_check = 1;	// malformed job file.
-					if (VFLAG > 0) printf("nfs: malformed job file, first non-comment "
+					if (fobj->VFLAG > 0) printf("nfs: malformed job file, first non-comment "
 						"line should contain n: \n");
 					break;
 				}
@@ -202,7 +202,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 					mpz_init(g);
 
 					mpz_set_str(tmp, line + 3, 0);
-					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g))
+					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g, fobj->VFLAG))
 					{
 						// divide out any common factor and copy the result to
 						// other data structures
@@ -210,15 +210,17 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
-						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
+                        char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+                        strcpy(fobj->nfs_obj.mobj->input, s);
+                        free(s);
 
 						do_data_check = 1;		// job file matches: check for data file
-						if (VFLAG > 0) 
+						if (fobj->VFLAG > 0) 
 							printf("nfs: number in job file matches input\n");
 					}
 					else
 					{
-						if (VFLAG > 0)
+						if (fobj->VFLAG > 0)
 							printf("nfs: number in job file does not match input\n");
 						do_poly_check = 1;		// no match: check for poly file
 					}
@@ -245,14 +247,14 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			return NFS_STATE_DONE;
 		}
 
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("nfs: checking for poly file - ");
 		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
 
 		in = fopen(master_polyfile,"r");
 		if (in == NULL)
 		{
-			if (VFLAG > 0) 
+			if (fobj->VFLAG > 0) 
 				printf("no poly file found\n");
 			return NFS_STATE_STARTNEW;			// no .p file.
 		}
@@ -261,18 +263,18 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			ptr = fgets(line,GSTR_MAXSIZE,in);
 			if (ptr == NULL)
 			{
-				if (VFLAG > 0) 
+				if (fobj->VFLAG > 0) 
 					printf("poly file empty\n");
 				return NFS_STATE_STARTNEW;		// .p file empty.
 			}
 			else
 			{
-				if (VFLAG > 0) printf("poly file found, testing for matching input\n");
+				if (fobj->VFLAG > 0) printf("poly file found, testing for matching input\n");
 				fclose(in);
 
 				if (line[0] != 'n')
 				{
-					if (VFLAG > 0) 
+					if (fobj->VFLAG > 0) 
 						printf("nfs: malformed poly file, first line should contain n: \n");
 					return NFS_STATE_STARTNEW;	// malformed .p file.
 				}
@@ -282,7 +284,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 					mpz_init(tmp);
 					mpz_init(g);
 					mpz_set_str(tmp, line + 3, 0);
-					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g))
+					if (resume_check_input_match(tmp, fobj->nfs_obj.gmp_n, g, fobj->VFLAG))
 					{
 						// divide out any common factor and copy the result to
 						// other data structures
@@ -290,9 +292,11 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 							add_to_factor_list(fobj, g);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
-						mpz_conv2str(&fobj->nfs_obj.mobj->input, 10, fobj->nfs_obj.gmp_n);
+                        char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+						strcpy(fobj->nfs_obj.mobj->input, s);
+                        free(s);
 
-						if (VFLAG > 0) 
+						if (fobj->VFLAG > 0) 
 							printf("nfs: poly file matches input\n");
 						do_poly_parse = 1;		// .p file matches: parse .p file
 					}
@@ -306,10 +310,10 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		{
 			if (fobj->nfs_obj.restart_flag)
 			{
-				if (VFLAG > 0) printf("nfs: finding best poly in poly file\n");
+				if (fobj->VFLAG > 0) printf("nfs: finding best poly in poly file\n");
 				find_best_msieve_poly(fobj, job, 0);
 				*last_spq = job->poly_time;
-				if (VFLAG > 0) printf("nfs: last leading coefficient was %u\n", 
+				if (fobj->VFLAG > 0) printf("nfs: last leading coefficient was %u\n", 
 					job->last_leading_coeff);
 				return NFS_STATE_RESUMEPOLY;
 			}
@@ -317,7 +321,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			{
 				printf("nfs: must specify -R to resume when a polyfile already exists\n");	
 
-                if (LOGFLAG)
+                if (fobj->LOGFLAG)
                 {
                     logfile = fopen(fobj->flogname, "a");
                     if (logfile == NULL)
@@ -350,7 +354,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		{
 			// data file doesn't exist, return flag to start sieving from the beginning
             *last_spq = 0;
-            if (VFLAG > 0)
+            if (fobj->VFLAG > 0)
             {
                 printf("nfs: no data file found\n");
             }
@@ -363,7 +367,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 			//if (fobj->nfs_obj.sieve_only && (fobj->nfs_obj.startq > 0))
 			if (fobj->nfs_obj.nfs_phases == NFS_PHASE_SIEVE && (fobj->nfs_obj.startq > 0))
 			{
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					printf("nfs: user specified special-q range of %u-%u, "
 					"skipping search for last special-q\n", 
 					fobj->nfs_obj.startq, fobj->nfs_obj.rangeq);
@@ -379,7 +383,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 				!(fobj->nfs_obj.nfs_phases & (NFS_PHASE_POLY | NFS_PHASE_SIEVE)))
 			// if (not default) and not (poly or sieve)
 			{
-				if (VFLAG > 0)
+				if (fobj->VFLAG > 0)
 					printf("nfs: user specified post processing only, "
 					"skipping search for last special-q\n");
 
@@ -387,10 +391,10 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 				return NFS_STATE_RESUMESIEVE;
 			}
 
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: commencing search for last special-q\n");
 
-            if (LOGFLAG)
+            if (fobj->LOGFLAG)
             {
                 logfile = fopen(fobj->flogname, "a");
                 if (logfile == NULL)
@@ -483,7 +487,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 		{
 			printf("nfs: must specify -R to resume when a savefile already exists\n");
 
-            if (LOGFLAG)
+            if (fobj->LOGFLAG)
             {
                 logfile = fopen(fobj->flogname, "a");
                 if (logfile == NULL)
@@ -526,10 +530,10 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 	uint32 rat[3], alg[3];
 	char *ptr;
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("nfs: parsing special-q from .dat file\n");
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         logfile = fopen(fobj->flogname, "a");
         if (logfile == NULL)
@@ -573,11 +577,11 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 			if (lines[line][i] == ',')
 				break;
 
-		if (VFLAG > 1)
+		if (fobj->VFLAG > 1)
 			printf("parsing rat side spq from %s\n",lines[line]);
 		sscanf(lines[line] + i + 1, "%x", &rat[count]);
 		
-		if (VFLAG > 1)
+		if (fobj->VFLAG > 1)
 			printf("found %x\n", rat[count]);
 
 		// grab alg side entry
@@ -585,10 +589,10 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 			if (lines[line][i] == ',')
 				break;
 
-		if (VFLAG > 1)
+		if (fobj->VFLAG > 1)
 			printf("parsing alg side spq from %s\n",lines[line]);
 		sscanf(lines[line] + i + 1, "%x", &alg[count]);
-		if (VFLAG > 1)
+		if (fobj->VFLAG > 1)
 			printf("found %x\n", alg[count]);
 	}
 
@@ -659,7 +663,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	}
 
 	// read and count polys of the file
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("searching for best poly...\n");
 
 	count = 0;
@@ -672,7 +676,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		if (line[0] == '#')
 		{
 			count++;
-			if (VFLAG > 2)
+			if (fobj->VFLAG > 2)
 				printf("found poly: %s",line);
 			// the comment line for a new polynomial.  read characters until we 
 			// find the e-score designator
@@ -700,7 +704,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 				{
 					bestscore = score;
 					bestline = count;
-					if (VFLAG > 0)
+					if (fobj->VFLAG > 0)
 						printf("new best score = %e, new best line = %d\n",bestscore, bestline);
 				}
 			}
@@ -784,10 +788,10 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 
 		if (bestline == 0)
 		{
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("best poly: \n%s",line);
 
-            if (LOGFLAG)
+            if (fobj->LOGFLAG)
             {
                 logfile = fopen(fobj->flogname, "a");
                 if (logfile == NULL)
@@ -809,7 +813,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	// copy n into the job file
 	gmp_fprintf(out, "n: %Zd\n",fobj->nfs_obj.gmp_n);
 
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		gmp_printf("n: %Zd\n",fobj->nfs_obj.gmp_n);
 
 	// copy out the poly
@@ -834,7 +838,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 
 		fputs(line,out);
 
-		if (VFLAG > 0)
+		if (fobj->VFLAG > 0)
 			printf("%s",line);
 	}
 
@@ -1026,7 +1030,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
  					printf("nfs: couldn't allocate memory!\n");
  					exit(-1);
  				} 
- 				else if (VFLAG > 0)
+ 				else if (fobj->VFLAG > 0)
  					printf("nfs: found type: snfs\n");
  				snfs_init(job->snfs);
  			}
@@ -1038,7 +1042,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		{
 			uint32 difficulty = strtoul(substr + 5, NULL, 10);
 			job->snfs->difficulty = (double)difficulty;
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: found size: %u\n", difficulty);
 			continue;
 		}
@@ -1089,7 +1093,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			sscanf(substr + 9, "%u", &siever);
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: found siever gnfs-lasieve4I%ue\n", siever);
 			continue;
 		}
@@ -1098,7 +1102,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			side = ALGEBRAIC_SPQ;
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: found side: algebraic\n");
 			continue;
 		}
@@ -1107,7 +1111,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			side = RATIONAL_SPQ;
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				printf("nfs: found side: rational\n");
 			continue;
 		}
@@ -1142,7 +1146,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	}
 	else
 		missing_params |= PARAM_FLAG_LPBA;
-	if (VFLAG > 0)
+	if (fobj->VFLAG > 0)
 		printf("nfs: parsed lpbr = %u, lpba = %u\n", lpbr, lpba);
 
 
@@ -1243,7 +1247,7 @@ void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
 			return;
 		}
 		
-        if (VFLAG > 0)
+        if (fobj->VFLAG > 0)
 			printf("nfs: job file is missing params, filling them\n");
 
 		// make sure we start on a new line if we are filling anything

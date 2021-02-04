@@ -281,21 +281,18 @@ void applyOpt(char* opt, char* arg, options_t* options)
         //"B2pm1"
         enforce_numeric(arg, opt);
         options->B2pm1 = strtoull(arg, ptr, 10);
-        //fobj->pm1_obj.stg2_is_default = 0;
     }
     else if (strcmp(opt, OptionArray[5]) == 0)
     {
         // "B2pp1"
         enforce_numeric(arg, opt);
         options->B2pp1 = strtoull(arg, ptr, 10);
-        //fobj->pp1_obj.stg2_is_default = 0;
     }
     else if (strcmp(opt, OptionArray[6]) == 0)
     {
         // "B2ecm"
         enforce_numeric(arg, opt);
         options->B2ecm = strtoull(arg, ptr, 10);
-        //fobj->ecm_obj.stg2_is_default = 0;
     }
     else if (strcmp(opt, OptionArray[7]) == 0)
     {
@@ -310,42 +307,36 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // siqsB
         enforce_numeric(arg, opt);
         options->siqsB = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_B_flag = 1;
     }
     else if (strcmp(opt, OptionArray[9]) == 0)
     {
         // siqsTF
         enforce_numeric(arg, opt);
         options->siqsTF = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_tf_flag = 1;
     }
     else if (strcmp(opt, OptionArray[10]) == 0)
     {
         // siqsR
         enforce_numeric(arg, opt);
         options->siqsR = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_rel_flag = 1;
     }
     else if (strcmp(opt, OptionArray[11]) == 0)
     {
         // siqsT
         enforce_numeric(arg, opt);
         options->siqsT = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_time_flag = 1;
     }
     else if (strcmp(opt, OptionArray[12]) == 0)
     {
         // siqsNB
         enforce_numeric(arg, opt);
         options->siqsNB = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_blocks_flag = 1;
     }
     else if (strcmp(opt, OptionArray[13]) == 0)
     {
         // siqsM
         enforce_numeric(arg, opt);
         options->siqsM = strtoul(arg, ptr, 10);
-        //fobj->qs_obj.gbl_override_lpmult_flag = 1;
     }
     else if (strcmp(opt, OptionArray[14]) == 0)
     {
@@ -355,7 +346,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
             (strcmp(arg, "null") == 0))
         {
             strcpy(options->factorlog, "");
-            //LOGFLAG = 0;
         }
         else
         {
@@ -371,15 +361,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strlen(arg) < MAXARGLEN)
         {
             strcpy(options->batchfile, arg);
-            //USEBATCHFILE = 1;
         }
         else
             printf("*** argument to batchfile too long, ignoring ***\n");
     }
     else if (strcmp(opt, OptionArray[16]) == 0)
     {
-        //USERSEED = 1;
-        //sscanf(arg, "%u,%u", &g_rand.hi, &g_rand.low);
         options->rand_seed = strtoull(arg, ptr, 10);
     }
     else if (strcmp(opt, OptionArray[17]) == 0)
@@ -488,7 +475,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strlen(arg) < MAXARGLEN)
         {
             strcpy(options->opfile, arg);
-            //fobj->autofact_obj.want_output_primes = 1;
         }
         else
         {
@@ -501,7 +487,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strlen(arg) < MAXARGLEN)
         {
             strcpy(options->offile, arg);
-            //fobj->autofact_obj.want_output_factors = 1;
         }
         else
         {
@@ -514,7 +499,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
         if (strlen(arg) < MAXARGLEN)
         {
             strcpy(options->oufile, arg);
-            //fobj->autofact_obj.want_output_unfactored = 1;
         }
         else
         {
@@ -633,8 +617,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         //argument "ns".  do nfs sieving
         char** nextptr = &arg;
-
-        
         //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
 
         if (arg != NULL)
@@ -649,18 +631,9 @@ void applyOpt(char* opt, char* arg, options_t* options)
                 exit(1);
             }
             options->sieveQstop = strtoul(*nextptr + 1, NULL, 10);
-
-            //if (fobj->nfs_obj.startq >= fobj->nfs_obj.rangeq)
-            //{
-            //    printf("format of sieving argument is START,STOP; STOP must be > START\n");
-            //    exit(1);
-            //}
-            //fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
         }
         else
         {
-            //fobj->nfs_obj.startq = 0;
-            //fobj->nfs_obj.rangeq = 0;
             options->sieveQstart = 0;
             options->sieveQstop = 0;
         }
@@ -685,13 +658,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
                 exit(1);
             }
             options->polystop = strtoul(*nextptr + 1, NULL, 10);
-
-            //if (fobj->nfs_obj.polystart >= fobj->nfs_obj.polyrange)
-            //{
-            //    printf("format of poly select argument is START,STOP; STOP must be > START\n");
-            //    exit(1);
-            //}
-            //fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
         }
         else
         {
@@ -749,8 +715,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
         //argument "pbatch".  Indicates size of blocks of leading coefficients to
         //distribute to each thread in threaded NFS poly selection.
         options->poly_batch = strtoul(arg, NULL, 10);
-        //if (fobj->nfs_obj.polybatch == 0)
-        //    fobj->nfs_obj.polybatch = 250;
+        if (options->poly_batch == 0)
+            options->poly_batch = 250;
     }
     else if (strcmp(opt, OptionArray[51]) == 0)
     {
@@ -836,12 +802,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "aprcl_p", setting the threshold below which numbers
         // are proved prime using APR-CL
         options->aprcl_p = strtoul(arg, NULL, 10);
-        //if (fobj->aprcl_prove_cutoff > 6021)
-        //{
-        //    printf("APR-CL primality proving is possible only for numbers less"
-        //        " than 6021 digits... setting limit to 6021 digits\n");
-        //    fobj->aprcl_prove_cutoff = 6021;
-        //}
+        if (options->aprcl_p > 6021)
+        {
+            printf("APR-CL primality proving is possible only for numbers less"
+                " than 6021 digits... setting limit to 6021 digits\n");
+            options->aprcl_p = 6021;
+        }
     }
     else if (strcmp(opt, OptionArray[64]) == 0)
     {
@@ -853,7 +819,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         //argument "filt_bump"
         sscanf(arg, "%lf", &options->filt_bump);
-        //fobj->nfs_obj.filter_min_rels_nudge = 1 + fobj->nfs_obj.filter_min_rels_nudge / 100;
     }
     else if (strcmp(opt, OptionArray[66]) == 0)
     {
@@ -884,7 +849,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         //argument "siqsTFSm"
         options->siqsTFSm = atoi(arg);
-        //fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
     }
     else if (strcmp(opt, OptionArray[73]) == 0)
     {

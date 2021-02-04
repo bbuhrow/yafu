@@ -83,8 +83,8 @@ int pm1_wrapper(fact_obj_t *fobj)
 	mpz_set(pm1_data.gmp_n, fobj->pm1_obj.gmp_n);
 
 	pm1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
-	if (VFLAG >= 3)
-		pm1_data.params->verbose = VFLAG - 2;		
+	if (fobj->VFLAG >= 3)
+		pm1_data.params->verbose = fobj->VFLAG - 2;		
 
 	if (fobj->pm1_obj.stg2_is_default == 0)
 	{
@@ -132,10 +132,11 @@ void pollard_loop(fact_obj_t *fobj)
 		
 	start = clock();
 
-	if (is_mpz_prp(fobj->pm1_obj.gmp_n))
+	if (is_mpz_prp(fobj->pm1_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
-		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n),
-			mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_n));
+        char* s = mpz_get_str(NULL, 10, fobj->pm1_obj.gmp_n);
+		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n), s);
+        free(s);
 
 		add_to_factor_list(fobj, fobj->pm1_obj.gmp_n);
 
@@ -166,31 +167,32 @@ void pollard_loop(fact_obj_t *fobj)
 		//non-trivial factor found
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
-		//check if the factor is prime
-		if (is_mpz_prp(fobj->pm1_obj.gmp_f))
+		
+        char* s = mpz_get_str(NULL, 10, fobj->pm1_obj.gmp_f);
+        //check if the factor is prime
+		if (is_mpz_prp(fobj->pm1_obj.gmp_f, fobj->NUM_WITNESSES))
 		{
 			add_to_factor_list(fobj, fobj->pm1_obj.gmp_f);
 
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				gmp_printf("pm1: found prp%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
 			logprint_oc(fobj->flogname, "a","prp%d = %s\n",
-				gmp_base10(fobj->pm1_obj.gmp_f),
-				mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_f));
+				gmp_base10(fobj->pm1_obj.gmp_f), s);
 		}
 		else
 		{
 			add_to_factor_list(fobj, fobj->pm1_obj.gmp_f);
 
-			if (VFLAG > 0)
+			if (fobj->VFLAG > 0)
 				gmp_printf("pm1: found c%d factor = %Zd\n",
 				gmp_base10(fobj->pm1_obj.gmp_f), fobj->pm1_obj.gmp_f);
 
 			logprint_oc(fobj->flogname, "a","c%d = %s\n",
-				gmp_base10(fobj->pm1_obj.gmp_f),
-				mpz_conv2str(&gstr1.s, 10, fobj->pm1_obj.gmp_f));
+				gmp_base10(fobj->pm1_obj.gmp_f), s);
 		}
+        free(s);
 		start = clock();
 
 		//reduce input
@@ -264,7 +266,7 @@ void pm1_print_B1_B2(fact_obj_t *fobj)
 	else
 		sprintf(stg2str, "gmp-ecm default");
 
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 	{
 		printf("pm1: starting B1 = %s, B2 = %s on C%d",
 			stg1str,stg2str, (int)gmp_base10(fobj->pm1_obj.gmp_n));
@@ -276,7 +278,7 @@ void pm1_print_B1_B2(fact_obj_t *fobj)
 
 		//need a new line to make screen output look right, when
 		//using GMP-ECM, because the "processed" status is not printed
-	if (VFLAG >= 0)
+	if (fobj->VFLAG >= 0)
 		printf("\n");
 
 	return;

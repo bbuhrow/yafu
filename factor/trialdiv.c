@@ -35,7 +35,7 @@ void zTrial(fact_obj_t *fobj)
 	mpz_t tmp;
 	mpz_init(tmp);
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         flog = fopen(fobj->flogname, "a");
         if (flog == NULL)
@@ -76,7 +76,7 @@ void zTrial(fact_obj_t *fobj)
 			logprint(flog,"div: found prime factor = %u\n",q);
 #endif
 
-			if (print && (VFLAG > 0))
+			if (print && (fobj->VFLAG > 0))
 #if BITS_PER_DIGIT == 64
 				printf("div: found prime factor = %" PRIu64 "\n",q);
 #else
@@ -85,7 +85,7 @@ void zTrial(fact_obj_t *fobj)
 		}
 	}
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         fclose(flog);
     }
@@ -104,7 +104,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 	mpz_init(base);
 	mpz_init(ans);
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         //open the log file
         flog = fopen(fobj->flogname, "a");
@@ -123,18 +123,19 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 		if (mpz_cmp(ans, b) == 0)
 		{
 			// found a base.  				
-			if (is_mpz_prp(base))
+			if (is_mpz_prp(base, fobj->NUM_WITNESSES))
 			{
 				uint32 j;
+                char* s = mpz_get_str(NULL, 10, base);
 				//gmp_printf("\nAdding prime base %Zd to factor list...\n", base);
 				for (j=0; j<i; j++)
 				{
 					add_to_factor_list(fobj, base);
 					mpz_tdiv_q(b, b, base);
 					logprint(flog,"prp%d = %s\n",
-						gmp_base10(base),
-						mpz_conv2str(&gstr1.s, 10, base));
+						gmp_base10(base), s);
 				}
+                free(s);
 			}
 			else
 			{
@@ -157,8 +158,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				for (j=0; j< fobj_refactor->num_factors; j++)
 				{
 					int k, c;
-					//gmp_printf("\nAdding prime base %Zd to factor list...\n", 
-					//	fobj_refactor->fobj_factors[j].factor);
+                    char* s = mpz_get_str(NULL, 10, fobj_refactor->fobj_factors[j].factor);
 
 					for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
 					{
@@ -168,10 +168,10 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
 							mpz_tdiv_q(b, b, fobj_refactor->fobj_factors[j].factor);
 							logprint(flog,"prp%d = %s\n",
-								gmp_base10(fobj_refactor->fobj_factors[j].factor),
-								mpz_conv2str(&gstr1.s, 10, fobj_refactor->fobj_factors[j].factor));
+								gmp_base10(fobj_refactor->fobj_factors[j].factor), s);
 						}
 					}
+                    free(s);
 				}
 
 				// free temps
@@ -185,7 +185,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 	mpz_clear(base);
 	mpz_clear(ans);
 
-    if (LOGFLAG)
+    if (fobj->LOGFLAG)
     {
         fclose(flog);
     }
@@ -231,7 +231,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	if (mpz_perfect_square_p(fobj->div_obj.gmp_n))
 	{
 		//open the log file
-        if (LOGFLAG)
+        if (fobj->LOGFLAG)
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -243,31 +243,31 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
         }
 
 		mpz_sqrt(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n);
-		if (is_mpz_prp(fobj->div_obj.gmp_n))
+
+        char* s = mpz_get_str(NULL, 10, fobj->div_obj.gmp_n);
+		if (is_mpz_prp(fobj->div_obj.gmp_n, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
+				gmp_base10(fobj->div_obj.gmp_n), s);
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
+				gmp_base10(fobj->div_obj.gmp_n), s);
 		}
 		else
 		{
 			logprint(flog, "Fermat method found perfect square factorization:\n");
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
+				gmp_base10(fobj->div_obj.gmp_n), s);
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(fobj->div_obj.gmp_n),
-				mpz_conv2str(&gstr1.s, 10, fobj->div_obj.gmp_n));
+				gmp_base10(fobj->div_obj.gmp_n), s);
 		}
+        free(s);
+
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
 		mpz_set_ui(fobj->div_obj.gmp_n, 1);
         
-        if (LOGFLAG)
+        if (fobj->LOGFLAG)
         {
             fclose(flog);
         }
@@ -422,7 +422,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 			break;
 
 		//progress report
-		if ((count > reportIt) && (VFLAG > 1))
+		if ((count > reportIt) && (fobj->VFLAG > 1))
 		{
 			for (i=0; i< numChars; i++)
 				printf("\b");
@@ -434,24 +434,21 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
         
 	} while (!mpz_perfect_square_p(b2));
 
-    if (VFLAG > 1)
+    if (fobj->VFLAG > 1)
         printf("fmt: performed %d perfect square checks\n", sqchecks);
 
 found:
 
 	// 'count' is how far we had to scan 'a' to find a square b
 	mpz_add_ui(a, a, count);
-	//printf("count is %" PRIu64 "\n", count);
 
 	if ((mpz_size(b2) > 0) && mpz_perfect_square_p(b2))
 	{
-		//printf("found square at count = %d: a = %s, b2 = %s",count,
-		//	z2decstr(&a,&gstr1),z2decstr(&b2,&gstr2));
 		mpz_sqrt(tmp, b2); 		
 		mpz_add(tmp, a, tmp);
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
-        if (LOGFLAG)
+        if (fobj->LOGFLAG)
         {
             flog = fopen(fobj->flogname, "a");
             if (flog == NULL)
@@ -464,18 +461,18 @@ found:
         }
 
 		add_to_factor_list(fobj, tmp);
-		if (is_mpz_prp(tmp))
+        char* s = mpz_get_str(NULL, 10, tmp);
+		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(tmp),
-				mpz_conv2str(&gstr1.s, 10, tmp));
+				gmp_base10(tmp), s);
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(tmp),
-				mpz_conv2str(&gstr1.s, 10, tmp));
+				gmp_base10(tmp), s);
 		}
+        free(s);
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 		mpz_sqrt(tmp, b2);
@@ -483,18 +480,19 @@ found:
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
 		add_to_factor_list(fobj, tmp);
-		if (is_mpz_prp(tmp))
+        s = mpz_get_str(NULL, 10, tmp);
+
+		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
 			logprint(flog,"prp%d = %s\n",
-				gmp_base10(tmp),
-				mpz_conv2str(&gstr1.s, 10, tmp));
+				gmp_base10(tmp), s);
 		}
 		else
 		{
 			logprint(flog,"c%d = %s\n",
-				gmp_base10(tmp),
-				mpz_conv2str(&gstr1.s, 10, tmp));
+				gmp_base10(tmp), s);
 		}
+        free(s);
 
 		mpz_tdiv_q(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, tmp);
 	}
@@ -512,7 +510,7 @@ done:
 	free(mod1);
 	free(mod2);
 	free(skip);
-    if (LOGFLAG && (flog != NULL))
+    if (fobj->LOGFLAG && (flog != NULL))
     {
         fclose(flog);
     }

@@ -762,7 +762,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj);
 void test_polya(fb_list *fb, mpz_t n, mpz_t target_a);
 int checkpoly_siqs(siqs_poly *poly, mpz_t n);
 int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s);
-int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n);
+int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG);
 void siqsbench(fact_obj_t *fobj);
 
 /*--------------LINEAR ALGEBRA RELATED DECLARATIONS ---------------------*/

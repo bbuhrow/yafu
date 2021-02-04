@@ -23,7 +23,8 @@ CC = gcc-7.3.0
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../ysieve.git/trunk
+LIBS = -L../../ysieve.git/trunk
 BINNAME = yafu
 
 
@@ -173,9 +174,9 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a
+    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lysieve
 else
-    LIBS += -lecm -lgmp
+    LIBS += -lecm -lgmp -lysieve
 endif
 
 
@@ -223,11 +224,10 @@ MSIEVE_OBJS = $(MSIEVE_SRCS:.c=$(OBJ_EXT))
 YAFU_SRCS = \
 	top/driver.c \
 	top/utils.c \
-	top/stack.c \
-	top/calc.c \
 	top/test.c \
 	top/aprcl/mpz_aprcl.c \
 	top/cmdParser/cmdOptions.c \
+	top/cmdParser/calc.c \
 	factor/factor_common.c \
 	factor/rho.c \
 	factor/squfof.c \
@@ -252,22 +252,8 @@ YAFU_SRCS = \
     factor/gmp-ecm/tinyecm.c \
     factor/gmp-ecm/microecm.c \
 	factor/nfs/nfs.c \
-	arith/arith0.c \
-	arith/arith1.c \
-	arith/arith2.c \
-	arith/arith3.c \
+	arith/arith.c \
 	arith/monty.c \
-	top/eratosthenes/presieve.c \
-	top/eratosthenes/count.c \
-	top/eratosthenes/offsets.c \
-	top/eratosthenes/primes.c \
-	top/eratosthenes/roots.c \
-	top/eratosthenes/linesieve.c \
-	top/eratosthenes/soe.c \
-	top/eratosthenes/tiny.c \
-	top/eratosthenes/worker.c \
-	top/eratosthenes/soe_util.c \
-	top/eratosthenes/wrapper.c \
 	top/threadpool.c \
     top/queue.c \
     factor/prime_sieve.c \
@@ -356,18 +342,14 @@ HEAD = include/yafu.h  \
 	factor/qs/tdiv_macros_common.h \
 	include/lanczos.h  \
 	include/types.h  \
-	include/calc.h  \
 	include/common.h  \
 	include/factor.h  \
-	include/soe.h  \
 	include/util.h  \
 	include/types.h \
-	include/yafu_string.h  \
 	top/aprcl/mpz_aprcl.h \
 	top/aprcl/jacobi_sum.h \
 	include/arith.h  \
 	include/msieve.h  \
-	include/yafu_stack.h  \
 	include/yafu_ecm.h \
 	include/gmp_xface.h \
     include/monty.h \
@@ -377,7 +359,8 @@ HEAD = include/yafu.h  \
     include/batch_factor.h \
     include/cofactorize.h \
     factor/avx-ecm/avx_ecm.h \
-	top/cmdParser/cmdOptions.h
+	top/cmdParser/cmdOptions.h \
+	top/cmdParser/calc.h
 
 ifeq ($(USE_AVX2),1)
 

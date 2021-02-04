@@ -255,7 +255,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			}
 
 			//ignore composite factors for now...
-            if (is_mpz_prp(tmp))
+            if (is_mpz_prp(tmp, obj->NUM_WITNESSES))
             {
                 //gmp_printf("found prime factor %Zd\n", tmp);
             }
@@ -282,7 +282,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			mpz_tdiv_q(tmp2, n, tmpn); //zDiv(&tmpn, &tmp, &tmp2, &tmp3);
 
 			//check if the remaining number is prime
-			if (is_mpz_prp(tmp2))
+			if (is_mpz_prp(tmp2, obj->NUM_WITNESSES))
 			{
 				//add it to our global factor list
 				//gmp_printf("remaining cofactor %Zd is prime\n", tmp2);
@@ -301,7 +301,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
                     mpz_tdiv_q_ui(tmp2, tmp2, ignore_me);
 
 					//check again if the remaining number is prime
-                    if (is_mpz_prp(tmp2))
+                    if (is_mpz_prp(tmp2, obj->NUM_WITNESSES))
 					{
 						//add it to our global factor list
 						//gmp_printf("remaining cofactor %Zd is prime after"
