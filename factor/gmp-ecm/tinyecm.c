@@ -1282,7 +1282,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	if (sigma == 0)
 	{
-		work->sigma = spRand(7, (uint32)-1);
+		work->sigma = spRand(7, (uint32)-1, LCGSTATE);
 	}
 	else
 	{
@@ -1448,8 +1448,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// addmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
+			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
 			uint64 c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1477,8 +1477,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// submod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
+			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
 			uint64 c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1507,8 +1507,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// mulmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
+			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
 			uint64 c[2];
 			uint64 s[3];
 
@@ -1541,8 +1541,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// sqrmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff), spRand(0, 0xffffffffffffffff) };
+			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
 			uint64 c[2];
 			uint64 s[3];
 

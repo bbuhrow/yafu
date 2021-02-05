@@ -2573,6 +2573,8 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 
 	if (!initialized)
 	{
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+
 		// Precompute sqrts for all possible k. 2^21 entries are enough for N~2^63.
 		int kMax = 1 << 21;
 		for (i = 1; i < SQRTBOUND; i++) {
@@ -2581,9 +2583,11 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 			sqrtInv[i] = 1.0 / sqrtI;
 		}
 
-		PRIMES = soe_wrapper(spSOEprimes, szSOEp, 0, FACTORLIMIT, 0, &NUM_P);
+		PRIMES = soe_wrapper(sdata, 0, FACTORLIMIT, 0, &NUM_P, 0, 0);
 		P_MIN = PRIMES[0];
 		P_MAX = PRIMES[NUM_P - 1];
+        soe_finalize(sdata);
+
 		TDiv63InverseSetup();
 		//printf("prime list generated\n");
 		//printf("PMAX = %lu, NUM_P = %lu\n", P_MAX, NUM_P);

@@ -2034,6 +2034,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 	struct timeval tstart, tstop;
 	uint64_t lower, upper, inc, count;
     fact_obj_t* fobj = metadata->fobj;
+    soe_staticdata_t* sdata = metadata->sdata;
 
 	mpz_init(mp1);
 	mpz_init(mp2);
@@ -2547,7 +2548,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             lower = mpz_get_64(operands[1]);
             upper = mpz_get_64(operands[2]);
 
-            soe_wrapper(spSOEprimes, szSOEp, lower, upper, 1, &n64);
+            {
+                soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+                soe_wrapper(sdata, lower, upper, 1, &n64, 0, 0);
+                soe_finalize(sdata);
+            }
+            
 
             mpz_set_64(operands[0], n64);
             gettimeofday(&tstop, NULL);
@@ -2570,12 +2576,18 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         lower = mpz_get_64(operands[0]);
         upper = mpz_get_64(operands[1]);
         free(PRIMES);
-        PRIMES = soe_wrapper(spSOEprimes, szSOEp, lower, upper, mpz_get_ui(operands[2]), &NUM_P);
-        if (PRIMES != NULL)
+
         {
-            P_MIN = PRIMES[0];
-            P_MAX = PRIMES[NUM_P - 1];
+            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
+            PRIMES = soe_wrapper(sdata, lower, upper, mpz_get_ui(operands[2]), &NUM_P, 0, 0);
+            if (PRIMES != NULL)
+            {
+                P_MIN = PRIMES[0];
+                P_MAX = PRIMES[NUM_P - 1];
+            }
+            soe_finalize(sdata);
         }
+        
         mpz_set_64(operands[0], NUM_P);
 
         break;
@@ -2736,34 +2748,18 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             uint64 num_found;
             uint64* primes;
             uint64 range;
-            uint32* sieve_p, num_sp;
             mpz_t lowz, highz;
-            int val1, val2;
 
-            range = mpz_get_64(operands[2]);
-            val1 = PRIMES_TO_SCREEN;
-            val2 = PRIMES_TO_FILE;
-            PRIMES_TO_SCREEN = 0;
-            PRIMES_TO_FILE = 0;
-            primes = soe_wrapper(spSOEprimes, szSOEp, 0, range, 0, &num_found);
-            PRIMES_TO_SCREEN = val1;
-            PRIMES_TO_FILE = val2;
-            sieve_p = (uint32*)malloc(num_found * sizeof(uint32));
-            for (i = 0; i < num_found; i++)
-                sieve_p[i] = (uint32)primes[i];
-            num_sp = (uint32)num_found;
-            free(primes);
             primes = NULL;
 
             mpz_init(lowz);
             mpz_init(highz);
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
-            primes = sieve_to_depth(sieve_p, num_sp, lowz, highz,
-                0, mpz_get_ui(operands[3]), &num_found);
+            primes = sieve_to_depth(sdata, lowz, highz,
+                0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
+                &num_found, fobj->options->pscreen, fobj->options->pfile);
 
-
-            free(sieve_p);
             if (!NULL)
                 free(primes);
 
@@ -2784,36 +2780,18 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             uint64 num_found;
             uint64* primes;
             uint64 range;
-            uint32* sieve_p, num_sp;
             mpz_t lowz, highz;
-            int val1, val2;
 
-            range = mpz_get_64(operands[2]);
-            val1 = PRIMES_TO_SCREEN;
-            val2 = PRIMES_TO_FILE;
-            PRIMES_TO_SCREEN = 0;
-            PRIMES_TO_FILE = 0;
-            primes = soe_wrapper(spSOEprimes, szSOEp, 0, range, 0, &num_found);
-            PRIMES_TO_SCREEN = val1;
-            PRIMES_TO_FILE = val2;
-            sieve_p = (uint32*)malloc(num_found * sizeof(uint32));
-            for (i = 0; i < num_found; i++)
-            {
-                if ((num_found - i) < 10) printf("%u\n", primes[i]);
-                sieve_p[i] = (uint32)primes[i];
-            }
-            num_sp = (uint32)num_found;
-            free(primes);
             primes = NULL;
 
             mpz_init(lowz);
             mpz_init(highz);
             mpz_set(lowz, operands[0]);
             mpz_set(highz, operands[1]);
-            primes = sieve_to_depth(sieve_p, num_sp, lowz, highz,
-                mpz_get_ui(operands[3]), 0, &num_found);
+            primes = sieve_to_depth(sdata, lowz, highz,
+                0, 0, mpz_get_ui(operands[2]),
+                &num_found, fobj->options->pscreen, fobj->options->pfile);
 
-            free(sieve_p);
             if (!NULL)
                 free(primes);
 

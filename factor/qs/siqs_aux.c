@@ -42,6 +42,8 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 #ifdef USE_8X_MOD_ASM
 	uint32 shift = 24;
 #endif
+    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+
 
 	//unpack stuff from static data structure
 	fb_list *fb = sconf->factor_base;
@@ -52,7 +54,9 @@ uint32 make_fb_siqs(static_conf_t *sconf)
     //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
 
 	free(PRIMES);
-	PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
+    PRIMES = soe_wrapper(sdata, lrange, urange, 0, &NUM_P, 0, 0);
+    
+	//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 	P_MIN = PRIMES[0];
 	P_MAX = PRIMES[NUM_P-1];
 
@@ -66,7 +70,8 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			urange = lrange + 10000000;
 			free(PRIMES);
             //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-			PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
+            PRIMES = soe_wrapper(sdata, lrange, urange, 0, &NUM_P, 0, 0);
+			//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 			P_MIN = PRIMES[0];
 			P_MAX = PRIMES[NUM_P-1];
 			i=0;
@@ -81,6 +86,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				//prime doesn't divide the multiplier, so
 				//this prime divides the input, divide it out and bail
 				mpz_tdiv_q_ui(n, n, prime);
+                soe_finalize(sdata);
 				return prime;
 			}
 
@@ -250,6 +256,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 		i++;
 	}
 
+    soe_finalize(sdata);
 	return 0;
 }
 

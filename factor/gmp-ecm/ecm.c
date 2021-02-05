@@ -493,7 +493,7 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	}
 	else if (get_uvar("sigma",tmp))
 	{
-		thread_data->sigma = spRand(6,MAX_DIGIT);
+		thread_data->sigma = spRand(6, MAX_DIGIT, LCGSTATE);
 	}
 	else
 	{

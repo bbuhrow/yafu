@@ -167,7 +167,7 @@ void williams_loop(fact_obj_t *fobj)
 			break;
 		}
 		
-		fobj->pp1_obj.base = spRand(3,MAX_DIGIT);
+		fobj->pp1_obj.base = spRand(3,MAX_DIGIT,LCGSTATE);
 
         pp1_print_B1_B2(fobj);
 

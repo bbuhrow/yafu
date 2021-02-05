@@ -427,7 +427,11 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     numSOEp = tiny_soe(65537, seed_p);
     if ((PRIMES[0] != 2) || PRIMES[NUM_P - 1] != 99999989)
     {
-        PRIMES = soe_wrapper(seed_p, numSOEp, 0, 100000000, 0, &NUM_P);
+        free(PRIMES);
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+        //PRIMES = soe_wrapper(seed_p, numSOEp, 0, 100000000, 0, &NUM_P);
+        PRIMES = soe_wrapper(sdata, 0, 100000000, 0, &NUM_P, 0, 0);
+        soe_finalize(sdata);
         P_MAX = PRIMES[NUM_P - 1];
         P_MIN = PRIMES[0];
         PRIME_RANGE = 100000000;

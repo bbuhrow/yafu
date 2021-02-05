@@ -2257,23 +2257,16 @@ void smpqs_get_more_primes(sm_mpqs_poly *poly, int VFLAG)
 {
 	uint64 num_p;
 	int i;
+    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
 
 	if (VFLAG > 1)
 		printf("smallmpqs getting more primes: poly_d = %u\n",
 		poly->poly_d);
 
-	PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL, 0, 
-		(uint64)((double)poly->poly_d * 1.25), &num_p);
+	PRIMES = soe_wrapper(sdata, 0, (uint64)((double)poly->poly_d * 1.25), 
+        0, &NUM_P, 0, 0);
+    soe_finalize(sdata);
 
-	//save a batch of sieve primes too.
-	spSOEprimes = (uint32 *)realloc(spSOEprimes, 
-		(size_t) (num_p * sizeof(uint32)));
-
-	for (i=0;i<num_p;i++)
-		spSOEprimes[i] = (uint32)PRIMES[i];
-
-	szSOEp = num_p;
-	NUM_P = num_p;
 	P_MIN = 0; 
 	P_MAX = PRIMES[(uint32)NUM_P-1];
 

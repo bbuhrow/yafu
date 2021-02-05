@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
     fobj->NUM_WITNESSES = yafu_obj.NUM_WITNESSES;
     calc_metadata.fobj = fobj;
     calc_metadata.options = options;
+    calc_metadata.sdata = sdata;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
@@ -459,6 +460,8 @@ int main(int argc, char *argv[])
 	free(fobj);      
     sFree(&input_str);
     free(options->inputExpr);
+    soe_finalize(sdata);
+    free(sdata);
 
 #if defined(__unix__)
     for (i = 0; i < CMDHIST_SIZE; i++)

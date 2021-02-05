@@ -65,7 +65,7 @@ const char* szFeatures[] =
     "Pending Break Enable"
 };
 
-fp_digit spRand(fp_digit lower, fp_digit upper)
+uint64_t spRand(uint64_t lower, uint64_t upper, uint64_t *lcg_state)
 {
 	// advance the state of the LCG and return the appropriate result
 
@@ -73,29 +73,29 @@ fp_digit spRand(fp_digit lower, fp_digit upper)
 	//we need to do some gymnastics to prevent the potentially 64 bit value
 	//of (upper - lower) from being truncated to a 53 bit double
 
-	uint32 n = spBits(upper-lower);
+	uint32 n = spBits(upper - lower);
 
 	if (n > 32)
 	{
 		fp_digit boundary = 4294967296ULL;
 		fp_digit l,u;
-		l = spRand(lower,boundary-1);
-		u = spRand(0,upper>>32);
+		l = spRand(lower, boundary-1, lcg_state);
+		u = spRand(0, upper>>32, lcg_state);
 		return  l + (u << 32);
 	}
 	else
 	{
-		LCGSTATE = 6364136223846793005ULL * LCGSTATE + 1442695040888963407ULL;
-		return lower + (fp_digit)(
-			(double)(upper - lower) * (double)(LCGSTATE >> 32) / 4294967296.0);
+        *lcg_state = 6364136223846793005ULL * (*lcg_state) + 1442695040888963407ULL;
+		return lower + (uint64_t)(
+			(double)(upper - lower) * (double)((*lcg_state) >> 32) / 4294967296.0);
 	}
 
 	
 #else
 
-	LCGSTATE = 6364136223846793005ULL * LCGSTATE + 1442695040888963407ULL;
-	return lower + (fp_digit)(
-			(double)(upper - lower) * (double)(LCGSTATE >> 32) / 4294967296.0);
+    * lcg_state = 6364136223846793005ULL * (*lcg_state) + 1442695040888963407ULL;
+	return lower + (uint64_t)(
+			(double)(upper - lower) * (double)((*lcg_state) >> 32) / 4294967296.0);
 #endif
 
 }

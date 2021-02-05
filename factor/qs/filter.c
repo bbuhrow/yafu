@@ -573,7 +573,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 							//	primes[0], primes[1], primes[2], i, curr_rel);
 
 							relation_list[i].poly_idx = i;
-							relation_list[i].num_factors = spRand(0, 1000000000);
+							relation_list[i].num_factors = spRand(0, 1000000000, LCGSTATE);
 							relation_list[i].large_prime[0] = primes[0];
 							relation_list[i].large_prime[1] = primes[1];
 							relation_list[i].large_prime[2] = primes[2];

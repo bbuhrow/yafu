@@ -728,7 +728,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 
 	if (sigma == 0)
 	{
-		work->sigma = spRand(7, (uint32)-1);
+		work->sigma = spRand(7, (uint32)-1, LCGSTATE);
 	}
 	else
 	{

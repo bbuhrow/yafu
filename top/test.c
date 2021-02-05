@@ -132,7 +132,7 @@ void test_dlp_composites()
 
 			for (k = 0; k < curves; k++)
 			{
-				uint64 sigma = spRand(100, 1000000000);
+				uint64 sigma = spRand(100, 1000000000, LCGSTATE);
 				my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
 				mpz_set_ui(my_ecm_params->x, (unsigned long)0);
@@ -724,7 +724,7 @@ tinyqs_marker:
             
             for (k = 0; k < curves; k++)
             {
-                uint64 sigma = spRand(100, 1000000000);
+                uint64 sigma = spRand(100, 1000000000, LCGSTATE);
                 my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
                 mpz_set_ui(my_ecm_params->x, (unsigned long)0);

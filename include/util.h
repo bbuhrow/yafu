@@ -135,7 +135,7 @@ void logprint_oc(const char *name, const char *method, char *args, ...);
 char *gettimever(char *s);
 char * time_from_secs(char *str, unsigned long time);
 //char *strrev(char *str);
-fp_digit spRand(fp_digit lower, fp_digit upper);
+uint64_t spRand(uint64_t lower, uint64_t upper, uint64_t *lcg_state);
 void helpfunc(char *s);
 int qcomp_int(const void *x, const void *y);
 void * aligned_malloc(size_t len, uint32 align);
