@@ -16,7 +16,7 @@ Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 
 /* we need a generic interface for reading and writing lines
    of data to the savefile while a factorization is in progress.

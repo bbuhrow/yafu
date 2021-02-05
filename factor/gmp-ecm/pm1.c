@@ -22,7 +22,7 @@ code to the public domain.
 #include "yafu_ecm.h"
 #include "soe.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include <gmp_xface.h>
 #include <ecm.h>
 

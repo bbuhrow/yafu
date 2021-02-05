@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "factor.h"
 #include "common.h"
-#include "util.h"
+#include "ytools.h"
 #include <gmp.h>
 #include "soe.h"
 

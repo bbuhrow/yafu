@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "arith.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 
 uint64 mpz_get_64(mpz_t src)

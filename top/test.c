@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "arith.h"
-#include "util.h"
+#include "ytools.h"
 #include "qs.h"
 #include "factor.h"
 #include "monty.h"
@@ -44,6 +44,7 @@ void test_dlp_composites()
 	int num_files;
 	char filenames[30][80];
 	fact_obj_t *fobj2;
+    uint64 lcg_state = 0xdeadbeef0badcafe;
 
 	uint64 testLehman[29] = {
 		5640012124823LL,
@@ -93,6 +94,7 @@ void test_dlp_composites()
 		int natt = 0;
 		correct = 0;
 
+
 		ecm_init(my_ecm_params);
 		num = 0;
 		minBits = 9999;
@@ -132,7 +134,7 @@ void test_dlp_composites()
 
 			for (k = 0; k < curves; k++)
 			{
-				uint64 sigma = spRand(100, 1000000000, LCGSTATE);
+				uint64 sigma = lcg_rand_64(100, 1000000000, &lcg_state);
 				my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
 				mpz_set_ui(my_ecm_params->x, (unsigned long)0);
@@ -151,7 +153,7 @@ void test_dlp_composites()
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = yafu_difftime(&gstart, &gstop);
+		t_time = ytools_difftime(&gstart, &gstop);
 
 		printf("ecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("attempts had an average of %1.2f bits, %d min, %d max\n", 
@@ -186,7 +188,7 @@ cosiqs_start:
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = yafu_difftime(&gstart, &gstop);
+		t_time = ytools_difftime(&gstart, &gstop);
 
 		printf("cosiqs found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
@@ -207,7 +209,7 @@ tinyecm_start:
 			if (mpz_probab_prime_p(gmp_comp, 1))
 				continue;
 
-			tinyecm(gmp_comp, gmp_f, 200, 10000, 8, 0);
+			tinyecm(gmp_comp, gmp_f, 200, 10000, 8, &lcg_state, 0);
 
 			if ((mpz_cmp_ui(gmp_f, 1) > 0) &&
 				(mpz_cmp(gmp_f, gmp_comp) < 0) &&
@@ -220,7 +222,7 @@ tinyecm_start:
 		fclose(in);
 
 		gettimeofday(&gstop, NULL);
-		t_time = yafu_difftime(&gstart, &gstop);
+		t_time = ytools_difftime(&gstart, &gstop);
 
 		printf("tinyecm found %d factors in %d inputs in %1.4f seconds\n", correct, num, t_time);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
@@ -343,7 +345,7 @@ brent_marker:
 		}
 
 		gettimeofday(&gstop, NULL);
-		t_time = yafu_difftime(&gstart, &gstop);
+		t_time = ytools_difftime(&gstart, &gstop);
 
 		printf("Lehman got %d of %d correct in %2.2f sec\n", correct, num, t_time);
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -416,7 +418,7 @@ brent_marker:
         }
 
         gettimeofday(&gstop, NULL);
-        t_time = yafu_difftime(&gstart, &gstop);
+        t_time = ytools_difftime(&gstart, &gstop);
 
         printf("rho got %d of %d correct in %2.2f sec (%d by squfof)\n", correct, num, t_time, k);
         printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -486,7 +488,7 @@ brent_marker:
 		}
 
 		gettimeofday(&gstop, NULL);
-		t_time = yafu_difftime(&gstart, &gstop);
+		t_time = ytools_difftime(&gstart, &gstop);
 
 		printf("squfof got %d of %d correct in %2.2f sec (%d by rho)\n", correct, num, t_time, k);
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -554,7 +556,7 @@ tinyqs_marker:
             fclose(in);
 
             gettimeofday(&gstop, NULL);
-            t_time = yafu_difftime(&gstart, &gstop);
+            t_time = ytools_difftime(&gstart, &gstop);
 
             printf("tinyqs got %d of %d correct in %2.2f sec\n", correct, num, t_time);
             printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
@@ -623,7 +625,7 @@ tinyqs_marker:
         fclose(in);
 
         gettimeofday(&gstop, NULL);
-        t_time = yafu_difftime(&gstart, &gstop);
+        t_time = ytools_difftime(&gstart, &gstop);
 
         printf("mbrent got %d of %d correct in %2.2f sec (%d with backup polynomial)\n", 
             correct, num, t_time, k);
@@ -724,7 +726,7 @@ tinyqs_marker:
             
             for (k = 0; k < curves; k++)
             {
-                uint64 sigma = spRand(100, 1000000000, LCGSTATE);
+                uint64 sigma = lcg_rand_64(100, 1000000000, &lcg_state);
                 my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
                 mpz_set_ui(my_ecm_params->x, (unsigned long)0);
@@ -745,7 +747,7 @@ tinyqs_marker:
         fclose(in);
 
         gettimeofday(&gstop, NULL);
-        t_time = yafu_difftime(&gstart, &gstop);
+        t_time = ytools_difftime(&gstart, &gstop);
 
         printf("ecm got %d of %d correct in %2.2f sec\n",
             correct, num, t_time);
@@ -863,7 +865,7 @@ tinyecm_marker:
 				sscanf(buf, "%" PRIu64 ", %" PRIu64 ", %" PRIu64 "", 
                     &in64, &known1, &known2);
 
-				microecm(in64, &outf, B1, 25 * B1, curves, 0);
+				microecm(in64, &outf, B1, 25 * B1, curves, &lcg_state, 0);
 				if ((outf == known1) ||
 					(outf == known2))
 				{
@@ -874,7 +876,7 @@ tinyecm_marker:
 			fclose(in);
 
 			gettimeofday(&gstop, NULL);
-			t_time = yafu_difftime(&gstart, &gstop);
+			t_time = ytools_difftime(&gstart, &gstop);
 
 			printf("microecm got %d of %d correct in %2.2f sec\n",
 				correct, num, t_time);
@@ -901,7 +903,7 @@ tinyecm_marker:
 #endif
 					
 
-					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, 0);
+					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
 					if ((mpz_cmp_ui(gmp_f, known1) == 0) ||
 						(mpz_cmp_ui(gmp_f, known2) == 0) ||
 						(mpz_cmp_ui(gmp_f, known3) == 0))
@@ -928,7 +930,7 @@ tinyecm_marker:
 #endif
 					
 
-					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, 0);
+					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
 					if ((mpz_cmp_ui(gmp_f, known1) == 0) ||
 						(mpz_cmp_ui(gmp_f, known2) == 0))
 					{
@@ -961,7 +963,7 @@ tinyecm_marker:
                         gmp_comp, &known1, &known2);
 #endif
 
-					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, 0);
+					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
 					if ((mpz_cmp_ui(gmp_f, known1) == 0) ||
 						(mpz_cmp_ui(gmp_f, known2) == 0))
 					{
@@ -973,7 +975,7 @@ tinyecm_marker:
 			fclose(in);
 
 			gettimeofday(&gstop, NULL);
-			t_time = yafu_difftime(&gstart, &gstop);
+			t_time = ytools_difftime(&gstart, &gstop);
 
 			printf("tinyecm got %d of %d correct in %2.2f sec\n",
 				correct, num, t_time);

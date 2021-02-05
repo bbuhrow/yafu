@@ -29,7 +29,7 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "monty.h"
 #include "stdint.h"
-#include "util.h"
+#include "ytools.h"
 
 #define D 60
 
@@ -719,7 +719,7 @@ uint64_t modinv_64(uint64_t a, uint64_t p) {
 }
 
 void ubuild(uecm_pt *P, uint64_t rho, 
-	uecm_work *work, uint32_t sigma, int verbose)
+	uecm_work *work, uint32_t sigma, uint64_t *lcg_state, int verbose)
 {
 	uint64_t t1, t2, t3, t4;
 	uint64_t u, v, n;
@@ -728,7 +728,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 
 	if (sigma == 0)
 	{
-		work->sigma = spRand(7, (uint32)-1, LCGSTATE);
+		work->sigma = lcg_rand_32(7, (uint32)-1, &lcg_state);
 	}
 	else
 	{
@@ -804,7 +804,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 }
 
 void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2, 
-	uint32 curves, int verbose)
+	uint32 curves, uint64_t* lcg_state, int verbose)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -844,7 +844,7 @@ void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2,
 			printf("commencing curve %d of %u\n", curve, curves);
 
 		sigma = 0;
-		ubuild(&P, rho, &work, sigma, verbose);
+		ubuild(&P, rho, &work, sigma, lcg_state, verbose);
 
 		if (verbose)
 		{
@@ -1570,7 +1570,7 @@ int ucheck_factor(uint64 Z, uint64 n, uint64 * f)
 
 
 
-uint64 do_uecm(uint64 q64)
+uint64 do_uecm(uint64 q64, uint64 * lcg_state)
 {
     int B1, curves, targetBits;
     uint64 f64;
@@ -1582,31 +1582,31 @@ uint64 do_uecm(uint64 q64)
         //f64 = LehmanFactor(q64, 0, 0, 0);
         B1 = 70;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
     }
     else if (targetBits <= 26)
     {
         B1 = 85;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
     }
     else if (targetBits <= 29)
     {
         B1 = 125;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
     }
     else if (targetBits <= 31)
     {
         B1 = 165;
         curves = 32;
-        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
     }
     else if (targetBits <= 32)
     {
         B1 = 205;
         curves = 32;
-        microecm(q64, &f64, B1, 25 * B1, curves, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
     }
 
     return f64;

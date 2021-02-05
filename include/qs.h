@@ -23,7 +23,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include "lanczos.h"
 #include "common.h"
 #include "monty.h"
@@ -570,6 +570,8 @@ typedef struct {
     relation_batch_t rb;
 #endif
 	
+    uint64 lcg_state;
+
 } dynamic_conf_t;
 
 typedef struct {

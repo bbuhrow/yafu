@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "soe.h"
-#include "util.h"
+#include "ytools.h"
 #include "gmp_xface.h"
 
 uint32 make_fb_siqs(static_conf_t *sconf)

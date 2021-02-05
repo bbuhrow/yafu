@@ -24,7 +24,7 @@ code to the public domain.
 #include "qs.h"
 #include "nfs.h"
 #include "yafu_ecm.h"
-#include "util.h"
+#include "ytools.h"
 #include "mpz_aprcl.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
@@ -184,6 +184,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 void init_factobj(fact_obj_t *fobj, options_t *options)
 {
     uint32 seed1, seed2;
+    int i;
 
 	// get space for everything
 	alloc_factobj(fobj);
@@ -207,7 +208,8 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
         fobj->seed2 = (uint32)(options->rand_seed >> 32);
     }
 
-	yafu_get_cache_sizes(&fobj->cache_size1, &fobj->cache_size2);
+    fobj->lcg_state = options->rand_seed;
+
 	fobj->flags = 0;
     fobj->num_threads = options->threads;
 	strcpy(fobj->flogname, options->factorlog);	
@@ -232,6 +234,8 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	fobj->pp1_obj.pp1_exponent = 0;
 	fobj->pp1_obj.pp1_multiplier = 0;
 	fobj->pp1_obj.pp1_tune_freq = 0;
+    fobj->pp1_obj.lcg_state = hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &fobj->lcg_state));
+
 
 	// initialize stuff for ecm	
 	fobj->ecm_obj.B1 = options->B1ecm;
@@ -247,7 +251,11 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
     fobj->ecm_obj.save_b1 = options->saveB1;
     fobj->ecm_obj.rand_seed1 = fobj->seed1;
     fobj->ecm_obj.rand_seed2 = fobj->seed2;
-    
+    for (i = 0; i < options->threads; i++)
+    {
+        fobj->ecm_obj.lcg_state[i] = 
+            hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &fobj->lcg_state));
+    }
 
 	// unlike ggnfs, ecm does not *require* external binaries.  
 	// an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -465,7 +473,14 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	fobj->aprcl_display_cutoff = options->aprcl_d;
 
     fobj->VFLAG = options->verbosity;
-
+    if (strlen(options->factorlog) == 0)
+    {
+        fobj->LOGFLAG = 0;
+    }
+    else
+    {
+        fobj->LOGFLAG = 1;
+    }
 
 	return;
 }
@@ -490,6 +505,7 @@ void free_factobj(fact_obj_t *fobj)
 	// then free other stuff in ecm
 	mpz_clear(fobj->ecm_obj.gmp_n);
 	mpz_clear(fobj->ecm_obj.gmp_f);
+    free(fobj->ecm_obj.lcg_state);
 
 	// then free other stuff in squfof
 	mpz_clear(fobj->squfof_obj.gmp_n);
@@ -537,6 +553,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
+    fobj->ecm_obj.lcg_state = (uint64*)xmalloc(fobj->THREADS * sizeof(uint64));
 
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
@@ -918,7 +935,7 @@ double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
-	cpu = yafu_get_cpu_type();
+	cpu = ytools_get_cpu_type();
 
 	estimate = fobj->qs_obj.qs_multiplier * exp(fobj->qs_obj.qs_exponent * digits);
 	estimate = estimate * fobj->qs_obj.qs_tune_freq / freq; 	
@@ -968,7 +985,7 @@ double get_gnfs_time_estimate(fact_obj_t *fobj, mpz_t b)
 	double freq = fobj->MEAS_CPU_FREQUENCY;
 	int digits = gmp_base10(b);
 
-	cpu = yafu_get_cpu_type();
+	cpu = ytools_get_cpu_type();
 	
 	estimate = fobj->nfs_obj.gnfs_multiplier * exp(fobj->nfs_obj.gnfs_exponent * digits);
 	estimate = estimate * fobj->nfs_obj.gnfs_tune_freq / freq; 
@@ -1056,7 +1073,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
         // measure time for this completed work
         gettimeofday(&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
         fwork->trialdiv_time = t_time;
         fwork->total_time += t_time;
@@ -1075,7 +1092,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->rho_time = t_time;
 		fwork->total_time += t_time;
@@ -1094,7 +1111,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->fermat_time = t_time;
 		fwork->total_time += t_time;
@@ -1129,7 +1146,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->ecm_time += t_time;
 		fwork->total_time += t_time;
@@ -1159,7 +1176,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->pp1_time += t_time;
 		fwork->total_time += t_time;
@@ -1188,7 +1205,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 		
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->pm1_time += t_time;
 		fwork->total_time += t_time;
@@ -1201,7 +1218,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->qs_time = t_time;
 		if (fobj->VFLAG > 0)
@@ -1216,7 +1233,7 @@ void do_work(enum factorization_state method, factor_work_t *fwork,
 
 		// measure time for this completed work
 		gettimeofday (&tstop, NULL);
-        t_time = yafu_difftime(&tstart, &tstop);
+        t_time = ytools_difftime(&tstart, &tstop);
 
 		fwork->nfs_time = t_time;
 		if (fobj->VFLAG > 0)
@@ -2765,7 +2782,7 @@ void factor(fact_obj_t *fobj)
 	mpz_set(fobj->N, b);
 
 	gettimeofday (&stop, NULL);
-    t_time = yafu_difftime(&start, &stop);
+    t_time = ytools_difftime(&start, &stop);
 
 	if (fobj->VFLAG >= 0)
 		printf("Total factoring time = %6.4f seconds\n",t_time);

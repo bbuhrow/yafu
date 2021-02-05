@@ -1266,7 +1266,7 @@ void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, doub
 }
 
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
-	tinyecm_work *work, uint32_t sigma, int verbose)
+	tinyecm_work *work, uint32_t sigma, uint64 * lcg_state, int verbose)
 {
 	base_t t1[2], t2[2], t3[2], t4[2], t5[2], s[3];
 	base_t u[2], v[2], n[2];
@@ -1282,7 +1282,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	if (sigma == 0)
 	{
-		work->sigma = spRand(7, (uint32)-1, LCGSTATE);
+		work->sigma = lcg_rand_32(7, (uint32)-1, lcg_state);
 	}
 	else
 	{
@@ -1405,7 +1405,8 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	return;
 }
 
-void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
+void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, 
+    uint64* lcg_state, int verbose)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -1437,6 +1438,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 	{
 		mpz_t gmp1, gmp2, gmp3, gmp4;
 		int iterations = 10000;
+        
 
 		mpz_init(gmp1);
 		mpz_init(gmp2);
@@ -1448,8 +1450,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// addmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff,&lcg_state) };
 			uint64 c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1477,8 +1479,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// submod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
 			uint64 c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1507,8 +1509,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// mulmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
 			uint64 c[2];
 			uint64 s[3];
 
@@ -1541,8 +1543,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 		// sqrmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
-			uint64 b[2] = { spRand(0, 0xffffffffffffffff, LCGSTATE), spRand(0, 0xffffffffffffffff, LCGSTATE) };
+			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
 			uint64 c[2];
 			uint64 s[3];
 
@@ -1587,7 +1589,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose)
 			printf("commencing curve %d of %u\n", curve, curves);
 
 		sigma = 0;
-		build_one_curve(&P, &mdata, &work, sigma, verbose);
+		build_one_curve(&P, &mdata, &work, sigma, lcg_state, verbose);
 
 		if (verbose)
 		{

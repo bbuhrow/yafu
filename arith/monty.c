@@ -24,7 +24,7 @@ many of the arithmetic routines here are based
 */
 
 #include "yafu.h"
-#include "util.h"
+#include "ytools.h"
 #include "monty.h"
 #include "arith.h"
 

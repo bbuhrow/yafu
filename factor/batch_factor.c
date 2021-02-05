@@ -528,7 +528,7 @@ uint64_t pow2m(uint64_t b, uint64_t n)
    code becomes available. */
 
 void check_batch_relation(relation_batch_t *rb,
-			uint32 index,
+			uint32 index, uint64 * lcg_state,
 			mpz_t prime_product) {
 
 	uint32 i;
@@ -649,7 +649,7 @@ void check_batch_relation(relation_batch_t *rb,
             for (i = num_r = num_a = 0; i < MAX_LARGE_PRIMES; i++)
                 lp_r[i] = lp_a[i] = 1;
 
-            tinyecm(f2r, small, 70, 70 * 25, 16, 0);
+            tinyecm(f2r, small, 70, 70 * 25, 16, lcg_state, 0);
 
             if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_r))
             {
@@ -675,7 +675,7 @@ void check_batch_relation(relation_batch_t *rb,
             }
 
             // large still on track, try to split it
-            uint64 f64 = do_uecm(mpz_get_ui(large));
+            uint64 f64 = do_uecm(mpz_get_ui(large), lcg_state);
 
             // see if any factors found are acceptable
             if (f64 <= 1 || f64 > rb->lp_cutoff_r)
@@ -806,7 +806,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f1r, 2) <= 64)
     {
-        uint64 f64 = do_uecm(mpz_get_ui(f1r));
+        uint64 f64 = do_uecm(mpz_get_ui(f1r), lcg_state);
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -830,7 +830,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f2r, 2) <= 64)
     {
-        uint64 f64 = do_uecm(mpz_get_ui(f2r));
+        uint64 f64 = do_uecm(mpz_get_ui(f2r), lcg_state);
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -855,7 +855,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f1a, 2) <= 64)
     {
-        uint64 f64 = do_uecm(mpz_get_ui(f1a));
+        uint64 f64 = do_uecm(mpz_get_ui(f1a), lcg_state);
         printf("should not be processing any algebraic side relation in QS!\n");
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
@@ -875,7 +875,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f2a, 2) <= 64)
     {
-        uint64 f64 = do_uecm(mpz_get_ui(f2a));
+        uint64 f64 = do_uecm(mpz_get_ui(f2a), lcg_state);
         printf("should not be processing any algebraic side relation in QS!\n");
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
@@ -964,7 +964,7 @@ void check_batch_relation(relation_batch_t *rb,
             printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
         }
 
-        tinyecm(f1r, small, B1, B1 * 25, curves, 0);
+        tinyecm(f1r, small, B1, B1 * 25, curves, lcg_state, 0);
 
         if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_r))
         {
@@ -974,7 +974,7 @@ void check_batch_relation(relation_batch_t *rb,
         mpz_tdiv_q(large, f1r, small);
         lp_r[num_r++] = mpz_get_ui(small);
 
-        uint64 f64 = do_uecm(mpz_get_ui(large));
+        uint64 f64 = do_uecm(mpz_get_ui(large), lcg_state);
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -1060,8 +1060,8 @@ void check_batch_relation(relation_batch_t *rb,
         {
             printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
         }
-
-        tinyecm(f1a, small, B1, B1 * 25, curves, 0);
+        
+        tinyecm(f1a, small, B1, B1 * 25, curves, lcg_state, 0);
 
         if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_a))
             return;
@@ -1069,7 +1069,7 @@ void check_batch_relation(relation_batch_t *rb,
         mpz_tdiv_q(large, f1a, small);
         lp_a[num_a++] = mpz_get_ui(small);
 
-        uint64 f64 = do_uecm(mpz_get_ui(large));
+        uint64 f64 = do_uecm(mpz_get_ui(large), lcg_state);
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
@@ -1110,7 +1110,7 @@ void check_batch_relation(relation_batch_t *rb,
 
 /*------------------------------------------------------------------*/
 void compute_remainder_tree(bintree_t* tree, uint32 first, uint32 last,
-				relation_batch_t *rb,
+				relation_batch_t *rb, uint64 *lcg_state,
 				mpz_t numerator) {
 
 	/* recursively compute numerator % (each relation in 
@@ -1126,7 +1126,7 @@ void compute_remainder_tree(bintree_t* tree, uint32 first, uint32 last,
 	if (mpz_sizeinbase(numerator, 2) <= (MAX_MP_WORDS * 32)) {
 		if (mpz_sgn(numerator) > 0) {
 			while (first <= last)
-                check_batch_relation(rb, first++, numerator);
+                check_batch_relation(rb, first++, numerator, lcg_state);
 		}
 		return;
 	}
@@ -1143,14 +1143,14 @@ void compute_remainder_tree(bintree_t* tree, uint32 first, uint32 last,
 
 	if (mpz_cmp(numerator, relation_prod) < 0) {
 		mpz_clear(relation_prod);
-		compute_remainder_tree(tree, first, mid, rb, numerator);
-		compute_remainder_tree(tree, mid + 1, last, rb, numerator);
+		compute_remainder_tree(tree, first, mid, rb, lcg_state, numerator);
+		compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, numerator);
 	}
 	else {
 		mpz_tdiv_r(remainder, numerator, relation_prod);
 		mpz_clear(relation_prod);
-		compute_remainder_tree(tree, first, mid, rb, remainder);
-		compute_remainder_tree(tree, mid + 1, last, rb, remainder);
+		compute_remainder_tree(tree, first, mid, rb, lcg_state, remainder);
+		compute_remainder_tree(tree, mid + 1, last, rb, lcg_state, remainder);
 	}
 	mpz_clear(remainder);
 }
@@ -1357,7 +1357,7 @@ void relation_batch_add(uint32 a, uint32 b, int32 offset,
 
 
 
-uint32 relation_batch_run(relation_batch_t *rb) {
+uint32 relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
     // recursive batch GCD, with a tree storage enhancement
     // to avoid re-calculating many of the products, at a cost
     // of additional RAM.
@@ -1389,7 +1389,7 @@ uint32 relation_batch_run(relation_batch_t *rb) {
         // the capability to add and reuse nodes and we 
         // should be there.
 		compute_remainder_tree(&tree, 0, rb->num_relations - 1,
-					rb, rb->prime_product);
+					rb, lcg_state, rb->prime_product);
 
         uint32 bytes = 0;
         for (i = 0; i < tree.size; i++)

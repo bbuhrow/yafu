@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "factor.h"
 #include "soe.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 #include <gmp.h>
 #include "gmp_xface.h"
@@ -2137,7 +2137,7 @@ done:
 			partial->act_r+full->num_r,full->num_r,partial->act_r,partial->num_r,numpoly);
 
 	gettimeofday (&tend, NULL);
-    t_time = yafu_difftime(&tstart, &tend);
+    t_time = ytools_difftime(&tstart, &tend);
 
 	if (fobj->VFLAG > 0)
 		printf("QS elapsed time = %6.4f seconds.\n",t_time);
@@ -2184,7 +2184,7 @@ done:
 			factors,&num_factors);
 
 		gettimeofday (&tend, NULL);
-        t_time = yafu_difftime(&tstart, &tend);
+        t_time = ytools_difftime(&tstart, &tend);
 	
 		if (fobj->VFLAG > 0)
 			printf("Gauss elapsed time = %6.4f seconds.\n",t_time);

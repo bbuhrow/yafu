@@ -28,8 +28,7 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 #include "gmp.h"
-#include "util.h"
-#include "queue.h"
+#include "ytools.h"
 #include "types.h"
 #include <stdint.h>
 

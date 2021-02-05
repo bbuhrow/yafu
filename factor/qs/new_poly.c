@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "qs.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 #include "gmp_xface.h"
 
@@ -307,8 +307,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			found_a_factor = 0;
 			while (!found_a_factor)
 			{
-				randindex = (uint32)spRand((fp_digit)lower_polypool_index,
-					(fp_digit)upper_polypool_index, LCGSTATE);
+				randindex = (uint32)lcg_rand_32((fp_digit)lower_polypool_index,
+					(fp_digit)upper_polypool_index, &dconf->lcg_state);
 				//randindex = lower_polypool_index + 
 				//	(uint32)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);
 				potential_a_factor = fb->list->prime[randindex];

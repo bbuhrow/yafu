@@ -16,7 +16,7 @@ Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
 #include "lanczos.h"
-#include "util.h"
+#include "ytools.h"
 #include "qs.h"
 
 typedef struct {

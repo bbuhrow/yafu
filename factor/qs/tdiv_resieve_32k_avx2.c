@@ -666,7 +666,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #ifdef QS_TIMING
     gettimeofday(&qs_timing_stop, NULL);
-    TF_STG4 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
+    TF_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     return;

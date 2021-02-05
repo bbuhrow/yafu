@@ -140,7 +140,7 @@ void factor_tune(fact_obj_t *inobj)
         mpz_set(fobj->qs_obj.gmp_n, n);
 		SIQS(fobj);
 		gettimeofday(&stop, NULL);
-        t_time = yafu_difftime(&start, &stop);
+        t_time = ytools_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
 		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
@@ -190,7 +190,7 @@ void factor_tune(fact_obj_t *inobj)
 
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-        t_time2 = yafu_difftime(&start, &stop);
+        t_time2 = ytools_difftime(&start, &stop);
 		
 		printf("afb generation took %6.4f seconds.\n",t_time2);
 		remove("tune.job.afb.0");
@@ -206,7 +206,7 @@ void factor_tune(fact_obj_t *inobj)
 			startq, startq + qrange);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-        t_time = yafu_difftime(&start, &stop);
+        t_time = ytools_difftime(&start, &stop);
 
 		//count relations
 		in = fopen("tunerels.out","r");

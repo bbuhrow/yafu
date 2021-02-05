@@ -26,7 +26,7 @@ extern "C" {
 
 	/* Lightweight factoring API */
 
-#include "util.h"
+#include "ytools.h"
 #include "arith.h"
 #include "yafu.h"
 

@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "qs.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 
 

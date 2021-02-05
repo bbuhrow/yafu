@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "qs.h"
-#include "util.h"
+#include "ytools.h"
 #include "gmp_xface.h"
 #include "threadpool.h"
 #include "cofactorize.h"
@@ -78,7 +78,7 @@ void siqs_start(void *vptr)
     udata->optfile = fopen("optfile.csv", "a");
     fprintf(udata->optfile, "Optimization Debug File\n");
     fprintf(udata->optfile, "Detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",
-        yafu_get_cpu_type(), L1CACHE, L2CACHE);
+        ytools_get_cpu_type(), L1CACHE, L2CACHE);
     gmp_fprintf(udata->optfile, "Starting SIQS on c%d: %s\n\n",
         fobj->digits, mpz_conv2str(&gstr1.s, 10, fobj->qs_obj.gmp_n));
     fprintf(udata->optfile, "Meas #,Poly A #, Avg Rels/Poly/Sec, small_tf_cutoff\n");
@@ -123,8 +123,6 @@ void siqs_start(void *vptr)
     static_conf->total_poly_a = -1;
     udata->num_meas = 0;
     udata->orig_value = static_conf->tf_small_cutoff;
-
-    
 
     return;
 }
@@ -742,7 +740,7 @@ void SIQS(fact_obj_t *fobj)
 	}
 
 	gettimeofday(&myTVend, NULL);
-	t_time = yafu_difftime(&static_conf->totaltime_start, &myTVend);
+	t_time = ytools_difftime(&static_conf->totaltime_start, &myTVend);
 
 	if (fobj->VFLAG > 0)
 	{
@@ -839,7 +837,7 @@ void SIQS(fact_obj_t *fobj)
 	static_conf->t_time2= (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
 	gettimeofday (&myTVend, NULL);
-    static_conf->t_time3 = yafu_difftime(&static_conf->totaltime_start, &myTVend);
+    static_conf->t_time3 = ytools_difftime(&static_conf->totaltime_start, &myTVend);
 	
 	if (fobj->VFLAG > 0)
 	{
@@ -990,7 +988,7 @@ void *process_poly(void *vptr)
         if (sconf->digits_n > 110)
         {
             gettimeofday(&stop, NULL);
-            t_time = yafu_difftime(&st, &stop);
+            t_time = ytools_difftime(&st, &stop);
 
             if (t_time > 5)
             {
@@ -1002,7 +1000,7 @@ void *process_poly(void *vptr)
 
 					// print some status
 					gettimeofday(&stop, NULL);
-					t_time = yafu_difftime(&start, &stop);
+					t_time = ytools_difftime(&start, &stop);
 
 					if (sconf->use_dlp == 2)
 					{
@@ -1028,7 +1026,7 @@ void *process_poly(void *vptr)
                                 suffix = 'k';
                             }
 
-                            t_time = yafu_difftime(&sconf->totaltime_start, &stop);
+                            t_time = ytools_difftime(&sconf->totaltime_start, &stop);
 
                             //printf("thread: %u full, %u slp, "
                             //    "%u dlp, %u tlp (%1.1f%c batched), B = %u of %u\n",
@@ -1236,7 +1234,7 @@ void *process_poly(void *vptr)
 
 
 	gettimeofday (&stop, NULL);
-    t_time = yafu_difftime(&start, &stop);
+    t_time = ytools_difftime(&start, &stop);
 
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
 
@@ -1942,6 +1940,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->num_scatter_opp = 0;
     dconf->num_scatter = 0;
 
+    dconf->lcg_state = hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &sconf->obj->lcg_state));
+
 	return 0;
 }
 
@@ -2597,7 +2597,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         gettimeofday(&locstop, NULL);
         if (obj->VFLAG > 0)
         {
-            printf("batch init took %1.4f sec\n", yafu_difftime(&locstart, &locstop));
+            printf("batch init took %1.4f sec\n", ytools_difftime(&locstart, &locstop));
         }
 
         sconf->rb[0].target_relations = sconf->obj->qs_obj.gbl_btarget;
@@ -2926,7 +2926,7 @@ int update_check(static_conf_t *sconf)
 	mpz_init(tmp1);
 
 	gettimeofday(&update_stop, NULL);
-    t_update = yafu_difftime(&sconf->update_start, &update_stop);
+    t_update = ytools_difftime(&sconf->update_start, &update_stop);
 
 	if ((num_full >= check_total) || (t_update > update_time))
 	{
@@ -2968,7 +2968,7 @@ int update_check(static_conf_t *sconf)
         }
 
         // if we are only running a specified amount of time
-        t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
+        t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
 		if (sconf->obj->qs_obj.gbl_override_time_flag &&
 			(t_time > sconf->obj->qs_obj.gbl_override_time))
 		{
@@ -3051,7 +3051,7 @@ int update_check(static_conf_t *sconf)
                         (double)(sconf->num_relations + sconf->dlp_useful +
                             sconf->tlp_useful) / t_time);
 
-                    //t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
+                    //t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
                     //
                     //printf("total : %u full, %u slp, "
                     //    "%u dlp, %u tlp, (%1.2f r/sec)\n",
@@ -3160,7 +3160,7 @@ int update_check(static_conf_t *sconf)
 				//	total_rels, check_total);
                 printf("\nreached deadline of %u (%u) full relations found\n",
                     sconf->num_full, check_total);
-				t_time = yafu_difftime(&sconf->totaltime_start, &filt_start);
+				t_time = ytools_difftime(&sconf->totaltime_start, &filt_start);
 				printf("QS elasped time is now %1.2f sec\n", t_time);
 				printf("reading relations\n");
 
@@ -3240,7 +3240,7 @@ int update_check(static_conf_t *sconf)
 				num_relations = i;
 
                 gettimeofday(&filt_stop, NULL);
-                tmp = yafu_difftime(&filt_start, &filt_stop);
+                tmp = ytools_difftime(&filt_start, &filt_stop);
 
 				printf("read %u relations in %1.2f seconds\n", i, tmp);
 				printf("building graph\n");
@@ -3613,7 +3613,7 @@ int update_check(static_conf_t *sconf)
                 printf("new filtering deadline is %u full relations\n", sconf->check_total);
 
 				gettimeofday(&filt_stop, NULL);
-				sconf->t_time4 += yafu_difftime(&filt_start, &filt_stop);
+				sconf->t_time4 += ytools_difftime(&filt_start, &filt_stop);
 			}
             else if (sconf->num_found >= (sconf->factor_base->B + sconf->num_extra_relations))
             {
@@ -3675,13 +3675,13 @@ int update_final(static_conf_t *sconf)
 
 	mpz_init(tmp1);
     gettimeofday(&myTVend, NULL);
-    t_time = yafu_difftime(&sconf->totaltime_start, &myTVend);
+    t_time = ytools_difftime(&sconf->totaltime_start, &myTVend);
 
 	if (sconf->obj->VFLAG >= 0)
 	{
         struct timeval update_stop;
         gettimeofday(&update_stop, NULL);
-        t_time = yafu_difftime(&sconf->totaltime_start, &update_stop);
+        t_time = ytools_difftime(&sconf->totaltime_start, &update_stop);
 
 		if (sconf->use_dlp == 2)
 		{

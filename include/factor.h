@@ -23,7 +23,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "arith.h"
-#include "util.h"
+#include "ytools.h"
 #include "monty.h"
 #include "cmdOptions.h"
 
@@ -288,6 +288,9 @@ typedef struct
 	double pp1_multiplier;
 	double pp1_tune_freq;
 
+    // RNG state for picking bases
+    uint64 lcg_state;
+
 } pp1_obj_t;
 
 typedef struct
@@ -318,6 +321,9 @@ typedef struct
 
     uint32 rand_seed1;
     uint32 rand_seed2;
+
+    // RNG state for each thread
+    uint64 *lcg_state;
 
 } ecm_obj_t;
 
@@ -546,8 +552,11 @@ typedef struct
     int VFLAG;
     int THREADS;
     int LOGFLAG;
-    double MEAS_CPU_FREQUENCY;
     int LATHREADS;
+    int NUM_WITNESSES;
+
+    // computer info
+    double MEAS_CPU_FREQUENCY;
     char CPU_ID_STR[80];
     int HAS_SSE41;
     int HAS_AVX;
@@ -555,7 +564,9 @@ typedef struct
     int L1CACHE;
     int L2CACHE;
     int L3CACHE;
-    int NUM_WITNESSES;
+    
+    // RNG state
+    uint64_t lcg_state;
 
 } fact_obj_t;
 
@@ -621,9 +632,11 @@ int ecm_loop(fact_obj_t *fobj);
 factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
     uint64 B2, int threads, int *numfactors, int verbose, 
     int save_b1, uint32 *curves_run);
-void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, int verbose);
-void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
-uint64 do_uecm(uint64 q);
+void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
+    uint64* lcg_state, int verbose);
+void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, 
+    uint64* lcg_state, int verbose);
+uint64 do_uecm(uint64 q, uint64* lcg_state);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();

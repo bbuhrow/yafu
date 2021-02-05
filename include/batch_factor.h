@@ -17,7 +17,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 
 #include "yafu.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
 
@@ -151,7 +151,7 @@ void check_batch_relation(relation_batch_t *rb,
    largest {rational|algebraic} factors are all less than
    lp_cutoff_[ra] */
 
-uint32 relation_batch_run(relation_batch_t *rb);
+uint32 relation_batch_run(relation_batch_t *rb, uint64 *lcg_state);
 
 #ifdef __cplusplus
 }

@@ -23,8 +23,8 @@ CC = gcc-7.3.0
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../ysieve.git/trunk
-LIBS = -L../../ysieve.git/trunk
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
+LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk
 BINNAME = yafu
 
 
@@ -35,6 +35,9 @@ ifeq ($(COMPILER),icc)
 	CFLAGS += -qopt-report=5
 endif
 
+ifeq ($(COMPILER),gcc)
+	CC = gcc
+endif
 
 # ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
@@ -174,9 +177,9 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lysieve
+    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
 else
-    LIBS += -lecm -lgmp -lysieve
+    LIBS += -lecm -lgmp -lytools -lysieve
 endif
 
 
@@ -223,7 +226,6 @@ MSIEVE_OBJS = $(MSIEVE_SRCS:.c=$(OBJ_EXT))
 #---------------------------YAFU file lists -------------------------
 YAFU_SRCS = \
 	top/driver.c \
-	top/utils.c \
 	top/test.c \
 	top/aprcl/mpz_aprcl.c \
 	top/cmdParser/cmdOptions.c \
@@ -254,8 +256,6 @@ YAFU_SRCS = \
 	factor/nfs/nfs.c \
 	arith/arith.c \
 	arith/monty.c \
-	top/threadpool.c \
-    top/queue.c \
     factor/prime_sieve.c \
     factor/batch_factor.c \
     factor/qs/cofactorize_siqs.c \
@@ -264,6 +264,10 @@ YAFU_SRCS = \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \
     factor/avx-ecm/vecarith52.c
+	
+#top/threadpool.c \
+#top/queue.c \
+#top/utils.c \
 
 ifeq ($(USE_AVX2),1)
 
@@ -344,8 +348,6 @@ HEAD = include/yafu.h  \
 	include/types.h  \
 	include/common.h  \
 	include/factor.h  \
-	include/util.h  \
-	include/types.h \
 	top/aprcl/mpz_aprcl.h \
 	top/aprcl/jacobi_sum.h \
 	include/arith.h  \
@@ -354,13 +356,15 @@ HEAD = include/yafu.h  \
 	include/gmp_xface.h \
     include/monty.h \
 	include/nfs.h \
-	top/threadpool.h \
     include/prime_sieve.h \
     include/batch_factor.h \
     include/cofactorize.h \
     factor/avx-ecm/avx_ecm.h \
 	top/cmdParser/cmdOptions.h \
 	top/cmdParser/calc.h
+	
+#include/util.h  \
+#top/threadpool.h \
 
 ifeq ($(USE_AVX2),1)
 

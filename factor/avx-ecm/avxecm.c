@@ -1158,7 +1158,7 @@ void vec_ecm_work_init(ecm_work *work)
 	work->Q = (Queue_t **)malloc(2 * j * sizeof(Queue_t *));
 	for (i = 0; i < 2 * j; i++)
 	{
-		work->Q[i] = newQueue(D);
+		work->Q[i] = newQueue(D, 0);
 	}
 
 
@@ -2344,7 +2344,7 @@ void vececm(thread_data_t *tdata)
         tpool_go(tpool_data);
 
 		gettimeofday(&stopt, NULL);
-		t_time = yafu_difftime (&startt, &stopt);
+		t_time = ytools_difftime (&startt, &stopt);
 		
         if (verbose > 1)
 		    printf("Building curves took %1.4f seconds.\n",t_time);
@@ -2395,7 +2395,7 @@ void vececm(thread_data_t *tdata)
                 }
 
                 gettimeofday(&stopt, NULL);
-                t_time = yafu_difftime(&startt, &stopt);
+                t_time = ytools_difftime(&startt, &stopt);
                 if (verbose > 1)
                     printf("Stage 1 current elapsed time is %1.4f seconds\n", t_time);
 
@@ -2591,7 +2591,7 @@ void vececm(thread_data_t *tdata)
         }
 
         gettimeofday(&stopt, NULL);
-        t_time = yafu_difftime(&startt, &stopt);
+        t_time = ytools_difftime(&startt, &stopt);
         if (verbose > 1)
             printf("Stage 1 took %1.4f seconds\n", t_time);
 	
@@ -2663,7 +2663,7 @@ void vececm(thread_data_t *tdata)
             }
 
             gettimeofday(&stopt, NULL);
-            t_time = yafu_difftime(&startt, &stopt);
+            t_time = ytools_difftime(&startt, &stopt);
             if (verbose > 1)
             {
                 printf("Stage 2 took %1.4f seconds\n", t_time);
@@ -2760,7 +2760,7 @@ void vececm(thread_data_t *tdata)
     tdata[0].curves = curves_run;
 
 	gettimeofday(&fullstopt, NULL);
-	t_time = yafu_difftime(&fullstartt, &fullstopt);
+	t_time = ytools_difftime(&fullstartt, &fullstopt);
     if (verbose > 1)
 	    printf("Process took %1.4f seconds.\n", t_time);
 
@@ -3196,7 +3196,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
         mpz_init(f);
         work->last_pid = compute_s(s, PRIMES, stg1);
         gettimeofday(&stopt, NULL);
-        t_time = yafu_difftime(&startt, &stopt);
+        t_time = ytools_difftime(&startt, &stopt);
         printf("Built product of %lu bits in %1.0f ms\n", mpz_sizeinbase(s, 2), t_time * 1000);
         ecm_stage1_batch(f, work, P, work->s, work->n, stg1, s, mdata);
         mpz_clear(s);

@@ -374,7 +374,7 @@ void reset_preprocessor(void) {
     return;
 }
 
-int calc_init()
+int calc_init(uint64_t rand_seed)
 {
 	int i;
 	// user variables space
@@ -408,7 +408,7 @@ int calc_init()
     OBASE = DEC;
 
     gmp_randinit_default(gmp_randstate);
-    gmp_randseed_ui(gmp_randstate, rand());
+    gmp_randseed_ui(gmp_randstate, rand_seed);
 
     reset_preprocessor();
 	return 1;
@@ -2557,7 +2557,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
             mpz_set_64(operands[0], n64);
             gettimeofday(&tstop, NULL);
-            t = yafu_difftime(&tstart, &tstop);
+            t = ytools_difftime(&tstart, &tstop);
 
             printf("elapsed time = %6.4f\n", t);
             break;
@@ -2902,7 +2902,56 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         // semiprime list generation: two arguments (count, bits)
         if (check_args(funcnum, nargs)) break;
 
-        generate_semiprime_list(mpz_get_ui(operands[0]), mpz_get_ui(operands[1]), gmp_randstate);
+        //generate_semiprime_list(mpz_get_ui(operands[0]), mpz_get_ui(operands[1]), gmp_randstate);
+        {
+            // generate a list of 'num' semiprimes, each of size 'bits'
+            // save to semiprimes.dat
+
+            FILE* out;
+            int i;
+            mpz_t tmp1, tmp2, tmp3;
+            uint32_t num = mpz_get_ui(operands[0]);
+            uint32_t bits = mpz_get_ui(operands[1]);
+
+            mpz_init(tmp1);
+            mpz_init(tmp2);
+            mpz_init(tmp3);
+
+            out = fopen("semiprimes.dat", "w");
+            if (out == NULL)
+            {
+                printf("couldn't open semiprimes.dat for writing\n");
+                break;
+            }
+
+            for (i = 0; i < num; i++)
+            {
+                mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+                mpz_setbit(tmp3, bits / 2 - 1);
+                mpz_nextprime(tmp1, tmp3);
+                if (bits & 1)
+                {
+                    mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
+                    mpz_setbit(tmp3, bits / 2);
+                }
+                else
+                {
+                    mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+                    mpz_setbit(tmp3, bits / 2 - 1);
+                }
+                mpz_nextprime(tmp2, tmp3);
+                mpz_mul(tmp3, tmp2, tmp1);
+                gmp_fprintf(out, "%Zd,%Zd,%Zd\n",
+                    tmp3, tmp1, tmp2);
+            }
+            fclose(out);
+
+            printf("generated %d semiprimes in file semiprimes.dat\n", num);
+            mpz_clear(tmp1);
+            mpz_clear(tmp2);
+            mpz_clear(tmp3);
+        }
+
         break;
 
 	default:

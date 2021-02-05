@@ -30,9 +30,8 @@ either expressed or implied, of the FreeBSD Project.
 #include "yafu.h"
 #include "avx_ecm.h"
 #include "soe.h"
-#include "queue.h"
 #include "gmp.h"
-#include "util.h"
+#include "ytools.h"
 #include "nfs.h"
 
 // performance comparison
@@ -121,62 +120,6 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     vec_dest->size = MAX(vec_dest->size, i);
     mpz_clear(src_cp);
     return;
-}
-
-
-
-
-// =============== 64-bit hashing ================ //
-// FNV-1 hash algorithm:
-// http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
-uint64_t hash64(uint64_t in)
-{
-    uint64_t hash = 14695981039346656037ULL;
-    uint64_t prime = 1099511628211ULL;
-    uint64_t hash_mask;
-    uint64_t xor;
-
-    hash = hash * prime;
-    hash_mask = 0xffffffffffffff00ULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xffffffffffff00ffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xffffffffff00ffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xffffffff00ffffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xffffff00ffffffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xffff00ffffffffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0xff00ffffffffffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    hash = hash * prime;
-    hash_mask = 0x00ffffffffffffffULL;
-    xor = hash ^ in;
-    hash = (hash & hash_mask) | (xor &(~hash_mask));
-
-    return hash;
 }
 
 factor_t* ecm_add_factor(factor_t* factors, int *numfactors, 
@@ -443,6 +386,8 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
 	if (numcurves < threads)
 		numcurves = threads;
 	
+    printf("configuring avx-ecm with %d threads\n", threads); fflush(stdout);
+
 	numcurves_per_thread = numcurves / threads + (numcurves % threads != 0);
 	numcurves = numcurves_per_thread * threads;
 
@@ -524,7 +469,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     }
 
 	gettimeofday(&stopt, NULL);
-    t_time = yafu_difftime(&startt, &stopt);
+    t_time = ytools_difftime(&startt, &stopt);
 
     if (verbose > 1)
         printf("Initialization took %1.4f seconds.\n", t_time);

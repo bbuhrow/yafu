@@ -19,8 +19,8 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 //definitions
-#ifndef HEAD_DEF
-#define HEAD_DEF
+#ifndef _YAFU_HEAD_DEF
+#define _YAFU_HEAD_DEF
 
 //#define DEBUG
 
@@ -110,9 +110,6 @@ typedef struct
     
 
 } yafu_obj_t;
-
-// random numbers - used everywhere
-uint64 LCGSTATE;
 
 //this array holds a global store of prime numbers
 uint32* spSOEprimes;	//the primes	

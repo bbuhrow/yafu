@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 
 /* below, the routines for building and solving a qs matrix using
 jasonp's block lanczos routines are implemented */

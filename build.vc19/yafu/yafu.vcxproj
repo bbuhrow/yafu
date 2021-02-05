@@ -188,7 +188,7 @@
     </Midl>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\..\ysieve.git\trunk;..\..\top\cmdParser;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk;..\..\top\cmdParser;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -233,7 +233,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\..\..\ysieve.git\trunk;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -344,10 +344,7 @@
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c" />
     <ClCompile Include="..\..\top\driver.c" />
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
-    <ClCompile Include="..\..\top\queue.c" />
     <ClCompile Include="..\..\top\test.c" />
-    <ClCompile Include="..\..\top\threadpool.c" />
-    <ClCompile Include="..\..\top\utils.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\rho.c" />
     <ClCompile Include="..\..\factor\squfof.c" />
@@ -380,14 +377,11 @@
     <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
     <ClInclude Include="..\..\include\nfs.h" />
     <ClInclude Include="..\..\include\qs.h" />
-    <ClInclude Include="..\..\include\soe.h" />
     <ClInclude Include="..\..\include\types.h" />
-    <ClInclude Include="..\..\include\util.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\top\cmdParser\calc.h" />
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h" />
-    <ClInclude Include="..\..\top\threadpool.h" />
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

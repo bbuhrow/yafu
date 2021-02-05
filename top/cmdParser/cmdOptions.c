@@ -981,13 +981,16 @@ options_t* initOpt(void)
     // general options
     options->yafu_idle = 0;
     strcpy(options->factorlog, "factor.log");
-    strcpy(options->batchfile, "batchfile.txt");
+    strcpy(options->batchfile, "");
     strcpy(options->sessionlog, "session.log");
     strcpy(options->scriptfile, "");
     options->rand_seed = 0;
     options->threads = 1;
     options->verbosity = 0;
     options->vproc = 0;
+    strcpy(options->expr, "");
+    options->repeat = 0;
+    options->no_clk_test = 1;
 
     // autofact options
     options->no_ecm = 0;
@@ -1021,9 +1024,6 @@ options_t* initOpt(void)
     options->filt_bump = 5;
     options->force_gnfs = 0;
     options->qs_snfs_xover = 75;
-    strcpy(options->expr, "");
-    options->repeat = 0;
-    options->no_clk_test = 1;
     options->snfs_testsieve_threshold = 160;
     strcpy(options->testsieve, "");
     strcpy(options->poly_method, "fast");

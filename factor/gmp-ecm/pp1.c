@@ -22,7 +22,7 @@ code to the public domain.
 #include "yafu_ecm.h"
 #include "soe.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include <gmp_xface.h>
 #include <ecm.h>
 
@@ -167,7 +167,7 @@ void williams_loop(fact_obj_t *fobj)
 			break;
 		}
 		
-		fobj->pp1_obj.base = spRand(3,MAX_DIGIT,LCGSTATE);
+		fobj->pp1_obj.base = lcg_rand_32(3,MAX_DIGIT,&fobj->pp1_obj.lcg_state);
 
         pp1_print_B1_B2(fobj);
 

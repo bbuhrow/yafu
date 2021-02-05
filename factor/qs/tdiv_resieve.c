@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 
 //#define SIQSDEBUG 1
@@ -959,7 +959,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
+    TF_STG4 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

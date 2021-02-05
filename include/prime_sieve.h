@@ -6,7 +6,7 @@
 #include "yafu.h"
 #include "qs.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include <stdint.h>
 
 #define PRECOMPUTED_PRIME_BOUND 100000

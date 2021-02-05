@@ -16,7 +16,7 @@ Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
 #include "lanczos.h"
-#include "util.h"
+#include "ytools.h"
 #include "qs.h"
 
 #define QS_BIT(x) ((uint64)(1) << (x))

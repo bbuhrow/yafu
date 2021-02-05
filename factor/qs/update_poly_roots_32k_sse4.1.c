@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "qs.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
@@ -325,7 +325,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 +=  yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        POLY_STG2 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -665,7 +665,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
+        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 			
@@ -989,7 +989,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        POLY_STG4 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}
@@ -1223,7 +1223,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        POLY_STG2 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1561,7 +1561,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        POLY_STG3 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 		gettimeofday(&qs_timing_start, NULL);
 #endif
 
@@ -1887,7 +1887,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 += yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        POLY_STG4 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	}

@@ -13,7 +13,7 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "nfs.h"
-#include "util.h"
+#include "ytools.h"
 #include "gmp_xface.h"
 
 int tdiv_int(int x, int *factors);

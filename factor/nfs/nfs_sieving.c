@@ -175,7 +175,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-        t_time = yafu_difftime(&start, &stop);
+        t_time = ytools_difftime(&start, &stop);
 
 		if (fobj->VFLAG > 0) printf("test: fb generation took %6.4f seconds\n", t_time);
 		logprint(flog, "test: fb generation took %6.4f seconds\n", t_time);
@@ -199,7 +199,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		gettimeofday(&start, NULL);
 		system(syscmd);
 		gettimeofday(&stop, NULL);
-        t_time = yafu_difftime(&start, &stop);
+        t_time = ytools_difftime(&start, &stop);
 		
 		//count relations
 		sprintf(tmpbuf, "%s.out", filenames[i]);
@@ -446,7 +446,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
     {
         flog = fopen(fobj->flogname, "a");
         gettimeofday(&stop2, NULL);
-        t_time = yafu_difftime(&start2, &stop2);
+        t_time = ytools_difftime(&start2, &stop2);
 
         if (fobj->VFLAG > 0) printf("test: test sieving took %1.2f seconds\n", t_time);
         logprint(flog, "test: test sieving took %1.2f seconds\n", t_time);

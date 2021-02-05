@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "yafu.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include "yafu_ecm.h"
 #include "gmp_xface.h"
 #include "monty.h"

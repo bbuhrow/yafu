@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "qs.h"
 #include "factor.h"
-#include "util.h"
+#include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
 #ifdef USE_BATCH_FACTOR
@@ -149,7 +149,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 		gettimeofday (&qs_timing_stop, NULL);
-        TF_STG6 +=  yafu_difftime (&qs_timing_start, &qs_timing_stop);
+        TF_STG6 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 		return;
@@ -211,10 +211,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     }
 
                     gettimeofday(&start, NULL);
-                    relation_batch_run(rb);
+                    relation_batch_run(rb, &dconf->lcg_state);
                     gettimeofday(&stop, NULL);
 
-                    ttime = yafu_difftime(&start, &stop);
+                    ttime = ytools_difftime(&start, &stop);
                     if (VFLAG > 1)
                     {
                         printf("relation_batch_run took %1.4f sec producing %u tlp's\n",
@@ -297,7 +297,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			{
 #ifdef QS_TIMING
 				gettimeofday(&qs_timing_stop, NULL);
-				TF_STG6 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
+				TF_STG6 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 				dconf->dlp_prp++;
 				return;
@@ -317,31 +317,31 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 				{
                     B1 = 70;
                     curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
 				}
 				else if (targetBits <= 26)
 				{
 					B1 = 85;
 					curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
 				}
 				else if (targetBits <= 29)
 				{
 					B1 = 125;
 					curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
 				}
 				else if (targetBits <= 31)
 				{
 					B1 = 165;
 					curves = 32;
-                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
 				}
 				else if (targetBits <= 32)
 				{
 					B1 = 205;
 					curves = 32;
-                    microecm(q64, &f64, B1, 25 * B1, curves, 0);
+                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
 				}
 				
 			}
@@ -489,10 +489,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     //relation_batch_run(&dconf->rb);
 
                     gettimeofday(&start, NULL);
-                    relation_batch_run(rb);
+                    relation_batch_run(rb, &dconf->lcg_state);
                     gettimeofday(&stop, NULL);
 
-                    ttime = yafu_difftime(&start, &stop);
+                    ttime = ytools_difftime(&start, &stop);
                     if (VFLAG > 1)
                     {
                         printf("relation_batch_run took %1.4f sec producing %u tlp's\n", 
@@ -691,7 +691,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
 				}
 
-				tinyecm(dconf->Qvals[report_num], dconf->gmptmp1, B1, B1 * 25, curves, 0);
+				tinyecm(dconf->Qvals[report_num], dconf->gmptmp1, B1, B1 * 25, 
+                    curves, dconf->lcg_state, 0);
 				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
 				{
 					return;
@@ -738,7 +739,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					q64 = mpz_get_ui(dconf->gmptmp2);
 
                     // todo: target this better based on expected factor size.
-					microecm(q64, &f64, 70, 1750, 24, 0);
+					microecm(q64, &f64, 70, 1750, 24, &dconf->lcg_state, 0);
 					mpz_set_ui(dconf->gmptmp1, f64);
 
                     // check if the factor we found is obviously too big.
@@ -893,7 +894,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 #ifdef QS_TIMING
 	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG6 += yafu_difftime(&qs_timing_start, &qs_timing_stop);
+    TF_STG6 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 	
 	return;

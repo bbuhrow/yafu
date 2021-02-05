@@ -57,7 +57,7 @@ void ecm_sync_fcn(void *ptr)
             double est_time;
             double curves_left;
 
-            curve_time = yafu_difftime(&thread_data->start, &thread_data->stop);
+            curve_time = ytools_difftime(&thread_data->start, &thread_data->stop);
             *thread_data->total_time += curve_time;
             avg_curve_time = *thread_data->total_time / (double)(*thread_data->total_curves_run);
             curves_left = (int)fobj->ecm_obj.num_curves - *thread_data->total_curves_run;
@@ -482,6 +482,7 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 int ecm_get_sigma(ecm_thread_data_t *thread_data)
 {
 	fact_obj_t *fobj = thread_data->fobj;
+    ecm_obj_t* ecmobj = &fobj->ecm_obj;
 	mpz_t tmp;
 
 	mpz_init(tmp);
@@ -493,7 +494,8 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	}
 	else if (get_uvar("sigma",tmp))
 	{
-		thread_data->sigma = spRand(6, MAX_DIGIT, LCGSTATE);
+		thread_data->sigma = lcg_rand_32(6, MAX_DIGIT, 
+            &ecmobj->lcg_state[thread_data->thread_num]);
 	}
 	else
 	{

@@ -21,7 +21,7 @@ code to the public domain.
 #include "yafu.h"
 #include "soe.h"
 #include "calc.h"
-#include "util.h"
+#include "ytools.h"
 #include "factor.h"
 #include "gmp.h"
 #include <ecm.h>
@@ -35,11 +35,9 @@ code to the public domain.
 // function to read the .ini file and populate options
 void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg);
 
-// function containing system commands to get the computer name
-void get_computer_info(yafu_obj_t* yobj, char *idstr);
-
 // function to print the splash screen to file/screen
-void print_splash(yafu_obj_t* yobj, int is_cmdline_run, FILE *logfile, char *idstr);
+void print_splash(info_t* comp_info, int is_cmdline_run, FILE *logfile, 
+    int VFLAG, double freq, int numwit);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
 void prepare_batchfile(char *input_exp);
@@ -73,6 +71,7 @@ int main(int argc, char *argv[])
     meta_t calc_metadata;
     yafu_obj_t yafu_obj;
     soe_staticdata_t *sdata;
+    info_t comp_info;
     int i;
 
 #if defined(__unix__)
@@ -133,17 +132,12 @@ int main(int argc, char *argv[])
 
     sdata = soe_init(options->verbosity, options->threads, options->soe_blocksize);
 
-    //find, and hold globally, primes less than some N
-    //bootstrap the process by finding some initial sieve primes.
-    //if the requested offset+range is large we may need to find more - 
-    //we can use these primes to accomplish that.
-    //PRIMES = GetPRIMESRange(seed_p, num_sp, NULL, 0, szSOEp, &limit);
-    
-    // initial limit of cache of primes.
+    // initial cache of primes.
     szSOEp = 10000000; 
     PRIMES = soe_wrapper(sdata, 0, szSOEp, 0, &NUM_P, 0, 0);
+    szSOEp = NUM_P;
 
-    //save a batch of sieve primes too.
+    // save a batch of sieve primes too.
     spSOEprimes = (uint32*)malloc((size_t)(NUM_P * sizeof(uint32)));
     for (i = 0; i < NUM_P; i++)
     {
@@ -158,18 +152,18 @@ int main(int argc, char *argv[])
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    get_computer_info(&yafu_obj, yafu_obj.CPU_ID_STR);
+    get_computer_info(&comp_info, 0);
 #endif
 
 #if !defined( TARGET_KNC )
     // now that we've processed arguments, spit out vproc info if requested
 #ifndef __APPLE__
     // 
-    if (yafu_obj.VERBOSE_PROC_INFO)
+    if (options->vproc)
     {
-        extended_cpuid(yafu_obj.CPU_ID_STR, &yafu_obj.CLSIZE, 
-            &yafu_obj.HAS_SSE41, &yafu_obj.HAS_AVX,
-            &yafu_obj.HAS_AVX2, yafu_obj.VERBOSE_PROC_INFO);
+        extended_cpuid(comp_info.idstr, &comp_info.cachelinesize,
+            &comp_info.bSSE41Extensions, &comp_info.AVX,
+            &comp_info.AVX2, options->vproc);
     }
 #endif
 #endif
@@ -184,12 +178,31 @@ int main(int argc, char *argv[])
         printf("tune_info: %s\n", options->tune_info);
         apply_tuneinfo(&yafu_obj, fobj, options->tune_info);
     }
-    fobj->MEAS_CPU_FREQUENCY = yafu_obj.MEAS_CPU_FREQUENCY;
-    strcpy(fobj->CPU_ID_STR, yafu_obj.CPU_ID_STR);
-    fobj->HAS_AVX2 = yafu_obj.HAS_AVX2;
-    fobj->HAS_AVX = yafu_obj.HAS_AVX;
-    fobj->HAS_SSE41 = yafu_obj.HAS_SSE41;
-    fobj->NUM_WITNESSES = yafu_obj.NUM_WITNESSES;
+    
+    // figure out cpu freq in order to scale qs time estimations
+    // 0.1 seconds won't be very accurate, but hopefully close
+    // enough for the rough scaling we'll be doing anyway.
+    if (options->no_clk_test == 0)
+        fobj->MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
+    else
+        fobj->MEAS_CPU_FREQUENCY = 42;
+
+    strcpy(fobj->CPU_ID_STR, comp_info.idstr);
+    fobj->HAS_AVX2 = comp_info.AVX2;
+    fobj->HAS_AVX = comp_info.AVX;
+    fobj->HAS_SSE41 = comp_info.bSSE41Extensions;
+    fobj->NUM_WITNESSES = options->num_prp_witnesses;
+    fobj->cache_size1 = comp_info.L1cache;
+    fobj->cache_size2 = comp_info.L2cache;
+    fobj->LOGFLAG = yafu_obj.LOGFLAG;
+    fobj->THREADS = yafu_obj.THREADS;
+
+#if BITS_PER_DIGIT == 64
+    fobj->lcg_state = options->rand_seed;
+#else
+    fobj->lcg_state = (uint32)options->rand_seed;
+#endif	
+
     calc_metadata.fobj = fobj;
     calc_metadata.options = options;
     calc_metadata.sdata = sdata;
@@ -274,25 +287,20 @@ int main(int argc, char *argv[])
     }
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
-	print_splash(&yafu_obj, is_cmdline_run, logfile, yafu_obj.CPU_ID_STR);
+	print_splash(&comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
+        yafu_obj.MEAS_CPU_FREQUENCY, yafu_obj.NUM_WITNESSES);
 	
 	// start the calculator
 	// right now this just allocates room for user variables
-	calc_init();				
+	calc_init(options->rand_seed);
 		
-	logprint(logfile,"Random seed: %" PRIu64 "\n\n", options->rand_seed);
+	logprint(logfile,"Random seed: %" PRIu64 "\n", options->rand_seed);
 	fflush(logfile);
 
 	//printf("WARNING: constant seed is set\n");
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
     srand((unsigned int)options->rand_seed);
-
-#if BITS_PER_DIGIT == 64
-    LCGSTATE = options->rand_seed;
-#else
-    LCGSTATE = (uint32)options->rand_seed;
-#endif	
 
 	// command line
 	while (1)
@@ -866,19 +874,21 @@ int check_expression(options_t* options)
 
 }
 
-void print_splash(yafu_obj_t *yobj, int is_cmdline_run, FILE *logfile, char *idstr)
+void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile, 
+    int VFLAG, double freq, int numwit)
 {
-	if (yobj->VFLAG >= 0)
+	if (VFLAG >= 0)
 		printf("\n\n");
 
-	if ((yobj->VFLAG > 0) || !is_cmdline_run)
+	if ((VFLAG > 0) || !is_cmdline_run)
 	{	
 		logprint(NULL,"System/Build Info: \n");
         fflush(stdout);
 	}
+    logprint(logfile, "=====================================\n");
 	logprint(logfile,"System/Build Info: \n");
 
-    if ((yobj->VFLAG > 0) || !is_cmdline_run)
+    if ((VFLAG > 0) || !is_cmdline_run)
     {
 #ifdef _MSC_MPIR_VERSION
 #ifdef ECM_VERSION
@@ -917,23 +927,26 @@ void print_splash(yafu_obj_t *yobj, int is_cmdline_run, FILE *logfile, char *ids
         fflush(stdout);
     }
 
-    logprint(logfile,"cached %u primes. pmax = %u\n", 
-        szSOEp, spSOEprimes[szSOEp-1]);
+    logprint(logfile,"cached %u primes. pmax = %u\n", szSOEp, spSOEprimes[szSOEp-1]);
     logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-		idstr, yobj->L1CACHE, yobj->L2CACHE, yobj->CLSIZE);
-    logprint(logfile,"measured cpu frequency ~= %f\n",
-        yobj->MEAS_CPU_FREQUENCY);
-    logprint(logfile,"using %u random witnesses for Rabin-Miller PRP checks\n\n",
-        yobj->NUM_WITNESSES);
+		comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
+    if (freq > 100.0)
+        logprint(logfile,"measured cpu frequency ~= %f\n", freq);
+    if (numwit == 1)
+        logprint(logfile,"using %u random witness for Rabin-Miller PRP checks\n", numwit);
+    else
+        logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
 
-	if (yobj->VFLAG > 0 || !is_cmdline_run)
+	if (VFLAG > 0 || !is_cmdline_run)
 	{		
 		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
-			idstr, yobj->L1CACHE, yobj->L2CACHE, yobj->CLSIZE);
-		printf("measured cpu frequency ~= %f\n",
-            yobj->MEAS_CPU_FREQUENCY);
-		printf("using %u random witnesses for Rabin-Miller PRP checks\n\n",
-            yobj->NUM_WITNESSES);
+            comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
+        if (freq > 100.0)
+		    printf("measured cpu frequency ~= %f\n", freq);
+        if (numwit == 1)
+		    printf("using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
+        else
+            printf("using %u random witnesses for Rabin-Miller PRP checks\n\n", numwit);
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
@@ -949,70 +962,6 @@ void print_splash(yafu_obj_t *yobj, int is_cmdline_run, FILE *logfile, char *ids
 	return;
 }
 
-void get_computer_info(yafu_obj_t* yobj, char *idstr)
-{
-#if !defined(WIN32)
-	int ret;
-#endif
-
-	//figure out cpu freq in order to scale qs time estimations
-	//0.1 seconds won't be very accurate, but hopefully close
-	//enough for the rough scaling we'll be doing anyway.
-    if (yobj->NO_CLK_TEST == 0)
-        yobj->MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
-    else
-        yobj->MEAS_CPU_FREQUENCY = 42;
-	
-#ifdef __APPLE__
-	// something in extended cpuid causes a segfault on mac builds.
-	// just disable it for now - this information is not critical for
-	// program operation.
-	strcpy(idstr, "N/A");
-	CLSIZE = 0;
-	L1CACHE = DEFAULT_L1_CACHE_SIZE;
-	L2CACHE = DEFAULT_L2_CACHE_SIZE;
-	HAS_SSE41 = 0;
-
-#else
-	//read cache sizes
-	yafu_get_cache_sizes(&yobj->L1CACHE,&yobj->L2CACHE);
-
-	// run an extended cpuid command to get the cache line size, and
-	// optionally print a bunch of info to the screen
-	extended_cpuid(idstr, &yobj->CLSIZE, &yobj->HAS_SSE41, &yobj->HAS_AVX, &yobj->HAS_AVX2,
-        yobj->VERBOSE_PROC_INFO);
-
-    if (0)
-    {
-        if (yobj->HAS_SSE41)
-            printf("CPU has SSE4.1\n");
-
-        if (yobj->HAS_AVX2)
-            printf("CPU has AVX2\n");
-    }
-
-	#if defined(WIN32)
-
-    yobj->sysname_sz = MAX_COMPUTERNAME_LENGTH + 1;
-	GetComputerName(yobj->sysname,&yobj->sysname_sz);
-	
-	#else
-
-	ret = gethostname(yobj->sysname,sizeof(yobj->sysname) / sizeof(*yobj->sysname));
-    yobj->sysname[(sizeof(yobj->sysname)-1)/sizeof(*yobj->sysname)] = 0;	// null terminate
-	if (ret != 0)
-	{
-		printf("error occured when getting host name\n");
-		strcpy(yobj->sysname, "N/A");
-	}
-    yobj->sysname_sz = strlen(yobj->sysname);
-	
-	#endif
-
-#endif
-	return;
-}
-
 void yafu_set_idle_priority(void) {
 
 #if defined(WIN32) || defined(_WIN64)
@@ -1025,9 +974,6 @@ void yafu_set_idle_priority(void) {
 
 void yafu_init(yafu_obj_t* yobj)
 {
-	uint64 limit, i;
-	uint32 seed_p[6542], num_sp;
-	
     yobj->VFLAG = 0;
     yobj->VERBOSE_PROC_INFO = 0;
     yobj->LOGFLAG = 1;
@@ -1038,6 +984,7 @@ void yafu_init(yafu_obj_t* yobj)
     yobj->THREADS = 1;
     yobj->LATHREADS = 0;
     yobj->CMD_LINE_REPEAT = 0;
+    yobj->MEAS_CPU_FREQUENCY = 0.0;
 
 	strcpy(yobj->sessionname,"session.log");
     strcpy(yobj->scriptname, "");
@@ -1319,52 +1266,5 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
     }
 
 	return;
-}
-
-//function get_random_seeds courtesy of Jason Papadopoulos
-void get_random_seeds(uint32 *seed1, uint32 *seed2) {
-
-	uint32 tmp_seed1, tmp_seed2;
-
-	/* In a multithreaded program, every msieve object
-	   should have two unique, non-correlated seeds
-	   chosen for it */
-
-	//in YAFU, make them available everywhere, by putting them in
-	//a global structure that holds them.
-
-#ifndef WIN32
-
-	FILE *rand_device = fopen("/dev/urandom", "r");
-
-	if (rand_device != NULL) {
-
-		/* Yay! Cryptographic-quality nondeterministic randomness! */
-
-		fread(&tmp_seed1, sizeof(uint32), (size_t)1, rand_device);
-		fread(&tmp_seed2, sizeof(uint32), (size_t)1, rand_device);
-		fclose(rand_device);
-	}
-	else
-
-#endif
-	{
-		/* <Shrug> For everyone else, sample the current time,
-		   the high-res timer (hopefully not correlated to the
-		   current time), and the process ID. Multithreaded
-		   applications should fold in the thread ID too */
-
-		uint64 high_res_time = yafu_read_clock();
-		tmp_seed1 = ((uint32)(high_res_time >> 32) ^
-			     (uint32)time(NULL)) * 
-			    (uint32)getpid();
-		tmp_seed2 = (uint32)high_res_time;
-	}
-
-	/* The final seeds are the result of a multiplicative
-	   hash of the initial seeds */
-
-	*seed1 = tmp_seed1 * ((uint32)40499 * 65543);
-	*seed2 = tmp_seed2 * ((uint32)40499 * 65543);
 }
 

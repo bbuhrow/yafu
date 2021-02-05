@@ -47,9 +47,6 @@
     <ClCompile Include="..\..\top\test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\utils.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\factor_common.c">
       <Filter>Source Files\factoring</Filter>
     </ClCompile>
@@ -200,9 +197,6 @@
     <ClCompile Include="..\..\factor\qs\poly_roots.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\threadpool.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\top\vecarith.c">
       <Filter>Source Files\arith</Filter>
     </ClCompile>
@@ -241,9 +235,6 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
       <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\queue.c">
-      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\batch_factor.c">
       <Filter>Source Files\factoring\qs\msieve</Filter>
@@ -301,13 +292,7 @@
     <ClInclude Include="..\..\include\qs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\soe.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\yafu.h">
@@ -354,9 +339,6 @@
     </ClInclude>
     <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
       <Filter>Source Files\factoring\qs\sieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\top\threadpool.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\monty.h">
       <Filter>Header Files</Filter>
