@@ -26,6 +26,7 @@ code to the public domain.
 #include "yafu_ecm.h"
 #include "ytools.h"
 #include "mpz_aprcl.h"
+#include "cmdOptions.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
@@ -186,6 +187,12 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
     uint32 seed1, seed2;
     int i;
 
+    fobj->lcg_state = options->rand_seed;
+    fobj->flags = 0;
+    fobj->num_threads = options->threads;
+    strcpy(fobj->flogname, options->factorlog);
+    fobj->do_logging = 1;   // not used...
+
 	// get space for everything
 	alloc_factobj(fobj);
 
@@ -207,13 +214,6 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
         fobj->seed1 = (uint32)options->rand_seed & 0xffffffff;
         fobj->seed2 = (uint32)(options->rand_seed >> 32);
     }
-
-    fobj->lcg_state = options->rand_seed;
-
-	fobj->flags = 0;
-    fobj->num_threads = options->threads;
-	strcpy(fobj->flogname, options->factorlog);	
-	fobj->do_logging = 1;   // not used...
 
 	// initialize stuff for rho	
 	fobj->rho_obj.iterations = options->rhomax;		
@@ -538,7 +538,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->N);
 
 	fobj->rho_obj.num_poly = 3;
-	fobj->rho_obj.polynomials = (uint32 *)malloc(fobj->rho_obj.num_poly * sizeof(uint32));
+	fobj->rho_obj.polynomials = (uint32 *)xmalloc(fobj->rho_obj.num_poly * sizeof(uint32));
 	fobj->rho_obj.polynomials[0] = 3;
 	fobj->rho_obj.polynomials[1] = 2;
 	fobj->rho_obj.polynomials[2] = 1;
@@ -553,7 +553,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
-    fobj->ecm_obj.lcg_state = (uint64*)xmalloc(fobj->THREADS * sizeof(uint64));
+    fobj->ecm_obj.lcg_state = (uint64*)xmalloc(fobj->num_threads * sizeof(uint64));
 
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
@@ -567,7 +567,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
 
 	fobj->allocated_factors = 256;
-	fobj->fobj_factors = (factor_t *)malloc(256 * sizeof(factor_t));
+	fobj->fobj_factors = (factor_t *)xmalloc(256 * sizeof(factor_t));
 	for (i=0; i < fobj->allocated_factors; i++)
 	{
 		fobj->fobj_factors[i].type = UNKNOWN;

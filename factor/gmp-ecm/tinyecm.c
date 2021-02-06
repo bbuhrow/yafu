@@ -107,7 +107,7 @@ void duplicate(monty128_t *mdata, tinyecm_work *work, uint64 * insum, uint64 * i
 void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, double v);
 int check_factor(uint64 * Z, uint64 * n, uint64 * f);
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
-	tinyecm_work *work, uint32_t sigma, int verbose);
+	tinyecm_work *work, uint32_t sigma, uint64 * lcg_state, int verbose);
 
 void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P);
 void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work);

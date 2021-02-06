@@ -22,7 +22,6 @@ code to the public domain.
 #include "factor.h"
 #include "yafu.h"
 #include "calc.h"
-#include "yafu_string.h"
 #include "threadpool.h"
 
 void ecm_sync_fcn(void *ptr)

@@ -144,7 +144,7 @@ void relation_batch_add(uint32 a, uint32 b, int32 offset,
 			relation_batch_t *rb);
 
 void check_batch_relation(relation_batch_t *rb,
-    uint32 index,
+    uint32 index, uint64 * lcg_state,
     mpz_t prime_product);
 	
 /* factor all the batched relations, saving all the ones whose

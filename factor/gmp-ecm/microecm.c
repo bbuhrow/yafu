@@ -250,7 +250,8 @@ void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *p2,
 void udup(uint64_t rho, uecm_work *work, uint64 insum, uint64 indiff, uecm_pt *P);
 void uprac(uint64_t rho, uecm_work *work, uecm_pt *P, uint64_t c, double v);
 int ucheck_factor(uint64 Z, uint64 n, uint64 * f);
-void ubuild(uecm_pt *P, uint64_t rho, uecm_work *work, uint32_t sigma, int verbose);
+void ubuild(uecm_pt *P, uint64_t rho, uecm_work *work, uint32_t sigma, 
+    uint64 * lcg_state, int verbose);
 
 void uecm_stage1(uint64_t rho, uecm_work *work, uecm_pt *P);
 void uecm_stage2(uecm_pt *P, uint64_t rho, uecm_work *work);

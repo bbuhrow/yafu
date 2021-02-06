@@ -26,6 +26,7 @@ code to the public domain.
 #include "gmp.h"
 #include <ecm.h>
 
+
 #if defined(__unix__)
 #include <termios.h>
 #endif
@@ -1267,4 +1268,3 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 
 	return;
 }
-
