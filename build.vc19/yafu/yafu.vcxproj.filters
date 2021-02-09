@@ -197,9 +197,6 @@
     <ClCompile Include="..\..\factor\qs\poly_roots.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\top\vecarith.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c">
       <Filter>Source Files\factoring\qs\poly</Filter>
     </ClCompile>
@@ -256,9 +253,6 @@
     </ClCompile>
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c">
       <Filter>Source Files\factoring\avx-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\barrett.c">
-      <Filter>Source Files\arith</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c">
       <Filter>Source Files\frontend</Filter>

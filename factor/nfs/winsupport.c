@@ -13,7 +13,6 @@ benefit from your work.
 ----------------------------------------------------------------------*/
 
 #include "gnfs.h"
-#include "yafu_string.h"
 #include "arith.h"
 #include "factor.h"
 
@@ -102,7 +101,7 @@ void logprintf(msieve_obj *obj, char *fmt, ...) {
 	/* do *not* initialize 'ap' and use it twice; this
 	   causes crashes on AMD64 */
 
-	if (LOGFLAG && (obj->flags & MSIEVE_FLAG_USE_LOGFILE)) {
+	if (obj->flags & MSIEVE_FLAG_USE_LOGFILE) {
 		time_t t = time(NULL);
 		char buf[64];
 #ifdef HAVE_MPI

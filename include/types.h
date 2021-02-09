@@ -135,25 +135,25 @@ code to the public domain.
 
 		
 		/* portable 64-bit formatting */
-		#define PRId64 "I64d"
-		#define PRIu64 "I64u"
-		#define PRIx64 "I64x"
+		//#define PRId64 "I64d"
+		//#define PRIu64 "I64u"
+		//#define PRIx64 "I64x"
 
 		//for gettimeofday
 		//http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
-		#define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
+		//#define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
 
-		struct timeval
-		{
-			long tv_sec;
-			long tv_usec;
-		};
+		//struct timeval
+		//{
+		//	long tv_sec;
+		//	long tv_usec;
+		//};
 
-		struct timezone 
-		{
-		  int  tz_minuteswest; /* minutes W of Greenwich */
-		  int  tz_dsttime;     /* type of dst correction */
-		};
+		//struct timezone 
+		//{
+		//  int  tz_minuteswest; /* minutes W of Greenwich */
+		//  int  tz_dsttime;     /* type of dst correction */
+		//};
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))
@@ -186,25 +186,25 @@ code to the public domain.
 		#define ADDRESS_BITS 2
 		
 		/* portable 64-bit formatting */
-		#define PRId64 "I64d"
-		#define PRIu64 "I64u"
-		#define PRIx64 "I64x"
+		//#define PRId64 "I64d"
+		//#define PRIu64 "I64u"
+		//#define PRIx64 "I64x"
 		
 		//for gettimeofday
 		//http://www.openasthra.com/c-tidbits/gettimeofday-function-for-windows/
-		#define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
+		//#define DELTA_EPOCH_IN_MICROSECS  11644473600000000Ui64
 
-		struct timeval
-		{
-			long tv_sec;
-			long tv_usec;
-		};
-
-		struct timezone 
-		{
-		  int  tz_minuteswest; /* minutes W of Greenwich */
-		  int  tz_dsttime;     /* type of dst correction */
-		};
+		//struct timeval
+		//{
+		//	long tv_sec;
+		//	long tv_usec;
+		//};
+        //
+		//struct timezone 
+		//{
+		//  int  tz_minuteswest; /* minutes W of Greenwich */
+		//  int  tz_dsttime;     /* type of dst correction */
+		//};
 
 		//sleep in milliseconds
 		#define MySleep(x) Sleep((x))

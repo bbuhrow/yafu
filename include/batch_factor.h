@@ -20,6 +20,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
+#include "gmp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -101,7 +102,9 @@ typedef struct {
 	savefile_t *savefile;
 	print_relation_t print_relation;
 
-    mpz_t small, large;
+    //mpz_t small, large;
+    mpz_t _large;
+    mpz_t _small;
     mpz_t n, f1r, f2r, f1a, f2a, t0, t1;
 
     double conversion_ratio;

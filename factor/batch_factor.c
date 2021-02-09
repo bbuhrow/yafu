@@ -541,8 +541,8 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr f1a = rb->f1a;
     mpz_ptr f2r = rb->f2r;
     mpz_ptr f2a = rb->f2a;
-    mpz_ptr small = rb->small;
-    mpz_ptr large = rb->large;
+    mpz_ptr small = rb->_small;
+    mpz_ptr large = rb->_large;
     mpz_ptr n = rb->n;
 	uint32 lp_r[MAX_LARGE_PRIMES];
 	uint32 lp_a[MAX_LARGE_PRIMES];
@@ -1243,8 +1243,8 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->f2a);
     mpz_init(rb->t0);
     mpz_init(rb->t1);
-    mpz_init(rb->small);
-    mpz_init(rb->large);
+    mpz_init(rb->_small);
+    mpz_init(rb->_large);
 }
 
 /*------------------------------------------------------------------*/
@@ -1264,8 +1264,8 @@ void relation_batch_free(relation_batch_t *rb) {
     mpz_clear(rb->f2a);
     mpz_clear(rb->t0);
     mpz_clear(rb->t1);
-    mpz_clear(rb->small);
-    mpz_clear(rb->large);
+    mpz_clear(rb->_small);
+    mpz_clear(rb->_large);
 }
 
 /*------------------------------------------------------------------*/

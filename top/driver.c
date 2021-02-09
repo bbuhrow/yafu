@@ -39,6 +39,7 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg);
 // function to print the splash screen to file/screen
 void print_splash(info_t* comp_info, int is_cmdline_run, FILE *logfile, 
     int VFLAG, double freq, int numwit);
+void helpfunc(char* s);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
 void prepare_batchfile(char *input_exp);
