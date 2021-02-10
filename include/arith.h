@@ -92,13 +92,19 @@ __inline uint64 _lead_zcnt64(uint64 x)
 
 #endif
 #elif defined(_MSC_VER)
-#include <intrin.h>
+#include <immintrin.h>
 #ifdef USE_BMI2
 #define _lead_zcnt64 __lzcnt64
 #define _trail_zcnt _tzcnt_u32
 #define _trail_zcnt64 _tzcnt_u64
+// MSVC pages say these are available, but using them
+// leads to immediate crashes in msvc-190 (v160)
+// https://docs.microsoft.com/en-us/cpp/intrinsics/x64-amd64-intrinsics-list?view=msvc-160
+//#define _reset_lsb(x) _blsr_u32(x)
+//#define _reset_lsb64(x) _blsr_u64(x)
 #define _reset_lsb(x) ((x) &= ((x) - 1))
 #define _reset_lsb64(x) ((x) &= ((x) - 1))
+
 #else
 __inline uint32 _trail_zcnt(uint32 x)
 {

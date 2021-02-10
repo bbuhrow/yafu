@@ -892,6 +892,16 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 
     if ((VFLAG > 0) || !is_cmdline_run)
     {
+#ifdef _MSC_VER
+        printf("Built with Microsoft Visual Studio %d\n", _MSC_VER);
+#elif defined (__INTEL_COMPILER)
+        printf("Built with Intel Compiler %d\n", __INTEL_COMPILER);
+#elif defined (__GNUC__)
+        printf("Built with GCC %d\n", __GNUC__);
+#else 
+        printf("Built with undefined compiler\n");
+#endif
+
 #ifdef _MSC_MPIR_VERSION
 #ifdef ECM_VERSION
         printf("Using GMP-ECM %s, Powered by MPIR %s\n", ECM_VERSION,
@@ -941,21 +951,21 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 
 	if (VFLAG > 0 || !is_cmdline_run)
 	{		
-		printf("detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
+		printf("Detected %s\nDetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
             comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
         if (freq > 100.0)
-		    printf("measured cpu frequency ~= %f\n", freq);
+		    printf("Measured cpu frequency ~= %f\n", freq);
         if (numwit == 1)
-		    printf("using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
+		    printf("Using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
         else
-            printf("using %u random witnesses for Rabin-Miller PRP checks\n\n", numwit);
+            printf("Using %u random witnesses for Rabin-Miller PRP checks\n\n", numwit);
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
 		printf("=======             bbuhrow@gmail.com                   =======\n");
 		printf("=======     Type help at any time, or quit to quit      =======\n");
 		printf("===============================================================\n");
-		printf("cached %u primes. pmax = %u\n\n", 
+		printf("Cached %u primes. Pmax = %u\n\n", 
             szSOEp, spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
         fflush(stdout);
@@ -991,6 +1001,7 @@ void yafu_init(yafu_obj_t* yobj)
 	strcpy(yobj->sessionname,"session.log");
     strcpy(yobj->scriptname, "");
 
+    LCG_STATE = 836458372495871ULL;
 	return;
 }
 

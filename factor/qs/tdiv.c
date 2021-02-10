@@ -270,12 +270,12 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 
 			//quick prime check: compute 2^(residue-1) mod residue.  
 
-#if BITS_PER_DIGIT == 32
+#if defined(_MSC_VER) || (BITS_PER_DIGIT == 32)
 			mpz_set_64(dconf->gmptmp1, q64);
 			mpz_set_64(dconf->gmptmp2, 2);
-			mpz_set_64(dconf->gmptmp3, q64 - 1);
+			//mpz_set_64(dconf->gmptmp3, q64 - 1);
 
-			mpz_powm(dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3, dconf->gmptmp1);
+			mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
 			res = mpz_get_64(dconf->gmptmp1);
 #elif defined (FORCE_GENERIC) && !defined(TARGET_KNC)
 			mpz_set_64(dconf->gmptmp1, q64);
@@ -309,42 +309,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
             // that we are attempting to factor the potential dlp 
             // residue.
 			dconf->attempted_squfof++;
-			{
-				int B1, curves, targetBits;
-
-				targetBits = spBits(q64) / 2;
-				if (targetBits <= 24)
-				{
-                    B1 = 70;
-                    curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
-				}
-				else if (targetBits <= 26)
-				{
-					B1 = 85;
-					curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
-				}
-				else if (targetBits <= 29)
-				{
-					B1 = 125;
-					curves = 24;
-                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
-				}
-				else if (targetBits <= 31)
-				{
-					B1 = 165;
-					curves = 32;
-                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
-				}
-				else if (targetBits <= 32)
-				{
-					B1 = 205;
-					curves = 32;
-                    microecm(q64, &f64, B1, 25 * B1, curves, &dconf->lcg_state, 0);
-				}
-				
-			}
+            f64 = do_uecm(q64);
 			
 			if ((f64 > 1) && (f64 != q64) && (q64 % f64 == 0))
 			{
@@ -739,7 +704,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					q64 = mpz_get_ui(dconf->gmptmp2);
 
                     // todo: target this better based on expected factor size.
-					microecm(q64, &f64, 70, 1750, 24, &dconf->lcg_state, 0);
+                    f64 = do_uecm(q64);
 					mpz_set_ui(dconf->gmptmp1, f64);
 
                     // check if the factor we found is obviously too big.

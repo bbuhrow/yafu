@@ -35,6 +35,14 @@ code to the public domain.
 #define GSTR_MAXSIZE 1024
 
 //#define FORCE_GENERIC 1
+// assme this is a modern cpu that has at least up through sse2.
+#ifndef FORCE_GENERIC
+#define HAS_MMX 1
+#define HAS_SSE 1
+#define HAS_SSE2 1
+#define CACHE_LINE_64
+#endif
+
 
 //support libraries
 #include "types.h"
@@ -110,6 +118,8 @@ typedef struct
     
 
 } yafu_obj_t;
+
+uint64 LCG_STATE;
 
 //this array holds a global store of prime numbers
 uint32* spSOEprimes;	//the primes	

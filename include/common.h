@@ -29,9 +29,6 @@ extern "C" {
 #define _(x) #x
 #define STRING(x) _(x)
 
-// this is assumed to be true in many places in yafu:
-#define HAS_SSE2 1
-
 	/* this byzantine complexity sets up the correct assembly
    language syntax based on the compiler, OS and word size 
    

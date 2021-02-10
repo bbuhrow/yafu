@@ -754,49 +754,62 @@ void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
 
 fp_digit spDivide(fp_digit * q, fp_digit * r, fp_digit u[2], fp_digit v)
 {
-
-
+    *q = _udiv128(u[1], u[0], v, r);
+    return 0;
 }
 
 void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
 {
-
-
-    return;
-}
-
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
-{
-
+    *product = _umul128(u, v, carry);
     return;
 }
 
 void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
 {
-
+    *carry = _addcarry_u64(0, u, v, sum);
     return;
 }
 
 void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
 {
-
+    unsigned char c;
+    *carry = _addcarry_u64(0, u, v, sum);
+    c = _addcarry_u64(*carry, *sum, w, sum);
+    *carry += c;
     return;
 }
 
 void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
 {
-
+    unsigned char b;
+    *borrow = _subborrow_u64(0, u, v, sub);
+    b = _subborrow_u64(0, *sub, w, sub);
+    *borrow += b;
     return;
 }
 
 void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
 {
+    *borrow = _subborrow_u64(0, u, v, sub);
+    return;
+}
 
+void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
+{
+    fp_digit k, p;
+    spMultiply(u, v, &p, carry);
+    spAdd3(p, w, t, lower, &k);
+    *carry += k;
     return;
 }
 
 void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
 {
+    fp_digit p[2];
+    fp_digit q;
+
+    spMultiply(u, v, &p[0], &p[1]);
+    spDivide(&q, w, p, m);
 
     return;
 }

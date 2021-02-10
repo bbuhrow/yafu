@@ -250,11 +250,19 @@ void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *p2,
 void udup(uint64_t rho, uecm_work *work, uint64 insum, uint64 indiff, uecm_pt *P);
 void uprac(uint64_t rho, uecm_work *work, uecm_pt *P, uint64_t c, double v);
 int ucheck_factor(uint64 Z, uint64 n, uint64 * f);
-void ubuild(uecm_pt *P, uint64_t rho, uecm_work *work, uint32_t sigma, 
-    uint64 * lcg_state, int verbose);
-
+void ubuild(uecm_pt *P, uint64_t rho, uecm_work *work, uint32_t sigma, int verbose);
 void uecm_stage1(uint64_t rho, uecm_work *work, uecm_pt *P);
 void uecm_stage2(uecm_pt *P, uint64_t rho, uecm_work *work);
+uint32 lcg_rand_32B(uint32 lower, uint32 upper);
+
+#define INV_2_POW_32 0.00000000023283064365386962890625
+
+uint32 lcg_rand_32B(uint32 lower, uint32 upper)
+{
+    LCG_STATE = 6364136223846793005ULL * LCG_STATE + 1442695040888963407ULL;
+    return lower + (fp_digit)(
+        (double)(upper - lower) * (double)(LCG_STATE >> 32) * INV_2_POW_32);
+}
 
 void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *P2, 
 	uecm_pt *Pin, uecm_pt *Pout)
@@ -720,7 +728,7 @@ uint64_t modinv_64(uint64_t a, uint64_t p) {
 }
 
 void ubuild(uecm_pt *P, uint64_t rho, 
-	uecm_work *work, uint32_t sigma, uint64_t *lcg_state, int verbose)
+	uecm_work *work, uint32_t sigma, int verbose)
 {
 	uint64_t t1, t2, t3, t4;
 	uint64_t u, v, n;
@@ -729,7 +737,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 
 	if (sigma == 0)
 	{
-		work->sigma = lcg_rand_32(7, (uint32)-1, &lcg_state);
+		work->sigma = lcg_rand_32B(7, (uint32)-1);
 	}
 	else
 	{
@@ -805,7 +813,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 }
 
 void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2, 
-	uint32 curves, uint64_t* lcg_state, int verbose)
+	uint32 curves, int verbose)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -845,7 +853,7 @@ void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2,
 			printf("commencing curve %d of %u\n", curve, curves);
 
 		sigma = 0;
-		ubuild(&P, rho, &work, sigma, lcg_state, verbose);
+		ubuild(&P, rho, &work, sigma, verbose);
 
 		if (verbose)
 		{
@@ -1571,7 +1579,7 @@ int ucheck_factor(uint64 Z, uint64 n, uint64 * f)
 
 
 
-uint64 do_uecm(uint64 q64, uint64 * lcg_state)
+uint64 do_uecm(uint64 q64)
 {
     int B1, curves, targetBits;
     uint64 f64;
@@ -1583,31 +1591,31 @@ uint64 do_uecm(uint64 q64, uint64 * lcg_state)
         //f64 = LehmanFactor(q64, 0, 0, 0);
         B1 = 70;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
     }
     else if (targetBits <= 26)
     {
         B1 = 85;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
     }
     else if (targetBits <= 29)
     {
         B1 = 125;
         curves = 24;
-        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
     }
     else if (targetBits <= 31)
     {
         B1 = 165;
         curves = 32;
-        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
     }
     else if (targetBits <= 32)
     {
         B1 = 205;
         curves = 32;
-        microecm(q64, &f64, B1, 25 * B1, curves, lcg_state, 0);
+        microecm(q64, &f64, B1, 25 * B1, curves, 0);
     }
 
     return f64;

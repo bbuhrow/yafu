@@ -105,8 +105,8 @@ void siqs_start(void *vptr)
 
     if (fobj->qs_obj.gbl_override_small_cutoff_flag)
     {
-        //printf("overriding small TF cutoff of %u to %d\n",
-        //    static_conf->tf_small_cutoff, fobj->qs_obj.gbl_override_small_cutoff);
+        printf("overriding small TF cutoff of %u to %d\n",
+            static_conf->tf_small_cutoff, fobj->qs_obj.gbl_override_small_cutoff);
         fobj->qs_obj.no_small_cutoff_opt = 1;
         static_conf->tf_small_cutoff = fobj->qs_obj.gbl_override_small_cutoff;
     }
@@ -215,6 +215,7 @@ void siqs_sync(void *vptr)
 
                         //printf("\nfinal value for tf_small_cutoff = %u\n",
                         //    static_conf->tf_small_cutoff);
+
 #ifdef OPT_DEBUG
                         fprintf(udata->optfile, "final value = %d\n", static_conf->tf_small_cutoff);
                         fprintf(udata->optfile, "\n\n");
@@ -719,9 +720,12 @@ void SIQS(fact_obj_t *fobj)
     //    printf("threw away %u batched relations\n", missed_batch_rels);
     //}
 
-	// finalize savefile
-	qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-	qs_savefile_close(&static_conf->obj->qs_obj.savefile);
+    if (!static_conf->in_mem)
+    {
+        // finalize savefile
+        qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
+        qs_savefile_close(&static_conf->obj->qs_obj.savefile);
+    }
 
 	update_final(static_conf);
 
@@ -1119,7 +1123,7 @@ void *process_poly(void *vptr)
         nextRoots_32k_knc_small(sconf, dconf);
         nextRoots_32k_knc_bucket(sconf, dconf);
 
-#elif USE_AVX512F
+#elif defined(USE_AVX512F)
 
         nextRoots_32k_avx2_small(sconf, dconf);
         nextRoots_32k_knl_bucket(sconf, dconf);
@@ -2276,6 +2280,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		exit(1);
 	}
 
+    sconf->in_mem_relations = (siqs_r*)malloc(32768 * 32 * sizeof(siqs_r));
+    sconf->buffered_rel_alloc = 32768 * 32;
+    sconf->buffered_rels = 0;
+
 	if (sconf->num_blocks < 1)
 		sconf->num_blocks = 1;
 
@@ -2656,12 +2664,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->tlp_exp = 2.8;
 
 	// check for user overrides
-	if (sconf->obj->qs_obj.gbl_override_mfbt > 0)
+	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt - 2.9) > 1e-9)
 	{
 		sconf->tlp_exp = sconf->obj->qs_obj.gbl_override_mfbt;
 	}
 
-	if (sconf->obj->qs_obj.gbl_override_mfbd > 0)
+	if (fabs(sconf->obj->qs_obj.gbl_override_mfbd - 1.85) > 1e-9)
 	{
 		sconf->dlp_exp = sconf->obj->qs_obj.gbl_override_mfbd;
 	}
@@ -2806,6 +2814,11 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	sconf->blockinit = closnuf;
 	sconf->tf_closnuf = closnuf;
+
+    if (sconf->digits_n < 70)
+        sconf->in_mem = 1;
+    else
+        sconf->in_mem = 0;
 
 	// needed during filtering
 	mpz_init(sconf->curr_a);

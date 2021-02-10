@@ -103,7 +103,10 @@ code to the public domain.
 		typedef unsigned __int32 uint32;
 		typedef unsigned __int64 uint64;
 
-		/*
+		
+#if _MSC_VER > 1900
+        // need at least v19 to have _udiv128
+
 		typedef unsigned __int64 fp_digit;
 		typedef unsigned __int64 fp_word;
 		typedef __int64 fp_signdigit;
@@ -116,8 +119,8 @@ code to the public domain.
 		#define MAX_HALF_DIGIT 0xffffffff
 		#define MAX_DEC_WORD 0x8AC7230489E80000
 		#define ADDRESS_BITS 3
-		*/
-
+		
+#else
 		
 		typedef unsigned __int32 fp_digit;
 		typedef unsigned __int64 fp_word;
@@ -131,6 +134,8 @@ code to the public domain.
 		#define MAX_HALF_DIGIT 0xffff
 		#define MAX_DEC_WORD 0x3b9aca00
 		#define ADDRESS_BITS 2
+
+#endif
 		
 
 		

@@ -865,7 +865,7 @@ tinyecm_marker:
 				sscanf(buf, "%" PRIu64 ", %" PRIu64 ", %" PRIu64 "", 
                     &in64, &known1, &known2);
 
-				microecm(in64, &outf, B1, 25 * B1, curves, &lcg_state, 0);
+				microecm(in64, &outf, B1, 25 * B1, curves, 0);
 				if ((outf == known1) ||
 					(outf == known2))
 				{

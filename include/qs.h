@@ -59,14 +59,6 @@ code to the public domain.
 #endif
 #endif
 
-//|| defined(TARGET_KNC)
-//#if (defined(USE_AVX2) || defined(USE_SSE41) || defined(TARGET_KNC)) && ~defined(_MSC_VER)
-#if (defined(TARGET_KNL) && defined(__INTEL_COMPILER))
-// this is the only path that will make use of AVX512 (via auto-vec)
-// for others, it is faster and easier to use the new superfast spBrent.
-//#define USE_VEC_SQUFOF
-#endif
-
 #define USE_BATCH_FACTOR
 
 #ifdef USE_BATCH_FACTOR
@@ -114,9 +106,7 @@ double TF_SPECIAL;
 #define MAX_SIEVE_REPORTS 2048
 #define MIN_FB_OFFSET 1
 #define NUM_EXTRA_QS_RELATIONS 64
-#define MAX_A_FACTORS 22
-//hold all the elements in a bucket of large primes
-//1 bucket = 1 block
+#define MAX_A_FACTORS 20
 #define BUCKET_ALLOC 2048
 #define BUCKET_BITS 11
 #define BUCKET_ALLOCtxt "2048"

@@ -634,9 +634,8 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     int save_b1, uint32 *curves_run);
 void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
     uint64* lcg_state, int verbose);
-void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, 
-    uint64* lcg_state, int verbose);
-uint64 do_uecm(uint64 q, uint64* lcg_state);
+void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
+uint64 do_uecm(uint64 q);
 uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
 uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();

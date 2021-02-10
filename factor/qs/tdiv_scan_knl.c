@@ -597,32 +597,32 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
     {
         uint32 cutoff = sconf->tf_closnuf;
         __m512i vmask = _mm512_set1_epi32((cutoff << 24) + (cutoff << 16) + (cutoff << 8) + cutoff);
-
+    
         dconf->num_reports = 0;
         sieveblock = (uint64*)dconf->sieve;
         sieveblock32 = (uint32*)dconf->sieve;
-
+    
         for (j = 0; j < 4096; j += 8)
         {
             __mmask64 r_msk;
             int idx;
             int k;
-
+    
             __m512i vsieve = _mm512_load_epi32((__m512i*)(&sieveblock[j]));
             r_msk = _mm512_cmpgt_epu8_mask(vsieve, vmask);
             //r_msk = _mm512_test_epi32_mask(vsieve, vmask);
-
+    
             thisloc = j * 8;
-
+    
             while (r_msk > 0)
             {
                 idx = _trail_zcnt64(r_msk);
                 dconf->reports[dconf->num_reports++] = thisloc + idx;
                 r_msk = _blsr_u64(r_msk);
             }
-
+    
         }
-
+    
     }
     else
     {

@@ -52,9 +52,9 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	uint32 *modsqrt = sconf->modsqrt_array;
 
     //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-
 	free(PRIMES);
     PRIMES = soe_wrapper(sdata, lrange, urange, 0, &NUM_P, 0, 0);
+    //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
     
 	//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 	P_MIN = PRIMES[0];
@@ -74,6 +74,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
 			P_MIN = PRIMES[0];
 			P_MAX = PRIMES[NUM_P-1];
+            //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
 			i=0;
 		}
 
