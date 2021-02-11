@@ -85,7 +85,6 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	snfs_t* poly, * polys = NULL;
 	int i, npoly;
 	FILE *f;
-	char tmpstr[1024];
 	nfs_job_t *jobs, *best;
 	int retcode = 0;
 
@@ -259,17 +258,18 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 #endif
 
 	int i,j,is_startup;
-	char syscmd[1024];
-	char master_polyfile[80];
+	char syscmd[GSTR_MAXSIZE + 4];
+	char master_polyfile[GSTR_MAXSIZE + 2];
 	uint64 start = 0, range = 0;
 	uint32 deadline, estimated_range_time, this_range_time, total_time, num_ranges;
 	struct timeval stopt;	// stop time of this job
 	struct timeval startt;	// start time of this job
 	double t_time;
     double e0;
+    int sysreturn;
 
 	//file into which we will combine all of the thread results
-	sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
+	snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 
 	if (job->last_leading_coeff == 0)
 	{
@@ -281,20 +281,32 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	i = mpz_sizeinbase(fobj->nfs_obj.gmp_n, 2);
 
     if (i < 363) 		/* <= 110 digits */
+    {
         fobj->nfs_obj.pref_degree = 4;
+    }
     else if (i < 726) 		/* 110-220 digits */
+    {
         fobj->nfs_obj.pref_degree = 5;
+    }
     else				/* 220+ digits */
+    {
         fobj->nfs_obj.pref_degree = 6;
+    }
 
-	for (j = 0; j < NUM_TIME_LIMITS; j++) {
-		if (i < time_limits[j].bits)
-			break;
+	for (j = 0; j < NUM_TIME_LIMITS; j++) 
+    {
+        if (i < time_limits[j].bits)
+        {
+            break;
+        }
 	}
-	if (j == NUM_TIME_LIMITS) {
+	
+    if (j == NUM_TIME_LIMITS) 
+    {
 		deadline = time_limits[j-1].seconds;
 	}
-	else {
+	else 
+    {
 		const poly_deadline_t *low = &time_limits[j-1];
 		const poly_deadline_t *high = &time_limits[j];
 		uint32 dist = high->bits - low->bits;
@@ -612,7 +624,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 #else
 				sprintf(syscmd,"cat %s.p >> %s",t->polyfilename,master_polyfile);
-				system(syscmd);
+				sysreturn = system(syscmd);
 #endif
 				// then stick on the current total elasped time
 				// this is used to help restart jobs in the polyfind phase
@@ -623,15 +635,15 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			}
 
 			// remove each thread's .p file after it's copied
-			sprintf(syscmd, "%s.p",t->polyfilename); 
+			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.p",t->polyfilename);
 			remove(syscmd);	
 
 			// also remove the temporary log file
-			sprintf(syscmd,"%s.%d",fobj->nfs_obj.logfile,tid);
+			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d",fobj->nfs_obj.logfile,tid);
 			remove(syscmd);
 
 			// and the temporary fb file
-			sprintf(syscmd,"%s.%d",fobj->nfs_obj.fbfile,tid);
+			snprintf(syscmd, GSTR_MAXSIZE + 4, "%s.%d",fobj->nfs_obj.fbfile,tid);
 			remove(syscmd);
 
 			// free data

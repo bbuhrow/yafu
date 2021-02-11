@@ -653,8 +653,8 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 
         if (mpz_sizeinbase(p, 2) < (mpz_sizeinbase(n, 2) / 4))
         {
-            char s[2048];
-            char s2[2048];
+            //char s[2048];
+            //char s2[2048];
             // if the remainder is less than a quarter the size of the input, output the 
             // potential form (one-quarter-size being "small"-ish)        
             gmp_printf("nfs: input divides %Zd^%d + %Zd\n", b, i, p);
@@ -679,8 +679,8 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 
         if (mpz_sizeinbase(p, 2) < (mpz_sizeinbase(n, 2) / 4))
         {
-            char s[2048];
-            char s2[2048];
+            //char s[2048];
+            //char s2[2048];
             // if the remainder is less than a quarter the size of the input, output the 
             // potential form (one-quarter-size being "small"-ish)
             gmp_printf("nfs: input divides %Zd^%d - %Zd\n", b, i, p);
@@ -1132,7 +1132,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	double d, skew, k;
 	int f[100];
 	int numf = 0;
-	snfs_t *polys;
+	snfs_t *polys = NULL;
 	int npoly = 0;
 	int apoly;	
 	int algebraic = 0, halved = 0;
@@ -1493,6 +1493,10 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
                 printf("d4 cutoff = 1.05: choosing degree 4\n");
                 degree = 4;
             }
+        }
+        else
+        {
+            degree = 4;
         }
 
         if (degree == 4)

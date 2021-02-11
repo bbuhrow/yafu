@@ -1300,7 +1300,7 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 		save_relation_siqs(rel->sieve_offset, rel->large_prime,
 			rel->num_factors, rel->fb_offsets, rel->poly_idx, 
-			rel->parity, sconf);
+			rel->apoly_idx, rel->parity, sconf);
 	}
 
 	// update some progress indicators

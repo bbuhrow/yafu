@@ -238,7 +238,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 
 	if (do_poly_check)
 	{
-		char master_polyfile[80];
+		char master_polyfile[GSTR_MAXSIZE + 2];
 		int do_poly_parse = 0;
 
 		if (fobj->nfs_obj.nfs_phases != NFS_DEFAULT_PHASES && !(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
@@ -249,7 +249,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 
 		if (fobj->VFLAG > 0)
 			printf("nfs: checking for poly file - ");
-		sprintf(master_polyfile,"%s.p",fobj->nfs_obj.outputfile);
+		snprintf(master_polyfile, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 
 		in = fopen(master_polyfile,"r");
 		if (in == NULL)
@@ -525,7 +525,6 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
 	//the last 4 valid lines are passed in
 	int i, line, count;
 	double var[2], avg[2];
-	uint32 ans;
 	FILE *logfile;
 	uint32 rat[3], alg[3];
 	char *ptr;
@@ -548,7 +547,6 @@ uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
         }
     }
 
-	ans = 0;
 	// grab the entry in both the rational side and algebraic side
 	// special-q locations from 3 different lines
 	line = last_line;
@@ -648,12 +646,12 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	// parse a msieve.dat.p file to find the best polynomial (based on e score)
 	// output this as a ggnfs polynomial file
 	FILE *in, *out, *logfile;
-	char line[GSTR_MAXSIZE], *ptr;
+	char line[GSTR_MAXSIZE + 2], *ptr;
 	double score, bestscore = 0;
 	int count, bestline = 0, i;
 	uint32 highest_c4 = 0, highest_c5 = 0;
 
-	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
+	snprintf(line, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
 	if (in == NULL)
 	{
@@ -754,7 +752,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		return bestscore;
 
 	// open it again
-	sprintf(line, "%s.p",fobj->nfs_obj.outputfile);
+	snprintf(line, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
 	if (in == NULL)
 	{

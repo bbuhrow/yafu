@@ -3724,7 +3724,6 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
     sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
     sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
     int *rootupdates = dconf->rootupdates;
-    int it;
 
     update_t update_data = dconf->update_data;
 
@@ -3739,13 +3738,9 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
     uint32 med_B = sconf->factor_base->med_B;
 
     uint32 j;
-    int k, numblocks;
+    int k;
     uint32 root1, root2, prime;
-
     uint8 logp = 0;
-    polysieve_t helperstruct;
-
-    numblocks = sconf->num_blocks;
 
     CLEAN_AVX2;
 

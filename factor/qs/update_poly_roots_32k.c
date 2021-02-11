@@ -74,8 +74,8 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32 large_B = sconf->factor_base->large_B;
 
 	uint32 j, interval; //, fb_offset;
-	int k,numblocks;
-    uint32 root1, root2, nroot1, nroot2, prime;
+	int k = 0,numblocks;
+    uint32 root1, root2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
@@ -118,7 +118,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		numptr_n = NULL;
 	}
 
-	k=0;
 	ptr = &rootupdates[(v-1) * bound + startprime];	
 
 	if (sign > 0)
@@ -591,6 +590,8 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_PROOTS(j);
@@ -1471,6 +1472,8 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
 		{
+            uint32 nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			COMPUTE_4_NROOTS(j);
@@ -1898,35 +1901,25 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
     sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
     sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
     int *rootupdates = dconf->rootupdates;
-
     update_t update_data = dconf->update_data;
-
     uint32 startprime = 2;
     uint32 bound = sconf->factor_base->B;
-
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
-    uint16 *sm_ptr;
-
     lp_bucket *lp_bucket_p = dconf->buckets;
     uint32 med_B = sconf->factor_base->med_B;
     uint32 large_B = sconf->factor_base->large_B;
-
     uint32 j, interval; //, fb_offset;
     int k, numblocks;
     uint32 root1, root2, nroot1, nroot2, prime;
-
     int bound_index = 0;
     int check_bound = BUCKET_ALLOC / 2 - 1;
     uint32 bound_val = med_B;
     uint32 *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
-
     uint32 *bptr;
     int bnum, room;
-
     uint8 logp = 0;
-    polysieve_t helperstruct;
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -2146,9 +2139,9 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2157,9 +2150,9 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2168,9 +2161,9 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2179,9 +2172,9 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2506,9 +2499,10 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
+            
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2517,9 +2511,10 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
+            
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2528,9 +2523,10 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
+            
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2539,9 +2535,10 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             root1 = update_data.firstroots1[j];
             root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
             nroot1 = (prime - root1);
             nroot2 = (prime - root2);
-            prime = update_data.prime[j];
+            
 
             FILL_ONE_PRIME_LOOP_P(j);
             FILL_ONE_PRIME_LOOP_N(j);
@@ -2695,24 +2692,15 @@ void nextRoots_32k_generic_small(static_conf_t *sconf, dynamic_conf_t *dconf)
     sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
     sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
     int *rootupdates = dconf->rootupdates;
-
     update_t update_data = dconf->update_data;
-
     uint32 startprime = 2;
     uint32 bound = sconf->factor_base->B;
-
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
-
-    uint32 med_B = sconf->factor_base->med_B;
-
     uint32 j;
-    int k;
     uint32 root1, root2, prime;
-    uint8 logp = 0;
 
-    k = 0;
     ptr = &rootupdates[(v - 1) * bound + startprime];
     //ptr = rootupdates;
 
@@ -2839,7 +2827,6 @@ void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf
     int *rootupdates = dconf->rootupdates;
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
     uint32 bound = sconf->factor_base->B;
     char *nu = dconf->curr_poly->nu;
     char *gray = dconf->curr_poly->gray;
@@ -2861,9 +2848,7 @@ void nextRoots_32k_generic_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf
 
     uint32 *bptr;
     int bnum, room;
-
     uint8 logp = 0;
-    polysieve_t helperstruct;
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;

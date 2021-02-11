@@ -587,9 +587,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //unrolled x128; for large inputs
-    uint32 i, j, it = sconf->qs_blocksize >> 3;
+    uint32 j;
     uint32 thisloc;
-    uint32 num_reports = 0;
     uint64 *sieveblock;
     uint32 *sieveblock32;
 
@@ -606,7 +605,6 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         {
             __mmask64 r_msk;
             int idx;
-            int k;
     
             __m512i vsieve = _mm512_load_epi32((__m512i*)(&sieveblock[j]));
             r_msk = _mm512_cmpgt_epu8_mask(vsieve, vmask);

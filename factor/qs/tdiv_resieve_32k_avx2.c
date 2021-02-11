@@ -529,11 +529,10 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i;
-    uint32 bound, report_num;
+    uint32 report_num;
     int smooth_num;
     uint32 *fb_offsets;
     sieve_fb_compressed *fbc;
-    fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32 block_loc;
     uint16 *corrections = dconf->corrections;
     uint16 buffer[16];
@@ -542,7 +541,6 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
     uint32 bound15;
     uint32 bound16;
 
-    fullfb_ptr = fullfb;
     if (parity)
     {
         fbc = dconf->comp_sieve_n;

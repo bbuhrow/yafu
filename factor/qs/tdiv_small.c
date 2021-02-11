@@ -54,6 +54,8 @@ this file contains code implementing 2)
 
 
 #ifdef SPARSE_STORE
+// we don't store these small factors in the relation: 
+// they are cheap to trial factor out when we're done, during filtering.
 #define DIVIDE_ONE_PRIME(x) \
     do	\
     {	\

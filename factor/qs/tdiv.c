@@ -975,8 +975,8 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 }
 
 void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
-						  static_conf_t *conf)
+    uint32 *fb_offsets, uint32 poly_id, uint32 apoly_id, uint32 parity,
+	static_conf_t *conf)
 {
 	char buf[1024];
 	fact_obj_t *obj = conf->obj;
@@ -1008,6 +1008,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 		r->large_prime[1] = large_prime[1];
 		r->large_prime[2] = large_prime[2];
 		r->num_factors = num_factors;
+        r->apoly_idx = apoly_id;
 		r->poly_idx = poly_id;
 		r->parity = parity;
 		r->sieve_offset = offset;

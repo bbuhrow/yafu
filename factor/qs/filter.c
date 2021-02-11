@@ -211,7 +211,143 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 	return;
 }
 
+void td_and_merge_relation(fb_list *fb, mpz_t n,
+    static_conf_t *sconf, fact_obj_t *obj, 
+    siqs_r *r_out, siqs_r *rel)
+{
+    int i, j, k, err_code = 0;
+    mpz_t Q;
+    mpz_init(Q);
 
+    // trial divide to find divisible primes less than med_B.
+    // this will include small primes and primes dividing poly_a.
+
+    //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+    mpz_mul_ui(Q, sconf->curr_a, rel->sieve_offset);
+    if (rel->parity)
+        mpz_sub(Q, Q, sconf->curr_b[rel->poly_idx]);
+    else
+        mpz_add(Q, Q, sconf->curr_b[rel->poly_idx]);
+    mpz_mul(Q, Q, Q);
+    mpz_sub(Q, Q, n);
+
+    if (mpz_sgn(Q) < 0)
+        mpz_neg(Q, Q);
+
+    for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
+    {
+        uint32 prime = sconf->factor_base->list->prime[i];
+        while (mpz_tdiv_ui(Q, prime) == 0)
+        {
+            rel->fb_offsets[k++] = i;
+            mpz_tdiv_q_ui(Q, Q, prime);
+        }
+    }
+
+    mpz_tdiv_q(Q, Q, sconf->curr_a);
+
+    // merge in the list of polya coefficients to the list of
+    // relation factors that we read in.  both lists are sorted,
+    // so this mergesort works quickly.  We didn't add extra factors
+    // of polya during sieving, so search for and add them here as
+    // they are merged into the complete list of factors for this relation.
+    i = j = 0;
+    while ((i < (int)rel->num_factors) && (j < sconf->curr_poly->s)) {
+        uint32 prime;
+
+        if (rel->fb_offsets[i] < sconf->curr_poly->qlisort[j]) {
+            r_out->fb_offsets[k++] = rel->fb_offsets[i++];
+        }
+        else if (rel->fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
+            // add in the one factor that will always be there because a | Q
+            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
+
+            // then test and add more if we can
+            while (mpz_tdiv_ui(Q, prime) == 0)
+            {
+                r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                mpz_tdiv_q_ui(Q, Q, prime);
+            }
+            j++;
+        }
+        else {
+            r_out->fb_offsets[k] = rel->fb_offsets[i++];
+            r_out->fb_offsets[k + 1] = sconf->curr_poly->qlisort[j];
+            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
+            k += 2;
+            while (mpz_tdiv_ui(Q, prime) == 0)
+            {
+                r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                mpz_tdiv_q_ui(Q, Q, prime);
+            }
+            j++;
+        }
+    }
+
+    while (i < (int)rel->num_factors)
+    {
+        r_out->fb_offsets[k++] = rel->fb_offsets[i++];
+    }
+
+    while (j < sconf->curr_poly->s)
+    {
+        r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+        uint32 prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
+
+        // then test and add more if we can
+        while (mpz_tdiv_ui(Q, prime) == 0)
+        {
+            r_out->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            mpz_tdiv_q_ui(Q, Q, prime);
+        }
+        j++;
+    }
+
+    r_out->sieve_offset = rel->sieve_offset;
+    r_out->large_prime[0] = rel->large_prime[0];
+    r_out->large_prime[1] = rel->large_prime[1];
+    r_out->large_prime[2] = rel->large_prime[2];
+    r_out->parity = rel->parity;
+    r_out->num_factors = k;
+    r_out->poly_idx = rel->poly_idx;
+    mpz_clear(Q);
+
+    if (sconf->use_dlp == 2)
+    {
+        if (!check_relation(sconf->curr_a,
+            sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG))
+        {
+            yafu_add_to_cycles3(sconf, 0, r_out->large_prime);
+        }
+        else
+        {
+            //printf("relation string: %s\n",instr);
+            err_code = 1;
+        }
+    }
+    else
+    {
+        if (!check_relation(sconf->curr_a,
+            sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG))
+        {
+            if (rel->large_prime[0] != r_out->large_prime[1]) {
+                yafu_add_to_cycles(sconf, obj->flags, 
+                    r_out->large_prime[0], r_out->large_prime[1]);
+                sconf->num_cycles++;
+            }
+            else {
+                sconf->num_relations++;
+            }
+        }
+        else
+        {
+            //printf("relation string: %s\n",instr);
+            err_code = 1;
+        }
+    }
+    return;
+}
 
 int process_rel(char *substr, fb_list *fb, mpz_t n,
 				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel)
@@ -222,60 +358,61 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	uint32 fb_offsets[MAX_SMOOTH_PRIMES];
 	int i,j,k, err_code = 0;
 
-#ifdef SPARSE_STORE
+    // assumes SPARSE_STORE
     mpz_t Q;
     mpz_init(Q);
-#endif
 
-	//read the offset
-	this_offset = strtoul(substr,&nextstr,16);	//convert
-	substr = nextstr;
+    //read the offset
+    this_offset = strtoul(substr, &nextstr, 16);	//convert
+    substr = nextstr;
 
-	this_id = strtoul(substr,&nextstr,16);
-	substr = nextstr;
+    this_id = strtoul(substr, &nextstr, 16);
+    substr = nextstr;
 
-	if (this_offset & 0x80000000)
-	{
-		this_parity = 1;
-		this_offset = (~this_offset) + 1;
-	}
-	else
-		this_parity = 0;
+    if (this_offset & 0x80000000)
+    {
+        this_parity = 1;
+        this_offset = (~this_offset) + 1;
+    }
+    else
+    {
+        this_parity = 0;
+    }
 
-	j=0;
-	do
-	{
-		this_val = strtoul(substr,&nextstr,16);
+    j = 0;
+    do
+    {
+        this_val = strtoul(substr, &nextstr, 16);
         if (this_val == (uint32)(-1))
         {
             printf("error parsing relation: strtoul returned error code\n");
             continue;
         }
-		substr = nextstr;
-		fb_offsets[j] = this_val;
-		j++;
-	} while (substr[1] != 'L');
-	this_num_factors = j;
+        substr = nextstr;
+        fb_offsets[j] = this_val;
+        j++;
+    } while (substr[1] != 'L');
+    this_num_factors = j;
 
-	substr += 2;
-	this_val = strtoul(substr,&nextstr,16);
-	substr = nextstr;
-	lp[0] = this_val;
+    substr += 2;
+    this_val = strtoul(substr, &nextstr, 16);
+    substr = nextstr;
+    lp[0] = this_val;
 
-	this_val = strtoul(substr,&nextstr,16);
-	substr = nextstr;
+    this_val = strtoul(substr, &nextstr, 16);
+    substr = nextstr;
     lp[1] = this_val;
 
-	if (sconf->use_dlp == 2)
-	{
-		this_val = strtoul(substr, &nextstr, 16);
-		substr = nextstr;
-		lp[2] = this_val;
-	}
-	else
-	{
-		lp[2] = 1;
-	}
+    if (sconf->use_dlp == 2)
+    {
+        this_val = strtoul(substr, &nextstr, 16);
+        substr = nextstr;
+        lp[2] = this_val;
+    }
+    else
+    {
+        lp[2] = 1;
+    }
 
     // combine the factors of the sieve value with
     // the factors of the polynomial 'a' value; the 
@@ -283,7 +420,6 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     // Because both lists are sorted, this is just
     // a merge operation
 
-#ifdef SPARSE_STORE
     // trial divide to find divisible primes less than med_B.
     // this will include small primes and primes dividing poly_a.
 
@@ -299,147 +435,78 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     if (mpz_sgn(Q) < 0)
         mpz_neg(Q, Q);
 
-    if (0)
+
+    for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
     {
-        mpz_tdiv_q(Q, Q, sconf->curr_a);
-
-        j = 0;
-        k = 0;
-        while (j < sconf->curr_poly->s)
+        uint32 prime = sconf->factor_base->list->prime[i];
+        while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-            uint32 prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
-
-            // then test and add more if we can
-            while (mpz_tdiv_ui(Q, prime) == 0)
-            {
-                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-                mpz_tdiv_q_ui(Q, Q, prime);
-            }
-            j++;
+            rel->fb_offsets[k++] = i;
+            mpz_tdiv_q_ui(Q, Q, prime);
         }
-
-        //for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
-        for (i = 1; i < sconf->factor_base->med_B; i++)
-        {
-            uint32 prime = sconf->factor_base->list->prime[i];
-            while (mpz_tdiv_ui(Q, prime) == 0)
-            {
-                rel->fb_offsets[k++] = i;
-                mpz_tdiv_q_ui(Q, Q, prime);
-            }
-        }
-
-        for (i = 0; i < this_num_factors; i++)
-        {
-            rel->fb_offsets[k++] = fb_offsets[i];
-        }
-
-        this_num_factors = k;
-
     }
-    else
-    {
-        for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
-        {
-            uint32 prime = sconf->factor_base->list->prime[i];
-            while (mpz_tdiv_ui(Q, prime) == 0)
-            {
-                rel->fb_offsets[k++] = i;
-                mpz_tdiv_q_ui(Q, Q, prime);
-            }
-        }
 
-        mpz_tdiv_q(Q, Q, sconf->curr_a);
-
-        // merge in the list of polya coefficients to the list of
-        // relation factors that we read in.  both lists are sorted,
-        // so this mergesort works quickly.  We didn't add extra factors
-        // of polya during sieving, so search for and add them here as
-        // they are merged into the complete list of factors for this relation.
-        i = j = 0;
-        while ((i < (int)this_num_factors) && (j < sconf->curr_poly->s)) {
-            uint32 prime;
-
-            if (fb_offsets[i] < sconf->curr_poly->qlisort[j]) {
-                rel->fb_offsets[k++] = fb_offsets[i++];
-            }
-            else if (fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
-                // add in the one factor that will always be there because a | Q
-                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-                prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
-
-                // then test and add more if we can
-                while (mpz_tdiv_ui(Q, prime) == 0)
-                {
-                    rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-                    mpz_tdiv_q_ui(Q, Q, prime);
-                }
-                j++;
-            }
-            else {
-                rel->fb_offsets[k] = fb_offsets[i++];
-                rel->fb_offsets[k + 1] = sconf->curr_poly->qlisort[j];
-                prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
-                k += 2;
-                while (mpz_tdiv_ui(Q, prime) == 0)
-                {
-                    rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-                    mpz_tdiv_q_ui(Q, Q, prime);
-                }
-                j++;
-            }
-        }
-
-        while (i < (int)this_num_factors)
-            rel->fb_offsets[k++] = fb_offsets[i++];
-
-        while (j < sconf->curr_poly->s)
-        {
-            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-            uint32 prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
-
-            // then test and add more if we can
-            while (mpz_tdiv_ui(Q, prime) == 0)
-            {
-                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
-                mpz_tdiv_q_ui(Q, Q, prime);
-            }
-            j++;
-        }
-
-        this_num_factors = k;
-    }
-    mpz_clear(Q);
-
-#else
+    mpz_tdiv_q(Q, Q, sconf->curr_a);
 
     // merge in the list of polya coefficients to the list of
     // relation factors that we read in.  both lists are sorted,
-    // so this mergesort works quickly.
-	i = j = k = 0;
-	while (i < (int)this_num_factors && j < sconf->curr_poly->s) {
-		if (fb_offsets[i] < sconf->curr_poly->qlisort[j]) {
-			rel->fb_offsets[k++] = fb_offsets[i++];
-		}
-		else if (fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
-			rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j++];
-		}
-		else {
-			rel->fb_offsets[k] = fb_offsets[i++];
-			rel->fb_offsets[k+1] = sconf->curr_poly->qlisort[j++];
-			k += 2;
-		}
-	}
-	while (i < (int)this_num_factors)
-		rel->fb_offsets[k++] = fb_offsets[i++];
-	while (j < sconf->curr_poly->s)
-		rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j++];
+    // so this mergesort works quickly.  We didn't add extra factors
+    // of polya during sieving, so search for and add them here as
+    // they are merged into the complete list of factors for this relation.
+    i = j = 0;
+    while ((i < (int)this_num_factors) && (j < sconf->curr_poly->s)) {
+        uint32 prime;
 
-    this_num_factors += sconf->curr_poly->s
+        if (fb_offsets[i] < sconf->curr_poly->qlisort[j]) {
+            rel->fb_offsets[k++] = fb_offsets[i++];
+        }
+        else if (fb_offsets[i] > sconf->curr_poly->qlisort[j]) {
+            // add in the one factor that will always be there because a | Q
+            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
 
-#endif
-	
+            // then test and add more if we can
+            while (mpz_tdiv_ui(Q, prime) == 0)
+            {
+                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                mpz_tdiv_q_ui(Q, Q, prime);
+            }
+            j++;
+        }
+        else {
+            rel->fb_offsets[k] = fb_offsets[i++];
+            rel->fb_offsets[k + 1] = sconf->curr_poly->qlisort[j];
+            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
+            k += 2;
+            while (mpz_tdiv_ui(Q, prime) == 0)
+            {
+                rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+                mpz_tdiv_q_ui(Q, Q, prime);
+            }
+            j++;
+        }
+    }
+
+    while (i < (int)this_num_factors)
+        rel->fb_offsets[k++] = fb_offsets[i++];
+
+    while (j < sconf->curr_poly->s)
+    {
+        rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+        uint32 prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[j]];
+
+        // then test and add more if we can
+        while (mpz_tdiv_ui(Q, prime) == 0)
+        {
+            rel->fb_offsets[k++] = sconf->curr_poly->qlisort[j];
+            mpz_tdiv_q_ui(Q, Q, prime);
+        }
+        j++;
+    }
+
+    this_num_factors = k;
+    mpz_clear(Q);
+
 	rel->sieve_offset = this_offset;
 	rel->large_prime[0] = lp[0];
 	rel->large_prime[1] = lp[1];
@@ -2102,7 +2169,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	uint32 cycle_bins[NUM_CYCLE_BINS+1] = {0};
 	char buf[LINE_BUF_SIZE];
 	char *subbuf;
-	uint32 last_id;
 	int first, last_poly;
 	uint32 this_rel = 0;
 
@@ -2183,18 +2249,22 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
             relation_list[i].poly_idx = i;
 			relation_list[i].large_prime[0] = sconf->in_mem_relations[i].large_prime[0];
 			relation_list[i].large_prime[1] = sconf->in_mem_relations[i].large_prime[1];
+            relation_list[i].large_prime[2] = sconf->in_mem_relations[i].large_prime[2];
 		}
 		total_poly_a = sconf->total_poly_a;
 		num_relations = sconf->buffered_rels;
 	}
 
     if (fobj->VFLAG > 0)
+    {
         printf("read %d relations\n", num_relations);
+    }
 
 	// re-filtering
     if (sconf->charcount == 42)
+    {
         rebuild_graph(sconf, relation_list, num_relations);
-
+    }
 
 	if (sconf->use_dlp == 2)
 	{
@@ -2245,7 +2315,6 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   polynomials */
 
 	i = 0;
-	last_id = 999;
 	last_poly = -1;
 	curr_expected = 0;
 	curr_saved = 0;
@@ -2281,21 +2350,23 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		}
 		else
 		{
-			//printf("this rel: %u, curr_rel: %u, curr_expected: %u, "
-			//	"curr_saved: %u, num_relations: %u, buffered_rels: %u, i: %u\n",
-			//	this_rel, curr_rel, curr_expected, curr_saved, num_relations, 
-			//	sconf->buffered_rels, i);
-
-			if (this_rel == sconf->buffered_rels)
-				break;
+            if (this_rel == sconf->buffered_rels)
+            {
+                printf("end of in-memory relations\n");
+                break;
+            }
 
 			rel = sconf->in_mem_relations + this_rel++;
-			if (rel->poly_idx < last_id)
-				buf[0] = 'A';
-			else
-				buf[0] = 'R';
 
-			last_id = rel->poly_idx;
+            printf("this rel: %u of %u, curr_rel: %u, curr_expected: %u, "
+                "curr_saved: %u, num_relations: %u, poly a,b = %u,%u\n",
+                this_rel - 1, sconf->buffered_rels, curr_rel,
+                curr_expected, curr_saved, num_relations, rel->poly_idx, rel->apoly_idx);
+
+            if (rel->apoly_idx != last_poly)
+                buf[0] = 'A';
+            else
+                buf[0] = 'R';
 		}
 
 		switch (buf[0]) {
@@ -2309,9 +2380,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			}
 			else
 			{
-				last_poly++;
+                last_poly = rel->apoly_idx;
 				this_rel--;
-				mpz_set(sconf->curr_a, sconf->poly_a_list[last_poly]);
+				mpz_set(sconf->curr_a, sconf->poly_a_list[rel->apoly_idx]);
 			}
 
 			curr_a_idx++;			
@@ -2406,207 +2477,11 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			}
 			else
 			{
-#ifdef SPARSE_STORE
-                // trial divide to find divisible primes less than med_B.
-                // this will include small primes and primes dividing poly_a.
+                r = relation_list + curr_saved;
+                td_and_merge_relation(sconf->factor_base,
+                    sconf->n, sconf, sconf->obj, r, rel);
 
-                {
-                    int hi, hj, hk;
-                    uint32 lp[3];
-                    uint32 this_offset, this_id, this_num_factors, this_parity, this_val;
-                    uint32 fb_offsets[MAX_SMOOTH_PRIMES];
-                    fb_list* fb = sconf->factor_base;
-                    
-                    r = relation_list + curr_saved;
-
-#ifdef SPARSE_STORE
-                    mpz_t Q;
-                    mpz_init(Q);
-#endif
-                
-                    //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-                    mpz_mul_ui(Q, sconf->curr_a, this_offset);
-                    if (this_parity)
-                        mpz_sub(Q, Q, sconf->curr_b[this_id]);
-                    else
-                        mpz_add(Q, Q, sconf->curr_b[this_id]);
-                    mpz_mul(Q, Q, Q);
-                    mpz_sub(Q, Q, sconf->n);
-
-                    if (mpz_sgn(Q) < 0)
-                        mpz_neg(Q, Q);
-
-
-                    for (hi = 1, hk = 0; hi < sconf->sieve_small_fb_start; hi++)
-                    {
-                        uint32 prime = sconf->factor_base->list->prime[hi];
-                        while (mpz_tdiv_ui(Q, prime) == 0)
-                        {
-                            r->fb_offsets[hk++] = hi;
-                            mpz_tdiv_q_ui(Q, Q, prime);
-                        }
-                    }
-
-                    mpz_tdiv_q(Q, Q, sconf->curr_a);
-
-                    // merge in the list of polya coefficients to the list of
-                    // relation factors that we read in.  both lists are sorted,
-                    // so this mergesort works quickly.  We didn't add extra factors
-                    // of polya during sieving, so search for and add them here as
-                    // they are merged into the complete list of factors for this relation.
-                    hi = hj = 0;
-                    while ((hi < (int)this_num_factors) && (hj < sconf->curr_poly->s)) {
-                        uint32 prime;
-
-                        if (fb_offsets[hi] < sconf->curr_poly->qlisort[hj]) {
-                            r->fb_offsets[hk++] = fb_offsets[hi++];
-                        }
-                        else if (fb_offsets[hi] > sconf->curr_poly->qlisort[hj]) {
-                            // add in the one factor that will always be there because a | Q
-                            r->fb_offsets[hk++] = sconf->curr_poly->qlisort[hj];
-                            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[hj]];
-
-                            // then test and add more if we can
-                            while (mpz_tdiv_ui(Q, prime) == 0)
-                            {
-                                r->fb_offsets[hk++] = sconf->curr_poly->qlisort[hj];
-                                mpz_tdiv_q_ui(Q, Q, prime);
-                            }
-                            hj++;
-                        }
-                        else {
-                            r->fb_offsets[hk] = fb_offsets[hi++];
-                            r->fb_offsets[hk + 1] = sconf->curr_poly->qlisort[hj];
-                            prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[hj]];
-                            hk += 2;
-                            while (mpz_tdiv_ui(Q, prime) == 0)
-                            {
-                                r->fb_offsets[hk++] = sconf->curr_poly->qlisort[hj];
-                                mpz_tdiv_q_ui(Q, Q, prime);
-                            }
-                            hj++;
-                        }
-                    }
-
-                    while (hi < (int)this_num_factors)
-                        r->fb_offsets[hk++] = fb_offsets[hi++];
-
-                    while (hj < sconf->curr_poly->s)
-                    {
-                        r->fb_offsets[hk++] = sconf->curr_poly->qlisort[hj];
-                        uint32 prime = sconf->factor_base->list->prime[sconf->curr_poly->qlisort[hj]];
-
-                        // then test and add more if we can
-                        while (mpz_tdiv_ui(Q, prime) == 0)
-                        {
-                            r->fb_offsets[hk++] = sconf->curr_poly->qlisort[hj];
-                            mpz_tdiv_q_ui(Q, Q, prime);
-                        }
-                        hj++;
-                    }
-
-                    this_num_factors = hk;
-
-                    mpz_clear(Q);
-
-                    r->sieve_offset = this_offset;
-                    r->large_prime[0] = lp[0];
-                    r->large_prime[1] = lp[1];
-                    r->large_prime[2] = lp[2];
-                    r->parity = this_parity;
-                    r->num_factors = this_num_factors;
-                    r->poly_idx = this_id;
-
-                    if (sconf->use_dlp == 2)
-                    {
-                        if (!check_relation(sconf->curr_a,
-                            sconf->curr_b[r->poly_idx], r, fb, sconf->n, 0))
-                        {
-                            yafu_add_to_cycles3(sconf, 0, lp);
-                        }
-                        else
-                        {
-                            //printf("relation string: %s\n",instr);
-                            //err_code = 1;
-                        }
-                    }
-                    else
-                    {
-                        if (!check_relation(sconf->curr_a,
-                            sconf->curr_b[r->poly_idx], r, fb, sconf->n, 0))
-                        {
-                            if (lp[0] != lp[1]) {
-                                yafu_add_to_cycles(sconf, sconf->obj->flags, lp[0], lp[1]);
-                                sconf->num_cycles++;
-                            }
-                            else {
-                                sconf->num_relations++;
-                            }
-                        }
-                        else
-                        {
-                            //printf("relation string: %s\n",instr);
-                            //err_code = 1;
-                        }
-                    }
-
-
-                }
-
-#else
-				//combine the factors of the sieve value with
-				//  the factors of the polynomial 'a' value; the 
-				//  linear algebra code has to know about both.
-				//  Because both lists are sorted, this is just
-				//  a merge operation 
-				int ii,jj,kk;				
-				r = relation_list + curr_saved;
-
-				//r->fb_offsets = (uint32 *)xmalloc(
-				//	(rel->num_factors + sconf->curr_poly->s) * sizeof(uint32));
-
-				ii = jj = kk = 0;
-				while (ii < (int)rel->num_factors && jj < sconf->curr_poly->s) {
-					if (rel->fb_offsets[ii] < sconf->curr_poly->qlisort[jj]) {
-						r->fb_offsets[kk++] = rel->fb_offsets[ii++];
-					}
-					else if (rel->fb_offsets[ii] > sconf->curr_poly->qlisort[jj]) {
-						r->fb_offsets[kk++] = sconf->curr_poly->qlisort[jj++];
-					}
-					else {
-						r->fb_offsets[kk] = rel->fb_offsets[ii++];
-						r->fb_offsets[kk+1] = sconf->curr_poly->qlisort[jj++];
-						kk += 2;
-					}
-				}
-				while (ii < (int)rel->num_factors)
-					r->fb_offsets[kk++] = rel->fb_offsets[ii++];
-				while (jj < sconf->curr_poly->s)
-					r->fb_offsets[kk++] = sconf->curr_poly->qlisort[jj++];
-	
-				r->num_factors = rel->num_factors + sconf->curr_poly->s;
-				r->large_prime[0] = rel->large_prime[0];
-				r->large_prime[1] = rel->large_prime[1];
-				r->parity = rel->parity;
-				r->sieve_offset = rel->sieve_offset;
-				r->poly_idx = rel->poly_idx;
-
-				if (!check_relation(sconf->curr_a,
-					sconf->curr_b[r->poly_idx], r, sconf->factor_base, 
-                    sconf->n, fobj->VFLAG))
-				{
-					if (r->large_prime[0] != r->large_prime[1]) {
-						yafu_add_to_cycles(sconf, fobj->flags, 
-							r->large_prime[0], r->large_prime[1]);
-						sconf->num_cycles++;
-					}
-					else {
-						sconf->num_relations++;
-					}
-				}
-
-#endif
-
+                table = sconf->cycle_table;
 			}
 
 			curr_saved++;

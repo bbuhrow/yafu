@@ -71,7 +71,6 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
     uint16 buffer[32];
     uint32 tmp3 = 0;
     int r;
-    int starti;
 
 #ifdef USE_8X_MOD_ASM
     uint16 *bl_sizes = dconf->bl_sizes;
@@ -170,9 +169,6 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
             }
             i++;
         }
-
-        starti = i;
-
 
 #if defined(USE_8X_MOD_ASM)
 

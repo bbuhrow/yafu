@@ -647,9 +647,9 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 						  dynamic_conf_t *conf, uint32 *polya_factors, 
 						  uint32 num_polya_factors, uint64 unfactored_residue);
 
-void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-						  uint32 *fb_offsets, uint32 poly_id, uint32 parity,
-						  static_conf_t *conf);
+void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
+    uint32 *fb_offsets, uint32 poly_id, uint32 apoly_id, uint32 parity,
+    static_conf_t *conf);
 
 
 // threading and misc

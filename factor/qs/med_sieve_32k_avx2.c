@@ -677,7 +677,7 @@ code to the public domain.
         "vpmaxuw	%%xmm0, %%xmm1, %%xmm5 \n\t"	/* replace xmm2 with max of root1 and root2 */ \
         "vpminuw	%%xmm0, %%xmm1, %%xmm6 \n\t"	/* replace xmm1 with min of root1 and root2 */ \
         "movq   %%r8, %%r14 \n\t" \
-        "addq   $8, %%r8 \n\t"                      /* get ready for next iteration */ \    
+        "addq   $8, %%r8 \n\t"                      /* get ready for next iteration */ \
         "vmovdqa %%xmm6, (%%r13, %%r14, 2) \n\t"    /* store 8 new root1's */ \
         "movq   8(%%r12,1),%%rdx \n\t"			    /* rdx holds prime pointer */ \
         "vmovdqa %%xmm5, (%%r11, %%r14, 2) \n\t"    /* store 8 new root2's */ \
@@ -974,15 +974,12 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     __m512i vp;
     __m512i vr1;
     __m512i vr2;
-    __m512i vi;
     __mmask32 result2;
     __mmask32 result1;
-    __mmask32 mfinal;
     uint32 res2;
     uint32 res1;
-    uint16* r1;
-    uint16* r2;
-    int k;
+    //uint16* r1;
+    //uint16* r2;
 
     // sieve primes 8 at a time, 2^14 < p < 2^15
 #if 1
@@ -993,6 +990,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
 #else
 
+    int k;
     __m128i vp_128;
     __m128i vr1_128;
     __m128i vr2_128;
@@ -1133,7 +1131,8 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     // or mingw, but seems to work for icc.  Given the danger
     // and the relatively low benefit, put it here for future
     // analysis.
-
+    __mmask32 mfinal;
+    __m512i vi;
 
     // do the final iteration with any excessive indices masked.
     vi = _mm512_set1_epi16(i);

@@ -133,6 +133,8 @@ uint64 NUM_P;
 uint64 P_MIN;
 uint64 P_MAX;
 
+void logprint_oc(const char *name, const char *method, char *args, ...);
+void logprint(FILE *infile, char *args, ...);
 extern void yafu_init(yafu_obj_t* yobj);
 extern void yafu_finalize(yafu_obj_t* yobj);
 

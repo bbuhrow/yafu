@@ -45,8 +45,9 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
 	uint32 spq_range = 1000, actual_range;
-	FILE *flog;
-	
+	FILE *flog = NULL;
+    int sysreturn;
+
 	char** filenames; // args
 	nfs_job_t* jobs; // args
 	
@@ -166,6 +167,12 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
         if (fobj->LOGFLAG)
         {
             flog = fopen(fobj->flogname, "a");
+            if (flog == NULL)
+            {
+                printf("could not open %s to append!\n", fobj->flogname);
+                printf("disabling logging...\n");
+                fobj->LOGFLAG = 0;
+            }
         }
 
 		//create the afb/rfb - we don't want the time it takes to do this to
@@ -173,7 +180,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 		sprintf(syscmd, "%s -b %s -k -c 0 -F", jobs[i].sievername, filenames[i]);
 		if (fobj->VFLAG > 0) printf("\ntest: generating factor bases\n");
 		gettimeofday(&start, NULL);
-		system(syscmd);
+		sysreturn = system(syscmd);
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
@@ -197,7 +204,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
         }
 
 		gettimeofday(&start, NULL);
-		system(syscmd);
+        sysreturn = system(syscmd);
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 		
@@ -644,7 +651,7 @@ void *lasieve_launcher(void *ptr)
 
     // todo: add command line input of arbitrary argument string to append to this command
 	// but not this:
-	sprintf(syscmd,"%s%s -f %u -c %u -o %s -n %d -%c %s ",
+	snprintf(syscmd, GSTR_MAXSIZE, "%s%s -f %u -c %u -o %s -n %d -%c %s ",
 			thread_data->job.sievername, fobj->VFLAG>0?" -v":"", thread_data->job.startq, 
 			thread_data->job.qrange, thread_data->outfilename, thread_data->tindex,
 			*side, fobj->nfs_obj.job_infile);

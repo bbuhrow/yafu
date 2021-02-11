@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
             &comp_info.AVX2, options->vproc);
     }
 #endif
-#endif
+#endif  
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -177,7 +177,6 @@ int main(int argc, char *argv[])
 	init_factobj(fobj, options);
     if (strlen(options->tune_info) > 0)
     {
-        printf("tune_info: %s\n", options->tune_info);
         apply_tuneinfo(&yafu_obj, fobj, options->tune_info);
     }
     

@@ -66,11 +66,9 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 	int smooth_num;
 	uint32 *fb_offsets;
 	sieve_fb_compressed *fbc;
-	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
 	uint32 block_loc;
 	uint16 *corrections = dconf->corrections;
 
-	fullfb_ptr = fullfb;
 	if (parity)
 	{
 		fbc = dconf->comp_sieve_n;

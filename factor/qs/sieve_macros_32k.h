@@ -93,7 +93,7 @@
   		"leal   (%%r10,%%r10,1),%%r11d \n\t"	/* 2x prime in r11; root2 prime overwritten */ \
 		"0:  \n\t"								/* sieve to "stop"(r13d) */ \
   		"movl   %%r9d,%%edx \n\t" \
-  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \  		
+  		"movl   %%edi,%%eax \n\t"				/* logp pointer overwritten */ \
   		"subb   %%sil,(%%rbx,%%rdx,1)	 \n\t"	/* rbx holds sieve */ \
   		"addl   %%r11d,%%edi \n\t" \
   		"subb   %%sil,(%%rbx,%%rax,1) \n\t" \
