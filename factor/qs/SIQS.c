@@ -715,10 +715,10 @@ void SIQS(fact_obj_t *fobj)
 		free(thread_data[i].dconf->relation_buf);
 	}
 
-    //if ((static_conf->do_batch) && (fobj->VFLAG > 0))
-    //{
-    //    printf("threw away %u batched relations\n", missed_batch_rels);
-    //}
+    if ((static_conf->do_batch) && (fobj->VFLAG > 0) && (missed_batch_rels > 0))
+    {
+        printf("threw away %u batched relations\n", missed_batch_rels);
+    }
 
     if (!static_conf->in_mem)
     {
@@ -1262,11 +1262,6 @@ uint32 siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 		gmp_sprintf(buf,"A 0x%Zx\n", dconf->curr_poly->mpz_poly_a);
 		qs_savefile_write_line(&sconf->obj->qs_obj.savefile,buf);
 	}
-
-#ifdef TARGET_KNC
-    // spam the screen
-    //printf("saving %d buffered relations\n", dconf->buffered_rels);
-#endif
 
 	// save the data and merge into master cycle structure
 	for (i = 0; i < dconf->buffered_rels; i++)
@@ -2280,8 +2275,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		exit(1);
 	}
 
-    sconf->in_mem_relations = (siqs_r*)malloc(32768 * 32 * sizeof(siqs_r));
-    sconf->buffered_rel_alloc = 32768 * 32;
+    sconf->in_mem_relations = (siqs_r*)malloc(32768 * sizeof(siqs_r));
+    sconf->buffered_rel_alloc = 32768;
     sconf->buffered_rels = 0;
 
 	if (sconf->num_blocks < 1)
@@ -2815,7 +2810,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->blockinit = closnuf;
 	sconf->tf_closnuf = closnuf;
 
-    if (sconf->digits_n < 70)
+    if (sconf->digits_n < sconf->obj->qs_obj.inmem_cutoff)
         sconf->in_mem = 1;
     else
         sconf->in_mem = 0;
@@ -2901,10 +2896,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	//no factors so far...
 	sconf->factor_list.num_factors = 0;
-
-    // test: use in-memory relation storage below a certain digit level?
-    // no.  maybe for tinysiqs someday.
-    sconf->in_mem = 0;
 
     // diagnostics for how often AVX512 gather/scatter operations occur.
     sconf->num_scatter_opp = 0;

@@ -129,6 +129,7 @@ int main(int argc, char *argv[])
     }
     else
     {
+        printf("input user seed %" PRIu64" detected\n", options->rand_seed);
         yafu_obj.USERSEED = 1;
     }
 

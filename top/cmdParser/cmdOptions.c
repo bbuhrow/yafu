@@ -37,6 +37,7 @@ SOFTWARE.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 // this function prints the help information specified by usageHelp
 // and OptionHelp.
@@ -69,7 +70,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat" };
+    "siqsNobat", "inmem" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -160,7 +161,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): SIQS Batch Target: how many residues to batch before doing batch GCD", 
     "                  : Uses external GMP-ECM instead of internal AVX-ECM", 
     "                  : Create savefile with B1 residues in AVX-ECM",
-    "                  : Do not use SIQS Batch GCD" };
+    "                  : Do not use SIQS Batch GCD",
+    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)" };
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -185,7 +187,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,1,
     1,1,0,1,1,
     1,1,1,0,0,
-    0 };
+    0,1 };
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -207,7 +209,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "", 
-    ""};
+    "", ""};
 
 
 
@@ -367,7 +369,10 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[16]) == 0)
     {
-        options->rand_seed = strtoull(arg, ptr, 10);
+        //options->rand_seed = strtoull(arg, ptr, 10);
+        printf("attempting to parse user rng seed from %s\n", arg);
+        sscanf(arg, "%lu", &options->rand_seed);
+        printf("read: % "PRIu64"\n", options->rand_seed);
     }
     else if (strcmp(opt, OptionArray[17]) == 0)
     {
@@ -927,6 +932,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // Whether or not to use batch factoring in 3LP
         options->siqsNobat = 1;
     }
+    else if (strcmp(opt, OptionArray[86]) == 0)
+    {
+        // argument "inmem"
+        // cutoff for processing in-memory
+        sscanf(arg, "%u", &options->inmem_cutoff);
+    }
     else
     {
         int i;
@@ -1070,6 +1081,7 @@ options_t* initOpt(void)
     // so we start this out fairly high and gradually decrease it.
     options->siqsBT = 1000000;
     options->no_opt = 0;
+    options->inmem_cutoff = 70;
 
     // ecm options
     strcpy(options->ecm_path, "");

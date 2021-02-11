@@ -239,7 +239,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
         uint32 prime = sconf->factor_base->list->prime[i];
         while (mpz_tdiv_ui(Q, prime) == 0)
         {
-            rel->fb_offsets[k++] = i;
+            r_out->fb_offsets[k++] = i;
             mpz_tdiv_q_ui(Q, Q, prime);
         }
     }
@@ -2232,6 +2232,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 						relation_list[i].large_prime[0] = prime1;
 						relation_list[i].large_prime[1] = prime2;
 					}
+                    relation_list[i].apoly_idx = total_poly_a - 1;
 					i++;
 				}
 				break;
@@ -2247,6 +2248,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		for (i=0; i<sconf->buffered_rels; i++)
 		{
             relation_list[i].poly_idx = i;
+            relation_list[i].apoly_idx = sconf->in_mem_relations[i].apoly_idx;
 			relation_list[i].large_prime[0] = sconf->in_mem_relations[i].large_prime[0];
 			relation_list[i].large_prime[1] = sconf->in_mem_relations[i].large_prime[1];
             relation_list[i].large_prime[2] = sconf->in_mem_relations[i].large_prime[2];
@@ -2288,6 +2290,15 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		num_relations = qs_purge_singletons(fobj, relation_list, num_relations,
 			table, hashtable);
 	}
+
+    //printf("relations surviving singleton removal:\n");
+    //for (i = 0; i < num_relations; i++)
+    //{
+    //    printf("pos: %u, polya = %u, lp = %x,%x\n", relation_list[i].poly_idx,
+    //        relation_list[i].apoly_idx, relation_list[i].large_prime[0],
+    //        relation_list[i].large_prime[1]);
+    //
+    //}
 
 	relation_list = (siqs_r *)xrealloc(relation_list, num_relations * 
 							sizeof(siqs_r));
@@ -2358,10 +2369,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 			rel = sconf->in_mem_relations + this_rel++;
 
-            printf("this rel: %u of %u, curr_rel: %u, curr_expected: %u, "
-                "curr_saved: %u, num_relations: %u, poly a,b = %u,%u\n",
-                this_rel - 1, sconf->buffered_rels, curr_rel,
-                curr_expected, curr_saved, num_relations, rel->poly_idx, rel->apoly_idx);
+            //printf("this rel: %u of %u, curr_rel: %u, curr_expected: %u, "
+            //    "curr_saved: %u, num_relations: %u, poly a,b = %u,%u\n",
+            //    this_rel - 1, sconf->buffered_rels, curr_rel,
+            //    curr_expected, curr_saved, num_relations, rel->poly_idx, rel->apoly_idx);
 
             if (rel->apoly_idx != last_poly)
                 buf[0] = 'A';
@@ -2377,15 +2388,21 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			{
 				subbuf = buf + 2;	//skip the A and a space
 				mpz_set_str(sconf->curr_a, subbuf, 0);
+                curr_a_idx++;
+                //printf("New poly_a = %s, index %u\n", subbuf, curr_a_idx + 1);
 			}
 			else
 			{
+                //gmp_printf("New poly_a = %Zx, index %u of %u\n", 
+                //    sconf->poly_a_list[rel->apoly_idx],
+                //    rel->apoly_idx, sconf->total_poly_a);
                 last_poly = rel->apoly_idx;
 				this_rel--;
 				mpz_set(sconf->curr_a, sconf->poly_a_list[rel->apoly_idx]);
+                curr_a_idx = rel->apoly_idx;
 			}
 
-			curr_a_idx++;			
+            
 			num_derived_poly = process_poly_a(sconf);
 
 			if (num_derived_poly == 0)
@@ -2398,7 +2415,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			else
 				bad_A_val = 0;
 
-			mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a); 
+            if (!sconf->in_mem)
+			    mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a); 
 
 			/* all 'b' values start off unused */
 			final_poly_index = (uint32 *)xrealloc(final_poly_index,
@@ -2460,6 +2478,10 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				relation_t, verifying correctness in the process */
 				r = relation_list + curr_saved;
 				subbuf = buf + 2;	//skip over the R and a space
+
+                //printf("saving buffered rel @ pos %u: %s",
+                //    curr_saved, subbuf);
+
 				if (process_rel(subbuf, sconf->factor_base,
 					sconf->n, sconf, sconf->obj, r)) {
 
@@ -2478,6 +2500,15 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			else
 			{
                 r = relation_list + curr_saved;
+
+                //char c = ' ';
+                //
+                //if (rel->parity)
+                //    c = '-';
+                //printf("saving in-mem rel %u @ pos %u, %c%x %u,%u L %x %x\n", 
+                //    this_rel-1, curr_saved, c, rel->sieve_offset, rel->apoly_idx,
+                //    rel->poly_idx, rel->large_prime[0], rel->large_prime[1]);
+
                 td_and_merge_relation(sconf->factor_base,
                     sconf->n, sconf, sconf->obj, r, rel);
 
@@ -2750,8 +2781,9 @@ uint32 qs_purge_duplicate_relations(fact_obj_t *fobj,
 	for (i = 1, j = 0; i < num_relations; i++) {
 		if (compare_relations(rlist + j, rlist + i) == 0)
 		{
-			//printf("relations with polyidx %d and polyidx %d are the same\n", 
-			//	rlist[j].poly_idx, rlist[i].poly_idx);
+			printf("relations %d and %d with polyidx %d,%d and polyidx %d,%d are the same\n", 
+				j, i, rlist[j].apoly_idx, rlist[j].poly_idx, 
+                rlist[i].apoly_idx, rlist[i].poly_idx);
         }
         else
         {

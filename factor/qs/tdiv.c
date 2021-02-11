@@ -105,6 +105,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	}
 
 #if 0 //def SPARSE_STORE
+    // edit: removed because med_B seems to be a little too high
+    // of a bound for non-stored factors.  Puts quite a bit of 
+    // extra work in the filtering code.  Current bound is the
+    // small prime bound.
+
     // only actually store indices of primes larger than med_B.
     // If the relation ultimately proves useful during filtering
     // then we will trial divide it there to recover its divisors,
@@ -138,13 +143,15 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		//add this one
 		if (sconf->is_tiny)
 		{	
-			buffer_relation(offset,large_prime,smooth_num+1,
-				fb_offsets, dconf->curr_poly->index, poly_id,parity,dconf,polya_factors,it, 1);
+            buffer_relation(offset, large_prime, smooth_num + 1,
+                fb_offsets, dconf->curr_poly->index, poly_id,
+                parity, dconf, polya_factors, it, 1);
 		}
         else
         {
             buffer_relation(offset, large_prime, smooth_num + 1,
-                fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf, polya_factors, it, 1);
+                fb_offsets, dconf->curr_poly->index, poly_id, 
+                parity, dconf, polya_factors, it, 1);
         }
 
 #ifdef QS_TIMING
@@ -325,7 +332,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 					//add this one
 					dconf->dlp_useful++;
 					buffer_relation(offset, large_prime, smooth_num + 1,
-						fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf, polya_factors, it, 1);
+						fb_offsets, dconf->curr_poly->index, poly_id, parity,
+                        dconf, polya_factors, it, 1);
 				}
 			}
 			else
@@ -991,7 +999,7 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 		//first check that this relation won't overflow the buffer
 		if (conf->buffered_rels >= conf->buffered_rel_alloc)
 		{
-			printf("reallocating in-mem relation storage...\n");
+			//printf("reallocating in-mem relation storage...\n");
 			conf->in_mem_relations = (siqs_r *)realloc(conf->in_mem_relations, 
 				conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
 			if (conf->in_mem_relations == NULL)
@@ -1004,15 +1012,32 @@ void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors,
 
 		r = conf->in_mem_relations + conf->buffered_rels++;
 
-		r->large_prime[0] = large_prime[0];
-		r->large_prime[1] = large_prime[1];
+        if (large_prime[0] < large_prime[1])
+        {
+            r->large_prime[0] = large_prime[0];
+            r->large_prime[1] = large_prime[1];
+        }
+        else
+        {
+            r->large_prime[1] = large_prime[0];
+            r->large_prime[0] = large_prime[1];
+        }
+
+        // should not be using in-mem if also using TLP!
+        // so as of now the proper sorting of this is ignored...
 		r->large_prime[2] = large_prime[2];
 		r->num_factors = num_factors;
         r->apoly_idx = apoly_id;
 		r->poly_idx = poly_id;
 		r->parity = parity;
 		r->sieve_offset = offset;
-		for (i=0; i<num_factors; i++)
+        if (num_factors > MAX_SMOOTH_PRIMES)
+        {
+            printf("error: num_factors (%u) exceeds maximum (%u)!\n",
+                num_factors, MAX_SMOOTH_PRIMES);
+        }
+
+		for (i=0; i < MIN(num_factors, MAX_SMOOTH_PRIMES); i++)
 			r->fb_offsets[i] = fb_offsets[i];
 
 	}

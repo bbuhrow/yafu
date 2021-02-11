@@ -395,6 +395,7 @@ typedef struct
 	double gbl_override_mfbd;		// override the mfbd exponent
     uint32 gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
 
+    uint32 inmem_cutoff;
 	uint32 num_factors;			//number of factors found in this method
 	uint32 flags;				//each bit corresponds to a location in the 
 								//flags enum
