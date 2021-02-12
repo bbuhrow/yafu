@@ -215,7 +215,7 @@ code to the public domain.
         __m256i v_blkloc = _mm256_load_si256((__m256i *)bl_locs);  \
         __m128i v_blksz128 = _mm_load_si128((__m128i *)bl_sizes);  \
         __m128i v_blkloc128 = _mm_load_si128((__m128i *)bl_locs);  \
-        uint32 msk32, pos;
+        uint32_t msk32, pos;
 
 
 #endif
@@ -251,27 +251,27 @@ this file contains code implementing 3)
 
 */
 
-void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
+void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
-    uint32 i;
-    uint32 tmp, prime, root1, root2, report_num;
-    uint32 bound10;
-    uint32 bound12;
-    uint32 bound13;
+    uint32_t i;
+    uint32_t tmp, prime, root1, root2, report_num;
+    uint32_t bound10;
+    uint32_t bound12;
+    uint32_t bound13;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-    uint32 block_loc;
-    uint16 buffer[16];
-    uint32 tmp3 = 0;
-    uint32 r;
+    uint32_t block_loc;
+    uint16_t buffer[16];
+    uint32_t tmp3 = 0;
+    uint32_t r;
 
-    uint16 *bl_sizes = dconf->bl_sizes;
-    uint16 *bl_locs = dconf->bl_locs;
+    uint16_t *bl_sizes = dconf->bl_sizes;
+    uint16_t *bl_locs = dconf->bl_locs;
 
     fullfb_ptr = fullfb;
     if (parity)
@@ -393,8 +393,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
             //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
             //block, which is the state of the sieve now.
-            tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                * (uint64)fullfb_ptr->small_inv[i]) >> 24);
+            tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
             tmp = block_loc + tmp*prime;
             tmp = tmp - 32768;
 
@@ -452,7 +452,7 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             }
             else
             {
-                while ((uint32)i < sconf->factor_base->fb_12bit_B)
+                while ((uint32_t)i < sconf->factor_base->fb_12bit_B)
                 {
                     prime = fbc->prime[i];
                     root1 = fbc->root1[i];
@@ -463,8 +463,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
                     //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
                     //block, which is the state of the sieve now.
-                    tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                        * (uint64)fullfb_ptr->small_inv[i]) >> 24);
+                    tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                        * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
                     tmp = block_loc + tmp*prime;
                     tmp = tmp - 32768;
 
@@ -509,8 +509,8 @@ void tdiv_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
                     //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
                     //block, which is the state of the sieve now.
-                    tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                        * (uint64)fullfb_ptr->small_inv[i]) >> 26);
+                    tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                        * (uint64_t)fullfb_ptr->small_inv[i]) >> 26);
                     tmp = block_loc + tmp*prime;
                     tmp = tmp - 32768;
 

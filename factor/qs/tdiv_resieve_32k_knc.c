@@ -32,11 +32,11 @@ code to the public domain.
 #define INIT_RESIEVE \
         vcorr = _mm512_set1_epi32(32768 - block_loc); \
         vroot1 = _mm512_extload_epi32((__m512i *)(&fbc->root1[i]),             \
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
         vroot2 = _mm512_extload_epi32((__m512i *)(&fbc->root2[i]),             \
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
         vprimes = _mm512_extload_epi32((__m512i *)(&fbc->prime[i]),             \
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);      \
         vroot1 = _mm512_add_epi32(vroot1, vcorr); \
         vroot2 = _mm512_add_epi32(vroot2, vcorr);
 
@@ -105,19 +105,19 @@ this file contains code implementing 4)
 
 */
 
-void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum, 
+void resieve_medprimes_32k_knc(uint8_t parity, uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	int i;
-	uint32 bound, report_num;
+	uint32_t bound, report_num;
 	int smooth_num;
-	uint32 *fb_offsets;
+	uint32_t *fb_offsets;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 block_loc;
-	uint16 *corrections = dconf->corrections;
+	uint32_t block_loc;
+	uint16_t *corrections = dconf->corrections;
 
 
     __m512i vzero = _mm512_setzero_epi32();
@@ -153,7 +153,7 @@ void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
 
         bound = sconf->factor_base->fb_14bit_B;        
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
             int p = (int)fbc->prime[i];
             int r1 = (int)fbc->root1[i] + 32768 - block_loc;
@@ -188,7 +188,7 @@ void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
         }
         */
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
             __mmask16 resmask;
             __m512i vroot1, vroot2, vcorr, vprimes;
@@ -213,7 +213,7 @@ void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
 
         bound = sconf->factor_base->fb_15bit_B;        
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
             __mmask16 resmask;
             __m512i vroot1, vroot2, vcorr, vprimes;
@@ -232,7 +232,7 @@ void resieve_medprimes_32k_knc(uint8 parity, uint32 poly_id, uint32 bnum,
 
         bound = sconf->factor_base->med_B;        
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
             __mmask16 resmask;
             __m512i vroot1, vroot2, vcorr, vprimes;

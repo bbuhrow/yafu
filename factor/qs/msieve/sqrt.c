@@ -18,11 +18,11 @@ Purpose:	Port into Yafu-1.14.
 #include "qs.h"
 
 /*--------------------------------------------------------------------*/
-uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n, 
-		fb_element_siqs *factor_base, uint32 fb_size,
-		qs_la_col_t *vectors, uint32 vsize, 
+uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n, 
+		fb_element_siqs *factor_base, uint32_t fb_size,
+		qs_la_col_t *vectors, uint32_t vsize, 
 		siqs_r *relation_list,
-		uint64 *null_vectors, uint32 multiplier,
+		uint64_t *null_vectors, uint32_t multiplier,
 		mpz_t *poly_a_list, poly_t *poly_list,
 		factor_list_t *factor_list) {
 
@@ -61,13 +61,13 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	   use them? */
 
 	mpz_t factor, x, y, tmp, tmp2, sum, tmpn;
-	uint32 i, j, k, m;
-	uint64 mask;
-	uint32 *fb_counts;
-	uint32 large_primes[200], num_large_primes;
-	uint32 num_relations, prime;
+	uint32_t i, j, k, m;
+	uint64_t mask;
+	uint32_t *fb_counts;
+	uint32_t large_primes[200], num_large_primes;
+	uint32_t num_relations, prime;
 	siqs_r *relation;
-	uint32 factor_found = 0;
+	uint32_t factor_found = 0;
 	int bits, bits_before;
 
 	mpz_init(factor);
@@ -78,14 +78,14 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	mpz_init(sum);
 	mpz_init(tmpn);
 	
-	fb_counts = (uint32 *)malloc(fb_size * sizeof(uint32));
+	fb_counts = (uint32_t *)malloc(fb_size * sizeof(uint32_t));
 	mpz_set_ui(tmpn, multiplier);
 
 	bits = mpz_sizeinbase(n, 2);
 
 	/* For each dependency */
 	for (mask = 1; mask; mask <<= 1) {
-		memset(fb_counts, 0, fb_size * sizeof(uint32));
+		memset(fb_counts, 0, fb_size * sizeof(uint32_t));
 		mpz_set_ui(x, 1);
 		mpz_set_ui(y, 1);
 
@@ -108,8 +108,8 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			for (j = 0; j < num_relations; j++) {
 				mpz_ptr a, b;
 				poly_t *poly;
-				uint32 sieve_offset;
-				uint32 sign_of_index;
+				uint32_t sieve_offset;
+				uint32_t sign_of_index;
 
 				relation = &relation_list[vectors[i].cycle.list[j]];
 				
@@ -201,9 +201,9 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 		   more efficient than multiplying by one p at a time */
 
 		for (i = MIN_FB_OFFSET; i < fb_size; i++) {
-			uint32 mask2 = 0x80000000;
-			uint32 exponent = fb_counts[i] / 2;
-			uint32 prime = factor_base->prime[i];
+			uint32_t mask2 = 0x80000000;
+			uint32_t exponent = fb_counts[i] / 2;
+			uint32_t prime = factor_base->prime[i];
 
 			
 			if (fb_counts[i] &0x1)
@@ -245,7 +245,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			   before saving tmp, and don't save at all
 			   if tmp contains *only* multiplier factors */
 			if (multiplier > 1) {
-				uint32 ignore_me = spGCD(multiplier,
+				uint32_t ignore_me = spGCD(multiplier,
 						mpz_tdiv_ui(tmp, multiplier)); //zShortMod(&tmp, multiplier));
 				if (ignore_me > 1) {
 					mpz_tdiv_q_ui(tmp, tmp, ignore_me); //zShortDiv(&tmp, ignore_me, &tmp2);
@@ -295,7 +295,7 @@ uint32 yafu_find_factors(fact_obj_t *obj, mpz_t n,
 
 			//divide out the multiplier from the remaining number
 			if (multiplier > 1) {
-				uint32 ignore_me = spGCD(multiplier,
+				uint32_t ignore_me = spGCD(multiplier,
                     mpz_tdiv_ui(tmp2, multiplier));
 				if (ignore_me > 1) {
                     mpz_tdiv_q_ui(tmp2, tmp2, ignore_me);

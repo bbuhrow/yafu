@@ -58,21 +58,21 @@ this file contains code implementing 6) as well as other auxiliary routines
 
 */
 
-void trial_divide_Q_siqs(uint32 report_num,  uint8 parity, 
-						 uint32 poly_id, uint32 bnum, 
+void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity, 
+						 uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
-	uint64 q64, f64;
+	uint64_t q64, f64;
 	int j, i, it;
-	uint32 prime;
+	uint32_t prime;
 	int dlp_done = 0;
 	int smooth_num;
-	uint32 *fb_offsets;
-	uint32 polya_factors[20];
+	uint32_t *fb_offsets;
+	uint32_t polya_factors[20];
     sieve_fb_compressed *fbc = dconf->comp_sieve_p;
-	uint32 offset, block_loc;
+	uint32_t offset, block_loc;
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
@@ -129,9 +129,9 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
 	{
         // save this slp (single large prime)
-		uint32 large_prime[3];
+		uint32_t large_prime[3];
 		
-		large_prime[0] = (uint32)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
+		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 		large_prime[1] = 1;
 		large_prime[2] = 1;
 
@@ -169,7 +169,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	// quick check if Q is way too big for DLP (more than 64 bits)	
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 64)
 	{
-		uint64 res;
+		uint64_t res;
 
         // not obviously too big.  So now check if we are actually
         // within the defined bounds for DLPs.
@@ -236,11 +236,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     for (i = 0; i < rb->num_relations; i++)
                     {
                         cofactor_t* c = rb->relations + i;
-                        uint32* f = rb->factors + c->factor_list_word;
+                        uint32_t* f = rb->factors + c->factor_list_word;
 
                         if (c->success)
                         {
-                            uint8 parity = c->signed_offset < 0 ? 1 : 0;
+                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
                             if (c->success == 3)
                                 dconf->tlp_useful++;
@@ -320,10 +320,10 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 			
 			if ((f64 > 1) && (f64 != q64) && (q64 % f64 == 0))
 			{
-				uint32 large_prime[3];
+				uint32_t large_prime[3];
 
-				large_prime[0] = (uint32)f64;
-				large_prime[1] = (uint32)(q64 / f64);
+				large_prime[0] = (uint32_t)f64;
+				large_prime[1] = (uint32_t)(q64 / f64);
 				large_prime[2] = 1;
 
 				if ((large_prime[0] < sconf->large_prime_max) &&
@@ -364,8 +364,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	// quick check if Q is obviously too big.
 	if (mpz_sizeinbase(dconf->Qvals[report_num], 2) < 96)
 	{
-		uint64 res;
-		uint32 numit = 128;
+		uint64_t res;
+		uint32_t numit = 128;
 
 		double qfloat = mpz_get_d(dconf->Qvals[report_num]);
 
@@ -375,8 +375,8 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
         // the defined tlp bounds.
 		if ((qfloat > sconf->max_fb3) && (qfloat < sconf->large_prime_max3))
 		{
-			uint32 large_prime[3];
-			uint32 r;
+			uint32_t large_prime[3];
+			uint32_t r;
 
 #ifdef OUTPUT_TLP_ATTEMPT_DETAILS
 			FILE *fid;
@@ -488,11 +488,11 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     for (i = 0; i < rb->num_relations; i++)
                     {
                         cofactor_t *c = rb->relations + i;
-                        uint32 *f = rb->factors + c->factor_list_word;
+                        uint32_t *f = rb->factors + c->factor_list_word;
 
                         if (c->success)
                         {
-                            uint8 parity = c->signed_offset < 0 ? 1 : 0;
+                            uint8_t parity = c->signed_offset < 0 ? 1 : 0;
 
                             if (c->success == 3)
                                 dconf->tlp_useful++;
@@ -612,7 +612,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     fclose(fid);
 #endif
 
-                    //if (large_prime[2] < (uint32)sconf->pmax)
+                    //if (large_prime[2] < (uint32_t)sconf->pmax)
                     //	printf("tlp with small 3rd prime: %u,%u,%u\n",
                     //		large_prime[0], large_prime[1], large_prime[2]);
 
@@ -834,7 +834,7 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
                     fclose(fid);
 #endif
 
-                    //if (large_prime[2] < (uint32)sconf->pmax)
+                    //if (large_prime[2] < (uint32_t)sconf->pmax)
                     //	printf("tlp with small 3rd prime: %u,%u,%u\n",
                     //		large_prime[0], large_prime[1], large_prime[2]);
 
@@ -873,16 +873,16 @@ void trial_divide_Q_siqs(uint32 report_num,  uint8 parity,
 	return;
 }
 
-void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
-    uint32 *fb_offsets, uint32 apoly_id, uint32 bpoly_id, uint32 parity,
-    dynamic_conf_t *conf, uint32 *polya_factors,
-    uint32 num_polya_factors, uint64 unfactored_residue)
+void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factors,
+    uint32_t *fb_offsets, uint32_t apoly_id, uint32_t bpoly_id, uint32_t parity,
+    dynamic_conf_t *conf, uint32_t *polya_factors,
+    uint32_t num_polya_factors, uint64_t unfactored_residue)
 {
     // put this relations's info into a temporary buffer which
     // will get merged with other such buffers (if multi-threaded) and
     // dumped to file once the threads are joined.
     siqs_r *rel;
-    uint32 i, j, k;
+    uint32_t i, j, k;
 
     // first check that this relation won't overflow the buffer
     if (conf->buffered_rels >= conf->buffered_rel_alloc)
@@ -916,7 +916,7 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 #ifdef SPARSE_STORE
     // extra factors of polya are not added to the list of factors. they will be added
     // during filtering on only the relations that survive singleton removal.
-    memcpy(rel->fb_offsets, fb_offsets, sizeof(uint32) * num_factors);
+    memcpy(rel->fb_offsets, fb_offsets, sizeof(uint32_t) * num_factors);
     rel->num_factors = num_factors;
 
 #else
@@ -982,14 +982,14 @@ void buffer_relation(uint32 offset, uint32 *large_prime, uint32 num_factors,
 	return;
 }
 
-void save_relation_siqs(uint32 offset, uint32 *large_prime, uint32 num_factors, 
-    uint32 *fb_offsets, uint32 poly_id, uint32 apoly_id, uint32 parity,
+void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_factors, 
+    uint32_t *fb_offsets, uint32_t poly_id, uint32_t apoly_id, uint32_t parity,
 	static_conf_t *conf)
 {
 	char buf[1024];
 	fact_obj_t *obj = conf->obj;
-	uint32 i, k;
-	uint32 lp[3];
+	uint32_t i, k;
+	uint32_t lp[3];
 
 	if (conf->in_mem)
 	{

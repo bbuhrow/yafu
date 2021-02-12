@@ -124,13 +124,13 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 		if (sieve_log != NULL)
 		{
-			uint32 j;
+			uint32_t j;
 			logprint(sieve_log,"input is a perfect power\n");
 
 			for (j=0; j<fobj->num_factors; j++)
 			{
                 char* s = mpz_get_str(NULL, 10, fobj->fobj_factors[j].factor);
-				uint32 k;
+				uint32_t k;
 				for (k=0; k<fobj->fobj_factors[j].count; k++)
 				{
 					logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), s);
@@ -320,7 +320,7 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	return 0;
 }
 
-int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
+int checkBl(mpz_t n, uint32_t *qli, fb_list *fb, mpz_t *Bl, int s)
 {
 	//check that Bl^2 == N mod ql and Bl == 0 mod qj for 1<=j<=s, j != l
 	int i,j,p,q;
@@ -417,7 +417,7 @@ void siqsbench(fact_obj_t *fobj)
 	return;
 }
 
-void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
+void get_dummy_params(int bits, uint32_t *B, uint32_t *M, uint32_t *NB)
 {
 	int i;
 	double scale;
@@ -456,7 +456,7 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 	if (bits <= param_table[0][0])
 	{
 		scale = (double)bits / (double)param_table[0][0];
-		*B = (uint32)(scale * (double)(param_table[0][1]));		
+		*B = (uint32_t)(scale * (double)(param_table[0][1]));		
 		*M = 40;
 		*NB = 1;
 	}
@@ -469,10 +469,10 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 				scale = (double)(param_table[i+1][0] - bits) /
 					(double)(param_table[i+1][0] - param_table[i][0]);
 				*B = param_table[i+1][1] - 
-					(uint32)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
+					(uint32_t)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
 				
-				*M = (uint32)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
-				*NB = (uint32)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
+				*M = (uint32_t)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
+				*NB = (uint32_t)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
 			}
 		}
 	}
@@ -484,13 +484,13 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 
 		scale = (double)(param_table[21][1] - param_table[20][1]) /
 			(double)(param_table[21][0] - param_table[20][0]);
-		*B = (uint32)(((double)bits - param_table[21][0]) * 
+		*B = (uint32_t)(((double)bits - param_table[21][0]) * 
 			scale + param_table[21][1]);
 		*M = param_table[21][2];	//reuse last one
 
 		scale = (double)(param_table[21][3] - param_table[20][3]) /
 			(double)(param_table[21][0] - param_table[20][0]);
-		*NB = (uint32)(((double)bits - param_table[21][0]) * 
+		*NB = (uint32_t)(((double)bits - param_table[21][0]) * 
 			scale + param_table[21][3]);
 	}
 

@@ -74,22 +74,22 @@ this file contains code implementing 2)
 
 //#define DO_4X_SPV 1
 
-void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum, 
+void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum, 
 				static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	// we have flagged this sieve offset as likely to produce a relation
 	// nothing left to do now but check and see.
 	int i;
-	uint32 bound, tmp, prime, root1, root2;
+	uint32_t bound, tmp, prime, root1, root2;
 	int smooth_num;
 	sieve_fb_compressed *fbc;
 	tiny_fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->tinylist;
-	uint8 logp;
-    uint8 bits;
-    //uint8 sm_bits;
-    uint32 tmp1, tmp2, tmp3, tmp4, offset, report_num;
+	uint8_t logp;
+    uint8_t bits;
+    //uint8_t sm_bits;
+    uint32_t tmp1, tmp2, tmp3, tmp4, offset, report_num;
     // the minimum value of the poly (near its root)
-    uint32 minoffset = mpz_get_ui(dconf->gmptmp3);
+    uint32_t minoffset = mpz_get_ui(dconf->gmptmp3);
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -123,7 +123,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
-		uint64 q64;
+		uint64_t q64;
 
 		// this one qualifies to check further, log that fact.
 		dconf->num++;
@@ -187,27 +187,27 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		// do the small primes in optimized batches of 4
 		bound = (sconf->sieve_small_fb_start - 4);
 		
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 			tmp1 = offset + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+			q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> 32; 
 			// at this point tmp1 is offset / prime
 			tmp1 = offset - tmp1 * fullfb_ptr->prime[i];
 			// now tmp1 is offset % prime
 
 			tmp2 = offset + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
+			q64 = (uint64_t)tmp2 * (uint64_t)fullfb_ptr->small_inv[i+1];
 			tmp2 = q64 >> 32; 
 			tmp2 = offset - tmp2 * fullfb_ptr->prime[i+1];
 
 			tmp3 = offset + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
+			q64 = (uint64_t)tmp3 * (uint64_t)fullfb_ptr->small_inv[i+2];
 			tmp3 = q64 >> 32;
 			tmp3 = offset - tmp3 * fullfb_ptr->prime[i+2];
 
 			tmp4 = offset + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
+			q64 = (uint64_t)tmp4 * (uint64_t)fullfb_ptr->small_inv[i+3];
 			tmp4 = q64 >> 32; 
 			tmp4 = offset - tmp4 * fullfb_ptr->prime[i+3];
 			
@@ -255,9 +255,9 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 		}
 
 		// finish up the rest of the small primes
-		while ((uint32)i < sconf->sieve_small_fb_start)
+		while ((uint32_t)i < sconf->sieve_small_fb_start)
 		{
-			uint64 q64;
+			uint64_t q64;
 
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
@@ -266,7 +266,7 @@ void filter_SPV(uint8 parity, uint8 *sieve, uint32 poly_id, uint32 bnum,
 			
 			// this is just offset % prime (but divisionless!)
 			tmp = offset + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+			q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
 			tmp = q64 >>  32; 
 			tmp = offset - tmp * prime;
 

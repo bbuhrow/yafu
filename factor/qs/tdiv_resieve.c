@@ -626,19 +626,19 @@ this file contains code implementing 4)
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
 	}
 
-void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+void resieve_medprimes(uint8_t parity, uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	int i;
-	uint32 bound, report_num;
+	uint32_t bound, report_num;
 	int smooth_num;
-	uint32 *fb_offsets;
+	uint32_t *fb_offsets;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 block_loc;
-	uint16 *corrections = dconf->corrections;
+	uint32_t block_loc;
+	uint16_t *corrections = dconf->corrections;
 
 	fullfb_ptr = fullfb;
 	if (parity)
@@ -689,7 +689,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		// up to 14 bits in size and instead use standard normal trial division.
 
 		bound = sconf->factor_base->fb_14bit_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 			//minimum prime > blocksize / 2
 			//maximum correction = blocksize
@@ -710,7 +710,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			//	fbc->prime[i+3],fbc->root1[i+3],fbc->root2[i+3],
 			//	(fbc->prime[i+3] - 1 + BLOCKSIZE) / fbc->prime[i+3]);
 
-			uint32 result = 0;
+			uint32_t result = 0;
 			RESIEVE_8X_14BIT_MAX;
 			
 			if (result == 0)
@@ -764,9 +764,9 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #endif
 		bound = sconf->factor_base->fb_15bit_B;
 
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 result = 0;
+			uint32_t result = 0;
 			RESIEVE_8X_15BIT_MAX;
 
 			if (result == 0)
@@ -819,10 +819,10 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 
-			uint32 result = 0;
+			uint32_t result = 0;
 			RESIEVE_8X_16BIT_MAX;
 
 			if (result == 0)
@@ -879,13 +879,13 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		// cause resieving to be slower.
 
 		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint64 q64;
-			uint32 tmp;
-			uint32 prime = fbc->prime[i];
-			uint32 root1 = fbc->root1[i];
-			uint32 root2 = fbc->root2[i];
+			uint64_t q64;
+			uint32_t tmp;
+			uint32_t prime = fbc->prime[i];
+			uint32_t root1 = fbc->root1[i];
+			uint32_t root2 = fbc->root2[i];
 
 			//after sieving a block, the root is updated for the start of the next block
 			//get it back on the current block's progression
@@ -902,7 +902,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			{
 				//r2 is bigger than prime, it could be on the progression, check it.
 				tmp = root2 + fullfb_ptr->correction[i];
-				q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+				q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
 				tmp = q64 >> 40; 
 				tmp = root2 - tmp * prime;
 
@@ -914,7 +914,7 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 				else if (root1 >= prime)
 				{			
 					tmp = root1 + fullfb_ptr->correction[i];
-					q64 = (uint64)tmp * (uint64)fullfb_ptr->small_inv[i];
+					q64 = (uint64_t)tmp * (uint64_t)fullfb_ptr->small_inv[i];
 					tmp = q64 >> 40; 
 					tmp = root1 - tmp * prime;
 
@@ -932,12 +932,12 @@ void resieve_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		//there can be at most one instance of the prime in the block.  thus the 
 		//distance to the next one is equal to 'prime', rather than a multiple of it.
 		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 tmp;
-			uint32 prime = fbc->prime[i];
-			uint32 root1 = fbc->root1[i];
-			uint32 root2 = fbc->root2[i];
+			uint32_t tmp;
+			uint32_t prime = fbc->prime[i];
+			uint32_t root1 = fbc->root1[i];
+			uint32_t root2 = fbc->root2[i];
 
 			//the fbptr roots currently point to the next block
 			//so adjust the current index

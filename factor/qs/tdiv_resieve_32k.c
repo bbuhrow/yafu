@@ -56,18 +56,18 @@ this file contains code implementing 4)
 
 */
 
-void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum, 
+void resieve_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	int i;
-	uint32 bound, report_num;
+	uint32_t bound, report_num;
 	int smooth_num;
-	uint32 *fb_offsets;
+	uint32_t *fb_offsets;
 	sieve_fb_compressed *fbc;
-	uint32 block_loc;
-	uint16 *corrections = dconf->corrections;
+	uint32_t block_loc;
+	uint16_t *corrections = dconf->corrections;
 
 	if (parity)
 	{
@@ -102,9 +102,9 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 
 		bound = sconf->factor_base->fb_14bit_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 result = 0;
+			uint32_t result = 0;
 
 			RESIEVE_8X_14BIT_MAX;
 			
@@ -120,9 +120,9 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		bound = sconf->factor_base->fb_15bit_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 result = 0;
+			uint32_t result = 0;
 
 			RESIEVE_8X_15BIT_MAX;
 			
@@ -138,10 +138,10 @@ void resieve_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		bound = sconf->factor_base->med_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 
-			uint32 result = 0;
+			uint32_t result = 0;
 
 			RESIEVE_8X_16BIT_MAX;
 			

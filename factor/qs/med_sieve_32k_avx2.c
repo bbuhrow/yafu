@@ -693,24 +693,24 @@ code to the public domain.
 
         typedef struct
         {
-            uint8* sieve;					//0
-            uint16* primeptr;				//8
-            uint16* root1ptr;				//16
-            uint16* root2ptr;				//24
-            uint16* logptr;					//32
-            uint32 startprime;				//40
-            uint32 med_B;					//44
+            uint8_t* sieve;					//0
+            uint16_t* primeptr;				//8
+            uint16_t* root1ptr;				//16
+            uint16_t* root2ptr;				//24
+            uint16_t* logptr;					//32
+            uint32_t startprime;				//40
+            uint32_t med_B;					//44
         } helperstruct_t;
 
 
-void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
-    uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
 {
-    uint32 i;
-    uint32 med_B;
+    uint32_t i;
+    uint32_t med_B;
 
-    uint32 prime, root1, root2, tmp, stop;
-    uint8 logp;
+    uint32_t prime, root1, root2, tmp, stop;
+    uint8_t logp;
 
 #ifdef USE_AVX512BW
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
@@ -822,13 +822,13 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         if (steps1 > steps2)
         {
             //printf("swapped\n");
-            fb->root2[i] = (uint16)(root1 + steps1 * prime - 32768);
-            fb->root1[i] = (uint16)(root2 + steps2 * prime - 32768);
+            fb->root2[i] = (uint16_t)(root1 + steps1 * prime - 32768);
+            fb->root1[i] = (uint16_t)(root2 + steps2 * prime - 32768);
         }
         else
         {
-            fb->root1[i] = (uint16)(root1 + steps1 * prime - 32768);
-            fb->root2[i] = (uint16)(root2 + steps2 * prime - 32768);
+            fb->root1[i] = (uint16_t)(root1 + steps1 * prime - 32768);
+            fb->root2[i] = (uint16_t)(root2 + steps2 * prime - 32768);
         }
     }
 
@@ -881,7 +881,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 #else
     for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -902,7 +902,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     // small set of crossover primes manually, one at a time.
     for (; i < full_fb->fb_13bit_B; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -976,10 +976,10 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     __m512i vr2;
     __mmask32 result2;
     __mmask32 result1;
-    uint32 res2;
-    uint32 res1;
-    //uint16* r1;
-    //uint16* r2;
+    uint32_t res2;
+    uint32_t res1;
+    //uint16_t* r1;
+    //uint16_t* r2;
 
     // sieve primes 8 at a time, 2^14 < p < 2^15
 #if 1
@@ -1142,7 +1142,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         16, 17, 18, 19, 20, 21, 22, 23,
         24, 25, 26, 27, 28, 29, 30, 31));
 #else
-    ALIGNED_MEM uint16 tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
+    ALIGNED_MEM uint16_t tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
         8, 9, 10, 11, 12, 13, 14, 15,
         16, 17, 18, 19, 20, 21, 22, 23,
         24, 25, 26, 27, 28, 29, 30, 31 };
@@ -1240,14 +1240,14 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
 	#include <mmintrin.h>
 
-void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
-    uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
 {
-    uint32 i;
-    uint32 med_B;
+    uint32_t i;
+    uint32_t med_B;
 
-    uint32 prime, root1, root2, tmp, stop;
-    uint8 logp;
+    uint32_t prime, root1, root2, tmp, stop;
+    uint8_t logp;
 
 #ifdef USE_AVX512BW
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
@@ -1265,7 +1265,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
     for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -1285,7 +1285,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     // small set of crossover primes manually, one at a time.
     for (; i < full_fb->fb_13bit_B; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -1366,10 +1366,10 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     __mmask32 result2;
     __mmask32 result1;
     __mmask32 mfinal;
-    uint32 res2;
-    uint32 res1;
-    uint16* r1;
-    uint16* r2;
+    uint32_t res2;
+    uint32_t res1;
+    uint16_t* r1;
+    uint16_t* r2;
     int k;
 
     // sieve primes 8 at a time, 2^14 < p < 2^15
@@ -1384,8 +1384,8 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     __m128i primes;
     __m128i root1s;
     __m128i root2s;
-    uint32 root1mask;
-    uint32 root2mask;
+    uint32_t root1mask;
+    uint32_t root2mask;
 
     logp = 15; 
     for (; i < full_fb->fb_15bit_B - 8; i += 8)
@@ -1487,7 +1487,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         16, 17, 18, 19, 20, 21, 22, 23,
         24, 25, 26, 27, 28, 29, 30, 31));
 #else
-    ALIGNED_MEM uint16 tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
+    ALIGNED_MEM uint16_t tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
         8, 9, 10, 11, 12, 13, 14, 15,
         16, 17, 18, 19, 20, 21, 22, 23,
         24, 25, 26, 27, 28, 29, 30, 31 };

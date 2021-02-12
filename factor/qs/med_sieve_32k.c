@@ -38,23 +38,23 @@ code to the public domain.
 
 typedef struct
 {
-	uint8 *sieve;					//0
-	uint16 *primeptr;				//8
-	uint16 *root1ptr;				//16
-	uint16 *root2ptr;				//24
-	uint16 *logptr;					//32
-	uint32 startprime;				//40
-	uint32 med_B;					//44
+	uint8_t *sieve;					//0
+	uint16_t *primeptr;				//8
+	uint16_t *root1ptr;				//16
+	uint16_t *root2ptr;				//24
+	uint16_t *logptr;					//32
+	uint32_t startprime;				//40
+	uint32_t med_B;					//44
 } helperstruct_t;
 
-void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
-    uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
+    uint32_t start_prime, uint8_t s_init)
 {
-    uint32 i;
-    uint32 med_B;
+    uint32_t i;
+    uint32_t med_B;
 
-    uint32 prime, root1, root2, tmp, stop;
-    uint8 logp;
+    uint32_t prime, root1, root2, tmp, stop;
+    uint8_t logp;
 
     helperstruct_t asm_input;
 
@@ -153,13 +153,13 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         steps2 += _mm_popcnt_u32(mask2);
         if (steps1 > steps2)
         {
-            fb->root2[i] = (uint16)(steps1*prime - 32768);
-            fb->root1[i] = (uint16)(steps2*prime - 32768);
+            fb->root2[i] = (uint16_t)(steps1*prime - 32768);
+            fb->root1[i] = (uint16_t)(steps2*prime - 32768);
         }
         else
         {
-            fb->root1[i] = (uint16)(steps1*prime - 32768);
-            fb->root2[i] = (uint16)(steps2*prime - 32768);
+            fb->root1[i] = (uint16_t)(steps1*prime - 32768);
+            fb->root2[i] = (uint16_t)(steps2*prime - 32768);
         }
 
 
@@ -182,7 +182,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 #else
 	for (i=start_prime;i< full_fb->fb_13bit_B-8;i++)
 	{	
-		uint8 *s2;		
+		uint8_t *s2;		
 
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -200,7 +200,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
 	for (; i<med_B; i++)
 	{	
-		uint8 *s2;		
+		uint8_t *s2;		
 
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -353,11 +353,11 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         int j, idx;
 
         vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -370,9 +370,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vroot2 = _mm512_add_epi32(vroot2, vprime);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -385,9 +385,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vroot2 = _mm512_add_epi32(vroot2, vprime);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -403,9 +403,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
         vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
         vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
@@ -425,9 +425,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vmin = _mm512_min_epu32(vroot1, vroot2);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
     }
 
 
@@ -463,11 +463,11 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         int j, idx;
 
         vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -480,9 +480,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vroot2 = _mm512_add_epi32(vroot2, vprime);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -498,9 +498,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
         vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
         vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
@@ -520,9 +520,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vmin = _mm512_min_epu32(vroot1, vroot2);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
     }
 
     for (; i<full_fb->fb_15bit_B; i++)
@@ -551,11 +551,11 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         int j, idx;
 
         vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
 
 #pragma unroll(16)
         for (j = 0; j < 16; j++)
@@ -571,9 +571,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vroot1,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vroot2,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
         vroot1 = _mm512_mask_add_epi32(vroot1, mask1, vroot1, vprime);
         vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
@@ -593,9 +593,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vmin = _mm512_min_epu32(vroot1, vroot2);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
     }
 
@@ -607,11 +607,11 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         int j, idx;
 
         vprime = _mm512_extload_epi32((__m512i *)(&fb->prime[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot1 = _mm512_extload_epi32((__m512i *)(&fb->root1[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
         vroot2 = _mm512_extload_epi32((__m512i *)(&fb->root2[i]),
-            _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+            _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
 
         mask1 = _mm512_cmp_epu32_mask(vroot1, vblock, _MM_CMPINT_LT);
         mask2 = _mm512_cmp_epu32_mask(vroot2, vblock, _MM_CMPINT_LT);
@@ -634,9 +634,9 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
         vmin = _mm512_min_epu32(vroot1, vroot2);
 
         _mm512_extstore_epi32((__m512i *)(&fb->root1[i]), vmin,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
         _mm512_extstore_epi32((__m512i *)(&fb->root2[i]), vmax,
-            _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+            _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
     }
 
 #else
@@ -825,7 +825,7 @@ void med_sieveblock_32k(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb,
 
     for (; i<full_fb->fb_15bit_B; i++)
     {	
-        uint8 *s2;		
+        uint8_t *s2;		
 
         prime = fb->prime[i];
         root1 = fb->root1[i];

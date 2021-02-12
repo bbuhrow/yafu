@@ -38,18 +38,18 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
-    uint32 med_B = sconf->factor_base->med_B;
+    uint32_t med_B = sconf->factor_base->med_B;
 
-    uint32 j;
+    uint32_t j;
     int k;
-    uint32 root1, root2, prime;
-    uint8 logp = 0;
+    uint32_t root1, root2, prime;
+    uint8_t logp = 0;
 
     k = 0;
     ptr = &rootupdates[(v - 1) * bound + startprime];
@@ -68,10 +68,10 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -86,30 +86,30 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j < sconf->factor_base->fb_10bit_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_P;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -127,23 +127,23 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -155,9 +155,9 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             vprime = _mm512_load_epi32((__m512i *)(&update_data.prime[j]));
             vroot1 = _mm512_extload_epi32((__m512i *)(&update_data.sm_firstroots1[j]),
-                _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+                _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
             vroot2 = _mm512_extload_epi32((__m512i *)(&update_data.sm_firstroots2[j]),
-                _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+                _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
             vpval = _mm512_load_epi32((__m512i *)ptr);
             mask1 = _mm512_cmp_epu32_mask(vpval, vroot1, _MM_CMPINT_GT);
             mask2 = _mm512_cmp_epu32_mask(vpval, vroot2, _MM_CMPINT_GT);
@@ -169,19 +169,19 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             vmin = _mm512_min_epu32(vroot1, vroot2);
 
             _mm512_extstore_epi32((__m512i *)(&update_data.sm_firstroots1[j]), vmin,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&update_data.sm_firstroots2[j]), vmax,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
             _mm512_extstore_epi32((__m512i *)(&fb_p->root1[j]), vmin,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&fb_p->root2[j]), vmax,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
             _mm512_extstore_epi32((__m512i *)(&fb_n->root1[j]), _mm512_sub_epi32(vprime, vmax),
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&fb_n->root2[j]), _mm512_sub_epi32(vprime, vmin),
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
         }
 
@@ -201,10 +201,10 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -219,30 +219,30 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             j < sconf->factor_base->fb_10bit_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_N;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -261,23 +261,23 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -290,9 +290,9 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
             vprime = _mm512_load_epi32((__m512i *)(&update_data.prime[j]));
             vroot1 = _mm512_extload_epi32((__m512i *)(&update_data.sm_firstroots1[j]),
-                _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+                _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
             vroot2 = _mm512_extload_epi32((__m512i *)(&update_data.sm_firstroots2[j]),
-                _MM_UPCONV_EPI32_UINT16, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
+                _MM_UPCONV_EPI32_uint16_t, _MM_BROADCAST32_NONE, _MM_HINT_NONE);
             vpval = _mm512_load_epi32((__m512i *)ptr);
             vroot1 = _mm512_add_epi32(vroot1, vpval);
             vroot2 = _mm512_add_epi32(vroot2, vpval);
@@ -304,19 +304,19 @@ void nextRoots_32k_knc_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             vmin = _mm512_min_epu32(vroot1, vroot2);
 
             _mm512_extstore_epi32((__m512i *)(&update_data.sm_firstroots1[j]), vmin,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&update_data.sm_firstroots2[j]), vmax,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
             _mm512_extstore_epi32((__m512i *)(&fb_p->root1[j]), vmin,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&fb_p->root2[j]), vmax,
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
             _mm512_extstore_epi32((__m512i *)(&fb_n->root1[j]), _mm512_sub_epi32(vprime, vmax),
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
             _mm512_extstore_epi32((__m512i *)(&fb_n->root2[j]), _mm512_sub_epi32(vprime, vmin),
-                _MM_DOWNCONV_EPI32_UINT16, _MM_HINT_NONE);
+                _MM_DOWNCONV_EPI32_uint16_t, _MM_HINT_NONE);
 
         }
 
@@ -334,30 +334,30 @@ void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
 
     lp_bucket *lp_bucket_p = dconf->buckets;
-    uint32 med_B = sconf->factor_base->med_B;
-    uint32 large_B = sconf->factor_base->large_B;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
 
-    uint32 j, interval;
+    uint32_t j, interval;
     int k,numblocks,idx;
-    uint32 root1, root2, prime;
+    uint32_t root1, root2, prime;
 
     int bound_index=0;
     int check_bound = BUCKET_ALLOC/2 - 1;
-    uint32 bound_val = med_B;
-    uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
+    uint32_t bound_val = med_B;
+    uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
 
-    uint32 *bptr;
+    uint32_t *bptr;
     int bnum, room;
 
-    uint8 logp=0;
+    uint8_t logp=0;
     polysieve_t helperstruct;
 
     __m512i vshifted_index = _mm512_setr_epi32(
@@ -370,10 +370,10 @@ void nextRoots_32k_knc_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
     __m512i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval;
     __m512i velement1, velement2, vbsize, vidx, vblockm1 = _mm512_set1_epi32(32767);
     __mmask16 mask1, mask2;
-    __declspec(aligned(64)) uint32 e1[16];
-    __declspec(aligned(64)) uint32 e2[16];
-    __declspec(aligned(64)) uint32 b1[16];
-    __declspec(aligned(64)) uint32 b2[16];
+    __declspec(aligned(64)) uint32_t e1[16];
+    __declspec(aligned(64)) uint32_t e2[16];
+    __declspec(aligned(64)) uint32_t b1[16];
+    __declspec(aligned(64)) uint32_t b2[16];
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -957,35 +957,35 @@ void nextRoots_32k_knc_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 bound = sconf->factor_base->B;
+    uint32_t bound = sconf->factor_base->B;
 
     char *nu = dconf->curr_poly->nu;
     char *gray = dconf->curr_poly->gray;
     int numB = dconf->numB;
-    uint32 poly_offset = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+    uint32_t poly_offset = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 
     lp_bucket *lp_bucket_p = dconf->buckets;
-    uint32 med_B = sconf->factor_base->med_B;
-    uint32 large_B = sconf->factor_base->large_B;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
 
-    uint32 j, interval;
+    uint32_t j, interval;
     int k, numblocks;
-    uint32 root1, root2, prime;
+    uint32_t root1, root2, prime;
 
     int bound_index = 0;
     int check_bound = BUCKET_ALLOC / 2 - 1;
-    uint32 bound_val = med_B;
-    uint32 *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
+    uint32_t bound_val = med_B;
+    uint32_t *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
 
-    uint32 *bptr;
+    uint32_t *bptr;
     int bnum, room;
 
-    uint8 logp = 0;
+    uint8_t logp = 0;
     
-    __declspec(aligned(64)) uint32 e1[16];
-    __declspec(aligned(64)) uint32 e2[16];
-    __declspec(aligned(64)) uint32 b1[16];
-    __declspec(aligned(64)) uint32 b2[16];
+    __declspec(aligned(64)) uint32_t e1[16];
+    __declspec(aligned(64)) uint32_t e2[16];
+    __declspec(aligned(64)) uint32_t b1[16];
+    __declspec(aligned(64)) uint32_t b2[16];
 
 
     __m512i vshifted_index = _mm512_setr_epi32(

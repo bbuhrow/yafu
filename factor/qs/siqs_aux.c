@@ -24,7 +24,7 @@ code to the public domain.
 #include "ytools.h"
 #include "gmp_xface.h"
 
-uint32 make_fb_siqs(static_conf_t *sconf)
+uint32_t make_fb_siqs(static_conf_t *sconf)
 {
 	//finds the factor base primes, and computes the solutions to the congruence x^2 = N mod p
 	//for the QS, these are the starting positions of the sieve relative to the sqrt of N.
@@ -33,14 +33,14 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 
 	//locals
 	int i;
-	uint32 b,j,r,k;
-	uint32 prime, root1, root2;
-	uint8 logp;
-    uint32 urange = sconf->factor_base->B * sconf->multiplier * 1.1; // 10000000;
-	uint32 lrange = 0;
+	uint32_t b,j,r,k;
+	uint32_t prime, root1, root2;
+	uint8_t logp;
+    uint32_t urange = sconf->factor_base->B * sconf->multiplier * 1.1; // 10000000;
+	uint32_t lrange = 0;
 	fp_digit f;
 #ifdef USE_8X_MOD_ASM
-	uint32 shift = 24;
+	uint32_t shift = 24;
 #endif
     soe_staticdata_t* sdata = soe_init(0, 1, 32768);
 
@@ -48,8 +48,8 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	//unpack stuff from static data structure
 	fb_list *fb = sconf->factor_base;
 	mpz_ptr n = sconf->n;
-	uint32 mul = sconf->multiplier;
-	uint32 *modsqrt = sconf->modsqrt_array;
+	uint32_t mul = sconf->multiplier;
+	uint32_t *modsqrt = sconf->modsqrt_array;
 
     //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
 	free(PRIMES);
@@ -64,7 +64,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 	j=2; i=1;
 	while (j<fb->B)
 	{
-		if ((uint32)i >= NUM_P)
+		if ((uint32_t)i >= NUM_P)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
@@ -78,7 +78,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			i=0;
 		}
 
-		prime = (uint32)PRIMES[i];
+		prime = (uint32_t)PRIMES[i];
 		r = mpz_tdiv_ui(n, prime);
 		if (r == 0)
 		{
@@ -108,14 +108,14 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 			root2 = prime - k;
 
 			//compute logp
-			logp = (uint8)(log((double)prime)/log(2.0) + .5)/2;
+			logp = (uint8_t)(log((double)prime)/log(2.0) + .5)/2;
 
 			//fill in factor base
 			fb->list->prime[j] = prime;
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
 
-            fb->list->binv[j] = (1ULL << 32) / (uint64)prime;
+            fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
 
 			//store a couple things so we can replace single precision
 			//mods with shifts and muls during trial division
@@ -128,7 +128,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				fb->tinylist->prime[j] = prime;
 				fb->tinylist->logprime[j] = logp;
 
-				fb->tinylist->small_inv[j] = (uint32)(((uint64)1 << 32) / (uint64)prime);
+				fb->tinylist->small_inv[j] = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
 								(double)fb->tinylist->small_inv[j]) {
 					fb->tinylist->correction[j] = 1;
@@ -151,7 +151,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					(j % 8 == 0))
 					shift = 28;
 
-				fb->list->small_inv[j] = (uint16)(((uint32)1 << shift) / prime);
+				fb->list->small_inv[j] = (uint16_t)(((uint32_t)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
@@ -161,7 +161,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					fb->list->small_inv[j]++;
 				}
 #else
-				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
+				fb->list->small_inv[j] = (uint32_t)(((uint64_t)1 << FOGSHIFT) / (uint64_t)prime);
 				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
@@ -183,18 +183,18 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 		{
 			//this prime works
 			ShanksTonelli_1((fp_digit)r,(fp_digit)prime,&f);
-			root1 = (uint32)f;
+			root1 = (uint32_t)f;
 			root2 = prime - root1;
 
 			//compute logp
-			logp = (uint8)(log((double)prime)/log(2.0) + .5);
+			logp = (uint8_t)(log((double)prime)/log(2.0) + .5);
 
 			//fill in factor base
 			fb->list->prime[j] = prime;
 			modsqrt[j] = root1;
 			fb->list->logprime[j] = logp;
 
-            fb->list->binv[j] = (1ULL << 32) / (uint64)prime;
+            fb->list->binv[j] = (1ULL << 32) / (uint64_t)prime;
 
 			//store a couple things so we can replace single precision
 			//mods with shifts and muls during trial division
@@ -204,7 +204,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				fb->tinylist->prime[j] = prime;
 				fb->tinylist->logprime[j] = logp;
 
-				fb->tinylist->small_inv[j] = (uint32)(((uint64)1 << 32) / (uint64)prime);
+				fb->tinylist->small_inv[j] = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
 				if (floor(MP_RADIX / (double)prime + 0.5) ==
 								(double)fb->tinylist->small_inv[j]) {
 					fb->tinylist->correction[j] = 1;
@@ -228,7 +228,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 					(j % 8 == 0))
 					shift = 28;
 
-				fb->list->small_inv[j] = (uint16)(((uint32)1 << shift) / prime);
+				fb->list->small_inv[j] = (uint16_t)(((uint32_t)1 << shift) / prime);
 				if (floor((double)(1 << shift) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
@@ -239,7 +239,7 @@ uint32 make_fb_siqs(static_conf_t *sconf)
 				}
 				
 #else
-				fb->list->small_inv[j] = (uint32)(((uint64)1 << FOGSHIFT) / (uint64)prime);
+				fb->list->small_inv[j] = (uint32_t)(((uint64_t)1 << FOGSHIFT) / (uint64_t)prime);
 				if (floor((double)(1ULL << FOGSHIFT) / (double)prime + 0.5) ==
 								(double)fb->list->small_inv[j]) {
 					fb->list->correction[j] = 1;
@@ -457,7 +457,7 @@ void get_params(static_conf_t *sconf)
 	if (bits <= param_table[0][0])
 	{
 		scale = (double)bits / (double)param_table[0][0];
-		fb->B = (uint32)(scale * (double)(param_table[0][1]));		
+		fb->B = (uint32_t)(scale * (double)(param_table[0][1]));		
 		sconf->large_mult = 40;
 		sconf->num_blocks = 1;
 	}
@@ -470,14 +470,14 @@ void get_params(static_conf_t *sconf)
 				scale = (double)(param_table[i+1][0] - bits) /
 					(double)(param_table[i+1][0] - param_table[i][0]);
 				fb->B = param_table[i+1][1] - 
-					(uint32)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
+					(uint32_t)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
 				
-				//sconf->large_mult = (uint32)((double)param_table[i+1][2] - 
+				//sconf->large_mult = (uint32_t)((double)param_table[i+1][2] - 
 				//	(scale * (double)(param_table[i+1][2] - param_table[i][2])) + 0.5);
-				sconf->large_mult = (uint32)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
-				//sconf->num_blocks = (uint32)((double)param_table[i+1][3] - 
+				sconf->large_mult = (uint32_t)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
+				//sconf->num_blocks = (uint32_t)((double)param_table[i+1][3] - 
 				//	(scale * (double)(param_table[i+1][3] - param_table[i][3])) + 0.5);
-				sconf->num_blocks = (uint32)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
+				sconf->num_blocks = (uint32_t)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
 			}
 		}
 	}
@@ -489,14 +489,14 @@ void get_params(static_conf_t *sconf)
 
 		scale = (double)(param_table[NUM_PARAM_ROWS-1][1] - param_table[NUM_PARAM_ROWS-2][1]) /
 			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
-		fb->B = (uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
+		fb->B = (uint32_t)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
 			scale + param_table[NUM_PARAM_ROWS-1][1]);
 		sconf->large_mult = param_table[NUM_PARAM_ROWS-1][2];	//reuse last one
 
 		scale = (double)(param_table[NUM_PARAM_ROWS-1][3] - param_table[NUM_PARAM_ROWS-2][3]) /
 			(double)(param_table[NUM_PARAM_ROWS-1][0] - param_table[NUM_PARAM_ROWS-2][0]);
 		//sconf->num_blocks = param_table[NUM_PARAM_ROWS-1][3];	//reuse last one
-		sconf->num_blocks = (uint32)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
+		sconf->num_blocks = (uint32_t)(((double)bits - param_table[NUM_PARAM_ROWS-1][0]) * 
 			scale + param_table[NUM_PARAM_ROWS-1][3]);
 
 	}
@@ -537,7 +537,7 @@ int qcomp_siqs(const void *x, const void *y)
 		return -1;
 }
 
-void set_aprime_roots(static_conf_t *sconf, uint32 val, int *qli, int s, 
+void set_aprime_roots(static_conf_t *sconf, uint32_t val, int *qli, int s, 
 	sieve_fb_compressed *fb, int action)
 {
 	int i;
@@ -633,10 +633,10 @@ void get_gray_code(siqs_poly *poly)
 	return;
 }
 
-uint32 yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
+uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
 				mpz_t new_factor) {
 
-	uint32 i, bitsleft;
+	uint32_t i, bitsleft;
 	int isnew = 1;
 	mpz_t tmpz;
 

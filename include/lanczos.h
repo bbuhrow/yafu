@@ -43,20 +43,20 @@ extern "C" {
    from the top left corner of the block */
 
 typedef struct {
-	uint16 row_off;
-	uint16 col_off;
+	uint16_t row_off;
+	uint16_t col_off;
 } qs_entry_idx_t;
 
 /* struct representing one block */
 
 typedef struct {
-	uint32 start_row;
-	uint32 start_col;         /* coordinates of top left corner */
-	uint32 num_rows;
-	uint32 num_entries;       /* number of nonzero matrix entries */
-	uint32 num_entries_alloc; /* nonzero matrix entries allocated */
+	uint32_t start_row;
+	uint32_t start_col;         /* coordinates of top left corner */
+	uint32_t num_rows;
+	uint32_t num_entries;       /* number of nonzero matrix entries */
+	uint32_t num_entries_alloc; /* nonzero matrix entries allocated */
 	qs_entry_idx_t *entries;     /* nonzero entries */
-	uint16 *med_entries;      /* nonzero entries for medium dense rows */
+	uint16_t *med_entries;      /* nonzero entries for medium dense rows */
 } qs_packed_block_t;
 
 enum thread_command {
@@ -73,24 +73,24 @@ enum thread_command {
 typedef struct {
 	/* items used during initialization */
 
-	uint32 my_oid;		/* number assigned to this thread */
+	uint32_t my_oid;		/* number assigned to this thread */
 	qs_la_col_t *initial_cols; /* unpacked matrix columns */
-	uint32 col_min;
-	uint32 col_max;		/* range of column indices to handle */
-	uint32 nrows_in;	/* number of rows in the matrix */
-	uint32 ncols_in;	/* number of columns in the matrix */
-	uint32 block_size;	/* used to pack the column entries */
+	uint32_t col_min;
+	uint32_t col_max;		/* range of column indices to handle */
+	uint32_t nrows_in;	/* number of rows in the matrix */
+	uint32_t ncols_in;	/* number of columns in the matrix */
+	uint32_t block_size;	/* used to pack the column entries */
 
 	/* items used during matrix multiplies */
 
-	uint32 ncols;		/* number of columns used by this thread */
-	uint32 num_dense_rows;  /* number of rows packed by dense_blocks */
-	uint64 **dense_blocks;  /* for holding dense matrix rows; 
+	uint32_t ncols;		/* number of columns used by this thread */
+	uint32_t num_dense_rows;  /* number of rows packed by dense_blocks */
+	uint64_t **dense_blocks;  /* for holding dense matrix rows; 
 				   dense_blocks[i] holds the i_th batch of
 				   64 matrix rows */
-	uint32 num_blocks;
-	uint64 *x;
-	uint64 *b;
+	uint32_t num_blocks;
+	uint64_t *x;
+	uint64_t *b;
 	qs_packed_block_t *blocks; /* sparse part of matrix, in block format */
 
 	/* fields for thread pool synchronization */
@@ -115,10 +115,10 @@ typedef struct {
 /* struct representing a packed matrix */
 
 typedef struct {
-	uint32 nrows;
-	uint32 ncols;
-	uint32 num_dense_rows;
-	uint32 num_threads;
+	uint32_t nrows;
+	uint32_t ncols;
+	uint32_t num_dense_rows;
+	uint32_t num_threads;
 
 	qs_la_col_t *unpacked_cols;  /* used if no packing takes place */
 
@@ -128,20 +128,20 @@ typedef struct {
 
 void yafu_packed_matrix_init(fact_obj_t *obj, 
 			qs_packed_matrix_t *packed_matrix,
-			qs_la_col_t *A, uint32 nrows, uint32 ncols,
-			uint32 num_dense_rows);
+			qs_la_col_t *A, uint32_t nrows, uint32_t ncols,
+			uint32_t num_dense_rows);
 
 void yafu_packed_matrix_free(qs_packed_matrix_t *packed_matrix);
 
 size_t yafu_packed_matrix_sizeof(qs_packed_matrix_t *packed_matrix);
 
-void yafu_mul_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_MxN_Nx64(qs_packed_matrix_t *A, uint64_t *x, uint64_t *b);
 
-void yafu_mul_trans_MxN_Nx64(qs_packed_matrix_t *A, uint64 *x, uint64 *b);
+void yafu_mul_trans_MxN_Nx64(qs_packed_matrix_t *A, uint64_t *x, uint64_t *b);
 
-void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x, uint64 *y, uint32 n);
+void yafu_mul_Nx64_64x64_acc(uint64_t *v, uint64_t *x, uint64_t *y, uint32_t n);
 
-void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y, uint64 *xy, uint32 n);
+void yafu_mul_64xN_Nx64(uint64_t *x, uint64_t *y, uint64_t *xy, uint32_t n);
 
 /* for big jobs, we use a multithreaded framework that calls
    these two routines for the heavy lifting */

@@ -91,20 +91,20 @@ this file contains code implementing 1)
 	// for the speedups associated with 8x sse2 asm division and compression of
 	// small primes is worth it (on 64k builds only).
 
-int check_relations_siqs_16(uint32 blocknum, uint8 parity,
+int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //unrolled x128; for large inputs
-    uint32 i, j, it = sconf->qs_blocksize >> 3;
-    uint32 thisloc;
-    uint32 num_reports = 0;
-    uint64 *sieveblock;
+    uint32_t i, j, it = sconf->qs_blocksize >> 3;
+    uint32_t thisloc;
+    uint32_t num_reports = 0;
+    uint64_t *sieveblock;
 
     __m512i vmask = _mm512_set1_epi32(0x80808080);
 
 
     dconf->num_reports = 0;
-    sieveblock = (uint64 *)dconf->sieve;
+    sieveblock = (uint64_t *)dconf->sieve;
 
     for (j = 0; j < 4096; j += 8)	
     {		

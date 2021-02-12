@@ -56,25 +56,25 @@ this file contains code implementing 3)
 
 */
 
-void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
+void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i;
-    uint32 bound, tmp, prime, root1, root2, report_num;
+    uint32_t bound, tmp, prime, root1, root2, report_num;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-    uint32 block_loc;
-    uint16 buffer[32];
-    uint32 tmp3 = 0;
+    uint32_t block_loc;
+    uint16_t buffer[32];
+    uint32_t tmp3 = 0;
     int r;
 
 #ifdef USE_8X_MOD_ASM
-    uint16 *bl_sizes = dconf->bl_sizes;
-    uint16 *bl_locs = dconf->bl_locs;
+    uint16_t *bl_sizes = dconf->bl_sizes;
+    uint16_t *bl_locs = dconf->bl_locs;
 #endif
 
     fullfb_ptr = fullfb;
@@ -143,7 +143,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
         bound = sconf->factor_base->fb_10bit_B;
 
         // single-up test until i is a multiple of 8
-        while ((uint32)i < bound && ((i & 7) != 0))
+        while ((uint32_t)i < bound && ((i & 7) != 0))
         {
             prime = fbc->prime[i];
             root1 = fbc->root1[i];
@@ -154,8 +154,8 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
             //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
             //block, which is the state of the sieve now.
-            tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                * (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT);
+            tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                * (uint64_t)fullfb_ptr->small_inv[i]) >> FOGSHIFT);
             tmp = block_loc + tmp*prime;
             tmp = tmp - 32768;
 
@@ -194,7 +194,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         MOD_INIT_8X;
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
 
 
@@ -206,7 +206,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #else
 
-            uint32 tmp3 = 0;
+            uint32_t tmp3 = 0;
             int r;
 
 #ifdef _MSC_VER
@@ -271,7 +271,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         bound = sconf->factor_base->fb_12bit_B;
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
 
 #if defined(HAS_SSE2) && defined(GCC_ASM64X)
@@ -283,7 +283,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 #else
 
 
-            uint32 tmp3 = 0;
+            uint32_t tmp3 = 0;
             int r;
 
 #ifdef _MSC_VER
@@ -347,7 +347,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 
         bound = sconf->factor_base->fb_13bit_B;
 
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
 
 #if defined(HAS_SSE2) && defined(GCC_ASM64X)
@@ -359,7 +359,7 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
 #else
 
 
-            uint32 tmp3 = 0;
+            uint32_t tmp3 = 0;
             int r;
 
 #ifdef _MSC_VER
@@ -438,11 +438,11 @@ void tdiv_medprimes_32k(uint8 parity, uint32 poly_id, uint32 bnum,
         // generic C version of trial division (by multiplication) up through 13 bits.
         for (; i<bound; i++)
         {
-            uint32 tmp1 = 32768 - block_loc;
-            uint64 q64;
+            uint32_t tmp1 = 32768 - block_loc;
+            uint64_t q64;
 
             tmp1 = tmp1 + fullfb_ptr->correction[i];
-            q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+            q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
             tmp1 = q64 >> FOGSHIFT;
             tmp1 = tmp1 + 1;
             tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];

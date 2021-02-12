@@ -56,23 +56,23 @@ this file contains code implementing 4)
 */
 
 
-void resieve_medprimes_32k_knl(uint32 *reports, uint32 num_reports, 
-    uint8 parity, uint32 poly_id, uint32 bnum,
+void resieve_medprimes_32k_knl(uint32_t *reports, uint32_t num_reports, 
+    uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i, j, k;
     int idx, id;
-    uint32 bound, report_num;
+    uint32_t bound, report_num;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-    uint32 block_loc;
-    uint16 *corrections = dconf->corrections;
-    uint16 buffer[16];
-    uint32 result = 0;
+    uint32_t block_loc;
+    uint16_t *corrections = dconf->corrections;
+    uint16_t buffer[16];
+    uint32_t result = 0;
     __m512i vlomask = _mm512_set1_epi32(0x0000ffff);
     __m512i vdoubleblksz = _mm512_set1_epi32(0x80008000);
     __m512i zero = _mm512_setzero_epi32();

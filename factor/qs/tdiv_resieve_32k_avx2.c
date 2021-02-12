@@ -349,7 +349,7 @@ __asm__ ("vzeroupper   \n\t");
 
 #define INIT_RESIEVE \
 __m128i v128_p, v128_x0, v128_x2, v128_x3, v128_x4, v128_x5, v128_x6, v128_x7; \
-uint32 msk32, pos; \
+uint32_t msk32, pos; \
 v128_x4 = _mm_load_si128(corrections);                  \
 v128_x0 = _mm_xor_si128(v128_x0, v128_x0);              \
 v128_x2 = _mm_load_si128(fbc->root1 + i);               \
@@ -364,7 +364,7 @@ v128_x7 = _mm_xor_si128(v128_x7, v128_x7);
 
 #define INIT_RESIEVE_AVX2 \
 __m256i v256_p, v256_y0, v256_y2, v256_y3, v256_y4, v256_y5, v256_y6, v256_y7; \
-uint32 msk32, pos; \
+uint32_t msk32, pos; \
 v256_y4 = _mm256_load_si256(corrections);                   \
 v256_y0 = _mm256_xor_si256(v256_y0, v256_y0);               \
 v256_y2 = _mm256_load_si256(fbc->root1 + i);                \
@@ -523,23 +523,23 @@ this file contains code implementing 4)
 
 */
 
-void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
+void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i;
-    uint32 report_num;
+    uint32_t report_num;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
-    uint32 block_loc;
-    uint16 *corrections = dconf->corrections;
-    uint16 buffer[16];
-    uint32 result = 0;
-    uint32 bound14;
-    uint32 bound15;
-    uint32 bound16;
+    uint32_t block_loc;
+    uint16_t *corrections = dconf->corrections;
+    uint16_t buffer[16];
+    uint32_t result = 0;
+    uint32_t bound14;
+    uint32_t bound15;
+    uint32_t bound16;
 
     if (parity)
     {
@@ -611,7 +611,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 8;
         }
 
-        while ((uint32)i < bound14)
+        while ((uint32_t)i < bound14)
         {
 
             RESIEVE_16X_14BIT_MAX_VEC_AVX2;
@@ -619,7 +619,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 16;
         }
 
-        while ((uint32)i < bound15)
+        while ((uint32_t)i < bound15)
         {
 
             RESIEVE_16X_15BIT_MAX_VEC_AVX2;
@@ -627,7 +627,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 16;
         }
 
-        while ((uint32)i < bound16)
+        while ((uint32_t)i < bound16)
         {
 
             RESIEVE_16X_16BIT_MAX_VEC_AVX2;

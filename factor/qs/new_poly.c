@@ -77,13 +77,13 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 	mpz_t tmp, tmp2, tmp3;
 	mpz_ptr poly_a = poly->mpz_poly_a;
 	int j, *qli = poly->qlisort, *s = &poly->s;
-	uint32 i, randindex = 0, mindiff, a1, poly_low_found = 0,target_bits;
-	uint32 potential_a_factor = 0, found_a_factor;
-	uint32 afact[20];
+	uint32_t i, randindex = 0, mindiff, a1, poly_low_found = 0,target_bits;
+	uint32_t potential_a_factor = 0, found_a_factor;
+	uint32_t afact[20];
 	double target_mul = 0.9; // 2;	// note: smaller values harder to achieve
     int too_close, min_ratio, close_range;
 	FILE *sieve_log = sconf->obj->logfile;
-	uint32 upper_polypool_index, lower_polypool_index;
+	uint32_t upper_polypool_index, lower_polypool_index;
     int VFLAG = sconf->obj->VFLAG;
 
 	mpz_init(tmp);
@@ -98,10 +98,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (sconf->bits < 115)
 	{
-		uint32 hi = fb->B-1;
-		uint32 lo = sconf->sieve_small_fb_start; //(fb->B-1) / 4;
-		uint32 id;
-		uint64 p;
+		uint32_t hi = fb->B-1;
+		uint32_t lo = sconf->sieve_small_fb_start; //(fb->B-1) / 4;
+		uint32_t id;
+		uint64_t p;
 		int doover, k;
 
 		// we have to be careful not to pick primes that fall into the
@@ -119,7 +119,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			mpz_set_ui(poly->mpz_poly_a, 1);
 			for (i=0; i<2; i++)
 			{
-				id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+				id = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
 
 				// make sure they are unique
 				doover = 0;
@@ -147,13 +147,13 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			p = mpz_get_ui(tmp);
 			if (p > fb->list->prime[fb->B - 1])
 			{
-				id = 0 + (uint32)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
+				id = 0 + (uint32_t)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
 				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 					fb->list->prime[fb->B - 1 - id]);
 			}
 			else if (p < 32)
 			{
-				id = lo + (uint32)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
+				id = lo + (uint32_t)((double)(10 - 0) * (double)rand() / (double)RAND_MAX);
 				mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 					fb->list->prime[id]);				
 			}
@@ -161,12 +161,12 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			{
 				// quarter the rest of the fb and pick one randomly from the 
 				// best region
-				uint32 q = (fb->list->prime[hi] - fb->list->prime[lo]) / 4;
+				uint32_t q = (fb->list->prime[hi] - fb->list->prime[lo]) / 4;
 				if ((p > fb->list->prime[lo]) && 
 					(p < fb->list->prime[lo + q-1]))
 				{
 					id = lo + 
-						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
 					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 						fb->list->prime[id]);
 				}
@@ -174,7 +174,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 					(p < fb->list->prime[lo + q+q-1]))
 				{
 					id = lo + q + 
-						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
 					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 						fb->list->prime[id]);
 				}
@@ -182,14 +182,14 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 					(p < fb->list->prime[lo + q+q+q-1]))
 				{
 					id = lo + (q+q) + 
-						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
 					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 						fb->list->prime[id]);
 				}
 				else if (p > fb->list->prime[lo + q+q+q])
 				{
 					id = lo + (q+q+q) + 
-						(uint32)((double)(q) * (double)rand() / (double)RAND_MAX);
+						(uint32_t)((double)(q) * (double)rand() / (double)RAND_MAX);
 					mpz_mul_ui(poly->mpz_poly_a, poly->mpz_poly_a, 
 						fb->list->prime[id]);
 				}
@@ -224,12 +224,12 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// don't worry so much about generating a poly close to the target,
 		// just make sure the factors of poly_a are all relatively large and
 		// disperse to keep duplicates low.
-		uint32 hi = fb->B-1;
-		uint32 lo = (fb->B-1) / 4;
-		uint32 id;
+		uint32_t hi = fb->B-1;
+		uint32_t lo = (fb->B-1) / 4;
+		uint32_t id;
 		int doover;
 
-		id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+		id = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
 		mpz_set_ui(poly_a, fb->list->prime[id]);
 		qli[0] = id;
 
@@ -237,7 +237,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		while (mpz_cmp(poly_a,target_a) < 0)
 		{
 			int k = 0;
-			id = lo + (uint32)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
+			id = lo + (uint32_t)((double)(hi - lo) * (double)rand() / (double)RAND_MAX);
 
 			doover = 0;
 			for (k=0; k < j; k++)
@@ -280,7 +280,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		upper_polypool_index = fb->small_B - 1;
 
 		//brute force the poly to be somewhat close to the target
-		target_bits = (uint32)((double)mpz_sizeinbase(target_a, 2) * target_mul);
+		target_bits = (uint32_t)((double)mpz_sizeinbase(target_a, 2) * target_mul);
 		too_close = 10;
         close_range = 5;
 		min_ratio = 1000;
@@ -307,10 +307,10 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			found_a_factor = 0;
 			while (!found_a_factor)
 			{
-				randindex = (uint32)lcg_rand_32((fp_digit)lower_polypool_index,
+				randindex = (uint32_t)lcg_rand_32((fp_digit)lower_polypool_index,
 					(fp_digit)upper_polypool_index, &dconf->lcg_state);
 				//randindex = lower_polypool_index + 
-				//	(uint32)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);
+				//	(uint32_t)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);
 				potential_a_factor = fb->list->prime[randindex];
 				// make sure we haven't already randomly picked this one
 				found_a_factor = 1;
@@ -371,7 +371,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		randindex = 0;
 		for (i=0;i<fb->small_B;i++)
 		{
-            if ((uint32)abs(a1 - fb->list->prime[i]) < mindiff)
+            if ((uint32_t)abs(a1 - fb->list->prime[i]) < mindiff)
             {
                 mindiff = abs(a1 - fb->list->prime[i]);
                 randindex = i;
@@ -420,7 +420,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// check if 'close enough'
 		mpz_sub(tmp, target_a, poly_a); 
 
-		if ((uint32)mpz_sizeinbase(tmp, 2) < target_bits)
+		if ((uint32_t)mpz_sizeinbase(tmp, 2) < target_bits)
 		{ 
 			// if not a duplicate
 			found_a_factor = 0;
@@ -483,7 +483,7 @@ done:
 	if (VFLAG > 2)
 	{
 		gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
-			(uint32)mpz_sizeinbase(target_a, 2), poly_a, (uint32)mpz_sizeinbase(poly_a, 2));
+			(uint32_t)mpz_sizeinbase(target_a, 2), poly_a, (uint32_t)mpz_sizeinbase(poly_a, 2));
 	}
 
 	mpz_clear(tmp);
@@ -518,10 +518,10 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	// notation of polynomials, here and elsewhere, generally follows
 	// contini's notation
 
-	uint32 root1, root2, prime, gamma;
-	uint32 amodql;	//(a/ql)^-1 mod ql = inv(a/ql mod ql) mod ql
+	uint32_t root1, root2, prime, gamma;
+	uint32_t amodql;	//(a/ql)^-1 mod ql = inv(a/ql mod ql) mod ql
 	siqs_poly *poly = dconf->curr_poly;
-	uint32 *modsqrt = sconf->modsqrt_array;
+	uint32_t *modsqrt = sconf->modsqrt_array;
 	fb_list *fb = sconf->factor_base;
 	mpz_ptr n = sconf->n;
 	int i, s = poly->s, *qli = poly->qlisort;
@@ -536,7 +536,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root2 = prime - root1; 
 		
 		mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
-		amodql = (uint32)mpz_tdiv_ui(dconf->gmptmp1,(fp_digit)prime);
+		amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1,(fp_digit)prime);
 		amodql = modinv_1(amodql,prime);
 
 		//the primes will all be < 65536, so we can multiply safely
@@ -576,7 +576,7 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 	// where 2^v is the highest power of 2 that divides 2*i
 	// notation of polynomials, here and elsewhere, generally follows
 	// contini's notation
-	uint32 Bnum = dconf->numB;
+	uint32_t Bnum = dconf->numB;
 	siqs_poly *poly = dconf->curr_poly;
 	mpz_ptr n = sconf->n;
 

@@ -746,7 +746,7 @@ Core sieving routine
 int it; \
 for (it = 0; it < 8; it++) { \
         int thisloc; \
-        if ((packed_sieve_block[i + it] & 0x8080808080808080ULL) == (uint64)(0)) \
+        if ((packed_sieve_block[i + it] & 0x8080808080808080ULL) == (uint64_t)(0)) \
             continue; \
         if ((result + 8) >= SIEVE_BATCH_SIZE_TINY) { printf("too many results\n"); break; } \
         thisloc = ((it) << 3) + 0; \

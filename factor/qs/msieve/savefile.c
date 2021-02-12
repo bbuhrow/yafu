@@ -61,7 +61,7 @@ void qs_savefile_free(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-void qs_savefile_open(qs_savefile_t *s, uint32 flags) {
+void qs_savefile_open(qs_savefile_t *s, uint32_t flags) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	DWORD access_arg, open_arg;
@@ -135,7 +135,7 @@ void qs_savefile_close(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 qs_savefile_eof(qs_savefile_t *s) {
+uint32_t qs_savefile_eof(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	return (s->buf_off == s->read_size && s->eof);
@@ -145,7 +145,7 @@ uint32 qs_savefile_eof(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 qs_savefile_exists(qs_savefile_t *s) {
+uint32_t qs_savefile_exists(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	struct _stat dummy;

@@ -20,8 +20,8 @@ Purpose:	Port into Yafu-1.14.
 #include "qs.h"
 
 typedef struct {
-	uint32 count;
-	uint32 index;
+	uint32_t count;
+	uint32_t index;
 } qs_row_count_t;
 
 static int yafu_compare_row_count(const void *x, const void *y) {
@@ -36,9 +36,9 @@ static int yafu_compare_row_index(const void *x, const void *y) {
 	return xx->index - yy->index;
 }
 
-static int yafu_compare_uint32(const void *x, const void *y) {
-	uint32 *xx = (uint32 *)x;
-	uint32 *yy = (uint32 *)y;
+static int yafu_compare_uint32_t(const void *x, const void *y) {
+	uint32_t *xx = (uint32_t *)x;
+	uint32_t *yy = (uint32_t *)y;
 	if (*xx > *yy)
 		return 1;
 	if (*xx < *yy)
@@ -54,27 +54,27 @@ static int yafu_compare_weight(const void *x, const void *y) {
 
 /*------------------------------------------------------------------*/
 void count_qs_matrix_nonzero(fact_obj_t *obj,
-			uint32 nrows, uint32 num_dense_rows,
-			uint32 ncols, qs_la_col_t *cols) {
+			uint32_t nrows, uint32_t num_dense_rows,
+			uint32_t ncols, qs_la_col_t *cols) {
 
-	uint32 i, j;
-	uint32 total_weight;
-	uint32 sparse_weight;
+	uint32_t i, j;
+	uint32_t total_weight;
+	uint32_t sparse_weight;
 	size_t mem_use;
 	
 	mem_use = ncols * (sizeof(qs_la_col_t) +
-		sizeof(uint32) * ((num_dense_rows + 31) / 32));
+		sizeof(uint32_t) * ((num_dense_rows + 31) / 32));
 
 	for (i = total_weight = sparse_weight = 0; i < ncols; i++) {
-		uint32 w = cols[i].weight;
+		uint32_t w = cols[i].weight;
 		total_weight += w;
 		sparse_weight += w;
-		mem_use += w * sizeof(uint32);
+		mem_use += w * sizeof(uint32_t);
 	}
 
 	if (num_dense_rows > 0) {
 		for (i = 0; i < ncols; i++) {
-			uint32 *dense_rows = cols[i].data + cols[i].weight;
+			uint32_t *dense_rows = cols[i].data + cols[i].weight;
 			for (j = 0; j < num_dense_rows; j++) {
 				if (dense_rows[j / 32] & (1 << (j % 32)))
 					total_weight++;
@@ -111,16 +111,16 @@ void count_qs_matrix_nonzero(fact_obj_t *obj,
 /*------------------------------------------------------------------*/
 #define QS_MAX_COL_WEIGHT 1000
 
-static void yafu_combine_cliques(uint32 num_dense_rows, 
-			uint32 *ncols_out, qs_la_col_t *cols, 
+static void yafu_combine_cliques(uint32_t num_dense_rows, 
+			uint32_t *ncols_out, qs_la_col_t *cols, 
 			qs_row_count_t *counts) {
 
-	uint32 i, j;
-	uint32 ncols = *ncols_out;
-	uint32 dense_row_words = (num_dense_rows + 31) / 32;
+	uint32_t i, j;
+	uint32_t ncols = *ncols_out;
+	uint32_t dense_row_words = (num_dense_rows + 31) / 32;
 
-	uint32 num_merged;
-	uint32 merge_array[QS_MAX_COL_WEIGHT];
+	uint32_t num_merged;
+	uint32_t merge_array[QS_MAX_COL_WEIGHT];
 
 	/* for each row, mark the last column encountered 
 	   that contains a nonzero entry in that row */
@@ -137,7 +137,7 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 	for (i = 0; i < ncols; i++) {
 		qs_la_col_t *c0;
 		qs_la_col_t *c1 = cols + i;
-		uint32 clique_base = (uint32)(-1);
+		uint32_t clique_base = (uint32_t)(-1);
 
 		if (c1->data == NULL)
 			continue;
@@ -154,7 +154,7 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 			}
 		}
 
-		if (clique_base == (uint32)(-1) || clique_base == i)
+		if (clique_base == (uint32_t)(-1) || clique_base == i)
 			continue;
 
 		c0 = cols + clique_base;
@@ -172,9 +172,9 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 		/* merge column c1 into column c0. First merge the
 		   nonzero entries (do not assume they are sorted) */
 		qsort(c0->data, (size_t)c0->weight, 
-					sizeof(uint32), yafu_compare_uint32);
+					sizeof(uint32_t), yafu_compare_uint32_t);
 		qsort(c1->data, (size_t)c1->weight, 
-					sizeof(uint32), yafu_compare_uint32);
+					sizeof(uint32_t), yafu_compare_uint32_t);
 		num_merged = qs_merge_relations(merge_array, 
 						c0->data, c0->weight,
 						c1->data, c1->weight);
@@ -183,21 +183,21 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 						      c1->data[c1->weight+j];
 		}
 		free(c0->data);
-		c0->data = (uint32 *)xmalloc((num_merged + 
-					dense_row_words) * sizeof(uint32));
+		c0->data = (uint32_t *)xmalloc((num_merged + 
+					dense_row_words) * sizeof(uint32_t));
 		memcpy(c0->data, merge_array, (num_merged + 
-					dense_row_words) * sizeof(uint32));
+					dense_row_words) * sizeof(uint32_t));
 		c0->weight = num_merged;
 
 		/* then combine the two lists of relation numbers */
 
-		c0->cycle.list = (uint32 *)xrealloc(c0->cycle.list, 
+		c0->cycle.list = (uint32_t *)xrealloc(c0->cycle.list, 
 					(c0->cycle.num_relations +
 					 c1->cycle.num_relations) *
-					sizeof(uint32));
+					sizeof(uint32_t));
 		memcpy(c0->cycle.list + c0->cycle.num_relations,
 			c1->cycle.list, c1->cycle.num_relations * 
-					sizeof(uint32));
+					sizeof(uint32_t));
 		c0->cycle.num_relations += c1->cycle.num_relations;
 
 		/* add c0 back into the row counts */
@@ -226,9 +226,9 @@ static void yafu_combine_cliques(uint32 num_dense_rows,
 }
 
 /*------------------------------------------------------------------*/
-void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows, 
-		uint32 num_dense_rows, uint32 *ncols, 
-		qs_la_col_t *cols, uint32 num_excess) {
+void reduce_qs_matrix(fact_obj_t *obj, uint32_t *nrows, 
+		uint32_t num_dense_rows, uint32_t *ncols, 
+		qs_la_col_t *cols, uint32_t num_excess) {
 
 	/* Perform light filtering on the nrows x ncols
 	   matrix specified by cols[]. The processing here is
@@ -248,11 +248,11 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 	   dependencies; this seems to happen for matrices that are large
 	   and very sparse */
 
-	uint32 r, c, i, j, k;
-	uint32 passes;
+	uint32_t r, c, i, j, k;
+	uint32_t passes;
 	qs_row_count_t *counts;
-	uint32 reduced_rows;
-	uint32 reduced_cols;
+	uint32_t reduced_rows;
+	uint32_t reduced_cols;
 
 	/* sort the columns in order of increasing weight */
 	qsort(cols, (size_t)(*ncols), sizeof(qs_la_col_t), yafu_compare_weight);
@@ -393,7 +393,7 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32 *nrows,
 			col->data[j] = counts[col->data[j]].count;
 		}
 		qsort(col->data, (size_t)col->weight, 
-				sizeof(uint32), yafu_compare_uint32);
+				sizeof(uint32_t), yafu_compare_uint32_t);
 	}
 
 	/* make heavy columns alternate with light columns; this

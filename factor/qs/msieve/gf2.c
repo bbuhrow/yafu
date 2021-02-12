@@ -26,22 +26,22 @@ code to the public domain.
 /* below, the routines for building and solving a qs matrix using
 jasonp's block lanczos routines are implemented */
 
-static void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
+static void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
 		    	siqs_r *relation_list);
 
 
 /*------------------------------------------------------------------*/
-int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size, 
-		    uint64 **bitfield, siqs_r *relation_list, 
-		    qs_la_col_t *cycle_list, uint32 *num_cycles) {
+int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size, 
+		    uint64_t **bitfield, siqs_r *relation_list, 
+		    qs_la_col_t *cycle_list, uint32_t *num_cycles) {
 
 	/* Generate linear dependencies among the relations
 	   in full_relations and partial_relations */
 
 	qs_la_col_t *cols;
-	uint32 nrows, ncols;
-	uint64 *dependencies;
-	uint32 num_deps;
+	uint32_t nrows, ncols;
+	uint64_t *dependencies;
+	uint32_t num_deps;
 
 	ncols = *num_cycles;
 	nrows = fb_size;
@@ -68,7 +68,7 @@ int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size,
 
 	dependencies = qs_block_lanczos(obj, nrows, 0, ncols, cols, &num_deps);
 
-    if (num_deps == (uint32)-1)
+    if (num_deps == (uint32_t)-1)
     {
         return -2;
     }
@@ -85,9 +85,9 @@ int qs_solve_linear_system(fact_obj_t *obj, uint32 fb_size,
 }
 
 /*------------------------------------------------------------------*/
-uint32 qs_merge_relations(uint32 *merge_array,
-		  uint32 *src1, uint32 n1,
-		  uint32 *src2, uint32 n2) {
+uint32_t qs_merge_relations(uint32_t *merge_array,
+		  uint32_t *src1, uint32_t n1,
+		  uint32_t *src2, uint32_t n2) {
 
 	/* Given two sorted lists of integers, merge
 	   the lists into a single sorted list with
@@ -97,8 +97,8 @@ uint32 qs_merge_relations(uint32 *merge_array,
 	   at all. Returns the number of elements in the
 	   resulting list */
 
-	uint32 i1, i2, val1, val2, count1, count2;
-	uint32 num_merge;
+	uint32_t i1, i2, val1, val2, count1, count2;
+	uint32_t num_merge;
 
 	i1 = i2 = 0;
 	num_merge = 0;
@@ -162,7 +162,7 @@ uint32 qs_merge_relations(uint32 *merge_array,
 /*------------------------------------------------------------------*/
 #define QS_MAX_COL_WEIGHT 10000
 
-void build_qs_matrix(uint32 ncols, qs_la_col_t *cols, 
+void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
 
 	/* Convert lists of relations from the sieving stage
@@ -170,7 +170,7 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	   columns, pointed to by 'cols'. The total number 
 	   of nonzero entries in the matrix is returned */
 
-	uint32 i, j;
+	uint32_t i, j;
 	qs_la_col_t *col;
 
 	/* Cycles are assumed to be sorted in order of increasing
@@ -181,9 +181,9 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 	//printf("building matrix with %u columns\n", ncols);
 
 	for (i = 0; i < ncols; i++) {
-		uint32 buf[QS_MAX_COL_WEIGHT];
-		uint32 accum[QS_MAX_COL_WEIGHT];
-		uint32 weight;
+		uint32_t buf[QS_MAX_COL_WEIGHT];
+		uint32_t accum[QS_MAX_COL_WEIGHT];
+		uint32_t weight;
 
 		/* merge each succeeding relation into the accumulated
 		   matrix column */
@@ -198,12 +198,12 @@ void build_qs_matrix(uint32 ncols, qs_la_col_t *cols,
 			}
 			weight = qs_merge_relations(accum, buf, weight,
 						r->fb_offsets, r->num_factors);
-			memcpy(buf, accum, weight * sizeof(uint32));
+			memcpy(buf, accum, weight * sizeof(uint32_t));
 		}
 
 		col->weight = weight;
-		col->data = (uint32 *)malloc(weight * sizeof(uint32));
-		memcpy(col->data, buf, weight * sizeof(uint32));
+		col->data = (uint32_t *)malloc(weight * sizeof(uint32_t));
+		memcpy(col->data, buf, weight * sizeof(uint32_t));
 	}
 }
 
