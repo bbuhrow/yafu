@@ -8,7 +8,6 @@
 #endif
 #include <time.h>
 #include "common.h"
-#include "types.h"
 #include "cofactorize.h"
 #include <immintrin.h>
 

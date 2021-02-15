@@ -24,8 +24,7 @@ code to the public domain.
 #include <immintrin.h>
 #endif
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "sieve_macros_32k.h"
 #include "sieve_macros_32k_avx2.h"
 

@@ -20,8 +20,7 @@ code to the public domain.
 
 #include "common.h"
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"

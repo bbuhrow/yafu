@@ -74,7 +74,6 @@ typedef struct
 extern void SIQS(fact_obj_t* fobj);
 extern void smallmpqs(fact_obj_t* fobj);
 extern void siqsbench(fact_obj_t* fobj);
-extern void siqstune(int bits);
 
 #endif /* _SIQS_H_ */
 

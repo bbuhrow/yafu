@@ -15,7 +15,7 @@ Date:		11/24/09
 Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 
 /* we need a generic interface for reading and writing lines

@@ -22,7 +22,7 @@ code to the public domain.
 
 #if defined( USE_AVX2 )
 
-#include "qs.h"
+#include "qs_impl.h"
 
 
 #define DIVIDE_RESIEVED_PRIME(j) \

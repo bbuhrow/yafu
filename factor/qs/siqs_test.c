@@ -18,11 +18,8 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
-#include "gmp_xface.h"
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 {
@@ -285,10 +282,10 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	mpz_init(t4);
 
 	mpz_set(t1, n);
-	mpz_tdiv_r(t3, t1, poly->mpz_poly_a); //zDiv(&t1,&poly->poly_a,&t2,&t3);
+	mpz_tdiv_r(t3, t1, poly->mpz_poly_a);
 
-	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
-	mpz_tdiv_r(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_tdiv_r(t4, t2, poly->mpz_poly_a);
 
 	if (mpz_cmp(t3,t4) != 0)
 	{
@@ -306,9 +303,9 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	if (mpz_kronecker(n, poly->mpz_poly_a) != 1)
 		printf("\nError in checkpoly: (a|N) != 1\n");
 
-	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b);
 	mpz_sub(t2, t2, n);
-	mpz_tdiv_q(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
+	mpz_tdiv_q(t4, t2, poly->mpz_poly_a);
 
 	if (mpz_cmp(t4,poly->mpz_poly_c) != 0)
 		printf("\nError in checkpoly: c != (b^2 - n)/a\n");

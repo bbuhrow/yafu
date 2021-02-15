@@ -19,7 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 #include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 
 #if defined(_MSC_VER)
 	#include <mmintrin.h>

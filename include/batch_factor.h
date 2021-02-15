@@ -15,8 +15,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #ifndef _BATCH_FACTOR_H_
 #define _BATCH_FACTOR_H_
 
-#include "yafu.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"

@@ -22,7 +22,7 @@ code to the public domain.
 
 #if defined( USE_AVX512F )
 
-#include "qs.h"
+#include "qs_impl.h"
 #include <immintrin.h>
 
 //#define SIQSDEBUG 1

@@ -19,8 +19,7 @@ code to the public domain.
 ----------------------------------------------------------------------*/
 
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "sieve_macros_32k.h"
 
 #if defined(_MSC_VER)
