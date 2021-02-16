@@ -87,7 +87,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -116,7 +116,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,7 +136,9 @@
     <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
     <ClInclude Include="..\..\include\batch_factor.h" />
     <ClInclude Include="..\..\include\cofactorize.h" />
+    <ClInclude Include="..\..\include\factor_common.h" />
     <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\include\msieve_common.h" />
     <ClInclude Include="..\..\include\prime_sieve.h" />
     <ClInclude Include="..\..\include\qs.h" />
     <ClInclude Include="..\..\include\qs_impl.h" />

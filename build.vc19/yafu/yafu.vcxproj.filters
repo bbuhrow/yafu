@@ -172,6 +172,9 @@
     <ClInclude Include="..\..\top\cmdParser\calc.h">
       <Filter>Source Files\frontend</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\factor_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <YASM Include="..\..\arith\mod64.asm">

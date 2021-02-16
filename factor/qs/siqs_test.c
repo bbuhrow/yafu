@@ -75,49 +75,49 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 	return retval;
 }
 
-int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
+int check_specialcase(FILE *sieve_log, qs_obj_t *fobj)
 {
 	//check for some special cases of input number
 	//sieve_log is passed in already open, and should return open
-	if (mpz_even_p(fobj->qs_obj.gmp_n))
+	if (mpz_even_p(fobj->gmp_n))
 	{
 		printf("input must be odd\n");
 		return 1;
 	}
 
-	if (is_mpz_prp(fobj->qs_obj.gmp_n, fobj->NUM_WITNESSES))
+	if (is_mpz_prp(fobj->gmp_n, fobj->NUM_WITNESSES))
 	{
-        char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+        char* s = mpz_get_str(NULL, 10, fobj->gmp_n);
+		add_to_factor_list(fobj, fobj->gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
-		mpz_set_ui(fobj->qs_obj.gmp_n,1);
+			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->gmp_n), s);
+		mpz_set_ui(fobj->gmp_n,1);
         free(s);
 		return 1;
 	}
 
-	if (mpz_perfect_square_p(fobj->qs_obj.gmp_n))
+	if (mpz_perfect_square_p(fobj->gmp_n))
 	{
-		mpz_sqrt(fobj->qs_obj.gmp_n,fobj->qs_obj.gmp_n);
+		mpz_sqrt(fobj->gmp_n,fobj->gmp_n);
 
-        char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+        char* s = mpz_get_str(NULL, 10, fobj->gmp_n);
+		add_to_factor_list(fobj, fobj->gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->gmp_n), s);
+		add_to_factor_list(fobj, fobj->gmp_n);
 		if (sieve_log != NULL)
-			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
+			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->gmp_n), s);
         free(s);
-		mpz_set_ui(fobj->qs_obj.gmp_n,1);
+		mpz_set_ui(fobj->gmp_n,1);
 		return 1;
 	}
 
-	if (mpz_perfect_power_p(fobj->qs_obj.gmp_n))
+	if (mpz_perfect_power_p(fobj->gmp_n))
 	{
 		if (fobj->VFLAG > 0)
 			printf("input is a perfect power\n");
 		
-		factor_perfect_power(fobj, fobj->qs_obj.gmp_n);
+		factor_perfect_power(fobj, fobj->gmp_n);
 
 		if (sieve_log != NULL)
 		{
@@ -138,7 +138,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		return 1;
 	}
 
-    if (mpz_sizeinbase(fobj->qs_obj.gmp_n, 2) < 115)
+    if (mpz_sizeinbase(fobj->gmp_n, 2) < 115)
     {
         // run MPQS, as the main SIQS doesn't work for smaller inputs
         int i;
@@ -150,14 +150,14 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         // we've verified that the input is not even or prime.  also, if
         // autofactoring is not active then do some very quick trial division 
         // before calling smallmpqs.
-        if (!fobj->autofact_obj.autofact_active)
-        {
-            for (i = 1; i < 25; i++)
-            {
-                if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
-                    mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
-            }
-        }
+        // if (!fobj->autofact_obj.autofact_active)
+        // {
+        //     for (i = 1; i < 25; i++)
+        //     {
+        //         if (mpz_tdiv_ui(fobj->gmp_n, spSOEprimes[i]) == 0)
+        //             mpz_tdiv_q_ui(fobj->gmp_n, fobj->gmp_n, spSOEprimes[i]);
+        //     }
+        // }
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
         if (fobj->qs_obj.flags != 12345)
@@ -248,13 +248,13 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         if (i == 0)
         {
             // didn't find anything (rare).  try a different method.
-            if (fobj->qs_obj.flags != 12345)
+            if (fobj->flags != 12345)
             {
                 if (fobj->logfile != NULL)
                 {
-                    char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
+                    char* s = mpz_get_str(NULL, 10, fobj->gmp_n);
                     logprint(fobj->logfile,
-                        "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
+                        "starting smallmpqs on C%d = %s\n", gmp_base10(fobj->gmp_n), s);
                     free(s);
                 }
             }
@@ -360,7 +360,7 @@ int checkBl(mpz_t n, uint32_t *qli, fb_list *fb, mpz_t *Bl, int s)
 	return 0;
 }
 
-void siqsbench(fact_obj_t *fobj)
+void siqsbench(qs_obj_t *fobj)
 {
 	//run through the list of benchmark siqs factorizations
 
@@ -404,7 +404,7 @@ void siqsbench(fact_obj_t *fobj)
 
 	for (i=0; i<10; i++)
 	{
-		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
+		mpz_set_str(fobj->gmp_n, list[i], 10);
 		SIQS(fobj);
 		clear_factor_list(fobj);
 	}

@@ -15,10 +15,11 @@ Date:		11/24/09
 Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
+#include "qs.h"
 #include "qs_impl.h"
 
 /*--------------------------------------------------------------------*/
-uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n, 
+uint32_t yafu_find_factors(qs_obj_t *obj, mpz_t n, 
 		fb_element_siqs *factor_base, uint32_t fb_size,
 		qs_la_col_t *vectors, uint32_t vsize, 
 		siqs_r *relation_list,

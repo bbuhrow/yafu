@@ -1,4 +1,3 @@
-#pragma once
 #ifndef _SIQS_IMPL_H_
 #define _SIQS_IMPL_H_
 
@@ -22,7 +21,8 @@
 #include "monty.h"
 #include "cofactorize.h"
 #include "gmp.h"
-
+#include "qs.h"
+#include "msieve_common.h"
 
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
@@ -160,6 +160,24 @@ typedef struct
     int use_dlp;
 } qs_params;
 
+/*--------------LINEAR ALGEBRA RELATED DECLARATIONS ---------------------*/
+
+/* Used to represent a list of relations */
+
+typedef struct {
+    uint32 num_relations;  /* number of relations in the cycle */
+    uint32* list;          /* list of offsets into an array of relations */
+} qs_la_cycle_t;
+
+/* A column of the matrix */
+
+typedef struct {
+    uint32* data;		/* The list of occupied rows in this column */
+    uint32 weight;		/* Number of nonzero entries in this column */
+    qs_la_cycle_t cycle;       /* list of relations comprising this column */
+} qs_la_col_t;
+
+
 //holds only the info necessary during the sieve.  removing unnecessary info allows us to fit more
 //factor base elements into cache during the sieve
 typedef struct
@@ -291,7 +309,7 @@ typedef struct {
 } qs_cycle_t;
 
 typedef struct {
-    fact_obj_t* obj;			// passed in with info from 'outside'
+    qs_obj_t* obj;			// passed in with info from 'outside'
 
     // the stuff in this structure is written once, then is read only
     // for the duration of the factorization, thus can be shared between
@@ -499,7 +517,7 @@ typedef struct {
 
     // various things to support tlp co-factorization
     monty_t* mdata;		// monty brent attempt
-    fact_obj_t* fobj2;	// smallmpqs attempt
+    qs_obj_t* fobj2;	// smallmpqs attempt
     tiny_qs_params* cosiqs;
 
 #ifdef USE_8X_MOD_ASM
@@ -681,26 +699,26 @@ uint32_t process_poly_a(static_conf_t* sconf);
 int get_a_offsets(fb_list* fb, siqs_poly* poly, mpz_t tmp);
 void generate_bpolys(static_conf_t* sconf, dynamic_conf_t* dconf, int maxB);
 int process_rel(char* substr, fb_list* fb, mpz_t n,
-    static_conf_t* sconf, fact_obj_t* obj, siqs_r* rel);
+    static_conf_t* sconf, qs_obj_t* obj, siqs_r* rel);
 int restart_siqs(static_conf_t* sconf, dynamic_conf_t* dconf);
-uint32_t qs_purge_singletons(fact_obj_t* obj, siqs_r* list,
+uint32_t qs_purge_singletons(qs_obj_t* obj, siqs_r* list,
     uint32_t num_relations,
     qs_cycle_t* table, uint32_t* hashtable);
-uint32_t qs_purge_singletons3(fact_obj_t* obj, siqs_r* list,
+uint32_t qs_purge_singletons3(qs_obj_t* obj, siqs_r* list,
     uint32_t num_relations,
     qs_cycle_t* table, uint32_t* hashtable);
-uint32_t qs_purge_duplicate_relations(fact_obj_t* obj,
+uint32_t qs_purge_duplicate_relations(qs_obj_t* obj,
     siqs_r* rlist,
     uint32_t num_relations);
-uint32_t qs_purge_duplicate_relations3(fact_obj_t* obj,
+uint32_t qs_purge_duplicate_relations3(qs_obj_t* obj,
     siqs_r* rlist,
     uint32_t num_relations);
-void qs_enumerate_cycle(fact_obj_t* obj,
+void qs_enumerate_cycle(qs_obj_t* obj,
     qs_la_col_t* c,
     qs_cycle_t* table,
     qs_cycle_t* entry1, qs_cycle_t* entry2,
     uint32_t final_relation);
-void qs_enumerate_cycle3(fact_obj_t* obj,
+void qs_enumerate_cycle3(qs_obj_t* obj,
     qs_la_col_t* c,
     qs_cycle_t* table,
     qs_cycle_t* entry1, qs_cycle_t* entry2, qs_cycle_t* entry3,
@@ -729,7 +747,7 @@ int tiny_update_check(static_conf_t* sconf);
 void* tiny_process_poly(void* ptr);
 
 //test routines
-int check_specialcase(FILE* sieve_log, fact_obj_t* fobj);
+int check_specialcase(FILE* sieve_log, qs_obj_t* fobj);
 void test_polya(fb_list* fb, mpz_t n, mpz_t target_a);
 int checkpoly_siqs(siqs_poly* poly, mpz_t n);
 int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s);
@@ -757,7 +775,7 @@ int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG)
         the only guarantee is that its final value is at least
         fb_size + NUM_EXTRA_RELATIONS */
 
-int qs_solve_linear_system(fact_obj_t* obj, uint32_t fb_size,
+int qs_solve_linear_system(qs_obj_t* obj, uint32_t fb_size,
     uint64_t** bitfield,
     siqs_r* relation_list,
     qs_la_col_t* cycle_list,
@@ -771,18 +789,18 @@ uint32_t qs_merge_relations(uint32_t* merge_array,
     uint32_t* src1, uint32_t n1,
     uint32_t* src2, uint32_t n2);
 
-uint64_t* qs_block_lanczos(fact_obj_t* obj,
+uint64_t* qs_block_lanczos(qs_obj_t* obj,
     uint32_t nrows,
     uint32_t num_dense_rows,
     uint32_t ncols,
     qs_la_col_t* cols,
     uint32_t* deps_found);
 
-void count_qs_matrix_nonzero(fact_obj_t* obj,
+void count_qs_matrix_nonzero(qs_obj_t* obj,
     uint32_t nrows, uint32_t num_dense_rows,
     uint32_t ncols, qs_la_col_t* cols);
 
-void reduce_qs_matrix(fact_obj_t* obj, uint32_t* nrows,
+void reduce_qs_matrix(qs_obj_t* obj, uint32_t* nrows,
     uint32_t num_dense_rows, uint32_t* ncols,
     qs_la_col_t* cols, uint32_t num_excess);
 
@@ -806,14 +824,14 @@ void qs_savefile_flush(qs_savefile_t* s);
 
 /*-------------- MPQS SQUARE ROOT RELATED DECLARATIONS ---------------------*/
 
-uint32_t yafu_find_factors(fact_obj_t* obj, mpz_t n, fb_element_siqs* factor_base,
+uint32_t yafu_find_factors(qs_obj_t* obj, mpz_t n, fb_element_siqs* factor_base,
     uint32_t fb_size, qs_la_col_t* vectors,
     uint32_t vsize, siqs_r* relation_list,
     uint64_t* null_vectors, uint32_t multiplier,
     mpz_t* a_list, poly_t* poly_list,
     factor_list_t* factor_list);
 
-uint32_t yafu_factor_list_add(fact_obj_t* obj,
+uint32_t yafu_factor_list_add(qs_obj_t* obj,
     factor_list_t* list,
     mpz_t new_factor);
 
@@ -832,10 +850,10 @@ void yafu_read_tlp(char* buf, uint32_t* primes);
 void yafu_add_to_cycles3(static_conf_t* conf, uint32_t flags, uint32_t* primes);
 void yafu_add_to_cycles(static_conf_t* conf, uint32_t flags, uint32_t prime1, uint32_t prime2);
 
-qs_la_col_t* find_cycles(fact_obj_t* obj, uint32_t* hashtable, qs_cycle_t* table,
+qs_la_col_t* find_cycles(qs_obj_t* obj, uint32_t* hashtable, qs_cycle_t* table,
     siqs_r* relation_list, uint32_t num_relations, uint32_t* numcycles, uint32_t* numpasses);
 
-qs_la_col_t* find_cycles3(fact_obj_t* obj, static_conf_t* sconf,
+qs_la_col_t* find_cycles3(qs_obj_t* obj, static_conf_t* sconf,
     siqs_r* relation_list, uint32_t num_relations, uint32_t* numcycles, uint32_t* numpasses);
 
 /* perform postprocessing on a list of relations */

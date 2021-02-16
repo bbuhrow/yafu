@@ -558,7 +558,7 @@ static void yafu_stop_worker_thread(qs_msieve_thread_data_t *t,
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_packed_matrix_init(fact_obj_t *obj,
+void yafu_packed_matrix_init(qs_obj_t *obj,
 			qs_packed_matrix_t *p, qs_la_col_t *A,
 			uint32_t nrows, uint32_t ncols,
 			uint32_t num_dense_rows) {

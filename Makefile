@@ -23,8 +23,8 @@ CC = gcc-7.3.0
 CFLAGS = -g
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
-LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../../ysieve.git/trunk -I../../../ytools.git/trunk
+LIBS = -L../../../ysieve.git/trunk -L../../../ytools.git/trunk
 BINNAME = yafu
 
 
@@ -110,10 +110,10 @@ else
 	OBJ_EXT = .o
   
     ifeq ($(SKYLAKEX),1)
-        INC += -I../../gmp_install/gmp-6.2.0/include
-        LIBS += -L../../gmp_install/gmp-6.2.0/lib/
-        INC += -I../../ecm_install/include/
-        LIBS += -L../../ecm_install/lib/
+        INC += -I../../../gmp_install/gmp-6.2.0/include
+        LIBS += -L../../../gmp_install/gmp-6.2.0/lib/
+        INC += -I../../../ecm_install/include/
+        LIBS += -L../../../ecm_install/lib/
     else
         ifeq ($(KNL),1)
 			OBJ_EXT = .ko
@@ -158,7 +158,7 @@ ifeq ($(NFS),1)
 		LIBS += -L../msieve/
 	else
         ifeq ($(COMPILER),icc)
-            LIBS += -L../../msieve/lib/linux
+            LIBS += -L../../../msieve/lib/linux
         else
             LIBS += -L../../msieve/lib/linux/gcc73/
         endif
@@ -235,19 +235,6 @@ YAFU_SRCS = \
 	factor/squfof.c \
 	factor/trialdiv.c \
 	factor/tune.c \
-	factor/qs/filter.c \
-	factor/qs/tdiv.c \
-	factor/qs/tdiv_small.c \
-	factor/qs/tdiv_large.c \
-	factor/qs/large_sieve.c \
-	factor/qs/new_poly.c \
-	factor/qs/siqs_test.c \
-	factor/tinyqs/tinySIQS.c \
-	factor/qs/siqs_aux.c \
-	factor/qs/smallmpqs.c \
-	factor/qs/SIQS.c \
-	factor/qs/med_sieve_32k.c \
-	factor/qs/poly_roots_32k.c \
 	factor/gmp-ecm/ecm.c \
 	factor/gmp-ecm/pp1.c \
 	factor/gmp-ecm/pm1.c \
@@ -256,67 +243,78 @@ YAFU_SRCS = \
 	factor/nfs/nfs.c \
 	arith/arith.c \
 	arith/monty.c \
-    factor/prime_sieve.c \
-    factor/batch_factor.c \
-    factor/qs/cofactorize_siqs.c \
     factor/avx-ecm/avxecm.c \
     factor/avx-ecm/avx_ecm_main.c \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \
     factor/avx-ecm/vecarith52.c
 	
-#top/threadpool.c \
-#top/queue.c \
-#top/utils.c \
+YAFU_SIQS_SRCS = \
+	factor/qs/filter.c \
+	factor/qs/tdiv.c \
+	factor/qs/tdiv_small.c \
+	factor/qs/tdiv_large.c \
+	factor/qs/large_sieve.c \
+	factor/qs/new_poly.c \
+	factor/qs/siqs_test.c \
+	factor/qs/siqs_aux.c \
+	factor/qs/smallmpqs.c \
+	factor/qs/SIQS.c \
+	factor/qs/med_sieve_32k.c \
+	factor/qs/poly_roots_32k.c \
+	factor/prime_sieve.c \
+    factor/batch_factor.c \
+    factor/qs/cofactorize_siqs.c
 
 ifeq ($(USE_AVX2),1)
 
-    YAFU_SRCS += factor/qs/tdiv_med_32k_avx2.c 
-    YAFU_SRCS += factor/qs/update_poly_roots_32k_avx2.c
-    YAFU_SRCS += factor/qs/med_sieve_32k_avx2.c
-    YAFU_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
+    YAFU_SIQS_SRCS += factor/qs/tdiv_med_32k_avx2.c 
+    YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_avx2.c
+    YAFU_SIQS_SRCS += factor/qs/med_sieve_32k_avx2.c
+    YAFU_SIQS_SRCS += factor/qs/tdiv_resieve_32k_avx2.c
 
 endif
 
 ifeq ($(USE_SSE41),1)
 
     # these files require SSE4.1 to compile
-	YAFU_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
-	YAFU_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
+	YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_sse4.1.c
+	YAFU_SIQS_SRCS += factor/qs/med_sieve_32k_sse4.1.c    
 
 endif
 
 ifeq ($(KNC),1)
 
     # these files target running on KNC hardware
-	YAFU_SRCS += factor/qs/update_poly_roots_32k_knc.c
-    YAFU_SRCS += factor/qs/tdiv_med_32k_knc.c
-	YAFU_SRCS += factor/qs/tdiv_resieve_32k_knc.c
-	YAFU_SRCS += factor/qs/tdiv_scan_knc.c
+	YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_knc.c
+    YAFU_SIQS_SRCS += factor/qs/tdiv_med_32k_knc.c
+	YAFU_SIQS_SRCS += factor/qs/tdiv_resieve_32k_knc.c
+	YAFU_SIQS_SRCS += factor/qs/tdiv_scan_knc.c
 
 else
 
     ifeq ($(KNL),1)
 
-        YAFU_SRCS += factor/qs/tdiv_scan_knl.c
-        YAFU_SRCS += factor/qs/update_poly_roots_32k_knl.c
-        #YAFU_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
+        YAFU_SIQS_SRCS += factor/qs/tdiv_scan_knl.c
+        YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_knl.c
+        #YAFU_SIQS_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
 
     else
 
-        YAFU_SRCS += factor/qs/tdiv_scan.c
+        YAFU_SIQS_SRCS += factor/qs/tdiv_scan.c
 
     endif
 
     # won't build with KNC
-    YAFU_SRCS += factor/qs/update_poly_roots_32k.c
-    YAFU_SRCS += factor/qs/tdiv_med_32k.c
-    YAFU_SRCS += factor/qs/tdiv_resieve_32k.c
+    YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k.c
+    YAFU_SIQS_SRCS += factor/qs/tdiv_med_32k.c
+    YAFU_SIQS_SRCS += factor/qs/tdiv_resieve_32k.c
 
 endif
 
 
 YAFU_OBJS = $(YAFU_SRCS:.c=$(OBJ_EXT))
+YAFU_SIQS_OBJS = $(YAFU_SIQS_SRCS:.c=$(OBJ_EXT))
 
 #---------------------------YAFU NFS file lists -----------------------
 ifeq ($(NFS),1)
@@ -383,12 +381,15 @@ endif
 
 #---------------------------Make Targets -------------------------
 
-all: $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
-	$(CC) $(CFLAGS) $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) $(LIBS)
+all: $(MSIEVE_OBJS) $(YAFU_SIQS_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	rm -f libysiqs.a
+	ar r libysiqs.a $(YAFU_SIQS_OBJS) $(MSIEVE_OBJS) 
+	ranlib libysiqs.a
+	$(CC) $(CFLAGS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) -o $(BINNAME) -libysiqs.a $(LIBS)
 
 
 clean:
-	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS)
+	rm -f $(MSIEVE_OBJS) $(YAFU_OBJS) $(YAFU_NFS_OBJS) $(YAFU_SIQS_OBJS) 
 
 #---------------------------Build Rules -------------------------
 

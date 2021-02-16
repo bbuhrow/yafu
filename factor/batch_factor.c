@@ -429,10 +429,10 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
 /*------------------------------------------------------------------*/
 
-uint64_t_t pow2m(uint64_t_t b, uint64_t_t n)
+uint64_t pow2m(uint64_t b, uint64_t n)
 {
     // compute 2^b mod n
-    uint64_t_t acc, x, rho, am, g[8], mask;
+    uint64_t acc, x, rho, am, g[8], mask;
     int i;
     int j;
     int bstr;
@@ -452,7 +452,7 @@ uint64_t_t pow2m(uint64_t_t b, uint64_t_t n)
     x *= 2 - n * x;                 // here x*a==1 mod 2**32         
     x *= 2 - n * x;                 // here x*a==1 mod 2**64
 
-    rho = (uint64_t_t)0 - x;
+    rho = (uint64_t)0 - x;
     am = u64div(2, n);              // put 2 into Monty rep.
 
     // precomputations, b^i for 0 <= i < 2^k
@@ -541,7 +541,7 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr f1a = rb->f1a;
     mpz_ptr f2r = rb->f2r;
     mpz_ptr f2a = rb->f2a;
-    mpz_ptr small = rb->_small;
+    mpz_ptr small = rb->_small;     // rpcndr.h defines "small" as "char", problem for msvc
     mpz_ptr large = rb->_large;
     mpz_ptr n = rb->n;
 	uint32_t lp_r[MAX_LARGE_PRIMES];
@@ -1357,7 +1357,7 @@ void relation_batch_add(uint32_t a, uint32_t b, int32 offset,
 
 
 
-uint32_t relation_batch_run(relation_batch_t *rb, uint64_t_t *lcg_state) {
+uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state) {
     // recursive batch GCD, with a tree storage enhancement
     // to avoid re-calculating many of the products, at a cost
     // of additional RAM.

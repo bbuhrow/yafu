@@ -28,18 +28,15 @@ code to the public domain.
 
 #define VERSION_STRING "2.0"
 
-//max words for fixed precision msieve bignum
-#define MAX_MP_WORDS 64
-
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024
 
 //#define FORCE_GENERIC 1
-// assme this is a modern cpu that has at least up through sse2.
+// assme this is a modern cpu that has at least up through sse.
 #ifndef FORCE_GENERIC
-#define HAS_MMX 1
-#define HAS_SSE 1
-#define HAS_SSE2 1
+#define HAS_MMX 1           // Pentium, circa. 1997
+#define HAS_SSE 1           // P3, circa. 1999
+//#define HAS_SSE2 1        // P4, circa. 2000
 #define CACHE_LINE_64
 #endif
 
@@ -49,31 +46,7 @@ code to the public domain.
 #include <gmp.h>
 
 //global typedefs
-typedef struct {
-	uint32 nwords;		/* number of nonzero words in val[] */
-	uint32 val[MAX_MP_WORDS];
-} mp_t;
 
-typedef struct {
-	uint32 sign;	/* POSITIVE or NEGATIVE */
-	mp_t num;
-} signed_mp_t;
-
-typedef struct
-{
-	mpz_t factor;
-	int count;
-	int type;
-    // new parameters to support returning factors
-    // from avx-ecm.  In general I think it makes sense
-    // to have this structure contain information not
-    // only about the factor itself but how it was found.
-    int method;     // factorization method used
-    uint32 curve_num;   // curve found
-    uint64 sigma;   // sigma value
-    int tid;        // thread found
-    int vid;        // vector position found
-} factor_t;
 
 // a structure to hold a bunch of configuration info
 // for yafu, instead of declaring a bunch of globals.

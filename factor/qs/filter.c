@@ -18,10 +18,11 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
-
+#include "msieve_common.h"
 
 /*
 this file contains code to implement filtering of relation sets prior
@@ -210,7 +211,7 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 }
 
 void td_and_merge_relation(fb_list *fb, mpz_t n,
-    static_conf_t *sconf, fact_obj_t *obj, 
+    static_conf_t *sconf, qs_obj_t *obj, 
     siqs_r *r_out, siqs_r *rel)
 {
     int i, j, k, err_code = 0;
@@ -348,7 +349,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
 }
 
 int process_rel(char *substr, fb_list *fb, mpz_t n,
-				 static_conf_t *sconf, fact_obj_t *obj, siqs_r *rel)
+				 static_conf_t *sconf, qs_obj_t *obj, siqs_r *rel)
 {
 	char *nextstr;
 	uint32_t lp[3];
@@ -556,7 +557,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	char *str, *substr;
 	FILE *data;
 	uint32_t lp[2],pmax = sconf->large_prime_max / sconf->large_mult;
-	fact_obj_t *fobj = sconf->obj;
+	qs_obj_t *fobj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	data = fopen(sconf->obj->qs_obj.siqs_savefile,"r");
@@ -1306,7 +1307,7 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32_t flags, uint32_t prime1, ui
 }
 
 
-qs_la_col_t * find_cycles(fact_obj_t *obj, uint32_t *hashtable, qs_cycle_t *table,
+qs_la_col_t * find_cycles(qs_obj_t *obj, uint32_t *hashtable, qs_cycle_t *table,
 	siqs_r *relation_list, uint32_t num_relations, uint32_t *numcycles, uint32_t *numpasses)
 {
 	qs_la_col_t *cycle_list;
@@ -1706,7 +1707,7 @@ pbr_t *get_pbr_entry(pbr_t *table, uint32_t *hashtable, uint32_t rid) {
 	return entry;
 }
 
-qs_la_col_t * find_cycles3(fact_obj_t *fobj, static_conf_t *sconf,
+qs_la_col_t * find_cycles3(qs_obj_t *fobj, static_conf_t *sconf,
 	siqs_r *relation_list, uint32_t num_relations, uint32_t *numcycles, uint32_t *numpasses)
 {
 	// assume that we've kept a backup of all relation data, so feel free to modify it.
@@ -2150,7 +2151,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   should be taken to avoid wasting huge amounts of
 	   memory */
 
-	fact_obj_t *fobj = sconf->obj;
+	qs_obj_t *fobj = sconf->obj;
 	uint32_t *hashtable = sconf->cycle_hashtable;
 	qs_cycle_t *table = sconf->cycle_table;
 	uint32_t num_derived_poly;
@@ -2184,14 +2185,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (!sconf->in_mem)
 	{
 		/* skip over the first line */
-		qs_savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
-		qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+		qs_savefile_open(&fobj->savefile, SAVEFILE_READ);
+		qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
 
 		//we don't know beforehand how many rels to expect, so start
 		//with some amount and allow it to increase as we read them
 		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
-		while (!qs_savefile_eof(&fobj->qs_obj.savefile)) {
+		while (!qs_savefile_eof(&fobj->savefile)) {
 			char *start;
 
 			switch (buf[0]) {
@@ -2236,7 +2237,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				break;
 			}
 
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
 		}
 		num_relations = i;
 	}
@@ -2339,7 +2340,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   at the same time. */
 
 	if (!sconf->in_mem)
-		qs_savefile_rewind(&fobj->qs_obj.savefile);
+		qs_savefile_rewind(&fobj->savefile);
 	else
 		this_rel = 0;
 
@@ -2353,9 +2354,9 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		/* read in the next entity */
 		if (!sconf->in_mem)
 		{
-			if (qs_savefile_eof(&fobj->qs_obj.savefile))
+			if (qs_savefile_eof(&fobj->savefile))
 				break;
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
 		}
 		else
 		{
@@ -2560,7 +2561,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 
 	if (!sconf->in_mem)
-		qs_savefile_close(&fobj->qs_obj.savefile);
+		qs_savefile_close(&fobj->savefile);
 
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,
@@ -2762,7 +2763,7 @@ static int compare_relations3(const void *x, const void *y) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32_t qs_purge_duplicate_relations(fact_obj_t *fobj,
+uint32_t qs_purge_duplicate_relations(qs_obj_t *fobj,
 				siqs_r *rlist, 
 				uint32_t num_relations) {
 
@@ -2807,7 +2808,7 @@ uint32_t qs_purge_duplicate_relations(fact_obj_t *fobj,
 	return j;
 }
 
-uint32_t qs_purge_duplicate_relations3(fact_obj_t *obj,
+uint32_t qs_purge_duplicate_relations3(qs_obj_t *obj,
 	siqs_r *rlist,
 	uint32_t num_relations) {
 
@@ -2937,7 +2938,7 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	return;
 }
 
-uint32_t qs_purge_singletons(fact_obj_t *fobj, siqs_r *list, 
+uint32_t qs_purge_singletons(qs_obj_t *fobj, siqs_r *list, 
 				uint32_t num_relations,
 				qs_cycle_t *table, uint32_t *hashtable) {
 	
@@ -3024,7 +3025,7 @@ uint32_t qs_purge_singletons(fact_obj_t *fobj, siqs_r *list,
 	return num_left;
 }
 
-uint32_t qs_purge_singletons3(fact_obj_t *fobj, siqs_r *list,
+uint32_t qs_purge_singletons3(qs_obj_t *fobj, siqs_r *list,
 	uint32_t num_relations,
 	qs_cycle_t *table, uint32_t *hashtable) {
 
@@ -3121,7 +3122,7 @@ uint32_t qs_purge_singletons3(fact_obj_t *fobj, siqs_r *list,
 
 
 /*--------------------------------------------------------------------*/
-void qs_enumerate_cycle(fact_obj_t *obj, 
+void qs_enumerate_cycle(qs_obj_t *obj, 
 			    qs_la_col_t *c, 
 			    qs_cycle_t *table,
 			    qs_cycle_t *entry1, qs_cycle_t *entry2,
@@ -3209,7 +3210,7 @@ void qs_enumerate_cycle(fact_obj_t *obj,
 	c->cycle.list[i] = final_relation;
 }
 
-void qs_enumerate_cycle3(fact_obj_t *obj,
+void qs_enumerate_cycle3(qs_obj_t *obj,
 	qs_la_col_t *c,
 	qs_cycle_t *table,
 	qs_cycle_t *entry1, qs_cycle_t *entry2, qs_cycle_t *entry3,

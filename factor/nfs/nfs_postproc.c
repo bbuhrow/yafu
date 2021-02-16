@@ -153,7 +153,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             else
             {
                 char* s = mpz_get_str(NULL, 10, tmp);
-                logprint(logfile, "%s%d = %s\n", c, s);
+                logprint(logfile, "%s%d = %s\n", c, mpz_sizeinbase(tmp, 10), s);
                 fclose(logfile);
                 free(s);
             }

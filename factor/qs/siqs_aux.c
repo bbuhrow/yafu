@@ -632,7 +632,7 @@ void get_gray_code(siqs_poly *poly)
 	return;
 }
 
-uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
+uint32_t yafu_factor_list_add(qs_obj_t *obj, factor_list_t *list, 
 				mpz_t new_factor) {
 
 	uint32_t i, bitsleft;

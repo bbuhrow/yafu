@@ -5,11 +5,11 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\..\..\;..\..\..\..\gmp-ecm;..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\gmp-ecm\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\;..\..\..\..\..\gmp-ecm;..\..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\..\gmp-ecm\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>HAVE_GMP;HAVE_GMP_ECM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\..\mpir\lib\$(IntDir)mpir.lib;..\..\..\..\gmp-ecm\lib\$(IntDir)libecm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\..\..\..\..\mpir\lib\$(IntDir)mpir.lib;..\..\..\..\..\gmp-ecm\lib\$(IntDir)libecm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 </Project>

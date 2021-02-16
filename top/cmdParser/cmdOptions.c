@@ -1041,7 +1041,13 @@ options_t* initOpt(void)
     options->nfs_resume = 0;
     options->poly_batch = 250;
     options->ggnfs_siever = 0;
-    strcpy(options->ggnfs_dir, "");
+#if defined(_WIN64)
+    strcpy(options->ggnfs_dir, ".\");
+#elif defined(WIN32)
+    strcpy(options->ggnfs_dir, ".\");
+#else
+    strcpy(options->ggnfs_dir, "./");
+#endif
     
     // prime finding options
     options->soe_blocksize = 32768;

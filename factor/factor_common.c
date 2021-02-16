@@ -27,6 +27,7 @@ code to the public domain.
 #include "ytools.h"
 #include "mpz_aprcl.h"
 #include "cmdOptions.h"
+#include "factor_common.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
@@ -412,13 +413,7 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	*fobj->nfs_obj.filearg = '\0';
 
 	fobj->nfs_obj.polybatch = options->poly_batch;
-#if defined(_WIN64)
-	strcpy(fobj->nfs_obj.ggnfs_dir,".\\");
-#elif defined(WIN32)
-	strcpy(fobj->nfs_obj.ggnfs_dir,".\\");
-#else
-	strcpy(fobj->nfs_obj.ggnfs_dir,"./");
-#endif
+	strcpy(fobj->nfs_obj.ggnfs_dir, options->ggnfs_dir);
 
 	// initialize autofactor object
 	// whether we want to output certain info to their own files...
@@ -594,40 +589,42 @@ void reset_factobj(fact_obj_t *fobj)
 	return;
 }
 
-void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
+void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
 {
-	//stick the number n into the global factor list
+	//stick the number n into the provided factor list
 	uint32 i;
+    uint32 fid;
 	int found = 0, v = 0;
 
-	if (fobj->num_factors >= fobj->allocated_factors)
-	{
-		fobj->allocated_factors *= 2;
-		fobj->fobj_factors = (factor_t *)realloc(fobj->fobj_factors,
-			fobj->allocated_factors * sizeof(factor_t));
-	}
+	// look to see if this factor is already in the list
+    for (i = 0; i < flist->num_factors && !found; i++)
+    {
+        if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        {
+            found = 1;
+            flist->factors[i].count++;
+            return;
+        }
+    }
 
-	//look to see if this factor is already in the list
-	for (i=0;i<fobj->num_factors && !found; i++)
-	{
-		if (mpz_cmp(n, fobj->fobj_factors[i].factor) == 0)
-		{
-			found = 1;
-			fobj->fobj_factors[i].count++;
-			return;
-		}
-	}
+    // otherwise, allocate another factor to the list and add it
+    fid = flist->num_factors;
+    if (flist->num_factors >= flist->alloc_factors)
+    {
+        flist->alloc_factors *= 2;
+        flist->factors = (yfactor_t*)realloc(flist->factors,
+            flist->alloc_factors * sizeof(yfactor_t));
+    }
 
-	//else, put it in the list
-	mpz_init(fobj->fobj_factors[fobj->num_factors].factor);
-	mpz_set(fobj->fobj_factors[fobj->num_factors].factor, n);
-	fobj->fobj_factors[fobj->num_factors].count = 1;
-	if (gmp_base10(n) <= fobj->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
+	mpz_init(flist->factors[fid].factor);
+	mpz_set(flist->factors[fid].factor, n);
+    flist->factors[fid].count = 1;
+	if (gmp_base10(n) <= flist->aprcl_prove_cutoff) /* prove primality of numbers <= aprcl_prove_cutoff digits */
 	{
 		int ret = 0;
 
-		if (fobj->VFLAG > 0)
-			v = (gmp_base10(n) < fobj->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+		if (VFLAG > 0)
+			v = (gmp_base10(n) < flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 		else
 			v = APRTCLE_VERBOSE0;
 
@@ -638,7 +635,7 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 			printf("\n");
 
 		if (ret == APRTCLE_PRIME)
-			fobj->fobj_factors[fobj->num_factors].type = PRIME;
+            flist->factors[fid].type = PRIME;
 		else
 		{
 			if (mpz_bpsw_prp(n) != PRP_COMPOSITE)
@@ -649,46 +646,45 @@ void add_to_factor_list(fact_obj_t *fobj, mpz_t n)
 				printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
 				gmp_printf(" *** ATTENTION: n = %Zd\n", n);
 			}
-			fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
+            flist->factors[fid].type = COMPOSITE;
 		}
 	}
-	else if (is_mpz_prp(n, fobj->NUM_WITNESSES))
+	else if (is_mpz_prp(n, NUM_WITNESSES))
 	{
 		if (mpz_cmp_ui(n, 100000000) < 0)
-			fobj->fobj_factors[fobj->num_factors].type = PRIME;
+            flist->factors[fid].type = PRIME;
 		else
-			fobj->fobj_factors[fobj->num_factors].type = PRP;
+            flist->factors[fid].type = PRP;
 	}
 	else
-		fobj->fobj_factors[fobj->num_factors].type = COMPOSITE;
+        flist->factors[fid].type = COMPOSITE;
 
-	fobj->num_factors++;
-
+    flist->num_factors++;
 	return;
 }
 
-void delete_from_factor_list(fact_obj_t *fobj, mpz_t n)
+void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
 {
-	//remove the number n from the global factor list
+	// remove the number n from the global factor list
 	uint32 i;
 
-	//find the factor
-	for (i=0;i<fobj->num_factors; i++)
+	// find the factor
+	for (i=0;i< flist->num_factors; i++)
 	{
-		if (mpz_cmp(n,fobj->fobj_factors[i].factor) == 0)
+		if (mpz_cmp(n, flist->factors[i].factor) == 0)
 		{
 			int j;
 			// copy everything above this in the list back one position
-			for (j=i; j<fobj->num_factors-1; j++)
+			for (j=i; j< flist->num_factors-1; j++)
 			{
-				mpz_set(fobj->fobj_factors[j].factor, fobj->fobj_factors[j+1].factor);
-				fobj->fobj_factors[j].count = fobj->fobj_factors[j+1].count;
+				mpz_set(flist->factors[j].factor, flist->factors[j+1].factor);
+                flist->factors[j].count = flist->factors[j+1].count;
 			}
 			// remove the last one in the list
-			fobj->fobj_factors[j].count = 0;
-			mpz_clear(fobj->fobj_factors[j].factor);
+            flist->factors[j].count = 0;
+			mpz_clear(flist->factors[j].factor);
 
-			fobj->num_factors--;
+            flist->num_factors--;
 			break;
 		}
 	}
@@ -696,17 +692,17 @@ void delete_from_factor_list(fact_obj_t *fobj, mpz_t n)
 	return;
 }
 
-void clear_factor_list(fact_obj_t *fobj)
+void clear_factor_list(yfactor_list_t * flist)
 {
 	uint32 i;
 
 	//clear this info
-	for (i=0; i<fobj->num_factors; i++)
+	for (i=0; i< flist->num_factors; i++)
 	{
-		fobj->fobj_factors[i].count = 0;
-		mpz_clear(fobj->fobj_factors[i].factor);
+        flist->factors[i].count = 0;
+		mpz_clear(flist->factors[i].factor);
 	}
-	fobj->num_factors = 0;
+    flist->num_factors = 0;
 
 	return;
 }

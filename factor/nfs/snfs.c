@@ -1810,6 +1810,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_mul(c0, c0, tmp);
 
 				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
+                // leading coefficient contributes to the difficulty
+                d += log10(mpz_get_d(cd));
+
 				skew = pow(fabs(mpz_get_d(c0)) / mpz_get_d(cd), 1./(double)i);
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
@@ -1865,7 +1868,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_set(m, b);		// signed?
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
-				d = log10(d) * (double)i + log10(pow(mpz_get_d(b),inc));
+                d = log10(d) * (double)i; // +log10(pow(mpz_get_d(b), inc));
 
 				//cd = (int64)pow((double)b,inc) * (int64)poly->coeff1;
 				mpz_set_si(cd, poly->coeff1);

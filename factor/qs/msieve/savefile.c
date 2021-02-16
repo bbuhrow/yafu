@@ -15,6 +15,7 @@ Date:		11/24/09
 Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
+#include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
 
@@ -43,11 +44,9 @@ void qs_savefile_init(qs_savefile_t *s, char *savefile_name) {
 	memset(s, 0, sizeof(qs_savefile_t));
 
 	s->name = "siqs.dat";
-	//strcpy(s->name,"siqs.dat");
 	if (savefile_name)
 	{
 		s->name = savefile_name;
-		//strcpy(s->name,savefile_name);
 	}
 	
 	s->buf = (char *)xmalloc((size_t)SAVEFILE_BUF_SIZE);
