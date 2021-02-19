@@ -207,7 +207,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 						// divide out any common factor and copy the result to
 						// other data structures
 						if (mpz_cmp_ui(g, 1) > 0)
-							add_to_factor_list(fobj, g);
+							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
                         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
@@ -289,7 +289,7 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 						// divide out any common factor and copy the result to
 						// other data structures
 						if (mpz_cmp_ui(g, 1) > 0)
-							add_to_factor_list(fobj, g);
+							add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
 						mpz_tdiv_q(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n, g);
 						mpz_set(fobj->N, fobj->nfs_obj.gmp_n);
                         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);

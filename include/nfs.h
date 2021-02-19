@@ -1,7 +1,10 @@
+
+
 #include "gnfs.h"
 #include "arith.h"
 #include "factor.h"
 #include "qs.h"
+#include <stdint.h>
 
 //----------------------- LOCAL DATA TYPES -----------------------------------//
 
@@ -157,18 +160,18 @@ typedef struct
 typedef struct
 {
 	mpz_polys_t* poly; // the idea is that job->snfs->poly == job->poly
-	uint32 rlim, alim;
-	uint32 lpbr, lpba;
-	uint32 mfbr, mfba;
+	uint32_t rlim, alim;
+	uint32_t lpbr, lpba;
+	uint32_t mfbr, mfba;
 	double rlambda, alambda;
-	uint32 qrange; // how large a sieving block is
+	uint32_t qrange; // how large a sieving block is
 	char sievername[1024];
-	uint32 startq;
-	uint32 min_rels;
-	uint32 current_rels;
-	uint32 poly_time;
-	uint32 last_leading_coeff;
-	uint32 use_max_rels;
+	uint32_t startq;
+	uint32_t min_rels;
+	uint32_t current_rels;
+	uint32_t poly_time;
+	uint32_t last_leading_coeff;
+	uint32_t use_max_rels;
 
 	snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
@@ -181,8 +184,8 @@ typedef struct {
 
 	// stuff for parallel msieve poly select
 	char *polyfilename, *logfilename, *fbfilename;
-	uint64 poly_lower;
-	uint64 poly_upper;
+	uint64_t poly_lower;
+	uint64_t poly_upper;
 	msieve_obj *obj;
 	mp_t *mpN;
 	factor_list_t *factor_list;
@@ -225,26 +228,26 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job);
 int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs);
 void print_poly(mpz_polys_t* poly, FILE *out);
 void print_job(nfs_job_t *job, FILE *out);
-uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job);
+uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params);
 
-enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_job_t *job);
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
-uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj);
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job);
+uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj);
+uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job);
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
 void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
-	mp_t *mpN, factor_list_t *factor_list, int tid, uint32 flags, uint64 start, uint64 stop);
+	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags, uint64 start, uint64 stop);
 void do_sieving(fact_obj_t *fobj, nfs_job_t *job);
 void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);
 void savefile_concat(char *filein, char *fileout, msieve_obj *mobj);
 void win_file_concat(char *filein, char *fileout);
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
-				uint32 is_master_thread);
+				uint32_t is_master_thread);
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
-				uint32 is_master_thread);
+				uint32_t is_master_thread);
 void nfsexit(int sig);
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);

@@ -25,8 +25,8 @@ typedef struct {
 
 #if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
     HANDLE file_handle;
-    uint32 read_size;
-    uint32 eof;
+    uint32_t read_size;
+    uint32_t eof;
 #else
     gzFile* fp;
     char isCompressed;
@@ -147,8 +147,8 @@ typedef struct {
     MPI_Comm mpi_la_grid;
     MPI_Comm mpi_la_row_grid; /* communicator for the current MPI row */
     MPI_Comm mpi_la_col_grid; /* communicator for the current MPI col */
-    uint32 mpi_la_row_rank;
-    uint32 mpi_la_col_rank;
+    uint32_t mpi_la_row_rank;
+    uint32_t mpi_la_col_rank;
 #endif
 
     char* mp_sprintf_buf;    /* scratch space for printing big integers */

@@ -12,6 +12,7 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
+#include "factor.h"
 #include "nfs.h"
 #include "gmp_xface.h"
 
@@ -69,7 +70,8 @@ int nfs_check_special_case(fact_obj_t *fobj)
 
 	if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
-		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		
 		if (fobj->VFLAG >= 0)
 			gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->nfs_obj.gmp_n),
@@ -88,12 +90,14 @@ int nfs_check_special_case(fact_obj_t *fobj)
 	{
 		mpz_sqrt(fobj->nfs_obj.gmp_n, fobj->nfs_obj.gmp_n);
 
-		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, 
+            fobj->VFLAG, fobj->NUM_WITNESSES);
         char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n), s);
 
-		add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, 
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
 			gmp_base10(fobj->nfs_obj.gmp_n), s);
         free(s);
@@ -105,7 +109,7 @@ int nfs_check_special_case(fact_obj_t *fobj)
 	if (mpz_perfect_power_p(fobj->nfs_obj.gmp_n))
 	{
 		FILE *flog;
-		uint32 j;
+		uint32_t j;
 
 		if (fobj->VFLAG > 0)
 			printf("input is a perfect power\n");
@@ -114,14 +118,14 @@ int nfs_check_special_case(fact_obj_t *fobj)
 
 		logprint_oc(fobj->flogname, "a", "input is a perfect power\n");
 
-		for (j=0; j<fobj->num_factors; j++)
+		for (j=0; j<fobj->factors->num_factors; j++)
 		{
-			uint32 k;
-            char* s = mpz_get_str(NULL, 10, fobj->fobj_factors[j].factor);
-			for (k=0; k<fobj->fobj_factors[j].count; k++)
+			uint32_t k;
+            char* s = mpz_get_str(NULL, 10, fobj->factors->factors[j].factor);
+			for (k=0; k<fobj->factors->factors[j].count; k++)
 			{
 				logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-                    gmp_base10(fobj->fobj_factors[j].factor), s);
+                    gmp_base10(fobj->factors->factors[j].factor), s);
 			}
             free(s);
 		}
@@ -143,16 +147,16 @@ void nfs(fact_obj_t *fobj)
 	enum cpu_type cpu = ytools_get_cpu_type();
 	mp_t mpN;
 	factor_list_t factor_list;
-	uint32 flags = 0;
+	uint32_t flags = 0;
 	nfs_job_t job;
-	uint32 relations_needed = 1;
-	uint32 last_specialq = 0;
+	uint32_t relations_needed = 1;
+	uint32_t last_specialq = 0;
 	struct timeval stop;	// stop time of this job
 	struct timeval start;	// start time of this job
 	struct timeval bstop;	// stop time of sieving batch
 	struct timeval bstart;	// start time of sieving batch
 	double t_time;
-	uint32 pre_batch_rels = 0;
+	uint32_t pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];
 	int process_done;
 	enum nfs_state_e nfs_state;
@@ -531,7 +535,7 @@ void nfs(fact_obj_t *fobj)
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SQRT))
 			{
-				uint32 retcode;
+				uint32_t retcode;
 
 				// msieve: find factors
 				flags = 0;
@@ -632,7 +636,7 @@ void nfs(fact_obj_t *fobj)
 				// per relation because we've saved the time it took to do 
 				// the last batch of sieving and we know how many relations we
 				// found in that batch.
-				uint32 est_time;
+				uint32_t est_time;
 
 				gettimeofday(&bstop, NULL);
                 t_time = ytools_difftime(&bstart, &bstop);
@@ -740,7 +744,7 @@ void nfs(fact_obj_t *fobj)
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)))
  			{								
 				// this if-block catches cases 1 and 3 from above
-				uint32 missing_params = parse_job_file(fobj, &job);
+				uint32_t missing_params = parse_job_file(fobj, &job);
 				
 				// set min_rels.  
 				get_ggnfs_params(fobj, &job);
@@ -1045,10 +1049,10 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	// entries.  keep last valid entry off the ends of the table.  This will produce
 	// increasingly poor choices as one goes farther off the table, but you should be
 	// doing things by hand by then anyway.
-	uint32 i, d = gmp_base10(fobj->nfs_obj.gmp_n);
+	uint32_t i, d = gmp_base10(fobj->nfs_obj.gmp_n);
 	double scale;
 	int found = 0;
-	uint32 lpb = 0, mfb = 0, fblim = 0, siever = 0;
+	uint32_t lpb = 0, mfb = 0, fblim = 0, siever = 0;
 	double lambda;
 
 	/*
@@ -1257,7 +1261,7 @@ void nfs_set_min_rels(nfs_job_t *job)
 {
 	int i;
 	double fudge; // sundae :)
-	uint32 lpb;
+	uint32_t lpb;
 
 	job->min_rels = 0;
 	for (i = 0; i < 2; i++)

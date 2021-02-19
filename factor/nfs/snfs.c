@@ -16,6 +16,9 @@ benefit from your work.
 #include "ytools.h"
 #include "gmp_xface.h"
 
+#define POSITIVE 1
+#define NEGATIVE 0
+
 int tdiv_int(int x, int *factors);
 
 void snfs_init(snfs_t* poly)

@@ -133,12 +133,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{
 			//need to convert to yafu bigint to store
-			add_to_factor_list(fobj, tmp);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"prp",4);
 		}
 		else
 		{
-			add_to_factor_list(fobj, tmp);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"C",2);
 		}
 
@@ -170,12 +170,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 
 		if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
-			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"prp",4);			
 		}
 		else
 		{
-			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"C",2);
 		}
 		

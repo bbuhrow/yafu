@@ -42,7 +42,7 @@ code to the public domain.
 
 
 //support libraries
-#include "types.h"
+#include <stdint.h>
 #include <gmp.h>
 
 //global typedefs
@@ -53,7 +53,7 @@ code to the public domain.
 typedef struct
 {
     // isprime
-    uint32 NUM_WITNESSES;
+    uint32_t NUM_WITNESSES;
 
     // output behavior - used everywhere
     int VFLAG, LOGFLAG;
@@ -75,7 +75,7 @@ typedef struct
     double MEAS_CPU_FREQUENCY;
     int VERBOSE_PROC_INFO;
     char CPU_ID_STR[80];
-    uint32 L1CACHE, L2CACHE;
+    uint32_t L1CACHE, L2CACHE;
     int CLSIZE;
     char HAS_SSE41;
     char HAS_AVX;
@@ -92,19 +92,19 @@ typedef struct
 
 } yafu_obj_t;
 
-uint64 LCG_STATE;
+uint64_t LCG_STATE;
 
 //this array holds a global store of prime numbers
-uint32* spSOEprimes;	//the primes	
-uint32 szSOEp;			//count of primes
+uint32_t* spSOEprimes;	//the primes	
+uint32_t szSOEp;			//count of primes
 
 //this array holds NUM_P primes in the range P_MIN to P_MAX, and
 //can change as needed - always check the range and size to see
 //if the primes you need are in there before using it
-uint64* PRIMES;
-uint64 NUM_P;
-uint64 P_MIN;
-uint64 P_MAX;
+uint64_t* PRIMES;
+uint64_t NUM_P;
+uint64_t P_MIN;
+uint64_t P_MAX;
 
 void logprint_oc(const char *name, const char *method, char *args, ...);
 void logprint(FILE *infile, char *args, ...);
