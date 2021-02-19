@@ -18,7 +18,6 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
 
@@ -30,7 +29,7 @@ static void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 
 
 /*------------------------------------------------------------------*/
-int qs_solve_linear_system(qs_obj_t *obj, uint32_t fb_size, 
+int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size, 
 		    uint64_t **bitfield, siqs_r *relation_list, 
 		    qs_la_col_t *cycle_list, uint32_t *num_cycles) {
 

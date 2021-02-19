@@ -27,7 +27,6 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 */
 
-#include "yafu.h"
 #include "avx_ecm.h"
 #include "soe.h"
 #include "gmp.h"
@@ -122,17 +121,17 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     return;
 }
 
-factor_t* ecm_add_factor(factor_t* factors, int *numfactors, 
+yfactor_t* ecm_add_factor(yfactor_t* factors, int *numfactors, 
     mpz_t gmp_factor, int stg_id, int thread_id, int vec_id, 
     int curve_id, uint64_t sigma)
 {
     if (*numfactors == 0)
     {
-        factors = (factor_t*)malloc(1 * sizeof(factor_t));
+        factors = (yfactor_t*)malloc(1 * sizeof(yfactor_t));
     }
     else
     {
-        factors = (factor_t*)realloc(factors, (*numfactors + 1) * sizeof(factor_t));
+        factors = (yfactor_t*)realloc(factors, (*numfactors + 1) * sizeof(yfactor_t));
     }
     mpz_init(factors[*numfactors].factor);
     mpz_set(factors[*numfactors].factor, gmp_factor);
@@ -145,7 +144,7 @@ factor_t* ecm_add_factor(factor_t* factors, int *numfactors,
     return factors;
 }
 
-factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
+yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
     uint64 B2, int threads, int* numfactors, int verbose, 
     int save_b1, uint32 *curves_run)
 {
@@ -161,7 +160,7 @@ factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
 	int pid = getpid();
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
-    factor_t * factors;
+    yfactor_t * factors;
     
     // primes
     uint32_t seed_p[6542];

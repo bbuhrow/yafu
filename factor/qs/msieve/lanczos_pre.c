@@ -54,7 +54,7 @@ static int yafu_compare_weight(const void *x, const void *y) {
 }
 
 /*------------------------------------------------------------------*/
-void count_qs_matrix_nonzero(qs_obj_t *obj,
+void count_qs_matrix_nonzero(fact_obj_t *obj,
 			uint32_t nrows, uint32_t num_dense_rows,
 			uint32_t ncols, qs_la_col_t *cols) {
 
@@ -227,7 +227,7 @@ static void yafu_combine_cliques(uint32_t num_dense_rows,
 }
 
 /*------------------------------------------------------------------*/
-void reduce_qs_matrix(qs_obj_t *obj, uint32_t *nrows, 
+void reduce_qs_matrix(fact_obj_t *obj, uint32_t *nrows, 
 		uint32_t num_dense_rows, uint32_t *ncols, 
 		qs_la_col_t *cols, uint32_t num_excess) {
 

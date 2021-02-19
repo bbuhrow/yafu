@@ -579,7 +579,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = helperstruct.logp;
 
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
@@ -640,6 +640,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
+            uint32_t nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			prime = update_data.prime[j];
@@ -898,7 +900,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = helperstruct.logp;
 
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
 		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound; )
@@ -1475,7 +1477,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B; )
@@ -1537,6 +1539,8 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		logp = update_data.logp[j-1];
 		for (j=med_B;j<large_B;j++,ptr++)
 		{
+            uint32_t nroot1, nroot2;
+
 			CHECK_NEW_SLICE(j);
 
 			prime = update_data.prime[j];
@@ -1795,7 +1799,7 @@ void nextRoots_32k_sse41(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bound_index = helperstruct.bound_index;
 		logp = helperstruct.logp;
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
 		logp = update_data.logp[j-1];
 		for (j=large_B;j<bound; )

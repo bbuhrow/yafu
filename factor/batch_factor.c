@@ -541,8 +541,8 @@ void check_batch_relation(relation_batch_t *rb,
     mpz_ptr f1a = rb->f1a;
     mpz_ptr f2r = rb->f2r;
     mpz_ptr f2a = rb->f2a;
-    mpz_ptr small = rb->_small;     // rpcndr.h defines "small" as "char", problem for msvc
-    mpz_ptr large = rb->_large;
+    mpz_ptr _small = rb->_small;     // rpcndr.h defines "small" as "char", problem for msvc
+    mpz_ptr _large = rb->_large;
     mpz_ptr n = rb->n;
 	uint32_t lp_r[MAX_LARGE_PRIMES];
 	uint32_t lp_a[MAX_LARGE_PRIMES];
@@ -649,25 +649,25 @@ void check_batch_relation(relation_batch_t *rb,
             for (i = num_r = num_a = 0; i < MAX_LARGE_PRIMES; i++)
                 lp_r[i] = lp_a[i] = 1;
 
-            tinyecm(f2r, small, 70, 70 * 25, 16, lcg_state, 0);
+            tinyecm(f2r, _small, 70, 70 * 25, 16, lcg_state, 0);
 
-            if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_r))
+            if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
             {
                 //printf("abort 8\n");
                 return;
             }
 
             // small is acceptable, get large part.
-            mpz_tdiv_q(large, f2r, small);
-            lp_r[num_r++] = mpz_get_ui(small);
+            mpz_tdiv_q(_large, f2r, _small);
+            lp_r[num_r++] = mpz_get_ui(_small);
 
-            if (mpz_sizeinbase(large, 2) > 64)
+            if (mpz_sizeinbase(_large, 2) > 64)
             {
                 //printf("abort 8\n");
                 return;
             }
 
-            uint64_t e = mpz_get_ui(large);
+            uint64_t e = mpz_get_ui(_large);
             if (pow2m(e - 1, e) == 1)
             {
                 //printf("abort 3\n");
@@ -675,7 +675,7 @@ void check_batch_relation(relation_batch_t *rb,
             }
 
             // large still on track, try to split it
-            uint64_t f64 = do_uecm(mpz_get_ui(large));
+            uint64_t f64 = do_uecm(mpz_get_ui(_large));
 
             // see if any factors found are acceptable
             if (f64 <= 1 || f64 > rb->lp_cutoff_r)
@@ -685,15 +685,15 @@ void check_batch_relation(relation_batch_t *rb,
             }
 
             lp_r[num_r++] = f64;
-            mpz_tdiv_q_ui(large, large, f64);
+            mpz_tdiv_q_ui(_large, _large, f64);
 
-            if ((mpz_sizeinbase(large, 2) > 32) || (mpz_get_ui(large) > rb->lp_cutoff_r))
+            if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
             {
                 //printf("abort 10\n");
                 return;
             }
 
-            lp_r[num_r++] = mpz_get_ui(large);
+            lp_r[num_r++] = mpz_get_ui(_large);
 
             /* yay! Another relation found */
 
@@ -901,35 +901,35 @@ void check_batch_relation(relation_batch_t *rb,
 	//		return;
     //
 	//	small = &t0;
-	//	large = &t1;
-	//	if (mp_cmp(small, large) > 0) {
+	//	_large = &t1;
+	//	if (mp_cmp(small, _large) > 0) {
 	//		small = &t1;
-	//		large = &t0;
+	//		_large = &t0;
 	//	}
     //
 	//	if (small->nwords > 1 || small->val[0] > rb->lp_cutoff_r)
 	//		return;
 	//	lp_r[num_r++] = small->val[0];
-	//	i = squfof(large);
+	//	i = squfof(_large);
 	//	if (i <= 1 || i > rb->lp_cutoff_r)
 	//		return;
 	//	lp_r[num_r++] = i;
-	//	mp_divrem_1(large, i, large);
-	//	if (large->nwords > 1 || large->val[0] > rb->lp_cutoff_r)
+	//	mp_divrem_1(_large, i, _large);
+	//	if (_large->nwords > 1 || _large->val[0] > rb->lp_cutoff_r)
 	//		return;
-	//	lp_r[num_r++] = large->val[0];
+	//	lp_r[num_r++] = _large->val[0];
 	//}
 
     if (mpz_sizeinbase(f1r, 2) > 64) {
         //gmp_printf("attempting to factor %u-bit n = %Zx\n", mpz_sizeinbase(f1r, 2), f1r);
 
-        //if (tinyqs(qs_params, f1r, small, large) == 0)
+        //if (tinyqs(qs_params, f1r, small, _large) == 0)
         //    goto done;
         //
-        //if (mpz_cmp(small, large) > 0) {
+        //if (mpz_cmp(small, _large) > 0) {
         //    mpz_set(n, small);
-        //    mpz_set(small, large);
-        //    mpz_set(large, n);
+        //    mpz_set(small, _large);
+        //    mpz_set(_large, n);
         //}
 
         int B1, B2, curves, bits = mpz_sizeinbase(f1r, 2);
@@ -964,17 +964,17 @@ void check_batch_relation(relation_batch_t *rb,
             printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
         }
 
-        tinyecm(f1r, small, B1, B1 * 25, curves, lcg_state, 0);
+        tinyecm(f1r, _small, B1, B1 * 25, curves, lcg_state, 0);
 
-        if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_r))
+        if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_r))
         {
             return;
         }
 
-        mpz_tdiv_q(large, f1r, small);
-        lp_r[num_r++] = mpz_get_ui(small);
+        mpz_tdiv_q(_large, f1r, _small);
+        lp_r[num_r++] = mpz_get_ui(_small);
 
-        uint64_t f64 = do_uecm(mpz_get_ui(large));
+        uint64_t f64 = do_uecm(mpz_get_ui(_large));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -982,14 +982,14 @@ void check_batch_relation(relation_batch_t *rb,
         }
 
         lp_r[num_r++] = f64;
-        mpz_tdiv_q_ui(large, large, f64);
+        mpz_tdiv_q_ui(_large, _large, f64);
 
-        if ((mpz_sizeinbase(large, 2) > 32) || (mpz_get_ui(large) > rb->lp_cutoff_r))
+        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_r))
         {
             return;
         }
 
-        lp_r[num_r++] = mpz_get_ui(large);
+        lp_r[num_r++] = mpz_get_ui(_large);
     }
 
 
@@ -997,34 +997,34 @@ void check_batch_relation(relation_batch_t *rb,
 	//	if (tinyqs(&f1a, &t0, &t1) == 0)
 	//		return;
     //
-	//	small = &t0;
-	//	large = &t1;
-	//	if (mp_cmp(small, large) > 0) {
-	//		small = &t1;
-	//		large = &t0;
+	//	_small = &t0;
+	//	_large = &t1;
+	//	if (mp_cmp(_small, _large) > 0) {
+	//		_small = &t1;
+	//		_large = &t0;
 	//	}
     //
-	//	if (small->nwords > 1 || small->val[0] > rb->lp_cutoff_a)
+	//	if (_small->nwords > 1 || _small->val[0] > rb->lp_cutoff_a)
 	//		return;
-	//	lp_a[num_a++] = small->val[0];
-	//	i = squfof(large);
+	//	lp_a[num_a++] = _small->val[0];
+	//	i = squfof(_large);
 	//	if (i <= 1 || i > rb->lp_cutoff_a)
 	//		return;
 	//	lp_a[num_a++] = i;
-	//	mp_divrem_1(large, i, large);
-	//	if (large->nwords > 1 || large->val[0] > rb->lp_cutoff_a)
+	//	mp_divrem_1(_large, i, _large);
+	//	if (_large->nwords > 1 || _large->val[0] > rb->lp_cutoff_a)
 	//		return;
-	//	lp_a[num_a++] = large->val[0];
+	//	lp_a[num_a++] = _large->val[0];
 	//}
 
     if (mpz_sizeinbase(f1a, 2) > 64) {
-        //if (tinyqs(qs_params, f1a, small, large) == 0)
+        //if (tinyqs(qs_params, f1a, _small, _large) == 0)
         //    return;
         //
-        //if (mpz_cmp(small, large) > 0) {
-        //    mpz_set(n, small);
-        //    mpz_set(small, large);
-        //    mpz_set(large, n);
+        //if (mpz_cmp(_small, _large) > 0) {
+        //    mpz_set(n, _small);
+        //    mpz_set(_small, _large);
+        //    mpz_set(_large, n);
         //}
 
         int B1, B2, curves, bits = mpz_sizeinbase(f1a, 2);
@@ -1061,26 +1061,26 @@ void check_batch_relation(relation_batch_t *rb,
             printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
         }
         
-        tinyecm(f1a, small, B1, B1 * 25, curves, lcg_state, 0);
+        tinyecm(f1a, _small, B1, B1 * 25, curves, lcg_state, 0);
 
-        if ((mpz_sizeinbase(small, 2) > 32) || (mpz_get_ui(small) > rb->lp_cutoff_a))
+        if ((mpz_sizeinbase(_small, 2) > 32) || (mpz_get_ui(_small) > rb->lp_cutoff_a))
             return;
 
-        mpz_tdiv_q(large, f1a, small);
-        lp_a[num_a++] = mpz_get_ui(small);
+        mpz_tdiv_q(_large, f1a, _small);
+        lp_a[num_a++] = mpz_get_ui(_small);
 
-        uint64_t f64 = do_uecm(mpz_get_ui(large));
+        uint64_t f64 = do_uecm(mpz_get_ui(_large));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
 
         lp_a[num_a++] = f64;
-        mpz_tdiv_q_ui(large, large, f64);
+        mpz_tdiv_q_ui(_large, _large, f64);
 
-        if ((mpz_sizeinbase(large, 2) > 32) || (mpz_get_ui(large) > rb->lp_cutoff_a))
+        if ((mpz_sizeinbase(_large, 2) > 32) || (mpz_get_ui(_large) > rb->lp_cutoff_a))
             return;
 
-        lp_a[num_a++] = mpz_get_ui(large);
+        lp_a[num_a++] = mpz_get_ui(_large);
     }
 
 	/* yay! Another relation found */
@@ -1159,9 +1159,10 @@ void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
 			uint32_t min_prime, uint32_t max_prime,
 			uint32_t lp_cutoff_r, uint32_t lp_cutoff_a, 
-			qs_savefile_t *savefile,
 			print_relation_t print_relation,
             int do_prime_product) {
+
+    // qs_savefile_t *savefile,
 
     mpz_init(rb->prime_product);
 
@@ -1196,7 +1197,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
         			(uint32_t)mpz_sizeinbase(rb->prime_product, 2));
     }
 					
-	rb->savefile = savefile;
+	//rb->savefile = savefile;
 	rb->print_relation = print_relation;
     rb->conversion_ratio = 0.0;
 
@@ -1269,7 +1270,7 @@ void relation_batch_free(relation_batch_t *rb) {
 }
 
 /*------------------------------------------------------------------*/
-void relation_batch_add(uint32_t a, uint32_t b, int32 offset,
+void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r_in,
 			uint32_t *factors_a, uint32_t num_factors_a, 

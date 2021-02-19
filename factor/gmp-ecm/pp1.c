@@ -18,13 +18,13 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/2/10
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "yafu_ecm.h"
 #include "soe.h"
 #include "factor.h"
 #include "ytools.h"
 #include <gmp_xface.h>
 #include <ecm.h>
+#include <signal.h>
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes
@@ -33,13 +33,15 @@ void pp1_finalize(fact_obj_t *fobj);
 void pp1_print_B1_B2(fact_obj_t *fobj);
 int pp1_wrapper(fact_obj_t *fobj);
 void pp1exit(int sig);
-uint64 TMP_STG2_MAX;
+
+uint64_t TMP_STG2_MAX;
+int PP1_ABORT;
 
 typedef struct
 {
 	mpz_t gmp_n, gmp_factor;
 	ecm_params params;
-	uint32 sigma;
+	uint32_t sigma;
 	int stagefound;
 
 } ecm_pp1_data_t;
@@ -51,14 +53,8 @@ void pp1_init(fact_obj_t *fobj)
 	mpz_init(pp1_data.gmp_n);
 	mpz_init(pp1_data.gmp_factor);
 	ecm_init(pp1_data.params);
-	//gmp_randseed_ui(tdata->params->rng, 
-	//	get_rand(&obj->seed1, &obj->seed2));
-
 	pp1_data.params->method = ECM_PP1;
-	//pp1_data.params->verbose = 1;
-
-	TMP_STG2_MAX = fobj->pp1_obj.B2; //WILL_STG2_MAX;
-
+	TMP_STG2_MAX = fobj->pp1_obj.B2;
 	PP1_ABORT = 0;
 	signal(SIGINT,pp1exit);
 
@@ -70,8 +66,6 @@ void pp1_finalize(fact_obj_t *fobj)
 	ecm_clear(pp1_data.params);
 	mpz_clear(pp1_data.gmp_n);
 	mpz_clear(pp1_data.gmp_factor);
-
-	//WILL_STG2_MAX = TMP_STG2_MAX;
 	fobj->pp1_obj.B2 = TMP_STG2_MAX;
 	signal(SIGINT,NULL);
 
@@ -159,7 +153,8 @@ void williams_loop(fact_obj_t *fobj)
             char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_n);
             logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n), s);
             free(s);
-			add_to_factor_list(fobj, fobj->pp1_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
+                fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
@@ -167,7 +162,7 @@ void williams_loop(fact_obj_t *fobj)
 			break;
 		}
 		
-		fobj->pp1_obj.base = lcg_rand_32(3,MAX_DIGIT,&fobj->pp1_obj.lcg_state);
+		fobj->pp1_obj.base = lcg_rand_32(3,0xffffffff,&fobj->pp1_obj.lcg_state);
 
         pp1_print_B1_B2(fobj);
 
@@ -184,7 +179,8 @@ void williams_loop(fact_obj_t *fobj)
 			//check if the factor is prime
 			if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
 			{
-				add_to_factor_list(fobj, fobj->pp1_obj.gmp_f);
+				add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
+                    fobj->VFLAG, fobj->NUM_WITNESSES);
 
 				if (fobj->VFLAG > 0)
 					gmp_printf("pp1: found prp%d factor = %Zd\n",
@@ -197,7 +193,8 @@ void williams_loop(fact_obj_t *fobj)
 			}
 			else
 			{
-				add_to_factor_list(fobj, fobj->pp1_obj.gmp_f);
+				add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
+                    fobj->VFLAG, fobj->NUM_WITNESSES);
 
 				if (fobj->VFLAG > 0)
 					gmp_printf("pp1: found c%d factor = %Zd\n",

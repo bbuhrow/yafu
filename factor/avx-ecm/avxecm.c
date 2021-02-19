@@ -97,6 +97,12 @@ uint32_t spRandp(uint64_t * lcg_state, uint32_t lower, uint32_t upper)
         (double)(upper - lower) * (double)(*lcg_state >> 32) * INV_2_POW_32);
 }
 
+static uint64_t* ecm_primes;
+static uint64_t ecm_nump;
+static uint64_t ecm_minp;
+static uint64_t ecm_maxp;
+static int ecm_primes_initialized = 0;
+
 // a map of the 479 integers relatively prime to 2310. plus 0, 1, and 2310.
 // The map maps into the Pb array of stored elliptic delta points: [d]Q.
 // 0 maps to 0 which is used as scratch space.
@@ -2298,6 +2304,15 @@ void vececm(thread_data_t *tdata)
 		one->data[i] = 1;
 	}
     one->size = 1;
+
+    if (!ecm_primes_initialized)
+    {
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+        ecm_primes = soe_wrapper(sdata, 0, 100000000, 0, &ecm_nump, 0, 0);
+        ecm_maxp = ecm_primes[ecm_nump - 1];
+        soe_finalize(sdata);
+        ecm_primes_initialized = 1;
+    }
     
     tpool_data = tpool_setup(tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
         &vec_ecm_dispatch, tdata);
@@ -2358,17 +2373,23 @@ void vececm(thread_data_t *tdata)
 			// and thus stage 1 takes several iterations of PRIME_RANGE.
 			// second condition resets primes array, if it is modified
 			// by stage 2, before starting a new batch of curves.
-			if ((tdata[0].work->last_pid == NUM_P) || ((p == 0) && (P_MIN != 2)))
+			if ((tdata[0].work->last_pid == ecm_nump) || ((p == 0) && (ecm_minp != 2)))
 			{
-				if (PRIMES != NULL) { free(PRIMES); PRIMES = NULL; };
-				PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL,
-					p, MIN(STAGE2_MAX + 1000, p + (uint64_t)PRIME_RANGE), &num_found);
-				NUM_P = num_found;
-				P_MIN = PRIMES[0];
-				P_MAX = PRIMES[NUM_P - 1];
+				if (ecm_primes != NULL) { free(ecm_primes); ecm_primes = NULL; };
+                
+                soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                ecm_primes = soe_wrapper(sdata, p, 
+                    MIN(STAGE2_MAX + 1000, p + (uint64_t)PRIME_RANGE), 
+                    0, &ecm_nump, 0, 0);
+                ecm_maxp = ecm_primes[ecm_nump - 1];
+                soe_finalize(sdata);
+
+                ecm_minp = ecm_primes[0];
+                ecm_maxp = ecm_primes[ecm_nump - 1];
 
                 if (verbose > 1)
-				    printf("found %lu primes in range [%lu : %lu]\n", NUM_P, P_MIN, P_MAX);
+				    printf("found %lu primes in range [%lu : %lu]\n", 
+                        ecm_nump, ecm_minp, ecm_maxp);
 			}
 
             for (i = 0; i < threads; i++)
@@ -2379,7 +2400,7 @@ void vececm(thread_data_t *tdata)
 
             if (verbose > 1)
             {
-                printf("commencing Stage 1 @ prime %lu\n", P_MIN);
+                printf("commencing Stage 1 @ prime %lu\n", ecm_minp);
             }
 
             // start the stage 1 thread pool
@@ -2472,7 +2493,7 @@ void vececm(thread_data_t *tdata)
                         if (tdata[0].save_b1)
                         {
                             fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
-                                tdata[j].sigma[i], PRIMES[tdata[j].work->last_pid - 1]);
+                                tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
                             gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
                             extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
@@ -2572,7 +2593,7 @@ void vececm(thread_data_t *tdata)
                 if (tdata[0].save_b1)
                 {
                     fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
-                        tdata[j].sigma[i], PRIMES[tdata[j].work->last_pid - 1]);
+                        tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
                     gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
                     extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
@@ -2604,7 +2625,7 @@ void vececm(thread_data_t *tdata)
 
         if (DO_STAGE2)
         {
-            uint64_t last_p = PRIMES[tdata[0].work->last_pid];
+            uint64_t last_p = ecm_primes[tdata[0].work->last_pid];
 
             // parallel stage 2
             gettimeofday(&startt, NULL);
@@ -2619,14 +2640,19 @@ void vececm(thread_data_t *tdata)
 
             for (; last_p < STAGE2_MAX; )
             {
-				if (last_p == P_MAX)
+				if (last_p == ecm_maxp)
 				{
-					if (PRIMES != NULL) { free(PRIMES); PRIMES = NULL; };
-					PRIMES = GetPRIMESRange(spSOEprimes, szSOEp, NULL,
-						last_p, MIN(last_p + (uint64_t)PRIME_RANGE, STAGE2_MAX + 1000), &num_found);
-					NUM_P = num_found;
-					P_MIN = PRIMES[0];
-					P_MAX = PRIMES[NUM_P - 1];
+                    if (ecm_primes != NULL) { free(ecm_primes); ecm_primes = NULL; };
+
+                    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                    ecm_primes = soe_wrapper(sdata, last_p, 
+                        MIN(last_p + (uint64_t)PRIME_RANGE, STAGE2_MAX + 1000),
+                        0, &ecm_nump, 0, 0);
+                    ecm_maxp = ecm_primes[ecm_nump - 1];
+                    soe_finalize(sdata);
+
+                    ecm_minp = ecm_primes[0];
+                    ecm_maxp = ecm_primes[ecm_nump - 1];
 
 					for (i = 0; i < threads; i++)
 					{
@@ -2634,7 +2660,10 @@ void vececm(thread_data_t *tdata)
 					}
 
                     if (verbose > 1)
-					    printf("found %lu primes in range [%lu : %lu]\n", NUM_P, P_MIN, P_MAX);
+                    {
+                        printf("found %lu primes in range [%lu : %lu]\n",
+                            ecm_nump, ecm_minp, ecm_maxp);
+                    }
 				}
 
                 for (i = 0; i < threads; i++)
@@ -2647,18 +2676,18 @@ void vececm(thread_data_t *tdata)
                 //printf("stage 2 finished at P=%lu (maxP = %lu) (id %u of %lu)\n",
                 //    PRIMES[tdata[0].work->last_pid], P_MAX, tdata[0].work->last_pid, NUM_P);
 
-				if (tdata[0].work->last_pid == NUM_P)
+				if (tdata[0].work->last_pid == ecm_nump)
 				{
 					// we ended at the last prime we cached.  Check if we
 					// need to do more.  
 					if (STAGE2_MAX == PRIME_RANGE)
 						break;
 					else
-						last_p = P_MAX;
+						last_p = ecm_maxp;
 				}
 				else
 				{
-					last_p = PRIMES[tdata[0].work->last_pid];
+					last_p = ecm_primes[tdata[0].work->last_pid];
 				}
             }
 
@@ -3215,11 +3244,11 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
 		q *= 2;
 	}
 
-	for (i = 1; (i < NUM_P) && ((uint32_t)PRIMES[i] < STAGE1_MAX); i++)
+	for (i = 1; (i < ecm_nump) && ((uint32_t)ecm_primes[i] < STAGE1_MAX); i++)
 	{
 		uint64_t c = 1;
 	
-		q = PRIMES[i];
+		q = ecm_primes[i];
 		do {
 			vec_prac(mdata, work, P, q);
 			c *= q;
@@ -3241,7 +3270,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
     if (verbose > 1)
 	{
 		printf("\nStage 1 completed at prime %lu with %u point-adds and %u point-doubles\n", 
-			PRIMES[i-1], work->stg1Add, work->stg1Doub);
+			ecm_primes[i-1], work->stg1Add, work->stg1Doub);
 		fflush(stdout);
 	}
 	return;
@@ -3526,19 +3555,19 @@ void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 	{
 		printf("commencing stage 2 at p=%lu, A=%u\n"
 			"w = %u, R = %u, L = %u, umax = %u, amin = %u\n",
-			PRIMES[pid], amin * ascale, w, numR, L, umax, amin);
+            ecm_primes[pid], amin * ascale, w, numR, L, umax, amin);
 	}
 
-	while ((pid < NUM_P) && (PRIMES[pid] < STAGE2_MAX))
+	while ((pid < ecm_nump) && (ecm_primes[pid] < STAGE2_MAX))
 	{
 		work->numprimes++;
 
-		s = PRIMES[pid++];
+		s = ecm_primes[pid++];
 		a = (s + w) / ascale;
 
 		if ((verbose > 1) && ((pid & 32767) == 0))
 		{
-			printf("accumulating prime %lu\r", PRIMES[pid]);
+			printf("accumulating prime %lu\r", ecm_primes[pid]);
 			fflush(stdout);
 		}
 

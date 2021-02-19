@@ -55,7 +55,7 @@ this file contains code implementing 3)
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define MOD_INIT_8X												\
 			ASM_G (														\
@@ -155,7 +155,7 @@ this file contains code implementing 3)
 
 #elif defined(MSC_ASM32A)
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 		//top level sieve scanning with SSE2
 
 		#define MOD_INIT_8X	
@@ -243,7 +243,7 @@ this file contains code implementing 3)
 
 #elif defined(_WIN64)
 
-#if defined(HAS_SSE2)
+#if defined(D_HAS_SSE2)
 		//top level sieve scanning with SSE2
 
 		#define MOD_INIT_8X	

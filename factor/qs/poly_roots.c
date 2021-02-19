@@ -652,7 +652,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
-			x = (int)((int64)x * (int64)inv % (int64)prime);
+			x = (int)((int64_t)x * (int64_t)inv % (int64_t)prime);
 
 			rootupdates[(j)*fb->B+i] = x;
 		}
@@ -697,7 +697,7 @@ void firstRoots(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
-			x = (int)((int64)x * (int64)inv % (int64)prime);
+			x = (int)((int64_t)x * (int64_t)inv % (int64_t)prime);
 			rootupdates[(j)*fb->B+i] = x;
 		}
 	}

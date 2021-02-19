@@ -5,27 +5,9 @@
       <UniqueIdentifier>{a31b11e1-fd24-4fc7-ae61-83a71066be32}</UniqueIdentifier>
       <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
     </Filter>
-    <Filter Include="Source Files\factoring">
-      <UniqueIdentifier>{92278bd6-e76f-40e6-936d-ad8764ed958f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\arith">
-      <UniqueIdentifier>{ea83b8ed-b996-42b4-96a6-76d4cd4f22e3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files">
       <UniqueIdentifier>{2fb2f2c2-4f91-44ce-8cac-46f944abad64}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
-    </Filter>
-    <Filter Include="Source Files\factoring\qs">
-      <UniqueIdentifier>{3d086396-99eb-43de-b3ea-952bfd26b590}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\factoring\nfs">
-      <UniqueIdentifier>{a459d6a9-e014-4502-beb0-46aa8530ced3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\factoring\gmp-ecm">
-      <UniqueIdentifier>{2887f7ee-6045-4d89-8d77-deb670485475}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\factoring\avx-ecm">
-      <UniqueIdentifier>{9f267715-3567-4695-8a81-2d6d06e2a145}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\frontend">
       <UniqueIdentifier>{e4c128c2-ce52-4467-9ec8-fb4f0964f940}</UniqueIdentifier>
@@ -34,81 +16,6 @@
   <ItemGroup>
     <ClCompile Include="..\..\top\test.c">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\factor_common.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\rho.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\squfof.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\trialdiv.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\tune.c">
-      <Filter>Source Files\factoring</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\ecm.c">
-      <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\pm1.c">
-      <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\pp1.c">
-      <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\winsupport.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs_threading.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs_sieving.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs_poly.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\nfs_postproc.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\nfs\snfs.c">
-      <Filter>Source Files\factoring\nfs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\arith\monty.c">
-      <Filter>Source Files\arith</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c">
-      <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
-      <Filter>Source Files\factoring\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\avx_ecm_main.c">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\avxecm.c">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\vec_common.c">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\vecarith.c">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c">
       <Filter>Source Files\frontend</Filter>
@@ -119,52 +26,19 @@
     <ClCompile Include="..\..\top\cmdParser\calc.c">
       <Filter>Source Files\frontend</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\arith\arith.c">
-      <Filter>Source Files\arith</Filter>
+    <ClCompile Include="..\..\factor\autofactor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\tune.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\arith.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\factor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\gmp_xface.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\yafu.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\yafu_ecm.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\gnfs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\nfs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\monty.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\queue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h">
-      <Filter>Source Files\factoring\avx-ecm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h">
       <Filter>Source Files\frontend</Filter>
@@ -172,13 +46,5 @@
     <ClInclude Include="..\..\top\cmdParser\calc.h">
       <Filter>Source Files\frontend</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\factor_common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <YASM Include="..\..\arith\mod64.asm">
-      <Filter>Source Files\arith</Filter>
-    </YASM>
   </ItemGroup>
 </Project>

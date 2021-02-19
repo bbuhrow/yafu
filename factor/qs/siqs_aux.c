@@ -37,7 +37,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	uint8_t logp;
     uint32_t urange = sconf->factor_base->B * sconf->multiplier * 1.1; // 10000000;
 	uint32_t lrange = 0;
-	fp_digit f;
+	uint64_t f;
 #ifdef USE_8X_MOD_ASM
 	uint32_t shift = 24;
 #endif
@@ -51,33 +51,33 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	uint32_t *modsqrt = sconf->modsqrt_array;
 
     //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-	free(PRIMES);
-    PRIMES = soe_wrapper(sdata, lrange, urange, 0, &NUM_P, 0, 0);
+	free(siqs_primes);
+    siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
     //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
     
-	//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
-	P_MIN = PRIMES[0];
-	P_MAX = PRIMES[NUM_P-1];
+	//siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
+	siqs_minp = siqs_primes[0];
+	siqs_maxp = siqs_primes[siqs_nump-1];
 
 	//the 0th and 1st elements in the fb are always 1 and 2, so start searching with 3
 	j=2; i=1;
 	while (j<fb->B)
 	{
-		if ((uint32_t)i >= NUM_P)
+		if ((uint32_t)i >= siqs_nump)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
-			free(PRIMES);
+			free(siqs_primes);
             //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-            PRIMES = soe_wrapper(sdata, lrange, urange, 0, &NUM_P, 0, 0);
-			//PRIMES = soe_wrapper(spSOEprimes, szSOEp, lrange, urange, 0, &NUM_P);
-			P_MIN = PRIMES[0];
-			P_MAX = PRIMES[NUM_P-1];
+            siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
+			//siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
+			siqs_minp = siqs_primes[0];
+            siqs_maxp = siqs_primes[siqs_nump -1];
             //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
 			i=0;
 		}
 
-		prime = (uint32_t)PRIMES[i];
+		prime = (uint32_t)siqs_primes[i];
 		r = mpz_tdiv_ui(n, prime);
 		if (r == 0)
 		{
@@ -177,11 +177,11 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 			continue;
 		}
 
-		b = jacobi_1((fp_digit)r,(fp_digit)prime);
+		b = jacobi_1((uint64_t)r,(uint64_t)prime);
 		if (b==1)
 		{
 			//this prime works
-			ShanksTonelli_1((fp_digit)r,(fp_digit)prime,&f);
+			ShanksTonelli_1((uint64_t)r,(uint64_t)prime,&f);
 			root1 = (uint32_t)f;
 			root2 = prime - root1;
 
@@ -632,7 +632,7 @@ void get_gray_code(siqs_poly *poly)
 	return;
 }
 
-uint32_t yafu_factor_list_add(qs_obj_t *obj, factor_list_t *list, 
+uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list, 
 				mpz_t new_factor) {
 
 	uint32_t i, bitsleft;

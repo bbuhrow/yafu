@@ -21,8 +21,9 @@ code to the public domain.
 #ifndef ARITH_H
 #define ARITH_H
 
-#include "yafu.h"
+#include <stdint.h>
 #include <sys/types.h>
+#include "gmp.h"
 
 #define LIMB_BLKSZ 10	
 #define MAX_DIGITS 100
@@ -51,25 +52,25 @@ code to the public domain.
 #else
 #define _reset_lsb(x) ((x) &= ((x) - 1))
 #define _reset_lsb64(x) ((x) &= ((x) - 1))
-__inline uint32 _trail_zcnt(uint32 x)
+__inline uint32_t _trail_zcnt(uint32_t x)
 {
-    uint32 pos;
+    uint32_t pos;
     if (_BitScanForward(&pos, x))
         return pos;
     else
         return 32;
 }
-__inline uint64 _trail_zcnt64(uint64 x)
+__inline uint64_t _trail_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (_BitScanForward64(&pos, x))
         return pos;
     else
         return 64;
 }
-__inline uint64 _lead_zcnt64(uint64 x)
+__inline uint64_t _lead_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (_BitScanReverse64(&pos, x))
         return pos;
     else
@@ -106,25 +107,25 @@ __inline uint64 _lead_zcnt64(uint64 x)
 #define _reset_lsb64(x) ((x) &= ((x) - 1))
 
 #else
-__inline uint32 _trail_zcnt(uint32 x)
+__inline uint32_t _trail_zcnt(uint32_t x)
 {
-    uint32 pos;
+    uint32_t pos;
     if (_BitScanForward(&pos, x))
         return pos;
     else
         return 32;
 }
-__inline uint64 _trail_zcnt64(uint64 x)
+__inline uint64_t _trail_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (_BitScanForward64(&pos, x))
         return pos;
     else
         return 64;
 }
-__inline uint64 _lead_zcnt64(uint64 x)
+__inline uint64_t _lead_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (_BitScanReverse64(&pos, x))
         return pos;
     else
@@ -136,9 +137,9 @@ __inline uint64 _lead_zcnt64(uint64 x)
 
 #else
 
-__inline uint64 _lead_zcnt64(uint64 x)
+__inline uint64_t _lead_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (x)
     {
         pos = 0;
@@ -159,9 +160,9 @@ __inline uint64 _lead_zcnt64(uint64 x)
     return pos;
 }
 
-__inline uint32 _trail_zcnt(uint32 x)
+__inline uint32_t _trail_zcnt(uint32_t x)
 {
-    uint32 pos;
+    uint32_t pos;
     if (x)
     {
         x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
@@ -181,9 +182,9 @@ __inline uint32 _trail_zcnt(uint32 x)
     return pos;
 }
 
-__inline uint64 _trail_zcnt64(uint64 x)
+__inline uint64_t _trail_zcnt64(uint64_t x)
 {
-    uint64 pos;
+    uint64_t pos;
     if (x)
     {
         x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
@@ -209,38 +210,38 @@ __inline uint64 _trail_zcnt64(uint64 x)
 
 // arbitrary precision arith routines
 /********************* single precision arith **********************/
-void spAdd(fp_digit u, fp_digit v, fp_digit *sum, fp_digit *carry);
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sum, fp_digit *carry);
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit *sub, fp_digit *borrow);
-void spSub(fp_digit u, fp_digit v, fp_digit *sub, fp_digit *borrow);
-void spMultiply(fp_digit u, fp_digit v, fp_digit *product, fp_digit *carry);
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit *lower, fp_digit *carry);
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit *w);
-void spModExp(fp_digit a, fp_digit b, fp_digit m, fp_digit *u);
-fp_digit spDivide(fp_digit *q, fp_digit *r, fp_digit u[2], fp_digit v);
-fp_digit spBits(fp_digit n);
-int bits64(uint64 n);
-uint32 modinv_1(uint32 a, uint32 p);
-uint32 modinv_1b(uint32 a, uint32 p);
-uint32 modinv_1c(uint32 a, uint32 p);
-uint64 spPRP2(uint64 p);
-void ShanksTonelli_1(fp_digit a, fp_digit p, fp_digit *sq);
-fp_digit spGCD(fp_digit x, fp_digit y);
-uint64 spBinGCD(uint64 x, uint64 y);
-uint64 spBinGCD_odd(uint64 u, uint64 v);
-uint64 gcd64(uint64 x, uint64 y);
-uint64 bingcd64(uint64 x, uint64 y);
+void spAdd(uint64_t u, uint64_t v, uint64_t *sum, uint64_t *carry);
+void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sum, uint64_t *carry);
+void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t *sub, uint64_t *borrow);
+void spSub(uint64_t u, uint64_t v, uint64_t *sub, uint64_t *borrow);
+void spMultiply(uint64_t u, uint64_t v, uint64_t *product, uint64_t *carry);
+void spMulAdd(uint64_t u, uint64_t v, uint64_t w, uint64_t t, uint64_t *lower, uint64_t *carry);
+void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t *w);
+void spModExp(uint64_t a, uint64_t b, uint64_t m, uint64_t *u);
+uint64_t spDivide(uint64_t *q, uint64_t *r, uint64_t u[2], uint64_t v);
+uint64_t spBits(uint64_t n);
+int bits64(uint64_t n);
+uint32_t modinv_1(uint32_t a, uint32_t p);
+uint32_t modinv_1b(uint32_t a, uint32_t p);
+uint32_t modinv_1c(uint32_t a, uint32_t p);
+uint64_t spPRP2(uint64_t p);
+void ShanksTonelli_1(uint64_t a, uint64_t p, uint64_t *sq);
+uint64_t spGCD(uint64_t x, uint64_t y);
+uint64_t spBinGCD(uint64_t x, uint64_t y);
+uint64_t spBinGCD_odd(uint64_t u, uint64_t v);
+uint64_t gcd64(uint64_t x, uint64_t y);
+uint64_t bingcd64(uint64_t x, uint64_t y);
 void dblGCD(double x, double y, double* w);
-int jacobi_1(fp_digit n, fp_digit p);
-int ndigits_1(fp_digit n);
+int jacobi_1(uint64_t n, uint64_t p);
+int ndigits_1(uint64_t n);
 
 /********************* a few gmp-based utilities **********************/
 double zlog(mpz_t x);
-int llt(uint32 exp, int vflag);
+int llt(uint32_t exp, int vflag);
 int gmp_base10(mpz_t x);
 int is_mpz_prp(mpz_t n, int num_witnesses);
-uint64 mpz_get_64(mpz_t src);
-void mpz_set_64(mpz_t dest, uint64 src);
+uint64_t mpz_get_64(mpz_t src);
+void mpz_set_64(mpz_t dest, uint64_t src);
 void build_RSA(int bits, mpz_t n, gmp_randstate_t gmp_randstate);
 void gordon(int bits, mpz_t n, gmp_randstate_t gmp_randstate);
 

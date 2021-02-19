@@ -156,21 +156,21 @@ uint32_t process_poly_a(static_conf_t *sconf)
 int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 {
 	int j,k;
-	fp_digit r;
+	uint64_t r;
 
 	mpz_set(tmp, poly->mpz_poly_a);
 	k=0;
 	poly->s = 0;
-	while ((mpz_cmp_ui(tmp, 1) != 0) && (spSOEprimes[k] < 65536))
+	while ((mpz_cmp_ui(tmp, 1) != 0) && (siqs_primes[k] < 65536))
 	{
-		r = mpz_tdiv_ui(tmp,(fp_digit)spSOEprimes[k]);
+		r = mpz_tdiv_ui(tmp,(uint64_t)siqs_primes[k]);
 		
 		if (r != 0)
 			k++;
 		else
 		{
 			for (j=1;(uint32_t)j < fb->B;j++)
-				if (fb->list->prime[j] == spSOEprimes[k])
+				if (fb->list->prime[j] == siqs_primes[k])
 					break;
 			if ((uint32_t)j >= fb->B)
 			{
@@ -181,7 +181,7 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 			}
 			poly->qlisort[poly->s] = j;
 			poly->s++;
-			mpz_tdiv_q_ui(tmp, tmp, (fp_digit)spSOEprimes[k]);
+			mpz_tdiv_q_ui(tmp, tmp, (uint64_t)siqs_primes[k]);
 		}
 	}
 
@@ -211,7 +211,7 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 }
 
 void td_and_merge_relation(fb_list *fb, mpz_t n,
-    static_conf_t *sconf, qs_obj_t *obj, 
+    static_conf_t *sconf, fact_obj_t *obj, 
     siqs_r *r_out, siqs_r *rel)
 {
     int i, j, k, err_code = 0;
@@ -349,7 +349,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
 }
 
 int process_rel(char *substr, fb_list *fb, mpz_t n,
-				 static_conf_t *sconf, qs_obj_t *obj, siqs_r *rel)
+				 static_conf_t *sconf, fact_obj_t*obj, siqs_r *rel)
 {
 	char *nextstr;
 	uint32_t lp[3];
@@ -557,7 +557,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	char *str, *substr;
 	FILE *data;
 	uint32_t lp[2],pmax = sconf->large_prime_max / sconf->large_mult;
-	qs_obj_t *fobj = sconf->obj;
+    fact_obj_t*fobj = sconf->obj;
 
 	str = (char *)malloc(GSTR_MAXSIZE*sizeof(char));
 	data = fopen(sconf->obj->qs_obj.siqs_savefile,"r");
@@ -1307,7 +1307,7 @@ void yafu_add_to_cycles(static_conf_t *conf, uint32_t flags, uint32_t prime1, ui
 }
 
 
-qs_la_col_t * find_cycles(qs_obj_t *obj, uint32_t *hashtable, qs_cycle_t *table,
+qs_la_col_t * find_cycles(fact_obj_t*obj, uint32_t *hashtable, qs_cycle_t *table,
 	siqs_r *relation_list, uint32_t num_relations, uint32_t *numcycles, uint32_t *numpasses)
 {
 	qs_la_col_t *cycle_list;
@@ -1707,7 +1707,7 @@ pbr_t *get_pbr_entry(pbr_t *table, uint32_t *hashtable, uint32_t rid) {
 	return entry;
 }
 
-qs_la_col_t * find_cycles3(qs_obj_t *fobj, static_conf_t *sconf,
+qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	siqs_r *relation_list, uint32_t num_relations, uint32_t *numcycles, uint32_t *numpasses)
 {
 	// assume that we've kept a backup of all relation data, so feel free to modify it.
@@ -2763,7 +2763,7 @@ static int compare_relations3(const void *x, const void *y) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32_t qs_purge_duplicate_relations(qs_obj_t *fobj,
+uint32_t qs_purge_duplicate_relations(fact_obj_t*fobj,
 				siqs_r *rlist, 
 				uint32_t num_relations) {
 
@@ -2808,7 +2808,7 @@ uint32_t qs_purge_duplicate_relations(qs_obj_t *fobj,
 	return j;
 }
 
-uint32_t qs_purge_duplicate_relations3(qs_obj_t *obj,
+uint32_t qs_purge_duplicate_relations3(fact_obj_t*obj,
 	siqs_r *rlist,
 	uint32_t num_relations) {
 
@@ -2938,7 +2938,7 @@ void yafu_read_tlp(char *buf, uint32_t *primes) {
 	return;
 }
 
-uint32_t qs_purge_singletons(qs_obj_t *fobj, siqs_r *list, 
+uint32_t qs_purge_singletons(fact_obj_t*fobj, siqs_r *list,
 				uint32_t num_relations,
 				qs_cycle_t *table, uint32_t *hashtable) {
 	
@@ -3025,7 +3025,7 @@ uint32_t qs_purge_singletons(qs_obj_t *fobj, siqs_r *list,
 	return num_left;
 }
 
-uint32_t qs_purge_singletons3(qs_obj_t *fobj, siqs_r *list,
+uint32_t qs_purge_singletons3(fact_obj_t*fobj, siqs_r *list,
 	uint32_t num_relations,
 	qs_cycle_t *table, uint32_t *hashtable) {
 
@@ -3122,7 +3122,7 @@ uint32_t qs_purge_singletons3(qs_obj_t *fobj, siqs_r *list,
 
 
 /*--------------------------------------------------------------------*/
-void qs_enumerate_cycle(qs_obj_t *obj, 
+void qs_enumerate_cycle(fact_obj_t*obj,
 			    qs_la_col_t *c, 
 			    qs_cycle_t *table,
 			    qs_cycle_t *entry1, qs_cycle_t *entry2,
@@ -3210,7 +3210,7 @@ void qs_enumerate_cycle(qs_obj_t *obj,
 	c->cycle.list[i] = final_relation;
 }
 
-void qs_enumerate_cycle3(qs_obj_t *obj,
+void qs_enumerate_cycle3(fact_obj_t*obj,
 	qs_la_col_t *c,
 	qs_cycle_t *table,
 	qs_cycle_t *entry1, qs_cycle_t *entry2, qs_cycle_t *entry3,

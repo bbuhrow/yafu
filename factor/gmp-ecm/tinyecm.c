@@ -30,7 +30,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "soe.h"
 #include "monty.h"
-#include "stdint.h"
+#include <stdint.h>
 
 #define D 120
 
@@ -40,7 +40,7 @@ either expressed or implied, of the FreeBSD Project.
 
 typedef struct
 {
-	uint64 base[2];
+	uint64_t base[2];
 } u128_t;
 
 typedef struct
@@ -100,14 +100,20 @@ static const uint32_t map[61] = {
 	0, 0, 0, 16, 0, 0, 0, 0, 0, 17,
 	18 };
 
+static uint64_t* tecm_primes;
+static uint64_t tecm_nump;
+static uint64_t tecm_minp;
+static uint64_t tecm_maxp;
+static int tecm_primes_initialized = 0;
+
 // local functions
 void add(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P1, tinyecm_pt *P2, 
 	tinyecm_pt *Pin, tinyecm_pt *Pout);
-void duplicate(monty128_t *mdata, tinyecm_work *work, uint64 * insum, uint64 * indiff, tinyecm_pt *P);
+void duplicate(monty128_t *mdata, tinyecm_work *work, uint64_t * insum, uint64_t * indiff, tinyecm_pt *P);
 void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, double v);
-int check_factor(uint64 * Z, uint64 * n, uint64 * f);
+int check_factor(uint64_t * Z, uint64_t * n, uint64_t * f);
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
-	tinyecm_work *work, uint32_t sigma, uint64 * lcg_state, int verbose);
+	tinyecm_work *work, uint32_t sigma, uint64_t * lcg_state, int verbose);
 
 void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P);
 void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work);
@@ -116,7 +122,7 @@ double bench_curves;
 double bench_stg1;
 double bench_stg2;
 
-void u128_to_mpz(uint64 *in, mpz_t out)
+void u128_to_mpz(uint64_t *in, mpz_t out)
 {
 	mpz_set_ui(out, in[1]);
 	mpz_mul_2exp(out, out, 64);
@@ -124,7 +130,7 @@ void u128_to_mpz(uint64 *in, mpz_t out)
 	return;
 }
 
-void mpz_to_u128(mpz_t in, uint64 *out)
+void mpz_to_u128(mpz_t in, uint64_t *out)
 {
     out[0] = mpz_get_ui(in);
     mpz_tdiv_q_2exp(in, in, 64);
@@ -137,16 +143,16 @@ void mpz_to_u128(mpz_t in, uint64 *out)
 	return;
 }
 
-__inline void copy128(uint64 *src, uint64 *dest)
+__inline void copy128(uint64_t *src, uint64_t *dest)
 {
 	dest[0] = src[0];
 	dest[1] = src[1];
 	return;
 }
 
-__inline void swap128(uint64 *a, uint64 *b)
+__inline void swap128(uint64_t *a, uint64_t *b)
 {
-	uint64 tmp[2];
+	uint64_t tmp[2];
 	tmp[0] = a[0];
 	tmp[1] = a[1];
 	a[0] = b[0];
@@ -156,9 +162,9 @@ __inline void swap128(uint64 *a, uint64 *b)
 	return;
 }
 
-__inline void rot128(uint64 *a, uint64 *b, uint64 *c)
+__inline void rot128(uint64_t *a, uint64_t *b, uint64_t *c)
 {
-	uint64 tmp[2];
+	uint64_t tmp[2];
 	tmp[0] = a[0];
 	tmp[1] = a[1];
 	a[0] = b[0];
@@ -224,7 +230,7 @@ void add(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P1, tinyecm_pt *P2,
 }
 
 void duplicate(monty128_t *mdata, tinyecm_work *work, 
-	uint64 * insum, uint64 * indiff, tinyecm_pt *P)
+	uint64_t * insum, uint64_t * indiff, tinyecm_pt *P)
 {
 	sqrmod128(indiff, work->tt1, mdata);						// U=(x1 - z1)^2
 	sqrmod128(insum,  work->tt2, mdata);						// V=(x1 + z1)^2
@@ -346,7 +352,7 @@ static double lucas_cost(uint64_t n, double v)
 	return c;
 }
 
-void lucas_opt(uint32 B1, int num)
+void lucas_opt(uint32_t B1, int num)
 {
 	uint64_t d, e, r, q, c;
 	double cmin = 99999999., cost;
@@ -355,10 +361,10 @@ void lucas_opt(uint32 B1, int num)
 	gmp_randstate_t gmprand;
 	double *val;
 	double trad_cost;
-	uint64 word;
+	uint64_t word;
 	double *v;
 	double *pcost;
-	uint64 f[128];
+	uint64_t f[128];
 	int nump;
 
 	gmp_randinit_default(gmprand);
@@ -377,7 +383,7 @@ void lucas_opt(uint32 B1, int num)
 
 	for (i = NV; i < (num + NV); i++)
 	{
-		uint64 ur = gmp_urandomb_ui(gmprand, 52);
+		uint64_t ur = gmp_urandomb_ui(gmprand, 52);
 		double r = 0.51 + ((double)ur * 2.2204460492503130808472633361816e-16) * 0.25;
 		val[i] = r;
 	}
@@ -386,13 +392,13 @@ void lucas_opt(uint32 B1, int num)
 	e = 1;
 	j = 0;
 	i = 2;
-	q = spSOEprimes[i];
+	q = tecm_primes[i];
 	trad_cost = 0.;
 
 	while (q < 1000)
 	{
 		i++;
-		q = spSOEprimes[i];
+		q = tecm_primes[i];
 	}
 	nump = i;
 
@@ -400,7 +406,7 @@ void lucas_opt(uint32 B1, int num)
 	pcost = (double *)malloc(i * sizeof(double));
 
 	i = 2;
-	q = spSOEprimes[i];
+	q = tecm_primes[i];
 	pcost[0] = 5.0;
 	pcost[1] = 11.0;
 
@@ -425,7 +431,7 @@ void lucas_opt(uint32 B1, int num)
 		v[i] = val[best_index];
 
 		i++;
-		q = spSOEprimes[i];
+		q = tecm_primes[i];
 
 	}
 
@@ -437,10 +443,10 @@ void lucas_opt(uint32 B1, int num)
 		double fcost;
 
 		j = 2;
-		q = spSOEprimes[j];
+		q = tecm_primes[j];
 		while (q < c)
 		{
-			q = spSOEprimes[j++];
+			q = tecm_primes[j++];
 			if (c == q)
 			{
 				skip = 1;
@@ -475,11 +481,11 @@ void lucas_opt(uint32 B1, int num)
 		j = 0;
 		for (i = 0; i < nump; i++)
 		{
-			if (d % spSOEprimes[i] == 0)
+			if (d % tecm_primes[i] == 0)
 			{
 				fcost += pcost[i];
-				d /= spSOEprimes[i];
-				f[j++] = spSOEprimes[i];
+				d /= tecm_primes[i];
+				f[j++] = tecm_primes[i];
 			}
 
 			if (d == 1)
@@ -581,7 +587,7 @@ void lucas_opt(uint32 B1, int num)
 			// next prime
 			i++;
 			e = 1;
-			q = spSOEprimes[i];
+			q = tecm_primes[i];
 		}
 
 	}
@@ -627,7 +633,7 @@ void lucas_opt(uint32 B1, int num)
 	return;
 }
 
-void lucas_opt2(uint32 B1, int num)
+void lucas_opt2(uint32_t B1, int num)
 {
 	uint64_t d, e, r, q, c;
 	double cmin = 99999999., cost;
@@ -636,10 +642,10 @@ void lucas_opt2(uint32 B1, int num)
 	gmp_randstate_t gmprand;
 	double *val;
 	double trad_cost;
-	uint64 word;
+	uint64_t word;
 	double *v;
 	double *pcost;
-	uint64 f[128];
+	uint64_t f[128];
 	int nump;
 
 	gmp_randinit_default(gmprand);
@@ -658,7 +664,7 @@ void lucas_opt2(uint32 B1, int num)
 
 	for (i = NV; i < (num + NV); i++)
 	{
-		uint64 ur = gmp_urandomb_ui(gmprand, 52);
+		uint64_t ur = gmp_urandomb_ui(gmprand, 52);
 		double r = 0.51 + ((double)ur * 2.2204460492503130808472633361816e-16) * 0.25;
 		val[i] = r;
 	}
@@ -667,13 +673,13 @@ void lucas_opt2(uint32 B1, int num)
 	e = 1;
 	j = 0;
 	i = 2;
-	q = spSOEprimes[i];
+	q = tecm_primes[i];
 	trad_cost = 0.;
 
 	while (q < 1000)
 	{
 		i++;
-		q = spSOEprimes[i];
+		q = tecm_primes[i];
 	}
 	nump = i;
 
@@ -681,7 +687,7 @@ void lucas_opt2(uint32 B1, int num)
 	pcost = (double *)malloc(i * sizeof(double));
 
 	i = 2;
-	q = spSOEprimes[i];
+	q = tecm_primes[i];
 	pcost[0] = 5.0;
 	pcost[1] = 11.0;
 
@@ -706,7 +712,7 @@ void lucas_opt2(uint32 B1, int num)
 		v[i] = val[best_index];
 
 		i++;
-		q = spSOEprimes[i];
+		q = tecm_primes[i];
 
 	}
 
@@ -720,12 +726,12 @@ void lucas_opt2(uint32 B1, int num)
 				for (l = k + 1; l < 19; l++)
 				{
 					double fcost;
-					e = spSOEprimes[i] * spSOEprimes[j] * spSOEprimes[k] *spSOEprimes[l];
+					e = tecm_primes[i] * tecm_primes[j] * tecm_primes[k] * tecm_primes[l];
 
 					printf("now optimizing composite %lu = %u * %u * %u * %u\n", 
-						e, spSOEprimes[i], spSOEprimes[j], spSOEprimes[k], spSOEprimes[l]);
+						e, tecm_primes[i], tecm_primes[j], tecm_primes[k], tecm_primes[l]);
 					//printf("now optimizing composite %lu = %u * %u * %u\n",
-				//		e, spSOEprimes[i], spSOEprimes[j], spSOEprimes[k]); 
+				//		e, tecm_primes[i], tecm_primes[j], tecm_primes[k]); 
 
 					for (d = 0, cmin = ADD * (double)e; d < (num + NV); d++)
 					{
@@ -739,10 +745,10 @@ void lucas_opt2(uint32 B1, int num)
 					}
 
 					fcost = pcost[i] + pcost[j] + pcost[k] + pcost[l];
-					f[0] = spSOEprimes[i];
-					f[1] = spSOEprimes[j];
-					f[2] = spSOEprimes[k];
-					f[3] = spSOEprimes[l];
+					f[0] = tecm_primes[i];
+					f[1] = tecm_primes[j];
+					f[2] = tecm_primes[k];
+					f[3] = tecm_primes[l];
 
 					if (fcost > cmin)
 					{
@@ -923,7 +929,7 @@ void prac_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c,
 	uint64_t d, e, r;
 	double cmin, cost, v;
 	int i;
-	uint64 *s1, *s2, *d1, *d2;
+	uint64_t *s1, *s2, *d1, *d2;
 	uint32_t *sw_x, *sw_z;
 	int shift = 0;
 
@@ -1266,7 +1272,7 @@ void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, doub
 }
 
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
-	tinyecm_work *work, uint32_t sigma, uint64 * lcg_state, int verbose)
+	tinyecm_work *work, uint32_t sigma, uint64_t * lcg_state, int verbose)
 {
 	base_t t1[2], t2[2], t3[2], t4[2], t5[2], s[3];
 	base_t u[2], v[2], n[2];
@@ -1282,7 +1288,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	if (sigma == 0)
 	{
-		work->sigma = lcg_rand_32(7, (uint32)-1, lcg_state);
+		work->sigma = lcg_rand_32(7, (uint32_t)-1, lcg_state);
 	}
 	else
 	{
@@ -1405,8 +1411,8 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 	return;
 }
 
-void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves, 
-    uint64* lcg_state, int verbose)
+void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
+    uint64_t* lcg_state, int verbose)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -1421,8 +1427,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 	tinyecm_work work;
 	tinyecm_pt P;
 	monty128_t mdata;
-	uint64 n128[2];
-	uint32 sigma;
+	uint64_t n128[2];
+	uint32_t sigma;
 
 	mpz_to_u128(n, n128);
 	tinyecm_work_init(&work);
@@ -1430,6 +1436,15 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 	copy128(n128, work.n);
 	work.stg1_max = B1;
 	work.stg2_max = B2;
+
+    if (!tecm_primes_initialized)
+    {
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+        tecm_primes = soe_wrapper(sdata, 0, 1000000, 0, &tecm_nump, 0, 0);
+        tecm_maxp = tecm_primes[tecm_nump - 1];
+        soe_finalize(sdata);
+        tecm_primes_initialized = 1;
+    }
 
 	if (0)
 		lucas_opt2(B1, 1000000);
@@ -1450,9 +1465,9 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 		// addmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff,&lcg_state) };
-			uint64 c[2];
+			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff,&lcg_state) };
+			uint64_t c[2];
 
 			u128_to_mpz(a, gmp1);
 			u128_to_mpz(b, gmp2);
@@ -1479,9 +1494,9 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 		// submod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 c[2];
+			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t c[2];
 
 			u128_to_mpz(a, gmp1);
 			u128_to_mpz(b, gmp2);
@@ -1509,10 +1524,10 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 		// mulmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 c[2];
-			uint64 s[3];
+			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t c[2];
+			uint64_t s[3];
 
 			u128_to_mpz(a, gmp1);
 			u128_to_mpz(b, gmp2);
@@ -1543,10 +1558,10 @@ void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
 		// sqrmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64 a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64 c[2];
-			uint64 s[3];
+			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t c[2];
+			uint64_t s[3];
 
 			u128_to_mpz(a, gmp1);
 			u128_to_mpz(b, gmp2);
@@ -1652,11 +1667,11 @@ void ecm_stage1_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P,
 		q *= 2;
 	}
 
-	for (i = 1; (i < NUM_P) && ((uint32_t)PRIMES[i] < stg1); i++)
+	for (i = 1; (i < tecm_nump) && ((uint32_t)tecm_primes[i] < stg1); i++)
 	{
 		uint64_t c = 1;
 
-		q = PRIMES[i];
+		q = tecm_primes[i];
 		do {
 			prac(mdata, work, P, q, 0);
 			c *= q;
@@ -1668,7 +1683,7 @@ void ecm_stage1_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P,
 	if (verbose == 1)
 	{
 		printf("\nStage 1 completed at prime %lu with %u point-adds and %u point-doubles\n",
-			PRIMES[i - 1], work->stg1Add, work->stg1Doub);
+            tecm_primes[i - 1], work->stg1Add, work->stg1Doub);
 		fflush(stdout);
 	}
 	return;
@@ -1974,7 +1989,7 @@ void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
 	return;
 }
 
-int check_factor(uint64 * Z, uint64 * n, uint64 * f)
+int check_factor(uint64_t * Z, uint64_t * n, uint64_t * f)
 {
 	int status;
 	mpz_t gmp_z;

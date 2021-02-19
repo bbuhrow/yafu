@@ -20,9 +20,57 @@ code to the public domain.
 
 #include "yafu_ecm.h"
 #include "factor.h"
-#include "yafu.h"
 #include "calc.h"
 #include "threadpool.h"
+#include <ecm.h>
+#include <signal.h>
+
+//local function declarations
+typedef struct {
+    mpz_t gmp_n, gmp_factor;
+    mpz_t t, d; // scratch bignums
+    ecm_params params;
+    uint32_t sigma;
+    int stagefound;
+    fact_obj_t* fobj;
+    int thread_num;
+    int curves_run;
+    int* total_curves_run;
+    char tmp_output[80];
+    int factor_found;
+    int* ok_to_stop;
+    int* curves_in_flight;
+
+    // timing data for ETA
+    struct timeval stop;
+    struct timeval start;
+    double* total_time;
+
+} ecm_thread_data_t;
+
+void* ecm_do_one_curve(void* ptr);
+int print_B1B2(fact_obj_t* fobj, FILE* fid);
+void ecmexit(int sig);
+void ecm_process_init(fact_obj_t* fobj);
+void ecm_process_free(fact_obj_t* fobj);
+int ecm_check_input(fact_obj_t* fobj);
+int ecm_get_sigma(ecm_thread_data_t* thread_data);
+int ecm_deal_with_factor(ecm_thread_data_t* thread_data);
+void ecm_stop_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
+void ecm_start_worker_thread(ecm_thread_data_t* t, uint32_t is_master_thread);
+void ecm_thread_free(ecm_thread_data_t* tdata);
+void ecm_thread_init(ecm_thread_data_t* tdata);
+
+int ECM_ABORT;
+int TMP_THREADS;
+uint64_t TMP_STG2_MAX;
+
+#if defined(WIN32) || defined(_WIN64)
+DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
+#else
+void* ecm_worker_thread_main(void* thread_data);
+#endif
+
 
 void ecm_sync_fcn(void *ptr)
 {
@@ -308,14 +356,14 @@ int ecm_loop(fact_obj_t *fobj)
         mpz_t N, F;
         mpz_init(N);
         mpz_init(F);
-        factor_t* factors;
+        yfactor_t* factors;
         int numfactors = 0;
-        uint64 B2;
-        uint32 curves_run;
+        uint64_t B2;
+        uint32_t curves_run;
 
         if (fobj->ecm_obj.stg2_is_default)
         {
-            B2 = 100 * (uint64)fobj->ecm_obj.B1;
+            B2 = 100 * (uint64_t)fobj->ecm_obj.B1;
         }
         else
         {
@@ -341,7 +389,7 @@ int ecm_loop(fact_obj_t *fobj)
                 curves_run, input_digits);
 
             int tmp = fobj->ecm_obj.stg2_is_default;
-            uint64 tmp2 = fobj->ecm_obj.B2;
+            uint64_t tmp2 = fobj->ecm_obj.B2;
             fobj->ecm_obj.stg2_is_default = 0;
             fobj->ecm_obj.B2 = B2;
             
@@ -362,7 +410,7 @@ int ecm_loop(fact_obj_t *fobj)
             if (!mpz_divisible_p(fobj->ecm_obj.gmp_n, F))
                 continue;
 
-            add_to_factor_list(fobj, F);
+            add_to_factor_list(fobj->factors, F, fobj->VFLAG, fobj->NUM_WITNESSES);
             
             if (is_mpz_prp(F, fobj->NUM_WITNESSES))
             {
@@ -441,7 +489,8 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 
 	if (is_mpz_prp(thread_data->gmp_factor, fobj->NUM_WITNESSES))
 	{
-		add_to_factor_list(fobj, thread_data->gmp_factor);
+		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 
         if (fobj->VFLAG > 0)
         {
@@ -459,7 +508,8 @@ int ecm_deal_with_factor(ecm_thread_data_t *thread_data)
 	}
 	else
 	{
-		add_to_factor_list(fobj, thread_data->gmp_factor);
+		add_to_factor_list(fobj->factors, thread_data->gmp_factor, 
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		
         if (fobj->VFLAG > 0)
         {
@@ -493,14 +543,14 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	}
 	else if (get_uvar("sigma",tmp))
 	{
-		thread_data->sigma = lcg_rand_32(6, MAX_DIGIT, 
+		thread_data->sigma = lcg_rand_32(6, 0xffffffff, 
             &ecmobj->lcg_state[thread_data->thread_num]);
 	}
 	else
 	{
 		if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
 			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-		thread_data->sigma = (uint32)mpz_get_ui(tmp);
+		thread_data->sigma = (uint32_t)mpz_get_ui(tmp);
 	}
 
 	mpz_clear(tmp);
@@ -528,7 +578,8 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 3);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 3);
-		add_to_factor_list(fobj, tmp);
+		add_to_factor_list(fobj->factors, tmp,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		logprint_oc(fobj->flogname, "a","Trivial factor of 3 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
@@ -540,7 +591,8 @@ int ecm_check_input(fact_obj_t *fobj)
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_ui(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, 2);
-		add_to_factor_list(fobj, tmp);
+		add_to_factor_list(fobj->factors, tmp,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		logprint_oc(fobj->flogname, "a","Trivial factor of 2 found in ECM\n");
 		mpz_clear(tmp);
 		return 0;
@@ -550,7 +602,8 @@ int ecm_check_input(fact_obj_t *fobj)
 	{
 		//maybe have an input flag to optionally not perform
 		//PRP testing (useful for really big inputs)
-		add_to_factor_list(fobj, fobj->ecm_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
         char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
 		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->ecm_obj.gmp_n), s);		
 		mpz_set_ui(fobj->ecm_obj.gmp_n, 1);

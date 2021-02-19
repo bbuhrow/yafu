@@ -18,20 +18,24 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "factor.h"
 #include "soe.h"
 #include "gmp_xface.h"
+
+static uint64_t* td_primes;
+static uint64_t td_nump;
+static uint64_t td_maxp;
+static int initialized = 0;
 
 void zTrial(fact_obj_t *fobj)
 {
 	//trial divide n using primes below limit. optionally, print factors found.
 	//input expected in the gmp_n field of div_obj.
-	uint32 r,k=0;
-	uint32 limit = fobj->div_obj.limit;
+	uint32_t r,k=0;
+	uint32_t limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
 	FILE *flog;
-	fp_digit q;
+	uint64_t q;
 	mpz_t tmp;
 	mpz_init(tmp);
 
@@ -46,21 +50,29 @@ void zTrial(fact_obj_t *fobj)
         }
     }
 
-	if (P_MAX < limit)
+    if (!initialized)
+    {
+        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+        td_primes = soe_wrapper(sdata, 0, 1000000, 0, &td_nump, 0, 0);
+        td_maxp = td_primes[td_nump - 1];
+        soe_finalize(sdata);
+        initialized = 1;
+    }
+
+	if (td_maxp < limit)
 	{
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-		free(PRIMES);
-		PRIMES = soe_wrapper(sdata, 0, limit, 0, &NUM_P, 0, 0);
-		P_MIN = PRIMES[0];
-		P_MAX = PRIMES[NUM_P-1];
+		free(td_primes);
+        td_primes = soe_wrapper(sdata, 0, limit, 0, &td_nump, 0, 0);
+        td_maxp = td_primes[td_nump -1];
         soe_finalize(sdata);
 	}
 
 	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && 
-		(PRIMES[k] < limit) && 
-		(k < (uint32)NUM_P))
+		(td_primes[k] < limit) &&
+		(k < (uint32_t)td_nump))
 	{
-		q = (fp_digit)PRIMES[k];
+		q = (uint64_t)td_primes[k];
 		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
 		
 		if (r != 0)
@@ -70,7 +82,7 @@ void zTrial(fact_obj_t *fobj)
 			mpz_tdiv_q_ui(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, q);
 			mpz_set_64(tmp, q);
 
-			add_to_factor_list(fobj, tmp);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 
 #if BITS_PER_DIGIT == 64
 			logprint(flog,"div: found prime factor = %" PRIu64 "\n",q);
@@ -98,8 +110,8 @@ void zTrial(fact_obj_t *fobj)
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 {
 	// check if (b^1/i)^i == b for i = 2 to bitlen(b)
-	uint32 bits = mpz_sizeinbase(b,2);
-	uint32 i;
+	uint32_t bits = mpz_sizeinbase(b,2);
+	uint32_t i;
 	FILE *flog;
 	mpz_t base, ans;
 
@@ -127,12 +139,12 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 			// found a base.  				
 			if (is_mpz_prp(base, fobj->NUM_WITNESSES))
 			{
-				uint32 j;
+				uint32_t j;
                 char* s = mpz_get_str(NULL, 10, base);
 				//gmp_printf("\nAdding prime base %Zd to factor list...\n", base);
 				for (j=0; j<i; j++)
 				{
-					add_to_factor_list(fobj, base);
+					add_to_factor_list(fobj->factors, base, fobj->VFLAG, fobj->NUM_WITNESSES);
 					mpz_tdiv_q(b, b, base);
 					logprint(flog,"prp%d = %s\n",
 						gmp_base10(base), s);
@@ -144,7 +156,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				// if composite, factor it and then multiply
 				// all factors by i (the exponent).
 				fact_obj_t *fobj_refactor;
-				uint32 j;
+				uint32_t j;
 
 				gmp_printf("\nFactoring composite base %Zd...\n", base);
 
@@ -154,23 +166,30 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 				mpz_set(fobj_refactor->N, base);
 
 				// recurse on factor
-				factor(fobj_refactor);
+				//factor(fobj_refactor);
+                // FIXME: need to find a better way to do this or 
+                // a different place to put this function, since the
+                // "factor()" function is not part of factor_common... it
+                // is now in autofactor.  For now just do more trial division.
+                zTrial(fobj_refactor);
 
 				// add all factors found during the refactorization
-				for (j=0; j< fobj_refactor->num_factors; j++)
+				for (j=0; j< fobj_refactor->factors->num_factors; j++)
 				{
 					int k, c;
-                    char* s = mpz_get_str(NULL, 10, fobj_refactor->fobj_factors[j].factor);
+                    char* s = mpz_get_str(NULL, 10, fobj_refactor->factors->factors[j].factor);
 
-					for (k=0; k < fobj_refactor->fobj_factors[j].count; k++)
+					for (k=0; k < fobj_refactor->factors->factors[j].count; k++)
 					{
 						// add i copies of it, since this was a perfect power
 						for (c = 0; c < i; c++)
 						{
-							add_to_factor_list(fobj, fobj_refactor->fobj_factors[j].factor);
-							mpz_tdiv_q(b, b, fobj_refactor->fobj_factors[j].factor);
+							add_to_factor_list(fobj->factors, 
+                                fobj_refactor->factors->factors[j].factor,
+                                fobj->VFLAG, fobj->NUM_WITNESSES);
+							mpz_tdiv_q(b, b, fobj_refactor->factors->factors[j].factor);
 							logprint(flog,"prp%d = %s\n",
-								gmp_base10(fobj_refactor->fobj_factors[j].factor), s);
+								gmp_base10(fobj_refactor->factors->factors[j].factor), s);
 						}
 					}
                     free(s);
@@ -198,7 +217,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 #define setbit(a,b) (((a)[(b) >> 3]) |= (nmasks[(b) & 7])) 
 #define getbit(a,b) (((a)[(b) >> 3]) & (nmasks[(b) & 7])) 
 
-void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
+void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 {
 	// Fermat's factorization method with a sieve-based improvement
 	// provided by 'neonsignal'
@@ -206,26 +225,26 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	int i;
     int sqchecks = 0;
 	int numChars;
-	uint64 reportIt, reportInc;
-	uint64 count;
-	uint64 i64;
+	uint64_t reportIt, reportInc;
+	uint64_t count;
+	uint64_t i64;
 	FILE *flog = NULL;
-	uint32 M = 2 * 2 * 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7; //176400u
-	uint32 M1 = 11 * 17 * 23 * 31; //133331u
-	uint32 M2 = 13 * 19 * 29 * 37; //265031u
-	uint8 *sqr, *sqr1, *sqr2, *mod, *mod1, *mod2;
-	uint16 *skip;
-	uint32 m, mmn, s, d;
-	uint8 masks[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
-	uint8 nmasks[8];
-	uint32 iM = 0, iM1 = 0, iM2 = 0;
+	uint32_t M = 2 * 2 * 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7; //176400u
+	uint32_t M1 = 11 * 17 * 23 * 31; //133331u
+	uint32_t M2 = 13 * 19 * 29 * 37; //265031u
+	uint8_t *sqr, *sqr1, *sqr2, *mod, *mod1, *mod2;
+	uint16_t *skip;
+	uint32_t m, mmn, s, d;
+	uint8_t masks[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
+	uint8_t nmasks[8];
+	uint32_t iM = 0, iM1 = 0, iM2 = 0;
 
 	if (mpz_even_p(fobj->div_obj.gmp_n))
 	{
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 2);
 		mpz_tdiv_q_2exp(fobj->div_obj.gmp_n, fobj->div_obj.gmp_n, 1);
-		add_to_factor_list(fobj, tmp);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 		mpz_clear(tmp);
 		return;
 	}
@@ -265,8 +284,8 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		}
         free(s);
 
-		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
-		add_to_factor_list(fobj, fobj->div_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
+		add_to_factor_list(fobj->factors, fobj->div_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
 		mpz_set_ui(fobj->div_obj.gmp_n, 1);
         
         if (fobj->LOGFLAG)
@@ -298,13 +317,13 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 	// build tables to allow us to quickly iterate over 'a' values that are 
 	// more likely to produce squares.
 	// init sieve structures
-	sqr = (uint8 *)calloc((M / 8 + 1) , sizeof(uint8));
-	sqr1 = (uint8 *)calloc((M1 / 8 + 1) , sizeof(uint8));
-	sqr2 = (uint8 *)calloc((M2 / 8 + 1) , sizeof(uint8));
-	mod = (uint8 *)calloc((M / 8 + 1) , sizeof(uint8));
-	mod1 = (uint8 *)calloc((M1 / 8 + 1) , sizeof(uint8));
-	mod2 = (uint8 *)calloc((M2 / 8 + 1) , sizeof(uint8));
-	skip = (uint16 *)malloc(M * sizeof(uint16));
+	sqr = (uint8_t*)calloc((M / 8 + 1) , sizeof(uint8_t));
+	sqr1 = (uint8_t*)calloc((M1 / 8 + 1) , sizeof(uint8_t));
+	sqr2 = (uint8_t*)calloc((M2 / 8 + 1) , sizeof(uint8_t));
+	mod = (uint8_t*)calloc((M / 8 + 1) , sizeof(uint8_t));
+	mod1 = (uint8_t*)calloc((M1 / 8 + 1) , sizeof(uint8_t));
+	mod2 = (uint8_t*)calloc((M2 / 8 + 1) , sizeof(uint8_t));
+	skip = (uint16_t*)malloc(M * sizeof(uint16_t));
 
 	// test it.  This will be good enough if |u*p-v*q| < 2 * N^(1/4), where
 	// mult = u*v
@@ -428,7 +447,7 @@ void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj)
 		{
 			for (i=0; i< numChars; i++)
 				printf("\b");
-			numChars = printf("%" PRIu64 "%%",(uint64)((double)count / (double)limit * 100));
+			numChars = printf("%" PRIu64 "%%",(uint64_t)((double)count / (double)limit * 100));
 			fflush(stdout);
 			reportIt += reportInc;
 		}
@@ -462,7 +481,7 @@ found:
             logprint(flog, "Fermat method found factors:\n");
         }
 
-		add_to_factor_list(fobj, tmp);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
         char* s = mpz_get_str(NULL, 10, tmp);
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{			
@@ -481,7 +500,7 @@ found:
 		mpz_sub(tmp, a, tmp);
 		mpz_gcd(tmp, fobj->div_obj.gmp_n, tmp);
 
-		add_to_factor_list(fobj, tmp);
+		add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
         s = mpz_get_str(NULL, 10, tmp);
 
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
@@ -520,29 +539,29 @@ done:
 
 }
 
-int sptestsqr(uint64 n)
+int sptestsqr(uint64_t n)
 {
-	uint64 t;
+	uint64_t t;
 	t = n & 31;
 	if (t == 0 || t == 1 || t == 4 ||
 		t == 9 || t == 16 || t == 17 || t == 25)
 	{
-		t = (uint64)sqrt((int64)n);
+		t = (uint64_t)sqrt((int64_t)n);
 		if (n == t * t)
 			return 1;
 	}
 	return 0;
 }
 
-uint64 spfermat(uint64 n, uint64 limit)
+uint64_t spfermat(uint64_t n, uint64_t limit)
 {
 	//	  Fermat's factorization method (wikipedia psuedo-code)
-	uint64 a, b2, maxa, count;
+	uint64_t a, b2, maxa, count;
 
 	maxa = n + 1;
 	maxa >>= 1;
 
-	a = (uint64)ceil(sqrt((int64)n));
+	a = (uint64_t)ceil(sqrt((int64_t)n));
 	b2 = a * a - n;
 
 	count = 0;
@@ -563,7 +582,7 @@ uint64 spfermat(uint64 n, uint64 limit)
 	}
 
 	if (sptestsqr(b2))
-		return a + (uint64)sqrt(b2);
+		return a + (uint64_t)sqrt(b2);
 	else
 		return 1;
 

@@ -18,10 +18,9 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
+#include "arith.h"
 #include "factor.h"
 #include "ytools.h"
-#include "yafu_ecm.h"
 #include "gmp_xface.h"
 #include "monty.h"
 
@@ -71,7 +70,8 @@ void brent_loop(fact_obj_t *fobj)
             char* s = mpz_get_str(NULL, 10, fobj->rho_obj.gmp_n);
 			logprint(flog,"prp%d = %s\n", gmp_base10(fobj->rho_obj.gmp_n), s);
 
-			add_to_factor_list(fobj, fobj->rho_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_n, 
+                fobj->VFLAG, fobj->NUM_WITNESSES);
 			stop = clock();
 			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
 
@@ -111,7 +111,8 @@ void brent_loop(fact_obj_t *fobj)
 			//check if the factor is prime
 			if (is_mpz_prp(fobj->rho_obj.gmp_f, fobj->NUM_WITNESSES))
 			{
-				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
+				add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_f, 
+                    fobj->VFLAG, fobj->NUM_WITNESSES);
 
 				if (fobj->VFLAG > 0)
 					gmp_printf("rho: found prp%d factor = %Zd\n",
@@ -122,7 +123,8 @@ void brent_loop(fact_obj_t *fobj)
 			}
 			else
 			{
-				add_to_factor_list(fobj, fobj->rho_obj.gmp_f);
+				add_to_factor_list(fobj->factors, fobj->rho_obj.gmp_f, 
+                    fobj->VFLAG, fobj->NUM_WITNESSES);
 
 				if (fobj->VFLAG > 0)
 					gmp_printf("rho: found c%d factor = %Zd\n",
@@ -170,7 +172,7 @@ int mbrent(fact_obj_t *fobj)
 
 	mpz_t x,y,q,g,ys,t1;
 
-	uint32 i=0,k,r,m;
+	uint32_t i=0,k,r,m;
 	int it;
 	int imax = fobj->rho_obj.iterations;
 
@@ -280,7 +282,7 @@ free:
 	return it;
 }
 
-int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32 a, uint32 imax)
+int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32_t a, uint32_t imax)
 {
     /*
     run pollard's rho algorithm on n with Brent's modification,
@@ -297,7 +299,7 @@ int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32 a, uint32 imax)
 	mpz_ptr ys = mdata->ys;
 	mpz_ptr t1 = mdata->t1;
 
-    uint32 i = 0, k, r, m;
+    uint32_t i = 0, k, r, m;
     int it;
 
     // starting state of algorithm.  
@@ -381,35 +383,7 @@ free:
     return it;
 }
 
-#ifdef _MSC_VERasdf
-
-__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    tl = _umul128(x, y, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
-    return x;
-}
-
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    tl = _umul128(x, y, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
-    x = ((x >= n) || th) ? x - n : x;
-    return x;
-}
-
-
-#endif
-
-uint64 spbrent(uint64 N, uint64 c, int imax)
+uint64_t spbrent(uint64_t N, uint64_t c, int imax)
 {
 
 
@@ -419,8 +393,8 @@ uint64 spbrent(uint64 N, uint64 c, int imax)
     use f(x) = x^2 + c
     see, for example, bressoud's book.
     */
-    uint64 x, y, q, g, ys, t1, f = 0, nhat;
-    uint32 i = 0, k, r, m;
+    uint64_t x, y, q, g, ys, t1, f = 0, nhat;
+    uint32_t i = 0, k, r, m;
     int it;
     
     // start out checking gcd fairly often
@@ -446,7 +420,7 @@ uint64 spbrent(uint64 N, uint64 c, int imax)
     x *= 2 - N * x;               // here x*a==1 mod 2**16
     x *= 2 - N * x;               // here x*a==1 mod 2**32         
     x *= 2 - N * x;               // here x*a==1 mod 2**64
-    nhat = (uint64)0 - x;
+    nhat = (uint64_t)0 - x;
 
     // Montgomery representation of c
     c = u64div(c, N);
@@ -514,7 +488,7 @@ done:
     return f;
 }
 
-uint64 spbrent64(uint64 N, int imax)
+uint64_t spbrent64(uint64_t N, int imax)
 {
 
 
@@ -524,9 +498,9 @@ uint64 spbrent64(uint64 N, int imax)
 	use f(x) = x^2 + c
 	see, for example, bressoud's book.
 	*/
-	uint64 x, y, q, g, ys, t1, f = 0, nhat;
-	uint64 c = 1;
-	uint32 i = 0, k, r, m;
+	uint64_t x, y, q, g, ys, t1, f = 0, nhat;
+	uint64_t c = 1;
+	uint32_t i = 0, k, r, m;
 	int it;
 
 	// start out checking gcd fairly often
@@ -552,7 +526,7 @@ uint64 spbrent64(uint64 N, int imax)
 	x *= 2 - N * x;               // here x*a==1 mod 2**16
 	x *= 2 - N * x;               // here x*a==1 mod 2**32         
 	x *= 2 - N * x;               // here x*a==1 mod 2**64
-	nhat = (uint64)0 - x;
+	nhat = (uint64_t)0 - x;
 
 	// Montgomery representation of c
 	c = u64div(c, N);

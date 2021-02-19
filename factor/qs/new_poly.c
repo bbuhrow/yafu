@@ -306,8 +306,8 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			found_a_factor = 0;
 			while (!found_a_factor)
 			{
-				randindex = (uint32_t)lcg_rand_32((fp_digit)lower_polypool_index,
-					(fp_digit)upper_polypool_index, &dconf->lcg_state);
+				randindex = (uint32_t)lcg_rand_32((uint64_t)lower_polypool_index,
+					(uint64_t)upper_polypool_index, &dconf->lcg_state);
 				//randindex = lower_polypool_index + 
 				//	(uint32_t)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);
 				potential_a_factor = fb->list->prime[randindex];
@@ -535,7 +535,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root2 = prime - root1; 
 		
 		mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
-		amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1,(fp_digit)prime);
+		amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1,(uint64_t)prime);
 		amodql = modinv_1(amodql,prime);
 
 		//the primes will all be < 65536, so we can multiply safely
@@ -546,7 +546,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 			gamma = prime-gamma;
 		
 		//qstmp1 holds a/prime
-		mpz_mul_ui(dconf->Bl[i], dconf->gmptmp1, (fp_digit)gamma);
+		mpz_mul_ui(dconf->Bl[i], dconf->gmptmp1, (uint64_t)gamma);
 
 		//build up b
 		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[i]);

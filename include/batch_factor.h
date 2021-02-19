@@ -15,7 +15,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #ifndef _BATCH_FACTOR_H_
 #define _BATCH_FACTOR_H_
 
-#include "qs_impl.h"
+#include <stdint.h>
 #include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
@@ -33,17 +33,19 @@ extern "C" {
 
 #define MAX_LARGE_PRIMES 3
 
-typedef void (*print_relation_t)(savefile_t *savefile, int64 a, uint32_t b,
-			uint32_t *factors_r, uint32_t num_factors_r, 
-			uint32_t lp_r[MAX_LARGE_PRIMES],
-			uint32_t *factors_a, uint32_t num_factors_a, 
-			uint32_t lp_a[MAX_LARGE_PRIMES]);
+//typedef void (*print_relation_t)(savefile_t *savefile, int64_t a, uint32_t b,
+//			uint32_t *factors_r, uint32_t num_factors_r, 
+//			uint32_t lp_r[MAX_LARGE_PRIMES],
+//			uint32_t *factors_a, uint32_t num_factors_a, 
+//			uint32_t lp_a[MAX_LARGE_PRIMES]);
+//
+//void print_relation_dummy(savefile_t *savefile, int64_t a, uint32_t b,
+//    uint32_t *factors_r, uint32_t num_factors_r,
+//    uint32_t lp_r[MAX_LARGE_PRIMES],
+//    uint32_t *factors_a, uint32_t num_factors_a,
+//    uint32_t lp_a[MAX_LARGE_PRIMES]);
 
-void print_relation_dummy(savefile_t *savefile, int64 a, uint32_t b,
-    uint32_t *factors_r, uint32_t num_factors_r,
-    uint32_t lp_r[MAX_LARGE_PRIMES],
-    uint32_t *factors_a, uint32_t num_factors_a,
-    uint32_t lp_a[MAX_LARGE_PRIMES]);
+typedef void (*print_relation_t)(void);
 
 /* simplified representation of one relation. Note that
    any of the factors may be trivial */
@@ -51,7 +53,7 @@ void print_relation_dummy(savefile_t *savefile, int64 a, uint32_t b,
 typedef struct {
     uint32_t a;               // for siqs, index of a-poly in master list (was an int64)
 	uint32_t b;               // for siqs, index of b-poly within the indicated a-poly
-    int32 signed_offset;    // for siqs, location of relation in the block (new to struct)
+    int32_t signed_offset;    // for siqs, location of relation in the block (new to struct)
 	uint8_t num_factors_r;     /* doesn't include large primes */
 	uint8_t num_factors_a;     /* doesn't include large primes */
 	uint8_t lp_r_num_words;     /* one number with this many words */
@@ -98,7 +100,7 @@ typedef struct {
 	uint32_t num_factors_alloc; /* space for batched factors */
 	uint32_t *factors;          /* factors of batched relations */
 
-	savefile_t *savefile;
+	//savefile_t *savefile;
 	print_relation_t print_relation;
 
     //mpz_t small, large;
@@ -124,9 +126,10 @@ typedef struct {
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     uint32_t min_prime, uint32_t max_prime,
     uint32_t lp_cutoff_r, uint32_t lp_cutoff_a,
-    qs_savefile_t *savefile,
     print_relation_t print_relation,
     int do_prime_product);
+
+// qs_savefile_t *savefile,
 
 void relation_batch_free(relation_batch_t *rb);
 
@@ -137,7 +140,7 @@ void relation_batch_free(relation_batch_t *rb);
    just involves modifying the base case of the recursion; maybe 
    that should be made into a callback */
 
-void relation_batch_add(uint32_t a, uint32_t b, int32 offset,
+void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
 			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r,
 			uint32_t *factors_a, uint32_t num_factors_a, 

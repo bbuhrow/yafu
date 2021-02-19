@@ -75,7 +75,7 @@
     <ClInclude Include="..\..\include\msieve_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\factor_common.h">
+    <ClInclude Include="..\..\include\factor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

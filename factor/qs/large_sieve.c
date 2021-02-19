@@ -18,7 +18,6 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "qs_impl.h"
 
 #if defined(_MSC_VER)

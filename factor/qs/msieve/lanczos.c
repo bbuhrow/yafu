@@ -18,7 +18,6 @@ Purpose:	Port into Yafu-1.14.
 #include "lanczos.h"
 #include "ytools.h"
 #include "qs_impl.h"
-#include "qs.h"
 
 #define QS_BIT(x) ((uint64_t)(1) << (x))
 
@@ -77,7 +76,7 @@ int shift_right(uint32_t *a, int sz_a, int x)
 }
 
 /*-------------------------------------------------------------------*/
-uint64_t * yafu_form_post_lanczos_matrix(qs_obj_t *obj, uint32_t *nrows, 
+uint64_t * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32_t *nrows, 
 				uint32_t *dense_rows_out, uint32_t ncols, 
 				qs_la_col_t *cols) {
 
@@ -903,7 +902,7 @@ void yafu_read_lanczos_state(qs_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-void yafu_init_lanczos_state(qs_obj_t *obj, 
+void yafu_init_lanczos_state(fact_obj_t *obj, 
 			qs_packed_matrix_t *packed_matrix,
 			uint64_t *x, uint64_t *v0, uint64_t **vt_v0, uint64_t **v, 
 			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
@@ -946,7 +945,7 @@ void yafu_init_lanczos_state(qs_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-uint64_t * yafu_block_lanczos_core(qs_obj_t *obj, 
+uint64_t * yafu_block_lanczos_core(fact_obj_t *obj, 
 				qs_packed_matrix_t *packed_matrix,
 				uint32_t *num_deps_found,
 				uint64_t *post_lanczos_matrix,
@@ -1408,7 +1407,7 @@ uint64_t * yafu_block_lanczos_core(qs_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-uint64_t * qs_block_lanczos(qs_obj_t *obj, uint32_t nrows, 
+uint64_t * qs_block_lanczos(fact_obj_t *obj, uint32_t nrows, 
 			uint32_t num_dense_rows, uint32_t ncols, 
 			qs_la_col_t *B, uint32_t *num_deps_found) {
 	

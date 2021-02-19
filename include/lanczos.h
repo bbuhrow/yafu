@@ -19,6 +19,7 @@ Purpose:	Port into Yafu-1.14.
 #define _LANCZOS_H_
 
 #include "qs_impl.h"
+#include "factor.h"
 
 #ifdef __cplusplus
 extern "C" {

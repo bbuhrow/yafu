@@ -179,7 +179,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
             if ((sconf->use_dlp == 2) && (dconf->do_batch) && 0)
             {
-                int32 soffset = offset;
+                int32_t soffset = offset;
 
                 if (parity)
                 {
@@ -385,7 +385,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
             if (dconf->do_batch)
             {
-                int32 soffset = offset;
+                int32_t soffset = offset;
                 
                 if (parity)
                 {

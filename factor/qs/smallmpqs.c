@@ -1493,7 +1493,7 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 	j=2; i=1;
 	while (j<fb->B)
 	{
-		r = mpz_tdiv_ui(n, (fp_digit)spSOEprimes[i]);
+		r = mpz_tdiv_ui(n, (uint64_t)siqs_primes[i]);
 		if (r == 0)
 		{
 			// p divides n, which means it divides the multiplier.
@@ -1501,7 +1501,7 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 			// of two.  just divide its logprime in half.
 			// we also can't find the root using shanks-tonelli, but it will be very small
 			// because the multiplier is very small, so just use brute force.
-			prime = (uint32_t)spSOEprimes[i];
+			prime = (uint32_t)siqs_primes[i];
             if (prime < 256)
             {
                 k = small_sqrt_tab[i][r];
@@ -1533,11 +1533,11 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
 		}
 
 		mpz_set_ui(tmpr, r);
-		b = mpz_kronecker_ui(tmpr, spSOEprimes[i]);
+		b = mpz_kronecker_ui(tmpr, siqs_primes[i]);
 		if (b==1)
 		{
 			// this prime works
-			prime = (uint32_t)spSOEprimes[i];
+			prime = (uint32_t)siqs_primes[i];
 
             if (prime < 256)
             {
@@ -1547,8 +1547,8 @@ void smpqs_make_fb_mpqs(fb_list_sm_mpqs *fb, uint32_t *modsqrt, mpz_t n)
             {
                 if (bits_n > 80)
                 {
-                    fp_digit kk;
-                    ShanksTonelli_1((fp_digit)r, (fp_digit)prime, &kk);
+                    uint64_t kk;
+                    ShanksTonelli_1((uint64_t)r, (uint64_t)prime, &kk);
                     k = (uint32_t)kk;
                 }
                 else
@@ -1741,7 +1741,7 @@ void smallmpqs(fact_obj_t *fobj)
         printf("uint32_t small_inv_tab[1000][3] = {");
         for (i = 0; i < 1000; i++)
         {            
-            prime = spSOEprimes[i];
+            prime = siqs_primes[i];
             if (prime < 256)
             {
                 small_inv = (uint32_t)(((uint64_t)1 << 32) / (uint64_t)prime);
@@ -1783,9 +1783,9 @@ void smallmpqs(fact_obj_t *fobj)
         i = 0;
 
         printf("uint8_t small_sqrt_tab[36][256] = {");
-        while (spSOEprimes[i] < 256)
+        while (siqs_primes[i] < 256)
         {
-            prime = spSOEprimes[i];
+            prime = siqs_primes[i];
             
             printf("{");
             for (j = 0; j < prime; j++)
@@ -1912,7 +1912,7 @@ void smallmpqs(fact_obj_t *fobj)
 		if (j > 1)
 		{
 			mpz_set_64(ztmp, j);
-			add_to_factor_list(fobj, ztmp);
+			add_to_factor_list(fobj->factors, ztmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -1921,7 +1921,7 @@ void smallmpqs(fact_obj_t *fobj)
 			}
 
 			mpz_tdiv_q_ui(n,n,j);
-			add_to_factor_list(fobj, n);
+			add_to_factor_list(fobj->factors, n, fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -2009,10 +2009,10 @@ void smallmpqs(fact_obj_t *fobj)
 	mpz_nextprime(tmp, tmp);
 	poly->poly_d = (uint64_t)mpz_get_ui(tmp);
 
-	if (spSOEprimes[szSOEp - 1] <= poly->poly_d)
+	if (siqs_primes[siqs_nump - 1] <= poly->poly_d)
 		smpqs_get_more_primes(poly, fobj->VFLAG);
 
-	pindex = bin_search_uint32_t(szSOEp, 0, poly->poly_d, spSOEprimes);
+	pindex = bin_search_uint32(siqs_nump, 0, poly->poly_d, siqs_primes);
 	if (pindex < 0)
 	{
 		printf("prime not found in binary search\n");
@@ -2191,7 +2191,7 @@ done:
 
 		for(i=0;i<num_factors;i++)
 		{
-			add_to_factor_list(fobj, factors[i]);
+			add_to_factor_list(fobj->factors, factors[i], fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			if (fobj->qs_obj.flags != 12345)
 			{
@@ -2263,16 +2263,16 @@ void smpqs_get_more_primes(sm_mpqs_poly *poly, int VFLAG)
 		printf("smallmpqs getting more primes: poly_d = %u\n",
 		poly->poly_d);
 
-	PRIMES = soe_wrapper(sdata, 0, (uint64_t)((double)poly->poly_d * 1.25), 
-        0, &NUM_P, 0, 0);
+	siqs_primes = soe_wrapper(sdata, 0, (uint64_t)((double)poly->poly_d * 1.25), 
+        0, &siqs_nump, 0, 0);
     soe_finalize(sdata);
 
-	P_MIN = 0; 
-	P_MAX = PRIMES[(uint32_t)NUM_P-1];
+	siqs_minp = 0; 
+	siqs_maxp = siqs_primes[(uint32_t)siqs_nump-1];
 
 	if (VFLAG > 1)
 		printf("prime finding complete, cached %u primes. pmax = %u\n",
-		(uint32_t)NUM_P, (uint32_t)P_MAX);
+		(uint32_t)siqs_nump, (uint32_t)siqs_maxp);
 
 	return;
 }
@@ -2324,7 +2324,7 @@ uint8_t smpqs_choose_multiplier(mpz_t n, uint32_t fb_size)
 
 	/* for the rest of the small factor base primes */
 	for (i = 1; i < num_primes; i++) {
-		uint32_t prime = (uint32_t)spSOEprimes[i];
+		uint32_t prime = (uint32_t)siqs_primes[i];
 		double contrib = log((double)prime) / (prime - 1);
 		uint32_t modp = (uint32_t)mpz_tdiv_ui(n,prime);
 
@@ -2869,9 +2869,9 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 		do 
 		{
 			poly->poly_d_idp++;
-			if (poly->poly_d_idp >= szSOEp)
+			if (poly->poly_d_idp >= siqs_nump)
 				smpqs_get_more_primes(poly, 0);
-			poly->poly_d = spSOEprimes[poly->poly_d_idp];
+			poly->poly_d = siqs_primes[poly->poly_d_idp];
 			r = mpz_tdiv_ui(n,poly->poly_d);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
 	}
@@ -2886,7 +2886,7 @@ void smpqs_nextD(sm_mpqs_poly *poly, mpz_t n)
 				smpqs_nextD(poly, n);
 				return;
 			}
-			poly->poly_d = spSOEprimes[poly->poly_d_idn];			
+			poly->poly_d = siqs_primes[poly->poly_d_idn];			
 			r = mpz_tdiv_ui(n,poly->poly_d);
 		} while ((jacobi_1(r,poly->poly_d) != 1) || ((poly->poly_d & 3) != 3));
 	}
@@ -3441,7 +3441,7 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 											
 										//compute Q1(x)
 										pa = apoly[polynum];
-										d1 = (uint32_t)sqrt((int64)pa);
+										d1 = (uint32_t)sqrt((int64_t)pa);
 										
 										mpz_set_64(tmp, apoly[polynum]);
 										mpz_set_64(tmp3, bpoly[polynum]);
@@ -3460,7 +3460,7 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 											
 										//compute Q1(x)
 										pa = apoly[polynum]; 
-										d2 = (uint32_t)sqrt((int64)pa);
+										d2 = (uint32_t)sqrt((int64_t)pa);
 										
 										mpz_set_64(tmp3, apoly[polynum]);
 										mpz_set_64(tmp4, bpoly[polynum]);
@@ -3495,7 +3495,7 @@ int smpqs_BlockGauss(sm_mpqs_rlist *full, sm_mpqs_rlist *partial, uint64_t *apol
 										mpz_set_64(tmp4, bpoly[polynum]);
 										mpz_mul_ui(tmp, tmp, full->list[l]->offset); //zShortMul(&apoly[polynum],full->list[l]->offset,&tmp);
 										pa = apoly[polynum]; //apoly[polynum].val[0];
-										d1 = (uint32_t)sqrt((int64)pa);
+										d1 = (uint32_t)sqrt((int64_t)pa);
 
 										if (full->list[l]->parity)
 											mpz_sub(nn, tmp, tmp4); //zShortSub(&tmp,pb,&nn);

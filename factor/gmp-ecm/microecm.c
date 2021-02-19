@@ -28,7 +28,7 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 #include "monty.h"
-#include "stdint.h"
+#include <stdint.h>
 #include "ytools.h"
 
 #define D 60
@@ -82,7 +82,7 @@ typedef struct
 
 } uecm_work;
 
-static const uint32 map[61] = {
+static const uint32_t map[61] = {
 	0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
 	0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
 	0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
@@ -174,94 +174,28 @@ static const uint32_t primes[801] = {
 6073, 6079, 6089, 6091, 6101, 6113, 6121, 6131, 6133, 6143,
 };
 
-static uint8 marks[D];
-static uint8 nmarks[D];
-
-#ifdef _MSC_VERasdf
-
-#include <immintrin.h>
-#include <intrin.h>
-
-__inline uint64 u64div(uint64 c, uint64 n)
-{
-    uint64 r;
-    mpz_t a;
-    mpz_init(a);
-    mpz_set_ui(a, c);
-    mpz_mul_2exp(a, a, 64);
-    r = mpz_tdiv_ui(a, n);
-    mpz_clear(a);
-
-    // first available in Visual Studio 2019
-    //_udiv128(c, 0, n, &r);
-
-    return r;
-}
-
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    tl = _umul128(x, y, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
-    x = ((x >= n) || th) ? x - n : x;
-    return x;
-}
-
-__inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
-{
-    uint64 th, tl, u, ah, al;
-    tl = _umul128(x, x, &th);
-    u = tl * nhat;
-    al = _umul128(u, n, &ah);
-    tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
-    x = ((x >= n) || th) ? x - n : x;
-    return x;
-}
-
-
-__inline uint64 submod(uint64 a, uint64 b, uint64 n)
-{
-    uint64 r0;
-    if (_subborrow_u64(0, a, b, &r0))
-        r0 += n;
-    return r0;
-}
-
-__inline uint64 addmod(uint64 x, uint64 y, uint64 n)
-{
-    uint64 r;
-    uint8 c = _addcarry_u64(0, x, y, &r);
-
-    if (c || (r >= n))
-        r -= n;
-    return r;
-}
-
-
-#endif
+static uint8_t marks[D];
+static uint8_t nmarks[D];
+static uint64_t LOC_LCG;
 
 // local functions
 void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *p2,
 	uecm_pt *Pin, uecm_pt *Pout);
-void udup(uint64_t rho, uecm_work *work, uint64 insum, uint64 indiff, uecm_pt *P);
+void udup(uint64_t rho, uecm_work *work, uint64_t insum, uint64_t indiff, uecm_pt *P);
 void uprac(uint64_t rho, uecm_work *work, uecm_pt *P, uint64_t c, double v);
-int ucheck_factor(uint64 Z, uint64 n, uint64 * f);
+int ucheck_factor(uint64_t Z, uint64_t n, uint64_t* f);
 void ubuild(uecm_pt *P, uint64_t rho, uecm_work *work, uint32_t sigma, int verbose);
 void uecm_stage1(uint64_t rho, uecm_work *work, uecm_pt *P);
 void uecm_stage2(uecm_pt *P, uint64_t rho, uecm_work *work);
-uint32 lcg_rand_32B(uint32 lower, uint32 upper);
+uint32_t lcg_rand_32B(uint32_t lower, uint32_t upper);
 
 #define INV_2_POW_32 0.00000000023283064365386962890625
 
-uint32 lcg_rand_32B(uint32 lower, uint32 upper)
+uint32_t lcg_rand_32B(uint32_t lower, uint32_t upper)
 {
-    LCG_STATE = 6364136223846793005ULL * LCG_STATE + 1442695040888963407ULL;
-    return lower + (fp_digit)(
-        (double)(upper - lower) * (double)(LCG_STATE >> 32) * INV_2_POW_32);
+    LOC_LCG = 6364136223846793005ULL * LOC_LCG + 1442695040888963407ULL;
+    return lower + (uint32_t)(
+        (double)(upper - lower) * (double)(LOC_LCG >> 32) * INV_2_POW_32);
 }
 
 void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *P2, 
@@ -306,7 +240,7 @@ void uadd(uint64_t rho, uecm_work *work, uecm_pt *P1, uecm_pt *P2,
 }
 
 void udup(uint64_t rho, uecm_work *work, 
-	uint64 insum, uint64 indiff, uecm_pt *P)
+	uint64_t insum, uint64_t indiff, uecm_pt *P)
 {
 	work->tt1 = sqrredc(indiff, work->n, rho);			// U=(x1 - z1)^2
 	work->tt2 = sqrredc(insum, work->n, rho);			// V=(x1 + z1)^2
@@ -479,7 +413,7 @@ void uprac(uint64_t rho, uecm_work *work, uecm_pt *P, uint64_t c, double v)
 {
 	uint64_t d, e, r;
 	int i;
-	uint64 s1, s2, d1, d2;
+	uint64_t s1, s2, d1, d2;
 	int shift = 0;
 	uint64_t swp;
 
@@ -737,7 +671,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 
 	if (sigma == 0)
 	{
-		work->sigma = lcg_rand_32B(7, (uint32)-1);
+		work->sigma = lcg_rand_32B(7, (uint32_t)-1);
 	}
 	else
 	{
@@ -745,7 +679,7 @@ void ubuild(uecm_pt *P, uint64_t rho,
 	}
     sigma = work->sigma; // = 1073169389;
 
-    u = (uint64)sigma % n;
+    u = (uint64_t)sigma % n;
 	u = u64div(u, n);               // to_monty(sigma)
 
     //printf("sigma = %" PRIu64 ", u = %" PRIu64 ", n = %" PRIu64 "\n", sigma, u, n);
@@ -812,8 +746,8 @@ void ubuild(uecm_pt *P, uint64_t rho,
 	return;
 }
 
-void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2, 
-	uint32 curves, int verbose)
+void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
+	uint32_t curves, int verbose)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -827,7 +761,7 @@ void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2,
 	uint64_t num_found;
 	uecm_work work;
 	uecm_pt P;
-	uint32 sigma;
+	uint32_t sigma;
 	uint64_t rho, x, tmp1;
 
 	x = (((n + 2) & 4) << 1) + n; // here x*a==1 mod 2**4
@@ -835,7 +769,7 @@ void microecm(uint64_t n, uint64_t *f, uint32 B1, uint32 B2,
 	x *= 2 - n * x;               // here x*a==1 mod 2**16
 	x *= 2 - n * x;               // here x*a==1 mod 2**32         
 	x *= 2 - n * x;               // here x*a==1 mod 2**64
-	rho = (uint64)0 - x;
+	rho = (uint64_t)0 - x;
 	work.n = n;
 	work.stg1_max = B1;
 	work.stg2_max = B2;
@@ -1554,7 +1488,7 @@ void uecm_stage2(uecm_pt *P, uint64_t rho, uecm_work *work)
 	
 }
 
-int ucheck_factor(uint64 Z, uint64 n, uint64 * f)
+int ucheck_factor(uint64_t Z, uint64_t n, uint64_t* f)
 {
 	int status;
 
@@ -1577,12 +1511,16 @@ int ucheck_factor(uint64 Z, uint64 n, uint64 * f)
 	return status;
 }
 
+void init_uecm(uint64_t lcg)
+{
+    LOC_LCG = lcg;
+    return;
+}
 
-
-uint64 do_uecm(uint64 q64)
+uint64_t do_uecm(uint64_t q64)
 {
     int B1, curves, targetBits;
-    uint64 f64;
+    uint64_t f64;
 
     targetBits = spBits(q64) / 2;
     if (targetBits <= 24)

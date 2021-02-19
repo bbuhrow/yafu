@@ -21,7 +21,6 @@ code to the public domain.
 #ifndef MONTY_H
 #define MONTY_H
 
-#include "yafu.h"
 #include "arith.h"
 #include "common.h"
 
@@ -56,27 +55,27 @@ void monty_redc(monty_t *mdata, mpz_t x);
 /********************* 128-bit Montgomery arith **********************/
 typedef struct
 {
-	uint64 r[2];
-	uint64 n[2];
-	uint64 np[2];
-	uint64 nhat[2];
-	uint64 rhat[2];
-	uint64 rmask[2];
-	uint64 one[2];
-	uint64 mtmp1[2];
-	uint64 mtmp2[2];
-	uint64 mtmp3[2];
-	uint64 mtmp4[2];
-	uint64 rho;
+	uint64_t r[2];
+	uint64_t n[2];
+	uint64_t np[2];
+	uint64_t nhat[2];
+	uint64_t rhat[2];
+	uint64_t rmask[2];
+	uint64_t one[2];
+	uint64_t mtmp1[2];
+	uint64_t mtmp2[2];
+	uint64_t mtmp3[2];
+	uint64_t mtmp4[2];
+	uint64_t rho;
 } monty128_t;
 
 
-void to_monty128(monty128_t *mdata, uint64 * x);
-void monty128_init(monty128_t * mdata, uint64 * n);
-void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata);
-void sqrmod128(uint64 * u, uint64 * w, monty128_t *mdata);
-void addmod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
-void submod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
+void to_monty128(monty128_t *mdata, uint64_t * x);
+void monty128_init(monty128_t * mdata, uint64_t * n);
+void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata);
+void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata);
+void addmod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
+void submod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
 
 
 /********************* 64-bit Montgomery arith **********************/
@@ -84,7 +83,7 @@ void submod128(uint64 * u, uint64 * v, uint64 * w, uint64 * n);
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 
 #if defined(USE_AVX512F) || defined(USE_BMI2)
-__inline uint64 mulx64(uint64 x, uint64 y, uint64* hi) {
+__inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
     __asm__(
         "mulx %3, %0, %1	\n\t"
         : "=&d"(x), "=&a"(y)
@@ -95,7 +94,7 @@ __inline uint64 mulx64(uint64 x, uint64 y, uint64* hi) {
     return x;
 }
 #endif
-__inline uint64 mul64(uint64 x, uint64 y, uint64* hi) {
+__inline uint64_t mul64(uint64_t x, uint64_t y, uint64_t* hi) {
     __asm__(
         "mulq %3	\n\t"
         : "=&a"(x), "=&d"(y)
@@ -109,7 +108,7 @@ __inline uint64 mul64(uint64 x, uint64 y, uint64* hi) {
 
 
 
-__inline uint64 submod(uint64 a, uint64 b, uint64 n)
+__inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
     __asm__(
         "xorq %%r8, %%r8 \n\t"
@@ -123,9 +122,9 @@ __inline uint64 submod(uint64 a, uint64 b, uint64 n)
     return a;
 }
 
-__inline uint64 addmod(uint64 x, uint64 y, uint64 n)
+__inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 {
-    uint64 t = x - n;
+    uint64_t t = x - n;
     x += y;
     __asm__("add %2, %1\n\t"
         "cmovc %1, %0\n\t"
@@ -136,7 +135,7 @@ __inline uint64 addmod(uint64 x, uint64 y, uint64 n)
     return x;
 }
 
-__inline uint64 u64div(uint64 c, uint64 n)
+__inline uint64_t u64div(uint64_t c, uint64_t n)
 {
     __asm__("divq %4"
         : "=a"(c), "=d"(n)
@@ -148,7 +147,7 @@ __inline uint64 u64div(uint64 c, uint64 n)
 
 #if defined(USE_AVX512F) || defined(USE_BMI2)
 
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     if (n & 0x8000000000000000)
     {
@@ -190,7 +189,7 @@ __inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
 {
     if (n & 0x8000000000000000)
     {
@@ -232,7 +231,7 @@ __inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     __asm__(
         "mulx %2, %%r10, %%r11	\n\t"
@@ -252,7 +251,7 @@ __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 {
     __asm__(
         "mulx %1, %%r10, %%r11	\n\t"
@@ -274,7 +273,7 @@ __inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
 #else
 
 
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     if (n & 0x8000000000000000)
     {
@@ -318,7 +317,7 @@ __inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     __asm__(
         "mulq %2	\n\t"
@@ -339,7 +338,7 @@ __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
 {
     if (n & 0x8000000000000000)
     {
@@ -383,7 +382,7 @@ __inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 {
     __asm__(
         "mulq %2	\n\t"
@@ -414,23 +413,12 @@ __inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
 // are spread out locally where they are needed instead of being gathered here,
 // apologies for the uglyness.
 
-//https://msdn.microsoft.com/en-us/library/windows/desktop/82cxdw50(v=vs.85).aspx
-//// ARBooker's 63-bit C mulredc
-//typedef __uint128_t u128;
-//
-//__inline uint64 mulredc63(x, y, n, nbar)
-//{
-//    union { u128 d; uint64 l[2]; } t;
-//    return (t.d = (u128)(x)*(y), t.d += (t.l[0] * nbar)*(u128)n,
-//        t.l[1] -= n, t.l[1] + (n&((int64)t.l[1] >> 63)));
-//}
-
 #include <immintrin.h>
 #include <intrin.h>
 
-__inline uint64 u64div(uint64 c, uint64 n)
+__inline uint64_t u64div(uint64_t c, uint64_t n)
 {
-    uint64 r;
+    uint64_t r;
     //mpz_t a;
     //mpz_init(a);
     //mpz_set_ui(a, c);
@@ -443,9 +431,9 @@ __inline uint64 u64div(uint64 c, uint64 n)
     return r;
 }
 
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
+    uint64_t th, tl, u, ah, al;
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -455,9 +443,9 @@ __inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
+    uint64_t th, tl, u, ah, al;
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -466,9 +454,9 @@ __inline uint64 mulredc63(uint64 x, uint64 y, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
+    uint64_t th, tl, u, ah, al;
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -478,9 +466,9 @@ __inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
+    uint64_t th, tl, u, ah, al;
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -489,36 +477,30 @@ __inline uint64 sqrredc63(uint64 x, uint64 n, uint64 nhat)
     return x;
 }
 
-__inline uint64 submod(uint64 a, uint64 b, uint64 n)
+__inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 {
-    uint64 r0;
+    uint64_t r0;
     if (_subborrow_u64(0, a, b, &r0))
         r0 += n;
     return r0;
 }
 
-__inline uint64 addmod(uint64 x, uint64 y, uint64 n)
+__inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 {
-    uint64 r;
-    uint8 c = _addcarry_u64(0, x, y, &r);
+    uint64_t r;
+    uint8_t c = _addcarry_u64(0, x, y, &r);
     
     if (c || (r < x))
         r -= n;
     return r;
-
-    //uint64 r;
-    //r = x + y;
-    //if ((r >= n) || (r < x)) {
-    //    r -= n;
-    //}
 }
 
 
 // good to 60 bit inputs
-__inline uint64 sqrredc60(uint64 x, uint64 n, uint64 nhat)
+__inline uint64_t sqrredc60(uint64_t x, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
-    uint8 c;
+    uint64_t th, tl, u, ah, al;
+    uint8_t c;
     tl = _umul128(x, x, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -529,10 +511,10 @@ __inline uint64 sqrredc60(uint64 x, uint64 n, uint64 nhat)
 
 
 // good to 60 bit inputs
-__inline uint64 mulredc60(uint64 x, uint64 y, uint64 n, uint64 nhat)
+__inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
-    uint64 th, tl, u, ah, al;
-    uint8 c;
+    uint64_t th, tl, u, ah, al;
+    uint8_t c;
     tl = _umul128(x, y, &th);
     u = tl * nhat;
     al = _umul128(u, n, &ah);
@@ -545,126 +527,6 @@ __inline uint64 mulredc60(uint64 x, uint64 y, uint64 n, uint64 nhat)
 // this works if inputs are 62 bits or less
 #define addmod60(x, y, n) ((x) + (y))
 
-#else
-
-/*
-__inline uint64 u64div(uint64 c, uint64 n)
-{
-    uint64 q, r;
-    uint64 u[2] = { c, 0 };
-
-    // first available in Visual Studio 2019
-    //_udiv128(c, 0, n, &r);
-
-    spDivide(&q, &r, u, n);
-    return r;
-}
-
-__inline uint64 mulredc(uint64 x, uint64 y, uint64 n, uint64 nhat)
-{
-    uint64 a_hi = x >> 32;
-    uint64 b_hi = y >> 32;
-    uint64 a_lo = x & 0xFFFFFFFFULL;
-    uint64 b_lo = y & 0xFFFFFFFFULL;
-
-    uint64 lo_prod = a_lo * b_lo;
-    uint64 med_prod1 = a_hi * b_lo;
-    uint64 med_prod2 = a_lo * b_hi;
-    uint64 med_term = med_prod1 + med_prod2;
-    uint64 c = 0;
-    uint64 hi_prod = a_hi * b_hi;
-
-    uint64 xy_hi = (((lo_prod >> 32) + med_term) >> 32) + hi_prod;
-    if ((med_prod1 < 0 && med_prod2 < 0) || ((med_prod1 < 0 || med_prod2 < 0) && med_term >= 0)) xy_hi += 1ULL << 32;
-    uint64 xy_lo = (med_term << 32) + lo_prod;
-
-    uint64 u = xy_lo * nhat;
-
-    a_hi = u >> 32;
-    b_hi = n >> 32;
-    a_lo = u & 0xFFFFFFFFULL;
-    b_lo = n & 0xFFFFFFFFULL;
-
-    lo_prod = a_lo * b_lo;
-    med_prod1 = a_hi * b_lo;
-    med_prod2 = a_lo * b_hi;
-    med_term = med_prod1 + med_prod2;
-    hi_prod = a_hi * b_hi;
-
-    uint64 un_hi = (((lo_prod >> 32) + med_term) >> 32) + hi_prod;
-    if ((med_prod1 < 0 && med_prod2 < 0) || ((med_prod1 < 0 || med_prod2 < 0) && med_term >= 0)) un_hi += 1ULL << 32;
-
-    uint64 un_lo = ((med_term & 0xFFFFFFFFULL) << 32) + lo_prod;
-    uint64 r_lo = un_lo + xy_lo;
-    c = 0;
-    if (r_lo < un_lo)
-        c = 1;
-    uint64 r_hi = un_hi + xy_hi + c;
-    if (r_hi >= n)
-        r_hi -= n;
-    return r_hi;
-}
-
-__inline uint64 sqrredc(uint64 x, uint64 n, uint64 nhat)
-{
-    uint64 a_hi = x >> 32;
-    uint64 a_lo = x & 0xFFFFFFFFULL;
-
-    uint64 lo_prod = a_lo * a_lo;
-    uint64 med_prod1 = a_hi * a_lo;
-    uint64 med_term = med_prod1 + med_prod1;
-    uint64 c = 0;
-    uint64 hi_prod = a_hi * a_hi;
-
-    // the medium term could overflow		
-    uint64 xy_hi = (((lo_prod >> 32) + med_term) >> 32) + hi_prod;
-    if (med_prod1 < 0) xy_hi += 1ULL << 32;
-    uint64 xy_lo = (med_term << 32) + lo_prod;
-
-    uint64 u = xy_lo * nhat;
-
-    a_hi = u >> 32;
-    uint64 b_hi = n >> 32;
-    a_lo = u & 0xFFFFFFFFULL;
-    uint64 b_lo = n & 0xFFFFFFFFULL;
-
-    lo_prod = a_lo * b_lo;
-    med_prod1 = a_hi * b_lo;
-    uint64 med_prod2 = a_lo * b_hi;
-    med_term = med_prod1 + med_prod2;
-    hi_prod = a_hi * b_hi;
-
-    // the medium term could overflow		
-    uint64 un_hi = (((lo_prod >> 32) + med_term) >> 32) + hi_prod;
-    if ((med_prod1 < 0 && med_prod2 < 0) || ((med_prod1 < 0 || med_prod2 < 0) && med_term >= 0)) un_hi += 1ULL << 32;
-
-    uint64 un_lo = ((med_term & 0xFFFFFFFFULL) << 32) + lo_prod;
-    uint64 r_lo = un_lo + xy_lo;
-    c = 0;
-    if (r_lo < un_lo)
-        c = 1;
-    uint64 r_hi = un_hi + xy_hi + c;
-    if (r_hi >= n)
-        r_hi -= n;
-    return r_hi;
-}
-
-__inline uint64 submod(uint64 a, uint64 b, uint64 n)
-{
-    uint64 r0 = a - b;
-    return a + (n & ((r0) >> 63));
-}
-
-__inline uint64 addmod(uint64 x, uint64 y, uint64 n)
-{
-    uint64 t = x - n;
-    x += y;
-    y += t;
-    if (y < t) x = y;
-    return x;
-}
-
-*/
 #endif
 
 #endif
