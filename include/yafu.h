@@ -24,7 +24,7 @@ code to the public domain.
 
 //#define DEBUG
 
-#define _CRT_SECURE_NO_WARNINGS 
+//#define _CRT_SECURE_NO_WARNINGS 
 
 #define VERSION_STRING "2.0"
 
@@ -45,8 +45,9 @@ code to the public domain.
 #include <stdint.h>
 #include <gmp.h>
 
-//global typedefs
-
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
 
 // a structure to hold a bunch of configuration info
 // for yafu, instead of declaring a bunch of globals.
@@ -94,20 +95,6 @@ typedef struct
 
 uint64_t LCG_STATE;
 
-//this array holds a global store of prime numbers
-uint32_t* spSOEprimes;	//the primes	
-uint32_t szSOEp;			//count of primes
-
-//this array holds NUM_P primes in the range P_MIN to P_MAX, and
-//can change as needed - always check the range and size to see
-//if the primes you need are in there before using it
-uint64_t* PRIMES;
-uint64_t NUM_P;
-uint64_t P_MIN;
-uint64_t P_MAX;
-
-void logprint_oc(const char *name, const char *method, char *args, ...);
-void logprint(FILE *infile, char *args, ...);
 extern void yafu_init(yafu_obj_t* yobj);
 extern void yafu_finalize(yafu_obj_t* yobj);
 

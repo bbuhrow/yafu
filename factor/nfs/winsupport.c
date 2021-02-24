@@ -26,22 +26,22 @@ benefit from your work.
 // windows machines also need these declarations for functions supplied
 // in winsupport.c, for NFS factorizations using msieve.
 void logprintf(msieve_obj *obj, char *fmt, ...);
-void free_cycle_list(la_col_t *cycle_list, uint32 num_cycles);
-uint32 merge_relations(uint32 *merge_array,
-			uint32 *src1, uint32 n1,
-			uint32 *src2, uint32 n2);
-uint32 factor_list_add(msieve_obj *obj, factor_list_t *list, mp_t *new_factor);
+void free_cycle_list(la_col_t *cycle_list, uint32_t num_cycles);
+uint32_t merge_relations(uint32_t *merge_array,
+			uint32_t *src1, uint32_t n1,
+			uint32_t *src2, uint32_t n2);
+uint32_t factor_list_add(msieve_obj *obj, factor_list_t *list, mp_t *new_factor);
 void factor_list_add_core(msieve_obj *obj, factor_list_t *list, mp_t *new_factor);
 
 #endif
 
-msieve_obj * msieve_obj_new(char *input_integer, uint32 flags,
+msieve_obj * msieve_obj_new(char *input_integer, uint32_t flags,
 			    char *savefile_name, char *logfile_name,
 			    char *nfs_fbfile_name,
-			    uint32 seed1, uint32 seed2, uint32 max_relations,
+			    uint32_t seed1, uint32_t seed2, uint32_t max_relations,
 			    enum cpu_type cpu,
-			    uint32 cache_size1, uint32 cache_size2,
-			    uint32 num_threads, uint32 which_gpu, 
+			    uint32_t cache_size1, uint32_t cache_size2,
+			    uint32_t num_threads, uint32_t which_gpu, 
 			    const char *nfs_args) {
 
 	msieve_obj *obj = (msieve_obj *)xcalloc((size_t)1, sizeof(msieve_obj));
@@ -135,9 +135,9 @@ void logprintf(msieve_obj *obj, char *fmt, ...) {
 	}
 }
 
-void free_cycle_list(la_col_t *cycle_list, uint32 num_cycles) {
+void free_cycle_list(la_col_t *cycle_list, uint32_t num_cycles) {
 
-	uint32 i;
+	uint32_t i;
 
 	for (i = 0; i < num_cycles; i++)
 		free(cycle_list[i].cycle.list);
@@ -145,9 +145,9 @@ void free_cycle_list(la_col_t *cycle_list, uint32 num_cycles) {
 }
 
 /*------------------------------------------------------------------*/
-uint32 merge_relations(uint32 *merge_array,
-		  uint32 *src1, uint32 n1,
-		  uint32 *src2, uint32 n2) {
+uint32_t merge_relations(uint32_t *merge_array,
+		  uint32_t *src1, uint32_t n1,
+		  uint32_t *src2, uint32_t n2) {
 
 	/* Given two sorted lists of integers, merge
 	   the lists into a single sorted list. We assume
@@ -156,15 +156,15 @@ uint32 merge_relations(uint32 *merge_array,
 	   don't add it to the final list at all. Returns 
 	   the number of elements in the resulting list */
 
-	uint32 i1, i2;
-	uint32 num_merge;
+	uint32_t i1, i2;
+	uint32_t num_merge;
 
 	i1 = i2 = 0;
 	num_merge = 0;
 
 	while (i1 < n1 && i2 < n2) {
-		uint32 val1 = src1[i1];
-		uint32 val2 = src2[i2];
+		uint32_t val1 = src1[i1];
+		uint32_t val2 = src2[i2];
 
 		if (val1 < val2) {
 			merge_array[num_merge++] = val1;
@@ -191,7 +191,7 @@ uint32 merge_relations(uint32 *merge_array,
 #define mp_is_zero(a) ((a)->nwords == 0)
 #define mp_is_one(a) ((a)->nwords == 1 && (a)->val[0] == 1)
 
-uint32 factor_list_add(msieve_obj *obj, factor_list_t *list, 
+uint32_t factor_list_add(msieve_obj *obj, factor_list_t *list, 
 				mp_t *new_factor) {
 
 	if (!mp_is_zero(new_factor) && !mp_is_one(new_factor))
@@ -200,9 +200,9 @@ uint32 factor_list_add(msieve_obj *obj, factor_list_t *list,
 	return factor_list_max_composite(list);
 }
 
-uint32 factor_list_max_composite(factor_list_t *list) {
+uint32_t factor_list_max_composite(factor_list_t *list) {
 
-	uint32 i, bits;
+	uint32_t i, bits;
 
 	/* Find the number of bits in the largest composite factor, 
 	   and return that (to give calling code an estimate of 
@@ -213,7 +213,7 @@ uint32 factor_list_max_composite(factor_list_t *list) {
 		final_factor_t *curr_factor = list->final_factors[i];
 
 		if (curr_factor->type == MSIEVE_COMPOSITE) {
-			uint32 curr_bits = mp_bits(&curr_factor->factor);
+			uint32_t curr_bits = mp_bits(&curr_factor->factor);
 			bits = MAX(bits, curr_bits);
 		}
 	}
@@ -230,9 +230,9 @@ static INLINE void mp_copy(mp_t *a, mp_t *b) {
 	*b = *a;
 }
 
-static INLINE int32 mp_cmp(const mp_t *a, const mp_t *b) {
+static INLINE int32_t mp_cmp(const mp_t *a, const mp_t *b) {
 
-	uint32 i;
+	uint32_t i;
 
 	if (a->nwords > b->nwords)
 		return 1;
@@ -257,9 +257,9 @@ static void factor_list_add_core(msieve_obj *obj,
 	/* recursive routine to do the actual adding of factors.
 	   Upon exit, the factors in 'list' will be mutually coprime */
 
-	uint32 i;
+	uint32_t i;
 	mp_t tmp1, tmp2, common, q, r;
-	uint32 num_factors = list->num_factors;
+	uint32_t num_factors = list->num_factors;
 
 	mp_clear(&tmp1); tmp1.nwords = tmp1.val[0] = 1;
 	mp_clear(&tmp2); tmp2.nwords = tmp2.val[0] = 1;
@@ -330,9 +330,9 @@ static void factor_list_add_core(msieve_obj *obj,
 		list->final_factors[i] = (final_factor_t *)xmalloc(
 						sizeof(final_factor_t));
 		if (new_factor->nwords <= 2 &&
-		    ((uint64)new_factor->val[1] << 32 | 
+		    ((uint64_t)new_factor->val[1] << 32 |
 					new_factor->val[0]) <
-		    ((uint64)PRECOMPUTED_PRIME_BOUND * 
+		    ((uint64_t)PRECOMPUTED_PRIME_BOUND *
 		      			PRECOMPUTED_PRIME_BOUND)) {
 			list->final_factors[i]->type = MSIEVE_PRIME;
 		}

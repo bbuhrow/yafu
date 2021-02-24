@@ -25,7 +25,7 @@ code to the public domain.
 #include "factor.h"
 #include "gmp.h"
 #include <ecm.h>
-
+#include <io.h>
 
 #if defined(__unix__)
 #include <termios.h>
@@ -49,7 +49,7 @@ int exp_is_open(char *line, int firstline);
 
 // functions to process all incoming arguments
 int check_expression(options_t *options);
-char * get_input(char *input_exp, uint32 *insize);
+char * get_input(char *input_exp, uint32_t *insize);
 
 #if defined(__unix__)
 #define CMDHIST_SIZE 16
@@ -60,7 +60,7 @@ static int CMDHIST_TAIL = 0;
 
 int main(int argc, char *argv[])
 {
-	uint32 insize = GSTR_MAXSIZE;
+	uint32_t insize = GSTR_MAXSIZE;
 	char *input_exp, *ptr, *indup, *input_line;
     str_t input_str;
     
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     options_t *options;
     meta_t calc_metadata;
     yafu_obj_t yafu_obj;
-    soe_staticdata_t *sdata;
+    soe_staticdata_t* sdata;
     info_t comp_info;
     int i;
 
@@ -123,33 +123,15 @@ int main(int argc, char *argv[])
     }
     if (options->rand_seed == 0)
     {
-        uint32 seed1, seed2;
+        uint32_t seed1, seed2;
         get_random_seeds(&seed1, &seed2);
-        options->rand_seed = ((uint64)seed2 << 32) | (uint64)seed1;
+        options->rand_seed = ((uint64_t)seed2 << 32) | (uint64_t)seed1;
     }
     else
     {
         printf("input user seed %" PRIu64" detected\n", options->rand_seed);
         yafu_obj.USERSEED = 1;
     }
-
-    sdata = soe_init(options->verbosity, options->threads, options->soe_blocksize);
-
-    // initial cache of primes.
-    szSOEp = 10000000; 
-    PRIMES = soe_wrapper(sdata, 0, szSOEp, 0, &NUM_P, 0, 0);
-    szSOEp = NUM_P;
-
-    // save a batch of sieve primes too.
-    spSOEprimes = (uint32*)malloc((size_t)(NUM_P * sizeof(uint32)));
-    for (i = 0; i < NUM_P; i++)
-    {
-        spSOEprimes[i] = (uint32)PRIMES[i];
-    }
-
-    P_MIN = 0;
-    P_MAX = PRIMES[(uint32)NUM_P - 1];
-
 
 #if !defined( TARGET_KNC )
     // get the computer name, cache sizes, etc.  store in globals
@@ -194,27 +176,32 @@ int main(int argc, char *argv[])
     fobj->HAS_AVX = comp_info.AVX;
     fobj->HAS_SSE41 = comp_info.bSSE41Extensions;
     fobj->NUM_WITNESSES = options->num_prp_witnesses;
-    fobj->cache_size1 = comp_info.L1cache;
-    fobj->cache_size2 = comp_info.L2cache;
+    fobj->cache_size1 = fobj->L1CACHE = comp_info.L1cache;
+    fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
+
+    // put a list of primes in the fobj; many algorithms use it
+    sdata = soe_init(0, 1, 32768);
+    fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
+    fobj->min_p = 2;
+    fobj->max_p = fobj->primes[fobj->num_p - 1];
 
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
 #else
-    fobj->lcg_state = (uint32)options->rand_seed;
+    fobj->lcg_state = (uint32_t)options->rand_seed;
 #endif	
 
     calc_metadata.fobj = fobj;
     calc_metadata.options = options;
-    calc_metadata.sdata = sdata;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
     if (is_cmdline_run == 3)
     {
         // a default function applied to text that has no other function.
-        int len = strlen(options->inputExpr) + 9;
+        int len = (int)strlen(options->inputExpr) + 9;
         options->inputExpr = (char*)xrealloc(options->inputExpr, len);
         input_exp = (char*)xrealloc(input_exp, len);
         sprintf(input_exp, "factor(%s)", options->inputExpr);
@@ -511,7 +498,7 @@ int exp_is_open(char *line, int firstline)
     }
 }
 
-char * get_input(char *input_exp, uint32 *insize)
+char * get_input(char *input_exp, uint32_t*insize)
 {
 #if !defined(__unix__)
 
@@ -939,7 +926,6 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
         fflush(stdout);
     }
 
-    logprint(logfile,"cached %u primes. pmax = %u\n", szSOEp, spSOEprimes[szSOEp-1]);
     logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
     if (freq > 100.0)
@@ -965,8 +951,6 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 		printf("=======             bbuhrow@gmail.com                   =======\n");
 		printf("=======     Type help at any time, or quit to quit      =======\n");
 		printf("===============================================================\n");
-		printf("Cached %u primes. Pmax = %u\n\n", 
-            szSOEp, spSOEprimes[szSOEp-1]);
 		printf("\n>> ");
         fflush(stdout);
 	}
@@ -1007,8 +991,6 @@ void yafu_init(yafu_obj_t* yobj)
 
 void yafu_finalize(yafu_obj_t* yobj)
 {
-	free(spSOEprimes);
-	free(PRIMES);
 
 	return;
 }
@@ -1189,7 +1171,7 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 {
 	int i,j;
 	char cpustr[80], osstr[80];
-    int xover;
+    double xover;
 
 	//read up to the first comma - this is the cpu id string
 	j=0;

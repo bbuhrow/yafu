@@ -45,7 +45,7 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
     {
         // random seeds
         get_random_seeds(&seed1, &seed2);
-        fobj->seed1 = options->rand_seed = seed1;
+        fobj->seed1 = (uint32_t)options->rand_seed = seed1;
         fobj->seed2 = seed2;
         options->rand_seed += (uint64_t)seed2 << 32;
     }
@@ -74,7 +74,7 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	fobj->pp1_obj.pp1_exponent = 0;
 	fobj->pp1_obj.pp1_multiplier = 0;
 	fobj->pp1_obj.pp1_tune_freq = 0;
-    fobj->pp1_obj.lcg_state = hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &fobj->lcg_state));
+    fobj->pp1_obj.lcg_state = hash64(lcg_rand_64(&fobj->lcg_state));
 
 
 	// initialize stuff for ecm	
@@ -91,10 +91,10 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
     fobj->ecm_obj.save_b1 = options->saveB1;
     fobj->ecm_obj.rand_seed1 = fobj->seed1;
     fobj->ecm_obj.rand_seed2 = fobj->seed2;
-    for (i = 0; i < options->threads; i++)
+    for (i = 0; i < (int)options->threads; i++)
     {
         fobj->ecm_obj.lcg_state[i] = 
-            hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &fobj->lcg_state));
+            hash64(lcg_rand_64(&fobj->lcg_state));
     }
 
 	// unlike ggnfs, ecm does not *require* external binaries.  
@@ -151,7 +151,7 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
         printf("Batch divisor cannot be less than 1.0; setting BDiv = 1.0\n");
         options->siqsBDiv = 1.0;
     }
-    fobj->qs_obj.gbl_override_bdiv = options->siqsBDiv;
+    fobj->qs_obj.gbl_override_bdiv = (float)options->siqsBDiv;
     fobj->qs_obj.gbl_override_3lp_bat = options->siqsNobat;
     fobj->qs_obj.gbl_btarget = options->siqsBT;
 	fobj->qs_obj.flags = 0;
@@ -162,6 +162,7 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 	fobj->qs_obj.qs_tune_freq = 0;
     fobj->qs_obj.no_small_cutoff_opt = options->no_opt;
 	strcpy(fobj->qs_obj.siqs_savefile, options->qssave);
+
 	init_lehman();
 
 	// initialize stuff for trial division	
@@ -322,8 +323,6 @@ void init_factobj(fact_obj_t *fobj, options_t *options)
 
 void free_factobj(fact_obj_t *fobj)
 {
-	uint32_t i;
-
 	// free stuff in rho
 	free(fobj->rho_obj.polynomials);
 	mpz_clear(fobj->rho_obj.gmp_n);
@@ -360,7 +359,7 @@ void free_factobj(fact_obj_t *fobj)
 	//free general fobj stuff
 	mpz_clear(fobj->N);
 
-	clear_factor_list(fobj);
+	clear_factor_list(fobj->factors);
 	free(fobj->factors);
 
 	return;
@@ -401,6 +400,7 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->nfs_obj.gmp_n);
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
 
+    fobj->factors = (yfactor_list_t*)xmalloc(1 * sizeof(yfactor_list_t));
 	fobj->factors->alloc_factors = 256;
 	fobj->factors->factors = (yfactor_t *)xmalloc(256 * sizeof(yfactor_t));
 	for (i=0; i < fobj->factors->alloc_factors; i++)
@@ -431,8 +431,8 @@ void reset_factobj(fact_obj_t *fobj)
 void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
 {
 	//stick the number n into the provided factor list
-	uint32_t i;
-    uint32_t fid;
+	int i;
+    int fid;
 	int found = 0, v = 0;
 
 	// look to see if this factor is already in the list
@@ -505,42 +505,42 @@ void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNE
 void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
 {
 	// remove the number n from the global factor list
-	uint32_t i;
+	int i;
 
 	// find the factor
-	for (i=0;i< flist->num_factors; i++)
-	{
-		if (mpz_cmp(n, flist->factors[i].factor) == 0)
-		{
-			int j;
-			// copy everything above this in the list back one position
-			for (j=i; j< flist->num_factors-1; j++)
-			{
-				mpz_set(flist->factors[j].factor, flist->factors[j+1].factor);
-                flist->factors[j].count = flist->factors[j+1].count;
-			}
-			// remove the last one in the list
+    for (i = 0; i < flist->num_factors; i++)
+    {
+        if (mpz_cmp(n, flist->factors[i].factor) == 0)
+        {
+            int j;
+            // copy everything above this in the list back one position
+            for (j = i; j < flist->num_factors - 1; j++)
+            {
+                mpz_set(flist->factors[j].factor, flist->factors[j + 1].factor);
+                flist->factors[j].count = flist->factors[j + 1].count;
+            }
+            // remove the last one in the list
             flist->factors[j].count = 0;
-			mpz_clear(flist->factors[j].factor);
+            mpz_clear(flist->factors[j].factor);
 
             flist->num_factors--;
-			break;
-		}
-	}
+            break;
+        }
+    }
 
 	return;
 }
 
 void clear_factor_list(yfactor_list_t * flist)
 {
-	uint32_t i;
+	int i;
 
 	//clear this info
-	for (i=0; i< flist->num_factors; i++)
-	{
+    for (i = 0; i < flist->num_factors; i++)
+    {
         flist->factors[i].count = 0;
-		mpz_clear(flist->factors[i].factor);
-	}
+        mpz_clear(flist->factors[i].factor);
+    }
     flist->num_factors = 0;
 
 	return;
@@ -588,20 +588,20 @@ int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int
 	return retval;
 }
 
-void print_factors(fact_obj_t *fobj)
+void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 {
 	uint32_t i;
 	int j, v;
 	mpz_t tmp, tmp2;
 
 	//always print factors unless complete silence is requested
-	if (fobj->VFLAG >= 0)
+	if (VFLAG >= 0)
 	{
 		printf("\n\n***factors found***\n\n");
 		mpz_init(tmp);
 		mpz_set_ui(tmp, 1);
 
-		for (i=0; i<fobj->factors->num_factors; i++)
+		for (i=0; i< flist->num_factors; i++)
 		{
 
 			//if (fobj->fobj_factors[i].type == COMPOSITE)
@@ -622,91 +622,91 @@ void print_factors(fact_obj_t *fobj)
 			//			fobj->fobj_factors[i].factor);
 			//	}
 			//}
-			if (fobj->factors->factors[i].type == PRIME)
+			if (flist->factors[i].type == PRIME)
 			{
 				// don't redo APR-CL calculations already performed by add_to_factor_list
-				for (j=0;j<fobj->factors->factors[i].count;j++)
+				for (j=0;j< flist->factors[i].count;j++)
 				{
-					mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-					gmp_printf("P%d = %Zd\n", gmp_base10(fobj->factors->factors[i].factor),
-						fobj->factors->factors[i].factor);
+					mpz_mul(tmp, tmp, flist->factors[i].factor);
+					gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                        flist->factors[i].factor);
 				}
 			}
 			else
 			{
 				//type not set, determine it now
 				/* prove primality of numbers <= aprcl_prove_cutoff digits */
-				if (gmp_base10(fobj->factors->factors[i].factor) <= 
-                    fobj->factors->aprcl_prove_cutoff)
+				if (gmp_base10(flist->factors[i].factor) <=
+                    flist->aprcl_prove_cutoff)
 				{
 					int ret = 0;
-					if (fobj->VFLAG > 0)
-						v = (gmp_base10(fobj->factors->factors[i].factor) < 
-                            fobj->factors->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+					if (VFLAG > 0)
+						v = (gmp_base10(flist->factors[i].factor) <
+                            flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
 
 					if (v == APRTCLE_VERBOSE1)
 						printf("\n");
-					ret = mpz_aprtcle(fobj->factors->factors[i].factor, v);
+					ret = mpz_aprtcle(flist->factors[i].factor, v);
 					if (v == APRTCLE_VERBOSE1)
 						printf("\n");
 
 					if (ret == APRTCLE_PRIME)
 					{
-						for (j=0;j<fobj->factors->factors[i].count;j++)
+						for (j=0;j< flist->factors[i].count;j++)
 						{
-							mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
+							mpz_mul(tmp, tmp, flist->factors[i].factor);
 							gmp_printf("P%d = %Zd\n", 
-                                gmp_base10(fobj->factors->factors[i].factor),
-								fobj->factors->factors[i].factor);
+                                gmp_base10(flist->factors[i].factor),
+                                flist->factors[i].factor);
 						}
 					}
 					else
 					{
-						if (mpz_bpsw_prp(fobj->factors->factors[i].factor) != PRP_COMPOSITE)
+						if (mpz_bpsw_prp(flist->factors[i].factor) != PRP_COMPOSITE)
 						{
 							// if BPSW doesn't think this composite number is actually composite, then ask the user
 							// to report this fact to the YAFU sub-forum at mersenneforum.org
 							printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
 							printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
-							gmp_printf(" *** ATTENTION: n = %Zd\n", fobj->factors->factors[i].factor);
+							gmp_printf(" *** ATTENTION: n = %Zd\n", flist->factors[i].factor);
 						}
-						for (j=0;j<fobj->factors->factors[i].count;j++)
+						for (j=0;j< flist->factors[i].count;j++)
 						{
-							mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-							gmp_printf("C%d = %Zd\n", gmp_base10(fobj->factors->factors[i].factor),
-								fobj->factors->factors[i].factor);
+							mpz_mul(tmp, tmp, flist->factors[i].factor);
+							gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                                flist->factors[i].factor);
 						}
 					}
 				}
-				else if (is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES))
+				else if (is_mpz_prp(flist->factors[i].factor, NUM_WITNESSES))
 				{
-					for (j=0;j<fobj->factors->factors[i].count;j++)
+					for (j=0;j< flist->factors[i].count;j++)
 					{
-						mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-						if (mpz_cmp_ui(fobj->factors->factors[i].factor, 100000000) < 0)
-							gmp_printf("P%d = %Zd\n", gmp_base10(fobj->factors->factors[i].factor),
-								fobj->factors->factors[i].factor);
+						mpz_mul(tmp, tmp, flist->factors[i].factor);
+						if (mpz_cmp_ui(flist->factors[i].factor, 100000000) < 0)
+							gmp_printf("P%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                                flist->factors[i].factor);
 						else
-							gmp_printf("PRP%d = %Zd\n", gmp_base10(fobj->factors->factors[i].factor),
-								fobj->factors->factors[i].factor);
+							gmp_printf("PRP%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                                flist->factors[i].factor);
 					}
 				}
 				else
 				{
-					for (j=0;j<fobj->factors->factors[i].count;j++)
+					for (j=0;j< flist->factors[i].count;j++)
 					{
-						mpz_mul(tmp, tmp, fobj->factors->factors[i].factor);
-						gmp_printf("C%d = %Zd\n", gmp_base10(fobj->factors->factors[i].factor),
-							fobj->factors->factors[i].factor);
+						mpz_mul(tmp, tmp, flist->factors[i].factor);
+						gmp_printf("C%d = %Zd\n", gmp_base10(flist->factors[i].factor),
+                            flist->factors[i].factor);
 					}
 				}
 			}
 		}
 
 		mpz_init(tmp2);
-		mpz_set(tmp2, fobj->N);
+		mpz_set(tmp2, N);
 		if (mpz_cmp_ui(tmp2, 1) > 0)
 		{
 			// non-trivial N remaining... compute and display the known co-factor
@@ -714,11 +714,11 @@ void print_factors(fact_obj_t *fobj)
 			if (mpz_cmp_ui(tmp2, 1) > 0)
 			{
 				/* prove primality of numbers <= aprcl_prove_cutoff digits */
-				if (gmp_base10(tmp2) <= fobj->factors->aprcl_prove_cutoff)
+				if (gmp_base10(tmp2) <= flist->aprcl_prove_cutoff)
 				{
 					int ret = 0;
-					if (fobj->VFLAG > 0)
-						v = (gmp_base10(tmp2) < fobj->factors->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
+					if (VFLAG > 0)
+						v = (gmp_base10(tmp2) < flist->aprcl_display_cutoff) ? APRTCLE_VERBOSE0 : APRTCLE_VERBOSE1;
 					else
 						v = APRTCLE_VERBOSE0;
 
@@ -745,7 +745,7 @@ void print_factors(fact_obj_t *fobj)
 							gmp_base10(tmp2), tmp2);
 					}
 				}
-				else if (is_mpz_prp(tmp2, fobj->NUM_WITNESSES))
+				else if (is_mpz_prp(tmp2, NUM_WITNESSES))
 				{
 					gmp_printf("\n***co-factor***\nPRP%d = %Zd\n",
 						gmp_base10(tmp2), tmp2);

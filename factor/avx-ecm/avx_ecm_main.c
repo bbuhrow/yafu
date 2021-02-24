@@ -144,13 +144,13 @@ yfactor_t* ecm_add_factor(yfactor_t* factors, int *numfactors,
     return factors;
 }
 
-yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
-    uint64 B2, int threads, int* numfactors, int verbose, 
-    int save_b1, uint32 *curves_run)
+void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
+    uint64_t B2, int threads, int* numfactors, int verbose, 
+    int save_b1, uint32_t *curves_run)
 {
     thread_data_t *tdata;
 	vec_bignum_t **f, *n;
-    mpz_t g, r;
+    mpz_t g, r, N;
 	uint32_t *siglist;
 	uint32_t numcurves_per_thread;
 	uint64_t b1 = B1;
@@ -160,11 +160,7 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
 	int pid = getpid();
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
-    yfactor_t * factors;
-    
-    // primes
-    uint32_t seed_p[6542];
-    uint32_t numSOEp;
+    yfactor_t * factors = fobj->factors;
 
 	// timing variables
 	struct timeval stopt;	// stop time of this job
@@ -182,6 +178,9 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     *numfactors = 0;
     mpz_init(g);
     mpz_init(r);
+    mpz_init(N);
+
+    mpz_set(N, fobj->ecm_obj.gmp_n);
 
     // check for Mersenne inputs
     size_n = mpz_sizeinbase(N, 2);
@@ -212,7 +211,7 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         poly.coeff1 = 1;
         poly.coeff2 = -1;
         poly.exp1 = size_n;
-        find_primitive_factor(&poly, verbose);
+        find_primitive_factor(&poly, fobj->primes, fobj->num_p, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
@@ -366,21 +365,22 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         STAGE1_MAX = 1000;
     }
 
-    numSOEp = tiny_soe(65537, seed_p);
-    if ((PRIMES[0] != 2) || PRIMES[NUM_P - 1] != 99999989)
-    {
-        free(PRIMES);
-        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-        //PRIMES = soe_wrapper(seed_p, numSOEp, 0, 100000000, 0, &NUM_P);
-        PRIMES = soe_wrapper(sdata, 0, 100000000, 0, &NUM_P, 0, 0);
-        soe_finalize(sdata);
-        P_MAX = PRIMES[NUM_P - 1];
-        P_MIN = PRIMES[0];
-        PRIME_RANGE = 100000000;
-
-        if (verbose > 1)
-            printf("cached %u primes < %u\n", NUM_P, PRIMES[NUM_P - 1]);
-    }
+    // not currently used, but the mechanisms exist to pass in an initial
+    // list of primes to use here.
+    PRIME_RANGE = 100000000;
+    //if ((fobj->primes[0] != 2) || fobj->max_p < 99999989)
+    //{
+    //    free(fobj->primes);
+    //    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+    //    fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
+    //    soe_finalize(sdata);
+    //    fobj->max_p = fobj->primes[fobj->num_p - 1];
+    //    fobj->min_p = fobj->primes[0];
+    //    PRIME_RANGE = 100000000;
+    //
+    //    if (verbose > 1)
+    //        printf("cached %u primes < %u\n", fobj->num_p, fobj->max_p);
+    //}
 
 	if (numcurves < threads)
 		numcurves = threads;
@@ -461,10 +461,14 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         // this session's rand_t, and the current microsecond timer.  Plus the
         // thread id to make it unique per-thread.
 		tdata[i].lcg_state = hash64(stopt.tv_usec) + hash64(pid) + hash64(i+1) + 
-            seed1 + (uint64)seed2 << 32;
+            seed1 + (uint64_t)seed2 << 32;
         tdata[i].total_threads = threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;
+        tdata[i].work->primes = fobj->primes;
+        tdata[i].work->num_p = fobj->num_p;
+        tdata[i].work->min_p = fobj->min_p;
+        tdata[i].work->max_p = fobj->max_p;
     }
 
 	gettimeofday(&stopt, NULL);
@@ -479,16 +483,109 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
     if (verbose > 1)
 	    printf("\n");
 
-    // clean up thread data
+    *curves_run = tdata[0].curves;
+
+    // record factors and clean up thread data
+    FILE* flog = NULL;
+    if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+    {
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for appending\n", fobj->flogname);
+            return 0;
+        }
+
+        logprint(flog, "Finished %u curves using AVX-ECM method on C%d input, ",
+            *curves_run, gmp_base10(fobj->ecm_obj.gmp_n));
+
+        int tmp = fobj->ecm_obj.stg2_is_default;
+        uint64_t tmp2 = fobj->ecm_obj.B2;
+        fobj->ecm_obj.stg2_is_default = 0;
+        fobj->ecm_obj.B2 = B2;
+
+        print_B1B2(fobj, flog);
+
+        fobj->ecm_obj.stg2_is_default = tmp;
+        fobj->ecm_obj.B2 = tmp2;
+        fprintf(flog, "\n");
+    }
+
+    int total_factors = 0;
 	for (i = 0; i < threads; i++)
 	{
         //printf("thread %d found %d factors\n", i, tdata[i].numfactors);
         for (j = 0; j < tdata[i].numfactors; j++)
         {
-            factors = ecm_add_factor(factors, numfactors, tdata[i].factors[j].factor,
-                tdata[i].factors[j].stg_id, tdata[i].factors[j].thread_id,
-                tdata[i].factors[j].vec_id, tdata[i].factors[j].curve_id, 
-                tdata[i].factors[j].sigma);
+            //factors = ecm_add_factor(factors, numfactors, tdata[i].factors[j].factor,
+            //    tdata[i].factors[j].stg_id, tdata[i].factors[j].thread_id,
+            //    tdata[i].factors[j].vec_id, tdata[i].factors[j].curve_id, 
+            //    tdata[i].factors[j].sigma);
+            int fid;
+
+            // AVX-ECM can find the same factor multiple times simultaneously, so
+            // check to make sure this factor still divides the input.
+            if (!mpz_divisible_p(fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor))
+                continue;
+
+            add_to_factor_list(fobj->factors, tdata[i].factors[j].factor, 
+                fobj->VFLAG, fobj->NUM_WITNESSES);
+
+            total_factors++;
+            fid = fobj->factors->num_factors - 1;
+
+            fobj->factors->factors[fid].tid = tdata[i].factors[j].thread_id;
+            fobj->factors->factors[fid].curve_num = tdata[i].factors[j].curve_id;
+            fobj->factors->factors[fid].sigma = tdata[i].factors[j].sigma;
+            fobj->factors->factors[fid].vid = tdata[i].factors[j].vec_id;
+            fobj->factors->factors[fid].method = tdata[i].factors[j].stg_id;
+
+            if (is_mpz_prp(tdata[i].factors[j].factor, fobj->NUM_WITNESSES))
+            {
+                if (fobj->VFLAG > 0)
+                    gmp_printf("\necm: found prp%d factor = %Zd\n",
+                        gmp_base10(tdata[i].factors[j].factor), tdata[i].factors[j].factor);
+
+                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+                {
+                    char* s = mpz_get_str(NULL, 10, tdata[i].factors[j].factor);
+                    logprint(flog, "prp%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
+                        gmp_base10(tdata[i].factors[j].factor),
+                        s,
+                        fobj->factors->factors[fid].curve_num, 
+                        fobj->factors->factors[fid].method,
+                        fobj->ecm_obj.B1, B2, 
+                        fobj->factors->factors[fid].sigma,
+                        fobj->factors->factors[fid].tid, 
+                        fobj->factors->factors[fid].vid);
+                    free(s);
+                }
+            }
+            else
+            {
+                if (fobj->VFLAG > 0)
+                    gmp_printf("\necm: found c%d factor = %Zd\n",
+                        gmp_base10(tdata[i].factors[j].factor), tdata[i].factors[j].factor);
+
+                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+                {
+                    char* s = mpz_get_str(NULL, 10, tdata[i].factors[j].factor);
+                    logprint(flog, "c%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
+                        gmp_base10(tdata[i].factors[j].factor),
+                        s,
+                        fobj->factors->factors[fid].curve_num,
+                        fobj->factors->factors[fid].method,
+                        fobj->ecm_obj.B1, B2,
+                        fobj->factors->factors[fid].sigma,
+                        fobj->factors->factors[fid].tid,
+                        fobj->factors->factors[fid].vid);
+                    free(s);
+                }
+            }
+
+            mpz_tdiv_q(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor);
+
             mpz_clear(tdata[i].factors[j].factor);
         }
 
@@ -506,7 +603,34 @@ yfactor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1,
         free(tdata[i].sigma);
 	}
 
-    *curves_run = tdata[0].curves;
+    // if we found a factor but the input is not 1, check to see if it's prime
+    if ((total_factors > 0) && mpz_cmp_ui(fobj->ecm_obj.gmp_n, 1) > 0)
+    {
+        if (is_mpz_prp(fobj->ecm_obj.gmp_n, fobj->NUM_WITNESSES))
+        {
+            add_to_factor_list(fobj->factors, fobj->ecm_obj.gmp_n,
+                fobj->VFLAG, fobj->NUM_WITNESSES);
+
+            if (fobj->VFLAG > 0)
+                gmp_printf("\necm: found prp%d (co)factor = %Zd\n",
+                    gmp_base10(fobj->ecm_obj.gmp_n), fobj->ecm_obj.gmp_n);
+
+            if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+            {
+                char* s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
+                logprint(flog, "prp%d = %s (cofactor)\n",
+                    gmp_base10(fobj->ecm_obj.gmp_n), s);
+                free(s);
+            }
+
+            mpz_set_ui(fobj->ecm_obj.gmp_n, 1);
+        }
+    }
+
+    if ((strcmp(fobj->flogname, "") != 0) && (flog != NULL))
+    {
+        fclose(flog);
+    }
 
     // clean up local/global data
     mpz_clear(g);

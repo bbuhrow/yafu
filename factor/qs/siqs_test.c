@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
+#include "qs.h"
 #include "qs_impl.h"
 #include "ytools.h"
 
@@ -410,7 +411,7 @@ void siqsbench(fact_obj_t *fobj)
 	{
 		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
 		SIQS(fobj);
-		clear_factor_list(fobj);
+		clear_factor_list(fobj->factors);
 	}
 
     strcpy(fobj->flogname, "bench.log");

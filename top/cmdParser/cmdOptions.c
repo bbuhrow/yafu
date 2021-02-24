@@ -252,7 +252,7 @@ void applyArg(char* arg, int argNum, options_t* options)
 void applyOpt(char* opt, char* arg, options_t* options)
 {
     int i;
-    char** ptr;
+    char** ptr = NULL;
 
     if (strcmp(opt, OptionArray[0]) == 0)
     {
@@ -1042,9 +1042,9 @@ options_t* initOpt(void)
     options->poly_batch = 250;
     options->ggnfs_siever = 0;
 #if defined(_WIN64)
-    strcpy(options->ggnfs_dir, ".\");
+    strcpy(options->ggnfs_dir, ".\\");
 #elif defined(WIN32)
-    strcpy(options->ggnfs_dir, ".\");
+    strcpy(options->ggnfs_dir, ".\\");
 #else
     strcpy(options->ggnfs_dir, "./");
 #endif

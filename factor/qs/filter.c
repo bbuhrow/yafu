@@ -591,7 +591,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 				uint32_t curr_a_idx, curr_poly_idx, curr_rel;
 				uint32_t curr_expected, curr_saved, curr_cycle;
 				uint32_t all_relations;
-				uint32_t total_poly_a;
+				uint32_t total_poly_a = 0;
 				uint32_t poly_saved;
 				uint32_t *plist0;
 				uint32_t *plist1;
@@ -639,7 +639,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 							//	primes[0], primes[1], primes[2], i, curr_rel);
 
 							relation_list[i].poly_idx = i;
-							relation_list[i].num_factors = lcg_rand_32(0, 1000000000, &dconf->lcg_state);
+							relation_list[i].num_factors = lcg_rand_32_range(0, 1000000000, &dconf->lcg_state);
 							relation_list[i].large_prime[0] = primes[0];
 							relation_list[i].large_prime[1] = primes[1];
 							relation_list[i].large_prime[2] = primes[2];
@@ -1712,7 +1712,7 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 {
 	// assume that we've kept a backup of all relation data, so feel free to modify it.
 	qs_la_col_t *cycle_list;
-	uint32_t i, j, k, start, curr_cycle, passes;
+	uint32_t i, j, k, start, curr_cycle;
 	siqs_r *rtmp;
 	uint32_t *lp;
 	uint32_t *pbr_hashtable;
@@ -2131,7 +2131,6 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 	free(pbr_table);
 
 	*numcycles = curr_cycle;
-	*numpasses = passes;
 	return cycle_list;
 }
 
@@ -2151,7 +2150,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   should be taken to avoid wasting huge amounts of
 	   memory */
 
-	qs_obj_t *fobj = sconf->obj;
+	fact_obj_t *fobj = sconf->obj;
 	uint32_t *hashtable = sconf->cycle_hashtable;
 	qs_cycle_t *table = sconf->cycle_table;
 	uint32_t num_derived_poly;
@@ -2185,14 +2184,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (!sconf->in_mem)
 	{
 		/* skip over the first line */
-		qs_savefile_open(&fobj->savefile, SAVEFILE_READ);
-		qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
+		qs_savefile_open(&fobj->qs_obj.savefile, SAVEFILE_READ);
+		qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 
 		//we don't know beforehand how many rels to expect, so start
 		//with some amount and allow it to increase as we read them
 		relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
 		curr_rel = 10000;
-		while (!qs_savefile_eof(&fobj->savefile)) {
+		while (!qs_savefile_eof(&fobj->qs_obj.savefile)) {
 			char *start;
 
 			switch (buf[0]) {
@@ -2237,7 +2236,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 				break;
 			}
 
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		num_relations = i;
 	}
@@ -2340,7 +2339,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	   at the same time. */
 
 	if (!sconf->in_mem)
-		qs_savefile_rewind(&fobj->savefile);
+		qs_savefile_rewind(&fobj->qs_obj.savefile);
 	else
 		this_rel = 0;
 
@@ -2349,14 +2348,14 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		char *tmp;
 		uint32_t bad_A_val = 0;
 		siqs_r *r;
-		siqs_r *rel;
+		siqs_r *rel = NULL;
 
 		/* read in the next entity */
 		if (!sconf->in_mem)
 		{
-			if (qs_savefile_eof(&fobj->savefile))
+			if (qs_savefile_eof(&fobj->qs_obj.savefile))
 				break;
-			qs_savefile_read_line(buf, sizeof(buf), &fobj->savefile);
+			qs_savefile_read_line(buf, sizeof(buf), &fobj->qs_obj.savefile);
 		}
 		else
 		{
@@ -2561,7 +2560,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	}
 
 	if (!sconf->in_mem)
-		qs_savefile_close(&fobj->savefile);
+		qs_savefile_close(&fobj->qs_obj.savefile);
 
 	free(final_poly_index);
 	sconf->poly_list = (poly_t *)xrealloc(sconf->poly_list,

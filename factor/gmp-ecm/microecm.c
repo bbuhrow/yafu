@@ -1056,7 +1056,7 @@ void uecm_stage2(uecm_pt *P, uint64_t rho, uecm_work *work)
 	uecm_pt *Pb = work->Pb;
 	uecm_pt *Pd;
 	uint64_t acc = work->stg2acc;
-    uint8_t *barray;
+    uint8_t *barray = NULL;
     uint32_t numb;
 
 	work->paired = 0;

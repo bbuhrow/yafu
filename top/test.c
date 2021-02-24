@@ -31,9 +31,9 @@ code to the public domain.
 void test_dlp_composites()
 {
 	FILE *in;
-	uint64 *comp, f64;
-	uint32 *f1;
-	uint32 *f2, bits, totBits, minBits, maxBits;
+	uint64_t *comp, f64;
+	uint32_t *f1;
+	uint32_t *f2, bits, totBits, minBits, maxBits;
 	double t_time;
 	clock_t start, stop;
 	int i, j, k, num, correct;
@@ -44,9 +44,9 @@ void test_dlp_composites()
 	int num_files;
 	char filenames[30][80];
 	fact_obj_t *fobj2;
-    uint64 lcg_state = 0xdeadbeef0badcafe;
+    uint64_t lcg_state = 0xdeadbeef0badcafe;
 
-	uint64 testLehman[29] = {
+	uint64_t testLehman[29] = {
 		5640012124823LL,
 		7336014366011LL,
 		19699548984827LL,
@@ -134,7 +134,8 @@ void test_dlp_composites()
 
 			for (k = 0; k < curves; k++)
 			{
-				uint64 sigma = lcg_rand_64(100, 1000000000, &lcg_state);
+                uint64_t sigma;
+                while ((sigma = lcg_rand_64(&lcg_state)) < 6);
 				my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
 				mpz_set_ui(my_ecm_params->x, (unsigned long)0);
@@ -240,9 +241,9 @@ tinyecm_start:
 
 
 	mpz_init(gmptmp);
-	comp = (uint64 *)malloc(2000000 * sizeof(uint64));
-	f1 = (uint32 *)malloc(2000000 * sizeof(uint32));
-	f2 = (uint32 *)malloc(2000000 * sizeof(uint32));
+	comp = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
+	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
     goto tinyqs_marker;
 	//goto brent_marker;
@@ -261,7 +262,7 @@ tinyecm_start:
 	{
 		f64 = LehmanFactor(testLehman[i], 3.5, 0, 0.1);
 		printf("input %lu returned factor %lu, actual factors %u and %u (%lu)\n", 
-			testLehman[i], f64, f1[i], f2[i], (uint64)f1[i] * (uint64)f2[i]);
+			testLehman[i], f64, f1[i], f2[i], (uint64_t)f1[i] * (uint64_t)f2[i]);
 		if ((f64 == f1[i]) || (f64 == f2[i]))
 		{
 			correct++;
@@ -315,9 +316,9 @@ brent_marker:
             mpz_set_ui(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;
-			if ((uint32)j > maxBits)
+			if ((uint32_t)j > maxBits)
 				maxBits = j;
-			if ((uint32)j < minBits && j != 0)
+			if ((uint32_t)j < minBits && j != 0)
 				minBits = j;
 			i++;
 		}
@@ -370,9 +371,9 @@ brent_marker:
             mpz_set_ui(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
             totBits += j;
-            if ((uint32)j > maxBits)
+            if ((uint32_t)j > maxBits)
                 maxBits = j;
-            if ((uint32)j < minBits && j != 0)
+            if ((uint32_t)j < minBits && j != 0)
                 minBits = j;
             i++;
         }
@@ -444,9 +445,9 @@ brent_marker:
             mpz_set_ui(gmptmp, comp[i]);
             j = mpz_sizeinbase(gmptmp, 2);
 			totBits += j;
-			if ((uint32)j > maxBits)
+			if ((uint32_t)j > maxBits)
 				maxBits = j;
-			if ((uint32)j < minBits && j != 0)
+			if ((uint32_t)j < minBits && j != 0)
 				minBits = j;
 			i++;
 		}
@@ -469,7 +470,7 @@ brent_marker:
 			mpz_set_64(gmptmp, comp[i]);
 			f64 = sp_shanks_loop(gmptmp, NULL);
 
-			if (((uint32)f64 == f1[i]) || ((uint32)f64 == f2[i]))
+			if (((uint32_t)f64 == f1[i]) || ((uint32_t)f64 == f2[i]))
 				correct++;
 			else
 			{
@@ -523,7 +524,7 @@ tinyqs_marker:
 
         for (nf = 0; nf < 7; nf++)
         {
-            uint64 known1, known2;
+            uint64_t known1, known2;
             char buf[1024];
             in = fopen(filenames[nf], "r");
 
@@ -719,14 +720,15 @@ tinyqs_marker:
         for (i = 0; i < num; i++)
         {
             int p;
-			uint64 f1, f2;
+			uint64_t f1, f2;
 
             fgets(buf, 1024, in);
             gmp_sscanf(buf, "%Zd,%lu,%lu", gmp_comp, &f1, &f2);
             
             for (k = 0; k < curves; k++)
             {
-                uint64 sigma = lcg_rand_64(100, 1000000000, &lcg_state);
+                uint64_t sigma;
+                while ((sigma = lcg_rand_64(&lcg_state)) < 6);
                 my_ecm_params->B1done = 1.0 + floor(1 * 128.) / 134217728.;
 				//mpz_set_ui(my_ecm_params->B2, 0);
                 mpz_set_ui(my_ecm_params->x, (unsigned long)0);
@@ -795,7 +797,7 @@ tinyecm_marker:
 		char buf[1024];
 		int curves;
 		int B1;
-		uint64 known1, known2, known3;
+		uint64_t known1, known2, known3;
 
 		switch (nf)
 		{
@@ -857,8 +859,8 @@ tinyecm_marker:
 			num = 100000;
 			for (i = 0; i < num; i++)
 			{
-				uint64 in64;
-				uint64 outf;
+				uint64_t in64;
+				uint64_t outf;
 				
 				fgets(buf, 1024, in);
 
@@ -953,7 +955,7 @@ tinyecm_marker:
 
 					fgets(buf, 1024, in);
 #ifdef _MSC_VER
-                    uint32 k1, k2;
+                    uint32_t k1, k2;
                     gmp_sscanf(buf, "%Zd, %u, %u",
                         gmp_comp, &k1, &k2);
                     known1 = k1;

@@ -201,7 +201,7 @@ void pollard_loop(fact_obj_t *fobj)
 	//watch for an abort
 	if (PM1_ABORT)
 	{
-		print_factors(fobj);
+		print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 		exit(1);
 	}
 

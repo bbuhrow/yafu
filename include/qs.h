@@ -26,9 +26,9 @@ code to the public domain.
 #include "gmp.h"
 
 
-extern void SIQS(qs_obj_t* qsobj);
-extern void smallmpqs(qs_obj_t* qsobj);
-extern void siqsbench(qs_obj_t* qsobj);
+extern void SIQS(fact_obj_t* qsobj);
+extern void smallmpqs(fact_obj_t* qsobj);
+extern void siqsbench(fact_obj_t* qsobj);
 
 #endif /* _SIQS_H_ */
 

@@ -34,7 +34,7 @@ void zTrial(fact_obj_t *fobj)
 	uint32_t r,k=0;
 	uint32_t limit = fobj->div_obj.limit;
 	int print = fobj->div_obj.print;
-	FILE *flog;
+	FILE *flog = NULL;
 	uint64_t q;
 	mpz_t tmp;
 	mpz_init(tmp);
@@ -112,7 +112,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 	// check if (b^1/i)^i == b for i = 2 to bitlen(b)
 	uint32_t bits = mpz_sizeinbase(b,2);
 	uint32_t i;
-	FILE *flog;
+	FILE *flog = NULL;
 	mpz_t base, ans;
 
 	mpz_init(base);

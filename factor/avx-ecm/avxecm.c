@@ -2263,7 +2263,7 @@ void vececm(thread_data_t *tdata)
 	base_t i, j;
 	int curve;
 	int tid;
-	FILE *save;
+	FILE *save = NULL;
 	char fname[80];
 	char *wstr;
 	int found = 0;
@@ -2309,6 +2309,7 @@ void vececm(thread_data_t *tdata)
     {
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);
         ecm_primes = soe_wrapper(sdata, 0, 100000000, 0, &ecm_nump, 0, 0);
+        ecm_minp = ecm_primes[0];
         ecm_maxp = ecm_primes[ecm_nump - 1];
         soe_finalize(sdata);
         ecm_primes_initialized = 1;
@@ -3260,7 +3261,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
         if ((verbose > 1) && ((i & 511) == 0))
 #endif
 		{
-			printf("accumulating prime %lu\r", q);
+			printf("accumulating prime %lu\n", q);
 			fflush(stdout);
 		}
 	}

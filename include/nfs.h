@@ -14,8 +14,8 @@
    search more of the polynomial space */
 
 typedef struct {
-	uint32 bits;
-	uint32 seconds;
+	uint32_t bits;
+	uint32_t seconds;
 } poly_deadline_t;
 
 static const poly_deadline_t time_limits[] = {
@@ -180,7 +180,7 @@ typedef struct {
 	// stuff for parallel ggnfs sieving
 	char outfilename[80];
 	nfs_job_t job;
-	uint32 siever;
+	uint32_t siever;
 
 	// stuff for parallel msieve poly select
 	char *polyfilename, *logfilename, *fbfilename;
@@ -229,16 +229,16 @@ int check_for_sievers(fact_obj_t *fobj, int revert_to_siqs);
 void print_poly(mpz_polys_t* poly, FILE *out);
 void print_job(nfs_job_t *job, FILE *out);
 uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job);
-void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params);
+void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params);
 
 enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_job_t *job);
 void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj);
 uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj);
 uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job);
 void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job, mp_t *mpN, factor_list_t *factor_list);
-void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range);
+void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range);
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
-	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags, uint64 start, uint64 stop);
+	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags, uint64_t start, uint64_t stop);
 void do_sieving(fact_obj_t *fobj, nfs_job_t *job);
 void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);
@@ -275,7 +275,7 @@ void snfs_make_job_file(fact_obj_t *fobj, nfs_job_t *job);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);
 void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job);
-void find_primitive_factor(snfs_t *poly, int VFLAG);
+void find_primitive_factor(snfs_t *poly, uint64_t *primes, uint64_t num_p, int VFLAG);
 void nfs_set_min_rels(nfs_job_t *job);
 void copy_job(nfs_job_t *src, nfs_job_t *dest);
 void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest);

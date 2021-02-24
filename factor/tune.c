@@ -4,6 +4,7 @@
 #include "gnfs.h"
 #include "gmp_xface.h"
 #include "cmdOptions.h"
+#include <stdint.h>
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 9
@@ -15,7 +16,7 @@ double best_linear_fit(double *x, double *y, int numpts,
 	double *slope, double *intercept);
 void update_INI(double mult, double exponent, double mult2, 
     double exponent2, double xover, double cpu_freq, char *cpu_str);
-void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
+void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputstr, int inputnum, fact_obj_t *fobj);
 void check_siever(fact_obj_t* fobj, char* sname, int siever);
 
 //----------------------- TUNE ENTRY POINT ------------------------------------//
@@ -42,24 +43,24 @@ void factor_tune(fact_obj_t *inobj)
 	struct timeval start;	// start time of this job
 	double t_time;
 
-	//uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
+	//uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		//63709, 143984, 240663, 568071, 793434, 1205061, 1595268};
-	uint32 siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
+	uint32_t siqs_actualrels[NUM_SIQS_PTS] = {17136, 32337,
 		63709, 143984, 242825, 589192, 847299, 1272852, 1709598}; // 2397232, 3293925
-    uint32 siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
+    uint32_t siqs_tf_small_cutoff[NUM_SIQS_PTS] = { 15, 20,
         15, 13, 16, 20, 18, 19, 20 }; // 20, 20
 
 	double siqs_extraptime[NUM_SIQS_PTS];
 	double siqs_sizes[NUM_SIQS_PTS] = {60, 65, 70, 75, 80, 85, 90, 95, 100};
 
-	uint32 gnfs_actualrels[NUM_GNFS_PTS] = {1929527, 4074867, 4783410, 
+	uint32_t gnfs_actualrels[NUM_GNFS_PTS] = {1929527, 4074867, 4783410, 
 		4969315, 5522597, 5783845};
 	double gnfs_extraptime[NUM_GNFS_PTS];
 	double gnfs_sizes[NUM_GNFS_PTS] = {85, 90, 95, 100, 105, 110};
 	double gnfs_max_poly_time[NUM_GNFS_PTS] = {0.09, 0.12, 0.21, 0.34, 0.5, 1.0};	//HRS
 
 	double a, b, a2, b2, fit, xover;
-	uint32 count;
+	uint32_t count;
 	char tmpbuf[GSTR_MAXSIZE];
 
     mpz_init(n);
@@ -168,7 +169,7 @@ void factor_tune(fact_obj_t *inobj)
 	{
 		char syscmd[1024];
 		FILE *in;
-		uint32 startq, qrange;		
+		uint32_t startq, qrange;		
 		double t_time2, d;
 
 		//remove previous tests
@@ -221,7 +222,7 @@ void factor_tune(fact_obj_t *inobj)
 			count = 1;	//no divide by zero
 
 		printf("nfs: elapsed time for %u relations of c%d = %6.4f seconds.\n",
-			count,(uint32)gnfs_sizes[i],t_time - t_time2);
+			count,(uint32_t)gnfs_sizes[i],t_time - t_time2);
 
 		//extrapolate
 		gnfs_extraptime[i] = (double)gnfs_actualrels[i] * (t_time - t_time2) / (double)count;
@@ -285,7 +286,7 @@ static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 };
 */
 
-void make_job_file(char *sname, uint32 *startq, uint32 *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
+void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputstr, int inputnum, fact_obj_t *fobj)
 {
 	FILE *out;
 	int siever;

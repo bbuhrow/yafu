@@ -33,8 +33,19 @@ code to the public domain.
 //#define NO_ZLIB
 
 #if defined( _MSC_VER )
+
 #define USE_NFS
+#define MySleep(x) Sleep((x))
+
+#else
+
+#include <unistd.h> // usleep
+#define MySleep(x) usleep((x)*1000)	
+
 #endif
+
+//sleep in milliseconds
+
 
 // these are similar to things msieve defines.  Differences:
 // the factor type contains more info about how the factor
@@ -89,7 +100,7 @@ typedef struct {
 
 void add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
-void print_factors(yfactor_list_t* fobj);
+void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES);
 void clear_factor_list(yfactor_list_t* fobj);
 void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
@@ -376,30 +387,31 @@ typedef struct
 
 typedef struct
 {
-	mpz_t N;					//numerical representation of input
-	uint32_t digits;				//number of digits in input
-	uint32_t bits;				//number of bits in input
-	char flogname[1024];		//name of the factorization logfile to use
-	FILE *logfile;				//the logfile
-	char savefile_name[80];		//data savefile name
-	uint32_t flags;				//state flags
+	mpz_t N;					    // numerical representation of input
+	uint32_t digits;			    // number of digits in input
+	uint32_t bits;				    // number of bits in input
+	char flogname[1024];		    // name of the factorization logfile to use
+	FILE *logfile;				    // the logfile
+	char savefile_name[80];		    // data savefile name
+	uint32_t flags;				    // state flags
 
 	// info for work done in various places during this factorization
-	div_obj_t div_obj;			//info for any trial division work 
-	squfof_obj_t squfof_obj;	//info for any squfof work 
-	rho_obj_t rho_obj;			//info for any rho work 
-	pm1_obj_t pm1_obj;			//info for any pm1 work 
-	pp1_obj_t pp1_obj;			//info for any pp1 work 
-	ecm_obj_t ecm_obj;			//info for any ecm work 
-	qs_obj_t qs_obj;			//info for any qs work 
-	nfs_obj_t nfs_obj;			//info for any nfs work
+	div_obj_t div_obj;			    // info for any trial division work 
+	squfof_obj_t squfof_obj;	    // info for any squfof work 
+	rho_obj_t rho_obj;			    // info for any rho work 
+	pm1_obj_t pm1_obj;			    // info for any pm1 work 
+	pp1_obj_t pp1_obj;			    // info for any pp1 work 
+	ecm_obj_t ecm_obj;			    // info for any ecm work 
+	qs_obj_t qs_obj;			    // info for any qs work 
+	nfs_obj_t nfs_obj;			    // info for any nfs work
 	autofact_obj_t autofact_obj;
 
-	uint32_t cache_size1;
-	uint32_t cache_size2;
-	int num_threads;
-	uint32_t seed1;
-	uint32_t seed2;
+	// list of primes.  To be filled in once if multiple
+    // algorithms will need it.
+    uint64_t* primes;
+    uint64_t num_p;
+    uint64_t max_p;
+    uint64_t min_p;
 
 	// threshold at which we know number are prime, as determined by trial division
 	uint64_t prime_threshold;
@@ -416,6 +428,7 @@ typedef struct
     int LOGFLAG;
     int LATHREADS;
     int NUM_WITNESSES;
+    int num_threads;
 
     // computer info
     double MEAS_CPU_FREQUENCY;
@@ -433,9 +446,13 @@ typedef struct
     int L1CACHE;
     int L2CACHE;
     int L3CACHE;
+    uint32_t cache_size1;
+    uint32_t cache_size2;
     
     // RNG state
     uint64_t lcg_state;
+    uint32_t seed1;
+    uint32_t seed2;
 
 } fact_obj_t;
 

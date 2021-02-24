@@ -1288,7 +1288,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	if (sigma == 0)
 	{
-		work->sigma = lcg_rand_32(7, (uint32_t)-1, lcg_state);
+		work->sigma = lcg_rand_32_range(7, (uint32_t)-1, lcg_state);
 	}
 	else
 	{
@@ -1465,8 +1465,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		// addmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff,&lcg_state) };
+			uint64_t a[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
 			uint64_t c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1494,8 +1494,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		// submod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t a[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
 			uint64_t c[2];
 
 			u128_to_mpz(a, gmp1);
@@ -1524,8 +1524,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		// mulmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t a[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
 			uint64_t c[2];
 			uint64_t s[3];
 
@@ -1558,8 +1558,8 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		// sqrmod
 		for (i = 0; i < iterations; i++)
 		{
-			uint64_t a[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
-			uint64_t b[2] = { lcg_rand_64(0, 0xffffffffffffffff, lcg_state), lcg_rand_64(0, 0xffffffffffffffff, lcg_state) };
+			uint64_t a[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
+			uint64_t b[2] = { lcg_rand_64(lcg_state), lcg_rand_64(lcg_state) };
 			uint64_t c[2];
 			uint64_t s[3];
 
@@ -1802,7 +1802,7 @@ void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
 	tinyecm_pt *Pb = work->Pb;
 	tinyecm_pt *Pd = &Pb[map[60]];
 	tinyecm_pt *Pad = &work->Pad;
-	uint8_t *barray;
+	uint8_t *barray = NULL;
 	int numb;
 
 	//stage 2 init

@@ -32,7 +32,7 @@ void brent_loop(fact_obj_t *fobj)
 	//polynomials, and their values, configurable, but for 
 	//now it is hardcoded.
 	mpz_t d,t;
-	FILE *flog;
+	FILE *flog = NULL;
 	clock_t start, stop;
 	double tt;
 		

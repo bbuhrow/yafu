@@ -86,7 +86,7 @@ void win_file_concat(char *filein, char *fileout)
 }
 
 
-enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_job_t *job)
+enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_job_t *job)
 {
 	// see if we can resume a factorization based on the combination of input number,
 	// .job file, .fb file, .dat file, and/or .p file.  else, start new job.
@@ -520,13 +520,13 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32 *last_spq, nfs_jo
 
 }
 
-uint32 get_spq(char **lines, int last_line, fact_obj_t *fobj)
+uint32_t get_spq(char **lines, int last_line, fact_obj_t *fobj)
 {	
 	//the last 4 valid lines are passed in
 	int i, line, count;
 	double var[2], avg[2];
 	FILE *logfile;
-	uint32 rat[3], alg[3];
+	uint32_t rat[3], alg[3];
 	char *ptr;
 
 	if (fobj->VFLAG > 0)
@@ -649,7 +649,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 	char line[GSTR_MAXSIZE + 2], *ptr;
 	double score, bestscore = 0;
 	int count, bestline = 0, i;
-	uint32 highest_c4 = 0, highest_c5 = 0;
+	uint32_t highest_c4 = 0, highest_c5 = 0;
 
 	snprintf(line, GSTR_MAXSIZE + 2, "%s.p",fobj->nfs_obj.outputfile);
 	in = fopen(line,"r");
@@ -709,7 +709,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		}
 		else if ((line[0] == 'c') && (line[1] == '4'))
 		{
-			uint32 coeff;
+			uint32_t coeff;
 
 			// get the c4 coefficient
 			if (strlen(line) < 5)
@@ -721,7 +721,7 @@ double find_best_msieve_poly(fact_obj_t *fobj, nfs_job_t *job, int write_jobfile
 		}
 		else if ((line[0] == 'c') && (line[1] == '5'))
 		{
-			uint32 coeff;
+			uint32_t coeff;
 
 			// get the c5 coefficient
 			if (strlen(line) < 5)
@@ -975,11 +975,11 @@ void ggnfs_to_msieve(fact_obj_t *fobj, nfs_job_t *job)
 	return;
 }
 
-uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
+uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 {
 	FILE *in;
-	uint32 missing_params = 0;
-	uint32 lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
+	uint32_t missing_params = 0;
+	uint32_t lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
 	char line[1024];
 	float alambda = 0, rlambda = 0;
 	enum special_q_e side = NEITHER_SPQ;
@@ -1038,7 +1038,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "size:");
 		if (substr != NULL)
 		{
-			uint32 difficulty = strtoul(substr + 5, NULL, 10);
+			uint32_t difficulty = strtoul(substr + 5, NULL, 10);
 			job->snfs->difficulty = (double)difficulty;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found size: %u\n", difficulty);
@@ -1233,7 +1233,7 @@ uint32 parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	return missing_params;
 }
 	
-void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32 missing_params)
+void fill_job_file(fact_obj_t *fobj, nfs_job_t *job, uint32_t missing_params)
 {
 	if (missing_params != PARAM_FLAG_NONE)
 	{

@@ -1415,7 +1415,7 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 {
-	qs_obj_t *obj = sconf->obj;
+	fact_obj_t *obj = sconf->obj;
 	char buf[1024];
 	int state = 0;
     sconf->is_restart = 0;
@@ -1433,7 +1433,7 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 	if ((uint32_t)sconf->num_r >= (sconf->factor_base->B + sconf->num_extra_relations)) 
 	{
 		// we've got enough total relations to stop		
-		qs_savefile_open(&obj->savefile,SAVEFILE_APPEND);	
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);	
 		dconf->buckets->list = NULL;
 		// signal that we should proceed to post-processing
 		state = 1;
@@ -1443,24 +1443,24 @@ int siqs_check_restart(dynamic_conf_t *dconf, static_conf_t *sconf)
 		// we've got some relations, but not enough to finish.
 		// whether or not this is a big job, it needed to be resumed
 		// once so treat it as if it will need to be again.  use the savefile.
-		qs_savefile_open(&obj->savefile,SAVEFILE_APPEND);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 
         // don't try to do optimization of the small cutoff... it is not 
         // designed to cope with starting with a bunch of relations and poly_a's
-        obj->no_small_cutoff_opt = 1;
+        obj->qs_obj.no_small_cutoff_opt = 1;
         sconf->is_restart = 1;
 	}
 	else
 	{
 		// no relations found, get ready for new factorization
 		// we'll be writing to the savefile as we go, so get it ready
-		qs_savefile_open(&obj->savefile,SAVEFILE_WRITE);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_WRITE);
 		gmp_sprintf(buf,"N 0x%Zx\n", sconf->obj->qs_obj.gmp_n);
-		qs_savefile_write_line(&obj->savefile,buf);
-		qs_savefile_flush(&obj->savefile);
-		qs_savefile_close(&obj->savefile);
+		qs_savefile_write_line(&obj->qs_obj.savefile,buf);
+		qs_savefile_flush(&obj->qs_obj.savefile);
+		qs_savefile_close(&obj->qs_obj.savefile);
 		// and get ready for collecting relations
-		qs_savefile_open(&obj->savefile,SAVEFILE_APPEND);
+		qs_savefile_open(&obj->qs_obj.savefile,SAVEFILE_APPEND);
 	}
 
 	return state;
@@ -1488,7 +1488,7 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     {
         strcpy(inst_set, "SSE4.1");
     }
-    else if (HAS_SSE2)
+    else if (sconf->obj->HAS_SSE2)
     {
         strcpy(inst_set, "SSE2");
     }
@@ -1926,7 +1926,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         relation_batch_init(NULL, &dconf->rb, sconf->pmax, 
             sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
             sconf->large_prime_max, sconf->large_prime_max,
-            &sconf->obj->qs_obj.savefile, (print_relation_t)NULL, 0);
+            NULL, 0);
 
         dconf->batch_run_override = 0;
     }
@@ -1956,7 +1956,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->num_scatter_opp = 0;
     dconf->num_scatter = 0;
 
-    dconf->lcg_state = hash64(lcg_rand_64(1, 0xffffffffffffffffULL, &sconf->obj->lcg_state));
+    dconf->lcg_state = hash64(lcg_rand_64(&sconf->obj->lcg_state));
 
 	return 0;
 }
@@ -1970,7 +1970,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	//also allocate space for things that don't change during the sieving
 	//process.  this scratch space is shared among all threads.
 
-	qs_obj_t *obj = sconf->obj;
+	fact_obj_t *obj = sconf->obj;
 	uint32_t i, memsize;
 	uint32_t closnuf;
 	double sum, avg, sd;
@@ -2140,7 +2140,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	//allocate space for a copy of input number in the job structure
 	mpz_init(sconf->n); //zInit(&sconf->n);
-	mpz_set(sconf->n, obj->gmp_n);
+	mpz_set(sconf->n, obj->qs_obj.gmp_n);
 
 	//initialize some constants
 	mpz_init(sconf->sqrt_n);
@@ -2610,7 +2610,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
         relation_batch_init(stdout, &sconf->rb[0], sconf->pmax, 
             sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
-            sconf->large_prime_max, sconf->large_prime_max, NULL, (print_relation_t)NULL, 1);
+            sconf->large_prime_max, sconf->large_prime_max, NULL, 1);
         memuse += sconf->rb[0].num_relations_alloc * sizeof(cofactor_t);
         memuse += sconf->rb[0].num_factors_alloc * sizeof(uint32_t);
         memuse += mpz_sizeinbase(sconf->rb[0].prime_product, 2) / 8;
@@ -2628,7 +2628,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
             // allocate space for each thread to buffer relations.
             relation_batch_init(stdout, &sconf->rb[i], sconf->pmax, 
                 sconf->large_prime_max / sconf->obj->qs_obj.gbl_override_bdiv,
-                sconf->large_prime_max, sconf->large_prime_max, NULL, (print_relation_t)NULL, 0);
+                sconf->large_prime_max, sconf->large_prime_max, NULL, 0);
             memuse += sconf->rb[i].num_relations_alloc * sizeof(cofactor_t);
             memuse += sconf->rb[i].num_factors_alloc * sizeof(uint32_t);
 
@@ -2659,7 +2659,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     }
 #endif
 
-	qs_savefile_init(&obj->savefile, sconf->obj->qs_obj.siqs_savefile);
+	qs_savefile_init(&obj->qs_obj.savefile, sconf->obj->qs_obj.siqs_savefile);
 
 	// default values
     if (sconf->bits < 270)
@@ -3154,7 +3154,7 @@ int update_check(static_conf_t *sconf)
             if ((sconf->num_full > check_total) &&
                 (sconf->num_found < (sconf->factor_base->B + sconf->num_extra_relations)))
 			{
-				qs_obj_t *obj = sconf->obj;
+				fact_obj_t *obj = sconf->obj;
 				siqs_r *relation_list;
 				qs_la_col_t *cycle_list;
 				uint32_t num_cycles;
@@ -3165,7 +3165,7 @@ int update_check(static_conf_t *sconf)
 				uint32_t curr_a_idx, curr_poly_idx, curr_rel;
 				uint32_t curr_expected, curr_saved, curr_cycle;
 				uint32_t all_relations;
-				uint32_t total_poly_a;
+				uint32_t total_poly_a = 0;
 				uint32_t poly_saved;
 				uint32_t *plist0;
 				uint32_t *plist1;

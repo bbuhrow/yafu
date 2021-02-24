@@ -51,13 +51,16 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	uint32_t *modsqrt = sconf->modsqrt_array;
 
     //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-	free(siqs_primes);
-    siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
-    //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
-    
-	//siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
-	siqs_minp = siqs_primes[0];
-	siqs_maxp = siqs_primes[siqs_nump-1];
+    if (siqs_maxp < urange)
+    {
+        free(siqs_primes);
+        siqs_primes = soe_wrapper(sdata, 0, urange, 0, &siqs_nump, 0, 0);
+        //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
+
+        //siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
+        siqs_minp = siqs_primes[0];
+        siqs_maxp = siqs_primes[siqs_nump - 1];
+    }
 
 	//the 0th and 1st elements in the fb are always 1 and 2, so start searching with 3
 	j=2; i=1;
@@ -67,14 +70,17 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 		{
 			lrange = urange + 1;
 			urange = lrange + 10000000;
-			free(siqs_primes);
-            //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
-            siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
-			//siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
-			siqs_minp = siqs_primes[0];
-            siqs_maxp = siqs_primes[siqs_nump -1];
-            //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
-			i=0;
+            if (siqs_maxp < urange)
+            {
+                free(siqs_primes);
+                //printf("make_fb: summoning primes %u:%u with B=%u\n", lrange, urange, fb->B);
+                siqs_primes = soe_wrapper(sdata, lrange, urange, 0, &siqs_nump, 0, 0);
+                //siqs_primes = soe_wrapper(siqs_primes, siqs_nump, lrange, urange, 0, &NUM_P);
+                siqs_minp = siqs_primes[0];
+                siqs_maxp = siqs_primes[siqs_nump - 1];
+                //printf("found %lu primes from %lu to %lu\n", NUM_P, P_MIN, P_MAX);
+                i = 0;
+            }
 		}
 
 		prime = (uint32_t)siqs_primes[i];

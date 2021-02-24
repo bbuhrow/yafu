@@ -306,7 +306,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 			found_a_factor = 0;
 			while (!found_a_factor)
 			{
-				randindex = (uint32_t)lcg_rand_32((uint64_t)lower_polypool_index,
+				randindex = (uint32_t)lcg_rand_32_range((uint64_t)lower_polypool_index,
 					(uint64_t)upper_polypool_index, &dconf->lcg_state);
 				//randindex = lower_polypool_index + 
 				//	(uint32_t)((upper_polypool_index-lower_polypool_index) * (double)rand() / (double)RAND_MAX);

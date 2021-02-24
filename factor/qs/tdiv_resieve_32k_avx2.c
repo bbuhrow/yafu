@@ -364,6 +364,7 @@ v128_x7 = _mm_xor_si128(v128_x7, v128_x7);
 
 #define INIT_RESIEVE_AVX2 \
 __m256i v256_p, v256_y0, v256_y2, v256_y3, v256_y4, v256_y5, v256_y6, v256_y7; \
+v256_p = v256_y0 = v256_y2 = v256_y3 = v256_y4 = v256_y5 = v256_y6 = v256_y7 = _mm256_setzero_si256(); \
 uint32_t msk32, pos; \
 v256_y4 = _mm256_load_si256(corrections);                   \
 v256_y0 = _mm256_xor_si256(v256_y0, v256_y0);               \

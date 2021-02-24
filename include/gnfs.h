@@ -39,7 +39,7 @@ extern "C" {
    of x^i */
 
 typedef struct {
-	uint32 degree;
+	uint32_t degree;
 	mpz_t coeff[MAX_POLY_DEGREE + 1];
 
 	/* scratch quantities for evaluating the homogeneous
@@ -183,7 +183,7 @@ void free_factor_base(factor_base_t *fb);
 /* select NFS polynomials for factoring n, save
    in rat_poly and alg_poly */
 
-int32 find_poly(msieve_obj *obj, mpz_t n);
+int32_t find_poly(msieve_obj *obj, mpz_t n);
 
 /* attempt to read NFS polynomials from the factor 
    base file, save them and return 0 if successful.
@@ -216,10 +216,10 @@ void analyze_one_poly(msieve_obj *obj,
    relations in the savefile at the time sieving completed
    is returned */
 
-uint32 do_line_sieving(msieve_obj *obj, 
+uint32_t do_line_sieving(msieve_obj *obj, 
 			sieve_param_t *params,
-			mpz_t n, uint32 start_relations,
-			uint32 max_relations);
+			mpz_t n, uint32_t start_relations,
+			uint32_t max_relations);
 
 /* the largest prime to be used in free relations */
 
@@ -277,7 +277,7 @@ void nfs_solve_linear_system(msieve_obj *obj, mpz_t n);
 
 /*------------------------ square root stuff --------------------------*/
 
-uint32 nfs_find_factors(msieve_obj *obj, mpz_t n, 
+uint32_t nfs_find_factors(msieve_obj *obj, mpz_t n, 
 			factor_list_t *factor_list);
 
 /*------------------- relation processing stuff --------------------------*/
@@ -397,7 +397,7 @@ uint32_t find_large_ideals(relation_t *rel, relation_lp_t *out,
    (and not the relations they need) are read in */
    
 void nfs_read_cycles(msieve_obj *obj, factor_base_t *fb, uint32_t*ncols,
-			la_col_t **cols, uint32 *num_relations,
+			la_col_t **cols, uint32_t *num_relations,
 			relation_t **relation_list, uint32_t compress,
 			uint32_t dependency);
 

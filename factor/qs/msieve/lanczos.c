@@ -543,7 +543,7 @@ void yafu_mul_64xN_Nx64(uint64_t *x, uint64_t *y,
 }
 
 /*-------------------------------------------------------------------*/
-static uint32_t yafu_find_nonsingular_sub(qs_obj_t *obj,
+static uint32_t yafu_find_nonsingular_sub(fact_obj_t *obj,
 				uint64_t *t, uint32_t *s, 
 				uint32_t *last_s, uint32_t last_dim, 
 				uint64_t *w) {
@@ -812,7 +812,7 @@ static uint32_t yafu_combine_cols(uint32_t ncols,
 }
 
 /*-----------------------------------------------------------------------*/
-void yafu_dump_lanczos_state(qs_obj_t *obj, 
+void yafu_dump_lanczos_state(fact_obj_t *obj, 
 			uint64_t *x, uint64_t **vt_v0, uint64_t **v, 
 			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
 			uint32_t n, uint32_t dim_solved, uint32_t iter,
@@ -851,7 +851,7 @@ void yafu_dump_lanczos_state(qs_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-void yafu_read_lanczos_state(qs_obj_t *obj, 
+void yafu_read_lanczos_state(fact_obj_t *obj, 
 			uint64_t *x, uint64_t **vt_v0, uint64_t **v, 
 			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
 			uint32_t n, uint32_t *dim_solved, uint32_t *iter,
@@ -913,11 +913,13 @@ void yafu_init_lanczos_state(fact_obj_t *obj,
 	/* The computed solution 'x' starts off random,
 	   and v[0] starts off as B*x. This initial copy
 	   of v[0] must be saved off separately */
-	
+
+    uint64_t rand = ((uint64_t)obj->seed1 << 32) | (uint64_t)obj->seed2;
+    //uint32_t rand = obj->seed2;
 	for (i = 0; i < n; i++) {
-		x[i] = v[0][i] = 
-			  (uint64_t)(get_rand(&obj->seed1, &obj->seed2)) << 32 |
-		          (uint64_t)(get_rand(&obj->seed1, &obj->seed2));
+        x[i] = v[0][i] = lcg_rand_64(&rand);
+            //(uint64_t)(get_rand(&obj->seed1, &obj->seed2)) << 32 |
+            //(uint64_t)(get_rand(&obj->seed1, &obj->seed2)); 
 	}
 
 	yafu_mul_MxN_Nx64(packed_matrix, v[0], v[1]);

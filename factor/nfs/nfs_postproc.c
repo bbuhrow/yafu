@@ -17,11 +17,11 @@ benefit from your work.
 
 #ifdef USE_NFS
 
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
+uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 {
 	FILE *tmp, *logfile;
-	uint32 relations_needed;
-	uint32 flags = 0;
+	uint32_t relations_needed;
+	uint32_t flags = 0;
 	char nfs_args[80];
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;

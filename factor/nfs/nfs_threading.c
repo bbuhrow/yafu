@@ -17,7 +17,7 @@ benefit from your work.
 #ifdef USE_NFS
 
 void nfs_start_worker_thread(nfs_threaddata_t *t, 
-				uint32 is_master_thread) {
+				uint32_t is_master_thread) {
 
 	/* create a thread that will process a polynomial. The last poly does 
 	   not get its own thread (the current thread handles it) */
@@ -69,7 +69,7 @@ void nfs_start_worker_thread(nfs_threaddata_t *t,
 }
 
 void nfs_stop_worker_thread(nfs_threaddata_t *t,
-				uint32 is_master_thread)
+				uint32_t is_master_thread)
 {
 	if (is_master_thread == 1) {
 		return;

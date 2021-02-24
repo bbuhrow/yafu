@@ -38,13 +38,13 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 // @ben: the idea is a new yafu function "testsieve(n, ...)" where args are
 // an arbitrary list of files of external polys
 {
-	uint32 count;
+	uint32_t count;
 	int i, minscore_id = 0;
 	double* score = (double*)malloc(njobs * sizeof(double));
 	double t_time, min_score = 999999999.;
 	char orig_name[GSTR_MAXSIZE]; // don't clobber fobj->nfs_obj.job_infile
 	char time[80];
-	uint32 spq_range = 1000, actual_range;
+	uint32_t spq_range = 1000, actual_range;
 	FILE *flog = NULL;
     int sysreturn;
 
@@ -85,7 +85,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
 		for(i = 0; i < njobs; i++)
 		{
-			uint32 missing_params;
+			uint32_t missing_params;
 			strcpy(fobj->nfs_obj.job_infile, filenames[i]);
 
 			missing_params = parse_job_file(fobj, jobs+i); // get fblim
@@ -585,7 +585,7 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 	if ((fid = fopen("rels.add", "r")) != NULL)
 	{
 		char tmpstr[1024];
-		uint32 count = 0;
+		uint32_t count = 0;
 
 		while (fgets(tmpstr, GSTR_MAXSIZE, fid) != NULL)
 			count++;

@@ -87,10 +87,10 @@ static INLINE uint64_t gmp2uint64(mpz_t src) {
 static INLINE int64_t gmp2int64(mpz_t src) {
 
 	if (mpz_cmp_ui(src, 0) < 0) {
-		return -gmp2uint64_t(src);
+		return -(int64_t)gmp2uint64(src);
 	}
 	else {
-       	return gmp2uint64_t(src);
+       	return (int64_t)gmp2uint64(src);
 	}
 }
 

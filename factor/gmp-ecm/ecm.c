@@ -142,7 +142,7 @@ void ecm_sync_fcn(void *ptr)
     // watch for an abort
     if (ECM_ABORT)
     {
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         fobj->ecm_obj.exit_cond = ECM_EXIT_ABORT;
         //exit(1);
     }
@@ -256,7 +256,7 @@ void ecm_stop_fcn(tpool_t *ptr)
 int ecm_loop(fact_obj_t *fobj)
 {
 	//expects the input in ecm_obj->gmp_n
-	FILE *flog;
+	FILE *flog = NULL;
 	int i,j;
     double total_time = 0;
 	int num_batches;    
@@ -353,10 +353,7 @@ int ecm_loop(fact_obj_t *fobj)
     }
     else
     {
-        mpz_t N, F;
-        mpz_init(N);
-        mpz_init(F);
-        yfactor_t* factors;
+        mpz_t F;
         int numfactors = 0;
         uint64_t B2;
         uint32_t curves_run;
@@ -370,98 +367,9 @@ int ecm_loop(fact_obj_t *fobj)
             B2 = fobj->ecm_obj.B2;
         }
 
-        mpz_set(N, fobj->ecm_obj.gmp_n);
-        factors = vec_ecm_main(N, fobj->ecm_obj.num_curves, fobj->ecm_obj.B1,
+        vec_ecm_main(fobj, fobj->ecm_obj.num_curves, fobj->ecm_obj.B1,
             B2, fobj->THREADS, &numfactors, fobj->VFLAG, fobj->ecm_obj.save_b1,
             &curves_run);
-
-        if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
-        {
-            flog = fopen(fobj->flogname, "a");
-            if (flog == NULL)
-            {
-                printf("fopen error: %s\n", strerror(errno));
-                printf("could not open %s for appending\n", fobj->flogname);
-                return 0;
-            }
-
-            logprint(flog, "Finished %u curves using AVX-ECM method on C%d input, ",
-                curves_run, input_digits);
-
-            int tmp = fobj->ecm_obj.stg2_is_default;
-            uint64_t tmp2 = fobj->ecm_obj.B2;
-            fobj->ecm_obj.stg2_is_default = 0;
-            fobj->ecm_obj.B2 = B2;
-            
-            print_B1B2(fobj, flog);
-            
-            fobj->ecm_obj.stg2_is_default = tmp;
-            fobj->ecm_obj.B2 = tmp2;
-            fprintf(flog, "\n");
-        }
-
-        for (i = 0; i < numfactors; i++)
-        {
-            mpz_set(F, factors[i].factor);
-
-            // AVX-ECM can find the same factor multiple times simultaneously, 
-            // and they all just get shoved into the factor_t array and returned.
-            // Check to make sure this factor still divides the input.
-            if (!mpz_divisible_p(fobj->ecm_obj.gmp_n, F))
-                continue;
-
-            add_to_factor_list(fobj->factors, F, fobj->VFLAG, fobj->NUM_WITNESSES);
-            
-            if (is_mpz_prp(F, fobj->NUM_WITNESSES))
-            {
-                if (fobj->VFLAG > 0)
-                    gmp_printf("\necm: found prp%d factor = %Zd\n",
-                        gmp_base10(F), F);
-
-                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
-                {
-                    char* s = mpz_get_str(NULL, 10, F);
-                    logprint(flog, "prp%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
-                        gmp_base10(F),
-                        s,
-                        factors[i].curve_num, factors[i].method,
-                        fobj->ecm_obj.B1, B2, factors[i].sigma,
-                        factors[i].tid, factors[i].vid);
-                    free(s);
-                }
-            }
-            else
-            {
-                if (fobj->VFLAG > 0)
-                    gmp_printf("\necm: found c%d factor = %Zd\n",
-                        gmp_base10(F), F);
-
-                if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
-                {
-                    char* s = mpz_get_str(NULL, 10, F);
-                    logprint(flog, "c%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
-                        gmp_base10(F),
-                        s,
-                        factors[i].curve_num, factors[i].method,
-                        fobj->ecm_obj.B1, B2, factors[i].sigma,
-                        factors[i].tid, factors[i].vid);
-                    free(s);
-                }
-            }
-
-            mpz_tdiv_q(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, F);
-        }
-
-        if (numfactors > 0)
-        {
-            for (i = 0; i < numfactors; i++)
-                mpz_clear(factors[i].factor);
-            free(factors);
-        }
-
-        if (strcmp(fobj->flogname, "") != 0)
-            fclose(flog);
-        
 
         // this is how we tell factor() to stop running curves at this level
         if (((bail_on_factor == 1) && (bail == 1)) ||
@@ -474,8 +382,6 @@ int ecm_loop(fact_obj_t *fobj)
             total_curves_run = curves_run;
         }
 
-        mpz_clear(N);
-        mpz_clear(F);
     }
 
 	return total_curves_run;
@@ -541,17 +447,17 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
 		thread_data->sigma = fobj->ecm_obj.sigma;
 	}
-	else if (get_uvar("sigma",tmp))
+	else //if (get_uvar("sigma",tmp))
 	{
-		thread_data->sigma = lcg_rand_32(6, 0xffffffff, 
+		thread_data->sigma = lcg_rand_32_range(6, 0xffffffff, 
             &ecmobj->lcg_state[thread_data->thread_num]);
 	}
-	else
-	{
-		if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
-			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
-		thread_data->sigma = (uint32_t)mpz_get_ui(tmp);
-	}
+	//else
+	//{
+	//	if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
+	//		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+	//	thread_data->sigma = (uint32_t)mpz_get_ui(tmp);
+	//}
 
 	mpz_clear(tmp);
 	return 0;

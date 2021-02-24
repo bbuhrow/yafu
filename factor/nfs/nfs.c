@@ -15,6 +15,7 @@ benefit from your work.
 #include "factor.h"
 #include "nfs.h"
 #include "gmp_xface.h"
+#include <signal.h>
 
 #ifdef USE_NFS
 
@@ -204,9 +205,9 @@ void nfs(fact_obj_t *fobj)
 			// create an msieve_obj
 			// this will initialize the savefile to the outputfile name provided
 			obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-				fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-				(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
-                (uint32)fobj->THREADS, (uint32)0, nfs_args);
+				fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32_t)0, 9,
+				(uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE, 
+                (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
 			fobj->nfs_obj.mobj = obj;
 
 			// initialize these before checking existing files.  If poly
@@ -446,9 +447,9 @@ void nfs(fact_obj_t *fobj)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-						(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
-                        (uint32)fobj->LATHREADS, (uint32)0, nfs_args);
+						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32_t)0, 9,
+						(uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
+                        (uint32_t)fobj->LATHREADS, (uint32_t)0, nfs_args);
 				}
 
 				// try this hack - store a pointer to the msieve obj so that
@@ -505,9 +506,9 @@ void nfs(fact_obj_t *fobj)
 				{
 					msieve_obj_free(obj);
 					obj = msieve_obj_new(input, flags, fobj->nfs_obj.outputfile, fobj->nfs_obj.logfile,
-						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32)0, cpu,
-						(uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
-                        (uint32)fobj->THREADS, (uint32)0, nfs_args);
+						fobj->nfs_obj.fbfile, fobj->seed1, fobj->seed2, (uint32_t)0, 9,
+						(uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE, 
+                        (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
 				}
 
 				obj_ptr = NULL;
@@ -641,7 +642,7 @@ void nfs(fact_obj_t *fobj)
 				gettimeofday(&bstop, NULL);
                 t_time = ytools_difftime(&bstart, &bstop);
 
-				est_time = (uint32)((job.min_rels - job.current_rels) * 
+				est_time = (uint32_t)((job.min_rels - job.current_rels) * 
 					(t_time / (job.current_rels - pre_batch_rels)));				
 
 				// if the user doesn't want to sieve, then we can't make progress.
@@ -901,7 +902,7 @@ void nfs(fact_obj_t *fobj)
 
 		if (NFS_ABORT)
 		{
-			print_factors(fobj);
+			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 			exit(1);
 		}
 	}
@@ -1134,7 +1135,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 			//interp
 			fblim = ggnfs_table[i+1][1] - 
-				(uint32)(scale * (double)(ggnfs_table[i+1][1] - ggnfs_table[i][1]));
+				(uint32_t)(scale * (double)(ggnfs_table[i+1][1] - ggnfs_table[i][1]));
 			if (job->rlim == 0) job->rlim = fblim;
 			if (job->alim == 0) job->alim = fblim;
 
@@ -1172,7 +1173,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 			//interp
 			job->qrange = ggnfs_table[i+1][7] - 
-				(uint32)(scale * (double)(ggnfs_table[i+1][7] - ggnfs_table[i][7]));
+				(uint32_t)(scale * (double)(ggnfs_table[i+1][7] - ggnfs_table[i][7]));
 
 			found = 1;
 		}
@@ -1314,7 +1315,7 @@ void nfs_set_min_rels(nfs_job_t *job)
 			break;
 		}
 
-		job->min_rels += (uint32)(fudge * (
+		job->min_rels += (uint32_t)(fudge * (
 			pow(2.0,(double)lpb) / log(pow(2.0,(double)lpb))));
 	}
 }

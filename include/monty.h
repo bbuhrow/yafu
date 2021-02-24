@@ -438,7 +438,7 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     u = tl * nhat;
     al = _umul128(u, n, &ah);
     tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
+    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
     if (th || (x >= n)) x -= n;
     return x;
 }
@@ -450,7 +450,7 @@ __inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     u = tl * nhat;
     al = _umul128(u, n, &ah);
     tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
+    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
     return x;
 }
 
@@ -461,7 +461,7 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     u = tl * nhat;
     al = _umul128(u, n, &ah);
     tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
+    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
     if (th || (x >= n)) x -= n;
     return x;
 }
@@ -473,7 +473,7 @@ __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
     u = tl * nhat;
     al = _umul128(u, n, &ah);
     tl = _addcarry_u64(0, al, tl, &al);
-    th = _addcarry_u64(tl, th, ah, &x);
+    th = _addcarry_u64((uint8_t)tl, th, ah, &x);
     return x;
 }
 

@@ -143,7 +143,7 @@ void williams_loop(fact_obj_t *fobj)
 		//watch for an abort
 		if (PP1_ABORT)
 		{
-			print_factors(fobj);
+			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 			exit(1);
 		}
 
@@ -162,7 +162,7 @@ void williams_loop(fact_obj_t *fobj)
 			break;
 		}
 		
-		fobj->pp1_obj.base = lcg_rand_32(3,0xffffffff,&fobj->pp1_obj.lcg_state);
+		fobj->pp1_obj.base = lcg_rand_32_range(3,0xffffffff,&fobj->pp1_obj.lcg_state);
 
         pp1_print_B1_B2(fobj);
 

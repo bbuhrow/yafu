@@ -29,17 +29,9 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "gmp.h"
 #include "ytools.h"
-#include "types.h"
 #include <stdint.h>
 
-//#define HALF_VEC
 #define INV_2_POW_64 5.4210108624275221700372640043497e-20
-
-//#if defined (__INTEL_COMPILER)
-//#define ALIGNED_MEM __declspec(align(64))
-//#else
-//#define ALIGNED_MEM __attribute__((aligned(64)))
-//#endif
 
 #define DEFINED 1
 #define MAX_WINSIZE 8
@@ -93,7 +85,6 @@ typedef struct
 } vec_bignum_t;
 
 uint64_t *lcg_state;
-
 
 // a vector math library for montgomery arithmetic using AVX-512
 typedef struct
@@ -229,6 +220,11 @@ typedef struct
 	uint32_t D;
 	uint32_t R;
 
+    uint64_t* primes;
+    uint64_t num_p;
+    uint64_t min_p;
+    uint64_t max_p;
+
 	uint32_t *Qmap;
 	uint32_t *Qrmap;
 	Queue_t **Q;
@@ -240,13 +236,13 @@ typedef struct
 typedef struct
 {
     mpz_t factor;
-    uint64 sigma;
+    uint64_t sigma;
     int thread_id;
     int vec_id;
     int curve_id;
     int stg_id;
-    uint32 B1;
-    uint64 B2;
+    uint32_t B1;
+    uint64_t B2;
 } avx_ecm_factor_t;
 
 typedef struct

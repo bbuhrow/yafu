@@ -19,7 +19,7 @@ benefit from your work.
 #define POSITIVE 1
 #define NEGATIVE 0
 
-int tdiv_int(int x, int *factors);
+int tdiv_int(int x, int *factors, uint64_t *primes, uint64_t num_p);
 
 void snfs_init(snfs_t* poly)
 {	
@@ -248,10 +248,10 @@ void approx_norms(snfs_t *poly)
 	// use msieve functions to compute the norm size on each side.
 	// these are used to skew the polynomial parameters, if the norms
 	// are disparate enough
-	eval_poly(res, (int64)a, (int64)b, &poly->poly->alg);
+	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
-	eval_poly(res, (int64)a, (int64)b, &poly->poly->rat);
+	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
 
 	// extract from msieve (in a convoluted way) the Murphy score of the polynomial
@@ -348,7 +348,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 {
 	int i,j,maxa,maxb,startb;
 	mpz_t p, a, b, r, n, q;
-	uint32 inc = 1<<30;
+	uint32_t inc = 1<<30;
 
 	// cunningham numbers take the form a^n +- 1 with with a=2, 3, 5, 6, 7, 10, 11, 12
 	// brent numbers take the form a^n +/- 1, where 13<=a<=99 and the product is less than 10^255.
@@ -922,7 +922,7 @@ done:
 }
 
 // see: http://home.earthlink.net/~elevensmooth/MathFAQ.html#PrimDistinct
-void find_primitive_factor(snfs_t *poly, int VFLAG)
+void find_primitive_factor(snfs_t *poly, uint64_t* primes, uint64_t num_p, int VFLAG)
 {
 	// factor the exponent.  The algebraic reductions yafu knows how to handle are
 	// for cunningham and homogenous cunningham inputs where the exponent is in
@@ -937,7 +937,7 @@ void find_primitive_factor(snfs_t *poly, int VFLAG)
 	int nr, mrank;
 	mpz_t n, term, t;
 
-	nf = tdiv_int(e, f);	
+	nf = tdiv_int(e, f, primes, num_p);	
 	
 	for (i=0; i<4; i++)
 		cranks[i] = 0;
@@ -1171,7 +1171,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	// coefficients are 1.  More complex algebraic reductions like Aurifeuillian 
 	// factorizations are not attempted here.
 	if ((poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
-		find_primitive_factor(poly, fobj->VFLAG);
+		find_primitive_factor(poly, fobj->primes, fobj->num_p, fobj->VFLAG);
 
     if (fobj->LOGFLAG)
     {
@@ -1669,7 +1669,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		mpz_set(m, b);
 		if (!mpz_probab_prime_p(m,10))
-			numf = tdiv_mpz(b, f);
+			numf = tdiv_mpz(b, fobj->primes, fobj->num_p, f);
 
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates two, plus 2 for
@@ -2270,11 +2270,11 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 	mpz_set_ui(m, x);
 	if (!mpz_probab_prime_p(m,10))
-		numf1 = tdiv_int(x, f1);
+		numf1 = tdiv_int(x, f1, fobj->primes, fobj->num_p);
 
 	mpz_set_ui(m, y);
 	if (!mpz_probab_prime_p(m,10))
-		numf2 = tdiv_int(y, f2);
+		numf2 = tdiv_int(y, f2, fobj->primes, fobj->num_p);
 
 	// initialize candidate polynomials now that we know how many we'll need.
 	// each factor of the base generates two, plus 2 for
@@ -2318,7 +2318,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		for (deg=4; deg<7; deg++)
 		{
-			int64 c0, cd;
+			int64_t c0, cd;
 
 			if (e % deg == 0)
 			{
@@ -2355,8 +2355,8 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				polys[npoly].exp2 = 1;
 				d = mpz_get_d(m);
 				d = log10(d) * (double)deg;
-				cd = (int64)pow((double)b2, inc) * poly->coeff1;
-				c0 = (int64)pow((double)b,inc) * poly->coeff2;
+				cd = (int64_t)pow((double)b2, inc) * poly->coeff1;
+				c0 = (int64_t)pow((double)b,inc) * poly->coeff2;
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
 				mpz_set(polys[npoly].n, poly->n);
 				polys[npoly].difficulty = d;
@@ -2378,8 +2378,8 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				polys[npoly].exp2 = 1;
 				d = mpz_get_d(m);
 				d = log10(d) * (double)deg + log10(pow((double)b,inc));
-				cd = (int64)pow((double)b,inc) * poly->coeff1;
-				c0 = (int64)pow((double)b2, inc) * poly->coeff2;
+				cd = (int64_t)pow((double)b,inc) * poly->coeff1;
+				c0 = (int64_t)pow((double)b2, inc) * poly->coeff2;
 				skew = pow((double)abs(c0)/(double)cd, 1./(double)deg);
 				// leading coefficient contributes to the difficulty
 				//d += log10((double)cd);
@@ -2539,7 +2539,7 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	for (i=0; i<nump1; i++)
 	{
 		snfs_t *p1, *p2;
-		int64 c0, cd;
+		int64_t c0, cd;
 
 		p1 = &polys[i];
 		for (j=0; j<nump2; j++)
@@ -2853,7 +2853,7 @@ void analyze_one_poly_xface(snfs_t *poly)
 	sprintf(outfile, "YAFU_get_poly_score.out");
 
 	obj = msieve_obj_new("", MSIEVE_FLAG_USE_LOGFILE, NULL, outfile,
-		NULL, 0, 0, (uint32)0, (enum cpu_type)0, 0, 0, 0, (uint32)0, "");
+		NULL, 0, 0, (uint32_t)0, (enum cpu_type)9, 0, 0, 0, (uint32_t)0, "");
 
 	remove(outfile);
 	poly->poly->murphy = 1e-99;
@@ -2989,16 +2989,16 @@ int snfs_rank_polys(fact_obj_t *fobj, snfs_t *polys, int npoly)
 	return MIN(j,npoly);
 }
 
-int tdiv_int(int x, int *factors)
+int tdiv_int(int x, int *factors, uint64_t* primes, uint64_t num_p)
 {
 	int numf = 0;
 	int xx = x;
 	int i;
 
 	i=0;
-	while ((xx > 1) && (spSOEprimes[i] < 1000))
+	while ((xx > 1) && (primes[i] < 1000))
 	{
-		int q = (int)spSOEprimes[i];
+		int q = (int)primes[i];
 		
 		if (xx%q != 0)
 			i++;
@@ -3012,7 +3012,7 @@ int tdiv_int(int x, int *factors)
 	return numf;
 }
 
-int tdiv_mpz(mpz_t x, int *factors)
+int tdiv_mpz(mpz_t x, int *factors, uint64_t* primes, uint64_t num_p)
 {
 	int numf = 0;
 	mpz_t xx;
@@ -3022,9 +3022,9 @@ int tdiv_mpz(mpz_t x, int *factors)
 	mpz_set(xx, x);
 
 	i=0;
-	while ((mpz_cmp_ui(xx,1) > 0) && (spSOEprimes[i] < 1000))
+	while ((mpz_cmp_ui(xx,1) > 0) && (primes[i] < 1000))
 	{
-		int q = (int)spSOEprimes[i];
+		int q = (int)primes[i];
 		
 		r = mpz_tdiv_ui(xx, q);
 		

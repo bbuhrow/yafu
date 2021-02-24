@@ -191,7 +191,8 @@
       <AdditionalIncludeDirectories>..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
-      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BasicRuntimeChecks>
+      </BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -204,12 +205,13 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\$(IntDir);C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -250,21 +252,22 @@
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <BasicRuntimeChecks />
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
       <EnableCOMDATFolding>
       </EnableCOMDATFolding>
-      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\$(IntDir);C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Bscmake>
@@ -281,7 +284,7 @@
     <ClCompile Include="..\..\top\test.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\include\types.h" />
+    <ClInclude Include="..\..\include\autofactor.h" />
     <ClInclude Include="..\..\include\yafu.h" />
     <ClInclude Include="..\..\top\cmdParser\calc.h" />
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h" />

@@ -41,7 +41,7 @@ extern int ecm_loop(fact_obj_t* fobj);
 
 
 /* ============================ interface to avxecm ============================ */
-extern yfactor_t* vec_ecm_main(mpz_t N, uint32_t numcurves, uint64_t B1,
+extern void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t B2, int threads, int* numfactors, int verbose,
     int save_b1, uint32_t* curves_run);
 
