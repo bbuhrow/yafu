@@ -39,16 +39,10 @@
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
-      <Filter>Source Files\gmp-ecm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c">
-      <Filter>Source Files\gmp-ecm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>
   </ItemGroup>

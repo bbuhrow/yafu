@@ -139,6 +139,8 @@
     <ClCompile Include="..\..\arith\arith.c" />
     <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
     <ClCompile Include="..\..\factor\rho.c" />
     <ClCompile Include="..\..\factor\squfof.c" />
     <ClCompile Include="..\..\factor\trialdiv.c" />

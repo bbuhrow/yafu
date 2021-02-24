@@ -23,7 +23,6 @@ code to the public domain.
 #include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
-#include "yafu_ecm.h"
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"
 #endif

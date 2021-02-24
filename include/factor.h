@@ -478,9 +478,15 @@ void savefile_rewind(savefile_t *s);
 //#endif
 
 
+/* ============================ interface to microecm ============================ */
+extern void init_uecm(uint64_t lcg);
+extern uint64_t do_uecm(uint64_t q);
+extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves, int verbose);
 
+/* ============================ interface to tinyecm ============================ */
+extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
+    uint64_t* lcg_state, int verbose);
 
-/*-----------TOP LEVEL ENTRY POINT FOR ALL FACTORING ROUTINES ----------*/
 
 uint32_t test_qn_res[128];
 
@@ -495,7 +501,6 @@ void init_lehman();
 void zTrial(fact_obj_t *fobj);
 void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj);
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
-void nfs(fact_obj_t *fobj);
 int par_shanks_loop(uint64_t*N, uint64_t*f, int num_in);
 
 int sptestsqr(uint64_t n);

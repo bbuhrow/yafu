@@ -25,14 +25,6 @@ code to the public domain.
 #include "arith.h"
 #include <gmp_xface.h>
 
-/* ============================ interface to microecm ============================ */
-extern void init_uecm(uint64_t lcg);
-extern uint64_t do_uecm(uint64_t q);
-extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves, int verbose);
-
-/* ============================ interface to tinyecm ============================ */
-extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
-    uint64_t* lcg_state, int verbose);
 
 /* ============================ interface to gmpecm/pm1/pp1 ============================ */
 extern void pollard_loop(fact_obj_t* fobj);

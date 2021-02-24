@@ -12,7 +12,7 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
-#include "nfs.h"
+#include "nfs_impl.h"
 #include "threadpool.h"
 
 #ifdef USE_NFS

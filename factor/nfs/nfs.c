@@ -12,8 +12,8 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
-#include "factor.h"
 #include "nfs.h"
+#include "nfs_impl.h"
 #include "gmp_xface.h"
 #include <signal.h>
 
@@ -1374,6 +1374,27 @@ void copy_job(nfs_job_t *src, nfs_job_t *dest)
 	}
 	return;
 }
+
+
+void mpz_polys_init(mpz_polys_t* poly) {
+    mpz_poly_init(&poly->rat);
+    mpz_poly_init(&poly->alg);
+    mpz_init(poly->m);
+    poly->skew = 0;
+    poly->murphy = 0.;
+    poly->size = 0.;
+    poly->rroots = 0;
+    poly->side = ALGEBRAIC_SPQ; // snfs routines will override if necessary
+}
+
+void mpz_polys_free(mpz_polys_t* poly) {
+    mpz_poly_free(&poly->rat);
+    mpz_poly_free(&poly->alg);
+    mpz_clear(poly->m);
+}
+
+
+
 
 #else
 

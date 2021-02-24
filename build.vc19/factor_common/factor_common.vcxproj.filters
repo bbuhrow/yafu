@@ -42,6 +42,12 @@
     <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c">
+      <Filter>Source Files\small_factor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">

@@ -150,6 +150,7 @@
     <ClInclude Include="..\..\include\gnfs.h" />
     <ClInclude Include="..\..\include\msieve_common.h" />
     <ClInclude Include="..\..\include\nfs.h" />
+    <ClInclude Include="..\..\include\nfs_impl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
