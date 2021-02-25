@@ -1127,7 +1127,7 @@ void compute_remainder_tree(bintree_t* tree, uint32_t first, uint32_t last,
 	if (mpz_sizeinbase(numerator, 2) <= (MAX_MP_WORDS * 32)) {
 		if (mpz_sgn(numerator) > 0) {
 			while (first <= last)
-                check_batch_relation(rb, first++, numerator, lcg_state);
+                check_batch_relation(rb, first++, lcg_state, numerator);
 		}
 		return;
 	}

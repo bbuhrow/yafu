@@ -243,7 +243,7 @@ void copy_mpz_polys_t(mpz_polys_t* src, mpz_polys_t* dest);
 void analyze_one_poly_xface(snfs_t* poly);
 int est_gnfs_size(nfs_job_t* job);
 int est_gnfs_size_via_poly(snfs_t* job);
-int tdiv_mpz(mpz_t x, int* factors);
+int tdiv_mpz(mpz_t x, int* factors, uint64_t *primes, uint64_t num_p);
 
 void mpz_polys_init(mpz_polys_t* poly);
 void mpz_polys_free(mpz_polys_t* poly);

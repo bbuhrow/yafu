@@ -1669,7 +1669,7 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 
 		mpz_set(m, b);
 		if (!mpz_probab_prime_p(m,10))
-			numf = tdiv_mpz(b, fobj->primes, fobj->num_p, f);
+			numf = tdiv_mpz(b, f, fobj->primes, fobj->num_p);
 
 		// initialize candidate polynomials now that we know how many we'll need.
 		// each factor of the base generates two, plus 2 for

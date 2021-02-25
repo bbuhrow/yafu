@@ -121,29 +121,6 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     return;
 }
 
-yfactor_t* ecm_add_factor(yfactor_t* factors, int *numfactors, 
-    mpz_t gmp_factor, int stg_id, int thread_id, int vec_id, 
-    int curve_id, uint64_t sigma)
-{
-    if (*numfactors == 0)
-    {
-        factors = (yfactor_t*)malloc(1 * sizeof(yfactor_t));
-    }
-    else
-    {
-        factors = (yfactor_t*)realloc(factors, (*numfactors + 1) * sizeof(yfactor_t));
-    }
-    mpz_init(factors[*numfactors].factor);
-    mpz_set(factors[*numfactors].factor, gmp_factor);
-    factors[*numfactors].method = stg_id;
-    factors[*numfactors].tid = thread_id;
-    factors[*numfactors].vid = vec_id;
-    factors[*numfactors].sigma = sigma;
-    factors[*numfactors].curve_num = curve_id;
-    (*numfactors)++;
-    return factors;
-}
-
 void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t B2, int threads, int* numfactors, int verbose, 
     int save_b1, uint32_t *curves_run)
@@ -160,7 +137,6 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	int pid = getpid();
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
-    yfactor_t * factors = fobj->factors;
 
 	// timing variables
 	struct timeval stopt;	// stop time of this job
@@ -215,8 +191,17 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
-        factors = ecm_add_factor(factors, numfactors, g,
-            0, 0, -1, -1, 0);
+
+        add_to_factor_list(fobj->factors, g,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
+
+        int fid = fobj->factors->num_factors - 1;
+
+        fobj->factors->factors[fid].tid = 0;
+        fobj->factors->factors[fid].curve_num = 0;
+        fobj->factors->factors[fid].sigma = 0;
+        fobj->factors->factors[fid].vid = 0;
+        fobj->factors->factors[fid].method = 0;
 
         snfs_clear(&poly);
 #endif
@@ -494,7 +479,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             printf("fopen error: %s\n", strerror(errno));
             printf("could not open %s for appending\n", fobj->flogname);
-            return 0;
+            return;
         }
 
         logprint(flog, "Finished %u curves using AVX-ECM method on C%d input, ",
@@ -639,7 +624,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	free(montyconst);
     free(tdata);
 
-	return factors;
+	return;
 }
 
 void thread_init(thread_data_t *tdata, vec_monty_t *mdata)

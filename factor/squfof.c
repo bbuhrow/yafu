@@ -1982,7 +1982,7 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 S[k] = (int)sqrt(Qn[k]);
                 Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
                 t1[k] = Ro[k];
-                So[k] = (uint32_t)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                So[k] = (uint32_t)(((int64_t)mult_save->mN[k] - (int64_t)t1[k] * (int64_t)t1[k]) / (int64_t)S[k]);
                 bbn[k] = (b0[k] + Ro[k]) / So[k];
 
                 if ((S[k] *  S[k]) != Qn[k])

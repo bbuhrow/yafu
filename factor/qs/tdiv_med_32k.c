@@ -196,7 +196,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         {
 
 
-#if defined(HAS_SSE2) && defined(GCC_ASM64X)
+#if defined(D_HAS_SSE2) && defined(GCC_ASM64X)
 
             MOD_CMP_8X_vec("8");
 
@@ -272,7 +272,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         while ((uint32_t)i < bound)
         {
 
-#if defined(HAS_SSE2) && defined(GCC_ASM64X)
+#if defined(D_HAS_SSE2) && defined(GCC_ASM64X)
 
             MOD_CMP_8X_vec("10");
 
@@ -348,7 +348,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         while ((uint32_t)i < bound)
         {
 
-#if defined(HAS_SSE2) && defined(GCC_ASM64X)
+#if defined(D_HAS_SSE2) && defined(GCC_ASM64X)
 
             MOD_CMP_8X_vec("12");
 
@@ -421,7 +421,7 @@ void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         TDIV_MED_CLEAN;
 
-#if defined(HAS_SSE2) && defined(GCC_ASM64X)
+#if defined(D_HAS_SSE2) && defined(GCC_ASM64X)
         for (r = 0; r < tmp3; r++)
         {
             DIVIDE_RESIEVED_PRIME_2((buffer[r]));

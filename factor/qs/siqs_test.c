@@ -78,8 +78,8 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 
 int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
 {
-	//check for some special cases of input number
-	//sieve_log is passed in already open, and should return open
+	// check for some special cases of input number
+	// sieve_log is passed in already open, and should return open
 	if (mpz_even_p(fobj->qs_obj.gmp_n))
 	{
 		printf("input must be odd\n");
@@ -189,7 +189,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
             {
                 if (j == 0)
                 {
-                    add_to_factor_list(fobj, f1);
+                    add_to_factor_list(fobj->factors, f1,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {
@@ -206,7 +207,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
                 }
                 else
                 {
-                    add_to_factor_list(fobj, f2);
+                    add_to_factor_list(fobj->factors, f2,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {
@@ -227,7 +229,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
             {
                 if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
                 {
-                    add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+                    add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {

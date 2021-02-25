@@ -24,7 +24,6 @@ code to the public domain.
 #include "arith.h"
 #include "ytools.h"
 #include "monty.h"
-#include "cmdOptions.h"
 #include "gmp.h"
 #include "msieve_common.h"
 
@@ -420,7 +419,6 @@ typedef struct
 	yfactor_list_t *factors;
 	int do_logging;
 	int refactor_depth;
-    options_t* options;
 
     // configurable options
     int VFLAG;
@@ -456,7 +454,7 @@ typedef struct
 
 } fact_obj_t;
 
-void init_factobj(fact_obj_t *fobj, options_t *options);
+void init_factobj(fact_obj_t *fobj);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void alloc_factobj(fact_obj_t *fobj);

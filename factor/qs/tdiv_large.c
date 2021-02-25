@@ -198,7 +198,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 : "xmm0", "xmm1", "xmm2", "cc", "memory");
 
 
-	#elif defined(HAS_SSE2)
+	#elif defined(D_HAS_SSE2)
 
         // these systems support SIMD 
         #define SCAN_CLEAN asm volatile("emms");	
@@ -333,7 +333,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#define SCAN_CLEAN ASM_M {emms};
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define SCAN_16X			\
 		do {							\
@@ -418,7 +418,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#define SCAN_CLEAN /*nothing*/
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define SCAN_16X			\
 		do {							\

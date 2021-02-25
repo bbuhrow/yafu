@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ecm", "ecm\ecm.vcxproj", "{
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nfs", "nfs\nfs.vcxproj", "{FE9F38DB-A112-43C9-AD2D-C3DE5DE08EEF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "siqs_demo", "siqs_demo\siqs_demo.vcxproj", "{F5727514-638B-48BD-906B-5DC362094CDC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -67,6 +69,14 @@ Global
 		{FE9F38DB-A112-43C9-AD2D-C3DE5DE08EEF}.Release|Win32.Build.0 = Release|Win32
 		{FE9F38DB-A112-43C9-AD2D-C3DE5DE08EEF}.Release|x64.ActiveCfg = Release|x64
 		{FE9F38DB-A112-43C9-AD2D-C3DE5DE08EEF}.Release|x64.Build.0 = Release|x64
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Debug|Win32.Build.0 = Debug|Win32
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Debug|x64.ActiveCfg = Debug|x64
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Debug|x64.Build.0 = Debug|x64
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Release|Win32.ActiveCfg = Release|Win32
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Release|Win32.Build.0 = Release|Win32
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Release|x64.ActiveCfg = Release|x64
+		{F5727514-638B-48BD-906B-5DC362094CDC}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

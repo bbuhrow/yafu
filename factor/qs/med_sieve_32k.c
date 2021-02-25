@@ -195,7 +195,7 @@ void med_sieveblock_32k(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *full_f
 	}
 #endif
 
-#if defined(HAS_SSE2) && !defined(TARGET_KNC)
+#if defined(D_HAS_SSE2) && !defined(TARGET_KNC)
 
 	for (; i<med_B; i++)
 	{	

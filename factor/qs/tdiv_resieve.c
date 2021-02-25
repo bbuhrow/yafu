@@ -55,7 +55,7 @@ this file contains code implementing 4)
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 	
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 		#define SSE2_RESIEVING 1
 
 		#define STEP_COMPARE_COMBINE \

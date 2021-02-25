@@ -23,6 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "qs.h"
 #include "nfs.h"
+#include "nfs_impl.h"
 #include "yafu_ecm.h"
 #include "ytools.h"
 #include "mpz_aprcl.h"
@@ -561,7 +562,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-						init_factobj(fobj_refactor, fobj->options);
+						init_factobj(fobj_refactor);
 						mpz_set(fobj_refactor->N, fobj->factors->factors[i].factor);
 
 						// recurse on factor

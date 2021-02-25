@@ -25,10 +25,11 @@ code to the public domain.
 #include "factor.h"
 #include "gmp.h"
 #include <ecm.h>
-#include <io.h>
 
 #if defined(__unix__)
 #include <termios.h>
+#elif defined(_MSC_VER)
+#include <io.h>
 #endif
 
 #include "cmdOptions.h"
@@ -50,6 +51,7 @@ int exp_is_open(char *line, int firstline);
 // functions to process all incoming arguments
 int check_expression(options_t *options);
 char * get_input(char *input_exp, uint32_t *insize);
+void options_to_factobj(fact_obj_t* fobj, options_t* options);
 
 #if defined(__unix__)
 #define CMDHIST_SIZE 16
@@ -157,11 +159,12 @@ int main(int argc, char *argv[])
 	// called out in the input expression.  if no factorization routine is specified,
 	// this is not used.  initialize and pass in all of the options.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj, options);
+	init_factobj(fobj);
     if (strlen(options->tune_info) > 0)
     {
         apply_tuneinfo(&yafu_obj, fobj, options->tune_info);
     }
+    options_to_factobj(fobj, options);
     
     // figure out cpu freq in order to scale qs time estimations
     // 0.1 seconds won't be very accurate, but hopefully close
@@ -194,7 +197,8 @@ int main(int argc, char *argv[])
 #endif	
 
     calc_metadata.fobj = fobj;
-    calc_metadata.options = options;
+    calc_metadata.pscreen = options->pscreen;
+    calc_metadata.pfile = options->pfile;
 
 	// check/process input arguments
 	is_cmdline_run = check_expression(options);
@@ -1262,3 +1266,287 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 
 	return;
 }
+
+void options_to_factobj(fact_obj_t* fobj, options_t* options)
+{
+    // set any parameters of fobj changed by user options
+    uint32_t seed1, seed2;
+    int i;
+
+    fobj->num_threads = options->threads;
+    strcpy(fobj->flogname, options->factorlog);
+
+    // initialize global stuff in fobj
+    if (options->rand_seed != 0)
+    {
+        fobj->seed1 = (uint32_t)options->rand_seed & 0xffffffff;
+        fobj->seed2 = (uint32_t)(options->rand_seed >> 32);
+        fobj->lcg_state = options->rand_seed;
+    }
+
+    // initialize stuff for rho	
+    fobj->rho_obj.iterations = options->rhomax;
+    fobj->rho_obj.curr_poly = 0;
+
+    // initialize stuff for pm1	
+    fobj->pm1_obj.B1 = options->B1pm1;
+    fobj->pm1_obj.B2 = options->B2pm1;
+    fobj->pm1_obj.stg2_is_default = (options->B2pm1 == 0);
+    fobj->pm1_obj.pm1_exponent = 0;
+    fobj->pm1_obj.pm1_multiplier = 0;
+    fobj->pm1_obj.pm1_tune_freq = 0;
+
+    // initialize stuff for pp1	
+    fobj->pp1_obj.B1 = options->B1pp1;
+    fobj->pp1_obj.B2 = options->B2pp1;
+    fobj->pp1_obj.stg2_is_default = (options->B2pp1 == 0);
+    fobj->pp1_obj.pp1_exponent = 0;
+    fobj->pp1_obj.pp1_multiplier = 0;
+    fobj->pp1_obj.pp1_tune_freq = 0;
+    fobj->pp1_obj.lcg_state = hash64(lcg_rand_64(&fobj->lcg_state));
+
+    // initialize stuff for ecm	
+    fobj->ecm_obj.B1 = options->B1ecm;
+    fobj->ecm_obj.B2 = options->B2ecm;
+    fobj->ecm_obj.stg2_is_default = (options->B2ecm == 0);
+    fobj->ecm_obj.sigma = options->sigma;
+    fobj->ecm_obj.num_curves = 90;
+    fobj->ecm_obj.curves_run = 0;
+    fobj->ecm_obj.ecm_exponent = 0;
+    fobj->ecm_obj.ecm_multiplier = 0;
+    fobj->ecm_obj.ecm_tune_freq = 0;
+    fobj->ecm_obj.bail_on_factor = 1;
+    fobj->ecm_obj.save_b1 = options->saveB1;
+    fobj->ecm_obj.rand_seed1 = fobj->seed1;
+    fobj->ecm_obj.rand_seed2 = fobj->seed2;
+    for (i = 0; i < (int)options->threads; i++)
+    {
+        fobj->ecm_obj.lcg_state[i] =
+            hash64(lcg_rand_64(&fobj->lcg_state));
+    }
+
+    // unlike ggnfs, ecm does not *require* external binaries.  
+    // an empty string indicates the use of the built-in GMP-ECM hooks, while
+    // a non-empty string (filled in by the user) will indicate the use of
+    // an external binary
+    strcpy(fobj->ecm_obj.ecm_path, options->ecm_path);
+    fobj->ecm_obj.use_external = 0;
+    fobj->ecm_obj.prefer_gmpecm = options->prefer_gmpecm;
+    fobj->ecm_obj.ecm_ext_xover = options->ext_ecm_xover;
+
+    // initialize stuff for squfof
+    fobj->squfof_obj.num_factors = 0;
+
+    // initialize stuff for qs	
+    fobj->qs_obj.gbl_override_B_flag = (options->siqsB > 0);
+    fobj->qs_obj.gbl_override_B = options->siqsB;
+    fobj->qs_obj.gbl_override_small_cutoff_flag = (options->siqsTFSm > 0);
+    fobj->qs_obj.gbl_override_small_cutoff = options->siqsTFSm;
+    fobj->qs_obj.gbl_override_blocks_flag = (options->siqsNB > 0);
+    fobj->qs_obj.gbl_override_blocks = options->siqsNB;
+    fobj->qs_obj.gbl_override_lpmult_flag = (options->siqsM > 0);
+    fobj->qs_obj.gbl_override_lpmult = options->siqsM;
+    fobj->qs_obj.gbl_override_rel_flag = (options->siqsR > 0);
+    fobj->qs_obj.gbl_override_rel = options->siqsR;
+    fobj->qs_obj.gbl_override_tf_flag = (options->siqsTF > 0);
+    fobj->qs_obj.gbl_override_tf = options->siqsTF;
+    fobj->qs_obj.gbl_override_time_flag = (options->siqsT > 0);
+    fobj->qs_obj.gbl_override_time = options->siqsT;
+    fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
+    if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
+    {
+        if (options->siqsMFBD < 1.0)
+            options->siqsMFBD = 1.0;
+        if (options->siqsMFBD > 2.0)
+            options->siqsMFBD = 2.0;
+        printf("DLP Tdiv exponent should be between 1.0 and 2.0; setting MFBD = %1.2f\n",
+            options->siqsMFBD);
+    }
+    if ((options->siqsMFBT < 2.0) || (options->siqsMFBT > 3.0))
+    {
+        if (options->siqsMFBT < 2.0)
+            options->siqsMFBT = 2.0;
+        if (options->siqsMFBT > 3.0)
+            options->siqsMFBT = 3.0;
+        printf("TLP Tdiv exponent should be between 2.0 and 3.0; setting MFBT = %1.2f\n",
+            options->siqsMFBT);
+    }
+    fobj->qs_obj.gbl_override_mfbd = options->siqsMFBD;
+    fobj->qs_obj.gbl_override_mfbt = options->siqsMFBT;
+    fobj->qs_obj.gbl_override_lpb = options->siqsLPB;
+    if (options->siqsBDiv < 1.0)
+    {
+        printf("Batch divisor cannot be less than 1.0; setting BDiv = 1.0\n");
+        options->siqsBDiv = 1.0;
+    }
+    fobj->qs_obj.gbl_override_bdiv = (float)options->siqsBDiv;
+    fobj->qs_obj.gbl_override_3lp_bat = options->siqsNobat;
+    fobj->qs_obj.gbl_btarget = options->siqsBT;
+    fobj->qs_obj.flags = 0;
+    fobj->qs_obj.gbl_force_DLP = options->siqsForceDLP;
+    fobj->qs_obj.gbl_force_TLP = options->siqsForceTLP;
+    fobj->qs_obj.qs_exponent = 0;
+    fobj->qs_obj.qs_multiplier = 0;
+    fobj->qs_obj.qs_tune_freq = 0;
+    fobj->qs_obj.no_small_cutoff_opt = options->no_opt;
+    strcpy(fobj->qs_obj.siqs_savefile, options->qssave);
+
+    init_lehman();
+
+    // initialize stuff for trial division	
+    fobj->div_obj.print = 0;
+    fobj->div_obj.limit = 10000;
+    fobj->div_obj.fmtlimit = options->fermat_max;
+
+    //initialize stuff for nfs
+    fobj->nfs_obj.snfs = 0;
+    fobj->nfs_obj.gnfs = options->force_gnfs;
+    fobj->nfs_obj.gnfs_exponent = 0;
+    fobj->nfs_obj.gnfs_multiplier = 0;
+    fobj->nfs_obj.gnfs_tune_freq = 0;
+    fobj->nfs_obj.min_digits = 85;
+    // raise min_rels bounds by a percentage
+    // on unsuccessful filtering
+    fobj->nfs_obj.filter_min_rels_nudge = 1.0 + options->filt_bump / 100.0;
+
+    fobj->nfs_obj.siever = options->ggnfs_siever;
+    fobj->nfs_obj.startq = options->sieveQstart;
+    fobj->nfs_obj.rangeq = options->sieveQstop;
+    if (fobj->nfs_obj.rangeq < fobj->nfs_obj.startq)
+    {
+        printf("ignoring sieve stop < sieve start\n");
+    }
+    else
+    {
+        fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
+    }
+    fobj->nfs_obj.polystart = options->polystart;
+    fobj->nfs_obj.polyrange = options->polystop;
+    if (fobj->nfs_obj.rangeq < fobj->nfs_obj.startq)
+    {
+        printf("ignoring poly stop < poly start\n");
+    }
+    else
+    {
+        fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
+    }
+
+    char tmp[MAXARGLEN];
+    char* cptr;
+    strcpy(fobj->nfs_obj.outputfile, options->nfs_outfile);
+    strcpy(tmp, fobj->nfs_obj.outputfile);
+    cptr = strchr(tmp, 46);
+    if (cptr == NULL)
+    {
+        //no . in provided filename
+        sprintf(fobj->nfs_obj.outputfile, "%s.dat", fobj->nfs_obj.outputfile);
+        sprintf(fobj->nfs_obj.logfile, "%s.log", fobj->nfs_obj.outputfile);
+        sprintf(fobj->nfs_obj.fbfile, "%s.fb", fobj->nfs_obj.outputfile);
+    }
+    else
+    {
+        cptr[0] = '\0';
+        sprintf(fobj->nfs_obj.logfile, "%s.log", tmp);
+        sprintf(fobj->nfs_obj.fbfile, "%s.fb", tmp);
+    }
+
+    if (options->rat_side)
+        fobj->nfs_obj.sq_side = -1;
+    else if (options->alg_side)
+        fobj->nfs_obj.sq_side = 1;
+    else
+        fobj->nfs_obj.sq_side = 0;					// default: choose what makes sense
+
+    fobj->nfs_obj.timeout = options->nfs_timeout;
+    strcpy(fobj->nfs_obj.job_infile, options->nfs_jobfile);
+
+    // default = fast search
+    fobj->nfs_obj.poly_option = 0;
+    if (strcmp(options->poly_method, "wide") == 0)
+        fobj->nfs_obj.poly_option = 1;
+    else if (strcmp(options->poly_method, "deep") == 0)
+        fobj->nfs_obj.poly_option = 2;
+    else if (strcmp(options->poly_method, "fast") == 0)
+        fobj->nfs_obj.poly_option = 0;
+    else if (strcmp(options->poly_method, "min") == 0)
+        fobj->nfs_obj.poly_option = 3;
+    else if (strcmp(options->poly_method, "avg") == 0)
+        fobj->nfs_obj.poly_option = 4;
+    else if (strcmp(options->poly_method, "good") == 0)
+        fobj->nfs_obj.poly_option = 5;
+
+    fobj->nfs_obj.restart_flag = options->nfs_resume;
+    fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
+    fobj->nfs_obj.snfs_testsieve_threshold = options->snfs_testsieve_threshold;
+    *fobj->nfs_obj.filearg = '\0';
+
+    fobj->nfs_obj.polybatch = options->poly_batch;
+    strcpy(fobj->nfs_obj.ggnfs_dir, options->ggnfs_dir);
+
+    // initialize autofactor object
+    // whether we want to output certain info to their own files...
+    fobj->autofact_obj.want_output_primes = 0;
+    fobj->autofact_obj.want_output_factors = 0;
+    fobj->autofact_obj.want_output_unfactored = 0;
+    fobj->autofact_obj.want_output_expressions = options->want_output_expr;
+    if (strlen(options->opfile) > 0)
+    {
+        fobj->autofact_obj.want_output_primes = 1;
+    }
+    if (strlen(options->offile) > 0)
+    {
+        fobj->autofact_obj.want_output_factors = 1;
+    }
+    if (strlen(options->oufile) > 0)
+    {
+        fobj->autofact_obj.want_output_unfactored = 1;
+    }
+
+    fobj->autofact_obj.qs_gnfs_xover = options->xover;
+    fobj->autofact_obj.qs_snfs_xover = options->qs_snfs_xover;
+    // use xover even when timing info is available
+    fobj->autofact_obj.prefer_xover = (options->xover != 95);
+    fobj->autofact_obj.want_only_1_factor = options->one_factor;
+    fobj->autofact_obj.no_ecm = options->no_ecm;
+    fobj->autofact_obj.target_pretest_ratio = options->pretest_ratio;
+    fobj->autofact_obj.initial_work = options->work;
+    fobj->autofact_obj.has_snfs_form = -1;		// not checked yet
+
+    //pretesting plan used by factor()
+    fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+    strcpy(fobj->autofact_obj.plan_str, options->fact_plan);
+
+    if (strcmp(options->fact_plan, "none") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_NONE;
+    else if (strcmp(options->fact_plan, "noecm") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_NOECM;
+    else if (strcmp(options->fact_plan, "light") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_LIGHT;
+    else if (strcmp(options->fact_plan, "normal") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
+    else if (strcmp(options->fact_plan, "deep") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_DEEP;
+    else if (strcmp(options->fact_plan, "custom") == 0)
+        fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
+    fobj->autofact_obj.only_pretest = options->pretest;
+    fobj->autofact_obj.autofact_active = 0;
+
+    // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
+    fobj->factors->aprcl_prove_cutoff = options->aprcl_p;
+    // if a number is >= aprcl_display_cutoff, we will show the APRCL progress
+    fobj->factors->aprcl_display_cutoff = options->aprcl_d;
+
+    fobj->VFLAG = options->verbosity;
+    if (strlen(options->factorlog) == 0)
+    {
+        fobj->LOGFLAG = 0;
+    }
+    else
+    {
+        fobj->LOGFLAG = 1;
+    }
+
+    return;
+}
+
+

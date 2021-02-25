@@ -25,7 +25,6 @@ code to the public domain.
 #include "factor.h"
 #include "monty.h"
 #include "cofactorize.h"
-#include "cmdOptions.h"
 #include <ecm.h>
 
 void test_dlp_composites()
@@ -233,11 +232,8 @@ tinyecm_start:
 		mpz_clear(gmp_f2);
 	}
 
-	
-
-    options_t* options = initOpt();
 	fobj2 = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-	init_factobj(fobj2, options);
+	init_factobj(fobj2);
 
 
 	mpz_init(gmptmp);
@@ -620,7 +616,7 @@ tinyqs_marker:
                 }
             }
 
-            clear_factor_list(fobj2);
+            clear_factor_list(fobj2->factors);
         }
 
         fclose(in);

@@ -1,3 +1,4 @@
+#include "common.h"
 
 #ifndef _POLY_COMMON_H_
 #define _POLY_COMMON_H_
@@ -267,7 +268,7 @@ typedef struct
 
 #elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 
-#ifdef HAS_SSE2
+#ifdef USE_SSE2
 
 	#define COMPUTE_8X_SMALL_PROOTS	\
 		ASM_G (	\

@@ -42,18 +42,14 @@ SOFTWARE.
 #include <math.h>   // log, sqrt
 #include "calc.h"
 #include "gmp.h"
-#include "mpz_aprcl.h"
 #include "factor.h"
-#include "autofactor.h"
 #include "qs.h"
-#include "yafu_ecm.h"
-#include "nfs.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 76
+#define NUM_FUNC 44
 
 // symbols in calc
 #define EOE 1
@@ -142,40 +138,37 @@ uvars_t uvars;
 strvars_t strvars;
 
 static char function_names[NUM_FUNC][11] = {
-    "fib", "luc", "expr", "gcd", "jacobi",
-    "rand", "lg2", "log", "ln", "size",
-    "issquare", "isprime", "sqrt", "modinv", "modexp",
-    "nroot", "shift", "ispow", "randb", "+",
+    "fib", "luc", "gcd", "jacobi",
+    "rand", "lg2", "log", "ln", 
+    "sqrt", "modinv", "modexp",
+    "nroot", "shift", "randb", "+",
     "-", "*", "/", "!", "#",
-    "eq", "<<", ">>", "%", "^",
+    "<<", ">>", "%", "^",
     "redc", "bitxor", "bitand", "bitor", "onecomp",
-    "lte", "gte", "<", ">", "popcnt",
-    "nextprime", "print", "lcm", "exit", "abs",
+    "popcnt",
+    "nextprime", "lcm", "abs",
     "extgcd", "fac2", "facm", "binom", "randp",
-    "hamdist", "snfs", "rsa", "factor", "pm1",
-    "pp1", "rho", "trial", "shanks", "siqs",
-    "primes", "torture", "ecm", "llt", "siqsbench",
-    "sigma", "totient", "smallmpqs", "testrange", "sieverange",
-    "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes"};
+    "hamdist", "rsa", "factor",
+    "siqs",
+    "siqsbench",
+    "smallmpqs"};
 
 static int function_nargs[NUM_FUNC] = {
-    1, 1, 1, 2, 2, 
-    1, 1, 1, 1, 1, 
-    1, 1, 1, 2, 3,
-    2, 2, 1, 1, 2,
-    2, 2, 2, 1, 1, 
-    2, 2, 2, 2, 2, 
-    3, 2, 2, 2, 1,
-    2, 2, 2, 2, 1, 
-    1, 1, 2, 0, 1,
-    2, 1, 2, 2, 1,
-    2, 2, 1, 1, 1, 
-    3, 1, 2, 1, 1, 
-    3, 2, 2, 1, 0, 
-    1, 1, 1, 4, 4, 
-    3, 1, 0, 1, 1,
-    2};
+    1, 1, 2, 2,             //  "fib", "luc", "gcd", "jacobi",
+    1, 1, 1, 1,             //  "rand", "lg2", "log", "ln",
+    1, 2, 3,                //  "sqrt", "modinv", "modexp",
+    2, 2, 1, 2,             //  "nroot", "shift", "randb", "+",
+    2, 2, 2, 1, 1,          //  "-", "*", "/", "!", "#",
+    2, 2, 2, 2,             //  "<<", ">>", "%", "^",
+    3, 2, 2, 2, 1,          //  "redc", "bitxor", "bitand", "bitor", "onecomp",
+    1,                      //   "popcnt",
+    1, 2, 1,                //  "nextprime", "lcm", "abs",
+    2, 1, 2, 2, 1,          //  "extgcd", "fac2", "facm", "binom", "randp",
+    2, 1, 1,                //  "hamdist", "rsa", "factor", 
+    1,                      //  "siqs",
+    0,                      //  "siqsbench",
+    1 };                      //  "smallmpqs", 
+
 
 
 // =====================================================================
@@ -2062,22 +2055,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		break;
 
 	case 2:
-		// expr - one argument
-		// this is used to evaluate numerical expressions from the command line,
-		// now that the default behavior is to factor the input.
-		// since whatever was in the function will have already been evaluated,
-		// simply return the input.
-        if (check_args(funcnum, nargs)) break;
-
-		break;
-
-	case 3:
 		// gcd - two arguments
         if (check_args(funcnum, nargs)) break;			
 		mpz_gcd(operands[0], operands[0], operands[1]);
 
 		break;
-	case 4:
+	case 3:
 		// jacobi - two arguments
         if (check_args(funcnum, nargs)) break;
 
@@ -2088,7 +2071,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
 		break;
 
-	case 5:
+	case 4:
 		// rand - one argument
         if (check_args(funcnum, nargs)) break;
 
@@ -2096,64 +2079,43 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		mpz_pow_ui(operands[1], operands[1], mpz_get_ui(operands[0]));
 		mpz_urandomm(operands[0], gmp_randstate, operands[1]);
 		break;
-	case 6:
+	case 5:
 		// lg2 - one argument
         if (check_args(funcnum, nargs)) break;
 		mpz_set_ui(operands[0], mpz_sizeinbase(operands[0], 2));
 		break;
-	case 7:
+	case 6:
 		// log - one argument
         if (check_args(funcnum, nargs)) break;
 		mpz_set_ui(operands[0], mpz_sizeinbase(operands[0], 10));
 		break;
-	case 8:
+	case 7:
 		// ln - one argument
         if (check_args(funcnum, nargs)) break;
 		mpz_set_ui(operands[0], (uint32_t)((mpz_sizeinbase(operands[0], 2)-1) * log(2.0)));
 		break;
-	case 9:
-		// size - one argument
-        if (check_args(funcnum, nargs)) break;
 
-		printf("%d digits, %d bits\n", (int)mpz_sizeinbase(operands[0], 10),
-			(int)mpz_sizeinbase(operands[0], 2));
-
-		mpz_set_ui(operands[0], mpz_sizeinbase(operands[0], 2));
-
-		break;
-	case 10:
-		// issquare
-        if (check_args(funcnum, nargs)) break;
-		i = mpz_perfect_square_p(operands[0]);
-		mpz_set_ui(operands[0], i);
-		break;
-	case 11:
-		// isprime - one argument
-        if (check_args(funcnum, nargs)) break;
-        i = mpz_probab_prime_p(operands[0], 3);
-		mpz_set_ui(operands[0], i);
-		break;
-	case 12:
+	case 8:
 		// sqrt - one argument
         if (check_args(funcnum, nargs)) break;
 		mpz_root(operands[0], operands[0], 2);
 		break;
-	case 13:
+	case 9:
 		// modinv - two arguments
         if (check_args(funcnum, nargs)) break;
 		mpz_invert(operands[0], operands[0], operands[1]);        
 		break;
-	case 14:
+	case 10:
 		// modexp - three arguments
         if (check_args(funcnum, nargs)) break;
 		mpz_powm(operands[0], operands[0], operands[1], operands[2]);
 		break;
-	case 15:
+	case 11:
 		// nroot - two arguments
         if (check_args(funcnum, nargs)) break;
 		mpz_root(operands[0], operands[0], mpz_get_ui(operands[1]));
 		break;
-	case 16:
+	case 12:
 		// shift - two arguments
         if (check_args(funcnum, nargs)) break;
 
@@ -2163,23 +2125,18 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 			mpz_tdiv_q_2exp(operands[0], operands[0], -1*mpz_get_si(operands[1]));
 
 		break;
-	case 17:
-		// ispow - one argument
-        if (check_args(funcnum, nargs)) break;
-		i = mpz_perfect_power_p(operands[0]);
-		mpz_set_ui(operands[0], i);
-		break;
-	case 18:
+
+	case 13:
 		// randb - one argument
         if (check_args(funcnum, nargs)) break;
 		mpz_urandomb(operands[0], gmp_randstate, mpz_get_ui(operands[0]));
 		break;
-	case 19:
+	case 14:
 		// add
         if (check_args(funcnum, nargs)) break;
 		mpz_add(operands[0], operands[0], operands[1]);
 		break;
-	case 20:
+	case 15:
 		//subtract or negate
 		if (nargs == 1)
 		{
@@ -2197,52 +2154,48 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
 		break;
 
-	case 21:
+	case 16:
 		// mul
         if (check_args(funcnum, nargs)) break;
 		mpz_mul(operands[0], operands[0], operands[1]);
 		break;
-	case 22:
+	case 17:
 		// div
         if (check_args(funcnum, nargs)) break;
 		mpz_tdiv_q(operands[0], operands[0], operands[1]);
 		break;
-	case 23:
+	case 18:
 		// !
         if (check_args(funcnum, nargs)) break;
 		mpz_fac_ui(operands[0], mpz_get_ui(operands[0]));
 		break;
-	case 24:
+	case 19:
 		// primorial
         if (check_args(funcnum, nargs)) break;
 		mpz_primorial_ui(operands[0], mpz_get_ui(operands[0]));
 		break;
-	case 25:
-		// eq
-        if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) == 0);
-		break;
-	case 26:
+
+	case 20:
 		// <<
         if (check_args(funcnum, nargs)) break;
 		mpz_mul_2exp(operands[0], operands[0], mpz_get_ui(operands[1]));
 		break;
-	case 27:
+	case 21:
 		// >>
         if (check_args(funcnum, nargs)) break;
 		mpz_tdiv_q_2exp(operands[0], operands[0], mpz_get_ui(operands[1]));
 		break;
-	case 28:
+	case 22:
 		// mod
         if (check_args(funcnum, nargs)) break;
 		mpz_mod(operands[0], operands[0], operands[1]);
 		break;
-	case 29:
+	case 23:
 		// exp
         if (check_args(funcnum, nargs)) break;
 		mpz_pow_ui(operands[0], operands[0], mpz_get_ui(operands[1]));
 		break;
-	case 30:
+	case 24:
         // REDC (redc)
         if (check_args(funcnum, nargs)) break;
 
@@ -2266,84 +2219,51 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         }
 		break;
 
-	case 31:
+	case 25:
 		// bitxor
         if (check_args(funcnum, nargs)) break;
         mpz_xor(operands[0], operands[0], operands[1]);
 		break;
-	case 32:
+	case 26:
 		// bitand
         if (check_args(funcnum, nargs)) break;
 		mpz_and(operands[0], operands[0], operands[1]);
 		break;
-	case 33:
+	case 27:
 		// bitor
         if (check_args(funcnum, nargs)) break;
 		mpz_ior(operands[0], operands[0], operands[1]);
 		break;
-	case 34:
+	case 28:
 		// onecomp
         if (check_args(funcnum, nargs)) break;
 		mpz_com(operands[0], operands[0]);
 		break;
-	case 35:
-		// lte
-        if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) <= 0);
-		break;
-	case 36:
-		// gte
-        if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) >= 0);
-		break;
-	case 37:
-		// lt
-        if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) < 0);
-		break;
-	case 38:
-		// gt
-        if (check_args(funcnum, nargs)) break;
-		mpz_set_ui(operands[0], mpz_cmp(operands[0], operands[1]) > 0);
-		break;
-    case 39:
+
+    case 29:
         // popcnt
         if (check_args(funcnum, nargs)) break;
         j = mpz_popcount(operands[0]);
         mpz_set_ui(operands[0], j);
         break;
-    case 40:
+    case 30:
         // nextprime
         if (check_args(funcnum, nargs)) break;
         mpz_nextprime(operands[0], operands[0]);
         break;
-    case 41:
-        // print
-        if (check_args(funcnum, nargs)) break;
 
-        if (OBASE == DEC)
-            gmp_printf("%Zd\n", operands[0]);
-        else if (OBASE == HEX)
-            gmp_printf("%Zx\n", operands[0]);
-
-        fflush(stdout);
-        break;
-
-    case 42:
+    case 31:
         // lcm
         if (check_args(funcnum, nargs)) break;
         mpz_lcm(operands[0], operands[0], operands[1]);
         break;
-    case 43:
-        // exit
-        exit(0);
-        break;
-	case 44:
+
+	case 32:
 		// abs
 		if (check_args(funcnum, nargs)) break;
 		mpz_abs(operands[0], operands[0]);
 		break;
-    case 45:
+    case 33:
         // extgcd
         if (check_args(funcnum, nargs)) break;
         mpz_gcdext(operands[0], mp1, mp2, operands[0], operands[1]);
@@ -2352,59 +2272,35 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         else
             gmp_printf("a*s + b*t = gcd\ns = %Zx\nt = %Zx\n", mp1, mp2);
         break;
-    case 46:
+    case 34:
         // fac2
         if (check_args(funcnum, nargs)) break;
         mpz_2fac_ui(operands[0], mpz_get_ui(operands[0]));
         break;
-    case 47:
+    case 35:
         // facm
         if (check_args(funcnum, nargs)) break;
         mpz_mfac_uiui(operands[0], mpz_get_ui(operands[0]), mpz_get_ui(operands[1]));
         break;
-    case 48:
+    case 36:
         // binom
         if (check_args(funcnum, nargs)) break;
         mpz_bin_ui(operands[0], operands[0], mpz_get_ui(operands[1]));
         break;
-    case 49:
+    case 37:
         // randp
         if (check_args(funcnum, nargs)) break;
         mpz_urandomb(operands[0], gmp_randstate, mpz_get_ui(operands[0]));
         mpz_nextprime(operands[0], operands[0]);
         break;
-    case 50:
+    case 38:
         // hamdist
         if (check_args(funcnum, nargs)) break;
         j = mpz_hamdist(operands[0], operands[1]);
         mpz_set_ui(operands[0], j);
         break;
-    case 51:
-        // snfs - two arguments
-        if (check_args(funcnum, nargs)) break;
 
-        // the first argument is the full input form and the second is 
-        // the cofactor we use as the input.
-        // fill the job's 'n' parameter now, and nfs will detect the form (or 
-        // bail).
-        fobj->nfs_obj.snfs = 1;
-        mpz_set(fobj->N, operands[1]);
-        mpz_set(fobj->nfs_obj.snfs_cofactor, operands[1]);
-
-        if (mpz_sizeinbase(fobj->nfs_obj.snfs_cofactor, 10) < fobj->nfs_obj.min_digits)
-        {
-            printf("***** warning: possibly malformed co-factor (too small)!\n");
-            printf("*****          co-factor expected to be input divided by known factors.\n");
-            printf("*****          attempting snfs anyway.\n");
-        }
-
-        mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
-        nfs(fobj);
-        mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-
-        break;
-    case 52:
+    case 39:
         // rsa - one argument
         if (check_args(funcnum, nargs)) break;
 
@@ -2423,118 +2319,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         build_RSA(mpz_get_ui(operands[0]), operands[0], gmp_randstate);
         break;
-    case 53:
-        // factor - one argument
-        if (check_args(funcnum, nargs)) break;
-
-        mpz_set(fobj->N, operands[0]);
-        factor(fobj);
-        mpz_set(operands[0], fobj->N);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-
-        {
-            char vname[20];
-            for (i = 0; i < fobj->factors->num_factors; i++)
-            {
-
-                sprintf(vname, "_f%d", i);
-                if (set_uvar(vname, fobj->factors->factors[i].factor))
-                    new_uvar(vname, fobj->factors->factors[i].factor);
-                sprintf(vname, "_fpow%d", i);
-                mpz_set_ui(operands[4], fobj->factors->factors[i].count);
-                if (set_uvar(vname, operands[4]))
-                    new_uvar(vname, operands[4]);
-            }
-            sprintf(vname, "_fnum");
-            mpz_set_ui(operands[4], fobj->factors->num_factors);
-            if (set_uvar(vname, operands[4]))
-                new_uvar(vname, operands[4]);
-        }
-
-        reset_factobj(fobj);
-
-        break;
-    case 54:
-        // pm1 - one argument
-        if (check_args(funcnum, nargs)) break;
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
-        pollard_loop(fobj);
-        mpz_set(operands[0], fobj->pm1_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-    case 55:
-        // pp1 - two arguments, one optional
-        mpz_set(fobj->N, operands[0]);
-        if (nargs == 2)
-        {
-            mpz_set(fobj->pp1_obj.gmp_n, operands[0]);
-            fobj->pp1_obj.numbases = mpz_get_ui(operands[1]);
-            williams_loop(fobj);
-            mpz_set(operands[0], fobj->pp1_obj.gmp_n);
-        }
-        else if (nargs == 1)
-        {
-            mpz_set(fobj->pp1_obj.gmp_n, operands[1]);
-            fobj->pp1_obj.numbases = 1;
-            williams_loop(fobj);
-            mpz_set(operands[0], fobj->pp1_obj.gmp_n);
-        }
-        else
-        {
-            printf("wrong number of arguments in pp1\n");
-            break;
-        }
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-    case 56:
-        // rho - one argument
-        if (check_args(funcnum, nargs)) break;
-
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->rho_obj.gmp_n, operands[0]);
-        brent_loop(fobj);
-        mpz_set(operands[0], fobj->rho_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-    case 57:
-        // trial - two arguments
-        mpz_set(fobj->N, operands[0]);
-        if (nargs == 2)
-        {
-            mpz_set(fobj->div_obj.gmp_n, operands[0]);
-            fobj->div_obj.print = 0;
-            fobj->div_obj.limit = mpz_get_ui(operands[1]);
-            zTrial(fobj);
-            mpz_set(operands[0], fobj->div_obj.gmp_n);
-        }
-        else if (nargs == 1)
-        {
-            printf("using default trial division bound of 10000\n");
-            mpz_set(fobj->div_obj.gmp_n, operands[1]);
-            fobj->div_obj.print = 0;
-            fobj->div_obj.limit = 10000;
-            zTrial(fobj);
-            mpz_set(operands[0], fobj->div_obj.gmp_n);
-        }
-        else
-        {
-            printf("wrong number of arguments in trial\n");
-            break;
-        }
-
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-    case 58:
-        // shanks - one argument
-        if (check_args(funcnum, nargs)) break;
-        mpz_init(gmpz);
-
-        n64 = sp_shanks_loop(operands[0], fobj);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        mpz_set_64(operands[0], n64);
-        break;
-    case 59:
+    case 40:
         // siqs - one argument
         if (check_args(funcnum, nargs)) break;
 
@@ -2545,185 +2330,24 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
 
-    case 60:
-        // primes
-        if (nargs == 2)
-        {
-            gettimeofday(&tstart, NULL);
-            lower = mpz_get_64(operands[1]);
-            upper = mpz_get_64(operands[2]);
-
-            {
-                soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-                soe_wrapper(sdata, lower, upper, 1, &n64, 0, 0);
-                soe_finalize(sdata);
-            }
-            
-
-            mpz_set_64(operands[0], n64);
-            gettimeofday(&tstop, NULL);
-            t = ytools_difftime(&tstart, &tstop);
-
-            printf("elapsed time = %6.4f\n", t);
-            break;
-        }
-        else if (nargs < 2)
-        {
-            printf("not enough arguments, please specify min and max of range\n");
-            break;
-        }
-        else if (nargs > 3)
-        {
-            printf("wrong number of arguments in primes\n");
-            break;
-        }
-
-        lower = mpz_get_64(operands[0]);
-        upper = mpz_get_64(operands[1]);
-        
-        {
-            uint64_t* PRIMES, NUM_P, P_MAX, P_MIN;
-            soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            PRIMES = soe_wrapper(sdata, lower, upper, mpz_get_ui(operands[2]), &NUM_P, 
-                metadata->pfile, metadata->pscreen);
-
-            if (PRIMES != NULL)
-            {
-                P_MIN = PRIMES[0];
-                P_MAX = PRIMES[NUM_P - 1];
-            }
-            soe_finalize(sdata);
-            mpz_set_64(operands[0], NUM_P);
-        }
-
-        break;
-    case 61:
-        // torture - two arguments
+    case 41:
+        // siqs - one argument
         if (check_args(funcnum, nargs)) break;
 
-        i = mpz_get_ui(operands[0]);
-        k = mpz_get_ui(operands[1]);
-        for (j = 0; j < i; j++)
-        {
-            printf("***********RUN %d***********\n", j + 1);
-            mpz_urandomb(operands[2], gmp_randstate, k);
-            mpz_set(fobj->N, operands[2]);
-            factor(fobj);
-            mpz_set(operands[0], fobj->N);
-            print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-            clear_factor_list(fobj->factors);
-        }
-
-        break;
-    case 62:
-        // ecm - two arguments
         mpz_set(fobj->N, operands[0]);
-        if (nargs == 2)
-        {
-            k = mpz_get_ui(operands[1]);
-            fobj->ecm_obj.num_curves = k;
-            mpz_set(fobj->ecm_obj.gmp_n, operands[0]);
-            ecm_loop(fobj);
-            mpz_set(operands[0], fobj->ecm_obj.gmp_n);
-        }
-        else if (nargs == 1)
-        {
-            fobj->ecm_obj.num_curves = 1;
-            mpz_set(fobj->ecm_obj.gmp_n, operands[1]);
-            ecm_loop(fobj);
-            mpz_set(operands[0], fobj->ecm_obj.gmp_n);
-        }
-        else
-        {
-            printf("wrong number of arguments in ecm\n");
-            break;
-        }
-
+        mpz_set(fobj->qs_obj.gmp_n, operands[0]);
+        SIQS(fobj);
+        mpz_set(operands[0], fobj->qs_obj.gmp_n);
         print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
-    case 63:
-        // lucas lehmer test
-        if (check_args(funcnum, nargs)) break;
 
-        if (llt(mpz_get_ui(operands[0]), fobj->VFLAG))
-        {
-            if (fobj->VFLAG > 1)
-                gmp_printf("%Zd is prime!\n", operands[0]);
-            mpz_set_ui(operands[0], 1);
-        }
-        else
-        {
-            if (fobj->VFLAG > 1)
-                gmp_printf("%Zd is composite.\n", operands[0]);
-            mpz_set_ui(operands[0], 0);
-        }
-        break;
-
-    case 64:
+    case 42:
         // siqsbench
         if (check_args(funcnum, nargs)) break;
         siqsbench(fobj);
         break;
 
-    case 65:
-        // sigma - sum of divisors function
-        if (check_args(funcnum, nargs)) break;
-
-        int oldvflag = fobj->VFLAG;
-        if (mpz_sizeinbase(operands[0], 2) < 192)
-        {
-            fobj->VFLAG = -1;
-        }
-
-        mpz_set(mp2, operands[0]);
-        mpz_set(fobj->N, operands[0]);
-        k = mpz_get_ui(operands[1]);
-        factor(fobj);
-
-        mpz_set_ui(mp2, 1);
-        for (i = 0; i < fobj->factors->num_factors; i++)
-        {
-            mpz_set_ui(mp1, 1);
-            for (j = 1; j <= fobj->factors->factors[i].count; j++)
-            {
-                mpz_pow_ui(mp3, fobj->factors->factors[i].factor, j * k);
-                mpz_add(mp1, mp1, mp3);
-            }
-            mpz_mul(mp2, mp2, mp1);
-        }
-        mpz_set(operands[0], mp2);
-        fobj->VFLAG = oldvflag;
-
-        break;
-    case 66:
-        // Euler's totient function
-        if (check_args(funcnum, nargs)) break;
-
-        oldvflag = fobj->VFLAG;
-        if (mpz_sizeinbase(operands[0], 2) < 192)
-        {
-            fobj->VFLAG = -1;
-        }
-
-        mpz_set(mp2, operands[0]);
-        mpz_set(fobj->N, operands[0]);
-        factor(fobj);
-        mpz_set(operands[0], mp2);
-        mpz_tdiv_q(mp1, mp2, fobj->factors->factors[0].factor);
-        mpz_sub(operands[0], operands[0], mp1);
-
-        for (i = 1; i < fobj->factors->num_factors; i++)
-        {
-            mpz_tdiv_q(mp1, mp2, fobj->factors->factors[i].factor);
-            mpz_sub(mp1, mp2, mp1);
-            mpz_mul(operands[0], operands[0], mp1);
-            mpz_tdiv_q(operands[0], operands[0], mp2);
-        }
-        fobj->VFLAG = oldvflag;
-
-        break;
-
-    case 67:
+    case 43:
         // smallmpqs - 1 argument
         if (check_args(funcnum, nargs)) break;
 
@@ -2745,220 +2369,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 
         break;
-    case 68:
-        // testrange - 4 arguments (low, high, depth, witnesses)
-        if (check_args(funcnum, nargs)) break;
 
-        // move to soe library...
-        {
-            uint64_t num_found;
-            uint64_t* primes;
-            uint64_t range;
-            mpz_t lowz, highz;
-
-            primes = NULL;
-
-            mpz_init(lowz);
-            mpz_init(highz);
-            mpz_set(lowz, operands[0]);
-            mpz_set(highz, operands[1]);
-            primes = sieve_to_depth(sdata, lowz, highz,
-                0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
-                &num_found, metadata->pscreen, metadata->pfile);
-
-            if (!NULL)
-                free(primes);
-
-            mpz_clear(lowz);
-            mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
-        }
-
-        break;
-
-    case 69:
-        // sieverange - 4 arguments
-        // range lo, range hi, sieve bound, count?
-        if (check_args(funcnum, nargs)) break;
-
-        // move to soe library...
-        {
-            uint64_t num_found;
-            uint64_t* primes;
-            uint64_t range;
-            mpz_t lowz, highz;
-
-            primes = NULL;
-
-            mpz_init(lowz);
-            mpz_init(highz);
-            mpz_set(lowz, operands[0]);
-            mpz_set(highz, operands[1]);
-            primes = sieve_to_depth(sdata, lowz, highz,
-                0, 0, mpz_get_ui(operands[2]),
-                &num_found, metadata->pscreen, metadata->pfile);
-
-            if (!NULL)
-                free(primes);
-
-            mpz_clear(lowz);
-            mpz_clear(highz);
-            mpz_set_ui(operands[0], num_found);
-        }
-
-        break;
-
-    case 70:
-        // fermat - three arguments
-        if (nargs == 2)
-        {
-            mpz_set(fobj->N, operands[1]);
-            mpz_set(fobj->div_obj.gmp_n, operands[1]);
-            n64 = mpz_get_64(operands[2]);
-            j = 1;
-        }
-        else if (nargs == 3)
-        {
-            mpz_set(fobj->N, operands[0]);
-            mpz_set(fobj->div_obj.gmp_n, operands[0]);
-            n64 = mpz_get_64(operands[1]);
-            j = mpz_get_ui(operands[2]);
-        }
-        else
-        {
-            printf("wrong number of arguments in fermat\n");
-            break;
-        }
-
-        zFermat(n64, j, fobj);
-        mpz_set(operands[0], fobj->div_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-
-    case 71:
-        // nfs - one argument
-        if (check_args(funcnum, nargs)) break;
-
-        mpz_set(fobj->N, operands[0]);
-        mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
-        nfs(fobj);
-        mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-        break;
-
-    case 72:
-        // tune, no arguments
-        if (check_args(funcnum, nargs)) break;
-
-        factor_tune(fobj);
-        break;
-
-    case 73:
-        // bpsw, 1 argument
-        if (check_args(funcnum, nargs)) break;
-
-        i = mpz_bpsw_prp(operands[0]);
-        // should we print out the input number again?
-        if (i == PRP_COMPOSITE)
-        {
-            printf("Input is composite.  C%d\n", gmp_base10(operands[0]));
-        }
-        else if (i == PRP_PRP)
-        {
-            printf("Input is prp.  PRP%d\n", gmp_base10(operands[0]));
-        }
-        else if (i == PRP_PRIME)
-        {
-            printf("Input is prime.  P%d\n", gmp_base10(operands[0]));
-        }
-
-        break;
-
-    case 74:
-        // aprcl, one argument
-        if (check_args(funcnum, nargs)) break;
-
-        i = mpz_aprtcle(operands[0], APRTCLE_VERBOSE1);
-        // should we print out the input number again?
-        if (i == APRTCLE_COMPOSITE)
-        {
-            if (mpz_bpsw_prp(operands[0]) != PRP_COMPOSITE)
-            {
-                printf("\n");
-                // if BPSW doesn't think this composite number is actually composite, then ask the user
-                // to report this fact to the YAFU sub-forum at mersenneforum.org
-                printf(" *** ATTENTION: BPSW issue found.  Please report the following number to:\n");
-                printf(" *** ATTENTION: http://www.mersenneforum.org/forumdisplay.php?f=96\n");
-                gmp_printf(" *** ATTENTION: n = %Zd\n", operands[0]);
-            }
-            printf("\nInput is composite.  C%d\n", gmp_base10(operands[0]));
-        }
-        else if (i == APRTCLE_PRP)
-        {
-            printf("\nInput is prp.  PRP%d\n", gmp_base10(operands[0]));
-        }
-        else if (i == APRTCLE_PRIME)
-        {
-            printf("\nInput is prime.  P%d\n", gmp_base10(operands[0]));
-        }
-
-        break;
-
-    case 75:
-        // semiprime list generation: two arguments (count, bits)
-        if (check_args(funcnum, nargs)) break;
-
-        //generate_semiprime_list(mpz_get_ui(operands[0]), mpz_get_ui(operands[1]), gmp_randstate);
-        {
-            // generate a list of 'num' semiprimes, each of size 'bits'
-            // save to semiprimes.dat
-
-            FILE* out;
-            int i;
-            mpz_t tmp1, tmp2, tmp3;
-            uint32_t num = mpz_get_ui(operands[0]);
-            uint32_t bits = mpz_get_ui(operands[1]);
-
-            mpz_init(tmp1);
-            mpz_init(tmp2);
-            mpz_init(tmp3);
-
-            out = fopen("semiprimes.dat", "w");
-            if (out == NULL)
-            {
-                printf("couldn't open semiprimes.dat for writing\n");
-                break;
-            }
-
-            for (i = 0; i < num; i++)
-            {
-                mpz_urandomb(tmp3, gmp_randstate, bits / 2);
-                mpz_setbit(tmp3, bits / 2 - 1);
-                mpz_nextprime(tmp1, tmp3);
-                if (bits & 1)
-                {
-                    mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
-                    mpz_setbit(tmp3, bits / 2);
-                }
-                else
-                {
-                    mpz_urandomb(tmp3, gmp_randstate, bits / 2);
-                    mpz_setbit(tmp3, bits / 2 - 1);
-                }
-                mpz_nextprime(tmp2, tmp3);
-                mpz_mul(tmp3, tmp2, tmp1);
-                gmp_fprintf(out, "%Zd,%Zd,%Zd\n",
-                    tmp3, tmp1, tmp2);
-            }
-            fclose(out);
-
-            printf("generated %d semiprimes in file semiprimes.dat\n", num);
-            mpz_clear(tmp1);
-            mpz_clear(tmp2);
-            mpz_clear(tmp3);
-        }
-
-        break;
 
 	default:
 		printf("unrecognized function code\n");
@@ -3214,53 +2625,6 @@ int invalid_dest(char* dest)
 
     if (getFunc(dest, &i) >= 0)
         return 1;	//is a function name
-
-    //global vars are ok
-    if (strcmp(dest, "POLLARD_STG1_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "POLLARD_STG2_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "WILL_STG1_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "WILL_STG2_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "ECM_STG1_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "ECM_STG2_MAX") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "BRENT_MAX_IT") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "IBASE") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "OBASE") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "QS_DUMP_CUTOFF") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "NUM_WITNESSES") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "LOGFLAG") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "VFLAG") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "PRIMES_TO_FILE") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "PRIMES_TO_SCREEN") == 0) {
-        return 0;
-    }
 
     //check starting char not lower case letter or _ or `
     if ((dest[0] < 95) || (dest[0] > 122) || (dest[0] == 96)) return 1;

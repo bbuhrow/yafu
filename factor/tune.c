@@ -3,7 +3,6 @@
 #include "qs.h"
 #include "gnfs.h"
 #include "gmp_xface.h"
-#include "cmdOptions.h"
 #include <stdint.h>
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
@@ -124,8 +123,7 @@ void factor_tune(fact_obj_t *inobj)
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
 		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-        options_t* options = initOpt();
-		init_factobj(fobj, options);
+		init_factobj(fobj);
 
 		// measure how long it takes to gather a fixed number of relations 		
         mpz_set_str(n, siqslist[i], 10);
@@ -154,7 +152,7 @@ void factor_tune(fact_obj_t *inobj)
             mpz_sizeinbase(n, 10), t_time);
 		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
 
-		clear_factor_list(fobj);
+		clear_factor_list(fobj->factors);
 
 		free_factobj(fobj);
 		free(fobj);
