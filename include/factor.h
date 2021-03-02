@@ -330,57 +330,56 @@ typedef struct
 
 } nfs_obj_t;
 
-
-//globals for implementing the "plan" and "pretest" switches
+// enum for implementing the "plan" and "pretest" switches
 enum pretest_plan {
-	PRETEST_NONE = 0,
-	PRETEST_NOECM = 1,
-	PRETEST_LIGHT = 2,
-	PRETEST_NORMAL = 3,
-	PRETEST_DEEP = 4,
-	PRETEST_CUSTOM = 5,
+    PRETEST_NONE = 0,
+    PRETEST_NOECM = 1,
+    PRETEST_LIGHT = 2,
+    PRETEST_NORMAL = 3,
+    PRETEST_DEEP = 4,
+    PRETEST_CUSTOM = 5,
 };
 
 typedef struct
 {
-	//crossover between qs and gnfs
-	double qs_gnfs_xover;
+    //crossover between qs and gnfs
+    double qs_gnfs_xover;
     //crossover between qs and snfs
     double qs_snfs_xover;
-	int prefer_xover;
+    int prefer_xover;
 
-	//balance of ecm and various sieve methods
-	double target_pretest_ratio;
-	int has_snfs_form;			// 1 = input has snfs form
-								// 0 = input does not have snfs form
-								// -1 = input has not been checked yet
+    //balance of ecm and various sieve methods
+    double target_pretest_ratio;
+    int has_snfs_form;			// 1 = input has snfs form
+                                // 0 = input does not have snfs form
+                                // -1 = input has not been checked yet
 
-	//double target_ecm_gnfs_ratio;
-	//double target_ecm_snfs_ratio;
+    //double target_ecm_gnfs_ratio;
+    //double target_ecm_snfs_ratio;
 
-	int no_ecm;
+    int no_ecm;
 
-	int want_only_1_factor;
-	int want_output_primes;
-	int want_output_factors;
-	int want_output_unfactored;
-	int want_output_expressions;
-	FILE *op_file;
-	FILE *of_file;
-	FILE *ou_file;
-	char op_str[1024];
-	char of_str[1024];
-	char ou_str[1024];
+    int want_only_1_factor;
+    int want_output_primes;
+    int want_output_factors;
+    int want_output_unfactored;
+    int want_output_expressions;
+    FILE* op_file;
+    FILE* of_file;
+    FILE* ou_file;
+    char op_str[1024];
+    char of_str[1024];
+    char ou_str[1024];
 
-	enum pretest_plan yafu_pretest_plan;
-	char plan_str[1024];
-	int only_pretest;
-	int autofact_active;
+    enum pretest_plan yafu_pretest_plan;
+    char plan_str[1024];
+    int only_pretest;
+    int autofact_active;
 
-	// user supplied value indicating prior pretesting work
-	double initial_work;
+    // user supplied value indicating prior pretesting work
+    double initial_work;
 
-	double ttime;
+    double ttime;
 
 } autofact_obj_t;
 
@@ -485,9 +484,7 @@ extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t
 extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
     uint64_t* lcg_state, int verbose);
 
-
-uint32_t test_qn_res[128];
-
+/* =============== interface to various small-factor-finding routines =========== */
 uint64_t spbrent(uint64_t N, uint64_t c, int imax);
 uint64_t spbrent64(uint64_t N, int imax);
 int mbrent(fact_obj_t *fobj);
@@ -502,19 +499,11 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
 int par_shanks_loop(uint64_t*N, uint64_t*f, int num_in);
 
 int sptestsqr(uint64_t n);
-uint64_t spfermat(uint64_t n, uint64_t limit);
+uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n);
 
-//auto factor routine
-//void factor(fact_obj_t *fobj);
 
 // factoring related utility
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG);
 
-/* Factor a number using GNFS. Returns
-   1 if any factors were found and 0 if not */
-
-//uint32_t factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
-
-//void factor_tune(fact_obj_t *fobj);
 
 #endif //_FACTOR_H

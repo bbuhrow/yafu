@@ -88,10 +88,6 @@ void resieve_medprimes_32k_knl(uint32_t *reports, uint32_t num_reports,
         fbc = dconf->comp_sieve_p;
     }
 
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     // printf("running knl resieve targetting blocks: ");
     // for (j = 0; j < num_reports; j++)
       // printf("%u ", dconf->reports[reports[j]]);
@@ -298,13 +294,6 @@ void resieve_medprimes_32k_knl(uint32_t *reports, uint32_t num_reports,
         
         
     }
-        
-        
-        
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 
     return;
 }

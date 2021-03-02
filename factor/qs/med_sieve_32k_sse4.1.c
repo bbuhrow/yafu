@@ -53,10 +53,6 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 	helperstruct_t asm_input;
 
 	med_B = full_fb->med_B;
-	
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	//initialize the block
 	BLOCK_INIT;
@@ -203,13 +199,6 @@ void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *
 	// sieve primes 8 at a time, 2^15 < p < med_B
 	_INIT_SSE2_SMALL_PRIME_SIEVE;
 	_SSE41_SMALL_PRIME_SIEVE;
-
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	return;
 

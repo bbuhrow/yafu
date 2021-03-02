@@ -648,10 +648,6 @@ void resieve_medprimes(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 		fbc = dconf->comp_sieve_p;
 	}		
 
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
-
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 		if (!dconf->valid_Qs[report_num])
@@ -954,11 +950,6 @@ void resieve_medprimes(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 		dconf->smooth_num[report_num] = smooth_num;	
 
 	}
-			
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG4 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
 
 	return;
 }

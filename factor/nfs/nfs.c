@@ -19,6 +19,8 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+int NFS_ABORT;
+int IGNORE_NFS_ABORT;
 msieve_obj *obj_ptr;
 
 void nfsexit(int sig)

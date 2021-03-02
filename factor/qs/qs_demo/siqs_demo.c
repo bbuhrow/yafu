@@ -600,7 +600,6 @@ void siqs_init(siqs_obj_t* yobj)
 	strcpy(yobj->sessionname,"session.log");
     strcpy(yobj->scriptname, "");
 
-    LCG_STATE = 836458372495871ULL;
 	return;
 }
 

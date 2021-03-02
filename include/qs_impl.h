@@ -45,6 +45,9 @@
 #define D_HAS_SSE2
 //#define DO_VLP_OPT
 
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#define _MM_SCALE_1 1
+#endif
 
 #if defined(USE_AVX2)
 #ifdef _MSC_VER
@@ -59,29 +62,6 @@
 #ifdef USE_BATCH_FACTOR
 #include "batch_factor.h"
 #endif
-
-//#define QS_TIMING
-
-#ifdef QS_TIMING
-struct timeval qs_timing_start, qs_timing_stop;
-double START;
-double TF_STG1;
-double TF_STG2;
-double TF_STG3;
-double TF_STG4;
-double TF_STG5;
-double TF_STG6;
-double POLY_STG0;
-double POLY_STG1;
-double POLY_STG2;
-double POLY_STG3;
-double POLY_STG4;
-double SIEVE_STG1;
-double SIEVE_STG2;
-double COUNT;
-double TF_SPECIAL;
-#endif
-
 
 /************************* Common types and functions *****************/
 
@@ -858,16 +838,6 @@ qs_la_col_t* find_cycles3(fact_obj_t* obj, static_conf_t* sconf,
 
 /* perform postprocessing on a list of relations */
 void yafu_qs_filter_relations(static_conf_t* sconf);
-
-
-/*--------------           GLOBALS                  ------------------------*/
-#define SAVEFILE_BUF_SIZE 2048
-char savebuf[2048];
-int savefile_buf_off;
-
-qs_params sieve_params;
-
-int SIQS_ABORT;
 
 extern uint64_t* siqs_primes;
 extern uint64_t siqs_nump;

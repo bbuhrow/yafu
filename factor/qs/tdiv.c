@@ -77,10 +77,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	block_loc = dconf->reports[report_num];
     int VFLAG = sconf->obj->VFLAG;
     int THREADS = sconf->obj->THREADS;
-	
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	offset = (bnum << sconf->qs_blockbits) + block_loc;
 
@@ -152,11 +148,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                 fb_offsets, dconf->curr_poly->index, poly_id, 
                 parity, dconf, polya_factors, it, 1);
         }
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        TF_STG6 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
 
 		return;
 	}
@@ -301,10 +292,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			// more sure.
 			if (res == 1)
 			{
-#ifdef QS_TIMING
-				gettimeofday(&qs_timing_stop, NULL);
-				TF_STG6 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 				dconf->dlp_prp++;
 				return;
 			}
@@ -863,11 +850,6 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 	{
 		dconf->tlp_outside_range++;
 	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG6 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 	
 	return;
 }

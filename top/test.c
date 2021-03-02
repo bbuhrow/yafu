@@ -241,9 +241,11 @@ tinyecm_start:
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
-    goto tinyqs_marker;
+    //goto tinyecm_marker;
+    goto spfermat_marker;
+    //goto tinyqs_marker;
 	//goto brent_marker;
-	goto tinyecm_marker;
+	
 
 	
 	for (i = 0; i < 29; i++)
@@ -296,7 +298,7 @@ brent_marker:
     num_files = 17;
 
 	// lehman test
-	for (nf = 0; nf < 0; nf++)
+	for (nf = 0; nf < 8; nf++)
 	{
 		in = fopen(filenames[nf], "r");
 
@@ -425,7 +427,7 @@ brent_marker:
 	//goto tinyecm_marker;
 
 	// sequential squfof test
-	for (nf = 0; nf < 16; nf++)
+	for (nf = 0; nf < 5; nf++)
 	{
 		in = fopen(filenames[nf], "r");
 
@@ -491,6 +493,9 @@ brent_marker:
 		printf("percent correct = %.2f\n", 100.0*(double)correct / (double)num);
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
 	}
+
+
+    goto spfermat_marker;
 
 tinyqs_marker:
 
@@ -755,9 +760,110 @@ tinyqs_marker:
         mpz_clear(gmp_comp);
     }
 
+spfermat_marker:
+    i = 0;
+    strcpy(filenames[i++], "pseudoprimes_32bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_34bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_36bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_38bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_42bit.dat");		// 70
+    strcpy(filenames[i++], "pseudoprimes_44bit.dat");		// 70
+    strcpy(filenames[i++], "pseudoprimes_46bit.dat");		// 70
+    strcpy(filenames[i++], "pseudoprimes_48bit.dat");		// 70
+    strcpy(filenames[i++], "pseudoprimes_50bit.dat");		// 70
+
+    for (nf = 0; nf < 6; nf++)
+    {
+        uint32_t iterations = 1000000;
+
+        in = fopen(filenames[nf], "r");
+
+        start = clock();
+        i = 0;
+        totBits = 0;
+        minBits = 999;
+        maxBits = 0;
+        //read in everything
+        while (!feof(in))
+        {
+            fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+            mpz_set_ui(gmptmp, comp[i]);
+            j = mpz_sizeinbase(gmptmp, 2);
+            totBits += j;
+            if ((uint32_t)j > maxBits)
+                maxBits = j;
+            if ((uint32_t)j < minBits && j != 0)
+                minBits = j;
+            i++;
+        }
+        num = i;
+        num = 100000;
+        fclose(in);
+        stop = clock();
+        t_time = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+        printf("data read in %2.4f sec\n", t_time);
+        printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+        printf("minimum bits of input numbers = %d\n", minBits);
+        printf("maximum bits of input numbers = %d\n", maxBits);
+
+        gettimeofday(&gstart, NULL);
+
+        correct = 0;
+        k = 0;
+        for (i = 0; i < num; i++)
+        //for (i = 0; i < 1000; i++)
+        {
+            f64 = spfermat(iterations, 1, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+            f64 = spfermat(iterations, 3, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+            f64 = spfermat(iterations, 5, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+            f64 = spfermat(iterations, 7, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+            f64 = spfermat(iterations, 11, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+            f64 = spfermat(iterations, 15, comp[i]);
+            if ((f64 == f1[i]) || (f64 == f2[i]))
+            {
+                correct++;
+                continue;
+            }
+        }
+
+        gettimeofday(&gstop, NULL);
+        t_time = ytools_difftime(&gstart, &gstop);
+
+        printf("Fermat got %d of %d correct in %2.2f sec\n", correct, num, t_time);
+        printf("percent correct = %.2f\n", 100.0 * (double)correct / (double)num);
+        printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
+    }
 
 tinyecm_marker:
 	i = 0;
+    strcpy(filenames[i++], "pseudoprimes_32bit.dat");
+    strcpy(filenames[i++], "pseudoprimes_34bit.dat");
     strcpy(filenames[i++], "pseudoprimes_36bit.dat");
     strcpy(filenames[i++], "pseudoprimes_38bit.dat");
     strcpy(filenames[i++], "pseudoprimes_40bit.dat");
@@ -787,7 +893,7 @@ tinyecm_marker:
 	num = 100000;
 
 	// tinyecm test
-	for (nf = 15; nf < 18; nf++)
+	for (nf = 0; nf < 8; nf++)
 	{
 		mpz_t gmp_comp, gmp_f;
 		char buf[1024];
@@ -850,28 +956,43 @@ tinyecm_marker:
 
 		correct = 0;
 		k = 0;
-		if (nf < 0)
+
+		if (nf < 15)
 		{
+            totBits = 0;
+            minBits = 999;
+            maxBits = 0;
+            while (!feof(in))
+            {
+                fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
+                mpz_set_ui(gmptmp, comp[i]);
+                j = mpz_sizeinbase(gmptmp, 2);
+                totBits += j;
+                if ((uint32_t)j > maxBits)
+                    maxBits = j;
+                if ((uint32_t)j < minBits && j != 0)
+                    minBits = j;
+                i++;
+            }
+            printf("average bits of input numbers = %.2f\n", (double)totBits / (double)i);
+            printf("minimum bits of input numbers = %d\n", minBits);
+            printf("maximum bits of input numbers = %d\n", maxBits);
+
+            fclose(in);
+
 			num = 100000;
 			for (i = 0; i < num; i++)
 			{
-				uint64_t in64;
 				uint64_t outf;
-				
-				fgets(buf, 1024, in);
 
-				sscanf(buf, "%" PRIu64 ", %" PRIu64 ", %" PRIu64 "", 
-                    &in64, &known1, &known2);
+                outf = do_uecm(comp[i]);
 
-				microecm(in64, &outf, B1, 25 * B1, curves, 0);
-				if ((outf == known1) ||
-					(outf == known2))
+				if ((outf == f1[i]) ||
+					(outf == f2[i]))
 				{
 					correct++;
 				}
 			}
-
-			fclose(in);
 
 			gettimeofday(&gstop, NULL);
 			t_time = ytools_difftime(&gstart, &gstop);

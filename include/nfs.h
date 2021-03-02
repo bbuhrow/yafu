@@ -34,6 +34,14 @@ code to the public domain.
     mpz_t tmp1, tmp2, tmp3;
 } mpz_poly_t; */
 
+
+enum special_q_e
+{
+    NEITHER_SPQ,
+    RATIONAL_SPQ,
+    ALGEBRAIC_SPQ
+};
+
 typedef struct
 {
     mpz_poly_t rat; // linear (usually)
@@ -50,7 +58,6 @@ typedef struct
 #define NUM_SNFS_POLYS 3
 #define MAX_SNFS_BITS 1024
 
-
 enum snfs_form_e
 {
     SNFS_NONE,
@@ -58,7 +65,6 @@ enum snfs_form_e
     SNFS_H_CUNNINGHAM,
     SNFS_XYYXF
 };
-
 
 typedef struct
 {

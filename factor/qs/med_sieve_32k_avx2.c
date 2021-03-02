@@ -736,10 +736,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 
     CLEAN_AVX2;
 
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     //initialize the block
     BLOCK_INIT;
 
@@ -1219,13 +1215,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 #endif
     CLEAN_AVX2;
 
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     return;
 
 }
@@ -1253,11 +1242,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
 #endif
 
     med_B = full_fb->med_B;
-
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
 
     //initialize the block
     BLOCK_INIT;
@@ -1562,13 +1546,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     _SSE41_SMALL_PRIME_SIEVE;
 
 
-#endif
-
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-    gettimeofday(&qs_timing_start, NULL);
 #endif
 
     return;

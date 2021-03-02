@@ -15,6 +15,7 @@ benefit from your work.
 #include "nfs_impl.h"
 #include "ytools.h"
 #include "gmp_xface.h"
+#include <math.h>
 
 #define POSITIVE 1
 #define NEGATIVE 0

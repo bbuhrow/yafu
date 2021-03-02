@@ -551,10 +551,6 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         fbc = dconf->comp_sieve_p;
     }
 
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     // 16x trial division
     if ((sconf->factor_base->fb_14bit_B & 15) == 0)
     {
@@ -662,11 +658,6 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     }
 
     TDIV_MED_CLEAN;
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 
     return;
 }

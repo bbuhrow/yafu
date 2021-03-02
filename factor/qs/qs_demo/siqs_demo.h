@@ -75,8 +75,6 @@ typedef struct
 
 } siqs_obj_t;
 
-uint64_t LCG_STATE;
-
 extern void siqs_init(siqs_obj_t* obj);
 
 #endif //ifndef HEAD_DEF

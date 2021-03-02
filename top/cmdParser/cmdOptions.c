@@ -563,27 +563,9 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[40]) == 0)
     {
         //argument "o".  Indicates output filename ggnfs sieving.
-        //char* cptr;
-
         if (strlen(arg) < MAXARGLEN)
         {
-            //char tmp[MAXARGLEN];
             strcpy(options->nfs_outfile, arg);
-
-            //strcpy(tmp, fobj->nfs_obj.outputfile);
-            //cptr = strchr(tmp, 46);
-            //if (cptr == NULL)
-            //{
-            //    //no . in provided filename
-            //    sprintf(fobj->nfs_obj.logfile, "%s.log", fobj->nfs_obj.outputfile);
-            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", fobj->nfs_obj.outputfile);
-            //}
-            //else
-            //{
-            //    cptr[0] = '\0';
-            //    sprintf(fobj->nfs_obj.logfile, "%s.log", tmp);
-            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", tmp);
-            //}
         }
         else
         {
@@ -598,7 +580,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[42]) == 0)
     {
         //argument "r".  Indicates rational side special Q.
-        //fobj->nfs_obj.sq_side = 0;
        options->rat_side = 1;
     }
     else if (strcmp(opt, OptionArray[43]) == 0)
@@ -620,9 +601,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[45]) == 0)
     {
-        //argument "ns".  do nfs sieving
+        // argument "ns".  do nfs sieving
         char** nextptr = &arg;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
 
         if (arg != NULL)
         {
@@ -639,8 +619,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         else
         {
-            options->sieveQstart = 0;
-            options->sieveQstop = 0;
+            options->sieveQstart = 1;
+            options->sieveQstop = 1;
         }
 
     }
@@ -649,7 +629,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
         char** nextptr = &arg;
 
         //argument "np".  do poly finding.
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
 
         if (arg != NULL)
         {
@@ -666,16 +645,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         else
         {
-            options->polystart = 0;
-            options->polystop = 0;
+            options->polystart = 1;
+            options->polystop = 1;
         }
     }
     else if (strcmp(opt, OptionArray[47]) == 0)
     {
         //argument "nc".  Do post processing, starting with filtering
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
         options->nc = 1;
     }
     else if (strcmp(opt, OptionArray[48]) == 0)

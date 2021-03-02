@@ -115,10 +115,6 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 	//else 
 		dconf->tf_small_cutoff = sconf->tf_small_cutoff;
 
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
-
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
 		uint64_t q64;
@@ -290,12 +286,6 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 
 		dconf->smooth_num[report_num] = smooth_num;
 	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG1 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	return;
 }

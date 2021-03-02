@@ -683,14 +683,3 @@ uint32_t yafu_factor_list_add(fact_obj_t *obj, factor_list_t *list,
 	return bitsleft;
 }
 
-void siqsexit(int sig)
-{
-    if (SIQS_ABORT == 1)
-    {
-        exit(1);
-    }
-	printf("\nAborting... threads will finish their current poly\n");
-    printf("Press Ctrl-C again to exit immediately and lose in-progress data\n");
-	SIQS_ABORT = 1;
-	return;
-}

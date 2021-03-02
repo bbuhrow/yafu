@@ -23,6 +23,7 @@ code to the public domain.
 #include "calc.h"
 #include "ytools.h"
 #include "factor.h"
+#include "autofactor.h"
 #include "gmp.h"
 #include <ecm.h>
 
@@ -294,6 +295,8 @@ int main(int argc, char *argv[])
 	//g_rand.hi = 123;
 	//g_rand.low = 123;
     srand((unsigned int)options->rand_seed);
+
+    test_dlp_composites();
 
 	// command line
 	while (1)
@@ -989,7 +992,6 @@ void yafu_init(yafu_obj_t* yobj)
 	strcpy(yobj->sessionname,"session.log");
     strcpy(yobj->scriptname, "");
 
-    LCG_STATE = 836458372495871ULL;
 	return;
 }
 
@@ -1420,6 +1422,15 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     {
         fobj->nfs_obj.rangeq = fobj->nfs_obj.rangeq - fobj->nfs_obj.startq;
     }
+    if (options->sieveQstart > 0)
+    {
+        if ((options->sieveQstart == 1) && (options->sieveQstop == 1))
+        {
+            fobj->nfs_obj.startq = fobj->nfs_obj.rangeq = 0;
+        }
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
+    }
+
     fobj->nfs_obj.polystart = options->polystart;
     fobj->nfs_obj.polyrange = options->polystop;
     if (fobj->nfs_obj.rangeq < fobj->nfs_obj.startq)
@@ -1429,6 +1440,37 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     else
     {
         fobj->nfs_obj.polyrange = fobj->nfs_obj.polyrange - fobj->nfs_obj.polystart;
+    }
+    if (options->polystart > 0)
+    {
+        if ((options->polystart == 1) && (options->polystop == 1))
+        {
+            fobj->nfs_obj.polystart = fobj->nfs_obj.polyrange = 0;
+        }
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
+    }
+
+    if (options->nc)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
+    }
+    if (options->ncr)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA_RESUME;
+    }
+    if (options->nc1)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
+    }
+    if (options->nc2)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
+    }
+    if (options->nc3)
+    {
+        fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
     }
 
     char tmp[MAXARGLEN];
@@ -1476,7 +1518,6 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->nfs_obj.poly_option = 5;
 
     fobj->nfs_obj.restart_flag = options->nfs_resume;
-    fobj->nfs_obj.nfs_phases = NFS_DEFAULT_PHASES;
     fobj->nfs_obj.snfs_testsieve_threshold = options->snfs_testsieve_threshold;
     *fobj->nfs_obj.filearg = '\0';
 

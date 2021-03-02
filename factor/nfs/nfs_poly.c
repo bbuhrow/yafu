@@ -17,6 +17,27 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+static const poly_deadline_t time_limits[] = {
+    //  bits, seconds
+        {248, 1 * 60},		// 74 digits
+        {264, 2 * 60},		// 80 digits
+        {304, 6 * 60},		// 92 digits
+        {320, 15 * 60},		// 97 digits
+        {348, 30 * 60},		// 105 digits
+        {365, 1 * 3600},	// 110 digits
+        {383, 2 * 3600},	// 116 digits
+        {399, 4 * 3600},	// 120 digits
+        {416, 8 * 3600},	// 126 digits
+        {433, 16 * 3600},	// 131 digits
+        {449, 32 * 3600},	// 135 digits
+        {466, 64 * 3600},	// 140 digits
+        {482, 100 * 3600},	// 146 digits
+        {498, 200 * 3600},	// 150 digits
+        {514, 300 * 3600},	// 155 digits
+};
+
+#define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
+
 snfs_t * snfs_find_form(fact_obj_t *fobj)
 {
 	snfs_t* poly;

@@ -22,26 +22,11 @@ code to the public domain.
 #ifndef _YAFU_HEAD_DEF
 #define _YAFU_HEAD_DEF
 
-//#define DEBUG
-
-//#define _CRT_SECURE_NO_WARNINGS 
-
 #define VERSION_STRING "2.0"
 
-//default maximum size in chars for a str_t
+// default maximum size for strings/buffers
 #define GSTR_MAXSIZE 1024
 
-//#define FORCE_GENERIC 1
-// assme this is a modern cpu that has at least up through sse.
-#ifndef FORCE_GENERIC
-#define HAS_MMX 1           // Pentium, circa. 1997
-#define HAS_SSE 1           // P3, circa. 1999
-//#define HAS_SSE2 1        // P4, circa. 2000
-#define CACHE_LINE_64
-#endif
-
-
-//support libraries
 #include <stdint.h>
 #include <gmp.h>
 
@@ -92,8 +77,6 @@ typedef struct
     
 
 } yafu_obj_t;
-
-uint64_t LCG_STATE;
 
 extern void yafu_init(yafu_obj_t* yobj);
 extern void yafu_finalize(yafu_obj_t* yobj);

@@ -122,10 +122,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	if (sign > 0)
 	{
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -313,12 +309,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16_t)(prime - root1);
 			}
 		}
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
 
 		bound_index = 0;
 		bound_val = med_B;
@@ -668,12 +658,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-			
 		
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[large_B-1];
@@ -1000,20 +984,9 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
-
 	}
 	else
 	{
-
-#ifdef QS_TIMING
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
 		for (j=startprime;j<sconf->sieve_small_fb_start;j++,ptr++)
 		{
 			prime = update_data.prime[j];
@@ -1200,12 +1173,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 				fb_n->root2[j] = (uint16_t)(prime - root1);
 			}
 		}	
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
 
 		bound_index = 0;
 		bound_val = med_B;
@@ -1551,14 +1518,7 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		}
 
 #endif
-
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG3 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
-		gettimeofday(&qs_timing_start, NULL);
-#endif
-
-		
+	
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
 		logp = update_data.logp[large_B-1];
 		
@@ -1883,11 +1843,6 @@ void nextRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
-#ifdef QS_TIMING
-		gettimeofday (&qs_timing_stop, NULL);
-        POLY_STG4 +=  ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
-
 	}
 
 	if (lp_bucket_p->list != NULL)
@@ -1958,10 +1913,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     if (sign > 0)
     {
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
@@ -2120,12 +2071,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
         }
 
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         bound_index = 0;
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC / 2;
@@ -2211,13 +2156,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
 
 #endif
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
 
 #if defined(D_HAS_SSE2)
 
@@ -2309,20 +2247,9 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
-
     }
     else
     {
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         for (j = startprime; j<sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
@@ -2481,12 +2408,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
             }
         }
 
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         bound_index = 0;
         bound_val = med_B;
         check_bound = med_B + BUCKET_ALLOC / 2;
@@ -2576,14 +2497,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #endif
 
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
-
-
 #if defined(D_HAS_SSE2)
 
         logp = update_data.logp[j - 1];
@@ -2672,11 +2585,6 @@ void nextRoots_32k_generic(static_conf_t *sconf, dynamic_conf_t *dconf)
             FILL_ONE_PRIME_N(j);
         }
 
-#endif
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
 
     }

@@ -72,7 +72,7 @@ uint64_t siqs_nump;
 uint64_t siqs_minp;
 uint64_t siqs_maxp;
 static int siqs_primes_initialized = 0;
-
+static int SIQS_ABORT;
 
 void siqs_start(void *vptr)
 {
@@ -512,6 +512,19 @@ void siqs_dispatch(void *vptr)
     return;
 }
 
+void siqsexit(int sig)
+{
+    if (SIQS_ABORT == 1)
+    {
+        exit(1);
+    }
+    printf("\nAborting... threads will finish their current poly\n");
+    printf("Press Ctrl-C again to exit immediately and lose in-progress data\n");
+    SIQS_ABORT = 1;
+    return;
+}
+
+
 void SIQS(fact_obj_t *fobj)
 {
 	// the input fobj->N and this 'n' are pointers to memory which holds
@@ -676,9 +689,6 @@ void SIQS(fact_obj_t *fobj)
 	// pointer to the function to call if we see a user interrupt
 	SIQS_ABORT = 0;
 	signal(SIGINT, siqsexit);
-
-	// initialize global offset for savefile buffer
-	savefile_buf_off = 0;
 
 	// start a counter for the whole job
 	gettimeofday(&static_conf->totaltime_start, NULL);
@@ -2714,34 +2724,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	closnuf += (uint8_t)(log((double)sconf->sieve_interval/2)/log(2.0));
 	closnuf -= (uint8_t)(sconf->fudge_factor * log(sconf->large_prime_max) / log(2.0));
 
-#ifdef QS_TIMING
-	printf("%d primes not sieved in SPV\n",sconf->sieve_small_fb_start);
-	printf("%d primes in small_B range\n",
-		sconf->factor_base->med_B - sconf->sieve_small_fb_start);
-	printf("%d primes in med_B range\n",
-		sconf->factor_base->large_B - sconf->factor_base->med_B);
-	printf("%d primes in large_B range\n",
-		sconf->factor_base->B - sconf->factor_base->large_B);
-	printf("detailing QS timing profiling enabled\n");
-
-	TF_STG1 = 0;
-	TF_STG2 = 0;
-	TF_STG3 = 0;
-	TF_STG4 = 0;
-	TF_STG5 = 0;
-	TF_STG6 = 0;
-	TF_SPECIAL = 0;
-	SIEVE_STG1 = 0;
-	SIEVE_STG2 = 0;
-	POLY_STG0 = 0;
-	POLY_STG1 = 0;
-	POLY_STG2 = 0;
-	POLY_STG3 = 0;
-	POLY_STG4 = 0;
-	COUNT = 0;
-
-#endif
-
 	// contribution of all small primes we're skipping to a block's
 	// worth of sieving... compute the average per sieve location
 	sum = 0;
@@ -3804,51 +3786,6 @@ int update_final(static_conf_t *sconf)
 			}
 		}
 
-#ifdef QS_TIMING
-
-		printf("sieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
-			SIEVE_STG1+SIEVE_STG2,
-			TF_STG1+TF_STG2+TF_STG3+TF_STG4+TF_STG5+TF_STG6,
-			POLY_STG0+POLY_STG1+POLY_STG2+POLY_STG3+POLY_STG4);
-
-		if (sieve_log != NULL)
-			logprint(sieve_log,"sieve time = %6.4f, relation time = %6.4f, poly_time = %6.4f\n",
-				SIEVE_STG1+SIEVE_STG2,
-				TF_STG1+TF_STG2+TF_STG3+TF_STG4+TF_STG5+TF_STG6,
-				POLY_STG0+POLY_STG1+POLY_STG2+POLY_STG3+POLY_STG4);
-
-		printf("timing for SPV check = %1.3f\n",TF_STG1);
-		printf("timing for small prime trial division = %1.3f\n",TF_STG2);
-		printf("timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
-		printf("timing for medium prime resieving test = %1.3f\n",TF_SPECIAL);
-		printf("timing for large prime trial division = %1.3f\n",TF_STG5);
-		printf("timing for LP splitting + buffering = %1.3f\n",TF_STG6);
-		printf("timing for poly a generation = %1.3f\n",POLY_STG0);
-		printf("timing for poly roots init = %1.3f\n",POLY_STG1);
-		printf("timing for poly update small primes = %1.3f\n",POLY_STG2);
-		printf("timing for poly sieve medium primes = %1.3f\n",POLY_STG3);
-		printf("timing for poly sieve large primes = %1.3f\n",POLY_STG4);
-		printf("timing for sieving small/medium primes = %1.3f\n",SIEVE_STG1);
-		printf("timing for sieving large primes = %1.3f\n",SIEVE_STG2);
-
-		if (sieve_log != NULL)
-		{
-			logprint(sieve_log,"timing for SPV check = %1.3f\n",TF_STG1);
-			logprint(sieve_log,"timing for small prime trial division = %1.3f\n",TF_STG2);
-			logprint(sieve_log,"timing for medium prime trial division = %1.3f\n",TF_STG3+TF_STG4);
-			logprint(sieve_log,"timing for large prime trial division = %1.3f\n",TF_STG5);
-			logprint(sieve_log,"timing for LP splitting + buffering = %1.3f\n",TF_STG6);
-			logprint(sieve_log,"timing for poly a generation = %1.3f\n",POLY_STG0);
-			logprint(sieve_log,"timing for poly roots init = %1.3f\n",POLY_STG1);
-			logprint(sieve_log,"timing for poly update small primes = %1.3f\n",POLY_STG2);
-			logprint(sieve_log,"timing for poly sieve medium primes = %1.3f\n",POLY_STG3);
-			logprint(sieve_log,"timing for poly sieve large primes = %1.3f\n",POLY_STG4);
-			logprint(sieve_log,"timing for sieving small/medium primes = %1.3f\n",SIEVE_STG1);
-			logprint(sieve_log,"timing for sieving large primes = %1.3f\n",SIEVE_STG2);
-		}
-		
-		
-#endif
 		fflush(stdout);
 		fflush(stderr);
 	}

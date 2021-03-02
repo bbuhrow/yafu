@@ -22,6 +22,7 @@ code to the public domain.
 #include "common.h"
 #include "ytools.h"
 #include <gmp.h>
+#include <math.h>
 #include "soe.h"
 
 #define DEFINED 1

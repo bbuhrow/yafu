@@ -513,10 +513,6 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
 #endif
 
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
-
 	fb_offsets = &dconf->fb_offsets[report_num][0];
 	smooth_num = dconf->smooth_num[report_num];
 	block_loc = dconf->reports[report_num];
@@ -1014,11 +1010,6 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 
 	SCAN_CLEAN;
 
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG5 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
-
 	dconf->smooth_num[report_num] = smooth_num;
 
 	return;
@@ -1040,10 +1031,6 @@ void tdiv_LP_2x(uint32_t *report_num, uint8_t parity, uint32_t bnum,
     uint16_t buffer[32];
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
     __m512i vmask, vblock;
-#endif
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
 #endif
 
     fb_offsets = &dconf->fb_offsets[report_num][0];
@@ -1108,11 +1095,6 @@ void tdiv_LP_2x(uint32_t *report_num, uint8_t parity, uint32_t bnum,
         bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
         basebucket += (sconf->num_blocks << 1);
     }
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG5 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 
     dconf->smooth_num[report_num] = smooth_num;
 

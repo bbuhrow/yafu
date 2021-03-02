@@ -2,5 +2,7 @@
 
 #include "factor.h"
 
-void factor(fact_obj_t* fobj);
+
+extern void test_dlp_composites();
+extern void factor(fact_obj_t* fobj);
 

@@ -305,11 +305,6 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
 
 #endif
 
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG2 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
-
 	return;
 }
 
