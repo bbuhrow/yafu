@@ -547,16 +547,6 @@ typedef struct {
     dynamic_conf_t* dconf;
 } thread_sievedata_t;
 
-// used in multiplier selection
-#define NUM_TEST_PRIMES 300
-#define NUM_MULTIPLIERS (sizeof(mult_list)/sizeof(uint8_t))
-
-static const uint8_t mult_list[] =
-{ 1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19,
- 21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38,
- 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
- 61, 62, 65, 66, 67, 69, 70, 71, 73 };
-
 // sieving
 void med_sieveblock_32k(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);

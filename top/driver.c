@@ -296,8 +296,6 @@ int main(int argc, char *argv[])
 	//g_rand.low = 123;
     srand((unsigned int)options->rand_seed);
 
-    test_dlp_composites();
-
 	// command line
 	while (1)
 	{		

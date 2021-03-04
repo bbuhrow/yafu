@@ -4050,6 +4050,16 @@ int free_siqs(static_conf_t *sconf)
 	return 0;
 }
 
+// used in multiplier selection
+#define NUM_TEST_PRIMES 300
+#define NUM_MULTIPLIERS (sizeof(mult_list)/sizeof(uint8_t))
+
+static const uint8_t mult_list[] =
+{ 1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19,
+ 21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38,
+ 39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
+ 61, 62, 65, 66, 67, 69, 70, 71, 73 };
+
 uint8_t choose_multiplier_siqs(uint32_t B, mpz_t n) 
 {
 	uint32_t i, j;

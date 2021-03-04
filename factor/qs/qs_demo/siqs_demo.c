@@ -575,16 +575,6 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
 	return;
 }
 
-void yafu_set_idle_priority(void) {
-
-#if defined(WIN32) || defined(_WIN64)
-	SetPriorityClass(GetCurrentProcess(),
-			IDLE_PRIORITY_CLASS);
-#else
-	nice(100);
-#endif
-}
-
 void siqs_init(siqs_obj_t* yobj)
 {
     yobj->VFLAG = 0;
