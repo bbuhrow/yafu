@@ -97,7 +97,7 @@ typedef struct {
 
 /*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/
 
-void add_to_factor_list(yfactor_list_t* factors, mpz_t n,
+int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
 void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES);
 void clear_factor_list(yfactor_list_t* fobj);
@@ -154,7 +154,7 @@ typedef struct
 	int stg2_is_default;
 	int curves_run;
 	uint32_t num_curves;
-	uint32_t sigma;				//sigma value of successful curve
+	uint64_t sigma;				//sigma value of successful curve
 	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
 	uint64_t ecm_ext_xover;

@@ -36,6 +36,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->num_threads = 1;
     strcpy(fobj->flogname, "factor.log");
     fobj->do_logging = 1;   // not used...
+    fobj->LOGFLAG = 1;
+    fobj->NUM_WITNESSES = 1;
 
     // get space for everything
     alloc_factobj(fobj);
@@ -72,7 +74,6 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.ecm_tune_freq = 0;
     fobj->ecm_obj.bail_on_factor = 1;
     fobj->ecm_obj.save_b1 = 0;
-
 
     // unlike ggnfs, ecm does not *require* external binaries.  
     // an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -261,7 +262,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
-    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(fobj->num_threads * sizeof(uint64_t));
+    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(1 * sizeof(uint64_t));
 
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);
@@ -302,9 +303,10 @@ void reset_factobj(fact_obj_t *fobj)
 	return;
 }
 
-void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
+int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNESSES)
 {
-	//stick the number n into the provided factor list
+	// stick the number n into the provided factor list.
+    // return the index into which the factor was added.
 	int i;
     int fid;
 	int found = 0, v = 0;
@@ -316,7 +318,7 @@ void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNE
         {
             found = 1;
             flist->factors[i].count++;
-            return;
+            return i;
         }
     }
 
@@ -373,7 +375,7 @@ void add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNE
         flist->factors[fid].type = COMPOSITE;
 
     flist->num_factors++;
-	return;
+	return fid;
 }
 
 void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)

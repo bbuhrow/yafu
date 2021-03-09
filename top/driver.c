@@ -1319,6 +1319,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->ecm_obj.save_b1 = options->saveB1;
     fobj->ecm_obj.rand_seed1 = fobj->seed1;
     fobj->ecm_obj.rand_seed2 = fobj->seed2;
+    fobj->ecm_obj.lcg_state = (uint64_t*)xrealloc(fobj->ecm_obj.lcg_state,
+        options->threads * sizeof(uint64_t));
     for (i = 0; i < (int)options->threads; i++)
     {
         fobj->ecm_obj.lcg_state[i] =

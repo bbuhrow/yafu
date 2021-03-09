@@ -69,9 +69,16 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c);
 void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64_t sigma);
 void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t X2, mpz_t Z2, 
     mpz_t A, uint64_t sigma);
-void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, base_t *primes, int verbose);
-void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose);
-void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose);
+void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, 
+    base_t b1, base_t *primes, base_t nump, int verbose);
+int vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, int verbose);
+//void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose);
+void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* pairmap_u,
+    ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbose);
+uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
+    ecm_work* work, Queue_t** Q, uint32_t* Qrmap, uint32_t* Qmap,
+    uint64_t* primes, uint64_t nump, uint64_t B1, uint64_t B2, int verbose);
+
 int vec_check_factor(mpz_t Z, mpz_t n, mpz_t f);
 
 // GMP-ECM batch stage1
@@ -96,12 +103,6 @@ uint32_t spRandp(uint64_t * lcg_state, uint32_t lower, uint32_t upper)
     return lower + (uint32_t)(
         (double)(upper - lower) * (double)(*lcg_state >> 32) * INV_2_POW_32);
 }
-
-static uint64_t* ecm_primes;
-static uint64_t ecm_nump;
-static uint64_t ecm_minp;
-static uint64_t ecm_maxp;
-static int ecm_primes_initialized = 0;
 
 // a map of the 479 integers relatively prime to 2310. plus 0, 1, and 2310.
 // The map maps into the Pb array of stored elliptic delta points: [d]Q.
@@ -963,7 +964,8 @@ void vec_ecm_stage1_work_fcn(void *vptr)
     uint32_t tid = tpdata->tindex;
 
     vec_ecm_stage1(udata[tid].mdata, udata[tid].work, udata[tid].P, 
-        udata[tid].b1, NULL, udata[tid].verbose && (tid == 0));
+        udata[tid].b1, udata[tid].primes, udata[tid].nump, 
+        udata[tid].verbose && (tid == 0));
 
     return;
 }
@@ -974,8 +976,7 @@ void vec_ecm_stage2_init_work_fcn(void *vptr)
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
     uint32_t tid = tpdata->tindex;
 
-    vec_ecm_stage2_init(udata[tid].P, udata[tid].mdata, 
-        udata[tid].work, NULL, udata[tid].verbose && (tid == 0));
+    vec_ecm_stage2_init(udata[tid].P, udata[tid].mdata, udata[tid].work, tid == 0);
 
     return;
 }
@@ -986,8 +987,9 @@ void vec_ecm_stage2_work_fcn(void *vptr)
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
     uint32_t tid = tpdata->tindex;
 
-    vec_ecm_stage2_pair(udata[tid].P, udata[tid].mdata,
-        udata[tid].work, NULL, udata[tid].verbose && (tid == 0));
+    vec_ecm_stage2_pair(udata[tid].pairmap_steps, udata[tid].pairmap_v, udata[tid].pairmap_u,
+        udata[tid].P, udata[tid].mdata, udata[tid].work, tid == 0);
+    udata[tid].work->last_pid = udata[tid].nump;
 
     return;
 }
@@ -1025,7 +1027,7 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
         insert_mpz_to_vec(tdata[tid].work->s, A, i);
 #else
         // 8689346476060549ULL
-        vec_build_one_curve(&tdata[tid], X, Z, A, 0); // 6710676431370252287 + i);
+        vec_build_one_curve(&tdata[tid], X, Z, A, tdata[tid].sigma[i]); // 6710676431370252287 + i);
 
         insert_mpz_to_vec(tdata[tid].P->X, X, i);
         insert_mpz_to_vec(tdata[tid].P->Z, Z, i);
@@ -1063,193 +1065,151 @@ void vec_ecm_build_curve_work_fcn(void *vptr)
     return;
 }
 
-void vec_ecm_work_init(ecm_work *work)
+void vec_ecm_work_init(ecm_work* work)
 {
-	int i, j, m, sz = 4 * VECLEN * NWORDS;
-	uint32_t U = work->U;
-	uint32_t L = work->L;
-	uint32_t D = work->D;
-	uint32_t R = work->R;
+    int i, j, m;
+    uint32_t U = work->U;
+    uint32_t L = work->L;
+    uint32_t D = work->D;
+    uint32_t R = work->R;
 
-	work->stg1Add = 0;
-	work->stg1Doub = 0;
+    work->ptadds = 0;
+    work->ptdups = 0;
+    work->numinv = 0;
+    work->numprimes = 0;
+    work->paired = 0;
 
-	work->diff1 = vecInit();
-	work->diff2 = vecInit();
-	work->sum1 = vecInit();
-	work->sum2 = vecInit();
-	work->tt1 = vecInit();
-	work->tt2 = vecInit();
-	work->tt3 = vecInit();
-	work->tt4 = vecInit();
-	work->tt5 = vecInit();
-	work->s = vecInit();
-	work->n = vecInit();
+    work->diff1 = vecInit();
+    work->diff2 = vecInit();
+    work->sum1 = vecInit();
+    work->sum2 = vecInit();
+    work->tt1 = vecInit();
+    work->tt2 = vecInit();
+    work->tt3 = vecInit();
+    work->tt4 = vecInit();
+    work->tt5 = vecInit();
+    work->s = vecInit();
+    work->n = vecInit();
 
-	work->Paprod = (vec_bignum_t **)malloc((2 * L) * sizeof(vec_bignum_t *));
-	work->Pa = (ecm_pt *)malloc((2 * L) * sizeof(ecm_pt));
-	for (j = 0; j < (2 * L); j++)
-	{
-		work->Paprod[j] = vecInit();
-		vec_ecm_pt_init(&work->Pa[j]);
-	}
+    work->Paprod = (vec_bignum_t **)malloc((2 * L) * sizeof(vec_bignum_t*));
+    work->Pa_inv = (vec_bignum_t **)malloc((2 * L) * sizeof(vec_bignum_t*));
+    work->Pa = (ecm_pt*)malloc((2 * L) * sizeof(ecm_pt));
+    for (j = 0; j < (2 * L); j++)
+    {
+        work->Paprod[j] = vecInit();
+        work->Pa_inv[j] = vecInit();
+        vec_ecm_pt_init(&work->Pa[j]);
+    }
 
-	work->Pad = (ecm_pt *)malloc(sizeof(ecm_pt));
+    work->Pad = (ecm_pt*)malloc(sizeof(ecm_pt));
     vec_ecm_pt_init(work->Pad);
 
-	// build an array to hold values of f(b).
-	// will need to be of size U*R, allowed values will be
-	// up to a multiple of U of the residues mod D
-	work->Pb = (ecm_pt *)malloc(U * (R + 1) * sizeof(ecm_pt));
-	work->Pbprod = (vec_bignum_t **)malloc(U * (R + 1) * sizeof(vec_bignum_t *));
-	for (j = 0; j < U * (R + 1); j++)
-	{
+    work->Pdnorm = (ecm_pt*)malloc(sizeof(ecm_pt));
+    vec_ecm_pt_init(work->Pdnorm);
+
+    // build an array to hold values of f(b).
+    // will need to be of size U*R, allowed values will be
+    // up to a multiple of U of the residues mod D
+    work->Pb = (ecm_pt*)malloc(U * (R + 1) * sizeof(ecm_pt));
+    work->Pbprod = (vec_bignum_t **)malloc(U * (R + 1) * sizeof(vec_bignum_t*));
+    for (j = 0; j < U * (R + 1); j++)
+    {
         vec_ecm_pt_init(&work->Pb[j]);
-		work->Pbprod[j] = vecInit();
-	}
+        work->Pbprod[j] = vecInit();
+    }
 
-	work->marks = (uint8_t *)malloc(2 * U * D * sizeof(uint8_t));
-	work->nmarks = (uint8_t *)malloc(U * D * sizeof(uint8_t));
-	work->map = (uint32_t *)calloc(U * (D + 1) + 3, sizeof(uint32_t));
+    work->map = (uint32_t*)calloc(U * (D + 1) + 3, sizeof(uint32_t));
 
-	work->map[0] = 0;
-	work->map[1] = 1;
-	work->map[2] = 2;
-	m = 3;
-	for (i = 0; i < U; i++)
-	{
-		if (i == 0)
-			j = 3;
-		else
-			j = 1;
+    work->map[0] = 0;
+    work->map[1] = 1;
+    work->map[2] = 2;
+    m = 3;
+    for (i = 0; i < U; i++)
+    {
+        if (i == 0)
+            j = 3;
+        else
+            j = 1;
 
-		for (; j < D; j++)
-		{
-			if (spGCD(j, D) == 1)
-			{
-				work->map[i*D + j] = m++;
-			}
-			else
-			{
-				work->map[i*D + j] = 0;
-			}
-		}
+        for (; j < D; j++)
+        {
+            if (spGCD(j, D) == 1)
+            {
+                work->map[i * D + j] = m++;
+            }
+            else
+            {
+                work->map[i * D + j] = 0;
+            }
+        }
 
-		if (i == 0)
-			work->map[i*D + j] = m++;
+        if (i == 0)
+            work->map[i * D + j] = m++;
 
-	}
+    }
 
-	work->Qmap = (uint32_t *)malloc(D * sizeof(uint32_t));
-	work->Qrmap = (uint32_t *)malloc(D * sizeof(uint32_t));
+    vec_ecm_pt_init(&work->pt1);
+    vec_ecm_pt_init(&work->pt2);
+    vec_ecm_pt_init(&work->pt3);
+    vec_ecm_pt_init(&work->pt4);
+    vec_ecm_pt_init(&work->pt5);
 
-	for (j = 0, i = 0; i < D; i++)
-	{
-		if (spGCD(i, D) == 1)
-		{
-			work->Qmap[i] = j;
-			work->Qrmap[j++] = i;
-		}
-		else
-		{
-			work->Qmap[i] = (uint32_t)-1;
-		}
-	}
+    work->stg2acc = vecInit();
 
-	for (i = j; i < D; i++)
-	{
-		work->Qrmap[i] = (uint32_t)-1;
-	}
-
-	work->Q = (Queue_t **)malloc(2 * j * sizeof(Queue_t *));
-	for (i = 0; i < 2 * j; i++)
-	{
-		work->Q[i] = newQueue(D, 0);
-	}
-
-
-	/*
-	j = 0;
-	printf("residue map of %u\n", D);
-	for (i = 0; i <= U * D; i++, j++)
-	{
-		printf("%u, ", work->map[i]);
-		if (j % 10 == 0)
-			printf("\n");
-	}
-	printf("\n");
-	*/
-
-	vec_ecm_pt_init(&work->pt1);
-	vec_ecm_pt_init(&work->pt2);
-	vec_ecm_pt_init(&work->pt3);
-	vec_ecm_pt_init(&work->pt4);
-	vec_ecm_pt_init(&work->pt5);
-
-	work->stg2acc = vecInit();
-
-	return;
+    return;
 }
 
-void vec_ecm_work_free(ecm_work *work)
+void vec_ecm_work_free(ecm_work* work)
 {
-	int i;
-	uint32_t U = work->U;
-	uint32_t L = work->L;
-	uint32_t D = work->D;
-	uint32_t R = work->R;
+    int i, j;
+    uint32_t U = work->U;
+    uint32_t L = work->L;
+    uint32_t D = work->D;
+    uint32_t R = work->R;
 
-	vecFree(work->diff1);
-	vecFree(work->diff2);
-	vecFree(work->sum1);
-	vecFree(work->sum2);
-	vecFree(work->tt1);
-	vecFree(work->tt2);
-	vecFree(work->tt3);
-	vecFree(work->tt4);
-	vecFree(work->tt5);
-	vecFree(work->s);
-	vecFree(work->n);
-	vec_ecm_pt_free(&work->pt1);
-	vec_ecm_pt_free(&work->pt2);
-	vec_ecm_pt_free(&work->pt3);
-	vec_ecm_pt_free(&work->pt4);
-	vec_ecm_pt_free(&work->pt5);
+    vecFree(work->diff1);
+    vecFree(work->diff2);
+    vecFree(work->sum1);
+    vecFree(work->sum2);
+    vecFree(work->tt1);
+    vecFree(work->tt2);
+    vecFree(work->tt3);
+    vecFree(work->tt4);
+    vecFree(work->tt5);
+    vecFree(work->s);
+    vecFree(work->n);
+    vec_ecm_pt_free(&work->pt1);
+    vec_ecm_pt_free(&work->pt2);
+    vec_ecm_pt_free(&work->pt3);
+    vec_ecm_pt_free(&work->pt4);
+    vec_ecm_pt_free(&work->pt5);
 
-	for (i = 0; i < (2 * L); i++)
-	{
-		vec_ecm_pt_free(&work->Pa[i]);
-		vecFree(work->Paprod[i]);
-	}
+    for (i = 0; i < (2 * L); i++)
+    {
+        vec_ecm_pt_free(&work->Pa[i]);
+        vecFree(work->Paprod[i]);
+        vecFree(work->Pa_inv[i]);
+    }
 
-	vec_ecm_pt_free(work->Pad);
-	free(work->Pa);
-	free(work->Pad);
-	free(work->marks);
-	free(work->nmarks);
-	free(work->map);
-	
-	for (i = 0; i < U * (R + 1); i++)
-	{
-		vec_ecm_pt_free(&work->Pb[i]);
-		vecFree(work->Pbprod[i]);
-	}
+    vec_ecm_pt_free(work->Pad);
+    vec_ecm_pt_free(work->Pdnorm);
+    free(work->Pa);
+    free(work->Pad);
+    free(work->Pdnorm);
+    free(work->map);
 
-	for (i = 0; i < 2 * (R - 3); i++)
-	{
-		clearQueue(work->Q[i]);
-		free(work->Q[i]);
-	}
-	free(work->Q);
-	free(work->Qmap);
-	free(work->Qrmap);
+    for (i = 0; i < U * (R + 1); i++)
+    {
+        vec_ecm_pt_free(&work->Pb[i]);
+        vecFree(work->Pbprod[i]);
+    }
 
-	free(work->Pbprod);
-	free(work->Paprod);
-	free(work->Pb);
-	vecFree(work->stg2acc);
+    free(work->Pbprod);
+    free(work->Paprod);
+    free(work->Pb);
+    vecFree(work->stg2acc);
 
-	return;
+    return;
 }
 
 void vec_ecm_pt_init(ecm_pt *pt)
@@ -2253,7 +2213,8 @@ void array_mul(uint64_t *primes, int num_p, mpz_t piprimes)
 	return;
 }
 
-void vececm(thread_data_t *tdata)
+#if 0 
+void vececm_old(thread_data_t *tdata)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -2800,6 +2761,598 @@ void vececm(thread_data_t *tdata)
     mpz_clear(tmp_factor);
 	return;
 }
+#endif
+
+void vececm(thread_data_t* tdata)
+{
+    //attempt to factor n with the elliptic curve method
+    //following brent and montgomery's papers, and CP's book
+    tpool_t* tpool_data;
+    uint32_t threads = tdata[0].total_threads;
+    base_t i, j;
+    int curve;
+    FILE* save;
+    char fname[80];
+    int found = 0;
+    int result;
+    uint64_t num_found;
+    vec_bignum_t* one = vecInit();
+    mpz_t gmpt, gmpn, tmp_factor;
+    // these track the range over which we currently have a prime list.
+    uint64_t rangemin;
+    uint64_t rangemax;
+    uint64_t sigma_in[VECLEN];
+    int verbose = tdata[0].verbose;
+
+    // timing variables
+    struct timeval stopt;	// stop time of this job
+    struct timeval startt;	// start time of this job
+    struct timeval fullstopt;	// stop time of this job
+    struct timeval fullstartt;	// start time of this job
+    double t_time;
+
+    // primes, allocated per-process
+    uint64_t* ecm_primes;
+    uint64_t ecm_nump;
+    uint64_t ecm_minp;
+    uint64_t ecm_maxp;
+
+    gettimeofday(&fullstartt, NULL);
+    mpz_init(gmpt);
+    mpz_init(gmpn);
+    mpz_init(tmp_factor);
+
+    // in this function, gmpn is only used to for screen output and to 
+    // check factors.  So if this is a Mersenne input, use the original
+    // input number.  (all math is still done relative to the base Mersenne.)
+    if (tdata[0].mdata->isMersenne == 0)
+    {
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->n, 0, NWORDS);
+    }
+    else
+    {
+        extract_bignum_from_vec_to_mpz(gmpn, tdata[0].mdata->vnhat, 0, NWORDS);
+    }
+
+    for (i = 0; i < VECLEN; i++)
+    {
+        one->data[i] = 1;
+    }
+    one->size = 1;
+
+
+    rangemin = 0;
+    rangemax = MIN(STAGE2_MAX + 1000, (uint64_t)PRIME_RANGE);
+
+    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+    ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+    ecm_minp = ecm_primes[0];
+    ecm_maxp = ecm_primes[ecm_nump - 1];
+
+    soe_finalize(sdata);
+
+    if (verbose > 0)
+        printf("ecm: found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+
+
+    tpool_data = tpool_setup(tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
+        &vec_ecm_dispatch, tdata);
+
+    tpool_add_work_fcn(tpool_data, &vec_ecm_build_curve_work_fcn);
+    tpool_add_work_fcn(tpool_data, &vec_ecm_stage1_work_fcn);
+    tpool_add_work_fcn(tpool_data, &vec_ecm_stage2_init_work_fcn);
+    tpool_add_work_fcn(tpool_data, &vec_ecm_stage2_work_fcn);
+
+    for (j = 0; j < VECLEN; j++)
+    {
+        sigma_in[j] = tdata[0].sigma[j];
+    }
+
+    for (curve = 0; curve < tdata[0].curves; curve += VECLEN)
+    {
+        uint64_t p;
+
+        // get a new batch of primes if:
+        // - the current range starts after B1
+        // - the current range ends after B1 AND the range isn't maximal length
+        if ((rangemin > STAGE1_MAX) ||
+            ((rangemax < STAGE1_MAX) && ((rangemax - rangemin) < PRIME_RANGE)))
+        {
+            rangemin = 0;
+            rangemax = MIN(STAGE2_MAX + 1000, (uint64_t)PRIME_RANGE);
+
+            soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+            if (ecm_primes != NULL) {
+                free(ecm_primes);
+            }
+            ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+            ecm_minp = ecm_primes[0];
+            ecm_maxp = ecm_primes[ecm_nump - 1];
+            soe_finalize(sdata);
+
+            printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+        }
+
+        gettimeofday(&startt, NULL);
+
+        // parallel curve building        
+        for (i = 0; i < threads; i++)
+        {
+            tdata[i].work->ptadds = 0;
+            tdata[i].work->ptdups = 0;
+            tdata[i].work->last_pid = 0;
+            tdata[i].phase_done = 0;
+            tdata[i].ecm_phase = 0;
+            tdata[i].primes = ecm_primes;
+            tdata[i].nump = ecm_nump;
+            tdata[i].minp = ecm_minp;
+            tdata[i].maxp = ecm_maxp;
+
+            for (j = 0; j < VECLEN; j++)
+            {
+                if (sigma_in[j] > 0)
+                {
+                    tdata[i].sigma[j] = sigma_in[j] + curve;
+                }
+                else
+                {
+                    tdata[i].sigma[j] = 0;
+                }
+            }
+        }
+        tpool_go(tpool_data);
+
+        gettimeofday(&stopt, NULL);
+        t_time = ytools_difftime(&startt, &stopt);
+        printf("\n");
+
+        printf("Commencing curves %d-%d of %u\n", threads * curve,
+            threads * (curve + VECLEN) - 1, threads * tdata[0].curves);
+
+        printf("Building curves took %1.4f seconds.\n", t_time);
+
+        // parallel stage 1
+        gettimeofday(&startt, NULL);
+
+        for (p = 0; p < STAGE1_MAX; p += PRIME_RANGE)
+        {
+            // get a new batch of primes if the current range ends
+            // before this new one starts
+            if (p >= rangemax)
+            {
+                rangemin = rangemax;
+                rangemax = MIN(STAGE2_MAX + 1000, rangemin + (uint64_t)PRIME_RANGE);
+
+                soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                if (ecm_primes != NULL) {
+                    free(ecm_primes);
+                }
+                ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+                ecm_minp = ecm_primes[0];
+                ecm_maxp = ecm_primes[ecm_nump - 1];
+                soe_finalize(sdata);
+
+                printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+            }
+
+            for (i = 0; i < threads; i++)
+            {
+                tdata[i].phase_done = 0;
+                tdata[i].ecm_phase = 1;
+                tdata[i].primes = ecm_primes;
+                tdata[i].nump = ecm_nump;
+                tdata[i].minp = ecm_minp;
+                tdata[i].maxp = ecm_maxp;
+            }
+
+            printf("Commencing Stage 1 @ prime %lu\n", ecm_minp);
+            tpool_go(tpool_data);
+
+#if 1
+            if (p < STAGE1_MAX)
+            {
+                // record results for this batch of primes
+                if (tdata[0].save_b1) // && (save_intermediate)
+                {
+                    sprintf(fname, "save_b1_intermediate.txt");
+                    save = fopen(fname, "a");
+                }
+
+                gettimeofday(&stopt, NULL);
+                t_time = ytools_difftime(&startt, &stopt);
+                if (verbose > 1)
+                    printf("Stage 1 current elapsed time is %1.4f seconds\n", t_time);
+
+                for (j = 0; j < threads; j++)
+                {
+
+                    // GMP-ECM wants X/Z.
+                    // or, equivalently, X and Z listed separately.
+                    vecmulmod_ptr(tdata[j].P->X, one, tdata[j].work->tt4, tdata[j].work->n,
+                        tdata[j].work->tt2, tdata[j].mdata);
+
+                    vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
+                        tdata[j].work->tt2, tdata[j].mdata);
+
+                    //print_vechexbignum(tdata[j].P->Z, "Z point\n");
+
+                    for (i = 0; i < VECLEN; i++)
+                    {
+                        extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+
+                        if (mpz_cmp_ui(gmpt, 0) == 0)
+                        {
+                            printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                        }
+
+                        result = vec_check_factor(gmpt, gmpn, tmp_factor);
+                        if (result == 1)
+                        {
+
+                            //FILE *out = fopen("ecm_results.txt", "a");
+
+                            if (verbose > 1)
+                            {
+                                gmp_printf("\nfound factor %Zd in stage 1 in thread %d, vec position %d, with sigma = ",
+                                    tmp_factor, j, i);
+                                printf("%"PRIu64"\n", tdata[j].sigma[i]);
+                            }
+
+                            //if (out != NULL)
+                            //{
+                            //	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
+                            //		"in thread %d, vec position %d, with sigma = ",
+                            //        tmp_factor, threads * curve + j * VECLEN + i, j, i);
+                            //    fprintf(out, "%"PRIu64"\n", tdata[j].sigma[i]);
+                            //	fclose(out);
+                            //}
+                            //
+                            //fflush(stdout);
+                            found = 1;
+
+                            if (tdata[j].numfactors == 0)
+                            {
+                                tdata[j].factors = (avx_ecm_factor_t*)malloc(1 * sizeof(avx_ecm_factor_t));
+                            }
+                            else
+                            {
+                                tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
+                                    (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                            }
+
+                            tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                            tdata[j].factors[tdata[j].numfactors].stg_id = 1;
+                            tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
+                            tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                            tdata[j].factors[tdata[j].numfactors].curve_id =
+                                (curve * threads) + (j * VECLEN) + i;
+                            mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
+                            mpz_set(tdata[j].factors[tdata[j].numfactors++].factor, tmp_factor);
+
+                            //gmp_printf("thread %d now has %d factors in stg1: %Zd\n",
+                            //    j, tdata[j].numfactors, tmp_factor);
+                        }
+
+                        if (tdata[0].save_b1)
+                        {
+                            fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
+                                tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
+                            gmp_fprintf(save, "N=0x%Zx; ", gmpn);
+
+                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
+                            gmp_fprintf(save, "X=0x%Zx; ", gmpt);
+
+                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt3, i, NWORDS);
+                            gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                        }
+                    }
+
+                }
+
+                if (tdata[0].save_b1)
+                {
+                    fclose(save);
+                }
+            }
+#endif
+        }
+
+        gettimeofday(&stopt, NULL);
+        t_time = ytools_difftime(&startt, &stopt);
+        printf("Stage 1 took %1.4f seconds\n", t_time);
+
+        // record results for this batch of primes
+        if (tdata[0].save_b1) // && (save_intermediate)
+        {
+            sprintf(fname, "save_b1.txt");
+            save = fopen(fname, "a");
+        }
+
+        for (j = 0; j < threads; j++)
+        {
+
+            // GMP-ECM wants X/Z.
+            // or, equivalently, X and Z listed separately.
+            vecmulmod_ptr(tdata[j].P->X, one, tdata[j].work->tt4, tdata[j].work->n,
+                tdata[j].work->tt2, tdata[j].mdata);
+
+            vecmulmod_ptr(tdata[j].P->Z, one, tdata[j].work->tt3, tdata[j].work->n,
+                tdata[j].work->tt2, tdata[j].mdata);
+
+            //print_vechexbignum(tdata[j].P->Z, "Z point\n");
+
+            for (i = 0; i < VECLEN; i++)
+            {
+                extract_bignum_from_vec_to_mpz(gmpt, tdata[j].P->Z, i, NWORDS);
+
+                if (mpz_cmp_ui(gmpt, 0) == 0)
+                {
+                    printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                }
+
+                result = vec_check_factor(gmpt, gmpn, tmp_factor);
+                if (result == 1)
+                {
+
+                    //FILE *out = fopen("ecm_results.txt", "a");
+
+                    if (verbose > 1)
+                    {
+                        gmp_printf("\nfound factor %Zd in stage 1 in thread %d, vec position %d, with sigma = ",
+                            tmp_factor, j, i);
+                        printf("%"PRIu64"\n", tdata[j].sigma[i]);
+                    }
+
+                    //if (out != NULL)
+                    //{
+                    //	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
+                    //		"in thread %d, vec position %d, with sigma = ",
+                    //        tmp_factor, threads * curve + j * VECLEN + i, j, i);
+                    //    fprintf(out, "%"PRIu64"\n", tdata[j].sigma[i]);
+                    //	fclose(out);
+                    //}
+                    //
+                    //fflush(stdout);
+                    found = 1;
+
+                    if (tdata[j].numfactors == 0)
+                    {
+                        tdata[j].factors = (avx_ecm_factor_t*)malloc(1 * sizeof(avx_ecm_factor_t));
+                    }
+                    else
+                    {
+                        tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
+                            (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                    }
+
+                    tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                    tdata[j].factors[tdata[j].numfactors].stg_id = 1;
+                    tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
+                    tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                    tdata[j].factors[tdata[j].numfactors].curve_id =
+                        (curve * threads) + (j * VECLEN) + i;
+                    mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
+                    mpz_set(tdata[j].factors[tdata[j].numfactors].factor, tmp_factor);
+
+                    tdata[j].numfactors++;
+                    //gmp_printf("thread %d now has %d factors in stg1: %Zd\n",
+                    //    j, tdata[j].numfactors, tmp_factor);
+                }
+
+                if (tdata[0].save_b1)
+                {
+                    fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
+                        tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
+                    gmp_fprintf(save, "N=0x%Zx; ", gmpn);
+
+                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
+                    gmp_fprintf(save, "X=0x%Zx; ", gmpt);
+
+                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt3, i, NWORDS);
+                    gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                }
+            }
+
+        }
+
+        if (tdata[0].save_b1)
+        {
+            fclose(save);
+        }
+
+        // always stop when a factor is found
+        //if (found)
+        //	break;
+
+        if (DO_STAGE2)
+        {
+            uint64_t last_p = ecm_primes[tdata[0].work->last_pid];
+
+            // parallel stage 2
+            gettimeofday(&startt, NULL);
+
+            // stage 2 parallel init
+            for (i = 0; i < threads; i++)
+            {
+                tdata[i].phase_done = 0;
+                tdata[i].ecm_phase = 2;
+            }
+            tpool_go(tpool_data);
+
+            for (i = 0; i < threads; i++)
+            {
+                if (tdata[i].work->last_pid == (uint32_t)(-1))
+                {
+                    // found a factor while initializing stage 2
+                    //printf("received factor from stage 2 init\n");
+                    //print_vechexbignum52(tdata[i].work->stg2acc, "stg2acc: ");
+                    last_p = STAGE2_MAX;
+                }
+            }
+
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            printf("Stage 2 Init took %1.4f seconds\n", t_time);
+
+            for (p = STAGE1_MAX; p < STAGE2_MAX; p += PRIME_RANGE)
+            {
+                // get a new batch of primes if the current range ends
+                // before this new one starts or if the range isn't large
+                // enough to cover the current step
+                // TODO: make the primes range and the pair generator line up
+                // in such a way that new ranges can pick up where the last
+                // left off, without recomputing 2 * L Pa's and re-inverting.
+                // it is not a large, or even a medium expense on typical B1/B2's,
+                // but is still wasteful.
+                if ((p >= rangemax) ||
+                    (rangemax < MIN(STAGE2_MAX, p + (uint64_t)PRIME_RANGE)))
+                {
+                    rangemin = p;
+                    rangemax = MIN(STAGE2_MAX + 1000, p + (uint64_t)PRIME_RANGE);
+
+                    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+                    if (ecm_primes != NULL) {
+                        free(ecm_primes);
+                    }
+                    ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
+                    ecm_minp = ecm_primes[0];
+                    ecm_maxp = ecm_primes[ecm_nump - 1];
+                    soe_finalize(sdata);
+
+                    for (i = 0; i < threads; i++)
+                    {
+                        tdata[i].work->last_pid = 1;
+                        tdata[i].primes = ecm_primes;
+                        tdata[i].nump = ecm_nump;
+                        tdata[i].minp = ecm_minp;
+                        tdata[i].maxp = ecm_maxp;
+                    }
+
+                    printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                }
+
+                tdata[0].pairmap_steps = pair(tdata[0].pairmap_v, tdata[0].pairmap_u,
+                    tdata[0].work, tdata[0].Q, tdata[0].Qrmap, tdata[0].Qmap,
+                    ecm_primes, ecm_nump, p, MIN(p + (uint64_t)PRIME_RANGE, STAGE2_MAX), 1);
+
+                for (i = 0; i < threads; i++)
+                {
+                    tdata[i].pairmap_steps = tdata[0].pairmap_steps;
+                    tdata[i].work->amin = tdata[0].work->amin;
+                    tdata[i].phase_done = 0;
+                    tdata[i].ecm_phase = 3;
+                }
+                tpool_go(tpool_data);
+                printf("\nlast amin: %u\n", tdata[0].work->amin);
+
+                if (tdata[0].work->last_pid == ecm_nump)
+                {
+                    // we ended at the last prime we cached.  Check if we
+                    // need to do more.  
+                    if (STAGE2_MAX == PRIME_RANGE)
+                        break;
+                    else
+                        last_p = ecm_maxp;
+                }
+                else
+                {
+                    last_p = ecm_primes[tdata[0].work->last_pid];
+                }
+            }
+
+            gettimeofday(&stopt, NULL);
+            t_time = ytools_difftime(&startt, &stopt);
+            if (verbose > 1)
+            {
+                printf("Stage 2 took %1.4f seconds\n", t_time);
+                printf("performed %u pt-adds, %u inversions, and %u pair-muls in stage 2\n",
+                    tdata[0].work->ptadds, tdata[0].work->numinv, tdata[0].work->paired);
+            }
+
+            for (j = 0; j < threads; j++)
+            {
+                for (i = 0; i < VECLEN; i++)
+                {
+                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->stg2acc, i, NWORDS);
+                    result = vec_check_factor(gmpt, gmpn, tmp_factor);
+
+                    if (mpz_cmp_ui(gmpt, 0) == 0)
+                    {
+                        printf("something failed: tid = %d, vec = %d has zero result\n", j, i);
+                    }
+
+                    if (result == 1)
+                    {
+                        //FILE *out = fopen("ecm_results.txt", "a");
+
+                        if (verbose > 1)
+                        {
+                            gmp_printf("\nfound factor %Zd in stage 2 in thread %d, vec position %d, with sigma = ",
+                                tmp_factor, j, i);
+                            printf("%"PRIu64"\n", tdata[j].sigma[i]);
+                        }
+
+                        //if (out != NULL)
+                        //{
+                        //	gmp_fprintf(out, "\nfound factor %Zd in stage 1 at curve %d, "
+                        //		"in thread %d, vec position %d, with sigma = ",
+                        //        tmp_factor, threads * curve + j * VECLEN + i, j, i);
+                        //    fprintf(out, "%"PRIu64"\n", tdata[j].sigma[i]);
+                        //	fclose(out);
+                        //}
+                        //
+                        //fflush(stdout);
+                        found = 1;
+
+                        if (tdata[j].numfactors == 0)
+                        {
+                            tdata[j].factors = (avx_ecm_factor_t*)malloc(1 * sizeof(avx_ecm_factor_t));
+                        }
+                        else
+                        {
+                            tdata[j].factors = (avx_ecm_factor_t*)realloc(tdata[j].factors,
+                                (tdata[j].numfactors + 1) * sizeof(avx_ecm_factor_t));
+                        }
+
+                        tdata[j].factors[tdata[j].numfactors].thread_id = j;
+                        tdata[j].factors[tdata[j].numfactors].stg_id = 2;
+                        tdata[j].factors[tdata[j].numfactors].sigma = tdata[j].sigma[i];
+                        tdata[j].factors[tdata[j].numfactors].vec_id = i;
+                        tdata[j].factors[tdata[j].numfactors].curve_id =
+                            (curve * threads) + (j * VECLEN) + i;
+                        mpz_init(tdata[j].factors[tdata[j].numfactors].factor);
+                        mpz_set(tdata[j].factors[tdata[j].numfactors].factor, tmp_factor);
+
+                        tdata[j].numfactors++;
+                        //gmp_printf("thread %d now has %d factors in stg2: %Zd\n", 
+                        //    j, tdata[j].numfactors, tmp_factor);
+                    }
+                }
+            }
+        }
+
+        if (verbose >= 0)
+        {
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+                (curve + VECLEN) * threads, tdata[0].curves * threads,
+                (int)gmp_base10(gmpn), STAGE1_MAX);
+        }
+
+        if (found)
+            break;
+
+    }
+
+    gettimeofday(&fullstopt, NULL);
+    t_time = ytools_difftime(&fullstartt, &fullstopt);
+    printf("Process took %1.4f seconds.\n", t_time);
+
+    vecClear(one);
+    mpz_clear(gmpn);
+    mpz_clear(gmpt);
+    mpz_clear(tmp_factor);
+    return;
+}
 
 //#define PRINT_DEBUG
 
@@ -3207,7 +3760,8 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
 }
 
 //#define TESTMUL
-void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, base_t *primes, int verbose)
+void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, 
+    base_t b1, base_t *primes, base_t nump, int verbose)
 {
 	int i;
 	uint64_t q;
@@ -3245,11 +3799,11 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
 		q *= 2;
 	}
 
-	for (i = 1; (i < ecm_nump) && ((uint32_t)ecm_primes[i] < STAGE1_MAX); i++)
+	for (i = 1; (i < nump) && ((uint32_t)primes[i] < STAGE1_MAX); i++)
 	{
 		uint64_t c = 1;
 	
-		q = ecm_primes[i];
+		q = primes[i];
 		do {
 			vec_prac(mdata, work, P, q);
 			c *= q;
@@ -3271,13 +3825,14 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, base_t b1, ba
     if (verbose > 1)
 	{
 		printf("\nStage 1 completed at prime %lu with %u point-adds and %u point-doubles\n", 
-			ecm_primes[i-1], work->stg1Add, work->stg1Doub);
+			primes[i-1], work->stg1Add, work->stg1Doub);
 		fflush(stdout);
 	}
 	return;
 }
 
-void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose)
+#if 0
+void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose)
 {
 	// run Montgomery's PAIR algorithm.  
 	uint32_t D = work->D;
@@ -3470,6 +4025,7 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 
 	return;
 }
+#endif
 
 // batch inversions:
 // From: H. Shacham and D. Boneh, "Improving SSL Handshake Performance via Batching"
@@ -3499,533 +4055,1058 @@ void vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 // does the final accumulation then need another inversion?
 
 
+#define CROSS_PRODUCT_INV \
+    vecsubmod_ptr(work->Pa_inv[pa], Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
+    vecmulmod_ptr(acc, work->tt1, acc, work->n, work->tt4, mdata);        
 
-// _TEST
-#define CROSS_PRODUCT_TEST \
-vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
-vecmulmod_ptr(acc, work->tt1, acc, work->n, work->tt4, mdata);        
-
-// pre-computing the sum/diff multiplies is not efficient - many
-// of the sum/diff product combinations will never be used
 #define CROSS_PRODUCT \
-vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
-vecaddmod_ptr(Pa[pa].Z, Pb[rprime_map_U[pb]].Z, work->tt2, mdata);          \
-vecmulmod_ptr(work->tt1, work->tt2, work->tt3, work->n, work->tt4, mdata);    \
-vecaddmod_ptr(work->tt3, Pbprod[rprime_map_U[pb]], work->tt1, mdata);       \
-vecsubmod_ptr(work->tt1, Paprod[pa], work->tt2, mdata);                     \
-vecmulmod_ptr(acc, work->tt2, acc, work->n, work->tt4, mdata);                
+    vecsubmod_ptr(Pa[pa].X, Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \
+    vecaddmod_ptr(Pa[pa].Z, Pb[rprime_map_U[pb]].Z, work->tt2, mdata);          \
+    vecmulmod_ptr(work->tt1, work->tt2, work->tt3, work->n, work->tt4, mdata);    \
+    vecaddmod_ptr(work->tt3, Pbprod[rprime_map_U[pb]], work->tt1, mdata);       \
+    vecsubmod_ptr(work->tt1, Paprod[pa], work->tt2, mdata);                     \
+    vecmulmod_ptr(acc, work->tt2, acc, work->n, work->tt4, mdata);      
 
-
-void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose)
+int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
+    vec_bignum_t** tmp_vec, vec_monty_t* mdata, ecm_work* work, int num)
 {
-	// run Montgomery's PAIR algorithm.  
-	uint32_t D = work->D;
-	uint32_t R = work->R;
-	uint32_t w = D;
-	uint32_t U = work->U;
-	uint32_t L = work->L;
-	uint32_t umax = U * w;
-	int i, j, k, pid;
-	Queue_t **Q = work->Q;
-	uint32_t ainc = 2 * D;
-	uint32_t ascale = 2 * D;
-	uint32_t amin = work->amin;
-	uint64_t s;
-	uint32_t a;
-	uint32_t *map = work->Qmap;
-	uint32_t *rmap = work->Qrmap;
-	uint32_t numR = R - 3;
-	uint32_t u, ap;
-	int q, mq;
-	int debug = 0;
+    vec_bignum_t** B;
+    vec_bignum_t** A = tmp_vec;
+    int i;
+    int j;
+    int inverr;
+    int foundDuringInv = 0;
 
-	uint32_t *rprime_map_U = work->map;
-	ecm_pt *Pa = work->Pa;
-	vec_bignum_t **Paprod = work->Paprod;
-	vec_bignum_t **Pbprod = work->Pbprod;
-	ecm_pt *Pb = work->Pb;
-	ecm_pt *Pd = &Pb[rprime_map_U[w]];
-	vec_bignum_t *acc = work->stg2acc;
-    uint32_t aranges = 0;
+    mpz_t gmptmp, gmptmp2, gmpn;
+    mpz_init(gmptmp);
+    mpz_init(gmptmp2);
+    mpz_init(gmpn);
 
-	if (verbose > 1)
-		printf("\n");
+    work->numinv++;
 
-	pid = work->last_pid;
-    if (verbose > 1)
-	{
-		printf("commencing stage 2 at p=%lu, A=%u\n"
-			"w = %u, R = %u, L = %u, umax = %u, amin = %u\n",
-            ecm_primes[pid], amin * ascale, w, numR, L, umax, amin);
-	}
+    // here, we have temporary space for B, A is put into the unused Pbprod, and C is Pb.Z.
+    // faster batch inversion in three phases, as follows:
+    // first, set A1 = z1 and Ai = zi * A(i-1) so that Ai = prod(j=1,i,zj).
+    vecCopy(pts_to_Zinvert[1].Z, A[1]);
+    for (i = 2; i < num; i++)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
+    }
 
-	while ((pid < ecm_nump) && (ecm_primes[pid] < STAGE2_MAX))
-	{
-		work->numprimes++;
+    B = (vec_bignum_t **)malloc(num * sizeof(vec_bignum_t*));
 
-		s = ecm_primes[pid++];
-		a = (s + w) / ascale;
+    for (j = 0; j < num; j++)
+    {
+        B[j] = vecInit();
+    }
 
-		if ((verbose > 1) && ((pid & 32767) == 0))
-		{
-			printf("accumulating prime %lu\r", ecm_primes[pid]);
-			fflush(stdout);
-		}
+    // now we have to take An out of monty rep so we can invert it.
+    if (mdata->isMersenne == 0)
+    {
+        vecClear(work->tt1);
+        for (j = 0; j < VECLEN; j++)
+        {
+            work->tt1->data[j] = 1;
+        }
+        work->tt1->size = 1;
+        vecmulmod_ptr(A[num - 1], work->tt1, B[num - 1], work->n, work->tt4, mdata);
+    }
+    else
+    {
+        vecCopy(A[num - 1], B[num - 1]);
+    }
 
-		// new range of a
-		while (a >= (amin + L))
-		{
-			uint32_t oldmin = amin;
+    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, NWORDS);
+    for (j = 0; j < VECLEN; j++)
+    {
+        // extract this vec position so we can use mpz_invert.
+        extract_bignum_from_vec_to_mpz(gmptmp, B[num - 1], j, NWORDS);
 
-			amin = amin + L - U;
-			
-			if (verbose & (debug == 2))
-				printf("dumping tables from %u to %u\n", oldmin, amin-1); fflush(stdout);
+        // invert it
+        inverr = mpz_invert(gmptmp2, gmptmp, gmpn);
 
-			for (i = 0; i < numR; i++)
-			{
-				while (Q[i]->len > 0)
-				{
-					if (peekqueue(Q[i]) < amin)
-					{
-						//printf("(%u,%u)\n", (2 * dequeue(Q[i])), rmap[numR - i - 1]);
-						int pa = dequeue(Q[i]) - oldmin;
-						int pb = rmap[numR - i - 1];
+        if (inverr == 0)
+        {
+            //extract_bignum_from_vec_to_mpz(gmptmp, work->tt2, j, NWORDS);
+            //printf("inversion error\n");
+            //gmp_printf("tried to invert %Zd mod %Zd in stage2init Pb\n", gmptmp, gmpn);
+            mpz_gcd(gmptmp, gmptmp, gmpn);
+            //gmp_printf("the GCD is %Zd\n", gmptmp);
+            int k;
+            for (k = 0; k < NWORDS; k++)
+                work->stg2acc->data[k * VECLEN + j] = 0;
+            insert_mpz_to_vec(work->stg2acc, gmptmp, j);
+            foundDuringInv = 1;
+        }
 
-						if (verbose & debug) {
-							if (((((oldmin + pa) * ascale) + pb) == 3266117) ||
-								((((oldmin + pa) * ascale) - pb) == 3266117))
-							{
-								printf("5: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("u = %d\n", u);
-								printf("amin = %d\n", amin);
-							}
-						}
+        if (mdata->isMersenne == 0)
+        {
+            // now put it back into Monty rep.
+            mpz_mul_2exp(gmptmp2, gmptmp2, MAXBITS);
+            mpz_tdiv_r(gmptmp2, gmptmp2, gmpn);
+        }
 
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-                        CROSS_PRODUCT;
+        // and stuff it back in the vector.
+        insert_mpz_to_vec(B[num - 1], gmptmp2, j);
+    }
 
-						work->paired++;
-					}
-					else
-					{
-						break;
-					}
-				}
-			}
+    //if (doneIfFoundDuringInv && foundDuringInv)
+    //{
+    //    work->last_pid = -1;
+    //
+    //    mpz_clear(gmptmp);
+    //    mpz_clear(gmptmp2);
+    //    mpz_clear(gmpn);
+    //
+    //    return;
+    //}
 
-			for (i = numR; i < 2 * numR; i++)
-			{
-				while (Q[i]->len > 0)
-				{
-					if (peekqueue(Q[i]) < amin)
-					{
-						//printf("(%u,%u)\n", (2 * dequeue(Q[i])), rmap[i - numR]);
-						int pa = dequeue(Q[i]) - oldmin;
-						int pb = rmap[i - numR];
 
-						if (verbose & debug) {
-							if (((((oldmin + pa) * ascale) + pb) == 3266117) ||
-								((((oldmin + pa) * ascale) - pb) == 3266117))
-							{
-								printf("6: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("u = %d\n", u);
-								printf("amin = %d\n", amin);
-							}
-						}
+    // and continue.
+    for (i = num - 2; i >= 0; i--)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[i + 1].Z, B[i + 1], B[i], work->n, work->tt4, mdata);
+    }
 
-						//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-                        CROSS_PRODUCT;
-						work->paired++;
-					}
-					else
-					{
-						break;
-					}
-				}
-			}
+    // Now we have Bi = prod(j=1,i,zj^-1).
+    // finally, set C1 = B1 and Ci = A(i-1) * B(i) for i > 1.
+    // Then Ci = zi^-1 for i > 1.
+    vecCopy(B[1], pts_to_Zinvert[1].Z);
 
-			// shift out uneeded A's
-			j = 0;
-			for (i = (amin - oldmin); i < (2 * L); i++, j++)
-			{
-				vecCopy(Pa[i].X, Pa[j].X);
-				vecCopy(Pa[i].Z, Pa[j].Z);
-				vecCopy(Paprod[i], Paprod[j]);
+    for (i = 2; i < num; i++)
+    {
+        vecmulmod_ptr(B[i], A[i - 1], pts_to_Zinvert[i].Z, work->n, work->tt4, mdata);
+    }
 
-				if (verbose & (debug == 2))
-					printf("Pa[%d] = [%d]Q\n", j, oldmin * ascale + i * ainc);
-			}
+    // each phase takes n-1 multiplications so we have 3n-3 total multiplications
+    // and one inversion mod N.
+    // but we still have to combine with the X coord.
+    for (i = 1; i < num; i++)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[i].X, pts_to_Zinvert[i].Z, pts_to_Zinvert[i].X,
+            work->n, work->tt4, mdata);
+    }
 
-			// make new A's using the last two points
-			//printf("making new A's from %d to %d\n", (2 * L) - (amin - oldmin), (2 * L));
-			for (i = (2 * L) - (amin - oldmin); i < (2 * L); i++)
-			{
-				//giant step - use the addition formula for ECM
-				//Pa + Pd
-				//x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
-				//z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
-				//x- = [a-d]x
-				//z- = [a-d]z
-				//vecaddmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, mdata);
-				//vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
-				//vecsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->diff1, mdata);
-				//vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
+    for (j = 0; j < num; j++)
+    {
+        vecFree(B[j]);
+    }
+    free(B);
+
+    mpz_clear(gmptmp);
+    mpz_clear(gmptmp2);
+    mpz_clear(gmpn);
+
+    return foundDuringInv;
+
+}
+
+int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
+    vec_bignum_t** tmp_vec, vec_monty_t* mdata, ecm_work* work, int startid, int stopid)
+{
+    vec_bignum_t** B;
+    vec_bignum_t** A = tmp_vec;
+    int i;
+    int j;
+    int inverr = 0;
+    int foundDuringInv = 0;
+    int num = stopid - startid;
+
+    mpz_t gmptmp, gmptmp2, gmpn;
+    mpz_init(gmptmp);
+    mpz_init(gmptmp2);
+    mpz_init(gmpn);
+
+    work->numinv++;
+
+    // here, we have temporary space for B, A is put into the unused Pbprod, and C is Pb.Z.
+    // faster batch inversion in three phases, as follows:
+    // first, set A1 = z1 and Ai = zi * A(i-1) so that Ai = prod(j=1,i,zj).
+    vecCopy(pts_to_Zinvert[startid].Z, A[0]);
+    for (i = 1; i < num; i++)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[startid + i].Z, A[i - 1], A[i], work->n, work->tt4, mdata);
+    }
+
+    B = (vec_bignum_t **)malloc(num * sizeof(vec_bignum_t*));
+
+    for (j = 0; j < num; j++)
+    {
+        B[j] = vecInit();
+    }
+
+    // now we have to take An out of monty rep so we can invert it.
+    if (mdata->isMersenne == 0)
+    {
+        vecClear(work->tt1);
+        for (j = 0; j < VECLEN; j++)
+        {
+            work->tt1->data[j] = 1;
+        }
+        work->tt1->size = 1;
+        vecmulmod_ptr(A[num - 1], work->tt1, B[num - 1], work->n, work->tt4, mdata);
+    }
+    else
+    {
+        vecCopy(A[num - 1], B[num - 1]);
+    }
+
+    extract_bignum_from_vec_to_mpz(gmpn, mdata->n, 0, NWORDS);
+    for (j = 0; j < VECLEN; j++)
+    {
+        // extract this vec position so we can use mpz_invert.
+        extract_bignum_from_vec_to_mpz(gmptmp, B[num - 1], j, NWORDS);
+
+        // invert it
+        inverr = mpz_invert(gmptmp2, gmptmp, gmpn);
+
+        if (inverr == 0)
+        {
+            //extract_bignum_from_vec_to_mpz(gmptmp, work->tt2, j, NWORDS);
+            //printf("inversion error\n");
+            //gmp_printf("tried to invert %Zd mod %Zd in stage2init Pb\n", gmptmp, gmpn);
+            mpz_gcd(gmptmp, gmptmp, gmpn);
+            //gmp_printf("the GCD is %Zd\n", gmptmp);
+            int k;
+            for (k = 0; k < NWORDS; k++)
+                work->stg2acc->data[k * VECLEN + j] = 0;
+            insert_mpz_to_vec(work->stg2acc, gmptmp, j);
+            foundDuringInv = 1;
+        }
+
+        if (mdata->isMersenne == 0)
+        {
+            // now put it back into Monty rep.
+            mpz_mul_2exp(gmptmp2, gmptmp2, MAXBITS);
+            mpz_tdiv_r(gmptmp2, gmptmp2, gmpn);
+        }
+
+        // and stuff it back in the vector.
+        insert_mpz_to_vec(B[num - 1], gmptmp2, j);
+    }
+
+    //if (doneIfFoundDuringInv && foundDuringInv)
+    //{
+    //    work->last_pid = -1;
+    //
+    //    mpz_clear(gmptmp);
+    //    mpz_clear(gmptmp2);
+    //    mpz_clear(gmpn);
+    //
+    //    return;
+    //}
+
+
+    // and continue.
+    for (i = num - 2; i >= 0; i--)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[startid + i + 1].Z, B[i + 1], B[i], work->n, work->tt4, mdata);
+    }
+
+    // Now we have Bi = prod(j=1,i,zj^-1).
+    // finally, set C1 = B1 and Ci = A(i-1) * B(i) for i > 1.
+    // Then Ci = zi^-1 for i > 1.
+    vecCopy(B[0], out[startid + 0]);
+
+    for (i = 1; i < num; i++)
+    {
+        vecmulmod_ptr(B[i], A[i - 1], out[startid + i], work->n, work->tt4, mdata);
+    }
+
+    // each phase takes n-1 multiplications so we have 3n-3 total multiplications
+    // and one inversion mod N.
+    // but we still have to combine with the X coord.
+    for (i = 0; i < num; i++)
+    {
+        vecmulmod_ptr(pts_to_Zinvert[startid + i].X, out[startid + i], out[startid + i],
+            work->n, work->tt4, mdata);
+    }
+
+    for (j = 0; j < num; j++)
+    {
+        vecFree(B[j]);
+    }
+    free(B);
+
+    mpz_clear(gmptmp);
+    mpz_clear(gmptmp2);
+    mpz_clear(gmpn);
+
+    return foundDuringInv;
+
+}
+
+// test cases for generic input at B1=1e6, B2=100B1:
+// n = 142946323174762557214361604817789197531833590620956958433836799929503392464892596183803921
+//11919771003873180376
+//827341355533811391
+//6409678826612327146
+//13778091190526084667
+//10019108749973911965 *
+//10593445070074576128
+//16327347202299112611
+//13768494887674349585
+//17303758977955016383
+//2123812563661387803
+//2330438305415445111
+//12942218412106273630
+//5427613898610684157
+//13727269399001077418
+//3087408422684406072
+//8338236510647016635
+//18232185847183255223
+//5070879816975737551
+//9793972958987869750
+//1683842010542383008
+//16668736769625151751
+//11148653366342049109
+//6736437364141805734
+//8860111571919296085
+//15708855786729755459
+//4263089024287634346
+//10705409183485702771
+//5104801995378138195
+//9551766994217130412
+//17824508581606173922
+//4444245868135963544
+//14755844915853888743
+//4749513976499976002
+//3933740986814285076
+//2498288573977543008
+//18051693002182940438
+//421313926042840093
+//1659254194582388863
+//13762123388521706810
+//1318769405167840394
+//14979751960240161797
+//4989253092822783329
+//14628970911725975539
+//4759771957864370849
+//17870405635651283010
+//472060146
+//3776270672
+//3954243165
+//2576580518
+//416265588
+
+
+void addflag(uint8_t* flags, int loc)
+{
+    //printf("adding flag to %u\n", loc); fflush(stdout);
+    //if (flags[loc] == 1)
+    //    printf("duplicate location %u\n", loc);
+    flags[loc] = 1;
+    return;
+}
+
+int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbose)
+{
+    // compute points used during the stage 2 pair algorithm.
+    uint32_t w = work->D;
+    uint32_t U = work->U;
+    uint32_t L = work->L;
+    int i, j;
+    uint32_t amin = work->amin = (STAGE1_MAX + w) / (2 * w);
+    int wscale = 1;
+
+    int debug = 0;
+    int inverr;
+    int foundDuringInv = 0;
+    int doneIfFoundDuringInv = 0;
+
+    uint32_t* rprime_map_U = work->map;
+    ecm_pt* Pa = work->Pa;
+    vec_bignum_t** Paprod = work->Paprod;
+    vec_bignum_t** Pbprod = work->Pbprod;
+    ecm_pt* Pb = work->Pb;
+    ecm_pt* Pd = work->Pdnorm;
+    vec_bignum_t* acc = work->stg2acc;
+    int lastMapID;
+
+    if (verbose == 1)
+        printf("\n");
+
+    work->paired = 0;
+    work->numprimes = 0;
+    work->ptadds = 0;
+    work->ptdups = 0;
+    work->numinv = 0;
+
+    //stage 2 init
+    //Q = P = result of stage 1
+    //compute [d]Q for 0 < d <= D
+
+    // [1]Q
+    vecCopy(P->Z, Pb[1].Z);
+    vecCopy(P->X, Pb[1].X);
+
+    // [2]Q
+    vecCopy(P->Z, Pb[2].Z);
+    vecCopy(P->X, Pb[2].X);
+    vecaddsubmod_ptr(P->X, P->Z, work->sum1, work->diff1, mdata);
+    vec_duplicate(mdata, work, work->sum1, work->diff1, &Pb[2]);
+
+    //printf("init: D = %d, ainc = %d, ascale = %d, U = %d, L = %d\n", D, ainc, ascale, U, L);
+
+    // [3]Q, [4]Q, ... [D]Q
+    // because of the way we pick 'a' and 'D', we'll only need the 479 points that 
+    // are relatively prime to D.  We need to keep a few points during the running 
+    // computation i.e., ... j, j-1, j-2. The lookup table rprime_map maps the 
+    // integer j into the relatively prime indices that we store. We also store
+    // points 1, 2, and D, and storage point 0 is used as scratch for a total of
+    // 483 stored points.
+
+    vecCopy(Pb[1].X, work->pt2.X);
+    vecCopy(Pb[1].Z, work->pt2.Z);
+    vecCopy(Pb[2].X, work->pt1.X);
+    vecCopy(Pb[2].Z, work->pt1.Z);
+
+    lastMapID = 0;
+    for (j = 3; j <= U * w; j++)
+    {
+        ecm_pt* P1 = &work->pt1;			// Sd - 1
+        ecm_pt* P2 = &Pb[1];				// S1
+        ecm_pt* P3 = &work->pt2;			// Sd - 2
+        ecm_pt* Pout = &Pb[rprime_map_U[j]];	// Sd
+
+        if (rprime_map_U[j] > 0)
+            lastMapID = rprime_map_U[j];
+
+        // vecAdd:
+        //x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
+        //z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
+        //x- = original x
+        //z- = original z
+
+        // compute Sd from Sd-1 + S1, requiring Sd-1 - S1 = Sd-2
+        vecaddsubmod_ptr(P1->X, P1->Z, work->sum1, work->diff1, mdata);
+        vecaddsubmod_ptr(P2->X, P2->Z, work->sum2, work->diff2, mdata);
+
+        vecmulmod_ptr(work->diff1, work->sum2, work->tt1, work->n, work->tt4, mdata);	//U
+        vecmulmod_ptr(work->sum1, work->diff2, work->tt2, work->n, work->tt4, mdata);	//V
+
+        vecaddsubmod_ptr(work->tt1, work->tt2, Pout->X, Pout->Z, mdata);		        //U +/- V
+        vecsqrmod_ptr(Pout->X, work->tt1, work->n, work->tt4, mdata);					//(U + V)^2
+        vecsqrmod_ptr(Pout->Z, work->tt2, work->n, work->tt4, mdata);					//(U - V)^2
+
+        // if gcd(j,D) != 1, Pout maps to scratch space (Pb[0])
+        vecmulmod_ptr(work->tt1, P3->Z, Pout->X, work->n, work->tt4, mdata);			//Z * (U + V)^2
+        vecmulmod_ptr(work->tt2, P3->X, Pout->Z, work->n, work->tt4, mdata);			//x * (U - V)^2
+
+#ifndef DO_STAGE2_INV
+        //store Pb[j].X * Pb[j].Z as well
+        vecmulmod_ptr(Pout->X, Pout->Z, Pbprod[rprime_map_U[j]],
+            work->n, work->tt4, mdata);
+#endif
+
+        work->ptadds++;
+
+        // advance
+        vecCopy(P1->X, P3->X);
+        vecCopy(P1->Z, P3->Z);
+        vecCopy(Pout->X, P1->X);
+        vecCopy(Pout->Z, P1->Z);
+
+        //sprintf(str, "Pb[%d].Z: ", rprime_map_U[j]);
+        //print_vechex(Pout->Z->data, 0, NWORDS, str);
+        if (verbose & (debug == 2))
+            printf("rprime_map_U[%d] = %u\n", j, rprime_map_U[j]);
+    }
+
+    //printf("B table generated to umax = %d\n", U * D);
+
+    // initialize accumulator
+    vecCopy(mdata->one, acc);
+
+#ifdef DO_STAGE2_INV
+    // invert all of the Pb's
+    foundDuringInv = batch_invert_pt_inplace(Pb, Pbprod, mdata, work, lastMapID + 1);
+
+    if (doneIfFoundDuringInv && foundDuringInv)
+    {
+        work->last_pid = -1;
+        return foundDuringInv;
+    }
+#endif
+
+    // Pd = [w]Q
+    vecCopy(P->Z, Pd->Z);
+    vecCopy(P->X, Pd->X);
+    next_pt_vec(mdata, work, Pd, wscale * w);
+
+    if (verbose & (debug == 2))
+        printf("Pd = [%u]Q\n", wscale * w);
+
+    return foundDuringInv;
+}
+
+void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* pairmap_u,
+    ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbose)
+{
+    // use the output of the PAIR algorithm to perform stage 2.
+    uint32_t w = work->D;
+    uint32_t U = work->U;
+    uint32_t L = work->L;
+    uint32_t umax = U * w;
+    int i, pid;
+    uint32_t amin = work->amin;
+    int foundDuringInv = 0;
+    int doneIfFoundDuringInv = 0;
+    int mapid;
+    uint8_t* flags;
+    int wscale = 1;
+    int debug = 0;
+
+    uint32_t* rprime_map_U = work->map;
+    ecm_pt* Pa = work->Pa;      // non-inverted
+    ecm_pt* Pb = work->Pb;      // inverted
+    ecm_pt* Pd = work->Pdnorm;  // non-inverted Pd
+    vec_bignum_t** Paprod = work->Paprod;
+#ifndef DO_STAGE2_INV
+    vec_bignum_t** Paprod = work->Paprod;
+    vec_bignum_t** Pbprod = work->Pbprod;
+#endif
+    vec_bignum_t* acc = work->stg2acc;
+
+    if (verbose == 1)
+    {
+        printf("\n");
+    }
+
+    if (1)
+    {
+        //first a value: first multiple of D greater than B1
+        work->A = (uint64_t)amin * (uint64_t)w * 2;
+
+        //initialize info needed for giant step
+        vecCopy(P->Z, Pa[0].Z);
+        vecCopy(P->X, Pa[0].X);
+        next_pt_vec(mdata, work, &Pa[0], work->A);
+
+        if (verbose & (debug == 2))
+            printf("Pa[0] = [%lu]Q\n", work->A);
+
+        vecCopy(P->Z, work->Pad->Z);
+        vecCopy(P->X, work->Pad->X);
+        next_pt_vec(mdata, work, work->Pad, work->A - wscale * w);
+
+        if (verbose & (debug == 2))
+            printf("Pad = [%lu]Q\n", work->A - wscale * w);
+
+        vecaddmod_ptr(Pa[0].X, Pa[0].Z, work->sum1, mdata);
+        vecaddmod_ptr(Pd->X, Pd->Z, work->sum2, mdata);
+        vecsubmod_ptr(Pa[0].X, Pa[0].Z, work->diff1, mdata);
+        vecsubmod_ptr(Pd->X, Pd->Z, work->diff2, mdata);
+        vec_add(mdata, work, work->Pad, &Pa[1]);
+
+        work->A += wscale * w;
+        if (verbose & (debug == 2))
+            printf("Pa[1] = [%lu]Q\n", work->A);
+
+        for (i = 2; i < 2 * L; i++)
+        {
+            //giant step - use the addition formula for ECM
+            //Pa + Pd
+            //x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
+            //z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
+            //x- = [a-d]x
+            //z- = [a-d]z
+            vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, mdata);
+            vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, mdata);
+            vec_add(mdata, work, &Pa[i - 2], &Pa[i]);
+
+#ifndef DO_STAGE2_INV
+            vecmulmod_ptr(Pa[i].X, Pa[i].Z, work->Paprod[i], work->n, work->tt4, mdata);
+#endif
+
+            work->A += wscale * w;
+            if (verbose & (debug == 2))
+                printf("Pa[%d] = [%lu]Q\n", i, work->A);
+        }
+
+#ifdef DO_STAGE2_INV
+        // and invert all of the Pa's into a separate vector
+        foundDuringInv |= batch_invert_pt_to_bignum(Pa, work->Pa_inv, Paprod, mdata, work, 0, 2 * L);
+        work->numinv++;
+        if (doneIfFoundDuringInv && foundDuringInv)
+        {
+            work->last_pid = -1;
+            return; // foundDuringInv;
+        }
+#endif
+
+        if (verbose & (debug == 2))
+            printf("A table generated to L = %d\n", 2 * L);
+    }
+
+    if (verbose)
+    {
+        printf("commencing stage 2 at A=%lu\n"
+            "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
+            2 * (uint64_t)amin * (uint64_t)w, w, work->R - 3, L, U, umax, amin);
+    }
+
+    for (mapid = 0; mapid < pairmap_steps; mapid++)
+    {
+        int pa, pb;
+
+        if ((verbose == 1) && ((mapid & 65535) == 0))
+        {
+            printf("pairmap step %u of %u\r", mapid, pairmap_steps);
+            fflush(stdout);
+        }
+
+        if ((pairmap_u[mapid] == 0) && (pairmap_v[mapid] == 0))
+        {
+            int shiftdist = 2;
+
+            // shift out uneeded A's.
+            // update amin by U * 2 * w.
+            // each point-add increments by w, so shift 2 * U times;
+            for (i = 0; i < 2 * L - shiftdist * U; i++)
+            {
+                vecCopy(Pa[i + shiftdist * U].X, Pa[i].X);
+                vecCopy(Pa[i + shiftdist * U].Z, Pa[i].Z);
+                vecCopy(work->Pa_inv[i + shiftdist * U], work->Pa_inv[i]);
+            }
+
+            // make new A's: need at least two previous points;
+            // therefore we can't have U = 1
+            for (i = 2 * L - shiftdist * U; i < 2 * L; i++)
+            {
+                //giant step - use the addition formula for ECM
+                //Pa + Pd
+                //x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
+                //z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
+                //x- = [a-d]x
+                //z- = [a-d]z
                 vecaddsubmod_ptr(Pa[i - 1].X, Pa[i - 1].Z, work->sum1, work->diff1, mdata);
                 vecaddsubmod_ptr(Pd->X, Pd->Z, work->sum2, work->diff2, mdata);
-				vec_add(mdata, work, &Pa[i - 2], &Pa[i]);
+                vec_add(mdata, work, &Pa[i - 2], &Pa[i]);
 
-				//and Paprod
-				vecmulmod_ptr(Pa[i].X, Pa[i].Z, Paprod[i], work->n, work->tt4, mdata);
+#ifndef DO_STAGE2_INV
+                vecmulmod_ptr(Pa[i].X, Pa[i].Z, work->Paprod[i], work->n, work->tt4, mdata);
+#endif
 
-				work->A += ainc;
-				
-				if (verbose & (debug == 2))
-					printf("Pa[%d] = [%lu]Q\n", i, work->A);
+                work->A += wscale * w;
+            }
 
-				work->ptadds++;
-			}
+            // amin tracks the Pa[0] position in units of 2 * w, so
+            // shifting by w, 2 * U times, is equivalent to shifting
+            // by 2 * w, U times.
+            amin += U;
 
-            aranges++;
+#ifdef DO_STAGE2_INV
+            foundDuringInv = batch_invert_pt_to_bignum(Pa, work->Pa_inv,
+                work->Paprod, mdata, work, 2 * L - shiftdist * U, 2 * L);
+#endif
+        }
+        else
+        {
+            pa = pairmap_v[mapid] - amin;
+            pb = pairmap_u[mapid];
 
-			if (verbose & (debug == 2))
-				printf("amin is now %u\n", amin);  fflush(stdout);
-		}
+            if (pa >= 2 * L)
+            {
+                printf("error: invalid A offset: %d,%d,%u\n", pa, pb, amin);
+                exit(1);
+            }
 
-		q = s - a * ascale;
-		mq = q * -1;
+            if (rprime_map_U[pb] == 0)
+            {
+                printf("pb=%d doesn't exist\n", pb);
+            }
 
-		do
-		{
-			if (mq < 0)
-			{
-				if (Q[numR - map[abs(mq)] - 1]->len > 0)
-				{
-					ap = dequeue(Q[numR - map[abs(mq)] - 1]);
-					//printf("dequeued %u from Q[%u](%d)\n", ap, R - map[abs(mq)] - 1, mq);
+            //if ((((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w - (uint64_t)pb) == 6378650689ULL) ||
+            //    (((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w + (uint64_t)pb) == 6378650689ULL))
+            //{
+            //    printf("\naccumulated %lu @ amin = %u, pa = %d, pb = %d\n", 
+            //        6378650689ULL, amin, pa, pb);
+            //}
 
-					if (ap == 0)
-					{
-						printf("dequeued %u from Q[%u](%d)\n", ap, numR - map[abs(mq)] - 1, mq);
-						printf("a = %u\n", a);
-						printf("ap = %u\n", ap);
-						printf("s = %lu\n", s);
-						fflush(stdout);
-					}
-
-					u = w * (a - ap) + q;
-
-					if (u > umax)
-					{
-						//printf("(%u,%u)\n", 2 * ap, abs(q));
-						int pa = ap - amin;
-						int pb = abs(q);
-
-						if (verbose & debug) {
-							if (((((amin + pa) * ascale) + pb) == 3266117) ||
-								((((amin + pa) * ascale) - pb) == 3266117))
-							{
-								printf("1: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("amin = %d\n", amin);
-							}
-						}
-
-						//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-
-						if ((pb < 0) || (pb >= (U * D)))
-						{
-							printf("invalid pb = %d\n", pb);
-						}
-
-						if (rprime_map_U[pb] == 0)
-						{
-							printf("invalid distance %d\n", pb);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-						if ((pa < 0) || (pa >= 2 * L))
-						{
-							printf("invalid Pa[%d]\n", pa);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-                        CROSS_PRODUCT;
-
-					}
-					else
-					{
-						//printf("(%u,%u)\n", (a + ap), u);
-						int pa = (a + ap) - 2 * amin;
-						int pb = u;
-						//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-						if (verbose & debug) {
-							if (((((2 * amin + pa) * w) + pb) == 3266117) ||
-								((((2 * amin + pa) * w) - pb) == 3266117))
-							{
-								printf("2: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("u = %d\n", u);
-								printf("map[u] = %u\n", rprime_map_U[pb]);
-								printf("amin = %d\n", amin);
-							}
-						}
-
-						if (pa & 1)
-						{
-							pa = (pa - 1) / 2;
-							pb -= D;
-							if (pb < 0)
-							{
-								pa++;
-								pb += 2 * D;
-							}
-						}
-						else
-						{
-							pa >>= 1;
-						}
-
-						if ((pb < 0) || (pb >= (U * D)))
-						{
-							printf("invalid pb = %d\n", pb);
-						}
-
-						if (rprime_map_U[pb] == 0)
-						{
-							printf("invalid distance %d\n", pb);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-						if ((pa < 0) || (pa >= 2 * L))
-						{
-							printf("invalid Pa[%d]\n", pa);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-                        CROSS_PRODUCT;
-					}
-					work->paired++;
-				}
-				else
-				{
-					if (q < 0)
-					{
-						//printf("queueing %u in Q[%u](%d)\n", a, R - map[abs(q)] - 1, q);
-						enqueue(Q[numR - map[abs(q)] - 1], a);
-					}
-					else
-					{
-						//printf("queueing %u in Q[%u](%d)\n", a, R + map[abs(q)], q);
-						enqueue(Q[numR + map[abs(q)]], a);
-					}
-					u = 0;
-				}
-			}
-			else if (mq > 0)
-			{
-				if (Q[numR + map[abs(mq)]]->len > 0)
-				{
-					ap = dequeue(Q[numR + map[abs(mq)]]);
-					//printf("dequeued %u from Q[%u](%d)\n", ap, R + map[abs(mq)],mq);
-
-					if (ap == 0)
-					{
-						printf("dequeued %u from Q[%u](%d)\n", ap, numR + map[abs(mq)], mq);
-						printf("a = %u\n", a);
-						printf("ap = %u\n", ap);
-						printf("s = %lu\n", s);
-						fflush(stdout);
-					}
-
-					u = w * (a - ap) + q;
-
-					if (u > umax)
-					{
-						//printf("(%u,%u)\n", 2 * ap, abs(q));
-						int pa = ap - amin;
-						int pb = abs(q);
-						//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-
-						if (verbose & debug) {
-							if (((((amin + pa) * ascale) + pb) == 3266117) ||
-								((((amin + pa) * ascale) - pb) == 3266117))
-							{
-								printf("3: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("amin = %d\n", amin);
-							}
-						}
-
-						if ((pb < 0) || (pb >= (U * D)))
-						{
-							printf("invalid pb = %d\n", pb);
-						}
-
-						if (rprime_map_U[pb] == 0)
-						{
-							printf("invalid distance %d\n", pb);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-						if ((pa < 0) || (pa >= 2 * L))
-						{
-							printf("invalid Pa[%d]\n", pa);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-                        CROSS_PRODUCT;
-					}
-					else
-					{
-						//printf("(%u,%u)\n", (a + ap), u);
-						int pa = (a + ap) - 2 * amin;
-						int pb = u;
-						//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-						// accumulate the cross product  (zimmerman syntax).
-						// page 342 in C&P
-						if (verbose & debug) {
-							if (((((2 * amin + pa) * w) + pb) == 3266117) ||
-								((((2 * amin + pa) * w) - pb) == 3266117))
-							{
-								printf("4: accumulating (%u,%u) = 3266117\n", pa, pb); fflush(stdout);
-								printf("a  = %u\n", a);
-								printf("ap  = %u\n", ap);
-								printf("q  = %d\n", q);
-								printf("mq = %d\n", mq);
-								printf("u = %d\n", u);
-								printf("amin = %d\n", amin);
-							}
-						}
-
-						if (pa & 1)
-						{
-							pa = (pa - 1) / 2;
-							pb -= D;
-							if (pb < 0)
-							{
-								pa++;
-								pb += 2 * D;
-							}
-						}
-						else
-						{
-							pa >>= 1;
-						}
-
-						if ((pb < 0) || (pb >= (U * D)))
-						{
-							printf("invalid pb = %d\n", pb);
-						}
-
-						if (rprime_map_U[pb] == 0)
-						{
-							printf("invalid distance %d\n", pb);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-						if ((pa < 0) || (pa >= 2 * L))
-						{
-							printf("invalid Pa[%d]\n", pa);
-							printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-							exit(-1);
-						}
-
-                        CROSS_PRODUCT;
-					}
-					work->paired++;
-				}
-				else
-				{
-					if (q < 0)
-					{
-						//printf("queueing %u in Q[%u](%d)\n", a, R - map[abs(q)] - 1, q);
-						enqueue(Q[numR - map[abs(q)] - 1], a);
-					}
-					else
-					{
-						//printf("queueing %u in Q[%u](%d)\n", a, R + map[abs(q)], q);
-						enqueue(Q[numR + map[abs(q)]], a);
-					}
-					u = 0;
-				}
-			}
-
-		} while (u > umax);
-
-	}
-
-	//printf("main loop done, flushing Queues\n"); fflush(stdout);
-	j = 0;
-
-	for (i = 0; i < numR; i++)
-	{
-		while (Q[i]->len > 0)
-		{
-			//printf("(%u,%u)\n", (2 * dequeue(Q[i])), rmap[numR - i - 1]);
-			int pa = dequeue(Q[i]) - amin;
-			int pb = rmap[numR - i - 1];
-			//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-			// accumulate the cross product  (zimmerman syntax).
-			// page 342 in C&P
+#ifdef DO_STAGE2_INV
+            CROSS_PRODUCT_INV;
+#else
             CROSS_PRODUCT;
-			work->paired++;
-		}
-	}
-	for (i = numR; i < 2 * numR; i++)
+#endif
+            work->paired++;
+        }
+    }
+
+    work->amin = amin;
+
+    return;
+}
+
+
+uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
+    ecm_work* work, Queue_t** Q, uint32_t* Qrmap, uint32_t* Qmap,
+    uint64_t* primes, uint64_t ecm_nump, uint64_t B1, uint64_t B2, int verbose)
+{
+    int i, j, pid = 0;
+    int w = work->D;
+    int U = work->U;
+    int L = work->L;
+    int R = work->R - 3;
+    int umax = w * U;
+    int64_t q, mq;
+    uint64_t amin = work->amin = (B1 + w) / (2 * w);
+    uint64_t a, s, ap, u;
+    uint32_t pairs = 0;
+    uint32_t nump = 0;
+    uint32_t mapid = 0;
+    uint8_t* flags;
+    int printpairs = 0;
+    int testcoverage = 0;
+    int printpairmap = 0;
+
+    // gives an index of a queue given a residue mod w
+    //printf("Qmap: \n");
+    // contains the value of q given an index
+    //printf("Qrmap: \n");
+
+    if (testcoverage)
+    {
+        flags = (uint8_t*)xcalloc((10000 + B2), sizeof(uint8_t));
+    }
+
+    if (verbose)
+    {
+        printf("commencing pair on range %lu:%lu\n", B1, B2);
+    }
+
+    if (printpairmap || printpairs)
+    {
+        printf("commencing pair at A=%lu\n"
+            "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
+            2 * (uint64_t)amin * (uint64_t)w, w, work->R - 3, L, U, umax, amin);
+    }
+
+    while (primes[pid] < B1) { pid++; }
+
+    while ((pid < ecm_nump) && (primes[pid] < B2))
+    {
+        s = primes[pid];
+        a = (s + w) / (2 * w);
+        nump++;
+
+        //printf("s, a: %lu, %lu\n", s, a);
+
+        while (a >= (amin + L))
+        {
+            int oldmin = amin;
+            amin = amin + L - U;
+            //printf("amin now %u\n", amin);
+
+            for (i = 0; i < R; i++)
+            {
+                int len = Q[i]->len;
+
+                if (Qrmap[i] > w)
+                {
+                    q = 2 * w - Qrmap[i];
+                    for (j = 0; j < len; j++)
+                    {
+                        ap = dequeue(Q[i]);
+                        if ((uint32_t)ap < amin)
+                        {
+                            pairmap_v[mapid] = 2 * ap - oldmin; // 2 * ap; //2 * (ap - oldmin);
+                            pairmap_u[mapid] = q;
+                            mapid++;
+
+                            if (testcoverage)
+                            {
+                                addflag(flags, (2 * ap) * w + q);
+                                addflag(flags, (2 * ap) * w - q);
+                            }
+                            if (printpairs)
+                            {
+                                printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                                    ap, q,
+                                    2 * ap * w - q,
+                                    2 * ap * w + q);
+                            }
+                            pairs++;
+                        }
+                        else
+                        {
+                            enqueue(Q[i], ap);
+                        }
+                    }
+                }
+                else
+                {
+                    for (j = 0; j < len; j++)
+                    {
+                        ap = dequeue(Q[i]);
+                        if ((uint32_t)ap < amin)
+                        {
+                            pairmap_v[mapid] = 2 * ap - oldmin; //2 * ap; //2 * (ap - oldmin);
+                            pairmap_u[mapid] = Qrmap[i];
+                            mapid++;
+
+                            if (testcoverage)
+                            {
+                                addflag(flags, (2 * ap) * w + Qrmap[i]);
+                                addflag(flags, (2 * ap) * w - Qrmap[i]);
+                            }
+                            if (printpairs)
+                            {
+                                printf("pair (ap,q):(%lu,%u)  %lu:%lu\n",
+                                    ap, Qrmap[i],
+                                    2 * ap * w - Qrmap[i],
+                                    2 * ap * w + Qrmap[i]);
+                            }
+                            pairs++;
+                        }
+                        else
+                        {
+                            enqueue(Q[i], ap);
+                        }
+                    }
+                }
+            }
+            pairmap_u[mapid] = 0;
+            pairmap_v[mapid] = 0;
+            mapid++;
+        }
+
+        q = s - 2 * a * w;
+        if (q < 0)
+            mq = abs(q);
+        else
+            mq = 2 * w - q;
+
+        // printf("q, mq: %d, %d\n", q, mq);
+
+        do
+        {
+            if (Q[Qmap[mq]]->len > 0)
+            {
+                ap = dequeue(Q[Qmap[mq]]);
+                if (q < 0)
+                    u = w * (a - ap) - abs(q);
+                else
+                    u = w * (a - ap) + q;
+
+                if (u > umax)
+                {
+                    if (q < 0)
+                    {
+                        int qq = abs(q);
+
+                        pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
+                        pairmap_u[mapid] = qq;
+                        mapid++;
+
+                        if (testcoverage)
+                        {
+                            addflag(flags, (2 * ap) * w + qq);
+                            addflag(flags, (2 * ap) * w - qq);
+    }
+                        if (printpairs)
+                        {
+                            printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                                ap, q,
+                                2 * ap * w - qq,
+                                2 * ap * w + qq);
+                        }
+}
+                    else
+                    {
+                        int qq = q;
+
+                        if (qq >= w)
+                            qq = 2 * w - qq;
+
+                        pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
+                        pairmap_u[mapid] = qq;
+                        mapid++;
+
+                        if (testcoverage)
+                        {
+                            addflag(flags, (2 * ap) * w + qq);
+                            addflag(flags, (2 * ap) * w - qq);
+                        }
+                        if (printpairs)
+                        {
+                            printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                                ap, q,
+                                2 * ap * w - qq,
+                                2 * ap * w + qq);
+                        }
+                    }
+                    pairs++;
+                }
+                else
+                {
+                    pairmap_v[mapid] = a + ap - amin;
+                    pairmap_u[mapid] = u;
+                    mapid++;
+
+                    if (testcoverage)
+                    {
+                        addflag(flags, (a + ap) * w + u);
+                        addflag(flags, (a + ap) * w - u);
+                    }
+                    if (printpairs)
+                    {
+                        printf("pair (a,ap,u):(%lu,%lu,%lu)  %lu:%lu\n",
+                            a, ap, u,
+                            (a + ap) * w - u,
+                            (a + ap) * w + u);
+                    }
+                    pairs++;
+                }
+            }
+            else
+            {
+                //printf("queueing a=%lu in Q[%d]\n", a, abs(q));
+                if (q < 0)
+                {
+                    //printf("queueing a=%lu in Q[%u](%u)\n", a, 2 * w + q, Qmap[2 * w + q]);
+                    enqueue(Q[Qmap[2 * w + q]], a);
+                }
+                else
+                {
+                    //printf("queueing a=%lu in Q[%d]\n", a, q);
+                    enqueue(Q[Qmap[q]], a);
+                }
+                u = 0;
+            }
+        } while (u > umax);
+
+        pid++;
+    }
+
+    //printf("dumping leftovers in queues\n");
+    // empty queues
+    for (i = 0; i < R; i++)
+    {
+        //printf("queue %d (%u) has %d elements\n", i, Qrmap[i], Q[i]->len);
+        int len = Q[i]->len;
+        for (j = 0; j < len; j++)
+        {
+            ap = dequeue(Q[i]);
+            if (Qrmap[i] > w)
+            {
+                q = 2 * w - Qrmap[i];
+
+                pairmap_v[mapid] = 2 * ap - amin; //2 * ap; //2 * (ap - amin);
+                pairmap_u[mapid] = q;
+                mapid++;
+
+                if (printpairs)
+                {
+                    printf("pair (ap,q):(%lu,%ld)  %lu:%lu\n",
+                        ap, q,
+                        2 * ap * w - q,
+                        2 * ap * w + q);
+                }
+                if (testcoverage)
+                {
+                    addflag(flags, (2 * ap) * w + q);
+                    addflag(flags, (2 * ap) * w - q);
+                }
+            }
+            else
+            {
+                pairmap_v[mapid] = 2 * ap - amin; //2 * ap; // 2 * (ap - amin);
+                pairmap_u[mapid] = Qrmap[i];
+                mapid++;
+
+                if (printpairs)
+                {
+                    printf("pair (ap,q):(%lu,%u)  %lu:%lu\n",
+                        ap, Qrmap[i],
+                        2 * ap * w - Qrmap[i],
+                        2 * ap * w + Qrmap[i]);
+                }
+                if (testcoverage)
+                {
+                    addflag(flags, (2 * ap) * w + Qrmap[i]);
+                    addflag(flags, (2 * ap) * w - Qrmap[i]);
+                }
+            }
+            pairs++;
+        }
+    }
+
+    if (printpairmap)
+    {
+        printf("%u pairing steps generated\n", mapid);
+        //amin = (B1 + w) / (2 * w);
+        //printf("amin is now %lu (A = %lu)\n", amin, 2 * amin * w);
+        //for (i = 0; i < mapid; i++)
+        //{
+        //    printf("pair: %uw+/-%u => %lu:%lu\n", pairmap_v[i], pairmap_u[i],
+        //        (amin + pairmap_v[i]) * w - pairmap_u[i],
+        //        (amin + pairmap_v[i]) * w + pairmap_u[i]);
+        //    if (pairmap_u[i] == 0)
+        //    {
+        //        amin = amin + L - U;
+        //        printf("amin is now %u (A = %u)\n", amin, 2 * amin * w);
+        //    }
+        //}
+
+        printf("pairmap_v:\n{");
+        for (i = 0; i < mapid; i++)
+        {
+            printf("%u, ", pairmap_v[i]);
+        }
+        printf("}\n");
+        printf("pairmap_u:\n{");
+        for (i = 0; i < mapid; i++)
+        {
+            printf("%u, ", pairmap_u[i]);
+        }
+        printf("}\n");
+    }
+
+    if (testcoverage)
+    {
+        pid = 0;
+        while (primes[pid] < B1) { pid++; }
+
+        int notcovered = 0;
+        while ((pid < ecm_nump) && (primes[pid] < B2))
+        {
+            if (flags[primes[pid]] != 1)
+            {
+                printf("prime %lu not covered!\n", primes[pid]);
+                notcovered++;
+            }
+            pid++;
+        }
+        printf("%d primes not covered during pairing!\n", notcovered);
+        free(flags);
+    }
+
+    if (verbose)
+    {
+        printf("%u pairs found from %u primes (ratio = %1.2f)\n",
+            pairs, nump, (double)pairs / (double)nump);
+    }
+
+    //exit(0);
+    return mapid;
+}
+
+int vec_check_factor(mpz_t Z, mpz_t n, mpz_t f)
+{
+    //gmp_printf("checking point Z = %Zx against input N = %Zx\n", Z, n);
+    mpz_gcd(f, Z, n);
+
+	if (mpz_cmp_ui(f, 1) > 0)
 	{
-		while (Q[i]->len > 0)
+		if (mpz_cmp(f, n) == 0)
 		{
-			//printf("(%u,%u)\n", (2 * dequeue(Q[i])), rmap[i - numR]);
-			int pa = dequeue(Q[i]) - amin;
-			int pb = rmap[i - numR];
-			//printf("accumulate (%u,%u)\n", pa, pb); fflush(stdout);
-			// accumulate the cross product  (zimmerman syntax).
-			// page 342 in C&P
-            CROSS_PRODUCT;
-			work->paired++;
+            mpz_set_ui(f, 0);
+			return 0;
 		}
+		return 1;
 	}
-
-    //printf("computed %u new a ranges (%d each)\n", aranges, L - U);
-
-	work->amin = amin;
-	work->last_pid = pid;
-
-	return;
+	return 0;
 }
 
 
@@ -4053,7 +5134,7 @@ void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *
 #define MAX_B1_BATCH 50685770167ULL
 #endif
 
-unsigned int compute_s(mpz_t s, uint64_t *primes, uint64_t B1)
+unsigned int compute_s(mpz_t s, uint64_t * primes, uint64_t B1)
 {
     mpz_t acc[MAX_HEIGHT]; /* To accumulate products of prime powers */
     mpz_t ppz;
@@ -4131,7 +5212,7 @@ unsigned int compute_s(mpz_t s, uint64_t *primes, uint64_t B1)
    inputs (\varepsilon \leq 1/16 = 0.0625 instead of 0.0359).
 */
 void
-vecmulmod_1(vec_bignum_t * S, uint64_t *m, vec_bignum_t * R, vec_bignum_t * modulus, vec_bignum_t * t, vec_monty_t *mdata)
+vecmulmod_1(vec_bignum_t* S, uint64_t* m, vec_bignum_t* R, vec_bignum_t* modulus, vec_bignum_t* t, vec_monty_t* mdata)
 {
     //mp_ptr t1 = PTR(modulus->temp1);
     //mp_ptr t2 = PTR(modulus->temp2);
@@ -4167,10 +5248,10 @@ vecmulmod_1(vec_bignum_t * S, uint64_t *m, vec_bignum_t * R, vec_bignum_t * modu
    In mpresn_mul_1, we multiply by d_prime = beta*d and divide by beta.
 */
 static void
-dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_t *z2,
-    vec_bignum_t *t, vec_bignum_t *w, vec_bignum_t *s, uint64_t *d_prime, vec_bignum_t *n, vec_monty_t *mdata)
+dup_add_batch1(vec_bignum_t* x1, vec_bignum_t* z1, vec_bignum_t* x2, vec_bignum_t* z2,
+    vec_bignum_t* t, vec_bignum_t* w, vec_bignum_t* s, uint64_t* d_prime, vec_bignum_t* n, vec_monty_t* mdata)
 {
-    //bignum *t2;
+    //vec_bignum_t *t2;
     //t2 = vecInit();
     //memcpy(t2->data, d_prime, VECLEN * sizeof(base_t));
 
@@ -4253,25 +5334,25 @@ dup_add_batch1(vec_bignum_t *x1, vec_bignum_t *z1, vec_bignum_t *x2, vec_bignum_
 /*
 For now we don't take into account go stop_asap and chkfilename
 */
-int vec_ecm_stage1_batch(mpz_t f, ecm_work *work, ecm_pt *P, vec_bignum_t * A, 
-    vec_bignum_t * n, uint64_t B1, mpz_t s, vec_monty_t *mdata)
+int vec_ecm_stage1_batch(mpz_t f, ecm_work* work, ecm_pt* P, vec_bignum_t* A,
+    vec_bignum_t* n, uint64_t B1, mpz_t s, vec_monty_t* mdata)
 {
-    uint64_t *d_1;
+    uint64_t* d_1;
     mpz_t d_2;
 
-    vec_bignum_t *x1, *z1, *x2, *z2;
+    vec_bignum_t* x1, * z1, * x2, * z2;
     uint64_t i;
-    vec_bignum_t *t, *u;
+    vec_bignum_t* t, * u;
     int ret = 0;
 
     x1 = vecInit();
     z1 = vecInit();
     x2 = vecInit();
     z2 = vecInit();
-    t  = vecInit();
-    u  = vecInit();
+    t = vecInit();
+    u = vecInit();
 
-    d_1 = (uint64_t *)xmalloc_align(VECLEN * sizeof(uint64_t));
+    d_1 = (uint64_t*)xmalloc_align(VECLEN * sizeof(uint64_t));
 
     vecCopy(P->X, x1);
     vecCopy(P->Z, z1);
@@ -4322,12 +5403,12 @@ int vec_ecm_stage1_batch(mpz_t f, ecm_work *work, ecm_pt *P, vec_bignum_t * A,
     /* invariant: if j represents the upper bits of s,
        then P1 = j*P and P2=(j+1)*P */
 
-    //mpresn_pad(x1, n);
-    //mpresn_pad(z1, n);
-    //mpresn_pad(x2, n);
-    //mpresn_pad(z2, n);
+       //mpresn_pad(x1, n);
+       //mpresn_pad(z1, n);
+       //mpresn_pad(x2, n);
+       //mpresn_pad(z2, n);
 
-    /* now perform the double-and-add ladder */
+       /* now perform the double-and-add ladder */
     for (i = mpz_sizeinbase(s, 2) - 1; i-- > 0;)
     {
         if (mpz_tstbit(s, i) == 0) /* (j,j+1) -> (2j,2j+1) */
@@ -4366,22 +5447,5 @@ int vec_ecm_stage1_batch(mpz_t f, ecm_work *work, ecm_pt *P, vec_bignum_t * A,
 }
 
 #endif
-
-int vec_check_factor(mpz_t Z, mpz_t n, mpz_t f)
-{
-    //gmp_printf("checking point Z = %Zx against input N = %Zx\n", Z, n);
-    mpz_gcd(f, Z, n);
-
-	if (mpz_cmp_ui(f, 1) > 0)
-	{
-		if (mpz_cmp(f, n) == 0)
-		{
-            mpz_set_ui(f, 0);
-			return 0;
-		}
-		return 1;
-	}
-	return 0;
-}
 
 

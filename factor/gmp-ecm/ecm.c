@@ -443,8 +443,8 @@ int ecm_get_sigma(ecm_thread_data_t *thread_data)
 	mpz_init(tmp);
 	if (fobj->ecm_obj.sigma != 0)
 	{
-		if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
-			printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
+		//if (thread_data->curves_run == 0 &&  fobj->ecm_obj.num_curves > 1)
+	//		printf("WARNING: work will be duplicated with sigma fixed and numcurves > 1\n");
 		thread_data->sigma = fobj->ecm_obj.sigma;
 	}
 	else //if (get_uvar("sigma",tmp))

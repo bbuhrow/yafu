@@ -137,6 +137,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	int pid = getpid();
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
+    uint64_t sigma = fobj->ecm_obj.sigma;
 
 	// timing variables
 	struct timeval stopt;	// stop time of this job
@@ -173,10 +174,32 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             isMersenne = 1;
             break;
         }
+
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, i);
+        mpz_add_ui(r, r, 1);
+        mpz_mod(g, r, N);
+        if (mpz_cmp_ui(g, 0) == 0)
+        {
+            size_n = i;
+            isMersenne = -1;
+            break;
+        }
+
+        // detect pseudo-Mersennes
+        mpz_set_ui(r, 1);
+        mpz_mul_2exp(r, r, i);
+        mpz_mod(g, r, N);
+        if (mpz_sizeinbase(g, 2) < DIGITBITS)
+        {
+            size_n = i;
+            isMersenne = mpz_get_ui(g);
+            break;
+        }
     }
 
     // if the input is Mersenne and still contains algebraic factors, remove them.
-    if (isMersenne)
+    if (abs(isMersenne) == 1)
     {
 #ifdef USE_NFS
         snfs_t poly;
@@ -185,23 +208,26 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         poly.form_type = SNFS_BRENT;
         mpz_set_ui(poly.base1, 2);
         poly.coeff1 = 1;
-        poly.coeff2 = -1;
+        poly.coeff2 = -isMersenne;
         poly.exp1 = size_n;
         find_primitive_factor(&poly, fobj->primes, fobj->num_p, verbose);
 
         mpz_tdiv_q(g, N, poly.primitive);
         mpz_gcd(N, N, poly.primitive);
 
-        add_to_factor_list(fobj->factors, g,
-            fobj->VFLAG, fobj->NUM_WITNESSES);
+        if (mpz_cmp_ui(g, 1) > 0)
+        {
+            add_to_factor_list(fobj->factors, g,
+                fobj->VFLAG, fobj->NUM_WITNESSES);
 
-        int fid = fobj->factors->num_factors - 1;
+            int fid = fobj->factors->num_factors - 1;
 
-        fobj->factors->factors[fid].tid = 0;
-        fobj->factors->factors[fid].curve_num = 0;
-        fobj->factors->factors[fid].sigma = 0;
-        fobj->factors->factors[fid].vid = 0;
-        fobj->factors->factors[fid].method = 0;
+            fobj->factors->factors[fid].tid = 0;
+            fobj->factors->factors[fid].curve_num = 0;
+            fobj->factors->factors[fid].sigma = 0;
+            fobj->factors->factors[fid].vid = 0;
+            fobj->factors->factors[fid].method = 0;
+        }
 
         snfs_clear(&poly);
 #endif
@@ -256,7 +282,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
 
     if (verbose > 0)
-        gmp_printf("commencing parallel ecm on %Zd\n", N);
+        gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
 
     if ((double)NWORDS / ((double)MAXBITS / (double)DIGITBITS) < 0.7)
     {
@@ -277,37 +303,29 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
 
     STAGE1_MAX = b1;
-    STAGE2_MAX = 100ULL * (uint64_t)b1;
 
     // now that we know NWORDS, can allocate the monty structure.
     montyconst = vec_monty_alloc();
     tdata = (thread_data_t*)malloc(threads * sizeof(thread_data_t));
 
-    if (isMersenne)
+    if (isMersenne != 0)
     {
-        // TBD: may want to check if the input number is small
-        // enough compared to the base Mersenne that normal Montgomery
-        // arithmetic would be faster.
-        montyconst->isMersenne = 1;
+        montyconst->isMersenne = isMersenne;
         montyconst->nbits = size_n;
         mpz_set(montyconst->nhat, N);           // remember input N
         // do all math w.r.t the Mersenne number
         mpz_set_ui(N, 1);
         mpz_mul_2exp(N, N, size_n);
-        mpz_sub_ui(N, N, 1);
+        if (isMersenne > 0)
+        {
+            mpz_sub_ui(N, N, isMersenne);
+        }
+        else
+        {
+            mpz_add_ui(N, N, 1);
+        }
         broadcast_mpz_to_vec(montyconst->n, N);
-
-        mpz_set_ui(r, 1);
-        mpz_mul_2exp(r, r, DIGITBITS * NWORDS);
-        //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
-        //mpz_invert(montyconst->nhat, N, r);
-        //mpz_sub(montyconst->nhat, r, montyconst->nhat);
-        mpz_invert(montyconst->rhat, r, N);
-        broadcast_mpz_to_vec(montyconst->n, N);
-        broadcast_mpz_to_vec(montyconst->r, r);
-        broadcast_mpz_to_vec(montyconst->vrhat, montyconst->rhat);
         broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
-        //mpz_tdiv_r(r, r, N);
         mpz_set_ui(r, 1);
         broadcast_mpz_to_vec(montyconst->one, r);
     }
@@ -337,12 +355,28 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         printf("Choosing MAXBITS = %u, NWORDS = %d, NBLOCKS = %d based on input size %d\n",
             MAXBITS, NWORDS, NBLOCKS, size_n);
 
+    if (verbose > 0)
+    {
+        if (sigma > 0)
+        {
+            printf("starting with sigma = %lu\n", sigma);
+        }
+    }
+
     DO_STAGE2 = 1;
     if (B2 == (uint64_t)-1)
 	{
         STAGE2_MAX = STAGE1_MAX;
 		DO_STAGE2 = 0;
 	}
+    else if (B2 == 0)
+    {
+        STAGE2_MAX = 100ULL * (uint64_t)b1;
+    }
+    else
+    {
+        STAGE2_MAX = B2;
+    }
 
     if (STAGE1_MAX < 1000)
     {
@@ -394,22 +428,41 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     
     if (DIGITBITS == 52)
     {
-        if (montyconst->isMersenne)
+        if (montyconst->isMersenne > 1)
         {
             vecmulmod_ptr = &vecmulmod52_mersenne;
             vecsqrmod_ptr = &vecsqrmod52_mersenne;
             vecaddmod_ptr = &vecaddmod52_mersenne;
-            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            printf("Using special pseudo-Mersenne mod for factor of: 2^%d-%d\n", 
+                montyconst->nbits, montyconst->isMersenne);
+        }
+		else if (montyconst->isMersenne > 0)
+        {
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
             printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+        }
+        else if (montyconst->isMersenne < 0)
+        {
+            vecmulmod_ptr = &vecmulmod52_mersenne;
+            vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            vecaddmod_ptr = &vecaddmod52_mersenne;
+            vecsubmod_ptr = &vecsubmod52_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+            printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
         }
         else
         {
             vecmulmod_ptr = &vecmulmod52;
             vecsqrmod_ptr = &vecsqrmod52;
             vecaddmod_ptr = &vecaddmod52;
-            vecaddsubmod_ptr = &vec_simul_addsub52;
             vecsubmod_ptr = &vecsubmod52;
+            vecaddsubmod_ptr = &vec_simul_addsub52;
         }
     }
     else
@@ -418,17 +471,19 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             vecmulmod_ptr = &vecmulmod_mersenne;
             vecsqrmod_ptr = &vecsqrmod_mersenne;
+            vecaddmod_ptr = &vecaddmod_mersenne;
+            vecsubmod_ptr = &vecsubmod_mersenne;
+            vecaddsubmod_ptr = &vec_simul_addsub_mersenne;
             printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
         }
         else
         {
             vecmulmod_ptr = &vecmulmod;
             vecsqrmod_ptr = &vecsqrmod;
+            vecaddmod_ptr = &vecaddmod;
+            vecsubmod_ptr = &vecsubmod;
+            vecaddsubmod_ptr = &vec_simul_addsub;
         }
-
-        vecaddmod_ptr = &vecaddmod;
-        vecsubmod_ptr = &vecsubmod;
-        vecaddsubmod_ptr = &vec_simul_addsub;
     }
 
 	gettimeofday(&stopt, NULL);
@@ -450,10 +505,63 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         tdata[i].total_threads = threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;
-        tdata[i].work->primes = fobj->primes;
-        tdata[i].work->num_p = fobj->num_p;
-        tdata[i].work->min_p = fobj->min_p;
-        tdata[i].work->max_p = fobj->max_p;
+        
+        if (i == 0)
+        {
+            uint32_t D = tdata[i].work->D;
+            int k;
+
+            tdata[i].pairmap_v = (uint32_t*)calloc(PRIME_RANGE, sizeof(uint32_t));
+            tdata[i].pairmap_u = (uint32_t*)calloc(PRIME_RANGE, sizeof(uint32_t));
+
+            tdata[i].Qmap = (uint32_t*)malloc(2 * D * sizeof(uint32_t));
+            tdata[i].Qrmap = (uint32_t*)malloc(2 * D * sizeof(uint32_t));
+
+            for (j = 0, k = 0; k < 2 * D; k++)
+            {
+                if (spGCD(k, 2 * D) == 1)
+                {
+                    tdata[i].Qmap[k] = j;
+                    tdata[i].Qrmap[j++] = k;
+                }
+                else
+                {
+                    tdata[i].Qmap[k] = (uint32_t)-1;
+                }
+            }
+
+            for (k = j; k < 2 * D; k++)
+            {
+                tdata[i].Qrmap[k] = (uint32_t)-1;
+            }
+
+            tdata[i].Q = (Queue_t * *)malloc(j * sizeof(Queue_t*));
+            for (k = 0; k < j; k++)
+            {
+                tdata[i].Q[k] = newQueue(D, 0);
+            }
+        }
+        else
+        {
+            tdata[i].pairmap_v = tdata[0].pairmap_v;
+            tdata[i].pairmap_u = tdata[0].pairmap_u;
+        }
+
+
+        if (sigma > 0)
+        {
+            for (j = 0; j < VECLEN; j++)
+            {
+                tdata[i].sigma[j] = sigma + VECLEN * i + j;
+            }
+        }
+        else
+        {
+            for (j = 0; j < VECLEN; j++)
+            {
+                tdata[i].sigma[j] = 0;
+            }
+        }
     }
 
 	gettimeofday(&stopt, NULL);
@@ -511,14 +619,36 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
             // AVX-ECM can find the same factor multiple times simultaneously, so
             // check to make sure this factor still divides the input.
-            if (!mpz_divisible_p(fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor))
-                continue;
+            // the factor can also be a composite where we have found part of it
+            // already but not another.  So a divisibility check isn't enough...
+            // use gcd. But now it depends on the order in which we find factors.
+            // if we find a large composite factor first and remove it, then 
+            // the smaller prime factors won't be added after.  To solve that 
+            // dilemma, we scroll through the rest of the found factors list and
+            // if any divide this one, we remove it from this one.
+            mpz_gcd(g, fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor);
 
-            add_to_factor_list(fobj->factors, tdata[i].factors[j].factor, 
+            int k;
+            for (k = j + 1; k < tdata[i].numfactors; k++)
+            {
+                if (mpz_divisible_p(g, tdata[i].factors[k].factor))
+                {
+                    mpz_tdiv_q(g, g, tdata[i].factors[k].factor);
+                }
+            }
+
+            if (mpz_cmp_ui(g, 1) == 0)
+            {
+                mpz_clear(tdata[i].factors[j].factor);
+                continue;
+            }
+
+            //tdata[i].factors[j].factor, 
+            fid = add_to_factor_list(fobj->factors, g, 
                 fobj->VFLAG, fobj->NUM_WITNESSES);
 
             total_factors++;
-            fid = fobj->factors->num_factors - 1;
+            //fid = fobj->factors->num_factors - 1;
 
             fobj->factors->factors[fid].tid = tdata[i].factors[j].thread_id;
             fobj->factors->factors[fid].curve_num = tdata[i].factors[j].curve_id;
@@ -526,17 +656,17 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             fobj->factors->factors[fid].vid = tdata[i].factors[j].vec_id;
             fobj->factors->factors[fid].method = tdata[i].factors[j].stg_id;
 
-            if (is_mpz_prp(tdata[i].factors[j].factor, fobj->NUM_WITNESSES))
+            if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
                 if (fobj->VFLAG > 0)
                     gmp_printf("\necm: found prp%d factor = %Zd\n",
-                        gmp_base10(tdata[i].factors[j].factor), tdata[i].factors[j].factor);
+                        gmp_base10(g), g);
 
                 if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
-                    char* s = mpz_get_str(NULL, 10, tdata[i].factors[j].factor);
+                    char* s = mpz_get_str(NULL, 10, g);
                     logprint(flog, "prp%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
-                        gmp_base10(tdata[i].factors[j].factor),
+                        gmp_base10(g),
                         s,
                         fobj->factors->factors[fid].curve_num, 
                         fobj->factors->factors[fid].method,
@@ -551,13 +681,13 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             {
                 if (fobj->VFLAG > 0)
                     gmp_printf("\necm: found c%d factor = %Zd\n",
-                        gmp_base10(tdata[i].factors[j].factor), tdata[i].factors[j].factor);
+                        gmp_base10(g), g);
 
                 if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
                 {
                     char* s = mpz_get_str(NULL, 10, tdata[i].factors[j].factor);
                     logprint(flog, "c%d = %s (curve=%d stg=%d B1=%u B2=%lu sigma=%lu thread=%d vecpos=%d)\n",
-                        gmp_base10(tdata[i].factors[j].factor),
+                        gmp_base10(g),
                         s,
                         fobj->factors->factors[fid].curve_num,
                         fobj->factors->factors[fid].method,
@@ -569,7 +699,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 }
             }
 
-            mpz_tdiv_q(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, tdata[i].factors[j].factor);
+            mpz_tdiv_q(fobj->ecm_obj.gmp_n, fobj->ecm_obj.gmp_n, g); // tdata[i].factors[j].factor);
 
             mpz_clear(tdata[i].factors[j].factor);
         }

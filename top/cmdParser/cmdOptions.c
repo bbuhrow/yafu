@@ -238,7 +238,7 @@ void applyArg(char* arg, int argNum, options_t* options)
     if (argNum == 0)
     {
         options->inputExpr = (char*)realloc(options->inputExpr, 
-            strlen(arg) * sizeof(char));
+            (strlen(arg) + 1) * sizeof(char));
         strcpy(options->inputExpr, arg);
     }
 
@@ -377,7 +377,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[17]) == 0)
     {
         enforce_numeric(arg, opt);
-        options->sigma = strtoul(arg, NULL, 10);
+        options->sigma = strtoull(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[18]) == 0)
     {

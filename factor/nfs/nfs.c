@@ -194,6 +194,7 @@ void nfs(fact_obj_t *fobj)
 	while (!process_done)
 	{
         char* s;
+
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
