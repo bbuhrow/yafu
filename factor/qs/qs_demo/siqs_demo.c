@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
     options_t *options;
     meta_t calc_metadata;
     siqs_obj_t obj;
-    soe_staticdata_t* sdata;
+    //soe_staticdata_t* sdata;
     info_t comp_info;
     int run_type;
     int i;
@@ -140,10 +140,10 @@ int main(int argc, char *argv[])
     fobj->THREADS = obj.THREADS;
 
     // put a list of primes in the fobj; many algorithms use it
-    sdata = soe_init(0, 1, 32768);
-    fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
-    fobj->min_p = 2;
-    fobj->max_p = fobj->primes[fobj->num_p - 1];
+    //sdata = soe_init(0, 1, 32768);
+    //fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
+    //fobj->min_p = 2;
+    //fobj->max_p = fobj->primes[fobj->num_p - 1];
 
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
@@ -391,8 +391,8 @@ int main(int argc, char *argv[])
 	free(fobj);      
     sFree(&input_str);
     free(options->inputExpr);
-    soe_finalize(sdata);
-    free(sdata);
+    //soe_finalize(sdata);
+    //free(sdata);
 
 	return 0;
 }

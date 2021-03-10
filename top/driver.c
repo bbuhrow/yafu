@@ -26,6 +26,7 @@ code to the public domain.
 #include "autofactor.h"
 #include "gmp.h"
 #include <ecm.h>
+#include <immintrin.h>
 
 #if defined(__unix__)
 #include <termios.h>
@@ -39,8 +40,8 @@ code to the public domain.
 void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg);
 
 // function to print the splash screen to file/screen
-void print_splash(info_t* comp_info, int is_cmdline_run, FILE *logfile, 
-    int VFLAG, double freq, int numwit);
+void print_splash(fact_obj_t* fobj, info_t* comp_info, int is_cmdline_run,
+    FILE* logfile, int VFLAG, double freq, int numwit);
 void helpfunc(char* s);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
@@ -185,11 +186,38 @@ int main(int argc, char *argv[])
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
 
-    // put a list of primes in the fobj; many algorithms use it
-    sdata = soe_init(0, 1, 32768);
-    fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
-    fobj->min_p = 2;
-    fobj->max_p = fobj->primes[fobj->num_p - 1];
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("avx512f"))
+#else
+    if (0)
+#endif
+    {
+        fobj->HAS_AVX512F = 1;
+    }
+
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("avx512bw"))
+#else
+    if (0)
+#endif
+    {
+        fobj->HAS_AVX512BW = 1;
+    }
+
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_BMI))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("bmi2"))
+#else
+    if (0)
+#endif
+    {
+        fobj->HAS_BMI2 = 1;
+    }
 
 #if BITS_PER_DIGIT == 64
     fobj->lcg_state = options->rand_seed;
@@ -281,7 +309,7 @@ int main(int argc, char *argv[])
     }
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
-	print_splash(&comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
+	print_splash(fobj, &comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
         yafu_obj.MEAS_CPU_FREQUENCY, yafu_obj.NUM_WITNESSES);
 	
 	// start the calculator
@@ -868,8 +896,8 @@ int check_expression(options_t* options)
 
 }
 
-void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile, 
-    int VFLAG, double freq, int numwit)
+void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run, 
+    FILE* logfile, int VFLAG, double freq, int numwit)
 {
 	if (VFLAG >= 0)
 		printf("\n\n");
@@ -939,6 +967,7 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
         logprint(logfile,"using %u random witness for Rabin-Miller PRP checks\n", numwit);
     else
         logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
+    logprint(logfile, "Cached %lu primes: max prime is %lu\n\n", fobj->num_p, fobj->max_p);
 
 	if (VFLAG > 0 || !is_cmdline_run)
 	{		
@@ -949,7 +978,9 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
         if (numwit == 1)
 		    printf("Using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
         else
-            printf("Using %u random witnesses for Rabin-Miller PRP checks\n\n", numwit);
+            printf("Using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
+
+        printf("Cached %lu primes; max prime is %lu\n\n", fobj->num_p, fobj->max_p);
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
@@ -1334,6 +1365,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     strcpy(fobj->ecm_obj.ecm_path, options->ecm_path);
     fobj->ecm_obj.use_external = 0;
     fobj->ecm_obj.prefer_gmpecm = options->prefer_gmpecm;
+    fobj->ecm_obj.prefer_gmpecm_stg2 = options->prefer_gmpecm_stg2;
     fobj->ecm_obj.ecm_ext_xover = options->ext_ecm_xover;
 
     // initialize stuff for squfof

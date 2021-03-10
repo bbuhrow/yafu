@@ -70,7 +70,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat", "inmem" };
+    "siqsNobat", "inmem", "prefer_gmpecm_stg2" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -162,7 +162,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Uses external GMP-ECM instead of internal AVX-ECM", 
     "                  : Create savefile with B1 residues in AVX-ECM",
     "                  : Do not use SIQS Batch GCD",
-    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)" };
+    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)",
+    "                  : Use GMP-ECM for stage 2"};
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -187,7 +188,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,1,
     1,1,0,1,1,
     1,1,1,0,0,
-    0,1 };
+    0,1,0 };
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -209,7 +210,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "", 
-    "", ""};
+    "", "", ""};
 
 
 
@@ -895,7 +896,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "prefer_gmpecm"
         options->prefer_gmpecm = 1;
-        //fobj->ecm_obj.ecm_ext_xover = 48000;
     }
     else if (strcmp(opt, OptionArray[84]) == 0)
     {
@@ -913,6 +913,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "inmem"
         // cutoff for processing in-memory
         sscanf(arg, "%u", &options->inmem_cutoff);
+    }
+    else if (strcmp(opt, OptionArray[87]) == 0)
+    {
+        // argument "prefer_gmpecm_stg2"
+        options->prefer_gmpecm_stg2 = 1;
     }
     else
     {
@@ -1072,10 +1077,12 @@ options_t* initOpt(void)
     // if we can use AVX-ECM, do so, and save B1 checkpoints.
 #ifdef USE_AVX512F
     options->prefer_gmpecm = 0;
-    options->saveB1 = 1;
-    options->ext_ecm_xover = 40000000;
+    options->prefer_gmpecm_stg2 = 0;
+    options->saveB1 = 0;
+    options->ext_ecm_xover = 300000000;
 #else
     options->prefer_gmpecm = 1;
+    options->prefer_gmpecm_stg2 = 1;
     options->saveB1 = 0;
     options->ext_ecm_xover = 48000;
 #endif

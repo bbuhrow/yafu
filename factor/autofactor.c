@@ -687,7 +687,7 @@ int check_tune_params(fact_obj_t *fobj)
 	{
         if (fobj->VFLAG > 0)
         {
-            printf("check tune params contained invalid parameter(s), ignoring tune info.\n");
+            printf("fac: check tune params contained invalid parameter(s), ignoring tune info.\n");
         }
 
         if (fobj->VFLAG > 2)

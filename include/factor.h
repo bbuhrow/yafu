@@ -39,12 +39,10 @@ code to the public domain.
 #else
 
 #include <unistd.h> // usleep
+//sleep in milliseconds
 #define MySleep(x) usleep((x)*1000)	
 
 #endif
-
-//sleep in milliseconds
-
 
 // these are similar to things msieve defines.  Differences:
 // the factor type contains more info about how the factor
@@ -147,6 +145,7 @@ typedef struct
 
     int save_b1;
     int prefer_gmpecm;
+    int prefer_gmpecm_stg2;
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;
@@ -434,6 +433,7 @@ typedef struct
     int HAS_SSE41;
     int HAS_AVX;
     int HAS_AVX2;
+    int HAS_BMI2;
     int HAS_AVX512;
     int HAS_AVX512F;
     int HAS_AVX512BW;

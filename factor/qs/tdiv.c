@@ -651,7 +651,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 				}
 
 				tinyecm(dconf->Qvals[report_num], dconf->gmptmp1, B1, B1 * 25, 
-                    curves, dconf->lcg_state, 0);
+                    curves, &dconf->lcg_state, 0);
 				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
 				{
 					return;

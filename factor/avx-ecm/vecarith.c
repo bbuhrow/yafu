@@ -228,7 +228,8 @@ __inline void _mm512_mul_eo64_epi32(__m512i a, __m512i b, __m512i *e64, __m512i 
 void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata)
 {
     int i, j, k;
-
+    uint32_t NWORDS = n->WORDS_ALLOC;
+    uint32_t NBLOCKS = n->WORDS_ALLOC / BLOCKWORDS;
     __m512i a0, a1, a2, a3;
     __m512i b0, b1, b2, b3, b4, b5, b6;
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;
@@ -899,7 +900,8 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
 {
     int i, j, k;
     vec_bignum_t *b = a;
-
+    uint32_t NWORDS = n->WORDS_ALLOC;
+    uint32_t NBLOCKS = n->WORDS_ALLOC / BLOCKWORDS;
     __m512i a0, a1, a2, a3;
     __m512i b0, b1, b2, b3, b4, b5, b6;
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;
@@ -2088,7 +2090,8 @@ void vecsqrmod(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *
 void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j, k;
-
+    uint32_t NWORDS = n->WORDS_ALLOC;
+    uint32_t NBLOCKS = n->WORDS_ALLOC / BLOCKWORDS;
     __m512i a0, a1, a2, a3;
     __m512i b0, b1, b2, b3, b4, b5, b6;
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;
@@ -3762,7 +3765,7 @@ void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_b
     // produce sum = a + b and diff = a - b at the same time which
     // saves 3N loads (only have to load a,b, and n once)
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 borrow = 0;
     __mmask16 cmask = 0;
@@ -3841,7 +3844,7 @@ void vecaddmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* m
     // a and b are both positive
     // n is the montgomery base
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 mask = 0;
     __mmask16 mask2 = 0;
@@ -3907,7 +3910,7 @@ void vecsubmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* m
     // a >= b
     // n is the montgomery base
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 mask = 0;
     __mmask16 mask2 = 0;
@@ -3948,7 +3951,7 @@ void vecaddmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_m
     // a and b are both positive
     // n is the montgomery base
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __m512i avec;
     __m512i bvec;
@@ -3999,7 +4002,7 @@ void vecsubmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_m
     // a >= b
     // n is the montgomery base
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 mask = 0;
     __m512i nvec;
@@ -4049,7 +4052,7 @@ void vec_simul_addsub_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* s
     // produce sum = a + b and diff = a - b at the same time which
     // saves 3N loads (only have to load a,b, and n once)
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __mmask16 borrow = 0;
     __mmask16 bmask = 0;
@@ -4120,6 +4123,7 @@ uint32_t vec_gte(vec_bignum_t * u, vec_bignum_t * v)
     // the corresponding bignum in vec 'v'.
     // return a mask of results.
     int i;
+    uint32_t NWORDS = u->WORDS_ALLOC;
     __mmask16 mdecided = 0;
     __mmask16 mgte = 0;
 
@@ -4167,6 +4171,7 @@ uint32_t vec_bignum_mask_lshift_1(vec_bignum_t * u, uint32_t wmask)
 {
     // return the left shift of bignum u by 1
     int i;
+    uint32_t NWORDS = u->WORDS_ALLOC;
     __m512i nextcarry;
     __m512i carry = _mm512_setzero_epi32();
     __m512i highmask = _mm512_set1_epi32(0x80000000);
@@ -4193,6 +4198,7 @@ void vec_bignum_mask_rshift_n(vec_bignum_t* u, vec_bignum_t* v, int n, uint32_t 
 {
     // return the right shift of bignum u by n bits
     int i;
+    uint32_t NWORDS = u->WORDS_ALLOC;
     __m512i nextcarry;
     __m512i carry = _mm512_set1_epi32(0);
     __m512i lowmask;
@@ -4218,6 +4224,7 @@ void vec_bignum_mask_rshift_1(vec_bignum_t * u, uint32_t wmask)
 {
     // return the right shift of bignum u by 1
     int i;
+    uint32_t NWORDS = u->WORDS_ALLOC;
     __m512i nextcarry;
     __m512i carry = _mm512_setzero_epi32();
     __m512i lowmask = _mm512_set1_epi32(0x00000001);
@@ -4252,7 +4259,7 @@ void vec_bignum_mask_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, uint
     // a and b are both positive
     // a >= b
     int i;
-
+    uint32_t NWORDS = a->WORDS_ALLOC;
     __mmask16 carry = 0;
     __m512i avec;
     __m512i bvec;

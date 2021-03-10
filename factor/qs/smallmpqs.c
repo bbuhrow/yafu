@@ -2012,7 +2012,7 @@ void smallmpqs(fact_obj_t *fobj)
 	if (siqs_primes[siqs_nump - 1] <= poly->poly_d)
 		smpqs_get_more_primes(poly, fobj->VFLAG);
 
-	pindex = bin_search_uint32(siqs_nump, 0, poly->poly_d, siqs_primes);
+	pindex = bin_search_uint64(siqs_nump, 0, poly->poly_d, siqs_primes);
 	if (pindex < 0)
 	{
 		printf("prime not found in binary search\n");

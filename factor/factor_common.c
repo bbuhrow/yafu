@@ -20,7 +20,7 @@ code to the public domain.
 
 #include "factor.h"
 #include "mpz_aprcl.h"
-
+#include "soe.h"
 
 void init_factobj(fact_obj_t* fobj)
 {
@@ -236,6 +236,10 @@ void free_factobj(fact_obj_t *fobj)
 
 	clear_factor_list(fobj->factors);
 	free(fobj->factors);
+    free(fobj->primes);
+    fobj->min_p = 0;
+    fobj->max_p = 0;
+    fobj->num_p = 0;
 
 	return;
 }
@@ -289,6 +293,14 @@ void alloc_factobj(fact_obj_t *fobj)
 	fobj->div_obj.num_factors = 0;	
 	fobj->nfs_obj.num_factors = 0;	
 	fobj->factors->num_factors = 0;
+
+    soe_staticdata_t* sdata;
+    // put a list of primes in the fobj; many algorithms use it
+    sdata = soe_init(0, 1, 32768);
+    fobj->primes = soe_wrapper(sdata, 0, 10000000, 0, &fobj->num_p, 0, 0);
+    fobj->min_p = 2;
+    fobj->max_p = fobj->primes[fobj->num_p - 1];
+    soe_finalize(sdata);
 
 	return;
 }

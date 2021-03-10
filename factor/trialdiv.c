@@ -23,11 +23,6 @@ code to the public domain.
 #include "gmp_xface.h"
 #include <math.h>
 
-static uint64_t* td_primes;
-static uint64_t td_nump;
-static uint64_t td_maxp;
-static int initialized = 0;
-
 void zTrial(fact_obj_t *fobj)
 {
 	//trial divide n using primes below limit. optionally, print factors found.
@@ -51,29 +46,26 @@ void zTrial(fact_obj_t *fobj)
         }
     }
 
-    if (!initialized)
-    {
-        soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-        td_primes = soe_wrapper(sdata, 0, 1000000, 0, &td_nump, 0, 0);
-        td_maxp = td_primes[td_nump - 1];
-        soe_finalize(sdata);
-        initialized = 1;
-    }
-
-	if (td_maxp < limit)
+    printf("min_p: %lu, max_p = %lu, num_p = %lu\n",
+        fobj->min_p, fobj->max_p, fobj->num_p);
+	if ((fobj->primes == NULL) || (fobj->min_p > 2) || (fobj->max_p < limit))
 	{
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-		free(td_primes);
-        td_primes = soe_wrapper(sdata, 0, limit, 0, &td_nump, 0, 0);
-        td_maxp = td_primes[td_nump -1];
+        if (fobj->primes != NULL)
+        {
+            free(fobj->primes);
+        }
+        fobj->primes = soe_wrapper(sdata, 0, limit, 0, &fobj->num_p, 0, 0);
+        fobj->min_p = 2;
+        fobj->max_p = fobj->primes[fobj->num_p -1];
         soe_finalize(sdata);
 	}
 
 	while ((mpz_cmp_ui(fobj->div_obj.gmp_n, 1) > 0) && 
-		(td_primes[k] < limit) &&
-		(k < (uint32_t)td_nump))
+		(fobj->primes[k] < limit) &&
+		(k < (uint32_t)fobj->num_p))
 	{
-		q = (uint64_t)td_primes[k];
+		q = (uint64_t)fobj->primes[k];
 		r = mpz_tdiv_ui(fobj->div_obj.gmp_n, q);
 		
 		if (r != 0)
@@ -218,17 +210,6 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 #define setbit(a,b) (((a)[(b) >> 3]) |= (nmasks[(b) & 7])) 
 #define getbit(a,b) (((a)[(b) >> 3]) & (nmasks[(b) & 7])) 
 
-static const uint32_t M = 2 * 2 * 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7; //176400u
-static const uint32_t M1 = 11 * 17 * 23 * 31; //133331u
-static const uint32_t M2 = 13 * 19 * 29 * 37; //265031u
-static const uint8_t masks[8] = { 0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f };
-
-static uint8_t* sqr, * sqr1, * sqr2, * mod, * mod1, * mod2;
-static uint16_t* skip;
-static uint8_t nmasks[8];
-
-static int fermat_initialized = 0;
-
 void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 {
 	// Fermat's factorization method with a sieve-based improvement
@@ -241,8 +222,11 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	uint64_t count;
 	uint64_t i64;
 	FILE *flog = NULL;
-	//uint8_t *sqr, *sqr1, *sqr2, *mod, *mod1, *mod2;
-	//uint16_t *skip;
+    const uint32_t M = 2 * 2 * 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7; //176400u
+    const uint32_t M1 = 11 * 17 * 23 * 31; //133331u
+    const uint32_t M2 = 13 * 19 * 29 * 37; //265031u
+	uint8_t *sqr, *sqr1, *sqr2, *mod, *mod1, *mod2;
+	uint16_t *skip;
 	uint32_t m, mmn, s, d;
 	uint8_t masks[8] = {0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f};
 	uint8_t nmasks[8];
@@ -326,31 +310,26 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
 	// build tables to allow us to quickly iterate over 'a' values that are 
 	// more likely to produce squares.
 	// init sieve structures
-    if (!fermat_initialized)
-    {
-        sqr = (uint8_t*)calloc((M / 8 + 1), sizeof(uint8_t));
-        sqr1 = (uint8_t*)calloc((M1 / 8 + 1), sizeof(uint8_t));
-        sqr2 = (uint8_t*)calloc((M2 / 8 + 1), sizeof(uint8_t));
-        mod = (uint8_t*)calloc((M / 8 + 1), sizeof(uint8_t));
-        mod1 = (uint8_t*)calloc((M1 / 8 + 1), sizeof(uint8_t));
-        mod2 = (uint8_t*)calloc((M2 / 8 + 1), sizeof(uint8_t));
-        skip = (uint16_t*)malloc(M * sizeof(uint16_t));
+    sqr = (uint8_t*)calloc((M / 8 + 1), sizeof(uint8_t));
+    sqr1 = (uint8_t*)calloc((M1 / 8 + 1), sizeof(uint8_t));
+    sqr2 = (uint8_t*)calloc((M2 / 8 + 1), sizeof(uint8_t));
+    mod = (uint8_t*)calloc((M / 8 + 1), sizeof(uint8_t));
+    mod1 = (uint8_t*)calloc((M1 / 8 + 1), sizeof(uint8_t));
+    mod2 = (uint8_t*)calloc((M2 / 8 + 1), sizeof(uint8_t));
+    skip = (uint16_t*)malloc(M * sizeof(uint16_t));
 
-        for (i = 0; i < 8; i++)
-            nmasks[i] = ~masks[i];
+    for (i = 0; i < 8; i++)
+        nmasks[i] = ~masks[i];
 
-        // marks locations where squares can occur mod M, M1, M2
-        for (i64 = 0; i64 < M; ++i64)
-            setbit(sqr, (i64* i64) % M);
+    // marks locations where squares can occur mod M, M1, M2
+    for (i64 = 0; i64 < M; ++i64)
+        setbit(sqr, (i64* i64) % M);
 
-        for (i64 = 0; i64 < M1; ++i64)
-            setbit(sqr1, (i64* i64) % M1);
+    for (i64 = 0; i64 < M1; ++i64)
+        setbit(sqr1, (i64* i64) % M1);
 
-        for (i64 = 0; i64 < M2; ++i64)
-            setbit(sqr2, (i64* i64) % M2);
-
-        fermat_initialized = 1;
-    }
+    for (i64 = 0; i64 < M2; ++i64)
+        setbit(sqr2, (i64* i64) % M2);
 
 	// test it.  This will be good enough if |u*p-v*q| < 2 * N^(1/4), where
 	// mult = u*v
@@ -558,6 +537,7 @@ done:
 	free(mod1);
 	free(mod2);
 	free(skip);
+
     if (fobj->LOGFLAG && (flog != NULL))
     {
         fclose(flog);
@@ -602,6 +582,8 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
     int sz = (smM / 8 + 1);
     int sz1 = (smM1 / 8 + 1);
     int sz2 = (smM2 / 8 + 1);
+    uint8_t masks[8] = { 0xfe, 0xfd, 0xfb, 0xf7, 0xef, 0xdf, 0xbf, 0x7f };
+    uint8_t nmasks[8];
 
     if (sptestsqr(n))
     {
@@ -624,6 +606,9 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
     b2 = a * a;
     b2 = b2 - multN;
 
+    for (i = 0; i < 8; i++)
+        nmasks[i] = ~masks[i];
+
     // test successive 'a' values using a sieve-based approach.
     // the idea is that not all 'a' values allow a^2 or b^2 to be square.  
     // we pre-compute allowable 'a' values modulo various smooth numbers and 
@@ -640,8 +625,7 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n)
         smmod2 = (uint8_t*)calloc((smM2 / 8 + 1) * smM2 * smM2, sizeof(uint8_t));
         smskip = (uint16_t*)malloc(smM * sizeof(uint16_t));
 
-        for (i = 0; i < 8; i++)
-            nmasks[i] = ~masks[i];
+        
 
         // marks locations where squares can occur mod M, M1, M2
         for (i64 = 0; i64 < smM; ++i64)

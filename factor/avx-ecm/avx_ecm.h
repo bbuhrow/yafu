@@ -79,6 +79,7 @@ typedef struct
     base_t *data;
     int size;
     uint32_t signmask;
+    uint32_t WORDS_ALLOC;
 } vec_bignum_t;
 
 // a vector math library for montgomery arithmetic using AVX-512
@@ -103,18 +104,21 @@ typedef struct
     base_t rho;
     int nbits;
     int isMersenne;
+    uint32_t MAXBITS;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
 } vec_monty_t;
 
 void print_hexbignum(vec_bignum_t *a, const char *pre);
 void print_hex(vec_bignum_t *a, const char *pre);
 void print_vechex(base_t *a, int v, int n, const char *pre);
-vec_monty_t * vec_monty_alloc(void);
+vec_monty_t * vec_monty_alloc(uint32_t words);
 void vec_monty_free(vec_monty_t *mdata);
 void copy_vec_lane(vec_bignum_t *src, vec_bignum_t *dest, int num, int size);
 void vecCopy(vec_bignum_t * src, vec_bignum_t * dest);
 void vecCopyn(vec_bignum_t * src, vec_bignum_t * dest, int size);
 void vecClear(vec_bignum_t *n);
-vec_bignum_t * vecInit(void);
+vec_bignum_t * vecInit(uint32_t words);
 void vecFree(vec_bignum_t *);
 
 // 52-BIT functions
@@ -226,6 +230,12 @@ typedef struct
     uint64_t min_p;
     uint64_t max_p;
 
+    uint64_t STAGE1_MAX;
+    uint64_t STAGE2_MAX;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
+    uint32_t MAXBITS;
+
 } ecm_work;
 
 // a wrapper for found factors and information about
@@ -271,31 +281,22 @@ typedef struct
     uint64_t nump;
     uint64_t minp;
     uint64_t maxp;
+
+    uint32_t MAXBITS;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
+    uint64_t STAGE1_MAX;
+    uint64_t STAGE2_MAX;
+    uint32_t PRIME_RANGE;
+    int DO_STAGE2;
 } thread_data_t;
 
-typedef struct
-{
-    thread_data_t *tdata;
-    
-} process_data_t;
-
 void vececm(thread_data_t *tdata);
-void vec_ecm_pt_init(ecm_pt *pt);
+void vec_ecm_pt_init(ecm_pt *pt, uint32_t words);
 void vec_ecm_pt_free(ecm_pt *pt);
 void vec_ecm_work_init(ecm_work *work);
 void vec_ecm_work_free(ecm_work *work);
 
 
-// 
-uint32_t MAXBITS;
-uint32_t NWORDS;
-uint32_t NBLOCKS;
-uint64_t* lcg_state;
 
-
-// global limits
-uint64_t STAGE1_MAX;
-uint64_t STAGE2_MAX;
-uint32_t PRIME_RANGE;
-int DO_STAGE2;
 

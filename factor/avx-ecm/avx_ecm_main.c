@@ -42,7 +42,7 @@ either expressed or implied, of the FreeBSD Project.
 
 
 static int debugctr = 0;
-void thread_init(thread_data_t* tdata, vec_monty_t* mdata);
+void thread_init(thread_data_t* tdata, vec_monty_t* mdata, uint64_t B1, uint64_t B2);
 
 void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, int sz)
 {
@@ -138,6 +138,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
     uint64_t sigma = fobj->ecm_obj.sigma;
+    uint32_t maxbits, nwords, nblocks;
 
 	// timing variables
 	struct timeval stopt;	// stop time of this job
@@ -146,11 +147,15 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 
 	gettimeofday(&startt, NULL);
 
-	if (pid <= 0)
-		pid = startt.tv_usec;
+    if (pid <= 0)
+    {
+        pid = startt.tv_usec;
+    }
 
     if (verbose > 1)
-	    printf("process id is %d\n", pid);
+    {
+        printf("process id is %d\n", pid);
+    }
 
     *numfactors = 0;
     mpz_init(g);
@@ -245,55 +250,60 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // compute NBLOCKS if using the actual size of the input (non-Mersenne)
     if (DIGITBITS == 52)
     {
-        MAXBITS = 208;
-        while (MAXBITS <= mpz_sizeinbase(N, 2))
+        maxbits = 208;
+        while (maxbits <= mpz_sizeinbase(N, 2))
         {
-            MAXBITS += 208;
+            maxbits += 208;
         }
     }
     else
     {
-        MAXBITS = 128;
-        while (MAXBITS <= mpz_sizeinbase(N, 2))
+        maxbits = 128;
+        while (maxbits <= mpz_sizeinbase(N, 2))
         {
-            MAXBITS += 128;
+            maxbits += 128;
         }
     }
 
-    NWORDS = MAXBITS / DIGITBITS;
-    NBLOCKS = NWORDS / BLOCKWORDS;
+    nwords = maxbits / DIGITBITS;
+    nblocks = nwords / BLOCKWORDS;
 
     // and compute NBLOCKS if using Mersenne mod
     if (DIGITBITS == 52)
     {
-        MAXBITS = 208;
-        while (MAXBITS <= size_n)
+        maxbits = 208;
+        while (maxbits <= size_n)
         {
-            MAXBITS += 208;
+            maxbits += 208;
         }
     }
     else
     {
-        MAXBITS = 128;
-        while (MAXBITS <= size_n)
+        maxbits = 128;
+        while (maxbits <= size_n)
         {
-            MAXBITS += 128;
+            maxbits += 128;
         }
     }
 
-    if (verbose > 0)
-        gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
-
-    if ((double)NWORDS / ((double)MAXBITS / (double)DIGITBITS) < 0.7)
+    if (verbose > 1)
     {
-        if (verbose > 0)
-            printf("Mersenne input 2^%d - 1 determined to be faster by REDC\n", size_n);
+        gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
+    }
+
+    if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
+    {
+        if (verbose > 1)
+        {
+            printf("Mersenne input 2^%d - 1 determined to be faster by REDC\n", 
+                size_n);
+        }
         forceNoMersenne = 1;
     }
     else
     {
-        NWORDS = MAXBITS / DIGITBITS;
-        NBLOCKS = NWORDS / BLOCKWORDS;
+        nwords = maxbits / DIGITBITS;
+        nblocks = nwords / BLOCKWORDS;
     }
 
     if (forceNoMersenne)
@@ -302,11 +312,13 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         size_n = mpz_sizeinbase(N, 2);
     }
 
-    STAGE1_MAX = b1;
-
     // now that we know NWORDS, can allocate the monty structure.
-    montyconst = vec_monty_alloc();
+    montyconst = vec_monty_alloc(nwords);
     tdata = (thread_data_t*)malloc(threads * sizeof(thread_data_t));
+
+    tdata[0].MAXBITS = montyconst->MAXBITS = maxbits;
+    tdata[0].NBLOCKS = montyconst->NBLOCKS = nblocks;
+    tdata[0].NWORDS = montyconst->NWORDS = nwords;
 
     if (isMersenne != 0)
     {
@@ -334,7 +346,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         montyconst->isMersenne = 0;
         montyconst->nbits = mpz_sizeinbase(N, 2);
         mpz_set_ui(r, 1);
-        mpz_mul_2exp(r, r, DIGITBITS * NWORDS);
+        mpz_mul_2exp(r, r, DIGITBITS * tdata[0].NWORDS);
         //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
         mpz_invert(montyconst->nhat, N, r);
         mpz_sub(montyconst->nhat, r, montyconst->nhat);
@@ -348,63 +360,48 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     }
 
     if (verbose > 1)
+    {
         printf("ECM has been configured with DIGITBITS = %u, VECLEN = %d, GMP_LIMB_BITS = %d\n",
             DIGITBITS, VECLEN, GMP_LIMB_BITS);
 
-    if (verbose > 1)
         printf("Choosing MAXBITS = %u, NWORDS = %d, NBLOCKS = %d based on input size %d\n",
-            MAXBITS, NWORDS, NBLOCKS, size_n);
+            tdata[0].MAXBITS, tdata[0].NWORDS, tdata[0].NBLOCKS, size_n);
 
-    if (verbose > 0)
-    {
         if (sigma > 0)
         {
             printf("starting with sigma = %lu\n", sigma);
         }
     }
 
-    DO_STAGE2 = 1;
+    tdata[0].STAGE1_MAX = b1;
+    tdata[0].DO_STAGE2 = 1;
     if (B2 == (uint64_t)-1)
 	{
-        STAGE2_MAX = STAGE1_MAX;
-		DO_STAGE2 = 0;
+        tdata[0].STAGE2_MAX = tdata[0].STAGE1_MAX;
+        tdata[0].DO_STAGE2 = 0;
 	}
     else if (B2 == 0)
     {
-        STAGE2_MAX = 100ULL * (uint64_t)b1;
+        tdata[0].STAGE2_MAX = 100ULL * (uint64_t)b1;
     }
     else
     {
-        STAGE2_MAX = B2;
-    }
-
-    if (STAGE1_MAX < 1000)
-    {
-        printf("stage 1 too small, resetting to 1000\n");
-        STAGE1_MAX = 1000;
+        tdata[0].STAGE2_MAX = B2;
     }
 
     // not currently used, but the mechanisms exist to pass in an initial
     // list of primes to use here.
-    PRIME_RANGE = 100000000;
-    //if ((fobj->primes[0] != 2) || fobj->max_p < 99999989)
-    //{
-    //    free(fobj->primes);
-    //    soe_staticdata_t* sdata = soe_init(0, 1, 32768);
-    //    fobj->primes = soe_wrapper(sdata, 0, 100000000, 0, &fobj->num_p, 0, 0);
-    //    soe_finalize(sdata);
-    //    fobj->max_p = fobj->primes[fobj->num_p - 1];
-    //    fobj->min_p = fobj->primes[0];
-    //    PRIME_RANGE = 100000000;
-    //
-    //    if (verbose > 1)
-    //        printf("cached %u primes < %u\n", fobj->num_p, fobj->max_p);
-    //}
+    tdata[0].PRIME_RANGE = 100000000;
 
-	if (numcurves < threads)
-		numcurves = threads;
+    if (numcurves < threads)
+    {
+        numcurves = threads;
+    }
 	
-    printf("configuring avx-ecm with %d threads\n", threads); fflush(stdout);
+    if (verbose > 1)
+    {
+        printf("configuring avx-ecm with %d threads\n", threads); fflush(stdout);
+    }
 
 	numcurves_per_thread = numcurves / threads + (numcurves % threads != 0);
 	numcurves = numcurves_per_thread * threads;
@@ -413,7 +410,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     {
         printf("Input has %d bits, using %d threads (%d curves/thread)\n",
             mpz_sizeinbase(N, 2), threads, numcurves_per_thread);
-        printf("Processing in batches of %u primes\n", PRIME_RANGE);
+        printf("Processing in batches of %u primes\n", tdata[0].PRIME_RANGE);
     }
 
     //gmp_printf("n = %Zx\n", gmpn);
@@ -435,8 +432,11 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            printf("Using special pseudo-Mersenne mod for factor of: 2^%d-%d\n", 
-                montyconst->nbits, montyconst->isMersenne);
+            if (verbose > 1)
+            {
+                printf("Using special pseudo-Mersenne mod for factor of: 2^%d-%d\n",
+                    montyconst->nbits, montyconst->isMersenne);
+            }
         }
 		else if (montyconst->isMersenne > 0)
         {
@@ -445,7 +445,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            }
         }
         else if (montyconst->isMersenne < 0)
         {
@@ -454,7 +457,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
+            }
         }
         else
         {
@@ -474,7 +480,10 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             vecaddmod_ptr = &vecaddmod_mersenne;
             vecsubmod_ptr = &vecsubmod_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub_mersenne;
-            printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            if (verbose > 1)
+            {
+                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
+            }
         }
         else
         {
@@ -493,7 +502,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     for (i = 0; i < threads; i++)
     {
         int j;
-        thread_init(&tdata[i], montyconst);
+        thread_init(&tdata[i], montyconst, tdata[0].STAGE1_MAX, tdata[0].STAGE2_MAX);
         tdata[i].curves = numcurves_per_thread;
         tdata[i].tid = i;
         tdata[i].numfactors = 0;
@@ -505,14 +514,21 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         tdata[i].total_threads = threads;
         tdata[i].verbose = verbose;
         tdata[i].save_b1 = save_b1;
+        tdata[i].STAGE1_MAX = tdata[0].STAGE1_MAX;
+        tdata[i].STAGE2_MAX = tdata[0].STAGE2_MAX;
+        tdata[i].DO_STAGE2 = tdata[0].DO_STAGE2;
+        tdata[i].PRIME_RANGE = tdata[0].PRIME_RANGE;
+        tdata[i].MAXBITS = maxbits;
+        tdata[i].NBLOCKS = nblocks;
+        tdata[i].NWORDS = nwords;
         
         if (i == 0)
         {
             uint32_t D = tdata[i].work->D;
             int k;
 
-            tdata[i].pairmap_v = (uint32_t*)calloc(PRIME_RANGE, sizeof(uint32_t));
-            tdata[i].pairmap_u = (uint32_t*)calloc(PRIME_RANGE, sizeof(uint32_t));
+            tdata[i].pairmap_v = (uint32_t*)calloc(tdata[0].PRIME_RANGE, sizeof(uint32_t));
+            tdata[i].pairmap_u = (uint32_t*)calloc(tdata[0].PRIME_RANGE, sizeof(uint32_t));
 
             tdata[i].Qmap = (uint32_t*)malloc(2 * D * sizeof(uint32_t));
             tdata[i].Qrmap = (uint32_t*)malloc(2 * D * sizeof(uint32_t));
@@ -568,7 +584,9 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     t_time = ytools_difftime(&startt, &stopt);
 
     if (verbose > 1)
+    {
         printf("Initialization took %1.4f seconds.\n", t_time);
+    }
 
     // top level ECM 
     vececm(tdata);    
@@ -757,64 +775,140 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
 	return;
 }
 
-void thread_init(thread_data_t *tdata, vec_monty_t *mdata)
+void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t B2)
 {    
-    //mpz_init(tdata->factor);
+    int i, j;
+
     tdata->work = (ecm_work *)malloc(sizeof(ecm_work));
     tdata->P = (ecm_pt *)malloc(sizeof(ecm_pt));
     tdata->sigma = (uint64_t *)malloc(VECLEN * sizeof(uint64_t));
-	uint32_t D = tdata->work->D = 1155;
-	tdata->work->R = 480 + 3;
+    uint32_t D = tdata->work->D = 2310;
+    tdata->work->STAGE1_MAX = B1;
+    tdata->work->STAGE2_MAX = B2;
 
 	// decide on the stage 2 parameters.  Larger U means
 	// more memory and more setup overhead, but more prime pairs.
 	// Smaller U means the opposite.  find a good balance.
-	static double pairing[4] = { 0.7283, 0.6446, 0.5794, 0.5401 };
-	static double adds[4];
-	double best = 99999999999.;
-	int bestU = 4;
+    if (B1 <= 4096)
+    {
+        D = tdata->work->D = 1155;
+    }
 
-	if (STAGE1_MAX <= 8192)
-	{
-		D = tdata->work->D = 210;
-		tdata->work->R = 48 + 3;
-	}
+    if (B1 <= 2048)
+    {
+        D = tdata->work->D = 385;
+    }
 
-	adds[0] = (double)D * 1.0;
-	adds[1] = (double)D * 2.0;
-	adds[2] = (double)D * 4.0;
-	adds[3] = (double)D * 8.0;
+    if (B1 <= 512)
+    {
+        D = tdata->work->D = 210;
+    }
 
-	int i;
-	for (i = 1; i < 4; i++)
-	{
-		int numadds = (STAGE2_MAX - STAGE1_MAX) / (2 * D);
-		double addcost = 6.0 * ((double)numadds + adds[i]);
-		double paircost = ((double)STAGE2_MAX / log((double)STAGE2_MAX) -
-			(double)STAGE1_MAX / log((double)STAGE1_MAX)) * pairing[i] * 2.0;
+    if (B1 <= 256)
+    {
+        D = tdata->work->D = 120;
+    }
 
-		//printf("estimating %u primes paired\n", (uint32_t)((double)STAGE2_MAX / log((double)STAGE2_MAX) -
-		//	(double)STAGE1_MAX / log((double)STAGE1_MAX)));
-		//printf("%d adds + %d setup adds\n", numadds, (int)adds[i]);
-		//printf("addcost = %f\n", addcost);
-		//printf("paircost = %f\n", paircost);
-		//printf("totalcost = %f\n", addcost + paircost);
+    if (B1 <= 128)
+    {
+        D = tdata->work->D = 60;
+    }
 
-		if ((addcost + paircost) < best)
-		{
-			best = addcost + paircost;
-			bestU = 1 << i;
-		}
-	}
+    if (B1 <= 60)
+    {
+        D = tdata->work->D = 30;
+    }
 
-	tdata->work->U = bestU;
-	tdata->work->L = bestU * 2;
+    for (j = 0, i = 0; i < 2 * D; i++)
+    {
+        if (spGCD(i, 2 * D) == 1)
+        {
+            j++;
+        }
+    }
 
+    tdata->work->R = j + 3;
+
+    // decide on the stage 2 parameters.  Larger U means
+    // more memory and more setup overhead, but more prime pairs.
+    // Smaller U means the opposite.  find a good balance.
+    // these pairing ratios are estimates based on Montgomery's
+    // Pair algorithm Table w assuming w = 1155, for various umax.
+    //static double pairing[8] = { 0.7,  0.6446, 0.6043, 0.5794, 0.5535, 0.5401, 0.5266, 0.5015};
+    // these ratios are based on observations with larger (more realistic) B1/B2, 
+    // specifically, B2=1e9
+    static double pairing[8] = { 0.8,  0.72, 0.67, 0.63, 0.59, 0.57, 0.55, 0.54 };
+    int U[8] = { 1, 2, 3, 4, 6, 8, 12, 16 };
+    double adds[8];
+    int numadds;
+    int numinv;
+    double addcost, invcost;
+    double best = 99999999999.;
+    int bestU = 4;
+
+
+#ifdef TARGET_KNL
+    // for smaller B1, lower U can be better because initialization time
+    // is more significant.  At B1=3M or above the max U is probably best.
+    // If memory is an issue beyond the timings, then U will have to
+    // be smaller.  (e.g., if we do a -maxmem option).
+    for (i = 1; i < 6; i++)
+#else
+    for (i = 1; i < 8; i++)
+#endif
+    {
+        double paircost;
+
+        // setup cost of Pb.
+        // should maybe take memory into account too, since this array can
+        // get pretty big (especially with multiple threads)?
+        adds[i] = (double)D * (double)U[i];;
+
+        // runtime cost of stage 2
+        numadds = (B2 - B1) / (D);
+
+        // total adds cost
+        addcost = 6.0 * ((double)numadds + adds[i]);
+
+        // inversion cost - we invert in batches of 2U at a time, taking 3*U muls.
+        // estimating the cost of the inversion as equal to an add, but we do the 
+        // 8 vector elements one at a time.
+        numinv = ((double)numadds / (double)U[i] / 2.0) + 2;
+        invcost = (double)numinv * (VECLEN * 6.0) + (double)numinv * 3.0;
+
+        //// estimate number of prime pairs times 1 (1 mul per pair with batch inversion)
+        //paircost = ((double)STAGE2_MAX / log((double)STAGE2_MAX) -
+        //	(double)STAGE1_MAX / log((double)STAGE1_MAX)) * pairing[i] * 1.0;
+        //
+        //printf("estimating %u primes to pair\n", (uint32_t)((double)STAGE2_MAX / log((double)STAGE2_MAX) -
+        //	(double)STAGE1_MAX / log((double)STAGE1_MAX)));
+        //printf("%d stg2 adds + %d setup adds + %d inversions\n", numadds, (int)adds[i], numinv);
+        //printf("addcost = %f\n", addcost);
+        //printf("paircost = %f\n", paircost);
+        //printf("invcost = %f\n", invcost);
+        //printf("totalcost = %f\n", addcost + paircost + invcost);
+
+        if ((addcost + paircost + invcost) < best)
+        {
+            best = addcost + paircost + invcost;
+            bestU = U[i];
+        }
+    }
+
+    tdata->work->U = bestU;
+    tdata->work->L = tdata->work->U * 2;
+
+    tdata->work->NWORDS = mdata->NWORDS;
+    tdata->work->MAXBITS = mdata->MAXBITS;
+    tdata->work->NBLOCKS = mdata->NBLOCKS;
     vec_ecm_work_init(tdata->work);
-    vec_ecm_pt_init(tdata->P);
+    vec_ecm_pt_init(tdata->P, mdata->NWORDS);
 
     // allocate and then copy some constants over to this thread's mdata structure.
-    tdata->mdata = vec_monty_alloc();
+    tdata->mdata = vec_monty_alloc(mdata->NWORDS);
+    tdata->mdata->NWORDS = mdata->NWORDS;
+    tdata->mdata->MAXBITS = mdata->MAXBITS;
+    tdata->mdata->NBLOCKS = mdata->NBLOCKS;
     mpz_set(tdata->mdata->nhat, mdata->nhat);
     mpz_set(tdata->mdata->rhat, mdata->rhat);
     vecCopy(mdata->n, tdata->mdata->n);

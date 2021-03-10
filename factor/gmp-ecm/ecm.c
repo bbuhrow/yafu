@@ -24,6 +24,7 @@ code to the public domain.
 #include "threadpool.h"
 #include <ecm.h>
 #include <signal.h>
+#include <time.h>
 
 //local function declarations
 typedef struct {
@@ -40,6 +41,7 @@ typedef struct {
     int factor_found;
     int* ok_to_stop;
     int* curves_in_flight;
+    int resume_avx_ecm;
 
     // timing data for ETA
     struct timeval stop;
@@ -280,7 +282,13 @@ int ecm_loop(fact_obj_t *fobj)
 	if (ecm_check_input(fobj) == 0)
 		return 0;
 	
-    if ((fobj->ecm_obj.prefer_gmpecm) || (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover))
+#ifndef USE_AVX512F
+    if (1)
+#else
+    if ((fobj->ecm_obj.prefer_gmpecm) || 
+        (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover) ||
+        (!fobj->HAS_AVX512F))
+#endif
     {
         // initialize the flag to watch for interrupts, and set the
         // pointer to the function to call if we see a user interrupt
@@ -305,6 +313,7 @@ int ecm_loop(fact_obj_t *fobj)
             thread_data[i].factor_found = 0;
             thread_data[i].ok_to_stop = &bail;
             thread_data[i].curves_in_flight = &curves_in_flight;
+            thread_data[i].resume_avx_ecm = 0;
         }
 
         tpool_data = tpool_setup(fobj->THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
@@ -357,6 +366,8 @@ int ecm_loop(fact_obj_t *fobj)
         int numfactors = 0;
         uint64_t B2;
         uint32_t curves_run;
+        int save_b1 = fobj->ecm_obj.save_b1;
+        uint64_t ecm_ext_xover;
 
         if (fobj->ecm_obj.stg2_is_default)
         {
@@ -367,9 +378,88 @@ int ecm_loop(fact_obj_t *fobj)
             B2 = fobj->ecm_obj.B2;
         }
 
+        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        {
+            save_b1 = 2;
+            B2 = fobj->ecm_obj.B1;
+            ecm_ext_xover = fobj->ecm_obj.ecm_ext_xover;
+            fobj->ecm_obj.ecm_ext_xover = 0;
+        }
+
         vec_ecm_main(fobj, fobj->ecm_obj.num_curves, fobj->ecm_obj.B1,
-            B2, fobj->THREADS, &numfactors, fobj->VFLAG, fobj->ecm_obj.save_b1,
+            B2, fobj->THREADS, &numfactors, fobj->VFLAG, save_b1,
             &curves_run);
+
+        if (fobj->ecm_obj.prefer_gmpecm_stg2)
+        {
+            // now resume each curve with gmp-ecm
+
+
+            // initialize the flag to watch for interrupts, and set the
+            // pointer to the function to call if we see a user interrupt
+            ECM_ABORT = 0;
+            signal(SIGINT, ecmexit);
+
+            //init ecm process
+            ecm_process_init(fobj);
+
+            thread_data = (ecm_thread_data_t*)malloc(fobj->THREADS * sizeof(ecm_thread_data_t));
+            for (i = 0; i < fobj->THREADS; i++)
+            {
+                // several things in the thread structure need to be tied
+                // to one master copy for syncronization purposes.
+                // there should maybe be a separate field in the threadpool
+                // structure for this...
+                // e.g. user_data and user_shared_data structures
+                thread_data[i].fobj = fobj;
+                thread_data[i].thread_num = i;  // todo: remove and replace with tpool->tindex
+                thread_data[i].total_curves_run = &total_curves_run;
+                thread_data[i].total_time = &total_time;
+                thread_data[i].factor_found = 0;
+                thread_data[i].ok_to_stop = &bail;
+                thread_data[i].curves_in_flight = &curves_in_flight;
+                thread_data[i].resume_avx_ecm = 1;
+            }
+
+            tpool_data = tpool_setup(fobj->THREADS, &ecm_start_fcn, &ecm_stop_fcn, &ecm_sync_fcn,
+                &ecm_dispatch_fcn, thread_data);
+
+            total_curves_run = 0;
+            tpool_add_work_fcn(tpool_data, &ecm_do_one_curve);
+            tpool_go(tpool_data);
+
+            free(tpool_data);
+
+            if (fobj->VFLAG >= 0)
+                printf("\n");
+
+            if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+            {
+                flog = fopen(fobj->flogname, "a");
+                if (flog == NULL)
+                {
+                    printf("fopen error: %s\n", strerror(errno));
+                    printf("could not open %s for appending\n", fobj->flogname);
+                    return 0;
+                }
+                else
+                {
+                    logprint(flog, "Finished %d curves using GMP-ECM method on C%d input, ",
+                        total_curves_run, input_digits);
+
+                    print_B1B2(fobj, flog);
+                    fprintf(flog, "\n");
+
+                    fclose(flog);
+                }
+            }
+
+            free(thread_data);
+            signal(SIGINT, NULL);
+            ecm_process_free(fobj);
+
+            fobj->ecm_obj.ecm_ext_xover = ecm_ext_xover;
+        }
 
         // this is how we tell factor() to stop running curves at this level
         if (((bail_on_factor == 1) && (bail == 1)) ||
@@ -710,11 +800,33 @@ void *ecm_do_one_curve(void *ptr)
 
         // todo: add command line input of arbitrary argument string to append to this command
 		// build system command
-		sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n", 
-			tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1, 
-			thread_data->tmp_output);
+        if (thread_data->resume_avx_ecm)
+        {
+            fid = fopen("avx_ecm_resume.txt", "r");
+            if (fid != NULL)
+            {
+                fclose(fid);
+                sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume.txt %u | tee %s\n",
+                    tmpstr, fobj->ecm_obj.ecm_path, fobj->ecm_obj.B1,
+                    thread_data->tmp_output);
+            }
+            else
+            {
+                thread_data->curves_run++;
+                free(tmpstr);
+                free(cmd);
+                return;
+            }
+        }
+        else
+        {
+            sprintf(cmd, "echo %s | %s -sigma %u %u > %s\n",
+                tmpstr, fobj->ecm_obj.ecm_path, thread_data->sigma, fobj->ecm_obj.B1,
+                thread_data->tmp_output);
+        }
 
 		// run system command
+        //printf("sys: %s\n", cmd);
 		retcode = system(cmd);
 
 		free(tmpstr);
@@ -755,6 +867,21 @@ void *ecm_do_one_curve(void *ptr)
 			break;
 		}
 		fclose(fid);
+
+        if (thread_data->resume_avx_ecm)
+        {
+            time_t rawtime;
+            struct tm* info;
+            time(&rawtime);
+            info = localtime(&rawtime);
+
+            char destfile[80];
+
+            sprintf(destfile, "avx_ecm_resume_%d_%d_%d.txt", 
+                info->tm_mon, info->tm_mday, info->tm_year + 1900);
+            // archive the resume file
+            rename("avx_ecm_resume.txt", destfile);
+        }
 	}
 
     if (fobj->ecm_obj.B1 > 48000)

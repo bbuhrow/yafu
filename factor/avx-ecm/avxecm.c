@@ -70,7 +70,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
 void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t X2, mpz_t Z2, 
     mpz_t A, uint64_t sigma);
 void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, 
-    base_t b1, base_t *primes, base_t nump, int verbose);
+    uint64_t b1, uint64_t*primes, uint64_t nump, int verbose);
 int vec_ecm_stage2_init(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, int verbose);
 //void vec_ecm_stage2_pair(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base_t *primes, int verbose);
 void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* pairmap_u,
@@ -82,6 +82,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
 int vec_check_factor(mpz_t Z, mpz_t n, mpz_t f);
 
 // GMP-ECM batch stage1
+void array_mul(uint64_t* primes, uint64_t b1, int num_p, mpz_t piprimes);
 unsigned int compute_s(mpz_t s, uint64_t *primes, uint64_t B1);
 int vec_ecm_stage1_batch(mpz_t f, ecm_work *work, ecm_pt *P, vec_bignum_t * A, 
     vec_bignum_t * n, uint64_t B1, mpz_t s, vec_monty_t *mdata);
@@ -817,7 +818,7 @@ void vec_ecm_stage2_work_fcn(void *vptr);
 
 
 void
-mpres_get_z(mpz_t R, const mpz_t S, mpz_t modulus, vec_monty_t *mdata)
+mpres_get_z(mpz_t R, const mpz_t S, mpz_t modulus, vec_monty_t *mdata, uint32_t MAXBITS)
 {
     // not fast, but gets the input S out of Mrep.
     mpz_set(mdata->gmp_t1, S);
@@ -868,7 +869,7 @@ void mpres_mul_2exp(mpz_t R, mpz_t S, const unsigned long k, mpz_t modulus)
     mpz_mod(R, R, modulus);
 }
 
-void mpres_add_ui(mpz_t R, mpz_t S, const unsigned long n, mpz_t modulus)
+void mpres_add_ui(mpz_t R, mpz_t S, const unsigned long n, mpz_t modulus, uint32_t MAXBITS)
 {
     mpz_set_ui(R, n);
     mpz_mul_2exp(R, R, MAXBITS);
@@ -962,10 +963,11 @@ void vec_ecm_stage1_work_fcn(void *vptr)
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
     uint32_t tid = tpdata->tindex;
+    int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
     vec_ecm_stage1(udata[tid].mdata, udata[tid].work, udata[tid].P, 
-        udata[tid].b1, udata[tid].primes, udata[tid].nump, 
-        udata[tid].verbose && (tid == 0));
+        udata[tid].STAGE1_MAX, udata[tid].primes, udata[tid].nump, 
+        verbose);
 
     return;
 }
@@ -975,8 +977,9 @@ void vec_ecm_stage2_init_work_fcn(void *vptr)
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
     uint32_t tid = tpdata->tindex;
+    int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
-    vec_ecm_stage2_init(udata[tid].P, udata[tid].mdata, udata[tid].work, tid == 0);
+    vec_ecm_stage2_init(udata[tid].P, udata[tid].mdata, udata[tid].work, verbose);
 
     return;
 }
@@ -986,9 +989,10 @@ void vec_ecm_stage2_work_fcn(void *vptr)
     tpool_t *tpdata = (tpool_t *)vptr;
     thread_data_t *udata = (thread_data_t *)tpdata->user_data;
     uint32_t tid = tpdata->tindex;
+    int verbose = (tid == 0) ? udata[tid].verbose : 0;
 
     vec_ecm_stage2_pair(udata[tid].pairmap_steps, udata[tid].pairmap_v, udata[tid].pairmap_u,
-        udata[tid].P, udata[tid].mdata, udata[tid].work, tid == 0);
+        udata[tid].P, udata[tid].mdata, udata[tid].work, verbose);
     udata[tid].work->last_pid = udata[tid].nump;
 
     return;
@@ -1072,6 +1076,7 @@ void vec_ecm_work_init(ecm_work* work)
     uint32_t L = work->L;
     uint32_t D = work->D;
     uint32_t R = work->R;
+    uint32_t words = work->NWORDS;
 
     work->ptadds = 0;
     work->ptdups = 0;
@@ -1079,33 +1084,33 @@ void vec_ecm_work_init(ecm_work* work)
     work->numprimes = 0;
     work->paired = 0;
 
-    work->diff1 = vecInit();
-    work->diff2 = vecInit();
-    work->sum1 = vecInit();
-    work->sum2 = vecInit();
-    work->tt1 = vecInit();
-    work->tt2 = vecInit();
-    work->tt3 = vecInit();
-    work->tt4 = vecInit();
-    work->tt5 = vecInit();
-    work->s = vecInit();
-    work->n = vecInit();
+    work->diff1 = vecInit(words);
+    work->diff2 = vecInit(words);
+    work->sum1 = vecInit(words);
+    work->sum2 = vecInit(words);
+    work->tt1 = vecInit(words);
+    work->tt2 = vecInit(words);
+    work->tt3 = vecInit(words);
+    work->tt4 = vecInit(words);
+    work->tt5 = vecInit(words);
+    work->s = vecInit(words);
+    work->n = vecInit(words);
 
     work->Paprod = (vec_bignum_t **)malloc((2 * L) * sizeof(vec_bignum_t*));
     work->Pa_inv = (vec_bignum_t **)malloc((2 * L) * sizeof(vec_bignum_t*));
     work->Pa = (ecm_pt*)malloc((2 * L) * sizeof(ecm_pt));
     for (j = 0; j < (2 * L); j++)
     {
-        work->Paprod[j] = vecInit();
-        work->Pa_inv[j] = vecInit();
-        vec_ecm_pt_init(&work->Pa[j]);
+        work->Paprod[j] = vecInit(words);
+        work->Pa_inv[j] = vecInit(words);
+        vec_ecm_pt_init(&work->Pa[j], words);
     }
 
     work->Pad = (ecm_pt*)malloc(sizeof(ecm_pt));
-    vec_ecm_pt_init(work->Pad);
+    vec_ecm_pt_init(work->Pad, words);
 
     work->Pdnorm = (ecm_pt*)malloc(sizeof(ecm_pt));
-    vec_ecm_pt_init(work->Pdnorm);
+    vec_ecm_pt_init(work->Pdnorm, words);
 
     // build an array to hold values of f(b).
     // will need to be of size U*R, allowed values will be
@@ -1114,8 +1119,8 @@ void vec_ecm_work_init(ecm_work* work)
     work->Pbprod = (vec_bignum_t **)malloc(U * (R + 1) * sizeof(vec_bignum_t*));
     for (j = 0; j < U * (R + 1); j++)
     {
-        vec_ecm_pt_init(&work->Pb[j]);
-        work->Pbprod[j] = vecInit();
+        vec_ecm_pt_init(&work->Pb[j], words);
+        work->Pbprod[j] = vecInit(words);
     }
 
     work->map = (uint32_t*)calloc(U * (D + 1) + 3, sizeof(uint32_t));
@@ -1148,13 +1153,13 @@ void vec_ecm_work_init(ecm_work* work)
 
     }
 
-    vec_ecm_pt_init(&work->pt1);
-    vec_ecm_pt_init(&work->pt2);
-    vec_ecm_pt_init(&work->pt3);
-    vec_ecm_pt_init(&work->pt4);
-    vec_ecm_pt_init(&work->pt5);
+    vec_ecm_pt_init(&work->pt1, words);
+    vec_ecm_pt_init(&work->pt2, words);
+    vec_ecm_pt_init(&work->pt3, words);
+    vec_ecm_pt_init(&work->pt4, words);
+    vec_ecm_pt_init(&work->pt5, words);
 
-    work->stg2acc = vecInit();
+    work->stg2acc = vecInit(words);
 
     return;
 }
@@ -1212,10 +1217,10 @@ void vec_ecm_work_free(ecm_work* work)
     return;
 }
 
-void vec_ecm_pt_init(ecm_pt *pt)
+void vec_ecm_pt_init(ecm_pt *pt, uint32_t words)
 {
-	pt->X = vecInit();
-	pt->Z = vecInit();
+	pt->X = vecInit(words);
+	pt->Z = vecInit(words);
 }
 
 void vec_ecm_pt_free(ecm_pt *pt)
@@ -1397,8 +1402,8 @@ int * getEseq(uint64_t d, uint64_t e)
 	return seq;
 }
 
-#define ADD 6.0
-#define DUP 5.0
+#define ADD 5.5     // accounts for sqr ~= 0.75 mul
+#define DUP 4.5     // accounts for sqr ~= 0.75 mul
 
 static double
 lucas_cost(uint64_t n, double v)
@@ -2145,12 +2150,12 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	return;
 }
 
-void array_mul(uint64_t *primes, int num_p, mpz_t piprimes)
+void array_mul(uint64_t *primes, uint64_t b1, int num_p, mpz_t piprimes)
 {
 	mpz_t *p;
 	int i;
 	int alloc;
-	uint64_t stg1 = (uint64_t)STAGE1_MAX;
+	uint64_t stg1 = b1;
 
 	if (num_p & 1)
 	{
@@ -2230,7 +2235,7 @@ void vececm_old(thread_data_t *tdata)
 	int found = 0;
     int result;
     uint64_t num_found;
-	vec_bignum_t *one = vecInit();
+	vec_bignum_t *one = vecInit(words);
     mpz_t gmpt, gmpn;
     int verbose = tdata[0].verbose;
     mpz_t tmp_factor;
@@ -2776,13 +2781,21 @@ void vececm(thread_data_t* tdata)
     int found = 0;
     int result;
     uint64_t num_found;
-    vec_bignum_t* one = vecInit();
     mpz_t gmpt, gmpn, tmp_factor;
     // these track the range over which we currently have a prime list.
     uint64_t rangemin;
     uint64_t rangemax;
     uint64_t sigma_in[VECLEN];
     int verbose = tdata[0].verbose;
+    uint32_t NWORDS = tdata[0].NWORDS;
+    uint32_t NBLOCKS = tdata[0].NBLOCKS;
+    uint32_t MAXBITS = tdata[0].MAXBITS;
+    uint64_t STAGE1_MAX = tdata[0].STAGE1_MAX;
+    uint64_t STAGE2_MAX = tdata[0].STAGE2_MAX;
+    int DO_STAGE2 = tdata[0].DO_STAGE2;
+    uint32_t PRIME_RANGE = tdata[0].PRIME_RANGE;
+    vec_bignum_t* one = vecInit(NWORDS);
+    uint32_t curves_to_run = tdata[0].curves;
 
     // timing variables
     struct timeval stopt;	// stop time of this job
@@ -2831,9 +2844,10 @@ void vececm(thread_data_t* tdata)
 
     soe_finalize(sdata);
 
-    if (verbose > 0)
-        printf("ecm: found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
-
+    if (verbose > 1)
+    {
+        printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+    }
 
     tpool_data = tpool_setup(tdata[0].total_threads, NULL, NULL, &vec_ecm_sync,
         &vec_ecm_dispatch, tdata);
@@ -2848,9 +2862,16 @@ void vececm(thread_data_t* tdata)
         sigma_in[j] = tdata[0].sigma[j];
     }
 
-    for (curve = 0; curve < tdata[0].curves; curve += VECLEN)
+    for (curve = 0; curve < curves_to_run; curve += VECLEN)
     {
         uint64_t p;
+
+        if (verbose >= 0)
+        {
+            printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
+                (curve + VECLEN) * threads, tdata[0].curves * threads,
+                (int)gmp_base10(gmpn), STAGE1_MAX); fflush(stdout);
+        }
 
         // get a new batch of primes if:
         // - the current range starts after B1
@@ -2870,7 +2891,10 @@ void vececm(thread_data_t* tdata)
             ecm_maxp = ecm_primes[ecm_nump - 1];
             soe_finalize(sdata);
 
-            printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+            if (verbose > 1)
+            {
+                printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+            }
         }
 
         gettimeofday(&startt, NULL);
@@ -2904,15 +2928,26 @@ void vececm(thread_data_t* tdata)
 
         gettimeofday(&stopt, NULL);
         t_time = ytools_difftime(&startt, &stopt);
-        printf("\n");
 
-        printf("Commencing curves %d-%d of %u\n", threads * curve,
-            threads * (curve + VECLEN) - 1, threads * tdata[0].curves);
+        if (verbose > 1)
+        {
+            printf("\n");
 
-        printf("Building curves took %1.4f seconds.\n", t_time);
+            printf("Commencing curves %d-%d of %u\n", threads * curve,
+                threads * (curve + VECLEN) - 1, threads * tdata[0].curves);
+
+            printf("Building curves took %1.4f seconds.\n", t_time);
+        }
 
         // parallel stage 1
         gettimeofday(&startt, NULL);
+
+        if (STAGE1_MAX > PRIME_RANGE)
+        {
+            // this is a large B1:
+            // prepare to record intermediate results for this batch of primes
+            remove("save_b1_intermediate.txt");
+        }
 
         for (p = 0; p < STAGE1_MAX; p += PRIME_RANGE)
         {
@@ -2932,7 +2967,10 @@ void vececm(thread_data_t* tdata)
                 ecm_maxp = ecm_primes[ecm_nump - 1];
                 soe_finalize(sdata);
 
-                printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                if (verbose > 1)
+                {
+                    printf("Found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                }
             }
 
             for (i = 0; i < threads; i++)
@@ -2945,23 +2983,27 @@ void vececm(thread_data_t* tdata)
                 tdata[i].maxp = ecm_maxp;
             }
 
-            printf("Commencing Stage 1 @ prime %lu\n", ecm_minp);
+            if (verbose > 1)
+            {
+                printf("Commencing Stage 1 @ prime %lu\n", ecm_minp);
+            }
+
             tpool_go(tpool_data);
 
 #if 1
-            if (p < STAGE1_MAX)
+            if (STAGE1_MAX > PRIME_RANGE)
             {
-                // record results for this batch of primes
-                if (tdata[0].save_b1) // && (save_intermediate)
-                {
-                    sprintf(fname, "save_b1_intermediate.txt");
-                    save = fopen(fname, "a");
-                }
+                // this is a large B1:
+                // record intermediate results for this batch of primes
+                sprintf(fname, "save_b1_intermediate.txt");
+                save = fopen(fname, "a");
 
                 gettimeofday(&stopt, NULL);
                 t_time = ytools_difftime(&startt, &stopt);
                 if (verbose > 1)
+                {
                     printf("Stage 1 current elapsed time is %1.4f seconds\n", t_time);
+                }
 
                 for (j = 0; j < threads; j++)
                 {
@@ -3035,36 +3077,56 @@ void vececm(thread_data_t* tdata)
 
                         if (tdata[0].save_b1)
                         {
+                            mpz_t tmp1, tmp2;
+                            mpz_init(tmp2);
+                            mpz_init(tmp1);
+
                             fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
                                 tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
                             gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
-                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
-                            gmp_fprintf(save, "X=0x%Zx; ", gmpt);
+                            extract_bignum_from_vec_to_mpz(tmp1, tdata[j].work->tt4, i, NWORDS);
+                            extract_bignum_from_vec_to_mpz(tmp2, tdata[j].work->tt3, i, NWORDS);
 
-                            extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt3, i, NWORDS);
-                            gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                            mpz_invert(tmp2, tmp2, gmpn);
+                            mpz_mul(gmpt, tmp2, tmp1);
+                            mpz_mod(gmpt, gmpt, gmpn);
+
+                            gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+
+                            mpz_clear(tmp1);
+                            mpz_clear(tmp2);
                         }
                     }
 
                 }
 
-                if (tdata[0].save_b1)
-                {
-                    fclose(save);
-                }
+                fclose(save);
+
             }
 #endif
         }
 
         gettimeofday(&stopt, NULL);
         t_time = ytools_difftime(&startt, &stopt);
-        printf("Stage 1 took %1.4f seconds\n", t_time);
+
+        if (verbose > 1)
+        {
+            printf("Stage 1 took %1.4f seconds\n", t_time);
+        }
 
         // record results for this batch of primes
         if (tdata[0].save_b1) // && (save_intermediate)
         {
-            sprintf(fname, "save_b1.txt");
+            if (tdata[0].save_b1 == 2)
+            {
+                remove("avx_ecm_resume.txt");
+                sprintf(fname, "avx_ecm_resume.txt");
+            }
+            else
+            {
+                sprintf(fname, "save_b1.txt");
+            }
             save = fopen(fname, "a");
         }
 
@@ -3141,15 +3203,26 @@ void vececm(thread_data_t* tdata)
 
                 if (tdata[0].save_b1)
                 {
+                    mpz_t tmp1, tmp2;
+                    mpz_init(tmp2);
+                    mpz_init(tmp1);
+
                     fprintf(save, "METHOD=ECM; SIGMA=%"PRIu64"; B1=%"PRIu64"; ",
-                        tdata[j].sigma[i], ecm_primes[tdata[j].work->last_pid - 1]);
+                        tdata[j].sigma[i], STAGE1_MAX);
                     gmp_fprintf(save, "N=0x%Zx; ", gmpn);
 
-                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt4, i, NWORDS);
-                    gmp_fprintf(save, "X=0x%Zx; ", gmpt);
+                    extract_bignum_from_vec_to_mpz(tmp1, tdata[j].work->tt4, i, NWORDS);
+                    extract_bignum_from_vec_to_mpz(tmp2, tdata[j].work->tt3, i, NWORDS);
 
-                    extract_bignum_from_vec_to_mpz(gmpt, tdata[j].work->tt3, i, NWORDS);
-                    gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                    mpz_invert(tmp2, tmp2, gmpn);
+                    mpz_mul(gmpt, tmp2, tmp1);
+                    mpz_mod(gmpt, gmpt, gmpn);
+
+                    gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+                    //gmp_fprintf(save, "Z=0x%Zx; PROGRAM=AVX-ECM;\n", gmpt);
+
+                    mpz_clear(tmp1);
+                    mpz_clear(tmp2);
                 }
             }
 
@@ -3192,7 +3265,11 @@ void vececm(thread_data_t* tdata)
 
             gettimeofday(&stopt, NULL);
             t_time = ytools_difftime(&startt, &stopt);
-            printf("Stage 2 Init took %1.4f seconds\n", t_time);
+
+            if (verbose > 1)
+            {
+                printf("Stage 2 Init took %1.4f seconds\n", t_time);
+            }
 
             for (p = STAGE1_MAX; p < STAGE2_MAX; p += PRIME_RANGE)
             {
@@ -3228,7 +3305,10 @@ void vececm(thread_data_t* tdata)
                         tdata[i].maxp = ecm_maxp;
                     }
 
-                    printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                    if (verbose > 1)
+                    {
+                        printf("found %lu primes in range [%lu : %lu]\n", ecm_nump, rangemin, rangemax);
+                    }
                 }
 
                 tdata[0].pairmap_steps = pair(tdata[0].pairmap_v, tdata[0].pairmap_u,
@@ -3243,7 +3323,8 @@ void vececm(thread_data_t* tdata)
                     tdata[i].ecm_phase = 3;
                 }
                 tpool_go(tpool_data);
-                printf("\nlast amin: %u\n", tdata[0].work->amin);
+
+                //printf("\nlast amin: %u\n", tdata[0].work->amin);
 
                 if (tdata[0].work->last_pid == ecm_nump)
                 {
@@ -3335,7 +3416,7 @@ void vececm(thread_data_t* tdata)
         {
             printf("ecm: %d/%d curves on C%d @ B1=%lu, B2=100*B1\r",
                 (curve + VECLEN) * threads, tdata[0].curves * threads,
-                (int)gmp_base10(gmpn), STAGE1_MAX);
+                (int)gmp_base10(gmpn), STAGE1_MAX);  fflush(stdout);
         }
 
         if (found)
@@ -3343,9 +3424,14 @@ void vececm(thread_data_t* tdata)
 
     }
 
+    tdata[0].curves = curve * threads;
+
     gettimeofday(&fullstopt, NULL);
     t_time = ytools_difftime(&fullstartt, &fullstopt);
-    printf("Process took %1.4f seconds.\n", t_time);
+    if (verbose >= 0)
+    {
+        printf("\necm: process took %1.4f seconds.\n", t_time);
+    }
 
     vecClear(one);
     mpz_clear(gmpn);
@@ -3372,13 +3458,13 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
     mpz_init(t3);
     mpz_init(t4);
 
-    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, NWORDS);
+    extract_bignum_from_vec_to_mpz(n, mdata->n, 0, mdata->NWORDS);
 
     if (sigma == 0)
     {
         do
         {
-            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT);  //lcg_rand(&tdata->lcg_state);
+            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT);
         } while (work->sigma < 6);
     }
     else
@@ -3506,11 +3592,11 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
             mpz_add(A, A, n);
         }
 
-        mpz_mul_2exp(X, X, DIGITBITS * NWORDS);
+        mpz_mul_2exp(X, X, DIGITBITS * mdata->NWORDS);
         mpz_tdiv_r(X, X, n);
-        mpz_mul_2exp(Z, Z, DIGITBITS * NWORDS);
+        mpz_mul_2exp(Z, Z, DIGITBITS * mdata->NWORDS);
         mpz_tdiv_r(Z, Z, n);
-        mpz_mul_2exp(A, A, DIGITBITS * NWORDS);
+        mpz_mul_2exp(A, A, DIGITBITS * mdata->NWORDS);
         mpz_tdiv_r(A, A, n);
 
         //gmp_printf("X/Z = %Zx\n", X);
@@ -3520,7 +3606,7 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         //printf("(A+2)*B/4\n");
 
         mpz_set_ui(t1, 2);
-        mpz_mul_2exp(t1, t1, DIGITBITS * NWORDS);
+        mpz_mul_2exp(t1, t1, DIGITBITS * mdata->NWORDS);
         mpz_add(A, A, t1);
         mpz_tdiv_r(A, A, n);
 
@@ -3576,11 +3662,11 @@ void vec_build_one_curve(thread_data_t *tdata, mpz_t X, mpz_t Z, mpz_t A, uint64
         if (!mdata->isMersenne)
         {
             // into Monty rep
-            mpz_mul_2exp(X, X, DIGITBITS * NWORDS);
+            mpz_mul_2exp(X, X, DIGITBITS * mdata->NWORDS);
             mpz_tdiv_r(X, X, n);
-            mpz_mul_2exp(Z, Z, DIGITBITS * NWORDS);
+            mpz_mul_2exp(Z, Z, DIGITBITS * mdata->NWORDS);
             mpz_tdiv_r(Z, Z, n);
-            mpz_mul_2exp(A, A, DIGITBITS * NWORDS);
+            mpz_mul_2exp(A, A, DIGITBITS * mdata->NWORDS);
             mpz_tdiv_r(A, A, n);
         }
         else
@@ -3619,6 +3705,10 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
     ecm_pt *P = &work->pt1;
     int i;
     mpz_t n, v, d, dorig;
+    uint32_t NWORDS = tdata[0].NWORDS;
+    uint32_t NBLOCKS = tdata[0].NBLOCKS;
+    uint32_t MAXBITS = tdata[0].MAXBITS;
+
     mpz_init(n);
     mpz_init(v);
     mpz_init(d);
@@ -3630,7 +3720,7 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
     {
         do
         {
-            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT) & 0X3FFFFFF;  //lcg_rand(&tdata->lcg_state) & 0x3ffffff;
+            work->sigma = spRandp(&tdata->lcg_state, 6, VEC_MAXDIGIT) & 0X3FFFFFF;  
         } while (work->sigma < 6);
     }
     else
@@ -3687,7 +3777,7 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
 #endif
 
     /* Compute d=(A+2)/4 from A and d'=B*d thus d' = 2^(GMP_NUMB_BITS-2)*(A+2) */
-    mpres_get_z(d, A, n, mdata);
+    mpres_get_z(d, A, n, mdata, MAXBITS);
 #ifdef PRINT_DEBUG
     gmp_printf("d (mpres_get_z) = %Zd\n", d);
 #endif
@@ -3746,7 +3836,7 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
     mpres_div_2exp(Z2, Z2, GMP_NUMB_BITS, n);
 
     mpres_mul_2exp(Z2, Z2, 6, n);
-    mpres_add_ui(Z2, Z2, 8, n); /* P2 <- 2P = (9 : : 64d+8) */
+    mpres_add_ui(Z2, Z2, 8, n, MAXBITS); /* P2 <- 2P = (9 : : 64d+8) */
 
 #ifdef PRINT_DEBUG
     gmp_printf("Z2 = %Zd\n", Z2);
@@ -3761,11 +3851,10 @@ void build_one_curve_param1(thread_data_t *tdata, mpz_t X, mpz_t Z,
 
 //#define TESTMUL
 void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, 
-    base_t b1, base_t *primes, base_t nump, int verbose)
+    uint64_t b1, uint64_t*primes, uint64_t nump, int verbose)
 {
 	int i;
 	uint64_t q;
-	uint64_t stg1 = (uint64_t)STAGE1_MAX;
 
 #ifdef PARAM1
     {
@@ -3791,7 +3880,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 
 	// handle the only even case 
 	q = 2;
-	while (q < STAGE1_MAX)
+	while (q < b1)
 	{
 		vecsubmod_ptr(P->X, P->Z, work->diff1, mdata);
 		vecaddmod_ptr(P->X, P->Z, work->sum1, mdata);
@@ -3799,7 +3888,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 		q *= 2;
 	}
 
-	for (i = 1; (i < nump) && ((uint32_t)primes[i] < STAGE1_MAX); i++)
+	for (i = 1; (i < nump) && ((uint32_t)primes[i] < b1); i++)
 	{
 		uint64_t c = 1;
 	
@@ -3807,7 +3896,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
 		do {
 			vec_prac(mdata, work, P, q);
 			c *= q;
-		} while ((c * q) < stg1);
+		} while ((c * q) < b1);
 	
 #ifdef SKYLAKEX
 		if ((verbose > 1) && ((i & 8191) == 0))
@@ -4076,8 +4165,10 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
     int j;
     int inverr;
     int foundDuringInv = 0;
-
+    uint32_t NWORDS = mdata->NWORDS;
+    uint32_t MAXBITS = mdata->MAXBITS;
     mpz_t gmptmp, gmptmp2, gmpn;
+
     mpz_init(gmptmp);
     mpz_init(gmptmp2);
     mpz_init(gmpn);
@@ -4097,7 +4188,7 @@ int batch_invert_pt_inplace(ecm_pt* pts_to_Zinvert,
 
     for (j = 0; j < num; j++)
     {
-        B[j] = vecInit();
+        B[j] = vecInit(NWORDS);
     }
 
     // now we have to take An out of monty rep so we can invert it.
@@ -4211,8 +4302,10 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
     int inverr = 0;
     int foundDuringInv = 0;
     int num = stopid - startid;
-
+    uint32_t NWORDS = mdata->NWORDS;
+    uint32_t MAXBITS = mdata->MAXBITS;
     mpz_t gmptmp, gmptmp2, gmpn;
+
     mpz_init(gmptmp);
     mpz_init(gmptmp2);
     mpz_init(gmpn);
@@ -4232,7 +4325,7 @@ int batch_invert_pt_to_bignum(ecm_pt* pts_to_Zinvert, vec_bignum_t** out,
 
     for (j = 0; j < num; j++)
     {
-        B[j] = vecInit();
+        B[j] = vecInit(NWORDS);
     }
 
     // now we have to take An out of monty rep so we can invert it.
@@ -4406,7 +4499,7 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
     uint32_t U = work->U;
     uint32_t L = work->L;
     int i, j;
-    uint32_t amin = work->amin = (STAGE1_MAX + w) / (2 * w);
+    uint32_t amin = work->amin = (work->STAGE1_MAX + w) / (2 * w);
     int wscale = 1;
 
     int debug = 0;
@@ -4422,9 +4515,6 @@ int vec_ecm_stage2_init(ecm_pt* P, vec_monty_t* mdata, ecm_work* work, int verbo
     ecm_pt* Pd = work->Pdnorm;
     vec_bignum_t* acc = work->stg2acc;
     int lastMapID;
-
-    if (verbose == 1)
-        printf("\n");
 
     work->paired = 0;
     work->numprimes = 0;
@@ -4568,10 +4658,6 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
 #endif
     vec_bignum_t* acc = work->stg2acc;
 
-    if (verbose == 1)
-    {
-        printf("\n");
-    }
 
     if (1)
     {
@@ -4639,7 +4725,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
             printf("A table generated to L = %d\n", 2 * L);
     }
 
-    if (verbose)
+    if (verbose > 1)
     {
         printf("commencing stage 2 at A=%lu\n"
             "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
@@ -4650,7 +4736,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
     {
         int pa, pb;
 
-        if ((verbose == 1) && ((mapid & 65535) == 0))
+        if ((verbose > 1) && ((mapid & 65535) == 0))
         {
             printf("pairmap step %u of %u\r", mapid, pairmap_steps);
             fflush(stdout);
@@ -4770,7 +4856,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         flags = (uint8_t*)xcalloc((10000 + B2), sizeof(uint8_t));
     }
 
-    if (verbose)
+    if (verbose > 1)
     {
         printf("commencing pair on range %lu:%lu\n", B1, B2);
     }
@@ -5082,7 +5168,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         free(flags);
     }
 
-    if (verbose)
+    if (verbose > 1)
     {
         printf("%u pairs found from %u primes (ratio = %1.2f)\n",
             pairs, nump, (double)pairs / (double)nump);
@@ -5345,12 +5431,12 @@ int vec_ecm_stage1_batch(mpz_t f, ecm_work* work, ecm_pt* P, vec_bignum_t* A,
     vec_bignum_t* t, * u;
     int ret = 0;
 
-    x1 = vecInit();
-    z1 = vecInit();
-    x2 = vecInit();
-    z2 = vecInit();
-    t = vecInit();
-    u = vecInit();
+    x1 = vecInit(words);
+    z1 = vecInit(words);
+    x2 = vecInit(words);
+    z2 = vecInit(words);
+    t = vecInit(words);
+    u = vecInit(words);
 
     d_1 = (uint64_t*)xmalloc_align(VECLEN * sizeof(uint64_t));
 
