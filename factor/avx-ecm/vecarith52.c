@@ -171,8 +171,8 @@ __m512i __inline _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512
     te5 = _mm512_madd52hi_epu64(te5, x, b2); \
     te7 = _mm512_madd52hi_epu64(te7, x, b3);
 
-#define SUB_BIAS_HI(bias1, bias2, bias3, bias4)
-#define SUB_BIAS_LO(bias1, bias2, bias3, bias4)
+#define SUB_BIAS_HI(bias1, bias2, bias3, bias4) {}
+#define SUB_BIAS_LO(bias1, bias2, bias3, bias4) {}
 
 #else
 
@@ -2653,9 +2653,8 @@ void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t
             VEC_MUL4_ACCUM(a3, b3, b4, b5, b6);
         }
 
-#ifdef IFMA
+#ifndef IFMA
 
-#else
         // subtract out all of the bias at once.
         SUB_BIAS_HI(
             i * 8 + 1,
@@ -2924,6 +2923,14 @@ void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t
         }
 #endif
 
+        a1 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+
+        b0 = _mm512_load_epi64(n->data + (NWORDS - 1) * VECLEN);
+        b1 = _mm512_load_epi64(n->data + (NWORDS - 2) * VECLEN);
+        b2 = _mm512_load_epi64(n->data + (NWORDS - 3) * VECLEN);
+
         // finish each triangluar shaped column sum (s * n)
         // a1*b0 -> t0/1
         // a2*b1 -> t0/1
@@ -2934,14 +2941,6 @@ void vecmulmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t
         VEC_MUL_ACCUM_LOHI_PD(a2, b0, te2, te3);
 #else
         {
-            a1 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
-            a2 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
-            a3 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
-
-            b0 = _mm512_load_epi64(n->data + (NWORDS - 1) * VECLEN);
-            b1 = _mm512_load_epi64(n->data + (NWORDS - 2) * VECLEN);
-            b2 = _mm512_load_epi64(n->data + (NWORDS - 3) * VECLEN);
-
             prod1_ld = _mm512_cvtepu64_pd(a1);
             prod2_ld = _mm512_cvtepu64_pd(a2);
             prod3_ld = _mm512_cvtepu64_pd(b0);
@@ -3363,6 +3362,12 @@ void vecmul52_1(vec_bignum_t* a, __m512i b, vec_bignum_t* c, vec_bignum_t* n, ve
     _mm512_store_epi64(c->data + i * VECLEN, carry);
 
     c->size = NWORDS + 1;
+    return;
+}
+
+void vecsqrmod52_test(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+{
+    vecmulmod52(a, a, c, n, s, mdata);
     return;
 }
 
