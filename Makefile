@@ -23,7 +23,7 @@ CC = gcc-7.3.0
 CFLAGS = -g -DUSE_SSE2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve/zlib -I../../../ysieve.git/trunk -I../../../ytools.git/trunk
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../../msieve/zlib -I../../../ysieve.git/trunk -I../../../ytools.git/trunk
 LIBS = -L../../../ysieve.git/trunk -L../../../ytools.git/trunk -L. 
 BINNAME = yafu
 OBJ_EXT = .o
@@ -45,8 +45,16 @@ endif
 # capability of the user's cpu.  In other words, sse4.1 capability is required on the
 # host cpu in order to compile the fat binary, but once it is compiled it should run
 # to the capability of the target user cpu.
-ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -march=skylake-avx512 
+ifeq ($(ICELAKE),1)
+	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=icelake-client
+	SKYLAKEX = 1
+else
+
+	ifeq ($(SKYLAKEX),1)
+		CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
+	endif
+	
+	
 endif
 
 ifeq ($(SMALLINT),1)
@@ -97,8 +105,8 @@ endif
 
 
 ifeq ($(SKYLAKEX),1)
-	INC += -I../../../gmp_install/gmp-6.2.0/include
-	LIBS += -L../../../gmp_install/gmp-6.2.0/lib/
+	INC += -I../../../gmp-install/wsl/6.2.0/include
+	LIBS += -L../../../gmp-install/wsl/6.2.0/lib/
 	INC += -I../../../ecm_install/include/
 	LIBS += -L../../../ecm_install/lib/
 else
@@ -142,7 +150,7 @@ ifeq ($(NFS),1)
 	ifeq ($(COMPILER),icc)
 		LIBS += -L../../../msieve/lib/linux
 	else
-		LIBS += -L../../msieve/lib/linux/gcc73/
+		LIBS += -L../../../msieve/
 	endif
 
 	LIBS += -lmsieve
@@ -153,7 +161,7 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
+    LIBS += -lecm /mnt/c/projects/factoring/gmp-install/wsl/6.2.0/lib/libgmp.a -lytools -lysieve
 else
     LIBS += -lecm -lgmp -lytools -lysieve
 endif

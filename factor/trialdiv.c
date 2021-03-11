@@ -46,8 +46,9 @@ void zTrial(fact_obj_t *fobj)
         }
     }
 
-    printf("min_p: %lu, max_p = %lu, num_p = %lu\n",
-        fobj->min_p, fobj->max_p, fobj->num_p);
+    //printf("min_p: %lu, max_p = %lu, num_p = %lu\n",
+    //    fobj->min_p, fobj->max_p, fobj->num_p);
+
 	if ((fobj->primes == NULL) || (fobj->min_p > 2) || (fobj->max_p < limit))
 	{
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);

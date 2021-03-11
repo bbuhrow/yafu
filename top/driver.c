@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     options_t *options;
     meta_t calc_metadata;
     yafu_obj_t yafu_obj;
-    soe_staticdata_t* sdata;
+    //soe_staticdata_t* sdata;
     info_t comp_info;
     int i;
 
@@ -490,8 +490,8 @@ int main(int argc, char *argv[])
 	free(fobj);      
     sFree(&input_str);
     free(options->inputExpr);
-    soe_finalize(sdata);
-    free(sdata);
+    //soe_finalize(sdata);
+    //free(sdata);
 
 #if defined(__unix__)
     for (i = 0; i < CMDHIST_SIZE; i++)

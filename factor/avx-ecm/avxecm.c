@@ -52,6 +52,7 @@ http://www.gnu.org/licenses/ or write to the Free Software Foundation, Inc.,
 #include "avx_ecm.h"
 #include "soe.h"
 #include "arith.h"
+#include <stdio.h>
 
 //#define D 1155
 //#define U 8
@@ -3904,7 +3905,7 @@ void vec_ecm_stage1(vec_monty_t *mdata, ecm_work *work, ecm_pt *P,
         if ((verbose > 1) && ((i & 511) == 0))
 #endif
 		{
-			printf("accumulating prime %lu\n", q);
+			printf("accumulating prime %lu\r", q);
 			fflush(stdout);
 		}
 	}
