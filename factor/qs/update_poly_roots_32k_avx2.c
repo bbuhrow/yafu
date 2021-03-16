@@ -3781,7 +3781,18 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             h.start = j;									// 64
             h.stop = sconf->factor_base->med_B;		// 68
         
+#ifdef USE_AVX512BWno
+
+            COMPUTE_32X_SMALL_PROOTS_AVX512;
+
+            h.start = h.stop;								// 64
+            h.stop = sconf->factor_base->med_B;		        // 68s
+
+            COMPUTE_16X_SMALL_PROOTS_AVX512;
+#else
+
             COMPUTE_16X_SMALL_PROOTS_AVX2;
+#endif
         
             j = h.stop;
         }
@@ -3870,7 +3881,18 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             h.start = j;									// 64
             h.stop = sconf->factor_base->med_B;		// 68
         
+#ifdef USE_AVX512BWno
+
+            COMPUTE_32X_SMALL_NROOTS_AVX512;
+
+            h.start = h.stop;								// 64
+            h.stop = sconf->factor_base->med_B;		        // 68s
+
+            COMPUTE_16X_SMALL_NROOTS_AVX512;
+#else
+
             COMPUTE_16X_SMALL_NROOTS_AVX2;
+#endif
         
             j = h.stop;
         }

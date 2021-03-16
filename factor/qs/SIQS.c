@@ -1888,7 +1888,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
     dconf->mask2[7] = 0x0000ffff;
 
     // used in SIMD optimized resiever
-    dconf->corrections = (uint16_t *)xmalloc_align(16 * sizeof(uint16_t));
+    dconf->corrections = (uint16_t *)xmalloc_align(32 * sizeof(uint16_t));
 
     // array of sieve locations scanned from the sieve block that we
     // will submit to trial division.  make it the size of a sieve block 
@@ -1949,8 +1949,8 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 	// used in SIMD optimized versions of tdiv_med
 #ifdef USE_8X_MOD_ASM
-	dconf->bl_sizes = (uint16_t *)xmalloc_align(16 * sizeof(uint16_t));
-	dconf->bl_locs = (uint16_t *)xmalloc_align(16 * sizeof(uint16_t));
+	dconf->bl_sizes = (uint16_t *)xmalloc_align(32 * sizeof(uint16_t));
+	dconf->bl_locs = (uint16_t *)xmalloc_align(32 * sizeof(uint16_t));
 #endif
 
     dconf->polyscratch = (uint32_t *)xmalloc_align(16 * sizeof(uint32_t));
@@ -2838,10 +2838,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         // when to filter.  At the end of a TLP run with typical parameters we
         // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
         // and every 1% thereafter.
-
+        // Note, the starting percentage drops as the numbers get bigger, because
+        // I deliberately use smaller factor bases (to rely more on cycles from
+        // partials) and that means fewer fulls.
         //sconf->check_inc = 8 * sconf->factor_base->B;
 
         if (sconf->digits_n > 120)
+            sconf->check_inc = 0.5 * sconf->factor_base->B;
+        else if (sconf->digits_n > 110)
             sconf->check_inc = 0.10 * sconf->factor_base->B;
         else
             sconf->check_inc = 0.15 * sconf->factor_base->B;
@@ -3490,19 +3494,19 @@ int update_check(static_conf_t *sconf)
 
                         if (percent_complete < 0.2)
                         {
-                            sconf->check_inc = 0.05 * sconf->factor_base->B;
+                            sconf->check_inc = 0.03 * sconf->factor_base->B;
                         }
                         else if (percent_complete < 0.33)
                         {
-                            sconf->check_inc = 0.03 * sconf->factor_base->B;
+                            sconf->check_inc = 0.02 * sconf->factor_base->B;
                         }
                         else if(percent_complete < 0.5)
                         {
-                            sconf->check_inc = 0.02 * sconf->factor_base->B;
+                            sconf->check_inc = 0.01 * sconf->factor_base->B;
                         }
                         else
                         {
-                            sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            sconf->check_inc = 0.005 * sconf->factor_base->B;
                         }
 
 						// this is a better approximation than just assuming that 

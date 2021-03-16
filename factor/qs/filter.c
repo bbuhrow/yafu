@@ -709,19 +709,19 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 
                     if (percent_complete < 0.2)
                     {
-                        sconf->check_total = 0.05 * sconf->factor_base->B;
+                        sconf->check_total = 0.03 * sconf->factor_base->B;
                     }
                     else if (percent_complete < 0.33)
                     {
-                        sconf->check_total = 0.03 * sconf->factor_base->B;
+                        sconf->check_total = 0.02 * sconf->factor_base->B;
                     }
                     else if (percent_complete < 0.5)
                     {
-                        sconf->check_total = 0.02 * sconf->factor_base->B;
+                        sconf->check_total = 0.01 * sconf->factor_base->B;
                     }
                     else
                     {
-                        sconf->check_total = 0.01 * sconf->factor_base->B;
+                        sconf->check_total = 0.005 * sconf->factor_base->B;
                     }
 
 					for (j = 0; j < num_cycles; j++)

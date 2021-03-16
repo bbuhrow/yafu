@@ -1046,7 +1046,7 @@ void vecsqrmod52_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec
     __m512i b0, b1, b2, b3, b4, b5, b6;                         // 11
     __m512i te0, te1, te2, te3, te4, te5, te6, te7;             // 19
 
-#ifndef ICELAKE
+#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(_mm512_set1_epi64(0x4670000000000000ULL));

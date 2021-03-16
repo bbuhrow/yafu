@@ -23,6 +23,7 @@ code to the public domain.
 #if defined( USE_AVX2 )
 
 #include "qs_impl.h"
+#include <immintrin.h>
 
 
 #define DIVIDE_RESIEVED_PRIME(j) \
@@ -466,6 +467,92 @@ v256_y7 = _mm256_xor_si256(v256_y7, v256_y7);
 
 #endif
 
+#define INIT_CORRECTIONS_32 \
+	corrections[0] = 32768 - block_loc; \
+	corrections[1] = 32768 - block_loc; \
+	corrections[2] = 32768 - block_loc; \
+	corrections[3] = 32768 - block_loc; \
+	corrections[4] = 32768 - block_loc; \
+	corrections[5] = 32768 - block_loc; \
+	corrections[6] = 32768 - block_loc; \
+	corrections[7] = 32768 - block_loc; \
+	corrections[8] = 32768 - block_loc; \
+	corrections[9] = 32768 - block_loc; \
+	corrections[10] = 32768 - block_loc; \
+	corrections[11] = 32768 - block_loc; \
+	corrections[12] = 32768 - block_loc; \
+	corrections[13] = 32768 - block_loc; \
+	corrections[14] = 32768 - block_loc; \
+	corrections[15] = 32768 - block_loc; \
+    corrections[16] = 32768 - block_loc; \
+    corrections[17] = 32768 - block_loc; \
+    corrections[18] = 32768 - block_loc; \
+    corrections[19] = 32768 - block_loc; \
+    corrections[20] = 32768 - block_loc; \
+    corrections[21] = 32768 - block_loc; \
+    corrections[22] = 32768 - block_loc; \
+    corrections[23] = 32768 - block_loc; \
+    corrections[24] = 32768 - block_loc; \
+    corrections[25] = 32768 - block_loc; \
+    corrections[26] = 32768 - block_loc; \
+    corrections[27] = 32768 - block_loc; \
+    corrections[28] = 32768 - block_loc; \
+    corrections[29] = 32768 - block_loc; \
+    corrections[30] = 32768 - block_loc; \
+    corrections[31] = 32768 - block_loc;
+
+#define STEP_COMPARE_COMBINE_AVX512 \
+	v512_y2 = _mm512_sub_epi16(v512_y2, v512_p); \
+    v512_y3 = _mm512_sub_epi16(v512_y3, v512_p); \
+    m1 |= _mm512_cmpeq_epi16_mask(v512_y2, v512_y5); \
+    m2 |= _mm512_cmpeq_epi16_mask(v512_y3, v512_y6);
+
+#define INIT_RESIEVE_AVX512 \
+    __m512i v512_p, v512_y0, v512_y2, v512_y3, v512_y4, v512_y5, v512_y6, v512_y7; \
+    uint32_t msk32, pos; \
+    __mmask32 m1 = 0, m2 = 0; \
+    v512_y4 = _mm512_load_si512(corrections);                   \
+    v512_y0 = _mm512_xor_si512(v512_y0, v512_y0);               \
+    v512_y2 = _mm512_load_si512(fbc->root1 + i);                \
+    v512_y3 = _mm512_load_si512(fbc->root2 + i);                \
+    v512_y2 = _mm512_add_epi16(v512_y4, v512_y2);               \
+    v512_y3 = _mm512_add_epi16(v512_y4, v512_y3);               \
+    v512_p = _mm512_load_si512(fbc->prime + i);                 \
+    v512_y5 = _mm512_xor_si512(v512_y5, v512_y5);               \
+    v512_y6 = _mm512_xor_si512(v512_y6, v512_y6);               \
+    v512_y7 = _mm512_xor_si512(v512_y7, v512_y7);
+
+
+#define GATHER_BIT_INDICES_AVX512 \
+        while ((pos = _trail_zcnt(msk32)) < 32) { \
+            buffer[result++] = pos + i; \
+            msk32 = _reset_lsb(msk32); \
+        }
+
+
+#define RESIEVE_32X_14BIT_MAX_VEC_AVX512 \
+			INIT_RESIEVE_AVX512 \
+			STEP_COMPARE_COMBINE_AVX512	\
+			STEP_COMPARE_COMBINE_AVX512	\
+			STEP_COMPARE_COMBINE_AVX512	\
+			STEP_COMPARE_COMBINE_AVX512	\
+			msk32 = m1 ^ m2; \
+            GATHER_BIT_INDICES_AVX512
+
+#define RESIEVE_32X_15BIT_MAX_VEC_AVX512 \
+			INIT_RESIEVE_AVX512 \
+			STEP_COMPARE_COMBINE_AVX512	\
+			STEP_COMPARE_COMBINE_AVX512	\
+			msk32 = m1 ^ m2; \
+            GATHER_BIT_INDICES_AVX512
+
+#define RESIEVE_32X_16BIT_MAX_VEC_AVX512 \
+			INIT_RESIEVE_AVX512 \
+			STEP_COMPARE_COMBINE_AVX512	\
+			msk32 = m1 ^ m2; \
+            GATHER_BIT_INDICES_AVX512
+
+
 
 #define CHECK_8_RESULTS \
 	if (result & 0x2) {				  \
@@ -551,7 +638,90 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         fbc = dconf->comp_sieve_p;
     }
 
-    // 16x trial division
+#ifdef USE_AVX512BW
+
+    // 32x resieving
+    bound14 = sconf->factor_base->fb_14bit_B;
+    bound15 = sconf->factor_base->fb_15bit_B;
+    bound16 = sconf->factor_base->med_B;
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        // where tdiv_medprimes left off
+        i = sconf->factor_base->fb_13bit_B;
+
+        // the roots have already been advanced to the next block.
+        // we need to correct them back to where they were before resieving.
+        INIT_CORRECTIONS_32;
+
+        result = 0;
+
+        if ((i & 31) != 0)
+        {
+            RESIEVE_8X_14BIT_MAX_VEC;
+            i += 8;
+        }
+
+        while ((uint32_t)(i + 32) < bound14)
+        {
+
+            RESIEVE_32X_14BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound15)
+        {
+
+            RESIEVE_32X_15BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound16)
+        {
+            RESIEVE_32X_16BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while (i < sconf->factor_base->med_B)
+        {
+            RESIEVE_8X_16BIT_MAX_VEC;
+            i += 8;
+        }
+
+        CLEAN_AVX2;
+
+        for (i = 0; i < result; i++)
+        {
+            if (buffer[i] < 2)
+                continue;
+
+            DIVIDE_RESIEVED_PRIME_2((buffer[i]));
+        }
+
+        CLEAN_AVX2;
+
+        // after either resieving or standard trial division, record
+        // how many factors we've found so far.
+        dconf->smooth_num[report_num] = smooth_num;
+
+    }
+
+#else
+
+
+    // 16x resieving
     if ((sconf->factor_base->fb_14bit_B & 15) == 0)
     {
         bound14 = sconf->factor_base->fb_14bit_B;
@@ -638,8 +808,8 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             i += 8;
         }
 
-        CLEAN_AVX2;
 
+        CLEAN_AVX2;
 
         for (i = 0; i < result; i++)
         {
@@ -656,6 +826,8 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         dconf->smooth_num[report_num] = smooth_num;
 
     }
+
+#endif
 
     TDIV_MED_CLEAN;
 

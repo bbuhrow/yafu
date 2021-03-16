@@ -221,6 +221,63 @@ code to the public domain.
 #endif
 
 
+#define MOD_CMP_32X_vec(v_bits)				{ \
+        __m512i v_primes, v_y4, v_y7, v_r1, v_r2, v_corr, v_inv;       \
+        __mmask32 m_r1, m_r2; \
+        uint32_t msk32; \
+        v_corr = _mm512_load_si512((__m512i *)(fullfb_ptr->correction + i)); \
+        v_inv = _mm512_load_si512((__m512i *)(fullfb_ptr->small_inv + i)); \
+        v_primes = _mm512_load_si512((__m512i *)(fbc->prime + i)); \
+        v_r1 = _mm512_load_si512((__m512i *)(fbc->root1 + i)); \
+        v_r2 = _mm512_load_si512((__m512i *)(fbc->root2 + i)); \
+        v_y4 = _mm512_sub_epi16(v_blksz, v_blkloc); \
+        v_y4 = _mm512_add_epi16(v_y4, v_corr); \
+        v_y4 = _mm512_mulhi_epu16(v_y4, v_inv); \
+        v_y4 = _mm512_srlv_epi16(v_y4, v_bits); \
+        v_y7 = _mm512_add_epi16(v_blkloc, v_primes); \
+        v_y4 = _mm512_mullo_epi16(v_y4, v_primes); \
+        v_y7 = _mm512_sub_epi16(v_y7, v_blksz); \
+        v_y4 = _mm512_add_epi16(v_y7, v_y4); \
+        m_r1 = _mm512_cmpeq_epi16_mask(v_y4, v_r1); \
+        m_r2 = _mm512_cmpeq_epi16_mask(v_y4, v_r2); \
+        msk32 = m_r1 | m_r2; \
+        while ((pos = _trail_zcnt(msk32)) < 32) { \
+            buffer[tmp3++] = pos + i; \
+            msk32 = _reset_lsb(msk32); \
+        }}
+
+#define MOD_CMP_8X_vec_bw(xtra_bits)				{ \
+        __m128i v_primes, v_y4, v_y7, v_r1, v_r2;       \
+        __mmask8 m_r1, m_r2; \
+        uint32_t msk32; \
+        v_primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
+        v_y4 = _mm_mask_sub_epi16(v_blksz128, 0xff, v_blksz128, v_blkloc128); \
+        v_y4 = _mm_mask_add_epi16(v_y4, 0xff, v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->correction + i))); \
+        v_r1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
+        v_y4 = _mm_mask_mulhi_epu16(v_y4, 0xff, v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i))); \
+        v_r2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
+        v_y4 = _mm_mask_srli_epi16 (v_y4, 0xff, v_y4, xtra_bits); \
+        v_y7 = _mm_mask_add_epi16(v_blkloc128, 0xff, v_blkloc128, v_primes); \
+        v_y4 = _mm_mask_mullo_epi16(v_y4, 0xff, v_y4, v_primes); \
+        v_y7 = _mm_mask_sub_epi16(v_y7, 0xff, v_y7, v_blksz128); \
+        v_y4 = _mm_mask_add_epi16(v_y7, 0xff, v_y7, v_y4); \
+        m_r1 = _mm_cmpeq_epu16_mask(v_y4, v_r1); \
+        m_r2 = _mm_cmpeq_epu16_mask(v_y4, v_r2); \
+        msk32 = m_r1 | m_r2; \
+        while ((pos = _trail_zcnt(msk32)) < 32) { \
+            buffer[tmp3++] = pos + i; \
+            msk32 = _reset_lsb(msk32); \
+        }}
+
+#define MOD_INIT_32X									\
+        __m512i v_blksz = _mm512_load_si512((__m512i *)bl_sizes);  \
+        __m512i v_blkloc = _mm512_load_si512((__m512i *)bl_locs);  \
+        __m128i v_blksz128 = _mm_load_si128((__m128i *)bl_sizes);  \
+        __m128i v_blkloc128 = _mm_load_si128((__m128i *)bl_locs);  \
+        uint32_t msk32, pos;
+
+
+
 //#define SIQSDEBUG 1
 
 /*
@@ -266,7 +323,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
     uint32_t block_loc;
-    uint16_t buffer[16];
+    uint16_t buffer[32];
     uint32_t tmp3 = 0;
     uint32_t r;
 
@@ -283,6 +340,12 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         fbc = dconf->comp_sieve_p;
     }
 
+#ifdef USE_AVX512BWno
+
+    // this code path works, but on benchmarks it is slower.  I suspect
+    // either due to switching back and forth from 512 to 128 bit vectors
+    // or from clock penalties in using 512 bit for very short periods
+    // of time.
     bl_sizes[0] = 32768;
     bl_sizes[1] = 32768;
     bl_sizes[2] = 32768;
@@ -299,6 +362,158 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     bl_sizes[13] = 32768;
     bl_sizes[14] = 32768;
     bl_sizes[15] = 32768;
+    bl_sizes[17] = 32768;
+    bl_sizes[18] = 32768;
+    bl_sizes[19] = 32768;
+    bl_sizes[20] = 32768;
+    bl_sizes[21] = 32768;
+    bl_sizes[22] = 32768;
+    bl_sizes[23] = 32768;
+    bl_sizes[24] = 32768;
+    bl_sizes[25] = 32768;
+    bl_sizes[26] = 32768;
+    bl_sizes[27] = 32768;
+    bl_sizes[28] = 32768;
+    bl_sizes[29] = 32768;
+    bl_sizes[30] = 32768;
+    bl_sizes[31] = 32768;
+
+    int j;
+
+    ALIGNED_MEM uint16_t bits_10_12[32] = { 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8 };
+    ALIGNED_MEM uint16_t bits_12_13[32] = { 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10 };
+
+    __m512i v_bits_10 = _mm512_set1_epi16(8);
+    __m512i v_bits_12 = _mm512_set1_epi16(10);
+    __m512i v_bits_13 = _mm512_set1_epi16(12);
+    __m512i v_bits_10_12 = _mm512_set1_epi16(8);
+    __m512i v_bits_12_13 = _mm512_set1_epi16(10);
+
+    // 32x trial division
+    i = sconf->sieve_small_fb_start;
+    while ((i < sconf->factor_base->fb_10bit_B) && ((i & 31) != 0))
+    {
+        i++;
+    }
+    //printf("start = %u\n", i);
+
+    while (i < sconf->factor_base->fb_10bit_B)
+    {
+        i += 32;
+    }
+    if (i > sconf->factor_base->fb_10bit_B)
+    {
+        i -= 32;
+        bound10 = i;
+        j = 0;
+        while (i < sconf->factor_base->fb_10bit_B)
+        {
+            i += 8;
+            j += 8;
+        }
+        while ((i < sconf->factor_base->fb_12bit_B) && ((i & 31) != 0))
+        {
+            i += 8;
+        }
+        for (; j < 32; j++)
+        {
+            bits_10_12[j] = 10;
+        }
+        v_bits_10_12 = _mm512_load_si512(bits_10_12);
+    }
+    else
+    {
+        bound10 = i;
+    }
+
+    // determine the next bound
+    while (i < sconf->factor_base->fb_12bit_B)
+    {
+        i += 32;
+    }
+    if (i > sconf->factor_base->fb_12bit_B)
+    {
+        i -= 32;
+        bound12 = i;
+        j = 0;
+        while (i < sconf->factor_base->fb_12bit_B)
+        {
+            i += 8;
+            j += 8;
+        }
+        while ((i < sconf->factor_base->fb_13bit_B) && ((i & 31) != 0))
+        {
+            i += 8;
+        }
+        for (; j < 32; j++)
+        {
+            bits_12_13[j] = 12;
+        }
+        v_bits_12_13 = _mm512_load_si512(bits_12_13);
+    }
+    else
+    {
+        bound12 = i;
+    }
+
+    // determine the next bound
+    while (i < sconf->factor_base->fb_13bit_B)
+    {
+        i += 32;
+    }
+    if (i > sconf->factor_base->fb_13bit_B)
+    {
+        i -= 32;
+        bound13 = i;
+        while (i < sconf->factor_base->fb_13bit_B)
+        {
+            i += 8;
+        }
+    }
+    else
+    {
+        bound13 = i;
+    }
+
+    
+    //printf("bound10 = %u\n", bound10);
+    //printf("bound12 = %u\n", bound12);
+    //printf("bound13 = %u\n", bound13);
+    //printf("bound10_8steps = %u\n", bound10_8steps);
+    //printf("bound12_8steps = %u\n", bound12_8steps);
+    //printf("bound13_8steps = %u\n", bound13_8steps);
+    //
+    //printf("ptrs:\n\t%lp\n\t%lp\n\t%lp\n\t%lp\n\t%lp\n",
+    //    fbc->prime,
+    //    fbc->root1,
+    //    fbc->root2,
+    //    fullfb_ptr->correction,
+    //    fullfb_ptr->small_inv);
+
+#else
+    bl_sizes[0] = 32768;
+    bl_sizes[1] = 32768;
+    bl_sizes[2] = 32768;
+    bl_sizes[3] = 32768;
+    bl_sizes[4] = 32768;
+    bl_sizes[5] = 32768;
+    bl_sizes[6] = 32768;
+    bl_sizes[7] = 32768;
+    bl_sizes[8] = 32768;
+    bl_sizes[9] = 32768;
+    bl_sizes[10] = 32768;
+    bl_sizes[11] = 32768;
+    bl_sizes[12] = 32768;
+    bl_sizes[13] = 32768;
+    bl_sizes[14] = 32768;
+    bl_sizes[15] = 32768;
+
 
     // 16x trial division
     if ((sconf->factor_base->fb_10bit_B & 15) == 0)
@@ -329,6 +544,8 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     {
         bound13 = MAX(sconf->factor_base->fb_13bit_B - 8, sconf->factor_base->fb_12bit_B);
     }
+
+#endif
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
@@ -381,8 +598,11 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         i = sconf->sieve_small_fb_start;
 
-        // single-up test until i is a multiple of 8
-        while ((i < bound10) && ((i & 15) != 0))
+        
+#ifdef USE_AVX512BWno
+
+        // single-up test until i is a multiple of 32
+        while ((i < bound10) && ((i & 31) != 0))
         {
             prime = fbc->prime[i];
             root1 = fbc->root1[i];
@@ -395,7 +615,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             //block, which is the state of the sieve now.
             tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
                 * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
-            tmp = block_loc + tmp*prime;
+            tmp = block_loc + tmp * prime;
             tmp = tmp - 32768;
 
             //tmp = advance the offset to where it should be after the interval, and
@@ -409,6 +629,112 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             i++;
         }
 
+        tmp3 = 0;
+
+        CLEAN_AVX2;
+
+        bl_locs[0] = block_loc;
+        bl_locs[1] = block_loc;
+        bl_locs[2] = block_loc;
+        bl_locs[3] = block_loc;
+        bl_locs[4] = block_loc;
+        bl_locs[5] = block_loc;
+        bl_locs[6] = block_loc;
+        bl_locs[7] = block_loc;
+        bl_locs[8] = block_loc;
+        bl_locs[9] = block_loc;
+        bl_locs[10] = block_loc;
+        bl_locs[11] = block_loc;
+        bl_locs[12] = block_loc;
+        bl_locs[13] = block_loc;
+        bl_locs[14] = block_loc;
+        bl_locs[15] = block_loc;
+        bl_locs[16] = block_loc;
+        bl_locs[17] = block_loc;
+        bl_locs[18] = block_loc;
+        bl_locs[19] = block_loc;
+        bl_locs[20] = block_loc;
+        bl_locs[21] = block_loc;
+        bl_locs[22] = block_loc;
+        bl_locs[23] = block_loc;
+        bl_locs[24] = block_loc;
+        bl_locs[25] = block_loc;
+        bl_locs[26] = block_loc;
+        bl_locs[27] = block_loc;
+        bl_locs[28] = block_loc;
+        bl_locs[29] = block_loc;
+        bl_locs[30] = block_loc;
+        bl_locs[31] = block_loc;
+
+        MOD_INIT_32X;
+
+        while (i < bound10)
+        {
+            MOD_CMP_32X_vec(v_bits_10);
+            i += 32;
+        }
+
+        if (bound10 != sconf->factor_base->fb_10bit_B)
+        {
+            // transition to beginning of 12-bit loop
+            MOD_CMP_32X_vec(v_bits_10_12);
+            i += 32;
+        }
+
+        while (i < bound12)
+        {
+            MOD_CMP_32X_vec(v_bits_12);
+            i += 32;
+        }
+
+        if (bound12 != sconf->factor_base->fb_12bit_B)
+        {
+            // transition to beginning of 13-bit loop
+            MOD_CMP_32X_vec(v_bits_12_13);
+            i += 32;
+        }
+
+        while (i < bound13)
+        {
+            MOD_CMP_32X_vec(v_bits_13);
+            i += 32;
+        }
+
+        // transition to beginning of 14-bit loop
+        while (i < sconf->factor_base->fb_13bit_B)
+        {
+            MOD_CMP_8X_vec_bw(12);
+            i += 8;
+        }
+
+#else
+        // single-up test until i is a multiple of 16
+        while ((i < bound10) && ((i & 15) != 0))
+        {
+            prime = fbc->prime[i];
+            root1 = fbc->root1[i];
+            root2 = fbc->root2[i];
+
+            //tmp = distance from this sieve block offset to the end of the block
+            tmp = 32768 - block_loc;
+
+            //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
+            //block, which is the state of the sieve now.
+            tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
+            tmp = block_loc + tmp * prime;
+            tmp = tmp - 32768;
+
+            //tmp = advance the offset to where it should be after the interval, and
+            //check to see if that's where either of the roots are now.  if so, then
+            //this offset is on the progression of the sieve for this prime
+            if (tmp == root1 || tmp == root2)
+            {
+                //it will divide Q(x).  do so as many times as we can.
+                DIVIDE_ONE_PRIME;
+            }
+            i++;
+        }
 
         tmp3 = 0;
 
@@ -439,7 +765,6 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
             i += 16;
         }
 
-
         // transition to beginning of 12-bit loop
         if (i != sconf->factor_base->fb_10bit_B)
         {
@@ -465,7 +790,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                     //block, which is the state of the sieve now.
                     tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
                         * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
-                    tmp = block_loc + tmp*prime;
+                    tmp = block_loc + tmp * prime;
                     tmp = tmp - 32768;
 
                     //tmp = advance the offset to where it should be after the interval, and
@@ -511,7 +836,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
                     //block, which is the state of the sieve now.
                     tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
                         * (uint64_t)fullfb_ptr->small_inv[i]) >> 26);
-                    tmp = block_loc + tmp*prime;
+                    tmp = block_loc + tmp * prime;
                     tmp = tmp - 32768;
 
                     //tmp = advance the offset to where it should be after the interval, and
@@ -543,6 +868,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         }
 
         CLEAN_AVX2;
+#endif
 
 
         for (r = 0; r < tmp3; r++)
