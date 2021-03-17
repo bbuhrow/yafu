@@ -742,6 +742,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     CLEAN_AVX2;
 
 #if defined(USE_AVX512BW)
+
     for (i = start_prime; i < bound; i += 32)
     {
         __m512i vprime, vroot1, vroot2;
@@ -847,7 +848,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
             _mm512_store_si512(r_id2, vroot2);
 
             msk_2 = valid_mask_2;
-            while ((pos = _trail_zcnt(msk_2)) < 32) {
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
                 sieve[r_id2[pos]] -= logp;
                 sieve[r_id1[pos]] -= logp;
                 msk_2 = _reset_lsb(msk_2);
@@ -867,7 +869,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
         msk_2 = valid_mask_2;
 
-        while ((pos = _trail_zcnt(msk_2)) < 32) {
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
             sieve[r_id1[pos]] -= logp;
             msk_2 = _reset_lsb(msk_2);
         }
@@ -1026,7 +1029,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
             _mm512_store_si512(r_id2, vroot2);
 
             msk_2 = valid_mask_2;
-            while ((pos = _trail_zcnt(msk_2)) < 32) {
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
                 sieve[r_id2[pos]] -= logp;
                 sieve[r_id1[pos]] -= logp;
                 msk_2 = _reset_lsb(msk_2);
@@ -1043,31 +1047,30 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         // record the sieve hit, advance them, and swap with the
         // other root
         _mm512_store_si512(r_id1, vroot1);
-        _mm512_store_si512(r_id2, vroot2);
-        msk_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+        valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+        msk_2 = valid_mask_2;
 
-        while ((pos = _trail_zcnt(msk_2)) < 32) {
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
             sieve[r_id1[pos]] -= logp;
-            tmp = r_id2[pos];
-            r_id2[pos] = r_id1[pos] + fb->prime[i + pos];
-            r_id1[pos] = tmp;
             msk_2 = _reset_lsb(msk_2);
         }
 
         // reduce both roots and store back for the next block
-        vroot1 = _mm512_sub_epi16(_mm512_load_si512(r_id1), vblock);
-        vroot2 = _mm512_sub_epi16(_mm512_load_si512(r_id2), vblock);
-        _mm512_storeu_si512(fb->root1 + i, vroot1);
-        _mm512_storeu_si512(fb->root2 + i, vroot2);
+        vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+        vroot1 = _mm512_sub_epi16(vroot1, vblock);
+        vroot2 = _mm512_sub_epi16(vroot2, vblock);
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vroot1, vroot2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
     }
 
     // sieve primes 32 at a time, 2^15 < p < med_B
     logp = 15;
     for (; i < med_B - 32; i += 32) {
         //printf("loading from index %d\n", i); fflush(stdout);
-        vp = _mm512_load_epi32((fb->prime + i));
-        vr1 = _mm512_load_epi32((fb->root1 + i));
-        vr2 = _mm512_load_epi32((fb->root2 + i));
+        vp = _mm512_loadu_si512((fb->prime + i));
+        vr1 = _mm512_loadu_si512((fb->root1 + i));
+        vr2 = _mm512_loadu_si512((fb->root2 + i));
 
         result2 = _mm512_cmp_epu16_mask(vr2, vblock, _MM_CMPINT_LT);
         res2 = result2;
@@ -1094,8 +1097,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
         vr1 = _mm512_sub_epi16(vr1, vblock);
         vr2 = _mm512_sub_epi16(vr2, vblock);
-        _mm512_store_epi32(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
-        _mm512_store_epi32(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
     }
 
 #if 1

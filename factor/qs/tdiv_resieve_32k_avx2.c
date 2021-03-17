@@ -518,7 +518,7 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
     uint32_t block_loc;
-    uint16_t *corrections = dconf->corrections;
+    ALIGNED_MEM uint16_t corrections[32]; // = dconf->corrections;
     uint16_t buffer[16];
     uint32_t result = 0;
     uint32_t bound14;
@@ -563,7 +563,7 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         if ((i & 31) != 0)
         {
-            RESIEVE_8X_14BIT_MAX_VEC;
+            RESIEVE_8X_14BIT_MAX_VEC_AVX512;
             i += 8;
         }
 
@@ -592,11 +592,9 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
         while (i < sconf->factor_base->med_B)
         {
-            RESIEVE_8X_16BIT_MAX_VEC;
+            RESIEVE_8X_16BIT_MAX_VEC_AVX512;
             i += 8;
         }
-
-        CLEAN_AVX2;
 
         for (i = 0; i < result; i++)
         {
@@ -605,8 +603,6 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
             DIVIDE_RESIEVED_PRIME_2((buffer[i]));
         }
-
-        CLEAN_AVX2;
 
         // after either resieving or standard trial division, record
         // how many factors we've found so far.
