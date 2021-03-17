@@ -2777,7 +2777,7 @@ void vececm(thread_data_t* tdata)
     uint32_t threads = tdata[0].total_threads;
     base_t i, j;
     int curve;
-    FILE* save;
+    FILE* save = NULL;
     char fname[80];
     int found = 0;
     int result;
@@ -4842,7 +4842,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     uint32_t pairs = 0;
     uint32_t nump = 0;
     uint32_t mapid = 0;
-    uint8_t* flags;
+    uint8_t* flags = NULL;
     int printpairs = 0;
     int testcoverage = 0;
     int printpairmap = 0;

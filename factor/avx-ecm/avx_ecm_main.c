@@ -877,8 +877,8 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
         invcost = (double)numinv * (VECLEN * 6.0) + (double)numinv * 3.0;
 
         //// estimate number of prime pairs times 1 (1 mul per pair with batch inversion)
-        //paircost = ((double)STAGE2_MAX / log((double)STAGE2_MAX) -
-        //	(double)STAGE1_MAX / log((double)STAGE1_MAX)) * pairing[i] * 1.0;
+        paircost = ((double)B2 / log((double)B2) -
+        	(double)B1 / log((double)B1)) * pairing[i] * 1.0;
         //
         //printf("estimating %u primes to pair\n", (uint32_t)((double)STAGE2_MAX / log((double)STAGE2_MAX) -
         //	(double)STAGE1_MAX / log((double)STAGE1_MAX)));

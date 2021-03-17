@@ -22,28 +22,9 @@ code to the public domain.
 
 #if defined( USE_AVX2 )
 
+#include "tdiv_macros_common.h"
 #include "qs_impl.h"
 #include <immintrin.h>
-
-
-#define DIVIDE_RESIEVED_PRIME(j) \
-        	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
-                    	{						\
-		fb_offsets[++smooth_num] = i+j;	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
-                    	}
-#define DIVIDE_ONE_PRIME_2(j) \
-	do \
-            	{						\
-		fb_offsets[++smooth_num] = (j);	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]); \
-                } while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0); 
-#define DIVIDE_RESIEVED_PRIME_2(j) \
-            while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0) \
-                        {						\
-	    fb_offsets[++smooth_num] = j;	\
-	    mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]);		\
-                        }
 
 
 #define INIT_CORRECTIONS \
@@ -466,91 +447,6 @@ v256_y7 = _mm256_xor_si256(v256_y7, v256_y7);
 
 
 #endif
-
-#define INIT_CORRECTIONS_32 \
-	corrections[0] = 32768 - block_loc; \
-	corrections[1] = 32768 - block_loc; \
-	corrections[2] = 32768 - block_loc; \
-	corrections[3] = 32768 - block_loc; \
-	corrections[4] = 32768 - block_loc; \
-	corrections[5] = 32768 - block_loc; \
-	corrections[6] = 32768 - block_loc; \
-	corrections[7] = 32768 - block_loc; \
-	corrections[8] = 32768 - block_loc; \
-	corrections[9] = 32768 - block_loc; \
-	corrections[10] = 32768 - block_loc; \
-	corrections[11] = 32768 - block_loc; \
-	corrections[12] = 32768 - block_loc; \
-	corrections[13] = 32768 - block_loc; \
-	corrections[14] = 32768 - block_loc; \
-	corrections[15] = 32768 - block_loc; \
-    corrections[16] = 32768 - block_loc; \
-    corrections[17] = 32768 - block_loc; \
-    corrections[18] = 32768 - block_loc; \
-    corrections[19] = 32768 - block_loc; \
-    corrections[20] = 32768 - block_loc; \
-    corrections[21] = 32768 - block_loc; \
-    corrections[22] = 32768 - block_loc; \
-    corrections[23] = 32768 - block_loc; \
-    corrections[24] = 32768 - block_loc; \
-    corrections[25] = 32768 - block_loc; \
-    corrections[26] = 32768 - block_loc; \
-    corrections[27] = 32768 - block_loc; \
-    corrections[28] = 32768 - block_loc; \
-    corrections[29] = 32768 - block_loc; \
-    corrections[30] = 32768 - block_loc; \
-    corrections[31] = 32768 - block_loc;
-
-#define STEP_COMPARE_COMBINE_AVX512 \
-	v512_y2 = _mm512_sub_epi16(v512_y2, v512_p); \
-    v512_y3 = _mm512_sub_epi16(v512_y3, v512_p); \
-    m1 |= _mm512_cmpeq_epi16_mask(v512_y2, v512_y5); \
-    m2 |= _mm512_cmpeq_epi16_mask(v512_y3, v512_y6);
-
-#define INIT_RESIEVE_AVX512 \
-    __m512i v512_p, v512_y0, v512_y2, v512_y3, v512_y4, v512_y5, v512_y6, v512_y7; \
-    uint32_t msk32, pos; \
-    __mmask32 m1 = 0, m2 = 0; \
-    v512_y4 = _mm512_load_si512(corrections);                   \
-    v512_y0 = _mm512_xor_si512(v512_y0, v512_y0);               \
-    v512_y2 = _mm512_load_si512(fbc->root1 + i);                \
-    v512_y3 = _mm512_load_si512(fbc->root2 + i);                \
-    v512_y2 = _mm512_add_epi16(v512_y4, v512_y2);               \
-    v512_y3 = _mm512_add_epi16(v512_y4, v512_y3);               \
-    v512_p = _mm512_load_si512(fbc->prime + i);                 \
-    v512_y5 = _mm512_xor_si512(v512_y5, v512_y5);               \
-    v512_y6 = _mm512_xor_si512(v512_y6, v512_y6);               \
-    v512_y7 = _mm512_xor_si512(v512_y7, v512_y7);
-
-
-#define GATHER_BIT_INDICES_AVX512 \
-        while ((pos = _trail_zcnt(msk32)) < 32) { \
-            buffer[result++] = pos + i; \
-            msk32 = _reset_lsb(msk32); \
-        }
-
-
-#define RESIEVE_32X_14BIT_MAX_VEC_AVX512 \
-			INIT_RESIEVE_AVX512 \
-			STEP_COMPARE_COMBINE_AVX512	\
-			STEP_COMPARE_COMBINE_AVX512	\
-			STEP_COMPARE_COMBINE_AVX512	\
-			STEP_COMPARE_COMBINE_AVX512	\
-			msk32 = m1 ^ m2; \
-            GATHER_BIT_INDICES_AVX512
-
-#define RESIEVE_32X_15BIT_MAX_VEC_AVX512 \
-			INIT_RESIEVE_AVX512 \
-			STEP_COMPARE_COMBINE_AVX512	\
-			STEP_COMPARE_COMBINE_AVX512	\
-			msk32 = m1 ^ m2; \
-            GATHER_BIT_INDICES_AVX512
-
-#define RESIEVE_32X_16BIT_MAX_VEC_AVX512 \
-			INIT_RESIEVE_AVX512 \
-			STEP_COMPARE_COMBINE_AVX512	\
-			msk32 = m1 ^ m2; \
-            GATHER_BIT_INDICES_AVX512
 
 
 

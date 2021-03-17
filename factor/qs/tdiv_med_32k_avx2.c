@@ -23,36 +23,10 @@ code to the public domain.
 
 #if defined( USE_AVX2 )
 
+#include "tdiv_macros_common.h"
 #include "qs_impl.h"
 #include <immintrin.h>
 
-
-#define DIVIDE_ONE_PRIME \
-	do \
-    	{						\
-		fb_offsets[++smooth_num] = i;	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime); \
-    	} while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0); 
-#define DIVIDE_ONE_PRIME_2(j) \
-	do \
-        	{						\
-		fb_offsets[++smooth_num] = (j);	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]); \
-            } while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0); 
-
-
-#define DIVIDE_RESIEVED_PRIME(j) \
-    	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
-        	{						\
-		fb_offsets[++smooth_num] = i+j;	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
-        	}
-#define DIVIDE_RESIEVED_PRIME_2(j) \
-        while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0) \
-            {						\
-	    fb_offsets[++smooth_num] = j;	\
-	    mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]);		\
-            }
 
 #if defined(GCC_ASM64X)
 
@@ -219,63 +193,6 @@ code to the public domain.
 
 
 #endif
-
-
-#define MOD_CMP_32X_vec(v_bits)				{ \
-        __m512i v_primes, v_y4, v_y7, v_r1, v_r2, v_corr, v_inv;       \
-        __mmask32 m_r1, m_r2; \
-        uint32_t msk32; \
-        v_corr = _mm512_load_si512((__m512i *)(fullfb_ptr->correction + i)); \
-        v_inv = _mm512_load_si512((__m512i *)(fullfb_ptr->small_inv + i)); \
-        v_primes = _mm512_load_si512((__m512i *)(fbc->prime + i)); \
-        v_r1 = _mm512_load_si512((__m512i *)(fbc->root1 + i)); \
-        v_r2 = _mm512_load_si512((__m512i *)(fbc->root2 + i)); \
-        v_y4 = _mm512_sub_epi16(v_blksz, v_blkloc); \
-        v_y4 = _mm512_add_epi16(v_y4, v_corr); \
-        v_y4 = _mm512_mulhi_epu16(v_y4, v_inv); \
-        v_y4 = _mm512_srlv_epi16(v_y4, v_bits); \
-        v_y7 = _mm512_add_epi16(v_blkloc, v_primes); \
-        v_y4 = _mm512_mullo_epi16(v_y4, v_primes); \
-        v_y7 = _mm512_sub_epi16(v_y7, v_blksz); \
-        v_y4 = _mm512_add_epi16(v_y7, v_y4); \
-        m_r1 = _mm512_cmpeq_epi16_mask(v_y4, v_r1); \
-        m_r2 = _mm512_cmpeq_epi16_mask(v_y4, v_r2); \
-        msk32 = m_r1 | m_r2; \
-        while ((pos = _trail_zcnt(msk32)) < 32) { \
-            buffer[tmp3++] = pos + i; \
-            msk32 = _reset_lsb(msk32); \
-        }}
-
-#define MOD_CMP_8X_vec_bw(xtra_bits)				{ \
-        __m128i v_primes, v_y4, v_y7, v_r1, v_r2;       \
-        __mmask8 m_r1, m_r2; \
-        uint32_t msk32; \
-        v_primes = _mm_load_si128((__m128i *)(fbc->prime + i)); \
-        v_y4 = _mm_mask_sub_epi16(v_blksz128, 0xff, v_blksz128, v_blkloc128); \
-        v_y4 = _mm_mask_add_epi16(v_y4, 0xff, v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->correction + i))); \
-        v_r1 = _mm_load_si128((__m128i *)(fbc->root1 + i)); \
-        v_y4 = _mm_mask_mulhi_epu16(v_y4, 0xff, v_y4, _mm_load_si128((__m128i *)(fullfb_ptr->small_inv + i))); \
-        v_r2 = _mm_load_si128((__m128i *)(fbc->root2 + i)); \
-        v_y4 = _mm_mask_srli_epi16 (v_y4, 0xff, v_y4, xtra_bits); \
-        v_y7 = _mm_mask_add_epi16(v_blkloc128, 0xff, v_blkloc128, v_primes); \
-        v_y4 = _mm_mask_mullo_epi16(v_y4, 0xff, v_y4, v_primes); \
-        v_y7 = _mm_mask_sub_epi16(v_y7, 0xff, v_y7, v_blksz128); \
-        v_y4 = _mm_mask_add_epi16(v_y7, 0xff, v_y7, v_y4); \
-        m_r1 = _mm_cmpeq_epu16_mask(v_y4, v_r1); \
-        m_r2 = _mm_cmpeq_epu16_mask(v_y4, v_r2); \
-        msk32 = m_r1 | m_r2; \
-        while ((pos = _trail_zcnt(msk32)) < 32) { \
-            buffer[tmp3++] = pos + i; \
-            msk32 = _reset_lsb(msk32); \
-        }}
-
-#define MOD_INIT_32X									\
-        __m512i v_blksz = _mm512_load_si512((__m512i *)bl_sizes);  \
-        __m512i v_blkloc = _mm512_load_si512((__m512i *)bl_locs);  \
-        __m128i v_blksz128 = _mm_load_si128((__m128i *)bl_sizes);  \
-        __m128i v_blkloc128 = _mm_load_si128((__m128i *)bl_locs);  \
-        uint32_t msk32, pos;
-
 
 
 //#define SIQSDEBUG 1

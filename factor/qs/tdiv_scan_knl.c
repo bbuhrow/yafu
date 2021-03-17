@@ -669,7 +669,7 @@ int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
     dconf->total_blocks++;
 
     //remove small primes, and test if its worth continuing for each report
-    filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);	
+    filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 

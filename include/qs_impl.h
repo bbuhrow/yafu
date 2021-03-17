@@ -587,8 +587,6 @@ void tdiv_medprimes_32k_knc(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
     uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_medprimes_64k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
 void (*tdiv_med_ptr)(uint8_t, uint32_t, uint32_t,
     static_conf_t*, dynamic_conf_t*);
 
