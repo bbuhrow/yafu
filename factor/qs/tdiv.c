@@ -993,20 +993,73 @@ void save_relation_siqs(uint32_t offset, uint32_t *large_prime, uint32_t num_fac
 
 		r = conf->in_mem_relations + conf->buffered_rels++;
 
-        if (large_prime[0] < large_prime[1])
+        if (conf->use_dlp == 2)
         {
-            r->large_prime[0] = large_prime[0];
-            r->large_prime[1] = large_prime[1];
+            // store them sorted in ascending order
+            if (large_prime[0] < large_prime[1])
+            {
+                if (large_prime[1] < large_prime[2])
+                {
+                    r->large_prime[0] = large_prime[0];
+                    r->large_prime[1] = large_prime[1];
+                    r->large_prime[2] = large_prime[2];
+                }
+                else
+                {
+                    if (large_prime[2] < large_prime[0])
+                    {
+                        r->large_prime[0] = large_prime[2];
+                        r->large_prime[1] = large_prime[0];
+                        r->large_prime[2] = large_prime[1];
+                    }
+                    else
+                    {
+                        r->large_prime[0] = large_prime[0];
+                        r->large_prime[1] = large_prime[2];
+                        r->large_prime[2] = large_prime[1];
+                    }
+                }
+            }
+            else
+            {
+                if (large_prime[0] < large_prime[2])
+                {
+                    r->large_prime[0] = large_prime[1];
+                    r->large_prime[1] = large_prime[0];
+                    r->large_prime[2] = large_prime[2];
+                }
+                else
+                {
+                    if (large_prime[2] < large_prime[1])
+                    {
+                        r->large_prime[0] = large_prime[2];
+                        r->large_prime[1] = large_prime[1];
+                        r->large_prime[2] = large_prime[0];
+                    }
+                    else
+                    {
+                        r->large_prime[0] = large_prime[1];
+                        r->large_prime[1] = large_prime[2];
+                        r->large_prime[2] = large_prime[0];
+                    }
+                }
+            }
         }
         else
         {
-            r->large_prime[1] = large_prime[0];
-            r->large_prime[0] = large_prime[1];
+            if (large_prime[0] < large_prime[1])
+            {
+                r->large_prime[0] = large_prime[0];
+                r->large_prime[1] = large_prime[1];
+            }
+            else
+            {
+                r->large_prime[1] = large_prime[0];
+                r->large_prime[0] = large_prime[1];
+            }
+            r->large_prime[2] = large_prime[2];
         }
 
-        // should not be using in-mem if also using TLP!
-        // so as of now the proper sorting of this is ignored...
-		r->large_prime[2] = large_prime[2];
 		r->num_factors = num_factors;
         r->apoly_idx = apoly_id;
 		r->poly_idx = poly_id;

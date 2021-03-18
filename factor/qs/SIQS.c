@@ -1310,7 +1310,7 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
         // This means that A values could get printed multiple times;
         // this is necessary when using batch factoring.  I think
         // filtering code will be ok with that.
-        if (sconf->do_batch)
+        if ((sconf->do_batch) && (!sconf->in_mem))
         {
             if (rel->apoly_idx != curr_poly_idx)
             {
@@ -2422,12 +2422,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		//find the point at which factor base primes exceed the blocksize.  
-		//wait until the index is a multiple of 16 so that we can enter
-		//this region of primes aligned on a 16 byte boundary and thus be able to use
-		//movdqa
-		//don't let med_B grow larger than ~1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize))  &&
+		// find the point at which factor base primes exceed the blocksize.  
+		// wait until the index is a multiple of 16 so that we can enter
+		// this region of primes aligned on a 16 byte boundary and thus be able to use
+		// movdqa
+		// don't let med_B grow larger than ~1.5 * the blocksize
+		if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.75 * (double)sconf->qs_blocksize))  &&
 			((i % 16) == 0))
 			break;
 
@@ -2687,7 +2687,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	sconf->tlp_exp = 2.8;
 
 	// check for user overrides
-	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt - 2.9) > 1e-9)
+	if (fabs(sconf->obj->qs_obj.gbl_override_mfbt - 2.8) > 1e-9)
 	{
 		sconf->tlp_exp = sconf->obj->qs_obj.gbl_override_mfbt;
 	}
@@ -2845,7 +2845,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
         if (sconf->digits_n > 120)
             sconf->check_inc = 0.5 * sconf->factor_base->B;
-        else if (sconf->digits_n > 110)
+        else if (sconf->digits_n >= 100)
             sconf->check_inc = 0.10 * sconf->factor_base->B;
         else
             sconf->check_inc = 0.15 * sconf->factor_base->B;
@@ -3156,6 +3156,7 @@ int update_check(static_conf_t *sconf)
 				uint32_t *plist0;
 				uint32_t *plist1;
 				uint32_t *plist2;
+                uint32_t* apolylist = NULL;
 				uint32_t newrels;
 				int j;
 				char buf[LINE_BUF_SIZE];
@@ -3181,71 +3182,93 @@ int update_check(static_conf_t *sconf)
 					logprint(obj->logfile, "QS elasped time is now %1.2f sec\n", t_time);
 				}
 
-				/* skip over the first line */
-				qs_savefile_flush(&sconf->obj->qs_obj.savefile);
-				qs_savefile_close(&sconf->obj->qs_obj.savefile);
+                if (sconf->in_mem)
+                {
+                    relation_list = (siqs_r*)xmalloc(sconf->buffered_rels * sizeof(siqs_r));
+                    plist0 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
+                    plist1 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
+                    plist2 = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
+                    apolylist = (uint32_t*)xmalloc(sconf->buffered_rels * sizeof(uint32_t));
+                    for (i = 0; i < sconf->buffered_rels; i++)
+                    {
+                        relation_list[i].poly_idx = i;
+                        relation_list[i].apoly_idx = apolylist[i] = sconf->in_mem_relations[i].apoly_idx;
+                        relation_list[i].large_prime[0] = plist0[i] = sconf->in_mem_relations[i].large_prime[0];
+                        relation_list[i].large_prime[1] = plist1[i] = sconf->in_mem_relations[i].large_prime[1];
+                        relation_list[i].large_prime[2] = plist2[i] = sconf->in_mem_relations[i].large_prime[2];
+                    }
+                    total_poly_a = sconf->total_poly_a;
+                    all_relations = num_relations = sconf->buffered_rels;
+                }
+                else
+                {
+                    /* skip over the first line */
+                    qs_savefile_flush(&sconf->obj->qs_obj.savefile);
+                    qs_savefile_close(&sconf->obj->qs_obj.savefile);
 
-				qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_READ);
-				qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
+                    qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_READ);
+                    qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
 
-				//we don't know beforehand how many rels to expect, so start
-				//with some amount and allow it to increase as we read them
-				relation_list = (siqs_r *)xmalloc(10000 * sizeof(siqs_r));
-				plist0 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
-				plist1 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
-				plist2 = (uint32_t *)xmalloc(10000 * sizeof(uint32_t));
-				curr_rel = 10000;
-				while (!qs_savefile_eof(&sconf->obj->qs_obj.savefile)) {
-					char *start;
+                    // we don't know beforehand how many rels to expect, so start
+                    // with some amount and allow it to increase as we read them
+                    relation_list = (siqs_r*)xmalloc(10000 * sizeof(siqs_r));
+                    plist0 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
+                    plist1 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
+                    plist2 = (uint32_t*)xmalloc(10000 * sizeof(uint32_t));
+                    curr_rel = 10000;
 
-					switch (buf[0]) {
-					case 'A':
-						total_poly_a++;
-						break;
+                    while (!qs_savefile_eof(&sconf->obj->qs_obj.savefile)) {
+                        char* start;
 
-					case 'R':
-						start = strchr(buf, 'L');
-						if (start != NULL) {
-							uint32_t primes[3];
-							yafu_read_tlp(start, primes);
-							if (i == curr_rel) {
-								curr_rel = 3 * curr_rel / 2;
-								relation_list = (siqs_r *)xrealloc(
-									relation_list,
-									curr_rel *
-									sizeof(siqs_r));
+                        switch (buf[0]) {
+                        case 'A':
+                            total_poly_a++;
+                            break;
 
-								plist0 = (uint32_t *)xrealloc(plist0, curr_rel * sizeof(uint32_t));
-								plist1 = (uint32_t *)xrealloc(plist1, curr_rel * sizeof(uint32_t));
-								plist2 = (uint32_t *)xrealloc(plist2, curr_rel * sizeof(uint32_t));
-							}
+                        case 'R':
+                            start = strchr(buf, 'L');
+                            if (start != NULL) {
+                                uint32_t primes[3];
+                                yafu_read_tlp(start, primes);
+                                if (i == curr_rel) {
+                                    curr_rel = 3 * curr_rel / 2;
+                                    relation_list = (siqs_r*)xrealloc(
+                                        relation_list,
+                                        curr_rel *
+                                        sizeof(siqs_r));
 
-							//printf("found primes %u,%u,%u on line %u, current allocation: %u\n",
-							//	primes[0], primes[1], primes[2], i, curr_rel);
+                                    plist0 = (uint32_t*)xrealloc(plist0, curr_rel * sizeof(uint32_t));
+                                    plist1 = (uint32_t*)xrealloc(plist1, curr_rel * sizeof(uint32_t));
+                                    plist2 = (uint32_t*)xrealloc(plist2, curr_rel * sizeof(uint32_t));
+                                }
 
-							relation_list[i].poly_idx = i;
-							relation_list[i].large_prime[0] = primes[0];
-							relation_list[i].large_prime[1] = primes[1];
-							relation_list[i].large_prime[2] = primes[2];
+                                //printf("found primes %u,%u,%u on line %u, current allocation: %u\n",
+                                //	primes[0], primes[1], primes[2], i, curr_rel);
 
-							plist0[0] = primes[0];
-							plist1[1] = primes[1];
-							plist2[2] = primes[2];
-							i++;
-						}
-						break;
-					}
+                                relation_list[i].poly_idx = i;
+                                relation_list[i].large_prime[0] = primes[0];
+                                relation_list[i].large_prime[1] = primes[1];
+                                relation_list[i].large_prime[2] = primes[2];
 
-					qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
-				}
+                                plist0[j] = primes[0];
+                                plist1[j] = primes[1];
+                                plist2[j] = primes[2];
+                                i++;
+                            }
+                            break;
+                        }
 
-				qs_savefile_flush(&sconf->obj->qs_obj.savefile);
-				qs_savefile_close(&sconf->obj->qs_obj.savefile);
-				// get ready to collect more relations
-				qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                        qs_savefile_read_line(buf, sizeof(buf), &sconf->obj->qs_obj.savefile);
+                    }
 
-				all_relations = i;
-				num_relations = i;
+                    qs_savefile_flush(&sconf->obj->qs_obj.savefile);
+                    qs_savefile_close(&sconf->obj->qs_obj.savefile);
+                    // get ready to collect more relations
+                    qs_savefile_open(&sconf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+
+                    all_relations = i;
+                    num_relations = i;
+                }
 
                 gettimeofday(&filt_stop, NULL);
                 tmp = ytools_difftime(&filt_start, &filt_stop);
@@ -3337,9 +3360,9 @@ int update_check(static_conf_t *sconf)
 
 						for (j = 0; j < all_relations; j++)
 						{
-							relation_list[j].large_prime[0] = plist0[0];
-							relation_list[j].large_prime[1] = plist1[1];
-							relation_list[j].large_prime[2] = plist2[2];
+							relation_list[j].large_prime[0] = plist0[j];
+							relation_list[j].large_prime[1] = plist1[j];
+							relation_list[j].large_prime[2] = plist2[j];
 						}
 						num_relations = all_relations;
 
@@ -3390,7 +3413,8 @@ int update_check(static_conf_t *sconf)
 						sconf->last_numfull = sconf->num_relations;
 						sconf->last_numpartial = sconf->num_r - sconf->num_relations;
 
-                        if (0)
+                        int have_cycle_growth_estimate = 0;
+                        if (sconf->last_cycrate > 0)
                         {
                             uint32_t current_rels = sconf->num_r;
                             uint32_t needed_rels = (fb->B - sconf->num_r);
@@ -3400,44 +3424,75 @@ int update_check(static_conf_t *sconf)
                             double cr = cycrate;
                             double lr = sconf->last_cycrate;
                             double ri = (cr - lr);
+                            uint32_t ci = check_inc;
+                            uint32_t fulls_at_current_rate = 0;
+                            uint32_t fulls_at_linear_rate = 0;
 
                             lr = cr;
                             cr = cr + ri;
 
-                            printf("at the current cycle gathering rate we need %u more raw relations\n",
-                                (uint32_t)(((double)fb->B - (double)sconf->num_r) / (fullrate + cycrate)));
+                            fulls_at_current_rate = (uint32_t)(((double)needed_rels /
+                                (fullrate + cycrate)) * fullrate);
 
-                            while (current_rels < needed_rels)
+                            printf("at the current cycle gathering rate we need %u "
+                                "more raw relations (%u more fulls)\n",
+                                (uint32_t)((double)needed_rels / (fullrate + cycrate)),
+                                fulls_at_current_rate);
+
+                            printf("cycle gathering rate increased by %1.4f "
+                                "since last filter\n", ri);
+
+                            while (current_rels < fb->B)
                             {
-                                current_rels += (fr + cr) * check_inc;
-                                raw_rels += check_inc;
-                                ri = (cr - lr);
-                                lr = cr;
-                                cr = cr + ri;
+                                uint32_t new_fulls = ci;
+                                uint32_t new_raws = ci / fr;
+                                double new_cycle_rate = cr + ri;
+                                uint32_t new_cycles = new_cycle_rate * new_raws;
+                                current_rels += (new_cycles + new_fulls);
+                                cr = new_cycle_rate;
+                                raw_rels += new_raws;
+                                ci = ci / 2;
+                                if (ci < 16) ci = 16;
                             }
 
-                            printf("with linear growth of cycle rate we need %u more raw relations\n",
-                                raw_rels);
+                            fulls_at_linear_rate = (uint32_t)(raw_rels * fr);
 
-                            current_rels = sconf->num_r;
-                            cr = cycrate;
-                            lr = sconf->last_cycrate;
-                            ri = (cr - lr);
-                            raw_rels = 0;
-                            lr = cr;
-                            cr = cr + ri;
+                            printf("with linear growth of cycle rate we need %u "
+                                "more raw relations (%u more fulls)\n", raw_rels, 
+                                fulls_at_linear_rate);
 
-                            while (current_rels < needed_rels)
+                            //current_rels = sconf->num_r;
+                            //cr = cycrate;
+                            //lr = sconf->last_cycrate;
+                            //ri = (cr - lr);
+                            //raw_rels = 0;
+                            //ci = check_inc;
+                            //
+                            //while (current_rels < fb->B)
+                            //{
+                            //    uint32_t new_fulls = ci;
+                            //    uint32_t new_raws = ci / fr;
+                            //    double new_cycle_rate = cr + ri * 0.8;
+                            //    uint32_t new_cycles = new_cycle_rate * new_raws;
+                            //    current_rels += (new_cycles + new_fulls);
+                            //    cr = new_cycle_rate;
+                            //    ri = ri * 0.8;
+                            //    raw_rels += new_raws;
+                            //    ci = ci / 2;
+                            //    if (ci < 16) ci = 16;
+                            //}
+                            //
+                            //printf("with cycle rate growth of 0.8 we need %u "
+                            //    "more raw relations (%u more fulls)\n", raw_rels, 
+                            //    (uint32_t)(raw_rels * fr));
+
+                            if ((fulls_at_current_rate < fb->B) &&
+                                (fulls_at_linear_rate < fb->B))
                             {
-                                current_rels += (fr + cr) * check_inc;
-                                raw_rels += check_inc;
-                                ri = (cr - lr) * 1.2;
-                                lr = cr;
-                                cr = cr + ri;
+                                have_cycle_growth_estimate = 1;
+                                sconf->check_inc = (fulls_at_current_rate + 
+                                    fulls_at_linear_rate) / 3;
                             }
-
-                            printf("with cycle rate growth of exp(1.2) we need %u more raw relations\n",
-                                raw_rels);
                         }
                         
 
@@ -3492,21 +3547,44 @@ int update_check(static_conf_t *sconf)
                             ((double)sconf->last_numfull + (double)sconf->last_numpartial) / 
                             (double)sconf->factor_base->B;
 
-                        if (percent_complete < 0.2)
+                        if ((!have_cycle_growth_estimate) && (sconf->digits_n < 120))
                         {
-                            sconf->check_inc = 0.03 * sconf->factor_base->B;
+                            if (percent_complete < 0.2)
+                            {
+                                sconf->check_inc = 0.05 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.33)
+                            {
+                                sconf->check_inc = 0.03 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.5)
+                            {
+                                sconf->check_inc = 0.02 * sconf->factor_base->B;
+                            }
+                            else
+                            {
+                                sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            }
                         }
-                        else if (percent_complete < 0.33)
+                        
+                        if (sconf->digits_n > 120)
                         {
-                            sconf->check_inc = 0.02 * sconf->factor_base->B;
-                        }
-                        else if(percent_complete < 0.5)
-                        {
-                            sconf->check_inc = 0.01 * sconf->factor_base->B;
-                        }
-                        else
-                        {
-                            sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            if (percent_complete < 0.2)
+                            {
+                                sconf->check_inc = 0.03 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.33)
+                            {
+                                sconf->check_inc = 0.02 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.5)
+                            {
+                                sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            }
+                            else
+                            {
+                                sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            }
                         }
 
 						// this is a better approximation than just assuming that 
@@ -3553,7 +3631,9 @@ int update_check(static_conf_t *sconf)
                             uint32_t predicted_rels = (uint32_t)((double)sconf->check_inc) +
                                 (uint32_t)((double)sconf->check_inc / fullrate * next_cycrate);
 
-                            if ((predicted_rels + sconf->num_r) > (fb->B + sconf->num_extra_relations))
+                            if ((!have_cycle_growth_estimate) && 
+                                ((predicted_rels + sconf->num_r) > 
+                                (fb->B + sconf->num_extra_relations)))
 							{
 								uint32_t rels_needed = (fb->B + sconf->num_extra_relations) - sconf->num_r;
 								//uint32_t batch_needed = (double)rels_needed / (next_cycrate + fullrate);
@@ -3579,9 +3659,13 @@ int update_check(static_conf_t *sconf)
 
 							for (j = 0; j < all_relations; j++)
 							{
-								relation_list[j].large_prime[0] = plist0[0];
-								relation_list[j].large_prime[1] = plist1[1];
-								relation_list[j].large_prime[2] = plist2[2];
+                                if (apolylist != NULL)
+                                {
+                                    relation_list[j].apoly_idx = apolylist[j];
+                                }
+								relation_list[j].large_prime[0] = plist0[j];
+								relation_list[j].large_prime[1] = plist1[j];
+								relation_list[j].large_prime[2] = plist2[j];
 							}
 							num_relations = all_relations;
 
@@ -3597,9 +3681,9 @@ int update_check(static_conf_t *sconf)
 
 					for (j = 0; j < all_relations; j++)
 					{
-						relation_list[j].large_prime[0] = plist0[0];
-						relation_list[j].large_prime[1] = plist1[1];
-						relation_list[j].large_prime[2] = plist2[2];
+						relation_list[j].large_prime[0] = plist0[j];
+						relation_list[j].large_prime[1] = plist1[j];
+						relation_list[j].large_prime[2] = plist2[j];
 					}
 					num_relations = all_relations;
 
@@ -3615,6 +3699,10 @@ int update_check(static_conf_t *sconf)
 				free(plist1);
 				free(plist2);
 				free(relation_list);
+                if (apolylist != NULL)
+                {
+                    free(apolylist);
+                }
 
 				sconf->check_total += sconf->check_inc;
                 //printf("new filtering deadline is %u relations\n", sconf->check_total);
