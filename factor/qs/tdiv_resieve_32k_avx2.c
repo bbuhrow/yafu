@@ -541,6 +541,8 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     bound15 = sconf->factor_base->fb_15bit_B;
     bound16 = sconf->factor_base->med_B;
 
+    __m512i vzero = _mm512_setzero_epi32();
+
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
 

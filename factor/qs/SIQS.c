@@ -2844,11 +2844,11 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         //sconf->check_inc = 8 * sconf->factor_base->B;
 
         if (sconf->digits_n > 120)
-            sconf->check_inc = 0.5 * sconf->factor_base->B;
-        else if (sconf->digits_n >= 100)
+            sconf->check_inc = 0.05 * sconf->factor_base->B;
+        else //if (sconf->digits_n >= 100)
             sconf->check_inc = 0.10 * sconf->factor_base->B;
-        else
-            sconf->check_inc = 0.15 * sconf->factor_base->B;
+        //else
+        //    sconf->check_inc = 0.15 * sconf->factor_base->B;
     }
     else
     {
@@ -3250,9 +3250,9 @@ int update_check(static_conf_t *sconf)
                                 relation_list[i].large_prime[1] = primes[1];
                                 relation_list[i].large_prime[2] = primes[2];
 
-                                plist0[j] = primes[0];
-                                plist1[j] = primes[1];
-                                plist2[j] = primes[2];
+                                plist0[i] = primes[0];
+                                plist1[i] = primes[1];
+                                plist2[i] = primes[2];
                                 i++;
                             }
                             break;

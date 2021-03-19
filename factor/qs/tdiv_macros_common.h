@@ -150,7 +150,7 @@
     __m512i v512_p, v512_y0, v512_y2, v512_y3, v512_corr, v512_y5, v512_y6, v512_y7; \
     uint32_t msk32, pos; \
     __mmask32 m1 = 0, m2 = 0; \
-    v512_p = v512_y0 = v512_y2 = v512_y3 = v512_corr = v512_y5 = v512_y6 = v512_y7 = _mm512_xor_si512(v512_y7, v512_y7); \
+    v512_p = v512_y0 = v512_y2 = v512_y3 = v512_corr = v512_y5 = v512_y6 = v512_y7 = vzero; \
     v512_corr = _mm512_load_si512(corrections);                   \
     v512_y0 = _mm512_xor_si512(v512_y0, v512_y0);               \
     v512_y2 = _mm512_loadu_si512(fbc->root1 + i);                \

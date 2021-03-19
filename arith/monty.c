@@ -362,6 +362,29 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
+#ifdef GCC_ASM64X
+
+__inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t *sum)
+{
+    uint64_t s, c; 
+    s = y;
+    c = 0;
+
+    ASM_G("movq %2, %%rax		\n\t"
+        "addq %3, %%rax		\n\t"
+        "adcq $0, %5		\n\t"
+        "addq %%rax, %4		\n\t"
+        "adcq $0, %5		\n\t"
+        : "=r"(s), "=r"(c)
+        : "r"(x), "r"((uint64_t)w), "0"(s), "1"(c)
+        : "rax", "memory", "cc");
+
+    *sum = s;
+    return c;
+}
+
+#endif
+
 void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 {
 	// integrate multiply and reduction steps, alternating

@@ -266,7 +266,7 @@ void alloc_factobj(fact_obj_t *fobj)
 
 	mpz_init(fobj->ecm_obj.gmp_n);
 	mpz_init(fobj->ecm_obj.gmp_f);
-    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(1 * sizeof(uint64_t));
+    fobj->ecm_obj.lcg_state = (uint64_t*)xmalloc(fobj->num_threads * sizeof(uint64_t));
 
 	mpz_init(fobj->squfof_obj.gmp_n);
 	mpz_init(fobj->squfof_obj.gmp_f);

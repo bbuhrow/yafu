@@ -223,7 +223,7 @@ void ecm_start_fcn(tpool_t *ptr)
     mpz_init(tdata->gmp_factor);
     ecm_init(tdata->params);
     gmp_randseed_ui(tdata->params->rng,
-        get_rand(&tdata->fobj->ecm_obj.rand_seed1, &tdata->fobj->ecm_obj.rand_seed2));
+        lcg_rand_32(&tdata->fobj->ecm_obj.lcg_state[tpool->tindex]));
     mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
     tdata->curves_run = 0;
@@ -701,7 +701,7 @@ void ecm_thread_init(ecm_thread_data_t *tdata)
     mpz_init(tdata->gmp_factor);
     ecm_init(tdata->params);
     gmp_randseed_ui(tdata->params->rng, 
-        get_rand(&tdata->fobj->ecm_obj.rand_seed1, &tdata->fobj->ecm_obj.rand_seed2));
+        lcg_rand_32(&tdata->fobj->ecm_obj.lcg_state[tdata->thread_num]));
     mpz_set(tdata->gmp_n, tdata->fobj->ecm_obj.gmp_n);
     tdata->params->method = ECM_ECM;
     tdata->curves_run = 0;

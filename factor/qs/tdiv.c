@@ -168,7 +168,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 		{
 
-            if ((sconf->use_dlp == 2) && (dconf->do_batch) && 0)
+            if ((sconf->use_dlp == 2) && (dconf->do_batch) && 1)
             {
                 int32_t soffset = offset;
 
@@ -868,7 +868,7 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
     // first check that this relation won't overflow the buffer
     if (conf->buffered_rels >= conf->buffered_rel_alloc)
     {
-        printf("reallocating relation buffer\n");
+        //printf("reallocating relation buffer\n");
         conf->relation_buf = (siqs_r *)realloc(conf->relation_buf,
             conf->buffered_rel_alloc * 2 * sizeof(siqs_r));
 
