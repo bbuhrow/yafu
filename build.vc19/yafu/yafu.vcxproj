@@ -188,10 +188,11 @@
     </Midl>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\top\cmdParser;..\..\..\..\msieve\zlib;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
-      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <BasicRuntimeChecks>
+      </BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
@@ -204,12 +205,13 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\$(IntDir);C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -235,7 +237,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
-      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\top\cmdParser;..\..\..\..\msieve\zlib;..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\..\..\msieve\zlib;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -250,21 +252,22 @@
       <CallingConvention>Cdecl</CallingConvention>
       <CompileAs>CompileAsC</CompileAs>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>
       <EnableCOMDATFolding>
       </EnableCOMDATFolding>
-      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\$(IntDir);C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Bscmake>
@@ -273,120 +276,18 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\arith\arith.c" />
-    <ClCompile Include="..\..\arith\monty.c" />
-    <ClCompile Include="..\..\factor\avx-ecm\avxecm.c" />
-    <ClCompile Include="..\..\factor\avx-ecm\avx_ecm_main.c" />
-    <ClCompile Include="..\..\factor\avx-ecm\vecarith.c" />
-    <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c" />
-    <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
-    <ClCompile Include="..\..\factor\batch_factor.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\pp1.c" />
-    <ClCompile Include="..\..\factor\gmp-ecm\tinyecm.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs_filemanip.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs_poly.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs_postproc.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs_sieving.c" />
-    <ClCompile Include="..\..\factor\nfs\nfs_threading.c" />
-    <ClCompile Include="..\..\factor\nfs\snfs.c" />
-    <ClCompile Include="..\..\factor\nfs\winsupport.c" />
-    <ClCompile Include="..\..\factor\prime_sieve.c" />
-    <ClCompile Include="..\..\factor\qs\cofactorize_siqs.c" />
-    <ClCompile Include="..\..\factor\qs\filter.c" />
-    <ClCompile Include="..\..\factor\qs\large_sieve.c" />
-    <ClCompile Include="..\..\factor\qs\med_sieve_32k.c" />
-    <ClCompile Include="..\..\factor\qs\med_sieve_32k_avx2.c" />
-    <ClCompile Include="..\..\factor\qs\med_sieve_32k_sse4.1.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\gf2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul0.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul1.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_matmul2.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\lanczos_pre.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\savefile.c" />
-    <ClCompile Include="..\..\factor\qs\msieve\sqrt.c" />
-    <ClCompile Include="..\..\factor\qs\new_poly.c" />
-    <ClCompile Include="..\..\factor\qs\poly_roots.c" />
-    <ClCompile Include="..\..\factor\qs\poly_roots_32k.c" />
-    <ClCompile Include="..\..\factor\qs\SIQS.c" />
-    <ClCompile Include="..\..\factor\qs\siqs_aux.c" />
-    <ClCompile Include="..\..\factor\qs\siqs_test.c" />
-    <ClCompile Include="..\..\factor\qs\smallmpqs.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_large.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med_32k.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_avx2.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knc.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_med_32k_knl.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_avx2.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knc.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_resieve_32k_knl.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_scan.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_scan_knc.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_scan_knl.c" />
-    <ClCompile Include="..\..\factor\qs\tdiv_small.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c">
-      <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MaxSpeed</Optimization>
-      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">MaxSpeed</Optimization>
-    </ClCompile>
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
+    <ClCompile Include="..\..\factor\autofactor.c" />
     <ClCompile Include="..\..\factor\tune.c" />
     <ClCompile Include="..\..\top\cmdParser\calc.c" />
     <ClCompile Include="..\..\top\cmdParser\cmdOptions.c" />
     <ClCompile Include="..\..\top\driver.c" />
-    <ClCompile Include="..\..\top\aprcl\mpz_aprcl.c" />
     <ClCompile Include="..\..\top\test.c" />
-    <ClCompile Include="..\..\factor\factor_common.c" />
-    <ClCompile Include="..\..\factor\rho.c" />
-    <ClCompile Include="..\..\factor\squfof.c" />
-    <ClCompile Include="..\..\factor\trialdiv.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
-    <ClInclude Include="..\..\include\arith.h" />
-    <ClInclude Include="..\..\include\batch_factor.h" />
-    <ClInclude Include="..\..\include\cofactorize.h" />
-    <ClInclude Include="..\..\include\common.h" />
-    <ClInclude Include="..\..\include\factor.h" />
-    <ClInclude Include="..\..\include\gmp_xface.h" />
-    <ClInclude Include="..\..\include\gnfs.h" />
-    <ClInclude Include="..\..\include\lanczos.h" />
-    <ClInclude Include="..\..\include\monty.h" />
-    <ClInclude Include="..\..\include\prime_sieve.h" />
-    <ClInclude Include="..\..\include\queue.h" />
-    <ClInclude Include="..\..\top\aprcl\jacobi_sum.h" />
-    <ClInclude Include="..\..\top\aprcl\mpz_aprcl.h" />
-    <ClInclude Include="..\..\include\nfs.h" />
-    <ClInclude Include="..\..\include\qs.h" />
-    <ClInclude Include="..\..\include\types.h" />
+    <ClInclude Include="..\..\include\autofactor.h" />
     <ClInclude Include="..\..\include\yafu.h" />
-    <ClInclude Include="..\..\include\yafu_ecm.h" />
     <ClInclude Include="..\..\top\cmdParser\calc.h" />
     <ClInclude Include="..\..\top\cmdParser\cmdOptions.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <YASM Include="..\..\arith\mod64.asm">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-    </YASM>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

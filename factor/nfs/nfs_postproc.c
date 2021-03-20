@@ -12,16 +12,16 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
-#include "nfs.h"
+#include "nfs_impl.h"
 #include "gmp_xface.h"
 
 #ifdef USE_NFS
 
-uint32 do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
+uint32_t do_msieve_filtering(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job)
 {
 	FILE *tmp, *logfile;
-	uint32 relations_needed;
-	uint32 flags = 0;
+	uint32_t relations_needed;
+	uint32_t flags = 0;
 	char nfs_args[80];
 
 	flags = flags | MSIEVE_FLAG_USE_LOGFILE;
@@ -133,12 +133,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 		if (is_mpz_prp(tmp, fobj->NUM_WITNESSES))
 		{
 			//need to convert to yafu bigint to store
-			add_to_factor_list(fobj, tmp);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"prp",4);
 		}
 		else
 		{
-			add_to_factor_list(fobj, tmp);
+			add_to_factor_list(fobj->factors, tmp, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"C",2);
 		}
 
@@ -153,7 +153,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             else
             {
                 char* s = mpz_get_str(NULL, 10, tmp);
-                logprint(logfile, "%s%d = %s\n", c, s);
+                logprint(logfile, "%s%d = %s\n", c, mpz_sizeinbase(tmp, 10), s);
                 fclose(logfile);
                 free(s);
             }
@@ -170,12 +170,12 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
 
 		if (is_mpz_prp(fobj->nfs_obj.gmp_n, fobj->NUM_WITNESSES))
 		{
-			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"prp",4);			
 		}
 		else
 		{
-			add_to_factor_list(fobj, fobj->nfs_obj.gmp_n);
+			add_to_factor_list(fobj->factors, fobj->nfs_obj.gmp_n, fobj->VFLAG, fobj->NUM_WITNESSES);
 			strncpy(c,"C",2);
 		}
 		

@@ -18,9 +18,7 @@ code to the public domain.
 --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 #include "tdiv_macros_common.h"
@@ -87,26 +85,26 @@ this file contains code implementing 3)
                         } }
 
 
-void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
+void tdiv_medprimes_32k_knl(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i;
-    uint32 bound, tmp, prime, root1, root2, report_num;
+    uint32_t bound, tmp, prime, root1, root2, report_num;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
     fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-    uint32 block_loc;
-    uint16 buffer[32];
-    uint32 tmp3 = 0;
+    uint32_t block_loc;
+    uint16_t buffer[32];
+    uint32_t tmp3 = 0;
     int r;
     int starti;
 
 
     __m512i vblksz, vblkloc, vprimes, vcorr, vinv, vroot1, vroot2, vindex;
-    uint32 buffer32[32];
+    uint32_t buffer32[32];
     int k;
 
 
@@ -119,10 +117,6 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
     {
         fbc = dconf->comp_sieve_p;
     }
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
@@ -176,7 +170,7 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
         bound = sconf->factor_base->fb_10bit_B;
 
         // single-up test until i is a multiple of 16
-        while (((uint32)i < bound) && ((i & 15) != 0))
+        while (((uint32_t)i < bound) && ((i & 15) != 0))
         {
             prime = fbc->prime[i];
 
@@ -185,8 +179,8 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
 
             //tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
             //block, which is the state of the sieve now.
-            tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                * (uint64)fullfb_ptr->small_inv[i]) >> 24);
+            tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
             tmp = block_loc + tmp*prime;
             tmp = tmp - 32768;
 
@@ -223,12 +217,12 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
         {
             for (k = 0; k < 8; k++, i++)
             {
-                uint32 b = block_loc;
+                uint32_t b = block_loc;
                 prime = fbc->prime[i];
 
                 tmp = 32768 - block_loc;
-                tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                    * (uint64)fullfb_ptr->small_inv[i]) >> 24);
+                tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                    * (uint64_t)fullfb_ptr->small_inv[i]) >> 24);
                 tmp = block_loc + tmp*prime;
                 tmp = tmp - 32768;
 
@@ -238,12 +232,12 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
             }
             for (k = 0; k < 8; k++, i++)
             {
-                uint32 b = block_loc;
+                uint32_t b = block_loc;
                 prime = fbc->prime[i];
 
                 tmp = 32768 - block_loc;
-                tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                    * (uint64)fullfb_ptr->small_inv[i]) >> 26);
+                tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                    * (uint64_t)fullfb_ptr->small_inv[i]) >> 26);
                 tmp = block_loc + tmp*prime;
                 tmp = tmp - 32768;
 
@@ -271,12 +265,12 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
         {
             for (k = 0; k < 8; k++, i++)
             {
-                uint32 b = block_loc;
+                uint32_t b = block_loc;
                 prime = fbc->prime[i];
 
                 tmp = 32768 - block_loc;
-                tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                    * (uint64)fullfb_ptr->small_inv[i]) >> 26);
+                tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                    * (uint64_t)fullfb_ptr->small_inv[i]) >> 26);
                 tmp = block_loc + tmp*prime;
                 tmp = tmp - 32768;
 
@@ -286,12 +280,12 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
             }
             for (k = 0; k < 8; k++, i++)
             {
-                uint32 b = block_loc;
+                uint32_t b = block_loc;
                 prime = fbc->prime[i];
 
                 tmp = 32768 - block_loc;
-                tmp = 1 + (uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-                    * (uint64)fullfb_ptr->small_inv[i]) >> 28);
+                tmp = 1 + (uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+                    * (uint64_t)fullfb_ptr->small_inv[i]) >> 28);
                 tmp = block_loc + tmp*prime;
                 tmp = tmp - 32768;
 
@@ -313,9 +307,9 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
         }
 
         bound = sconf->factor_base->fb_13bit_B;
-        while ((uint32)i < bound)
+        while ((uint32_t)i < bound)
         {
-            uint32 b = block_loc;
+            uint32_t b = block_loc;
             prime = fbc->prime[i];
 
             while (b < 32768) {b += prime;} tmp = b - 32768;
@@ -340,11 +334,6 @@ void tdiv_medprimes_32k_knl(uint8 parity, uint32 poly_id, uint32 bnum,
         dconf->smooth_num[report_num] = smooth_num;
 
     }
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 
     return;
 }

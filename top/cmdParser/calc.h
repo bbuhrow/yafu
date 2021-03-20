@@ -116,7 +116,8 @@ int pop(str_t* str, bstack_t* stack);
 typedef struct
 {
     fact_obj_t* fobj;
-    options_t* options;
+    int pscreen;
+    int pfile;
     soe_staticdata_t* sdata;
 } meta_t;
 

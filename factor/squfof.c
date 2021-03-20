@@ -18,11 +18,11 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "factor.h"
 #include "common.h"
 #include "ytools.h"
 #include <gmp.h>
+#include <math.h>
 #include "soe.h"
 
 #define DEFINED 1
@@ -43,19 +43,19 @@ of Stephen McMath, Danial Shanks, and Jason Gower
 
 typedef struct
 {
-    uint64 *N;
-    uint64 *mN;
-    uint32 *listref;
-    uint32 *mult;
-    uint32 *valid;
-    uint32 *P;
-    uint32 *bn;
-    uint32 *Qn;
-    uint32 *Q0;
-    uint32 *b0;
-    uint32 *it;
-    uint32 *imax;
-    uint32 *f;
+    uint64_t *N;
+    uint64_t *mN;
+    uint32_t *listref;
+    uint32_t *mult;
+    uint32_t *valid;
+    uint32_t *P;
+    uint32_t *bn;
+    uint32_t *Qn;
+    uint32_t *Q0;
+    uint32_t *b0;
+    uint32_t *it;
+    uint32_t *imax;
+    uint32_t *f;
     int *maxrounds;
     int *rounds;
     int *multnum;
@@ -64,17 +64,17 @@ typedef struct
 
 typedef struct
 {
-    uint32 mult;
-    uint32 valid;
-    uint32 P;
-    uint32 bn;
-    uint32 Qn;
-    uint32 Q0;
-    uint32 b0;
-    uint32 it;
-    uint32 imax;	
-    uint32 maxrounds;
-    uint32 rounds;
+    uint32_t mult;
+    uint32_t valid;
+    uint32_t P;
+    uint32_t bn;
+    uint32_t Qn;
+    uint32_t Q0;
+    uint32_t b0;
+    uint32_t it;
+    uint32_t imax;	
+    uint32_t maxrounds;
+    uint32_t rounds;
 } mult_t;
 
 
@@ -82,8 +82,8 @@ typedef struct
 void par_shanks_mult_unit(par_mult_t *mult_save);
 void par_shanks_mult_unit_asm(par_mult_t *mult_save);
 void par_shanks_mult_unit_asm2(par_mult_t *mult_save);
-void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f);
-int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64 N, int lane, 
+void shanks_mult_unit(uint64_t N, mult_t *mult_save, uint64_t *f);
+int init_multipliers(mult_t **savedata, par_mult_t batch_data, uint64_t N, int lane, 
     int num_in, mpz_t gmptmp);
 int init_next_multiplier(par_mult_t mult_save, int lane,
     int num_in, mpz_t gmptmp);
@@ -104,11 +104,11 @@ const int multipliers[NUM_SQUFOF_MULT] = {
     11, 1 };
 
 
-uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
+uint64_t sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 {
 	// call shanks with multiple small multipliers
 	int i, rounds,j;
-	uint64 n64, nn64, f64, big1, big2;
+	uint64_t n64, nn64, f64, big1, big2;
 	mult_t mult_save[NUM_SQUFOF_MULT];
 	mpz_t gmptmp;
 	
@@ -138,7 +138,7 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 	for (i=NUM_SQUFOF_MULT-1;i>=0;i--)
 	{
 		// can we multiply without overflowing 64 bits?
-		if (big2/(uint64)multipliers[i] < n64)
+		if (big2/(uint64_t)multipliers[i] < n64)
 		{
 			//this multiplier makes the input bigger than 64 bits
 			mult_save[i].mult = multipliers[i];
@@ -147,7 +147,7 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 		}
 
 		//form the multiplied input
-		nn64 = n64 * (uint64)multipliers[i];
+		nn64 = n64 * (uint64_t)multipliers[i];
 
 		mult_save[i].mult = multipliers[i];
 		mult_save[i].valid = 1;
@@ -156,18 +156,18 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 		mpz_set_64(gmptmp, nn64);
 		mpz_sqrt(gmptmp, gmptmp);	
 		mult_save[i].b0 = mpz_get_ui(gmptmp);
-		mult_save[i].imax = (uint32)sqrt((double)mult_save[i].b0) / 16;
+		mult_save[i].imax = (uint32_t)sqrt((double)mult_save[i].b0) / 16;
 
 		//set up recurrence
 		mult_save[i].Q0 = 1;
 		mult_save[i].P = mult_save[i].b0;
-		mult_save[i].Qn = (uint32)(nn64 - 
-			(uint64)mult_save[i].b0 * (uint64)mult_save[i].b0);
+		mult_save[i].Qn = (uint32_t)(nn64 - 
+			(uint64_t)mult_save[i].b0 * (uint64_t)mult_save[i].b0);
 			
 		if (mult_save[i].Qn == 0)
 		{
 			//N is a perfect square
-			f64 = (uint64)mult_save[i].b0;
+			f64 = (uint64_t)mult_save[i].b0;
 			goto done;
 		}
 		mult_save[i].bn = (mult_save[i].b0 + mult_save[i].P)
@@ -204,7 +204,7 @@ uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj)
 			shanks_mult_unit(nn64,&mult_save[j],&f64);
 
 			//check the output for a non-trivial factor
-			if (f64 == (uint64)-1)
+			if (f64 == (uint64_t)-1)
 			{
 				//this is an error condition, stop processing this multiplier
 				mult_save[j].valid = 0;
@@ -249,14 +249,14 @@ done:
 }
 
 
-int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
+int par_shanks_loop(uint64_t *N, uint64_t *f, int num_in)
 {
     // this routine takes a list of input 64-bit integers and factors them in 
     // parallel using AVX2 enhanced racing-SQUFOF.  If a factor is found, it is 
     // placed into the corresponding location of the array 'f'.  Else the location 
     // in 'f' is set to 1. 
     int i, rounds, j, all_done, list_position, num_successes, num_processed, num_active;
-    uint64 n64, nn64, f64;
+    uint64_t n64, nn64, f64;
     par_mult_t mult_batch;
     mpz_t gmptmp;
 
@@ -270,20 +270,20 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
         save_data[i] = (mult_t *)xmalloc(NUM_SQUFOF_MULT * sizeof(mult_t));
     }
     mult_batch.active = (int *)xmalloc_align(NUM_LANES * sizeof(int));
-    mult_batch.b0 = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.bn = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.f = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.imax = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.it = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.listref = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.mN = (uint64 *)xmalloc_align(NUM_LANES * sizeof(uint64));
-    mult_batch.mult = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.b0 = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.bn = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.f = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.imax = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.it = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.listref = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.mN = (uint64_t *)xmalloc_align(NUM_LANES * sizeof(uint64_t));
+    mult_batch.mult = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
     mult_batch.multnum = (int *)xmalloc_align(NUM_LANES * sizeof(int));
-    mult_batch.N = (uint64 *)xmalloc_align(NUM_LANES * sizeof(uint64));
-    mult_batch.P = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.Q0 = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.Qn = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
-    mult_batch.valid = (uint32 *)xmalloc_align(NUM_LANES * sizeof(uint32));
+    mult_batch.N = (uint64_t *)xmalloc_align(NUM_LANES * sizeof(uint64_t));
+    mult_batch.P = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.Q0 = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.Qn = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
+    mult_batch.valid = (uint32_t *)xmalloc_align(NUM_LANES * sizeof(uint32_t));
     mult_batch.maxrounds = (int *)xmalloc_align(NUM_LANES * sizeof(int));
     mult_batch.rounds = (int *)xmalloc_align(NUM_LANES * sizeof(int));
 
@@ -342,7 +342,7 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                     // record this (unlikely) success, and try to fill the lane again.
                     num_processed++;
                     num_successes++;
-                    f[mult_batch.listref[j]] = (uint64)sqrt(N[j]);
+                    f[mult_batch.listref[j]] = (uint64_t)sqrt(N[j]);
                     j--;
                 }
             }
@@ -417,7 +417,7 @@ int par_shanks_loop(uint64 *N, uint64 *f, int num_in)
                 f64 = mult_batch.f[j];
 
                 //check the output for a non-trivial factor
-                if (f64 == (uint64)-1)
+                if (f64 == (uint64_t)-1)
                 {
                     //this is an error condition, stop processing this multiplier
                     save_data[j][mult_batch.multnum[j]].valid = 0;
@@ -646,13 +646,13 @@ int get_next_multiplier(par_mult_t batch_data, mult_t **savedata, int lane)
 }
 
 int init_multipliers(mult_t **savedata, par_mult_t batch_data, 
-    uint64 N, int lane, int num_in, mpz_t gmptmp)
+    uint64_t N, int lane, int num_in, mpz_t gmptmp)
 {
     int i;
     int rounds;
     int success = 0;
-    uint64 nn64;
-    uint64 big2 = 0x3FFFFFFFFFFFFFFFULL;
+    uint64_t nn64;
+    uint64_t big2 = 0x3FFFFFFFFFFFFFFFULL;
 
 
     if (batch_data.active[lane] == 0)
@@ -661,7 +661,7 @@ int init_multipliers(mult_t **savedata, par_mult_t batch_data,
         {
 
             // can we multiply without overflowing 64 bits?
-            if ((big2 / (uint64)multipliers[i]) < N)
+            if ((big2 / (uint64_t)multipliers[i]) < N)
             {
                 //this multiplier makes the input bigger than 64 bits
                 savedata[lane][i].mult = multipliers[i];
@@ -670,7 +670,7 @@ int init_multipliers(mult_t **savedata, par_mult_t batch_data,
             }
 
             //form the multiplied input
-            nn64 = N * (uint64)multipliers[i];
+            nn64 = N * (uint64_t)multipliers[i];
 
             savedata[lane][i].mult = multipliers[i];
             savedata[lane][i].valid = 1;
@@ -694,13 +694,13 @@ int init_multipliers(mult_t **savedata, par_mult_t batch_data,
 
             mpz_sqrt(gmptmp, gmptmp);
             savedata[lane][i].b0 = mpz_get_ui(gmptmp);
-            savedata[lane][i].imax = (uint32)sqrt((double)savedata[lane][i].b0) / 16;
+            savedata[lane][i].imax = (uint32_t)sqrt((double)savedata[lane][i].b0) / 16;
 
             //set up recurrence
             savedata[lane][i].Q0 = 1;
             savedata[lane][i].P = savedata[lane][i].b0;
-            savedata[lane][i].Qn = (uint32)(nn64 -
-                (uint64)savedata[lane][i].b0 * (uint64)savedata[lane][i].b0);
+            savedata[lane][i].Qn = (uint32_t)(nn64 -
+                (uint64_t)savedata[lane][i].b0 * (uint64_t)savedata[lane][i].b0);
 
             if (savedata[lane][i].Qn == 0)
             {
@@ -746,9 +746,9 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
     int i;
     int rounds;
     int success = 0;
-    uint64 nn64;
-    uint64 n64 = mult_save.N[lane];
-    uint64 big2 = 0x3FFFFFFFFFFFFFFFULL;
+    uint64_t nn64;
+    uint64_t n64 = mult_save.N[lane];
+    uint64_t big2 = 0x3FFFFFFFFFFFFFFFULL;
 
     // initially deactivate this lane
     mult_save.active[lane] = 0;
@@ -759,7 +759,7 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
         mult_save.multnum[lane] = i;
 
         // can we multiply without overflowing 64 bits?
-        if ((big2 / (uint64)multipliers[i]) < n64)
+        if ((big2 / (uint64_t)multipliers[i]) < n64)
         {
             //this multiplier makes the input bigger than 64 bits
             mult_save.mult[lane] = multipliers[i];
@@ -768,7 +768,7 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
         }
 
         //form the multiplied input
-        nn64 = n64 * (uint64)multipliers[i];
+        nn64 = n64 * (uint64_t)multipliers[i];
         mult_save.mN[lane] = nn64;
 
         mult_save.mult[lane] = multipliers[i];
@@ -790,18 +790,18 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
 
         mpz_sqrt(gmptmp, gmptmp);
         mult_save.b0[lane] = mpz_get_ui(gmptmp);
-        mult_save.imax[lane] = (uint32)sqrt((double)mult_save.b0[lane]) * rounds / 16;
+        mult_save.imax[lane] = (uint32_t)sqrt((double)mult_save.b0[lane]) * rounds / 16;
 
         //set up recurrence
         mult_save.Q0[lane] = 1;
         mult_save.P[lane] = mult_save.b0[lane];
-        mult_save.Qn[lane] = (uint32)(nn64 -
-            (uint64)mult_save.b0[lane] * (uint64)mult_save.b0[lane]);
+        mult_save.Qn[lane] = (uint32_t)(nn64 -
+            (uint64_t)mult_save.b0[lane] * (uint64_t)mult_save.b0[lane]);
 
         if (mult_save.Qn[lane] == 0)
         {
             // N is a perfect square - this number is factored.
-            mult_save.f[mult_save.listref[lane]] = (uint64)mult_save.b0[lane];
+            mult_save.f[mult_save.listref[lane]] = (uint64_t)mult_save.b0[lane];
             success = 1;
             break;
         }
@@ -819,12 +819,12 @@ int init_next_multiplier(par_mult_t mult_save, int lane,
 
 
 
-void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
+void shanks_mult_unit(uint64_t N, mult_t *mult_save, uint64_t *f)
 {
 	//use shanks SQUFOF to factor N.  almost all computation can be done with longs
 	//input N < 2^63
 	//return 1 in f if no factor is found
-	uint32 imax,i,Q0,b0,Qn,bn,P,bbn,Ro,S,So,t1,t2;
+	uint32_t imax,i,Q0,b0,Qn,bn,P,bbn,Ro,S,So,t1,t2;
 	int j=0;	
 
 	//initialize output
@@ -906,7 +906,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 				//if (t2 < 32 || t2 == 33 || t2 == 36 || 
 				//	t2 == 41 ||t2 == 49 || t2 == 57)
 				//{
-					t1 = (uint32)sqrt(Qn);
+					t1 = (uint32_t)sqrt(Qn);
 					if (Qn == t1 * t1)
 						break;
 				//}
@@ -930,7 +930,7 @@ void shanks_mult_unit(uint64 N, mult_t *mult_save, uint64 *f)
 		S = (int)sqrt(Qn);
 		Ro = P + S*((b0 - P)/S);
 		t1 = Ro;
-		So = (uint32)(((int64)N - (int64)t1*(int64)t1)/(int64)S);
+		So = (uint32_t)(((int64_t)N - (int64_t)t1*(int64_t)t1)/(int64_t)S);
 		bbn = (b0+Ro)/So;
 
 		//search for symmetry point
@@ -996,21 +996,21 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
     //use shanks SQUFOF on 8 inputs simultaneously using AVX2 for the bulk of the calculations.
     //input N < 2^63
     //return 1 in f if no factor is found
-    uint32 imax;
+    uint32_t imax;
 
-    uint32 *iterations = mult_save->it;
-    uint32 *P = mult_save->P;
-    uint32 *Qn = mult_save->Qn;
-    uint32 *Q0 = mult_save->Q0;
-    uint32 *bn = mult_save->bn;
-    uint32 *b0 = mult_save->b0;
-    ALIGNED_MEM uint32 bbn[NUM_LANES];
-    ALIGNED_MEM uint32 Ro[NUM_LANES];
-    ALIGNED_MEM uint32 S[NUM_LANES];
-    ALIGNED_MEM uint32 So[NUM_LANES];
-    ALIGNED_MEM uint32 t1[NUM_LANES];
-    ALIGNED_MEM uint32 t2[NUM_LANES];
-    ALIGNED_MEM uint32 success_vec[NUM_LANES];
+    uint32_t *iterations = mult_save->it;
+    uint32_t *P = mult_save->P;
+    uint32_t *Qn = mult_save->Qn;
+    uint32_t *Q0 = mult_save->Q0;
+    uint32_t *bn = mult_save->bn;
+    uint32_t *b0 = mult_save->b0;
+    ALIGNED_MEM uint32_t bbn[NUM_LANES];
+    ALIGNED_MEM uint32_t Ro[NUM_LANES];
+    ALIGNED_MEM uint32_t S[NUM_LANES];
+    ALIGNED_MEM uint32_t So[NUM_LANES];
+    ALIGNED_MEM uint32_t t1[NUM_LANES];
+    ALIGNED_MEM uint32_t t2[NUM_LANES];
+    ALIGNED_MEM uint32_t success_vec[NUM_LANES];
 
     int j = 0;
     int i = 0;
@@ -1213,7 +1213,7 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
                 success_vec[k] = 0;
 
                 // much faster this way, can be autovectorized.
-                t1[k] = (uint32)sqrt(Qn[k]);
+                t1[k] = (uint32_t)sqrt(Qn[k]);
                 if (Qn[k] == (t1[k] * t1[k]))
                 {
                     success_vec[k] = 1;
@@ -1342,7 +1342,8 @@ void par_shanks_mult_unit(par_mult_t *mult_save)
                 S[k] = (int)sqrt(Qn[k]);
                 Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
                 t1[k] = Ro[k];
-                So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                So[k] = (uint32_t)(((int64_t)mult_save->mN[k] - (int64_t)t1[k] * (int64_t)t1[k]) / 
+                    (int64_t)S[k]);
                 bbn[k] = (b0[k] + Ro[k]) / So[k];
 
 
@@ -1399,39 +1400,39 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
     //use shanks SQUFOF on 8 inputs simultaneously using AVX2 for the bulk of the calculations.
     //input N < 2^63
     //return 1 in f if no factor is found
-    uint32 imax;
+    uint32_t imax;
 
 #if defined(__INTEL_COMPILER)
-    uint32 *iterations = mult_save->it;
-    uint32 *P = mult_save->P;
-    uint32 *Qn = mult_save->Qn;
-    uint32 *Q0 = mult_save->Q0;
-    uint32 *bn = mult_save->bn;
-    uint32 *b0 = mult_save->b0;
-    __declspec(aligned(64)) uint32 bbn[NUM_LANES];
-    __declspec(aligned(64)) uint32 Ro[NUM_LANES];
-    __declspec(aligned(64)) uint32 S[NUM_LANES];
-    __declspec(aligned(64)) uint32 So[NUM_LANES];
-    __declspec(aligned(64)) uint32 t1[NUM_LANES];
-    __declspec(aligned(64)) uint32 t2[NUM_LANES];
-    __declspec(aligned(64)) uint32 success_vec[NUM_LANES];
-    uint64 conversion[4];
+    uint32_t *iterations = mult_save->it;
+    uint32_t *P = mult_save->P;
+    uint32_t *Qn = mult_save->Qn;
+    uint32_t *Q0 = mult_save->Q0;
+    uint32_t *bn = mult_save->bn;
+    uint32_t *b0 = mult_save->b0;
+    __declspec(aligned(64)) uint32_t bbn[NUM_LANES];
+    __declspec(aligned(64)) uint32_t Ro[NUM_LANES];
+    __declspec(aligned(64)) uint32_t S[NUM_LANES];
+    __declspec(aligned(64)) uint32_t So[NUM_LANES];
+    __declspec(aligned(64)) uint32_t t1[NUM_LANES];
+    __declspec(aligned(64)) uint32_t t2[NUM_LANES];
+    __declspec(aligned(64)) uint32_t success_vec[NUM_LANES];
+    uint64_t conversion[4];
     double fudge[4];
 #else
-    uint32 *iterations = mult_save->it;
-    uint32 *P = mult_save->P;
-    uint32 *Qn = mult_save->Qn;
-    uint32 *Q0 = mult_save->Q0;
-    uint32 *bn = mult_save->bn;
-    uint32 *b0 = mult_save->b0;
-    uint32 bbn[NUM_LANES];
-    uint32 Ro[NUM_LANES];
-    uint32 S[NUM_LANES];
-    uint32 So[NUM_LANES];
-    uint32 t1[NUM_LANES];
-    uint32 t2[NUM_LANES];
-    uint32 success_vec[NUM_LANES];
-    uint64 conversion[4];
+    uint32_t *iterations = mult_save->it;
+    uint32_t *P = mult_save->P;
+    uint32_t *Qn = mult_save->Qn;
+    uint32_t *Q0 = mult_save->Q0;
+    uint32_t *bn = mult_save->bn;
+    uint32_t *b0 = mult_save->b0;
+    uint32_t bbn[NUM_LANES];
+    uint32_t Ro[NUM_LANES];
+    uint32_t S[NUM_LANES];
+    uint32_t So[NUM_LANES];
+    uint32_t t1[NUM_LANES];
+    uint32_t t2[NUM_LANES];
+    uint32_t success_vec[NUM_LANES];
+    uint64_t conversion[4];
     double fudge[4];
 #endif
 
@@ -1609,11 +1610,11 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */      
                 "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
                 "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
-                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32_t */
                 
                 /* second 4 divisions */                
                 "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
-                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32_t */
                 "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
 #else
 
@@ -1676,8 +1677,8 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 "vpand          %%ymm10, %%ymm9, %%ymm9 \n\t"
                 "vsubpd         %%ymm7, %%ymm14, %%ymm14 \n\t"
                 "vsubpd         %%ymm9, %%ymm15, %%ymm15 \n\t"
-                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32 */
-                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32_t */
+                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32_t */
                 "vinserti128   $1,%%xmm7, %%ymm3, %%ymm3 \n\t"      /* set high half of bn */
 #endif
 
@@ -1750,11 +1751,11 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 "vpaddq     %%ymm13, %%ymm11, %%ymm13 \n\t" /* (p1, L3) add magic constant as integer */   
                 "vsubpd     %%ymm11, %%ymm12, %%ymm12 \n\t" /* (p1, L3) sub magic constant as double */
                 "vsubpd     %%ymm11, %%ymm13, %%ymm13 \n\t" /* (p1, L3) sub magic constant as double */
-                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32 */                
+                "vcvttpd2dq	%%ymm9, %%xmm3 \n\t"	        /* (p1,p5, L6) truncate to uint32_t */                
 
                 /* second 4 divisions */                
                 "vdivpd     %%ymm12, %%ymm13, %%ymm13 \n\t"
-                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	%%ymm13, %%xmm13 \n\t"	        /* truncate to uint32_t */
                 "vinserti128    $1, %%xmm13, %%ymm3, %%ymm3 \n\t" /* insert into high half of bn */
 
 #else
@@ -1817,8 +1818,8 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 "vpand          %%ymm10, %%ymm9, %%ymm9 \n\t"
                 "vsubpd         %%ymm7, %%ymm14, %%ymm14 \n\t"
                 "vsubpd         %%ymm9, %%ymm15, %%ymm15 \n\t"
-                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32 */
-                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32 */
+                "vcvttpd2dq	    %%ymm14, %%xmm3 \n\t"	        /* truncate to uint32_t */
+                "vcvttpd2dq	    %%ymm15, %%xmm7 \n\t"	        /* truncate to uint32_t */
                 "vinserti128   $1,%%xmm7, %%ymm3, %%ymm3 \n\t"      /* set high half of bn */
 #endif
 
@@ -1982,7 +1983,7 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
                 S[k] = (int)sqrt(Qn[k]);
                 Ro[k] = P[k] + S[k] * ((b0[k] - P[k]) / S[k]);
                 t1[k] = Ro[k];
-                So[k] = (uint32)(((int64)mult_save->mN[k] - (int64)t1[k] * (int64)t1[k]) / (int64)S[k]);
+                So[k] = (uint32_t)(((int64_t)mult_save->mN[k] - (int64_t)t1[k] * (int64_t)t1[k]) / (int64_t)S[k]);
                 bbn[k] = (b0[k] + Ro[k]) / So[k];
 
                 if ((S[k] *  S[k]) != Qn[k])
@@ -2092,16 +2093,16 @@ void MakeIssq()
 }
 
 //the 6542 primes up to 65536=2^16, then sentinel 65535 at end
-static uint16 prime[6543]; 
+static uint16_t prime[6543];
 
 void MakePrimeTable(){
-	uint32 i,j,k;
+	uint32_t i,j,k;
 	prime[0]=2;
 	prime[1]=3;
 	prime[2]=5;
 	k=3;
 	for(i=7; i<65536; i+=2){
-		for(j=0; prime[j]*(uint32)prime[j] <= i; j++){
+		for(j=0; prime[j]*(uint32_t)prime[j] <= i; j++){
 			if(i%prime[j]==0) goto NONPRIME;
 		}
 		prime[k]=i;
@@ -2145,10 +2146,10 @@ are not obvious.  Also changing the tuning constants can alter the failure set.
 ***/
 
 //_WDS
-uint64 LehmanFactor_WDS(uint64 N, double Tune, int DoTrial, double CutFrac)
+uint64_t LehmanFactor_WDS(uint64_t N, double Tune, int DoTrial, double CutFrac)
 {
-	uint32 b,p,k,r,B,U,Bred,inc,FirstCut,ip = 1;
-	uint64 a,c,kN,kN4,B2;
+	uint32_t b,p,k,r,B,U,Bred,inc,FirstCut,ip = 1;
+	uint64_t a,c,kN,kN4,B2;
 	double Tune2, Tune3, x, sqrtn;
 	mpz_t tmpz;
 
@@ -2239,9 +2240,9 @@ uint64 LehmanFactor_WDS(uint64 N, double Tune, int DoTrial, double CutFrac)
 			x = sqrt((double)kN);
 
 		a = x;
-		if((uint64)a*(uint64)a==kN)
+		if((uint64_t)a*(uint64_t)a==kN)
 		{ 
-			B2 = gcd64((uint64)a, N);
+			B2 = gcd64((uint64_t)a, N);
             mpz_clear(tmpz);
 			return(B2);
 		}
@@ -2251,9 +2252,9 @@ uint64 LehmanFactor_WDS(uint64 N, double Tune, int DoTrial, double CutFrac)
 		//Let me repeat that: a = x+0.9999999665.  Really.
 		b=a%inc;  
 		b = a + (inc+r-b)%inc;   //b is a but adjusted upward to make b%inc=r.
-		c = (uint64)b*(uint64)b - kN4;  //this is the precision bottleneck.
+		c = (uint64_t)b*(uint64_t)b - kN4;  //this is the precision bottleneck.
 		//At this point, I used to do a test:
-		//if( c+kN4 != (uint64)b*(uint64)b ) //overflow-caused failure: exit!
+		//if( c+kN4 != (uint64_t)b*(uint64_t)b ) //overflow-caused failure: exit!
 		//	printf("Sorry3, unrepairable overflow, N=%llu is too large\n", N);
 		//  return(0);
 		//However, I've now reconsidered.  I claim C language computes c mod 2^64 correctly.
@@ -2282,7 +2283,7 @@ uint64 LehmanFactor_WDS(uint64 N, double Tune, int DoTrial, double CutFrac)
 						if(b*b==c)
 						{ 
 							//square found
-							B2 = gcd64((uint64)(a+b), N);
+							B2 = gcd64((uint64_t)(a+b), N);
 							if(B2>=N)
 								printf("theorem failure: B2=%" PRIu64 " N=%" PRIu64 "\n", B2,N); 
                             mpz_clear(tmpz);
@@ -2358,7 +2359,7 @@ double reciprocals[MAXPRIMES];
 	* Create a trial division algorithm that is capable of finding factors up to factorLimit.
 	* @param factorLimit
 	*/
-void TDiv63InverseSetup() {
+void TDiv63InverseSetup(uint64_t *PRIMES, uint64_t NUM_P) {
 	int i;
 	for (i = 0; i < NUM_P; i++) {
 		primes[i] = PRIMES[i];
@@ -2366,7 +2367,7 @@ void TDiv63InverseSetup() {
 	}
 }
 
-int tdiv_inverse(int64 N, int pLimit) {
+int tdiv_inverse(int64_t N, int pLimit) {
 	int i = 0;
     int lbits = _lead_zcnt64(N);
 	int Nbits = 64 - lbits;
@@ -2388,11 +2389,11 @@ int tdiv_inverse(int64 N, int pLimit) {
 	// Now the primes are big enough to apply trial division by inverses
 	for (; primes[i] <= pLimit; i++) {
 		
-		int64 nDivPrime = (int64)(N*reciprocals[i] + DISCRIMINATOR);
+		int64_t nDivPrime = (int64_t)(N*reciprocals[i] + DISCRIMINATOR);
 		//if (N == 346425669865991LL && primes[i] == 70163)
 		//	printf("nDivPrime = %ld, test = %ld\n", nDivPrime, nDivPrime * primes[i]);
 
-		if (nDivPrime * (int64)primes[i] == N) {
+		if (nDivPrime * (int64_t)primes[i] == N) {
 			// nDivPrime is very near to an integer
 			if (N%primes[i] == 0) {
 				//printf("Found factor %d\n", primes[i]);
@@ -2434,19 +2435,19 @@ static double sqRoot[SQRTBOUND];
 static double sqrtInv[SQRTBOUND];
 static int initialized = 0;
 
-int64 lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64 N, int64 fourN) {
+int64_t lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64_t N, int64_t fourN) {
 	int k;
 	for (k = kBegin; k <= kLimit; k += 6) {
-		int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE);
+		int64_t a = (int64_t)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE);
 		// make a == (k+N) (mod 4)
-		const int64 kPlusN = k + N;
+		const int64_t kPlusN = k + N;
 		if ((kPlusN & 3) == 0) {
 			a += ((kPlusN - a) & 7);
 		}
 		else {
 			a += ((kPlusN - a) & 3);
 		}
-		const int64 test = a * a - k * fourN;
+		const int64_t test = a * a - k * fourN;
 		//const int64 b = (int64)sqrt(test);
 		//if (b*b == test) {
 		//	return (int64)gcd64(a + b, N);
@@ -2470,7 +2471,7 @@ int64 lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64 N, int64 fourN) {
 		//	{
 		//		if (issq4199[test % 4199] & 1)
 		//		{
-					const int64 b = (int64)sqrt(test);
+					const int64_t b = (int64_t)sqrt(test);
 					if (b*b == test) {
 						return gcd64(a + b, N);
 					}
@@ -2490,12 +2491,12 @@ int64 lehmanOdd(int kBegin, int kLimit, double sqrt4N, int64 N, int64 fourN) {
 	return -1;
 }
 
-int64 lehmanEven(int kBegin, int kEnd, double sqrt4N, int64 N, int64 fourN) {
+int64_t lehmanEven(int kBegin, int kEnd, double sqrt4N, int64_t N, int64_t fourN) {
 	int k;
 	for (k = kBegin; k <= kEnd; k += 6) {
 		// k even -> a must be odd
-		const int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) | (int64)1;
-		const int64 test = a * a - k * fourN;
+		const int64_t a = (int64_t)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) | (int64_t)1;
+		const int64_t test = a * a - k * fourN;
 		//const int64 b = (int64)sqrt(test);
 		//if (b*b == test) {
 		//	return (int64)gcd64(a + b, N);
@@ -2519,7 +2520,7 @@ int64 lehmanEven(int kBegin, int kEnd, double sqrt4N, int64 N, int64 fourN) {
 		//	{
 		//		if (issq4199[test % 4199] & 1)
 		//		{
-					const int64 b = (int64)sqrt(test);
+					const int64_t b = (int64_t)sqrt(test);
 					if (b*b == test) {
 						return gcd64(a + b, N);         
 					}
@@ -2560,20 +2561,22 @@ int64 lehmanEven(int kBegin, int kEnd, double sqrt4N, int64 N, int64 fourN) {
 
  */
 
-uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
+uint64_t LehmanFactor(uint64_t uN, double Tune, int DoTrialFirst, double CutFrac)
 {
 	int i;
 	int k;
 	int j;
-	int64 N = (int64)uN;
-	int64 fourN;
+	int64_t N = (int64_t)uN;
+	int64_t fourN;
 	double sqrt4N;
-	int64 factor;
+	int64_t factor;
 	double sixthRootTerm;
 
 	if (!initialized)
 	{
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);
+        uint64_t* PRIMES;
+        uint64_t NUM_P;
 
 		// Precompute sqrts for all possible k. 2^21 entries are enough for N~2^63.
 		int kMax = 1 << 21;
@@ -2584,11 +2587,10 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 		}
 
 		PRIMES = soe_wrapper(sdata, 0, FACTORLIMIT, 0, &NUM_P, 0, 0);
-		P_MIN = PRIMES[0];
-		P_MAX = PRIMES[NUM_P - 1];
         soe_finalize(sdata);
 
-		TDiv63InverseSetup();
+		TDiv63InverseSetup(PRIMES, NUM_P);
+        free(PRIMES);
 		//printf("prime list generated\n");
 		//printf("PMAX = %lu, NUM_P = %lu\n", P_MAX, NUM_P);
 
@@ -2639,20 +2641,20 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 	// Now investigate the small range
 	sixthRootTerm = 0.25 * pow(N, 1 / 6.0); // double precision is required for stability
 	for (k = 1; k < kTwoA; k++) {
-		int64 a;
-		const int64 fourkN = k * fourN;
+		int64_t a;
+		const int64_t fourkN = k * fourN;
 		const double sqrt4kN = sqrt4N * sqRoot[k];
 		// only use long values
-		const int64 aStart = (int64)(sqrt4kN + ROUND_UP_DOUBLE); // much faster than ceil() !
-		int64 aLimit = (int64)(sqrt4kN + sixthRootTerm * sqrtInv[k]);
-		int64 aStep;
+		const int64_t aStart = (int64_t)(sqrt4kN + ROUND_UP_DOUBLE); // much faster than ceil() !
+		int64_t aLimit = (int64_t)(sqrt4kN + sixthRootTerm * sqrtInv[k]);
+		int64_t aStep;
 		if ((k & 1) == 0) {
 			// k even -> make sure aLimit is odd
 			aLimit |= 1LL;
 			aStep = 2;
 		}
 		else {
-			const int64 kPlusN = k + N;
+			const int64_t kPlusN = k + N;
 			if ((kPlusN & 3) == 0) {
 				aStep = 8;
 				aLimit += ((kPlusN - aLimit) & 7);
@@ -2665,12 +2667,12 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 
 		// processing the a-loop top-down is faster than bottom-up
 		for (a = aLimit; a >= aStart; a -= aStep) {
-			const int64 test = a * a - fourkN;
+			const int64_t test = a * a - fourkN;
 			// Here test<0 is possible because of double to long cast errors in the 'a'-computation.
 			// But then b = sqrt(test) gives NaN (sic!) => NaN*NaN != test => no errors.
-			const int64 b = (int64)sqrt(test);
+			const int64_t b = (int64_t)sqrt(test);
 			if (b*b == test) {
-				return (int64)gcd64(a + b, N);
+				return (int64_t)gcd64(a + b, N);
 			}
 			//{
 			//	/* Step 1, reduce to 18% of inputs */
@@ -2717,9 +2719,9 @@ uint64 LehmanFactor(uint64 uN, double Tune, int DoTrialFirst, double CutFrac)
 	// If sqrt(4kN) is very near to an exact integer then the fast ceil() in the 'aStart'-computation
 	// may have failed. Then we need a "correction loop":
 	for (k = kTwoA + 1; k <= kLimit; k++) {
-		int64 a = (int64)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) - 1;
-		int64 test = a * a - k * fourN;
-		int64 b = (int64)sqrt(test);
+		int64_t a = (int64_t)(sqrt4N * sqRoot[k] + ROUND_UP_DOUBLE) - 1;
+		int64_t test = a * a - k * fourN;
+		int64_t b = (int64_t)sqrt(test);
 		if (b*b == test) {
 			return gcd64(a + b, N);
 		}

@@ -29,18 +29,11 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "gmp.h"
 #include "ytools.h"
-#include "types.h"
 #include <stdint.h>
 
-//#define HALF_VEC
 #define INV_2_POW_64 5.4210108624275221700372640043497e-20
 
-//#if defined (__INTEL_COMPILER)
-//#define ALIGNED_MEM __declspec(align(64))
-//#else
-//#define ALIGNED_MEM __attribute__((aligned(64)))
-//#endif
-
+#define DO_STAGE2_INV
 #define DEFINED 1
 #define MAX_WINSIZE 8
 #define BLOCKWORDS 4
@@ -81,19 +74,13 @@ either expressed or implied, of the FreeBSD Project.
 #error "DIGITBITS must be either 52 or 32"
 #endif
 
-uint32_t MAXBITS;
-uint32_t NWORDS;
-uint32_t NBLOCKS;
-
 typedef struct
 {
     base_t *data;
     int size;
     uint32_t signmask;
+    uint32_t WORDS_ALLOC;
 } vec_bignum_t;
-
-uint64_t *lcg_state;
-
 
 // a vector math library for montgomery arithmetic using AVX-512
 typedef struct
@@ -117,18 +104,21 @@ typedef struct
     base_t rho;
     int nbits;
     int isMersenne;
+    uint32_t MAXBITS;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
 } vec_monty_t;
 
 void print_hexbignum(vec_bignum_t *a, const char *pre);
 void print_hex(vec_bignum_t *a, const char *pre);
 void print_vechex(base_t *a, int v, int n, const char *pre);
-vec_monty_t * vec_monty_alloc(void);
+vec_monty_t * vec_monty_alloc(uint32_t words);
 void vec_monty_free(vec_monty_t *mdata);
 void copy_vec_lane(vec_bignum_t *src, vec_bignum_t *dest, int num, int size);
 void vecCopy(vec_bignum_t * src, vec_bignum_t * dest);
 void vecCopyn(vec_bignum_t * src, vec_bignum_t * dest, int size);
 void vecClear(vec_bignum_t *n);
-vec_bignum_t * vecInit(void);
+vec_bignum_t * vecInit(uint32_t words);
 void vecFree(vec_bignum_t *);
 
 // 52-BIT functions
@@ -161,6 +151,10 @@ void vecmulmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_b
 void vecsqrmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
 void vecsubmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
 void vecaddmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata);
+void vecaddmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void vecsubmod_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void vec_simul_addsub_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* sum, vec_bignum_t* diff,
+    vec_monty_t* mdata);
 void vec_simul_addsub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, vec_monty_t* mdata);
 void vec_bignum_mask_sub(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, uint32_t wmask);
 void vec_bignum_mask_rshift_1(vec_bignum_t * u, uint32_t wmask);
@@ -205,20 +199,22 @@ typedef struct
 	ecm_pt pt5;
 	uint64_t sigma;
 
-	uint8_t *marks;
-	uint8_t *nmarks;
 	uint32_t *map;
 	ecm_pt *Pa;
 	ecm_pt *Pd;
 	ecm_pt *Pad;
 	vec_bignum_t **Paprod;	
+    vec_bignum_t** Pa_inv;
 	vec_bignum_t **Pbprod;
 	ecm_pt *Pb;
+    ecm_pt* Pdnorm;
 	vec_bignum_t *stg2acc;
 	uint32_t stg1Add;
 	uint32_t stg1Doub;
     uint32_t paired;
 	uint32_t ptadds;
+    uint32_t ptdups;
+    uint32_t numinv;
 	uint64_t numprimes;
     uint64_t A;
     uint32_t last_pid;
@@ -229,9 +225,16 @@ typedef struct
 	uint32_t D;
 	uint32_t R;
 
-	uint32_t *Qmap;
-	uint32_t *Qrmap;
-	Queue_t **Q;
+    uint64_t* primes;
+    uint64_t num_p;
+    uint64_t min_p;
+    uint64_t max_p;
+
+    uint64_t STAGE1_MAX;
+    uint64_t STAGE2_MAX;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
+    uint32_t MAXBITS;
 
 } ecm_work;
 
@@ -240,13 +243,13 @@ typedef struct
 typedef struct
 {
     mpz_t factor;
-    uint64 sigma;
+    uint64_t sigma;
     int thread_id;
     int vec_id;
     int curve_id;
     int stg_id;
-    uint32 B1;
-    uint64 B2;
+    uint32_t B1;
+    uint64_t B2;
 } avx_ecm_factor_t;
 
 typedef struct
@@ -265,28 +268,35 @@ typedef struct
     uint32_t total_threads;
     uint32_t phase_done;
     uint32_t ecm_phase;     // 0 == build curve, 1 == stage 1, 2 == stage 2
+    uint32_t* pairmap_v;
+    uint32_t* pairmap_u;
+    uint32_t pairmap_steps;
+    uint32_t* Qmap;
+    uint32_t* Qrmap;
+    Queue_t** Q;
     int verbose;
     int save_b1;
+
+    uint64_t* primes;
+    uint64_t nump;
+    uint64_t minp;
+    uint64_t maxp;
+
+    uint32_t MAXBITS;
+    uint32_t NWORDS;
+    uint32_t NBLOCKS;
+    uint64_t STAGE1_MAX;
+    uint64_t STAGE2_MAX;
+    uint32_t PRIME_RANGE;
+    int DO_STAGE2;
 } thread_data_t;
 
-typedef struct
-{
-    thread_data_t *tdata;
-    
-} process_data_t;
-
 void vececm(thread_data_t *tdata);
-void vec_ecm_pt_init(ecm_pt *pt);
+void vec_ecm_pt_init(ecm_pt *pt, uint32_t words);
 void vec_ecm_pt_free(ecm_pt *pt);
 void vec_ecm_work_init(ecm_work *work);
 void vec_ecm_work_free(ecm_work *work);
 
-// global array of primes
-base_t nump;
 
-// global limits
-uint64_t STAGE1_MAX;
-uint64_t STAGE2_MAX;
-uint32_t PRIME_RANGE;
-int DO_STAGE2;
+
 

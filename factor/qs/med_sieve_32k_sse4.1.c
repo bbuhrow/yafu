@@ -18,8 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "sieve_macros_32k.h"
 #include "sieve_macros_32k_sse4.1.h"
 
@@ -33,31 +32,27 @@ code to the public domain.
 
 typedef struct
 {
-	uint8 *sieve;					//0
-	uint16 *primeptr;				//8
-	uint16 *root1ptr;				//16
-	uint16 *root2ptr;				//24
-	uint16 *logptr;					//32
-	uint32 startprime;				//40
-	uint32 med_B;					//44
+	uint8_t *sieve;					//0
+	uint16_t *primeptr;				//8
+	uint16_t *root1ptr;				//16
+	uint16_t *root2ptr;				//24
+	uint16_t *logptr;					//32
+	uint32_t startprime;				//40
+	uint32_t med_B;					//44
 } helperstruct_t;
 
-void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
-		uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_sse41(uint8_t *sieve, sieve_fb_compressed *fb, fb_list *full_fb, 
+		uint32_t start_prime, uint8_t s_init)
 {
-	uint32 i;
-	uint32 med_B;
+	uint32_t i;
+	uint32_t med_B;
 	
-	uint32 prime, root1, root2, tmp, stop;
-	uint8 logp;
+	uint32_t prime, root1, root2, tmp, stop;
+	uint8_t logp;
 
 	helperstruct_t asm_input;
 
 	med_B = full_fb->med_B;
-	
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	//initialize the block
 	BLOCK_INIT;
@@ -84,7 +79,7 @@ void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *fu
 #else
 	for (i=start_prime;i< full_fb->fb_13bit_B-8;i++)
 	{	
-		uint8 *s2;		
+		uint8_t *s2;		
 
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -105,7 +100,7 @@ void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *fu
 	// small set of crossover primes manually, one at a time.
 	for (; i<full_fb->fb_13bit_B; i++)
 	{	
-		uint8 *s2;		
+		uint8_t *s2;		
 
 		prime = fb->prime[i];
 		root1 = fb->root1[i];
@@ -204,13 +199,6 @@ void med_sieveblock_32k_sse41(uint8 *sieve, sieve_fb_compressed *fb, fb_list *fu
 	// sieve primes 8 at a time, 2^15 < p < med_B
 	_INIT_SSE2_SMALL_PRIME_SIEVE;
 	_SSE41_SMALL_PRIME_SIEVE;
-
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	return;
 

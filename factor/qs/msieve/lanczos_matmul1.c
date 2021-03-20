@@ -19,21 +19,21 @@ benefit from your work.
 /*-------------------------------------------------------------------*/
 
 static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
-			uint64 *curr_col, uint64 *curr_b) {
+			uint64_t *curr_col, uint64_t *curr_b) {
 
-	uint16 *entries = curr_block->med_entries;
+	uint16_t *entries = curr_block->med_entries;
 	
 	while (1) {
-		uint64 accum;
+		uint64_t accum;
 
 #if defined(GCC_ASM64X)
-		uint64 i = 0;
-		uint64 row = entries[0];
-		uint64 count = entries[1];
+		uint64_t i = 0;
+		uint64_t row = entries[0];
+		uint64_t count = entries[1];
 #else
-		uint32 i = 0;
-		uint32 row = entries[0];
-		uint32 count = entries[1];
+		uint32_t i = 0;
+		uint32_t row = entries[0];
+		uint32_t count = entries[1];
 #endif
 
 		if (count == 0)
@@ -83,7 +83,7 @@ static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
 
 		:"=y"(accum), "+r"(i)
 		:"r"(curr_col), "r"(entries),
-		 "g"(count & (uint32)(~15))
+		 "g"(count & (uint32_t)(~15))
 		:"%eax", "%ecx", "%edx", "%mm0", "memory", "cc");
 
 	#undef _txor
@@ -122,7 +122,7 @@ static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
 
 		:"=r"(accum), "+r"(i)
 		:"r"(curr_col), "r"(entries), 
-		 "g"(count & (uint64)(~15))
+		 "g"(count & (uint64_t)(~15))
 		:"%rax", "%rcx", "%rdx", "%rsi", "memory", "cc");
 
 	#undef _txor
@@ -171,7 +171,7 @@ static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
 
 #else
 	accum = 0;
-	for (i = 0; i < (count & (uint32)(~15)); i += 16) {
+	for (i = 0; i < (count & (uint32_t)(~15)); i += 16) {
 		accum ^= curr_col[entries[i+2+0]] ^
 		         curr_col[entries[i+2+1]] ^
 		         curr_col[entries[i+2+2]] ^
@@ -200,12 +200,12 @@ static void yafu_mul_one_med_block(qs_packed_block_t *curr_block,
 
 /*-------------------------------------------------------------------*/
 static void yafu_mul_one_block(qs_packed_block_t *curr_block,
-			uint64 *curr_col, uint64 *curr_b) {
+			uint64_t *curr_col, uint64_t *curr_b) {
 
-	uint32 i = 0; 
-	uint32 j = 0;
-	uint32 k;
-	uint32 num_entries = curr_block->num_entries;
+	uint32_t i = 0; 
+	uint32_t j = 0;
+	uint32_t k;
+	uint32_t num_entries = curr_block->num_entries;
 	qs_entry_idx_t *entries = curr_block->entries;
 	
 	/* unroll by 16, i.e. the number of matrix elements
@@ -246,7 +246,7 @@ static void yafu_mul_one_block(qs_packed_block_t *curr_block,
 
 		:"+r"(i)
 		:"r"(entries), "r"(curr_b), "r"(curr_col), 
-		 "g"(num_entries & (uint32)(~15))
+		 "g"(num_entries & (uint32_t)(~15))
 		:"%eax", "%ecx", "%mm0", "memory", "cc");
 
 #elif defined(MSC_ASM32A) && defined(HAS_MMX)
@@ -287,7 +287,7 @@ static void yafu_mul_one_block(qs_packed_block_t *curr_block,
 	#define _txor(x) curr_b[entries[i+x].row_off] ^= \
 				 curr_col[entries[i+x].col_off]
 
-	for (i = 0; i < (num_entries & (uint32)(~15)); i += 16) {
+	for (i = 0; i < (num_entries & (uint32_t)(~15)); i += 16) {
 		#ifdef MANUAL_PREFETCH
 		PREFETCH(entries + i + 48);
 		#endif
@@ -310,9 +310,9 @@ static void yafu_mul_one_block(qs_packed_block_t *curr_block,
 /*-------------------------------------------------------------------*/
 void yafu_mul_packed_core(qs_msieve_thread_data_t *t) {
 
-	uint64 *x = t->x;
-	uint64 *b = t->b;
-	uint32 i;
+	uint64_t *x = t->x;
+	uint64_t *b = t->b;
+	uint32_t i;
 	
 	/* proceed block by block. We assume that blocks access
 	   the matrix in row-major order; when computing b = A*x

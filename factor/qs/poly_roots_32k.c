@@ -18,8 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 #include "poly_macros_common.h"
@@ -51,7 +50,7 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	// anything.  We are just trying to determine the size needed for each large 
 	// prime bucket by sieving over just the first bucket
 
-	uint32 i,logp;
+	uint32_t i,logp;
 	int root1, root2, prime, amodp, bmodp, inv, bnum,numblocks;
 	int lpnum,last_bound;
 
@@ -59,7 +58,7 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	siqs_poly *poly = dconf->curr_poly;
 	fb_list *fb = sconf->factor_base;
 	lp_bucket *lp_bucket_p = dconf->buckets;
-	uint32 *modsqrt = sconf->modsqrt_array;
+	uint32_t *modsqrt = sconf->modsqrt_array;
 
 	numblocks = sconf->num_blocks;
 
@@ -89,8 +88,8 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		root2 = (int)root2 - bmodp;
 		if (root2 < 0) root2 += prime;
 	
-		root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
-		root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
+		root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+		root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
 
 		// just need to do this once, because the next step of prime will be 
 		// into a different bucket
@@ -103,7 +102,7 @@ void testfirstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		if (bnum == 0)
 			lpnum++;
 
-		if ((uint32)lpnum > (double)BUCKET_ALLOC * 0.75)
+		if ((uint32_t)lpnum > (double)BUCKET_ALLOC * 0.75)
 		{
 			// we want to allocate more slices than we will probably need
 			// assume alloc/2 is a safe amount of slack
@@ -144,27 +143,27 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//unpack stuff from the job data structures
 	siqs_poly *poly = dconf->curr_poly;
 	fb_list *fb = sconf->factor_base;
-	uint32 start_prime = 2;
+	uint32_t start_prime = 2;
 	int *rootupdates = dconf->rootupdates;
 	update_t update_data = dconf->update_data;
 	sieve_fb_compressed *fb_p = dconf->comp_sieve_p;
 	sieve_fb_compressed *fb_n = dconf->comp_sieve_n;
 	lp_bucket *lp_bucket_p = dconf->buckets;
-	uint32 *modsqrt = sconf->modsqrt_array;
+	uint32_t *modsqrt = sconf->modsqrt_array;
 
 	//locals
-	uint32 i, interval;
-	uint8 logp;
+	uint32_t i, interval;
+	uint8_t logp;
     int root1, root2, nroot1, nroot2, prime, amodp, bmodp, inv, x, bnum, j, numblocks;
 	int s = poly->s;
 	int bound_index = 0, k;
-	uint32 bound_val = fb->med_B;
-	uint32 *bptr, *sliceptr_p, *sliceptr_n;
-    uint64* bptr64, * sliceptr64_p, * sliceptr64_n;
-	uint32 *numptr_p, *numptr_n;
+	uint32_t bound_val = fb->med_B;
+	uint32_t *bptr, *sliceptr_p, *sliceptr_n;
+    uint64_t* bptr64, * sliceptr64_p, * sliceptr64_n;
+	uint32_t *numptr_p, *numptr_n;
 	int check_bound = BUCKET_ALLOC/2 - 1, room;
     FILE *out;
-    uint32 shift = 24;
+    uint32_t shift = 24;
 
 
 	numblocks = sconf->num_blocks;
@@ -195,7 +194,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	for (i = start_prime; i < sconf->sieve_small_fb_start; i++)
 	{
-		uint64 q64, tmp, t2;
+		uint64_t q64, tmp, t2;
 
 		prime = fb->tinylist->prime[i];
 		root1 = modsqrt[i]; 
@@ -212,16 +211,16 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		// reuse integer inverse of prime that we've calculated for use
 		// in trial division stage
 		// inv * root1 % prime
-		t2 = (uint64)inv * (uint64)root1;
-		tmp = t2 + (uint64)fb->tinylist->correction[i];
-		q64 = tmp * (uint64)fb->tinylist->small_inv[i];
+		t2 = (uint64_t)inv * (uint64_t)root1;
+		tmp = t2 + (uint64_t)fb->tinylist->correction[i];
+		q64 = tmp * (uint64_t)fb->tinylist->small_inv[i];
 		tmp = q64 >> 32; 
 		root1 = t2 - tmp * prime;
 
 		// inv * root2 % prime
-		t2 = (uint64)inv * (uint64)root2;
-		tmp = t2 + (uint64)fb->tinylist->correction[i];
-		q64 = tmp * (uint64)fb->tinylist->small_inv[i];
+		t2 = (uint64_t)inv * (uint64_t)root2;
+		tmp = t2 + (uint64_t)fb->tinylist->correction[i];
+		q64 = tmp * (uint64_t)fb->tinylist->small_inv[i];
 		tmp = q64 >> 32; 
 		root2 = t2 - tmp * prime;
 	
@@ -229,10 +228,10 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
 
-		fb_p->root1[i] = (uint16)root1;
-		fb_p->root2[i] = (uint16)root2;
-		fb_n->root1[i] = (uint16)(prime - root2);
-		fb_n->root2[i] = (uint16)(prime - root1);
+		fb_p->root1[i] = (uint16_t)root1;
+		fb_p->root2[i] = (uint16_t)root2;
+		fb_n->root1[i] = (uint16_t)(prime - root2);
+		fb_n->root2[i] = (uint16_t)(prime - root1);
 		//if we were sieving, this would double count the location on the 
 		//positive side.  but since we're not, its easier to check for inclusion
 		//on the progression if we reset the negative root to zero if it is == prime
@@ -250,9 +249,9 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
 			
 			// x * inv % prime
-			t2 = (uint64)inv * (uint64)x;
-			tmp = t2 + (uint64)fb->tinylist->correction[i];
-			q64 = tmp * (uint64)fb->tinylist->small_inv[i];
+			t2 = (uint64_t)inv * (uint64_t)x;
+			tmp = t2 + (uint64_t)fb->tinylist->correction[i];
+			q64 = tmp * (uint64_t)fb->tinylist->small_inv[i];
 			tmp = q64 >> 32; 
 			x = t2 - tmp * prime;
 
@@ -262,7 +261,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	for (i=sconf->sieve_small_fb_start;i<fb->fb_15bit_B;i++)
 	{
-		uint64 tmp, t2;
+		uint64_t tmp, t2;
 
 		prime = fb->list->prime[i];
 		root1 = modsqrt[i]; 
@@ -277,35 +276,35 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		COMPUTE_FIRST_ROOTS
 
         // Barrett reduction for inv * root
-        t2 = (uint64)inv * (uint64)root1;
+        t2 = (uint64_t)inv * (uint64_t)root1;
         tmp = (t2 * fb->list->binv[i]) >> 32;
         t2 -= tmp * prime;
         root1 = (t2 >= prime) ? t2 - prime : t2;
 
-        t2 = (uint64)inv * (uint64)root2;
+        t2 = (uint64_t)inv * (uint64_t)root2;
         tmp = (t2 * fb->list->binv[i]) >> 32;
         t2 -= tmp * prime;
         root2 = (t2 >= prime) ? t2 - prime : t2;
 
 		if (root2 < root1)
 		{
-			update_data.sm_firstroots1[i] = (uint16)root2;
-			update_data.sm_firstroots2[i] = (uint16)root1;
+			update_data.sm_firstroots1[i] = (uint16_t)root2;
+			update_data.sm_firstroots2[i] = (uint16_t)root1;
 
-			fb_p->root1[i] = (uint16)root2;
-			fb_p->root2[i] = (uint16)root1;
-			fb_n->root1[i] = (uint16)(prime - root1);
-			fb_n->root2[i] = (uint16)(prime - root2);
+			fb_p->root1[i] = (uint16_t)root2;
+			fb_p->root2[i] = (uint16_t)root1;
+			fb_n->root1[i] = (uint16_t)(prime - root1);
+			fb_n->root2[i] = (uint16_t)(prime - root2);
 		}
 		else
 		{
-			update_data.sm_firstroots1[i] = (uint16)root1;
-			update_data.sm_firstroots2[i] = (uint16)root2;
+			update_data.sm_firstroots1[i] = (uint16_t)root1;
+			update_data.sm_firstroots2[i] = (uint16_t)root2;
 
-			fb_p->root1[i] = (uint16)root1;
-			fb_p->root2[i] = (uint16)root2;
-			fb_n->root1[i] = (uint16)(prime - root2);
-			fb_n->root2[i] = (uint16)(prime - root1);
+			fb_p->root1[i] = (uint16_t)root1;
+			fb_p->root2[i] = (uint16_t)root2;
+			fb_n->root1[i] = (uint16_t)(prime - root2);
+			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
 		//for this factor base prime, compute the rootupdate value for all s
@@ -317,20 +316,20 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
 
 			// x * inv % prime
-            t2 = (uint64)inv * (uint64)x;
+            t2 = (uint64_t)inv * (uint64_t)x;
             tmp = (t2 * fb->list->binv[i]) >> 32;
             t2 -= tmp * prime;
             x = (t2 >= prime) ? t2 - prime : t2;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16_t)x;
 		}
 	}
 
 	//printf("prime[15bit-1] = %u\n", fb_p->prime[fb->fb_15bit_B-1]);
 	for (i=fb->fb_15bit_B;i<fb->med_B;i++)
 	{
-		uint64 tmp, t2;
+		uint64_t tmp, t2;
 
 		prime = fb->list->prime[i];
 		root1 = modsqrt[i]; 
@@ -345,35 +344,35 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		COMPUTE_FIRST_ROOTS
 
         // Barrett reduction for inv * root
-        t2 = (uint64)inv * (uint64)root1;
+        t2 = (uint64_t)inv * (uint64_t)root1;
         tmp = (t2 * fb->list->binv[i]) >> 32;
         t2 -= tmp * prime;
         root1 = (t2 >= prime) ? t2 - prime : t2;
 
-        t2 = (uint64)inv * (uint64)root2;
+        t2 = (uint64_t)inv * (uint64_t)root2;
         tmp = (t2 * fb->list->binv[i]) >> 32;
         t2 -= tmp * prime;
         root2 = (t2 >= prime) ? t2 - prime : t2;
 
 		if (root2 < root1)
 		{
-			update_data.sm_firstroots1[i] = (uint16)root2;
-			update_data.sm_firstroots2[i] = (uint16)root1;
+			update_data.sm_firstroots1[i] = (uint16_t)root2;
+			update_data.sm_firstroots2[i] = (uint16_t)root1;
 
-			fb_p->root1[i] = (uint16)root2;
-			fb_p->root2[i] = (uint16)root1;
-			fb_n->root1[i] = (uint16)(prime - root1);
-			fb_n->root2[i] = (uint16)(prime - root2);
+			fb_p->root1[i] = (uint16_t)root2;
+			fb_p->root2[i] = (uint16_t)root1;
+			fb_n->root1[i] = (uint16_t)(prime - root1);
+			fb_n->root2[i] = (uint16_t)(prime - root2);
 		}
 		else
 		{
-			update_data.sm_firstroots1[i] = (uint16)root1;
-			update_data.sm_firstroots2[i] = (uint16)root2;
+			update_data.sm_firstroots1[i] = (uint16_t)root1;
+			update_data.sm_firstroots2[i] = (uint16_t)root2;
 
-			fb_p->root1[i] = (uint16)root1;
-			fb_p->root2[i] = (uint16)root2;
-			fb_n->root1[i] = (uint16)(prime - root2);
-			fb_n->root2[i] = (uint16)(prime - root1);
+			fb_p->root1[i] = (uint16_t)root1;
+			fb_p->root2[i] = (uint16_t)root2;
+			fb_n->root1[i] = (uint16_t)(prime - root2);
+			fb_n->root2[i] = (uint16_t)(prime - root1);
 		}
 
 		//for this factor base prime, compute the rootupdate value for all s
@@ -385,13 +384,13 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			x = (int)mpz_tdiv_ui(dconf->Bl[j],prime);
 
 			// x * inv % prime
-            t2 = (uint64)inv * (uint64)x;
+            t2 = (uint64_t)inv * (uint64_t)x;
             tmp = (t2 * fb->list->binv[i]) >> 32;
             t2 -= tmp * prime;
             x = (t2 >= prime) ? t2 - prime : t2;
 
 			rootupdates[(j)*fb->B+i] = x;
-			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16)x;
+			dconf->sm_rootupdates[(j)*fb->med_B+i] = (uint16_t)x;
 		}
 	}
 
@@ -419,14 +418,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
             {
                 //printf("firstroots: bucket full, now at fb index %d, starting new slice %d\n",
                 //    i, bound_index + 1);
-                //uint32 ii;
-                //uint32 bb;
+                //uint32_t ii;
+                //uint32_t bb;
                 //for (bb = 0; bb < numblocks; bb++)
                 //{
                 //    printf("%u lp p-roots in slice %d, block %d:\n", numptr_p[bb], bound_index, bb);
                 //    for (ii = 0; ii < numptr_p[bb]; ii++)
                 //    {
-                //        //bptr = sliceptr_p + ((uint64)bb << BLOCKBITS) + (uint64)ii;
+                //        //bptr = sliceptr_p + ((uint64_t)bb << BLOCKBITS) + (uint64_t)ii;
                 //        //printf("%08x ", *bptr);
                 //        printf("%08x ", sliceptr_p[bb * BUCKET_ALLOC + ii]);
                 //    }
@@ -438,7 +437,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
                 //    printf("%u lp n-roots in slice %d, block %d:\n", numptr_n[bb], bound_index, bb);
                 //    for (ii = 0; ii < numptr_n[bb]; ii++)
                 //    {
-                //        //bptr = sliceptr_n + ((uint64)bb << BLOCKBITS) + (uint64)ii;
+                //        //bptr = sliceptr_n + ((uint64_t)bb << BLOCKBITS) + (uint64_t)ii;
                 //        //printf("%08x ", *bptr);
                 //        printf("%08x ", sliceptr_n[bb * BUCKET_ALLOC + ii]);
                 //    }
@@ -513,8 +512,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         COMPUTE_FIRST_ROOTS
 
-        root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
-        root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
+        root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+        root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
 		
 		update_data.firstroots1[i] = root1;
 		update_data.firstroots2[i] = root2;
@@ -531,7 +530,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		for (j=0;j<s;j++)
 		{
 			x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
-			x = (int)((int64)x * (int64)inv % (int64)prime);
+			x = (int)((int64_t)x * (int64_t)inv % (int64_t)prime);
 
 			rootupdates[(j)*fb->B+i] = x;
 		}
@@ -566,8 +565,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         numptr_n += (numblocks << 1);
         check_bound = bound_val + ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-        sliceptr64_p = (uint64*)sliceptr_p;
-        sliceptr64_n = (uint64*)sliceptr_n;
+        sliceptr64_p = (uint64_t*)sliceptr_p;
+        sliceptr64_n = (uint64_t*)sliceptr_n;
         //printf("initial numptr_p[0] = %u, numptr_n[0] = %u\n", numptr_p[0], numptr_n[0]);
         //printf("bound_val = %u, check_bound = %u\n", bound_val, check_bound);
     }
@@ -589,14 +588,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
                 //printf("vlp p-roots in slice %d:\n", bound_index);
                 //for (ii = 0; ii < numptr_p[0]; ii++)
                 //{
-                //    bptr = sliceptr_p + (uint64)ii;
+                //    bptr = sliceptr_p + (uint64_t)ii;
                 //    printf("%08x ", *bptr);
                 //}
                 //printf("\n");
                 //printf("vlp n-roots in slice %d:\n", bound_index);
                 //for (ii = 0; ii < numptr_n[0]; ii++)
                 //{
-                //    bptr = sliceptr_n + (uint64)ii;
+                //    bptr = sliceptr_n + (uint64_t)ii;
                 //    printf("%08x ", *bptr);
                 //}
                 //printf("\n");
@@ -611,8 +610,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
                 numptr_n += (numblocks << 1);
                 check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-                sliceptr64_p = (uint64*)sliceptr_p;
-                sliceptr64_n = (uint64*)sliceptr_n;
+                sliceptr64_p = (uint64_t*)sliceptr_p;
+                sliceptr64_n = (uint64_t*)sliceptr_n;
             }
             else
             {
@@ -647,8 +646,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
             numptr_n += (numblocks << 1);
             check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-            sliceptr64_p = (uint64*)sliceptr_p;
-            sliceptr64_n = (uint64*)sliceptr_n;
+            sliceptr64_p = (uint64_t*)sliceptr_p;
+            sliceptr64_n = (uint64_t*)sliceptr_n;
         }
 
         prime = fb->list->prime[i];
@@ -663,26 +662,26 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         COMPUTE_FIRST_ROOTS
 
-        root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
-        root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
+        root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+        root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
 
         update_data.firstroots1[i] = root1;
         update_data.firstroots2[i] = root2;
 
         //FILL_ONE_PRIME_P(i);
         if (root1 < interval) 
-            sliceptr64_p[numptr_p[0]++] = ((uint64)(i - bound_val) << 32) | root1;
+            sliceptr64_p[numptr_p[0]++] = ((uint64_t)(i - bound_val) << 32) | root1;
         if (root2 < interval) 
-            sliceptr64_p[numptr_p[0]++] = ((uint64)(i - bound_val) << 32) | root2;
+            sliceptr64_p[numptr_p[0]++] = ((uint64_t)(i - bound_val) << 32) | root2;
 
         root1 = (prime - root1);
         root2 = (prime - root2);
 
         FILL_ONE_PRIME_N(i);
         if (root1 < interval) 
-            sliceptr64_n[numptr_n[0]++] = ((uint64)(i - bound_val) << 32) | root1;
+            sliceptr64_n[numptr_n[0]++] = ((uint64_t)(i - bound_val) << 32) | root1;
         if (root2 < interval) 
-            sliceptr64_n[numptr_n[0]++] = ((uint64)(i - bound_val) << 32) | root2;
+            sliceptr64_n[numptr_n[0]++] = ((uint64_t)(i - bound_val) << 32) | root2;
 
         //for this factor base prime, compute the rootupdate value for all s
         //Bl values.  amodp holds a^-1 mod p
@@ -720,8 +719,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         COMPUTE_FIRST_ROOTS;
 
-        root1 = (uint32)((uint64)inv * (uint64)root1 % (uint64)prime);
-        root2 = (uint32)((uint64)inv * (uint64)root2 % (uint64)prime);
+        root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+        root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
 
         update_data.firstroots1[i] = root1;
         update_data.firstroots2[i] = root2;
@@ -742,7 +741,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         for (j = 0; j < s; j++)
         {
             x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
-            x = (int)((int64)x * (int64)inv % (int64)prime);
+            x = (int)((int64_t)x * (int64_t)inv % (int64_t)prime);
             rootupdates[(j)* fb->B + i] = x;
             //fprintf(out, ",%u", x);
         }
@@ -758,7 +757,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         char *sign = dconf->curr_poly->gray;
         double avg = 0.;
         int hit;
-        uint32 pstarti;
+        uint32_t pstarti;
 
         printf("checking large prime hits in the interval of size %u\n", interval);
 

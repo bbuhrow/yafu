@@ -27,7 +27,7 @@
 		// worth it.
 
 
-#if defined (HAS_SSE2)
+#if defined (D_HAS_SSE2)
 
 	#define MOD_INIT_8X												\
 		ASM_G (														\

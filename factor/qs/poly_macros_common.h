@@ -1,3 +1,4 @@
+#include "common.h"
 
 #ifndef _POLY_COMMON_H_
 #define _POLY_COMMON_H_
@@ -5,47 +6,47 @@
 typedef struct 
 {
 	//read/write data inputs
-	uint32 *numptr_n;
-	uint32 *numptr_p;
-	uint32 *sliceptr_n;
-	uint32 *sliceptr_p;
-	uint32 *update_data_prime;
+	uint32_t *numptr_n;
+	uint32_t *numptr_p;
+	uint32_t *sliceptr_n;
+	uint32_t *sliceptr_p;
+	uint32_t *update_data_prime;
 	int *update_data_root1;
 	int *update_data_root2;
-	uint8 *update_data_logp;
+	uint8_t *update_data_logp;
 	lp_bucket *lp_bucket_p;
 	int *ptr;
 
 	//read only inputs:
-	uint32 large_B;
-	uint32 B;
-	uint32 interval;
+	uint32_t large_B;
+	uint32_t B;
+	uint32_t interval;
 	int numblocks;
 
 	//read/write words
-	uint32 bound_val;
+	uint32_t bound_val;
 	int bound_index;
 	int check_bound;
-	uint8 logp;
+	uint8_t logp;
 
-	uint32 intervalm1;
-    uint32 filler;
-    uint32 *scratch;
+	uint32_t intervalm1;
+    uint32_t filler;
+    uint32_t *scratch;
 
 } polysieve_t;
 
 typedef struct 
 {
-	uint16 *first_r1;
-	uint16 *first_r2;
-	uint16 *fbp1;
-	uint16 *fbp2;
-	uint16 *fbn1;
-	uint16 *fbn2;
-	uint16 *primes;
-	uint16 *updates;
-	uint32 start;
-	uint32 stop;
+	uint16_t *first_r1;
+	uint16_t *first_r2;
+	uint16_t *fbp1;
+	uint16_t *fbp2;
+	uint16_t *fbn1;
+	uint16_t *fbn2;
+	uint16_t *primes;
+	uint16_t *updates;
+	uint32_t start;
+	uint32_t stop;
 } small_update_t;
 
 #define CHECK_NEW_SLICE(j)									\
@@ -267,7 +268,7 @@ typedef struct
 
 #elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
 
-#ifdef HAS_SSE2
+#ifdef USE_SSE2
 
 	#define COMPUTE_8X_SMALL_PROOTS	\
 		ASM_G (	\
@@ -592,7 +593,7 @@ typedef struct
 #if defined(MSC_ASM32A) && !defined(FORCE_GENERIC)
 	#define COMPUTE_NEXT_ROOTS_P	\
 	do {	\
-		uint32 update = *ptr;	\
+		uint32_t update = *ptr;	\
 		ASM_M {					\
 			ASM_M xor ebx, ebx	\
 			ASM_M xor ecx, ecx	\
@@ -610,7 +611,7 @@ typedef struct
 
 	#define COMPUTE_NEXT_ROOTS_N	\
 	do {	\
-		uint32 update = *ptr;	\
+		uint32_t update = *ptr;	\
 		ASM_M {					\
 			ASM_M mov eax, root1	\
 			ASM_M mov edx, root2	\

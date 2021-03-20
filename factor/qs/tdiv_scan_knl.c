@@ -18,9 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 
@@ -278,7 +276,7 @@ this file contains code implementing 1)
 	//top level sieve scanning with SSE2
 	#define SIEVE_SCAN_32	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -290,7 +288,7 @@ this file contains code implementing 1)
 
 	#define SIEVE_SCAN_64	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -303,7 +301,7 @@ this file contains code implementing 1)
 
 	#define SIEVE_SCAN_128	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -380,7 +378,7 @@ this file contains code implementing 1)
 
     #define SIEVE_SCAN_32_VEC					\
         __m256i v_blk = _mm256_load_si256(sieveblock + j); \
-        uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
+        uint32_t pos, msk32 = _mm256_movemask_epi8(v_blk); \
         result = 0; \
         while (_BitScanForward(&pos, msk32)) { \
             buffer[result++] = pos; \
@@ -389,16 +387,16 @@ this file contains code implementing 1)
 
     #define SIEVE_SCAN_64_VEC				\
         __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
-        uint32 pos; \
-        uint64 msk64 = _mm256_movemask_epi8(v_blk); \
+        uint32_t pos; \
+        uint64_t msk64 = _mm256_movemask_epi8(v_blk); \
         result = 0; \
         if (msk64 > 0) { \
             v_blk = _mm256_load_si256(sieveblock + j + 4); \
-            msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
+            msk64 = ((uint64_t)(_mm256_movemask_epi8(v_blk)) << 32); \
             v_blk = _mm256_load_si256(sieveblock + j); \
             msk64 |= _mm256_movemask_epi8(v_blk); \
             while (_BitScanForward64(&pos, msk64)) { \
-                buffer[result++] = (uint8)pos; \
+                buffer[result++] = (uint8_t)pos; \
                 _reset_lsb64(msk64); \
             } }
 
@@ -444,22 +442,22 @@ this file contains code implementing 1)
 	// small primes is worth it (on 64k builds only).
 
 
-int check_relations_siqs_4(uint32 blocknum, uint8 parity, 
+int check_relations_siqs_4(uint32_t blocknum, uint8_t parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x32; for medium inputs
 
-	uint32 i,j,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
+	uint32_t i,j,it=sconf->qs_blocksize>>3;
+	uint32_t thisloc;
+	uint64_t *sieveblock;
 
-	sieveblock = (uint64 *)dconf->sieve;
+	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
 	for (j=0;j<it;j+=4)	
 	{		
-		uint32 result;
-		uint8 buffer[32];
+		uint32_t result;
+		uint8_t buffer[32];
 		
 		SIEVE_SCAN_32_VEC;
 
@@ -470,7 +468,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
         {            
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
                 dconf->reports[dconf->num_reports + i] = thisloc;
             }
             dconf->num_reports += result;
@@ -479,7 +477,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
         {
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
 
                 // log this report
                 if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -513,21 +511,21 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-int check_relations_siqs_8(uint32 blocknum, uint8 parity, 
+int check_relations_siqs_8(uint32_t blocknum, uint8_t parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x64; for large inputs
-	uint32 i,j,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
+	uint32_t i,j,it=sconf->qs_blocksize>>3;
+	uint32_t thisloc;
+	uint64_t *sieveblock;
 
-	sieveblock = (uint64 *)dconf->sieve;
+	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
 	for (j=0;j<it;j+=8)	
 	{		
-		uint32 result;
-		uint8 buffer[64];
+		uint32_t result;
+		uint8_t buffer[64];
 		
 		SIEVE_SCAN_64_VEC;
 
@@ -538,7 +536,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
         {            
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
                 dconf->reports[dconf->num_reports + i] = thisloc;
             }
             dconf->num_reports += result;
@@ -547,7 +545,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
         {
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
 
                 // log this report
                 if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -583,23 +581,23 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-int check_relations_siqs_16(uint32 blocknum, uint8 parity,
+int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //unrolled x128; for large inputs
-    uint32 j;
-    uint32 thisloc;
-    uint64 *sieveblock;
-    uint32 *sieveblock32;
+    uint32_t j;
+    uint32_t thisloc;
+    uint64_t *sieveblock;
+    uint32_t *sieveblock32;
 
     if (sconf->use_dlp == 2)
     {
-        uint32 cutoff = sconf->tf_closnuf;
+        uint32_t cutoff = sconf->tf_closnuf;
         __m512i vmask = _mm512_set1_epi32((cutoff << 24) + (cutoff << 16) + (cutoff << 8) + cutoff);
     
         dconf->num_reports = 0;
-        sieveblock = (uint64*)dconf->sieve;
-        sieveblock32 = (uint32*)dconf->sieve;
+        sieveblock = (uint64_t*)dconf->sieve;
+        sieveblock32 = (uint32_t*)dconf->sieve;
     
         for (j = 0; j < 4096; j += 8)
         {
@@ -627,8 +625,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         __m512i vmask = _mm512_set1_epi32(0x80808080);
 
         dconf->num_reports = 0;
-        sieveblock = (uint64*)dconf->sieve;
-        sieveblock32 = (uint32*)dconf->sieve;
+        sieveblock = (uint64_t*)dconf->sieve;
+        sieveblock32 = (uint32_t*)dconf->sieve;
 
         for (j = 0; j < 4096; j += 8)
         {
@@ -643,7 +641,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
             while (r_msk > 0)
             {
-                uint32 a_msk;
+                uint32_t a_msk;
 
                 idx = _trail_zcnt(r_msk);
 
@@ -671,7 +669,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
     dconf->total_blocks++;
 
     //remove small primes, and test if its worth continuing for each report
-    filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);	
+    filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
     tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
     resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
 

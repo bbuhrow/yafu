@@ -3,9 +3,7 @@
 /* many separate places in the code need a list
    of primes. Include such a list pregenerated, with
    the differences between primes stored */
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include <stdint.h>
 
@@ -32,7 +30,7 @@ void init_prime_sieve(prime_sieve_t *sieve,
 
 void free_prime_sieve(prime_sieve_t *sieve);
 
-uint32 get_next_prime(prime_sieve_t *sieve);
+uint32_t get_next_prime(prime_sieve_t *sieve);
 
 typedef struct {
     uint32_t *list;

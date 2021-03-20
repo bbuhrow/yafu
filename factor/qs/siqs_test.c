@@ -18,11 +18,9 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
-#include "gmp_xface.h"
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 {
@@ -78,10 +76,10 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 	return retval;
 }
 
-int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
+int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
 {
-	//check for some special cases of input number
-	//sieve_log is passed in already open, and should return open
+	// check for some special cases of input number
+	// sieve_log is passed in already open, and should return open
 	if (mpz_even_p(fobj->qs_obj.gmp_n))
 	{
 		printf("input must be odd\n");
@@ -91,7 +89,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 	if (is_mpz_prp(fobj->qs_obj.gmp_n, fobj->NUM_WITNESSES))
 	{
         char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n, 
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n", gmp_base10(fobj->qs_obj.gmp_n), s);
 		mpz_set_ui(fobj->qs_obj.gmp_n,1);
@@ -104,10 +103,12 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 		mpz_sqrt(fobj->qs_obj.gmp_n,fobj->qs_obj.gmp_n);
 
         char* s = mpz_get_str(NULL, 10, fobj->qs_obj.gmp_n);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
-		add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 		if (sieve_log != NULL)
 			logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->qs_obj.gmp_n), s);
         free(s);
@@ -124,16 +125,17 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
 
 		if (sieve_log != NULL)
 		{
-			uint32 j;
+			uint32_t j;
 			logprint(sieve_log,"input is a perfect power\n");
 
-			for (j=0; j<fobj->num_factors; j++)
+			for (j=0; j<fobj->factors->num_factors; j++)
 			{
-                char* s = mpz_get_str(NULL, 10, fobj->fobj_factors[j].factor);
-				uint32 k;
-				for (k=0; k<fobj->fobj_factors[j].count; k++)
+                char* s = mpz_get_str(NULL, 10, fobj->factors->factors[j].factor);
+				uint32_t k;
+				for (k=0; k<fobj->factors->factors[j].count; k++)
 				{
-					logprint(sieve_log,"prp%d = %s\n",gmp_base10(fobj->fobj_factors[j].factor), s);
+					logprint(sieve_log,"prp%d = %s\n",
+                        gmp_base10(fobj->factors->factors[j].factor), s);
 				}
                 free(s);
 			}
@@ -153,14 +155,14 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         // we've verified that the input is not even or prime.  also, if
         // autofactoring is not active then do some very quick trial division 
         // before calling smallmpqs.
-        if (!fobj->autofact_obj.autofact_active)
-        {
-            for (i = 1; i < 25; i++)
-            {
-                if (mpz_tdiv_ui(fobj->qs_obj.gmp_n, spSOEprimes[i]) == 0)
-                    mpz_tdiv_q_ui(fobj->qs_obj.gmp_n, fobj->qs_obj.gmp_n, spSOEprimes[i]);
-            }
-        }
+        // if (!fobj->autofact_obj.autofact_active)
+        // {
+        //     for (i = 1; i < 25; i++)
+        //     {
+        //         if (mpz_tdiv_ui(fobj->gmp_n, siqs_primes[i]) == 0)
+        //             mpz_tdiv_q_ui(fobj->gmp_n, fobj->gmp_n, siqs_primes[i]);
+        //     }
+        // }
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
         if (fobj->qs_obj.flags != 12345)
@@ -187,7 +189,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
             {
                 if (j == 0)
                 {
-                    add_to_factor_list(fobj, f1);
+                    add_to_factor_list(fobj->factors, f1,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {
@@ -204,7 +207,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
                 }
                 else
                 {
-                    add_to_factor_list(fobj, f2);
+                    add_to_factor_list(fobj->factors, f2,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {
@@ -225,7 +229,8 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
             {
                 if (mpz_probab_prime_p(fobj->qs_obj.gmp_n, 1))
                 {
-                    add_to_factor_list(fobj, fobj->qs_obj.gmp_n);
+                    add_to_factor_list(fobj->factors, fobj->qs_obj.gmp_n,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
 
                     if (fobj->qs_obj.flags != 12345)
                     {
@@ -251,7 +256,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t *fobj)
         if (i == 0)
         {
             // didn't find anything (rare).  try a different method.
-            if (fobj->qs_obj.flags != 12345)
+            if (fobj->flags != 12345)
             {
                 if (fobj->logfile != NULL)
                 {
@@ -285,10 +290,10 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	mpz_init(t4);
 
 	mpz_set(t1, n);
-	mpz_tdiv_r(t3, t1, poly->mpz_poly_a); //zDiv(&t1,&poly->poly_a,&t2,&t3);
+	mpz_tdiv_r(t3, t1, poly->mpz_poly_a);
 
-	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
-	mpz_tdiv_r(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b);
+	mpz_tdiv_r(t4, t2, poly->mpz_poly_a);
 
 	if (mpz_cmp(t3,t4) != 0)
 	{
@@ -306,9 +311,9 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	if (mpz_kronecker(n, poly->mpz_poly_a) != 1)
 		printf("\nError in checkpoly: (a|N) != 1\n");
 
-	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b); //zMul(&poly->poly_b,&poly->poly_b,&t2);
+	mpz_mul(t2, poly->mpz_poly_b, poly->mpz_poly_b);
 	mpz_sub(t2, t2, n);
-	mpz_tdiv_q(t4, t2, poly->mpz_poly_a); //zDiv(&t2,&poly->poly_a,&t1,&t4);
+	mpz_tdiv_q(t4, t2, poly->mpz_poly_a);
 
 	if (mpz_cmp(t4,poly->mpz_poly_c) != 0)
 		printf("\nError in checkpoly: c != (b^2 - n)/a\n");
@@ -320,7 +325,7 @@ int checkpoly_siqs(siqs_poly *poly, mpz_t n)
 	return 0;
 }
 
-int checkBl(mpz_t n, uint32 *qli, fb_list *fb, mpz_t *Bl, int s)
+int checkBl(mpz_t n, uint32_t *qli, fb_list *fb, mpz_t *Bl, int s)
 {
 	//check that Bl^2 == N mod ql and Bl == 0 mod qj for 1<=j<=s, j != l
 	int i,j,p,q;
@@ -409,7 +414,7 @@ void siqsbench(fact_obj_t *fobj)
 	{
 		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
 		SIQS(fobj);
-		clear_factor_list(fobj);
+		clear_factor_list(fobj->factors);
 	}
 
     strcpy(fobj->flogname, "bench.log");
@@ -417,7 +422,7 @@ void siqsbench(fact_obj_t *fobj)
 	return;
 }
 
-void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
+void get_dummy_params(int bits, uint32_t *B, uint32_t *M, uint32_t *NB)
 {
 	int i;
 	double scale;
@@ -456,7 +461,7 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 	if (bits <= param_table[0][0])
 	{
 		scale = (double)bits / (double)param_table[0][0];
-		*B = (uint32)(scale * (double)(param_table[0][1]));		
+		*B = (uint32_t)(scale * (double)(param_table[0][1]));		
 		*M = 40;
 		*NB = 1;
 	}
@@ -469,10 +474,10 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 				scale = (double)(param_table[i+1][0] - bits) /
 					(double)(param_table[i+1][0] - param_table[i][0]);
 				*B = param_table[i+1][1] - 
-					(uint32)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
+					(uint32_t)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
 				
-				*M = (uint32)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
-				*NB = (uint32)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
+				*M = (uint32_t)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
+				*NB = (uint32_t)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
 			}
 		}
 	}
@@ -484,13 +489,13 @@ void get_dummy_params(int bits, uint32 *B, uint32 *M, uint32 *NB)
 
 		scale = (double)(param_table[21][1] - param_table[20][1]) /
 			(double)(param_table[21][0] - param_table[20][0]);
-		*B = (uint32)(((double)bits - param_table[21][0]) * 
+		*B = (uint32_t)(((double)bits - param_table[21][0]) * 
 			scale + param_table[21][1]);
 		*M = param_table[21][2];	//reuse last one
 
 		scale = (double)(param_table[21][3] - param_table[20][3]) /
 			(double)(param_table[21][0] - param_table[20][0]);
-		*NB = (uint32)(((double)bits - param_table[21][0]) * 
+		*NB = (uint32_t)(((double)bits - param_table[21][0]) * 
 			scale + param_table[21][3]);
 	}
 

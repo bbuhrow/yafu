@@ -2,6 +2,7 @@
 #define _COFACTORIZE_H_
 
 #include <gmp.h>
+#include "ytools.h"
 
 typedef signed char s8;
 typedef unsigned char u8;

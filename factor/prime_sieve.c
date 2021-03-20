@@ -21,7 +21,7 @@ $Id: prime_sieve.c 228 2010-02-28 23:37:55Z jasonp_sf $
 #define SIEVE_BLOCK_BYTES (SIEVE_BLOCK_BITS/8)
 #define MAX_SIEVE_PRIMES 6542		/* primes less than 2^16 */
 
-static const uint32 factors[] = {
+static const uint32_t factors[] = {
 	3,5,7,11,13,17,19,23,29,31,37,41,43,
 	47,53,59,61,67,71,73,79,83,89,97,101,
 	103,107,109,113,127,131,137,139,149,
@@ -34,16 +34,16 @@ static void next_sieve(prime_sieve_t *s) {
 
 	/* Perform sieving for the next block */
 
-	uint32 i;
-	uint32 num_aux = s->num_aux;
+	uint32_t i;
+	uint32_t num_aux = s->num_aux;
 	prime_aux_t *aux = s->aux;
-	uint8 *sieve = s->sieve;
+	uint8_t *sieve = s->sieve;
 
 	memset(sieve, 0, (size_t)SIEVE_BLOCK_BYTES);
 
 	for (i = 0; i < num_aux; i++) {
-		uint32 p = aux[i].p;
-		uint32 r = aux[i].r;
+		uint32_t p = aux[i].p;
+		uint32_t r = aux[i].r;
 		while (r < SIEVE_BLOCK_BITS) {
 			sieve[r / 8] |= 1 << (r % 8);
 			r += p;
@@ -54,15 +54,15 @@ static void next_sieve(prime_sieve_t *s) {
 
 /*------------------------------------------------------------------*/
 void init_prime_sieve(prime_sieve_t *s, 
-			uint32 min_prime, uint32 max_prime) {
+			uint32_t min_prime, uint32_t max_prime) {
 
-	uint32 i, j;
-	uint8 *sieve;
+	uint32_t i, j;
+	uint8_t *sieve;
 	prime_aux_t *aux;
-	uint32 size;
-	uint32 block_start;
+	uint32_t size;
+	uint32_t block_start;
 
-	sieve = s->sieve = (uint8 *)xmalloc((size_t)SIEVE_BLOCK_BYTES);
+	sieve = s->sieve = (uint8_t *)xmalloc((size_t)SIEVE_BLOCK_BYTES);
 	aux = s->aux = (prime_aux_t *)xmalloc(MAX_SIEVE_PRIMES * 
 						sizeof(prime_aux_t));
 	memset(sieve, 0, (size_t)SIEVE_BLOCK_BYTES);
@@ -70,9 +70,9 @@ void init_prime_sieve(prime_sieve_t *s,
 	/* sieve with the odd primes < 256 */
 
 	size = MIN(max_prime, 65536/2);
-	for (i = 0; i < (sizeof(factors)/sizeof(uint32)); i++) {
-		uint32 p = factors[i];
-		uint32 r;
+	for (i = 0; i < (sizeof(factors)/sizeof(uint32_t)); i++) {
+		uint32_t p = factors[i];
+		uint32_t r;
 
 		/* skip the first sieve update (which is a prime),
 		   and skip updates for even multiples of p. The
@@ -99,10 +99,10 @@ void init_prime_sieve(prime_sieve_t *s,
 
 	/* recover the odd primes less than sqrt(max_prime) */
 
-	size = (uint32)(sqrt((double)max_prime) + 1);
+	size = (uint32_t)(sqrt((double)max_prime) + 1);
 
 	for (i = 1, j = 0; i < SIEVE_BLOCK_BITS; i++) {
-		uint32 p = 2 * i + 1;
+		uint32_t p = 2 * i + 1;
 		if (p > size)
 			break;
 
@@ -128,8 +128,8 @@ void init_prime_sieve(prime_sieve_t *s,
 	}
 	else {
 		for (i = 0; i < size; i++) {
-			uint32 p = aux[i].p;
-			uint32 r = p - (block_start % p);
+			uint32_t p = aux[i].p;
+			uint32_t r = p - (block_start % p);
 			if (r % 2 == 0)
 				r += p;
 			aux[i].r = r / 2;
@@ -147,10 +147,10 @@ void free_prime_sieve(prime_sieve_t *s) {
 }
 
 /*------------------------------------------------------------------*/
-uint32 get_next_prime(prime_sieve_t *s) { 
+uint32_t get_next_prime(prime_sieve_t *s) { 
 	
-	uint32 off = s->curr_off;
-	uint8 *sieve = s->sieve;
+	uint32_t off = s->curr_off;
+	uint8_t *sieve = s->sieve;
 
 	if (off == 0 && s->curr_block == 0) {
 		s->curr_off = 1;

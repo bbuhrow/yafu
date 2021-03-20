@@ -18,9 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 
@@ -59,7 +57,7 @@ this file contains code implementing 5)
 #include <immintrin.h>
 #endif
 
-const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
+const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 0x10, 0x20, 0x40, 0x80,
 0x100, 0x200, 0x400, 0x800,
 0x1000, 0x2000, 0x4000, 0x8000 };
@@ -200,7 +198,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 : "xmm0", "xmm1", "xmm2", "cc", "memory");
 
 
-	#elif defined(HAS_SSE2)
+	#elif defined(D_HAS_SSE2)
 
         // these systems support SIMD 
         #define SCAN_CLEAN asm volatile("emms");	
@@ -335,13 +333,13 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#define SCAN_CLEAN ASM_M {emms};
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define SCAN_16X			\
 		do {							\
 			/*bucket_element *local_bptr = bptr + j;*/	\
-			uint32 *local_bptr = bptr + j; \
-			uint16 *local_mask = &mask[0];	\
+			uint32_t *local_bptr = bptr + j; \
+			uint16_t *local_mask = &mask[0];	\
 			ASM_M  {			\
 				ASM_M mov edi, local_mask		\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]		\
@@ -368,7 +366,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 		#define SCAN_16X			\
 		do {							\
 			bucket_element *local_bptr = bptr + j;	\
-			uint16 *local_mask = &mask[0];	\
+			uint16_t *local_mask = &mask[0];	\
 			ASM_M {							\
 			ASM_M mov edi, local_mask				\
 			ASM_M movq mm0, QWORD PTR [edi]			\
@@ -390,7 +388,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 		} while (0);				\
 		do {							\
 			bucket_element *local_bptr = bptr + j;	\
-			uint16 *local_mask = &mask[4];			\
+			uint16_t *local_mask = &mask[4];			\
 			ASM_M mov ebx, result					\
 			ASM_M mov edi, local_mask				\
 			ASM_M movq mm0, QWORD PTR [edi]			\
@@ -420,7 +418,7 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#define SCAN_CLEAN /*nothing*/
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define SCAN_16X			\
 		do {							\
@@ -484,18 +482,18 @@ const uint32 bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], prime);		\
     }
 
-void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum, 
+void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum, 
 	static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	int i,j,k;
-	uint32 basebucket, prime;
+	uint32_t basebucket, prime;
 	int smooth_num;
-	uint32 *fb_offsets;
-	uint32 *bptr;
-    uint32 *fb = sconf->sieve_primes;
-	uint32 block_loc;
-	uint16 *mask = dconf->mask;
-    uint16 buffer[32];    
+	uint32_t *fb_offsets;
+	uint32_t *bptr;
+    uint32_t *fb = sconf->sieve_primes;
+	uint32_t block_loc;
+	uint16_t *mask = dconf->mask;
+    uint16_t buffer[32];    
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
     __m512i vmask, vblock;
 #endif
@@ -513,10 +511,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
     }
     poly_offset = poly_offset * 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 
-#endif
-
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
 #endif
 
 	fb_offsets = &dconf->fb_offsets[report_num][0];
@@ -558,18 +552,18 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         basebucket = 0;
     }
 
-	for (k=0; (uint32)k < dconf->buckets->num_slices; k++)
+	for (k=0; (uint32_t)k < dconf->buckets->num_slices; k++)
 	{
 #ifdef USE_BATCHPOLY
-        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
+        uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
 #else
-        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
-        //uint32 lpnum = bptr[0];
+        uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket);
+        //uint32_t lpnum = bptr[0];
 #endif
 
         int r, q;
-		uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
-		uint32 result = 0;
+		uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
+		uint32_t result = 0;
 
 #ifdef DO_VLP_OPT
         if (dconf->buckets->fb_bounds[k] == 0xffffffff)
@@ -581,7 +575,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 #endif
 
 #if (defined (_MSC_VER) && !defined(USE_AVX512F))
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X;
 
@@ -705,7 +699,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         }
 
         // leftover bucket elements to check after doing 16x at a time
-        for (; (uint32)j < lpnum; j++)
+        for (; (uint32_t)j < lpnum; j++)
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
@@ -721,9 +715,9 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
 
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
-            uint32 idx;
+            uint32_t idx;
             __m512i velements = _mm512_load_epi32(bptr + j);
             velements = _mm512_and_epi32(velements, vmask);
             result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
@@ -746,7 +740,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         CLEAN_AVX2;
 #endif
 
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X_VEC;
         }
@@ -771,7 +765,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
         }
 
-		for (; (uint32)j < lpnum; j++)
+		for (; (uint32_t)j < lpnum; j++)
 		{
 			if ((bptr[j] & 0x0000ffff) == block_loc)
 			{
@@ -790,7 +784,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #elif defined(NOT_DEFINED)
 
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X_VEC;
         }
@@ -810,7 +804,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
             DIVIDE_ONE_PRIME;
         }
 
-        for (; (uint32)j < lpnum; j++)
+        for (; (uint32_t)j < lpnum; j++)
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
@@ -829,7 +823,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 #else
 
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X;
 
@@ -951,7 +945,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
             }
         }
 
-        for (; (uint32)j < lpnum; j++)
+        for (; (uint32_t)j < lpnum; j++)
         {
             if ((bptr[j] & 0x0000ffff) == block_loc)
             {
@@ -972,11 +966,11 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 	}
 
 #ifdef DO_VLP_OPT
-    uint32 count = 0;
+    uint32_t count = 0;
     vblock = _mm512_add_epi32(_mm512_set1_epi32(bnum * BLOCKSIZE), vblock);
     for ( k = sconf->factor_base->large_B; k < sconf->factor_base->B; k += 16)
     {
-        uint32 result = 0;
+        uint32_t result = 0;
         
 
         // scan for large fb primes that hit this sieve location.
@@ -989,7 +983,7 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
         // sieve location.  We have to scan more things, but can
         // at least scan them 16 at a time.
 
-        uint32 idx;
+        uint32_t idx;
         __m512i vroot1 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots1[k]));
         __m512i vroot2 = _mm512_load_epi32((__m512i*)(&dconf->update_data.firstroots2[k]));
 
@@ -1016,11 +1010,6 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 	SCAN_CLEAN;
 
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG5 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
-
 	dconf->smooth_num[report_num] = smooth_num;
 
 	return;
@@ -1028,24 +1017,20 @@ void tdiv_LP(uint32 report_num,  uint8 parity, uint32 bnum,
 
 
 #if 0
-void tdiv_LP_2x(uint32 *report_num, uint8 parity, uint32 bnum,
+void tdiv_LP_2x(uint32_t *report_num, uint8_t parity, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     int i, j, k;
-    uint32 basebucket, prime;
+    uint32_t basebucket, prime;
     int smooth_num;
-    uint32 *fb_offsets;
-    uint32 *bptr;
-    uint32 *fb = sconf->sieve_primes;
-    uint32 block_loc;
-    uint16 *mask = dconf->mask;
-    uint16 buffer[32];
+    uint32_t *fb_offsets;
+    uint32_t *bptr;
+    uint32_t *fb = sconf->sieve_primes;
+    uint32_t block_loc;
+    uint16_t *mask = dconf->mask;
+    uint16_t buffer[32];
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
     __m512i vmask, vblock;
-#endif
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
 #endif
 
     fb_offsets = &dconf->fb_offsets[report_num][0];
@@ -1074,18 +1059,18 @@ void tdiv_LP_2x(uint32 *report_num, uint8 parity, uint32 bnum,
         basebucket = 0;
     }
 
-    for (k = 0; (uint32)k < dconf->buckets->num_slices; k++)
+    for (k = 0; (uint32_t)k < dconf->buckets->num_slices; k++)
     {
-        uint32 lpnum = *(dconf->buckets->num + bnum + basebucket);
+        uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket);
         int r, q;
-        uint32 fb_bound = *(dconf->buckets->fb_bounds + k);
-        uint32 result = 0;
+        uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
+        uint32_t result = 0;
 
 #if defined(TARGET_KNC) || defined(USE_AVX512F)
 
-        for (j = 0; (uint32)j < (lpnum & (uint32)(~15)); j += 16)
+        for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
-            uint32 idx;
+            uint32_t idx;
             __m512i velements = _mm512_load_epi32(bptr + j);
             velements = _mm512_and_epi32(velements, vmask);
             result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
@@ -1110,11 +1095,6 @@ void tdiv_LP_2x(uint32 *report_num, uint8 parity, uint32 bnum,
         bptr += (sconf->num_blocks << (BUCKET_BITS + 1));
         basebucket += (sconf->num_blocks << 1);
     }
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG5 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
 
     dconf->smooth_num[report_num] = smooth_num;
 

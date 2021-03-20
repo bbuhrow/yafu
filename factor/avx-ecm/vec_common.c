@@ -29,10 +29,10 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "avx_ecm.h"
 
-vec_bignum_t * vecInit(void)
+vec_bignum_t * vecInit(uint32_t words)
 {
     int i;
-    size_t sz = VECLEN * (2 * NWORDS + 4);
+    size_t sz = VECLEN * (2 * words + 4);
     vec_bignum_t *n;
     n = (vec_bignum_t *)malloc(sizeof(vec_bignum_t));
 
@@ -48,17 +48,18 @@ vec_bignum_t * vecInit(void)
         n->data[i] = 0;
     }
     n->size = 1;
-
+    n->WORDS_ALLOC = words;
     return n;
 }
 
 void vecCopy(vec_bignum_t * src, vec_bignum_t * dest)
 {
     //physically copy the digits of u into the digits of v
-    int su = VECLEN * (2 * NWORDS + 1);
+    int su = VECLEN * (2 * src->WORDS_ALLOC + 1);
 
     memcpy(dest->data, src->data, su * sizeof(base_t));
     dest->size = src->size; // = NWORDS;
+    dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;
 }
 
@@ -69,12 +70,13 @@ void vecCopyn(vec_bignum_t * src, vec_bignum_t * dest, int size)
 
     memcpy(dest->data, src->data, su * sizeof(base_t));
     dest->size = size;
+    dest->WORDS_ALLOC = src->WORDS_ALLOC;
     return;
 }
 
 void vecClear(vec_bignum_t *n)
 {
-    memset(n->data, 0, VECLEN * (2 * NWORDS + 1) * sizeof(base_t));
+    memset(n->data, 0, VECLEN * (2 * n->WORDS_ALLOC + 1) * sizeof(base_t));
     return;
 }
 
@@ -96,7 +98,7 @@ void copy_vec_lane(vec_bignum_t *src, vec_bignum_t *dest, int num, int size)
     return;
 }
 
-vec_monty_t* vec_monty_alloc(void)
+vec_monty_t* vec_monty_alloc(uint32_t words)
 {
     int i;
     vec_monty_t *mdata = (vec_monty_t *)malloc(sizeof(vec_monty_t));
@@ -105,23 +107,23 @@ vec_monty_t* vec_monty_alloc(void)
     mpz_init(mdata->rhat);
     mpz_init(mdata->gmp_t1);
     mpz_init(mdata->gmp_t2);
-    mdata->r = vecInit();
-    mdata->n = vecInit();
-    mdata->vnhat = vecInit();
-    mdata->vrhat = vecInit();
-    mdata->rmask = vecInit();
-    mdata->one = vecInit();
-    mdata->mtmp1 = vecInit();
-    mdata->mtmp2 = vecInit();
-    mdata->mtmp3 = vecInit();
-    mdata->mtmp4 = vecInit();
+    mdata->r = vecInit(words);
+    mdata->n = vecInit(words);
+    mdata->vnhat = vecInit(words);
+    mdata->vrhat = vecInit(words);
+    mdata->rmask = vecInit(words);
+    mdata->one = vecInit(words);
+    mdata->mtmp1 = vecInit(words);
+    mdata->mtmp2 = vecInit(words);
+    mdata->mtmp3 = vecInit(words);
+    mdata->mtmp4 = vecInit(words);
 
     mdata->g = (vec_bignum_t **)malloc((1 << MAX_WINSIZE) * sizeof(vec_bignum_t *));
-    mdata->g[0] = vecInit();
+    mdata->g[0] = vecInit(words);
 
     for (i = 1; i < (1 << MAX_WINSIZE); i++)
     {
-        mdata->g[i] = vecInit();
+        mdata->g[i] = vecInit(words);
     }
 
     mdata->vrho = (base_t *)xmalloc_align(VECLEN * sizeof(base_t));

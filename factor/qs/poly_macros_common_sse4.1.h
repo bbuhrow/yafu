@@ -1,4 +1,4 @@
-
+#include "common.h"
 
 #if defined(GCC_ASM64X)
 

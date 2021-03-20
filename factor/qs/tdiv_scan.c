@@ -18,9 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 
@@ -277,7 +275,7 @@ this file contains code implementing 1)
 	//top level sieve scanning with SSE2
 	#define SIEVE_SCAN_32	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -289,7 +287,7 @@ this file contains code implementing 1)
 
 	#define SIEVE_SCAN_64	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -302,7 +300,7 @@ this file contains code implementing 1)
 
 	#define SIEVE_SCAN_128	\
 		do	{						\
-			uint64 *localblock = sieveblock + j;	\
+			uint64_t *localblock = sieveblock + j;	\
 			ASM_M  {			\
 				ASM_M mov edi, localblock			\
 				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
@@ -381,7 +379,7 @@ this file contains code implementing 1)
 
     #define SIEVE_SCAN_32_VEC					\
         __m256i v_blk = _mm256_load_si256(sieveblock + j); \
-        uint32 pos, msk32 = _mm256_movemask_epi8(v_blk); \
+        uint32_t pos, msk32 = _mm256_movemask_epi8(v_blk); \
         result = 0; \
         while (_BitScanForward(&pos, msk32)) { \
             buffer[result++] = pos; \
@@ -390,16 +388,16 @@ this file contains code implementing 1)
 
 #define SIEVE_SCAN_64_VEC				\
     __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
-    uint32 pos; \
-    uint64 msk64 = _mm256_movemask_epi8(v_blk); \
+    uint32_t pos; \
+    uint64_t msk64 = _mm256_movemask_epi8(v_blk); \
     result = 0; \
     if (msk64 > 0) { \
         v_blk = _mm256_load_si256(sieveblock + j + 4); \
-        msk64 = ((uint64)(_mm256_movemask_epi8(v_blk)) << 32); \
+        msk64 = ((uint64_t)(_mm256_movemask_epi8(v_blk)) << 32); \
         v_blk = _mm256_load_si256(sieveblock + j); \
         msk64 |= _mm256_movemask_epi8(v_blk); \
         while (_BitScanForward64(&pos, msk64)) { \
-                    buffer[result++] = (uint8)pos; \
+                    buffer[result++] = (uint8_t)pos; \
                     _reset_lsb64(msk64); \
         } }
 #endif
@@ -445,24 +443,24 @@ this file contains code implementing 1)
 	// for the speedups associated with 8x sse2 asm division and compression of
 	// small primes is worth it (on 64k builds only).
 
-int check_relations_siqs_1(uint32 blocknum, uint8 parity, 
+int check_relations_siqs_1(uint32_t blocknum, uint8_t parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//not unrolled; for small inputs
 
-	uint32 j,k,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
-	uint64 mask = SCAN_MASK;
+	uint32_t j,k,it=sconf->qs_blocksize>>3;
+	uint32_t thisloc;
+	uint64_t *sieveblock;
+	uint64_t mask = SCAN_MASK;
 
-	sieveblock = (uint64 *)dconf->sieve;
+	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
 	//check for relations
 	for (j=0;j<it;j++)
 	{
 		//check 8 locations simultaneously
-		if ((sieveblock[j] & mask) == (uint64)(0))
+		if ((sieveblock[j] & mask) == (uint64_t)(0))
 			continue;
 
 		//at least one passed the check, find which one(s) and pass to 
@@ -508,16 +506,16 @@ int check_relations_siqs_1(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-int check_relations_siqs_4(uint32 blocknum, uint8 parity, 
+int check_relations_siqs_4(uint32_t blocknum, uint8_t parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x32; for medium inputs
 
-	uint32 i,j,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
+	uint32_t i,j,it=sconf->qs_blocksize>>3;
+	uint32_t thisloc;
+	uint64_t *sieveblock;
 
-	sieveblock = (uint64 *)dconf->sieve;
+	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
 
@@ -529,8 +527,8 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 	for (j=0;j<it;j+=4)	
 	{		
-		uint32 result;
-		uint8 buffer[32];
+		uint32_t result;
+		uint8_t buffer[32];
 		
 		SIEVE_SCAN_32_VEC;
 
@@ -541,7 +539,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
         {            
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
                 dconf->reports[dconf->num_reports + i] = thisloc;
             }
             dconf->num_reports += result;
@@ -550,7 +548,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
         {
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
 
                 // log this report
                 if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -571,7 +569,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	//check for relations
 	for (j=0;j<it;j+=4)
 	{
-		uint32 result = 0;
+		uint32_t result = 0;
 
 		SIEVE_SCAN_32;
 
@@ -582,10 +580,10 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<4; i++)
 		{
-			uint32 k;
+			uint32_t k;
 
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -612,10 +610,10 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 
 	for (j=0;j<it;j+=4)	
 	{
-		uint32 k;
+		uint32_t k;
 
 		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3]
-			) & SCAN_MASK) == (uint64)(0))
+			) & SCAN_MASK) == (uint64_t)(0))
 			continue;
 
 		//at least one passed the check, find which one(s) and pass to 
@@ -623,7 +621,7 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 		for (i=0; i<4; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -672,15 +670,15 @@ int check_relations_siqs_4(uint32 blocknum, uint8 parity,
 	return 0;
 }
 
-int check_relations_siqs_8(uint32 blocknum, uint8 parity, 
+int check_relations_siqs_8(uint32_t blocknum, uint8_t parity, 
 						   static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x64; for large inputs
-	uint32 i,j,it=sconf->qs_blocksize>>3;
-	uint32 thisloc;
-	uint64 *sieveblock;
+	uint32_t i,j,it=sconf->qs_blocksize>>3;
+	uint32_t thisloc;
+	uint64_t *sieveblock;
 
-	sieveblock = (uint64 *)dconf->sieve;
+	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
 #ifdef SIMD_SIEVE_SCAN_VEC
@@ -691,8 +689,8 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 	for (j=0;j<it;j+=8)	
 	{		
-		uint32 result;
-		uint8 buffer[64];
+		uint32_t result;
+		uint8_t buffer[64];
 		
 		SIEVE_SCAN_64_VEC;
 
@@ -703,7 +701,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
         {            
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
                 dconf->reports[dconf->num_reports + i] = thisloc;
             }
             dconf->num_reports += result;
@@ -712,7 +710,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
         {
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
 
                 // log this report
                 if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -733,7 +731,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 	//check for relations
 	for (j=0;j<it;j+=8)
 	{
-		uint32 result = 0;
+		uint32_t result = 0;
 
 		SIEVE_SCAN_64;
 
@@ -744,10 +742,10 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<8; i++)
 		{
-			uint32 k;
+			uint32_t k;
 
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -774,11 +772,11 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 
 	for (j=0;j<it;j+=8)	
 	{
-		uint32 k;
+		uint32_t k;
 
 		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
 		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7]
-			) & SCAN_MASK) == (uint64)(0))
+			) & SCAN_MASK) == (uint64_t)(0))
 			continue;
 
 		//at least one passed the check, find which one(s) and pass to 
@@ -786,7 +784,7 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 		for (i=0; i<8; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -836,17 +834,17 @@ int check_relations_siqs_8(uint32 blocknum, uint8 parity,
 }
 
 
-int check_relations_siqs_16(uint32 blocknum, uint8 parity,
+int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //unrolled x128; for large inputs
-    uint32 i, j, it = sconf->qs_blocksize >> 3;
-    uint32 thisloc;
-    uint32 num_reports = 0;
-    uint64 *sieveblock;
+    uint32_t i, j, it = sconf->qs_blocksize >> 3;
+    uint32_t thisloc;
+    uint32_t num_reports = 0;
+    uint64_t *sieveblock;
 
     dconf->num_reports = 0;
-    sieveblock = (uint64 *)dconf->sieve;
+    sieveblock = (uint64_t *)dconf->sieve;
 
 
 #if defined(SIMD_SIEVE_SCAN_VEC)
@@ -857,8 +855,8 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
     for (j=0;j<it;j+=8)	
     {		
-        uint32 result;
-        uint8 buffer[64];               
+        uint32_t result;
+        uint8_t buffer[64];               
 
         SIEVE_SCAN_64_VEC;
 
@@ -869,7 +867,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         {            
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
                 dconf->reports[dconf->num_reports + i] = thisloc;
             }
             dconf->num_reports += result;
@@ -878,7 +876,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
         {
             for (i=0; i<result; i++)
             {
-                thisloc = (j << 3) + (uint32)buffer[i];
+                thisloc = (j << 3) + (uint32_t)buffer[i];
 
                 // log this report
                 if (dconf->num_reports < MAX_SIEVE_REPORTS)
@@ -899,7 +897,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 	//check for relations
 	for (j=0;j<it;j+=16)
 	{
-		uint32 result = 0;
+		uint32_t result = 0;
 
 		SIEVE_SCAN_128;
 
@@ -910,10 +908,10 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 		//trial division stage
 		for (i=0; i<16; i++)
 		{
-			uint32 k;
+			uint32_t k;
 
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)
@@ -940,13 +938,13 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 
 	for (j=0;j<it;j+=16)	
 	{
-		uint32 k;
+		uint32_t k;
 
 		if (((sieveblock[j] | sieveblock[j+1] | sieveblock[j+2] | sieveblock[j+3] |
 		      sieveblock[j+4] | sieveblock[j+5] | sieveblock[j+6] | sieveblock[j+7] |
 			  sieveblock[j+8] | sieveblock[j+9] | sieveblock[j+10] | sieveblock[j+11] |
 		      sieveblock[j+12] | sieveblock[j+13] | sieveblock[j+14] | sieveblock[j+15]
-				) & SCAN_MASK) == (uint64)(0))
+				) & SCAN_MASK) == (uint64_t)(0))
 			continue;
 
 		//at least one passed the check, find which one(s) and pass to 
@@ -954,7 +952,7 @@ int check_relations_siqs_16(uint32 blocknum, uint8 parity,
 		for (i=0; i<16; i++)
 		{
 			//check 8 locations simultaneously
-			if ((sieveblock[j + i] & SCAN_MASK) == (uint64)(0))
+			if ((sieveblock[j + i] & SCAN_MASK) == (uint64_t)(0))
 				continue;
 
 			for (k=0;k<8;k++)

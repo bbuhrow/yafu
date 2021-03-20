@@ -15,8 +15,7 @@ $Id: batch_factor.h 638 2011-09-11 15:31:19Z jasonp_sf $
 #ifndef _BATCH_FACTOR_H_
 #define _BATCH_FACTOR_H_
 
-#include "yafu.h"
-#include "factor.h"
+#include <stdint.h>
 #include "ytools.h"
 #include "common.h"
 #include "cofactorize.h"
@@ -34,33 +33,35 @@ extern "C" {
 
 #define MAX_LARGE_PRIMES 3
 
-typedef void (*print_relation_t)(savefile_t *savefile, int64 a, uint32 b,
-			uint32 *factors_r, uint32 num_factors_r, 
-			uint32 lp_r[MAX_LARGE_PRIMES],
-			uint32 *factors_a, uint32 num_factors_a, 
-			uint32 lp_a[MAX_LARGE_PRIMES]);
+//typedef void (*print_relation_t)(savefile_t *savefile, int64_t a, uint32_t b,
+//			uint32_t *factors_r, uint32_t num_factors_r, 
+//			uint32_t lp_r[MAX_LARGE_PRIMES],
+//			uint32_t *factors_a, uint32_t num_factors_a, 
+//			uint32_t lp_a[MAX_LARGE_PRIMES]);
+//
+//void print_relation_dummy(savefile_t *savefile, int64_t a, uint32_t b,
+//    uint32_t *factors_r, uint32_t num_factors_r,
+//    uint32_t lp_r[MAX_LARGE_PRIMES],
+//    uint32_t *factors_a, uint32_t num_factors_a,
+//    uint32_t lp_a[MAX_LARGE_PRIMES]);
 
-void print_relation_dummy(savefile_t *savefile, int64 a, uint32 b,
-    uint32 *factors_r, uint32 num_factors_r,
-    uint32 lp_r[MAX_LARGE_PRIMES],
-    uint32 *factors_a, uint32 num_factors_a,
-    uint32 lp_a[MAX_LARGE_PRIMES]);
+typedef void (*print_relation_t)(void);
 
 /* simplified representation of one relation. Note that
    any of the factors may be trivial */
 
 typedef struct {
-    uint32 a;               // for siqs, index of a-poly in master list (was an int64)
-	uint32 b;               // for siqs, index of b-poly within the indicated a-poly
-    int32 signed_offset;    // for siqs, location of relation in the block (new to struct)
-	uint8 num_factors_r;     /* doesn't include large primes */
-	uint8 num_factors_a;     /* doesn't include large primes */
-	uint8 lp_r_num_words;     /* one number with this many words */
-	uint8 lp_a_num_words;     /* one number with this many words */
-	uint32 factor_list_word;  /* offset in an array of factors where
+    uint32_t a;               // for siqs, index of a-poly in master list (was an int64)
+	uint32_t b;               // for siqs, index of b-poly within the indicated a-poly
+    int32_t signed_offset;    // for siqs, location of relation in the block (new to struct)
+	uint8_t num_factors_r;     /* doesn't include large primes */
+	uint8_t num_factors_a;     /* doesn't include large primes */
+	uint8_t lp_r_num_words;     /* one number with this many words */
+	uint8_t lp_a_num_words;     /* one number with this many words */
+	uint32_t factor_list_word;  /* offset in an array of factors where
 				            all of the above above appear, in order */
-    uint8 success;
-    uint32 lp_r[3];
+    uint8_t success;
+    uint32_t lp_r[3];
 } cofactor_t;
 
 /* main structure controlling batch factoring. The main goal
@@ -82,24 +83,24 @@ typedef struct {
 typedef struct {
 	mpz_t prime_product;  /* product of primes used in the gcd */
 
-	uint32 num_success;       /* number of surviving relations */
-	uint32 target_relations;  /* number of relations to batch up */
-	uint32 lp_cutoff_r;       /* maximum size of rational factors */
+	uint32_t num_success;       /* number of surviving relations */
+	uint32_t target_relations;  /* number of relations to batch up */
+	uint32_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
-	uint32 lp_cutoff_a;       /* maximum size of algebraic factors */
+	uint32_t lp_cutoff_a;       /* maximum size of algebraic factors */
     mpz_t lp_cutoff_a2         /* square of lp_cutoff_a */;
     mpz_t max_prime2;          /* the square of the largest prime that
 				     occurs in prime_product */
 
-	uint32 num_relations;     /* number relations currently batched */
-	uint32 num_relations_alloc;     /* relations allocated */
+	uint32_t num_relations;     /* number relations currently batched */
+	uint32_t num_relations_alloc;     /* relations allocated */
 	cofactor_t *relations;    /* relations currently batched */
 
-	uint32 num_factors;       /* words for factors of batched relations */
-	uint32 num_factors_alloc; /* space for batched factors */
-	uint32 *factors;          /* factors of batched relations */
+	uint32_t num_factors;       /* words for factors of batched relations */
+	uint32_t num_factors_alloc; /* space for batched factors */
+	uint32_t *factors;          /* factors of batched relations */
 
-	savefile_t *savefile;
+	//savefile_t *savefile;
 	print_relation_t print_relation;
 
     //mpz_t small, large;
@@ -123,11 +124,12 @@ typedef struct {
    be not worth the trouble to do so manually */
 
 void relation_batch_init(FILE *logfile, relation_batch_t *rb,
-    uint32 min_prime, uint32 max_prime,
-    uint32 lp_cutoff_r, uint32 lp_cutoff_a,
-    qs_savefile_t *savefile,
+    uint32_t min_prime, uint32_t max_prime,
+    uint32_t lp_cutoff_r, uint32_t lp_cutoff_a,
     print_relation_t print_relation,
     int do_prime_product);
+
+// qs_savefile_t *savefile,
 
 void relation_batch_free(relation_batch_t *rb);
 
@@ -138,23 +140,23 @@ void relation_batch_free(relation_batch_t *rb);
    just involves modifying the base case of the recursion; maybe 
    that should be made into a callback */
 
-void relation_batch_add(uint32 a, uint32 b, int32 offset,
-			uint32 *factors_r, uint32 num_factors_r, 
+void relation_batch_add(uint32_t a, uint32_t b, int32_t offset,
+			uint32_t *factors_r, uint32_t num_factors_r, 
 			mpz_t unfactored_r,
-			uint32 *factors_a, uint32 num_factors_a, 
+			uint32_t *factors_a, uint32_t num_factors_a, 
 			mpz_t unfactored_a,
             mpz_t tmp_in,
 			relation_batch_t *rb);
 
 void check_batch_relation(relation_batch_t *rb,
-    uint32 index, uint64 * lcg_state,
+    uint32_t index, uint64_t * lcg_state,
     mpz_t prime_product);
 	
 /* factor all the batched relations, saving all the ones whose
    largest {rational|algebraic} factors are all less than
    lp_cutoff_[ra] */
 
-uint32 relation_batch_run(relation_batch_t *rb, uint64 *lcg_state);
+uint32_t relation_batch_run(relation_batch_t *rb, uint64_t *lcg_state);
 
 #ifdef __cplusplus
 }

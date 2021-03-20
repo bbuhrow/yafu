@@ -22,27 +22,9 @@ code to the public domain.
 
 #if defined( USE_AVX2 )
 
-#include "qs.h"
-
-
-#define DIVIDE_RESIEVED_PRIME(j) \
-        	while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[i+j]) == 0) \
-                    	{						\
-		fb_offsets[++smooth_num] = i+j;	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[i+j]);		\
-                    	}
-#define DIVIDE_ONE_PRIME_2(j) \
-	do \
-            	{						\
-		fb_offsets[++smooth_num] = (j);	\
-		mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]); \
-                } while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0); 
-#define DIVIDE_RESIEVED_PRIME_2(j) \
-            while (mpz_tdiv_ui(dconf->Qvals[report_num], fbc->prime[j]) == 0) \
-                        {						\
-	    fb_offsets[++smooth_num] = j;	\
-	    mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], fbc->prime[j]);		\
-                        }
+#include "tdiv_macros_common.h"
+#include "qs_impl.h"
+#include <immintrin.h>
 
 
 #define INIT_CORRECTIONS \
@@ -349,7 +331,7 @@ __asm__ ("vzeroupper   \n\t");
 
 #define INIT_RESIEVE \
 __m128i v128_p, v128_x0, v128_x2, v128_x3, v128_x4, v128_x5, v128_x6, v128_x7; \
-uint32 msk32, pos; \
+uint32_t msk32, pos; \
 v128_x4 = _mm_load_si128(corrections);                  \
 v128_x0 = _mm_xor_si128(v128_x0, v128_x0);              \
 v128_x2 = _mm_load_si128(fbc->root1 + i);               \
@@ -364,7 +346,8 @@ v128_x7 = _mm_xor_si128(v128_x7, v128_x7);
 
 #define INIT_RESIEVE_AVX2 \
 __m256i v256_p, v256_y0, v256_y2, v256_y3, v256_y4, v256_y5, v256_y6, v256_y7; \
-uint32 msk32, pos; \
+v256_p = v256_y0 = v256_y2 = v256_y3 = v256_y4 = v256_y5 = v256_y6 = v256_y7 = _mm256_setzero_si256(); \
+uint32_t msk32, pos; \
 v256_y4 = _mm256_load_si256(corrections);                   \
 v256_y0 = _mm256_xor_si256(v256_y0, v256_y0);               \
 v256_y2 = _mm256_load_si256(fbc->root1 + i);                \
@@ -466,6 +449,7 @@ v256_y7 = _mm256_xor_si256(v256_y7, v256_y7);
 #endif
 
 
+
 #define CHECK_8_RESULTS \
 	if (result & 0x2) {				  \
 		DIVIDE_RESIEVED_PRIME(0);	  \
@@ -523,23 +507,23 @@ this file contains code implementing 4)
 
 */
 
-void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
+void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //we have flagged this sieve offset as likely to produce a relation
     //nothing left to do now but check and see.
     int i;
-    uint32 report_num;
+    uint32_t report_num;
     int smooth_num;
-    uint32 *fb_offsets;
+    uint32_t *fb_offsets;
     sieve_fb_compressed *fbc;
-    uint32 block_loc;
-    uint16 *corrections = dconf->corrections;
-    uint16 buffer[16];
-    uint32 result = 0;
-    uint32 bound14;
-    uint32 bound15;
-    uint32 bound16;
+    uint32_t block_loc;
+    ALIGNED_MEM uint16_t corrections[32]; // = dconf->corrections;
+    uint16_t buffer[16];
+    uint32_t result = 0;
+    uint32_t bound14;
+    uint32_t bound15;
+    uint32_t bound16;
 
     if (parity)
     {
@@ -550,11 +534,88 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
         fbc = dconf->comp_sieve_p;
     }
 
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
+#ifdef USE_AVX512BW
 
-    // 16x trial division
+    // 32x resieving
+    bound14 = sconf->factor_base->fb_14bit_B;
+    bound15 = sconf->factor_base->fb_15bit_B;
+    bound16 = sconf->factor_base->med_B;
+
+    __m512i vzero = _mm512_setzero_epi32();
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        // where tdiv_medprimes left off
+        i = sconf->factor_base->fb_13bit_B;
+
+        // the roots have already been advanced to the next block.
+        // we need to correct them back to where they were before resieving.
+        INIT_CORRECTIONS_32;
+
+        result = 0;
+
+        if ((i & 31) != 0)
+        {
+            RESIEVE_8X_14BIT_MAX_VEC_AVX512;
+            i += 8;
+        }
+
+        while ((uint32_t)(i + 32) < bound14)
+        {
+
+            RESIEVE_32X_14BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound15)
+        {
+
+            RESIEVE_32X_15BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound16)
+        {
+            RESIEVE_32X_16BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while (i < sconf->factor_base->med_B)
+        {
+            RESIEVE_8X_16BIT_MAX_VEC_AVX512;
+            i += 8;
+        }
+
+        for (i = 0; i < result; i++)
+        {
+            if (buffer[i] < 2)
+                continue;
+
+            DIVIDE_RESIEVED_PRIME_2((buffer[i]));
+        }
+
+        // after either resieving or standard trial division, record
+        // how many factors we've found so far.
+        dconf->smooth_num[report_num] = smooth_num;
+
+    }
+
+#else
+
+
+    // 16x resieving
     if ((sconf->factor_base->fb_14bit_B & 15) == 0)
     {
         bound14 = sconf->factor_base->fb_14bit_B;
@@ -611,7 +672,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 8;
         }
 
-        while ((uint32)i < bound14)
+        while ((uint32_t)i < bound14)
         {
 
             RESIEVE_16X_14BIT_MAX_VEC_AVX2;
@@ -619,7 +680,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 16;
         }
 
-        while ((uint32)i < bound15)
+        while ((uint32_t)i < bound15)
         {
 
             RESIEVE_16X_15BIT_MAX_VEC_AVX2;
@@ -627,7 +688,7 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 16;
         }
 
-        while ((uint32)i < bound16)
+        while ((uint32_t)i < bound16)
         {
 
             RESIEVE_16X_16BIT_MAX_VEC_AVX2;
@@ -641,8 +702,8 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
             i += 8;
         }
 
-        CLEAN_AVX2;
 
+        CLEAN_AVX2;
 
         for (i = 0; i < result; i++)
         {
@@ -660,12 +721,9 @@ void resieve_medprimes_32k_avx2(uint8 parity, uint32 poly_id, uint32 bnum,
 
     }
 
-    TDIV_MED_CLEAN;
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    TF_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
 #endif
+
+    TDIV_MED_CLEAN;
 
     return;
 }

@@ -18,8 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 #include "poly_macros_32k.h"
@@ -62,32 +61,32 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
 
     lp_bucket *lp_bucket_p = dconf->buckets;
-    uint32 med_B = sconf->factor_base->med_B;
-    uint32 large_B = sconf->factor_base->large_B;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
 
-    uint32 j, interval;
+    uint32_t j, interval;
     int k,numblocks,idx;
-    //uint32 root1, prime;
+    //uint32_t root1, prime;
 
     int bound_index=0;
     int check_bound = BUCKET_ALLOC/2 - 1;
-    uint32 bound_val = med_B;
-    uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
-    //uint64* sliceptr64_p, *sliceptr64_n, *bptr64;
+    uint32_t bound_val = med_B;
+    uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
+    //uint64_t* sliceptr64_p, *sliceptr64_n, *bptr64;
 
-    uint32 *bptr;
+    uint32_t *bptr;
     int room;
     // int bnum, idx_n;
 
-    uint8 logp=0;
+    uint8_t logp=0;
     //polysieve_t helperstruct;
 
     __m512i vshifted_index = _mm512_setr_epi32(
@@ -106,8 +105,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
     //__mmask16 mNotProc, mconflictfree, munique;;
     // __m512i vaddr, vidx, vnum, vbsize;
     
-    ALIGNED_MEM uint32 e1[32]; //e1[65536];
-    ALIGNED_MEM uint32 b1[32]; //b1[65536];
+    ALIGNED_MEM uint32_t e1[32]; //e1[65536];
+    ALIGNED_MEM uint32_t b1[32]; //b1[65536];
 
     numblocks = sconf->num_blocks;
     interval = numblocks << 15;
@@ -452,8 +451,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             numptr_n += (numblocks << 1);
             check_bound = bound_val + ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-            sliceptr64_p = (uint64*)sliceptr_p;
-            sliceptr64_n = (uint64*)sliceptr_n;
+            sliceptr64_p = (uint64_t*)sliceptr_p;
+            sliceptr64_n = (uint64_t*)sliceptr_n;
         }
 
         for (j = large_B; j < bound; j += 16, ptr += 16)
@@ -480,8 +479,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                     numptr_n += (numblocks << 1);							
                     check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-                    sliceptr64_p = (uint64*)sliceptr_p;
-                    sliceptr64_n = (uint64*)sliceptr_n;
+                    sliceptr64_p = (uint64_t*)sliceptr_p;
+                    sliceptr64_n = (uint64_t*)sliceptr_n;
                 }													
                 else
                 {
@@ -502,8 +501,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
                 numptr_n += (numblocks << 1);							
                 check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
 
-                sliceptr64_p = (uint64*)sliceptr_p;
-                sliceptr64_n = (uint64*)sliceptr_n;
+                sliceptr64_p = (uint64_t*)sliceptr_p;
+                sliceptr64_n = (uint64_t*)sliceptr_n;
             }
 
             vprime = _mm512_load_epi32((__m512i*)(&update_data.prime[j]));
@@ -518,7 +517,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
             vroot2 = _mm512_mask_add_epi32(vroot2, mask2, vroot2, vprime);
             _mm512_store_epi32((__m512i*)(&update_data.firstroots1[j]), vroot1);
             _mm512_store_epi32((__m512i*)(&update_data.firstroots2[j]), vroot2);
-            velement1 = _mm512_add_epi64(_mm512_set1_epi64((uint64)(j - bound_val) << 32), vshifted_index);
+            velement1 = _mm512_add_epi64(_mm512_set1_epi64((uint64_t)(j - bound_val) << 32), vshifted_index);
             velement2 = _mm512_or_epi64(velement1, vroot2);
             velement1 = _mm512_or_epi64(velement1, vroot1);
             mask1 = _mm512_cmp_epu32_mask(vroot1, vinterval, _MM_CMPINT_LT);
@@ -1736,29 +1735,29 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
     int *rootupdates = dconf->rootupdates;
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
     char *nu = dconf->curr_poly->nu;
     char *gray = dconf->curr_poly->gray;
     int numB = dconf->numB;
-    uint32 poly_offset = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+    uint32_t poly_offset = 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
 
     lp_bucket *lp_bucket_p = dconf->buckets;
-    uint32 med_B = sconf->factor_base->med_B;
-    uint32 large_B = sconf->factor_base->large_B;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
 
-    uint32 j, interval;
+    uint32_t j, interval;
     int k, numblocks, idx;
-    uint32 root1, root2, nroot1, nroot2, prime;
+    uint32_t root1, root2, nroot1, nroot2, prime;
 
     int bound_index = 0;
     int check_bound = BUCKET_ALLOC / 2 - 1;
-    uint32 bound_val = med_B;
-    uint32 *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
+    uint32_t bound_val = med_B;
+    uint32_t *numptr_p, *numptr_n, *sliceptr_p, *sliceptr_n;
 
-    uint32 *bptr;
+    uint32_t *bptr;
     int bnum, room;
-    uint8 logp = 0;
+    uint8_t logp = 0;
     int p;
 
     __m512i vshifted_index = _mm512_setr_epi32(
@@ -1774,20 +1773,20 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
     __mmask16 mask1, mask2, mconflictfree, munique;
     __mmask16 mNotProc;
 
-    uint32 gmask[64];
+    uint32_t gmask[64];
     
-    ALIGNED_MEM uint32 e1[32];
-    ALIGNED_MEM uint32 e2[32];
-    ALIGNED_MEM uint32 b1[32];
-    ALIGNED_MEM uint32 b2[32];
+    ALIGNED_MEM uint32_t e1[32];
+    ALIGNED_MEM uint32_t e2[32];
+    ALIGNED_MEM uint32_t b1[32];
+    ALIGNED_MEM uint32_t b2[32];
 
 
 #if 0
     // good for up to 16 polynomial batches...
-    ALIGNED_MEM uint32 prootstore1[256];
-    ALIGNED_MEM uint32 prootstore2[256];
-    ALIGNED_MEM uint32 nrootstore1[256];
-    ALIGNED_MEM uint32 nrootstore2[256];
+    ALIGNED_MEM uint32_t prootstore1[256];
+    ALIGNED_MEM uint32_t prootstore2[256];
+    ALIGNED_MEM uint32_t nrootstore1[256];
+    ALIGNED_MEM uint32_t nrootstore2[256];
     int num_prootstore1;
     int num_prootstore2;
     int num_nrootstore1;
@@ -2686,7 +2685,7 @@ void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
         // for each hit.  Or, we could store bnum = (root >> 15) + poly_offset 
         // and element = root & blocksizeM1?
         // BUCKET_ALLOC = 2048, so we'd store bnum = (root >> 15) + (poly_offset * BUCKET_ALLOC)?
-        // look at how scatter work to see if we need to divide that last part by sizeof(uint32)
+        // look at how scatter work to see if we need to divide that last part by sizeof(uint32_t)
         // or something.
         // and that doesn't address the separate offset that numptr would need...
         

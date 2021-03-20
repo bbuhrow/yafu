@@ -12,9 +12,31 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
-#include "nfs.h"
+#include "nfs_impl.h"
+#include "threadpool.h"
 
 #ifdef USE_NFS
+
+static const poly_deadline_t time_limits[] = {
+    //  bits, seconds
+        {248, 1 * 60},		// 74 digits
+        {264, 2 * 60},		// 80 digits
+        {304, 6 * 60},		// 92 digits
+        {320, 15 * 60},		// 97 digits
+        {348, 30 * 60},		// 105 digits
+        {365, 1 * 3600},	// 110 digits
+        {383, 2 * 3600},	// 116 digits
+        {399, 4 * 3600},	// 120 digits
+        {416, 8 * 3600},	// 126 digits
+        {433, 16 * 3600},	// 131 digits
+        {449, 32 * 3600},	// 135 digits
+        {466, 64 * 3600},	// 140 digits
+        {482, 100 * 3600},	// 146 digits
+        {498, 200 * 3600},	// 150 digits
+        {514, 300 * 3600},	// 155 digits
+};
+
+#define NUM_TIME_LIMITS sizeof(time_limits)/sizeof(time_limits[0])
 
 snfs_t * snfs_find_form(fact_obj_t *fobj)
 {
@@ -238,7 +260,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	mp_t *mpN, factor_list_t *factor_list)
 {
 	FILE *logfile;
-	uint32 flags;
+	uint32_t flags;
     double bestscore = 0.;
     double quality_mult = 1.;
     char quality[8];
@@ -250,7 +272,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	int threads_working = 0;
 	int *thread_queue, *threads_waiting;
 #if defined(WIN32) || defined(_WIN64)
-	HANDLE queue_lock;
+	HANDLE queue_lock = NULL;
 	HANDLE *queue_events = NULL;
 #else
 	pthread_mutex_t queue_lock;
@@ -260,8 +282,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	int i,j,is_startup;
 	char syscmd[GSTR_MAXSIZE + 4];
 	char master_polyfile[GSTR_MAXSIZE + 2];
-	uint64 start = 0, range = 0;
-	uint32 deadline, estimated_range_time, this_range_time, total_time, num_ranges;
+	uint64_t start = 0, range = 0;
+	uint32_t deadline, estimated_range_time, this_range_time, total_time, num_ranges;
 	struct timeval stopt;	// stop time of this job
 	struct timeval startt;	// start time of this job
 	double t_time;
@@ -309,8 +331,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
     {
 		const poly_deadline_t *low = &time_limits[j-1];
 		const poly_deadline_t *high = &time_limits[j];
-		uint32 dist = high->bits - low->bits;
-		deadline = (uint32)(
+		uint32_t dist = high->bits - low->bits;
+		deadline = (uint32_t)(
 			 ((double)low->seconds * (high->bits - i) +
 			  (double)high->seconds * (i - low->bits)) / dist);
 	}    
@@ -463,7 +485,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
 		// create thread data with dummy range for now
 		init_poly_threaddata(t, obj, mpN, factor_list, i, flags,
-			(uint64)1, (uint64)1001);
+			(uint64_t)1, (uint64_t)1001);
 
 		//give this thread a unique index
 		t->tindex = i;
@@ -534,6 +556,9 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 #endif
 	}	
 
+    //printf("============= starting %d thread poly search with option %d  =================\n", 
+    //    fobj->THREADS, fobj->nfs_obj.poly_option);
+
 	estimated_range_time = 0;
 	is_startup = 1;	
 	num_ranges = 0;
@@ -570,6 +595,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 			}
 			else
 				tid = 0;
+
+
+            //printf("syncing poly from thread %d, %d threads waiting, %d threads working\n", 
+            //    tid, *threads_waiting, threads_working);
 
 			// pointer to this thread's data
 			t = thread_data + tid;
@@ -661,7 +690,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             {
                 if (fobj->nfs_obj.poly_option > 2)
                 {
-                    bestscore = find_best_msieve_poly(fobj, job, 0);                    
+                    bestscore = find_best_msieve_poly(fobj, job, 0);
                 }
                 else
                 {
@@ -671,14 +700,14 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 
             if (fobj->VFLAG > 0)
             {
-                printf("nfs: best score is currently %.3f\n", bestscore);
+                printf("nfs: best score is currently %1.3le\n", bestscore);
             }
 
             if (bestscore < (e0 * quality_mult))
             {
                 // if we can re-start the thread such that it is likely to finish before the
                 // deadline, go ahead and do so.
-                if ((uint32)t_time + estimated_range_time <= deadline)
+                if ((uint32_t)t_time + estimated_range_time <= deadline)
                 {
 
                     // unless the user has specified a custom range search, in which case
@@ -726,6 +755,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             }
             else
             {
+                // announce we are finishing and don't restart the thread.
                 if (fobj->VFLAG > 0)
                 {
                     printf("nfs: found poly better than %s quality\n", quality);
@@ -738,8 +768,10 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 		}
 
 		// after starting all ranges for the first time, reset this flag
-		if (is_startup)
-			is_startup = 0;
+        if (is_startup)
+        {
+            is_startup = 0;
+        }
 
 		// if all threads are done, break out
 		if (threads_working == 0)
@@ -828,8 +860,8 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 }
 
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
-	mp_t *mpN, factor_list_t *factor_list, int tid, uint32 flags, 
-	uint64 start, uint64 stop)
+	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags,
+	uint64_t start, uint64_t stop)
 {
 	fact_obj_t *fobj = t->fobj;
 	char *nfs_args = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
@@ -847,9 +879,9 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	//create an msieve_obj.  for poly select, the intermediate output file should be specified in
 	//the savefile field
 	t->obj = msieve_obj_new(obj->input, flags, t->polyfilename, t->logfilename, t->fbfilename, 
-		fobj->seed1, fobj->seed2, (uint32)0,
-		obj->cpu, (uint32)fobj->L1CACHE, (uint32)fobj->L2CACHE, 
-        (uint32)fobj->THREADS, (uint32)0, nfs_args);
+		fobj->seed1, fobj->seed2, (uint32_t)0,
+		9, (uint32_t)fobj->L1CACHE, (uint32_t)fobj->L2CACHE,
+        (uint32_t)fobj->THREADS, (uint32_t)0, nfs_args);
 
 	//pointers to things that are static during poly select
 	t->mpN = mpN;
@@ -859,7 +891,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	return;
 }
 
-void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range)
+void get_polysearch_params(fact_obj_t *fobj, uint64_t*start, uint64_t*range)
 {
 
 	//search smallish chunks of the space in parallel until we've hit our deadline
@@ -881,7 +913,7 @@ void get_polysearch_params(fact_obj_t *fobj, uint64 *start, uint64 *range)
 	else
 	{
 		// loop on a default range until the time deadline is reached
-		*range = (uint64)fobj->nfs_obj.polybatch;
+		*range = (uint64_t)fobj->nfs_obj.polybatch;
 	}
 
 	return;
@@ -895,18 +927,21 @@ void *polyfind_launcher(void *ptr)
 
 	// remove any temporary relation files
 	remove(t->polyfilename);
+    MySleep(100);
 
 	if (t->fobj->VFLAG >= 0)
 	{
-		uint64 start, stop; // one instance where the new msieve api is rather a pain
+		uint64_t start, stop; // one instance where the new msieve api is rather a pain
 		sscanf(t->obj->nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64, &start, &stop);
-		printf("nfs: commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
-			start, stop);
+		printf("nfs: thread %d commencing polynomial search over range: %" PRIu64 " - %" PRIu64"\n",
+			t->tindex, start, stop);
 		fflush(stdout);
 	}
 
 	// start polyfind
 	factor_gnfs(t->obj, t->mpN, t->factor_list);
+
+    printf("**** finished poly work in thread %d\n", t->tindex);
 
 	return 0;
 }

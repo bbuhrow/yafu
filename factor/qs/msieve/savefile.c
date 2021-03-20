@@ -15,7 +15,8 @@ Date:		11/24/09
 Purpose:	Port into Yafu-1.14.
 --------------------------------------------------------------------*/
 
-#include "factor.h"
+#include "qs.h"
+#include "qs_impl.h"
 #include "ytools.h"
 
 /* we need a generic interface for reading and writing lines
@@ -43,11 +44,9 @@ void qs_savefile_init(qs_savefile_t *s, char *savefile_name) {
 	memset(s, 0, sizeof(qs_savefile_t));
 
 	s->name = "siqs.dat";
-	//strcpy(s->name,"siqs.dat");
 	if (savefile_name)
 	{
 		s->name = savefile_name;
-		//strcpy(s->name,savefile_name);
 	}
 	
 	s->buf = (char *)xmalloc((size_t)SAVEFILE_BUF_SIZE);
@@ -61,7 +60,7 @@ void qs_savefile_free(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-void qs_savefile_open(qs_savefile_t *s, uint32 flags) {
+void qs_savefile_open(qs_savefile_t *s, uint32_t flags) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	DWORD access_arg, open_arg;
@@ -135,7 +134,7 @@ void qs_savefile_close(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 qs_savefile_eof(qs_savefile_t *s) {
+uint32_t qs_savefile_eof(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	return (s->buf_off == s->read_size && s->eof);
@@ -145,7 +144,7 @@ uint32 qs_savefile_eof(qs_savefile_t *s) {
 }
 
 /*--------------------------------------------------------------------*/
-uint32 qs_savefile_exists(qs_savefile_t *s) {
+uint32_t qs_savefile_exists(qs_savefile_t *s) {
 	
 #if defined(WIN32) || defined(_WIN64)
 	struct _stat dummy;

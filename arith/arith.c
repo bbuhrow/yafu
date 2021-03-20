@@ -18,39 +18,23 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "arith.h"
 #include "ytools.h"
 #include "common.h"
 
-uint64 mpz_get_64(mpz_t src)
+uint64_t mpz_get_64(mpz_t src)
 {
-
-	uint64 out = mpz_getlimbn(src, 0);
-#if GMP_LIMB_BITS == 32
-	if (mpz_size(src) >= 2)
-		out |= ((uint64)mpz_getlimbn(src, 1) << 32ULL);
-#endif
+	uint64_t out = mpz_getlimbn(src, 0);
 
 	return out;
-
 }
 
-void mpz_set_64(mpz_t dest, uint64 src)
+void mpz_set_64(mpz_t dest, uint64_t src)
 {
-    //printf("%d %d %d\n", GMP_LIMB_BITS, sizeof(mp_limb_t), mp_bits_per_limb);
-#if GMP_LIMB_BITS == 64
     mpz_set_ui(dest, src);
-#else
-	/* mpz_import is terribly slow */
-    mpz_set_ui(dest, src >> 32);
-    mpz_mul_2exp(dest, dest, 32);
-    mpz_set_ui(dest, src & 0xffffffff)
-#endif
-
 }
 
-int ndigits_1(fp_digit n)
+int ndigits_1(uint64_t n)
 {
     int i = 0;
     while (n != 0)
@@ -90,38 +74,14 @@ int gmp_base10(mpz_t x)
 // borrowed from jasonp... 
 double zlog(mpz_t x) {
 
-#if GMP_LIMB_BITS == 32
-    uint32 i = mpz_size(x);
-
-    switch (i) {
-    case 0:
-        return 0;
-    case 1:
-        return log((double)((uint32)mpz_get_ui(x)));
-    case 2:
-
-        return log((double)(mpz_getlimbn(x, 0)) +
-            MP_RADIX * mpz_getlimbn(x, 1));
-
-    default:
-
-        return 32 * (i - 3) * LN2 +
-            log((double)(mpz_getlimbn(x, i - 3)) + MP_RADIX * (
-            ((double)mpz_getlimbn(x, i - 2) + MP_RADIX *
-                mpz_getlimbn(x, i - 1))));
-
-    }
-
-#else
-
-    uint32 i = mpz_size(x);
+    uint32_t i = mpz_size(x);
 
     switch (i) {
 
     case 0:
         return 0;
     case 1:
-        return log((double)((uint32)mpz_get_ui(x)));
+        return log((double)((uint32_t)mpz_get_ui(x)));
     case 2:
 
         return log((double)(mpz_getlimbn(x, 0)) +
@@ -135,13 +95,9 @@ double zlog(mpz_t x) {
                 mpz_getlimbn(x, i - 1))));
 
     }
-
-
-#endif
-
 }
 
-fp_digit spBits(fp_digit n)
+uint64_t spBits(uint64_t n)
 {
     int i = 0;
     while (n != 0)
@@ -153,7 +109,7 @@ fp_digit spBits(fp_digit n)
     return i;
 }
 
-int bits64(uint64 n)
+int bits64(uint64_t n)
 {
     int i = 0;
     while (n != 0)
@@ -164,292 +120,12 @@ int bits64(uint64 n)
     return i;
 }
 
-#if defined(MSC_ASM32A) && !defined(ASM_ARITH_DEBUG)
+#if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
 
-void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
-{
-    fp_digit s, c;
-
-    s = v;
-    c = 0;
-    ASM_M{
-        mov eax, u
-        add s, eax
-        adc c, 0
-    }
-
-    *sum = s;
-    *carry = c;
-
-    return;
-}
-
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
-{
-    fp_digit s, c;
-
-    s = v;
-    c = 0;
-
-    ASM_M{
-        mov eax, u
-        add eax, w
-        adc c, 0
-        add s, eax
-        adc c, 0
-    }
-
-    *sum = s;
-    *carry = c;
-
-    return;
-}
-
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
-{
-    fp_digit s, b;
-
-    s = v;
-    b = 0;
-
-    ASM_M{
-        mov eax, u
-        sub eax, s
-        adc b, 0
-        sub eax, w
-        adc b, 0
-        mov s, eax
-    }
-
-    *sub = s;
-    *borrow = b;
-
-    return;
-}
-
-void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
-{
-    fp_digit s, b;
-
-    s = v;
-    b = 0;
-
-    ASM_M{
-        mov eax, u
-        sub eax, s
-        adc b, 0
-        mov s, eax
-    }
-
-    *sub = s;
-    *borrow = b;
-
-    return;
-}
-
-fp_digit spDivide(fp_digit* q, fp_digit* r, fp_digit u[2], fp_digit v)
-{
-    fp_digit tmpq, tmpr;
-    tmpr = *r = u[1];
-    tmpq = *q = u[0];
-
-    ASM_M{
-        mov eax, tmpq
-        mov edx, tmpr
-        div v
-        mov tmpr, edx
-        mov tmpq, eax
-    }
-
-    *q = tmpq;
-    *r = tmpr;
-
-    return 0;
-}
-
-void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
-{
-    ASM_M{
-        mov eax, u
-        mul v
-        mov v, eax
-        mov u, edx
-    }
-
-    *product = v;
-    *carry = u;
-
-    return;
-}
-
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
-{
-    //u*v + (w+t)  used a lot in multiplication
-    //fp_word uu;
-    //uu = (fp_word)u * (fp_word)v + (fp_word)w + (fp_word)t;
-    //*lower = (fp_digit)uu;
-    //*carry = (fp_digit)(uu >> BITS_PER_DIGIT);
-    fp_digit tmp;
-
-    spMultiply(u, v, lower, carry);
-    spAdd3(*lower, w, t, lower, &tmp);
-    spAdd(tmp, *carry, carry, &tmp);
-    return;
-}
-
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
-{
-    fp_digit p[2];
-    fp_digit q;
-
-    spMultiply(u, v, &p[0], &p[1]);
-    spDivide(&q, w, p, m);
-
-    return;
-}
-
-#elif defined(GCC_ASM32A) && !defined(ASM_ARITH_DEBUG)
-
-void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
-{
-    fp_word s, c;
-
-    s = v;
-    c = 0;
-
-    ASM_G("movl %2, %%eax		\n\t"
-        "addl %%eax, %3		\n\t"
-        "adcl $0, %4		\n\t"
-        : "=r"(s), "=r"(c)
-        : "r"(u), "0"(s), "1"(c)
-        : "eax", "memory", "cc");
-
-    *sum = s;
-    *carry = c;
-
-    return;
-}
-
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
-{
-    fp_word s, c;
-
-    s = v;
-    c = 0;
-
-    ASM_G("movl %2, %%eax		\n\t"
-        "addl %3, %%eax		\n\t"
-        "adcl $0, %5		\n\t"
-        "addl %%eax, %4		\n\t"
-        "adcl $0, %5		\n\t"
-        : "=r"(s), "=r"(c)
-        : "r"(u), "r"(w), "0"(s), "1"(c)
-        : "eax", "memory", "cc");
-
-    *sum = s;
-    *carry = c;
-
-    return;
-}
-
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
-{
-    fp_word s, b;
-
-    s = v;
-    b = 0;
-
-    ASM_G("movl %2, %%eax		\n\t"
-        "subl %4, %%eax		\n\t"
-        "adcl $0, %5		\n\t"
-        "subl %3, %%eax		\n\t"
-        "adcl $0, %5		\n\t"
-        "movl %%eax, %4		\n\t"
-        : "=r"(s), "=r"(b)
-        : "r"(u), "r"(w), "0"(s), "1"(b)
-        : "eax", "memory", "cc");
-
-    *sub = s;
-    *borrow = b;
-
-    return;
-}
-
-void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
-{
-    fp_word s, b;
-
-    s = v;
-    b = 0;
-
-    ASM_G("movl %2, %%eax		\n\t"
-        "subl %3, %%eax		\n\t"
-        "adcl $0, %4		\n\t"
-        "movl %%eax, %3		\n\t"
-        : "=r"(s), "=r"(b)
-        : "r"(u), "0"(s), "1"(b)
-        : "eax", "memory", "cc");
-
-    *sub = s;
-    *borrow = b;
-
-    return;
-}
-
-
-fp_digit spDivide(fp_digit* q, fp_digit* r, fp_digit u[2], fp_digit v)
-{
-    *r = u[1];
-    *q = u[0];
-    ASM_G("divl %4"
-        : "=a"(*q), "=d"(*r)
-        : "1"(*r), "0"(*q), "r"(v));
-
-    return 0;
-}
-
-void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
-{
-    *product = v;
-    *carry = u;
-
-    ASM_G("movl %2, %%eax	\n\t"
-        "mull %3	\n\t"
-        "movl %%eax, %0		\n\t"
-        "movl %%edx, %1		\n\t"
-        : "=r"(*product), "=r"(*carry)
-        : "1"(*carry), "0"(*product)
-        : "eax", "%rdx", "cc");
-
-    return;
-}
-
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
-{
-    fp_digit k, p;
-    spMultiply(u, v, &p, carry);
-    spAdd3(p, w, t, lower, &k);
-    *carry += k;
-    return;
-}
-
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
-{
-    fp_digit p[2];
-    fp_digit q;
-
-    spMultiply(u, v, &p[0], &p[1]);
-    spDivide(&q, w, p, m);
-
-    return;
-}
-
-#elif defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
-
-void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
+void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 {
     //fp_word s,c;
-    uint64 s, c;
+    uint64_t s, c;
 
     s = v;
     c = 0;
@@ -467,10 +143,10 @@ void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
     return;
 }
 
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
+void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
 {
     //fp_word s,c;
-    uint64 s, c;
+    uint64_t s, c;
 
     s = v;
     c = 0;
@@ -490,10 +166,10 @@ void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
     return;
 }
 
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
+void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sub, uint64_t* borrow)
 {
     //fp_word s,b;
-    uint64 s, b;
+    uint64_t s, b;
 
     s = v;
     b = 0;
@@ -514,10 +190,10 @@ void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
     return;
 }
 
-void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
+void spSub(uint64_t u, uint64_t v, uint64_t* sub, uint64_t* borrow)
 {
     //fp_word s,b;
-    uint64 s, b;
+    uint64_t s, b;
 
     s = v;
     b = 0;
@@ -536,7 +212,7 @@ void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
     return;
 }
 
-fp_digit spDivide(fp_digit* q, fp_digit* r, fp_digit u[2], fp_digit v)
+uint64_t spDivide(uint64_t* q, uint64_t* r, uint64_t u[2], uint64_t v)
 {
     *r = u[1];
     *q = u[0];
@@ -547,7 +223,7 @@ fp_digit spDivide(fp_digit* q, fp_digit* r, fp_digit u[2], fp_digit v)
     return 0;
 }
 
-void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
+void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
 {
     *product = v;
     *carry = u;
@@ -563,13 +239,13 @@ void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
     return;
 }
 
-uint64 spPRP2(uint64 p)
+uint64_t spPRP2(uint64_t p)
 {
     // do a base-2 prp test on the input, where p is greater than 2^32
     // i.e., compute 2^(p-1) % p.
     // since p is more than 32 bits we can do the accumulation division 
     // free for the first 5 iterations.  may not be much, but it's something.
-    uint64 result;
+    uint64_t result;
 
     ASM_G(
         "xorq	%%rbx, %%rbx \n\t"
@@ -612,9 +288,9 @@ uint64 spPRP2(uint64 p)
 
 }
 
-uint64 spModExp_asm(uint64 b, uint64 e, uint64 m)
+uint64_t spModExp_asm(uint64_t b, uint64_t e, uint64_t m)
 {
-    uint64 result;
+    uint64_t result;
 
     ASM_G(
         "xorq	%%rdi, %%rdi \n\t"
@@ -645,19 +321,19 @@ uint64 spModExp_asm(uint64 b, uint64 e, uint64 m)
     return result;
 }
 
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
+void spMulAdd(uint64_t u, uint64_t v, uint64_t w, uint64_t t, uint64_t* lower, uint64_t* carry)
 {
-    fp_digit k, p;
+    uint64_t k, p;
     spMultiply(u, v, &p, carry);
     spAdd3(p, w, t, lower, &k);
     *carry += k;
     return;
 }
 
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
+void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t* w)
 {
-    fp_digit p[2];
-    fp_digit q;
+    uint64_t p[2];
+    uint64_t q;
 
     spMultiply(u, v, &p[0], &p[1]);
     spDivide(&q, w, p, m);
@@ -665,112 +341,28 @@ void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
     return;
 }
 
-#elif BITS_PER_DIGIT == 32
 
-fp_digit spDivide(fp_digit * q, fp_digit * r, fp_digit u[2], fp_digit v)
-{
-    fp_word uu, qq;
-    uu = (fp_word)u[1] << BITS_PER_DIGIT | u[0];
-    qq = (uu / (fp_word)v);
-    *r = (fp_digit)(uu % (fp_word)v);
-    *q = (fp_digit)qq;
-    return (fp_digit)(qq >> BITS_PER_DIGIT);
-}
+#else
 
-void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
-{
-    fp_word uu;
-    uu = (fp_word)u * (fp_word)v;
-    *product = (fp_digit)uu;
-    *carry = (fp_digit)(uu >> BITS_PER_DIGIT);
-    return;
-}
-
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
-{
-    //u*v + (w+t)  used a lot in multiplication
-    //fp_word uu;
-    //uu = (fp_word)u * (fp_word)v + (fp_word)w + (fp_word)t;
-    //*lower = (fp_digit)uu;
-    //*carry = (fp_digit)(uu >> BITS_PER_DIGIT);
-    fp_digit tmp;
-
-    spMultiply(u, v, lower, carry);
-    spAdd3(*lower, w, t, lower, &tmp);
-    spAdd(tmp, *carry, carry, &tmp);
-    return;
-}
-
-void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
-{
-    fp_word w;
-    w = (fp_word)u + (fp_word)v;
-    *sum = (fp_digit)w;
-    *carry = (fp_digit)(w >> BITS_PER_DIGIT);
-    return;
-}
-
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
-{
-    fp_word uu;
-    uu = (fp_word)u + (fp_word)v + (fp_word)w;
-    *sum = (fp_digit)uu;
-    *carry = (fp_digit)(uu >> BITS_PER_DIGIT);
-    return;
-}
-
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
-{
-    fp_word uu;
-    uu = (fp_word)u - (fp_word)v - (fp_word)w;
-    *sub = (fp_digit)uu;
-    *borrow = (fp_digit)((uu >> BITS_PER_DIGIT) && MAX_DIGIT);
-    return;
-}
-
-void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
-{
-    fp_word uu;
-    uu = (fp_word)u - (fp_word)v;
-    *sub = (fp_digit)uu;
-    *borrow = (fp_digit)((uu >> BITS_PER_DIGIT) && MAX_DIGIT);
-    return;
-}
-
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
-{
-    fp_digit p[2];
-    fp_digit q;
-
-    spMultiply(u, v, &p[0], &p[1]);
-    spDivide(&q, w, p, m);
-
-    return;
-}
-
-#elif BITS_PER_DIGIT == 64
-
-// TBD: needs low level assembly routines similar to mod_64
-
-fp_digit spDivide(fp_digit * q, fp_digit * r, fp_digit u[2], fp_digit v)
+uint64_t spDivide(uint64_t * q, uint64_t * r, uint64_t u[2], uint64_t v)
 {
     *q = _udiv128(u[1], u[0], v, r);
     return 0;
 }
 
-void spMultiply(fp_digit u, fp_digit v, fp_digit* product, fp_digit* carry)
+void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
 {
     *product = _umul128(u, v, carry);
     return;
 }
 
-void spAdd(fp_digit u, fp_digit v, fp_digit* sum, fp_digit* carry)
+void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 {
     *carry = _addcarry_u64(0, u, v, sum);
     return;
 }
 
-void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
+void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
 {
     unsigned char c;
     *carry = _addcarry_u64(0, u, v, sum);
@@ -779,7 +371,7 @@ void spAdd3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sum, fp_digit* carry)
     return;
 }
 
-void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
+void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sub, uint64_t* borrow)
 {
     unsigned char b;
     *borrow = _subborrow_u64(0, u, v, sub);
@@ -788,25 +380,25 @@ void spSub3(fp_digit u, fp_digit v, fp_digit w, fp_digit* sub, fp_digit* borrow)
     return;
 }
 
-void spSub(fp_digit u, fp_digit v, fp_digit* sub, fp_digit* borrow)
+void spSub(uint64_t u, uint64_t v, uint64_t* sub, uint64_t* borrow)
 {
     *borrow = _subborrow_u64(0, u, v, sub);
     return;
 }
 
-void spMulAdd(fp_digit u, fp_digit v, fp_digit w, fp_digit t, fp_digit* lower, fp_digit* carry)
+void spMulAdd(uint64_t u, uint64_t v, uint64_t w, uint64_t t, uint64_t* lower, uint64_t* carry)
 {
-    fp_digit k, p;
+    uint64_t k, p;
     spMultiply(u, v, &p, carry);
     spAdd3(p, w, t, lower, &k);
     *carry += k;
     return;
 }
 
-void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
+void spMulMod(uint64_t u, uint64_t v, uint64_t m, uint64_t* w)
 {
-    fp_digit p[2];
-    fp_digit q;
+    uint64_t p[2];
+    uint64_t q;
 
     spMultiply(u, v, &p[0], &p[1]);
     spDivide(&q, w, p, m);
@@ -816,12 +408,11 @@ void spMulMod(fp_digit u, fp_digit v, fp_digit m, fp_digit* w)
 
 #endif
 
-
-void spModExp(fp_digit a, fp_digit b, fp_digit m, fp_digit* u)
+void spModExp(uint64_t a, uint64_t b, uint64_t m, uint64_t* u)
 {
     //computes a^b mod m = u using the binary method
     //see, for instance, the handbook of applied cryptography
-    fp_digit n, bb, aa, t, prod[2];
+    uint64_t n, bb, aa, t, prod[2];
 
     n = 1;
     aa = a;
@@ -843,14 +434,14 @@ void spModExp(fp_digit a, fp_digit b, fp_digit m, fp_digit* u)
     return;
 }
 
-void ShanksTonelli_1(fp_digit a, fp_digit p, fp_digit* sq)
+void ShanksTonelli_1(uint64_t a, uint64_t p, uint64_t* sq)
 {
     //a is a quadratic residue mod p
     //p is an odd prime
     //find x where x^2 == a mod p
-    //we assume p will always fit into an fp_digit, therefore x will as well.
+    //we assume p will always fit into an uint64_t, therefore x will as well.
     //see paper by Ezra Brown
-    fp_digit x = 0, b = 0, g = 0, n = 0, s = 0, r = 0, e = 0, b2m = 0, tmp = 0;
+    uint64_t x = 0, b = 0, g = 0, n = 0, s = 0, r = 0, e = 0, b2m = 0, tmp = 0;
     int i;
 
     //factor p-1 = Q*2^S, where Q is odd and S >= 1.
@@ -921,11 +512,11 @@ free:
     return;
 }
 
-uint32 modinv_1(uint32 a, uint32 p) {
+uint32_t modinv_1(uint32_t a, uint32_t p) {
 
     /* thanks to the folks at www.mersenneforum.org */
 
-    uint32 ps1, ps2, parity, dividend, divisor, rem, q, t;
+    uint32_t ps1, ps2, parity, dividend, divisor, rem, q, t;
 
 
     q = 1;
@@ -983,14 +574,14 @@ uint32 modinv_1(uint32 a, uint32 p) {
         return p - ps1;
 }
 
-uint32 modinv_1b(uint32 a, uint32 p) {
+uint32_t modinv_1b(uint32_t a, uint32_t p) {
 
     /* thanks to the folks at www.mersenneforum.org */
 
     /* modification: p is fixed at 2^32.  a is only valid if odd */
 
-    uint64 dividend = (uint64)0x1 << 32;
-    uint32 ps1, ps2, parity, divisor, rem, q, t;
+    uint64_t dividend = (uint64_t)0x1 << 32;
+    uint32_t ps1, ps2, parity, divisor, rem, q, t;
 
     q = 1;
     rem = a;
@@ -1001,7 +592,7 @@ uint32 modinv_1b(uint32 a, uint32 p) {
     parity = 0;
 
     while (divisor > 1) {
-        rem = (uint32)(dividend - (uint64)divisor);
+        rem = (uint32_t)(dividend - (uint64_t)divisor);
         t = rem - divisor;
         if (rem >= divisor) {
             q += ps1; rem = t; t -= divisor;
@@ -1020,8 +611,8 @@ uint32 modinv_1b(uint32 a, uint32 p) {
                                     if (rem >= divisor) {
                                         q += ps1; rem = t;
                                         if (rem >= divisor) {
-                                            q = (uint32)(dividend / (uint64)divisor);
-                                            rem = (uint32)(dividend % (uint64)divisor);
+                                            q = (uint32_t)(dividend / (uint64_t)divisor);
+                                            rem = (uint32_t)(dividend % (uint64_t)divisor);
                                             q *= ps1;
                                         }
                                     }
@@ -1047,12 +638,12 @@ uint32 modinv_1b(uint32 a, uint32 p) {
         return 0xFFFFFFFF - ps1 + 1;
 }
 
-uint32 modinv_1c(uint32 a, uint32 p) {
+uint32_t modinv_1c(uint32_t a, uint32_t p) {
 
     /* thanks to the folks at www.mersenneforum.org */
     // for use when it is known that p >> a, in which case
     // the first set of if/else blocks can be skipped
-    uint32 ps1, ps2, parity, dividend, divisor, rem, q, t;
+    uint32_t ps1, ps2, parity, dividend, divisor, rem, q, t;
 
     q = p / a;
     rem = p % a;
@@ -1109,14 +700,13 @@ uint32 modinv_1c(uint32 a, uint32 p) {
         return p - ps1;
 }
 
-
 int is_mpz_prp(mpz_t n, int num_witnesses)
 {
     return mpz_probab_prime_p(n, num_witnesses) &&
         mpz_strongbpsw_prp(n);
 }
 
-int pull_twos(fp_digit* n, int* j, fp_digit p)
+int pull_twos(uint64_t* n, int* j, uint64_t p)
 {
     int c = 0;
 
@@ -1130,15 +720,14 @@ int pull_twos(fp_digit* n, int* j, fp_digit p)
     return c;
 }
 
-
-int jacobi_1(fp_digit n, fp_digit p)
+int jacobi_1(uint64_t n, uint64_t p)
 {
     //compute the jacobi symbol (n/p) for positive inputs
     //p must be odd
     //based on routine in Bressoud's book
 
     int j = 1;
-    fp_digit t, nn = n;
+    uint64_t t, nn = n;
 
     //return an error condition if p is even
     if (!(p & 1))
@@ -1149,15 +738,6 @@ int jacobi_1(fp_digit n, fp_digit p)
     //if p divides n then (n/p) = 0
     if (nn == 0)
         return 0;
-
-    /*
-    if (nn<0)
-    {
-        nn *= -1;
-        if (p%4 == 3)
-            j = -1;
-    }
-    */
 
     pull_twos(&nn, &j, p);
     while (nn > 1)
@@ -1173,9 +753,9 @@ int jacobi_1(fp_digit n, fp_digit p)
     return j;
 }
 
-fp_digit spGCD(fp_digit x, fp_digit y)
+uint64_t spGCD(uint64_t x, uint64_t y)
 {
-    fp_digit a, b, c;
+    uint64_t a, b, c;
     a = x; b = y;
     while (b != 0)
     {
@@ -1187,7 +767,7 @@ fp_digit spGCD(fp_digit x, fp_digit y)
 }
 
 // straight from wikipedia.
-uint64 spBinGCD(uint64 u, uint64 v)
+uint64_t spBinGCD(uint64_t u, uint64_t v)
 {
     // binary GCD for non-zero inputs.
     int shift;
@@ -1214,7 +794,7 @@ uint64 spBinGCD(uint64 u, uint64 v)
         swapping is just pointer movement, and the subtraction
         can be done in-place. */
         if (u > v) {
-            uint64 t = v; v = u; u = t;
+            uint64_t t = v; v = u; u = t;
         }  // Swap u and v.
         v = v - u;                       // Here v >= u.
     } while (v != 0);
@@ -1224,7 +804,7 @@ uint64 spBinGCD(uint64 u, uint64 v)
 }
 
 // assume u is odd
-uint64 spBinGCD_odd(uint64 u, uint64 v)
+uint64_t spBinGCD_odd(uint64_t u, uint64_t v)
 {
     /* From here on, u is always odd. */
     do {
@@ -1238,7 +818,7 @@ uint64 spBinGCD_odd(uint64 u, uint64 v)
         swapping is just pointer movement, and the subtraction
         can be done in-place. */
         if (u > v) {
-            uint64 t = v; v = u; u = t;
+            uint64_t t = v; v = u; u = t;
         }  // Swap u and v.
         v = v - u;                       // Here v >= u.
     } while (v != 0);
@@ -1248,7 +828,7 @@ uint64 spBinGCD_odd(uint64 u, uint64 v)
 }
 
 // much faster version: assuming x is odd
-uint64 bingcd64(uint64 x, uint64 y)
+uint64_t bingcd64(uint64_t x, uint64_t y)
 {
     if (y) {
         y >>= _trail_zcnt64(y);
@@ -1261,9 +841,9 @@ uint64 bingcd64(uint64 x, uint64 y)
     return x;
 }
 
-uint64 gcd64(uint64 x, uint64 y)
+uint64_t gcd64(uint64_t x, uint64_t y)
 {
-    uint64 a, b, c;
+    uint64_t a, b, c;
     a = x; b = y;
     while (b != 0)
     {
@@ -1288,13 +868,13 @@ void dblGCD(double x, double y, double* w)
     return;
 }
 
-int llt(uint32 exp, int VFLAG)
+int llt(uint32_t exp, int VFLAG)
 {
     mpz_t tmp, tmp2, n;
     clock_t start, stop;
     double t;
-    uint32 i, j, nchars;
-    fp_digit d;
+    uint32_t i, j, nchars;
+    uint64_t d;
 
     mpz_init(tmp);
     mpz_set_ui(tmp, exp);
@@ -1312,7 +892,7 @@ int llt(uint32 exp, int VFLAG)
     //should vary the depth depending on the size of p
     for (i = 1; i < MIN(sqrt(exp) - 1, 1000000); i++)
     {
-        d = 2 * i * (fp_digit)exp + 1;
+        d = 2 * i * (uint64_t)exp + 1;
         if (mpz_tdiv_ui(n, d) == 0)
         {
             mpz_clear(n);
@@ -1324,7 +904,7 @@ int llt(uint32 exp, int VFLAG)
     }
     if (VFLAG > 1)
         printf("trial division to %u bits is complete\n",
-        (uint32)spBits(2 * 1000000 * exp + 1));
+        (uint32_t)spBits(2 * 1000000 * exp + 1));
 
     mpz_init(tmp2);
     mpz_set_ui(tmp, 4);

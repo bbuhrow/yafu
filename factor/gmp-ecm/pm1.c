@@ -18,13 +18,13 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/2/10
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
 #include "yafu_ecm.h"
 #include "soe.h"
 #include "factor.h"
 #include "ytools.h"
 #include <gmp_xface.h>
 #include <ecm.h>
+#include <signal.h>
 
 
 // these are used by the top level function, so both YAFU and GMP-ECM
@@ -35,14 +35,14 @@ void pm1exit(int sig);
 int pm1_wrapper(fact_obj_t *fobj);
 void pm1_print_B1_B2(fact_obj_t *fobj);
 
-
-uint64 TMP_STG2_MAX;
+int PM1_ABORT;
+uint64_t TMP_STG2_MAX;
 
 typedef struct
 {
 	mpz_t gmp_n, gmp_factor;
 	ecm_params params;
-	uint32 sigma;
+	uint32_t sigma;
 	int stagefound;
 
 } ecm_pm1_data_t;
@@ -54,12 +54,7 @@ void pm1_init(fact_obj_t *fobj)
 	mpz_init(pm1_data.gmp_n);
 	mpz_init(pm1_data.gmp_factor);
 	ecm_init(pm1_data.params);
-	//gmp_randseed_ui(tdata->params->rng, 
-	//	get_rand(&obj->seed1, &obj->seed2));
-
 	pm1_data.params->method = ECM_PM1;
-	//pm1_data.params->verbose = 1;
-
 	TMP_STG2_MAX = fobj->pm1_obj.B2;
 
 	return;
@@ -70,7 +65,6 @@ void pm1_finalize(fact_obj_t *fobj)
 	ecm_clear(pm1_data.params);
 	mpz_clear(pm1_data.gmp_n);
 	mpz_clear(pm1_data.gmp_factor);
-
 	fobj->pm1_obj.B2 = TMP_STG2_MAX;
 	
 	return;
@@ -138,7 +132,8 @@ void pollard_loop(fact_obj_t *fobj)
 		logprint_oc(fobj->flogname, "a","prp%d = %s\n", gmp_base10(fobj->pm1_obj.gmp_n), s);
         free(s);
 
-		add_to_factor_list(fobj, fobj->pm1_obj.gmp_n);
+		add_to_factor_list(fobj->factors, fobj->pm1_obj.gmp_n,
+            fobj->VFLAG, fobj->NUM_WITNESSES);
 
 		stop = clock();
 		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
@@ -172,7 +167,8 @@ void pollard_loop(fact_obj_t *fobj)
         //check if the factor is prime
 		if (is_mpz_prp(fobj->pm1_obj.gmp_f, fobj->NUM_WITNESSES))
 		{
-			add_to_factor_list(fobj, fobj->pm1_obj.gmp_f);
+			add_to_factor_list(fobj->factors, fobj->pm1_obj.gmp_f,
+                fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			if (fobj->VFLAG > 0)
 				gmp_printf("pm1: found prp%d factor = %Zd\n",
@@ -183,7 +179,8 @@ void pollard_loop(fact_obj_t *fobj)
 		}
 		else
 		{
-			add_to_factor_list(fobj, fobj->pm1_obj.gmp_f);
+			add_to_factor_list(fobj->factors, fobj->pm1_obj.gmp_f,
+                fobj->VFLAG, fobj->NUM_WITNESSES);
 
 			if (fobj->VFLAG > 0)
 				gmp_printf("pm1: found c%d factor = %Zd\n",
@@ -204,7 +201,7 @@ void pollard_loop(fact_obj_t *fobj)
 	//watch for an abort
 	if (PM1_ABORT)
 	{
-		print_factors(fobj);
+		print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 		exit(1);
 	}
 

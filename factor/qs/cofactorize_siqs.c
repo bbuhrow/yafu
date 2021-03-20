@@ -8,7 +8,6 @@
 #endif
 #include <time.h>
 #include "common.h"
-#include "types.h"
 #include "cofactorize.h"
 #include <immintrin.h>
 
@@ -746,7 +745,7 @@ Core sieving routine
 int it; \
 for (it = 0; it < 8; it++) { \
         int thisloc; \
-        if ((packed_sieve_block[i + it] & 0x8080808080808080ULL) == (uint64)(0)) \
+        if ((packed_sieve_block[i + it] & 0x8080808080808080ULL) == (uint64_t)(0)) \
             continue; \
         if ((result + 8) >= SIEVE_BATCH_SIZE_TINY) { printf("too many results\n"); break; } \
         thisloc = ((it) << 3) + 0; \
@@ -2282,175 +2281,6 @@ Find linear dependencies among a set of relations
     }
     params->null_vectors[pivot[i]] = accum;
   }
-}
-
-
-/***********************************/
-func_static u32 find_factors_tiny_good(mpz_t factor1, 
-                             mpz_t factor2)
-/***********************************
-perform MPQS square root phase
-************************************/
-{
-	tiny_qs_params *params; // = g_params;
-  s32 i, j, k;
-  u16 mask;
-  u16 fb_counts[MAX_FB_SIZE_TINY];
-  static mpz_t x, y, t0, t1;
-  static u8 initialized = 0;
-
-  if (initialized == 0) {
-    mpz_init(x); mpz_init(y);
-    mpz_init(t0); mpz_init(t1);
-    initialized = 1;
-  }
-
-  /* for each dependency */
-
-  for (mask = 1; mask; mask <<= 1) {
-
-    memset(fb_counts, 0, sizeof(fb_counts));
-    mpz_set_ui(x, 1);
-    mpz_set_ui(y, 1);
-
-    /* for each relation allowed in the dependency */
-    for (i = 0; i < params->num_full_relations; i++) {
-
-      if (!(params->null_vectors[i] & mask))
-        continue;
-
-      for (j = 0; j < 2; j++) {
-        tiny_relation *r = params->relation_list + i;
-        tiny_poly *poly;
-
-        /* match up partials with the same large prime */
-
-        if (j == 1) {
-          s32 hash_idx = LARGE_PRIME_HASH(r->large_prime);
-          s32 partial_idx;
-          for (k = 0; k < LP_HASH_DEPTH_TINY; k++) {
-            partial_idx = params->partial_hash[hash_idx][k];
-            if (params->relation_list[partial_idx].large_prime == 
-                r->large_prime)
-              break;
-          }
-          r = params->relation_list + partial_idx;
-          mpz_mul_ui(t0, y, r->large_prime);
-          mpz_mod(y, t0, params->n);
-        }
-        poly = params->poly_list + r->poly_num;
-  
-        /* add the factors of this relation to the table
-           of factors. Include the factors of A as well */
-
-        for (k = 0; k < r->num_factors; k++)
-          fb_counts[r->fb_offsets[k]]++;
-  
-        mpz_set_ui(t1, 1);
-        for (k = 0; k < params->num_a_factors; k++) {
-          s32 idx = poly->a_fb_offsets[k];
-          fb_counts[idx]++;
-          mpz_mul_ui(t1, t1, params->gprimes[idx]);
-        }
-
-        /* multiply A * sieve_offset + B into the left 
-           side of the congruence */
-
-        if (r->sieve_offset < 0) {
-          mpz_mul_ui(t1, t1, -(r->sieve_offset));
-          mpz_sub(t1, t1, poly->b);
-        }
-        else {
-          mpz_mul_ui(t1, t1, r->sieve_offset);
-          mpz_add(t1, t1, poly->b);
-        }
-        mpz_mul(t0, x, t1);
-        mpz_mod(x, t0, params->n);
-
-        if (r->large_prime == 1)
-          break;
-      }
-    }
-
-    /* Form the right side of the congruence; given its
-       prime factorization, cut the exponent of each prime
-       in half and perform a modular exponentiation */
-    for (i = MIN_FB_OFFSET_TINY; i < params->fb_size; i++) {
-      u16 mask2 = 0x8000;
-      u16 exponent = fb_counts[i] / 2;
-      u32 prime = params->gprimes[i];
-      
-      if (exponent == 0)
-        continue;
-
-      mpz_set_ui(t0, prime);
-      while (!(exponent & mask2))
-        mask2 >>= 1;
-
-      for (mask2 >>= 1; mask2; mask2 >>= 1) {
-        mpz_mul(t1, t0, t0);
-        mpz_mod(t0, t1, params->n);
-        if (exponent & mask2) {
-          mpz_mul_ui(t1, t0, prime);
-          mpz_mod(t0, t1, params->n);
-        }
-      }
-      mpz_mul(t1, t0, y);
-      mpz_mod(y, t1, params->n);
-    }
-
-    /* For x and y the halves of the congruence, 
-       compute gcd(x+-y, n) */
-    for (i = 0; i < 2; i++) {
-      if (i == 0)
-        mpz_add(t0, x, y);
-      else
-        mpz_sub(t0, x, y);
-
-      mpz_gcd(t1, t0, params->n);
-      if (mpz_cmp_ui(t1, 1) && mpz_cmp(t1, params->n)) {
-
-        /* we've possibly found a nontrivial factor of n.
-           Divide any factors of the multiplier out from
-           both factors */
-
-        u32 mult1 = 0;
-        u32 mult2 = 0;
-
-        if (params->multiplier_fb[0])
-          mult1 = params->gprimes[params->multiplier_fb[0]];
-        if (params->multiplier_fb[1])
-          mult2 = params->gprimes[params->multiplier_fb[1]];
-
-        
-        mpz_divexact(t0, params->n, t1);
-        if (mult1) {
-          if (mpz_tdiv_ui(t0, mult1) == 0)
-            mpz_divexact_ui(t0, t0, mult1);
-          if (mpz_tdiv_ui(t1, mult1) == 0)
-            mpz_divexact_ui(t1, t1, mult1);
-        }
-        if (mult2) {
-          if (mpz_tdiv_ui(t0, mult2) == 0)
-            mpz_divexact_ui(t0, t0, mult2);
-          if (mpz_tdiv_ui(t1, mult2) == 0)
-            mpz_divexact_ui(t1, t1, mult2);
-        }
-
-        /* If both remaining factors exceed unity, 
-           we've factored n and can stop */
-        if (mpz_cmp_ui(t0, 1) && mpz_cmp_ui(t1, 1)) {
-          mpz_set(factor1, t0);
-          mpz_set(factor2, t1);
-          return 1;
-        }
-      }
-    }
-
-    /* otherwise try the next dependency */
-  }
-
-  return 0;
 }
 
 func_static u32 find_factors_tiny(tiny_qs_params *params, mpz_t factor1,

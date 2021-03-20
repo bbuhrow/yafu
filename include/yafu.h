@@ -22,65 +22,24 @@ code to the public domain.
 #ifndef _YAFU_HEAD_DEF
 #define _YAFU_HEAD_DEF
 
-//#define DEBUG
-
-#define _CRT_SECURE_NO_WARNINGS 
-
 #define VERSION_STRING "2.0"
 
-//max words for fixed precision msieve bignum
-#define MAX_MP_WORDS 64
-
-//default maximum size in chars for a str_t
+// default maximum size for strings/buffers
 #define GSTR_MAXSIZE 1024
 
-//#define FORCE_GENERIC 1
-// assme this is a modern cpu that has at least up through sse2.
-#ifndef FORCE_GENERIC
-#define HAS_MMX 1
-#define HAS_SSE 1
-#define HAS_SSE2 1
-#define CACHE_LINE_64
-#endif
-
-
-//support libraries
-#include "types.h"
+#include <stdint.h>
 #include <gmp.h>
 
-//global typedefs
-typedef struct {
-	uint32 nwords;		/* number of nonzero words in val[] */
-	uint32 val[MAX_MP_WORDS];
-} mp_t;
-
-typedef struct {
-	uint32 sign;	/* POSITIVE or NEGATIVE */
-	mp_t num;
-} signed_mp_t;
-
-typedef struct
-{
-	mpz_t factor;
-	int count;
-	int type;
-    // new parameters to support returning factors
-    // from avx-ecm.  In general I think it makes sense
-    // to have this structure contain information not
-    // only about the factor itself but how it was found.
-    int method;     // factorization method used
-    uint32 curve_num;   // curve found
-    uint64 sigma;   // sigma value
-    int tid;        // thread found
-    int vid;        // vector position found
-} factor_t;
+#ifdef _MSC_VER
+#include <Windows.h>
+#endif
 
 // a structure to hold a bunch of configuration info
 // for yafu, instead of declaring a bunch of globals.
 typedef struct
 {
     // isprime
-    uint32 NUM_WITNESSES;
+    uint32_t NUM_WITNESSES;
 
     // output behavior - used everywhere
     int VFLAG, LOGFLAG;
@@ -102,7 +61,7 @@ typedef struct
     double MEAS_CPU_FREQUENCY;
     int VERBOSE_PROC_INFO;
     char CPU_ID_STR[80];
-    uint32 L1CACHE, L2CACHE;
+    uint32_t L1CACHE, L2CACHE;
     int CLSIZE;
     char HAS_SSE41;
     char HAS_AVX;
@@ -119,22 +78,6 @@ typedef struct
 
 } yafu_obj_t;
 
-uint64 LCG_STATE;
-
-//this array holds a global store of prime numbers
-uint32* spSOEprimes;	//the primes	
-uint32 szSOEp;			//count of primes
-
-//this array holds NUM_P primes in the range P_MIN to P_MAX, and
-//can change as needed - always check the range and size to see
-//if the primes you need are in there before using it
-uint64* PRIMES;
-uint64 NUM_P;
-uint64 P_MIN;
-uint64 P_MAX;
-
-void logprint_oc(const char *name, const char *method, char *args, ...);
-void logprint(FILE *infile, char *args, ...);
 extern void yafu_init(yafu_obj_t* yobj);
 extern void yafu_finalize(yafu_obj_t* yobj);
 

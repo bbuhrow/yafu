@@ -23,23 +23,10 @@ I gratefully acknowledge Tom St. Denis's TomsFastMath library, on which
 many of the arithmetic routines here are based
 */
 
-#include "yafu.h"
 #include "ytools.h"
 #include "monty.h"
 #include "arith.h"
-
-// fixme:
-// 128 bit monty doesn't work without the stuff defined
-// with avx2... probably due to the mul but maybe other stuff.
-#if !defined( USE_AVX2 ) && defined(GCC_ASM64X) && !defined(__MINGW64__)
-#include <x86intrin.h>
-__inline uint64 _umul128(uint64 a, uint64 b, uint64 *c)
-{
-    __uint128_t result = (__uint128_t)a * (__uint128_t)b;
-    uint64 lo = (uint64)result;
-    *c = (result >> 64);
-}
-#endif
+#include "gmp.h"
 
 /********************* arbitrary-precision Montgomery arith **********************/
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
@@ -211,7 +198,7 @@ void monty_redc(monty_t *mdata, mpz_t x)
 }
 
 /********************* 128-bit Montgomery arith **********************/
-void to_monty128(monty128_t *mdata, uint64 * x)
+void to_monty128(monty128_t *mdata, uint64_t * x)
 {
 	//given a number x in normal (hexadecimal) representation, 
 	//find its montgomery representation
@@ -248,13 +235,13 @@ void to_monty128(monty128_t *mdata, uint64 * x)
 	return;
 }
 
-void monty128_init(monty128_t * mdata, uint64 * n)
+void monty128_init(monty128_t * mdata, uint64_t * n)
 {
 	//for a input modulus n, initialize constants for 
 	//montogomery representation
 	//this assumes that n is relatively prime to 2, i.e. is odd.	
-	uint64 b = n[0];
-	uint64 x;
+	uint64_t b = n[0];
+	uint64_t x;
 
 	mdata->n[0] = n[0];
 	mdata->n[1] = n[1];
@@ -266,7 +253,7 @@ void monty128_init(monty128_t * mdata, uint64 * n)
 	x *= 2 - b * x;               // here x*a==1 mod 2**32         
 	x *= 2 - b * x;               // here x*a==1 mod 2**64
 
-	mdata->rho = (uint64)((uint64)0 - ((uint64)x));
+	mdata->rho = (uint64_t)((uint64_t)0 - ((uint64_t)x));
 
 	mdata->one[0] = 1;
 	mdata->one[1] = 0;
@@ -275,7 +262,7 @@ void monty128_init(monty128_t * mdata, uint64 * n)
 	return;
 }
 
-void ciosFullMul128x(uint64 *u, uint64 *v, uint64 rho, uint64 *n, uint64 *w)
+void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64_t *w)
 {
 #if defined( USE_AVX2 ) && defined(GCC_ASM64X)
     // requires mulx in BMI2 (via the AVX2 macro) and GCC_ASM64 syntax
@@ -375,11 +362,34 @@ void ciosFullMul128x(uint64 *u, uint64 *v, uint64 rho, uint64 *n, uint64 *w)
 	return;
 }
 
-void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata)
+#ifdef GCC_ASM64X
+
+__inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t *sum)
+{
+    uint64_t s, c; 
+    s = y;
+    c = 0;
+
+    ASM_G("movq %2, %%rax		\n\t"
+        "addq %3, %%rax		\n\t"
+        "adcq $0, %5		\n\t"
+        "addq %%rax, %4		\n\t"
+        "adcq $0, %5		\n\t"
+        : "=r"(s), "=r"(c)
+        : "r"(x), "r"((uint64_t)w), "0"(s), "1"(c)
+        : "rax", "memory", "cc");
+
+    *sum = s;
+    return c;
+}
+
+#endif
+
+void mulmod128(uint64_t * u, uint64_t * v, uint64_t * w, monty128_t *mdata)
 {
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
-	uint64 s[3];
+	uint64_t s[3];
 
 	s[0] = 0;
 	s[1] = 0;
@@ -408,8 +418,8 @@ void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata)
 	}
 #else
     // TODO: implement portable u128 x u128 modular multiplication
-    uint64 t[3], U, c2, c3;
-    uint8 c1, c4;
+    uint64_t t[3], U, c2, c3;
+    uint8_t c1, c4;
 
     // z = 0
     // for (i = 0; i < t; i++)
@@ -486,11 +496,11 @@ void mulmod128(uint64 * u, uint64 * v, uint64 * w, monty128_t *mdata)
 	return;
 }
 
-void sqrmod128(uint64 * u, uint64 * w, monty128_t *mdata)
+void sqrmod128(uint64_t * u, uint64_t * w, monty128_t *mdata)
 {
 	// integrate multiply and reduction steps, alternating
 	// between iterations of the outer loops.
-	uint64 s[3];
+	uint64_t s[3];
 
 	s[0] = 0;
 	s[1] = 0;
@@ -526,7 +536,7 @@ void sqrmod128(uint64 * u, uint64 * w, monty128_t *mdata)
 	return;
 }
 
-void addmod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
+void addmod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 {
 #if defined(GCC_ASM64X)
     // requires GCC_ASM64 syntax
@@ -549,8 +559,8 @@ void addmod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
 
 #else
 
-    uint8 c;
-    uint64 t[2];
+    uint8_t c;
+    uint64_t t[2];
     c = _addcarry_u64(0, a[0], b[0], &t[0]);
     c = _addcarry_u64(c, a[1], b[1], &t[1]);
     if (c || (t[1] > n[1]) || ((t[1] == n[1]) && (t[0] > n[0])))
@@ -569,7 +579,7 @@ void addmod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
 	return;
 }
 
-void submod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
+void submod128(uint64_t * a, uint64_t * b, uint64_t * w, uint64_t * n)
 {
 #if defined(GCC_ASM64X)
     // requires GCC_ASM64 syntax
@@ -592,8 +602,8 @@ void submod128(uint64 * a, uint64 * b, uint64 * w, uint64 * n)
 
 #else
 
-    uint8 c;
-    uint64 t[2];
+    uint8_t c;
+    uint64_t t[2];
     c = _subborrow_u64(0, a[0], b[0], &t[0]);
     c = _subborrow_u64(c, a[1], b[1], &t[1]);
     if (c)

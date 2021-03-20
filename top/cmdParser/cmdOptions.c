@@ -70,7 +70,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat", "inmem" };
+    "siqsNobat", "inmem", "prefer_gmpecm_stg2" };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -162,7 +162,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Uses external GMP-ECM instead of internal AVX-ECM", 
     "                  : Create savefile with B1 residues in AVX-ECM",
     "                  : Do not use SIQS Batch GCD",
-    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)" };
+    "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)",
+    "                  : Use GMP-ECM for stage 2"};
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -187,7 +188,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,1,
     1,1,0,1,1,
     1,1,1,0,0,
-    0,1 };
+    0,1,0 };
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -209,7 +210,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "", 
-    "", ""};
+    "", "", ""};
 
 
 
@@ -238,7 +239,7 @@ void applyArg(char* arg, int argNum, options_t* options)
     if (argNum == 0)
     {
         options->inputExpr = (char*)realloc(options->inputExpr, 
-            strlen(arg) * sizeof(char));
+            (strlen(arg) + 1) * sizeof(char));
         strcpy(options->inputExpr, arg);
     }
 
@@ -252,7 +253,7 @@ void applyArg(char* arg, int argNum, options_t* options)
 void applyOpt(char* opt, char* arg, options_t* options)
 {
     int i;
-    char** ptr;
+    char** ptr = NULL;
 
     if (strcmp(opt, OptionArray[0]) == 0)
     {
@@ -377,7 +378,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[17]) == 0)
     {
         enforce_numeric(arg, opt);
-        options->sigma = strtoul(arg, NULL, 10);
+        options->sigma = strtoull(arg, NULL, 10);
     }
     else if (strcmp(opt, OptionArray[18]) == 0)
     {
@@ -563,27 +564,9 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[40]) == 0)
     {
         //argument "o".  Indicates output filename ggnfs sieving.
-        //char* cptr;
-
         if (strlen(arg) < MAXARGLEN)
         {
-            //char tmp[MAXARGLEN];
             strcpy(options->nfs_outfile, arg);
-
-            //strcpy(tmp, fobj->nfs_obj.outputfile);
-            //cptr = strchr(tmp, 46);
-            //if (cptr == NULL)
-            //{
-            //    //no . in provided filename
-            //    sprintf(fobj->nfs_obj.logfile, "%s.log", fobj->nfs_obj.outputfile);
-            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", fobj->nfs_obj.outputfile);
-            //}
-            //else
-            //{
-            //    cptr[0] = '\0';
-            //    sprintf(fobj->nfs_obj.logfile, "%s.log", tmp);
-            //    sprintf(fobj->nfs_obj.fbfile, "%s.fb", tmp);
-            //}
         }
         else
         {
@@ -598,7 +581,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, OptionArray[42]) == 0)
     {
         //argument "r".  Indicates rational side special Q.
-        //fobj->nfs_obj.sq_side = 0;
        options->rat_side = 1;
     }
     else if (strcmp(opt, OptionArray[43]) == 0)
@@ -620,9 +602,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[45]) == 0)
     {
-        //argument "ns".  do nfs sieving
+        // argument "ns".  do nfs sieving
         char** nextptr = &arg;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SIEVE;
 
         if (arg != NULL)
         {
@@ -639,8 +620,8 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         else
         {
-            options->sieveQstart = 0;
-            options->sieveQstop = 0;
+            options->sieveQstart = 1;
+            options->sieveQstop = 1;
         }
 
     }
@@ -649,7 +630,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
         char** nextptr = &arg;
 
         //argument "np".  do poly finding.
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_POLY;
 
         if (arg != NULL)
         {
@@ -666,16 +646,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
         }
         else
         {
-            options->polystart = 0;
-            options->polystop = 0;
+            options->polystart = 1;
+            options->polystop = 1;
         }
     }
     else if (strcmp(opt, OptionArray[47]) == 0)
     {
         //argument "nc".  Do post processing, starting with filtering
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_FILTER;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_LA;
-        //fobj->nfs_obj.nfs_phases |= NFS_PHASE_SQRT;
         options->nc = 1;
     }
     else if (strcmp(opt, OptionArray[48]) == 0)
@@ -919,7 +896,6 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "prefer_gmpecm"
         options->prefer_gmpecm = 1;
-        //fobj->ecm_obj.ecm_ext_xover = 48000;
     }
     else if (strcmp(opt, OptionArray[84]) == 0)
     {
@@ -937,6 +913,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "inmem"
         // cutoff for processing in-memory
         sscanf(arg, "%u", &options->inmem_cutoff);
+    }
+    else if (strcmp(opt, OptionArray[87]) == 0)
+    {
+        // argument "prefer_gmpecm_stg2"
+        options->prefer_gmpecm_stg2 = 1;
     }
     else
     {
@@ -1041,7 +1022,13 @@ options_t* initOpt(void)
     options->nfs_resume = 0;
     options->poly_batch = 250;
     options->ggnfs_siever = 0;
-    strcpy(options->ggnfs_dir, "");
+#if defined(_WIN64)
+    strcpy(options->ggnfs_dir, ".\\");
+#elif defined(WIN32)
+    strcpy(options->ggnfs_dir, ".\\");
+#else
+    strcpy(options->ggnfs_dir, "./");
+#endif
     
     // prime finding options
     options->soe_blocksize = 32768;
@@ -1090,10 +1077,12 @@ options_t* initOpt(void)
     // if we can use AVX-ECM, do so, and save B1 checkpoints.
 #ifdef USE_AVX512F
     options->prefer_gmpecm = 0;
-    options->saveB1 = 1;
-    options->ext_ecm_xover = 40000000;
+    options->prefer_gmpecm_stg2 = 0;
+    options->saveB1 = 0;
+    options->ext_ecm_xover = 300000000;
 #else
     options->prefer_gmpecm = 1;
+    options->prefer_gmpecm_stg2 = 1;
     options->saveB1 = 0;
     options->ext_ecm_xover = 48000;
 #endif

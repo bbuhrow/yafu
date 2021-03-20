@@ -408,8 +408,8 @@
 	root2s = _mm_add_epi16(root2s, primes);
 
 #define _8P_STEP_SIEVE_alt {\
-    uint64 a = 0; \
-    uint64 b = 0; \
+    uint64_t a = 0; \
+    uint64_t b = 0; \
     a = _mm_extract_epi16(root1s, 0); \
     b = _mm_extract_epi16(root2s, 0); \
 	sieve[a] -= logp; \
@@ -581,9 +581,9 @@
 		__m128i primes; \
 		__m128i root1s; \
 		__m128i root2s; \
-		uint32 root1mask; \
-		uint32 root2mask; \
-		uint8 logp; 
+		uint32_t root1mask; \
+		uint32_t root2mask; \
+		uint8_t logp; 
 
 #define _SSE2_SMALL_PRIME_SIEVE_32k_DIV3 \
 		for (; i < full_fb->fb_32k_div3-8; i += 8) { \
@@ -637,8 +637,8 @@
 		break;
 
 #define UPDATE_ROOTS \
-	fb->root1[i] = (uint16)(root1 - 32768); \
-	fb->root2[i] = (uint16)(root2 - 32768);
+	fb->root1[i] = (uint16_t)(root1 - 32768); \
+	fb->root2[i] = (uint16_t)(root2 - 32768);
 
 #define SIEVE_2X \
 	stop = 32768 - prime;	\

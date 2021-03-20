@@ -17,11 +17,11 @@ Purpose:	Port into Yafu-1.14.
 
 #include "lanczos.h"
 #include "ytools.h"
-#include "qs.h"
+#include "qs_impl.h"
 
-#define QS_BIT(x) ((uint64)(1) << (x))
+#define QS_BIT(x) ((uint64_t)(1) << (x))
 
-static const uint64 qs_bitmask[64] = {
+static const uint64_t qs_bitmask[64] = {
 	QS_BIT( 0), QS_BIT( 1), QS_BIT( 2), QS_BIT( 3), QS_BIT( 4), QS_BIT( 5), QS_BIT( 6), QS_BIT( 7),
 	QS_BIT( 8), QS_BIT( 9), QS_BIT(10), QS_BIT(11), QS_BIT(12), QS_BIT(13), QS_BIT(14), QS_BIT(15),
 	QS_BIT(16), QS_BIT(17), QS_BIT(18), QS_BIT(19), QS_BIT(20), QS_BIT(21), QS_BIT(22), QS_BIT(23),
@@ -48,10 +48,10 @@ static const uint64 qs_bitmask[64] = {
 #define QS_POST_LANCZOS_ROWS 48
 #define QS_MIN_POST_LANCZOS_DIM 10000
 
-int shift_right(uint32 *a, int sz_a, int x)
+int shift_right(uint32_t *a, int sz_a, int x)
 {	/* Computes a = a >> x */
     int i, y, wordshift = x / 32;
-    uint32 mask, carry, nextcarry;
+    uint32_t mask, carry, nextcarry;
 
     x = x % 32;
     mask = (1 << x) - 1;
@@ -76,19 +76,19 @@ int shift_right(uint32 *a, int sz_a, int x)
 }
 
 /*-------------------------------------------------------------------*/
-uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows, 
-				uint32 *dense_rows_out, uint32 ncols, 
+uint64_t * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32_t *nrows, 
+				uint32_t *dense_rows_out, uint32_t ncols, 
 				qs_la_col_t *cols) {
 
-	uint32 i, j, k;
-	uint32 num_dense_rows = *dense_rows_out;
-	uint32 dense_row_words;
-	uint32 new_dense_rows;
-	uint32 new_dense_row_words;
-	uint32 final_dense_row_words;
-	uint64 mask;
-	uint64 *submatrix;
-    uint32 *tmp;
+	uint32_t i, j, k;
+	uint32_t num_dense_rows = *dense_rows_out;
+	uint32_t dense_row_words;
+	uint32_t new_dense_rows;
+	uint32_t new_dense_row_words;
+	uint32_t final_dense_row_words;
+	uint64_t mask;
+	uint64_t *submatrix;
+    uint32_t *tmp;
     int tmp_sz, tmp_alloc = 1024;
 
 	/* if the matrix is going to have cache blocking applied,
@@ -110,14 +110,14 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 					"for later\n", QS_POST_LANCZOS_ROWS);
 			logprint(obj->logfile, "saving the first %u matrix rows "
 					"for later\n", QS_POST_LANCZOS_ROWS);
-			submatrix = (uint64 *)xmalloc(ncols * sizeof(uint64));
+			submatrix = (uint64_t *)xmalloc(ncols * sizeof(uint64_t));
 		}
 	}
 	else {
 		return NULL;
 	}
 
-	mask = (uint64)(-1) >> (64 - QS_POST_LANCZOS_ROWS);
+	mask = (uint64_t)(-1) >> (64 - QS_POST_LANCZOS_ROWS);
 	dense_row_words = (num_dense_rows + 31) / 32;
 	/* we will be removing the first QS_POST_LANCZOS_ROWS rows
 	   from the matrix entirely, and packing together the
@@ -132,11 +132,11 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 	new_dense_row_words = (new_dense_rows + 31) / 32;
 	final_dense_row_words = (new_dense_rows - QS_POST_LANCZOS_ROWS) / 32;
 
-    tmp = (uint32*)xmalloc(tmp_alloc * sizeof(uint32));
+    tmp = (uint32_t*)xmalloc(tmp_alloc * sizeof(uint32_t));
 
 	for (i = 0; i < ncols; i++) {
-		uint32 curr_weight = cols[i].weight;
-		uint32 *curr_row = cols[i].data;
+		uint32_t curr_weight = cols[i].weight;
+		uint32_t *curr_row = cols[i].data;
 
 		/* build up a bitfield of the rows that will be
 		   stored in packed format. Start with the rows
@@ -145,7 +145,7 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
         while (new_dense_row_words >= tmp_alloc)
         {
             tmp_alloc *= 2;
-            tmp = (uint32*)xrealloc(tmp, tmp_alloc * sizeof(uint32));
+            tmp = (uint32_t*)xrealloc(tmp, tmp_alloc * sizeof(uint32_t));
         }
 
         for (j = 0; j < dense_row_words; j++)
@@ -164,7 +164,7 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 			tmp[j] = 0;
 
 		for (j = k = 0; j < curr_weight; j++) {
-			uint32 curr_index = curr_row[j];
+			uint32_t curr_index = curr_row[j];
 
 			if (curr_index < new_dense_rows)
 				tmp[curr_index / 32] |= 
@@ -178,23 +178,23 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 #if QS_POST_LANCZOS_ROWS > 0
 		/* remove the first QS_POST_LANCZOS_ROWS bits from
 		   the bitfield */
-		submatrix[i] = ((uint64)tmp[0] |
-				(uint64)tmp[1] << 32) & mask;
+		submatrix[i] = ((uint64_t)tmp[0] |
+				(uint64_t)tmp[1] << 32) & mask;
 #endif
 
 		/* move the rest of the bitfield and repack the (hopefully
 		   shorter) current column in the heap */
 		cols[i].weight = k;
 		if (k + final_dense_row_words > 0) {
-			cols[i].data = (uint32 *)xrealloc(curr_row, (k + 
+			cols[i].data = (uint32_t *)xrealloc(curr_row, (k + 
 						final_dense_row_words) * 
-						sizeof(uint32));
+						sizeof(uint32_t));
 
             shift_right(tmp, tmp_sz, QS_POST_LANCZOS_ROWS);
 
 			memcpy(cols[i].data + k, tmp, 
 						final_dense_row_words * 
-						sizeof(uint32));
+						sizeof(uint32_t));
 		}
 		else {
 			free(cols[i].data);
@@ -211,15 +211,15 @@ uint64 * yafu_form_post_lanczos_matrix(fact_obj_t *obj, uint32 *nrows,
 }
 
 /*-------------------------------------------------------------------*/
-static void yafu_mul_64x64_64x64(uint64 *a, uint64 *b, uint64 *c ) {
+static void yafu_mul_64x64_64x64(uint64_t *a, uint64_t *b, uint64_t *c ) {
 
 	/* c[][] = x[][] * y[][], where all operands are 64 x 64
 	   (i.e. contain 64 words of 64 bits each). The result
 	   may overwrite a or b. */
 
-	uint64 ai, bj, accum;
-	uint64 tmp[64];
-	uint32 i, j;
+	uint64_t ai, bj, accum;
+	uint64_t tmp[64];
+	uint32_t i, j;
 
 	for (i = 0; i < 64; i++) {
 		j = 0;
@@ -240,14 +240,14 @@ static void yafu_mul_64x64_64x64(uint64 *a, uint64 *b, uint64 *c ) {
 }
 
 /*-----------------------------------------------------------------------*/
-static void yafu_transpose_64x64(uint64 *a, uint64 *b) {
+static void yafu_transpose_64x64(uint64_t *a, uint64_t *b) {
 
-	uint32 i, j;
-	uint64 tmp[64] = {0};
+	uint32_t i, j;
+	uint64_t tmp[64] = {0};
 
 	for (i = 0; i < 64; i++) {
-		uint64 word = a[i];
-		uint64 mask = qs_bitmask[i];
+		uint64_t word = a[i];
+		uint64_t mask = qs_bitmask[i];
 		for (j = 0; j < 64; j++) {
 			if (word & qs_bitmask[j])
 				tmp[j] |= mask;
@@ -257,8 +257,8 @@ static void yafu_transpose_64x64(uint64 *a, uint64 *b) {
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x,
-			uint64 *y, uint32 n) {
+void yafu_mul_Nx64_64x64_acc(uint64_t *v, uint64_t *x,
+			uint64_t *y, uint32_t n) {
 
 	/* let v[][] be a n x 64 matrix with elements in GF(2), 
 	   represented as an array of n 64-bit words. Let c[][]
@@ -266,8 +266,8 @@ void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x,
 	   This code multiplies v[][] by the 64x64 matrix 
 	   x[][], then XORs the n x 64 result into y[][] */
 
-	uint32 i, j, k;
-	uint64 c[8 * 256];
+	uint32_t i, j, k;
+	uint64_t c[8 * 256];
 
 	/* fill c[][] with a bunch of "partial matrix multiplies". 
 	   For 0<=i<256, the j_th row of c[][] contains the matrix 
@@ -281,15 +281,15 @@ void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x,
 	   by x[][]. */
 
 	for (i = 0; i < 8; i++) {
-		uint64 *xtmp = x + 8 * i;
-		uint64 *ctmp = c + 256 * i;
+		uint64_t *xtmp = x + 8 * i;
+		uint64_t *ctmp = c + 256 * i;
 
 		for (j = 0; j < 256; j++) {
-			uint64 accum = 0;
-			uint32 index = j;
+			uint64_t accum = 0;
+			uint32_t index = j;
 
 			for (k = 0; k < 8; k++) {
-				if (index & ((uint32)1 << k))
+				if (index & ((uint32_t)1 << k))
 					accum ^= xtmp[k];
 			}
 			ctmp[j] = accum;
@@ -373,30 +373,30 @@ void yafu_mul_Nx64_64x64_acc(uint64 *v, uint64 *x,
 	}
 #else
 	for (i = 0; i < n; i++) {
-		uint64 word = v[i];
-		y[i] ^=  c[ 0*256 + ((uint8)(word >>  0)) ]
-		       ^ c[ 1*256 + ((uint8)(word >>  8)) ]
-		       ^ c[ 2*256 + ((uint8)(word >> 16)) ]
-		       ^ c[ 3*256 + ((uint8)(word >> 24)) ]
-		       ^ c[ 4*256 + ((uint8)(word >> 32)) ]
-		       ^ c[ 5*256 + ((uint8)(word >> 40)) ]
-		       ^ c[ 6*256 + ((uint8)(word >> 48)) ]
-		       ^ c[ 7*256 + ((uint8)(word >> 56)) ];
+		uint64_t word = v[i];
+		y[i] ^=  c[ 0*256 + ((uint8_t)(word >>  0)) ]
+		       ^ c[ 1*256 + ((uint8_t)(word >>  8)) ]
+		       ^ c[ 2*256 + ((uint8_t)(word >> 16)) ]
+		       ^ c[ 3*256 + ((uint8_t)(word >> 24)) ]
+		       ^ c[ 4*256 + ((uint8_t)(word >> 32)) ]
+		       ^ c[ 5*256 + ((uint8_t)(word >> 40)) ]
+		       ^ c[ 6*256 + ((uint8_t)(word >> 48)) ]
+		       ^ c[ 7*256 + ((uint8_t)(word >> 56)) ];
 	}
 #endif
 }
 
 /*-------------------------------------------------------------------*/
-void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y,
-		   uint64 *xy, uint32 n) {
+void yafu_mul_64xN_Nx64(uint64_t *x, uint64_t *y,
+		   uint64_t *xy, uint32_t n) {
 
 	/* Let x and y be n x 64 matrices. This routine computes
 	   the 64 x 64 matrix xy[][] given by transpose(x) * y */
 
-	uint32 i;
-	uint64 c[8 * 256] = {0};
+	uint32_t i;
+	uint64_t c[8 * 256] = {0};
 
-	memset(xy, 0, 64 * sizeof(uint64));
+	memset(xy, 0, 64 * sizeof(uint64_t));
 
 #if (defined(__GNUC__) || defined(__ICL)) && \
 	defined(__i386__) && defined(HAS_MMX)
@@ -502,23 +502,23 @@ void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y,
 #else
 
 	for (i = 0; i < n; i++) {
-		uint64 xi = x[i];
-		uint64 yi = y[i];
-		c[ 0*256 + ((uint8) xi       ) ] ^= yi;
-		c[ 1*256 + ((uint8)(xi >>  8)) ] ^= yi;
-		c[ 2*256 + ((uint8)(xi >> 16)) ] ^= yi;
-		c[ 3*256 + ((uint8)(xi >> 24)) ] ^= yi;
-		c[ 4*256 + ((uint8)(xi >> 32)) ] ^= yi;
-		c[ 5*256 + ((uint8)(xi >> 40)) ] ^= yi;
-		c[ 6*256 + ((uint8)(xi >> 48)) ] ^= yi;
-		c[ 7*256 + ((uint8)(xi >> 56)) ] ^= yi;
+		uint64_t xi = x[i];
+		uint64_t yi = y[i];
+		c[ 0*256 + ((uint8_t) xi       ) ] ^= yi;
+		c[ 1*256 + ((uint8_t)(xi >>  8)) ] ^= yi;
+		c[ 2*256 + ((uint8_t)(xi >> 16)) ] ^= yi;
+		c[ 3*256 + ((uint8_t)(xi >> 24)) ] ^= yi;
+		c[ 4*256 + ((uint8_t)(xi >> 32)) ] ^= yi;
+		c[ 5*256 + ((uint8_t)(xi >> 40)) ] ^= yi;
+		c[ 6*256 + ((uint8_t)(xi >> 48)) ] ^= yi;
+		c[ 7*256 + ((uint8_t)(xi >> 56)) ] ^= yi;
 	}
 #endif
 
 	for(i = 0; i < 8; i++) {
 
-		uint32 j;
-		uint64 a0, a1, a2, a3, a4, a5, a6, a7;
+		uint32_t j;
+		uint64_t a0, a1, a2, a3, a4, a5, a6, a7;
 
 		a0 = a1 = a2 = a3 = 0;
 		a4 = a5 = a6 = a7 = 0;
@@ -543,10 +543,10 @@ void yafu_mul_64xN_Nx64(uint64 *x, uint64 *y,
 }
 
 /*-------------------------------------------------------------------*/
-static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
-				uint64 *t, uint32 *s, 
-				uint32 *last_s, uint32 last_dim, 
-				uint64 *w) {
+static uint32_t yafu_find_nonsingular_sub(fact_obj_t *obj,
+				uint64_t *t, uint32_t *s, 
+				uint32_t *last_s, uint32_t last_dim, 
+				uint64_t *w) {
 
 	/* given a 64x64 matrix t[][] (i.e. sixty-four
 	   64-bit words) and a list of 'last_dim' column 
@@ -556,12 +556,12 @@ static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
 	     - invert it and copy to w[][]
 	     - enumerate in s[] the columns represented in w[][] */
 
-	uint32 i, j;
-	uint32 dim;
-	uint32 cols[64];
-	uint64 M[64][2];
-	uint64 mask, *row_i, *row_j;
-	uint64 m0, m1;
+	uint32_t i, j;
+	uint32_t dim;
+	uint32_t cols[64];
+	uint64_t M[64][2];
+	uint64_t mask, *row_i, *row_j;
+	uint64_t m0, m1;
 
 	/* M = [t | I] for I the 64x64 identity matrix */
 
@@ -674,15 +674,15 @@ static uint32 yafu_find_nonsingular_sub(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-static void yafu_transpose_vector(uint32 ncols, uint64 *v, uint64 **trans) {
+static void yafu_transpose_vector(uint32_t ncols, uint64_t *v, uint64_t **trans) {
 
 	/* Hideously inefficent routine to transpose a
 	   vector v[] of 64-bit words into a 2-D array
 	   trans[][] of 64-bit words */
 
-	uint32 i, j;
-	uint32 col;
-	uint64 mask, word;
+	uint32_t i, j;
+	uint32_t col;
+	uint64_t mask, word;
 
 	for (i = 0; i < ncols; i++) {
 		col = i / 64;
@@ -699,9 +699,9 @@ static void yafu_transpose_vector(uint32 ncols, uint64 *v, uint64 **trans) {
 }
 
 /*-----------------------------------------------------------------------*/
-static uint32 yafu_combine_cols(uint32 ncols, 
-			uint64 *x, uint64 *v, 
-			uint64 *ax, uint64 *av) {
+static uint32_t yafu_combine_cols(uint32_t ncols, 
+			uint64_t *x, uint64_t *v, 
+			uint64_t *ax, uint64_t *av) {
 
 	/* Once the block Lanczos iteration has finished, 
 	   x[] and v[] will contain mostly nullspace vectors
@@ -717,17 +717,17 @@ static uint32 yafu_combine_cols(uint32 ncols,
 	   back into x[] and represent the nullspace vector output
 	   of the block Lanczos code. */
 
-	uint32 i, j, k, bitpos, col, col_words;
-	uint64 mask;
-	uint64 *matrix[128], *amatrix[128], *tmp;
+	uint32_t i, j, k, bitpos, col, col_words;
+	uint64_t mask;
+	uint64_t *matrix[128], *amatrix[128], *tmp;
 
 	col_words = (ncols + 63) / 64;
 
 	for (i = 0; i < 128; i++) {
-		matrix[i] = (uint64 *)xcalloc((size_t)col_words, 
-					     sizeof(uint64));
-		amatrix[i] = (uint64 *)xcalloc((size_t)col_words, 
-					      sizeof(uint64));
+		matrix[i] = (uint64_t *)xcalloc((size_t)col_words, 
+					     sizeof(uint64_t));
+		amatrix[i] = (uint64_t *)xcalloc((size_t)col_words, 
+					      sizeof(uint64_t));
 	}
 
 	/* operations on columns can more conveniently become 
@@ -789,7 +789,7 @@ static uint32 yafu_combine_cols(uint32 ncols,
 	   dependencies into the low-order bits of x[] */
 
 	for (j = 0; j < ncols; j++) {
-		uint64 word = 0;
+		uint64_t word = 0;
 
 		col = j / 64;
 		mask = qs_bitmask[j % 64];
@@ -813,10 +813,10 @@ static uint32 yafu_combine_cols(uint32 ncols,
 
 /*-----------------------------------------------------------------------*/
 void yafu_dump_lanczos_state(fact_obj_t *obj, 
-			uint64 *x, uint64 **vt_v0, uint64 **v, 
-			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
-			uint32 n, uint32 dim_solved, uint32 iter,
-			uint32 s[2][64], uint32 dim1) {
+			uint64_t *x, uint64_t **vt_v0, uint64_t **v, 
+			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
+			uint32_t n, uint32_t dim_solved, uint32_t iter,
+			uint32_t s[2][64], uint32_t dim1) {
 
 	char buf[256];
 	FILE *dump_fp;
@@ -829,36 +829,36 @@ void yafu_dump_lanczos_state(fact_obj_t *obj,
 		exit(-1);
 	}
 
-	fwrite(&n, sizeof(uint32), (size_t)1, dump_fp);
-	fwrite(&dim_solved, sizeof(uint32), (size_t)1, dump_fp);
-	fwrite(&iter, sizeof(uint32), (size_t)1, dump_fp);
+	fwrite(&n, sizeof(uint32_t), (size_t)1, dump_fp);
+	fwrite(&dim_solved, sizeof(uint32_t), (size_t)1, dump_fp);
+	fwrite(&iter, sizeof(uint32_t), (size_t)1, dump_fp);
 
-	fwrite(vt_a_v[1], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(vt_a2_v[1], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(winv[1], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(winv[2], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(vt_v0[0], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(vt_v0[1], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(vt_v0[2], sizeof(uint64), (size_t)64, dump_fp);
-	fwrite(s[1], sizeof(uint32), (size_t)64, dump_fp);
-	fwrite(&dim1, sizeof(uint32), (size_t)1, dump_fp);
+	fwrite(vt_a_v[1], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(vt_a2_v[1], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(winv[1], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(winv[2], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(vt_v0[0], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(vt_v0[1], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(vt_v0[2], sizeof(uint64_t), (size_t)64, dump_fp);
+	fwrite(s[1], sizeof(uint32_t), (size_t)64, dump_fp);
+	fwrite(&dim1, sizeof(uint32_t), (size_t)1, dump_fp);
 
-	fwrite(x, sizeof(uint64), (size_t)n, dump_fp);
-	fwrite(v[0], sizeof(uint64), (size_t)n, dump_fp);
-	fwrite(v[1], sizeof(uint64), (size_t)n, dump_fp);
-	fwrite(v[2], sizeof(uint64), (size_t)n, dump_fp);
+	fwrite(x, sizeof(uint64_t), (size_t)n, dump_fp);
+	fwrite(v[0], sizeof(uint64_t), (size_t)n, dump_fp);
+	fwrite(v[1], sizeof(uint64_t), (size_t)n, dump_fp);
+	fwrite(v[2], sizeof(uint64_t), (size_t)n, dump_fp);
 	fclose(dump_fp);
 }
 
 /*-----------------------------------------------------------------------*/
 void yafu_read_lanczos_state(fact_obj_t *obj, 
-			uint64 *x, uint64 **vt_v0, uint64 **v, 
-			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
-			uint32 n, uint32 *dim_solved, uint32 *iter,
-			uint32 s[2][64], uint32 *dim1) {
+			uint64_t *x, uint64_t **vt_v0, uint64_t **v, 
+			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
+			uint32_t n, uint32_t *dim_solved, uint32_t *iter,
+			uint32_t s[2][64], uint32_t *dim1) {
 
-	uint32 read_n;
-	uint32 status;
+	uint32_t read_n;
+	uint32_t status;
 	char buf[256];
 	FILE *dump_fp;
 
@@ -871,28 +871,28 @@ void yafu_read_lanczos_state(fact_obj_t *obj,
 	}
 
 	status = 1;
-	fread(&read_n, sizeof(uint32), (size_t)1, dump_fp);
+	fread(&read_n, sizeof(uint32_t), (size_t)1, dump_fp);
 	if (read_n != n) {
 		printf("error: unexpected vector size\n");
 		exit(-1);
 	}
-	status &= (fread(dim_solved, sizeof(uint32), (size_t)1, dump_fp) == 1);
-	status &= (fread(iter, sizeof(uint32), (size_t)1, dump_fp) == 1);
+	status &= (fread(dim_solved, sizeof(uint32_t), (size_t)1, dump_fp) == 1);
+	status &= (fread(iter, sizeof(uint32_t), (size_t)1, dump_fp) == 1);
 
-	status &= (fread(vt_a_v[1], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(vt_a2_v[1], sizeof(uint64), (size_t)64, dump_fp)==64);
-	status &= (fread(winv[1], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(winv[2], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(vt_v0[0], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(vt_v0[1], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(vt_v0[2], sizeof(uint64), (size_t)64, dump_fp) == 64);
-	status &= (fread(s[1], sizeof(uint32), (size_t)64, dump_fp) == 64);
-	status &= (fread(dim1, sizeof(uint32), (size_t)1, dump_fp) == 1);
+	status &= (fread(vt_a_v[1], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(vt_a2_v[1], sizeof(uint64_t), (size_t)64, dump_fp)==64);
+	status &= (fread(winv[1], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(winv[2], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(vt_v0[0], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(vt_v0[1], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(vt_v0[2], sizeof(uint64_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(s[1], sizeof(uint32_t), (size_t)64, dump_fp) == 64);
+	status &= (fread(dim1, sizeof(uint32_t), (size_t)1, dump_fp) == 1);
 
-	status &= (fread(x, sizeof(uint64), (size_t)n, dump_fp) == n);
-	status &= (fread(v[0], sizeof(uint64), (size_t)n, dump_fp) == n);
-	status &= (fread(v[1], sizeof(uint64), (size_t)n, dump_fp) == n);
-	status &= (fread(v[2], sizeof(uint64), (size_t)n, dump_fp) == n);
+	status &= (fread(x, sizeof(uint64_t), (size_t)n, dump_fp) == n);
+	status &= (fread(v[0], sizeof(uint64_t), (size_t)n, dump_fp) == n);
+	status &= (fread(v[1], sizeof(uint64_t), (size_t)n, dump_fp) == n);
+	status &= (fread(v[2], sizeof(uint64_t), (size_t)n, dump_fp) == n);
 
 	fclose(dump_fp);
 	if (status == 0) {
@@ -904,33 +904,35 @@ void yafu_read_lanczos_state(fact_obj_t *obj,
 /*-----------------------------------------------------------------------*/
 void yafu_init_lanczos_state(fact_obj_t *obj, 
 			qs_packed_matrix_t *packed_matrix,
-			uint64 *x, uint64 *v0, uint64 **vt_v0, uint64 **v, 
-			uint64 **vt_a_v, uint64 **vt_a2_v, uint64 **winv,
-			uint32 n, uint32 s[2][64], uint32 *dim1) {
+			uint64_t *x, uint64_t *v0, uint64_t **vt_v0, uint64_t **v, 
+			uint64_t **vt_a_v, uint64_t **vt_a2_v, uint64_t **winv,
+			uint32_t n, uint32_t s[2][64], uint32_t *dim1) {
 
-	uint32 i;
+	uint32_t i;
 
 	/* The computed solution 'x' starts off random,
 	   and v[0] starts off as B*x. This initial copy
 	   of v[0] must be saved off separately */
-	
+
+    uint64_t rand = ((uint64_t)obj->seed1 << 32) | (uint64_t)obj->seed2;
+    //uint32_t rand = obj->seed2;
 	for (i = 0; i < n; i++) {
-		x[i] = v[0][i] = 
-			  (uint64)(get_rand(&obj->seed1, &obj->seed2)) << 32 |
-		          (uint64)(get_rand(&obj->seed1, &obj->seed2));
+        x[i] = v[0][i] = lcg_rand_64(&rand);
+            //(uint64_t)(get_rand(&obj->seed1, &obj->seed2)) << 32 |
+            //(uint64_t)(get_rand(&obj->seed1, &obj->seed2)); 
 	}
 
 	yafu_mul_MxN_Nx64(packed_matrix, v[0], v[1]);
 	yafu_mul_trans_MxN_Nx64(packed_matrix, v[1], v[0]);
-	memcpy(v0, v[0], n * sizeof(uint64));
+	memcpy(v0, v[0], n * sizeof(uint64_t));
 
 	/* Subscripts larger than zero represent past versions of 
 	   these quantities, which start off empty (except for the 
 	   past version of s[], which contains all the column 
 	   indices) */
 	   
-	memset(v[1], 0, n * sizeof(uint64));
-	memset(v[2], 0, n * sizeof(uint64));
+	memset(v[1], 0, n * sizeof(uint64_t));
+	memset(v[2], 0, n * sizeof(uint64_t));
 	for (i = 0; i < 64; i++) {
 		s[1][i] = i;
 		vt_a_v[1][i] = 0;
@@ -945,33 +947,33 @@ void yafu_init_lanczos_state(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-uint64 * yafu_block_lanczos_core(fact_obj_t *obj, 
+uint64_t * yafu_block_lanczos_core(fact_obj_t *obj, 
 				qs_packed_matrix_t *packed_matrix,
-				uint32 *num_deps_found,
-				uint64 *post_lanczos_matrix,
-				uint32 dump_interval) {
+				uint32_t *num_deps_found,
+				uint64_t *post_lanczos_matrix,
+				uint32_t dump_interval) {
 	
 	/* Solve Bx = 0 for some nonzero x; the computed
 	   solution, containing up to 64 of these nullspace
 	   vectors, is returned */
 
-	uint32 n = packed_matrix->ncols;
-	uint64 *vnext, *v[3], *x, *v0;
-	uint64 *winv[3], *vt_v0_next;
-	uint64 *vt_a_v[2], *vt_a2_v[2], *vt_v0[3];
-	uint64 *scratch;
-	uint64 *tmp;
-	uint32 s[2][64];
-	uint64 d[64], e[64], f[64], f2[64];
-	uint32 i, iter;
-	uint32 dim0, dim1;
-	uint64 mask0, mask1;
+	uint32_t n = packed_matrix->ncols;
+	uint64_t *vnext, *v[3], *x, *v0;
+	uint64_t *winv[3], *vt_v0_next;
+	uint64_t *vt_a_v[2], *vt_a2_v[2], *vt_v0[3];
+	uint64_t *scratch;
+	uint64_t *tmp;
+	uint32_t s[2][64];
+	uint64_t d[64], e[64], f[64], f2[64];
+	uint32_t i, iter;
+	uint32_t dim0, dim1;
+	uint64_t mask0, mask1;
 
-	uint32 dim_solved = 0;
-	uint32 first_dim_solved = 0;
-	uint32 report_interval = 0;
-	uint32 next_report = 0;
-	uint32 next_dump = 0;
+	uint32_t dim_solved = 0;
+	uint32_t first_dim_solved = 0;
+	uint32_t report_interval = 0;
+	uint32_t next_report = 0;
+	uint32_t next_dump = 0;
 	time_t first_time;
 	
 	if (packed_matrix->num_threads > 1)
@@ -993,36 +995,36 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 
 	/* allocate all the 64x64 variables */
 
-	winv[0] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	winv[1] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	winv[2] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_a_v[0] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_a_v[1] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_a2_v[0] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_a2_v[1] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_v0[0] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_v0[1] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_v0[2] = (uint64 *)xmalloc(64 * sizeof(uint64));
-	vt_v0_next = (uint64 *)xmalloc(64 * sizeof(uint64));
+	winv[0] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	winv[1] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	winv[2] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_a_v[0] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_a_v[1] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_a2_v[0] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_a2_v[1] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_v0[0] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_v0[1] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_v0[2] = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
+	vt_v0_next = (uint64_t *)xmalloc(64 * sizeof(uint64_t));
 
 	/* allocate all of the size-n variables except v0,
 	   which will be freed if it's not needed */
 
-	v[0] = (uint64 *)xmalloc(n * sizeof(uint64));
-	v[1] = (uint64 *)xmalloc(n * sizeof(uint64));
-	v[2] = (uint64 *)xmalloc(n * sizeof(uint64));
-	vnext = (uint64 *)xmalloc(n * sizeof(uint64));
-	x = (uint64 *)xmalloc(n * sizeof(uint64));
-	scratch = (uint64 *)xmalloc(n * sizeof(uint64));
+	v[0] = (uint64_t *)xmalloc(n * sizeof(uint64_t));
+	v[1] = (uint64_t *)xmalloc(n * sizeof(uint64_t));
+	v[2] = (uint64_t *)xmalloc(n * sizeof(uint64_t));
+	vnext = (uint64_t *)xmalloc(n * sizeof(uint64_t));
+	x = (uint64_t *)xmalloc(n * sizeof(uint64_t));
+	scratch = (uint64_t *)xmalloc(n * sizeof(uint64_t));
 	v0 = NULL;
 
 	if (obj->VFLAG > 0)
 		printf("memory use: %.1f MB\n", (double)
-			((6 * n * sizeof(uint64) +
+			((6 * n * sizeof(uint64_t) +
 			 yafu_packed_matrix_sizeof(packed_matrix))) / 1048576);
 	if (obj->logfile != NULL)
 		logprint(obj->logfile, "memory use: %.1f MB\n", (double)
-			((6 * n * sizeof(uint64) +
+			((6 * n * sizeof(uint64_t) +
 			 yafu_packed_matrix_sizeof(packed_matrix))) / 1048576);
 
 	/* initialize */
@@ -1042,7 +1044,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 				iter, dim_solved);
 	}
 	else {
-		v0 = (uint64 *)xmalloc(n * sizeof(uint64));
+		v0 = (uint64_t *)xmalloc(n * sizeof(uint64_t));
 		yafu_init_lanczos_state(obj, packed_matrix, x, v0, vt_v0, v, 
 				vt_a_v, vt_a2_v, winv, n, s, &dim1);
 	}
@@ -1129,7 +1131,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		   of columns (=n) */
 	
 		if (dim_solved < packed_matrix->nrows - 64) {
-			if ((mask0 | mask1) != (uint64)(-1)) {
+			if ((mask0 | mask1) != (uint64_t)(-1)) {
 				printf("lanczos error (dim = %u): "
 						"not all columns used\n",
 						dim_solved);
@@ -1145,7 +1147,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		/* begin the computation of the next v. First mask
 		   off the vectors that are included in this iteration */
 
-		if (mask0 != (uint64)(-1)) {
+		if (mask0 != (uint64_t)(-1)) {
 			for (i = 0; i < n; i++)
 				vnext[i] = vnext[i] & mask0;
 		}
@@ -1197,7 +1199,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		   this is unnecessary (f would be zero) if the 
 		   previous value of v had full rank */
 
-		if (mask1 != (uint64)(-1)) {
+		if (mask1 != (uint64_t)(-1)) {
 			yafu_mul_64x64_64x64(vt_a_v[1], winv[1], f);
 
 			for (i = 0; i < 64; i++)
@@ -1247,7 +1249,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 		
 		tmp = vt_a2_v[1]; vt_a2_v[1] = vt_a2_v[0]; vt_a2_v[0] = tmp;
 
-		memcpy(s[1], s[0], 64 * sizeof(uint32));
+		memcpy(s[1], s[0], 64 * sizeof(uint32_t));
 		mask1 = mask0;
 		dim1 = dim0;
 
@@ -1259,7 +1261,7 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 				time_t curr_time = time(NULL);
 				double elapsed = difftime(curr_time, 
 							first_time);
-				uint32 eta = elapsed * (n - dim_solved) /
+				uint32_t eta = elapsed * (n - dim_solved) /
 						(dim_solved - first_dim_solved);
 
 				fprintf(NULL, "linear algebra completed %u "
@@ -1350,9 +1352,9 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 
 	if (post_lanczos_matrix) {
 		for (i = 0; i < QS_POST_LANCZOS_ROWS; i++) {
-			uint64 accum0 = 0;
-			uint64 accum1 = 0;
-			uint32 j;
+			uint64_t accum0 = 0;
+			uint64_t accum1 = 0;
+			uint32_t j;
 			mask0 = qs_bitmask[i];
 			for (j = 0; j < n; j++) {
 				if (post_lanczos_matrix[j] & mask0) {
@@ -1407,22 +1409,22 @@ uint64 * yafu_block_lanczos_core(fact_obj_t *obj,
 }
 
 /*-----------------------------------------------------------------------*/
-uint64 * qs_block_lanczos(fact_obj_t *obj, uint32 nrows, 
-			uint32 num_dense_rows, uint32 ncols, 
-			qs_la_col_t *B, uint32 *num_deps_found) {
+uint64_t * qs_block_lanczos(fact_obj_t *obj, uint32_t nrows, 
+			uint32_t num_dense_rows, uint32_t ncols, 
+			qs_la_col_t *B, uint32_t *num_deps_found) {
 	
 	/* External interface to the linear algebra */
 
-	uint64 *post_lanczos_matrix;
-	uint64 *dependencies;
+	uint64_t *post_lanczos_matrix;
+	uint64_t *dependencies;
 	qs_packed_matrix_t packed_matrix;
-	uint32 dump_interval;
+	uint32_t dump_interval;
 	
 	if (ncols <= nrows) {
 		printf("matrix must have more columns than rows\n");
 		if (obj->logfile != NULL)
 			logprint(obj->logfile, "matrix must have more columns than rows\n");
-        *num_deps_found = (uint32)-1;
+        *num_deps_found = (uint32_t)-1;
         return NULL;
 	}
 

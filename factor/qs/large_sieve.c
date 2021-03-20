@@ -18,8 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 
 #if defined(_MSC_VER)
 	#include <mmintrin.h>
@@ -37,18 +36,18 @@ code to the public domain.
 #endif
 
 
-void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
+void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
 		lp_bucket *lp, int side, dynamic_conf_t * dconf)
 {
 
-	uint32 i,j,lpnum,basebucket;
-	uint8 logp;
-	uint32 *bptr;
+	uint32_t i,j,lpnum,basebucket;
+	uint8_t logp;
+	uint32_t *bptr;
     
 #ifdef TARGET_KNC
     __m512i vmask = _mm512_set1_epi32(0x0000ffff);
 
-    ALIGNED_MEM uint32 tmpvec[NUM_LANES];
+    ALIGNED_MEM uint32_t tmpvec[NUM_LANES];
 
 #elif USE_AVX512F
     __m512i vmask = _mm512_set1_epi32(0x0000ffff);
@@ -137,7 +136,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
         vnextbuckets = _mm512_and_epi32(vmask, _mm512_load_epi32((__m512i *)(&bptr[0])));
 #endif
 
-        for (i = 0; (uint32)i < (lpnum & (uint32)(~15)); i += 16)
+        for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
         {
 
 #ifdef TARGET_KNC
@@ -237,7 +236,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
 
         __m512i vlogp = _mm512_set1_epi32(logp);
         vnextbuckets = _mm512_load_epi32((__m512i*)(&bptr[0]));
-        uint32 idx = 0;
+        uint32_t idx = 0;
 
         for (i = 0; i < lpnum; i++)
         {
@@ -254,7 +253,7 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
             //}
         }
 
-        //for (i = 0; (uint32)i < (lpnum & (uint32)(~15)); i += 16)
+        //for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
         if (0)
         {
             vbuckets = vnextbuckets;
@@ -304,11 +303,6 @@ void lp_sieveblock(uint8 *sieve, uint32 bnum, uint32 numblocks,
         basebucket += (numblocks << 1);
     }
 
-#endif
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    SIEVE_STG2 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
 #endif
 
 	return;

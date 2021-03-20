@@ -21,250 +21,95 @@ code to the public domain.
 #ifndef _FACTOR_H_
 #define _FACTOR_H_
 
-#include "yafu.h"
 #include "arith.h"
 #include "ytools.h"
 #include "monty.h"
-#include "cmdOptions.h"
+#include "gmp.h"
+#include "msieve_common.h"
+
+#define GSTR_MAXSIZE 1024
 
 //#define NO_ZLIB
 
-#if !defined(NO_ZLIB) && !defined(__MINGW32__) 
-#include "zlib.h"
-#else
-#define NO_ZLIB
-#endif
-
 #if defined( _MSC_VER )
+
 #define USE_NFS
+#define MySleep(x) Sleep((x))
+
+#else
+
+#include <unistd.h> // usleep
+//sleep in milliseconds
+#define MySleep(x) usleep((x)*1000)	
+
 #endif
 
-/* declarations of factorization routines not grouped in with QS methods
-or group theoretic methods, as well as higher level factorization
-routines and bookkeeping */
+// these are similar to things msieve defines.  Differences:
+// the factor type contains more info about how the factor
+// was found and the list is not fixed size.
 
-#define MAX_FACTORS 10
+typedef struct
+{
+    mpz_t factor;
+    int count;
+    int type;
+    // new parameters to support returning factors
+    // from avx-ecm.  In general I think it makes sense
+    // to have this structure contain information not
+    // only about the factor itself but how it was found.
+    int method;             // factorization method used
+    uint32_t curve_num;     // curve found
+    uint64_t sigma;         // sigma value
+    int tid;                // thread found
+    int vid;                // vector position found
+} yfactor_t;
 
-// stuff that needs to be visible to the msieve routines and 
-// the yafu sieve routines
+typedef struct
+{
+    yfactor_t* factors;
+    int num_factors;
+    int alloc_factors;
+
+    // the primitude of factors can be proven by aprcl: these
+    // determine when and what is displayed while proving.
+    int aprcl_prove_cutoff;
+    int aprcl_display_cutoff;
+} yfactor_list_t;
+
 
 /* structure encapsulating the savefile used in a factorization */
 typedef struct {
 
 #if defined(WIN32) || defined(_WIN64)
-	HANDLE file_handle;
-	uint32 read_size;
-	uint32 eof;
+    HANDLE file_handle;
+    uint32_t read_size;
+    uint32_t eof;
 #else
-	FILE *fp;
+    FILE* fp;
 #endif
-	char *name;
-	char *buf;
-	uint32 buf_off;
+    char* name;
+    char* buf;
+    uint32_t buf_off;
 } qs_savefile_t;
 
-typedef struct {
 
-#if defined(NO_ZLIB) && (defined(WIN32) || defined(_WIN64))
-	HANDLE file_handle;
-	uint32 read_size;
-	uint32 eof;
-#else
-	gzFile *fp;
-	char isCompressed;
-	char is_a_FILE;
-#endif
-	char *name;
-	char *buf;
-	uint32 buf_off;
-} savefile_t;
+/*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/
 
-enum nfs_phase_flags
-{
-	NFS_DEFAULT_PHASES = 0,
-	NFS_PHASE_POLY = 0x1,
-	NFS_PHASE_SIEVE = 0x2,
-	NFS_PHASE_FILTER = 0x4,
-	NFS_PHASE_LA = 0x8,
-	NFS_PHASE_SQRT = 0x10,
-	NFS_PHASE_LA_RESUME = 0x20,
-	NFS_DONE_SIEVING = 0x40
-};
-
-enum factor_flags
-{
-	FACTOR_INTERRUPT = 1
-};
-
-enum ecm_exit_cond_e
-{
-    ECM_EXIT_NORMAL = 0,
-    ECM_EXIT_ABORT = 0x1
-};
-
-enum msieve_flags {
-	MSIEVE_DEFAULT_FLAGS = 0,		/* just a placeholder */
-	MSIEVE_FLAG_USE_LOGFILE = 0x01,	    /* append log info to a logfile */
-	MSIEVE_FLAG_LOG_TO_STDOUT = 0x02,   /* print log info to the screen */
-	MSIEVE_FLAG_STOP_SIEVING = 0x04,    /* tell library to stop sieving
-					       when it is safe to do so */
-	MSIEVE_FLAG_FACTORIZATION_DONE = 0x08,  /* set by the library if a
-						   factorization completed */
-	MSIEVE_FLAG_SIEVING_IN_PROGRESS = 0x10, /* set by the library when 
-						   any sieving operations are 
-						   in progress */
-	MSIEVE_FLAG_SKIP_QS_CYCLES = 0x20,  /* do not perform exact tracking of
-	                                    the number of cycles while sieving
-					    is in progress; for distributed
-					    sieving where exact progress info
-					    is not needed, sieving clients can
-					    save a lot of memory with this */
-	MSIEVE_FLAG_NFS_POLY1 = 0x40,     /* if input is large enough, perform
-	                                    stage 1 polynomial selection for NFS */
-	MSIEVE_FLAG_NFS_POLYSIZE = 0x80,  /* if input is large enough, perform
-	                                    NFS polynomial size optimization */
-	MSIEVE_FLAG_NFS_POLYROOT = 0x100, /* if input is large enough, perform
-	                                    NFS polynomial root optimization */
-	MSIEVE_FLAG_NFS_SIEVE = 0x200,   /* if input is large enough, perform
-	                                    sieving for NFS */
-	MSIEVE_FLAG_NFS_FILTER = 0x400,  /* if input is large enough, perform
-	                                    filtering phase for NFS */
-	MSIEVE_FLAG_NFS_LA = 0x800,      /* if input is large enough, perform
-	                                    linear algebra phase for NFS */
-	MSIEVE_FLAG_NFS_SQRT = 0x1000,    /* if input is large enough, perform
-	                                    square root phase for NFS */
-	MSIEVE_FLAG_NFS_LA_RESTART = 0x2000,/* restart the NFS linear algbra */
-	MSIEVE_FLAG_DEEP_ECM = 0x4000    /* perform nontrivial-size ECM */
-};
-
-
-enum msieve_factor_type {
-	MSIEVE_COMPOSITE,
-	MSIEVE_PRIME,
-	MSIEVE_PROBABLE_PRIME
-};
-
-typedef struct msieve_factor {
-	enum msieve_factor_type factor_type;
-	char *number;
-	struct msieve_factor *next;
-} msieve_factor;
-
-
-//* One factorization is represented by a msieve_obj
-//   structure. This contains all the static information
-//   that gets passed from one stage of the factorization
-//   to another. If this was C++ it would be a simple object */
-// this must be declared when calling msieve routines through
-// the msieve libraries
-typedef struct {
-	char *input;		  /* pointer to string version of the 
-				     integer to be factored */
-	msieve_factor *factors;   /* linked list of factors found (in
-				     ascending order */
-	volatile uint32 flags;	  /* input/output flags */
-	savefile_t savefile;      /* data for savefile */
-	char *logfile_name;       /* name of the logfile that will be
-				     used for this factorization */
-	uint32 seed1, seed2;      /* current state of random number generator
-				     (updated as random numbers are created) */
-	char *nfs_fbfile_name;    /* name of factor base file */
-	uint32 max_relations;      /* the number of relations that the sieving
-	                              stage will try to find. The default (0)
-				      is to keep sieving until all necessary 
-				      relations are found. */
-
-    uint32 which_gpu;         /* ordinal ID of GPU to use */
-	uint32 cache_size1;       /* bytes in level 1 cache */
-	uint32 cache_size2;       /* bytes in level 2 cache */
-	enum cpu_type cpu;
-	uint32 num_threads;
-
-#ifdef HAVE_MPI
-	uint32 mpi_size;          /* number of MPI processes, each with
-                                     num_threads threads */
-	uint32 mpi_rank;          /* from 0 to mpi_size - 1 */
-
-	uint32 mpi_nrows;         /* a 2-D MPI lanczos grid */
-	uint32 mpi_ncols;
-	MPI_Comm mpi_la_grid;
-	MPI_Comm mpi_la_row_grid; /* communicator for the current MPI row */
-	MPI_Comm mpi_la_col_grid; /* communicator for the current MPI col */
-	uint32 mpi_la_row_rank;
-	uint32 mpi_la_col_rank;
-#endif
-
-	char *mp_sprintf_buf;    /* scratch space for printing big integers */
-
-	const char *nfs_args; /* arguments for NFS */
-} msieve_obj;
-
-// these must be declared when calling msieve routines through
-// the msieve libraries.  they are defined in the msieve library.
-msieve_obj * msieve_obj_new(char *input_integer,
-			    uint32 flags,
-			    char *savefile_name,
-			    char *logfile_name,
-			    char *nfs_fbfile_name,
-			    uint32 seed1,
-			    uint32 seed2,
-			    uint32 max_relations,
-			    enum cpu_type cpu,
-			    uint32 cache_size1,
-			    uint32 cache_size2,
-			    uint32 num_threads,
-			    uint32 which_gpu,
-			    const char *nfs_args);
-
-msieve_obj * msieve_obj_free(msieve_obj *obj);
-
-
-typedef struct {
-	mp_t factor;
-	enum msieve_factor_type type;
-} final_factor_t;
-
-typedef struct {
-	uint32 num_factors;
-	final_factor_t *final_factors[256];
-} factor_list_t;
-
-
-/*--------------LINEAR ALGEBRA RELATED DECLARATIONS ---------------------*/
-
-/* Used to represent a list of relations */
-
-typedef struct {
-	uint32 num_relations;  /* number of relations in the cycle */
-	uint32 *list;          /* list of offsets into an array of relations */
-} qs_la_cycle_t;
-
-/* A column of the matrix */
-
-typedef struct {
-	uint32 *data;		/* The list of occupied rows in this column */
-	uint32 weight;		/* Number of nonzero entries in this column */
-	qs_la_cycle_t cycle;       /* list of relations comprising this column */
-} qs_la_col_t;
-
-/*---------------- SAVEFILE RELATED DECLARATIONS ---------------------*/
-
-#define LINE_BUF_SIZE 300
-#define SAVEFILE_READ 0x01
-#define SAVEFILE_WRITE 0x02
-#define SAVEFILE_APPEND 0x04
-
-// factorization objects //
+int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
+    int VFLAG, int NUM_WITNESSES);
+void print_factors(yfactor_list_t* fobj, mpz_t N, int VFLAG, int NUM_WITNESSES);
+void clear_factor_list(yfactor_list_t* fobj);
+void delete_from_factor_list(yfactor_list_t* fobj, mpz_t n);
 
 typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32 B1;
-	uint64 B2;
+	uint32_t B1;
+	uint64_t B2;
 	int stg2_is_default;
 	double ttime;
-	uint32 base;				//we compute base^B1
+	uint32_t base;				//we compute base^B1
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double pm1_exponent;
@@ -276,12 +121,12 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32 B1;
-	uint64 B2;
+	uint32_t B1;
+	uint64_t B2;
 	int stg2_is_default;
 	double ttime;
-	uint32 base;				//we compute base^B1
-	uint32 numbases;
+	uint32_t base;				//we compute base^B1
+	uint32_t numbases;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double pp1_exponent;
@@ -289,7 +134,7 @@ typedef struct
 	double pp1_tune_freq;
 
     // RNG state for picking bases
-    uint64 lcg_state;
+    uint64_t lcg_state;
 
 } pp1_obj_t;
 
@@ -300,17 +145,18 @@ typedef struct
 
     int save_b1;
     int prefer_gmpecm;
+    int prefer_gmpecm_stg2;
 	char ecm_path[1024];
 	int use_external;
-	uint64 B1;
-	uint64 B2;
+	uint64_t B1;
+	uint64_t B2;
 	int stg2_is_default;
 	int curves_run;
-	uint32 num_curves;
-	uint32 sigma;				//sigma value of successful curve
-	uint32 num_factors;			//number of factors found in this method
+	uint32_t num_curves;
+	uint64_t sigma;				//sigma value of successful curve
+	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
-	uint64 ecm_ext_xover;
+	uint64_t ecm_ext_xover;
     int bail_on_factor;
     enum ecm_exit_cond_e exit_cond;              // exit condition
 
@@ -319,11 +165,11 @@ typedef struct
 	double ecm_multiplier;
     double ecm_tune_freq;
 
-    uint32 rand_seed1;
-    uint32 rand_seed2;
+    uint32_t rand_seed1;
+    uint32_t rand_seed2;
 
     // RNG state for each thread
-    uint64 *lcg_state;
+    uint64_t *lcg_state;
 
 } ecm_obj_t;
 
@@ -331,10 +177,10 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32 iterations;
-	uint32 num_poly;
-	uint32 *polynomials;
-	uint32 curr_poly;			//current polynomial in the list of polynomials
+	uint32_t iterations;
+	uint32_t num_poly;
+	uint32_t *polynomials;
+	uint32_t curr_poly;			//current polynomial in the list of polynomials
 	double ttime;
 
 } rho_obj_t;
@@ -343,9 +189,9 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32 limit;				//trial div limit
-	uint32 fmtlimit;			//fermat max iterations
-	uint32 num_factors;			//number of factors found in this method
+	uint32_t limit;				//trial div limit
+	uint32_t fmtlimit;			//fermat max iterations
+	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
 	int print;
 
@@ -355,53 +201,85 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32 num_factors;			//number of factors found in this method
+	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
 
 } squfof_obj_t;
 
 typedef struct
 {
-	mpz_t gmp_n;
-	qs_savefile_t savefile;		//savefile object
-	char siqs_savefile[1024];
+    mpz_t gmp_n;
+    char* savefile_name;
+    char* flogname;
+    qs_savefile_t savefile;		//savefile object
+    FILE* logfile;
+    char siqs_savefile[1024];
 
-	double qs_exponent;
-	double qs_multiplier;
-	double qs_tune_freq;
-	int no_small_cutoff_opt;	//1 is true - perform no optimization.  0 is false.
+    double qs_exponent;
+    double qs_multiplier;
+    double qs_tune_freq;
+    int no_small_cutoff_opt;	//1 is true - perform no optimization.  0 = optimize.
 
-	int gbl_override_B_flag;
-	uint32 gbl_override_B;			//override the # of factor base primes
-    int gbl_override_small_cutoff_flag;
-    uint32 gbl_override_small_cutoff;			//override the tf_small_cutoff value
-	int gbl_override_tf_flag;
-	uint32 gbl_override_tf;			//extra reduction of the TF bound by X bits
-	int gbl_override_time_flag;
-	uint32 gbl_override_time;		//stop after this many seconds
-	int gbl_override_rel_flag;
-	uint32 gbl_override_rel;		//stop after collecting this many relations
-	int gbl_override_blocks_flag;
-	uint32 gbl_override_blocks;		//override the # of blocks used
-	int gbl_override_lpmult_flag;
-	uint32 gbl_override_lpmult;		//override the large prime multiplier
-    int gbl_override_bdiv_flag;
+    // siqs parameters to override defaults
+    uint32_t gbl_override_B;			//override the # of factor base primes
+    uint32_t gbl_override_small_cutoff;			//override the tf_small_cutoff value
+    uint32_t gbl_override_tf;			//extra reduction of the TF bound by X bits
+    uint32_t gbl_override_time;		//stop after this many seconds
+    uint32_t gbl_override_rel;		//stop after collecting this many relations
+    uint32_t gbl_override_blocks;		//override the # of blocks used
+    uint32_t gbl_override_lpmult;		//override the large prime multiplier
     float gbl_override_bdiv;        // override the lpmax divider for batch GCD
-    uint32 gbl_btarget;             // the target number of batch relations
-	int gbl_force_DLP;
-	int gbl_force_TLP;
-	uint32 gbl_override_lpb;		// override the large prime bound (specified in bits)
-	double gbl_override_mfbt;		// override the mfbt exponent
-	double gbl_override_mfbd;		// override the mfbd exponent
-    uint32 gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
+    uint32_t gbl_btarget;             // the target number of batch relations
+    uint32_t gbl_override_lpb;		// override the large prime bound (specified in bits)
+    double gbl_override_mfbt;		// override the mfbt exponent
+    double gbl_override_mfbd;		// override the mfbd exponent
+    uint32_t gbl_override_3lp_bat;    // don't do 3lp batch factoring (default is do_batch)
+    uint32_t inmem_cutoff;          // below X digits, don't use savefile
+    int gbl_force_DLP;
+    int gbl_force_TLP;
 
-    uint32 inmem_cutoff;
-	uint32 num_factors;			//number of factors found in this method
-	uint32 flags;				//each bit corresponds to a location in the 
-								//flags enum
-	double rels_per_sec;
-	double qs_time;
-	double total_time;
+    int gbl_override_B_flag;
+    int gbl_override_small_cutoff_flag;
+    int gbl_override_tf_flag;
+    int gbl_override_time_flag;
+    int gbl_override_rel_flag;
+    int gbl_override_blocks_flag;
+    int gbl_override_lpmult_flag;
+    int gbl_override_bdiv_flag;
+
+    uint32_t num_factors;			//number of factors found in this method
+    uint32_t flags;				//each bit corresponds to a location in the 
+                                //flags enum
+    double rels_per_sec;
+    double qs_time;
+    double total_time;
+
+    // configurable options
+    int VFLAG;
+    int THREADS;
+    int LOGFLAG;
+    int LATHREADS;
+    int NUM_WITNESSES;
+
+    // computer info
+    double MEAS_CPU_FREQUENCY;
+    char CPU_ID_STR[80];
+    int HAS_SSE2;
+    int HAS_SSE41;
+    int HAS_AVX;
+    int HAS_AVX2;
+    int L1CACHE;
+    int L2CACHE;
+    int L3CACHE;
+    uint32_t cache_size2;
+    uint32_t num_threads;
+
+    uint32_t seed1;
+    uint32_t seed2;
+    uint64_t lcg_state;
+
+    uint32_t bits;
+    uint32_t digits;
 
 } qs_obj_t;
 
@@ -417,31 +295,31 @@ typedef struct
 	int alt_degree;
 
 	char ggnfs_dir[GSTR_MAXSIZE];
-	uint32 siever;
+	uint32_t siever;
 	int sq_side;
-	uint32 startq;
-	uint32 rangeq;
-	uint32 polystart;
-	uint32 polyrange;
+	uint32_t startq;
+	uint32_t rangeq;
+	uint32_t polystart;
+	uint32_t polyrange;
 	double filter_min_rels_nudge;
 	char outputfile[GSTR_MAXSIZE];
 	char logfile[GSTR_MAXSIZE];
 	char fbfile[GSTR_MAXSIZE];
-	uint32 timeout;
+	uint32_t timeout;
 	char job_infile[GSTR_MAXSIZE];
 	int poly_option;
 	int restart_flag;
-	uint32 polybatch;
-	uint32 nfs_phases;
-	uint32 snfs_testsieve_threshold;
+	uint32_t polybatch;
+	uint32_t nfs_phases;
+	uint32_t snfs_testsieve_threshold;
 
 	double gnfs_exponent;
 	double gnfs_multiplier;
 	double gnfs_tune_freq;
 
-	uint32 min_digits;
+	uint32_t min_digits;
 
-	uint32 num_factors;			//number of factors found in this method
+	uint32_t num_factors;			//number of factors found in this method
 	double ttime;
 	
 	// an object used to carry around information needed by the msieve library
@@ -451,103 +329,94 @@ typedef struct
 
 } nfs_obj_t;
 
-
-//globals for implementing the "plan" and "pretest" switches
+// enum for implementing the "plan" and "pretest" switches
 enum pretest_plan {
-	PRETEST_NONE = 0,
-	PRETEST_NOECM = 1,
-	PRETEST_LIGHT = 2,
-	PRETEST_NORMAL = 3,
-	PRETEST_DEEP = 4,
-	PRETEST_CUSTOM = 5,
+    PRETEST_NONE = 0,
+    PRETEST_NOECM = 1,
+    PRETEST_LIGHT = 2,
+    PRETEST_NORMAL = 3,
+    PRETEST_DEEP = 4,
+    PRETEST_CUSTOM = 5,
 };
 
 typedef struct
 {
-	//crossover between qs and gnfs
-	double qs_gnfs_xover;
+    //crossover between qs and gnfs
+    double qs_gnfs_xover;
     //crossover between qs and snfs
     double qs_snfs_xover;
-	int prefer_xover;
+    int prefer_xover;
 
-	//balance of ecm and various sieve methods
-	double target_pretest_ratio;
-	int has_snfs_form;			// 1 = input has snfs form
-								// 0 = input does not have snfs form
-								// -1 = input has not been checked yet
+    //balance of ecm and various sieve methods
+    double target_pretest_ratio;
+    int has_snfs_form;			// 1 = input has snfs form
+                                // 0 = input does not have snfs form
+                                // -1 = input has not been checked yet
 
-	//double target_ecm_gnfs_ratio;
-	//double target_ecm_snfs_ratio;
+    //double target_ecm_gnfs_ratio;
+    //double target_ecm_snfs_ratio;
 
-	int no_ecm;
+    int no_ecm;
 
-	int want_only_1_factor;
-	int want_output_primes;
-	int want_output_factors;
-	int want_output_unfactored;
-	int want_output_expressions;
-	FILE *op_file;
-	FILE *of_file;
-	FILE *ou_file;
-	char op_str[1024];
-	char of_str[1024];
-	char ou_str[1024];
+    int want_only_1_factor;
+    int want_output_primes;
+    int want_output_factors;
+    int want_output_unfactored;
+    int want_output_expressions;
+    FILE* op_file;
+    FILE* of_file;
+    FILE* ou_file;
+    char op_str[1024];
+    char of_str[1024];
+    char ou_str[1024];
 
-	enum pretest_plan yafu_pretest_plan;
-	char plan_str[1024];
-	int only_pretest;
-	int autofact_active;
+    enum pretest_plan yafu_pretest_plan;
+    char plan_str[1024];
+    int only_pretest;
+    int autofact_active;
 
-	// user supplied value indicating prior pretesting work
-	double initial_work;
+    // user supplied value indicating prior pretesting work
+    double initial_work;
 
-	double ttime;
+    double ttime;
 
 } autofact_obj_t;
 
-
 typedef struct
 {
-	mpz_t N;					//numerical representation of input
-	uint32 digits;				//number of digits in input
-	uint32 bits;				//number of bits in input
-	char flogname[1024];		//name of the factorization logfile to use
-	FILE *logfile;				//the logfile
-	char savefile_name[80];		//data savefile name
-	uint32 flags;				//state flags
+	mpz_t N;					    // numerical representation of input
+	uint32_t digits;			    // number of digits in input
+	uint32_t bits;				    // number of bits in input
+	char flogname[1024];		    // name of the factorization logfile to use
+	FILE *logfile;				    // the logfile
+	char savefile_name[80];		    // data savefile name
+	uint32_t flags;				    // state flags
 
 	// info for work done in various places during this factorization
-	div_obj_t div_obj;			//info for any trial division work 
-	squfof_obj_t squfof_obj;	//info for any squfof work 
-	rho_obj_t rho_obj;			//info for any rho work 
-	pm1_obj_t pm1_obj;			//info for any pm1 work 
-	pp1_obj_t pp1_obj;			//info for any pp1 work 
-	ecm_obj_t ecm_obj;			//info for any ecm work 
-	qs_obj_t qs_obj;			//info for any qs work 
-	nfs_obj_t nfs_obj;			//info for any nfs work
+	div_obj_t div_obj;			    // info for any trial division work 
+	squfof_obj_t squfof_obj;	    // info for any squfof work 
+	rho_obj_t rho_obj;			    // info for any rho work 
+	pm1_obj_t pm1_obj;			    // info for any pm1 work 
+	pp1_obj_t pp1_obj;			    // info for any pp1 work 
+	ecm_obj_t ecm_obj;			    // info for any ecm work 
+	qs_obj_t qs_obj;			    // info for any qs work 
+	nfs_obj_t nfs_obj;			    // info for any nfs work
 	autofact_obj_t autofact_obj;
 
-	uint32 cache_size1;
-	uint32 cache_size2;
-	int num_threads;
-	uint32 seed1;
-	uint32 seed2;
+	// list of primes.  To be filled in once if multiple
+    // algorithms will need it.
+    uint64_t* primes;
+    uint64_t num_p;
+    uint64_t max_p;
+    uint64_t min_p;
 
 	// threshold at which we know number are prime, as determined by trial division
-	uint64 prime_threshold;
+	uint64_t prime_threshold;
 
-	// if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
-	int aprcl_prove_cutoff;
-	// if a number is > aprcl_display_cutoff, we will show the APRCL progress
-	int aprcl_display_cutoff;
-
-	// global storage for a list of factors
-	factor_t *fobj_factors;
-	uint32 num_factors;
-	uint32 allocated_factors;
+	// manage a list of factors
+	yfactor_list_t *factors;
 	int do_logging;
 	int refactor_depth;
-    options_t* options;
 
     // configurable options
     int VFLAG;
@@ -555,49 +424,49 @@ typedef struct
     int LOGFLAG;
     int LATHREADS;
     int NUM_WITNESSES;
+    int num_threads;
 
     // computer info
     double MEAS_CPU_FREQUENCY;
     char CPU_ID_STR[80];
+    int HAS_SSE2;
     int HAS_SSE41;
     int HAS_AVX;
     int HAS_AVX2;
+    int HAS_BMI2;
+    int HAS_AVX512;
+    int HAS_AVX512F;
+    int HAS_AVX512BW;
+    int HAS_AVX512VL;
+    int HAS_AVX512PF;
+    int HAS_AVX512IFMA52;
     int L1CACHE;
     int L2CACHE;
     int L3CACHE;
+    uint32_t cache_size1;
+    uint32_t cache_size2;
     
     // RNG state
     uint64_t lcg_state;
+    uint32_t seed1;
+    uint32_t seed2;
 
 } fact_obj_t;
 
-void init_factobj(fact_obj_t *fobj, options_t *options);
+void init_factobj(fact_obj_t *fobj);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void alloc_factobj(fact_obj_t *fobj);
-
-/* ---------------- DECLARATIONS FOR SAVEFILE MANIPULATION -------------- */
-// copied from msieve source code
-void qs_savefile_init(qs_savefile_t *s, char *filename);
-void qs_savefile_free(qs_savefile_t *s);
-void qs_savefile_open(qs_savefile_t *s, uint32 flags);
-void qs_savefile_close(qs_savefile_t *s);
-uint32 qs_savefile_eof(qs_savefile_t *s);
-uint32 qs_savefile_exists(qs_savefile_t *s);
-void qs_savefile_rewind(qs_savefile_t *s);
-void qs_savefile_read_line(char *buf, size_t max_len, qs_savefile_t *s);
-void qs_savefile_write_line(qs_savefile_t *s, char *buf);
-void qs_savefile_flush(qs_savefile_t *s);
 
 //#if defined(WIN32)
 // windows machines also need these declarations for functions located
 // within common.lib or gnfs.lib, for NFS factorizations using msieve.
 void savefile_init(savefile_t *s, char *filename);
 void savefile_free(savefile_t *s);
-void savefile_open(savefile_t *s, uint32 flags);
+void savefile_open(savefile_t *s, uint32_t flags);
 void savefile_close(savefile_t *s);
-uint32 savefile_eof(savefile_t *s);
-uint32 savefile_exists(savefile_t *s);
+uint32_t savefile_eof(savefile_t *s);
+uint32_t savefile_exists(savefile_t *s);
 void savefile_read_line(char *buf, size_t max_len, savefile_t *s);
 void savefile_write_line(savefile_t *s, char *buf);
 void savefile_flush(savefile_t *s);
@@ -606,62 +475,35 @@ void savefile_rewind(savefile_t *s);
 //#endif
 
 
-/*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/
+/* ============================ interface to microecm ============================ */
+extern void init_uecm(uint64_t lcg);
+extern uint64_t do_uecm(uint64_t q);
+extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves, int verbose);
 
-//msieve
-void factor_list_init(factor_list_t *list);
-uint32 factor_list_max_composite(factor_list_t *list);
+/* ============================ interface to tinyecm ============================ */
+extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
+    uint64_t* lcg_state, int verbose);
 
-//yafu
-void add_to_factor_list(fact_obj_t *fobj, mpz_t n);
-void print_factors(fact_obj_t *fobj);
-void clear_factor_list(fact_obj_t *fobj);
-void delete_from_factor_list(fact_obj_t *fobj, mpz_t n);
-
-/*-----------TOP LEVEL ENTRY POINT FOR ALL FACTORING ROUTINES ----------*/
-
-uint32 test_qn_res[128];
-
-uint64 spbrent(uint64 N, uint64 c, int imax);
-uint64 spbrent64(uint64 N, int imax);
+/* =============== interface to various small-factor-finding routines =========== */
+uint64_t spbrent(uint64_t N, uint64_t c, int imax);
+uint64_t spbrent64(uint64_t N, int imax);
 int mbrent(fact_obj_t *fobj);
-int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32 a, uint32 imax);
+int montybrent(monty_t *mdata, mpz_t n, mpz_t f, uint32_t a, uint32_t imax);
 void brent_loop(fact_obj_t *fobj);
-void pollard_loop(fact_obj_t *fobj);
-void williams_loop(fact_obj_t *fobj);
-int ecm_loop(fact_obj_t *fobj);
-factor_t * vec_ecm_main(mpz_t N, uint32 numcurves, uint64 B1, 
-    uint64 B2, int threads, int *numfactors, int verbose, 
-    int save_b1, uint32 *curves_run);
-void tinyecm(mpz_t n, mpz_t f, uint32 B1, uint32 B2, uint32 curves,
-    uint64* lcg_state, int verbose);
-void microecm(uint64 n, uint64 *f, uint32 B1, uint32 B2, uint32 curves, int verbose);
-uint64 do_uecm(uint64 q);
-uint64 sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
-uint64 LehmanFactor(uint64 N, double Tune, int DoTrial, double CutFrac);
+uint64_t sp_shanks_loop(mpz_t N, fact_obj_t *fobj);
+uint64_t LehmanFactor(uint64_t N, double Tune, int DoTrial, double CutFrac);
 void init_lehman();
 void zTrial(fact_obj_t *fobj);
-void zFermat(uint64 limit, uint32 mult, fact_obj_t *fobj);
+void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj);
 void factor_perfect_power(fact_obj_t *fobj, mpz_t b);
-void nfs(fact_obj_t *fobj);
-void SIQS(fact_obj_t *fobj);
-void smallmpqs(fact_obj_t *fobj);
-int par_shanks_loop(uint64 *N, uint64 *f, int num_in);
+int par_shanks_loop(uint64_t*N, uint64_t*f, int num_in);
 
-int sptestsqr(uint64 n);
-uint64 spfermat(uint64 n, uint64 limit);
+int sptestsqr(uint64_t n);
+uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n);
 
-//auto factor routine
-void factor(fact_obj_t *fobj);
 
 // factoring related utility
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG);
 
-/* Factor a number using GNFS. Returns
-   1 if any factors were found and 0 if not */
-
-uint32 factor_gnfs(msieve_obj *obj, mp_t *n, factor_list_t *factor_list);
-
-void factor_tune(fact_obj_t *fobj);
 
 #endif //_FACTOR_H

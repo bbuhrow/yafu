@@ -20,8 +20,7 @@ code to the public domain.
 
 #include "common.h"
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
@@ -209,33 +208,33 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	update_t update_data = dconf->update_data;
 
-	uint32 startprime = 2;
-	uint32 bound = sconf->factor_base->B;
+	uint32_t startprime = 2;
+	uint32_t bound = sconf->factor_base->B;
 
 	char v = dconf->curr_poly->nu[dconf->numB];
 	char sign = dconf->curr_poly->gray[dconf->numB];
 	int *ptr;
-	uint16 *sm_ptr;
+	uint16_t *sm_ptr;
 
 	lp_bucket *lp_bucket_p = dconf->buckets;
-	uint32 med_B = sconf->factor_base->med_B;
-	uint32 large_B = sconf->factor_base->large_B;
+	uint32_t med_B = sconf->factor_base->med_B;
+	uint32_t large_B = sconf->factor_base->large_B;
 
-	uint32 j, interval; //, fb_offset;
+	uint32_t j, interval; //, fb_offset;
 	int k,numblocks;
-	uint32 root1, root2, prime;
+	uint32_t root1, root2, prime;
 
 	int bound_index=0;
 	int check_bound = BUCKET_ALLOC/2 - 1;
-	uint32 bound_val = med_B;
-	uint32 *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
+	uint32_t bound_val = med_B;
+	uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
 	
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
-	uint32 *bptr;
+	uint32_t *bptr;
 	int bnum, room;
 #endif
 
-	uint8 logp=0;
+	uint8_t logp=0;
 	polysieve_t helperstruct;
 
 	numblocks = sconf->num_blocks;
@@ -302,10 +301,10 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
 
-			fb_p->root1[j] = (uint16)root1;
-			fb_p->root2[j] = (uint16)root2;
-			fb_n->root1[j] = (uint16)(prime - root2);
-			fb_n->root2[j] = (uint16)(prime - root1);
+			fb_p->root1[j] = (uint16_t)root1;
+			fb_p->root2[j] = (uint16_t)root2;
+			fb_n->root1[j] = (uint16_t)(prime - root2);
+			fb_n->root2[j] = (uint16_t)(prime - root1);
 			if (fb_n->root1[j] == prime)
 				fb_n->root1[j] = 0;
 			if (fb_n->root2[j] == prime)
@@ -324,30 +323,30 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 				break;
 
 			prime = update_data.prime[j];
-			root1 = (uint32)update_data.sm_firstroots1[j];
-			root2 = (uint32)update_data.sm_firstroots2[j];
+			root1 = (uint32_t)update_data.sm_firstroots1[j];
+			root2 = (uint32_t)update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_P;
 
 			if (root2 < root1)
 			{
-				update_data.sm_firstroots1[j] = (uint16)root2;
-				update_data.sm_firstroots2[j] = (uint16)root1;
+				update_data.sm_firstroots1[j] = (uint16_t)root2;
+				update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-				fb_p->root1[j] = (uint16)root2;
-				fb_p->root2[j] = (uint16)root1;
-				fb_n->root1[j] = (uint16)(prime - root1);
-				fb_n->root2[j] = (uint16)(prime - root2);
+				fb_p->root1[j] = (uint16_t)root2;
+				fb_p->root2[j] = (uint16_t)root1;
+				fb_n->root1[j] = (uint16_t)(prime - root1);
+				fb_n->root2[j] = (uint16_t)(prime - root2);
 			}
 			else
 			{
-				update_data.sm_firstroots1[j] = (uint16)root1;
-				update_data.sm_firstroots2[j] = (uint16)root2;
+				update_data.sm_firstroots1[j] = (uint16_t)root1;
+				update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-				fb_p->root1[j] = (uint16)root1;
-				fb_p->root2[j] = (uint16)root2;
-				fb_n->root1[j] = (uint16)(prime - root2);
-				fb_n->root2[j] = (uint16)(prime - root1);
+				fb_p->root1[j] = (uint16_t)root1;
+				fb_p->root2[j] = (uint16_t)root2;
+				fb_n->root1[j] = (uint16_t)(prime - root2);
+				fb_n->root2[j] = (uint16_t)(prime - root1);
 			}
 		}
 
@@ -1093,10 +1092,10 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			update_data.firstroots1[j] = root1;
 			update_data.firstroots2[j] = root2;
 
-			fb_p->root1[j] = (uint16)root1;
-			fb_p->root2[j] = (uint16)root2;
-			fb_n->root1[j] = (uint16)(prime - root2);
-			fb_n->root2[j] = (uint16)(prime - root1);
+			fb_p->root1[j] = (uint16_t)root1;
+			fb_p->root2[j] = (uint16_t)root2;
+			fb_n->root1[j] = (uint16_t)(prime - root2);
+			fb_n->root2[j] = (uint16_t)(prime - root1);
 			if (fb_n->root1[j] == prime)
 				fb_n->root1[j] = 0;
 			if (fb_n->root2[j] == prime)
@@ -1116,30 +1115,30 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 				break;
 
 			prime = update_data.prime[j];
-			root1 = (uint32)update_data.sm_firstroots1[j];
-			root2 = (uint32)update_data.sm_firstroots2[j];
+			root1 = (uint32_t)update_data.sm_firstroots1[j];
+			root2 = (uint32_t)update_data.sm_firstroots2[j];
 
 			COMPUTE_NEXT_ROOTS_N;
 
 			if (root2 < root1)
 			{
-				update_data.sm_firstroots1[j] = (uint16)root2;
-				update_data.sm_firstroots2[j] = (uint16)root1;
+				update_data.sm_firstroots1[j] = (uint16_t)root2;
+				update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-				fb_p->root1[j] = (uint16)root2;
-				fb_p->root2[j] = (uint16)root1;
-				fb_n->root1[j] = (uint16)(prime - root1);
-				fb_n->root2[j] = (uint16)(prime - root2);
+				fb_p->root1[j] = (uint16_t)root2;
+				fb_p->root2[j] = (uint16_t)root1;
+				fb_n->root1[j] = (uint16_t)(prime - root1);
+				fb_n->root2[j] = (uint16_t)(prime - root2);
 			}
 			else
 			{
-				update_data.sm_firstroots1[j] = (uint16)root1;
-				update_data.sm_firstroots2[j] = (uint16)root2;
+				update_data.sm_firstroots1[j] = (uint16_t)root1;
+				update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-				fb_p->root1[j] = (uint16)root1;
-				fb_p->root2[j] = (uint16)root2;
-				fb_n->root1[j] = (uint16)(prime - root2);
-				fb_n->root2[j] = (uint16)(prime - root1);
+				fb_p->root1[j] = (uint16_t)root1;
+				fb_p->root2[j] = (uint16_t)root2;
+				fb_n->root1[j] = (uint16_t)(prime - root2);
+				fb_n->root2[j] = (uint16_t)(prime - root1);
 			}
 		}
 		
@@ -1887,33 +1886,33 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int* ptr;
-    uint16* sm_ptr;
+    uint16_t* sm_ptr;
 
     lp_bucket* lp_bucket_p = dconf->buckets;
-    uint32 med_B = sconf->factor_base->med_B;
-    uint32 large_B = sconf->factor_base->large_B;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
 
-    uint32 j, interval; //, fb_offset;
+    uint32_t j, interval; //, fb_offset;
     int k, numblocks;
-    uint32 root1, root2, nroot1, nroot2, prime;
+    uint32_t root1, root2, nroot1, nroot2, prime;
 
     int bound_index = 0;
     int check_bound = BUCKET_ALLOC / 2 - 1;
-    uint32 bound_val = med_B;
-    uint32* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
+    uint32_t bound_val = med_B;
+    uint32_t* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
 
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
-    uint32 * bptr;
+    uint32_t * bptr;
     int bnum, room;
 #endif
 
-    uint8 logp = 0;
+    uint8_t logp = 0;
     polysieve_t helperstruct;
 
     numblocks = sconf->num_blocks;
@@ -1949,10 +1948,6 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
     if (sign > 0)
     {
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         for (j = startprime; j < sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
@@ -1965,10 +1960,10 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -1983,34 +1978,34 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
             j < sconf->factor_base->fb_10bit_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_P;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
-#if defined(HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
+#if defined(D_HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
 
         // update 8 at a time using SSE2 and no branching
         sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
@@ -2049,23 +2044,23 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -2079,8 +2074,8 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         for (; j < med_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint16)update_data.sm_firstroots1[j];
-            root2 = (uint16)update_data.sm_firstroots2[j];
+            root1 = (uint16_t)update_data.sm_firstroots1[j];
+            root2 = (uint16_t)update_data.sm_firstroots2[j];
 
             if ((prime > 32768) && ((j & 7) == 0))
                 break;
@@ -2089,23 +2084,23 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -2121,31 +2116,25 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
 
         bound_index = 0;
         bound_val = med_B;
@@ -2412,7 +2401,7 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         logp = helperstruct.logp;
 
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
         logp = update_data.logp[j - 1];
         for (j = med_B; j < large_B; )
@@ -2490,13 +2479,6 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         }
 
 #endif
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
 
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
         logp = update_data.logp[large_B - 1];
@@ -2734,7 +2716,7 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         logp = helperstruct.logp;
 
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
         logp = update_data.logp[j - 1];
         for (j = large_B; j < bound; )
@@ -2823,20 +2805,9 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 #endif
 
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
-
     }
     else
     {
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
         for (j = startprime; j < sconf->sieve_small_fb_start; j++, ptr++)
         {
             prime = update_data.prime[j];
@@ -2849,10 +2820,10 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -2867,34 +2838,34 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
             j < sconf->factor_base->fb_10bit_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_N;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
-#if defined(HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
+#if defined(D_HAS_SSE2) && (defined(GCC_ASM64X) || defined(_MSC_VER)) //NOTDEF //GCC_ASM64X
         // update 8 at a time using SSE2 and no branching		
         sm_ptr = &dconf->sm_rootupdates[(v - 1) * med_B];
         {
@@ -2933,23 +2904,23 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 #endif		
@@ -2962,8 +2933,8 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         for (; j < med_B; j++, ptr++)
         {
             prime = update_data.prime[j];
-            root1 = (uint16)update_data.sm_firstroots1[j];
-            root2 = (uint16)update_data.sm_firstroots2[j];
+            root1 = (uint16_t)update_data.sm_firstroots1[j];
+            root2 = (uint16_t)update_data.sm_firstroots2[j];
 
             if ((prime > 32768) && ((j & 7) == 0))
                 break;
@@ -2972,23 +2943,23 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -3004,31 +2975,25 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG2 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
 
         bound_index = 0;
         bound_val = med_B;
@@ -3292,7 +3257,7 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         bound_index = helperstruct.bound_index;
         logp = helperstruct.logp;
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
         logp = update_data.logp[j - 1];
         for (j = med_B; j < large_B; )
@@ -3370,13 +3335,6 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         }
 
 #endif
-
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG3 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-        gettimeofday(&qs_timing_start, NULL);
-#endif
-
 
 #if defined(USE_POLY_SSE2_ASM) && defined(GCC_ASM64X) && !defined(PROFILING)
         logp = update_data.logp[large_B - 1];
@@ -3613,7 +3571,7 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
         bound_index = helperstruct.bound_index;
         logp = helperstruct.logp;
 
-#elif defined(HAS_SSE2)
+#elif defined(D_HAS_SSE2)
 
         logp = update_data.logp[j - 1];
         for (j = large_B; j < bound; )
@@ -3702,11 +3660,6 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
 
 #endif
 
-#ifdef QS_TIMING
-        gettimeofday(&qs_timing_stop, NULL);
-        POLY_STG4 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-#endif
-
     }
 
     if (lp_bucket_p->list != NULL)
@@ -3727,20 +3680,20 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     update_t update_data = dconf->update_data;
 
-    uint32 startprime = 2;
-    uint32 bound = sconf->factor_base->B;
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
 
     char v = dconf->curr_poly->nu[dconf->numB];
     char sign = dconf->curr_poly->gray[dconf->numB];
     int *ptr;
-    uint16 *sm_ptr;
+    uint16_t *sm_ptr;
 
-    uint32 med_B = sconf->factor_base->med_B;
+    uint32_t med_B = sconf->factor_base->med_B;
 
-    uint32 j;
+    uint32_t j;
     int k;
-    uint32 root1, root2, prime;
-    uint8 logp = 0;
+    uint32_t root1, root2, prime;
+    uint8_t logp = 0;
 
     CLEAN_AVX2;
 
@@ -3762,10 +3715,10 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -3784,30 +3737,30 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
                 break;
 
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_P;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -3828,7 +3781,18 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             h.start = j;									// 64
             h.stop = sconf->factor_base->med_B;		// 68
         
+#ifdef USE_AVX512BWno
+
+            COMPUTE_32X_SMALL_PROOTS_AVX512;
+
+            h.start = h.stop;								// 64
+            h.stop = sconf->factor_base->med_B;		        // 68s
+
+            COMPUTE_16X_SMALL_PROOTS_AVX512;
+#else
+
             COMPUTE_16X_SMALL_PROOTS_AVX2;
+#endif
         
             j = h.stop;
         }
@@ -3851,10 +3815,10 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             update_data.firstroots1[j] = root1;
             update_data.firstroots2[j] = root2;
 
-            fb_p->root1[j] = (uint16)root1;
-            fb_p->root2[j] = (uint16)root2;
-            fb_n->root1[j] = (uint16)(prime - root2);
-            fb_n->root2[j] = (uint16)(prime - root1);
+            fb_p->root1[j] = (uint16_t)root1;
+            fb_p->root2[j] = (uint16_t)root2;
+            fb_n->root1[j] = (uint16_t)(prime - root2);
+            fb_n->root2[j] = (uint16_t)(prime - root1);
             if (fb_n->root1[j] == prime)
                 fb_n->root1[j] = 0;
             if (fb_n->root2[j] == prime)
@@ -3874,30 +3838,30 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
                 break;
 
             prime = update_data.prime[j];
-            root1 = (uint32)update_data.sm_firstroots1[j];
-            root2 = (uint32)update_data.sm_firstroots2[j];
+            root1 = (uint32_t)update_data.sm_firstroots1[j];
+            root2 = (uint32_t)update_data.sm_firstroots2[j];
 
             COMPUTE_NEXT_ROOTS_N;
 
             if (root2 < root1)
             {
-                update_data.sm_firstroots1[j] = (uint16)root2;
-                update_data.sm_firstroots2[j] = (uint16)root1;
+                update_data.sm_firstroots1[j] = (uint16_t)root2;
+                update_data.sm_firstroots2[j] = (uint16_t)root1;
 
-                fb_p->root1[j] = (uint16)root2;
-                fb_p->root2[j] = (uint16)root1;
-                fb_n->root1[j] = (uint16)(prime - root1);
-                fb_n->root2[j] = (uint16)(prime - root2);
+                fb_p->root1[j] = (uint16_t)root2;
+                fb_p->root2[j] = (uint16_t)root1;
+                fb_n->root1[j] = (uint16_t)(prime - root1);
+                fb_n->root2[j] = (uint16_t)(prime - root2);
             }
             else
             {
-                update_data.sm_firstroots1[j] = (uint16)root1;
-                update_data.sm_firstroots2[j] = (uint16)root2;
+                update_data.sm_firstroots1[j] = (uint16_t)root1;
+                update_data.sm_firstroots2[j] = (uint16_t)root2;
 
-                fb_p->root1[j] = (uint16)root1;
-                fb_p->root2[j] = (uint16)root2;
-                fb_n->root1[j] = (uint16)(prime - root2);
-                fb_n->root2[j] = (uint16)(prime - root1);
+                fb_p->root1[j] = (uint16_t)root1;
+                fb_p->root2[j] = (uint16_t)root2;
+                fb_n->root1[j] = (uint16_t)(prime - root2);
+                fb_n->root2[j] = (uint16_t)(prime - root1);
             }
         }
 
@@ -3917,7 +3881,18 @@ void nextRoots_32k_avx2_small(static_conf_t *sconf, dynamic_conf_t *dconf)
             h.start = j;									// 64
             h.stop = sconf->factor_base->med_B;		// 68
         
+#ifdef USE_AVX512BWno
+
+            COMPUTE_32X_SMALL_NROOTS_AVX512;
+
+            h.start = h.stop;								// 64
+            h.stop = sconf->factor_base->med_B;		        // 68s
+
+            COMPUTE_16X_SMALL_NROOTS_AVX512;
+#else
+
             COMPUTE_16X_SMALL_NROOTS_AVX2;
+#endif
         
             j = h.stop;
         }

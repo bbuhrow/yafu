@@ -43,6 +43,11 @@ SOFTWARE.
 #include "calc.h"
 #include "gmp.h"
 #include "mpz_aprcl.h"
+#include "factor.h"
+#include "autofactor.h"
+#include "qs.h"
+#include "yafu_ecm.h"
+#include "nfs.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
@@ -2396,7 +2401,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 
         break;
     case 52:
@@ -2425,23 +2430,23 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->N, operands[0]);
         factor(fobj);
         mpz_set(operands[0], fobj->N);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 
         {
             char vname[20];
-            for (i = 0; i < fobj->num_factors; i++)
+            for (i = 0; i < fobj->factors->num_factors; i++)
             {
 
                 sprintf(vname, "_f%d", i);
-                if (set_uvar(vname, fobj->fobj_factors[i].factor))
-                    new_uvar(vname, fobj->fobj_factors[i].factor);
+                if (set_uvar(vname, fobj->factors->factors[i].factor))
+                    new_uvar(vname, fobj->factors->factors[i].factor);
                 sprintf(vname, "_fpow%d", i);
-                mpz_set_ui(operands[4], fobj->fobj_factors[i].count);
+                mpz_set_ui(operands[4], fobj->factors->factors[i].count);
                 if (set_uvar(vname, operands[4]))
                     new_uvar(vname, operands[4]);
             }
             sprintf(vname, "_fnum");
-            mpz_set_ui(operands[4], fobj->num_factors);
+            mpz_set_ui(operands[4], fobj->factors->num_factors);
             if (set_uvar(vname, operands[4]))
                 new_uvar(vname, operands[4]);
         }
@@ -2456,7 +2461,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->pm1_obj.gmp_n, operands[0]);
         pollard_loop(fobj);
         mpz_set(operands[0], fobj->pm1_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
     case 55:
         // pp1 - two arguments, one optional
@@ -2480,7 +2485,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("wrong number of arguments in pp1\n");
             break;
         }
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
     case 56:
         // rho - one argument
@@ -2490,7 +2495,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->rho_obj.gmp_n, operands[0]);
         brent_loop(fobj);
         mpz_set(operands[0], fobj->rho_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
     case 57:
         // trial - two arguments
@@ -2518,7 +2523,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
     case 58:
         // shanks - one argument
@@ -2526,7 +2531,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_init(gmpz);
 
         n64 = sp_shanks_loop(operands[0], fobj);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         mpz_set_64(operands[0], n64);
         break;
     case 59:
@@ -2537,7 +2542,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->qs_obj.gmp_n, operands[0]);
         SIQS(fobj);
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
 
     case 60:
@@ -2575,20 +2580,21 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         lower = mpz_get_64(operands[0]);
         upper = mpz_get_64(operands[1]);
-        free(PRIMES);
-
+        
         {
+            uint64_t* PRIMES, NUM_P, P_MAX, P_MIN;
             soe_staticdata_t* sdata = soe_init(fobj->VFLAG, fobj->THREADS, 32768);
-            PRIMES = soe_wrapper(sdata, lower, upper, mpz_get_ui(operands[2]), &NUM_P, 0, 0);
+            PRIMES = soe_wrapper(sdata, lower, upper, mpz_get_ui(operands[2]), &NUM_P, 
+                metadata->pfile, metadata->pscreen);
+
             if (PRIMES != NULL)
             {
                 P_MIN = PRIMES[0];
                 P_MAX = PRIMES[NUM_P - 1];
             }
             soe_finalize(sdata);
+            mpz_set_64(operands[0], NUM_P);
         }
-        
-        mpz_set_64(operands[0], NUM_P);
 
         break;
     case 61:
@@ -2604,8 +2610,8 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(fobj->N, operands[2]);
             factor(fobj);
             mpz_set(operands[0], fobj->N);
-            print_factors(fobj);
-            clear_factor_list(fobj);
+            print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+            clear_factor_list(fobj->factors);
         }
 
         break;
@@ -2633,7 +2639,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             break;
         }
 
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
     case 63:
         // lucas lehmer test
@@ -2675,12 +2681,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         factor(fobj);
 
         mpz_set_ui(mp2, 1);
-        for (i = 0; i < fobj->num_factors; i++)
+        for (i = 0; i < fobj->factors->num_factors; i++)
         {
             mpz_set_ui(mp1, 1);
-            for (j = 1; j <= fobj->fobj_factors[i].count; j++)
+            for (j = 1; j <= fobj->factors->factors[i].count; j++)
             {
-                mpz_pow_ui(mp3, fobj->fobj_factors[i].factor, j * k);
+                mpz_pow_ui(mp3, fobj->factors->factors[i].factor, j * k);
                 mpz_add(mp1, mp1, mp3);
             }
             mpz_mul(mp2, mp2, mp1);
@@ -2703,12 +2709,12 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->N, operands[0]);
         factor(fobj);
         mpz_set(operands[0], mp2);
-        mpz_tdiv_q(mp1, mp2, fobj->fobj_factors[0].factor);
+        mpz_tdiv_q(mp1, mp2, fobj->factors->factors[0].factor);
         mpz_sub(operands[0], operands[0], mp1);
 
-        for (i = 1; i < fobj->num_factors; i++)
+        for (i = 1; i < fobj->factors->num_factors; i++)
         {
-            mpz_tdiv_q(mp1, mp2, fobj->fobj_factors[i].factor);
+            mpz_tdiv_q(mp1, mp2, fobj->factors->factors[i].factor);
             mpz_sub(mp1, mp2, mp1);
             mpz_mul(operands[0], operands[0], mp1);
             mpz_tdiv_q(operands[0], operands[0], mp2);
@@ -2736,7 +2742,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
                 fclose(fobj->logfile);
         }
         mpz_set(operands[0], fobj->qs_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
 
         break;
     case 68:
@@ -2745,9 +2751,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         // move to soe library...
         {
-            uint64 num_found;
-            uint64* primes;
-            uint64 range;
+            uint64_t num_found;
+            uint64_t* primes;
+            uint64_t range;
             mpz_t lowz, highz;
 
             primes = NULL;
@@ -2758,7 +2764,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(highz, operands[1]);
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, mpz_get_ui(operands[3]), mpz_get_ui(operands[2]), 
-                &num_found, fobj->options->pscreen, fobj->options->pfile);
+                &num_found, metadata->pscreen, metadata->pfile);
 
             if (!NULL)
                 free(primes);
@@ -2777,9 +2783,9 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         // move to soe library...
         {
-            uint64 num_found;
-            uint64* primes;
-            uint64 range;
+            uint64_t num_found;
+            uint64_t* primes;
+            uint64_t range;
             mpz_t lowz, highz;
 
             primes = NULL;
@@ -2790,7 +2796,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_set(highz, operands[1]);
             primes = sieve_to_depth(sdata, lowz, highz,
                 0, 0, mpz_get_ui(operands[2]),
-                &num_found, fobj->options->pscreen, fobj->options->pfile);
+                &num_found, metadata->pscreen, metadata->pfile);
 
             if (!NULL)
                 free(primes);
@@ -2826,7 +2832,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 
         zFermat(n64, j, fobj);
         mpz_set(operands[0], fobj->div_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
 
     case 71:
@@ -2837,7 +2843,7 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         mpz_set(fobj->nfs_obj.gmp_n, operands[0]);
         nfs(fobj);
         mpz_set(operands[0], fobj->nfs_obj.gmp_n);
-        print_factors(fobj);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
         break;
 
     case 72:

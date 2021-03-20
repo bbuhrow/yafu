@@ -18,9 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
-#include "yafu.h"
-#include "qs.h"
-#include "factor.h"
+#include "qs_impl.h"
 #include "ytools.h"
 #include "common.h"
 
@@ -57,7 +55,7 @@ this file contains code implementing 3)
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 
 		#define MOD_INIT_8X												\
 			ASM_G (														\
@@ -157,7 +155,7 @@ this file contains code implementing 3)
 
 #elif defined(MSC_ASM32A)
 
-	#if defined(HAS_SSE2)
+	#if defined(D_HAS_SSE2)
 		//top level sieve scanning with SSE2
 
 		#define MOD_INIT_8X	
@@ -245,7 +243,7 @@ this file contains code implementing 3)
 
 #elif defined(_WIN64)
 
-#if defined(HAS_SSE2)
+#if defined(D_HAS_SSE2)
 		//top level sieve scanning with SSE2
 
 		#define MOD_INIT_8X	
@@ -353,25 +351,25 @@ this file contains code implementing 3)
 	}
 
 
-void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum, 
+void tdiv_medprimes(uint8_t parity, uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//we have flagged this sieve offset as likely to produce a relation
 	//nothing left to do now but check and see.
 	int i;
-	uint32 bound, tmp, prime, root1, root2, report_num;
+	uint32_t bound, tmp, prime, root1, root2, report_num;
 	int smooth_num;
-	uint32 *fb_offsets;
+	uint32_t *fb_offsets;
 	sieve_fb_compressed *fbc;
 	fb_element_siqs *fullfb_ptr, *fullfb = sconf->factor_base->list;
-	uint32 block_loc;
+	uint32_t block_loc;
 
 #ifdef USE_8X_MOD_ASM
-	uint16 *bl_sizes;
-	uint16 *bl_locs;
+	uint16_t *bl_sizes;
+	uint16_t *bl_locs;
 
-	bl_sizes = (uint16 *)xmalloc_align(8 * sizeof(uint16));
-	bl_locs = (uint16 *)xmalloc_align(8 * sizeof(uint16));
+	bl_sizes = (uint16_t *)xmalloc_align(8 * sizeof(uint16_t));
+	bl_locs = (uint16_t *)xmalloc_align(8 * sizeof(uint16_t));
 
 #endif
 
@@ -384,10 +382,6 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	{
 		fbc = dconf->comp_sieve_p;
 	}
-
-#ifdef QS_TIMING
-	gettimeofday(&qs_timing_start, NULL);
-#endif
 
 	for (report_num = 0; report_num < dconf->num_reports; report_num++)
 	{
@@ -461,7 +455,7 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #endif
 		
 		// single-up test until i is a multiple of 8
-		while ((uint32)i < bound && ((i & 7) != 0))
+		while ((uint32_t)i < bound && ((i & 7) != 0))
 		{
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
@@ -472,8 +466,8 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	
 			//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
 			//block, which is the state of the sieve now.
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT); 
+			tmp = 1+(uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+					* (uint64_t)fullfb_ptr->small_inv[i]) >> FOGSHIFT); 
 			tmp = block_loc + tmp*prime;
 			tmp = tmp - BLOCKSIZE;
 
@@ -523,9 +517,9 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		
 		MOD_INIT_8X;
 
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 tmp3 = 0;
+			uint32_t tmp3 = 0;
 
 #ifdef _MSC_VER
 			MOD_CMP_8X(8);
@@ -533,8 +527,8 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 			MOD_CMP_8X("8");
 #endif
 
-			//if ((((((uint32)fbc->root1[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0) ||
-			//	((((uint32)fbc->root2[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0)) &&
+			//if ((((((uint32_t)fbc->root1[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0) ||
+			//	((((uint32_t)fbc->root2[i] + BLOCKSIZE - block_loc) % fbc->prime[i]) == 0)) &&
 			//	((tmp3 & 0x2) == 0))
 			//	printf("index = %d, prime = %u, inv = %u, corr = %u, root1 = %u, root2 = %u, "
 			//	"loc = %u, result = %u\n",
@@ -592,9 +586,9 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		bound = sconf->factor_base->fb_12bit_B;
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 tmp3 = 0;
+			uint32_t tmp3 = 0;
 
 #ifdef _MSC_VER
 			MOD_CMP_8X(10);
@@ -657,9 +651,9 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 #else
 		bound = sconf->factor_base->fb_13bit_B;
 #endif				
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint32 tmp3 = 0;
+			uint32_t tmp3 = 0;
 
 #ifdef _MSC_VER
 			MOD_CMP_8X(12);
@@ -723,34 +717,34 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 
 #else
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint64 q64;
-			uint32 tmp1 = BLOCKSIZE - block_loc;
-			uint32 tmp2 = BLOCKSIZE - block_loc;
-			uint32 tmp3 = BLOCKSIZE - block_loc;
-			uint32 tmp4 = BLOCKSIZE - block_loc;
+			uint64_t q64;
+			uint32_t tmp1 = BLOCKSIZE - block_loc;
+			uint32_t tmp2 = BLOCKSIZE - block_loc;
+			uint32_t tmp3 = BLOCKSIZE - block_loc;
+			uint32_t tmp4 = BLOCKSIZE - block_loc;
 
 			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+			q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> FOGSHIFT; 
 			tmp1 = tmp1 + 1;
 			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
 			
 			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
+			q64 = (uint64_t)tmp2 * (uint64_t)fullfb_ptr->small_inv[i+1];
 			tmp2 = q64 >> FOGSHIFT; 
 			tmp2 = tmp2 + 1;
 			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
 
 			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
+			q64 = (uint64_t)tmp3 * (uint64_t)fullfb_ptr->small_inv[i+2];
 			tmp3 = q64 >> FOGSHIFT; 
 			tmp3 = tmp3 + 1;
 			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
 
 			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
+			q64 = (uint64_t)tmp4 * (uint64_t)fullfb_ptr->small_inv[i+3];
 			tmp4 = q64 >>  FOGSHIFT; 
 			tmp4 = tmp4 + 1;
 			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
@@ -807,15 +801,15 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		//now cleanup any that don't fit in the last batch
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 
 			tmp = BLOCKSIZE - block_loc;
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT); 
+			tmp = 1+(uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+					* (uint64_t)fullfb_ptr->small_inv[i]) >> FOGSHIFT); 
 			tmp = block_loc + tmp*prime;
 			tmp = tmp - BLOCKSIZE;
 
@@ -828,7 +822,7 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		// single-up test until i is a multiple of 8
-		while ((uint32)i < bound && ((i & 7) != 0))
+		while ((uint32_t)i < bound && ((i & 7) != 0))
 		{
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
@@ -839,8 +833,8 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 	
 			//tmp = tmp/prime + 1 = number of steps to get past the end of the sieve
 			//block, which is the state of the sieve now.
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
+			tmp = 1+(uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+					* (uint64_t)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
 			tmp = block_loc + tmp*prime;
 			tmp = tmp - BLOCKSIZE;
 
@@ -856,34 +850,34 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		//now do things in batches of 4 which are aligned on 16 byte boundaries.
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
-			uint64 q64;
-			uint32 tmp1 = BLOCKSIZE - block_loc;
-			uint32 tmp2 = BLOCKSIZE - block_loc;
-			uint32 tmp3 = BLOCKSIZE - block_loc;
-			uint32 tmp4 = BLOCKSIZE - block_loc;
+			uint64_t q64;
+			uint32_t tmp1 = BLOCKSIZE - block_loc;
+			uint32_t tmp2 = BLOCKSIZE - block_loc;
+			uint32_t tmp3 = BLOCKSIZE - block_loc;
+			uint32_t tmp4 = BLOCKSIZE - block_loc;
 
 			tmp1 = tmp1 + fullfb_ptr->correction[i];
-			q64 = (uint64)tmp1 * (uint64)fullfb_ptr->small_inv[i];
+			q64 = (uint64_t)tmp1 * (uint64_t)fullfb_ptr->small_inv[i];
 			tmp1 = q64 >> FOGSHIFT; 
 			tmp1 = tmp1 + 1;
 			tmp1 = block_loc + tmp1 * fullfb_ptr->prime[i];
 			
 			tmp2 = tmp2 + fullfb_ptr->correction[i+1];
-			q64 = (uint64)tmp2 * (uint64)fullfb_ptr->small_inv[i+1];
+			q64 = (uint64_t)tmp2 * (uint64_t)fullfb_ptr->small_inv[i+1];
 			tmp2 = q64 >> FOGSHIFT; 
 			tmp2 = tmp2 + 1;
 			tmp2 = block_loc + tmp2 * fullfb_ptr->prime[i+1];
 
 			tmp3 = tmp3 + fullfb_ptr->correction[i+2];
-			q64 = (uint64)tmp3 * (uint64)fullfb_ptr->small_inv[i+2];
+			q64 = (uint64_t)tmp3 * (uint64_t)fullfb_ptr->small_inv[i+2];
 			tmp3 = q64 >> FOGSHIFT; 
 			tmp3 = tmp3 + 1;
 			tmp3 = block_loc + tmp3 * fullfb_ptr->prime[i+2];
 
 			tmp4 = tmp4 + fullfb_ptr->correction[i+3];
-			q64 = (uint64)tmp4 * (uint64)fullfb_ptr->small_inv[i+3];
+			q64 = (uint64_t)tmp4 * (uint64_t)fullfb_ptr->small_inv[i+3];
 			tmp4 = q64 >>  FOGSHIFT; 
 			tmp4 = tmp4 + 1;
 			tmp4 = block_loc + tmp4 * fullfb_ptr->prime[i+3];
@@ -940,15 +934,15 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		}
 
 		//now cleanup any that don't fit in the last batch
-		while ((uint32)i < bound)
+		while ((uint32_t)i < bound)
 		{
 			prime = fbc->prime[i];
 			root1 = fbc->root1[i];
 			root2 = fbc->root2[i];
 
 			tmp = BLOCKSIZE - block_loc;
-			tmp = 1+(uint32)(((uint64)(tmp + fullfb_ptr->correction[i])
-					* (uint64)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
+			tmp = 1+(uint32_t)(((uint64_t)(tmp + fullfb_ptr->correction[i])
+					* (uint64_t)fullfb_ptr->small_inv[i]) >> FOGSHIFT_2); 
 			tmp = block_loc + tmp*prime;
 			tmp = tmp - BLOCKSIZE;
 
@@ -967,11 +961,6 @@ void tdiv_medprimes(uint8 parity, uint32 poly_id, uint32 bnum,
 		dconf->smooth_num[report_num] = smooth_num;	
 
 	}
-
-#ifdef QS_TIMING
-	gettimeofday (&qs_timing_stop, NULL);
-    TF_STG2 += ytools_difftime (&qs_timing_start, &qs_timing_stop);
-#endif
 
 #ifdef USE_8X_MOD_ASM
 	align_free(bl_sizes);

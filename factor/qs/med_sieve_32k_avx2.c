@@ -24,14 +24,14 @@ code to the public domain.
 #include <immintrin.h>
 #endif
 
-#include "yafu.h"
-#include "qs.h"
+#include "qs_impl.h"
 #include "sieve_macros_32k.h"
 #include "sieve_macros_32k_avx2.h"
 
 // asm and sieve routines for linux/mingw
 #if defined( USE_AVX2 ) && defined (GCC_ASM64X)
 
+#include <immintrin.h>
 
 // vpext uses p0 and p5
 // subb uses 2p0156 2p237 p4
@@ -693,41 +693,41 @@ code to the public domain.
 
         typedef struct
         {
-            uint8* sieve;					//0
-            uint16* primeptr;				//8
-            uint16* root1ptr;				//16
-            uint16* root2ptr;				//24
-            uint16* logptr;					//32
-            uint32 startprime;				//40
-            uint32 med_B;					//44
+            uint8_t* sieve;					//0
+            uint16_t* primeptr;				//8
+            uint16_t* root1ptr;				//16
+            uint16_t* root2ptr;				//24
+            uint16_t* logptr;					//32
+            uint32_t startprime;				//40
+            uint32_t med_B;					//44
         } helperstruct_t;
 
 
-void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
-    uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
 {
-    uint32 i;
-    uint32 med_B;
+    uint32_t i;
+    uint32_t med_B;
 
-    uint32 prime, root1, root2, tmp, stop;
-    uint8 logp;
+    uint32_t prime, root1, root2, tmp, stop;
+    uint8_t logp;
 
 #ifdef USE_AVX512BW
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
 #endif
 
-#if defined( TARGET_KNC ) || defined(noUSE_AVX512BW)
-    __m512i vlomask = _mm512_set1_epi32(0x000000ff);
-    __m512i vhimask = _mm512_set1_epi32(0xffffff00);
-    __m512i vlosieve1, vhisieve1, vlosieve2, vhisieve2;
-    __m512i vpmul = _mm512_setr_epi32(
-        0, 1, 2, 3,
-        4, 5, 6, 7,
-        8, 9, 10, 11,
-        12, 13, 14, 15);
-
-    __m512i vblock = _mm512_set1_epi32(32768);
+#if defined( TARGET_KNC ) || defined(USE_AVX512BW)
     __m512i vzero = _mm512_setzero_epi32();
+
+    ALIGNED_MEM uint16_t r_id1[32];
+    ALIGNED_MEM uint16_t r_id2[32];
+
+    uint32_t bound = full_fb->fb_15bit_B - 32;
+
+    if (full_fb->med_B > (full_fb->fb_15bit_B + 32))
+        bound += 32;
+#else
+    uint32_t bound = full_fb->fb_13bit_B - 8;
 #endif
 
 
@@ -735,26 +735,160 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
     med_B = full_fb->med_B;
 
-    CLEAN_AVX2;
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     //initialize the block
     BLOCK_INIT;
 
-    CLEAN_AVX2;
+#if defined(USE_AVX512BW)
 
-#if defined(noUSE_AVX512BW)
-    // beyond 11 bit we don't need to loop... 16 steps takes
-    // us past blocksize all at once when prime > 2048
-    for (i = start_prime; i < full_fb->fb_11bit_B; i++)
+    for (i = start_prime; i < bound; i += 32)
     {
-        __m512i vprime, vroot1, vroot2, vlogp, vidx1, vidx2, v16p;
-        __m512i vnextprime, vnextroot1, vnextroot2, vnextidx1, vnextidx2;
-        __mmask16 mask1, mask2;
-        int steps1 = 0, steps2 = 0;
+        __m512i vprime, vroot1, vroot2;
+        __mmask32 valid_mask_1, valid_mask_2, initial_mask;
+        uint32_t msk_2;
+        int pos;
+
+        vprime = _mm512_loadu_si512(fb->prime + i);
+        vroot1 = _mm512_loadu_si512(fb->root1 + i);
+        vroot2 = _mm512_loadu_si512(fb->root2 + i);
+        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+
+        // we don't sieve primes that are part of the poly
+        valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
+
+        // make it so we write to a dummy sieve location for non-sieved primes
+        vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vblock);
+        vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vblock);
+
+        // until things start to drop off the end of the interval, 
+        // simply dump in all logs.
+        while (valid_mask_2 == initial_mask)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            sieve[r_id1[0]] -= logp;
+            sieve[r_id1[1]] -= logp;
+            sieve[r_id1[2]] -= logp;
+            sieve[r_id1[3]] -= logp;
+            sieve[r_id1[4]] -= logp;
+            sieve[r_id1[5]] -= logp;
+            sieve[r_id1[6]] -= logp;
+            sieve[r_id1[7]] -= logp;
+            sieve[r_id1[8]] -= logp;
+            sieve[r_id1[9]] -= logp;
+            sieve[r_id1[10]] -= logp;
+            sieve[r_id1[11]] -= logp;
+            sieve[r_id1[12]] -= logp;
+            sieve[r_id1[13]] -= logp;
+            sieve[r_id1[14]] -= logp;
+            sieve[r_id1[15]] -= logp;
+            sieve[r_id1[16]] -= logp;
+            sieve[r_id1[17]] -= logp;
+            sieve[r_id1[18]] -= logp;
+            sieve[r_id1[19]] -= logp;
+            sieve[r_id1[20]] -= logp;
+            sieve[r_id1[21]] -= logp;
+            sieve[r_id1[22]] -= logp;
+            sieve[r_id1[23]] -= logp;
+            sieve[r_id1[24]] -= logp;
+            sieve[r_id1[25]] -= logp;
+            sieve[r_id1[26]] -= logp;
+            sieve[r_id1[27]] -= logp;
+            sieve[r_id1[28]] -= logp;
+            sieve[r_id1[29]] -= logp;
+            sieve[r_id1[30]] -= logp;
+            sieve[r_id1[31]] -= logp;
+            sieve[r_id2[0]] -= logp;
+            sieve[r_id2[1]] -= logp;
+            sieve[r_id2[2]] -= logp;
+            sieve[r_id2[3]] -= logp;
+            sieve[r_id2[4]] -= logp;
+            sieve[r_id2[5]] -= logp;
+            sieve[r_id2[6]] -= logp;
+            sieve[r_id2[7]] -= logp;
+            sieve[r_id2[8]] -= logp;
+            sieve[r_id2[9]] -= logp;
+            sieve[r_id2[10]] -= logp;
+            sieve[r_id2[11]] -= logp;
+            sieve[r_id2[12]] -= logp;
+            sieve[r_id2[13]] -= logp;
+            sieve[r_id2[14]] -= logp;
+            sieve[r_id2[15]] -= logp;
+            sieve[r_id2[16]] -= logp;
+            sieve[r_id2[17]] -= logp;
+            sieve[r_id2[18]] -= logp;
+            sieve[r_id2[19]] -= logp;
+            sieve[r_id2[20]] -= logp;
+            sieve[r_id2[21]] -= logp;
+            sieve[r_id2[22]] -= logp;
+            sieve[r_id2[23]] -= logp;
+            sieve[r_id2[24]] -= logp;
+            sieve[r_id2[25]] -= logp;
+            sieve[r_id2[26]] -= logp;
+            sieve[r_id2[27]] -= logp;
+            sieve[r_id2[28]] -= logp;
+            sieve[r_id2[29]] -= logp;
+            sieve[r_id2[30]] -= logp;
+            sieve[r_id2[31]] -= logp;
+
+            vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
+
+            valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+        }
+        
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while (valid_mask_2 > 0)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            msk_2 = valid_mask_2;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos]] -= logp;
+                sieve[r_id1[pos]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
+
+            vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
+
+            valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+        }
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm512_store_si512(r_id1, vroot1);
+        valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+        msk_2 = valid_mask_2;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+        vroot1 = _mm512_sub_epi16(vroot1, vblock);
+        vroot2 = _mm512_sub_epi16(vroot2, vblock);
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vroot1, vroot2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
+    }
+
+
+    if ((med_B - i) < 32)
+    {
+        bound = med_B;
+    }
+
+    for (; i < bound; i++)
+    {
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -765,87 +899,343 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         if (prime == 0)
             continue;
 
-        vprime = _mm512_set1_epi32(prime);
-        vroot1 = _mm512_set1_epi32(root1);
-        vroot2 = _mm512_set1_epi32(root2);
-        vlogp = _mm512_set1_epi32(logp);
-        v16p = _mm512_slli_epi32(vprime, 4);
-        vidx2 = _mm512_mullo_epi32(vprime, vpmul);
-        vidx1 = _mm512_add_epi32(vroot1, vidx2);
-        vidx2 = _mm512_add_epi32(vroot2, vidx2);
-
-        mask2 = _mm512_cmp_epu32_mask(vidx2, vblock, _MM_CMPINT_LT);
-
-        //printf("prime = %u, root1 = %u, root2 = %u, initial mask2 = %08x\n", prime, root1, root2, mask2);
-
-        // while all 16 steps hit the block, loop using only mask2 (larger offset):
-        while (mask2 == 0xffff)
-        {
-            vhisieve2 = _mm512_i32gather_epi32(vidx2, sieve, _MM_SCALE_1);
-            vhisieve2 = _mm512_sub_epi8(vhisieve2, vlogp);
-            _mm512_i32scatter_epi32(sieve, vidx2, vhisieve2, _MM_SCALE_1);
-
-            vnextidx1 = _mm512_add_epi32(vidx1, v16p);
-            vnextidx2 = _mm512_add_epi32(vidx2, v16p);
-            mask2 = _mm512_cmp_epu32_mask(vnextidx2, vblock, _MM_CMPINT_LT);
-
-            vhisieve1 = _mm512_i32gather_epi32(vidx1, sieve, _MM_SCALE_1);
-            vhisieve1 = _mm512_sub_epi8(vhisieve1, vlogp);
-            _mm512_i32scatter_epi32(sieve, vidx1, vhisieve1, _MM_SCALE_1);
-
-            vidx1 = vnextidx1;
-            vidx2 = vnextidx2;
-            steps1 += 16;
-            steps2 += 16;
-
-            //printf("steps = %d, mask2 = %08x\n", steps1, mask2);
-        }
-
-        // last iteration using separate mask1 and mask2
-        mask1 = _mm512_cmp_epu32_mask(vidx1, vblock, _MM_CMPINT_LT);
-        //printf("steps1 = %d, mask1 = %08x, mask2 = %08x\n", steps1, mask1, mask2);
-        vhisieve2 = _mm512_mask_i32gather_epi32(vzero, mask2, vidx2, sieve, _MM_SCALE_1);
-        vhisieve2 = _mm512_sub_epi8(vhisieve2, vlogp);
-        _mm512_mask_i32scatter_epi32(sieve, mask2, vidx2, vhisieve2, _MM_SCALE_1);
-
-        vhisieve1 = _mm512_mask_i32gather_epi32(vzero, mask1, vidx1, sieve, _MM_SCALE_1);
-        vhisieve1 = _mm512_sub_epi8(vhisieve1, vlogp);
-        _mm512_mask_i32scatter_epi32(sieve, mask1, vidx1, vhisieve1, _MM_SCALE_1);
-
-        // test to see if lower offset (mask1) took more steps
-        // and determine the new roots.
-        steps1 += _mm_popcnt_u32(mask1);
-        steps2 += _mm_popcnt_u32(mask2);
-
-        //printf("steps1 = %d, steps2 = %d, mask1 = %08x, mask2 = %08x\n", steps1, steps2, mask1, mask2);
-
-        if (steps1 > steps2)
-        {
-            //printf("swapped\n");
-            fb->root2[i] = (uint16)(root1 + steps1 * prime - 32768);
-            fb->root1[i] = (uint16)(root2 + steps2 * prime - 32768);
-        }
-        else
-        {
-            fb->root1[i] = (uint16)(root1 + steps1 * prime - 32768);
-            fb->root2[i] = (uint16)(root2 + steps2 * prime - 32768);
-        }
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
     }
 
-    asm_input.logptr = fb->logp;
-    asm_input.primeptr = fb->prime;
-    asm_input.root1ptr = fb->root1;
-    asm_input.root2ptr = fb->root2;
-    asm_input.sieve = sieve;
-    asm_input.startprime = i;
-    asm_input.med_B = full_fb->fb_13bit_B - 8;
+#elif defined(USE_AVX2) && defined(USE_BMI2)
 
-    SIEVE_13b_ASM_AVX2;
+//#define TEST_SIEVE
 
-    i = asm_input.startprime;
+    bound = full_fb->fb_15bit_B - 16;
 
-    //printf("small prime loop done\n");
-    //exit(1);
+    //if (full_fb->med_B > (full_fb->fb_15bit_B + 16))
+    //bound += 16;
+
+    //printf("bound = %u, startprime = %u\n", bound, start_prime);
+
+    for (i = start_prime; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        if ((i & 15) == 0)
+            break;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    __m256i vzero = _mm256_setzero_si256();
+    __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
+    __m256i vprime, vroot1, vroot2, vtmp1, vtmp2;
+    __m256i valid_mask_1, valid_mask_2, initial_mask;
+    ALIGNED_MEM uint16_t r_id1[16];
+    ALIGNED_MEM uint16_t r_id2[16];
+
+    for (; i < bound; i += 16)
+    {
+        uint32_t msk_2;
+        int pos;
+        int initial_mask_32;
+
+        vprime = _mm256_load_si256((__m256i *)(fb->prime + i));
+        vroot1 = _mm256_load_si256((__m256i *)(fb->root1 + i));
+        vroot2 = _mm256_load_si256((__m256i *)(fb->root2 + i));
+        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+
+#ifdef TEST_SIEVE
+        int j;
+        printf("root1s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", fb->root1[i + j]);
+        }
+        printf("\n");
+        printf("root2s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", fb->root2[i + j]);
+        }
+        printf("\n");
+        printf("primes @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", fb->prime[i + j]);
+        }
+        printf("\n");
+        _mm256_store_si256((__m256i*)r_id1, vblock);
+        printf("vblock @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id1[j]);
+        }
+        printf("\n");
+#endif
+
+        // we don't sieve primes that are part of the poly
+        valid_mask_1 = initial_mask = valid_mask_2 = _mm256_cmpgt_epi16(vprime, vzero);
+
+        // make it so we write to a dummy sieve location for non-sieved primes
+        vtmp1 = _mm256_andnot_si256(valid_mask_2, vblock);
+        vtmp2 = _mm256_andnot_si256(valid_mask_2, vblock);
+        vroot1 = _mm256_add_epi16(vtmp1, vroot1);
+        vroot2 = _mm256_add_epi16(vtmp2, vroot2);
+        initial_mask_32 = _mm256_movemask_epi8(initial_mask);
+
+#ifdef TEST_SIEVE
+        _mm256_store_si256((__m256i*)r_id1, initial_mask);
+        printf("initial mask\n");
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id1[j]);
+        }
+        printf("\n");
+#endif
+
+        // until things start to drop off the end of the interval, 
+        // simply dump in all logs.
+        do
+        {
+            _mm256_store_si256((__m256i *)r_id1, vroot1);
+            _mm256_store_si256((__m256i *)r_id2, vroot2);
+
+            sieve[r_id1[0]] -= logp;
+            sieve[r_id1[1]] -= logp;
+            sieve[r_id1[2]] -= logp;
+            sieve[r_id1[3]] -= logp;
+            sieve[r_id1[4]] -= logp;
+            sieve[r_id1[5]] -= logp;
+            sieve[r_id1[6]] -= logp;
+            sieve[r_id1[7]] -= logp;
+            sieve[r_id1[8]] -= logp;
+            sieve[r_id1[9]] -= logp;
+            sieve[r_id1[10]] -= logp;
+            sieve[r_id1[11]] -= logp;
+            sieve[r_id1[12]] -= logp;
+            sieve[r_id1[13]] -= logp;
+            sieve[r_id1[14]] -= logp;
+            sieve[r_id1[15]] -= logp;
+            sieve[r_id2[0]] -= logp;
+            sieve[r_id2[1]] -= logp;
+            sieve[r_id2[2]] -= logp;
+            sieve[r_id2[3]] -= logp;
+            sieve[r_id2[4]] -= logp;
+            sieve[r_id2[5]] -= logp;
+            sieve[r_id2[6]] -= logp;
+            sieve[r_id2[7]] -= logp;
+            sieve[r_id2[8]] -= logp;
+            sieve[r_id2[9]] -= logp;
+            sieve[r_id2[10]] -= logp;
+            sieve[r_id2[11]] -= logp;
+            sieve[r_id2[12]] -= logp;
+            sieve[r_id2[13]] -= logp;
+            sieve[r_id2[14]] -= logp;
+            sieve[r_id2[15]] -= logp;
+
+            vroot1 = _mm256_add_epi16(vroot1, vprime);
+            vroot2 = _mm256_add_epi16(vroot2, vprime);
+
+            vtmp2 = _mm256_srli_epi16(vroot2, 15);
+            vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+                _mm256_cmpeq_epi16(vroot2, vblock));
+
+            valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_2);
+        } while (_mm256_movemask_epi8(valid_mask_2) == initial_mask_32);
+
+        // zero out the primes where roots have exceeded the block
+        vprime = _mm256_and_si256(valid_mask_2, vprime);
+
+#ifdef TEST_SIEVE
+        _mm256_store_si256((__m256i*)r_id1, vroot1);
+        _mm256_store_si256((__m256i*)r_id2, vroot2);
+        printf("after first loop\n");
+        printf("root1s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id1[j]);
+        }
+        printf("\n");
+        printf("root2s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+        _mm256_store_si256((__m256i*)r_id2, vprime);
+        printf("primes @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+#endif
+
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while ((msk_2 = _mm256_movemask_epi8(valid_mask_2)) > 0)
+        {
+            _mm256_store_si256((__m256i *)r_id1, vroot1);
+            _mm256_store_si256((__m256i *)r_id2, vroot2);
+
+            msk_2 &= 0xaaaaaaaa;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos >> 1]] -= logp;
+                sieve[r_id1[pos >> 1]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
+
+            vroot1 = _mm256_add_epi16(vroot1, vprime);
+            vroot2 = _mm256_add_epi16(vroot2, vprime);
+
+            vtmp2 = _mm256_srli_epi16(vroot2, 15);
+            vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+                _mm256_cmpeq_epi16(vroot2, vblock));
+
+            valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_2);
+
+            // zero out the primes where roots have exceeded the block
+            vprime = _mm256_and_si256(valid_mask_2, vprime);
+        }
+
+#ifdef TEST_SIEVE
+        _mm256_store_si256((__m256i*)r_id1, vroot1);
+        _mm256_store_si256((__m256i*)r_id2, vroot2);
+        printf("after second loop\n");
+        printf("root1s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id1[j]);
+        }
+        printf("\n");
+        printf("root2s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+        _mm256_store_si256((__m256i*)r_id2, vprime);
+        printf("primes @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+#endif
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm256_store_si256((__m256i*)r_id1, vroot1);
+
+        vtmp2 = _mm256_srli_epi16(vroot1, 15);
+        vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+            _mm256_cmpeq_epi16(vroot1, vblock));
+        valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_1);
+        msk_2 = _mm256_movemask_epi8(valid_mask_2);
+
+        msk_2 &= 0xaaaaaaaa;
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos >> 1]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reload the primes, then zero out the ones where root1 has
+        // already exceeded the block.
+        vprime = _mm256_load_si256((__m256i*)(fb->prime + i));
+        vprime = _mm256_and_si256(valid_mask_2, vprime);
+        vprime = _mm256_and_si256(initial_mask, vprime);
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm256_add_epi16(vroot1, vprime);
+
+#ifdef TEST_SIEVE
+        _mm256_store_si256((__m256i*)r_id1, vroot1);
+        _mm256_store_si256((__m256i*)r_id2, vroot2);
+        printf("after last loop\n");
+        printf("root1s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id1[j]);
+        }
+        printf("\n");
+        printf("root2s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+        _mm256_store_si256((__m256i*)r_id2, vprime);
+        printf("primes @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", r_id2[j]);
+        }
+        printf("\n");
+#endif
+
+
+        vroot1 = _mm256_sub_epi16(vroot1, vblock);
+        vroot2 = _mm256_sub_epi16(vroot2, vblock);
+        _mm256_store_si256((__m256i *)(fb->root1 + i), _mm256_min_epu16(vroot1, vroot2));
+        _mm256_store_si256((__m256i *)(fb->root2 + i), _mm256_max_epu16(vroot1, vroot2));
+
+#ifdef TEST_SIEVE
+        printf("after storage\n");
+        printf("root1s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", fb->root1[i+j]);
+        }
+        printf("\n");
+        printf("root2s @ i = %u: ", i);
+        for (j = 0; j < 16; j++)
+        {
+            printf("%04x, ", fb->root1[i+j]);
+        }
+        printf("\n");
+        //exit(1);
+#endif
+    }
+
+    if ((med_B - i) < 32)
+    {
+        bound = med_B;
+    }
+
+    for (; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
 
 #elif defined(USE_ASM_SMALL_PRIME_SIEVING)
     // sieve primes less than 2^13 using optimized loops: it becomes
@@ -878,31 +1268,9 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 
     i = asm_input.startprime;
 
-#else
-    for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
-    {
-        uint8* s2;
-
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
-
-        SIEVE_2X;
-        SIEVE_1X;
-        SIEVE_LAST;
-        UPDATE_ROOTS;
-    }
-#endif
-
-    // the small prime sieve stops just before prime exceeds 2^13
-    // the next sse2 sieve assumes primes exceed 2^13.  since
-    // some of the primes in the next set of 8 primes could be less
-    // than the cutoff and some are greater than, we have to do this
-    // small set of crossover primes manually, one at a time.
     for (; i < full_fb->fb_13bit_B; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -919,6 +1287,202 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         UPDATE_ROOTS;
     }
 
+#else
+    for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
+    {
+        uint8_t* s2;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    // the small prime sieve stops just before prime exceeds 2^13
+    // the next sse2 sieve assumes primes exceed 2^13.  since
+    // some of the primes in the next set of 8 primes could be less
+    // than the cutoff and some are greater than, we have to do this
+    // small set of crossover primes manually, one at a time.
+    for (; i < full_fb->fb_13bit_B; i++)
+    {
+        uint8_t* s2;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+#endif
+
+    
+
+
+#ifdef USE_AVX512BW
+    
+    __m512i vp;
+    __m512i vr1;
+    __m512i vr2;
+    __mmask32 result2;
+    __mmask32 result1;
+    uint32_t res2;
+    uint32_t res1;
+
+    //for (; i < full_fb->fb_15bit_B - 32; i += 32)
+    //{
+    //    __m512i vprime, vroot1, vroot2;
+    //    __mmask32 valid_mask_1, valid_mask_2, initial_mask;
+    //    uint32_t msk_2;
+    //    int pos;
+    //
+    //    vprime = _mm512_loadu_si512(fb->prime + i);
+    //    vroot1 = _mm512_loadu_si512(fb->root1 + i);
+    //    vroot2 = _mm512_loadu_si512(fb->root2 + i);
+    //    logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+    //
+    //    // we don't sieve primes that are part of the poly
+    //    valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
+    //
+    //    // as roots start to exceed the block size, selectively 
+    //    // dump in logs
+    //    while (valid_mask_2 > 0)
+    //    {
+    //        _mm512_store_si512(r_id1, vroot1);
+    //        _mm512_store_si512(r_id2, vroot2);
+    //
+    //        msk_2 = valid_mask_2;
+    //        while (msk_2 > 0) {
+    //            pos = _trail_zcnt(msk_2);
+    //            sieve[r_id2[pos]] -= logp;
+    //            sieve[r_id1[pos]] -= logp;
+    //            msk_2 = _reset_lsb(msk_2);
+    //        }
+    //
+    //        vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+    //        vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
+    //
+    //        valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+    //    }
+    //
+    //    // now all larger roots are invalid.  Last iteration for 
+    //    // possibly still valid root1s.  If they are still valid, 
+    //    // record the sieve hit, advance them, and swap with the
+    //    // other root
+    //    _mm512_store_si512(r_id1, vroot1);
+    //    valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+    //    msk_2 = valid_mask_2;
+    //
+    //    while (msk_2 > 0) {
+    //        pos = _trail_zcnt(msk_2);
+    //        sieve[r_id1[pos]] -= logp;
+    //        msk_2 = _reset_lsb(msk_2);
+    //    }
+    //
+    //    // reduce both roots and store back for the next block
+    //    vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+    //    vroot1 = _mm512_sub_epi16(vroot1, vblock);
+    //    vroot2 = _mm512_sub_epi16(vroot2, vblock);
+    //    _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vroot1, vroot2));
+    //    _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
+    //}
+
+    // sieve primes 32 at a time, 2^15 < p < med_B
+    logp = 15;
+    for (; i < med_B - 32; i += 32) {
+        //printf("med_B 32x loop @ %d\n\n", i); fflush(stdout);
+        vp = _mm512_loadu_si512((fb->prime + i));
+        vr1 = _mm512_loadu_si512((fb->root1 + i));
+        vr2 = _mm512_loadu_si512((fb->root2 + i));
+
+        result2 = _mm512_cmp_epu16_mask(vr2, vblock, _MM_CMPINT_LT);
+        res2 = result2;
+
+        while (res2 > 0) {
+            int idx = _trail_zcnt(res2);
+            sieve[fb->root2[i + idx]] -= logp;
+            sieve[fb->root1[i + idx]] -= logp;
+            res2 = _reset_lsb(res2);
+        }
+
+        // res1 will have fewer set bits this way, so we
+        // have fewer overall loop iterations
+        result1 = _mm512_cmp_epu16_mask(vr1, vblock, _MM_CMPINT_LT);
+        res1 = result1 & (~result2);
+
+        while (res1 > 0) {
+            int idx = _trail_zcnt(res1);
+            sieve[fb->root1[i + idx]] -= logp;
+            res1 = _reset_lsb(res1);
+        }
+
+        vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
+        vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
+        vr1 = _mm512_sub_epi16(vr1, vblock);
+        vr2 = _mm512_sub_epi16(vr2, vblock);
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
+    }
+
+
+    for (; i < med_B; i++)
+    {
+        //printf("med_B loop @ %d\n\n", i); fflush(stdout);
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+    }
+
+#elif defined(USE_AVX2) && defined(USE_BMI2)
+
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 15 bit crossover.
+    for (; i < med_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        if ((prime > 32768) && ((i & 15) == 0))
+            break;
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+    }
+
+    // sieve primes 8 at a time, 2^15 < p < med_B
+    _INIT_AVX2_SMALL_PRIME_SIEVE;
+    _AVX2_SMALL_PRIME_SIEVE;
+
+#else
     // sieve primes 8 at a time, where 8192 < p < blocksize/3 (10923)
     _INIT_AVX2_SMALL_PRIME_SIEVE;
     _AVX2_SMALL_PRIME_SIEVE_32k_DIV3;
@@ -968,224 +1532,6 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         UPDATE_ROOTS;
     }
 
-
-#ifdef USE_AVX512BW
-
-    __m512i vp;
-    __m512i vr1;
-    __m512i vr2;
-    __mmask32 result2;
-    __mmask32 result1;
-    uint32 res2;
-    uint32 res1;
-    //uint16* r1;
-    //uint16* r2;
-
-    // sieve primes 8 at a time, 2^14 < p < 2^15
-#if 1
-    _INIT_AVX2_SMALL_PRIME_SIEVE;
-    _AVX2_SMALL_PRIME_SIEVE_15b;
-
-    i = full_fb->fb_15bit_B - 8;
-
-#else
-
-    int k;
-    __m128i vp_128;
-    __m128i vr1_128;
-    __m128i vr2_128;
-    __m128i vi_128;
-    __mmask8 result2_128;
-    __mmask8 result1_128;
-    __mmask8 mfinal_128;
-    __m128i vblock_128 = _mm_set1_epi16(BLOCKSIZE);
-
-    for (k = i; k < full_fb->fb_15bit_B - 8; k += 8) {
-        asm(
-            "movq	%0,	%%rdx \n\t"					/* sieve array address */
-            "movq	$15, %%rsi \n\t"				/* logp's range from 14 to 15... call 'em = 15 */
-            "vmovdqa	(%1), %%xmm0 \n\t"				/* bring in 8 primes */
-            "vmovdqa	(%2), %%xmm1 \n\t"				/* bring in 8 root1's */
-            "vmovdqa	(%3), %%xmm2 \n\t"				/* bring in 8 root2's */
-            _8P_STEP_SIEVE_AVX2                                                                                                                                    \
-            :
-        : "r"(sieve), "r"(fb->prime + k), "r"(fb->root1 + k), "r"(fb->root2 + k)
-            : "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "rax", "rbx", "rcx",
-            "rdx", "rsi", "rdi", "cc", "memory");
-
-        vp_128 = _mm_load_si128((__m128i*)(fb->prime + k));
-        vr1_128 = _mm_load_si128((__m128i*)(fb->root1 + k));
-        vr2_128 = _mm_load_si128((__m128i*)(fb->root2 + k));
-
-        vr1_128 = _mm_add_epi16(vr1_128, vp_128);
-        vr2_128 = _mm_add_epi16(vr2_128, vp_128);
-
-        result2_128 = _mm_cmp_epu16_mask(vr2_128, vblock_128, _MM_CMPINT_LT);
-        res2 = result2_128;
-
-        while (res2 > 0) {
-            int idx = _trail_zcnt(res2);
-            sieve[fb->root2[k + idx]] -= logp;
-            sieve[fb->root1[k + idx]] -= logp;
-            res2 = _reset_lsb(res2);
-        }
-
-        /* res1 will have fewer set bits this way, so we       */
-        /* have fewer overall loop iterations                  */
-        result1_128 = _mm_cmp_epu16_mask(vr1_128, vblock_128, _MM_CMPINT_LT);
-        res1 = result1_128 & (~result2_128);
-
-        while (res1 > 0) {
-            int idx = _trail_zcnt(res1);
-            sieve[fb->root1[k + idx]] -= logp;
-            res1 = _reset_lsb(res1);
-        }
-
-        vr1_128 = _mm_mask_add_epi16(vr1_128, result1_128, vr1_128, vp_128);
-        vr2_128 = _mm_mask_add_epi16(vr2_128, result2_128, vr2_128, vp_128);
-        vr1_128 = _mm_sub_epi16(vr1_128, vblock_128);
-        vr2_128 = _mm_sub_epi16(vr2_128, vblock_128);
-        _mm_store_si128((__m128i*)(fb->root1 + k), _mm_min_epu16(vr1_128, vr2_128));
-        _mm_store_si128((__m128i*)(fb->root2 + k), _mm_max_epu16(vr1_128, vr2_128));
-    }
-
-    i = full_fb->fb_15bit_B - 8;
-#endif
-
-    // do this small set of crossover primes manually, one at a time,
-    // this time for the 15 bit crossover.
-    for (; i < med_B; i++)
-    {
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
-
-        if ((prime > 32768) && ((i & 15) == 0))
-            break;
-
-        // invalid root (part of poly->a)
-        if (prime == 0)
-            continue;
-
-        SIEVE_1X;
-        SIEVE_LAST;
-
-        UPDATE_ROOTS;
-    }
-
-    // sieve primes 32 at a time, 2^15 < p < med_B
-    logp = 15;
-    for (; i < med_B - 32; i += 32) {
-        //printf("loading from index %d\n", i); fflush(stdout);
-        vp = _mm512_load_epi32((fb->prime + i));
-        vr1 = _mm512_load_epi32((fb->root1 + i));
-        vr2 = _mm512_load_epi32((fb->root2 + i));
-
-        result2 = _mm512_cmp_epu16_mask(vr2, vblock, _MM_CMPINT_LT);
-        res2 = result2;
-
-        while (res2 > 0) {
-            int idx = _trail_zcnt(res2);
-            sieve[fb->root2[i + idx]] -= logp;
-            sieve[fb->root1[i + idx]] -= logp;
-            res2 = _reset_lsb(res2);
-        }
-
-        // res1 will have fewer set bits this way, so we
-        // have fewer overall loop iterations
-        result1 = _mm512_cmp_epu16_mask(vr1, vblock, _MM_CMPINT_LT);
-        res1 = result1 & (~result2);
-
-        while (res1 > 0) {
-            int idx = _trail_zcnt(res1);
-            sieve[fb->root1[i + idx]] -= logp;
-            res1 = _reset_lsb(res1);
-        }
-
-        vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
-        vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
-        vr1 = _mm512_sub_epi16(vr1, vblock);
-        vr2 = _mm512_sub_epi16(vr2, vblock);
-        _mm512_store_epi32(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
-        _mm512_store_epi32(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
-    }
-
-#if 1
-
-    for (; i < med_B; i++)
-    {
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
-
-        SIEVE_1X;
-        SIEVE_LAST;
-
-        UPDATE_ROOTS;
-    }
-
-#else
-    // this causes segfaults and stack corruption using gcc
-    // or mingw, but seems to work for icc.  Given the danger
-    // and the relatively low benefit, put it here for future
-    // analysis.
-    __mmask32 mfinal;
-    __m512i vi;
-
-    // do the final iteration with any excessive indices masked.
-    vi = _mm512_set1_epi16(i);
-#if defined(__INTEL_COMPILER)
-    vi = _mm512_add_epi16(vi, _mm512_set_epi16(0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15,
-        16, 17, 18, 19, 20, 21, 22, 23,
-        24, 25, 26, 27, 28, 29, 30, 31));
-#else
-    ALIGNED_MEM uint16 tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15,
-        16, 17, 18, 19, 20, 21, 22, 23,
-        24, 25, 26, 27, 28, 29, 30, 31 };
-    vi = _mm512_add_epi16(vi, _mm512_load_si512(tmp16));
-#endif
-    mfinal = _mm512_cmp_epi16_mask(vi, _mm512_set1_epi16(med_B), _MM_CMPINT_LT);
-
-    vp = _mm512_maskz_loadu_epi32(mfinal, (fb->prime + i));
-    vr1 = _mm512_maskz_loadu_epi32(mfinal, (fb->root1 + i));
-    vr2 = _mm512_maskz_loadu_epi32(mfinal, (fb->root2 + i));
-
-    result2 = _mm512_mask_cmp_epu16_mask(mfinal, vr2, vblock, _MM_CMPINT_LT);
-    res2 = result2;
-
-    while (res2 > 0) {
-        int idx = _trail_zcnt(res2);
-        sieve[fb->root2[i + idx]] -= logp;
-        sieve[fb->root1[i + idx]] -= logp;
-        res2 = _reset_lsb(res2);
-    }
-
-    // res1 will have fewer set bits this way, so we
-    // have fewer overall loop iterations
-    result1 = _mm512_mask_cmp_epu16_mask(mfinal, vr1, vblock, _MM_CMPINT_LT);
-    res1 = result1 & (~result2);
-
-    while (res1 > 0) {
-        int idx = _trail_zcnt(res1);
-        sieve[fb->root1[i + idx]] -= logp;
-        res1 = _reset_lsb(res1);
-    }
-
-    vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
-    vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
-    vr1 = _mm512_sub_epi16(vr1, vblock);
-    vr2 = _mm512_sub_epi16(vr2, vblock);
-    _mm512_mask_storeu_epi32(fb->root1 + i, mfinal, _mm512_min_epu16(vr1, vr2));
-    _mm512_mask_storeu_epi32(fb->root2 + i, mfinal, _mm512_max_epu16(vr1, vr2));
-
-#endif
-
-#else
-
     // sieve primes 8 at a time, 2^14 < p < 2^15
     _INIT_AVX2_SMALL_PRIME_SIEVE;
     _AVX2_SMALL_PRIME_SIEVE_15b;
@@ -1220,13 +1566,6 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 #endif
     CLEAN_AVX2;
 
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-    gettimeofday(&qs_timing_start, NULL);
-#endif
-
     return;
 
 }
@@ -1238,34 +1577,400 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
 // asm and sieve routines for msvc
 #if defined( USE_AVX2 ) && defined(_MSC_VER)
 
-	#include <mmintrin.h>
+	#include <immintrin.h>
 
-void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
-    uint32 start_prime, uint8 s_init)
+void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+    uint32_t start_prime, uint8_t s_init)
 {
-    uint32 i;
-    uint32 med_B;
+    uint32_t i;
+    uint32_t med_B;
 
-    uint32 prime, root1, root2, tmp, stop;
-    uint8 logp;
+    uint32_t prime, root1, root2, tmp, stop;
+    uint8_t logp;
 
 #ifdef USE_AVX512BW
     __m512i vblock = _mm512_set1_epi16(BLOCKSIZE);
 #endif
 
-    med_B = full_fb->med_B;
+#if defined( TARGET_KNC ) || defined(USE_AVX512BW)
+    __m512i vzero = _mm512_setzero_epi32();
 
+    ALIGNED_MEM uint16_t r_id1[32];
+    ALIGNED_MEM uint16_t r_id2[32];
 
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_start, NULL);
+    uint32_t bound = full_fb->fb_15bit_B - 32;
+
+    if (full_fb->med_B > (full_fb->fb_15bit_B + 32))
+        bound += 32;
+#else
+    uint32_t bound = full_fb->fb_13bit_B - 8;
 #endif
+
+    med_B = full_fb->med_B;
 
     //initialize the block
     BLOCK_INIT;
 
+#if defined(USE_AVX512BW)
+
+    for (i = start_prime; i < bound; i += 32)
+    {
+        __m512i vprime, vroot1, vroot2;
+        __mmask32 valid_mask_1, valid_mask_2, initial_mask;
+        uint32_t msk_2;
+        int pos;
+
+        vprime = _mm512_loadu_si512(fb->prime + i);
+        vroot1 = _mm512_loadu_si512(fb->root1 + i);
+        vroot2 = _mm512_loadu_si512(fb->root2 + i);
+        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+
+        // we don't sieve primes that are part of the poly
+        valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
+
+        // make it so we write to a dummy sieve location for non-sieved primes
+        vroot1 = _mm512_mask_add_epi16(vroot1, ~initial_mask, vroot1, vblock);
+        vroot2 = _mm512_mask_add_epi16(vroot2, ~initial_mask, vroot2, vblock);
+
+        // until things start to drop off the end of the interval, 
+        // simply dump in all logs.
+        while (valid_mask_2 == initial_mask)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            sieve[r_id1[0]] -= logp;
+            sieve[r_id1[1]] -= logp;
+            sieve[r_id1[2]] -= logp;
+            sieve[r_id1[3]] -= logp;
+            sieve[r_id1[4]] -= logp;
+            sieve[r_id1[5]] -= logp;
+            sieve[r_id1[6]] -= logp;
+            sieve[r_id1[7]] -= logp;
+            sieve[r_id1[8]] -= logp;
+            sieve[r_id1[9]] -= logp;
+            sieve[r_id1[10]] -= logp;
+            sieve[r_id1[11]] -= logp;
+            sieve[r_id1[12]] -= logp;
+            sieve[r_id1[13]] -= logp;
+            sieve[r_id1[14]] -= logp;
+            sieve[r_id1[15]] -= logp;
+            sieve[r_id1[16]] -= logp;
+            sieve[r_id1[17]] -= logp;
+            sieve[r_id1[18]] -= logp;
+            sieve[r_id1[19]] -= logp;
+            sieve[r_id1[20]] -= logp;
+            sieve[r_id1[21]] -= logp;
+            sieve[r_id1[22]] -= logp;
+            sieve[r_id1[23]] -= logp;
+            sieve[r_id1[24]] -= logp;
+            sieve[r_id1[25]] -= logp;
+            sieve[r_id1[26]] -= logp;
+            sieve[r_id1[27]] -= logp;
+            sieve[r_id1[28]] -= logp;
+            sieve[r_id1[29]] -= logp;
+            sieve[r_id1[30]] -= logp;
+            sieve[r_id1[31]] -= logp;
+            sieve[r_id2[0]] -= logp;
+            sieve[r_id2[1]] -= logp;
+            sieve[r_id2[2]] -= logp;
+            sieve[r_id2[3]] -= logp;
+            sieve[r_id2[4]] -= logp;
+            sieve[r_id2[5]] -= logp;
+            sieve[r_id2[6]] -= logp;
+            sieve[r_id2[7]] -= logp;
+            sieve[r_id2[8]] -= logp;
+            sieve[r_id2[9]] -= logp;
+            sieve[r_id2[10]] -= logp;
+            sieve[r_id2[11]] -= logp;
+            sieve[r_id2[12]] -= logp;
+            sieve[r_id2[13]] -= logp;
+            sieve[r_id2[14]] -= logp;
+            sieve[r_id2[15]] -= logp;
+            sieve[r_id2[16]] -= logp;
+            sieve[r_id2[17]] -= logp;
+            sieve[r_id2[18]] -= logp;
+            sieve[r_id2[19]] -= logp;
+            sieve[r_id2[20]] -= logp;
+            sieve[r_id2[21]] -= logp;
+            sieve[r_id2[22]] -= logp;
+            sieve[r_id2[23]] -= logp;
+            sieve[r_id2[24]] -= logp;
+            sieve[r_id2[25]] -= logp;
+            sieve[r_id2[26]] -= logp;
+            sieve[r_id2[27]] -= logp;
+            sieve[r_id2[28]] -= logp;
+            sieve[r_id2[29]] -= logp;
+            sieve[r_id2[30]] -= logp;
+            sieve[r_id2[31]] -= logp;
+
+            vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
+
+            valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+        }
+
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while (valid_mask_2 > 0)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
+
+            msk_2 = valid_mask_2;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos]] -= logp;
+                sieve[r_id1[pos]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
+
+            vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
+
+            valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+        }
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm512_store_si512(r_id1, vroot1);
+        valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+        msk_2 = valid_mask_2;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+        vroot1 = _mm512_sub_epi16(vroot1, vblock);
+        vroot2 = _mm512_sub_epi16(vroot2, vblock);
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vroot1, vroot2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
+    }
+    
+    if ((med_B - i) < 32)
+    {
+        bound = med_B;
+    }
+
+    for (; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+#elif defined(USE_AVX2) && defined(USE_BMI2)
+
+    bound = full_fb->fb_15bit_B - 16;
+
+    for (i = start_prime; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        if ((i & 15) == 0)
+            break;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+    __m256i vzero = _mm256_setzero_si256();
+    __m256i vblock = _mm256_set1_epi16(BLOCKSIZE);
+    __m256i vprime, vroot1, vroot2, vtmp1, vtmp2;
+    __m256i valid_mask_1, valid_mask_2, initial_mask;
+    ALIGNED_MEM uint16_t r_id1[16];
+    ALIGNED_MEM uint16_t r_id2[16];
+
+    for (; i < bound; i += 16)
+    {
+        uint32_t msk_2;
+        int pos;
+        int initial_mask_32;
+
+        vprime = _mm256_load_si256((__m256i*)(fb->prime + i));
+        vroot1 = _mm256_load_si256((__m256i*)(fb->root1 + i));
+        vroot2 = _mm256_load_si256((__m256i*)(fb->root2 + i));
+        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
+
+        // we don't sieve primes that are part of the poly
+        valid_mask_1 = initial_mask = valid_mask_2 = _mm256_cmpgt_epi16(vprime, vzero);
+
+        // make it so we write to a dummy sieve location for non-sieved primes
+        vtmp1 = _mm256_andnot_si256(valid_mask_2, vblock);
+        vtmp2 = _mm256_andnot_si256(valid_mask_2, vblock);
+        vroot1 = _mm256_add_epi16(vtmp1, vroot1);
+        vroot2 = _mm256_add_epi16(vtmp2, vroot2);
+        initial_mask_32 = _mm256_movemask_epi8(initial_mask);
+
+        // until things start to drop off the end of the interval, 
+        // simply dump in all logs.
+        do
+        {
+            _mm256_store_si256((__m256i*)r_id1, vroot1);
+            _mm256_store_si256((__m256i*)r_id2, vroot2);
+
+            sieve[r_id1[0]] -= logp;
+            sieve[r_id1[1]] -= logp;
+            sieve[r_id1[2]] -= logp;
+            sieve[r_id1[3]] -= logp;
+            sieve[r_id1[4]] -= logp;
+            sieve[r_id1[5]] -= logp;
+            sieve[r_id1[6]] -= logp;
+            sieve[r_id1[7]] -= logp;
+            sieve[r_id1[8]] -= logp;
+            sieve[r_id1[9]] -= logp;
+            sieve[r_id1[10]] -= logp;
+            sieve[r_id1[11]] -= logp;
+            sieve[r_id1[12]] -= logp;
+            sieve[r_id1[13]] -= logp;
+            sieve[r_id1[14]] -= logp;
+            sieve[r_id1[15]] -= logp;
+            sieve[r_id2[0]] -= logp;
+            sieve[r_id2[1]] -= logp;
+            sieve[r_id2[2]] -= logp;
+            sieve[r_id2[3]] -= logp;
+            sieve[r_id2[4]] -= logp;
+            sieve[r_id2[5]] -= logp;
+            sieve[r_id2[6]] -= logp;
+            sieve[r_id2[7]] -= logp;
+            sieve[r_id2[8]] -= logp;
+            sieve[r_id2[9]] -= logp;
+            sieve[r_id2[10]] -= logp;
+            sieve[r_id2[11]] -= logp;
+            sieve[r_id2[12]] -= logp;
+            sieve[r_id2[13]] -= logp;
+            sieve[r_id2[14]] -= logp;
+            sieve[r_id2[15]] -= logp;
+
+            vroot1 = _mm256_add_epi16(vroot1, vprime);
+            vroot2 = _mm256_add_epi16(vroot2, vprime);
+
+            vtmp2 = _mm256_srli_epi16(vroot2, 15);
+            vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+                _mm256_cmpeq_epi16(vroot2, vblock));
+
+            valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_2);
+        } while (_mm256_movemask_epi8(valid_mask_2) == initial_mask_32);
+
+        // zero out the primes where roots have exceeded the block
+        vprime = _mm256_and_si256(valid_mask_2, vprime);
+
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while ((msk_2 = _mm256_movemask_epi8(valid_mask_2)) > 0)
+        {
+            _mm256_store_si256((__m256i*)r_id1, vroot1);
+            _mm256_store_si256((__m256i*)r_id2, vroot2);
+
+            msk_2 &= 0xaaaaaaaa;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos >> 1]] -= logp;
+                sieve[r_id1[pos >> 1]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
+
+            vroot1 = _mm256_add_epi16(vroot1, vprime);
+            vroot2 = _mm256_add_epi16(vroot2, vprime);
+
+            vtmp2 = _mm256_srli_epi16(vroot2, 15);
+            vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+                _mm256_cmpeq_epi16(vroot2, vblock));
+
+            valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_2);
+
+            // zero out the primes where roots have exceeded the block
+            vprime = _mm256_and_si256(valid_mask_2, vprime);
+        }
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm256_store_si256((__m256i*)r_id1, vroot1);
+
+        vtmp2 = _mm256_srli_epi16(vroot1, 15);
+        vtmp2 = _mm256_or_si256(_mm256_cmpgt_epi16(vtmp2, vzero),
+            _mm256_cmpeq_epi16(vroot1, vblock));
+        valid_mask_2 = _mm256_andnot_si256(vtmp2, valid_mask_1);
+        msk_2 = _mm256_movemask_epi8(valid_mask_2);
+
+        msk_2 &= 0xaaaaaaaa;
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos >> 1]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reload the primes, then zero out the ones where root1 has
+        // already exceeded the block.
+        vprime = _mm256_load_si256((__m256i*)(fb->prime + i));
+        vprime = _mm256_and_si256(valid_mask_2, vprime);
+        vprime = _mm256_and_si256(initial_mask, vprime);
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm256_add_epi16(vroot1, vprime);
+
+
+        vroot1 = _mm256_sub_epi16(vroot1, vblock);
+        vroot2 = _mm256_sub_epi16(vroot2, vblock);
+        _mm256_store_si256((__m256i*)(fb->root1 + i), _mm256_min_epu16(vroot1, vroot2));
+        _mm256_store_si256((__m256i*)(fb->root2 + i), _mm256_max_epu16(vroot1, vroot2));
+
+    }
+
+    for (; i < bound; i++)
+    {
+        uint8_t* s2;
+
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_2X;
+        SIEVE_1X;
+        SIEVE_LAST;
+        UPDATE_ROOTS;
+    }
+
+#else
     for (i = start_prime; i < full_fb->fb_13bit_B - 8; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -1285,7 +1990,7 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     // small set of crossover primes manually, one at a time.
     for (; i < full_fb->fb_13bit_B; i++)
     {
-        uint8* s2;
+        uint8_t* s2;
 
         prime = fb->prime[i];
         root1 = fb->root1[i];
@@ -1306,54 +2011,9 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         UPDATE_ROOTS;
     }
 
-    // sieve primes 8 at a time, where 8192 < p < blocksize/3
-    _INIT_SSE2_SMALL_PRIME_SIEVE;
-    _SSE2_SMALL_PRIME_SIEVE_32k_DIV3;
+#endif
 
-    // the sse2 sieve stops just before prime exceeds blocksize/3
-    // the next sse2 sieve assumes primes exceed blocksize/3.  since
-    // some of the primes in the next set of 8 primes could be less
-    // than the cutoff and some are greater than, we have to do this
-    // small set of crossover primes manually, one at a time.
-    for (; i < full_fb->fb_32k_div3; i++)
-    {
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
-
-        // invalid root (part of poly->a)
-        if (prime == 0)
-            continue;
-
-        SIEVE_1X;
-        SIEVE_LAST;
-
-        UPDATE_ROOTS;
-    }
-
-    // sieve primes 8 at a time, where blocksize/3 < p < 2^14
-    _INIT_SSE2_SMALL_PRIME_SIEVE;
-    _SSE2_SMALL_PRIME_SIEVE_14b;
-
-    // do this small set of crossover primes manually, one at a time,
-    // this time for the 14 bit crossover.
-    for (; i < full_fb->fb_14bit_B; i++)
-    {
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
-
-        // invalid root (part of poly->a)
-        if (prime == 0)
-            continue;
-
-        SIEVE_1X;
-        SIEVE_LAST;
-
-        UPDATE_ROOTS;
-    }
+    
 
     
 
@@ -1362,77 +2022,76 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     __m512i vp;
     __m512i vr1;
     __m512i vr2;
-    __m512i vi;
     __mmask32 result2;
     __mmask32 result1;
-    __mmask32 mfinal;
-    uint32 res2;
-    uint32 res1;
-    uint16* r1;
-    uint16* r2;
-    int k;
+    uint32_t res2;
+    uint32_t res1;
 
-    // sieve primes 8 at a time, 2^14 < p < 2^15
-    _INIT_SSE2_SMALL_PRIME_SIEVE;
-    _SSE2_SMALL_PRIME_SIEVE_15b;
-
-    __m128i blocksize_m1 = _mm_set_epi32(0x7fff7fff, 0x7fff7fff, 0x7fff7fff, 0x7fff7fff);
-    __m128i blocksize = _mm_set_epi32(0x80008000, 0x80008000, 0x80008000, 0x80008000);
-    __m128i zeros = _mm_set_epi32(0, 0, 0, 0);
-    __m128i tmp1;
-    __m128i tmp2;
-    __m128i primes;
-    __m128i root1s;
-    __m128i root2s;
-    uint32 root1mask;
-    uint32 root2mask;
-
-    logp = 15; 
-    for (; i < full_fb->fb_15bit_B - 8; i += 8)
+    for (; i < full_fb->fb_15bit_B - 32; i += 32)
     {
-        primes = _mm_load_si128((__m128i*)(fb->prime + i));
-        root1s = _mm_load_si128((__m128i*)(fb->root1 + i));
-        root2s = _mm_load_si128((__m128i*)(fb->root2 + i));
-        _8P_STEP_SIEVE
-        _8P_FINAL_STEP_SIEVE
-        _FINALIZE_SORT_UPDATE_SSE2
+        __m512i vprime, vroot1, vroot2;
+        __mmask32 valid_mask_1, valid_mask_2, initial_mask;
+        uint32_t msk_2;
+        int pos;
 
-        /*
-        _8P_STEP_SIEVE_AVX2
-        _8P_FINAL_STEP_SIEVE_AVX2
-        _FINALIZE_SORT_UPDATE_AVX2
-        */
-    }
+        vprime = _mm512_loadu_si512(fb->prime + i);
+        vroot1 = _mm512_loadu_si512(fb->root1 + i);
+        vroot2 = _mm512_loadu_si512(fb->root2 + i);
+        logp = fb->logp[i]; // approximate the next 32 logp's as equal to this one.
 
-    // do this small set of crossover primes manually, one at a time,
-    // this time for the 15 bit crossover.
-    for (i = full_fb->fb_15bit_B - 8; i < med_B; i++)
-    {
-        prime = fb->prime[i];
-        root1 = fb->root1[i];
-        root2 = fb->root2[i];
-        logp = fb->logp[i];
+        // we don't sieve primes that are part of the poly
+        valid_mask_1 = initial_mask = valid_mask_2 = _mm512_cmpgt_epu16_mask(vprime, vzero);
 
-        if ((prime > 32768) && ((i & 15) == 0))
-            break;
+        // as roots start to exceed the block size, selectively 
+        // dump in logs
+        while (valid_mask_2 > 0)
+        {
+            _mm512_store_si512(r_id1, vroot1);
+            _mm512_store_si512(r_id2, vroot2);
 
-        // invalid root (part of poly->a)
-        if (prime == 0)
-            continue;
+            msk_2 = valid_mask_2;
+            while (msk_2 > 0) {
+                pos = _trail_zcnt(msk_2);
+                sieve[r_id2[pos]] -= logp;
+                sieve[r_id1[pos]] -= logp;
+                msk_2 = _reset_lsb(msk_2);
+            }
 
-        SIEVE_1X;
-        SIEVE_LAST;
+            vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+            vroot2 = _mm512_mask_add_epi16(vroot2, valid_mask_2, vroot2, vprime);
 
-        UPDATE_ROOTS;
+            valid_mask_2 &= _mm512_cmplt_epu16_mask(vroot2, vblock);
+        }
+
+        // now all larger roots are invalid.  Last iteration for 
+        // possibly still valid root1s.  If they are still valid, 
+        // record the sieve hit, advance them, and swap with the
+        // other root
+        _mm512_store_si512(r_id1, vroot1);
+        valid_mask_2 = valid_mask_1 & _mm512_cmplt_epu16_mask(vroot1, vblock);
+        msk_2 = valid_mask_2;
+
+        while (msk_2 > 0) {
+            pos = _trail_zcnt(msk_2);
+            sieve[r_id1[pos]] -= logp;
+            msk_2 = _reset_lsb(msk_2);
+        }
+
+        // reduce both roots and store back for the next block
+        vroot1 = _mm512_mask_add_epi16(vroot1, valid_mask_2, vroot1, vprime);
+        vroot1 = _mm512_sub_epi16(vroot1, vblock);
+        vroot2 = _mm512_sub_epi16(vroot2, vblock);
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vroot1, vroot2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vroot1, vroot2));
     }
 
     // sieve primes 32 at a time, 2^15 < p < med_B
     logp = 15;
     for (; i < med_B - 32; i += 32) {
         //printf("loading from index %d\n", i); fflush(stdout);
-        vp = _mm512_loadu_epi32((fb->prime + i));
-        vr1 = _mm512_loadu_epi32((fb->root1 + i));
-        vr2 = _mm512_loadu_epi32((fb->root2 + i));
+        vp = _mm512_loadu_si512((fb->prime + i));
+        vr1 = _mm512_loadu_si512((fb->root1 + i));
+        vr2 = _mm512_loadu_si512((fb->root2 + i));
 
         result2 = _mm512_cmp_epu16_mask(vr2, vblock, _MM_CMPINT_LT);
         res2 = result2;
@@ -1459,11 +2118,9 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
         vr1 = _mm512_sub_epi16(vr1, vblock);
         vr2 = _mm512_sub_epi16(vr2, vblock);
-        _mm512_storeu_epi32(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
-        _mm512_storeu_epi32(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
+        _mm512_storeu_si512(fb->root1 + i, _mm512_min_epu16(vr1, vr2));
+        _mm512_storeu_si512(fb->root2 + i, _mm512_max_epu16(vr1, vr2));
     }
-
-#if 1
 
     for (; i < med_B; i++)
     {
@@ -1472,64 +2129,97 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
         root2 = fb->root2[i];
         logp = fb->logp[i];
     
+        if (prime == 0)
+            continue;
+
         SIEVE_1X;
         SIEVE_LAST;
     
         UPDATE_ROOTS;
     }
 
-#else
-    // do the final iteration with any excessive indices masked.
-    vi = _mm512_set1_epi16(i);
-#if defined(__INTEL_COMPILER)
-    vi = _mm512_add_epi16(vi, _mm512_set_epi16(0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15,
-        16, 17, 18, 19, 20, 21, 22, 23,
-        24, 25, 26, 27, 28, 29, 30, 31));
-#else
-    ALIGNED_MEM uint16 tmp16[32] = { 0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15,
-        16, 17, 18, 19, 20, 21, 22, 23,
-        24, 25, 26, 27, 28, 29, 30, 31 };
-    vi = _mm512_add_epi16(vi, _mm512_load_si512(tmp16));
-#endif
-    mfinal = _mm512_cmp_epi16_mask(vi, _mm512_set1_epi16(med_B), _MM_CMPINT_LT);
+#elif defined(USE_AVX2) && defined(USE_BMI2)
 
-    vp = _mm512_maskz_loadu_epi32(mfinal, (fb->prime + i));
-    vr1 = _mm512_maskz_loadu_epi32(mfinal, (fb->root1 + i));
-    vr2 = _mm512_maskz_loadu_epi32(mfinal, (fb->root2 + i));
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 15 bit crossover.
+    for (; i < med_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
 
-    result2 = _mm512_mask_cmp_epu16_mask(mfinal, vr2, vblock, _MM_CMPINT_LT);
-    res2 = result2;
+        if ((prime > 32768) && ((i & 15) == 0))
+            break;
 
-    while (res2 > 0) {
-        int idx = _trail_zcnt(res2);
-        sieve[fb->root2[i + idx]] -= logp;
-        sieve[fb->root1[i + idx]] -= logp;
-        res2 = _reset_lsb(res2);
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
     }
 
-    // res1 will have fewer set bits this way, so we
-    // have fewer overall loop iterations
-    result1 = _mm512_mask_cmp_epu16_mask(mfinal, vr1, vblock, _MM_CMPINT_LT);
-    res1 = result1 & (~result2);
 
-    while (res1 > 0) {
-        int idx = _trail_zcnt(res1);
-        sieve[fb->root1[i + idx]] -= logp;
-        res1 = _reset_lsb(res1);
-    }
+    // sieve primes 8 at a time, 2^15 < p < med_B
+    _INIT_SSE2_SMALL_PRIME_SIEVE;
+    _SSE41_SMALL_PRIME_SIEVE;
 
-    vr1 = _mm512_mask_add_epi16(vr1, result1, vr1, vp);
-    vr2 = _mm512_mask_add_epi16(vr2, result2, vr2, vp);
-    vr1 = _mm512_sub_epi16(vr1, vblock);
-    vr2 = _mm512_sub_epi16(vr2, vblock);
-    _mm512_mask_storeu_epi32(fb->root1 + i, mfinal, _mm512_min_epu16(vr1, vr2));
-    _mm512_mask_storeu_epi32(fb->root2 + i, mfinal, _mm512_max_epu16(vr1, vr2));
 
-#endif
 
 #else
+
+    // sieve primes 8 at a time, where 8192 < p < blocksize/3
+    _INIT_SSE2_SMALL_PRIME_SIEVE;
+    _SSE2_SMALL_PRIME_SIEVE_32k_DIV3;
+
+    // the sse2 sieve stops just before prime exceeds blocksize/3
+    // the next sse2 sieve assumes primes exceed blocksize/3.  since
+    // some of the primes in the next set of 8 primes could be less
+    // than the cutoff and some are greater than, we have to do this
+    // small set of crossover primes manually, one at a time.
+    for (; i < full_fb->fb_32k_div3; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+        }
+
+    // sieve primes 8 at a time, where blocksize/3 < p < 2^14
+    _INIT_SSE2_SMALL_PRIME_SIEVE;
+    _SSE2_SMALL_PRIME_SIEVE_14b;
+
+    // do this small set of crossover primes manually, one at a time,
+    // this time for the 14 bit crossover.
+    for (; i < full_fb->fb_14bit_B; i++)
+    {
+        prime = fb->prime[i];
+        root1 = fb->root1[i];
+        root2 = fb->root2[i];
+        logp = fb->logp[i];
+
+        // invalid root (part of poly->a)
+        if (prime == 0)
+            continue;
+
+        SIEVE_1X;
+        SIEVE_LAST;
+
+        UPDATE_ROOTS;
+    }
+
 
     // sieve primes 8 at a time, 2^14 < p < 2^15
     _INIT_SSE2_SMALL_PRIME_SIEVE;
@@ -1563,13 +2253,6 @@ void med_sieveblock_32k_avx2(uint8* sieve, sieve_fb_compressed* fb, fb_list* ful
     _SSE41_SMALL_PRIME_SIEVE;
 
 
-#endif
-
-
-#ifdef QS_TIMING
-    gettimeofday(&qs_timing_stop, NULL);
-    SIEVE_STG1 += ytools_difftime(&qs_timing_start, &qs_timing_stop);
-    gettimeofday(&qs_timing_start, NULL);
 #endif
 
     return;
