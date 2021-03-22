@@ -24,9 +24,11 @@ code to the public domain.
 
 int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 {
-	int offset, lp[3], parity, num_factors;
+	int offset, parity, num_factors;
 	int j,retval;
 	mpz_t Q, RHS;
+    // unsigned!
+    uint32_t lp[3];
 
 	mpz_init(Q);
 	mpz_init(RHS);
@@ -41,8 +43,10 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 	mpz_set_ui(RHS, lp[0]);
 	mpz_mul_ui(RHS, RHS, lp[1]);
 	mpz_mul_ui(RHS, RHS, lp[2]);
-	for (j=0; j<num_factors; j++)
-		mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
+    for (j = 0; j < num_factors; j++)
+    {
+        mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
+    }
 
 	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
 	mpz_mul_ui(Q, a, offset);
@@ -57,16 +61,25 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
 	if (mpz_sgn(Q) < 0)
 		mpz_neg(Q,Q);
 
-	if (mpz_cmp(Q,RHS) != 0)
-	{
+    if (mpz_cmp(Q, RHS) != 0)
+    {
         if (VFLAG > 1)
-		    printf("error Q != RHS\n");
+        {
+            printf("error Q != RHS\n");
+        }
 
-		//gmp_printf("Q = %Zd, RHS = %Zd\n",Q, RHS);
-          //      printf("fb_offsets:primes:\n");
-          //      for (j = 0; j < num_factors; j++)
-          //          printf("%u:%u ", r->fb_offsets[j], fb->list->prime[r->fb_offsets[j]]);
-          //      printf("\n");
+        if (VFLAG > 2)
+        {
+            gmp_printf("Q = %Zd, RHS = %Zd\n", Q, RHS);
+            gmp_printf("A = %Zd\nB = %Zd\n", a, b);
+            printf("offset = %u, parity = %d\n", offset, parity);
+            printf("fb_offsets:primes:\n");
+            for (j = 0; j < num_factors; j++)
+                printf("%u:%u ", r->fb_offsets[j], fb->list->prime[r->fb_offsets[j]]);
+            printf("\n");
+            printf("lp: %d, %d, %d\n", lp[0], lp[1], lp[2]);
+            printf("lp: %u, %u, %u\n", r->large_prime[0], r->large_prime[1], r->large_prime[2]);
+        }
 		retval = 1;
 	}
 

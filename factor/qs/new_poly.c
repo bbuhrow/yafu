@@ -590,5 +590,8 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
 	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
 
+    //gmp_printf("B%d = %Zd\n", Bnum, poly->mpz_poly_b);
+    //gmp_printf("C%d = %Zd\n", Bnum, poly->mpz_poly_c);
+
 	return;
 }

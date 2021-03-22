@@ -110,7 +110,7 @@ void count_qs_matrix_nonzero(fact_obj_t *obj,
 }
 
 /*------------------------------------------------------------------*/
-#define QS_MAX_COL_WEIGHT 1000
+#define QS_MAX_COL_WEIGHT 4000
 
 static void yafu_combine_cliques(uint32_t num_dense_rows, 
 			uint32_t *ncols_out, qs_la_col_t *cols, 

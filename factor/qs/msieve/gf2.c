@@ -158,7 +158,7 @@ uint32_t qs_merge_relations(uint32_t *merge_array,
 }
 
 /*------------------------------------------------------------------*/
-#define QS_MAX_COL_WEIGHT 10000
+//#define QS_MAX_COL_WEIGHT 10000
 
 void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
 			   siqs_r *relation_list) {
@@ -170,6 +170,9 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 
 	uint32_t i, j;
 	qs_la_col_t *col;
+    uint32_t* buf;
+    uint32_t* accum;
+    int QS_MAX_COL_WEIGHT = 10000;
 
 	/* Cycles are assumed to be sorted in order of increasing
 	   number of relations, so that any cycles that are
@@ -177,10 +180,10 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 	   anyway */
 	
 	//printf("building matrix with %u columns\n", ncols);
-
+    buf = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+    accum = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 	for (i = 0; i < ncols; i++) {
-		uint32_t buf[QS_MAX_COL_WEIGHT];
-		uint32_t accum[QS_MAX_COL_WEIGHT];
+		
 		uint32_t weight;
 
 		/* merge each succeeding relation into the accumulated
@@ -192,7 +195,11 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 			siqs_r *r = &relation_list[col->cycle.list[j]];
 			if ((weight + r->num_factors) > QS_MAX_COL_WEIGHT)
 			{
-				printf("warning: max weight exceeded\n");
+                QS_MAX_COL_WEIGHT *= 2;
+				printf("weight = %u: allocated new max weight vectors of size %u\n", 
+                    (weight + r->num_factors), QS_MAX_COL_WEIGHT);
+                buf = (uint32_t*)xrealloc(buf, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
+                accum = (uint32_t*)xrealloc(accum, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 			}
 			weight = qs_merge_relations(accum, buf, weight,
 						r->fb_offsets, r->num_factors);
@@ -203,5 +210,9 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 		col->data = (uint32_t *)malloc(weight * sizeof(uint32_t));
 		memcpy(col->data, buf, weight * sizeof(uint32_t));
 	}
+
+    free(buf);
+    free(accum);
+    return;
 }
 

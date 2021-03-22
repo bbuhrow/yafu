@@ -168,7 +168,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 		{
 
-            if ((sconf->use_dlp == 2) && (dconf->do_batch) && 1)
+            if ((sconf->use_dlp == 2) && (dconf->do_batch) && 0)
             {
                 int32_t soffset = offset;
 
@@ -304,18 +304,24 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			dconf->attempted_squfof++;
             f64 = do_uecm(q64);
 			
-			if ((f64 > 1) && (f64 != q64) && (q64 % f64 == 0))
+			if ((f64 > 1) && (f64 != q64) && ((q64 % f64) == 0))
 			{
 				uint32_t large_prime[3];
 
-				large_prime[0] = (uint32_t)f64;
-				large_prime[1] = (uint32_t)(q64 / f64);
-				large_prime[2] = 1;
-
-				if ((large_prime[0] < sconf->large_prime_max) &&
-					(large_prime[1] < sconf->large_prime_max))
+				//large_prime[0] = (uint32_t)f64;
+				//large_prime[1] = (uint32_t)(q64 / f64);
+				//large_prime[2] = 1;
+                //
+				//if ((large_prime[0] < sconf->large_prime_max) &&
+				//	(large_prime[1] < sconf->large_prime_max))
+                if ((f64 < (uint64_t)sconf->large_prime_max) && 
+                    ((q64 / f64) < (uint64_t)sconf->large_prime_max))
 				{
 					//add this one
+                    large_prime[0] = (uint32_t)f64;
+                    large_prime[1] = (uint32_t)(q64 / f64);
+                    large_prime[2] = 1;
+
 					dconf->dlp_useful++;
 					buffer_relation(offset, large_prime, smooth_num + 1,
 						fb_offsets, dconf->curr_poly->index, poly_id, parity,

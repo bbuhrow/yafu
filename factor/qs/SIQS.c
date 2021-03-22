@@ -704,6 +704,99 @@ void SIQS(fact_obj_t *fobj)
 	// routines in an attempt to clean up this toplevel function.
 	siqs_start(tpool_data);
 
+#if 0
+    if (0)
+    {
+        // hack in a loop to examine the size characteristics for 
+        // the minimum offset for many different polynomials.
+        mpz_t Q;
+        mpz_init(Q);
+        dynamic_conf_t* dconf = thread_data[0].dconf;
+        int bins[24];
+        int more = 0;
+        gmp_printf("sqrtN = %Zd\n", static_conf->sqrt_n);
+        int threshold;
+
+        for (i = 0; i < 24; i++)
+            bins[i] = 0;
+
+
+        int num_small = 0;
+        dconf->tot_poly = 0;
+        for (i = 0; i < 100000; i++)
+        {
+            static_conf->total_poly_a++;
+            new_poly_a(static_conf, dconf);
+
+            // update the gray code
+            get_gray_code(dconf->curr_poly);
+
+            // update roots, etc.
+            dconf->maxB = 1 << (dconf->curr_poly->s - 1);
+            dconf->numB = 1;
+            computeBl(static_conf, dconf);
+
+            for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
+            {
+                mpz_sub(dconf->gmptmp1,
+                    static_conf->sqrt_n, dconf->curr_poly->mpz_poly_b);
+                mpz_tdiv_q(dconf->gmptmp1, dconf->gmptmp1, dconf->curr_poly->mpz_poly_a);
+                if (mpz_sgn(dconf->gmptmp1) < 0)
+                    mpz_neg(dconf->gmptmp1, dconf->gmptmp1);
+
+                uint64_t minoffset = mpz_get_ui(dconf->gmptmp1);
+                int parity;
+
+                for (parity = 0; parity <= 1; parity++);
+                {
+                    mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1);
+                    mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, minoffset);
+
+                    if (parity)
+                        mpz_sub(Q, dconf->gmptmp1, dconf->gmptmp2);
+                    else
+                        mpz_add(Q, dconf->gmptmp1, dconf->gmptmp2);
+
+                    mpz_mul_ui(Q, Q, minoffset);
+                    mpz_add(Q, Q, dconf->curr_poly->mpz_poly_c);
+
+                    if (mpz_sgn(Q) < 0)
+                    {
+                        mpz_neg(Q, Q);
+                    }
+
+                    mpz_tdiv_q(dconf->gmptmp2, static_conf->sqrt_n, Q);
+                    if (mpz_sizeinbase(dconf->gmptmp2, 2) > 23)
+                    {
+                        printf("rare size %d bits!\n", mpz_sizeinbase(dconf->gmptmp2, 2));
+                        gmp_printf("sqrtN = %Zd\n", static_conf->sqrt_n);
+                        gmp_printf("Q     = %Zd\n", Q);
+                        more++;
+                    }
+                    else if (mpz_sizeinbase(dconf->gmptmp2, 2) >= 1)
+                    {
+                        bins[mpz_sizeinbase(dconf->gmptmp2, 2) - 1]++;
+                    }
+                }
+
+                nextB(dconf, static_conf);
+            }
+        }
+
+        for (i = 0; i < 24; i++)
+        {
+            printf("found %d small Q's (%1.2f percent) with Q >= %d bits below sqrtN\n", bins[i],
+                (double)bins[i] / dconf->tot_poly * 100, i + 1);
+        }
+        if (more > 0)
+            printf("found %d small Q's (%1.2f percent) with Q >= %d bits below sqrtN\n", more,
+                (double)bins[i] / dconf->tot_poly * 100, i + 1);
+
+        mpz_clear(Q);
+        exit(1);
+    }
+#endif
+
 	if (fobj->THREADS == 1)
 	{
 		// it is noticably faster to remove the tpool overhead

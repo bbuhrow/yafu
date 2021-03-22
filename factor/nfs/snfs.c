@@ -234,14 +234,49 @@ void approx_norms(snfs_t *poly)
 	// long as it is consistent between a/rnorm
 	//int i;
 	double a, b;
+    int i;
+    int found;
+    double scale;
+    double d = poly->difficulty;
+    // pick an average size if for some reason we don't find one.
+    int siever = 13;
 	mpz_t res, tmp; // should be floats not ints perhaps
 
 	// be sure poly->poly->alg is set properly
 	if( !poly->valid )
 		return; 
 
-	a = sqrt(poly->poly->skew) * 1000000.;
-	b = 1000000. / (sqrt(poly->poly->skew));
+    // thanks to charybdis for suggesting that norms scale, 
+    // at least with siever area.  Ideally Q would scale too; here
+    // we just go with 1e6.  We approximate the norms during poly
+    // generation, so we haven't picked a siever yet.  Siever selection
+    // is based on difficulty, which we *have* computed, so run this
+    // to pick up a siever estimate (scaling difficulty may later change 
+    // it (rare) but this is an estimate anyway).
+    for (i = 0; i < GGNFS_TABLE_ROWS - 1; i++)
+    {
+        if (d > ggnfs_table[i][0] && d <= ggnfs_table[i + 1][0])
+        {
+            scale = (double)(ggnfs_table[i + 1][0] - d) /
+                (double)(ggnfs_table[i + 1][0] - ggnfs_table[i][0]);
+
+            // pick closest entry
+            if ((d - ggnfs_table[i][0]) < (ggnfs_table[i + 1][0] - d))
+                siever = ggnfs_table[i][5];
+            else
+                siever = ggnfs_table[i + 1][5];
+
+            found = 1;
+        }
+    }
+    
+    // https://www.mersenneforum.org/showpost.php?p=571762&postcount=3
+	a = sqrt((double)(1ULL << (2 * siever - 1)) * 1000000.0 * poly->poly->skew);
+    b = sqrt((double)(1ULL << (2 * siever - 1)) * 1000000.0 / poly->poly->skew);
+    //a = sqrt(poly->poly->skew) * 1000000.;
+	//b = 1000000. / (sqrt(poly->poly->skew));
+
+    //printf("a = %lf, b = %lf\n", a, b);
 
 	mpz_init(tmp);
 	mpz_init(res);
@@ -1813,6 +1848,9 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_pow_ui(tmp, b, inc);
 				mpz_mul(c0, c0, tmp);
 
+                // leading coefficient contributes to the difficulty
+                d += log10(mpz_get_d(cd));
+
 				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
                 // leading coefficient contributes to the difficulty
                 d += log10(mpz_get_d(cd));
@@ -1872,14 +1910,16 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				mpz_set(m, b);		// signed?
 				mpz_pow_ui(m, m, me);
 				d = mpz_get_d(m);
+
+                // thanks to jyb for finding that the leading coefficient was
+                // double-counted in this case.
+                // https://www.mersenneforum.org/showpost.php?p=571720&postcount=1
                 d = log10(d) * (double)i; // +log10(pow(mpz_get_d(b), inc));
 
-				//cd = (int64)pow((double)b,inc) * (int64)poly->coeff1;
 				mpz_set_si(cd, poly->coeff1);
 				mpz_pow_ui(tmp, b, inc);
 				mpz_mul(cd, cd, tmp);
 				
-				//c0 = (int64)pow((double)b2, inc) * (int64)poly->coeff2;
 				mpz_set_si(c0, poly->coeff2);
 				mpz_pow_ui(tmp, b2, inc);
 				mpz_mul(c0, c0, tmp);
@@ -1887,8 +1927,16 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 				//skew = pow((double)abs((int)c0)/(double)cd, 1./(double)i);
 				skew = pow(fabs(mpz_get_d(c0)) / mpz_get_d(cd), 1./(double)i);
 
+                //gmp_printf("cd: %Zd\nc0: %Zd\n", cd, c0);
+                //gmp_printf("b1: %Zd\nb2: %Zd\nm: %Zd\n", b, b2, m);
+                //printf("exp: %d\nmul: %d\nd  : %lf\n", e, i, d);
+                //printf("coeff1: %d\ncoeff2: %d\n", poly->coeff1, poly->coeff2);
+
 				// leading coefficient contributes to the difficulty
 				d += log10(mpz_get_d(cd));
+                //printf("skew: %lf\n", skew);
+                //printf("diff: %lf\n", d);
+
 				snfs_copy_poly(poly, &polys[npoly]);		// copy algebraic form
 				polys[npoly].difficulty = d;
 				polys[npoly].poly->skew = skew;
@@ -2810,16 +2858,17 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly, int VFLAG)
 	// poly degrees yielding very unbalanced norms are less desireable for sieving.
 	// reflect this by scaling the difficulty of these polys.  Since special-q can
 	// bring the norm down on one side or another (at the expense of the other side),
-	// we add one to the difficulty for every order of magnitude imbalance beyond 6
+	// we add one to the difficulty for every X orders of magnitude imbalance beyond 
 	// between the two sides (until we figure out something more accurate)
 	int i;
+    double magic = 5.0;
 
 	for (i=0; i<npoly; i++)
 	{
 		double ratio, absa = fabs(polys[i].anorm), absr = fabs(polys[i].rnorm);
 
 		// slight preference to sieve on the algebraic side...
-		if ((log10(absr) - 6) > log10(absa))
+		if ((log10(absr) - magic) > log10(absa))
 		{
 			ratio = absr / absa;
 			polys[i].poly->side = RATIONAL_SPQ;
@@ -2833,7 +2882,7 @@ void snfs_scale_difficulty(snfs_t *polys, int npoly, int VFLAG)
 		if (VFLAG > 1)
 			printf("gen: anorm: %1.2e, rnorm: %1.2e, ratio: %1.2e, log10(ratio) = %1.2f\n",
 				polys[i].anorm, polys[i].rnorm, ratio, log10(ratio));
-		ratio = log10(ratio) / 6.;
+		ratio = log10(ratio) / magic;
 
 		if (ratio < 0.)
 			ratio = 0.;

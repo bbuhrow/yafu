@@ -1013,7 +1013,7 @@ int est_gnfs_size_via_poly(snfs_t *job)
 //over the years by myself and others, and from here:
 //http://www.mersenneforum.org/showthread.php?t=12365
 #define GGNFS_TABLE_ROWS 23
-static double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
+double ggnfs_table[GGNFS_TABLE_ROWS][8] = {
 /* note: min_rels column is no longer used - it is equation based and	*/
 /* is filled in by get_ggnfs_params					*/
 /* columns:								*/

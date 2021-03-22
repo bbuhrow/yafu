@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{9B216E85-70F3-4B2C-8091-EEFC9BABB9B2}</ProjectGuid>
+    <ProjectGuid>{E80ECC3C-C1A8-471D-8B7C-C5E63C550C83}</ProjectGuid>
     <RootNamespace>siqs</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -39,16 +39,16 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -70,6 +70,22 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -84,21 +100,14 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>..\$(IntDir);..\..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir);..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ecm.lib;factor_common.lib;mpir.lib;ytools.lib;ysieve_lib.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <Lib>
-      <LinkTimeCodeGeneration>false</LinkTimeCodeGeneration>
-    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -115,51 +124,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <OmitFramePointers>true</OmitFramePointers>
-      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>..\$(IntDir);..\..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir);..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ecm.lib;factor_common.lib;mpir.lib;ytools.lib;ysieve_lib.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <Lib>
-      <LinkTimeCodeGeneration>false</LinkTimeCodeGeneration>
-    </Lib>
-  </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h" />
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
-    <ClInclude Include="..\..\include\batch_factor.h" />
-    <ClInclude Include="..\..\include\cofactorize.h" />
-    <ClInclude Include="..\..\include\factor.h" />
-    <ClInclude Include="..\..\include\lanczos.h" />
-    <ClInclude Include="..\..\include\msieve_common.h" />
-    <ClInclude Include="..\..\include\prime_sieve.h" />
-    <ClInclude Include="..\..\include\qs.h" />
-    <ClInclude Include="..\..\include\qs_impl.h" />
-  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\factor\batch_factor.c" />
     <ClCompile Include="..\..\factor\prime_sieve.c" />
@@ -203,8 +167,30 @@
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_avx2.c" />
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knc.c" />
-    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c" />
+    <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_knl.c">
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MaxSpeed</Optimization>
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MaxSpeed</Optimization>
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MaxSpeed</Optimization>
+      <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|x64'">MaxSpeed</Optimization>
+    </ClCompile>
     <ClCompile Include="..\..\factor\qs\update_poly_roots_32k_sse4.1.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h" />
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h" />
+    <ClInclude Include="..\..\factor\qs\qs_impl.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h" />
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h" />
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h" />
+    <ClInclude Include="..\..\include\batch_factor.h" />
+    <ClInclude Include="..\..\include\cofactorize.h" />
+    <ClInclude Include="..\..\include\lanczos.h" />
+    <ClInclude Include="..\..\include\prime_sieve.h" />
+    <ClInclude Include="..\..\include\qs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

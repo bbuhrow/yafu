@@ -78,7 +78,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\..\gmp-ecm\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\..\gmp-ecm\include\</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;USE_AVX512F;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
     </ClCompile>

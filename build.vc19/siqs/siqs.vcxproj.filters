@@ -14,70 +14,17 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Source Files\msieve">
-      <UniqueIdentifier>{41b90d2f-52a9-4ff5-8e6b-05b24d7a5011}</UniqueIdentifier>
+      <UniqueIdentifier>{64d34aa9-9e6e-41be-bc3b-765a6ed0a912}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\poly">
-      <UniqueIdentifier>{04c45886-1f8b-4560-aceb-a3a506ef5629}</UniqueIdentifier>
+      <UniqueIdentifier>{329cadb1-1f7f-49a6-975c-0f65707c3a27}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\sieve">
-      <UniqueIdentifier>{a6bf75a2-02c1-4d5e-a1f4-3edeff4c574b}</UniqueIdentifier>
+      <UniqueIdentifier>{a7728e72-4915-4580-b978-341644284bae}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\tdiv">
-      <UniqueIdentifier>{335d098a-add4-41d2-96fc-759d4de362da}</UniqueIdentifier>
+      <UniqueIdentifier>{c6841979-5601-4d73-9fc7-7b84cbef0a82}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\include\qs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\cofactorize.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lanczos.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\batch_factor.h">
-      <Filter>Source Files\msieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\prime_sieve.h">
-      <Filter>Source Files\msieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h">
-      <Filter>Source Files\poly</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\poly_macros_common.h">
-      <Filter>Source Files\poly</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h">
-      <Filter>Source Files\poly</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h">
-      <Filter>Source Files\poly</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h">
-      <Filter>Source Files\sieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
-      <Filter>Source Files\sieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h">
-      <Filter>Source Files\sieve</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h">
-      <Filter>Source Files\tdiv</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h">
-      <Filter>Source Files\tdiv</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\qs_impl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\msieve_common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\factor.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\factor\batch_factor.c">
@@ -212,5 +159,52 @@
     <ClCompile Include="..\..\factor\qs\smallmpqs.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\batch_factor.h">
+      <Filter>Source Files\msieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\prime_sieve.h">
+      <Filter>Source Files\msieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_32k.h">
+      <Filter>Source Files\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common.h">
+      <Filter>Source Files\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_avx2.h">
+      <Filter>Source Files\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\poly_macros_common_sse4.1.h">
+      <Filter>Source Files\poly</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k.h">
+      <Filter>Source Files\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_avx2.h">
+      <Filter>Source Files\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\sieve_macros_32k_sse4.1.h">
+      <Filter>Source Files\sieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_32k.h">
+      <Filter>Source Files\tdiv</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\tdiv_macros_common.h">
+      <Filter>Source Files\tdiv</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\qs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\cofactorize.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lanczos.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\qs\qs_impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

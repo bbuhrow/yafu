@@ -31,15 +31,15 @@ to matrix construction, and restarting of siqs from a data file
 
 uint32_t process_poly_a(static_conf_t *sconf)
 {
-	//given a poly a value, and some aux info about the factorization
-	//generate all poly b values associated with that a and
-	//store both a and all the b's in conf
-	//also check that the generated polys are valid.
+	// given a poly a value, and some aux info about the factorization
+	// generate all poly b values associated with that a and
+	// store both a and all the b's in conf
+	// also check that the generated polys are valid.
 
-	//we will be reusing some routines here that are normally used
-	//during sieving, and expect a dynamic_conf structure as input which
-	//we don't have here.  So we need to create one for use in this 
-	//routine only.
+	// we will be reusing some routines here that are normally used
+	// during sieving, and expect a dynamic_conf structure as input which
+	// we don't have here.  So we need to create one for use in this 
+	// routine only.
 	dynamic_conf_t *dconf;
 	int maxB,j,i;
 
@@ -50,32 +50,34 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	mpz_init(dconf->gmptmp1);
 	mpz_init(dconf->gmptmp2);
 
-	//this stuff changes with every new poly
-	//allocate a polynomial structure which will hold the current
-	//set of polynomial coefficients (a,b,c) and other info
+	// this stuff changes with every new poly
+	// allocate a polynomial structure which will hold the current
+	// set of polynomial coefficients (a,b,c) and other info
 	dconf->curr_poly = (siqs_poly *)malloc(sizeof(siqs_poly));
 	mpz_init(dconf->curr_poly->mpz_poly_a);
 	mpz_init(dconf->curr_poly->mpz_poly_b);
 	mpz_init(dconf->curr_poly->mpz_poly_c);
 	dconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
-	dconf->curr_poly->gray = (char *) malloc( 65536 * sizeof(char));
-	dconf->curr_poly->nu = (char *) malloc( 65536 * sizeof(char));
+	dconf->curr_poly->gray = (char *) malloc((1 << (MAX_A_FACTORS - 1)) * sizeof(char));
+	dconf->curr_poly->nu = (char *) malloc((1 << (MAX_A_FACTORS - 1)) * sizeof(char));
 
-	//allocate the Bl array, space for MAX_Bl bigint numbers
+	// allocate the Bl array, space for MAX_Bl bigint numbers
 	dconf->Bl = (mpz_t *)malloc(MAX_A_FACTORS * sizeof(mpz_t));
-	for (i=0;i<MAX_A_FACTORS;i++)
-		mpz_init(dconf->Bl[i]);
+    for (i = 0; i < MAX_A_FACTORS; i++)
+    {
+        mpz_init(dconf->Bl[i]);
+    }
 
 	mpz_set(dconf->curr_poly->mpz_poly_a, sconf->curr_a);
 	
-	//then compute all the 'b' poly's for this 'a'
-	//and add them to the b-list
+	// then compute all the 'b' poly's for this 'a'
+	// and add them to the b-list
 
-	//first, need to factorize this 'a'
+	// first, need to factorize this 'a'
 	j = get_a_offsets(sconf->factor_base, dconf->curr_poly, dconf->gmptmp1);
 	if (j)
 	{
-		//then this poly a might be corrupted - we couldn't factor it over the factor base
+		// then this poly a might be corrupted - we couldn't factor it over the factor base
 		free(dconf->curr_poly->gray);
 		free(dconf->curr_poly->nu);
 		free(dconf->curr_poly->qlisort);
@@ -84,55 +86,65 @@ uint32_t process_poly_a(static_conf_t *sconf)
 		mpz_clear(dconf->curr_poly->mpz_poly_c);
 		free(dconf->curr_poly);
 
-		for (i=0;i<MAX_A_FACTORS;i++)
-			mpz_clear(dconf->Bl[i]);
+        for (i = 0; i < MAX_A_FACTORS; i++)
+        {
+            mpz_clear(dconf->Bl[i]);
+        }
 		free(dconf->Bl);
 
-		//workspace bigints
+		// workspace bigints
 		mpz_clear(dconf->gmptmp1);
 		mpz_clear(dconf->gmptmp2);
 		free(dconf);
 		return 0;
 	}
 
-	//then initialize the gray code
+	// then initialize the gray code
 	get_gray_code(dconf->curr_poly);
 
-	//then compute all the Bl's
-	//the first 'b' poly comes with computeBl
+	// then compute all the Bl's
+	// the first 'b' poly comes with computeBl
+    // TODO: this gets to be hugely inefficient for super large inputs
+    // where most B values don't have any relations associated with them.
+    // But I'm not sure we care about that case since that's not within 
+    // the normal usage of siqs.
 	computeBl(sconf, dconf);
 
-	//compute how many 'b' values we can get from this 'a'
+	// compute how many 'b' values we can get from this 'a'
 	maxB = 1 << (dconf->curr_poly->s - 1);
 
-	//now we copy all the b coefficients over to sconf where they are
-	//needed by the rest of the filtering routine.
-	//make sure there is enough room for them.  curr_b could
-	//currently be allocated for a number of poly smaller or bigger than
-	//maxB
+	// now we copy all the b coefficients over to sconf where they are
+	// needed by the rest of the filtering routine.
+	// make sure there is enough room for them.  curr_b could
+	// currently be allocated for a number of poly smaller or bigger than
+	// maxB
 
 	//free any we won't be needing
-	for (j = 0; (uint32_t)j < sconf->bpoly_alloc; j++)
-		mpz_clear(sconf->curr_b[j]);
+    for (j = 0; (uint32_t)j < sconf->bpoly_alloc; j++)
+    {
+        mpz_clear(sconf->curr_b[j]);
+    }
 
-	//reallocate the size of the array
+	// reallocate the size of the array
 	sconf->curr_b = (mpz_t *)realloc(sconf->curr_b, maxB * sizeof(mpz_t));
 
-	//allocate any additional we need
-	for (j = 0; j < maxB; j++)
-		mpz_init(sconf->curr_b[j]);
+	// allocate any additional we need
+    for (j = 0; j < maxB; j++)
+    {
+        mpz_init(sconf->curr_b[j]);
+    }
 	sconf->bpoly_alloc = maxB;
 
 	//generate all the b polys
 	generate_bpolys(sconf, dconf, maxB);
 
-	//we'll need to remember some things about the current poly,
-	//so copy those over to sconf first...
+	// we'll need to remember some things about the current poly,
+	// so copy those over to sconf first...
 	for (j=0; j<dconf->curr_poly->s; j++)
 		sconf->curr_poly->qlisort[j] = dconf->curr_poly->qlisort[j];
 	sconf->curr_poly->s = dconf->curr_poly->s;
 
-	//then free the temp dynamic struct
+	// then free the temp dynamic struct
 	free(dconf->curr_poly->gray);
 	free(dconf->curr_poly->nu);
 	free(dconf->curr_poly->qlisort);
@@ -141,11 +153,13 @@ uint32_t process_poly_a(static_conf_t *sconf)
 	mpz_clear(dconf->curr_poly->mpz_poly_c);
 	free(dconf->curr_poly);
 
-	for (i=0;i<MAX_A_FACTORS;i++)
-		mpz_clear(dconf->Bl[i]);
+    for (i = 0; i < MAX_A_FACTORS; i++)
+    {
+        mpz_clear(dconf->Bl[i]);
+    }
 	free(dconf->Bl);
 
-	//workspace bigints
+	// workspace bigints
 	mpz_clear(dconf->gmptmp1);
 	mpz_clear(dconf->gmptmp2);
 	free(dconf);
@@ -190,18 +204,17 @@ int get_a_offsets(fb_list *fb, siqs_poly *poly, mpz_t tmp)
 
 void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 {
-	//given poly, which contains the first value of poly_b, and
-	//info needed to generate the rest of the poly b's (namely,
-	//the Bl vector), generate the rest of the Bl's and put
-	//them in an output vector, which has been initialized 
-	//by the callee.
+	// given poly, which contains the first value of poly_b, and
+	// info needed to generate the rest of the poly b's (namely,
+	// the Bl vector), generate the rest of the Bl's and put
+	// them in an output vector, which has been initialized 
+	// by the callee.
 
 	int numB=1;
 
-	//iterate through all b's
+	// iterate through all b's
 	for ( ; numB < maxB; numB++)
 	{
-		//zCopy(&dconf->curr_poly->poly_b,&sconf->curr_b[numB - 1]);
 		mpz_set(sconf->curr_b[numB - 1], dconf->curr_poly->mpz_poly_b);
 		dconf->numB = numB;
 		nextB(dconf, sconf);
@@ -2001,20 +2014,20 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 							has3lp = 1;
 						}
 
-						if (fobj->VFLAG > 2)
-						{
-							printf("found cycle of length %d\n", length);
-
-							printf("relation %08d: %u,%u,%u\n", i,
-								relation_list[i].large_prime[0],
-								relation_list[i].large_prime[1],
-								relation_list[i].large_prime[2]);
-							
-							printf("relation %08d: %u,%u,%u\n", rid,
-								relation_list[rid].large_prime[0],
-								relation_list[rid].large_prime[1],
-								relation_list[rid].large_prime[2]);
-						}
+						//if (fobj->VFLAG > 2)
+						//{
+						//	printf("found cycle of length %d\n", length);
+                        //
+						//	printf("relation %08d: %u,%u,%u\n", i,
+						//		relation_list[i].large_prime[0],
+						//		relation_list[i].large_prime[1],
+						//		relation_list[i].large_prime[2]);
+						//	
+						//	printf("relation %08d: %u,%u,%u\n", rid,
+						//		relation_list[rid].large_prime[0],
+						//		relation_list[rid].large_prime[1],
+						//		relation_list[rid].large_prime[2]);
+						//}
 
 						for (k = 0; k < pbr_entry->chain_sz; k++)
 						{
@@ -2029,13 +2042,13 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 								has3lp = 1;
 							}
 
-							if (fobj->VFLAG > 2)
-							{
-								printf("relation %08d: %u,%u,%u\n", rid,
-									relation_list[rid].large_prime[0],
-									relation_list[rid].large_prime[1],
-									relation_list[rid].large_prime[2]);
-							}
+							//if (fobj->VFLAG > 2)
+							//{
+							//	printf("relation %08d: %u,%u,%u\n", rid,
+							//		relation_list[rid].large_prime[0],
+							//		relation_list[rid].large_prime[1],
+							//		relation_list[rid].large_prime[2]);
+							//}
 						}
 
 						for (k = 0; k < pbr_entry2->chain_sz; k++)
@@ -2051,13 +2064,13 @@ qs_la_col_t * find_cycles3(fact_obj_t*fobj, static_conf_t *sconf,
 								has3lp = 1;
 							}
 
-							if (fobj->VFLAG > 2)
-							{
-								printf("relation %08d: %u,%u,%u\n", rid,
-									relation_list[rid].large_prime[0],
-									relation_list[rid].large_prime[1],
-									relation_list[rid].large_prime[2]);
-							}
+							//if (fobj->VFLAG > 2)
+							//{
+							//	printf("relation %08d: %u,%u,%u\n", rid,
+							//		relation_list[rid].large_prime[0],
+							//		relation_list[rid].large_prime[1],
+							//		relation_list[rid].large_prime[2]);
+							//}
 						}
 
 
@@ -2192,6 +2205,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	char *subbuf;
 	int first, last_poly;
 	uint32_t this_rel = 0;
+    uint32_t progress;
 
  	/* Rather than reading all the relations in and 
 	   then removing singletons, read only the large 
@@ -2356,7 +2370,7 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	poly_saved = 0;
 	sconf->poly_list_alloc = 0;
 	if (fobj->VFLAG > 0)
-		printf("attempting to read %u relations\n", num_relations);
+		printf("attempting to read and process %u relations\n", num_relations);
 
 	/* Read in the relations and the polynomials they use
 	   at the same time. */
@@ -2367,11 +2381,21 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 		this_rel = 0;
 
 	first = 1;
+    progress = 500000;
 	while (curr_expected < num_relations) {
 		char *tmp;
 		uint32_t bad_A_val = 0;
 		siqs_r *r;
 		siqs_r *rel = NULL;
+
+        if (num_relations > 500000)
+        {
+            if (curr_expected > progress)
+            {
+                printf("now at relation %u\n", curr_expected);
+                progress += 500000;
+            }
+        }
 
 		/* read in the next entity */
 		if (!sconf->in_mem)
