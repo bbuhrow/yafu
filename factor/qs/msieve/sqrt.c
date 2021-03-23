@@ -65,7 +65,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	uint32_t i, j, k, m;
 	uint64_t mask;
 	uint32_t *fb_counts;
-	uint32_t large_primes[200], num_large_primes;
+	uint32_t *large_primes, num_large_primes, alloc_lp;
 	uint32_t num_relations, prime;
 	siqs_r *relation;
 	uint32_t factor_found = 0;
@@ -79,6 +79,8 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	mpz_init(sum);
 	mpz_init(tmpn);
 	
+    alloc_lp = 1024;
+    large_primes = (uint32_t*)xmalloc(alloc_lp * sizeof(uint32_t));
 	fb_counts = (uint32_t *)malloc(fb_size * sizeof(uint32_t));
 	mpz_set_ui(tmpn, multiplier);
 
@@ -178,10 +180,11 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 						large_primes[2*m+1] = 1;
 						num_large_primes++;
 
-						if (num_large_primes >= 200)
+						if ((2 * num_large_primes + 1) >= alloc_lp)
 						{
-							printf("too many large primes when processing dependency\n");
-							exit(1);
+                            alloc_lp *= 2;
+                            large_primes = (uint32_t)xrealloc(large_primes, 
+                                alloc_lp * sizeof(uint32_t));
 						}
 					}
 				}
@@ -324,6 +327,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
     //mpz_tdiv_q(tmp2, n, tmpn);
     //gmp_printf("done with sqrt... remaining input is %Zd\n", tmp2);
 
+    free(large_primes);
 	free(fb_counts);
 	mpz_clear(factor);
 	mpz_clear(x);

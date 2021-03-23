@@ -108,7 +108,7 @@ uint32_t process_poly_a(static_conf_t *sconf)
     // where most B values don't have any relations associated with them.
     // But I'm not sure we care about that case since that's not within 
     // the normal usage of siqs.
-	computeBl(sconf, dconf);
+	computeBl(sconf, dconf, 0);
 
 	// compute how many 'b' values we can get from this 'a'
 	maxB = 1 << (dconf->curr_poly->s - 1);
@@ -140,8 +140,10 @@ uint32_t process_poly_a(static_conf_t *sconf)
 
 	// we'll need to remember some things about the current poly,
 	// so copy those over to sconf first...
-	for (j=0; j<dconf->curr_poly->s; j++)
-		sconf->curr_poly->qlisort[j] = dconf->curr_poly->qlisort[j];
+    for (j = 0; j < dconf->curr_poly->s; j++)
+    {
+        sconf->curr_poly->qlisort[j] = dconf->curr_poly->qlisort[j];
+    }
 	sconf->curr_poly->s = dconf->curr_poly->s;
 
 	// then free the temp dynamic struct
@@ -217,7 +219,7 @@ void generate_bpolys(static_conf_t *sconf, dynamic_conf_t *dconf, int maxB)
 	{
 		mpz_set(sconf->curr_b[numB - 1], dconf->curr_poly->mpz_poly_b);
 		dconf->numB = numB;
-		nextB(dconf, sconf);
+		nextB(dconf, sconf, 0);
 	}
 
 	return;
@@ -2447,21 +2449,24 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
                 curr_a_idx = rel->apoly_idx;
 			}
 
-            
 			num_derived_poly = process_poly_a(sconf);
 
 			if (num_derived_poly == 0)
 			{
-				//this is an error indicating a bad poly a.  skip all relations
-				//until we see the next A
+				// this is an error indicating a bad poly a.  skip all relations
+				// until we see the next A
 				bad_A_val = 1;
 				continue;
 			}
-			else
-				bad_A_val = 0;
+            else
+            {
+                bad_A_val = 0;
+            }
 
             if (!sconf->in_mem)
-			    mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a); 
+            {
+                mpz_set(sconf->poly_a_list[curr_a_idx], sconf->curr_a);
+            }
 
 			/* all 'b' values start off unused */
 			final_poly_index = (uint32_t *)xrealloc(final_poly_index,

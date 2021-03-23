@@ -734,7 +734,7 @@ void SIQS(fact_obj_t *fobj)
             // update roots, etc.
             dconf->maxB = 1 << (dconf->curr_poly->s - 1);
             dconf->numB = 1;
-            computeBl(static_conf, dconf);
+            computeBl(static_conf, dconf, 1);
 
             for (; dconf->numB < dconf->maxB; dconf->numB++, dconf->tot_poly++)
             {
@@ -779,7 +779,7 @@ void SIQS(fact_obj_t *fobj)
                     }
                 }
 
-                nextB(dconf, static_conf);
+                nextB(dconf, static_conf, 1);
             }
         }
 
@@ -1059,7 +1059,7 @@ void *process_poly(void *vptr)
     // update roots, etc.
     dconf->maxB = 1 << (dconf->curr_poly->s - 1);
     dconf->numB = 1;
-    computeBl(sconf, dconf);
+    computeBl(sconf, dconf, 1);
 
     firstRoots_ptr(sconf, dconf);
 
@@ -1203,7 +1203,7 @@ void *process_poly(void *vptr)
 
         // next polynomial
         // use the stored Bl's and the gray code to find the next b
-        nextB(dconf, sconf);
+        nextB(dconf, sconf, 1);
 
 #ifdef USE_BATCHPOLY
 

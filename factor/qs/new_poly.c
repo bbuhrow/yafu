@@ -510,7 +510,7 @@ done:
 	return;
 }
 
-void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
+void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
 {
 	// ql = array of factors of a
 	// Bl = array of generated Bl values
@@ -528,37 +528,40 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	//initialize b
 	mpz_set_ui(poly->mpz_poly_b, 0);
 
-	for (i=0;i<s;i++)
-	{
-		prime = fb->list->prime[qli[i]];
-		root1 = modsqrt[qli[i]];
-		root2 = prime - root1; 
-		
-		mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
-		amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1,(uint64_t)prime);
-		amodql = modinv_1(amodql,prime);
+    for (i = 0; i < s; i++)
+    {
+        prime = fb->list->prime[qli[i]];
+        root1 = modsqrt[qli[i]];
+        root2 = prime - root1;
 
-		//the primes will all be < 65536, so we can multiply safely
-		gamma = (root1 * amodql) % prime;
+        mpz_tdiv_q_ui(dconf->gmptmp1, poly->mpz_poly_a, prime);
+        amodql = (uint32_t)mpz_tdiv_ui(dconf->gmptmp1, (uint64_t)prime);
+        amodql = modinv_1(amodql, prime);
 
-		//check if the other root makes gamma smaller
-		if (gamma > (prime>>1))
-			gamma = prime-gamma;
-		
-		//qstmp1 holds a/prime
-		mpz_mul_ui(dconf->Bl[i], dconf->gmptmp1, (uint64_t)gamma);
+        //the primes will all be < 65536, so we can multiply safely
+        gamma = (root1 * amodql) % prime;
 
-		//build up b
-		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[i]);
+        //check if the other root makes gamma smaller
+        if (gamma > (prime >> 1))
+            gamma = prime - gamma;
 
-		//double Bl (the rest of the code wants it that way)
-		mpz_mul_2exp(dconf->Bl[i], dconf->Bl[i], 1);
-	}
+        //qstmp1 holds a/prime
+        mpz_mul_ui(dconf->Bl[i], dconf->gmptmp1, (uint64_t)gamma);
+
+        //build up b
+        mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[i]);
+
+        //double Bl (the rest of the code wants it that way)
+        mpz_mul_2exp(dconf->Bl[i], dconf->Bl[i], 1);
+    }
 
 	//now that we have b, compute c = (b*b - n)/a
-	mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
-	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
-	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+    if (needC)
+    {
+        mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+        mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+        mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+    }
 
 	//gmp_printf("A = %Zd\n", poly->mpz_poly_a);
 	//gmp_printf("B = %Zd\n", poly->mpz_poly_b);
@@ -567,7 +570,7 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf)
 	return;
 }
 
-void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
+void nextB(dynamic_conf_t *dconf, static_conf_t *sconf, int needC)
 {
 	// compute the ith b value for this polya
 	// using a Gray code
@@ -585,10 +588,13 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf)
 	else
 		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[poly->nu[Bnum] - 1]); 
 	
-	//now that we have b, compute c = (b*b - n)/a
-	mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
-	mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
-	mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+    if (needC)
+    {
+        //now that we have b, compute c = (b*b - n)/a
+        mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+        mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+        mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+    }
 
     //gmp_printf("B%d = %Zd\n", Bnum, poly->mpz_poly_b);
     //gmp_printf("C%d = %Zd\n", Bnum, poly->mpz_poly_c);
