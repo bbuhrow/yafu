@@ -203,7 +203,7 @@
     <ClInclude Include="..\..\include\lanczos.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\factor\qs\qs_impl.h">
+    <ClInclude Include="..\..\include\qs_impl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -22,9 +22,9 @@ CC = gcc-7.3.0
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g -DUSE_SSE2
 WARN_FLAGS = -Wall # -Wconversion
-OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../../msieve/zlib -I../../../ysieve.git/trunk -I../../../ytools.git/trunk
-LIBS = -L../../../ysieve.git/trunk -L../../../ytools.git/trunk -L. 
+OPT_FLAGS = -O3
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
+LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk -L. 
 BINNAME = yafu
 OBJ_EXT = .o
 
@@ -105,10 +105,10 @@ endif
 
 
 ifeq ($(SKYLAKEX),1)
-	INC += -I../../../gmp-install/wsl/6.2.0/include
-	LIBS += -L../../../gmp-install/wsl/6.2.0/lib/
-	INC += -I../../../ecm_install/include/
-	LIBS += -L../../../ecm_install/lib/
+	INC += -I../../gmp_install/gmp-6.2.0/include
+	LIBS += -L../../gmp_install/gmp-6.2.0/lib/
+	INC += -I../../ecm_install/include/
+	LIBS += -L../../ecm_install/lib/
 else
 	ifeq ($(KNL),1)
 		OBJ_EXT = .ko
@@ -118,10 +118,10 @@ else
 		LIBS += -L../../ecm_install_gmp620_knl/lib/
 	else
 		# for non avx512 systems
-		INC += -I../gmp/include
-		LIBS += -L../gmp/lib/
-		INC += -I../gmp-ecm/include/
-		LIBS += -L../gmp-ecm/lib/
+		INC += -I../../gmp_install/gmp-6.2.0/include
+		LIBS += -L../../gmp_install/gmp-6.2.0/lib/
+		INC += -I../../ecm_install/include/
+		LIBS += -L../../ecm_install/lib/
 	endif
 endif
 
@@ -148,9 +148,9 @@ ifeq ($(NFS),1)
 #	modify the following line for your particular msieve installation
 
 	ifeq ($(COMPILER),icc)
-		LIBS += -L../../../msieve/lib/linux
+		LIBS += -L../../msieve/lib/linux
 	else
-		LIBS += -L../../../msieve/
+		LIBS += -L../../msieve/lib/linux/gcc73/
 	endif
 
 	LIBS += -lmsieve
@@ -161,7 +161,7 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /mnt/c/projects/factoring/gmp-install/wsl/6.2.0/lib/libgmp.a -lytools -lysieve
+    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
 else
     LIBS += -lecm -lgmp -lytools -lysieve
 endif

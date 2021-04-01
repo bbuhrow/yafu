@@ -498,8 +498,10 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
     __m512i vmask, vblock;
 #endif
 
-#ifdef USE_BATCHPOLY
+
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+    int pnum;
 
     if (dconf->numB == 1)
     {
@@ -509,7 +511,11 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
     {
         poly_offset += dconf->poly_batchsize;
     }
+    pnum = poly_offset;
     poly_offset = poly_offset * 2 * sconf->num_blocks * dconf->buckets->alloc_slices;
+
+    //printf("begin large_tdiv on side %d with poly %d for location %u\n", 
+    //    parity, pnum, dconf->reports[report_num]);
 
 #endif
 
@@ -536,7 +542,7 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 	//primes bigger than med_B are bucket sieved, so we need
 	//only search through the bucket and see if any locations match the
 	//current block index.
-#ifdef USE_BATCHPOLY
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     bptr = dconf->buckets->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
 #else
 	bptr = dconf->buckets->list + (bnum << BUCKET_BITS);
@@ -552,9 +558,14 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
         basebucket = 0;
     }
 
+#if defined(USE_BATCHPOLY_X2)
+    for (k = 0; (uint32_t)k < dconf->buckets->num_slices_batch[pnum]; k++)
+#else
 	for (k=0; (uint32_t)k < dconf->buckets->num_slices; k++)
+#endif
 	{
-#ifdef USE_BATCHPOLY
+        
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
         uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket + poly_offset);
 #else
         uint32_t lpnum = *(dconf->buckets->num + bnum + basebucket);
@@ -562,8 +573,21 @@ void tdiv_LP(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 #endif
 
         int r, q;
+#if defined(USE_BATCHPOLY_X2)
+        uint32_t fb_bound = *(dconf->buckets->fb_bounds + k + pnum * dconf->buckets->alloc_slices);
+#else
 		uint32_t fb_bound = *(dconf->buckets->fb_bounds + k);
+#endif
 		uint32_t result = 0;
+
+
+//#if defined(USE_BATCHPOLY_X2)
+//        printf("lp tdiv: checking %d primes from slice %d of %d for poly %d, bucket/block %d\n",
+//            lpnum, k, dconf->buckets->num_slices_batch[pnum], pnum, bnum);
+//#else
+//        printf("lp tdiv: checking %d primes from slice %d of %d for poly %d, bucket/block %d\n",
+//            lpnum, k, dconf->buckets->num_slices, 0, bnum);
+//#endif
 
 #ifdef DO_VLP_OPT
         if (dconf->buckets->fb_bounds[k] == 0xffffffff)

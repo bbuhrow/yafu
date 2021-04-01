@@ -1266,7 +1266,11 @@ void *process_poly(void *vptr)
         }
     }
 
-
+    //if (sconf->total_poly_a == 2)
+    //{
+    //
+    //    exit(1);
+    //}
 
 #ifdef USE_VEC_SQUFOF
     // vector SQUFOF if necessary
@@ -1636,8 +1640,29 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			printf("single large prime cutoff: %u (2^%d)\n",
 				sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
 		}
-		else
-		{
+        else if (sconf->large_mult > 1000)
+        {
+            int bits = 0;
+            uint32_t lpb = sconf->large_mult;
+            while (lpb > 1)
+            {
+                lpb >>= 1;
+                bits++;
+            }
+
+            if (sconf->large_prime_max == (1 << bits))
+            {
+                printf("single large prime cutoff: %u (2^%d)\n",
+                    sconf->large_prime_max, bits);
+            }
+            else
+            {
+                printf("single large prime cutoff: %u\n",
+                    sconf->large_prime_max);
+            }
+        }
+        else
+        {
 			printf("single large prime cutoff: %u (%d * pmax)\n",
 				sconf->large_prime_max, sconf->large_mult);
 		}
@@ -1706,11 +1731,33 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			logprint(sconf->obj->logfile, "single large prime cutoff: %u (2^%d)\n",
 				sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
 		}
-		else
-		{
-			logprint(sconf->obj->logfile, "single large prime cutoff: %u (%d * pmax)\n",
-				sconf->large_prime_max, sconf->large_mult);
-		}
+        else if (sconf->large_mult > 1000)
+        {
+            int bits = 0;
+            uint32_t lpb = sconf->large_mult;
+            while (lpb > 1)
+            {
+                lpb >>= 1;
+                bits++;
+            }
+
+            if (sconf->large_prime_max == (1 << bits))
+            {
+                logprint(sconf->obj->logfile, "single large prime cutoff: %u (2^%d)\n",
+                    sconf->large_prime_max, bits);
+            }
+            else
+            {
+                logprint(sconf->obj->logfile, "single large prime cutoff: %u\n",
+                    sconf->large_prime_max);
+            }
+        }
+        else
+        {
+            logprint(sconf->obj->logfile, "single large prime cutoff: %u (%d * pmax)\n",
+                sconf->large_prime_max, sconf->large_mult);
+        }
+
 		if (sconf->use_dlp >= 1)
 		{
 			logprint(sconf->obj->logfile, "double large prime range from %" PRIu64 " to %" PRIu64 "\n",
@@ -1906,17 +1953,17 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         //test to see how many slices we'll need.
         testRoots_ptr(sconf, dconf);
 
-#ifdef USE_BATCHPOLY
+#if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
         // this should be a function of the L2 size.
-#ifdef TARGET_KNC
-        dconf->poly_batchsize = MAX(2, 30000000 / 4 /
-            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
-                BUCKET_ALLOC * sizeof(uint32_t)));
-#else
-        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / fobj->THREADS /
-            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
-                BUCKET_ALLOC * sizeof(uint32_t)));
-#endif
+//#ifdef TARGET_KNC
+//        dconf->poly_batchsize = MAX(2, 30000000 / 4 /
+//            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
+//                BUCKET_ALLOC * sizeof(uint32_t)));
+//#else
+//        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / fobj->THREADS /
+//            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
+//                BUCKET_ALLOC * sizeof(uint32_t)));
+//#endif
 
         dconf->poly_batchsize = 4;
 
@@ -1924,17 +1971,31 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->poly_batchsize = 1;
 #endif
 
+
         //initialize the bucket lists and auxilary info.
+        //printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
+        //    sconf->num_blocks, dconf->buckets->alloc_slices, dconf->poly_batchsize);
+
+        // two entries per block (p and n sides), per slice, and per poly.
         dconf->buckets->num = (uint32_t *)xmalloc_align(dconf->poly_batchsize *
             2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
+        
+        // one entry per slice to record the starting prime and logp indices per slice.
+        // experimental variation: use one entryp to slice and per poly, so that we
+        // can sort xlarge primes in a batch of polys and other primes one poly at a time.
         dconf->buckets->fb_bounds = (uint32_t *)malloc(
-            dconf->buckets->alloc_slices * sizeof(uint32_t));
+            dconf->buckets->alloc_slices * dconf->poly_batchsize * sizeof(uint32_t));
         dconf->buckets->logp = (uint8_t *)calloc(
-            dconf->buckets->alloc_slices, sizeof(uint8_t));
+            dconf->buckets->alloc_slices * dconf->poly_batchsize, sizeof(uint8_t));
+
+        // the total number of buckets (size of buckets->num)
         dconf->buckets->list_size = dconf->poly_batchsize * 2 *
             sconf->num_blocks * dconf->buckets->alloc_slices;
 
-        //now allocate the buckets
+        dconf->buckets->num_slices_batch = (uint32_t*)xmalloc(dconf->poly_batchsize * sizeof(uint32_t));
+
+        // now allocate space for the bucket entries.  Each entry is a 32-bit integer
+        // split into 16 bits for prime id and 16 bits for block location.
         dconf->buckets->list = (uint32_t *)xmalloc_align(
             dconf->buckets->list_size *
             BUCKET_ALLOC * sizeof(uint32_t));
@@ -2369,9 +2430,23 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	}
 
 #ifdef VDEBUG
-		printf("found factor base of %u elements; max = %u\n",
-			sconf->factor_base->B,sconf->factor_base->list->prime[sconf->factor_base->B-1]);
+	printf("found factor base of %u elements; max = %u\n",
+		sconf->factor_base->B,sconf->factor_base->list->prime[sconf->factor_base->B-1]);
 #endif
+
+    if (0)
+    {
+        printf("multiplier: %u\nfb: ", sconf->multiplier);
+        sum = 0.0;
+        i = 2;
+        while (sconf->factor_base->list->prime[i] < 1000)
+        {
+            printf("%u, ", sconf->factor_base->list->prime[i]);
+            sum += log(sconf->factor_base->list->prime[i]);
+            i++;
+        }
+        printf("\nsum of log(primes): %1.3lf\n", sum);
+    }
 
 	//the first two fb primes are always the same
 	sconf->factor_base->list->prime[0] = 1;		//actually represents -1
@@ -2596,7 +2671,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	}
 
 	// lpmax from parameters and/or user specifications
-	if ((4294967295ULL / sconf->large_mult) < sconf->pmax)
+    if (sconf->large_mult > 1000)
+    {
+        // this is an actual LPB for a TLP job
+        sconf->large_prime_max = sconf->large_mult;
+    }
+	else if ((4294967295ULL / sconf->large_mult) < sconf->pmax)
 	{
 		// job is so big that pmax * default large_mult won't fit in 32 bits
 		// reduce large_mult accordingly
@@ -2625,11 +2705,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // factors as well, not just instruction set used during compile.
 #if (defined(USE_AVX2) || defined(USE_SSE41))
     dlp_cutoff = 70;
-	tlp_cutoff = 120;
 #else
     dlp_cutoff = 77;
-	tlp_cutoff = 95;
 #endif
+    tlp_cutoff = 101;
 
     // could maybe someday change this w.r.t input size... for now
     // just test it out...
@@ -2672,7 +2751,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		scan_ptr = &check_relations_siqs_16;
 		sconf->scan_unrolling = 128;
 	}
-	else if (sconf->obj->qs_obj.gbl_force_DLP)
+	
+    if (sconf->obj->qs_obj.gbl_force_DLP)
 	{
 		sconf->use_dlp = 1;
 		scan_ptr = &check_relations_siqs_16;
@@ -2753,7 +2833,6 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         sconf->do_batch = 1;
 
         sconf->do_periodic_tlp_filter = 1;
-        //sconf->est_raw_rels_needed = 20938 + 234867 + 962109 + 33970;
         
         if (obj->VFLAG > 0)
         {
@@ -3550,34 +3629,22 @@ int update_check(static_conf_t *sconf)
 
                             fulls_at_linear_rate = (uint32_t)(raw_rels * fr);
 
-                            printf("with linear growth of cycle rate we need %u "
-                                "more raw relations (%u more fulls)\n", raw_rels, 
-                                fulls_at_linear_rate);
-
-                            //current_rels = sconf->num_r;
-                            //cr = cycrate;
-                            //lr = sconf->last_cycrate;
-                            //ri = (cr - lr);
-                            //raw_rels = 0;
-                            //ci = check_inc;
-                            //
-                            //while (current_rels < fb->B)
-                            //{
-                            //    uint32_t new_fulls = ci;
-                            //    uint32_t new_raws = ci / fr;
-                            //    double new_cycle_rate = cr + ri * 0.8;
-                            //    uint32_t new_cycles = new_cycle_rate * new_raws;
-                            //    current_rels += (new_cycles + new_fulls);
-                            //    cr = new_cycle_rate;
-                            //    ri = ri * 0.8;
-                            //    raw_rels += new_raws;
-                            //    ci = ci / 2;
-                            //    if (ci < 16) ci = 16;
-                            //}
-                            //
-                            //printf("with cycle rate growth of 0.8 we need %u "
-                            //    "more raw relations (%u more fulls)\n", raw_rels, 
-                            //    (uint32_t)(raw_rels * fr));
+                            if (fulls_at_linear_rate > fulls_at_current_rate)
+                            {
+                                // this case occurs when the current increment (ci)
+                                // is enough to get to the goal.  The current strategy:
+                                // (fulls_at_current_rate + fulls_at_linear_rate) / 3
+                                // actually seems to work pretty well, but maybe I've 
+                                // been getting lucky in test cases.  Leave it for now.
+                                // just don't print the linear growth case since it doesn't
+                                // make much sense as-is.
+                            }
+                            else
+                            {
+                                printf("with linear growth of cycle rate we need %u "
+                                    "more raw relations (%u more fulls)\n", raw_rels,
+                                    fulls_at_linear_rate);
+                            }
 
                             if ((fulls_at_current_rate < fb->B) &&
                                 (fulls_at_linear_rate < fb->B))
@@ -3588,50 +3655,6 @@ int update_check(static_conf_t *sconf)
                             }
                         }
                         
-
-
-						// rough scaling of filtering interval.  
-						// The idea is that as cycle formation rate increases, 
-						// do filtering more often so that we don't way overshoot
-						// the minimum number of required relations.
-						// The drawback is that as we get more cycles, filtering
-						// takes longer and we don't want to spend too much time
-						// filtering.
-						// So... this probably needs tuning.  Although it appears
-						// to work reasonably well so far.
-                        // Also, we reduce the number of target relations for 
-                        // the batch factoring routine.  This make it more
-                        // inefficient, but 1) it is already so much faster than
-                        // not having it so slowing it down a little is ok and 2)
-                        // it is better to have these relations count than have them
-                        // go to waste when the sieving stops.
-                        // update: don't need to reduce batch size now that batch
-                        // processing happens centrally (not per-thread).
-                        // TODO: this approach does not work at all when jobs
-                        // are restarted, since this history is lost.  We need
-                        // to trigger batch sizes based on current relations gathered
-                        // and estimated relations needed, similar to NFS jobs.
-                        // we will need to compile a table of expected relations 
-                        // as a function of input size and parameters (particularly 
-                        // B and LPB, but also BDiv and MFBT).
-                        //if (sconf->last_numpartial > 3 * sconf->last_numfull)
-                        //{
-                        //    sconf->check_inc = sconf->factor_base->B / 2;
-                        //}
-                        //else if (sconf->last_numpartial > 2 * sconf->last_numfull)
-                        //{
-                        //    sconf->check_inc = sconf->factor_base->B;
-                        //}
-                        //else if (sconf->last_numpartial > sconf->last_numfull)
-                        //{
-                        //    sconf->check_inc = sconf->factor_base->B * 2;
-                        //}
-                        //else
-                        //{
-                        //    sconf->check_inc = sconf->factor_base->B * 3;
-                        //}
-						//printf("next filtering in %u more relations\n", sconf->check_inc);
-
                         // new strategy: use the number of full relations found as a gauge for
                         // when to filter.  At the end of a TLP run with typical parameters we
                         // have about 20% fulls and 80% cycles.  So we start filtering at 15% fulls
@@ -3640,35 +3663,15 @@ int update_check(static_conf_t *sconf)
                             ((double)sconf->last_numfull + (double)sconf->last_numpartial) / 
                             (double)sconf->factor_base->B;
 
-                        if ((!have_cycle_growth_estimate) && (sconf->digits_n < 120))
+                        if ((!have_cycle_growth_estimate) && (sconf->digits_n < 130))
                         {
                             if (percent_complete < 0.2)
                             {
-                                sconf->check_inc = 0.05 * sconf->factor_base->B;
+                                sconf->check_inc = 0.025 * sconf->factor_base->B;
                             }
                             else if (percent_complete < 0.33)
                             {
-                                sconf->check_inc = 0.03 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.5)
-                            {
-                                sconf->check_inc = 0.02 * sconf->factor_base->B;
-                            }
-                            else
-                            {
-                                sconf->check_inc = 0.01 * sconf->factor_base->B;
-                            }
-                        }
-                        
-                        if (sconf->digits_n > 120)
-                        {
-                            if (percent_complete < 0.2)
-                            {
-                                sconf->check_inc = 0.03 * sconf->factor_base->B;
-                            }
-                            else if (percent_complete < 0.33)
-                            {
-                                sconf->check_inc = 0.02 * sconf->factor_base->B;
+                                sconf->check_inc = 0.015 * sconf->factor_base->B;
                             }
                             else if (percent_complete < 0.5)
                             {
@@ -3677,6 +3680,26 @@ int update_check(static_conf_t *sconf)
                             else
                             {
                                 sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            }
+                        }
+                        
+                        if (sconf->digits_n > 130)
+                        {
+                            if (percent_complete < 0.2)
+                            {
+                                sconf->check_inc = 0.02 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.33)
+                            {
+                                sconf->check_inc = 0.01 * sconf->factor_base->B;
+                            }
+                            else if (percent_complete < 0.5)
+                            {
+                                sconf->check_inc = 0.005 * sconf->factor_base->B;
+                            }
+                            else
+                            {
+                                sconf->check_inc = 0.0025 * sconf->factor_base->B;
                             }
                         }
 
@@ -3697,17 +3720,6 @@ int update_check(static_conf_t *sconf)
                             (uint32_t)((double)sconf->check_inc / fullrate * next_cycrate),
                             (uint32_t)((double)sconf->check_inc / fullrate));
 
-                        //if (sconf->check_inc <= sconf->factor_base->B)
-                        //{
-                        //    double next_batch = ((double)sconf->check_inc * fullrate +
-                        //        (double)sconf->check_inc * next_cycrate) / (double)sconf->check_inc;
-                        //
-                        //    double num_batch = ((fb->B + sconf->num_extra_relations) - sconf->num_r) /
-                        //        next_batch;
-                        //
-                        //    sconf->check_inc *= (uint32_t)num_batch;
-                        //}
-
 						if (sconf->num_r >= (fb->B + sconf->num_extra_relations))
 						{
 							//we've got enough total relations to stop
@@ -3722,11 +3734,10 @@ int update_check(static_conf_t *sconf)
 							//	(uint32_t)((double)sconf->check_inc * next_cycrate) +
 							//	sconf->num_r) > (fb->B + sconf->num_extra_relations))
                             uint32_t predicted_rels = (uint32_t)((double)sconf->check_inc) +
-                                (uint32_t)((double)sconf->check_inc / fullrate * next_cycrate);
+                                (uint32_t)((double)sconf->check_inc / fullrate * cycrate);
 
-                            if ((!have_cycle_growth_estimate) && 
-                                ((predicted_rels + sconf->num_r) > 
-                                (fb->B + sconf->num_extra_relations)))
+                            if ((predicted_rels + sconf->num_r) > 
+                                (fb->B + sconf->num_extra_relations))
 							{
 								uint32_t rels_needed = (fb->B + sconf->num_extra_relations) - sconf->num_r;
 								//uint32_t batch_needed = (double)rels_needed / (next_cycrate + fullrate);
@@ -3736,7 +3747,7 @@ int update_check(static_conf_t *sconf)
                                 sconf->check_inc = (uint32_t)((double)sconf->check_inc * batch_fraction);
                                 //if (sconf->check_inc < 10000)
                                 //    sconf->check_inc = 10000;
-								printf("using predicted cycle formation rate to set batch size to %u\n",
+								printf("using cycle formation rate to set batch size to %u\n",
 									sconf->check_inc);
 							}
 

@@ -66,9 +66,9 @@ typedef struct
 		if (room < 32)										\
 		{													\
 			logp = update_data.logp[j];						\
-			lp_bucket_p->logp[bound_index] = logp;			\
+			slicelogp_ptr[bound_index] = logp;			\
 			bound_index++;									\
-			lp_bucket_p->fb_bounds[bound_index] = j;		\
+			slicebound_ptr[bound_index] = j;		\
 			bound_val = j;									\
 			sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
 			sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
@@ -81,9 +81,9 @@ typedef struct
 	}										\
 	else if ((j - bound_val) >= 65536)		\
 	{										\
-		lp_bucket_p->logp[bound_index] = logp;			\
+		slicelogp_ptr[bound_index] = logp;			\
 		bound_index++;									\
-		lp_bucket_p->fb_bounds[bound_index] = j;		\
+		slicebound_ptr[bound_index] = j;		\
 		bound_val = j;									\
 		sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
 		sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
@@ -91,7 +91,6 @@ typedef struct
 		numptr_n += (numblocks << 1);							\
 		check_bound += BUCKET_ALLOC >> 1;					\
 	}
-
 
 #define CHECK_NEW_SLICE_BATCH(j)									\
 	if (j >= check_bound)							\
@@ -131,6 +130,51 @@ typedef struct
 		numptr_n += (numblocks << 1);							\
 		check_bound += BUCKET_ALLOC >> 1;					\
     	}
+
+#define CHECK_NEW_SLICE_BATCH_2(j)									\
+	if (j >= cb[p])							\
+	{														\
+		room = 0;											\
+        /* find the most filled bucket */ \
+		for (k = 0; k < numblocks; k++)							\
+		{													\
+			if (numptr_p[k] > room)						\
+				room = numptr_p[k];						\
+			if (numptr_n[k] > room)						\
+				room = numptr_n[k];						\
+		}													\
+		room = BUCKET_ALLOC - room;							\
+        /* if it is filled close to the allocation, start recording in a new set of buckets */ \
+		if (room < 32)										\
+		{													\
+			logp = update_data.logp[j];						\
+			slicelogp_ptr[p * lp_bucket_p->alloc_slices + bi[p]] = logp;			\
+			bi[p]++;									\
+            /*printf("new slice bound = %u for poly %d\n", j, p); */\
+			slicebound_ptr[p * lp_bucket_p->alloc_slices + bi[p]] = j;		\
+			bv[p] = j;									\
+			sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
+			sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
+			numptr_p += (numblocks << 1);							\
+			numptr_n += (numblocks << 1);							\
+			cb[p] += BUCKET_ALLOC >> 1;					\
+		}													\
+		else												\
+			cb[p] += room >> 1;						\
+	}										\
+	else if ((j - bv[p]) >= 65536)		\
+	{										\
+		slicelogp_ptr[p * lp_bucket_p->alloc_slices + bi[p]] = logp;			\
+		bi[p]++;									\
+		slicebound_ptr[p * lp_bucket_p->alloc_slices + bi[p]] = j;		\
+		bv[p] = j;									\
+		sliceptr_p += (numblocks << (BUCKET_BITS + 1));		\
+		sliceptr_n += (numblocks << (BUCKET_BITS + 1));		\
+		numptr_p += (numblocks << 1);							\
+		numptr_n += (numblocks << 1);							\
+		cb[p] += BUCKET_ALLOC >> 1;					\
+	}
+
 
 #if defined(_MSC_VER)
 

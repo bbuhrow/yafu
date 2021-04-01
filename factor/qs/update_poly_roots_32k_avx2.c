@@ -228,6 +228,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	int check_bound = BUCKET_ALLOC/2 - 1;
 	uint32_t bound_val = med_B;
 	uint32_t *numptr_p, *numptr_n, *sliceptr_p,*sliceptr_n;
+    uint8_t* slicelogp_ptr;
+    uint32_t* slicebound_ptr;
 	
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
 	uint32_t *bptr;
@@ -1906,6 +1908,8 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
     int check_bound = BUCKET_ALLOC / 2 - 1;
     uint32_t bound_val = med_B;
     uint32_t* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
+    uint8_t* slicelogp_ptr = NULL;
+    uint32_t* slicebound_ptr = NULL;
 
 #if !defined(USE_POLY_SSE2_ASM) || defined(PROFILING)
     uint32_t * bptr;
@@ -1933,6 +1937,9 @@ void nextRoots_32k_avx2_small_test(static_conf_t* sconf, dynamic_conf_t* dconf)
             numptr_p[j] = 0;
 
         lp_bucket_p->num_slices = 0;
+
+        slicelogp_ptr = lp_bucket_p->logp;
+        slicebound_ptr = lp_bucket_p->fb_bounds;
 
     }
     else

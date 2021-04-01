@@ -58,8 +58,9 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
     __mmask16 mask16;
 #endif
 
-#ifdef USE_BATCHPOLY
+#if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     int poly_offset = (dconf->numB % dconf->poly_batchsize) - 2;
+    int pnum;
 
     if (dconf->numB == 1)
     {
@@ -69,8 +70,13 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
     {
         poly_offset += dconf->poly_batchsize;
     }
+    pnum = poly_offset;
     poly_offset = poly_offset * 2 * numblocks * dconf->buckets->alloc_slices;
 
+    //printf("begin large_sieve on side %d with poly %d\n", side, pnum);
+    
+#else 
+    int pnum = 0;
 #endif
 
 	//finally, dump the buckets into the now cached 
@@ -83,7 +89,7 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
 	//are contiguous in memory, so the whole thing is physically one giant linear list of
 	//bucket hits which we have subdivided.  
 
-#ifdef USE_BATCHPOLY
+#if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
     bptr = lp->list + (bnum << BUCKET_BITS) + poly_offset * BUCKET_ALLOC;
 #else
 	bptr = lp->list + (bnum << BUCKET_BITS);
@@ -101,9 +107,13 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
 
 	//use x8 when cache line has 32 bytes
 	//use x16 when chache line has 64 bytes
+#if defined(USE_BATCHPOLY_X2)
+    for (j = 0; j < dconf->buckets->num_slices_batch[pnum]; j++)
+#else
 	for (j = 0; j < lp->num_slices; j++)
+#endif
 	{
-#ifdef USE_BATCHPOLY
+#if defined( USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
         lpnum = *(lp->num + bnum + basebucket + poly_offset);
 #else
 		lpnum = *(lp->num + bnum + basebucket);
@@ -120,13 +130,14 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
         }
 #endif
 
-        //printf("lp sieve: dumping %d primes from slice %d, bucket %d\n", lpnum, j, bnum);
-        //
-        //for (i = 0; i < lpnum; i++)
-        //{
-        //    printf("%08x ", bptr[i]);
-        //}
-        //printf("\n");
+
+//#if defined(USE_BATCHPOLY_X2)
+//        printf("lp sieve: dumping %d primes from slice %d of %d for poly %d, bucket/block %d\n", 
+//            lpnum, j, dconf->buckets->num_slices_batch[pnum], pnum, bnum);
+//#else
+//        printf("lp sieve: dumping %d primes from slice %d of %d for poly %d, bucket/block %d\n",
+//            lpnum, j, dconf->buckets->num_slices, pnum, bnum);
+//#endif
 
 #ifdef USE_AVX512F
         __m512i vlogp = _mm512_set1_epi32(logp);

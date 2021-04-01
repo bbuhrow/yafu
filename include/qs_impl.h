@@ -26,6 +26,7 @@
 // I've been unable to get this to run any faster, for
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
+//#define USE_BATCHPOLY_X2
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
@@ -242,6 +243,7 @@ typedef struct
     uint8_t* logp;			//array of the logp values in each bucket
     uint32_t num_slices;		//the number of fb slices needed
     uint32_t alloc_slices;	//the number of fb slices allocated
+    uint32_t *num_slices_batch;		//the number of fb slices needed
     uint32_t list_size;		//number of contiguous buckets allocated
     uint32_t* list;			//contiguous space for all buckets
 } lp_bucket;
@@ -632,8 +634,8 @@ void free_filter_vars(static_conf_t* sconf);
 
 //poly
 void new_poly_a(static_conf_t* sconf, dynamic_conf_t* dconf);
-void computeBl(static_conf_t* sconf, dynamic_conf_t* dconf);
-void nextB(dynamic_conf_t* dconf, static_conf_t* sconf);
+void computeBl(static_conf_t* sconf, dynamic_conf_t* dconf, int needC);
+void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 
 void firstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void firstRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);

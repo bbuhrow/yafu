@@ -160,6 +160,8 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 	uint32_t bound_val = fb->med_B;
 	uint32_t *bptr, *sliceptr_p, *sliceptr_n;
     uint64_t* bptr64, * sliceptr64_p, * sliceptr64_n;
+    uint8_t* slicelogp_ptr = NULL;
+    uint32_t* slicebound_ptr = NULL;
 	uint32_t *numptr_p, *numptr_n;
 	int check_bound = BUCKET_ALLOC/2 - 1, room;
     FILE *out;
@@ -183,6 +185,9 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 			numptr_p[i] = 0;
 
 		lp_bucket_p->num_slices = 0;
+
+        slicelogp_ptr = lp_bucket_p->logp;
+        slicebound_ptr = lp_bucket_p->fb_bounds;
 	}
 	else
 	{
@@ -703,6 +708,7 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 #else
 
+
     for (i = fb->large_B; i < fb->B; i++)
     {
         CHECK_NEW_SLICE(i);
@@ -852,9 +858,20 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
     
 
-	if (lp_bucket_p->list != NULL)
-		lp_bucket_p->num_slices = bound_index + 1;
-	
+    if (lp_bucket_p->list != NULL)
+    {
+#ifdef USE_BATCHPOLY_X2
+        int pnum;
+        pnum = (dconf->numB % dconf->poly_batchsize) - 1;
+        if (pnum < 0)
+            pnum += dconf->poly_batchsize;
+
+        lp_bucket_p->num_slices_batch[pnum] = bound_index + 1;
+        //printf("num slices after first poly %d bucket sieve: %u\n", pnum, bound_index + 1);
+#else
+        lp_bucket_p->num_slices = bound_index + 1;
+#endif
+    }
 
 	return;
 }

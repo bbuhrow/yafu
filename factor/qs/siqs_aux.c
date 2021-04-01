@@ -266,7 +266,7 @@ uint32_t make_fb_siqs(static_conf_t *sconf)
 	return 0;
 }
 
-#define NUM_PARAM_ROWS 30
+#define NUM_PARAM_ROWS 31
 void get_params(static_conf_t *sconf)
 {
 	int bits,i;
@@ -274,7 +274,7 @@ void get_params(static_conf_t *sconf)
 	fb_list *fb = sconf->factor_base;
 
 	//parameter table
-	//bits, fb primes, lp mulitplier, 64k blocks
+	//bits, fb primes, lp mulitplier, 32k blocks, dlp_exp, tlp_exp, tlp_bdiv
 	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
@@ -282,38 +282,39 @@ void get_params(static_conf_t *sconf)
 
     // does much better with much smaller sieve intervals.  maybe 
     // because smaller L2?
-    int param_table[NUM_PARAM_ROWS][4] = {
-        {50,	30,	30,	1},
-        { 60, 36, 40, 1 },
-        { 70, 50, 40, 1 },
-        { 80, 80, 40, 1 },
-        { 90, 120, 40, 1 },
-        { 100, 175, 50, 1 },
-        { 110, 275, 50, 1 },
-        { 120, 375, 50, 1 },
+    int param_table[NUM_PARAM_ROWS][7] = {
+        {50,	30,	30,	1, 1.8, 0, 0},
+        { 60, 36, 40, 1  , 1.8, 0, 0},
+        { 70, 50, 40, 1  , 1.8, 0, 0},
+        { 80, 80, 40, 1  , 1.8, 0, 0},
+        { 90, 120, 40, 1 , 1.8, 0, 0},
+        { 100, 175, 50, 1, 1.8, 0, 0},
+        { 110, 275, 50, 1, 1.8, 0, 0},
+        { 120, 375, 50, 1, 1.8, 0, 0},
 
-        { 140, 828, 50, 1 },
-        { 149, 1028, 60, 1 },
-        { 165, 1228, 60, 1 },
-        { 181, 2247, 70, 1 },
-        { 198, 3485, 70, 1 },
-        { 215, 6357, 80, 1 },
-        { 232, 12132, 80, 1 },      // 70 digits
-        { 248, 26379, 90, 1 },
-        { 265, 47158, 90, 1 },      // 80 digits
-        { 281, 60650, 100, 2 },
-        { 298, 71768, 120, 3 },     // 90 digits
-        { 310, 86071, 120, 3 },
-        { 320, 99745, 140, 4 },
-        { 330, 115500, 150, 4 },     // 100 digits
-        { 340, 138600, 150, 5 },
-        { 350, 166320, 150, 5 },    // 105 digits
-        { 360, 199584, 150, 6 },
-        { 370, 239500, 150, 6 },    // 110 digits
-        { 380, 287400, 175, 7 },
-        { 390, 344881, 175, 7 },
-        { 400, 413857, 175, 8 },
-        { 410, 496628, 175, 8 },
+        { 140, 828, 50, 1     , 1.8, 0, 0},
+        { 149, 1028, 60, 1    , 1.8, 0, 0},
+        { 165, 1228, 60, 1    , 1.8, 0, 0},
+        { 181, 2247, 70, 1    , 1.8, 0, 0},
+        { 198, 3485, 70, 1    , 1.8, 0, 0},
+        { 215, 6357, 80, 1    , 1.8, 0, 0},
+        { 232, 12132, 80, 1   , 1.8, 0, 0},      // 70 digits
+        { 248, 26379, 90, 1   , 1.8, 0, 0},
+        { 265, 47158, 90, 1   , 1.8, 0, 0},      // 80 digits
+        { 281, 60650, 100, 2  , 1.8, 0, 0},
+        { 298, 71768, 120, 3  , 1.8, 0, 0},     // 90 digits
+        { 310, 86071, 120, 3  , 1.8, 0, 0},
+        { 320, 99745, 140, 4  , 1.8, 0, 0},
+        { 330, 115500, 150, 4 , 1.8, 0, 0},     // 100 digits
+        { 340, 138600, 150, 5 , 1.8, 0, 0},
+        { 350, 166320, 150, 5 , 1.8, 0, 0},    // 105 digits
+        { 360, 199584, 150, 6 , 1.8, 0, 0},
+        { 370, 239500, 150, 6 , 1.8, 0, 0},    // 110 digits
+        { 380, 287400, 175, 7 , 1.8, 0, 0},
+        { 390, 344881, 175, 7 , 1.8, 0, 0},
+        { 400, 413857, 175, 8 , 1.8, 0, 0},
+        { 410, 496628, 175, 8 , 1.8, 0, 0},
+        { 462, 750000, 175, 12, 1.8, 0, 0},        // 140 digits
 };
 
 #else
@@ -323,62 +324,92 @@ void get_params(static_conf_t *sconf)
     // processor dependent...
 #if defined(USE_AVX512F)
     // another adjustment smaller (testing on skylake-x)
-    int param_table[NUM_PARAM_ROWS][4] = {
-        {50,	30,	    30,	    1},             // this gets transformed to 2 blocks, 
-        {60,	36,	    40,	    1},             // because the main routine archaicly 
-        {70,	50,	    40,	    1},             // assumses these numbers refer to 64k blocks.
-        {80,	80,	    40,	    1},             // I'm sure these sizes would be better off
-        {90,	120,	40,	    1},         // using only one 32k block.  Maybe well up
-        {100,	175,	50,	    2},         // into the 100-bit range.
-        {110,	275,	50,	    2},
-        {120,	375,	50,	    2},
-        {140,	828,	50,	    2},
-        {149,	1028,	60,	    2},
-        {165,	1228,	60,	    2},
-        {181,	2247,	70,	    2},
-        {198,	3485,	70,	    2},
-        {215,	6357,	80,	    2},
-        {232,	12132,	80,	    4},         // 70 digits
-        {248,	26379,	90,	    6},         // 75 digits
-        {265,	47158,	90,	    6},         // 80 digits
-        {281,	60650,	100,	8},
-        {298,	71768,	120,	8},     // 90 digits
-        {310,	86071 ,	120,	10},
-        {320,	99745 ,	140,	10},     // 95 digits
-        {330,	115500, 150,    12},     // 100 digits 
-        {340,	138600, 150,    12},     // above 100 these are based on less data, but seem to work ok.
-        {350,	166320, 150,    14},     // 105 digits
+    int param_table[NUM_PARAM_ROWS][7] = {
+        {50,	30,	    30,	    1,  1.8, 0, 0},
+        {60,	36,	    40,	    1,  1.8, 0, 0},
+        {70,	50,	    40,	    1,  1.8, 0, 0},
+        {80,	80,	    40,	    1,  1.8, 0, 0},
+        {90,	120,	40,	    1,  1.8, 0, 0},
+        {100,	175,	50,	    2,  1.8, 0, 0},
+        {110,	275,	50,	    2,  1.8, 0, 0},
+        {120,	375,	50,	    2,  1.8, 0, 0},
+        {140,	828,	50,	    2,  1.8, 0, 0},
+        {149,	1028,	60,	    2,  1.8, 0, 0},
+        {165,	1228,	60,	    2,  1.8, 0, 0},
+        {181,	2247,	70,	    2,  1.8, 0, 0},
+        {198,	3485,	70,	    2,  1.8, 0, 0},
+        {215,	6357,	80,	    2,  1.8, 0, 0},         
+        {232,	12132,	80,	    4,  1.8, 0, 0},         // 70 digits
+        {248,	26379,	90,	    6,  1.8, 0, 0},         // 75 digits
+        {265,	47158,	90,	    6,  1.8, 0, 0},         // 80 digits
+        {281,	60650,	100,	8,  1.8, 0, 0},
+        {298,	71768,	120,	8,  1.8, 0, 0},         // 90 digits
+        {310,	86071 ,	120,	10, 1.8, 0, 0},
+        {320,	99745 ,	140,	10, 1.8, 0, 0},        // 95 digits
+        {330,	115500, 150,    12, 1.8, 0, 0},        // 100 digits 
+
+        // row 22
+        {340,	72000, 27,    6  , 1.8, 2.8, 2},          // here we start using TLP: 3rd column is LPB in bits
+        {350,	80880,  27,    6 , 1.8, 2.8, 2},         // 105 digits
+        {360,   139708, 28,    7 , 1.8, 2.8, 2},
+        {370,	167650, 28,    8 , 1.8, 2.8, 2},        // 110 digits
+        {380,	201180, 29,    8 , 1.8, 2.8, 2},
+        {390,	241416, 29,    10, 1.8, 2.8, 2},
+        {396,	289700, 30,    12, 1.8, 2.8, 2},        // 120 digits
+        {429,	500000, 31,    14, 1.8, 2.8, 2},        // 130 digits
+        {462,	750000, 32,    16, 1.8, 2.8, 2},        // 140 digits
+
+
+        /* These were the DLP numbers (guesses)
+        
+        {350,	166320, 150,    14},        // 105 digits
         {360,   199584, 150,    14},
-        {370,	239500, 150,    16},     // 110 digits
+        {370,	239500, 150,    16},        // 110 digits
         {380,	287400, 175,    16},
         {390,	344881, 175,    18},
-        {400,	413857, 175,    20},
+        {400,	413857, 175,    20},        // 120 digits
         {410,	496628, 175,    22},
+        */
     }; 
 #else
-    int param_table[NUM_PARAM_ROWS][4] = {
-        {50,	30,	    30,	    2},
-        {60,	36,	    40,	    2},
-        {70,	50,	    40,	    2},
-        {80,	80,	    40,	    2},
-        {90,	120,	40,	    2},
-        {100,	175,	50,	    2},
-        {110,	275,	50,	    2},
-        {120,	375,	50,	    2},
-        {140,	828,	50,	    2},
-        {149,	1028,	60,	    2},
-        {165,	1228,	60,	    2},
-        {181,	2247,	70,	    2},
-        {198,	3485,	70,	    4},
-        {215,	6357,	80,	    4},
-        {232,	12132,	80,	    6},      // 70 digits
-        {248,	26379,	90,	    8},
-        {265,	47158,	90,	    10},     // 80 digits
-        {281,	60650,	100,	12},
-        {298,	71768,	120,	12},     // 90 digits
-        {310,	86071 ,	120,	14},
-        {320,	99745 ,	140,	16},     // 95 digits
-        {330,	115500, 150,    16},     // 100 digits 
+    int param_table[NUM_PARAM_ROWS][7] = {
+        {50,	30,	    30,	    2 , 1.8, 0, 0},
+        {60,	36,	    40,	    2 , 1.8, 0, 0},
+        {70,	50,	    40,	    2 , 1.8, 0, 0},
+        {80,	80,	    40,	    2 , 1.8, 0, 0},
+        {90,	120,	40,	    2 , 1.8, 0, 0},
+        {100,	175,	50,	    2 , 1.8, 0, 0},
+        {110,	275,	50,	    2 , 1.8, 0, 0},
+        {120,	375,	50,	    2 , 1.8, 0, 0},
+        {140,	828,	50,	    2 , 1.8, 0, 0},
+        {149,	1028,	60,	    2 , 1.8, 0, 0},
+        {165,	1228,	60,	    2 , 1.8, 0, 0},
+        {181,	2247,	70,	    2 , 1.8, 0, 0},
+        {198,	3485,	70,	    4 , 1.8, 0, 0},
+        {215,	6357,	80,	    4 , 1.8, 0, 0},
+        {232,	12132,	80,	    6 , 1.8, 0, 0},      // 70 digits
+        {248,	26379,	90,	    8 , 1.8, 0, 0},
+        {265,	47158,	90,	    10, 1.8, 0, 0},     // 80 digits
+        {281,	60650,	100,	12, 1.8, 0, 0},
+        {298,	71768,	120,	12, 1.8, 0, 0},     // 90 digits
+        {310,	86071 ,	120,	14, 1.8, 0, 0},
+        {320,	99745 ,	140,	16, 1.8, 0, 0},     // 95 digits
+        {330,	115500, 150,    16, 1.8, 0, 0},     // 100 digits 
+
+        // row 22
+        {340,	72000, 27,    6  , 1.9, 2.6, 3},          // here we start using TLP: 3rd column is LPB in bits
+        {350,	80880,  27,    6 , 1.9, 2.6, 3},         // 105 digits
+        {360,   139708, 28,    7 , 1.9, 2.7, 3},
+        {370,	167650, 28,    8 , 1.9, 2.7, 3},        // 110 digits
+        {380,	201180, 29,    8 , 1.9, 2.8, 2.5},
+        {390,	241416, 29,    10, 1.9, 2.8, 2.5},
+        {396,	289700, 30,    12, 1.95, 2.9, 2},        // 120 digits
+        {429,	500000, 31,    14, 1.95, 2.9, 2},        // 130 digits
+        {462,	750000, 32,    16, 1.95, 2.95, 2},        // 140 digits
+
+
+        /* These were the DLP numbers (guesses)
+
         {340,	138600, 150,    18},     // above 100 it is basically guesswork
         {350,	166320, 150,    18},     // 105 digits
         {360,   199584, 150,    20},
@@ -387,6 +418,9 @@ void get_params(static_conf_t *sconf)
         {390,	344881, 175,    26},
         {400,	413857, 175,    28},
         {410,	496628, 175,    30},
+        */
+
+        
     };
 #endif
 #endif
@@ -452,9 +486,9 @@ void get_params(static_conf_t *sconf)
 	};
 	*/
 
-	//linear interpolation according to bit size to determine
-	//factor base bound.  use the closest parameter for lp multiplier
-	//and number of blocks.
+	// linear interpolation according to bit size to determine
+	// factor base bound.  use the closest parameter for lp multiplier
+	// and number of blocks.
 
 	bits = sconf->obj->bits;
 
@@ -466,26 +500,48 @@ void get_params(static_conf_t *sconf)
 		sconf->large_mult = 40;
 		sconf->num_blocks = 1;
 	}
-	else
+	else if (bits <= 330)       // up to 100 digits, above that we use TLP
 	{
-		for (i=0;i<NUM_PARAM_ROWS-1;i++)
-		{
-			if (bits > param_table[i][0] && bits <= param_table[i+1][0])
-			{
-				scale = (double)(param_table[i+1][0] - bits) /
-					(double)(param_table[i+1][0] - param_table[i][0]);
-				fb->B = param_table[i+1][1] - 
-					(uint32_t)(scale * (double)(param_table[i+1][1] - param_table[i][1]));
-				
-				//sconf->large_mult = (uint32_t)((double)param_table[i+1][2] - 
-				//	(scale * (double)(param_table[i+1][2] - param_table[i][2])) + 0.5);
-				sconf->large_mult = (uint32_t)((param_table[i+1][2] + param_table[i][2])/2.0 + 0.5);
-				//sconf->num_blocks = (uint32_t)((double)param_table[i+1][3] - 
-				//	(scale * (double)(param_table[i+1][3] - param_table[i][3])) + 0.5);
-				sconf->num_blocks = (uint32_t)((param_table[i+1][3] + param_table[i][3])/2.0 + 0.5);
-			}
-		}
+        for (i = 0; i < 20; i++)
+        {
+            if (bits > param_table[i][0] && bits <= param_table[i + 1][0])
+            {
+                scale = (double)(param_table[i + 1][0] - bits) /
+                    (double)(param_table[i + 1][0] - param_table[i][0]);
+                fb->B = param_table[i + 1][1] -
+                    (uint32_t)(scale * (double)(param_table[i + 1][1] - param_table[i][1]));
+
+                sconf->large_mult = (uint32_t)((param_table[i + 1][2] + param_table[i][2]) / 2.0 + 0.5);
+                sconf->num_blocks = (uint32_t)((param_table[i + 1][3] + param_table[i][3]) / 2.0 + 0.5);
+            }
+        }
 	}
+    else
+    {
+        // this can still be overridden with forceDLP.
+        sconf->obj->qs_obj.gbl_force_TLP = 1;
+        for (i = 22; i < NUM_PARAM_ROWS - 1; i++)
+        {
+            if ((bits > param_table[i][0]) && (bits <= param_table[i + 1][0]))
+            {
+                scale = (double)(param_table[i + 1][0] - bits) /
+                    (double)(param_table[i + 1][0] - param_table[i][0]);
+                fb->B = param_table[i + 1][1] -
+                    (uint32_t)(scale * (double)(param_table[i + 1][1] - param_table[i][1]));
+
+                if ((param_table[i + 1][0] - bits) < (bits - param_table[i][0]))
+                {
+                    sconf->large_mult = 1 << param_table[i + 1][2];
+                    sconf->num_blocks = param_table[i + 1][3];
+                }
+                else
+                {
+                    sconf->large_mult = 1 << param_table[i][2];
+                    sconf->num_blocks = param_table[i][3];
+                }
+            }
+        }
+    }
 
 	if (fb->B == 0)
 	{
@@ -515,7 +571,7 @@ void get_params(static_conf_t *sconf)
 	// minimum factor base - for use with really small inputs.
 	// not efficient, but needed for decent poly selection
 	//if (fb->B < 250)
-//		fb->B = 250;
+    //		fb->B = 250;
 
 	if (sconf->obj->qs_obj.gbl_override_B_flag)
 		fb->B = sconf->obj->qs_obj.gbl_override_B;
