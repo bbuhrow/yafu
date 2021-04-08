@@ -881,11 +881,10 @@ void SIQS(fact_obj_t *fobj)
 		logprint(sieve_log, "QS elapsed time = %6.4f seconds.\n", t_time);
 	}
 
-#if defined (TARGET_KNC) || defined(TARGET_KNL)
+#if defined(TARGET_KNL)
     // for now, just do timing on the sieving portion.  LA is really slow.
     exit(0);
 #endif
-    //exit(0);
 
 	fobj->qs_obj.qs_time = t_time;
 	
@@ -1086,7 +1085,7 @@ void *process_poly(void *vptr)
                 med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
             else
                 med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
-            lp_sieveblock(sieve, i, num_blocks, buckets, 0, dconf);
+            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
@@ -1100,7 +1099,7 @@ void *process_poly(void *vptr)
                 med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
             else
                 med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
-            lp_sieveblock(sieve, i, num_blocks, buckets, 1, dconf);
+            lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 1, dconf);
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
@@ -1207,22 +1206,29 @@ void *process_poly(void *vptr)
 
 #ifdef USE_BATCHPOLY
 
-#ifdef TARGET_KNC
-        nextRoots_32k_knc_small(sconf, dconf);
+#if defined(USE_AVX512F)
 
-        // every N iterations we do the bucket sieve
-        if ((dconf->numB % dconf->poly_batchsize) == 1)
+        if (sconf->obj->HAS_AVX512F)
         {
-            nextRoots_32k_knc_polybatch(sconf, dconf);
+            // every iteration we update the small-med prime's roots
+            nextRoots_32k_avx2_small(sconf, dconf);
+
+            // every N iterations we do the bucket sieve
+            if ((dconf->numB % dconf->poly_batchsize) == 1)
+            {
+                nextRoots_32k_knl_polybatch(sconf, dconf);
+            }
         }
-#elif defined(USE_AVX512F)
-        // every iteration we update the small-med prime's roots
-        nextRoots_32k_avx2_small(sconf, dconf);
-
-        // every N iterations we do the bucket sieve
-        if ((dconf->numB % dconf->poly_batchsize) == 1)
+        else
         {
-            nextRoots_32k_knl_polybatch(sconf, dconf);
+            // every iteration we update the small-med prime's roots
+            nextRoots_32k_generic_small(sconf, dconf);
+
+            // every N iterations we do the bucket sieve
+            if ((dconf->numB % dconf->poly_batchsize) == 1)
+            {
+                nextRoots_32k_generic_polybatch(sconf, dconf);
+            }
         }
 
 #else
@@ -1238,15 +1244,17 @@ void *process_poly(void *vptr)
 
 #else
 
-#ifdef TARGET_KNC
+#if defined(USE_AVX512F)
 
-        nextRoots_32k_knc_small(sconf, dconf);
-        nextRoots_32k_knc_bucket(sconf, dconf);
-
-#elif defined(USE_AVX512F)
-
-        nextRoots_32k_avx2_small(sconf, dconf);
-        nextRoots_32k_knl_bucket(sconf, dconf);
+        if (sconf->obj->HAS_AVX512F)
+        {
+            nextRoots_32k_avx2_small(sconf, dconf);
+            nextRoots_32k_knl_bucket(sconf, dconf);
+        }
+        else
+        {
+            nextRoots_ptr(sconf, dconf);
+        }
 
 #else
         // and update the roots
@@ -1271,95 +1279,6 @@ void *process_poly(void *vptr)
     //
     //    exit(1);
     //}
-
-#ifdef USE_VEC_SQUFOF
-    // vector SQUFOF if necessary
-    if ((sconf->use_dlp) && (dconf->num_64bit_residue > 0))
-    {
-        uint64_t *f = dconf->residue_factors;
-        uint32_t f32;
-        int j = 0;
-        siqs_r *rel;
-
-        //printf("attempting vector squfof on %d residues... ", dconf->num_64bit_residue);
-#if defined(__INTEL_COMPILER)
-        f32 = par_shanks_loop(dconf->unfactored_residue, f, 
-            dconf->num_64bit_residue);
-#else
-        for (i = 0; i < dconf->num_64bit_residue; i++)
-        {
-#ifdef _MSC_VER
-            mpz_set_64(dconf->gmptmp1, q64);
-            f[i] = sp_shanks_loop(dconf->gmptmp1, sconf->obj);
-#else
-            f[i] = spbrent(dconf->unfactored_residue[i], 1, 1024);
-#endif
-        }
-#endif
-
-        //printf("vector squfof reported %d successes\n", f32);
-
-        dconf->attempted_squfof += dconf->num_64bit_residue;
-        for (i=0; i < dconf->buffered_rels; i++)
-        {
-            rel = dconf->relation_buf + i;
-
-            // buffered_rels contains non-dlp relations as well, so check
-            // if this one was a dlp.  Only dlp relations will have
-            // been sent to squfof, and they appear in the factor list
-            // in the same order as in the relation buffer.
-            if (rel->large_prime[0] == 0xffffffff)
-            {                
-                // get the next factorization
-                f32 = f[j];
-
-                //printf("relation %d found factor %u of input %lu in position %d\n", 
-                //    i, f32, dconf->unfactored_residue[j], j);
-
-                if (f32 > 1)
-                {
-                    rel->large_prime[0] = f32;
-                    rel->large_prime[1] = dconf->unfactored_residue[j] / f32;
-
-                    if ((rel->large_prime[0] < sconf->large_prime_max) &&
-                        (rel->large_prime[1] < sconf->large_prime_max))
-                    {
-                        //add this one
-                        dconf->dlp_useful++;
-                    }
-                    else
-                    {
-                        // mark it as failed so we don't write it to the savefile
-                        rel->large_prime[0] = 0xffffffff;
-                    }
-
-                }
-                else
-                {
-                    dconf->failed_squfof++;
-
-                    // mark it as failed so we don't write it to the savefile
-                    rel->large_prime[0] = 0xffffffff;
-                }
-
-                j++;
-            }
-        }
-    }
-
-#elif defined(USE_BATCH_FACTOR)
-
-    // check to see if we have batched enough relations
-    // to run through the batch factoring routine
-
-
-
-
-
-
-#endif
-
-
 
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
@@ -1392,14 +1311,6 @@ uint32_t siqs_merge_data(dynamic_conf_t *dconf, static_conf_t *sconf)
 	{
 		rel = dconf->relation_buf + i;
 
-#ifdef USE_VEC_SQUFOF
-        // rarely, squfof will fail to factor a dlp.  
-        // just skip these.
-        if (rel->large_prime[0] == 0xffffffff)
-        {
-            continue;
-        }
-#endif
 
         // check to see if this relation's a-index is the same
         // as the current A.  If so, nothing extra to do.  If not,
@@ -1578,55 +1489,21 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
     //print some info to the screen and the log file
     char inst_set[16];
 
-#ifdef TARGET_KNC
-
-    strcpy(inst_set, "KNC");
-
-#elif defined(USE_AVX2)
-    if (sconf->obj->HAS_AVX2)
-    {
 #if defined (USE_AVX512F)
-        strcpy(inst_set, "AVX512");
-#else
-        strcpy(inst_set, "AVX2");
-#endif
-    }
-    else if (sconf->obj->HAS_SSE41)
-    {
-        strcpy(inst_set, "SSE4.1");
-    }
-    else if (sconf->obj->HAS_SSE2)
-    {
-        strcpy(inst_set, "SSE2");
-    }
-    else
-    {
-        strcpy(inst_set, "generic C");
-    }
+    if (sconf->obj->HAS_AVX512BW) strcpy(inst_set, "AVX512BW");
+    else if (sconf->obj->HAS_AVX512F) strcpy(inst_set, "AVX512F");
+    else if (sconf->obj->HAS_AVX2) strcpy(inst_set, "AVX2");
+    else if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
+    else strcpy(inst_set, "SSE2");
+#elif defined(USE_AVX2)
+    if (sconf->obj->HAS_AVX2) strcpy(inst_set, "AVX2");
+    else if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
+    else strcpy(inst_set, "SSE2");
 #elif defined(USE_SSE41)
-    if (sconf->obj->HAS_SSE41)
-    {
-        strcpy(inst_set, "SSE4.1");
-    }
-    else if (sconf->obj->HAS_SSE2)
-    {
-        strcpy(inst_set, "SSE2");
-    }
-    else
-    {
-        strcpy(inst_set, "generic C");
-    }
-#elif defined(D_HAS_SSE2)
-    if (sconf->obj->HAS_SSE2)
-    {
-        strcpy(inst_set, "SSE2");
-    }
-    else
-    {
-        strcpy(inst_set, "generic C");
-    }
+    if (sconf->obj->HAS_SSE41) strcpy(inst_set, "SSE41");
+    else strcpy(inst_set, "SSE2");
 #else
-    strcpy(inst_set, "generic C");
+    strcpy(inst_set, "SSE2");
 #endif
 
     if (sconf->obj->VFLAG > 0)
@@ -1955,15 +1832,9 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 
 #if defined(USE_BATCHPOLY) || defined(USE_BATCHPOLY_X2)
         // this should be a function of the L2 size.
-//#ifdef TARGET_KNC
-//        dconf->poly_batchsize = MAX(2, 30000000 / 4 /
-//            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
-//                BUCKET_ALLOC * sizeof(uint32_t)));
-//#else
 //        dconf->poly_batchsize = MAX(2, L2CACHE / 2 / fobj->THREADS /
 //            (2 * sconf->num_blocks * dconf->buckets->alloc_slices *
 //                BUCKET_ALLOC * sizeof(uint32_t)));
-//#endif
 
         dconf->poly_batchsize = 4;
 
@@ -2095,12 +1966,6 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->batch_run_override = 0;
     }
 
-#ifdef USE_VEC_SQUFOF
-    dconf->unfactored_residue = (uint64_t *)malloc(4096 * sizeof(uint64_t));
-    dconf->residue_factors = (uint64_t *)malloc(4096 * sizeof(uint64_t));
-    dconf->num_64bit_residue = 0;
-#endif
-
 	// used in SIMD optimized versions of tdiv_med
 #ifdef USE_8X_MOD_ASM
 	dconf->bl_sizes = (uint16_t *)xmalloc_align(32 * sizeof(uint16_t));
@@ -2180,120 +2045,173 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // https://software.intel.com/en-us/node/523363
     // https://gcc.gnu.org/onlinedocs/gcc-4.9.2/gcc/X86-Built-in-Functions.html
 
-	// sieve core functions
+
+    // fat binary assignments.  First assign the lowest level core functions.  
+    // Sometimes these assume at least SSE2.
+	
+    // sieve core functions
+    med_sieve_ptr = &med_sieveblock_32k;
+    lp_sieveblock_ptr = &lp_sieveblock;
+
+    // poly core function
     firstRoots_ptr = &firstRoots_32k;
     nextRoots_ptr = &nextRoots_32k;
+    testRoots_ptr = &testfirstRoots_32k;
 
-    // if the yafu library was both compiled with SSE41 code (USE_SSE41), and the user's 
-    // machine has SSE41 instructions (HAS_SSE41), then proceed with 4.1.
+    // tdiv core functions
+    tdiv_med_ptr = &tdiv_medprimes_32k;
+    tdiv_LP_ptr = &tdiv_LP_sse2;
+    resieve_med_ptr = &resieve_medprimes_32k;
 
-#if defined(TARGET_KNC)
-    nextRoots_ptr = &nextRoots_32k_knc_small;
-
-#elif defined(USE_AVX2) && !defined(_MSC_VER)
-    if (obj->HAS_AVX2)
+    // now override the default assignments based on first, what was
+    // available during compilation, and second, what is available 
+    // at runtime.
+#if defined(USE_AVX512F)
+    if (obj->HAS_AVX512F)
     {
+        tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+        tdiv_LP_ptr = &tdiv_LP_avx512;
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning tdiv_LP_avx512 ptr\n");
+            printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
+        }
+
+#if defined(USE_AVX512BW)
+        if (obj->HAS_AVX512BW)
+        {
+            resieve_med_ptr = &resieve_medprimes_32k_avx512bw;
+            med_sieve_ptr = &med_sieveblock_32k_avx512bw;
+            lp_sieveblock_ptr = &lp_sieveblock_avx512bw;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning resieve_medprimes_32k_avx512bw ptr\n");
+                printf("assigning lp_sieveblock_avx512bw ptr\n");
+                printf("assigning med_sieveblock_32k_avx512bw ptr\n");
+            }
+        }
+        else
+        {
+            resieve_med_ptr = &resieve_medprimes_32k_avx2;
+            lp_sieveblock_ptr = &lp_sieveblock_avx512f;
+            med_sieve_ptr = &med_sieveblock_32k_avx2;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+                printf("assigning lp_sieveblock_avx512f ptr\n");
+                printf("assigning med_sieveblock_32k_avx2 ptr\n");
+            }
+        }
+#else
+        resieve_med_ptr = &resieve_medprimes_32k_avx2;
+        lp_sieveblock_ptr = &lp_sieveblock_avx512f;
+        med_sieve_ptr = &med_sieveblock_32k_avx2;
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+            printf("assigning lp_sieveblock_avx512f ptr\n");
+            printf("assigning med_sieveblock_32k_avx2 ptr\n");
+        }
+#endif
+
+
+    }
+    else if (obj->HAS_AVX2)
+    {
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
+            printf("assigning tdiv_LP_avx2 ptr\n");
+            printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+            printf("assigning med_sieveblock_32k_avx2 ptr\n");
+        }
+        resieve_med_ptr = &resieve_medprimes_32k_avx2;
+        tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+        tdiv_LP_ptr = &tdiv_LP_avx2;
+        med_sieve_ptr = &med_sieveblock_32k_avx2;
+
+#if defined(_MSC_VER)
+        // the avx2 code path for nextroots involves lots of inline 
+        // ASM, so visual studio builds can't use it.
+        nextRoots_ptr = &nextRoots_32k_sse41;
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning nextRoots_32k_sse41 ptr\n");
+        }
+#else
         if (VFLAG > 1)
         {
             printf("assigning nextRoots_32k_avx2 ptr\n");
         }
         nextRoots_ptr = &nextRoots_32k_avx2;
+#endif
     }
     else if (obj->HAS_SSE41)
     {
-        if (VFLAG > 1)
+        nextRoots_ptr = &nextRoots_32k_sse41;
+        med_sieve_ptr = &med_sieveblock_32k_sse41;
+        if (sconf->obj->VFLAG > 1)
         {
             printf("assigning nextRoots_32k_sse41 ptr\n");
+            printf("assigning med_sieveblock_32k_sse41 ptr\n");
         }
-        nextRoots_ptr = &nextRoots_32k_sse41;
+
     }
 
-#elif defined(USE_SSE41)
-	if (obj->HAS_SSE41)
-	{
-        if (sconf->obj->VFLAG > 1)
-        {
-            printf("assigning nextRoots_32k_sse41 ptr\n");
-        }
-		nextRoots_ptr = &nextRoots_32k_sse41;
-	}
-
-#endif
-		
-	testRoots_ptr = &testfirstRoots_32k;
-    med_sieve_ptr = &med_sieveblock_32k;
-	// if the yafu library was both compiled with AVX2 code (USE_AVX2), and the user's 
-	// machine has AVX2 instructions (HAS_AVX2), then proceed with AVX2.
-#if defined(USE_AVX2) //&& !defined(_MSC_VER)
-	if (obj->HAS_AVX2)
-	{
-        if (VFLAG > 1)
-        {
-            printf("assigning med_sieveblock_32k_avx2 ptr\n");
-        }
-		med_sieve_ptr = &med_sieveblock_32k_avx2;
-	}
-	else if (obj->HAS_SSE41)
-	{
-        if (VFLAG > 1)
-        {
-            printf("assigning med_sieveblock_32k_sse41 ptr\n");
-        }
-		med_sieve_ptr = &med_sieveblock_32k_sse41;
-	}
-
-#elif defined(USE_SSE41)
-	if (obj->HAS_SSE41)
-	{
-        if (VFLAG > 1)
-        {
-            printf("assigning med_sieveblock_32k_sse41 ptr\n");
-        }
-		med_sieve_ptr = &med_sieveblock_32k_sse41;
-	}
-
-#endif
-
-    tdiv_med_ptr = &tdiv_medprimes_32k;
-    resieve_med_ptr = &resieve_medprimes_32k;
-
-#if defined(USE_AVX2)
-	if (obj->HAS_AVX2)
-	{
-        if (sconf->obj->VFLAG > 1)
-        {
-            printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
-        }
-		tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
-	}
-#endif
-
-
-#if defined(USE_AVX2)
+#elif defined(USE_AVX2)
     if (obj->HAS_AVX2)
     {
         if (sconf->obj->VFLAG > 1)
         {
+            printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
+            printf("assigning tdiv_LP_avx2 ptr\n");
             printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+            printf("assigning med_sieveblock_32k_avx2 ptr\n");
         }
         resieve_med_ptr = &resieve_medprimes_32k_avx2;
+        tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
+        tdiv_LP_ptr = &tdiv_LP_avx2;
+        med_sieve_ptr = &med_sieveblock_32k_avx2;
+
+#if defined(_MSC_VER)
+        // the avx2 code path for nextroots involves lots of inline 
+        // ASM, so visual studio builds can't use it.
+        nextRoots_ptr = &nextRoots_32k_sse41;
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning nextRoots_32k_sse41 ptr\n");
+        }
+#else
+        if (VFLAG > 1)
+        {
+            printf("assigning nextRoots_32k_avx2 ptr\n");
+        }
+        nextRoots_ptr = &nextRoots_32k_avx2;
+#endif
     }
-#endif
+    else if (obj->HAS_SSE41)
+    {
+        nextRoots_ptr = &nextRoots_32k_sse41;
+        med_sieve_ptr = &med_sieveblock_32k_sse41;
+        if (sconf->obj->VFLAG > 1)
+        {
+            printf("assigning nextRoots_32k_sse41 ptr\n");
+            printf("assigning med_sieveblock_32k_sse41 ptr\n");
+        }
+
+    }
 
 
-#if defined(TARGET_KNC)
-    tdiv_med_ptr = &tdiv_medprimes_32k_knc;
-    resieve_med_ptr = &resieve_medprimes_32k_knc;
-#endif
+#elif defined(USE_SSE41)
 
-#if defined(USE_AVX512F)
-	tdiv_med_ptr = &tdiv_medprimes_32k_avx2;
-    resieve_med_ptr = &resieve_medprimes_32k_avx2;
+    nextRoots_ptr = &nextRoots_32k_sse41;
+    med_sieve_ptr = &med_sieveblock_32k_sse41;
     if (sconf->obj->VFLAG > 1)
     {
-        printf("assigning tdiv_medprimes_32k_avx2 ptr\n");
-        printf("assigning resieve_medprimes_32k_avx2 ptr\n");
+        printf("assigning nextRoots_32k_sse41 ptr\n");
+        printf("assigning med_sieveblock_32k_sse41 ptr\n");
     }
+
 #endif
 		
 	sconf->qs_blocksize = 32768;
@@ -2704,11 +2622,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // this should maybe be tuned based on machine type and/or other
     // factors as well, not just instruction set used during compile.
 #if (defined(USE_AVX2) || defined(USE_SSE41))
-    dlp_cutoff = 70;
+    if (sconf->obj->HAS_SSE41 || sconf->obj->HAS_AVX2 || sconf->obj->HAS_AVX512F)
+        dlp_cutoff = 70;
+    else
+        dlp_cutoff = 77;
 #else
     dlp_cutoff = 77;
 #endif
-    tlp_cutoff = 101;
+    tlp_cutoff = 121;
 
     // could maybe someday change this w.r.t input size... for now
     // just test it out...
@@ -2716,30 +2637,63 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	if (sconf->digits_n >= tlp_cutoff)
 	{
 		sconf->use_dlp = 2;
-		scan_ptr = &check_relations_siqs_16;
+#ifdef USE_AVX512F
+        if (sconf->obj->HAS_AVX512F) scan_ptr = &check_relations_siqs_16_avx512;
+        else if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#elif defined (USE_AVX2)
+        if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#else
+        scan_ptr = &check_relations_siqs_16_sse2;
+#endif
 		sconf->scan_unrolling = 128;
 	}
     else if (sconf->digits_n >= dlp_cutoff)
 	{
 		sconf->use_dlp = 1;
-		scan_ptr = &check_relations_siqs_16;
+#ifdef USE_AVX512F
+        if (sconf->obj->HAS_AVX512F) scan_ptr = &check_relations_siqs_16_avx512;
+        else if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#elif defined (USE_AVX2)
+        if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#else
+        scan_ptr = &check_relations_siqs_16_sse2;
+#endif
 		sconf->scan_unrolling = 128;
 	}
 	else
 	{
 		if (sconf->digits_n < 30)
 		{
-			scan_ptr = &check_relations_siqs_4;
+#ifdef USE_AVX2
+            if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_4_avx2;
+            else scan_ptr = &check_relations_siqs_4_sse2;
+#else
+            scan_ptr = &check_relations_siqs_4_sse2;
+#endif
 			sconf->scan_unrolling = 32;
 		}
 		else if (sconf->digits_n < 60)
 		{
-			scan_ptr = &check_relations_siqs_4;
+#ifdef USE_AVX2
+            if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_4_avx2;
+            else scan_ptr = &check_relations_siqs_4_sse2;
+#else
+            scan_ptr = &check_relations_siqs_4_sse2;
+#endif
 			sconf->scan_unrolling = 32;
 		}
 		else
 		{
-			scan_ptr = &check_relations_siqs_8;
+#ifdef USE_AVX2
+            if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_8_avx2;
+            else scan_ptr = &check_relations_siqs_8_sse2;
+#else
+            scan_ptr = &check_relations_siqs_8_sse2;
+#endif
 			sconf->scan_unrolling = 64;
 		}
 		sconf->use_dlp = 0;
@@ -2748,23 +2702,34 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	if (sconf->obj->qs_obj.gbl_force_TLP)
 	{
 		sconf->use_dlp = 2;
-		scan_ptr = &check_relations_siqs_16;
+#ifdef USE_AVX512F
+        if (sconf->obj->HAS_AVX512F) scan_ptr = &check_relations_siqs_16_avx512;
+        else if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#elif defined(USE_AVX2)
+        if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#else
+        scan_ptr = &check_relations_siqs_16_sse2;
+#endif
 		sconf->scan_unrolling = 128;
 	}
 	
     if (sconf->obj->qs_obj.gbl_force_DLP)
 	{
 		sconf->use_dlp = 1;
-		scan_ptr = &check_relations_siqs_16;
+#ifdef USE_AVX512F
+        if (sconf->obj->HAS_AVX512F) scan_ptr = &check_relations_siqs_16_avx512;
+        else if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#elif defined(USE_AVX2)
+        if (sconf->obj->HAS_AVX2) scan_ptr = &check_relations_siqs_16_avx2;
+        else scan_ptr = &check_relations_siqs_16_sse2;
+#else
+        scan_ptr = &check_relations_siqs_16_sse2;
+#endif
 		sconf->scan_unrolling = 128;
 	}
-
-
-#if defined(TARGET_KNC)
-    // so far have only implemented this one
-    scan_ptr = &check_relations_siqs_16;
-    sconf->scan_unrolling = 128;
-#endif
 
     sconf->do_batch = 1;
     if (sconf->obj->qs_obj.gbl_override_3lp_bat)
@@ -3651,7 +3616,7 @@ int update_check(static_conf_t *sconf)
                             {
                                 have_cycle_growth_estimate = 1;
                                 sconf->check_inc = (fulls_at_current_rate + 
-                                    fulls_at_linear_rate) / 3;
+                                    fulls_at_linear_rate) / 4;
                             }
                         }
                         
@@ -4121,11 +4086,6 @@ int free_sieve(dynamic_conf_t *dconf)
 #endif
 	align_free(dconf->corrections);
     align_free(dconf->polyscratch);
-
-#ifdef USE_VEC_SQUFOF
-    free(dconf->unfactored_residue);
-    free(dconf->residue_factors);
-#endif
 
 	return 0;
 }

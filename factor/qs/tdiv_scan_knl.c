@@ -231,90 +231,6 @@ this file contains code implementing 1)
 			: "r"(sieveblock + j), "0"(result)	\
 			: "%xmm0");
 
-#elif defined(GCC_ASM32X) || defined(__MINGW32__)
-	#define SCAN_CLEAN asm volatile("emms");	
-
-	#define SIEVE_SCAN_32	\
-		asm volatile (		\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-	#define SIEVE_SCAN_64		\
-		asm volatile (							\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"orpd 32(%1), %%xmm0    \n\t"		\
-			"orpd 48(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-	#define SIEVE_SCAN_128		\
-		asm volatile (			\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"orpd 32(%1), %%xmm0    \n\t"		\
-			"orpd 48(%1), %%xmm0    \n\t"		\
-			"orpd 64(%1), %%xmm0    \n\t"		\
-			"orpd 80(%1), %%xmm0    \n\t"		\
-			"orpd 96(%1), %%xmm0    \n\t"		\
-			"orpd 112(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-
-#elif defined(MSC_ASM32A)
-	#define SCAN_CLEAN ASM_M {emms};
-
-	//top level sieve scanning with SSE2
-	#define SIEVE_SCAN_32	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
-
-
-	#define SIEVE_SCAN_64	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
-
-	#define SIEVE_SCAN_128	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 64]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 80]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 96]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 112]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
 
 #elif defined(_WIN64)
 	#define SCAN_CLEAN /*nothing*/
@@ -459,6 +375,9 @@ int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
 		uint32_t result;
 		uint8_t buffer[32];
 		
+        // assumes BSF.
+        // MSVC also assumes reset_lsb.
+        // both need BMI1
 		SIEVE_SCAN_32_VEC;
 
 		if (result == 0)
@@ -503,7 +422,7 @@ int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
+			tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -573,7 +492,7 @@ int check_relations_siqs_8(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -679,7 +598,7 @@ int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
         if (dconf->valid_Qs[j])
         {
             dconf->total_surviving_reports++;
-            tdiv_LP(j, parity, blocknum, sconf, dconf);
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
             trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
         }
     }

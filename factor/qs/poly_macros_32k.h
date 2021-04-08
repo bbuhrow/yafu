@@ -160,7 +160,7 @@
         numptr_n[bnum + p * poly_offset]++; \
     }
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(FORCE_GENERIC)
 	// The assembly for putting a prime into a bucket is fairly regular, so we break 
 	// macros out to make the inline loop shorter within nextRoots().  The only things
 	// that change between root1 and root2 are the input root register.  we use two

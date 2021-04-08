@@ -188,7 +188,7 @@
     </Midl>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\..\..\ytools.git\trunk;..\..\..\..\..\ysieve.git\trunk\;..\..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\top;..\..\include;..\..\..\msieve\zlib;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\top;..\..\include;..\..\top\aprcl;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;WIN32;_WIN64;_DEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>
@@ -205,7 +205,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(TargetDir)$(TargetName).pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
@@ -238,7 +238,7 @@
       <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <AdditionalIncludeDirectories>..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\top\cmdParser;..\..\include;..\..\top\aprcl;..\..\top;..\..\..\..\msieve\zlib;%(AdditionalIncludeDirectories);..\top\cmdParser</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;USE_AVX2;USE_BMI2;USE_AVX512BW;USE_AVX512F;USE_AVX512;SKYLAKEX;USE_SSE41;WIN32;_WIN64;NDEBUG;_CONSOLE;YAFU_32K;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>Default</StructMemberAlignment>
@@ -259,7 +259,7 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>siqs.lib;factor_common.lib;ecm.lib;nfs.lib;..\..\..\..\msieve\lib\$(IntDir)gnfs.lib;..\..\..\..\msieve\lib\$(IntDir)common.lib;..\..\..\..\msieve\lib\$(IntDir)zlib.lib;..\..\..\..\ysieve.git\trunk\ysieve_lib\$(IntDir)ysieve_lib.lib;..\..\..\..\ytools.git\trunk\ytools\$(IntDir)ytools.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>
       </OptimizeReferences>

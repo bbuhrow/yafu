@@ -30,8 +30,7 @@
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && \
     defined(USE_AVX2) && \
-    !defined(FORCE_GENERIC) && \
-    !defined(TARGET_KNC) //&& defined(NOT_DEFINED)
+    !defined(FORCE_GENERIC)
 #define USE_ASM
 #define USE_8X_TD
 #endif

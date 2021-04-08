@@ -278,7 +278,7 @@ void get_params(static_conf_t *sconf)
 	//adjustment in v1.27 - more primes and less blocks for numbers > ~80 digits
 	//also different scaling for numbers bigger than 100 digits (constant increase
 	//of 20% per line)
-#if defined(TARGET_KNC) || defined(SMALL_SIQS_INTERVALS)
+#if defined(SMALL_SIQS_INTERVALS)
 
     // does much better with much smaller sieve intervals.  maybe 
     // because smaller L2?
@@ -325,29 +325,41 @@ void get_params(static_conf_t *sconf)
 #if defined(USE_AVX512F)
     // another adjustment smaller (testing on skylake-x)
     int param_table[NUM_PARAM_ROWS][7] = {
-        {50,	30,	    30,	    1,  1.8, 0, 0},
-        {60,	36,	    40,	    1,  1.8, 0, 0},
-        {70,	50,	    40,	    1,  1.8, 0, 0},
-        {80,	80,	    40,	    1,  1.8, 0, 0},
-        {90,	120,	40,	    1,  1.8, 0, 0},
-        {100,	175,	50,	    2,  1.8, 0, 0},
-        {110,	275,	50,	    2,  1.8, 0, 0},
-        {120,	375,	50,	    2,  1.8, 0, 0},
-        {140,	828,	50,	    2,  1.8, 0, 0},
-        {149,	1028,	60,	    2,  1.8, 0, 0},
-        {165,	1228,	60,	    2,  1.8, 0, 0},
-        {181,	2247,	70,	    2,  1.8, 0, 0},
-        {198,	3485,	70,	    2,  1.8, 0, 0},
-        {215,	6357,	80,	    2,  1.8, 0, 0},         
-        {232,	12132,	80,	    4,  1.8, 0, 0},         // 70 digits
-        {248,	26379,	90,	    6,  1.8, 0, 0},         // 75 digits
-        {265,	47158,	90,	    6,  1.8, 0, 0},         // 80 digits
+        {50,	30,	    30,	    1,  1.0, 0, 0},
+        {60,	36,	    40,	    1,  1.0, 0, 0},
+        {70,	50,	    40,	    1,  1.0, 0, 0},
+        {80,	80,	    40,	    1,  1.0, 0, 0},
+        {90,	120,	40,	    1,  1.0, 0, 0},
+        {100,	175,	50,	    2,  1.0, 0, 0},
+        {110,	275,	50,	    2,  1.0, 0, 0},
+        {120,	375,	50,	    2,  1.0, 0, 0},
+        {140,	828,	50,	    2,  1.0, 0, 0},
+        {149,	1028,	60,	    2,  1.0, 0, 0},
+        {165,	1228,	60,	    2,  1.0, 0, 0},
+        {181,	2247,	70,	    2,  1.0, 0, 0},
+        {198,	3485,	70,	    2,  1.0, 0, 0},
+        {215,	6357,	80,	    2,  1.0, 0, 0},         
+        {232,	12132,	80,	    4,  1.75, 0, 0},         // 70 digits, DLP starts
+        {248,	26379,	90,	    6,  1.75, 0, 0},         // 75 digits
+        {265,	47158,	90,	    6,  1.75, 0, 0},         // 80 digits
         {281,	60650,	100,	8,  1.8, 0, 0},
         {298,	71768,	120,	8,  1.8, 0, 0},         // 90 digits
-        {310,	86071 ,	120,	10, 1.8, 0, 0},
-        {320,	99745 ,	140,	10, 1.8, 0, 0},        // 95 digits
-        {330,	115500, 150,    12, 1.8, 0, 0},        // 100 digits 
+        {310,	86071 ,	120,	10, 1.85, 0, 0},
+        {320,	99745 ,	140,	10, 1.85, 0, 0},        // 95 digits
+        {330,	115500, 150,    12, 1.85, 0, 0},        // 100 digits 
 
+        /* These are the DLP numbers (guesses) */
+        {340,	139120, 150,    12, 1.85, 0, 2},
+        {350,	166320, 150,    14, 1.85, 0, 2},        // 105 digits
+        {360,   199584, 150,    14, 1.85, 0, 2},
+        {370,	239500, 150,    16, 1.9, 0, 2},        // 110 digits
+        {380,	287400, 175,    16, 1.9, 0, 2},
+        {390,	344881, 175,    18, 1.9, 0, 2},
+        {400,	413857, 175,    20, 1.9, 0, 2},        // 120 digits
+        {410,	496628, 175,    22, 1.9, 0, 2},
+        
+
+        /* These are the TLP numbers (guesses)
         // row 22
         {340,	72000, 27,    6  , 1.8, 2.8, 2},          // here we start using TLP: 3rd column is LPB in bits
         {350,	80880,  27,    6 , 1.8, 2.8, 2},         // 105 digits
@@ -358,18 +370,9 @@ void get_params(static_conf_t *sconf)
         {396,	289700, 30,    12, 1.8, 2.8, 2},        // 120 digits
         {429,	500000, 31,    14, 1.8, 2.8, 2},        // 130 digits
         {462,	750000, 32,    16, 1.8, 2.8, 2},        // 140 digits
-
-
-        /* These were the DLP numbers (guesses)
-        
-        {350,	166320, 150,    14},        // 105 digits
-        {360,   199584, 150,    14},
-        {370,	239500, 150,    16},        // 110 digits
-        {380,	287400, 175,    16},
-        {390,	344881, 175,    18},
-        {400,	413857, 175,    20},        // 120 digits
-        {410,	496628, 175,    22},
         */
+
+        
     }; 
 #else
     int param_table[NUM_PARAM_ROWS][7] = {
@@ -502,7 +505,7 @@ void get_params(static_conf_t *sconf)
 	}
 	else if (bits <= 330)       // up to 100 digits, above that we use TLP
 	{
-        for (i = 0; i < 20; i++)
+        for (i = 0; i <= 20; i++)
         {
             if (bits > param_table[i][0] && bits <= param_table[i + 1][0])
             {
@@ -520,7 +523,7 @@ void get_params(static_conf_t *sconf)
     {
         // this can still be overridden with forceDLP.
         sconf->obj->qs_obj.gbl_force_TLP = 1;
-        for (i = 22; i < NUM_PARAM_ROWS - 1; i++)
+        for (i = 21; i < NUM_PARAM_ROWS - 1; i++)
         {
             if ((bits > param_table[i][0]) && (bits <= param_table[i + 1][0]))
             {

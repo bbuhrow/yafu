@@ -28,7 +28,7 @@ code to the public domain.
 #define DEFINED 1
 #define NUM_SQUFOF_MULT 38
 
-#if defined (TARGET_KNC) || defined(USE_AVX512F)
+#if defined(USE_AVX512F)
 #define NUM_LANES 16
 #else
 #define NUM_LANES 8

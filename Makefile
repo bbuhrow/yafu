@@ -238,6 +238,7 @@ YAFU_SIQS_SRCS = \
 	factor/qs/tdiv.c \
 	factor/qs/tdiv_small.c \
 	factor/qs/tdiv_large.c \
+	factor/qs/tdiv_scan.c \
 	factor/qs/large_sieve.c \
 	factor/qs/new_poly.c \
 	factor/qs/siqs_test.c \
@@ -278,13 +279,7 @@ endif
 
 ifeq ($(KNL),1)
 
-	YAFU_SIQS_SRCS += factor/qs/tdiv_scan_knl.c
 	YAFU_SIQS_SRCS += factor/qs/update_poly_roots_32k_knl.c
-	#YAFU_SIQS_SRCS += factor/qs/tdiv_resieve_32k_knl.c 
-
-else
-
-	YAFU_SIQS_SRCS += factor/qs/tdiv_scan.c
 
 endif
 
@@ -357,7 +352,6 @@ NFS_HEAD = include/nfs.h \
 ifeq ($(USE_AVX2),1)
 
 	SIQS_HEAD += factor/qs/poly_macros_common_avx2.h
-	SIQS_HEAD += factor/qs/sieve_macros_32k_avx2.h
 
 else
 	ifeq ($(USE_SSE41),1)

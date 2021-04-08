@@ -534,87 +534,6 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
         fbc = dconf->comp_sieve_p;
     }
 
-#ifdef USE_AVX512BW
-
-    // 32x resieving
-    bound14 = sconf->factor_base->fb_14bit_B;
-    bound15 = sconf->factor_base->fb_15bit_B;
-    bound16 = sconf->factor_base->med_B;
-
-    __m512i vzero = _mm512_setzero_epi32();
-
-    for (report_num = 0; report_num < dconf->num_reports; report_num++)
-    {
-
-        if (!dconf->valid_Qs[report_num])
-            continue;
-
-        // pull the details of this report to get started.
-        fb_offsets = &dconf->fb_offsets[report_num][0];
-        smooth_num = dconf->smooth_num[report_num];
-        block_loc = dconf->reports[report_num];
-
-        // where tdiv_medprimes left off
-        i = sconf->factor_base->fb_13bit_B;
-
-        // the roots have already been advanced to the next block.
-        // we need to correct them back to where they were before resieving.
-        INIT_CORRECTIONS_32;
-
-        result = 0;
-
-        if ((i & 31) != 0)
-        {
-            RESIEVE_8X_14BIT_MAX_VEC_AVX512;
-            i += 8;
-        }
-
-        while ((uint32_t)(i + 32) < bound14)
-        {
-
-            RESIEVE_32X_14BIT_MAX_VEC_AVX512;
-
-            i += 32;
-        }
-
-        while ((uint32_t)(i + 32) < bound15)
-        {
-
-            RESIEVE_32X_15BIT_MAX_VEC_AVX512;
-
-            i += 32;
-        }
-
-        while ((uint32_t)(i + 32) < bound16)
-        {
-            RESIEVE_32X_16BIT_MAX_VEC_AVX512;
-
-            i += 32;
-        }
-
-        while (i < sconf->factor_base->med_B)
-        {
-            RESIEVE_8X_16BIT_MAX_VEC_AVX512;
-            i += 8;
-        }
-
-        for (i = 0; i < result; i++)
-        {
-            if (buffer[i] < 2)
-                continue;
-
-            DIVIDE_RESIEVED_PRIME_2((buffer[i]));
-        }
-
-        // after either resieving or standard trial division, record
-        // how many factors we've found so far.
-        dconf->smooth_num[report_num] = smooth_num;
-
-    }
-
-#else
-
-
     // 16x resieving
     if ((sconf->factor_base->fb_14bit_B & 15) == 0)
     {
@@ -644,7 +563,6 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     {
         bound16 = sconf->factor_base->med_B - 8;
     }
-
 
     for (report_num = 0; report_num < dconf->num_reports; report_num++)
     {
@@ -721,11 +639,123 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 
     }
 
-#endif
-
     TDIV_MED_CLEAN;
 
     return;
 }
 
 #endif // USE_AVX2
+
+
+#ifdef USE_AVX512BW
+void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //we have flagged this sieve offset as likely to produce a relation
+    //nothing left to do now but check and see.
+    int i;
+    uint32_t report_num;
+    int smooth_num;
+    uint32_t* fb_offsets;
+    sieve_fb_compressed* fbc;
+    uint32_t block_loc;
+    ALIGNED_MEM uint16_t corrections[32]; // = dconf->corrections;
+    uint16_t buffer[16];
+    uint32_t result = 0;
+    uint32_t bound14;
+    uint32_t bound15;
+    uint32_t bound16;
+
+    if (parity)
+    {
+        fbc = dconf->comp_sieve_n;
+    }
+    else
+    {
+        fbc = dconf->comp_sieve_p;
+    }
+       
+    // 32x resieving
+    bound14 = sconf->factor_base->fb_14bit_B;
+    bound15 = sconf->factor_base->fb_15bit_B;
+    bound16 = sconf->factor_base->med_B;
+
+    __m512i vzero = _mm512_setzero_epi32();
+
+    for (report_num = 0; report_num < dconf->num_reports; report_num++)
+    {
+
+        if (!dconf->valid_Qs[report_num])
+            continue;
+
+        // pull the details of this report to get started.
+        fb_offsets = &dconf->fb_offsets[report_num][0];
+        smooth_num = dconf->smooth_num[report_num];
+        block_loc = dconf->reports[report_num];
+
+        // where tdiv_medprimes left off
+        i = sconf->factor_base->fb_13bit_B;
+
+        // the roots have already been advanced to the next block.
+        // we need to correct them back to where they were before resieving.
+        INIT_CORRECTIONS_32;
+
+        result = 0;
+
+        if ((i & 31) != 0)
+        {
+            RESIEVE_8X_14BIT_MAX_VEC_AVX512;
+            i += 8;
+        }
+
+        while ((uint32_t)(i + 32) < bound14)
+        {
+
+            RESIEVE_32X_14BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound15)
+        {
+
+            RESIEVE_32X_15BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while ((uint32_t)(i + 32) < bound16)
+        {
+            RESIEVE_32X_16BIT_MAX_VEC_AVX512;
+
+            i += 32;
+        }
+
+        while (i < sconf->factor_base->med_B)
+        {
+            RESIEVE_8X_16BIT_MAX_VEC_AVX512;
+            i += 8;
+        }
+
+        for (i = 0; i < result; i++)
+        {
+            if (buffer[i] < 2)
+                continue;
+
+            DIVIDE_RESIEVED_PRIME_2((buffer[i]));
+        }
+
+        // after either resieving or standard trial division, record
+        // how many factors we've found so far.
+        dconf->smooth_num[report_num] = smooth_num;
+
+    }
+
+
+
+    TDIV_MED_CLEAN;
+
+    return;
+}
+#endif
+

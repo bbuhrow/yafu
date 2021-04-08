@@ -137,25 +137,12 @@ int main(int argc, char *argv[])
         yafu_obj.USERSEED = 1;
     }
 
-#if !defined( TARGET_KNC )
+#if !defined(__APPLE__)
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    get_computer_info(&comp_info, 0);
+    ytools_get_computer_info(&comp_info, options->vproc);
 #endif
-
-#if !defined( TARGET_KNC )
-    // now that we've processed arguments, spit out vproc info if requested
-#ifndef __APPLE__
-    // 
-    if (options->vproc)
-    {
-        extended_cpuid(comp_info.idstr, &comp_info.cachelinesize,
-            &comp_info.bSSE41Extensions, &comp_info.AVX,
-            &comp_info.AVX2, options->vproc);
-    }
-#endif
-#endif  
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -168,14 +155,7 @@ int main(int argc, char *argv[])
     }
     options_to_factobj(fobj, options);
     
-    // figure out cpu freq in order to scale qs time estimations
-    // 0.1 seconds won't be very accurate, but hopefully close
-    // enough for the rough scaling we'll be doing anyway.
-    if (options->no_clk_test == 0)
-        fobj->MEAS_CPU_FREQUENCY = measure_processor_speed() / 1.0e5;
-    else
-        fobj->MEAS_CPU_FREQUENCY = 42;
-
+    fobj->MEAS_CPU_FREQUENCY = 42;  // not used anymore
     strcpy(fobj->CPU_ID_STR, comp_info.idstr);
     fobj->HAS_AVX2 = comp_info.AVX2;
     fobj->HAS_AVX = comp_info.AVX;
@@ -185,16 +165,17 @@ int main(int argc, char *argv[])
     fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
     fobj->LOGFLAG = yafu_obj.LOGFLAG;
     fobj->THREADS = yafu_obj.THREADS;
+    fobj->HAS_BMI2 = comp_info.BMI2;
 
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512f"))
 #else
-    if (0)
+    if (1)
 #endif
     {
-        fobj->HAS_AVX512F = 1;
+        fobj->HAS_AVX512F = comp_info.AVX512F;
     }
 
 #ifdef __INTEL_COMPILER
@@ -202,21 +183,10 @@ int main(int argc, char *argv[])
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512bw"))
 #else
-    if (0)
+    if (1)
 #endif
     {
-        fobj->HAS_AVX512BW = 1;
-    }
-
-#ifdef __INTEL_COMPILER
-    if (_may_i_use_cpu_feature(_FEATURE_BMI))
-#elif defined(__GNUC__)
-    if (__builtin_cpu_supports("bmi2"))
-#else
-    if (0)
-#endif
-    {
-        fobj->HAS_BMI2 = 1;
+        fobj->HAS_AVX512BW = comp_info.AVX512BW;
     }
 
 #if BITS_PER_DIGIT == 64
@@ -976,7 +946,7 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         if (freq > 100.0)
 		    printf("Measured cpu frequency ~= %f\n", freq);
         if (numwit == 1)
-		    printf("Using %u random witness for Rabin-Miller PRP checks\n\n", numwit);
+		    printf("Using %u random witness for Rabin-Miller PRP checks\n", numwit);
         else
             printf("Using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
 

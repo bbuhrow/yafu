@@ -274,7 +274,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 			mpz_powm_ui(dconf->gmptmp1, dconf->gmptmp2, q64 - 1, dconf->gmptmp1);
 			res = mpz_get_64(dconf->gmptmp1);
-#elif defined (FORCE_GENERIC) && !defined(TARGET_KNC)
+#elif defined (FORCE_GENERIC)
 			mpz_set_64(dconf->gmptmp1, q64);
 			mpz_set_64(dconf->gmptmp2, 2);
 			mpz_set_64(dconf->gmptmp3, q64 - 1);
@@ -929,41 +929,10 @@ void buffer_relation(uint32_t offset, uint32_t *large_prime, uint32_t num_factor
     rel->num_factors = num_factors + num_polya_factors;
 #endif
 
-    
 
-#ifdef USE_VEC_SQUFOF
-
-    if (unfactored_residue > 1)
-    {
-        if (conf->num_64bit_residue >= 4096)
-        {
-            printf("uh-oh, too many residues\n"); fflush(stdout);
-        }
-
-        //printf("adding %lu to unfactored residue list in position %d, relation %d\n", 
-        //    unfactored_residue, conf->num_64bit_residue, conf->buffered_rels);
-
-        conf->unfactored_residue[conf->num_64bit_residue] = unfactored_residue;        
-
-        // use this to signify we need to add factors later.
-        rel->large_prime[0] = 0xffffffff;
-        conf->num_64bit_residue++;
-    }
-    else
-    {
-        rel->large_prime[0] = large_prime[0];
-        rel->large_prime[1] = large_prime[1];
-        rel->large_prime[2] = large_prime[2];
-    }
-
-#else
-    
     rel->large_prime[0] = large_prime[0];
 	rel->large_prime[1] = large_prime[1];
 	rel->large_prime[2] = large_prime[2];
-
-#endif
-
 
 	conf->buffered_rels++;
 	return;

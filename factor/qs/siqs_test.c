@@ -177,7 +177,7 @@ int check_specialcase(FILE *sieve_log, fact_obj_t*fobj)
         //     }
         // }
 
-#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC) && !defined(TARGET_KNC)
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && defined(USE_AVX2) && !defined(FORCE_GENERIC)
         if (fobj->qs_obj.flags != 12345)
         {
             if (fobj->logfile != NULL)

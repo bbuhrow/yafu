@@ -102,25 +102,12 @@ int main(int argc, char *argv[])
         obj.USERSEED = 1;
     }
 
-#if !defined( TARGET_KNC )
+#if !defined(__APPLE__)
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    get_computer_info(&comp_info, 0);
+    get_computer_info(&comp_info, options->vproc);
 #endif
-
-#if !defined( TARGET_KNC )
-    // now that we've processed arguments, spit out vproc info if requested
-#ifndef __APPLE__
-    // 
-    if (options->vproc)
-    {
-        extended_cpuid(comp_info.idstr, &comp_info.cachelinesize,
-            &comp_info.bSSE41Extensions, &comp_info.AVX,
-            &comp_info.AVX2, options->vproc);
-    }
-#endif
-#endif  
 
 	// a factorization object that gets passed around to any factorization routine
 	// called out in the input expression.  if no factorization routine is specified,
@@ -138,6 +125,29 @@ int main(int argc, char *argv[])
     fobj->cache_size2 = fobj->L2CACHE = comp_info.L2cache;
     fobj->LOGFLAG = obj.LOGFLAG;
     fobj->THREADS = obj.THREADS;
+    fobj->HAS_BMI2 = comp_info.BMI2;
+
+#if defined(__INTEL_COMPILER)
+    if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("avx512f"))
+#else
+    if (1)
+#endif
+    {
+        fobj->HAS_AVX512F = comp_info.AVX512F;
+    }
+
+#ifdef __INTEL_COMPILER
+    if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
+#elif defined(__GNUC__)
+    if (__builtin_cpu_supports("avx512bw"))
+#else
+    if (1)
+#endif
+    {
+        fobj->HAS_AVX512BW = comp_info.AVX512BW;
+    }
 
     // put a list of primes in the fobj; many algorithms use it
     //sdata = soe_init(0, 1, 32768);

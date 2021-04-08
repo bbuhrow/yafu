@@ -42,7 +42,7 @@
 //#define USE_AVX2 1
 #endif
 
-
+// assume we have SSE2 available
 #define D_HAS_SSE2
 //#define DO_VLP_OPT
 
@@ -91,10 +91,7 @@
 
 
 // always use these optimizations using sse2
-#ifdef TARGET_KNC
-#define USE_ASM_SMALL_PRIME_SIEVING
-#define USE_8X_MOD_ASM 1
-#elif !defined (FORCE_GENERIC)
+#if !defined (FORCE_GENERIC)
 #define USE_8X_MOD_ASM 1
 #define USE_RESIEVING
 #define SSE2_RESIEVING 1
@@ -556,39 +553,56 @@ void med_sieveblock_32k_sse41(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* 
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
-void med_sieveblock_64k(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
+void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
 void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
 void lp_sieveblock(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     lp_bucket* lp, int side, dynamic_conf_t* dconf);
+void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
+    lp_bucket* lp, int side, dynamic_conf_t* dconf);
+void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
+    lp_bucket* lp, int side, dynamic_conf_t* dconf);
+void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
+    lp_bucket* , int , dynamic_conf_t* );
 
 // trial division
-int check_relations_siqs_1(uint32_t blocknum, uint8_t parity,
+int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
+int check_relations_siqs_8_sse2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-int check_relations_siqs_8(uint32_t blocknum, uint8_t parity,
+int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
+int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
 
 void filter_SPV(uint8_t parity, uint8_t* sieve, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 
-void tdiv_LP(uint32_t report_num, uint8_t parity, uint32_t bnum,
+void tdiv_LP_sse2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_LP_avx2(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
+void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
+    static_conf_t* , dynamic_conf_t* );
 
 void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_medprimes_32k_knc(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
-void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
-    uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
+// TBD
+//void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
+//    uint8_t parity, uint32_t poly_id, uint32_t bnum,
+//    static_conf_t* sconf, dynamic_conf_t* dconf);
 void (*tdiv_med_ptr)(uint8_t, uint32_t, uint32_t,
     static_conf_t*, dynamic_conf_t*);
 
@@ -596,12 +610,7 @@ void resieve_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void resieve_medprimes_32k_knc(uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
-void resieve_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
-    uint8_t parity, uint32_t poly_id, uint32_t bnum,
-    static_conf_t* sconf, dynamic_conf_t* dconf);
-void resieve_medprimes_64k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
+void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void (*resieve_med_ptr)(uint8_t, uint32_t, uint32_t,
     static_conf_t*, dynamic_conf_t*);

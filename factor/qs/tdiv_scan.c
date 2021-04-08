@@ -52,10 +52,6 @@ this file contains code implementing 1)
 
 */
 
-
-#ifndef USE_AVX512F
-
-
 #if defined(GCC_ASM64X) || defined(__MINGW64__)
 	#define SCAN_CLEAN asm volatile("emms");	
 
@@ -230,90 +226,6 @@ this file contains code implementing 1)
 			: "r"(sieveblock + j), "0"(result)	\
 			: "%xmm0");
 
-#elif defined(GCC_ASM32X) || defined(__MINGW32__)
-	#define SCAN_CLEAN asm volatile("emms");	
-
-	#define SIEVE_SCAN_32	\
-		asm volatile (		\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-	#define SIEVE_SCAN_64		\
-		asm volatile (							\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"orpd 32(%1), %%xmm0    \n\t"		\
-			"orpd 48(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-	#define SIEVE_SCAN_128		\
-		asm volatile (			\
-			"movdqa (%1), %%xmm0   \n\t"		\
-			"orpd 16(%1), %%xmm0    \n\t"		\
-			"orpd 32(%1), %%xmm0    \n\t"		\
-			"orpd 48(%1), %%xmm0    \n\t"		\
-			"orpd 64(%1), %%xmm0    \n\t"		\
-			"orpd 80(%1), %%xmm0    \n\t"		\
-			"orpd 96(%1), %%xmm0    \n\t"		\
-			"orpd 112(%1), %%xmm0    \n\t"		\
-			"pmovmskb %%xmm0, %0   \n\t"		\
-			: "=r"(result)						\
-			: "r"(sieveblock + j), "0"(result)	\
-			: "%xmm0");
-
-
-#elif defined(MSC_ASM32A)
-	#define SCAN_CLEAN ASM_M {emms};
-
-	//top level sieve scanning with SSE2
-	#define SIEVE_SCAN_32	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
-
-
-	#define SIEVE_SCAN_64	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
-
-	#define SIEVE_SCAN_128	\
-		do	{						\
-			uint64_t *localblock = sieveblock + j;	\
-			ASM_M  {			\
-				ASM_M mov edi, localblock			\
-				ASM_M movdqa xmm0, XMMWORD PTR [edi]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 16]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 32]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 48]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 64]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 80]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 96]	\
-				ASM_M por xmm0, XMMWORD PTR [edi + 112]	\
-				ASM_M pmovmskb ecx, xmm0			\
-				ASM_M mov result, ecx};			\
-		} while (0);
 
 #elif defined(_WIN64) && defined(_MSC_VER)
 	#define SCAN_CLEAN /*nothing*/
@@ -386,20 +298,20 @@ this file contains code implementing 1)
             _reset_lsb(msk32); \
         }
 
-#define SIEVE_SCAN_64_VEC				\
-    __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
-    uint32_t pos; \
-    uint64_t msk64 = _mm256_movemask_epi8(v_blk); \
-    result = 0; \
-    if (msk64 > 0) { \
-        v_blk = _mm256_load_si256(sieveblock + j + 4); \
-        msk64 = ((uint64_t)(_mm256_movemask_epi8(v_blk)) << 32); \
-        v_blk = _mm256_load_si256(sieveblock + j); \
-        msk64 |= _mm256_movemask_epi8(v_blk); \
-        while (_BitScanForward64(&pos, msk64)) { \
-                    buffer[result++] = (uint8_t)pos; \
-                    _reset_lsb64(msk64); \
-        } }
+    #define SIEVE_SCAN_64_VEC				\
+        __m256i v_blk = _mm256_or_si256(_mm256_load_si256(sieveblock + j + 4), _mm256_load_si256(sieveblock + j)); \
+        uint32_t pos; \
+        uint64_t msk64 = _mm256_movemask_epi8(v_blk); \
+        result = 0; \
+        if (msk64 > 0) { \
+            v_blk = _mm256_load_si256(sieveblock + j + 4); \
+            msk64 = ((uint64_t)(_mm256_movemask_epi8(v_blk)) << 32); \
+            v_blk = _mm256_load_si256(sieveblock + j); \
+            msk64 |= _mm256_movemask_epi8(v_blk); \
+            while (_BitScanForward64(&pos, msk64)) { \
+                        buffer[result++] = (uint8_t)pos; \
+                        _reset_lsb64(msk64); \
+            } }
 #endif
 
 #else	/* compiler not recognized*/
@@ -443,71 +355,9 @@ this file contains code implementing 1)
 	// for the speedups associated with 8x sse2 asm division and compression of
 	// small primes is worth it (on 64k builds only).
 
-int check_relations_siqs_1(uint32_t blocknum, uint8_t parity, 
-						   static_conf_t *sconf, dynamic_conf_t *dconf)
-{
-	//not unrolled; for small inputs
 
-	uint32_t j,k,it=sconf->qs_blocksize>>3;
-	uint32_t thisloc;
-	uint64_t *sieveblock;
-	uint64_t mask = SCAN_MASK;
-
-	sieveblock = (uint64_t *)dconf->sieve;
-	dconf->num_reports = 0;
-
-	//check for relations
-	for (j=0;j<it;j++)
-	{
-		//check 8 locations simultaneously
-		if ((sieveblock[j] & mask) == (uint64_t)(0))
-			continue;
-
-		//at least one passed the check, find which one(s) and pass to 
-		//trial division stage
-		for (k=0;k<8;k++)
-		{
-			thisloc = (j<<3) + k;
-			if ((dconf->sieve[thisloc] & 0x80) == 0)			
-				continue;
-
-			//see discussion near line 323
-			if ((thisloc >=	65534) || (thisloc == 0))
-				continue;
-
-			// log this report
-			if (dconf->num_reports < MAX_SIEVE_REPORTS)
-				dconf->reports[dconf->num_reports++] = thisloc;			
-		}
-	}
-
-	if (dconf->num_reports >= MAX_SIEVE_REPORTS)
-		dconf->num_reports = MAX_SIEVE_REPORTS-1;
-
-    dconf->total_reports += dconf->num_reports;
-    dconf->total_blocks++;
-
-	//remove small primes, and test if its worth continuing for each report
-	filter_SPV(parity, dconf->sieve, dconf->numB-1,blocknum,sconf,dconf);
-	tdiv_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
-	resieve_med_ptr(parity, dconf->numB-1,blocknum,sconf,dconf);
-
-	// factor all reports in this block
-	for (j=0; j<dconf->num_reports; j++)
-	{
-		if (dconf->valid_Qs[j])
-		{
-            dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
-			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
-		}
-	}
-
-	return 0;
-}
-
-int check_relations_siqs_4(uint32_t blocknum, uint8_t parity, 
-						   static_conf_t *sconf, dynamic_conf_t *dconf)
+int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity, 
+	static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x32; for medium inputs
 
@@ -518,53 +368,7 @@ int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
 	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
-
-#ifdef SIMD_SIEVE_SCAN_VEC
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-	for (j=0;j<it;j+=4)	
-	{		
-		uint32_t result;
-		uint8_t buffer[32];
-		
-		SIEVE_SCAN_32_VEC;
-
-		if (result == 0)
-			continue;
-
-        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
-        {            
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-                dconf->reports[dconf->num_reports + i] = thisloc;
-            }
-            dconf->num_reports += result;
-        }
-        else
-        {
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-
-                // log this report
-                if (dconf->num_reports < MAX_SIEVE_REPORTS)
-                    dconf->reports[dconf->num_reports++] = thisloc;
-            }
-        }
-	}
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-	// make it safe to perform floating point
-	SCAN_CLEAN;
-
-#elif defined(SIMD_SIEVE_SCAN)
+#if defined(SIMD_SIEVE_SCAN)
 
 	//check for relations
 	for (j=0;j<it;j+=4)
@@ -662,7 +466,7 @@ int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -670,8 +474,8 @@ int check_relations_siqs_4(uint32_t blocknum, uint8_t parity,
 	return 0;
 }
 
-int check_relations_siqs_8(uint32_t blocknum, uint8_t parity, 
-						   static_conf_t *sconf, dynamic_conf_t *dconf)
+int check_relations_siqs_8_sse2(uint32_t blocknum, uint8_t parity, 
+	static_conf_t *sconf, dynamic_conf_t *dconf)
 {
 	//unrolled x64; for large inputs
 	uint32_t i,j,it=sconf->qs_blocksize>>3;
@@ -681,52 +485,7 @@ int check_relations_siqs_8(uint32_t blocknum, uint8_t parity,
 	sieveblock = (uint64_t *)dconf->sieve;
 	dconf->num_reports = 0;
 
-#ifdef SIMD_SIEVE_SCAN_VEC
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-	for (j=0;j<it;j+=8)	
-	{		
-		uint32_t result;
-		uint8_t buffer[64];
-		
-		SIEVE_SCAN_64_VEC;
-
-		if (result == 0)
-			continue;
-
-        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
-        {            
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-                dconf->reports[dconf->num_reports + i] = thisloc;
-            }
-            dconf->num_reports += result;
-        }
-        else
-        {
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-
-                // log this report
-                if (dconf->num_reports < MAX_SIEVE_REPORTS)
-                    dconf->reports[dconf->num_reports++] = thisloc;
-            }
-        }
-	}
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-	// make it safe to perform floating point
-	SCAN_CLEAN;
-
-#elif defined(SIMD_SIEVE_SCAN)
+#if defined(SIMD_SIEVE_SCAN)
 
 	//check for relations
 	for (j=0;j<it;j+=8)
@@ -825,7 +584,7 @@ int check_relations_siqs_8(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -833,8 +592,7 @@ int check_relations_siqs_8(uint32_t blocknum, uint8_t parity,
 	return 0;
 }
 
-
-int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
+int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
     static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     //unrolled x128; for large inputs
@@ -847,52 +605,7 @@ int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
     sieveblock = (uint64_t *)dconf->sieve;
 
 
-#if defined(SIMD_SIEVE_SCAN_VEC)
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-    for (j=0;j<it;j+=8)	
-    {		
-        uint32_t result;
-        uint8_t buffer[64];               
-
-        SIEVE_SCAN_64_VEC;
-
-        if (result == 0)
-            continue;
-
-        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
-        {            
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-                dconf->reports[dconf->num_reports + i] = thisloc;
-            }
-            dconf->num_reports += result;
-        }
-        else
-        {
-            for (i=0; i<result; i++)
-            {
-                thisloc = (j << 3) + (uint32_t)buffer[i];
-
-                // log this report
-                if (dconf->num_reports < MAX_SIEVE_REPORTS)
-                    dconf->reports[dconf->num_reports++] = thisloc;
-            }
-        }
-	}
-
-#if defined(USE_AVX2)
-    CLEAN_AVX2;
-#endif
-
-	// make it safe to perform floating point
-	SCAN_CLEAN;
-
-#elif defined(SIMD_SIEVE_SCAN)
+#if defined(SIMD_SIEVE_SCAN)
 
 	//check for relations
 	for (j=0;j<it;j+=16)
@@ -993,7 +706,7 @@ int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
 		if (dconf->valid_Qs[j])
 		{
             dconf->total_surviving_reports++;
-			tdiv_LP(j, parity, blocknum, sconf, dconf);
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
 			trial_divide_Q_siqs(j, parity, dconf->numB-1, blocknum,sconf,dconf);
 		}
 	}
@@ -1001,4 +714,341 @@ int check_relations_siqs_16(uint32_t blocknum, uint8_t parity,
 	return 0;
 }
 
+int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //unrolled x32; for medium inputs
+
+    uint32_t i, j, it = sconf->qs_blocksize >> 3;
+    uint32_t thisloc;
+    uint64_t* sieveblock;
+
+    sieveblock = (uint64_t*)dconf->sieve;
+    dconf->num_reports = 0;
+
+    for (j = 0; j < it; j += 4)
+    {
+        uint32_t result;
+        uint8_t buffer[32];
+
+        // assumes BSF.
+        // MSVC also assumes reset_lsb.
+        // both need BMI1
+        SIEVE_SCAN_32_VEC;
+
+        if (result == 0)
+            continue;
+
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
+    }
+
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
+
+    //remove small primes, and test if its worth continuing for each report
+    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+    tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+
+    // factor all reports in this block
+    for (j = 0; j < dconf->num_reports; j++)
+    {
+        if (dconf->valid_Qs[j])
+        {
+            dconf->total_surviving_reports++;
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
+        }
+    }
+
+    return 0;
+}
+
+int check_relations_siqs_8_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //unrolled x64; for large inputs
+    uint32_t i, j, it = sconf->qs_blocksize >> 3;
+    uint32_t thisloc;
+    uint64_t* sieveblock;
+
+    sieveblock = (uint64_t*)dconf->sieve;
+    dconf->num_reports = 0;
+
+    for (j = 0; j < it; j += 8)
+    {
+        uint32_t result;
+        uint8_t buffer[64];
+
+        // assumes BSF.
+        // MSVC also assumes reset_lsb.
+        // both need BMI1
+        SIEVE_SCAN_64_VEC;
+
+        if (result == 0)
+            continue;
+
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
+    }
+
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+    {
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+    }
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
+
+    //remove small primes, and test if its worth continuing for each report
+    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+    tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+
+    // factor all reports in this block
+    for (j = 0; j < dconf->num_reports; j++)
+    {
+        if (dconf->valid_Qs[j])
+        {
+            dconf->total_surviving_reports++;
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
+        }
+    }
+
+    return 0;
+}
+
+int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //unrolled x128; for large inputs
+    uint32_t i, j, it = sconf->qs_blocksize >> 3;
+    uint32_t thisloc;
+    uint32_t num_reports = 0;
+    uint64_t* sieveblock;
+
+    dconf->num_reports = 0;
+    sieveblock = (uint64_t*)dconf->sieve;
+
+    for (j = 0; j < it; j += 8)
+    {
+        uint32_t result;
+        uint8_t buffer[64];
+
+        SIEVE_SCAN_64_VEC;
+
+        if (result == 0)
+            continue;
+
+        if ((dconf->num_reports + result) < MAX_SIEVE_REPORTS)
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+                dconf->reports[dconf->num_reports + i] = thisloc;
+            }
+            dconf->num_reports += result;
+        }
+        else
+        {
+            for (i = 0; i < result; i++)
+            {
+                thisloc = (j << 3) + (uint32_t)buffer[i];
+
+                // log this report
+                if (dconf->num_reports < MAX_SIEVE_REPORTS)
+                    dconf->reports[dconf->num_reports++] = thisloc;
+            }
+        }
+    }
+
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
+
+    //remove small primes, and test if its worth continuing for each report
+    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+    tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+
+    // factor all reports in this block
+    for (j = 0; j < dconf->num_reports; j++)
+    {
+        if (dconf->valid_Qs[j])
+        {
+            dconf->total_surviving_reports++;
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
+        }
+    }
+
+    return 0;
+}
+
+#ifdef USE_AVX512F
+#include <immintrin.h>
+int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
+    static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //unrolled x128; for large inputs
+    uint32_t j;
+    uint32_t thisloc;
+    uint64_t* sieveblock;
+    uint32_t* sieveblock32;
+
+    if (sconf->use_dlp == 2)
+    {
+
+#ifdef USE_AVX512BW
+        if (sconf->obj->HAS_AVX512BW)
+        {
+            uint32_t cutoff = sconf->tf_closnuf;
+            __m512i vmask = _mm512_set1_epi32((cutoff << 24) + (cutoff << 16) + (cutoff << 8) + cutoff);
+
+            dconf->num_reports = 0;
+            sieveblock = (uint64_t*)dconf->sieve;
+            sieveblock32 = (uint32_t*)dconf->sieve;
+
+            for (j = 0; j < 4096; j += 8)
+            {
+                __mmask64 r_msk;
+                int idx;
+
+                __m512i vsieve = _mm512_load_epi32((__m512i*)(&sieveblock[j]));
+                r_msk = _mm512_cmpgt_epu8_mask(vsieve, vmask);
+                //r_msk = _mm512_test_epi32_mask(vsieve, vmask);
+
+                thisloc = j * 8;
+
+                while (r_msk > 0)
+                {
+                    idx = _trail_zcnt64(r_msk);
+                    dconf->reports[dconf->num_reports++] = thisloc + idx;
+                    r_msk = _blsr_u64(r_msk);
+                }
+
+            }
+        }
+        else
+        {
+
+            // I got nothin'!
+
+
+
+
+        }
+#else
+
+#endif
+    }
+    else
+    {
+        __m512i vmask = _mm512_set1_epi32(0x80808080);
+
+        dconf->num_reports = 0;
+        sieveblock = (uint64_t*)dconf->sieve;
+        sieveblock32 = (uint32_t*)dconf->sieve;
+
+        for (j = 0; j < 4096; j += 8)
+        {
+            __mmask16 r_msk;
+            int idx;
+            int k;
+
+            __m512i vsieve = _mm512_load_epi32((__m512i*)(&sieveblock[j]));
+            r_msk = _mm512_test_epi32_mask(vsieve, vmask);
+
+            thisloc = j * 8;
+
+            while (r_msk > 0)
+            {
+                uint32_t a_msk;
+
+                idx = _trail_zcnt(r_msk);
+
+                // each lit bit identifies 4 possible bytes meeting our criteria
+                // for a possible relation.
+                a_msk = sieveblock32[(thisloc >> 2) + idx] & 0x80808080;
+
+                do
+                {
+                    k = _trail_zcnt(a_msk) >> 3;
+                    dconf->reports[dconf->num_reports++] = thisloc + k + idx * 4;
+                    a_msk = _blsr_u32(a_msk);
+                } while (a_msk > 0);
+
+                r_msk = _blsr_u32(r_msk);
+            }
+
+        }
+    }
+
+    if (dconf->num_reports >= MAX_SIEVE_REPORTS)
+        dconf->num_reports = MAX_SIEVE_REPORTS - 1;
+
+    dconf->total_reports += dconf->num_reports;
+    dconf->total_blocks++;
+
+    //remove small primes, and test if its worth continuing for each report
+    filter_SPV(parity, dconf->sieve, dconf->numB - 1, blocknum, sconf, dconf);
+    tdiv_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+    resieve_med_ptr(parity, dconf->numB - 1, blocknum, sconf, dconf);
+
+    // factor all reports in this block
+    for (j = 0; j < dconf->num_reports; j++)
+    {
+        if (dconf->valid_Qs[j])
+        {
+            dconf->total_surviving_reports++;
+            tdiv_LP_ptr(j, parity, blocknum, sconf, dconf);
+            trial_divide_Q_siqs(j, parity, dconf->numB - 1, blocknum, sconf, dconf);
+        }
+    }
+
+    return 0;
+}
 #endif
