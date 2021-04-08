@@ -22,7 +22,7 @@ code to the public domain.
 #ifndef _YAFU_HEAD_DEF
 #define _YAFU_HEAD_DEF
 
-#define VERSION_STRING "2.0"
+#define YAFU_VERSION_STRING "2.0"
 
 // default maximum size for strings/buffers
 #define GSTR_MAXSIZE 1024

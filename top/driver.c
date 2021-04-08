@@ -882,14 +882,20 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 
     if ((VFLAG > 0) || !is_cmdline_run)
     {
+        printf("YAFU Version %s\n", YAFU_VERSION_STRING);
+        logprint(logfile, "YAFU Version %s\n", YAFU_VERSION_STRING);
 #ifdef _MSC_VER
         printf("Built with Microsoft Visual Studio %d\n", _MSC_VER);
+        logprint(logfile, "Built with Microsoft Visual Studio % d\n", _MSC_VER);
 #elif defined (__INTEL_COMPILER)
         printf("Built with Intel Compiler %d\n", __INTEL_COMPILER);
+        logprint(logfile, "Built with Intel Compiler %d\n", __INTEL_COMPILER);
 #elif defined (__GNUC__)
         printf("Built with GCC %d\n", __GNUC__);
+        logprint(logfile, "Built with GCC %d\n", __GNUC__);
 #else 
         printf("Built with undefined compiler\n");
+        logprint(logfile, "Built with undefined compiler\n");
 #endif
 
 #ifdef _MSC_MPIR_VERSION
