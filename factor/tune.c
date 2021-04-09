@@ -122,8 +122,8 @@ void factor_tune(fact_obj_t *inobj)
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
-		fact_obj_t *fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
-		init_factobj(fobj);
+		fact_obj_t* fobj = inobj; // (fact_obj_t*)malloc(sizeof(fact_obj_t));
+		//init_factobj(fobj);
 
 		// measure how long it takes to gather a fixed number of relations 		
         mpz_set_str(n, siqslist[i], 10);
@@ -154,8 +154,8 @@ void factor_tune(fact_obj_t *inobj)
 
 		clear_factor_list(fobj->factors);
 
-		free_factobj(fobj);
-		free(fobj);
+		//free_factobj(fobj);
+		//free(fobj);
 	}
 
 	fit = best_linear_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b);
@@ -232,8 +232,9 @@ void factor_tune(fact_obj_t *inobj)
 		gnfs_extraptime[i] += d;
 		printf("adding %g seconds for linalg and sqrt\n",d);	
 
-		//add avg poly time (max time / 2)
-		d = gnfs_max_poly_time[i] * 3600 / 2;
+		//add avg poly time 
+		// estimated at 5% of sieving time
+		d = gnfs_extraptime[i] * 0.05; // gnfs_max_poly_time[i] * 3600 / 2;
 		gnfs_extraptime[i] += d;
 		printf("adding %g seconds for average polyselect time\n",d);
 
@@ -541,6 +542,11 @@ void update_INI(double mult, double exponent, double mult2,
 			fputs(str, out);
 			continue;
 		}
+		else if (strlen(str) <= 1)
+		{
+			fputs(str, out);
+			continue;
+		}
 		else if (found_entry)
 		{
 			//already found the right entry, just copy the rest of the file
@@ -568,8 +574,10 @@ void update_INI(double mult, double exponent, double mult2,
 
 		if (key == NULL)
 		{
-			printf("Invalid line in yafu.ini, use Keyword=Value pairs"
-				"See docfile.txt for valid keywords");
+			//printf("Invalid line in yafu.ini, use Keyword=Value pairs"
+			//	"See docfile.txt for valid keywords");
+			// just write it out and keep going
+			fputs(str, out);
 			continue;
 		}
 		else if (strcmp(key,"tune_info") == 0)
