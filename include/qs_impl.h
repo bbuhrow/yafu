@@ -555,7 +555,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     uint32_t start_prime, uint8_t s_init);
 void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init);
-void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
+extern void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
 
 void lp_sieveblock(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     lp_bucket* lp, int side, dynamic_conf_t* dconf);
@@ -563,7 +563,7 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     lp_bucket* lp, int side, dynamic_conf_t* dconf);
 void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     lp_bucket* lp, int side, dynamic_conf_t* dconf);
-void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
+extern void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
     lp_bucket* , int , dynamic_conf_t* );
 
 // trial division
@@ -581,7 +581,7 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 int check_relations_siqs_16_avx512(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
+extern int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
 
 void filter_SPV(uint8_t parity, uint8_t* sieve, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
@@ -592,7 +592,7 @@ void tdiv_LP_avx2(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
+extern void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
     static_conf_t* , dynamic_conf_t* );
 
 void tdiv_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
@@ -603,7 +603,7 @@ void tdiv_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
 //void tdiv_medprimes_32k_knl(uint32_t* reports, uint32_t num_reports,
 //    uint8_t parity, uint32_t poly_id, uint32_t bnum,
 //    static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*tdiv_med_ptr)(uint8_t, uint32_t, uint32_t,
+extern void (*tdiv_med_ptr)(uint8_t, uint32_t, uint32_t,
     static_conf_t*, dynamic_conf_t*);
 
 void resieve_medprimes_32k(uint8_t parity, uint32_t poly_id, uint32_t bnum,
@@ -612,7 +612,7 @@ void resieve_medprimes_32k_avx2(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
 void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t bnum,
     static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*resieve_med_ptr)(uint8_t, uint32_t, uint32_t,
+extern void (*resieve_med_ptr)(uint8_t, uint32_t, uint32_t,
     static_conf_t*, dynamic_conf_t*);
 
 void trial_divide_Q_siqs(uint32_t report_num,
@@ -648,7 +648,7 @@ void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 
 void firstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void firstRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+extern void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void nextRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_sse41(static_conf_t* sconf, dynamic_conf_t* dconf);
@@ -656,7 +656,7 @@ void nextRoots_32k_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_avx2_small(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_knc(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+extern void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_generic_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
@@ -668,7 +668,7 @@ void nextRoots_32k_knc_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 void testfirstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void testfirstRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
-void (*testRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+extern void (*testRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void batch_roots(int* rootupdates, int* firstroots1, int* firstroots2,
     siqs_poly* poly, uint32_t start_prime, fb_list* fb, uint32_t* primes);

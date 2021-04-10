@@ -22,9 +22,9 @@ CC = gcc-7.3.0
 #CFLAGS = -march=core2 -mtune=core2
 CFLAGS = -g -DUSE_SSE2
 WARN_FLAGS = -Wall # -Wconversion
-OPT_FLAGS = -O3
+OPT_FLAGS = -O2
 INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
-LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk -L. 
+LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk -L.
 BINNAME = yafu
 OBJ_EXT = .o
 
@@ -38,6 +38,7 @@ endif
 ifeq ($(COMPILER),gcc)
 	CC = gcc
 endif
+
 
 # ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
@@ -105,24 +106,42 @@ endif
 
 
 ifeq ($(SKYLAKEX),1)
-	INC += -I../../gmp_install/gmp-6.2.0/include
-	LIBS += -L../../gmp_install/gmp-6.2.0/lib/
-	INC += -I../../ecm_install/include/
-	LIBS += -L../../ecm_install/lib/
-else
-	ifeq ($(KNL),1)
-		OBJ_EXT = .ko
-		INC += -I../../gmp_install/gmp-6.2.0-knl/include
-		LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
-		INC += -I../../ecm_install_gmp620_knl/include/
-		LIBS += -L../../ecm_install_gmp620_knl/lib/
+	ifeq ($(MINGW),1)
+		INC +=  -I../../gmp-install/mingw/6.2.0/include
+		LIBS += -L../../gmp-install/mingw/6.2.0/lib/
+		INC +=  -I../../ecm-install/mingw/7.0.4/include/
+		LIBS += -L../../ecm-install/mingw/7.0.4/lib/
 	else
-		# for non avx512 systems
-		INC += -I../../gmp_install/gmp-6.2.0/include
-		LIBS += -L../../gmp_install/gmp-6.2.0/lib/
-		INC += -I../../ecm_install/include/
-		LIBS += -L../../ecm_install/lib/
-	endif
+		INC += -I../../gmp-install/wsl/6.1.2/include
+		LIBS += -L../../gmp-install/wsl/6.1.2/lib/
+		INC += -I../../ecm-install/wsl/include/
+		LIBS += -L../../ecm-install/wsl/lib/
+	endif	
+else
+	OBJ_EXT = .o
+  
+    ifeq ($(SKYLAKEX),1)
+        INC += -I../../gmp-install/wsl/6.1.2/include
+        LIBS += -L../../gmp-install/wsl/6.1.2/lib/
+        INC += -I../../ecm-install/wsl/include/
+        LIBS += -L../../ecm-install/wsl/lib/
+    else
+        ifeq ($(KNL),1)
+			OBJ_EXT = .ko
+            INC += -I../../gmp_install/gmp-6.2.0-knl/include
+            LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
+            INC += -I../../ecm_install_gmp620_knl/include/
+            LIBS += -L../../ecm_install_gmp620_knl/lib/
+        else
+            # for non avx512 systems
+            INC += -I../gmp/include
+            LIBS += -L../gmp/lib/
+            INC += -I../gmp-ecm/include/
+            LIBS += -L../gmp-ecm/lib/
+        endif
+    endif
+
+	
 endif
 
 
@@ -150,7 +169,15 @@ ifeq ($(NFS),1)
 	ifeq ($(COMPILER),icc)
 		LIBS += -L../../msieve/lib/linux
 	else
-		LIBS += -L../../msieve/lib/linux/gcc73/
+        ifeq ($(COMPILER),icc)
+            LIBS += -L../../msieve/lib/wsl/
+        else
+			ifeq ($(MINGW),1)
+				LIBS += -L../../msieve/lib/mingw/
+			else
+				LIBS += -L../../msieve/lib/wsl/
+			endif
+        endif
 	endif
 
 	LIBS += -lmsieve
@@ -160,11 +187,14 @@ ifeq ($(FORCE_GENERIC),1)
 	CFLAGS += -DFORCE_GENERIC
 endif
 
-ifeq ($(SKYLAKEX),1)
-    LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
+ifeq ($(MINGW),1)
+	LIBS += -lecm /g/projects/factoring/gmp-install/mingw/6.2.0/lib/libgmp.a -lytools -lysieve
+	#LIBS += -lecm -lgmp -lytools -lysieve
 else
-    LIBS += -lecm -lgmp -lytools -lysieve
+	LIBS += -lecm /mnt/g/projects/factoring/gmp-install/wsl/6.1.2/lib/libgmp.a -lytools -lysieve
+	#LIBS += -lecm -lgmp -lytools -lysieve
 endif
+
 
 ifeq ($(SKYLAKEX),1)
     # define KNL now for skylakex, after handling an actual command line KNL
@@ -178,7 +208,15 @@ ifeq ($(STATIC),1)
 #	LIBS += -Wl,-Bstatic -lm -Wl,Bdynamic -pthread
   LIBS += -L/usr/lib/x86_64-redhat-linux6E/lib64/ -lpthread -lm
 else
-	LIBS += -lpthread -lm -ldl
+	LIBS += -lpthread -lm
+
+endif
+
+ifeq ($(MINGW),1)
+# not needed with mingw
+#	-ldl
+else
+	LIBS += -ldl
 endif
 
 ifeq ($(COMPILER),icc)

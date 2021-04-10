@@ -7,6 +7,10 @@
 #endif
 #include <stdint.h>
 
+#ifdef __MINGW32__
+#include <Windows.h>
+#endif
+
 //max words for fixed precision msieve bignum
 #define MAX_MP_WORDS 64
 #define MAX_FACTORS 10

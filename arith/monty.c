@@ -23,10 +23,32 @@ I gratefully acknowledge Tom St. Denis's TomsFastMath library, on which
 many of the arithmetic routines here are based
 */
 
+#include "common.h"
 #include "ytools.h"
 #include "monty.h"
 #include "arith.h"
 #include "gmp.h"
+
+#if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
+	
+__inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
+{
+    __asm__(
+        "mulq %3	\n\t"
+        : "=&a"(x), "=&d"(y)
+        : "0"(x), "1"(y)
+        : "cc"
+    );
+
+    *hi = y;
+    return x;
+}
+
+#endif
+
+
+
+
 
 /********************* arbitrary-precision Montgomery arith **********************/
 void fp_montgomery_calc_normalization(mpz_t r, mpz_t rhat, mpz_t b);
@@ -362,7 +384,8 @@ void ciosFullMul128x(uint64_t *u, uint64_t *v, uint64_t rho, uint64_t *n, uint64
 	return;
 }
 
-#ifdef GCC_ASM64X
+// already defined within mingw64/msys2
+#if defined( GCC_ASM64X ) && !defined(__MINGW32__)
 
 __inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t *sum)
 {

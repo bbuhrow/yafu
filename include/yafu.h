@@ -34,6 +34,10 @@ code to the public domain.
 #include <Windows.h>
 #endif
 
+#ifdef __MINGW32__
+#include <Windows.h>
+#endif
+
 // a structure to hold a bunch of configuration info
 // for yafu, instead of declaring a bunch of globals.
 typedef struct
@@ -60,7 +64,7 @@ typedef struct
     // machine info
     double MEAS_CPU_FREQUENCY;
     int VERBOSE_PROC_INFO;
-    char CPU_ID_STR[80];
+    char CPU_ID_STR[256];
     uint32_t L1CACHE, L2CACHE;
     int CLSIZE;
     char HAS_SSE41;

@@ -83,19 +83,7 @@ void submod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 
 
-__inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi)
-{
-    __asm__(
-        "mulq %3	\n\t"
-        : "=&a"(x), "=&d"(y)
-        : "0"(x), "1"(y)
-        : "cc"
-    );
-
-    *hi = y;
-    return x;
-}
-
+__inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi);
 
 #if defined(USE_AVX512F) || defined(USE_BMI2)
 __inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {

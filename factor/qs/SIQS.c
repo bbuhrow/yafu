@@ -40,6 +40,21 @@ code to the public domain.
 // is chosen.
 // #define OPT_DEBUG
 
+// define the fat-binary function pointers
+void (*testRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
+void (*resieve_med_ptr)(uint8_t, uint32_t, uint32_t,
+    static_conf_t*, dynamic_conf_t*);
+void (*tdiv_med_ptr)(uint8_t, uint32_t, uint32_t,
+    static_conf_t*, dynamic_conf_t*);
+void (*tdiv_LP_ptr)(uint32_t, uint8_t, uint32_t,
+    static_conf_t* , dynamic_conf_t* );
+int (*scan_ptr)(uint32_t, uint8_t, static_conf_t*, dynamic_conf_t*);
+void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
+    lp_bucket* , int , dynamic_conf_t* );
+void (*med_sieve_ptr)(uint8_t*, sieve_fb_compressed*, fb_list*, uint32_t, uint8_t);
+
 typedef struct
 {
     thread_sievedata_t *thread_data;

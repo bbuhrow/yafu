@@ -302,7 +302,9 @@ void make_job_file(char *sname, uint32_t *startq, uint32_t *qrange, char *inputs
 	//*qrange = 1000;
 
 	//more accurate test
-	*qrange = 5000;
+	// *qrange = 5000;
+
+	*qrange = 2000;
 
 	printf("nfs: commencing job file construction for c%d\n",(int)strlen(inputstr));
 
@@ -629,21 +631,12 @@ void update_INI(double mult, double exponent, double mult2,
                     cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
-#elif BITS_PER_DIGIT == 64
+#else 
 			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "LINUX64") == 0))
 			{
 				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
 				found_entry = 1;
 				sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-                    cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
-				fputs(newline, out);
-			}
-#else 
-			if ((strcmp(cpustr, cpu_str) == 0) && (strcmp(osstr, "LINUX32") == 0))
-			{
-				printf("Replacing tune_info entry for %s - %s\n",osstr,cpustr);
-				found_entry = 1;
-				sprintf(newline, "tune_info=%s,LINUX32,%lg,%lg,%lg,%lg,%lg,%lg\n",
                     cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 				fputs(newline, out);
 			}
@@ -673,14 +666,9 @@ void update_INI(double mult, double exponent, double mult2,
 		sprintf(newline, "tune_info=%s,WIN32,%lg,%lg,%lg,%lg,%lg,%lg\n",
             cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
-#elif BITS_PER_DIGIT == 64
+#else 
 		printf("Adding tune_info entry for LINUX64 - %s\n", cpu_str);
 		sprintf(newline, "tune_info=%s,LINUX64,%lg,%lg,%lg,%lg,%lg,%lg\n",
-            cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
-		fputs(newline, out);
-#else 
-		printf("Adding tune_info entry for LINUX32 - %s\n", cpu_str);
-		sprintf(newline, "tune_info=%s,LINUX32,%lg,%lg,%lg,%lg,%lg,%lg\n",
             cpu_str,mult,exponent,mult2,exponent2,xover, cpu_freq);
 		fputs(newline, out);
 #endif

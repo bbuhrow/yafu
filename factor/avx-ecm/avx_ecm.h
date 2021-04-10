@@ -166,11 +166,12 @@ void extract_bignum_from_vec_to_mpz(mpz_t dest, vec_bignum_t *vec_src, int num, 
 void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src);
 void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane);
 
-void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-void(*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
-void(*vecaddmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
-void(*vecsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
-void(*vecaddsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+// declare function pointers to the type of reduction needed
+extern void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+extern void(*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+extern void(*vecaddmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+extern void(*vecsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+extern void(*vecaddsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
 
 // ecm stuff
 typedef struct 

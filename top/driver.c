@@ -142,6 +142,7 @@ int main(int argc, char *argv[])
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
     ytools_get_computer_info(&comp_info, options->vproc);
+    strncpy(yafu_obj.CPU_ID_STR, comp_info.idstr, 255);
 #endif
 
 	// a factorization object that gets passed around to any factorization routine
@@ -149,12 +150,13 @@ int main(int argc, char *argv[])
 	// this is not used.  initialize and pass in all of the options.
 	fobj = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 	init_factobj(fobj);
-    if (strlen(options->tune_info) > 0)
-    {
-        apply_tuneinfo(&yafu_obj, fobj, options->tune_info);
-    }
-    options_to_factobj(fobj, options);
     
+    options_to_factobj(fobj, options);
+    for (i = 0; i < options->num_tune_info; i++)
+    {
+        apply_tuneinfo(&yafu_obj, fobj, options->tune_info[i]);
+    }
+
     fobj->MEAS_CPU_FREQUENCY = 42;  // not used anymore
     strcpy(fobj->CPU_ID_STR, comp_info.idstr);
     fobj->HAS_AVX2 = comp_info.AVX2;
@@ -825,7 +827,7 @@ int check_expression(options_t* options)
     // batchfiles via command line switch still.
     if (0)
     {
-
+		
 #elif defined(WIN32) 
     if (_isatty(_fileno(stdin)) == 0)
     {
@@ -858,9 +860,9 @@ int check_expression(options_t* options)
         }
     }
 
-#if defined(__MINGW32__)
-    }
-#endif
+//#if defined(__MINGW32__)
+//    }
+//#endif
 
 	return is_cmdline_run;
 
@@ -1207,8 +1209,9 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 	}
 	osstr[j] = '\0';
 
+
 	//printf("found OS = %s and CPU = %s in tune_info field, this cpu is %s\n",
-    //    osstr, cpustr, CPU_ID_STR);
+    //    osstr, cpustr, yobj->CPU_ID_STR);
 
     // "xover" trumps tune info.  I.e., if a specific crossover has been
     // specified, prefer this to whatever may be in the tune_info string.
@@ -1217,7 +1220,8 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 #if defined(_WIN64)
 	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN64") == 0))
 	{
-		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+        if (yobj->VFLAG > 0)
+		    printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
@@ -1229,18 +1233,8 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 #elif defined(WIN32)
 	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "WIN32") == 0))
 	{
-		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
-		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
-			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
-			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
-			&fobj->autofact_obj.qs_gnfs_xover, &fobj->nfs_obj.gnfs_tune_freq);
-		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
-	}
-#elif BITS_PER_DIGIT == 64
-	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
-	{
-		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
-		
+        if (yobj->VFLAG > 0)
+		    printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,
 			&fobj->nfs_obj.gnfs_multiplier, &fobj->nfs_obj.gnfs_exponent, 
@@ -1248,9 +1242,10 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #else 
-	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX32") == 0))
+	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
 	{
-		//printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
+        if (yobj->VFLAG > 0)
+            printf("Applying tune_info entry for %s - %s\n",osstr,cpustr);
 		
 		sscanf(arg + i + 1, "%lg, %lg, %lg, %lg, %lg, %lg",
 			&fobj->qs_obj.qs_multiplier, &fobj->qs_obj.qs_exponent,

@@ -87,7 +87,8 @@ typedef struct
     uint32_t threads;
     uint32_t verbosity;
     uint32_t vproc;
-    char tune_info[MAXARGLEN];
+    int num_tune_info;
+    char **tune_info;
     uint32_t yafu_idle;
     char expr[MAXARGLEN];
     char scriptfile[MAXARGLEN];

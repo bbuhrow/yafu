@@ -65,7 +65,7 @@ void ecm_thread_init(ecm_thread_data_t* tdata);
 
 int ECM_ABORT;
 int TMP_THREADS;
-uint64_t TMP_STG2_MAX;
+uint64_t ECM_TMP_STG2_MAX;
 
 #if defined(WIN32) || defined(_WIN64)
 DWORD WINAPI ecm_worker_thread_main(LPVOID thread_data);
@@ -615,7 +615,7 @@ void ecm_process_init(fact_obj_t *fobj)
 	// initialize things which all threads will need when using
 	// GMP-ECM
 	TMP_THREADS = fobj->THREADS;
-	TMP_STG2_MAX = fobj->ecm_obj.B2;
+	ECM_TMP_STG2_MAX = fobj->ecm_obj.B2;
 
     if (strcmp(fobj->ecm_obj.ecm_path, "") != 0)
     {
@@ -690,7 +690,7 @@ void ecm_process_init(fact_obj_t *fobj)
 void ecm_process_free(fact_obj_t *fobj)
 {
 	fobj->THREADS = TMP_THREADS;
-	fobj->ecm_obj.B2 = TMP_STG2_MAX;
+	fobj->ecm_obj.B2 = ECM_TMP_STG2_MAX;
 	return;
 }
 

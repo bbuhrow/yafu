@@ -27,6 +27,10 @@ code to the public domain.
 #include "gmp.h"
 #include "msieve_common.h"
 
+#ifdef __MINGW32__
+#include <Windows.h>
+#endif
+
 #define GSTR_MAXSIZE 1024
 
 //#define NO_ZLIB

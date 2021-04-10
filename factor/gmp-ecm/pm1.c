@@ -36,7 +36,7 @@ int pm1_wrapper(fact_obj_t *fobj);
 void pm1_print_B1_B2(fact_obj_t *fobj);
 
 int PM1_ABORT;
-uint64_t TMP_STG2_MAX;
+uint64_t PM1_TMP_STG2_MAX;
 
 typedef struct
 {
@@ -55,7 +55,7 @@ void pm1_init(fact_obj_t *fobj)
 	mpz_init(pm1_data.gmp_factor);
 	ecm_init(pm1_data.params);
 	pm1_data.params->method = ECM_PM1;
-	TMP_STG2_MAX = fobj->pm1_obj.B2;
+	PM1_TMP_STG2_MAX = fobj->pm1_obj.B2;
 
 	return;
 }
@@ -65,7 +65,7 @@ void pm1_finalize(fact_obj_t *fobj)
 	ecm_clear(pm1_data.params);
 	mpz_clear(pm1_data.gmp_n);
 	mpz_clear(pm1_data.gmp_factor);
-	fobj->pm1_obj.B2 = TMP_STG2_MAX;
+	fobj->pm1_obj.B2 = PM1_TMP_STG2_MAX;
 	
 	return;
 }

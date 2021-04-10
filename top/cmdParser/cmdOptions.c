@@ -34,6 +34,7 @@ SOFTWARE.
 // ============================================================================
 
 #include "cmdOptions.h"
+#include "ytools.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -432,7 +433,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[28]) == 0)
     {
-        strcpy(options->fact_plan, "PRETEST_NOECM");
+        strcpy(options->fact_plan, "noecm");
     }
     else if (strcmp(opt, OptionArray[29]) == 0)
     {
@@ -451,7 +452,10 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         if (strlen(arg) < MAXARGLEN)
         {
-            strcpy(options->tune_info, arg);
+            options->num_tune_info++;
+            options->tune_info = (char**)xrealloc(options->tune_info, options->num_tune_info * sizeof(char*));
+            options->tune_info[options->num_tune_info - 1] = (char*)xmalloc(MAXARGLEN * sizeof(char));
+            strcpy(options->tune_info[options->num_tune_info-1], arg);
         }
         else
         {
@@ -976,6 +980,8 @@ options_t* initOpt(void)
     strcpy(options->batchfile, "");
     strcpy(options->sessionlog, "session.log");
     strcpy(options->scriptfile, "");
+    options->num_tune_info = 0;
+    options->tune_info = (char**)xmalloc(1 * sizeof(char*));
     options->rand_seed = 0;
     options->threads = 1;
     options->verbosity = 0;

@@ -61,6 +61,13 @@ http://www.gnu.org/licenses/ or write to the Free Software Foundation, Inc.,
 
 //#define DEBUG 1
 
+// define function pointers to the type of reduction needed
+void(*vecmulmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+void(*vecsqrmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t *);
+void(*vecaddmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+void(*vecsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+void(*vecaddsubmod_ptr)(vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_bignum_t *, vec_monty_t*);
+
 // local functions
 void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout);
 void vec_duplicate(vec_monty_t *mdata, ecm_work *work, vec_bignum_t *insum, vec_bignum_t *indiff, ecm_pt *P);
