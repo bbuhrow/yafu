@@ -282,7 +282,8 @@ int ecm_loop(fact_obj_t *fobj)
 	if (ecm_check_input(fobj) == 0)
 		return 0;
 	
-#ifndef USE_AVX512F
+    // AVX-ECM won't work without AVX512F and the MINGW build appears to not work either (compiler bug?)
+#if !defined(USE_AVX512F) || defined(__MINGW32__)
     if (1)
 #else
     if ((fobj->ecm_obj.prefer_gmpecm) || 

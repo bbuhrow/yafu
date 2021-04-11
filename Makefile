@@ -133,11 +133,18 @@ else
             INC += -I../../ecm_install_gmp620_knl/include/
             LIBS += -L../../ecm_install_gmp620_knl/lib/
         else
-            # for non avx512 systems
-            INC += -I../gmp/include
-            LIBS += -L../gmp/lib/
-            INC += -I../gmp-ecm/include/
-            LIBS += -L../gmp-ecm/lib/
+			ifeq ($(MINGW),1)
+				INC +=  -I../../gmp-install/mingw/6.2.0/include
+				LIBS += -L../../gmp-install/mingw/6.2.0/lib/
+				INC +=  -I../../ecm-install/mingw/7.0.4/include/
+				LIBS += -L../../ecm-install/mingw/7.0.4/lib/
+			else
+				# for non avx512 systems
+				INC += -I../gmp/include
+				LIBS += -L../gmp/lib/
+				INC += -I../gmp-ecm/include/
+				LIBS += -L../gmp-ecm/lib/
+			endif
         endif
     endif
 
