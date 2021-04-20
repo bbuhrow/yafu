@@ -128,97 +128,132 @@ void williams_loop(fact_obj_t *fobj)
 
 	//initialize the flag to watch for interrupts, and set the
 	//pointer to the function to call if we see a user interrupt
-	PP1_ABORT = 0;
-	signal(SIGINT,pp1exit);
+	//PP1_ABORT = 0;
+	//signal(SIGINT,pp1exit);
 
 	//initialize some local args
 	mpz_init(d);
 	mpz_init(t);	
 
-	pp1_init(fobj);
 
-	i=0;
-	while (i < trials)
-	{
-		//watch for an abort
-		if (PP1_ABORT)
-		{
-			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-			exit(1);
-		}
+#if !defined(USE_AVX512F) || defined(__MINGW32__)
+    if (1)
+#else
+    if ((fobj->ecm_obj.prefer_gmpecm) ||
+        (!fobj->HAS_AVX512F))
+#endif
+    {
+        // prepare for gmp-ecm p+1
+        pp1_init(fobj);
 
-		start = clock();
-		if (is_mpz_prp(fobj->pp1_obj.gmp_n, fobj->NUM_WITNESSES))
-		{
+        i = 0;
+        while (i < trials)
+        {
+            //watch for an abort
+            if (PP1_ABORT)
+            {
+                print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+                exit(1);
+            }
+
+            start = clock();
+            if (is_mpz_prp(fobj->pp1_obj.gmp_n, fobj->NUM_WITNESSES))
+            {
+                char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_n);
+                logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n), s);
+                free(s);
+                add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
+                    fobj->VFLAG, fobj->NUM_WITNESSES);
+
+                stop = clock();
+                tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+                mpz_set_ui(fobj->pp1_obj.gmp_n, 1);
+                break;
+            }
+
+            fobj->pp1_obj.base = lcg_rand_32_range(3, 0xffffffff, &fobj->pp1_obj.lcg_state);
+
+            pp1_print_B1_B2(fobj);
+
+            it = pp1_wrapper(fobj);
+
+            //check to see if 'f' is non-trivial
+            if ((mpz_cmp_ui(fobj->pp1_obj.gmp_f, 1) > 0)
+                && (mpz_cmp(fobj->pp1_obj.gmp_f, fobj->pp1_obj.gmp_n) < 0))
+            {
+                //non-trivial factor found
+                stop = clock();
+                tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+
+                //check if the factor is prime
+                if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
+                {
+                    add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
+
+                    if (fobj->VFLAG > 0)
+                        gmp_printf("pp1: found prp%d factor = %Zd\n",
+                            gmp_base10(fobj->pp1_obj.gmp_f), fobj->pp1_obj.gmp_f);
+
+                    char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_f);
+                    logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                        gmp_base10(fobj->pp1_obj.gmp_f), s);
+                    free(s);
+                }
+                else
+                {
+                    add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
+                        fobj->VFLAG, fobj->NUM_WITNESSES);
+
+                    if (fobj->VFLAG > 0)
+                        gmp_printf("pp1: found c%d factor = %Zd\n",
+                            gmp_base10(fobj->pp1_obj.gmp_f), fobj->pp1_obj.gmp_f);
+
+                    char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_f);
+                    logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+                        gmp_base10(fobj->pp1_obj.gmp_f), s);
+                    free(s);
+                }
+                start = clock();
+
+                //reduce input
+                mpz_tdiv_q(fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_f);
+
+                i++;
+                break;
+            }
+
+            i++;
+        }
+
+        // clean up after gmp-ecm P+1
+        pp1_finalize(fobj);
+    }
+    else
+    {
+        // run vecPPM1
+        if (is_mpz_prp(fobj->pp1_obj.gmp_n, fobj->NUM_WITNESSES))
+        {
             char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_n);
             logprint_oc(fobj->flogname, "a", "prp%d = %s\n", gmp_base10(fobj->pp1_obj.gmp_n), s);
             free(s);
-			add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
+            add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_n,
                 fobj->VFLAG, fobj->NUM_WITNESSES);
 
-			stop = clock();
-			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
-			mpz_set_ui(fobj->pp1_obj.gmp_n, 1);
-			break;
-		}
-		
-		fobj->pp1_obj.base = lcg_rand_32_range(3,0xffffffff,&fobj->pp1_obj.lcg_state);
+            stop = clock();
+            tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;
+            mpz_set_ui(fobj->pp1_obj.gmp_n, 1);
+        }
+        else
+        {
+            pp1_print_B1_B2(fobj);
 
-        pp1_print_B1_B2(fobj);
+            vecPP1(fobj);
 
-		it = pp1_wrapper(fobj);
-		
-		//check to see if 'f' is non-trivial
-		if ((mpz_cmp_ui(fobj->pp1_obj.gmp_f, 1) > 0)
-			&& (mpz_cmp(fobj->pp1_obj.gmp_f, fobj->pp1_obj.gmp_n) < 0))
-		{				
-			//non-trivial factor found
-			stop = clock();
-			tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        }
+    }
 
-			//check if the factor is prime
-			if (is_mpz_prp(fobj->pp1_obj.gmp_f, fobj->NUM_WITNESSES))
-			{
-				add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
-
-				if (fobj->VFLAG > 0)
-					gmp_printf("pp1: found prp%d factor = %Zd\n",
-					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
-
-                char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_f);
-                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
-					gmp_base10(fobj->pp1_obj.gmp_f), s);
-                free(s);
-			}
-			else
-			{
-				add_to_factor_list(fobj->factors, fobj->pp1_obj.gmp_f,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
-
-				if (fobj->VFLAG > 0)
-					gmp_printf("pp1: found c%d factor = %Zd\n",
-					gmp_base10(fobj->pp1_obj.gmp_f),fobj->pp1_obj.gmp_f);
-
-                char* s = mpz_get_str(NULL, 10, fobj->pp1_obj.gmp_f);
-				logprint_oc(fobj->flogname, "a", "c%d = %s\n",
-					gmp_base10(fobj->pp1_obj.gmp_f), s);
-                free(s);
-			}
-			start = clock();
-
-			//reduce input
-			mpz_tdiv_q(fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_n, fobj->pp1_obj.gmp_f);
-
-			i++;
-			break;
-		}
-
-		i++;
-	}
-
-	pp1_finalize(fobj);
-	signal(SIGINT,NULL);
+	//signal(SIGINT,NULL);
 	mpz_clear(d);
 	mpz_clear(t);
 
