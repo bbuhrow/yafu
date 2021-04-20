@@ -35,7 +35,7 @@ either expressed or implied, of the FreeBSD Project.
 
 #define DO_STAGE2_INV
 #define DEFINED 1
-#define MAX_WINSIZE 8
+#define MAX_WINSIZE 10
 #define BLOCKWORDS 4
 #define strto_uint64_t strtoull
 

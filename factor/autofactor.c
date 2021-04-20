@@ -707,24 +707,24 @@ int check_tune_params(fact_obj_t *fobj)
 
 void set_work_params(factor_work_t *fwork, enum factorization_state state)
 {
-	switch (state)
+    switch (state)
 	{
 	case state_pp1_lvl1:
-		fwork->B1 = 20000;
+        fwork->B1 = 25000;
 		fwork->B2 = 0;	//gmp-ecm default
-		fwork->curves = 3;
+		fwork->curves = 0;
 		break;
 
 	case state_pp1_lvl2:
-		fwork->B1 = 1250000;
+        fwork->B1 = 750000;
 		fwork->B2 = 0;	//gmp-ecm default
-		fwork->curves = 3;
+		fwork->curves = 0;
 		break;
 
 	case state_pp1_lvl3:
-		fwork->B1 = 5000000;
+        fwork->B1 = 2500000;
 		fwork->B2 = 0;	//gmp-ecm default
-		fwork->curves = 3;
+		fwork->curves = 0;
 		break;
 
 	case state_pm1_lvl1:

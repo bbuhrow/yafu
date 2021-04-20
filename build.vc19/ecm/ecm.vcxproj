@@ -144,6 +144,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\factor\avx-ecm\avxecm.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\avxppm1.c" />
     <ClCompile Include="..\..\factor\avx-ecm\avx_ecm_main.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c" />

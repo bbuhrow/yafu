@@ -53,7 +53,7 @@ SOFTWARE.
 #define CALC_VERBOSE 0
 
 // the number of functions defined
-#define NUM_FUNC 76
+#define NUM_FUNC 78
 
 // symbols in calc
 #define EOE 1
@@ -157,7 +157,7 @@ static char function_names[NUM_FUNC][11] = {
     "primes", "torture", "ecm", "llt", "siqsbench",
     "sigma", "totient", "smallmpqs", "testrange", "sieverange",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes"};
+    "semiprimes", "vpp1", "vpm1"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -175,7 +175,7 @@ static int function_nargs[NUM_FUNC] = {
     3, 2, 2, 1, 0, 
     1, 1, 1, 4, 4, 
     3, 1, 0, 1, 1,
-    2};
+    2, 0, 0};
 
 
 // =====================================================================
@@ -2958,6 +2958,15 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_clear(tmp3);
         }
 
+        break;
+    case 76:
+        // vpp1
+        vecPP1(fobj);
+        break;
+
+    case 77:
+        // vpm1
+        vecPM1(fobj);
         break;
 
 	default:

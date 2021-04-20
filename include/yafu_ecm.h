@@ -36,5 +36,7 @@ extern int ecm_loop(fact_obj_t* fobj);
 extern void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t B2, int threads, int* numfactors, int verbose,
     int save_b1, uint32_t* curves_run);
+extern void vecPP1(fact_obj_t* fobj);
+extern void vecPM1(fact_obj_t* fobj);
 
 #endif // #ifndef _YECM_H_

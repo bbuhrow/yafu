@@ -45,6 +45,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\pp1.c">
       <Filter>Source Files\gmp-ecm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\avx-ecm\avxppm1.c">
+      <Filter>Source Files\avx-ecm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\avx-ecm\avx_ecm.h">

@@ -74,6 +74,13 @@ int pm1_wrapper(fact_obj_t *fobj)
 {
 	int status;
 
+    // timing variables
+    struct timeval stopt;	// stop time of this job
+    struct timeval startt;	// start time of this job
+    double t_time;
+
+    gettimeofday(&startt, NULL);
+
 	mpz_set(pm1_data.gmp_n, fobj->pm1_obj.gmp_n);
 
 	pm1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
@@ -102,6 +109,15 @@ int pm1_wrapper(fact_obj_t *fobj)
 
 	//the return value is the stage the factor was found in, if no error
 	pm1_data.stagefound = status;
+
+
+    gettimeofday(&stopt, NULL);
+    t_time = ytools_difftime(&startt, &stopt);
+
+    if (fobj->VFLAG > 0)
+    {
+        printf("pm1: Process took %1.4f seconds.\n", t_time);
+    }
 
 	return status;
 }
@@ -136,7 +152,7 @@ void pollard_loop(fact_obj_t *fobj)
             fobj->VFLAG, fobj->NUM_WITNESSES);
 
 		stop = clock();
-		tt = (double)(stop - start)/(double)CLOCKS_PER_SEC;			
+        tt = (double)(stop - start) / (double)CLOCKS_PER_SEC;
 		mpz_set_ui(fobj->pm1_obj.gmp_n, 1);
 		return;
 	}
