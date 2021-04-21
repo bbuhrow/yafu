@@ -53,6 +53,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->pm1_obj.pm1_exponent = 0;
     fobj->pm1_obj.pm1_multiplier = 0;
     fobj->pm1_obj.pm1_tune_freq = 0;
+    fobj->pm1_obj.vecnum = 0;
 
     // initialize stuff for pp1	
     fobj->pp1_obj.B1 = 20000;
@@ -61,6 +62,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->pp1_obj.pp1_exponent = 0;
     fobj->pp1_obj.pp1_multiplier = 0;
     fobj->pp1_obj.pp1_tune_freq = 0;
+    fobj->pp1_obj.vecnum = 0;
 
     // initialize stuff for ecm	
     fobj->ecm_obj.B1 = 11000;
@@ -198,6 +200,8 @@ void init_factobj(fact_obj_t* fobj)
 
 void free_factobj(fact_obj_t *fobj)
 {
+    int i;
+
 	// free stuff in rho
 	free(fobj->rho_obj.polynomials);
 	mpz_clear(fobj->rho_obj.gmp_n);
@@ -206,10 +210,20 @@ void free_factobj(fact_obj_t *fobj)
 	// free stuff in pm1
 	mpz_clear(fobj->pm1_obj.gmp_n);
 	mpz_clear(fobj->pm1_obj.gmp_f);
+    for (i = 0; i < fobj->pm1_obj.vecnum; i++)
+    {
+        mpz_clear(fobj->pm1_obj.vecn[i]);
+    }
+    fobj->pm1_obj.vecnum = 0;
 
 	// free stuff in pp1
 	mpz_clear(fobj->pp1_obj.gmp_n);
 	mpz_clear(fobj->pp1_obj.gmp_f);
+    for (i = 0; i < fobj->pp1_obj.vecnum; i++)
+    {
+        mpz_clear(fobj->pp1_obj.vecn[i]);
+    }
+    fobj->pp1_obj.vecnum = 0;
 
 	// then free other stuff in ecm
 	mpz_clear(fobj->ecm_obj.gmp_n);

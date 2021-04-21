@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 88
+#define NUMOPTIONS 90
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -141,8 +141,8 @@ typedef struct
     uint32_t force_gnfs;
 
     // ecm/pp1/pm1/rho/tdiv options
-    uint32_t B1pm1;
-    uint32_t B1pp1;
+    uint64_t B1pm1;
+    uint64_t B1pp1;
     uint64_t B1ecm;
     uint32_t rhomax;
     uint64_t B2pm1;
@@ -154,6 +154,8 @@ typedef struct
     char ecm_path[MAXARGLEN];
     uint32_t prefer_gmpecm;
     uint32_t prefer_gmpecm_stg2;
+    char vpp1_work_file[MAXARGLEN];
+    char vpm1_work_file[MAXARGLEN];
 
     // autofactor options
     uint32_t no_ecm;

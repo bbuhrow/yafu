@@ -2961,11 +2961,102 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         break;
     case 76:
         // vpp1
+
+        {
+            FILE* workfile;
+            char* line;
+            char* result;
+            int linesize;
+            int num = 0;
+
+            workfile = fopen(fobj->pp1_obj.vpp1_work_file, "r");
+            if (workfile == NULL)
+            {
+                printf("could not open %s\n", fobj->pp1_obj.vpp1_work_file);
+                break;
+            }
+
+            while (num < 8)
+            {
+                // read the next non-blank line
+                if ((line = get_full_line(NULL, &linesize, workfile)) == NULL)
+                {
+                    break;
+                }
+
+                //size_n = mpz_inp_str(N[k], workfile, 0);
+                // remember input string (? for logfile purposes ?)
+                // run it through the calculator to evaluate any expressions.
+                // make sure the expression doesn't contain vpp1 or vpm1 
+                // to prevent infinite loops.
+                if ((strstr(line, "vpm1") != NULL) || (strstr(line, "vpp1") != NULL))
+                {
+                    printf("vpm1 and vpp1 are illegal in p+1 work file\n");
+                    break;
+                }
+                result = process_expression(line, metadata, 0, 0);
+                mpz_init(fobj->pp1_obj.vecn[num]);
+                mpz_set_str(fobj->pp1_obj.vecn[num++], result, 0);
+                if (result != NULL)
+                {
+                    free(result);
+                }
+            }
+            fclose(workfile);
+            fobj->pp1_obj.vecnum = num;
+            printf("read %d inputs from %s\n", num, fobj->pp1_obj.vpp1_work_file);
+        }
+
         vecPP1(fobj);
         break;
 
     case 77:
         // vpm1
+        {
+            FILE* workfile;
+            char* line;
+            char* result;
+            int linesize;
+            int num = 0;
+
+            workfile = fopen(fobj->pm1_obj.vpm1_work_file, "r");
+            if (workfile == NULL)
+            {
+                printf("could not open %s\n", fobj->pm1_obj.vpm1_work_file);
+                break;
+            }
+
+            while (num < 8)
+            {
+                // read the next non-blank line
+                if ((line = get_full_line(NULL, &linesize, workfile)) == NULL)
+                {
+                    break;
+                }
+
+                //size_n = mpz_inp_str(N[k], workfile, 0);
+                // remember input string (? for logfile purposes ?)
+                // run it through the calculator to evaluate any expressions.
+                // make sure the expression doesn't contain vpp1 or vpm1 
+                // to prevent infinite loops.
+                if ((strstr(line, "vpm1") != NULL) || (strstr(line, "vpp1") != NULL))
+                {
+                    printf("vpm1 and vpp1 are illegal in p+1 work file\n");
+                    break;
+                }
+                result = process_expression(line, metadata, 0, 0);
+                mpz_init(fobj->pm1_obj.vecn[num]);
+                mpz_set_str(fobj->pm1_obj.vecn[num++], result, 0);
+                if (result != NULL)
+                {
+                    free(result);
+                }
+            }
+            fclose(workfile);
+            fobj->pm1_obj.vecnum = num;
+            printf("read %d inputs from %s\n", num, fobj->pm1_obj.vpm1_work_file);
+        }
+
         vecPM1(fobj);
         break;
 

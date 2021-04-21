@@ -109,11 +109,14 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32_t B1;
+	uint64_t B1;
 	uint64_t B2;
 	int stg2_is_default;
 	double ttime;
 	uint32_t base;				//we compute base^B1
+    char vpm1_work_file[256];
+    mpz_t vecn[8];
+    int vecnum;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double pm1_exponent;
@@ -125,12 +128,15 @@ typedef struct
 {
 	mpz_t gmp_n;
 	mpz_t gmp_f;
-	uint32_t B1;
+	uint64_t B1;
 	uint64_t B2;
 	int stg2_is_default;
 	double ttime;
 	uint32_t base;				//we compute base^B1
 	uint32_t numbases;
+    char vpp1_work_file[256];
+    mpz_t vecn[8];
+    int vecnum;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double pp1_exponent;

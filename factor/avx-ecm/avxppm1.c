@@ -72,7 +72,7 @@ void vecLucasV(vec_monty_t* mdata, uint64_t j, vec_bignum_t *v)
     //for lucas V sequences.  Algorithm described by Mersenne Wiki entry.
     //montgomery ladder powering algorithm...
 
-    uint8_t t, bi[32];
+    uint8_t t, bi[64];
     int i;
     vec_bignum_t *x = mdata->mtmp1;
     vec_bignum_t* y = mdata->mtmp2;
@@ -617,7 +617,7 @@ void vecPP1(fact_obj_t* fobj)
     // The inputs should be about the same size so that all can use 
     // the same multplier lengths.  We use the longest one necessary
     // for all inputs.
-    int i, stg1i;
+    int i;
     vec_bignum_t* vecV;
     mpz_t N[VECLEN], r, g;
     int verbose = fobj->VFLAG;
@@ -636,15 +636,7 @@ void vecPP1(fact_obj_t* fobj)
     uint32_t size_n;
     int isMersenne = 0, allMersenne = 1, forceNoMersenne = 0;
     uint64_t vecbase[VECLEN];
-    FILE* workfile;
-
-    workfile = fopen("pp1_work.ini", "r");
-    if (workfile == NULL)
-    {
-        printf("could not open pp1_work.ini\n");
-        return;
-    }
-
+    
     rangemin = 0;
     rangemax = MIN(STAGE1_MAX + 1000, (uint64_t)PRIME_RANGE);
 
@@ -662,13 +654,10 @@ void vecPP1(fact_obj_t* fobj)
     mpz_init(g);
 
     int k = 0;
-    while ((~feof(workfile)) && (k < VECLEN))
+    while (k < fobj->pp1_obj.vecnum)
     {
         mpz_init(N[k]);
-        size_n = mpz_inp_str(N[k], workfile, 0);
-
-        if (size_n == 0)
-            break;
+        mpz_set(N[k], fobj->pp1_obj.vecn[k]);
 
         // check for Mersenne inputs
         size_n = mpz_sizeinbase(N[k], 2);
@@ -790,7 +779,7 @@ void vecPP1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pp1: commencing parallel P+1 on %Zd\n", N[k]);
+            gmp_printf("pp1: commencing parallel P+1 to B1 = %lu on %Zd\n", STAGE1_MAX, N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
@@ -825,13 +814,7 @@ void vecPP1(fact_obj_t* fobj)
         k++;
     }
 
-    fclose(workfile);
-
     montyconst = vec_monty_alloc(nmaxwords);
-
-    //montyconst->NBLOCKS = nblocks;
-    //montyconst->NWORDS = nwords;
-    //montyconst->MAXBITS = maxbits;
 
     montyconst->NBLOCKS = nmaxwords / BLOCKWORDS;
     montyconst->NWORDS = nmaxwords;
@@ -869,7 +852,7 @@ void vecPP1(fact_obj_t* fobj)
         else
         {
             montyconst->isMersenne = allMersenne;
-            //montyconst->nbits = mpz_sizeinbase(N, 2);
+            montyconst->nbits = maxinbits;
             mpz_set_ui(r, 1);
             mpz_mul_2exp(r, r, montyconst->MAXBITS);
             mpz_invert(montyconst->nhat, N[i], r);
@@ -1058,12 +1041,12 @@ void vecPP1(fact_obj_t* fobj)
         pp1_prac(vecV, q, vecB, vecC, vecT1, vecT2, montyconst);
         i++;
 
-        if ((fobj->VFLAG > 0) && ((i & 1048575) == 0))
+        if ((fobj->VFLAG > 0) && ((i & 131071) == 0))
         {
             printf("pp1: @ p = %lu\r", q);
         }
     }
-    if ((fobj->VFLAG > 0) && (i > 1048575))
+    if ((fobj->VFLAG > 0) && (i > 131071))
     {
         printf("\n");
     }
@@ -1072,6 +1055,39 @@ void vecPP1(fact_obj_t* fobj)
     vecFree(vecC);
     vecFree(vecT1);
     vecFree(vecT2);
+
+    if (fobj->ecm_obj.save_b1)
+    {
+        FILE *save = fopen("save_vpp1_b1.txt", "a");
+
+        if (save != NULL)
+        {
+            mpz_t tmpV;
+            mpz_init(tmpV);
+            for (i = 0; i < VECLEN; i++)
+            {
+                extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
+
+                // take out of Monty
+                extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+                mpz_mul(r, r, tmpV);
+                mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+                mpz_mul(r, r, N[i]);
+                mpz_add(r, r, tmpV);
+                mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+                if (mpz_cmp(r, N[i]) > 0)
+                {
+                    mpz_sub(r, r, N[i]);
+                }
+
+                fprintf(save, "METHOD=PP1; B1=%"PRIu64"; ", STAGE1_MAX);
+                gmp_fprintf(save, "N=0x%Zx; ", N[i]);
+                gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-PP1;\n", r);
+            }
+            mpz_clear(tmpV);
+            fclose(save);
+        }
+    }
 
     // extract and check for factors
     vecCopy(vecV, montyconst->mtmp1);
@@ -1087,14 +1103,18 @@ void vecPP1(fact_obj_t* fobj)
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
+            char* s = mpz_get_str(NULL, 10, N[i]);
+            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            free(s);
+
             //check if the factor is prime
             if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
                 gmp_printf("pp1: found prp%d factor = %Zd in p+1 stage 1, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found prp%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
@@ -1103,13 +1123,25 @@ void vecPP1(fact_obj_t* fobj)
                 gmp_printf("pp1: found c%d factor = %Zd in p+1 stage 1, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found c%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
 
             mpz_tdiv_q(N[i], N[i], g);
+            s = mpz_get_str(NULL, 10, N[i]);
+            if (is_mpz_prp(N[i], fobj->NUM_WITNESSES))
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is prp%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            else
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is c%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            free(s);
             found[i] = 1;
         }
     }
@@ -1172,14 +1204,18 @@ void vecPP1(fact_obj_t* fobj)
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
+            char* s = mpz_get_str(NULL, 10, N[i]);
+            logprint_oc(fobj->flogname, "a", "AVX-PP1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            free(s);
+
             //check if the factor is prime
             if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
                 gmp_printf("pp1: found prp%d factor = %Zd in p+1 stage 2, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found prp%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
@@ -1188,13 +1224,25 @@ void vecPP1(fact_obj_t* fobj)
                 gmp_printf("pp1: found c%d factor = %Zd in p+1 stage 2, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found c%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
 
             mpz_tdiv_q(N[i], N[i], g);
+            s = mpz_get_str(NULL, 10, N[i]);
+            if (is_mpz_prp(N[i], fobj->NUM_WITNESSES))
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is prp%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            else
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is c%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            free(s);
         }
     }
     ecm_clear(params);
@@ -1210,7 +1258,9 @@ void vecPP1(fact_obj_t* fobj)
     soe_finalize(sdata);
     vec_monty_free(montyconst);
     for (i = 0; i < k; i++)
+    {
         mpz_clear(N[i]);
+    }
     mpz_clear(r);
     mpz_clear(g);
     free(ppm1_primes);
@@ -1223,7 +1273,7 @@ void vecPM1(fact_obj_t* fobj)
     // The inputs should be about the same size so that all can use 
     // the same multplier lengths.  We use the longest one necessary
     // for all inputs.
-    int i, stg1i;
+    int i;
     vec_bignum_t* vecV;
     mpz_t N[VECLEN], r, g, e;
     int verbose = fobj->VFLAG;
@@ -1242,14 +1292,6 @@ void vecPM1(fact_obj_t* fobj)
     uint32_t size_n;
     int isMersenne = 0, allMersenne = 1, forceNoMersenne = 0;
     uint64_t vecbase[VECLEN];
-    FILE* workfile;
-
-    workfile = fopen("pm1_work.ini", "r");
-    if (workfile == NULL)
-    {
-        printf("could not open pm1_work.ini\n");
-        return;
-    }
 
     rangemin = 0;
     rangemax = MIN(STAGE1_MAX, (uint64_t)PRIME_RANGE);
@@ -1269,21 +1311,28 @@ void vecPM1(fact_obj_t* fobj)
     mpz_init(e);
 
     int k = 0;
-    while ((~feof(workfile)) && (k < VECLEN))
+    while (k < fobj->pm1_obj.vecnum)
     {
         mpz_init(N[k]);
-        size_n = mpz_inp_str(N[k], workfile, 0);
-
-        if (size_n == 0)
-            break;
+        mpz_set(N[k], fobj->pm1_obj.vecn[k]);
 
         // check for Mersenne inputs
         size_n = mpz_sizeinbase(N[k], 2);
 
         if (size_n > maxinbits)
+        {
             maxinbits = size_n;
-
+        }
+        
         /*
+        // how do we treat cases where some inputs have special form and others don't?
+        // or if some special-form numbers are cheaper to test without the special form
+        // and others aren't?
+        // we could treat all as non-special.
+        // we could treat all as special (if supported).
+        // we could abort.  
+        // I think it's best to warn of the odd-case and continue as all-special 
+        // if possible.  if mixed inputs, treat all as non-special.
         for (i = size_n; i < 2048; i++)
         {
             mpz_set_ui(r, 1);
@@ -1319,9 +1368,10 @@ void vecPM1(fact_obj_t* fobj)
                 break;
             }
         }
+        */
 
         // if the input is Mersenne and still contains algebraic factors, remove them.
-        if (abs(isMersenne) == 1)
+        if (0) //(abs(isMersenne) == 1)
         {
 #ifdef USE_NFS
             snfs_t poly;
@@ -1354,7 +1404,7 @@ void vecPM1(fact_obj_t* fobj)
             snfs_clear(&poly);
 #endif
         }
-        */
+        
 
         // compute NBLOCKS if using the actual size of the input (non-Mersenne)
         if (DIGITBITS == 52)
@@ -1397,7 +1447,7 @@ void vecPM1(fact_obj_t* fobj)
 
         if (verbose > 0)
         {
-            gmp_printf("pm1: commencing parallel P-1 on %Zd\n", N[k]);
+            gmp_printf("pm1: commencing parallel P-1 @ B1=%lu on %Zd\n", STAGE1_MAX, N[k]);
         }
 
         if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
@@ -1431,8 +1481,6 @@ void vecPM1(fact_obj_t* fobj)
 
         k++;
     }
-
-    fclose(workfile);
 
     montyconst = vec_monty_alloc(nmaxwords);
 
@@ -1640,46 +1688,6 @@ void vecPM1(fact_obj_t* fobj)
     vecFree(A);
     vecFree(T);
 
-    //i = 0;
-    //while (ppm1_primes[i] < STAGE1_MAX)
-    //{
-    //    //compute more primes if we need to.  it is more efficient to 
-    //    //get a large chunk, even if we won't use them all.
-    //    if ((uint64_t)i >= ppm1_nump)
-    //    {
-    //        rangemin += PRIME_RANGE;
-    //        rangemax = MIN(STAGE1_MAX + 1000, rangemin + PRIME_RANGE);
-    //        ppm1_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ppm1_nump, 0, 0);
-    //        ppm1_minp = ppm1_primes[0];
-    //        ppm1_maxp = ppm1_primes[ppm1_nump - 1];
-    //
-    //        if (verbose > 1)
-    //        {
-    //            printf("pm1: found %lu primes in range [%lu : %lu]\n", ppm1_nump, rangemin, rangemax);
-    //        }
-    //        i = 0;
-    //    }
-    //
-    //    uint64_t q;
-    //    int e;
-    //    q = ppm1_primes[i];
-    //    e = floor(log(STAGE1_MAX) / log(q));
-    //
-    //    q = (uint64_t)pow(q, e);
-    //
-    //    vecmodexp_1(vecV, q, montyconst);
-    //    if ((fobj->VFLAG > 0) && ((i & 1048575) == 0))
-    //    {
-    //        printf("pm1: @ p = %lu\r", q);
-    //    }
-    //
-    //    i++;
-    //}
-    //if ((fobj->VFLAG > 0) && (i > 1048575))
-    //{
-    //    printf("\n");
-    //}
-
     // extract and check for factors
     vecsubmod_ptr(vecV, montyconst->one, montyconst->mtmp1, montyconst);
     int found[VECLEN];
@@ -1692,14 +1700,18 @@ void vecPM1(fact_obj_t* fobj)
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
+            char* s = mpz_get_str(NULL, 10, N[i]);
+            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            free(s);
+
             //check if the factor is prime
             if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
                 gmp_printf("pm1: found prp%d factor = %Zd in p-1 stage 1, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found prp%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
@@ -1708,13 +1720,25 @@ void vecPM1(fact_obj_t* fobj)
                 gmp_printf("pm1: found c%d factor = %Zd in p-1 stage 1, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found c%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
 
             mpz_tdiv_q(N[i], N[i], g);
+            s = mpz_get_str(NULL, 10, N[i]);
+            if (is_mpz_prp(N[i], fobj->NUM_WITNESSES))
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is prp%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            else
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is c%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            free(s);
             found[i] = 1;
         }
     }
@@ -1724,6 +1748,39 @@ void vecPM1(fact_obj_t* fobj)
     if (verbose > 0)
     {
         printf("pm1: Stage1 took %1.4f seconds.\n", t_time);
+    }
+
+    if (fobj->ecm_obj.save_b1)
+    {
+        FILE* save = fopen("save_vpm1_b1.txt", "a");
+
+        if (save != NULL)
+        {
+            mpz_t tmpV;
+            mpz_init(tmpV);
+            for (i = 0; i < VECLEN; i++)
+            {
+                extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
+
+                // take out of Monty
+                extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+                mpz_mul(r, r, tmpV);
+                mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+                mpz_mul(r, r, N[i]);
+                mpz_add(r, r, tmpV);
+                mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+                if (mpz_cmp(r, N[i]) > 0)
+                {
+                    mpz_sub(r, r, N[i]);
+                }
+
+                fprintf(save, "METHOD=PM1; B1=%"PRIu64"; ", STAGE1_MAX);
+                gmp_fprintf(save, "N=0x%Zx; ", N[i]);
+                gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-PP1;\n", r);
+            }
+            mpz_clear(tmpV);
+            fclose(save);
+        }
     }
 
     // use gmp-ecm internal stage 2.
@@ -1777,14 +1834,18 @@ void vecPM1(fact_obj_t* fobj)
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
+            char* s = mpz_get_str(NULL, 10, N[i]);
+            logprint_oc(fobj->flogname, "a", "AVX-PM1 with B1 = %lu on %s\n", STAGE1_MAX, s);
+            free(s);
+
             //check if the factor is prime
             if (is_mpz_prp(g, fobj->NUM_WITNESSES))
             {
                 gmp_printf("pm1: found prp%d factor = %Zd in p-1 stage 2, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "prp%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found prp%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
@@ -1793,13 +1854,25 @@ void vecPM1(fact_obj_t* fobj)
                 gmp_printf("pm1: found c%d factor = %Zd in p-1 stage 2, lane %d\n",
                     gmp_base10(g), g, i);
 
-                char* s = mpz_get_str(NULL, 10, g);
-                logprint_oc(fobj->flogname, "a", "c%d = %s\n",
+                s = mpz_get_str(NULL, 10, g);
+                logprint_oc(fobj->flogname, "a", "found c%d = %s\n",
                     gmp_base10(g), s);
                 free(s);
             }
 
             mpz_tdiv_q(N[i], N[i], g);
+            s = mpz_get_str(NULL, 10, N[i]);
+            if (is_mpz_prp(N[i], fobj->NUM_WITNESSES))
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is prp%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            else
+            {
+                logprint_oc(fobj->flogname, "a", "cofactor is c%d = %s\n",
+                    gmp_base10(N[i]), s);
+            }
+            free(s);
         }
     }
     ecm_clear(params);
@@ -1815,7 +1888,9 @@ void vecPM1(fact_obj_t* fobj)
     soe_finalize(sdata);
     vec_monty_free(montyconst);
     for (i = 0; i < k; i++)
+    {
         mpz_clear(N[i]);
+    }
     mpz_clear(r);
     mpz_clear(g);
     mpz_clear(e);
