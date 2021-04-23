@@ -23,6 +23,7 @@ code to the public domain.
 #include "factor.h"
 #include "ytools.h"
 #include "arith.h"
+#include <stdio.h>
 #include <gmp_xface.h>
 
 
@@ -38,5 +39,9 @@ extern void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     int save_b1, uint32_t* curves_run);
 extern void vecPP1(fact_obj_t* fobj);
 extern void vecPM1(fact_obj_t* fobj);
+
+
+
+int print_B1B2(fact_obj_t* fobj, FILE* fid);
 
 #endif // #ifndef _YECM_H_

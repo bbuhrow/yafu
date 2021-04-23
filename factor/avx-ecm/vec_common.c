@@ -29,6 +29,15 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "avx_ecm.h"
 
+
+// define function pointers to the type of reduction needed
+void(*vecmulmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+void(*vecsqrmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+void(*vecaddmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+void(*vecsubmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+void(*vecaddsubmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+
+
 vec_bignum_t * vecInit(uint32_t words)
 {
     int i;

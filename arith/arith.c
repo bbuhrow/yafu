@@ -21,6 +21,7 @@ code to the public domain.
 #include "arith.h"
 #include "ytools.h"
 #include "common.h"
+#include <math.h>
 
 uint64_t mpz_get_64(mpz_t src)
 {

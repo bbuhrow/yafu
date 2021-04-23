@@ -112,10 +112,10 @@ ifeq ($(SKYLAKEX),1)
 		INC +=  -I../../ecm-install/mingw/7.0.4/include/
 		LIBS += -L../../ecm-install/mingw/7.0.4/lib/
 	else
-		INC += -I../../gmp_install/gmp-6.2.0/include
-		LIBS += -L../../gmp_install/gmp-6.2.0/lib/
-		INC += -I../../ecm_install/include/
-		LIBS += -L../../ecm_install/lib/
+		INC += -I../../gmp-install/wsl/6.1.2/include
+		LIBS += -L../../gmp-install/wsl/6.1.2/lib/
+		INC += -I../../ecm-install/wsl/include/
+		LIBS += -L../../ecm-install/wsl/lib/
 	endif	
 else
 	OBJ_EXT = .o
@@ -182,7 +182,7 @@ ifeq ($(NFS),1)
 			ifeq ($(MINGW),1)
 				LIBS += -L../../msieve/lib/mingw/
 			else
-				LIBS += -L../../msieve/lib/linux/
+				LIBS += -L../../msieve/lib/wsl/
 			endif
         endif
 	endif
@@ -198,7 +198,7 @@ ifeq ($(MINGW),1)
 	LIBS += -lecm /g/projects/factoring/gmp-install/mingw/6.2.0/lib/libgmp.a -lytools -lysieve
 	#LIBS += -lecm -lgmp -lytools -lysieve
 else
-	LIBS += -lecm ~/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
+	LIBS += -lecm /mnt/g/projects/factoring/gmp-install/wsl/6.1.2/lib/libgmp.a -lytools -lysieve
 	#LIBS += -lecm -lgmp -lytools -lysieve
 endif
 

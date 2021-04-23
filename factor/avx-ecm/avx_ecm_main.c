@@ -32,6 +32,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "ytools.h"
 #include "nfs_impl.h"
+#include <math.h>
 
 // performance comparison
 // http://www.mersenneforum.org/showthread.php?t=16480&page=20

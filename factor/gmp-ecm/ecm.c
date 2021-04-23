@@ -51,7 +51,6 @@ typedef struct {
 } ecm_thread_data_t;
 
 void* ecm_do_one_curve(void* ptr);
-int print_B1B2(fact_obj_t* fobj, FILE* fid);
 void ecmexit(int sig);
 void ecm_process_init(fact_obj_t* fobj);
 void ecm_process_free(fact_obj_t* fobj);

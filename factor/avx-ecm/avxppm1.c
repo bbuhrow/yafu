@@ -58,13 +58,7 @@ http://www.gnu.org/licenses/ or write to the Free Software Foundation, Inc.,
 #include "nfs_impl.h"
 #include <stdio.h>
 #include <ecm.h>
-
-// define function pointers to the type of reduction needed
-void(*vecmulmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
-void(*vecsqrmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
-void(*vecaddmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
-void(*vecsubmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
-void(*vecaddsubmod_ptr)(vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_bignum_t*, vec_monty_t*);
+#include <math.h>
 
 void vecLucasV(vec_monty_t* mdata, uint64_t j, vec_bignum_t *v)
 {
@@ -633,7 +627,7 @@ void vecPP1(fact_obj_t* fobj)
     uint64_t STAGE1_MAX = fobj->pp1_obj.B1;
     uint64_t STAGE2_MAX = 100 * fobj->pp1_obj.B1;
     uint64_t PRIME_RANGE = 100000000;
-    uint32_t size_n;
+    uint32_t size_n = 0;
     int isMersenne = 0, allMersenne = 1, forceNoMersenne = 0;
     uint64_t vecbase[VECLEN];
     
@@ -1064,7 +1058,7 @@ void vecPP1(fact_obj_t* fobj)
         {
             mpz_t tmpV;
             mpz_init(tmpV);
-            for (i = 0; i < VECLEN; i++)
+            for (i = 0; i < k; i++)
             {
                 extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
 
@@ -1080,7 +1074,7 @@ void vecPP1(fact_obj_t* fobj)
                     mpz_sub(r, r, N[i]);
                 }
 
-                fprintf(save, "METHOD=PP1; B1=%"PRIu64"; ", STAGE1_MAX);
+                fprintf(save, "METHOD=P+1; B1=%"PRIu64"; ", STAGE1_MAX);
                 gmp_fprintf(save, "N=0x%Zx; ", N[i]);
                 gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-PP1;\n", r);
             }
@@ -1758,7 +1752,7 @@ void vecPM1(fact_obj_t* fobj)
         {
             mpz_t tmpV;
             mpz_init(tmpV);
-            for (i = 0; i < VECLEN; i++)
+            for (i = 0; i < k; i++)
             {
                 extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
 
@@ -1774,9 +1768,9 @@ void vecPM1(fact_obj_t* fobj)
                     mpz_sub(r, r, N[i]);
                 }
 
-                fprintf(save, "METHOD=PM1; B1=%"PRIu64"; ", STAGE1_MAX);
+                fprintf(save, "METHOD=P-1; B1=%"PRIu64"; ", STAGE1_MAX);
                 gmp_fprintf(save, "N=0x%Zx; ", N[i]);
-                gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-PP1;\n", r);
+                gmp_fprintf(save, "X=0x%Zx; PROGRAM=AVX-PM1;\n", r);
             }
             mpz_clear(tmpV);
             fclose(save);
