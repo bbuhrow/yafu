@@ -200,7 +200,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
         if (fobj->LOGFLAG)
         {
             print_job(&jobs[i], flog);
-            fclose(flog);
+            if (flog != NULL) fclose(flog);
         }
 
 		gettimeofday(&start, NULL);
@@ -416,7 +416,7 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 
         if (fobj->LOGFLAG)
         {
-            fclose(flog);
+            if (flog != NULL) fclose(flog);
         }
 
 		remove(tmpbuf); // clean up after ourselves

@@ -1386,7 +1386,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 		logprint(flog,"current ECM pretesting depth: %1.2f\n", work_done);
 		logprint(flog,"scheduled %u curves at B1=%u toward target "
 			"pretesting depth of %1.2f\n", fwork->curves, fwork->B1, target_digits);
-		fclose(flog);
+        if (flog != NULL) fclose(flog);
 	}
 
 	return;
@@ -1676,8 +1676,16 @@ void factor(fact_obj_t *fobj)
     if (fobj->LOGFLAG)
     {
         flog = fopen(fobj->flogname, "a");
-        logprint(flog, "\n");
-        logprint(flog, "****************************\n");
+        if (flog == NULL)
+        {
+            printf("could not open %s to append\n", fobj->flogname);
+            flog = NULL;
+        }
+        else
+        {
+            logprint(flog, "\n");
+            logprint(flog, "****************************\n");
+        }
 
 		char *s;
 		s = mpz_get_str(NULL, 10, b);
@@ -1746,7 +1754,7 @@ void factor(fact_obj_t *fobj)
     }
 
 	logprint(flog,"****************************\n");
-	fclose(flog);
+	if (flog != NULL) fclose(flog);
 
 	fobj->autofact_obj.autofact_active = 1;
 
@@ -1946,7 +1954,7 @@ void factor(fact_obj_t *fobj)
                 if (fobj->LOGFLAG)
                 {
                     logprint(flog, "\testimated sum of completed work is t%1.2f\n", work_done);
-                    fclose(flog);
+                    if (flog != NULL) fclose(flog);
                 }
                 fact_state = state_done;
             }

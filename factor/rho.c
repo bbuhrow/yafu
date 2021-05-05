@@ -153,7 +153,7 @@ void brent_loop(fact_obj_t *fobj)
 	fobj->rho_obj.ttime = tt;
     if (fobj->LOGFLAG)
     {
-        fclose(flog);
+        if (flog != NULL) fclose(flog);
     }
 	mpz_clear(d);
 	mpz_clear(t);

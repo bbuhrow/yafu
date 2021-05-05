@@ -95,7 +95,7 @@ void zTrial(fact_obj_t *fobj)
 
     if (fobj->LOGFLAG)
     {
-        fclose(flog);
+        if (flog != NULL) fclose(flog);
     }
 
 	mpz_clear(tmp);
@@ -202,7 +202,7 @@ void factor_perfect_power(fact_obj_t *fobj, mpz_t b)
 
     if (fobj->LOGFLAG)
     {
-        fclose(flog);
+        if (flog != NULL) fclose(flog);
     }
 
 	return;
@@ -284,7 +284,7 @@ void zFermat(uint64_t limit, uint32_t mult, fact_obj_t *fobj)
         
         if (fobj->LOGFLAG)
         {
-            fclose(flog);
+            if (flog != NULL) fclose(flog);
         }
 		return;
 	}

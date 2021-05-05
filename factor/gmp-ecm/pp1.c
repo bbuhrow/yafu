@@ -116,7 +116,8 @@ void williams_loop(fact_obj_t *fobj)
 	//expects the input in pp1_obj->gmp_n
 	mpz_t d,t;
 	int i,it,trials = fobj->pp1_obj.numbases;
-	clock_t start, stop;
+    clock_t start = clock();
+    clock_t stop = clock();
 	double tt;
 		
 	//check for trivial cases

@@ -511,9 +511,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
                     if (fobj->LOGFLAG)
                     {
                         FILE* f = fopen(fobj->flogname, "a");
-                        logprint(f, "nfs: using supplied cofactor: ");
-                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                        fclose(f);
+                        if (f != NULL)
+                        {
+                            logprint(f, "nfs: using supplied cofactor: ");
+                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                            fclose(f);
+                        }
                     }
 					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 				}
@@ -593,9 +596,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
                     if (fobj->LOGFLAG)
                     {
                         FILE* f = fopen(fobj->flogname, "a");
-                        logprint(f, "nfs: using supplied cofactor: ");
-                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                        fclose(f);
+                        if (f != NULL)
+                        {
+                            logprint(f, "nfs: using supplied cofactor: ");
+                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                            fclose(f);
+                        }
                     }
 					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 				}
@@ -642,9 +648,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
                 if (fobj->LOGFLAG)
                 {
                     FILE* f = fopen(fobj->flogname, "a");
-                    logprint(f, "nfs: using supplied cofactor: ");
-                    gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                    fclose(f);
+                    if (f != NULL)
+                    {
+                        logprint(f, "nfs: using supplied cofactor: ");
+                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                        fclose(f);
+                    }
                 }
 				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 			}
@@ -674,9 +683,12 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
                 if (fobj->LOGFLAG)
                 {
                     FILE* f = fopen(fobj->flogname, "a");
-                    logprint(f, "nfs: using supplied cofactor: ");
-                    gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                    fclose(f);
+                    if (f != NULL)
+                    {
+                        logprint(f, "nfs: using supplied cofactor: ");
+                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                        fclose(f);
+                    }
                 }
 				mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 			}
@@ -828,9 +840,12 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
                         if (fobj->LOGFLAG)
                         {
                             FILE* f = fopen(fobj->flogname, "a");
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
+                            if (f != NULL)
+                            {
+                                logprint(f, "nfs: using supplied cofactor: ");
+                                gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                                fclose(f);
+                            }
                         }
 						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 					}
@@ -856,9 +871,12 @@ void find_hcunn_form(fact_obj_t *fobj, snfs_t *form)
                         if (fobj->LOGFLAG)
                         {
                             FILE* f = fopen(fobj->flogname, "a");
-                            logprint(f, "nfs: using supplied cofactor: ");
-                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                            fclose(f);
+                            if (f != NULL)
+                            {
+                                logprint(f, "nfs: using supplied cofactor: ");
+                                gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                                fclose(f);
+                            }
                         }
 						mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 					}
@@ -936,9 +954,12 @@ void find_xyyxf_form(fact_obj_t *fobj, snfs_t *form)
                     if (fobj->LOGFLAG)
                     {
                         FILE* f = fopen(fobj->flogname, "a");
-                        logprint(f, "nfs: using supplied cofactor: ");
-                        gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
-                        fclose(f);
+                        if (f != NULL)
+                        {
+                            logprint(f, "nfs: using supplied cofactor: ");
+                            gmp_fprintf(f, "%Zd\n", fobj->nfs_obj.snfs_cofactor);
+                            fclose(f);
+                        }
                     }
 					mpz_set(form->n, fobj->nfs_obj.snfs_cofactor);
 				}
@@ -1214,18 +1235,24 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
         if (mpz_cmp(poly->primitive, poly->n) == 0)
         {
             FILE* f = fopen(fobj->flogname, "a");
-            logprint(f, "nfs: commencing snfs on c%d primitive factor: ",
-                gmp_base10(poly->primitive));
-            gmp_fprintf(f, "%Zd\n", poly->primitive);
-            fclose(f);
+            if (f != NULL)
+            {
+                logprint(f, "nfs: commencing snfs on c%d primitive factor: ",
+                    gmp_base10(poly->primitive));
+                gmp_fprintf(f, "%Zd\n", poly->primitive);
+                fclose(f);
+            }
         }
         else
         {
             FILE* f = fopen(fobj->flogname, "a");
-            logprint(f, "nfs: commencing snfs on c%d: ",
-                gmp_base10(poly->n));
-            gmp_fprintf(f, "%Zd\n", poly->n);
-            fclose(f);
+            if (f != NULL)
+            {
+                logprint(f, "nfs: commencing snfs on c%d: ",
+                    gmp_base10(poly->n));
+                gmp_fprintf(f, "%Zd\n", poly->n);
+                fclose(f);
+            }
         }
     }
 
@@ -2347,9 +2374,12 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
     if (fobj->LOGFLAG)
     {
         f = fopen(fobj->flogname, "a");
-        logprint(f, "nfs: commencing snfs on c%d: ", gmp_base10(poly->n));
-        gmp_fprintf(f, "%Zd\n", poly->n);
-        fclose(f);
+        if (f != NULL)
+        {
+            logprint(f, "nfs: commencing snfs on c%d: ", gmp_base10(poly->n));
+            gmp_fprintf(f, "%Zd\n", poly->n);
+            fclose(f);
+        }
     }
 
 	npoly = 0;

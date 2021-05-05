@@ -1538,14 +1538,17 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     if (strlen(options->opfile) > 0)
     {
         fobj->autofact_obj.want_output_primes = 1;
+        strcpy(fobj->autofact_obj.op_str, options->opfile);
     }
     if (strlen(options->offile) > 0)
     {
         fobj->autofact_obj.want_output_factors = 1;
+        strcpy(fobj->autofact_obj.of_str, options->offile);
     }
     if (strlen(options->oufile) > 0)
     {
         fobj->autofact_obj.want_output_unfactored = 1;
+        strcpy(fobj->autofact_obj.ou_str, options->oufile);
     }
 
     fobj->autofact_obj.qs_gnfs_xover = options->xover;

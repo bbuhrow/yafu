@@ -11,6 +11,6 @@
 	/>
 	<Tool
 		Name="VCLinkerTool"
-		AdditionalDependencies="..\..\..\..\mpir\lib\$(PlatformName)\$(ConfigurationName)\mpir.lib ..\..\..\..\gmp-ecm\lib\$(PlatformName)\$(ConfigurationName)\ecm.lib"
+		AdditionalDependencies="..\..\..\..\mpir\lib\$(PlatformName)\$(ConfigurationName)\mpir.lib ..\..\..\..\gmp-ecm\lib\$(PlatformName)\$(ConfigurationName)\libecm.lib"
 	/>
 </VisualStudioPropertySheet>

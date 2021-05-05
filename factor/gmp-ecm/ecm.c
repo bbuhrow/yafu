@@ -866,7 +866,7 @@ void *ecm_do_one_curve(void *ptr)
 
 			break;
 		}
-		fclose(fid);
+        if (fid != NULL) fclose(fid);
 
         if (thread_data->resume_avx_ecm)
         {
