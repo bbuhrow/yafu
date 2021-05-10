@@ -1298,6 +1298,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->pm1_obj.pm1_multiplier = 0;
     fobj->pm1_obj.pm1_tune_freq = 0;
     strncpy(fobj->pm1_obj.vpm1_work_file, options->vpm1_work_file, 256);
+    strncpy(fobj->pm1_obj.resume_file, options->resume_file, 256);
 
     // initialize stuff for pp1	
     fobj->pp1_obj.B1 = options->B1pp1;
@@ -1308,6 +1309,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->pp1_obj.pp1_tune_freq = 0;
     fobj->pp1_obj.lcg_state = hash64(lcg_rand_64(&fobj->lcg_state));
     strncpy(fobj->pp1_obj.vpp1_work_file, options->vpp1_work_file, 256);
+    strncpy(fobj->pp1_obj.resume_file, options->resume_file, 256);
 
     // initialize stuff for ecm	
     fobj->ecm_obj.B1 = options->B1ecm;

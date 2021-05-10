@@ -231,7 +231,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     //initialize the block
     BLOCK_INIT;
 
-    //#define TEST_SIEVE
+//#define TEST_SIEVE
 
     bound = full_fb->fb_15bit_B - 16;
 
@@ -399,7 +399,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         }
         printf("\n");
         _mm256_store_si256((__m256i*)r_id2, vprime);
-        printf("primes @ i = %u: ", i);
+        printf("primes that hit block @ i = %u: ", i);
         for (j = 0; j < 16; j++)
         {
             printf("%04x, ", r_id2[j]);
@@ -452,7 +452,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         }
         printf("\n");
         _mm256_store_si256((__m256i*)r_id2, vprime);
-        printf("primes @ i = %u: ", i);
+        printf("primes that hit block @ i = %u: ", i);
         for (j = 0; j < 16; j++)
         {
             printf("%04x, ", r_id2[j]);
@@ -505,7 +505,7 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         }
         printf("\n");
         _mm256_store_si256((__m256i*)r_id2, vprime);
-        printf("primes @ i = %u: ", i);
+        printf("primes where root1 hits block @ i = %u: ", i);
         for (j = 0; j < 16; j++)
         {
             printf("%04x, ", r_id2[j]);
@@ -555,7 +555,6 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
         if (prime == 0)
             continue;
 
-        SIEVE_2X;
         SIEVE_1X;
         SIEVE_LAST;
         UPDATE_ROOTS;

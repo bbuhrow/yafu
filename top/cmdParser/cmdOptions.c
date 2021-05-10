@@ -71,7 +71,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "ecmtime", "no_clk_test", "siqsTFSm", "script", "degree",
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
-    "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file" };
+    "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
+    "resume"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -166,7 +167,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): Digit level below which SIQS in-memory is used (no savefile)",
     "                  : Use GMP-ECM for stage 2",
     "(String)          : Filename for vecP+1 work input", 
-    "(String)          : Filename for vecP-1 work input"};
+    "(String)          : Filename for vecP-1 work input",
+    "(String)          : Filename to resume parallel P+1 or P-1" };
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -191,7 +193,8 @@ int needsArg[NUMOPTIONS] = {
     1,0,1,1,1,
     1,1,0,1,1,
     1,1,1,0,0,
-    0,1,0,1,1 };
+    0,1,0,1,1,
+    1};
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -213,7 +216,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "", 
-    "", "", "", "", ""};
+    "", "", "", "", "",
+    ""};
 
 
 
@@ -941,6 +945,13 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else
             printf("*** argument to vpm1_work_file too long, ignoring ***\n");
     }
+    else if (strcmp(opt, OptionArray[90]) == 0)
+    {
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->resume_file, arg);
+        else
+            printf("*** argument to resume too long, ignoring ***\n");
+    }
     else
     {
         int i;
@@ -1120,7 +1131,7 @@ options_t* initOpt(void)
     options->fermat_max = 1000000;
     strcpy(options->vpp1_work_file, "pp1_work.ini");
     strcpy(options->vpm1_work_file, "pm1_work.ini");
-    
+    strcpy(options->resume_file, "");
     
     // ========================================================================
     return options;

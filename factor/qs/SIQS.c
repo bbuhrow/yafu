@@ -1891,6 +1891,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->poly_batchsize = 1;
         dconf->buckets = (lp_bucket *)malloc(sizeof(lp_bucket));
         dconf->buckets->list = NULL;
+        dconf->buckets->list_size = 0;
         dconf->buckets->alloc_slices = 0;
         dconf->buckets->num_slices = 0;
     }
