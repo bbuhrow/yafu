@@ -108,7 +108,7 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
     mpz_set(src_cp, src);
 
     i = 0;
-    vec_dest->size = 0;
+    //vec_dest->size = 0;
     while (mpz_cmp_ui(src_cp, 0) > 0)
     {
         base_t thisword = mpz_get_ui(src_cp) & VEC_MAXDIGIT;
@@ -321,10 +321,25 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     tdata[0].NBLOCKS = montyconst->NBLOCKS = nblocks;
     tdata[0].NWORDS = montyconst->NWORDS = nwords;
 
+    if (verbose > 1)
+    {
+        printf("ECM has been configured with DIGITBITS = %u, VECLEN = %d, GMP_LIMB_BITS = %d\n",
+            DIGITBITS, VECLEN, GMP_LIMB_BITS);
+
+        printf("Choosing MAXBITS = %u, NWORDS = %d, NBLOCKS = %d based on input size %d\n",
+            tdata[0].MAXBITS, tdata[0].NWORDS, tdata[0].NBLOCKS, size_n);
+
+        if (sigma > 0)
+        {
+            printf("starting with sigma = %lu\n", sigma);
+        }
+    }
+
     if (isMersenne != 0)
     {
         montyconst->isMersenne = isMersenne;
         montyconst->nbits = size_n;
+        montyconst->use_vnbits = 0;             // all lanes use the same N.
         mpz_set(montyconst->nhat, N);           // remember input N
         // do all math w.r.t the Mersenne number
         mpz_set_ui(N, 1);
@@ -346,6 +361,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     {
         montyconst->isMersenne = 0;
         montyconst->nbits = mpz_sizeinbase(N, 2);
+        montyconst->use_vnbits = 0;             // all lanes use the same N.
         mpz_set_ui(r, 1);
         mpz_mul_2exp(r, r, DIGITBITS * tdata[0].NWORDS);
         //gmp_printf("r = (1 << %d) = %Zd\n", DIGITBITS * NWORDS, r);
@@ -360,19 +376,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         broadcast_mpz_to_vec(montyconst->one, r);
     }
 
-    if (verbose > 1)
-    {
-        printf("ECM has been configured with DIGITBITS = %u, VECLEN = %d, GMP_LIMB_BITS = %d\n",
-            DIGITBITS, VECLEN, GMP_LIMB_BITS);
-
-        printf("Choosing MAXBITS = %u, NWORDS = %d, NBLOCKS = %d based on input size %d\n",
-            tdata[0].MAXBITS, tdata[0].NWORDS, tdata[0].NBLOCKS, size_n);
-
-        if (sigma > 0)
-        {
-            printf("starting with sigma = %lu\n", sigma);
-        }
-    }
+    
 
     tdata[0].STAGE1_MAX = b1;
     tdata[0].DO_STAGE2 = 1;
@@ -423,6 +427,101 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     {
         montyconst->vrho[i] = mpz_get_ui(montyconst->nhat) & VEC_MAXDIGIT;
     }
+
+    // test karatsuba
+    if (0)
+    {
+        mpz_t a, b, c;
+        gmp_randstate_t grnd;
+        uint64_t lcg_state;
+        uint32_t sz;
+
+        mpz_init(a);
+        mpz_init(b);
+        mpz_init(c);
+        gmp_randinit_default(grnd);
+
+        vec_bignum_t *va, *vb, *vc, * vkc, *vn, *vt;
+
+        va = vecInit(montyconst->NWORDS);
+        vb = vecInit(montyconst->NWORDS);
+        vc = vecInit(montyconst->NWORDS);
+        vkc = vecInit(montyconst->NWORDS);
+        vn = vecInit(montyconst->NWORDS);
+        vt = vecInit(montyconst->NWORDS);
+
+        mpz_urandomb(a, grnd, montyconst->MAXBITS);
+        mpz_nextprime(a, a);
+        lcg_state = mpz_get_ui(a);
+        sz = lcg_rand_32_range(montyconst->MAXBITS/2, montyconst->MAXBITS, &lcg_state);
+        if ((sz & 1) == 0)
+            sz--;
+
+        printf("\nsize is %u\n", sz);
+
+        montyconst->isMersenne = 1;
+        montyconst->nbits = sz;
+        montyconst->use_vnbits = 0;             // all lanes use the same N.
+        
+
+        // do a non-kara mul for reference
+        vecmulmod_ptr = &vecmulmod52_mersenne;
+        vecsqrmod_ptr = &vecsqrmod52_mersenne;
+        //vecmulmod_ptr = &veckmul_mersenne;
+        //vecsqrmod_ptr = &vecksqr_mersenne;
+        vecaddmod_ptr = &vecaddmod52_mersenne;
+        vecsubmod_ptr = &vecsubmod52_mersenne;
+        vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
+
+        montyconst->isMersenne = 1;
+        mpz_set_ui(c, 1);
+        mpz_mul_2exp(c, c, sz);
+        mpz_sub_ui(c, c, 1);
+        insert_mpz_to_vec(vn, c, i);
+        mpz_set(montyconst->nhat, c);           // remember input N
+        // do all math w.r.t the Mersenne number
+        broadcast_mpz_to_vec(montyconst->n, c);
+        broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
+        mpz_set_ui(r, 1);
+        broadcast_mpz_to_vec(montyconst->one, r);
+
+        for (i = 0; i < VECLEN; i++)
+        {
+            mpz_urandomb(a, grnd, sz);
+            mpz_nextprime(a, a);
+            insert_mpz_to_vec(va, a, i);
+            mpz_urandomb(b, grnd, sz);
+            mpz_nextprime(b, b);
+            insert_mpz_to_vec(vb, b, i);
+
+            insert_mpz_to_vec(vn, c, i);
+
+            gmp_printf("a%d: %Zx\n", i, a);
+            gmp_printf("b%d: %Zx\n", i, b);
+            gmp_printf("n%d: %Zx\n", i, c);
+        }
+
+        vecmulmod_ptr(va, vb, vc, vn, vt, montyconst);
+
+        vecmulmod_ptr = &veckmul_mersenne;
+        vecsqrmod_ptr = &vecksqr_mersenne;
+
+        vecmulmod_ptr(va, vb, vkc, vn, vt, montyconst);
+
+        for (i = 0; i < VECLEN; i++)
+        {
+            extract_bignum_from_vec_to_mpz(a, vc, i, montyconst->NWORDS);
+            extract_bignum_from_vec_to_mpz(b, vkc, i, 2*montyconst->NWORDS);
+
+            gmp_printf("sch%d: %Zx\n", i, a);
+            gmp_printf("kar%d: %Zx\n", i, b);
+        }
+
+        exit(1);
+    }
+
+
+
     
     if (DIGITBITS == 52)
     {
@@ -443,6 +542,8 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         {
             vecmulmod_ptr = &vecmulmod52_mersenne;
             vecsqrmod_ptr = &vecsqrmod52_mersenne;
+            //vecmulmod_ptr = &veckmul_mersenne;
+            //vecsqrmod_ptr = &vecksqr_mersenne;
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
@@ -918,6 +1019,7 @@ void thread_init(thread_data_t *tdata, vec_monty_t *mdata, uint64_t B1, uint64_t
     vecCopy(mdata->vnhat, tdata->mdata->vnhat);
     vecCopy(mdata->vrhat, tdata->mdata->vrhat);
     tdata->mdata->nbits = mdata->nbits;
+    tdata->mdata->use_vnbits = 0;             // all lanes use the same N.
     tdata->mdata->isMersenne = mdata->isMersenne;
     memcpy(tdata->mdata->vrho, mdata->vrho, VECLEN * sizeof(base_t));
 

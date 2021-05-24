@@ -399,6 +399,19 @@ void get_params(static_conf_t *sconf)
         {320,	99745 ,	140,	16, 1.8, 0, 0},     // 95 digits
         {330,	115500, 150,    16, 1.8, 0, 0},     // 100 digits 
 
+        /* These are the DLP numbers (guesses) */
+        {340,	139120, 150,    12, 1.85, 0, 2},
+        {350,	166320, 150,    14, 1.85, 0, 2},        // 105 digits
+        {360,   199584, 150,    14, 1.85, 0, 2},
+        {370,	239500, 150,    16, 1.9, 0, 2},        // 110 digits
+        {380,	287400, 175,    16, 1.9, 0, 2},
+        {390,	344881, 175,    18, 1.9, 0, 2},
+        {400,	413857, 175,    20, 1.9, 0, 2},        // 120 digits
+        {410,	496628, 175,    22, 1.9, 0, 2},
+
+
+        /* These are the TLP numbers (guesses)
+
         // row 22
         {340,	72000, 27,    6  , 1.9, 2.6, 3},          // here we start using TLP: 3rd column is LPB in bits
         {350,	80880,  27,    6 , 1.9, 2.6, 3},         // 105 digits
@@ -411,7 +424,7 @@ void get_params(static_conf_t *sconf)
         {462,	750000, 32,    16, 1.95, 2.95, 2},        // 140 digits
 
 
-        /* These were the DLP numbers (guesses)
+        // These were the DLP numbers (guesses)
 
         {340,	138600, 150,    18},     // above 100 it is basically guesswork
         {350,	166320, 150,    18},     // 105 digits
@@ -503,9 +516,9 @@ void get_params(static_conf_t *sconf)
 		sconf->large_mult = 40;
 		sconf->num_blocks = 1;
 	}
-	else if (bits <= 330)       // up to 100 digits, above that we use TLP
+	else if (bits <= 1000)       // up to 100 digits, above that we use TLP
 	{
-        for (i = 0; i <= 20; i++)
+        for (i = 0; i < NUM_PARAM_ROWS - 1; i++)
         {
             if (bits > param_table[i][0] && bits <= param_table[i + 1][0])
             {

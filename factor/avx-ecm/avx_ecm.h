@@ -107,9 +107,12 @@ typedef struct
     uint32_t MAXBITS;
     uint32_t NWORDS;
     uint32_t NBLOCKS;
+    int *vnbits;
+    int use_vnbits;
 } vec_monty_t;
 
 void print_hexbignum(vec_bignum_t *a, const char *pre);
+void print_vechexbignum(vec_bignum_t* a, const char* pre);
 void print_hex(vec_bignum_t *a, const char *pre);
 void print_vechex(base_t *a, int v, int n, const char *pre);
 vec_monty_t * vec_monty_alloc(uint32_t words);
@@ -143,6 +146,15 @@ uint32_t vec_bignum52_mask_lshift_n(vec_bignum_t * u, int n, uint32_t wmask);
 uint32_t vec_eq52(base_t * u, base_t * v, int sz);
 uint32_t vec_gte52(vec_bignum_t * u, vec_bignum_t * v);
 void vec_bignum52_add_1(vec_bignum_t *a, base_t *b, vec_bignum_t *c);
+void vec_bignum52_add(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
+void vec_bignum52_sub(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c);
+
+void vecmod_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* s, vec_monty_t* mdata);
+void vecmul52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void veckmul(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata);
+void vecksqr_mersenne(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+void veckmul_mersenne(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata);
+
 
 // 32-BIT functions
 void vecmulmod(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t *mdata);

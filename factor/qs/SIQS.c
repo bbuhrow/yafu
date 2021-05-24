@@ -2604,6 +2604,10 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
             sconf->pmax);
 	}
 
+    //printf("large mult is %u, pmax is %u\n", sconf->large_mult, sconf->pmax);
+    //printf("large prime max is %u, gbl_override_lpb is %u\n", 
+    //    sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
+
 	// lpmax from parameters and/or user specifications
     if (sconf->large_mult > 1000)
     {

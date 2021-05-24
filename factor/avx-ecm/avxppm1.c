@@ -615,7 +615,8 @@ void vecPP1(fact_obj_t* fobj)
     vec_bignum_t* vecV;
     mpz_t N[VECLEN], r, g;
     int verbose = fobj->VFLAG;
-    uint32_t maxbits, nwords, nblocks, nmaxwords = 0, maxinbits = 0;
+    uint32_t maxbits, nwords = 0, nblocks, nmaxwords = 0, maxinbits = 0;
+    uint32_t vnwords[VECLEN], vsize[VECLEN], visMersenne[VECLEN];
     vec_monty_t* montyconst;
     // these track the range over which we currently have a prime list.
     uint64_t rangemin;
@@ -654,13 +655,13 @@ void vecPP1(fact_obj_t* fobj)
         mpz_set(N[k], fobj->pp1_obj.vecn[k]);
 
         // check for Mersenne inputs
-        size_n = mpz_sizeinbase(N[k], 2);
+        vsize[k] = mpz_sizeinbase(N[k], 2);
 
-        if (size_n > maxinbits)
-            maxinbits = size_n;
+        if (vsize[k] > maxinbits)
+            maxinbits = vsize[k];
 
-        /*
-        for (i = size_n; i < 2048; i++)
+        
+        for (i = vsize[k]; i < 2048; i++)
         {
             mpz_set_ui(r, 1);
             mpz_mul_2exp(r, r, i);
@@ -668,8 +669,8 @@ void vecPP1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_cmp_ui(g, 0) == 0)
             {
-                size_n = i;
-                isMersenne = 1;
+                vsize[k] = i;
+                visMersenne[k] = 1;
                 break;
             }
 
@@ -679,8 +680,8 @@ void vecPP1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_cmp_ui(g, 0) == 0)
             {
-                size_n = i;
-                isMersenne = -1;
+                vsize[k] = i;
+                visMersenne[k] = -1;
                 break;
             }
 
@@ -690,14 +691,14 @@ void vecPP1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_sizeinbase(g, 2) < DIGITBITS)
             {
-                size_n = i;
-                isMersenne = mpz_get_ui(g);
+                vsize[k] = i;
+                visMersenne[k] = mpz_get_ui(g);
                 break;
             }
         }
 
         // if the input is Mersenne and still contains algebraic factors, remove them.
-        if (abs(isMersenne) == 1)
+        if (abs(visMersenne[k]) == 1)
         {
 #ifdef USE_NFS
             snfs_t poly;
@@ -706,8 +707,8 @@ void vecPP1(fact_obj_t* fobj)
             poly.form_type = SNFS_BRENT;
             mpz_set_ui(poly.base1, 2);
             poly.coeff1 = 1;
-            poly.coeff2 = -isMersenne;
-            poly.exp1 = size_n;
+            poly.coeff2 = -1 * (int)visMersenne[k];
+            poly.exp1 = vsize[k];
             find_primitive_factor(&poly, fobj->primes, fobj->num_p, verbose);
 
             mpz_tdiv_q(g, N[k], poly.primitive);
@@ -715,22 +716,13 @@ void vecPP1(fact_obj_t* fobj)
 
             if (mpz_cmp_ui(g, 1) > 0)
             {
-                add_to_factor_list(fobj->factors, g,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
-
-                int fid = fobj->factors->num_factors - 1;
-
-                fobj->factors->factors[fid].tid = 0;
-                fobj->factors->factors[fid].curve_num = 0;
-                fobj->factors->factors[fid].sigma = 0;
-                fobj->factors->factors[fid].vid = 0;
-                fobj->factors->factors[fid].method = 0;
+                gmp_printf("removing algebraic factor %Zd from input %d\n", g, k);
             }
 
             snfs_clear(&poly);
 #endif
         }
-        */
+        
 
         // compute NBLOCKS if using the actual size of the input (non-Mersenne)
         if (DIGITBITS == 52)
@@ -750,14 +742,16 @@ void vecPP1(fact_obj_t* fobj)
             }
         }
 
-        nwords = maxbits / DIGITBITS;
+        vnwords[k] = maxbits / DIGITBITS;
+
+        nwords = MAX(nwords, vnwords[k]);
         nblocks = nwords / BLOCKWORDS;
 
         // and compute NBLOCKS if using Mersenne mod
         if (DIGITBITS == 52)
         {
             maxbits = 208;
-            while (maxbits <= size_n)
+            while (maxbits <= vsize[k])
             {
                 maxbits += 208;
             }
@@ -765,7 +759,7 @@ void vecPP1(fact_obj_t* fobj)
         else
         {
             maxbits = 128;
-            while (maxbits <= size_n)
+            while (maxbits <= vsize[k])
             {
                 maxbits += 128;
             }
@@ -780,21 +774,30 @@ void vecPP1(fact_obj_t* fobj)
         {
             if (verbose > 1)
             {
-                printf("Mersenne input 2^%d - 1 determined to be faster by REDC\n",
-                    size_n);
+                char sign;
+                if (visMersenne[k] > 0) 
+                    sign = '-';
+                else 
+                    sign = '+';
+
+                printf("Mersenne input 2^%d %c %d determined to be faster by REDC\n",
+                    vsize[k], sign, visMersenne[k]);
             }
             forceNoMersenne = 1;
         }
         else
         {
-            nwords = maxbits / DIGITBITS;
+            nwords = MAX(nwords, maxbits / DIGITBITS);
             nblocks = nwords / BLOCKWORDS;
         }
+
+        //forceNoMersenne = 1;
 
         if (forceNoMersenne)
         {
             isMersenne = 0;
-            size_n = mpz_sizeinbase(N[k], 2);
+            allMersenne = 0;
+            vsize[k] = mpz_sizeinbase(N[k], 2);
         }
 
         if (nwords > nmaxwords)
@@ -803,7 +806,10 @@ void vecPP1(fact_obj_t* fobj)
         }
 
         // we can only use Mersenne reduction if they are all the same form
-        allMersenne &= isMersenne;
+        if (k == 0)
+            allMersenne = visMersenne[k];
+        else if (allMersenne != visMersenne[k])
+            allMersenne = 0;
 
         k++;
     }
@@ -820,33 +826,47 @@ void vecPP1(fact_obj_t* fobj)
         vecbase[i] = lcg_rand_32_range(3, 0xffffffff, &fobj->pp1_obj.lcg_state);
     }
 
+    printf("%d inputs: maxinbits = %u, allMersenne = %d, maxbits = %u, maxwords = %u\n",
+        k, maxinbits, allMersenne, montyconst->MAXBITS, montyconst->NWORDS);
+
     for (i = 0; i < k; i++)
     {
         if (allMersenne != 0)
         {
-            montyconst->isMersenne = isMersenne;
-            montyconst->nbits = size_n;
+            montyconst->isMersenne = allMersenne;
+            montyconst->nbits = vsize[i];
+            montyconst->use_vnbits = 1;
+            montyconst->vnbits[i] = vsize[i];
             mpz_set(montyconst->nhat, N[i]);           // remember input N
             // do all math w.r.t the Mersenne number
             mpz_set_ui(N[i], 1);
-            mpz_mul_2exp(N[i], N[i], size_n);
-            if (isMersenne > 0)
+            mpz_mul_2exp(N[i], N[i], vsize[i]);
+            if (allMersenne > 0)
             {
-                mpz_sub_ui(N[i], N[i], isMersenne);
+                mpz_sub_ui(N[i], N[i], allMersenne);
+                if (verbose > 1)
+                {
+                    printf("Using special Mersenne mod for factor of: 2^%d-1\n", vsize[i]);
+                }
             }
             else
             {
                 mpz_add_ui(N[i], N[i], 1);
+                if (verbose > 1)
+                {
+                    printf("Using special Mersenne mod for factor of: 2^%d+1\n", vsize[i]);
+                }
             }
-            broadcast_mpz_to_vec(montyconst->n, N[i]);
-            broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
+            insert_mpz_to_vec(montyconst->n, N[i], i);
+            insert_mpz_to_vec(montyconst->vnhat, montyconst->nhat, i);
             mpz_set_ui(r, 1);
-            broadcast_mpz_to_vec(montyconst->one, r);
+            insert_mpz_to_vec(montyconst->one, r, i);
         }
         else
         {
-            montyconst->isMersenne = allMersenne;
+            montyconst->isMersenne = 0;
             montyconst->nbits = maxinbits;
+            montyconst->use_vnbits = 0;
             mpz_set_ui(r, 1);
             mpz_mul_2exp(r, r, montyconst->MAXBITS);
             mpz_invert(montyconst->nhat, N[i], r);
@@ -894,10 +914,6 @@ void vecPP1(fact_obj_t* fobj)
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
-            }
         }
         else if (montyconst->isMersenne < 0)
         {
@@ -906,10 +922,6 @@ void vecPP1(fact_obj_t* fobj)
             vecaddmod_ptr = &vecaddmod52_mersenne;
             vecsubmod_ptr = &vecsubmod52_mersenne;
             vecaddsubmod_ptr = &vec_simul_addsub52_mersenne;
-            if (verbose > 1)
-            {
-                printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
-            }
         }
         else
         {
@@ -1063,15 +1075,22 @@ void vecPP1(fact_obj_t* fobj)
                 extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
 
                 // take out of Monty
-                extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
-                mpz_mul(r, r, tmpV);
-                mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
-                mpz_mul(r, r, N[i]);
-                mpz_add(r, r, tmpV);
-                mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
-                if (mpz_cmp(r, N[i]) > 0)
+                if (montyconst->isMersenne != 0)
                 {
-                    mpz_sub(r, r, N[i]);
+                    mpz_set(r, tmpV);
+                }
+                else
+                {
+                    extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+                    mpz_mul(r, r, tmpV);
+                    mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+                    mpz_mul(r, r, N[i]);
+                    mpz_add(r, r, tmpV);
+                    mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+                    if (mpz_cmp(r, N[i]) > 0)
+                    {
+                        mpz_sub(r, r, N[i]);
+                    }
                 }
 
                 fprintf(save, "METHOD=P+1; B1=%"PRIu64"; ", STAGE1_MAX);
@@ -1093,7 +1112,18 @@ void vecPP1(fact_obj_t* fobj)
     for (i = 0; i < k; i++)
     {
         extract_bignum_from_vec_to_mpz(r, montyconst->mtmp1, i, nmaxwords);
-        mpz_gcd(g, r, N[i]);
+
+        if (montyconst->isMersenne != 0)
+        {
+            extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, nmaxwords);
+            //gmp_printf("v-2 = %Zd\nn = %Zd\n", r, g);
+            mpz_gcd(g, r, g);
+            //gmp_printf("gcd is %Zd\n", g);
+        }
+        else
+        {
+            mpz_gcd(g, r, N[i]);
+        }
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
@@ -1174,18 +1204,22 @@ void vecPP1(fact_obj_t* fobj)
 
         // grab this lane and take out of Montgomery rep.
         extract_bignum_from_vec_to_mpz(params->x, vecV, i, nmaxwords);
-        extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, nmaxwords);
 
-        mpz_mul(r, params->x, g);
-        mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
-        mpz_mul(r, r, N[i]);
-        mpz_add(r, r, params->x);
-        mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
-        if (mpz_cmp(r, N[i]) > 0)
+        if (!montyconst->isMersenne)
         {
-            mpz_sub(r, r, N[i]);
+            extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, nmaxwords);
+
+            mpz_mul(r, params->x, g);
+            mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+            mpz_mul(r, r, N[i]);
+            mpz_add(r, r, params->x);
+            mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+            if (mpz_cmp(r, N[i]) > 0)
+            {
+                mpz_sub(r, r, N[i]);
+            }
+            mpz_set(params->x, r);
         }
-        mpz_set(params->x, r);
 
         if (fobj->pp1_obj.stg2_is_default == 0)
         {
@@ -1194,7 +1228,15 @@ void vecPP1(fact_obj_t* fobj)
             uint64_2gmp(fobj->pp1_obj.B2, params->B2);
         }
 
-        status = ecm_factor(g, N[i], STAGE1_MAX, params);
+        if (montyconst->isMersenne != 0)
+        {
+            extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+            status = ecm_factor(g, r, STAGE1_MAX, params);
+        }
+        else
+        {
+            status = ecm_factor(g, N[i], STAGE1_MAX, params);
+        }
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
@@ -1271,7 +1313,8 @@ void vecPM1(fact_obj_t* fobj)
     vec_bignum_t* vecV;
     mpz_t N[VECLEN], r, g, e;
     int verbose = fobj->VFLAG;
-    uint32_t maxbits, nwords, nblocks, nmaxwords = 0, maxinbits = 0;
+    uint32_t maxbits, nwords = 0, nblocks, nmaxwords = 0, maxinbits = 0;
+    uint32_t vnwords[VECLEN], vsize[VECLEN], visMersenne[VECLEN];
     vec_monty_t* montyconst;
     // these track the range over which we currently have a prime list.
     uint64_t rangemin;
@@ -1311,23 +1354,13 @@ void vecPM1(fact_obj_t* fobj)
         mpz_set(N[k], fobj->pm1_obj.vecn[k]);
 
         // check for Mersenne inputs
-        size_n = mpz_sizeinbase(N[k], 2);
+        vsize[k] = mpz_sizeinbase(N[k], 2);
 
-        if (size_n > maxinbits)
-        {
-            maxinbits = size_n;
-        }
-        
-        /*
-        // how do we treat cases where some inputs have special form and others don't?
-        // or if some special-form numbers are cheaper to test without the special form
-        // and others aren't?
-        // we could treat all as non-special.
-        // we could treat all as special (if supported).
-        // we could abort.  
-        // I think it's best to warn of the odd-case and continue as all-special 
-        // if possible.  if mixed inputs, treat all as non-special.
-        for (i = size_n; i < 2048; i++)
+        if (vsize[k] > maxinbits)
+            maxinbits = vsize[k];
+
+
+        for (i = vsize[k]; i < 2048; i++)
         {
             mpz_set_ui(r, 1);
             mpz_mul_2exp(r, r, i);
@@ -1335,8 +1368,8 @@ void vecPM1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_cmp_ui(g, 0) == 0)
             {
-                size_n = i;
-                isMersenne = 1;
+                vsize[k] = i;
+                visMersenne[k] = 1;
                 break;
             }
 
@@ -1346,8 +1379,8 @@ void vecPM1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_cmp_ui(g, 0) == 0)
             {
-                size_n = i;
-                isMersenne = -1;
+                vsize[k] = i;
+                visMersenne[k] = -1;
                 break;
             }
 
@@ -1357,15 +1390,14 @@ void vecPM1(fact_obj_t* fobj)
             mpz_mod(g, r, N[k]);
             if (mpz_sizeinbase(g, 2) < DIGITBITS)
             {
-                size_n = i;
-                isMersenne = mpz_get_ui(g);
+                vsize[k] = i;
+                visMersenne[k] = mpz_get_ui(g);
                 break;
             }
         }
-        */
 
         // if the input is Mersenne and still contains algebraic factors, remove them.
-        if (0) //(abs(isMersenne) == 1)
+        if (abs(visMersenne[k]) == 1)
         {
 #ifdef USE_NFS
             snfs_t poly;
@@ -1374,8 +1406,8 @@ void vecPM1(fact_obj_t* fobj)
             poly.form_type = SNFS_BRENT;
             mpz_set_ui(poly.base1, 2);
             poly.coeff1 = 1;
-            poly.coeff2 = -isMersenne;
-            poly.exp1 = size_n;
+            poly.coeff2 = -1 * (int)visMersenne[k];
+            poly.exp1 = vsize[k];
             find_primitive_factor(&poly, fobj->primes, fobj->num_p, verbose);
 
             mpz_tdiv_q(g, N[k], poly.primitive);
@@ -1383,22 +1415,13 @@ void vecPM1(fact_obj_t* fobj)
 
             if (mpz_cmp_ui(g, 1) > 0)
             {
-                add_to_factor_list(fobj->factors, g,
-                    fobj->VFLAG, fobj->NUM_WITNESSES);
-
-                int fid = fobj->factors->num_factors - 1;
-
-                fobj->factors->factors[fid].tid = 0;
-                fobj->factors->factors[fid].curve_num = 0;
-                fobj->factors->factors[fid].sigma = 0;
-                fobj->factors->factors[fid].vid = 0;
-                fobj->factors->factors[fid].method = 0;
+                gmp_printf("removing algebraic factor %Zd from input %d\n", g, k);
             }
 
             snfs_clear(&poly);
 #endif
         }
-        
+
 
         // compute NBLOCKS if using the actual size of the input (non-Mersenne)
         if (DIGITBITS == 52)
@@ -1418,14 +1441,16 @@ void vecPM1(fact_obj_t* fobj)
             }
         }
 
-        nwords = maxbits / DIGITBITS;
+        vnwords[k] = maxbits / DIGITBITS;
+
+        nwords = MAX(nwords, vnwords[k]);
         nblocks = nwords / BLOCKWORDS;
 
         // and compute NBLOCKS if using Mersenne mod
         if (DIGITBITS == 52)
         {
             maxbits = 208;
-            while (maxbits <= size_n)
+            while (maxbits <= vsize[k])
             {
                 maxbits += 208;
             }
@@ -1433,7 +1458,7 @@ void vecPM1(fact_obj_t* fobj)
         else
         {
             maxbits = 128;
-            while (maxbits <= size_n)
+            while (maxbits <= vsize[k])
             {
                 maxbits += 128;
             }
@@ -1448,21 +1473,30 @@ void vecPM1(fact_obj_t* fobj)
         {
             if (verbose > 1)
             {
-                printf("Mersenne input 2^%d - 1 determined to be faster by REDC\n",
-                    size_n);
+                char sign;
+                if (visMersenne[k] > 0)
+                    sign = '-';
+                else
+                    sign = '+';
+
+                printf("Mersenne input 2^%d %c %d determined to be faster by REDC\n",
+                    vsize[k], sign, visMersenne[k]);
             }
             forceNoMersenne = 1;
         }
         else
         {
-            nwords = maxbits / DIGITBITS;
+            nwords = MAX(nwords, maxbits / DIGITBITS);
             nblocks = nwords / BLOCKWORDS;
         }
+
+        //forceNoMersenne = 1;
 
         if (forceNoMersenne)
         {
             isMersenne = 0;
-            size_n = mpz_sizeinbase(N[k], 2);
+            allMersenne = 0;
+            vsize[k] = mpz_sizeinbase(N[k], 2);
         }
 
         if (nwords > nmaxwords)
@@ -1471,7 +1505,10 @@ void vecPM1(fact_obj_t* fobj)
         }
 
         // we can only use Mersenne reduction if they are all the same form
-        allMersenne &= isMersenne;
+        if (k == 0)
+            allMersenne = visMersenne[k];
+        else if (allMersenne != visMersenne[k])
+            allMersenne = 0;
 
         k++;
     }
@@ -1492,33 +1529,48 @@ void vecPM1(fact_obj_t* fobj)
         vecbase[i] = 3;
     }
 
+    printf("%d inputs: maxinbits = %u, allMersenne = %d, maxbits = %u, maxwords = %u\n",
+        k, maxinbits, allMersenne, montyconst->MAXBITS, montyconst->NWORDS);
+
+    // montyconst setup
     for (i = 0; i < k; i++)
     {
         if (allMersenne != 0)
         {
-            montyconst->isMersenne = isMersenne;
-            montyconst->nbits = size_n;
+            montyconst->isMersenne = allMersenne;
+            montyconst->nbits = vsize[i];
+            montyconst->use_vnbits = 1;
+            montyconst->vnbits[i] = vsize[i];
             mpz_set(montyconst->nhat, N[i]);           // remember input N
             // do all math w.r.t the Mersenne number
             mpz_set_ui(N[i], 1);
-            mpz_mul_2exp(N[i], N[i], size_n);
-            if (isMersenne > 0)
+            mpz_mul_2exp(N[i], N[i], vsize[i]);
+            if (allMersenne > 0)
             {
-                mpz_sub_ui(N[i], N[i], isMersenne);
+                mpz_sub_ui(N[i], N[i], allMersenne);
+                if (verbose > 1)
+                {
+                    printf("Using special Mersenne mod for factor of: 2^%d-1\n", vsize[i]);
+                }
             }
             else
             {
                 mpz_add_ui(N[i], N[i], 1);
+                if (verbose > 1)
+                {
+                    printf("Using special Mersenne mod for factor of: 2^%d+1\n", vsize[i]);
+                }
             }
-            broadcast_mpz_to_vec(montyconst->n, N[i]);
-            broadcast_mpz_to_vec(montyconst->vnhat, montyconst->nhat);
+            insert_mpz_to_vec(montyconst->n, N[i], i);
+            insert_mpz_to_vec(montyconst->vnhat, montyconst->nhat, i);
             mpz_set_ui(r, 1);
-            broadcast_mpz_to_vec(montyconst->one, r);
+            insert_mpz_to_vec(montyconst->one, r, i);
         }
         else
         {
-            montyconst->isMersenne = allMersenne;
-            montyconst->nbits = maxinbits; // mpz_sizeinbase(N, 2);
+            montyconst->isMersenne = 0;
+            montyconst->nbits = maxinbits;
+            montyconst->use_vnbits = 0;
             mpz_set_ui(r, 1);
             mpz_mul_2exp(r, r, montyconst->MAXBITS);
             mpz_invert(montyconst->nhat, N[i], r);
@@ -1690,7 +1742,16 @@ void vecPM1(fact_obj_t* fobj)
     {
         found[i] = 0;
         extract_bignum_from_vec_to_mpz(r, montyconst->mtmp1, i, nmaxwords);
-        mpz_gcd(g, r, N[i]);
+
+        if (montyconst->isMersenne != 0)
+        {
+            extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, nmaxwords);
+            mpz_gcd(g, r, g);
+        }
+        else
+        {
+            mpz_gcd(g, r, N[i]);
+        }
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
@@ -1756,16 +1817,23 @@ void vecPM1(fact_obj_t* fobj)
             {
                 extract_bignum_from_vec_to_mpz(tmpV, vecV, i, nmaxwords);
 
-                // take out of Monty
-                extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
-                mpz_mul(r, r, tmpV);
-                mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
-                mpz_mul(r, r, N[i]);
-                mpz_add(r, r, tmpV);
-                mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
-                if (mpz_cmp(r, N[i]) > 0)
+                if (montyconst->isMersenne != 0)
                 {
-                    mpz_sub(r, r, N[i]);
+                    mpz_set(r, tmpV);
+                }
+                else
+                {
+                    // take out of Monty
+                    extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+                    mpz_mul(r, r, tmpV);
+                    mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+                    mpz_mul(r, r, N[i]);
+                    mpz_add(r, r, tmpV);
+                    mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+                    if (mpz_cmp(r, N[i]) > 0)
+                    {
+                        mpz_sub(r, r, N[i]);
+                    }
                 }
 
                 fprintf(save, "METHOD=P-1; B1=%"PRIu64"; ", STAGE1_MAX);
@@ -1802,20 +1870,23 @@ void vecPM1(fact_obj_t* fobj)
         if (fobj->VFLAG >= 3)
             params->verbose = fobj->VFLAG - 2;
 
-        // grab this lane and take out of Montgomery rep.
         extract_bignum_from_vec_to_mpz(params->x, vecV, i, montyconst->NWORDS);
-        extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, montyconst->NWORDS);
-
-        mpz_mul(r, params->x, g);
-        mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
-        mpz_mul(r, r, N[i]);
-        mpz_add(r, r, params->x);
-        mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
-        if (mpz_cmp(r, N[i]) > 0)
+        if (montyconst->isMersenne == 0)
         {
-            mpz_sub(r, r, N[i]);
+            // grab this lane and take out of Montgomery rep.
+            extract_bignum_from_vec_to_mpz(g, montyconst->vnhat, i, montyconst->NWORDS);
+
+            mpz_mul(r, params->x, g);
+            mpz_tdiv_r_2exp(r, r, montyconst->MAXBITS);
+            mpz_mul(r, r, N[i]);
+            mpz_add(r, r, params->x);
+            mpz_tdiv_q_2exp(r, r, montyconst->MAXBITS);
+            if (mpz_cmp(r, N[i]) > 0)
+            {
+                mpz_sub(r, r, N[i]);
+            }
+            mpz_set(params->x, r);
         }
-        mpz_set(params->x, r);
 
         if (fobj->pm1_obj.stg2_is_default == 0)
         {
@@ -1824,7 +1895,15 @@ void vecPM1(fact_obj_t* fobj)
             uint64_2gmp(fobj->pm1_obj.B2, params->B2);
         }
 
-        status = ecm_factor(g, N[i], STAGE1_MAX, params);
+        if (montyconst->isMersenne != 0)
+        {
+            extract_bignum_from_vec_to_mpz(r, montyconst->vnhat, i, nmaxwords);
+            status = ecm_factor(g, r, STAGE1_MAX, params);
+        }
+        else
+        {
+            status = ecm_factor(g, N[i], STAGE1_MAX, params);
+        }
 
         if ((mpz_cmp_ui(g, 1) > 0) && (mpz_cmp(g, N[i]) < 0))
         {
