@@ -4230,11 +4230,25 @@ int free_siqs(static_conf_t *sconf)
 #define NUM_TEST_PRIMES 300
 #define NUM_MULTIPLIERS (sizeof(mult_list)/sizeof(uint8_t))
 
-static const uint8_t mult_list[] =
+static const uint8_t mult_list_orig[] =
 { 1, 2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19,
  21, 22, 23, 26, 29, 30, 31, 33, 34, 35, 37, 38,
  39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
  61, 62, 65, 66, 67, 69, 70, 71, 73 };
+
+static const uint8_t mult_list[] = {
+1  ,   2  ,   3  ,   5  ,   6  ,   7  ,   9  ,  10  ,  11  ,  13  ,  14  ,
+15 ,   17 ,   19 ,   21 ,   22 ,   23 ,   25 ,   26 ,   29 ,   30 ,   31 ,
+33 ,   34 ,   35 ,   37 ,   38 ,   39 ,   41 ,   42 ,   43 ,   45 ,   46 ,
+47 ,   49 ,   51 ,   53 ,   55 ,   57 ,   58 ,   59 ,   61 ,   62 ,   63 ,
+65 ,   66 ,   67 ,   69 ,   70 ,   71 ,   73 ,   75 ,   77 ,   79 ,   83 ,
+85 ,   87 ,   89 ,   91 ,   93 ,   95 ,   97 ,  101 ,  103 ,  105 ,  107 ,
+109,   111,   113,   115,   119,   121,   123,   127,   129,   131,   133,
+137,   139,   141,   143,   145,   147,   149,   151,   155,   157,   159,
+161,   163,   165,   167,   173,   177,   179,   181,   183,   185,   187,
+191,   193,   195,   197,   199,   201,   203,   205,   209,   211,   213,
+215,   217,   219,   223,   227,   229,   231,   233,   235,   237,   239,
+241,   249,   251,   253,   255 };
 
 uint8_t choose_multiplier_siqs(uint32_t B, mpz_t n) 
 {
@@ -4324,16 +4338,27 @@ uint8_t choose_multiplier_siqs(uint32_t B, mpz_t n)
 	}
 
 	/* use the multiplier that generates the best score */
-
+    double best_score_below_73 = 1000.0;
+    uint8_t best_mult_below_73 = 1;
 	best_score = 1000.0;
 	best_mult = 1;
 	for (i = 0; i < num_multipliers; i++) {
 		double score = scores[i];
+        if ((score < best_score_below_73) && (mult_list[i] <= 73)) {
+            best_score_below_73 = score;
+            best_mult_below_73 = mult_list[i];
+        }
 		if (score < best_score) {
 			best_score = score;
 			best_mult = mult_list[i];
 		}
 	}
+    if (best_mult_below_73 != best_mult)
+    {
+        gmp_printf("n = %Zd\n", n);
+        printf("found better multiplier: %u, compare to original list's best: %u\n",
+            best_mult, best_mult_below_73);
+    }
 	return best_mult;
 }
 
