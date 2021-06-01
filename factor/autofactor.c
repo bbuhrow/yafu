@@ -1094,7 +1094,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 
 #ifdef USE_NFS
 	if ((fobj->autofact_obj.has_snfs_form == 1) && (fobj->nfs_obj.gnfs == 0) && 
-        (strcmp(fobj->autofact_obj.plan_str,"normal") == 0) &&
+        (strcmp(fobj->autofact_obj.plan_str,"custom") != 0) &&
         (fobj->autofact_obj.only_pretest <= 1))
 	{
 		// 1) we found a snfs polynomial for the input.

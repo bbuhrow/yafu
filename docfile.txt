@@ -446,6 +446,10 @@ Various k*b^n+c including:
 	(Note that for large b, cases with k>1 or abs(c)>1 may not be detected)
 Homogeneous Cunningham numbers (a^n +/- b^n, where a,b <= 12 and gcd(a,b) == 1)
 XYYXF numbers (x^y + y^x, where 1<y<x<151)
+Inputs constructed from sums of multiples of a common root m=b^p, e.g.:
+    c5*m^5 + c4*m^4 + c3*m^3 + c2*m^2 + c1*m + c0
+    where the absolute valud of all cn are < 10000, b ranges from 2 to 19, and p
+    from 2 to 75*log(10)/log(b).
 
 snfs supports all the command line flags for nfs, as well as one additional flag:
 -testsieve <num>	Number of digits beyond which yafu will test sieve the top
@@ -472,7 +476,7 @@ the siqs factoring method.  uses the double large prime variation, small prime v
 bucket sieving, and too many other optimizations to mention. post-processing is 
 performed using a port of Jason Papadopoulos's msieve filtering and block Lanczos implementations.
 Best if used for inputs < 105 digits.  Above that, parameter settings
-have not been tested much.  Hard cap at 150 digits.  
+have not been tested much.  
 
 An abort signal (ctrl-c) will stop a factorization in progress.  state will be saved
 in siqs.dat (default) or a different file specified with the -qssave switch.  factorizations
@@ -486,6 +490,9 @@ command line flags affecting siqs:
 -siqsR <num>	Stop after finding num relations in siqs
 -siqsT <num>	Stop after num seconds in siqs
 -threads <num>	Use num sieving threads in SIQS and ECM
+-inmem <num>    Inputs with less than <num> digits will not store relations
+                to a savefile, instead keeping all data in memory.  This can be
+                faster, but inputs will not be able to be resumed if aborted.
 -v 		        Use to increase verbosity of output, can be used multiple times
 
 
@@ -529,13 +536,23 @@ command line flags affecting factor:
 				equivalent to the specified t-level.  In other words, if you know 
 				that an input has received ~900 ecm curves at B1=1M, then 
 				specify –work 35.  This value may be input as floating point.
--xover <num>		Use this option to specify the decimal digit size beyond which nfs
+-xover <num>		Use this option to specify the decimal digit size beyond which gnfs
 				should be used instead of qs.  Specifying this option overrides
+				any crossover point computed from tuning data.  May be entered
+				as a floating point number.
+-snfs_xover <num>		Use this option to specify the decimal digit size beyond which snfs
+				should be used instead of qs.  This should be smaller than -xover, since
+                snfs is usually faster than gfns.  Specifying this option overrides
 				any crossover point computed from tuning data.  May be entered
 				as a floating point number.
 -pretest [num]	Use this switch with factor() for ECM pretesting of the input number.
 				Optionally provide an integer value specifing the maximum level of
 				pretesting to do (up to "num" digits, or a t-level of "num")
+
+
+The factor() function will also check to see if the input has a SNFS form.  If it does,
+and if one of the default plans have been selected, and if you haven't also specified
+-gnfs as an option, then any subsequent ECM work will be reduced.
 
 
 [pm1]

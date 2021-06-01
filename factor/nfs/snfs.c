@@ -991,12 +991,17 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
     int c[7];
     mpz_t t, r, g, n, m;
 
+    //struct timeval stopt;	// stop time of this job
+    //struct timeval startt;	// start time of this job
+    //double t_time;
+
     // find the following forms:
     // c1*m^n + c2*m^(n-1) + c3*m^(n-2) ... + cn
     // where c1...cn are all small, m=b^p, and nmax = 6.
     // then c1...cn are the coefficients of the algebraic polynomial,
     // Y1=-1, Y0=m is the rational polynomial, and n is the degree.
     // we search b=2..12 and p such that m<10^75 or so.
+    //gettimeofday(&startt, NULL);
 
     mpz_init(t);
     mpz_init(g);
@@ -1038,7 +1043,6 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                     c[i] = mpz_get_ui(r);
                     mpz_sub_ui(t, t, c[i]);
                     mpz_tdiv_q(t, t, m);
-                    //gmp_printf("c%d = %d, t is now %Zd\n", i, c[i], t);
                 }
                 else
                 {
@@ -1049,7 +1053,6 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                         c[i] = -mpz_get_ui(r);
                         mpz_add_ui(t, t, -c[i]);
                         mpz_tdiv_q(t, t, m);
-                        //gmp_printf("c%d = %d, t is now %Zd\n", i, c[i], t);
                     }
                     else
                     {
@@ -1059,11 +1062,14 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                 }
             }
 
+            // our test mpz 't' must now be 0 for the input to be represented by any
+            // small-coefficient form we may have found.
             if (mpz_cmp_ui(t, 0) > 0)
             {
                 found = 0;
             }
 
+            // also, insist that we have at least degree 4.
             if (deg < 4)
             {
                 found = 0;
@@ -1130,6 +1136,11 @@ done:
     mpz_clear(g);
     mpz_clear(r);
     mpz_clear(n);
+
+    //gettimeofday(&stopt, NULL);
+    //t_time = ytools_difftime(&startt, &stopt);
+    //printf("direct search took %lf seconds\n", t_time);
+
     return;
 }
 
