@@ -1105,7 +1105,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// however we also need to check if easier by gnfs... this involves a little more work.
 		// This work will be duplicated if we actually get to SNFS (i.e., we don't find an
 		// ECM factor), but this goes fast.
-		// temporarily set verbosity high so we don't spam the screen.  
+		// temporarily set verbosity silent so we don't spam the screen.  
 		int tmpV = fobj->VFLAG;
 		snfs_t *polys = NULL;
 		int npoly;

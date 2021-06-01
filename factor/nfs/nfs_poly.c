@@ -93,7 +93,20 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
     if (poly->form_type == SNFS_NONE)
     {
         if (fobj->VFLAG >= 0) printf("nfs: searching for direct special forms...\n");
+        // if this is a factor() run, restore the original input number so that we 
+        // can detect these forms
+        if (fobj->autofact_obj.autofact_active)
+        {
+            mpz_set(fobj->nfs_obj.snfs_cofactor, fobj->nfs_obj.gmp_n);
+            mpz_set(fobj->nfs_obj.gmp_n, fobj->N);
+        }
+
         find_direct_form(fobj, poly);
+
+        if (fobj->autofact_obj.autofact_active)
+        {
+            mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
+        }
     }
 
 	if (poly->form_type == SNFS_NONE)

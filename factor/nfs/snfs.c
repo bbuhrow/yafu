@@ -1005,6 +1005,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
     mpz_init(m);
 
     mpz_set(n, fobj->nfs_obj.gmp_n);
+    //mpz_set(n, fobj->N);
 
     for (b = 19; b > 1; b--)
     {
@@ -1041,8 +1042,20 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                 }
                 else
                 {
-                    found = 0;
-                    break;
+                    mpz_sub(r, m, r);
+                    if (mpz_cmp_ui(r, 10000) < 1)
+                    {
+                        deg = i;
+                        c[i] = -mpz_get_ui(r);
+                        mpz_add_ui(t, t, -c[i]);
+                        mpz_tdiv_q(t, t, m);
+                        //gmp_printf("c%d = %d, t is now %Zd\n", i, c[i], t);
+                    }
+                    else
+                    {
+                        found = 0;
+                        break;
+                    }
                 }
             }
 
@@ -1059,6 +1072,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
             if (found)
             {
                 char nstr[128];
+                char sign;
                 strcpy(nstr, "");
 
                 form->form_type = SNFS_DIRECT;
@@ -1066,24 +1080,24 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                 form->exp1 = p;
                 for (i = 6; i >= 0; i--)
                 {
-                    mpz_set_ui(form->c[i], c[i]);
+                    mpz_set_si(form->c[i], c[i]);
                 }
 
                 if (fobj->VFLAG >= 0)
                 {
                     printf("nfs: input divides ");
                     for (i = 6; i > 0; i--)
-                    {
-                        mpz_set_ui(form->c[i], c[i]);
-                        
-                        if (c[i] > 0)
+                    {                       
+                        if (abs(c[i]) > 0)
                         {
-                            printf("%d*(%d^%d)^%d + ", c[i], b, p, i);
-                            sprintf(nstr, "%s%d*(%d^%d)^%d + ", nstr, c[i], b, p, i);
+                            if (c[i] > 0) sign = '+'; else sign = '-';
+                            printf("%c%d*(%d^%d)^%d ", sign, abs(c[i]), b, p, i);
+                            sprintf(nstr, "%s%c%d*(%d^%d)^%d ", nstr, sign, abs(c[i]), b, p, i);
                         }
                     }
-                    printf("%d\n", c[i]);
-                    sprintf(nstr, "%s%d", nstr, c[i]);
+                    if (c[i] > 0) sign = '+'; else sign = '-';
+                    printf("%c%d\n", sign, abs(c[i]));
+                    sprintf(nstr, "%s%c%d", nstr, sign, abs(c[i]));
                 }
                 logprint_oc(fobj->flogname, "a", "nfs: input divides %s\n", nstr);
 
