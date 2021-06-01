@@ -90,6 +90,12 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
 		find_xyyxf_form(fobj, poly);
 	}
 
+    if (poly->form_type == SNFS_NONE)
+    {
+        if (fobj->VFLAG >= 0) printf("nfs: searching for direct special forms...\n");
+        find_direct_form(fobj, poly);
+    }
+
 	if (poly->form_type == SNFS_NONE)
 	{
 		printf("nfs: couldn't find special form\n");
@@ -136,6 +142,14 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		free(poly);
 		return 1;
 	}
+    else if (npoly == 1)
+    {
+        printf("nfs: found %d polynomial\n", npoly);
+    }
+    else if (npoly > 1)
+    {
+        printf("nfs: found %d polynomials, selecting best\n", npoly);
+    }
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
 	// in several different ways.  now we have a decision to make based largely on difficulty and 
@@ -143,7 +157,10 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	// both sides to be approximately equal.  Sometimes multiple degrees satisfy this requirement
 	// approximately equally in which case only test-sieving can really resolve the difference.
 	snfs_scale_difficulty(polys, npoly, fobj->VFLAG);
-	npoly = snfs_rank_polys(fobj, polys, npoly);
+    if (npoly > 1)
+    {
+        npoly = snfs_rank_polys(fobj, polys, npoly);
+    }
 
 	if (fobj->VFLAG > 0 && npoly > 1)
 	{		
@@ -192,14 +209,24 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		skew_snfs_params(fobj, &jobs[i]);
 	}
 
-	if ((est_gnfs_size(&jobs[0]) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)) &&
-		!fobj->nfs_obj.snfs)
+    //printf("gnfs size = %d, size n + 3 = %d, snfs = %d\n", est_gnfs_size(&jobs[0]),
+    //    (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3), fobj->nfs_obj.snfs);
+
+	if ((est_gnfs_size(&jobs[0]) > (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) + 3)))
 	{
-		// the input is probably faster by gnfs, and the user hasn't specifically chosen
-		// snfs, so don't trial sieve and return the gnfs preference
-		retcode = 1;
-		copy_job(&jobs[0], job);
-		goto cleanup;
+        if (fobj->nfs_obj.snfs)
+        {
+            // the input is probably faster by gnfs, and the user hasn't specifically chosen
+            // snfs, so don't trial sieve and return the gnfs preference
+            printf("gen: WARNING: input probably faster by gnfs but proceeding with snfs-specified job\n");
+        }
+        else
+        {
+            // faster by gnfs despite found snfs form, skip to gnfs processing.
+            retcode = 1;
+            copy_job(&jobs[0], job);
+            goto cleanup;
+        }
 	}
 
 	// return best job, which contains the best poly

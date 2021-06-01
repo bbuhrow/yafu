@@ -63,7 +63,8 @@ enum snfs_form_e
     SNFS_NONE,
     SNFS_BRENT,
     SNFS_H_CUNNINGHAM,
-    SNFS_XYYXF
+    SNFS_XYYXF,
+    SNFS_DIRECT
 };
 
 typedef struct
