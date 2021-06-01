@@ -505,7 +505,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_set_ui(form->base1, i);
 				mpz_set_ui(form->base2, 1);
 				form->exp1 = j;
-				form->coeff2 = sign ? -c2 : c2;
+				form->coeff2 = sign ? c2 : -c2;
 				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 				{
                     if (fobj->LOGFLAG)
@@ -590,7 +590,7 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 				mpz_set_ui(form->base1, i);
 				mpz_set_ui(form->base2, 1);
 				form->exp1 = j;
-				form->coeff2 = sign ? -c2 : c2;
+				form->coeff2 = sign ? c2 : -c2;
 				if (mpz_cmp_ui(fobj->nfs_obj.snfs_cofactor, 1) > 0)
 				{
                     if (fobj->LOGFLAG)

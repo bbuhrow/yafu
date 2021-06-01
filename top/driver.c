@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
             firstline = 1;
             reset_preprocessor();
             logprint(logfile, "Processing: %s\n", input_str.s);
-            result = process_expression(input_str.s, &calc_metadata, 0, 0);
+            result = process_expression(input_str.s, &calc_metadata, fobj->VFLAG < 0, 0);
             logprint(logfile, "Result    : %s\n", result);
             sClear(&input_str);
             if (result != NULL)

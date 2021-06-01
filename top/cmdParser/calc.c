@@ -1555,6 +1555,19 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
                     gmp_printf("\n%s = %Zx\n\n", varname, tmp);
                 }
             }
+            else if (force_quiet == 1)
+            {
+                // if -silent, just output the answer.
+                if (OBASE == DEC)
+                {
+                    gmp_printf("%Zd\n", tmp);
+
+                }
+                else if (OBASE == HEX)
+                {
+                    gmp_printf("%Zx\n", tmp);
+                }
+            }
         }
     }
 
