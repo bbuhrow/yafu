@@ -102,6 +102,7 @@ typedef struct
     uint32_t poly_time;
     uint32_t last_leading_coeff;
     uint32_t use_max_rels;
+    double test_score;      // used to remember score if test-sieved.
 
     snfs_t* snfs; // NULL if GNFS
 } nfs_job_t;
@@ -202,7 +203,7 @@ void snfs_scale_difficulty(snfs_t* polys, int npoly, int VFLAG);
 int snfs_rank_polys(fact_obj_t* fobj, snfs_t* polys, int npoly);
 int qcomp_snfs_sdifficulty(const void* x, const void* y);
 int qcomp_snfs_murphy(const void* x, const void* y);
-nfs_job_t* snfs_test_sieve(fact_obj_t* fobj, snfs_t* polys, int npoly, nfs_job_t* jobs);
+nfs_job_t* snfs_test_sieve(fact_obj_t* fobj, snfs_t* polys, int npoly, nfs_job_t* jobs, int force_test);
 void snfs_make_job_file(fact_obj_t* fobj, nfs_job_t* job);
 void snfs_init(snfs_t* poly);
 void snfs_clear(snfs_t* poly);

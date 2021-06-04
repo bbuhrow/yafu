@@ -1223,6 +1223,7 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 	}
 
+	job->test_score = 9999999.0;		// haven't tested it yet.
 	nfs_set_min_rels(job);
 
 	sprintf(job->sievername, "%sgnfs-lasieve4I%de", fobj->nfs_obj.ggnfs_dir, fobj->nfs_obj.siever);
@@ -1365,6 +1366,7 @@ void copy_job(nfs_job_t *src, nfs_job_t *dest)
 	dest->poly_time = src->poly_time;
 	dest->last_leading_coeff = src->last_leading_coeff;
 	dest->use_max_rels = src->use_max_rels;
+	dest->test_score = src->test_score;
 
 	if (src->snfs != NULL)
 	{

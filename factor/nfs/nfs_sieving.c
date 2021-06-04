@@ -279,6 +279,8 @@ int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files)
 			// be conservative about estimates
 		}
 
+		jobs[i].test_score = score[i];
+
         if (fobj->LOGFLAG)
         {
             flog = fopen(fobj->flogname, "a");

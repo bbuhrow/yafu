@@ -503,6 +503,8 @@ void find_brent_form(fact_obj_t *fobj, snfs_t *form)
 					}
 				}
 
+				//printf("c1 = %d, i = %d, j = %d, c2 = %d\n", c1, i, j, c2);
+
 				if ((c1 == 1) && (c2 == 1) && (sign == NEGATIVE) && (j % 2) == 0)
 					j /= 2;
 
@@ -3060,12 +3062,12 @@ snfs_t* gen_xyyxf_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 // to get  rels/q into the desired range (somewhere around 2-4 rels/q).
 // Therefore, pass in job structures to be modified rather than using throwaway
 // objects during the test sieving.
-nfs_job_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t* jobs)
+nfs_job_t* snfs_test_sieve(fact_obj_t *fobj, snfs_t *polys, int npoly, nfs_job_t* jobs, int force_test)
 {
 	int i, dotest, minscore_id;	
 
 	// only one poly - don't bother test sieving it :)
-	if (npoly < 2)
+	if ((npoly < 2) && (!force_test))
 		return &jobs[0];
 
 	// see if any poly is big enough to justify test sieving

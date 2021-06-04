@@ -157,11 +157,17 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	}
     else if (npoly == 1)
     {
-        printf("nfs: found %d polynomial\n", npoly);
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: found %d polynomial\n", npoly);
+		}
     }
     else if (npoly > 1)
     {
-        printf("nfs: found %d polynomials, selecting best\n", npoly);
+		if (fobj->VFLAG >= 0)
+		{
+			printf("nfs: found %d polynomials, selecting best\n", npoly);
+		}
     }
 
 	// we've now measured the difficulty for poly's of all common degrees possibly formed
@@ -243,7 +249,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 	}
 
 	// return best job, which contains the best poly
-	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly), jobs);
+	best = snfs_test_sieve(fobj, polys, MIN(NUM_SNFS_POLYS,npoly), jobs, 0);
 
 	if (fobj->VFLAG > 0)
 	{
@@ -265,6 +271,26 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		print_snfs(best->snfs, stdout);
 		if (f != NULL) print_snfs(best->snfs, f);
 		if (f != NULL) fclose(f);
+	}
+
+	// if the norms are close, also check both sides of the selected poly
+	if (fabs(log10(best->snfs->rnorm) - log10(best->snfs->anorm)) < 5.0)
+	{
+		enum special_q_e side = best->poly->side;
+		double score = best->test_score;
+
+		best->poly->side = best->poly->side == RATIONAL_SPQ ? ALGEBRAIC_SPQ : RATIONAL_SPQ;
+
+		printf("gen: selected polynomial has close norms (rat=%1.2e, alg=%1.2e)\ngen: testing opposite side\n",
+			best->snfs->rnorm, best->snfs->anorm);
+
+		best = snfs_test_sieve(fobj, best->snfs, 1, best, 1);
+
+		if (best->test_score >= score)
+		{
+			// wasn't better, keep original side.
+			best->poly->side = side;
+		}
 	}
 
 	// copy the best job to the object that will be returned from this function
