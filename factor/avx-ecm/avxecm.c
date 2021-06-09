@@ -2187,6 +2187,7 @@ void vececm(thread_data_t* tdata)
             if (ecm_primes != NULL) {
                 free(ecm_primes);
             }
+            sdata->VFLAG = verbose;
             ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
             ecm_minp = ecm_primes[0];
             ecm_maxp = ecm_primes[ecm_nump - 1];
@@ -2592,6 +2593,7 @@ void vececm(thread_data_t* tdata)
                     if (ecm_primes != NULL) {
                         free(ecm_primes);
                     }
+                    sdata->VFLAG = verbose;
                     ecm_primes = soe_wrapper(sdata, rangemin, rangemax, 0, &ecm_nump, 0, 0);
                     ecm_minp = ecm_primes[0];
                     ecm_maxp = ecm_primes[ecm_nump - 1];

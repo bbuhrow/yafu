@@ -14,6 +14,7 @@ benefit from your work.
 
 #include "nfs_impl.h"
 #include "gmp_xface.h"
+#include "arith.h"
 
 #ifdef USE_NFS
 
@@ -153,7 +154,7 @@ void extract_factors(factor_list_t *factor_list, fact_obj_t *fobj)
             else
             {
                 char* s = mpz_get_str(NULL, 10, tmp);
-                logprint(logfile, "%s%d = %s\n", c, mpz_sizeinbase(tmp, 10), s);
+                logprint(logfile, "%s%d = %s\n", c, gmp_base10(tmp), s);
                 fclose(logfile);
                 free(s);
             }

@@ -981,6 +981,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	FILE *in;
 	uint32_t missing_params = 0;
 	uint32_t lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
+    int y0 = 0, y1 = 0;
 	char line[1024];
 	float alambda = 0, rlambda = 0;
 	enum special_q_e side = NEITHER_SPQ;
@@ -1001,7 +1002,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		// bail if we couldn't read anything
 		if (ptr == NULL)
 			break;
-
+        
 		substr = strstr(line, "lpbr:");
 
 		if (substr != NULL)
@@ -1029,12 +1030,79 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
  					printf("nfs: couldn't allocate memory!\n");
  					exit(-1);
  				} 
- 				else if (fobj->VFLAG > 0)
- 					printf("nfs: found type: snfs\n");
+                else if (fobj->VFLAG > 0)
+                {
+                    printf("nfs: found type: snfs\n");
+                    printf("nfs: initializing snfs poly\n");
+                }
  				snfs_init(job->snfs);
  			}
 			continue;
 		}
+
+        {
+            int coeff;
+            int found = 0;
+            for (coeff = 0; coeff < MAX_POLY_DEGREE; coeff++)
+            {
+                char cstr[8];
+                sprintf(cstr, "c%d:", coeff);
+                substr = strstr(line, cstr);
+                if (substr != NULL)
+                {
+                    gmp_sscanf(line + 3, "%Zd", job->poly->alg.coeff[coeff]);
+                    if (fobj->VFLAG > 0)
+                    {
+                        gmp_printf("nfs: found c[%d]: %Zd\n", coeff, job->poly->alg.coeff[coeff]);
+                    }
+                    found = 1;
+                    if ((coeff > job->poly->alg.degree) &&
+                        (mpz_cmp_ui(job->poly->alg.coeff[coeff], 0) > 0))
+                    {
+                        job->poly->alg.degree = coeff;
+                    }
+                    break;
+                }
+            }
+            if (found)
+                continue;
+        }
+
+        substr = strstr(line, "Y0:");
+        if (substr != NULL)
+        {
+            gmp_sscanf(line + 3, "%Zd", job->poly->rat.coeff[0]);
+            if (fobj->VFLAG > 0)
+            {
+                gmp_printf("nfs: found Y0: %Zd\n", job->poly->rat.coeff[0]);
+            }
+            job->poly->rat.degree = 0;
+            y0 = 1;
+            continue;
+        }
+
+        substr = strstr(line, "Y1:");
+        if (substr != NULL)
+        {
+            gmp_sscanf(line + 3, "%Zd", job->poly->rat.coeff[1]);
+            if (fobj->VFLAG > 0)
+            {
+                gmp_printf("nfs: found Y1: %Zd\n", job->poly->rat.coeff[1]);
+            }
+            job->poly->rat.degree = 1;
+            y1 = 1;
+            continue;
+        }
+
+        substr = strstr(line, "skew:");
+        if (substr != NULL)
+        {
+            sscanf(line + 5, "%lf", &job->poly->skew);
+            if (fobj->VFLAG > 0)
+            {
+                printf("nfs: found skew: %lf\n", job->poly->skew);
+            }
+        }
 		
 		substr = strstr(line, "size:");
 		if (substr != NULL)
@@ -1115,6 +1183,26 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 			continue;
 		}
 	}
+
+    if (y0 && y1)
+    {
+        if (mpz_sgn(job->poly->rat.coeff[1]) < 0)
+        {
+            mpz_mul_si(job->poly->rat.coeff[1], job->poly->rat.coeff[1], -1);
+            mpz_invert(job->poly->m, job->poly->rat.coeff[1], fobj->nfs_obj.gmp_n);
+            mpz_mul(job->poly->m, job->poly->m, job->poly->rat.coeff[0]);
+            mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
+            mpz_mul_si(job->poly->rat.coeff[1], job->poly->rat.coeff[1], -1);
+        }
+        else
+        {
+            mpz_mul_si(job->poly->rat.coeff[0], job->poly->rat.coeff[0], -1);
+            mpz_invert(job->poly->m, job->poly->rat.coeff[1], fobj->nfs_obj.gmp_n);
+            mpz_mul(job->poly->m, job->poly->m, job->poly->rat.coeff[0]);
+            mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
+            mpz_mul_si(job->poly->rat.coeff[0], job->poly->rat.coeff[0], -1);
+        }
+    }
 
 	if (siever > 0)
 	{

@@ -41,6 +41,11 @@ static const poly_deadline_t time_limits[] = {
 snfs_t * snfs_find_form(fact_obj_t *fobj)
 {
 	snfs_t* poly;
+    struct timeval stopt;	// stop time of this job
+    struct timeval startt;	// start time of this job
+    double t_time;
+
+    gettimeofday(&startt, NULL);
 
 	// allow larger one to come in, because some polynomials forms are significantly reduced
 	// (i.e., x^(2n))
@@ -108,6 +113,10 @@ snfs_t * snfs_find_form(fact_obj_t *fobj)
             mpz_set(fobj->nfs_obj.gmp_n, fobj->nfs_obj.snfs_cofactor);
         }
     }
+
+    gettimeofday(&stopt, NULL);
+    t_time = ytools_difftime(&startt, &stopt);
+    printf("nfs: snfs form detection took %lf seconds\n", t_time);
 
 	if (poly->form_type == SNFS_NONE)
 	{

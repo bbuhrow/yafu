@@ -746,19 +746,53 @@ void nfs(fact_obj_t *fobj)
 			if ((last_specialq == 0) &&
 				((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)))
- 			{								
+ 			{				
+                uint32_t missing_params;
 				// this if-block catches cases 1 and 3 from above
-				uint32_t missing_params = parse_job_file(fobj, &job);
+
+                // init the poly: the job file parser will try to read
+                // it if possible
+                job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+                if (job.poly == NULL)
+                {
+                    printf("nfs: couldn't allocate memory!\n");
+                    exit(-1);
+                }
+                mpz_polys_init(job.poly);
+                job.poly->rat.degree = 1; // maybe way off in the future this isn't true
+                // assume gnfs for now
+                job.poly->side = ALGEBRAIC_SPQ;
+                job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+                
+
+				missing_params = parse_job_file(fobj, &job);
+
+                // if we read a snfs job, also put any poly info
+                // into the snfs poly.
+                if (job.snfs != NULL)
+                {
+                    int i;
+                    copy_mpz_polys_t(job.poly, job.snfs->poly);
+                    mpz_set(job.snfs->n, fobj->nfs_obj.gmp_n);
+                    for (i = job.poly->alg.degree; i >= 0; i--)
+                        mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
+                }
 				
 				// set min_rels.  
 				get_ggnfs_params(fobj, &job);
+
+                if ((job.snfs != NULL) && (missing_params > 0))
+                {
+                    // if the poly needs it adjust any parameters that we filled.
+                    skew_snfs_params(fobj, &job);
+                }
 				
 				fill_job_file(fobj, &job, missing_params);
 				// if any ggnfs params are missing, fill them
 				// this means the user can provide an SNFS poly or external GNFS poly, 
 				// but let YAFU choose the other params
 				// this won't override any params in the file.
-			
+
 				if (fobj->nfs_obj.startq > 0)
 				{
 					job.startq = fobj->nfs_obj.startq;
@@ -808,6 +842,20 @@ void nfs(fact_obj_t *fobj)
 			else // data file already exists
 			{				
 				// this if-block catches case 5 from above
+                // init the poly: the job file parser will try to read
+                // it if possible
+                job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+                if (job.poly == NULL)
+                {
+                    printf("nfs: couldn't allocate memory!\n");
+                    exit(-1);
+                }
+                mpz_polys_init(job.poly);
+                job.poly->rat.degree = 1; // maybe way off in the future this isn't true
+                // assume gnfs for now
+                job.poly->side = ALGEBRAIC_SPQ;
+                job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+
 				(void) parse_job_file(fobj, &job);
 				
 				// set min_rels.  
@@ -996,8 +1044,14 @@ int est_gnfs_size(nfs_job_t *job)
 		return 999999;
 	else if ((job->snfs->difficulty < 0) || (job->snfs->difficulty > 512))
 		return 999999;
-	else
-		return  0.56*job->snfs->difficulty + 30;
+    else
+    {
+        if (job->snfs->sdifficulty > job->snfs->difficulty)
+            return  0.56 * job->snfs->sdifficulty + 30;
+        else
+            return  0.56 * job->snfs->difficulty + 30;
+    }
+		
 }
 
 int est_gnfs_size_via_poly(snfs_t *job)
@@ -1068,12 +1122,48 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 	{
 		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
 		{
-			if (fobj->VFLAG > 0)
-				printf("nfs: detected snfs job but no snfs difficulty; "
-					"assuming size of number is the snfs difficulty\n");
+            if (fobj->VFLAG > 0)
+            {
+                //printf("nfs: detected snfs job but no snfs difficulty; "
+                //    "assuming size of number is the snfs difficulty\n");
+
+                printf("nfs: detected snfs job but no snfs difficulty\n");
+            }
+
+            job->snfs->difficulty = d;
+
+            //printf("Here is the known job info: \n");
+            //print_job(job, stdout);
+            //printf("Computing difficulty (todo): \n");
+            //compute_difficulty_from_poly(job->snfs, fobj->VFLAG);           
+            check_poly(job->snfs, fobj->VFLAG);
+            
+            if (fobj->VFLAG > 0)
+                printf("nfs: analyzing poly: \n");
+
+            approx_norms(job->snfs);
+            
+            if (fobj->VFLAG > 0)
+                printf("nfs: Size: %le, Alpha = %le, Murphy = %le\n", 
+                job->snfs->poly->size, job->snfs->poly->alpha, job->snfs->poly->murphy);
+
+            job->snfs->difficulty = log10(mpz_get_d(job->snfs->poly->m)) +
+                log10(mpz_get_d(job->snfs->poly->alg.coeff[job->snfs->poly->alg.degree]));
+
+            if (fobj->VFLAG > 0)
+                printf("nfs: snfs difficulty: %lf\n", job->snfs->difficulty);
+
+            snfs_scale_difficulty(job->snfs, 1, fobj->VFLAG);
+            
+            if (fobj->VFLAG > 0)
+                printf("nfs: snfs skewed difficulty: %lf\n", job->snfs->sdifficulty);
+
+            d = job->snfs->sdifficulty;
 		}
-		else
-			d = job->snfs->difficulty;
+        else
+        {
+            d = job->snfs->difficulty;
+        }
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
 		i = est_gnfs_size(job);
@@ -1337,6 +1427,8 @@ void copy_mpz_polys_t(mpz_polys_t *src, mpz_polys_t *dest)
 		mpz_set(dest->rat.coeff[i], src->rat.coeff[i]);
 		mpz_set(dest->alg.coeff[i], src->alg.coeff[i]);
 	}
+    dest->alg.degree = src->alg.degree;
+    dest->rat.degree = src->rat.degree;
 
 	return;
 }

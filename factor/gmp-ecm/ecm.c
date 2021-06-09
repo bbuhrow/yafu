@@ -826,7 +826,6 @@ void *ecm_do_one_curve(void *ptr)
         }
 
 		// run system command
-        //printf("sys: %s\n", cmd);
 		retcode = system(cmd);
 
 		free(tmpstr);

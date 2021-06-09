@@ -106,6 +106,9 @@ void check_poly(snfs_t *poly, int VFLAG)
 	int i;
 	mpz_init(t);
 
+    if (VFLAG > 0)
+        printf("nfs: checking degree %d poly\n", poly->poly->alg.degree);
+
 	poly->valid = 1;
 	mpz_set_ui(t, 0);
 	for (i = poly->poly->alg.degree; i >= 0; i--)
@@ -230,6 +233,13 @@ void print_snfs(snfs_t *poly, FILE *out)
 	print_poly(poly->poly, out);
 }
 
+void compute_difficulty_from_poly(snfs_t* poly, int VFLAG)
+{
+    
+
+    return;
+}
+
 void approx_norms(snfs_t *poly)
 {
 	// anorm ~= b^d * f(a/b) where f = the algebraic poly
@@ -282,7 +292,7 @@ void approx_norms(snfs_t *poly)
     //a = sqrt(poly->poly->skew) * 1000000.;
 	//b = 1000000. / (sqrt(poly->poly->skew));
 
-    //printf("a = %lf, b = %lf\n", a, b);
+    //printf("skew = %lf, a = %lf, b = %lf\n", poly->poly->skew, a, b);
 
 	mpz_init(tmp);
 	mpz_init(res);
@@ -290,11 +300,21 @@ void approx_norms(snfs_t *poly)
 	// use msieve functions to compute the norm size on each side.
 	// these are used to skew the polynomial parameters, if the norms
 	// are disparate enough
+    //printf("alg degree: %d\n", poly->poly->alg.degree);
+    //for (i = 0; i < 9; i++)
+    //    gmp_printf("%Zd\n", poly->poly->alg.coeff[i]);
+
+    //printf("rat degree: %d\n", poly->poly->rat.degree);
+    //for (i = 0; i < 9; i++)
+    //    gmp_printf("%Zd\n", poly->poly->rat.coeff[i]);
+
 	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
 	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
+
+    //printf("anorm = %le, bnorm = %le\n", poly->anorm, poly->rnorm);
 
 	// extract from msieve (in a convoluted way) the Murphy score of the polynomial
 	// along with several other values.  This will be used to rank the polynomials generated.
@@ -993,17 +1013,12 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
     int c[7];
     mpz_t t, r, g, n, m;
 
-    //struct timeval stopt;	// stop time of this job
-    //struct timeval startt;	// start time of this job
-    //double t_time;
-
     // find the following forms:
     // c1*m^n + c2*m^(n-1) + c3*m^(n-2) ... + cn
     // where c1...cn are all small, m=b^p, and nmax = 6.
     // then c1...cn are the coefficients of the algebraic polynomial,
     // Y1=-1, Y0=m is the rational polynomial, and n is the degree.
     // we search b=2..12 and p such that m<10^75 or so.
-    //gettimeofday(&startt, NULL);
 
     mpz_init(t);
     mpz_init(g);
@@ -1138,10 +1153,6 @@ done:
     mpz_clear(g);
     mpz_clear(r);
     mpz_clear(n);
-
-    //gettimeofday(&stopt, NULL);
-    //t_time = ytools_difftime(&startt, &stopt);
-    //printf("direct search took %lf seconds\n", t_time);
 
     return;
 }

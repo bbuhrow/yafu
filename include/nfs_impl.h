@@ -196,6 +196,7 @@ snfs_t* gen_brent_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys); // the work
 snfs_t* gen_xyyxf_poly(fact_obj_t* fobj, snfs_t* poly, int* npolys);
 int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job);
 void check_poly(snfs_t* poly, int VFLAG);
+void compute_difficulty_from_poly(snfs_t* poly, int VFLAG);
 void print_snfs(snfs_t* poly, FILE* out);
 void snfs_copy_poly(snfs_t* src, snfs_t* dest);
 void approx_norms(snfs_t* poly);
