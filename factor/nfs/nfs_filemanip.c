@@ -981,7 +981,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	FILE *in;
 	uint32_t missing_params = 0;
 	uint32_t lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
-    int y0 = 0, y1 = 0;
+    int y0 = 0, y1 = 0, has_m = 0;
 	char line[1024];
 	float alambda = 0, rlambda = 0;
 	enum special_q_e side = NEITHER_SPQ;
@@ -1094,6 +1094,18 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             continue;
         }
 
+        substr = strstr(line, "m:");
+        if (substr != NULL)
+        {
+            gmp_sscanf(line + 2, "%Zd", job->poly->m);
+            if (fobj->VFLAG > 0)
+            {
+                gmp_printf("nfs: found m: %Zd\n", job->poly->m);
+            }
+            has_m = 1;
+            continue;
+        }
+
         substr = strstr(line, "skew:");
         if (substr != NULL)
         {
@@ -1184,14 +1196,19 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		}
 	}
 
-    if (y0 && y1)
+    if (has_m)
     {
+
+    }
+    else if (y0 && y1)
+    {
+        // generate an m from the rational poly if we have the coefficients.
         if (mpz_sgn(job->poly->rat.coeff[1]) < 0)
         {
             mpz_mul_si(job->poly->rat.coeff[1], job->poly->rat.coeff[1], -1);
             mpz_invert(job->poly->m, job->poly->rat.coeff[1], fobj->nfs_obj.gmp_n);
             mpz_mul(job->poly->m, job->poly->m, job->poly->rat.coeff[0]);
-            mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
+            //mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
             mpz_mul_si(job->poly->rat.coeff[1], job->poly->rat.coeff[1], -1);
         }
         else
@@ -1199,7 +1216,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             mpz_mul_si(job->poly->rat.coeff[0], job->poly->rat.coeff[0], -1);
             mpz_invert(job->poly->m, job->poly->rat.coeff[1], fobj->nfs_obj.gmp_n);
             mpz_mul(job->poly->m, job->poly->m, job->poly->rat.coeff[0]);
-            mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
+            //mpz_mod(job->poly->m, job->poly->m, fobj->nfs_obj.gmp_n);
             mpz_mul_si(job->poly->rat.coeff[0], job->poly->rat.coeff[0], -1);
         }
     }

@@ -140,10 +140,17 @@ int nfs_check_special_case(fact_obj_t *fobj)
 }
 
 
+// other stuff to look into:
+// poly spinning: https://mersenneforum.org/showthread.php?p=565598
+// skew optimization (iteration around theoretical skew to find local max of E-score)
+// gnfs poly select should probably always be "fast", and min/avg/good/ should apply after that.
+// more options to control test sieving (number of points, q-range for each, number to test)
+
+
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
 {
-	//expect the input in fobj->nfs_obj.gmp_n
+	// expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
 	char *nfs_args = NULL; // unused as yet
@@ -179,15 +186,15 @@ void nfs(fact_obj_t *fobj)
 		return;
 	}
 
-	//initialize the flag to watch for interrupts, and set the
-	//pointer to the function to call if we see a user interrupt
+	// initialize the flag to watch for interrupts, and set the
+	// pointer to the function to call if we see a user interrupt
 	NFS_ABORT = 0;
 	signal(SIGINT,nfsexit);
 
-	//start a counter for the whole job
+	// start a counter for the whole job
 	gettimeofday(&start, NULL);
 
-	//nfs state machine:
+	// nfs state machine:
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	nfs_state = NFS_STATE_INIT;
 	process_done = 0;
@@ -763,7 +770,6 @@ void nfs(fact_obj_t *fobj)
                 // assume gnfs for now
                 job.poly->side = ALGEBRAIC_SPQ;
                 job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
-                
 
 				missing_params = parse_job_file(fobj, &job);
 
@@ -778,12 +784,14 @@ void nfs(fact_obj_t *fobj)
                         mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
                 }
 				
-				// set min_rels.  
+				// set min_rels and other parameters.
+                // this can also effect what side we sieve on and the
+                // siever version.
 				get_ggnfs_params(fobj, &job);
 
                 if ((job.snfs != NULL) && (missing_params > 0))
                 {
-                    // if the poly needs it adjust any parameters that we filled.
+                    // if the poly needs it, adjust any parameters that we filled.
                     skew_snfs_params(fobj, &job);
                 }
 				
@@ -858,8 +866,21 @@ void nfs(fact_obj_t *fobj)
 
 				(void) parse_job_file(fobj, &job);
 				
-				// set min_rels.  
-				get_ggnfs_params(fobj, &job);
+                // if we read a snfs job, also put any poly info
+                // into the snfs poly.
+                if (job.snfs != NULL)
+                {
+                    int i;
+                    copy_mpz_polys_t(job.poly, job.snfs->poly);
+                    mpz_set(job.snfs->n, fobj->nfs_obj.gmp_n);
+                    for (i = job.poly->alg.degree; i >= 0; i--)
+                        mpz_set(job.snfs->c[i], job.snfs->poly->alg.coeff[i]);
+                }
+
+                // set min_rels and other parameters.
+                // this can also effect what side we sieve on and the
+                // siever version.
+                get_ggnfs_params(fobj, &job);
 
 				if (fobj->nfs_obj.startq > 0)
 				{
@@ -1120,50 +1141,50 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
 	if (job->snfs != NULL)
 	{
-		if (job->snfs->sdifficulty == 0 && job->snfs->difficulty == 0)
-		{
+        if ((job->snfs->sdifficulty == 0) && (job->snfs->difficulty == 0) &&
+            (mpz_cmp_ui(job->snfs->poly->m, 0) > 0) && 
+            (job->snfs->poly->alg.degree > 0))
+        {
             if (fobj->VFLAG > 0)
             {
                 //printf("nfs: detected snfs job but no snfs difficulty; "
                 //    "assuming size of number is the snfs difficulty\n");
 
                 printf("nfs: detected snfs job but no snfs difficulty\n");
+                printf("nfs: using m and poly coefficients\n");
             }
 
-            job->snfs->difficulty = d;
-
-            //printf("Here is the known job info: \n");
-            //print_job(job, stdout);
-            //printf("Computing difficulty (todo): \n");
-            //compute_difficulty_from_poly(job->snfs, fobj->VFLAG);           
-            check_poly(job->snfs, fobj->VFLAG);
-            
-            if (fobj->VFLAG > 0)
-                printf("nfs: analyzing poly: \n");
-
-            approx_norms(job->snfs);
-            
-            if (fobj->VFLAG > 0)
-                printf("nfs: Size: %le, Alpha = %le, Murphy = %le\n", 
-                job->snfs->poly->size, job->snfs->poly->alpha, job->snfs->poly->murphy);
-
-            job->snfs->difficulty = log10(mpz_get_d(job->snfs->poly->m)) +
+            job->snfs->difficulty = log10(fabs(mpz_get_d(job->snfs->poly->m))) +
                 log10(mpz_get_d(job->snfs->poly->alg.coeff[job->snfs->poly->alg.degree]));
 
             if (fobj->VFLAG > 0)
                 printf("nfs: snfs difficulty: %lf\n", job->snfs->difficulty);
-
-            snfs_scale_difficulty(job->snfs, 1, fobj->VFLAG);
-            
-            if (fobj->VFLAG > 0)
-                printf("nfs: snfs skewed difficulty: %lf\n", job->snfs->sdifficulty);
-
-            d = job->snfs->sdifficulty;
-		}
+        }
         else
         {
             d = job->snfs->difficulty;
         }
+            
+        check_poly(job->snfs, fobj->VFLAG);
+
+        if (fobj->VFLAG > 0)
+            printf("nfs: analyzing poly: \n");
+
+        approx_norms(job->snfs);
+            
+        if (fobj->VFLAG > 0)
+            printf("nfs: Size: %le, Alpha = %le, Murphy = %le\n", 
+            job->snfs->poly->size, job->snfs->poly->alpha, job->snfs->poly->murphy);
+
+        // this can effect what side we sieve on and the
+        // siever version.
+        snfs_scale_difficulty(job->snfs, 1, fobj->VFLAG);
+            
+        if (fobj->VFLAG > 0)
+            printf("nfs: snfs skewed difficulty: %lf\n", job->snfs->sdifficulty);
+
+        d = job->snfs->sdifficulty;
+		
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2
 		i = est_gnfs_size(job);
