@@ -612,6 +612,8 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
 
 		savefile_concat("rels.add",fobj->nfs_obj.outputfile,fobj->nfs_obj.mobj);
 		remove("rels.add");
+
+        job->current_rels += count;
 	}
 
 	//stop worker threads

@@ -16,6 +16,8 @@ benefit from your work.
 #include "nfs_impl.h"
 #include "gmp_xface.h"
 #include <signal.h>
+#include <stdlib.h>
+#include "ytools.h"
 
 #ifdef USE_NFS
 
@@ -1184,6 +1186,64 @@ void get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
             printf("nfs: snfs skewed difficulty: %lf\n", job->snfs->sdifficulty);
 
         d = job->snfs->sdifficulty;
+
+        int do_skew_opt = 1;
+        
+        if (do_skew_opt && (job->snfs->poly->skew > 0))
+        {
+            // if requested, dither the skew to attempt to find 
+            // a higher score.
+            double bestmurph = job->snfs->poly->murphy;
+            double bestskew = job->snfs->poly->skew;
+            double origskew = job->snfs->poly->skew;
+            double skew1percent = origskew * 0.01;
+            int sign = 1;
+
+            if (fobj->VFLAG > 0)
+                printf("nfs: optimizing skew\n");
+
+            i = 0;
+            do
+            {                
+                job->snfs->poly->skew += skew1percent;
+                //printf("on iteration %d trying skew %lf: ", i++, job->snfs->poly->skew);
+                analyze_one_poly_xface(job->snfs);
+                //printf("murphy = %le\n", job->snfs->poly->murphy);
+                if (job->snfs->poly->murphy > bestmurph)
+                {
+                    bestskew = job->snfs->poly->skew;
+                    bestmurph = job->snfs->poly->murphy;
+                    if (fobj->VFLAG > 0)
+                    {
+                        printf("nfs: found better skew: %lf with murphy score %le\n",
+                            bestskew, bestmurph);
+                    }
+                }
+                else if ((job->snfs->poly->murphy < bestmurph) && (sign > 0))
+                {
+                    sign = -1;
+                    job->snfs->poly->skew = origskew;
+                    skew1percent *= -1.0;
+                }
+                else if ((job->snfs->poly->murphy < bestmurph) && (sign < 0))
+                {
+                    sign = 0;
+                }
+                i++;
+                if (i >= 100)
+                {
+                    if (fobj->VFLAG > 0)
+                    {
+                        printf("nfs: giving up skew optimization after %u iterations\n", i);
+                    }
+                    break;
+                }
+            } while (sign != 0);
+
+            job->snfs->poly->skew = bestskew;
+
+            // need to replace the skew line in the file, if a better one was found...
+        }
 		
 
 		// http://www.mersenneforum.org/showpost.php?p=312701&postcount=2

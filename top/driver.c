@@ -799,6 +799,9 @@ int check_expression(options_t* options)
         is_cmdline_run = 1;
     }
 
+#ifdef NO_PIPE
+
+#else
     // now check for incoming pipes or redirects.  If we see one, ignore the
     // command line expression and process the pipe/redirect.
 
@@ -863,6 +866,7 @@ int check_expression(options_t* options)
 //#if defined(__MINGW32__)
 //    }
 //#endif
+#endif
 
 	return is_cmdline_run;
 

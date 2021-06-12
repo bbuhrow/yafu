@@ -690,15 +690,6 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         printf("Initialization took %1.4f seconds.\n", t_time);
     }
 
-    // top level ECM 
-    vececm(tdata);    
-
-    if (verbose > 1)
-	    printf("\n");
-
-    *curves_run = tdata[0].curves;
-
-    // record factors and clean up thread data
     FILE* flog = NULL;
     if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
     {
@@ -710,7 +701,45 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             return;
         }
 
-        logprint(flog, "Finished %u curves using AVX-ECM method on C%d input, ",
+        char* s;
+        s = mpz_get_str(NULL, 10, fobj->ecm_obj.gmp_n);
+        logprint(flog, "ecm: commencing %u curves using AVX-ECM method on %s, ",
+            tdata[0].curves * threads, s);
+        free(s);
+
+        int tmp = fobj->ecm_obj.stg2_is_default;
+        uint64_t tmp2 = fobj->ecm_obj.B2;
+        fobj->ecm_obj.stg2_is_default = 0;
+        fobj->ecm_obj.B2 = B2;
+
+        print_B1B2(fobj, flog);
+
+        fobj->ecm_obj.stg2_is_default = tmp;
+        fobj->ecm_obj.B2 = tmp2;
+        fprintf(flog, "\n");
+        fclose(flog);
+    }
+
+    // top level ECM 
+    vececm(tdata);    
+
+    if (verbose > 1)
+	    printf("\n");
+
+    *curves_run = tdata[0].curves;
+
+    // record factors and clean up thread data
+    if (fobj->LOGFLAG && (strcmp(fobj->flogname, "") != 0))
+    {
+        flog = fopen(fobj->flogname, "a");
+        if (flog == NULL)
+        {
+            printf("fopen error: %s\n", strerror(errno));
+            printf("could not open %s for appending\n", fobj->flogname);
+            return;
+        }
+
+        logprint(flog, "ecm: finished %u curves using AVX-ECM method on C%d input, ",
             *curves_run, gmp_base10(fobj->ecm_obj.gmp_n));
 
         int tmp = fobj->ecm_obj.stg2_is_default;

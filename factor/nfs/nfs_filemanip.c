@@ -1094,8 +1094,8 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             continue;
         }
 
-        substr = strstr(line, "m:");
-        if (substr != NULL)
+        
+        if ((line[0] == 'm') && (line[1] == ':'))
         {
             gmp_sscanf(line + 2, "%Zd", job->poly->m);
             if (fobj->VFLAG > 0)

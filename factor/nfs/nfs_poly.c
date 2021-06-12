@@ -302,6 +302,32 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 		}
 	}
 
+    int do_skew_opt = 1;
+    if (do_skew_opt)
+    {
+        // if requested, dither the skew to attempt to find 
+        // a higher score.
+        double bestmurph = best->poly->murphy;
+        double bestskew = best->poly->skew;
+        double origskew = best->poly->skew;
+
+        for (i = 0; i < 100; i++)
+        {
+            best->poly->skew = origskew * (1 + (0.4 * (rand() / RAND_MAX) - 0.2));
+            printf("on iteration %d trying skew %lf: ", i, best->poly->skew);
+            analyze_one_poly_xface(best->snfs);
+            if (best->poly->murphy > bestmurph)
+            {
+                bestskew = best->poly->skew;
+                bestmurph = best->poly->murphy;
+                printf("on iteration %d found better skew: %lf with murphy score %le\n", 
+                    i, bestskew, bestmurph);
+            }
+        }
+
+        best->poly->skew = bestskew;
+    }
+
 	// copy the best job to the object that will be returned from this function
 	copy_job(best, job);
 
