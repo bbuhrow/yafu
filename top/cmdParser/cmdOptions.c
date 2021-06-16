@@ -1053,7 +1053,7 @@ options_t* initOpt(void)
     options->qs_snfs_xover = 75;
     options->snfs_testsieve_threshold = 160;
     strcpy(options->testsieve, "");
-    strcpy(options->poly_method, "fast");
+    strcpy(options->poly_method, "avg");
     options->nfs_resume = 0;
     options->poly_batch = 250;
     options->ggnfs_siever = 0;

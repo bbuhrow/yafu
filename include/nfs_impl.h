@@ -84,7 +84,12 @@ enum param_flag_e
     PARAM_FLAG_ALAMBDA = 0x80,
     PARAM_FLAG_LAMBDA = 0x40 + 0x80,
 
-    PARAM_FLAG_ALL = 0xFF
+    PARAM_FLAG_IMPROVED_SKEW = 0x100,
+    PARAM_FLAG_INFO1 = 0x200, 
+    PARAM_FLAG_INFO2 = 0x400,
+    PARAM_FLAG_INFO3 = 0x800,
+
+    PARAM_FLAG_ALL = 0xFFF
 };
 
 typedef struct
@@ -155,7 +160,7 @@ void* polyfind_launcher(void* ptr);
 double find_best_msieve_poly(fact_obj_t* fobj, nfs_job_t* job, int write_jobfile);
 void msieve_to_ggnfs(fact_obj_t* fobj, nfs_job_t* job);
 void ggnfs_to_msieve(fact_obj_t* fobj, nfs_job_t* job);
-void get_ggnfs_params(fact_obj_t* fobj, nfs_job_t* job);
+int get_ggnfs_params(fact_obj_t* fobj, nfs_job_t* job);
 int check_for_sievers(fact_obj_t* fobj, int revert_to_siqs);
 void print_poly(mpz_polys_t* poly, FILE* out);
 void print_job(nfs_job_t* job, FILE* out);
@@ -169,7 +174,8 @@ uint32_t do_msieve_filtering(fact_obj_t* fobj, msieve_obj* obj, nfs_job_t* job);
 void do_msieve_polyselect(fact_obj_t* fobj, msieve_obj* obj, nfs_job_t* job, mp_t* mpN, factor_list_t* factor_list);
 void get_polysearch_params(fact_obj_t* fobj, uint64_t* start, uint64_t* range);
 void init_poly_threaddata(nfs_threaddata_t* t, msieve_obj* obj,
-    mp_t* mpN, factor_list_t* factor_list, int tid, uint32_t flags, uint64_t start, uint64_t stop);
+    mp_t* mpN, factor_list_t* factor_list, int tid, uint32_t flags, uint32_t deadline, 
+    uint64_t start, uint64_t stop);
 void do_sieving(fact_obj_t* fobj, nfs_job_t* job);
 void trial_sieve(fact_obj_t* fobj); // external test sieve frontend
 int test_sieve(fact_obj_t* fobj, void* args, int njobs, int are_files);

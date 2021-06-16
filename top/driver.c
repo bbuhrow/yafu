@@ -1514,7 +1514,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     strcpy(fobj->nfs_obj.job_infile, options->nfs_jobfile);
 
     // default = fast search
-    fobj->nfs_obj.poly_option = 0;
+    fobj->nfs_obj.poly_option = 4;
     if (strcmp(options->poly_method, "wide") == 0)
         fobj->nfs_obj.poly_option = 1;
     else if (strcmp(options->poly_method, "deep") == 0)

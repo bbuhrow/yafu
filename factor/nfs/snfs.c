@@ -204,7 +204,7 @@ void print_snfs(snfs_t *poly, FILE *out)
             poly->base1, poly->exp1, poly->difficulty,
             poly->anorm, poly->rnorm);
     }
-	else
+	else if (poly->form_type == SNFS_BRENT)
 	{
 		if (poly->coeff1 == 1)
 			gmp_fprintf(out, "# %Zd^%d%c%d, difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n", 
@@ -215,6 +215,11 @@ void print_snfs(snfs_t *poly, FILE *out)
 				abs(poly->coeff1), poly->base1, poly->exp1, c, abs(poly->coeff2), poly->difficulty,
 				poly->anorm, poly->rnorm);
 	}
+    else
+    {
+        gmp_fprintf(out, "# difficulty: %1.2f, anorm: %1.2e, rnorm: %1.2e\n",
+            poly->difficulty, poly->anorm, poly->rnorm);
+    }
 
 	if (poly->sdifficulty > 0)
 		fprintf(out, "# scaled difficulty: %1.2f, suggest sieving %s side\n", poly->sdifficulty, side);
@@ -224,20 +229,15 @@ void print_snfs(snfs_t *poly, FILE *out)
 		fprintf(out, "# siever: %u\n", poly->siever);
 
 	// msieve "analyze_one_poly" output, if known
-	if (poly->poly->size > 0)
-		fprintf(out, "# size = %1.3e, alpha = %1.3f, combined = %1.3e, rroots = %d\n", 
-		poly->poly->size, poly->poly->alpha, poly->poly->murphy, poly->poly->rroots);
+    if (poly->poly->size > 0)
+    {
+        fprintf(out, "# size = %1.3e, alpha = %1.3f, combined = %1.3e, rroots = %d\n",
+            poly->poly->size, poly->poly->alpha, poly->poly->murphy, poly->poly->rroots);
+    }
 
 	fprintf(out, "type: snfs\nsize: %d\n", d);
 
 	print_poly(poly->poly, out);
-}
-
-void compute_difficulty_from_poly(snfs_t* poly, int VFLAG)
-{
-    
-
-    return;
 }
 
 void approx_norms(snfs_t *poly)
@@ -308,10 +308,10 @@ void approx_norms(snfs_t *poly)
     //for (i = 0; i < 9; i++)
     //    gmp_printf("%Zd\n", poly->poly->rat.coeff[i]);
 
-	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->alg);
+	eval_poly(res, (int64_t)a, (uint32_t)b, &poly->poly->alg);
 	poly->anorm = mpz_get_d(res);
 
-	eval_poly(res, (int64_t)a, (int64_t)b, &poly->poly->rat);
+	eval_poly(res, (int64_t)a, (uint32_t)b, &poly->poly->rat);
 	poly->rnorm = mpz_get_d(res);
 
     //printf("anorm = %le, bnorm = %le\n", poly->anorm, poly->rnorm);
@@ -366,8 +366,11 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 
 		// this *should* just change min_rels based on the new lpbr/a value
-		if (oom_skew >= 4)
-			get_ggnfs_params(fobj, job);
+        if (oom_skew >= 4)
+        {
+            //get_ggnfs_params(fobj, job);
+            nfs_set_min_rels(job);
+        }
 
 	}
 	else
@@ -399,8 +402,11 @@ void skew_snfs_params(fact_obj_t *fobj, nfs_job_t *job)
 		}
 
 		// this *should* just change min_rels based on the new lpbr/a value
-		if (oom_skew >= 4)
-			get_ggnfs_params(fobj, job);
+        if (oom_skew >= 4)
+        {
+            //get_ggnfs_params(fobj, job);
+            nfs_set_min_rels(job);
+        }
 	}
 
 	return;

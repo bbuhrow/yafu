@@ -983,7 +983,8 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	uint32_t lpbr = 0, lpba = 0, mfbr = 0, mfba = 0, alim = 0, rlim = 0, size = 0, siever = 0;
     int y0 = 0, y1 = 0, has_m = 0;
 	char line[1024];
-	float alambda = 0, rlambda = 0;
+	float alambda = 0.0, rlambda = 0.0, skew = 0.0;
+    int info1 = 0, info2 = 0, info3 = 0;
 	enum special_q_e side = NEITHER_SPQ;
 
 	in = fopen(fobj->nfs_obj.job_infile, "r");
@@ -1076,7 +1077,6 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
             {
                 gmp_printf("nfs: found Y0: %Zd\n", job->poly->rat.coeff[0]);
             }
-            job->poly->rat.degree = 0;
             y0 = 1;
             continue;
         }
@@ -1110,6 +1110,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
         if (substr != NULL)
         {
             sscanf(line + 5, "%lf", &job->poly->skew);
+            skew = job->poly->skew;
             if (fobj->VFLAG > 0)
             {
                 printf("nfs: found skew: %lf\n", job->poly->skew);
@@ -1119,7 +1120,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		substr = strstr(line, "size:");
 		if (substr != NULL)
 		{
-			uint32_t difficulty = strtoul(substr + 5, NULL, 10);
+			uint32_t difficulty = size = strtoul(substr + 5, NULL, 10);
 			job->snfs->difficulty = (double)difficulty;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found size: %u\n", difficulty);
@@ -1181,6 +1182,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			side = ALGEBRAIC_SPQ;
+            info2 = 1;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found side: algebraic\n");
 			continue;
@@ -1190,10 +1192,30 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			side = RATIONAL_SPQ;
+            info2 = 1;
 			if (fobj->VFLAG > 0)
 				printf("nfs: found side: rational\n");
 			continue;
 		}
+
+        substr = strstr(line, "combined");
+        if (substr != NULL)
+        {
+            info3 = 1;
+            if (fobj->VFLAG > 0)
+                printf("nfs: found murphyE score\n");
+            continue;
+        }
+
+        substr = strstr(line, "anorm");
+        if (substr != NULL)
+        {
+            side = RATIONAL_SPQ;
+            info1 = 1;
+            if (fobj->VFLAG > 0)
+                printf("nfs: found norm info\n");
+            continue;
+        }
 	}
 
     if (has_m)
@@ -1241,33 +1263,45 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (job->lpbr == 0)
 			job->lpbr = lpbr;
 	}
-	else
-		missing_params |= PARAM_FLAG_LPBR;
+    else
+    {
+        missing_params |= PARAM_FLAG_LPBR;
+    }
+
 	if (lpba > 0)
 	{
 		if (job->lpba == 0)
 			job->lpba = lpba;
 	}
-	else
-		missing_params |= PARAM_FLAG_LPBA;
-	if (fobj->VFLAG > 0)
-		printf("nfs: parsed lpbr = %u, lpba = %u\n", lpbr, lpba);
+    else
+    {
+        missing_params |= PARAM_FLAG_LPBA;
+    }
 
+    if (fobj->VFLAG > 0)
+    {
+        printf("nfs: parsed lpbr = %u, lpba = %u\n", lpbr, lpba);
+    }
 
 	if (mfbr > 0)
 	{
 		if (job->mfbr == 0)
 			job->mfbr = mfbr;
 	}
-	else
-		missing_params |= PARAM_FLAG_MFBR;
+    else
+    {
+        missing_params |= PARAM_FLAG_MFBR;
+    }
+
 	if (mfba > 0)
 	{
 		if (job->mfba == 0)
 			job->mfba = mfba;
 	}
-	else
-		missing_params |= PARAM_FLAG_MFBA;
+    else
+    {
+        missing_params |= PARAM_FLAG_MFBA;
+    }
 
 
 	if (rlim > 0)
@@ -1275,15 +1309,20 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (job->rlim == 0)
 			job->rlim = rlim;
 	}
-	else
-		missing_params |= PARAM_FLAG_RLIM;
+    else
+    {
+        missing_params |= PARAM_FLAG_RLIM;
+    }
+
 	if (alim > 0)
 	{
 		if (job->alim == 0)
 			job->alim = alim;
 	}
-	else
-		missing_params |= PARAM_FLAG_ALIM;
+    else
+    {
+        missing_params |= PARAM_FLAG_ALIM;
+    }
 
 
 	if (rlambda > 0)
@@ -1291,24 +1330,47 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (job->rlambda == 0)
 			job->rlambda = rlambda;
 	}
-	else
-		missing_params |= PARAM_FLAG_RLAMBDA;
+    else
+    {
+        missing_params |= PARAM_FLAG_RLAMBDA;
+    }
+
 	if (alambda > 0)
 	{
 		if (job->alambda == 0)
 			job->alambda = alambda;
 	}
-	else
-		missing_params |= PARAM_FLAG_ALAMBDA;
+    else
+    {
+        missing_params |= PARAM_FLAG_ALAMBDA;
+    }
 
+    if (info1 == 0)
+    {
+        missing_params |= PARAM_FLAG_INFO1;
+    }
+
+    if (info2 == 0)
+    {
+        missing_params |= PARAM_FLAG_INFO2;
+    }
+
+    if (info3 == 0)
+    {
+        missing_params |= PARAM_FLAG_INFO3;
+    }
 
 	if (size > 0)
 	{
 		if (job->snfs)
-			job->snfs->sdifficulty = size;
+			job->snfs->sdifficulty = job->snfs->difficulty = size;
 		else
 			printf("nfs: found a size parameter but not snfs type\n");
 	}
+    else
+    {
+        job->snfs->sdifficulty = job->snfs->difficulty = 0;
+    }
 	
 	if (side != NEITHER_SPQ)
 	{
@@ -1391,14 +1453,14 @@ void print_poly(mpz_polys_t* poly, FILE *out)
 			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
 	gmp_fprintf(out, "Y1: %Zd\n", poly->rat.coeff[1]);
 	gmp_fprintf(out, "Y0: %Zd\n", poly->rat.coeff[0]);
-	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
+    // if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
 }
 
 void print_job(nfs_job_t *job, FILE *out)
 {
 	mpz_polys_t* poly = job->poly;
 
-	// print the poly to stdout
+	// print the poly to the supplied file stream
 	int i;
 	fprintf(out, "skew: %1.4f\n", poly->skew);
 	for (i=MAX_POLY_DEGREE; i>=0; i--)
@@ -1406,7 +1468,7 @@ void print_job(nfs_job_t *job, FILE *out)
 			gmp_fprintf(out, "c%d: %Zd\n", i, poly->alg.coeff[i]);
 	gmp_fprintf(out, "Y1: %Zd\n", poly->rat.coeff[1]);
 	gmp_fprintf(out, "Y0: %Zd\n", poly->rat.coeff[0]);
-	if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
+	// if( mpz_cmp_si(poly->m, 0) != 0 ) gmp_fprintf(out, "m: %Zd\n", poly->m);
 	fprintf(out, "rlim: %u\nalim: %u\n", job->rlim, job->alim);
 	fprintf(out, "mfbr: %u\nmfba: %u\n", job->mfbr, job->mfba);
 	fprintf(out, "lpbr: %u\nlpba: %u\n", job->lpbr, job->lpba);
