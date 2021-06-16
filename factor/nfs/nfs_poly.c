@@ -974,11 +974,46 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 {
 	fact_obj_t *fobj = t->fobj;
 	char *nfs_args = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+    int digits = gmp_base10(t->fobj->nfs_obj.gmp_n);
+    int deadline_per_coeff;
+
+    // this is the old deadline table used in msieve prior to version 1023.
+    // if we just use the deadline per thread then we spend all our time
+    // on a single range of coefficients per thread.  
+    // It's a question of searching really deep in a small range of coefficients
+    // or scanning lightly through a wider range of coefficients.  The latter
+    // is what yafu used to do prior to 1023 so that's what this emulates.
+    // Testing with the new approach seems to show that we find a perfectly
+    // acceptable poly fairly quickly, then spend a long time finishing
+    // the search for at best an incremental improvement in score.  With
+    // larger inputs that might be ok, but for most use below say c130 it
+    // seems wasteful.
+    if (digits <= 100)
+        deadline_per_coeff = 5;
+    else if (digits <= 105)
+        deadline_per_coeff = 20;
+    else if (digits <= 110)
+        deadline_per_coeff = 30;
+    else if (digits <= 120)
+        deadline_per_coeff = 50;
+    else if (digits <= 130)
+        deadline_per_coeff = 100;
+    else if (digits <= 140)
+        deadline_per_coeff = 200;
+    else if (digits <= 150)
+        deadline_per_coeff = 400;
+    else if (digits <= 175)
+        deadline_per_coeff = 800;
+    else if (digits <= 200)
+        deadline_per_coeff = 1600;
+    else
+        deadline_per_coeff = 3200;
+
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
 	t->fbfilename = (char *)malloc(80 * sizeof(char));
-	sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%u", 
-        start, stop, deadline);
+	sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d", 
+        start, stop, deadline_per_coeff);
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);
 	sprintf(t->logfilename,"%s.%d",fobj->nfs_obj.logfile,tid);
 	sprintf(t->fbfilename,"%s.%d",fobj->nfs_obj.fbfile,tid);

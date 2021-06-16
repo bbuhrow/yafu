@@ -1073,7 +1073,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                     if (mpz_cmp_ui(r, 10000) < 1)
                     {
                         deg = i;
-                        c[i] = -mpz_get_ui(r);
+                        c[i] = -(int)mpz_get_ui(r);
                         mpz_add_ui(t, t, -c[i]);
                         mpz_tdiv_q(t, t, m);
                     }
