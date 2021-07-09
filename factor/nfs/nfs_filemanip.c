@@ -985,6 +985,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 	char line[1024];
 	float alambda = 0.0, rlambda = 0.0, skew = 0.0;
     int info1 = 0, info2 = 0, info3 = 0;
+    int is_snfs = 0;
 	enum special_q_e side = NEITHER_SPQ;
 
 	in = fopen(fobj->nfs_obj.job_infile, "r");
@@ -1026,6 +1027,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
  			if (strstr(substr + 5, "snfs")) // case sensitive
  			{
  				job->snfs = malloc(sizeof(snfs_t));
+                is_snfs = 1;
  				if (job->snfs == NULL)
  				{
  					printf("nfs: couldn't allocate memory!\n");
@@ -1121,9 +1123,22 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 		if (substr != NULL)
 		{
 			uint32_t difficulty = size = strtoul(substr + 5, NULL, 10);
-			job->snfs->difficulty = (double)difficulty;
-			if (fobj->VFLAG > 0)
-				printf("nfs: found size: %u\n", difficulty);
+
+            if (is_snfs)
+            {
+                job->snfs->difficulty = (double)difficulty;
+            }
+            else
+            {
+                printf("nfs: warning: found size line for non-snfs job.\n"
+                    "nfs: if this is a SNFS job, type=snfs should appear prior to the size line\n");
+            }
+
+            if (fobj->VFLAG > 0)
+            {
+                printf("nfs: found size: %u\n", difficulty);
+            }
+
 			continue;
 		}
 	
@@ -1225,6 +1240,7 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
     else if (y0 && y1)
     {
         // generate an m from the rational poly if we have the coefficients.
+        // This does not take into account algebraic factors, if any.
         if (mpz_sgn(job->poly->rat.coeff[1]) < 0)
         {
             mpz_mul_si(job->poly->rat.coeff[1], job->poly->rat.coeff[1], -1);
@@ -1362,13 +1378,19 @@ uint32_t parse_job_file(fact_obj_t *fobj, nfs_job_t *job)
 
 	if (size > 0)
 	{
-		if (job->snfs)
-			job->snfs->sdifficulty = job->snfs->difficulty = size;
-		else
-			printf("nfs: found a size parameter but not snfs type\n");
+        if (is_snfs)
+        {
+            job->snfs->sdifficulty = job->snfs->difficulty = size;
+        }
+        else
+        {
+            printf("nfs: found a size parameter but not snfs type: gnfs job will ignore\n");
+        }
 	}
-    else
+    else if (is_snfs)
     {
+        // default for snfs jobs with no supplied size info.  
+        // we will try to guess it later (in get_gnfs_params)
         job->snfs->sdifficulty = job->snfs->difficulty = 0;
     }
 	
