@@ -1257,6 +1257,22 @@ void *process_poly(void *vptr)
         }
 #endif
 
+#elif defined(USE_XLBATCHPOLY)
+
+        if (sconf->obj->HAS_AVX512F)
+        {
+            // every iteration we update the small-med prime's roots
+            nextRoots_32k_avx2_small(sconf, dconf);
+            // and the med-big prime's roots
+            nextRoots_32k_knl_bucket(sconf, dconf);
+
+            // every N iterations we do the extra big prime's bucket sieve.
+            if ((dconf->numB % dconf->poly_batchsize) == 1)
+            {
+                nextBigRoots_32k_knl_polybatch(sconf, dconf);
+            }
+        }
+
 #else
 
 #if defined(USE_AVX512F)
@@ -1288,6 +1304,8 @@ void *process_poly(void *vptr)
             }
         }
     }
+
+    //exit(1);
 
     //if (sconf->total_poly_a == 2)
     //{
@@ -1589,7 +1607,17 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
             sconf->num_blocks, sconf->qs_blocksize);
         printf("polynomial A has ~ %d factors\n",
             (int)mpz_sizeinbase(sconf->target_a, 2) / 11);
-        printf("using multiplier of %u\n", sconf->multiplier);
+        
+        if (sconf->knmod8 == 1)
+        {
+            printf("using multiplier of %u\n", sconf->multiplier);
+            printf("using Q2(x) polynomials for kN mod 8 = %u\n", sconf->knmod8);
+        }
+        else
+        {
+            printf("using multiplier of %u (kn mod 8 == %u)\n", sconf->multiplier, sconf->knmod8);
+        }
+
         printf("using SPV correction of %d bits, starting at offset %d\n",
             sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
 		printf("trial factoring cutoff at %d bits\n",sconf->tf_closnuf);
@@ -1682,6 +1710,17 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 		logprint(sconf->obj->logfile,"polynomial A has ~ %d factors\n", 
 			mpz_sizeinbase(sconf->target_a, 2) / 11);
 		logprint(sconf->obj->logfile,"using multiplier of %u\n",sconf->multiplier);
+
+        if (sconf->knmod8 == 1)
+        {
+            logprint(sconf->obj->logfile, "using multiplier of %u\n", sconf->multiplier);
+            logprint(sconf->obj->logfile, "using Q2(x) polynomials for kN mod 8 = %u\n", sconf->knmod8);
+        }
+        else
+        {
+            logprint(sconf->obj->logfile, "using multiplier of %u (kn mod 8 == %u)\n", sconf->multiplier, sconf->knmod8);
+        }
+
 		logprint(sconf->obj->logfile,"using SPV correction of %d bits, starting at offset %d\n",
 			sconf->tf_small_cutoff,sconf->sieve_small_fb_start);
 		logprint(sconf->obj->logfile,"trial factoring cutoff at %d bits\n",
@@ -1904,6 +1943,32 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         memsize += dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t);
         printf("\tbucket data: %d bytes\n", memsize);
     }
+
+#ifdef USE_XLBUCKET
+    // allow room for every xl-prime to hit the interval once.
+    i = sconf->factor_base->B - sconf->factor_base->x2_large_B;
+
+    dconf->xl_nbucket.list = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_pbucket.list = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    
+    i = ((sconf->factor_base->B - sconf->factor_base->x2_large_B) / 2048) + 2;
+
+    dconf->xl_nbucket.sliceid = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_pbucket.sliceid = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_nbucket.slicenum = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_pbucket.slicenum = (uint32_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_nbucket.slicelogp = (uint8_t*)xmalloc_align(i * sizeof(uint32_t));
+    dconf->xl_pbucket.slicelogp = (uint8_t*)xmalloc_align(i * sizeof(uint32_t));
+
+    dconf->xl_pbucket.alloc_slices = i;
+    dconf->xl_pbucket.alloc_slices = i;
+
+    if (sconf->obj->VFLAG > 1)
+    {
+        printf("\txlbucket data: %d bytes\n", 2 * sizeof(uint32_t) *
+            (sconf->factor_base->B - sconf->factor_base->x2_large_B));
+    }
+#endif
 
     //used in trial division to mask out the fb_index portion of bucket entries, so that
     //multiple block locations can be searched for in parallel using SSE2 instructions
@@ -2326,6 +2391,8 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//find multiplier
 		sconf->multiplier = (uint32_t)choose_multiplier_siqs(sconf->factor_base->B, sconf->n);
 		mpz_mul_ui(sconf->n, sconf->n, sconf->multiplier);
+        sconf->knmod8 = mpz_tdiv_ui(sconf->n, 8);
+        //printf("knmod8 = %u\n", sconf->knmod8);
 
 		//sconf holds n*mul, so update its digit count and number of bits
 		sconf->digits_n = gmp_base10(sconf->n);
@@ -2524,12 +2591,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		// find the point at which factor base primes exceed the blocksize.  
+		// find the point at which factor base primes exceed the blocksize.
+        // this controls the point at which we switch from medsieve to 
+        // lpsieve (and bucket sorting).
 		// wait until the index is a multiple of 16 so that we can enter
 		// this region of primes aligned on a 16 byte boundary and thus be able to use
 		// movdqa
 		// don't let med_B grow larger than ~1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.75 * (double)sconf->qs_blocksize))  &&
+		if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize))  &&
 			((i % 16) == 0))
 			break;
 
@@ -2552,7 +2621,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		//this region of primes aligned on a 16 byte boundary and thus be able to use
 		//movdqa
 		if ((sconf->factor_base->list->prime[i] > sconf->sieve_interval) &&
-			(i % 16 == 0))
+			((i % 16) == 0))
 		{
 			i -= 16;
 			break;
@@ -2562,10 +2631,11 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
 	for (; i < sconf->factor_base->B; i++)
 	{
-		if (sconf->factor_base->list->prime[i] > 2*sconf->sieve_interval)
+		if ((sconf->factor_base->list->prime[i] > 4 * sconf->sieve_interval) &&
+            ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
 			break;
 	}
-	sconf->factor_base->x2_large_B = i;
+    sconf->factor_base->x2_large_B = i; // sconf->factor_base->B;
     sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B - 1];
 
 	if (VFLAG > 1)
@@ -2609,10 +2679,12 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     //    sconf->large_prime_max, sconf->obj->qs_obj.gbl_override_lpb);
 
 	// lpmax from parameters and/or user specifications
-    if (sconf->large_mult > 1000)
+    if ((sconf->large_mult > 1000) || (sconf->large_mult == 0))
     {
         // this is an actual LPB for a TLP job
         sconf->large_prime_max = sconf->large_mult;
+        if (sconf->large_prime_max == 0)
+            sconf->large_prime_max = 4294967295ULL;
     }
 	else if ((4294967295ULL / sconf->large_mult) < sconf->pmax)
 	{
@@ -2873,6 +2945,11 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	mpz_mul_2exp(sconf->target_a, sconf->n, 1);
 	mpz_sqrt(sconf->target_a, sconf->target_a);
 	mpz_tdiv_q_ui(sconf->target_a, sconf->target_a, sconf->sieve_interval); 
+    if (sconf->knmod8 == 1)
+    {
+        mpz_tdiv_q_2exp(sconf->target_a, sconf->target_a, 1);
+    }
+
 
 	//compute the number of bits in M/2*sqrt(N/2), the approximate value
 	//of residues in the sieve interval.  Then subtract some slack.
@@ -3000,8 +3077,14 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
         // partials) and that means fewer fulls.
         //sconf->check_inc = 8 * sconf->factor_base->B;
 
+        // check frequently for very large inputs.  Sieving will take
+        // so long that filtering costs are negligible, and good
+        // data will emerge from the filtering runs that might hone in
+        // cycle formation predictions.
         if (sconf->digits_n > 120)
-            sconf->check_inc = 0.05 * sconf->factor_base->B;
+            sconf->check_inc = 1000; 
+        //if (sconf->digits_n > 120)
+            //sconf->check_inc = 0.05 * sconf->factor_base->B;
         else //if (sconf->digits_n >= 100)
             sconf->check_inc = 0.10 * sconf->factor_base->B;
         //else
@@ -3209,7 +3292,7 @@ int update_check(static_conf_t *sconf)
                     }
 
                     printf("%u full + %u partial from %u slp, "
-                        "%u dlp, %u tlp (%1.1f%c batched), filt in %u (%1.2f r/sec)\r",
+                        "%u dlp, %u tlp (%1.1f%c batched), filt in %u (%1.2f r/sec)\n",
                         sconf->num_full, sconf->last_numpartial, sconf->num_slp,
                         sconf->dlp_useful, sconf->tlp_useful, (float)batched, suffix,
                         rels_left,
@@ -3687,6 +3770,15 @@ int update_check(static_conf_t *sconf)
                                 sconf->check_inc = 0.0025 * sconf->factor_base->B;
                             }
                         }
+
+                        sconf->check_inc = MIN(sconf->check_inc, sconf->factor_base->B / 40);
+
+                        // check frequently for very large inputs.  Sieving will take
+                        // so long that filtering costs are negligible, and good
+                        // data will emerge from the filtering runs that might hone in
+                        // cycle formation predictions.
+                        if (sconf->digits_n > 120)
+                            sconf->check_inc = MIN(sconf->check_inc, 1000);
 
 						// this is a better approximation than just assuming that 
 						// cycle formation stays constant.
@@ -4236,13 +4328,28 @@ static const uint8_t mult_list_orig[] =
  39, 41, 42, 43, 46, 47, 51, 53, 55, 57, 58, 59,
  61, 62, 65, 66, 67, 69, 70, 71, 73 };
 
-static const uint8_t mult_list[] = {
+// more options.  Thanks Till for pointing out that my original list was too small!
+static const uint8_t mult_list_many_even[] = {
 1  ,   2  ,   3  ,   5  ,   6  ,   7  ,   9  ,  10  ,  11  ,  13  ,  14  ,
 15 ,   17 ,   19 ,   21 ,   22 ,   23 ,   25 ,   26 ,   29 ,   30 ,   31 ,
 33 ,   34 ,   35 ,   37 ,   38 ,   39 ,   41 ,   42 ,   43 ,   45 ,   46 ,
 47 ,   49 ,   51 ,   53 ,   55 ,   57 ,   58 ,   59 ,   61 ,   62 ,   63 ,
 65 ,   66 ,   67 ,   69 ,   70 ,   71 ,   73 ,   75 ,   77 ,   79 ,   83 ,
 85 ,   87 ,   89 ,   91 ,   93 ,   95 ,   97 ,  101 ,  103 ,  105 ,  107 ,
+109,   111,   113,   115,   119,   121,   123,   127,   129,   131,   133,
+137,   139,   141,   143,   145,   147,   149,   151,   155,   157,   159,
+161,   163,   165,   167,   173,   177,   179,   181,   183,   185,   187,
+191,   193,   195,   197,   199,   201,   203,   205,   209,   211,   213,
+215,   217,   219,   223,   227,   229,   231,   233,   235,   237,   239,
+241,   249,   251,   253,   255 };
+
+static const uint8_t mult_list[] = {
+1  ,   2  ,   3  ,   5  ,   7  ,   9  ,   10 ,   11 ,   13 ,   14  ,
+15 ,   17 ,   19 ,   21 ,   23 ,   25 ,   29 ,   31 ,
+33 ,   35 ,   37 ,   39 ,   41 ,   43 ,   45 ,   
+47 ,   49 ,   51 ,   53 ,   55 ,   57 ,   59 ,   61 ,   63 ,
+65 ,   67 ,   69 ,   71 ,   73 ,   75 ,   77 ,   79 ,   83 ,
+85 ,   87 ,   89 ,   91 ,   93 ,   95 ,   97 ,   101,   103,   105,   107,
 109,   111,   113,   115,   119,   121,   123,   127,   129,   131,   133,
 137,   139,   141,   143,   145,   147,   149,   151,   155,   157,   159,
 161,   163,   165,   167,   173,   177,   179,   181,   183,   185,   187,
@@ -4275,13 +4382,26 @@ uint8_t choose_multiplier_siqs(uint32_t B, mpz_t n)
 		/* only consider multipliers k such than
 		   k*n will not overflow an mp_t */
 
+        // even k seem to be worthwhile, on average.  only occasionally 
+        // are they a bit slower.
+        //if ((curr_mult & 1) == 0)
+        //{
+        //    scores[i] = 1000;
+        //    continue;
+        //}
+
 		if (log2n + logmult > (32 * MAX_DIGITS - 2) * LN2)
 			break;
 
 		scores[i] = 0.5 * logmult;
 		switch (knmod8) {
 		case 1:
-			scores[i] -= 2 * LN2;
+            // when kn == 1 mod 8 then we use Q2(x) polys that
+            // result in sieve locations being 1 bit smaller, so
+            // we use 2.625 * log(2) as the contribution of 2.
+            // the value 2.625 got 9 out of 10 borderline cases correct
+            // in an ad-hoc test but could probably use more testing.
+            scores[i] -= (2.625 * LN2); // (2 * LN2);
 			break;
 		case 5:
 			scores[i] -= LN2;
@@ -4355,9 +4475,9 @@ uint8_t choose_multiplier_siqs(uint32_t B, mpz_t n)
 	}
     if (best_mult_below_73 != best_mult)
     {
-        gmp_printf("n = %Zd\n", n);
-        printf("found better multiplier: %u, compare to original list's best: %u\n",
-            best_mult, best_mult_below_73);
+        //gmp_printf("n = %Zd\n", n);
+        //printf("found better multiplier: %u, compare to original list's best: %u\n",
+        //    best_mult, best_mult_below_73);
     }
 	return best_mult;
 }

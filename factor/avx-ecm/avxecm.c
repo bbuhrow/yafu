@@ -3436,16 +3436,13 @@ void vec_ecm_stage2_init_old(ecm_pt *P, vec_monty_t *mdata, ecm_work *work, base
 // to cancel a z-coord we can multiply a point by z^-1, then
 // we have (Px/Pz:1).
 // the cross product we compute and accumulate is:
-// (Ax - Bx) * (Az + Bz) + BxBz - AxAz
-// AxBz - BxAz
+// (Ax - Bx) * (Az + Bz) + BxBz - AxAz  == AxBz - BxAz
 // In the baby-step giant-step algorithm for stage 2 we can normalize
 // all pre-computed Pb's by the batch-inversion process.
 // Likewise if we precompute all Pa's we can normalize in the same way.
 // (If there are too many Pa's then maybe in batches at a time?)
 // Then we simply work with the normalized values and directly 
-// accumulate the cross products (Xr/Zr*1 - Xd/Zd*1)?
-// does the final accumulation then need another inversion?
-
+// accumulate the cross products (Xr/Zr*1 - Xd/Zd*1)
 
 #define CROSS_PRODUCT_INV \
     vecsubmod_ptr(work->Pa_inv[pa], Pb[rprime_map_U[pb]].X, work->tt1, mdata);          \

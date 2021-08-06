@@ -22,7 +22,7 @@ code to the public domain.
 #include "qs_impl.h"
 #include "ytools.h"
 
-int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
+int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG, int knmod8)
 {
 	int offset, parity, num_factors;
 	int j,retval;
@@ -48,18 +48,28 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG)
         mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
     }
 
-	//Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-	mpz_mul_ui(Q, a, offset);
-	if (parity)
-		mpz_sub(Q, Q, b);
-	else
-		mpz_add(Q, Q, b);
-	mpz_mul(Q, Q, Q);
-	mpz_sub(Q, Q, n);
+    if (knmod8 == 1)
+    {
+        // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, a, offset);
+        mpz_mul_2exp(Q, Q, 1);
+    }
+    else
+    {
+        //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, a, offset);
+    }
 
-	retval = 0;
-	if (mpz_sgn(Q) < 0)
-		mpz_neg(Q,Q);
+    if (parity)
+        mpz_sub(Q, Q, b);
+    else
+        mpz_add(Q, Q, b);
+    mpz_mul(Q, Q, Q);
+    mpz_sub(Q, Q, n);
+
+    retval = 0;
+    if (mpz_sgn(Q) < 0)
+        mpz_neg(Q, Q);
 
     if (mpz_cmp(Q, RHS) != 0)
     {

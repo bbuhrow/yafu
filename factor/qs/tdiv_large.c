@@ -1050,6 +1050,131 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
 #endif
 
+#ifdef USE_XLBUCKET
+
+    // here we have a much larger list to go through,
+    // and we have to select by both block and residue.
+    // block and residue combined is simply a larger residue.
+    // hoping this is less-bad than sorting by blocks in poly update.
+    uint32_t lpnum = 0;
+    uint32_t result = 0;
+    uint32_t lastid = 0;
+    uint32_t updateid = 0;
+    uint32_t sid;
+    uint32_t failed;
+    vblock = _mm512_set1_epi32((bnum << 15) + block_loc);
+    vmask = _mm512_set1_epi32(0x001fffff);
+
+    if (parity == 0)
+    {
+        bptr = dconf->xl_pbucket.list;
+        
+        for (sid = 0; sid < dconf->xl_pbucket.numslices; sid++)
+        {
+            failed = 0;
+            lpnum = dconf->xl_pbucket.slicenum[sid];
+            for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
+            {
+                uint32_t idx;
+                __m512i velements = _mm512_load_epi32(bptr + j);
+                velements = _mm512_and_epi32(velements, vmask);
+                result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+                while (result > 0)
+                {
+                    idx = _trail_zcnt(result);
+                    updateid = (bptr[j + idx] >> 21);
+                    i = dconf->xl_pbucket.sliceid[sid] + updateid;
+                    prime = fb[i];
+
+                    //if (prime == 0)
+                    //{
+                    //    printf("tdiv_large divide by 0\n");
+                    //    printf("slice %d, sliceid = %d, slicenum %d, j = %d, entry = %08x, "
+                    //        "offset = %u, fbid = %u, fb->B = %u\n",
+                    //        sid, dconf->xl_pbucket.sliceid[sid],
+                    //        lpnum, j + idx, bptr[j + idx], updateid, i, sconf->factor_base->B);
+                    //}
+
+                    if (mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0)
+                    {
+                        failed++;
+                        //printf("tdiv entry %08x pid=%u+%u=%u (%u) failed to divide Q "
+                        //    "at block %d sieve loc %u\n",
+                        //    bptr[j + idx], dconf->xl_pbucket.sliceid[sid], updateid,
+                        //    i, prime, bnum, block_loc);
+                        //
+                        //exit(1);
+                    }
+
+                    DIVIDE_RESIEVED_PRIME(i);
+
+                    result = _reset_lsb(result);
+                }
+            }
+            //printf("%d of %d entries failed to divide Q in block %d, slice %d\n",
+            //    failed, dconf->xl_nbucket.slicenum[sid], bnum, sid);
+            bptr += lpnum;
+        }
+    }
+    else
+    {
+        bptr = dconf->xl_nbucket.list;
+        for (sid = 0; sid < dconf->xl_nbucket.numslices; sid++)
+        {
+            failed = 0;
+            lpnum = dconf->xl_nbucket.slicenum[sid];
+            for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
+            {
+                uint32_t idx;
+                __m512i velements = _mm512_load_epi32(bptr + j);
+                velements = _mm512_and_epi32(velements, vmask);
+                result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+                while (result > 0)
+                {
+                    idx = _trail_zcnt(result);
+                    updateid = (bptr[j + idx] >> 21);
+                    i = dconf->xl_nbucket.sliceid[sid] + updateid;
+                    prime = fb[i];
+
+                    //if (prime == 0)
+                    //{
+                    //    printf("tdiv_large divide by 0\n");
+                    //    printf("slice %d, sliceid = %d, slicenum %d, j = %d, entry = %08x, "
+                    //        "offset = %u, fbid = %u, fb->B = %u\n",
+                    //        sid, dconf->xl_nbucket.sliceid[sid], 
+                    //        lpnum, j + idx, bptr[j + idx], updateid, i, sconf->factor_base->B);
+                    //}
+
+                    if (mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0)
+                    {
+                        failed++;
+                        //printf("tdiv entry %08x pid=%u+%u=%u (%u) failed to divide Q "
+                        //    "at block %d sieve loc %u\n",
+                        //    bptr[j + idx], dconf->xl_nbucket.sliceid[sid], updateid,
+                        //    i, prime, bnum, block_loc);
+                        //
+                        //exit(1);
+                    }
+
+                    DIVIDE_RESIEVED_PRIME(i);
+
+                    result = _reset_lsb(result);
+                }
+            }
+            //printf("%d of %d entries failed to divide Q in block %d, slice %d\n",
+            //    failed, dconf->xl_nbucket.slicenum[sid], bnum, sid);
+            bptr += lpnum;
+        }
+    }
+    
+    
+    
+    
+
+#endif
+
     SCAN_CLEAN;
 
     dconf->smooth_num[report_num] = smooth_num;

@@ -77,6 +77,7 @@ typedef struct
 {
     char name[40];
     char* data;
+    int alloc;
 } strvar_t;
 
 typedef struct

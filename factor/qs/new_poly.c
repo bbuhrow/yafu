@@ -285,6 +285,11 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 		min_ratio = 1000;
 	}
 
+    //if (sconf->knmod8 == 1)
+    //{
+    //    target_bits--;
+    //}
+
 	//printf("range of candidate factor pool: %d-%d (%u-%u)\n", lower_polypool_index,
 	//	upper_polypool_index, fb->list->prime[lower_polypool_index], 
 	//	fb->list->prime[upper_polypool_index]);
@@ -555,12 +560,36 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
         mpz_mul_2exp(dconf->Bl[i], dconf->Bl[i], 1);
     }
 
+    // need to do this whether or not we compute 'c'.
+    if (sconf->knmod8 == 1)
+    {
+        if (mpz_tstbit(poly->mpz_poly_b, 0) == 0)
+        {
+            mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, poly->mpz_poly_a);
+        }
+    }
+
 	//now that we have b, compute c = (b*b - n)/a
     if (needC)
     {
-        mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
-        mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
-        mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+        if (sconf->knmod8 == 1)
+        {
+            mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+            mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+            mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+
+            if (mpz_tdiv_ui(poly->mpz_poly_c, 4) != 0)
+            {
+                printf("c not divisible by 4 in Q2(x) variation!\n");
+            }
+            mpz_tdiv_q_ui(poly->mpz_poly_c, poly->mpz_poly_c, 4);
+        }
+        else
+        {
+            mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+            mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+            mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+        }
     }
 
 	//gmp_printf("A = %Zd\n", poly->mpz_poly_a);
@@ -588,12 +617,36 @@ void nextB(dynamic_conf_t *dconf, static_conf_t *sconf, int needC)
 	else
 		mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, dconf->Bl[poly->nu[Bnum] - 1]); 
 	
+    // need to do this whether or not we compute 'c'.
+    if (sconf->knmod8 == 1)
+    {
+        if (mpz_tstbit(poly->mpz_poly_b, 0) == 0)
+        {
+            mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, poly->mpz_poly_a);
+        }
+    }
+
     if (needC)
     {
-        //now that we have b, compute c = (b*b - n)/a
-        mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
-        mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
-        mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+        if (sconf->knmod8 == 1)
+        {
+            mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+            mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+            mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+
+            if (mpz_tdiv_ui(poly->mpz_poly_c, 4) != 0)
+            {
+                printf("c not divisible by 4 in Q2(x) variation!\n");
+            }
+            mpz_tdiv_q_ui(poly->mpz_poly_c, poly->mpz_poly_c, 4);
+        }
+        else
+        {
+            //now that we have b, compute c = (b*b - n)/a
+            mpz_mul(poly->mpz_poly_c, poly->mpz_poly_b, poly->mpz_poly_b);
+            mpz_sub(poly->mpz_poly_c, poly->mpz_poly_c, n);
+            mpz_tdiv_q(poly->mpz_poly_c, poly->mpz_poly_c, poly->mpz_poly_a);
+        }
     }
 
     //gmp_printf("B%d = %Zd\n", Bnum, poly->mpz_poly_b);

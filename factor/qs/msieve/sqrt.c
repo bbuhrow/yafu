@@ -70,6 +70,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 	siqs_r *relation;
 	uint32_t factor_found = 0;
 	int bits, bits_before;
+    int knmod8 = mpz_tdiv_ui(n, 8);
 
 	mpz_init(factor);
 	mpz_init(x);
@@ -137,6 +138,10 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				   to multiply together */
 	
 				mpz_mul_ui(sum, a, sieve_offset); //zShortMul(a,sieve_offset,&sum);
+                if (knmod8 == 1)
+                {
+                    mpz_mul_2exp(sum, sum, 1);
+                }
 
 				if (sign_of_index == POSITIVE)
 					mpz_add(sum, sum, b); //zAdd(&sum,b,&tmp);

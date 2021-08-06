@@ -357,6 +357,7 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 
 #endif
 
+
     return;
 }
 #endif
@@ -573,6 +574,219 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         bptr += (numblocks << (BUCKET_BITS + 1));
         basebucket += (numblocks << 1);
     }
+
+#endif
+
+#ifdef USE_XLBUCKET
+
+    //ALIGNED_MEM uint32_t b1[2048];
+    uint32_t sid;
+    uint32_t shifted_block = bnum << 15;
+    //__m512i vmask15 = _mm512_set1_epi32(0x00007fff);
+
+    // now dump in the xl-primes.  we have to check that
+    // each hits the block first.  hoping this is less-bad
+    // than sorting into blocks during poly update.
+    // update: seems to be working, but this is slower than 
+    // sorting into blocks during poly update.
+    if (side == 0)
+    {
+        bptr = dconf->xl_pbucket.list;
+
+        for (sid = 0; sid < dconf->xl_pbucket.numslices; sid++)
+        {
+            //printf("starting lpsieve on pslice %d, xl-prime id %u\n", sid, dconf->xl_pbucket.sliceid[sid]);
+            
+            //uint32_t numhit = 0;
+            lpnum = dconf->xl_pbucket.slicenum[sid];
+            logp = dconf->xl_pbucket.slicelogp[sid];
+
+            //printf("compressing %u elements with logp = %u\n", lpnum, logp);
+
+            for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            {
+                __m512i v1 = _mm512_load_epi32(bptr + i);
+                __mmask16 mask1 = _mm512_cmp_epu32_mask(
+                    _mm512_and_epi32(v1, _mm512_set1_epi32(0x001F8000)),
+                    _mm512_set1_epi32(shifted_block), _MM_CMPINT_EQ);
+
+                ALIGNED_MEM uint32_t b1[16];
+
+                //_mm512_mask_compressstoreu_epi32(b1, mask1, v1);
+                _mm512_store_epi32(b1, v1);
+
+                uint32_t m1 = mask1;
+
+                while (m1 > 0)
+                {
+                    int idx = _trail_zcnt(m1);
+                    sieve[bptr[i + idx] & 0x00007fff] -= logp;
+                    m1 = _reset_lsb(m1);
+                }
+
+            //for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            //{
+            //    __m512i v1 = _mm512_load_epi32(bptr + i);
+            //    __mmask16 mask1 = _mm512_cmp_epu32_mask(
+            //        _mm512_and_epi32(v1, _mm512_set1_epi32(0x001F8000)),
+            //        _mm512_set1_epi32(shifted_block), _MM_CMPINT_EQ);
+            //
+            //    _mm512_mask_compressstoreu_epi32(b1 + numhit, mask1, _mm512_and_epi32(v1, vmask15));
+            //    numhit += _mm_popcnt_u32(mask1);
+            //}
+            //
+            //for (; i < lpnum; i++)
+            //    if ((bptr[i] & 0x001F8000) == shifted_block) b1[numhit++] = bptr[i] & 0x00007fff;
+            //
+            //lpnum = numhit;
+            //
+            //printf("processing %u elements in block %d\n", lpnum, bnum);
+            //for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            //{
+            //    sieve[b1[i + 0] ]-= logp;
+            //    sieve[b1[i + 1] ]-= logp;
+            //    sieve[b1[i + 2] ]-= logp;
+            //    sieve[b1[i + 3] ]-= logp;
+            //    sieve[b1[i + 4] ]-= logp;
+            //    sieve[b1[i + 5] ]-= logp;
+            //    sieve[b1[i + 6] ]-= logp;
+            //    sieve[b1[i + 7] ]-= logp;
+            //    sieve[b1[i + 8] ]-= logp;
+            //    sieve[b1[i + 9] ]-= logp;
+            //    sieve[b1[i + 10]] -= logp;
+            //    sieve[b1[i + 11]] -= logp;
+            //    sieve[b1[i + 12]] -= logp;
+            //    sieve[b1[i + 13]] -= logp;
+            //    sieve[b1[i + 14]] -= logp;
+            //    sieve[b1[i + 15]] -= logp;
+                //if ((bptr[i + 0 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 0] & 0x00007fff] -= logp;
+                //if ((bptr[i + 1 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 1] & 0x00007fff] -= logp;
+                //if ((bptr[i + 2 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 2] & 0x00007fff] -= logp;
+                //if ((bptr[i + 3 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 3] & 0x00007fff] -= logp;
+                //if ((bptr[i + 4 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 4] & 0x00007fff] -= logp;
+                //if ((bptr[i + 5 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 5] & 0x00007fff] -= logp;
+                //if ((bptr[i + 6 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 6] & 0x00007fff] -= logp;
+                //if ((bptr[i + 7 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 7] & 0x00007fff] -= logp;
+                //if ((bptr[i + 8 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 8] & 0x00007fff] -= logp;
+                //if ((bptr[i + 9 ] & 0x001F8000) == shifted_block) sieve[bptr[i + 9] & 0x00007fff] -= logp;
+                //if ((bptr[i + 10] & 0x001F8000) == shifted_block) sieve[bptr[i + 10] & 0x00007fff] -= logp;
+                //if ((bptr[i + 11] & 0x001F8000) == shifted_block) sieve[bptr[i + 11] & 0x00007fff] -= logp;
+                //if ((bptr[i + 12] & 0x001F8000) == shifted_block) sieve[bptr[i + 12] & 0x00007fff] -= logp;
+                //if ((bptr[i + 13] & 0x001F8000) == shifted_block) sieve[bptr[i + 13] & 0x00007fff] -= logp;
+                //if ((bptr[i + 14] & 0x001F8000) == shifted_block) sieve[bptr[i + 14] & 0x00007fff] -= logp;
+                //if ((bptr[i + 15] & 0x001F8000) == shifted_block) sieve[bptr[i + 15] & 0x00007fff] -= logp;
+            }
+
+            //for (; i < lpnum; i++)
+            //    sieve[b1[i]] -= logp;
+
+            for (; i < lpnum; i++)
+                if ((bptr[i] & 0x001F8000) == shifted_block) sieve[bptr[i] & 0x00007fff] -= logp;
+
+            bptr += lpnum;
+        }
+    }
+    else
+    {
+        bptr = dconf->xl_nbucket.list;
+
+        for (sid = 0; sid < dconf->xl_nbucket.numslices; sid++)
+        {
+            //printf("starting lpsieve on nslice %d, xl-prime id %u\n", sid, dconf->xl_nbucket.sliceid[sid]);
+            //uint32_t numhit = 0;
+            lpnum = dconf->xl_nbucket.slicenum[sid];
+            logp = dconf->xl_nbucket.slicelogp[sid];
+
+            //printf("compressing %u elements with logp = %u\n", lpnum, logp);
+
+            
+            for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            {
+                __m512i v1 = _mm512_load_epi32(bptr + i);
+                __mmask16 mask1 = _mm512_cmp_epu32_mask(
+                    _mm512_and_epi32(v1, _mm512_set1_epi32(0x001F8000)),
+                    _mm512_set1_epi32(shifted_block), _MM_CMPINT_EQ);
+            
+                ALIGNED_MEM uint32_t b1[16];
+            
+                //_mm512_mask_compressstoreu_epi32(b1, mask1, v1);
+                _mm512_store_epi32(b1, v1);
+            
+                uint32_t m1 = mask1;
+            
+                while (m1 > 0)
+                {
+                    int idx = _trail_zcnt(m1);
+                    sieve[bptr[i + idx] & 0x00007fff] -= logp;
+                    m1 = _reset_lsb(m1);
+                }
+
+            //for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            //{
+            //    __m512i v1 = _mm512_load_epi32(bptr + i);
+            //    __mmask16 mask1 = _mm512_cmp_epu32_mask(
+            //        _mm512_and_epi32(v1, _mm512_set1_epi32(0x001F8000)),
+            //        _mm512_set1_epi32(shifted_block), _MM_CMPINT_EQ);
+            //
+            //    _mm512_mask_compressstoreu_epi32(b1 + numhit, mask1, _mm512_and_epi32(v1, vmask15));
+            //    numhit += _mm_popcnt_u32(mask1);
+            //}
+            //
+            //for (; i < lpnum; i++)
+            //    if ((bptr[i] & 0x001F8000) == shifted_block) b1[numhit++] = bptr[i] & 0x00007fff;
+            //
+            //lpnum = numhit;
+            //
+            ////printf("processing %u elements with logp = %u\n", lpnum, logp);
+            //printf("processing %u elements in block %u\n", lpnum, bnum);
+            //for (i = 0; (uint32_t)i < (lpnum & (uint32_t)(~15)); i += 16)
+            //{
+            //    sieve[b1[i + 0]] -= logp;
+            //    sieve[b1[i + 1]] -= logp;
+            //    sieve[b1[i + 2]] -= logp;
+            //    sieve[b1[i + 3]] -= logp;
+            //    sieve[b1[i + 4]] -= logp;
+            //    sieve[b1[i + 5]] -= logp;
+            //    sieve[b1[i + 6]] -= logp;
+            //    sieve[b1[i + 7]] -= logp;
+            //    sieve[b1[i + 8]] -= logp;
+            //    sieve[b1[i + 9]] -= logp;
+            //    sieve[b1[i + 10]] -= logp;
+            //    sieve[b1[i + 11]] -= logp;
+            //    sieve[b1[i + 12]] -= logp;
+            //    sieve[b1[i + 13]] -= logp;
+            //    sieve[b1[i + 14]] -= logp;
+            //    sieve[b1[i + 15]] -= logp;
+
+                //if ((bptr[i + 0] & 0x001F8000) == shifted_block) sieve[bptr[i + 0] & 0x00007fff] -= logp;
+                //if ((bptr[i + 1] & 0x001F8000) == shifted_block) sieve[bptr[i + 1] & 0x00007fff] -= logp;
+                //if ((bptr[i + 2] & 0x001F8000) == shifted_block) sieve[bptr[i + 2] & 0x00007fff] -= logp;
+                //if ((bptr[i + 3] & 0x001F8000) == shifted_block) sieve[bptr[i + 3] & 0x00007fff] -= logp;
+                //if ((bptr[i + 4] & 0x001F8000) == shifted_block) sieve[bptr[i + 4] & 0x00007fff] -= logp;
+                //if ((bptr[i + 5] & 0x001F8000) == shifted_block) sieve[bptr[i + 5] & 0x00007fff] -= logp;
+                //if ((bptr[i + 6] & 0x001F8000) == shifted_block) sieve[bptr[i + 6] & 0x00007fff] -= logp;
+                //if ((bptr[i + 7] & 0x001F8000) == shifted_block) sieve[bptr[i + 7] & 0x00007fff] -= logp;
+                //if ((bptr[i + 8] & 0x001F8000) == shifted_block) sieve[bptr[i + 8] & 0x00007fff] -= logp;
+                //if ((bptr[i + 9] & 0x001F8000) == shifted_block) sieve[bptr[i + 9] & 0x00007fff] -= logp;
+                //if ((bptr[i + 10] & 0x001F8000) == shifted_block) sieve[bptr[i + 10] & 0x00007fff] -= logp;
+                //if ((bptr[i + 11] & 0x001F8000) == shifted_block) sieve[bptr[i + 11] & 0x00007fff] -= logp;
+                //if ((bptr[i + 12] & 0x001F8000) == shifted_block) sieve[bptr[i + 12] & 0x00007fff] -= logp;
+                //if ((bptr[i + 13] & 0x001F8000) == shifted_block) sieve[bptr[i + 13] & 0x00007fff] -= logp;
+                //if ((bptr[i + 14] & 0x001F8000) == shifted_block) sieve[bptr[i + 14] & 0x00007fff] -= logp;
+                //if ((bptr[i + 15] & 0x001F8000) == shifted_block) sieve[bptr[i + 15] & 0x00007fff] -= logp;
+            }
+
+            //for (; i < lpnum; i++)
+            //    sieve[b1[i]] -= logp;
+
+            for (; i < lpnum; i++)
+                if ((bptr[i] & 0x001F8000) == shifted_block) sieve[bptr[i] & 0x00007fff] -= logp;
+
+            bptr += lpnum;
+        }
+    }
+
+    
 
 #endif
 

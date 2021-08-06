@@ -184,12 +184,7 @@ static int function_nargs[NUM_FUNC] = {
 
 void sInit(str_t* s)
 {
-    s->s = (char*)malloc(GSTR_MAXSIZE * sizeof(char));
-    if (s->s == NULL)
-    {
-        printf("couldn't allocate str_t in sInit\n");
-        exit(-1);
-    }
+    s->s = (char*)xmalloc(GSTR_MAXSIZE * sizeof(char));
     s->s[0] = '\0';
     s->nchars = 1;
     s->alloc = GSTR_MAXSIZE;
@@ -226,12 +221,7 @@ void toStr(char* src, str_t* dest)
 void sGrow(str_t* str, int size)
 {
     //printf("growing str_t size...\n");
-    str->s = (char*)realloc(str->s, size * sizeof(char));
-    if (str->s == NULL)
-    {
-        printf("unable to reallocate string in sGrow\n");
-        exit(-1);
-    }
+    str->s = (char*)xrealloc(str->s, size * sizeof(char));
     str->alloc = size;
 
     return;
@@ -256,7 +246,7 @@ void sCopy(str_t* dest, str_t* src)
 {
     if (dest->alloc < src->nchars + 2)
     {
-        dest->s = (char*)realloc(dest->s, (src->nchars + 2) * sizeof(char));
+        dest->s = (char*)xrealloc(dest->s, (src->nchars + 2) * sizeof(char));
         dest->alloc = src->nchars + 2;
     }
     memcpy(dest->s, src->s, src->nchars * sizeof(char));
@@ -271,11 +261,11 @@ void sCopy(str_t* dest, str_t* src)
 int stack_init(int num, bstack_t* stack, int type)
 {
     int i;
-    stack->elements = (str_t * *)malloc(num * sizeof(str_t*));		//array of elements
+    stack->elements = (str_t **)xmalloc(num * sizeof(str_t*));		//array of elements
     //space for each element (a str_t)
     for (i = 0; i < num; i++)
     {
-        stack->elements[i] = (str_t*)malloc(sizeof(str_t));
+        stack->elements[i] = (str_t*)xmalloc(sizeof(str_t));
         //init each element (char array);
         sInit(stack->elements[i]);
     }
@@ -307,7 +297,7 @@ void push(str_t* str, bstack_t* stack)
     if (stack->num >= stack->size)
     {
         stack->size *= 2;
-        stack->elements = (str_t * *)realloc(stack->elements,
+        stack->elements = (str_t **)xrealloc(stack->elements,
             stack->size * sizeof(str_t*));
         if (stack->elements == NULL)
         {
@@ -393,8 +383,11 @@ int calc_init(uint64_t rand_seed)
     // string variable space
     strvars.vars = (strvar_t *)malloc(10 * sizeof(strvar_t));
     strvars.alloc = 10;
-    for (i = 0; i<strvars.alloc; i++)
-        strvars.vars[i].data = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+    for (i = 0; i < strvars.alloc; i++)
+    {
+        strvars.vars[i].data = (char*)xmalloc(GSTR_MAXSIZE * sizeof(char));
+        strvars.vars[i].alloc = GSTR_MAXSIZE;
+    }
     strvars.num = 0;
 
     // mpz operands to functions
@@ -668,7 +661,7 @@ str_t* preprocess(str_t* in, int* numlines)
 
     // copy input to first output location
     *numlines = 1;
-    out = (str_t*)malloc(sizeof(str_t));
+    out = (str_t*)xmalloc(sizeof(str_t));
     current = &out[0];
     sInit(current);
     sCopy(current, in);
@@ -1016,7 +1009,7 @@ str_t* preprocess(str_t* in, int* numlines)
             if ((openp == closedp) && (openb == closedb))
             {
                 (*numlines)++;
-                out = (str_t*)realloc(out, *numlines * sizeof(str_t));
+                out = (str_t*)xrealloc(out, *numlines * sizeof(str_t));
                 out[*numlines - 2].s[i] = '\0';
                 sInit(&out[*numlines - 1]);
                 current = &out[*numlines - 1];
@@ -1083,10 +1076,10 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 	char **tokens;
 
 	token_alloc = 100;		//100 tokens
-	tokens = (char **)malloc(token_alloc * sizeof(char *));
+	tokens = (char **)xmalloc(token_alloc * sizeof(char *));
 	*num_tokens = 0;
 
-	tmp = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+	tmp = (char *)xmalloc(GSTR_MAXSIZE * sizeof(char));
 
 	// get the first character and check the type
 	inpos = 0;
@@ -1199,15 +1192,16 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			{
 				// create a new token
 				tmp[i] = '\0';
-				tokens[*num_tokens] = (char *)malloc((strlen(tmp) + 2) * sizeof(char));
+                //printf("copying size %d tmp string to token\n", strlen(tmp));
+				tokens[*num_tokens] = (char *)xmalloc((strlen(tmp) + 2) * sizeof(char));
 				strcpy(tokens[*num_tokens],tmp);
 				token_types[*num_tokens] = el_type;
 				*num_tokens = *num_tokens + 1;
 
 				if (*num_tokens >= token_alloc)
 				{
-					tokens = (char **)realloc(tokens, token_alloc * 2 * sizeof(char *));
-					token_types = (int *)realloc(token_types, token_alloc * 2 * sizeof(int));
+					tokens = (char **)xrealloc(tokens, token_alloc * 2 * sizeof(char *));
+					token_types = (int *)xrealloc(token_types, token_alloc * 2 * sizeof(int));
 					token_alloc *= 2;
 				}
 			}
@@ -1222,7 +1216,8 @@ char** tokenize(char *in, int *token_types, int *num_tokens)
 			if (i == (tmpsize - 1))
 			{
 				tmpsize += GSTR_MAXSIZE;
-				tmp = (char *)realloc(tmp,tmpsize * sizeof(char));
+				tmp = (char *)xrealloc(tmp,tmpsize * sizeof(char));
+                //printf("tmp string is now size %d\n", tmpsize);
 			}
 			tmp[i] = ch;
 			i++;
@@ -1644,7 +1639,7 @@ int calc(str_t *in, meta_t *metadata)
 	retval = 0;
 
 	//initialize and find tokens
-	token_types = (int *)malloc(100 * sizeof(int));
+	token_types = (int *)xmalloc(100 * sizeof(int));
 	tokens = tokenize(in->s, token_types, &num_tokens);
 	if (tokens == NULL)
 	{		
@@ -1653,10 +1648,10 @@ int calc(str_t *in, meta_t *metadata)
 	}
 
     stack_init(20, &stk, 0);
-	tmp = (str_t *)malloc(sizeof(str_t));
+	tmp = (str_t *)xmalloc(sizeof(str_t));
 	sInit(tmp);	
 	mpz_init(tmpz);
-	post = (str_t *)malloc(sizeof(str_t));
+	post = (str_t *)xmalloc(sizeof(str_t));
 	sInit(post);
 
 	// run the shunting algorithm
@@ -1682,7 +1677,7 @@ int calc(str_t *in, meta_t *metadata)
 			varstate = get_uvar(tokens[i],tmpz);
 			if (varstate == 0)
 			{
-				// found a variable with that name, copy it's value
+				// found a variable with that name, copy its value
 				// to num output queue
 				sAppend(" ",post);
 				sAppend(tokens[i],post);
@@ -1837,8 +1832,10 @@ int calc(str_t *in, meta_t *metadata)
 	}
 
 	// free the input tokens
-	for (i=0;i<num_tokens;i++)
-		free(tokens[i]);
+    for (i = 0; i < num_tokens; i++)
+    {
+        free(tokens[i]);
+    }
 	free(tokens);
 
 	// process the output postfix expression:
@@ -1848,7 +1845,9 @@ int calc(str_t *in, meta_t *metadata)
 
 	// now evaluate the RPN expression
     if (CALC_VERBOSE)
-	    printf("processing postfix expression: %s\n",post->s);
+    {
+        printf("processing postfix expression: %s\n", post->s);
+    }
 	delim[0] = ' ';
 	delim[1] = '\0';
 
@@ -1856,7 +1855,7 @@ int calc(str_t *in, meta_t *metadata)
     // do their own tokenizing so we need to remember
     // this one.
     tok_context = NULL;
-	tok = strtok_s(post->s,delim,&tok_context);
+	tok = strtok_s(post->s, delim, &tok_context);
 	if (tok == NULL)
 	{
         sClear(in);
@@ -1869,7 +1868,11 @@ int calc(str_t *in, meta_t *metadata)
         {
             printf("stack contents: ");
             for (i = 0; i < stk.num; i++)
-                printf("%s ", stk.elements[i]->s);
+            {
+                printf("%s (%d/%d/%d) ", stk.elements[i]->s, 
+                    stk.elements[i]->nchars, strlen(stk.elements[i]->s), 
+                    stk.elements[i]->alloc);
+            }
             printf("\n");
             printf("current token: %s\n\n", &tok[0]);
         }
@@ -1965,7 +1968,7 @@ int calc(str_t *in, meta_t *metadata)
                 sz = mpz_sizeinbase(tmpz, 10) + 10;
                 if (gstr1.alloc < sz)
                 {
-                    gstr1.s = (char *)realloc(gstr1.s, sz * sizeof(char));
+                    gstr1.s = (char *)xrealloc(gstr1.s, sz * sizeof(char));
                     gstr1.alloc = sz;
                 }
                 mpz_get_str(gstr1.s, 10, tmpz);
@@ -3096,7 +3099,7 @@ int new_uvar(const char *name, mpz_t data)
 	if (uvars.num == uvars.alloc)
 	{
 		//need more room for variables
-		uvars.vars = (uvar_t *)realloc(uvars.vars, uvars.num * 2 * sizeof(uvar_t));
+		uvars.vars = (uvar_t *)xrealloc(uvars.vars, uvars.num * 2 * sizeof(uvar_t));
 		uvars.alloc *= 2;
 		for (i=uvars.num;i<uvars.alloc;i++)
 			mpz_init(uvars.vars[i].data);
@@ -3183,8 +3186,14 @@ int get_uvar(const char *name, mpz_t data)
 		printf("IBASE              %u\n",IBASE);
 		printf("OBASE              %u\n",OBASE);		
 
-		for (i=0;i<uvars.num;i++)
-			printf("%s      %s\n",uvars.vars[i].name,mpz_get_str(gstr1.s, 10, uvars.vars[i].data));
+        char* s;
+
+        for (i = 0; i < uvars.num; i++)
+        {
+            s = mpz_get_str(NULL, 10, uvars.vars[i].data);
+            printf("%s      %s\n", uvars.vars[i].name, s);
+            free(s);
+        }
 
 		return 2;
 	}
@@ -3204,8 +3213,10 @@ int get_uvar(const char *name, mpz_t data)
 void free_uvars()
 {
 	int i;
-	for (i=0;i<uvars.alloc;i++)
-		mpz_clear(uvars.vars[i].data);
+    for (i = 0; i < uvars.alloc; i++)
+    {
+        mpz_clear(uvars.vars[i].data);
+    }
 	free(uvars.vars);
 }
 
@@ -3217,13 +3228,21 @@ int new_strvar(const char *name, char *data)
     if (strvars.num == strvars.alloc)
     {
         // need more room for variables
-        strvars.vars = (strvar_t *)realloc(strvars.vars, strvars.num * 2 * sizeof(strvar_t));
+        strvars.vars = (strvar_t *)xrealloc(strvars.vars, strvars.num * 2 * sizeof(strvar_t));
         strvars.alloc *= 2;
-        for (i = strvars.num; i<strvars.alloc; i++)
-            strvars.vars[i].data = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
+        for (i = strvars.num; i < strvars.alloc; i++)
+        {
+            strvars.vars[i].data = (char*)xmalloc(GSTR_MAXSIZE * sizeof(char));
+            strvars.vars[i].alloc = GSTR_MAXSIZE;
+        }
     }
 
     strcpy(strvars.vars[strvars.num].name, name);
+    if (strvars.vars[strvars.num].alloc < (strlen(data) + 1))
+    {
+        strvars.vars[strvars.num].data = xrealloc(
+            strvars.vars[strvars.num].data, strlen(data) + 2);
+    }
     strcpy(strvars.vars[strvars.num].data, data);
     strvars.num++;
     return strvars.num - 1;
@@ -3240,6 +3259,10 @@ int set_strvar(const char *name, char *data)
     {
         if (strcmp(strvars.vars[i].name, name) == 0)
         {
+            if (strvars.vars[i].alloc < (strlen(data) + 1))
+            {
+                strvars.vars[i].data = xrealloc(strvars.vars[i].data, strlen(data) + 2);
+            }
             strcpy(strvars.vars[i].data, data);
             return 0;
         }

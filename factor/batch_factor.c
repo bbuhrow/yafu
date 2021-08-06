@@ -125,16 +125,71 @@ void addNode(bintree_t* tree, int id, int side, uint32_t low, uint32_t high, mpz
 
     if ((side == 0) && (node->left_id != -1))
     {
-        printf("node %d already has a left child\n", id);
-        exit(1);
+        // these "errors" are actually harmless; corresponding
+        // to a node already existing but a multiply not being
+        // complete for the indicated side.  Just return and
+        // calling code will recurse and finish the multiply.
+
+        //printf("node %d already has a left child\n", id);
+        //printf("attempted new low,high: %u,%u\n", low, high);
+        //printf("existing low,high: %u,%u\n", node->low, node->high);
+        //if (prod != NULL)
+        //    gmp_printf("attempted prod: %Zd\n", prod);
+        //if (node->prod != NULL)
+        //    gmp_printf("existing prod: %Zd\n", node->prod);
+        //
+        //FILE* fid = fopen("batch_factor_tree_trace.txt", "w");
+        //fprintf(fid, "node %d already has a left child\n", id);
+        //fprintf(fid, "attempted new low,high: %u,%u\n", low, high);
+        //fprintf(fid, "existing low,high: %u,%u\n", node->low, node->high);
+        //int i;
+        //for (i = 0; i < tree->size; i++)
+        //{
+        //    bintree_element_t* node = &tree->nodes[i];
+        //    fprintf(fid, "%d, %u, %u, %d, %d, %u\n",
+        //        i, node->low, node->high, node->left_id, node->right_id, node->complete);
+        //}
+        //fclose(fid);
+        
+        //exit(1);
+
+        //printf("ignoring addNode\n");
+        return;
     }
     if ((side == 1) && (node->right_id != -1))
     {
-        printf("node %d already has a right child\n", id);
-        exit(1);
+        // these "errors" are actually harmless; corresponding
+        // to a node already existing but a multiply not being
+        // complete for the indicated side.  Just return and
+        // calling code will recurse and finish the multiply.
+
+        //printf("node %d already has a right child\n", id);
+        //printf("attempted new low,high: %u,%u\n", low, high);
+        //printf("existing low,high: %u,%u\n", node->low, node->high);
+        //if (prod != NULL)
+        //    gmp_printf("attempted prod: %Zd\n", prod);
+        //if (node->prod != NULL)
+        //    gmp_printf("existing prod: %Zd\n", node->prod);
+        //
+        //FILE* fid = fopen("batch_factor_tree_trace.txt", "w");
+        //fprintf(fid, "node %d already has a right child\n", id);
+        //fprintf(fid, "attempted new low,high: %u,%u\n", low, high);
+        //fprintf(fid, "existing low,high: %u,%u\n", node->low, node->high);
+        //int i;
+        //for (i = 0; i < tree->size; i++)
+        //{
+        //    bintree_element_t* node = &tree->nodes[i];
+        //    fprintf(fid, "%d, %u, %u, %d, %d, %u\n",
+        //        i, node->low, node->high, node->left_id, node->right_id, node->complete);
+        //}
+        //fclose(fid);
+
+        //printf("ignoring addNode\n");
+        return;
+        //exit(1);
     }
 
-    //printf("adding node %d as %d-child of %d: (%u:%u)\n", tree->size, side, id, low, high);
+    //printf("adding node %d as %d-child of %d: (low,high: %u,%u)\n", tree->size, side, id, low, high);
     tree->nodes[tree->size].low = low;
     tree->nodes[tree->size].high = high;
     mpz_init(tree->nodes[tree->size].prod);
@@ -294,14 +349,19 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 	mpz_init(half_prod);
 	if (last == first + 1) {
         //printf("forming product (prod(%u) * prod(%u))\n", first, last);
+        // multiply a list of two relations.  This will always be below
+        // the tree cutoff and the multiplication is trivial...
 		relation_to_gmp(rb, first, half_prod);
 		relation_to_gmp(rb, last, prod);
 	}
-	else {
+	else 
+    {
         uint32_t mid = (last + first) / 2;
 
 #ifdef USE_TREE
         uint32_t pnode;
+
+        // get a node associated with the product of relations 'first' to 'last'
         pnode = getNode(tree, first, last);
 
         // Paul K's proposed fix, which for me caused segfaults... 
@@ -351,36 +411,51 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
         if ((pnode >= 0) && ((mid - first) > TREE_CUTOFF))
         {
+            // a node exists for the product of relations 'first' to 'last'.
+            // check if there is a node for the low-half product.
             uint32_t node;
             node = getNode(tree, first, mid);
+
             if ((node != -1) && (tree->nodes[node].complete))
             {
                 //printf("getting half-product (prod(%u:%u)\n", first, mid);
+                // there is a node for the low-half product and the multiplication is complete,
+                // so assign the node's product to the output.
                 mpz_set(prod, tree->nodes[node].prod);
             }
             else
             {
                 //printf("forming half-product (prod(%u:%u)\n", first, mid);
+
+                // either there isn't a node or the product isn't complete so
+                // create a new node and recurse on the multiply.
                 addNode(tree, pnode, 0, first, mid, NULL);
                 multiply_relations(tree, first, mid, rb, prod);
             }
         
-        
+            // check if there is a node for the high-half product.
             node = getNode(tree, mid + 1, last);
             if ((node != -1) && (tree->nodes[node].complete))
             {
                 //printf("getting half-product (prod(%u:%u)\n", mid + 1, last);
+                // there is a node for the high-half product and the multiplication is complete,
+                // so assign the node's product to the output.
                 mpz_set(prod, tree->nodes[node].prod);
             }
             else
             {
                 //printf("forming half-product (prod(%u:%u)\n", mid + 1, last);
+                // either there isn't a node or the product isn't complete so
+                // create a new node and recurse on the multiply.
                 addNode(tree, pnode, 1, mid + 1, last, NULL);
                 multiply_relations(tree, mid + 1, last, rb, half_prod);
             }
         }
         else
         {
+            // either there was no node or the list isn't big enough to
+            // be in the tree, so just recursively multiply the two halves of
+            // the relation list.
             multiply_relations(tree, first, mid, rb, prod);
             multiply_relations(tree, mid + 1, last, rb, half_prod);
         }
@@ -391,10 +466,14 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 		
 	}
 
-	/* multiply the halves */
+    // when we get to here, all of the above recursing will be done
+    // and we'll have the two half multiplies done in half_prod and prod.
+	// so we can finally do the final multiplication and return the result.
 #ifdef USE_TREE
     if ((last - first) > TREE_CUTOFF)
     {
+        // if the list is big enough to have a node in the tree then
+        // go find it.
         uint32_t pnode;
         pnode = getNode(tree, first, last);
         if (pnode == -1)
@@ -403,14 +482,19 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
             exit(1);
         }
 
+
         if (tree->nodes[pnode].complete)
         {
             //printf("getting product (prod(%u:%u)\n", first, last);
+            // if this node's multiply is already done, then assign the output.
+            // this is where we save computation using the tree.
             mpz_set(prod, tree->nodes[pnode].prod);
         }
         else
         {
             //printf("forming product (prod(%u:%u)\n", first, last);
+            // otherwise do the multiply, assign the product to the node
+            // (as well as the output) and mark the multiply complete for this node.
             mpz_mul(prod, prod, half_prod);
             
             mpz_set(tree->nodes[pnode].prod, prod);

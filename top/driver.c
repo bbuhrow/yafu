@@ -388,6 +388,7 @@ int main(int argc, char *argv[])
 		if (yafu_obj.CMD_LINE_REPEAT == 0)
 		{
             input_line = (char *)realloc(input_line, GSTR_MAXSIZE*sizeof(char));
+            insize = GSTR_MAXSIZE;
             if (input_line == NULL)
 			{
 				printf("couldn't reallocate string during cleanup\n");
@@ -675,18 +676,19 @@ char * get_input(char *input_exp, uint32_t*insize)
         }
 
         putc(c, stdout);
-        input_exp[n++] = (char)c;
 
         if (n >= *insize)
         {
             *insize += GSTR_MAXSIZE;
-            input_exp = (char *)realloc(input_exp, *insize * sizeof(char));
+            input_exp = (char *)xrealloc(input_exp, *insize * sizeof(char));
             if (input_exp == NULL)
             {
                 printf("couldn't reallocate string when parsing\n");
                 exit(-1);
             }
         }
+
+        input_exp[n++] = (char)c;
     }
 
     printf("\n");

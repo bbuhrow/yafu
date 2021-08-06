@@ -983,7 +983,7 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
     // It's a question of searching really deep in a small range of coefficients
     // or scanning lightly through a wider range of coefficients.  The latter
     // is what yafu used to do prior to 1023 so that's what this emulates.
-    // Testing with the new approach seems to show that we find a perfectly
+    // Testing with the new approach seems to show that we often find a perfectly
     // acceptable poly fairly quickly, then spend a long time finishing
     // the search for at best an incremental improvement in score.  With
     // larger inputs that might be ok, but for most use below say c130 it

@@ -124,26 +124,51 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 
 		smooth_num = -1;
 
-		// this one is close enough, compute 
-		// Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-		// Q(x)/a = (ax + 2b)x + c;	
-		offset = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
+        if (sconf->knmod8 == 1)
+        {
+            // this one is close enough, compute 
+            // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+            // Q(x)/4a = (ax + b)x + c;	
+            offset = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
 
-		mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1); 
-		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+            mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
 
-		if (parity)
-			mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2); 
-		else
-			mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2); 
+            if (parity)
+                mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
+            else
+                mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->curr_poly->mpz_poly_b);
 
-		mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset); 
-		mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c); 
+            mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset);
+            mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c);
 
-		if (mpz_sgn(dconf->Qvals[report_num]) < 0)
-		{
-			mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
-		}
+            if (mpz_sgn(dconf->Qvals[report_num]) < 0)
+            {
+                mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
+            }
+        }
+        else
+        {
+            // this one is close enough, compute 
+            // Q(x) = (ax + b)^2 - N, where x is the sieve index
+            // Q(x)/a = (ax + 2b)x + c;	
+            offset = (bnum << sconf->qs_blockbits) + dconf->reports[report_num];
+
+            mpz_mul_2exp(dconf->gmptmp2, dconf->curr_poly->mpz_poly_b, 1);
+            mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, offset);
+
+            if (parity)
+                mpz_sub(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2);
+            else
+                mpz_add(dconf->Qvals[report_num], dconf->gmptmp1, dconf->gmptmp2);
+
+            mpz_mul_ui(dconf->Qvals[report_num], dconf->Qvals[report_num], offset);
+            mpz_add(dconf->Qvals[report_num], dconf->Qvals[report_num], dconf->curr_poly->mpz_poly_c);
+
+            if (mpz_sgn(dconf->Qvals[report_num]) < 0)
+            {
+                mpz_neg(dconf->Qvals[report_num], dconf->Qvals[report_num]);
+            }
+        }
 
 		// we have two signs to deal with.  the sign of the offset tells us how to calculate ax + b, while
 		// the sign of Q(x) tells us how to factor Q(x) (with or without a factor of -1)
@@ -159,7 +184,6 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
 		//take care of powers of two
 		while (mpz_even_p(dconf->Qvals[report_num]))
 		{
-			//zShiftRight32_x(Q,Q,1);
 			mpz_tdiv_q_2exp(dconf->Qvals[report_num], dconf->Qvals[report_num], 1);
 
 #ifndef SPARSE_STORE
@@ -278,8 +302,10 @@ void filter_SPV(uint8_t parity, uint8_t *sieve, uint32_t poly_id, uint32_t bnum,
         // don't reject a sieve hit if it is within a small distance
         // of the poly root as these locations are much more likely
         // to factor over the fb.
-		if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
-            abs(offset - minoffset) > 2000)
+		//if ((bits < (sconf->tf_closnuf + dconf->tf_small_cutoff)) &&
+        //    abs(offset - minoffset) > 2000)
+
+        if (bits < (sconf->tf_closnuf + dconf->tf_small_cutoff))
 			dconf->valid_Qs[report_num] = 0;
 		else
 			dconf->valid_Qs[report_num] = 1;

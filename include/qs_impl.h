@@ -27,6 +27,7 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
+//#define USE_XLBUCKET
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
@@ -235,15 +236,25 @@ typedef struct
 
 typedef struct
 {
-    uint32_t* num;			//array of counts in each bucket (1000 max buckets)
-    uint32_t* fb_bounds;		//array of boundaries in the factorbase
-    uint8_t* logp;			//array of the logp values in each bucket
-    uint32_t num_slices;		//the number of fb slices needed
-    uint32_t alloc_slices;	//the number of fb slices allocated
-    uint32_t *num_slices_batch;		//the number of fb slices needed
-    uint32_t list_size;		//number of contiguous buckets allocated
-    uint32_t* list;			//contiguous space for all buckets
+    uint32_t* num;			    // array of counts in each bucket (1000 max buckets)
+    uint32_t* fb_bounds;		// array of boundaries in the factorbase
+    uint8_t* logp;			    // array of the logp values in each bucket
+    uint32_t num_slices;		// the number of fb slices needed
+    uint32_t alloc_slices;	    // the number of fb slices allocated
+    uint32_t *num_slices_batch;	// the number of fb slices needed
+    uint32_t list_size;		    // number of contiguous buckets allocated
+    uint32_t* list;			    // contiguous space for all buckets
 } lp_bucket;
+
+typedef struct
+{
+    uint32_t* list;			// contiguous space for all xl-bucket elements
+    uint32_t* slicenum;     // number of elements in each slice of the fb.
+    uint32_t* sliceid;      // starting fb-index for the slice.
+    uint8_t* slicelogp;		//  logp value for the slice
+    uint32_t numslices;     // number of slices.   
+    uint32_t alloc_slices;	// the number of fb slices allocated
+} xlp_bucket_t;
 
 typedef struct
 {
@@ -299,6 +310,7 @@ typedef struct {
 
     uint32_t* modsqrt_array;		// a square root of n mod each FB prime
     uint32_t multiplier;			// small multiplier for n (may be composite) 
+    uint32_t knmod8;
     mpz_t n;					// the number to factor (scaled by multiplier)
     mpz_t sqrt_n;				// sqrt of n
     fb_list* factor_base;       // the factor base to use
@@ -462,6 +474,11 @@ typedef struct {
     int* rootupdates;			// updates to apply to roots of primes
     uint16_t* sm_rootupdates;			// updates to apply to roots of primes
     uint32_t* mask2;
+
+#ifdef USE_XLBUCKET
+    xlp_bucket_t xl_pbucket;
+    xlp_bucket_t xl_nbucket;
+#endif
 
     //scratch
     mpz_t gmptmp1;
@@ -647,27 +664,21 @@ void computeBl(static_conf_t* sconf, dynamic_conf_t* dconf, int needC);
 void nextB(dynamic_conf_t* dconf, static_conf_t* sconf, int needC);
 
 void firstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
-void firstRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*firstRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void nextRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_sse41(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_avx2_small(static_conf_t* sconf, dynamic_conf_t* dconf);
-void nextRoots_32k_knc(static_conf_t* sconf, dynamic_conf_t* dconf);
-void nextRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_generic_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
 
-void nextRoots_32k_knc_small(static_conf_t* sconf, dynamic_conf_t* dconf);
-void nextRoots_32k_knc_bucket(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_knl_bucket(static_conf_t* sconf, dynamic_conf_t* dconf);
-void nextRoots_32k_knc_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextBigRoots_32k_knl_polybatch(static_conf_t* sconf, dynamic_conf_t* dconf);
 
 void testfirstRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
-void testfirstRoots_64k(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*testRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void batch_roots(int* rootupdates, int* firstroots1, int* firstroots2,
@@ -730,7 +741,7 @@ int check_specialcase(FILE* sieve_log, fact_obj_t* fobj);
 void test_polya(fb_list* fb, mpz_t n, mpz_t target_a);
 int checkpoly_siqs(siqs_poly* poly, mpz_t n);
 int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s);
-int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG);
+int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG, int knmod8);
 
 
 

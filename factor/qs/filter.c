@@ -236,17 +236,41 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     // trial divide to find divisible primes less than med_B.
     // this will include small primes and primes dividing poly_a.
 
-    //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-    mpz_mul_ui(Q, sconf->curr_a, rel->sieve_offset);
-    if (rel->parity)
-        mpz_sub(Q, Q, sconf->curr_b[rel->poly_idx]);
-    else
-        mpz_add(Q, Q, sconf->curr_b[rel->poly_idx]);
-    mpz_mul(Q, Q, Q);
-    mpz_sub(Q, Q, n);
+    if (sconf->knmod8 == 1)
+    {
+        // this one is close enough, compute 
+        // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, sconf->curr_a, rel->sieve_offset);
+        mpz_mul_2exp(Q, Q, 1);
 
-    if (mpz_sgn(Q) < 0)
-        mpz_neg(Q, Q);
+        if (mpz_tstbit(sconf->curr_b[rel->poly_idx], 0) == 0)
+            printf("b poly is even in inmem process_rel\n");
+
+        if (rel->parity)
+            mpz_sub(Q, Q, sconf->curr_b[rel->poly_idx]);
+        else
+            mpz_add(Q, Q, sconf->curr_b[rel->poly_idx]);
+
+        mpz_mul(Q, Q, Q);
+        mpz_sub(Q, Q, n);
+
+        if (mpz_sgn(Q) < 0)
+            mpz_neg(Q, Q);
+    }
+    else
+    {
+        //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, sconf->curr_a, rel->sieve_offset);
+        if (rel->parity)
+            mpz_sub(Q, Q, sconf->curr_b[rel->poly_idx]);
+        else
+            mpz_add(Q, Q, sconf->curr_b[rel->poly_idx]);
+        mpz_mul(Q, Q, Q);
+        mpz_sub(Q, Q, n);
+
+        if (mpz_sgn(Q) < 0)
+            mpz_neg(Q, Q);
+    }
 
     for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
     {
@@ -330,7 +354,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     if (sconf->use_dlp == 2)
     {
         if (!check_relation(sconf->curr_a,
-            sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG))
+            sconf->curr_b[r_out->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
         {
             yafu_add_to_cycles3(sconf, 0, r_out->large_prime);
         }
@@ -343,7 +367,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
     else
     {
         if (!check_relation(sconf->curr_a,
-            sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG))
+            sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
         {
             if (rel->large_prime[0] != r_out->large_prime[1]) {
                 yafu_add_to_cycles(sconf, obj->flags, 
@@ -437,18 +461,38 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     // trial divide to find divisible primes less than med_B.
     // this will include small primes and primes dividing poly_a.
 
-    //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
-    mpz_mul_ui(Q, sconf->curr_a, this_offset);
-    if (this_parity)
-        mpz_sub(Q, Q, sconf->curr_b[this_id]);
+    if (sconf->knmod8 == 1)
+    {
+        // this one is close enough, compute 
+        // Q(x) = (2ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, sconf->curr_a, this_offset);
+        mpz_mul_2exp(Q, Q, 1);
+
+        if (this_parity)
+            mpz_sub(Q, Q, sconf->curr_b[this_id]);
+        else
+            mpz_add(Q, Q, sconf->curr_b[this_id]);
+
+        mpz_mul(Q, Q, Q);
+        mpz_sub(Q, Q, n);
+
+        if (mpz_sgn(Q) < 0)
+            mpz_neg(Q, Q);
+    }
     else
-        mpz_add(Q, Q, sconf->curr_b[this_id]);
-    mpz_mul(Q, Q, Q);
-    mpz_sub(Q, Q, n);
+    {
+        //Q(x)/a = (ax + b)^2 - N, where x is the sieve index
+        mpz_mul_ui(Q, sconf->curr_a, this_offset);
+        if (this_parity)
+            mpz_sub(Q, Q, sconf->curr_b[this_id]);
+        else
+            mpz_add(Q, Q, sconf->curr_b[this_id]);
+        mpz_mul(Q, Q, Q);
+        mpz_sub(Q, Q, n);
 
-    if (mpz_sgn(Q) < 0)
-        mpz_neg(Q, Q);
-
+        if (mpz_sgn(Q) < 0)
+            mpz_neg(Q, Q);
+    }
 
     for (i = 1, k = 0; i < sconf->sieve_small_fb_start; i++)
     {
@@ -461,6 +505,10 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     }
 
     mpz_tdiv_q(Q, Q, sconf->curr_a);
+    if (sconf->knmod8 == 1)
+    {
+        mpz_tdiv_q_ui(Q, Q, 4);
+    }
 
     // merge in the list of polya coefficients to the list of
     // relation factors that we read in.  both lists are sorted,
@@ -532,7 +580,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	if (sconf->use_dlp == 2)
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
 		{
 			yafu_add_to_cycles3(sconf, 0, lp);
 		}
@@ -545,7 +593,7 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
 	else
 	{
 		if (!check_relation(sconf->curr_a,
-			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG))
+			sconf->curr_b[rel->poly_idx], rel, fb, n, obj->VFLAG, sconf->knmod8))
 		{
 			if (lp[0] != lp[1]) {
 				yafu_add_to_cycles(sconf, obj->flags, lp[0], lp[1]);
@@ -761,6 +809,14 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
                             sconf->check_inc = 0.0025 * sconf->factor_base->B;
                         }
                     }
+
+                    // check frequently for very large inputs.  Sieving will take
+                    // so long that filtering costs are negligible, and good
+                    // data will emerge from the filtering runs that might hone in
+                    // cycle formation predictions.
+                    if (sconf->digits_n > 120)
+                        sconf->check_inc = MIN(sconf->check_inc, 1000);
+
 
 					for (j = 0; j < num_cycles; j++)
 					{

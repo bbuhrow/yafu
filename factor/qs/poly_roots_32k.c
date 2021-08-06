@@ -209,7 +209,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
-		inv = modinv_1(amodp,prime);
+        if (sconf->knmod8 == 1)
+        {
+            inv = modinv_1(2 * amodp, prime);
+        }
+        else
+        {
+            inv = modinv_1(amodp, prime);
+        }
 
 		COMPUTE_FIRST_ROOTS
 	
@@ -276,7 +283,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
-		inv = modinv_1(amodp,prime);
+        if (sconf->knmod8 == 1)
+        {
+            inv = modinv_1(2 * amodp, prime);
+        }
+        else
+        {
+            inv = modinv_1(amodp, prime);
+        }
 
 		COMPUTE_FIRST_ROOTS
 
@@ -344,7 +358,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
-		inv = modinv_1(amodp,prime);
+        if (sconf->knmod8 == 1)
+        {
+            inv = modinv_1(2 * amodp, prime);
+        }
+        else
+        {
+            inv = modinv_1(amodp, prime);
+        }
 
 		COMPUTE_FIRST_ROOTS
 
@@ -513,7 +534,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 		bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b,prime);
 
 		//find a^-1 mod p = inv(a mod p) mod p
-		inv = modinv_1(amodp,prime);
+        if (sconf->knmod8 == 1)
+        {
+            inv = modinv_1(2 * amodp, prime);
+        }
+        else
+        {
+            inv = modinv_1(amodp, prime);
+        }
 
         COMPUTE_FIRST_ROOTS
 
@@ -721,7 +749,14 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b, prime);
 
         //find a^-1 mod p = inv(a mod p) mod p
-        inv = modinv_1(amodp, prime);
+        if (sconf->knmod8 == 1)
+        {
+            inv = modinv_1(2 * amodp, prime);
+        }
+        else
+        {
+            inv = modinv_1(amodp, prime);
+        }
 
         COMPUTE_FIRST_ROOTS;
 
@@ -755,7 +790,11 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
     }
 
 #endif
-	
+
+#ifdef USE_XLBUCKET
+    dconf->xl_nbucket.numslices = 0;
+    dconf->xl_pbucket.numslices = 0;
+#endif
 
     if (0)
     {
