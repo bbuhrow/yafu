@@ -572,171 +572,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 	logp = fb->list->logprime[fb->large_B-1];
 
-#ifdef DO_VLP_OPT
-
-    if (lp_bucket_p->list != NULL)
-    {
-        //printf("starting vlp with new slice %d\n", bound_index + 1);
-        //for (i = 0, root1 = 0; i < 2 * numblocks; i++)
-        //{
-        //    root1 += numptr_p[i];
-        //}
-        //printf("slice %d had %d total entries (p and n)\n", bound_index, root1);
-        // force a new slice
-        i = fb->large_B;
-        logp = update_data.logp[i];
-        lp_bucket_p->logp[bound_index] = logp;
-        bound_index++;
-        // signal to large_sieve that we are now doing VLP_OPT.
-        // we are not storing prime indices anyway, so this value 
-        // is useless for lp_tdiv.
-        lp_bucket_p->fb_bounds[bound_index] = 0x80000000 | i;
-        bound_val = i;
-        sliceptr_p += (numblocks << (BUCKET_BITS + 1));
-        sliceptr_n += (numblocks << (BUCKET_BITS + 1));
-        numptr_p += (numblocks << 1);
-        numptr_n += (numblocks << 1);
-        check_bound = bound_val + ((BUCKET_ALLOC / 2 * numblocks) >> 1);
-
-        sliceptr64_p = (uint64_t*)sliceptr_p;
-        sliceptr64_n = (uint64_t*)sliceptr_n;
-        //printf("initial numptr_p[0] = %u, numptr_n[0] = %u\n", numptr_p[0], numptr_n[0]);
-        //printf("bound_val = %u, check_bound = %u\n", bound_val, check_bound);
-    }
-
-    for (i = fb->large_B; i < fb->B; i++)
-    {
-        //CHECK_NEW_SLICE(i);
-
-        if (i >= check_bound)
-        {
-            //printf("checking fullness of slice, num_p,num_n = %u,%u\n", numptr_p[0], numptr_n[0]);
-            room = (BUCKET_ALLOC / 2 * numblocks) - MAX(numptr_p[0], numptr_n[0]);
-            /* if it is filled close to the allocation, start recording in a new set of buckets */
-            if (room < 32)
-            {
-                //printf("firstroots: bucket full, now at fb index %d, added %u,%u elements, starting new slice %d\n",
-                //    i, numptr_p[0], numptr_n[0], bound_index + 1);
-                //int ii;
-                //printf("vlp p-roots in slice %d:\n", bound_index);
-                //for (ii = 0; ii < numptr_p[0]; ii++)
-                //{
-                //    bptr = sliceptr_p + (uint64_t)ii;
-                //    printf("%08x ", *bptr);
-                //}
-                //printf("\n");
-                //printf("vlp n-roots in slice %d:\n", bound_index);
-                //for (ii = 0; ii < numptr_n[0]; ii++)
-                //{
-                //    bptr = sliceptr_n + (uint64_t)ii;
-                //    printf("%08x ", *bptr);
-                //}
-                //printf("\n");
-                logp = update_data.logp[i];
-                lp_bucket_p->logp[bound_index] = logp;
-                bound_index++;
-                lp_bucket_p->fb_bounds[bound_index] = i;
-                bound_val = i;
-                sliceptr_p += (numblocks << (BUCKET_BITS + 1));
-                sliceptr_n += (numblocks << (BUCKET_BITS + 1));
-                numptr_p += (numblocks << 1);
-                numptr_n += (numblocks << 1);
-                check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
-
-                sliceptr64_p = (uint64_t*)sliceptr_p;
-                sliceptr64_n = (uint64_t*)sliceptr_n;
-            }
-            else
-            {
-                check_bound += room >> 1;
-                //printf("have room for %u more elements, setting check_bound to %u\n", room, check_bound);
-            }
-        }
-        else if ((i - bound_val) >= 65536)
-        {
-            //printf("firstroots: prime slice limit, index %d, added %u,%u elements, starting new slice %d\n",
-            //    i, numptr_p[0], numptr_n[0], bound_index + 1);
-            //int ii;
-            //printf("vlp p-roots in slice %d:\n", bound_index);
-            //for (ii = 0; ii < numptr_p[0]; ii++)
-            //{
-            //    printf("%u ", sliceptr_p[numptr_p[0] + ii]);
-            //}
-            //printf("\n");
-            //printf("vlp n-roots in slice %d:\n", bound_index);
-            //for (ii = 0; ii < numptr_n[0]; ii++)
-            //{
-            //    printf("%u ", sliceptr_n[numptr_n[0] + ii]);
-            //}
-            //printf("\n");
-            lp_bucket_p->logp[bound_index] = logp;
-            bound_index++;
-            lp_bucket_p->fb_bounds[bound_index] = i;
-            bound_val = i;
-            sliceptr_p += (numblocks << (BUCKET_BITS + 1));
-            sliceptr_n += (numblocks << (BUCKET_BITS + 1));
-            numptr_p += (numblocks << 1);
-            numptr_n += (numblocks << 1);
-            check_bound += ((BUCKET_ALLOC / 2 * numblocks) >> 1);
-
-            sliceptr64_p = (uint64_t*)sliceptr_p;
-            sliceptr64_n = (uint64_t*)sliceptr_n;
-        }
-
-        prime = fb->list->prime[i];
-        root1 = modsqrt[i];
-        root2 = prime - root1;
-
-        amodp = (int)mpz_tdiv_ui(poly->mpz_poly_a, prime);
-        bmodp = (int)mpz_tdiv_ui(poly->mpz_poly_b, prime);
-
-        //find a^-1 mod p = inv(a mod p) mod p
-        inv = modinv_1(amodp, prime);
-
-        COMPUTE_FIRST_ROOTS
-
-        root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
-        root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
-
-        update_data.firstroots1[i] = root1;
-        update_data.firstroots2[i] = root2;
-
-        //FILL_ONE_PRIME_P(i);
-        if (root1 < interval) 
-            sliceptr64_p[numptr_p[0]++] = ((uint64_t)(i - bound_val) << 32) | root1;
-        if (root2 < interval) 
-            sliceptr64_p[numptr_p[0]++] = ((uint64_t)(i - bound_val) << 32) | root2;
-
-        root1 = (prime - root1);
-        root2 = (prime - root2);
-
-        FILL_ONE_PRIME_N(i);
-        if (root1 < interval) 
-            sliceptr64_n[numptr_n[0]++] = ((uint64_t)(i - bound_val) << 32) | root1;
-        if (root2 < interval) 
-            sliceptr64_n[numptr_n[0]++] = ((uint64_t)(i - bound_val) << 32) | root2;
-
-        //for this factor base prime, compute the rootupdate value for all s
-        //Bl values.  amodp holds a^-1 mod p
-        //the rootupdate value is given by 2*Bj*amodp
-        //Bl[j] now holds 2*Bl
-        //s is the number of primes in 'a'
-        //fprintf(out, "%u,%u,%u", prime, root1, root2);
-        for (j = 0; j < s; j++)
-        {
-            x = (int)mpz_tdiv_ui(dconf->Bl[j], prime);
-            x = (int)((int64)x * (int64)inv % (int64)prime);
-            rootupdates[(j)* fb->B + i] = x;
-            //fprintf(out, ",%u", x);
-        }
-        //fprintf(out, "\n");
-    }
-
-    //printf("firstroots done\n");
-
-#else
-
-
     for (i = fb->large_B; i < fb->B; i++)
     {
         CHECK_NEW_SLICE(i);
@@ -788,18 +623,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
         }
         //fprintf(out, "\n");
     }
-
-#endif
-
-#ifdef USE_XLBUCKET
-    dconf->xl_nbucket.numslices = 0;
-    dconf->xl_pbucket.numslices = 0;
-    for (j = 0; j < sconf->num_blocks; j++)
-    {
-        dconf->xl_nbucket.sliceid[j] = 0;
-        dconf->xl_pbucket.sliceid[j] = 0;
-    }
-#endif
 
     if (0)
     {
@@ -899,8 +722,6 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         exit(1);
     }
-
-    
 
     if (lp_bucket_p->list != NULL)
     {

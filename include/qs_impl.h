@@ -27,7 +27,6 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
-//#define USE_XLBUCKET
 
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
@@ -45,7 +44,6 @@
 
 // assume we have SSE2 available
 #define D_HAS_SSE2
-//#define DO_VLP_OPT
 
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define _MM_SCALE_1 1

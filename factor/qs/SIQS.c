@@ -2598,9 +2598,18 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 		// this region of primes aligned on a 16 byte boundary and thus be able to use
 		// movdqa
 		// don't let med_B grow larger than ~1.5 * the blocksize
-		if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize))  &&
-			((i % 16) == 0))
-			break;
+#if defined(USE_AVX512F) && !defined(_MSC_VER)
+        if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.5 * (double)sconf->qs_blocksize)) &&
+            ((i % 16) == 0))
+            break;
+#else
+        // bucket sieve not as efficient without compressstoreu, so 
+        // do a little more work in medsieve before switching.
+        if ((sconf->factor_base->list->prime[i] > (uint32_t)(1.75 * (double)sconf->qs_blocksize)) &&
+            ((i % 16) == 0))
+            break;
+#endif
+		
 
 		//or 2^16, whichever is smaller
 		if (sconf->factor_base->list->prime[i] > 65536)
@@ -2642,7 +2651,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // hitting the interval.
 	for (; i < sconf->factor_base->B; i++)
 	{
-		if ((sconf->factor_base->list->prime[i] > 4 * sconf->sieve_interval) &&
+		if ((sconf->factor_base->list->prime[i] > 6 * sconf->sieve_interval) &&
             ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
 			break;
 	}
