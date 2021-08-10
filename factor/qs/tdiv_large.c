@@ -1009,6 +1009,122 @@ void tdiv_LP_avx512(uint32_t report_num, uint8_t parity, uint32_t bnum,
         basebucket += (sconf->num_blocks << 1);
     }
 
+#ifdef USE_XLBUCKET
+
+    // here we have a much larger list to go through,
+    // and we have to select by both block and residue.
+    // block and residue combined is simply a larger residue.
+    // hoping this is less-bad than sorting by blocks in poly update.
+    uint32_t lpnum = 0;
+    uint32_t result = 0;
+    uint32_t lastid = 0;
+    uint32_t updateid = 0;
+    uint32_t sid;
+    uint32_t failed;
+    uint32_t xl_startid = sconf->factor_base->x2_large_B;
+    vblock = _mm512_set1_epi32(block_loc + bnum << 15);
+    vmask = _mm512_set1_epi32(0x0003ffff);
+
+    if (parity == 0)
+    {
+        bptr = dconf->xl_pbucket.list; // +dconf->xl_pbucket.slicenum[bnum];
+        
+        //for (sid = 0; sid < dconf->xl_pbucket.numslices; sid++)
+        {
+            failed = 0;
+            lpnum = dconf->xl_pbucket.sliceid[0]; // [bnum] ;
+
+            for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
+            {
+                uint32_t idx;
+                __m512i velements = _mm512_load_epi32(bptr + j);                
+                velements = _mm512_and_epi32(velements, vmask);
+                result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+                while (result > 0)
+                {
+                    idx = _trail_zcnt(result);
+                    updateid = (bptr[j + idx] >> 18);
+                    i = xl_startid + updateid;
+                    prime = fb[i];
+
+                    if (mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0)
+                    {
+                        failed++;
+                        gmp_printf("tdiv entry %016lx pid=%u+%u=%u (%u) failed to divide Q = %Zd "
+                            "at block %d sieve loc %u\n",
+                            bptr[j + idx], xl_startid, updateid,
+                            i, prime, dconf->Qvals[report_num], bnum, block_loc);
+                        //
+                        //exit(1);
+                    }
+
+                    DIVIDE_RESIEVED_PRIME(i);
+
+                    result = _reset_lsb(result);
+                }
+            }
+
+            //if (failed > 0)
+            //{
+            //    printf("%d of %d entries failed to divide Q in block %d\n",
+            //        failed, lpnum, bnum);
+            //}
+
+        }
+    }
+    else
+    {
+        bptr = dconf->xl_nbucket.list; // +dconf->xl_nbucket.slicenum[bnum];;
+        //for (sid = 0; sid < dconf->xl_nbucket.numslices; sid++)
+        {
+            failed = 0;
+            lpnum = dconf->xl_pbucket.sliceid[0]; // [bnum] ;
+            for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
+            {
+                uint32_t idx;
+                __m512i velements = _mm512_load_epi32(bptr + j);
+                velements = _mm512_and_epi32(velements, vmask);
+                result = _mm512_cmp_epu32_mask(velements, vblock, _MM_CMPINT_EQ);
+
+                while (result > 0)
+                {
+                    idx = _trail_zcnt(result);
+                    updateid = (bptr[j + idx] >> 18);
+                    i = xl_startid + updateid;
+                    prime = fb[i];
+
+                    if (mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0)
+                    {
+                        failed++;
+                        gmp_printf("tdiv entry %016lx pid=%u+%u=%u (%u) failed to divide Q = %Zd "
+                            "at block %d sieve loc %u\n",
+                            bptr[j + idx], xl_startid, updateid,
+                            i, prime, dconf->Qvals[report_num], bnum, block_loc);
+                        //
+                        //exit(1);
+                    }
+
+                    DIVIDE_RESIEVED_PRIME(i);
+
+                    result = _reset_lsb(result);
+                }
+            }
+
+            //if (failed > 0)
+            //{
+            //    printf("%d of %d entries failed to divide Q in block %d\n",
+            //        failed, lpnum, bnum);
+            //}
+        }
+    }
+    
+    
+    
+    
+
+#endif
+
     SCAN_CLEAN;
 
     dconf->smooth_num[report_num] = smooth_num;

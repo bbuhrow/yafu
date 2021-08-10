@@ -505,10 +505,10 @@ int process_rel(char *substr, fb_list *fb, mpz_t n,
     }
 
     mpz_tdiv_q(Q, Q, sconf->curr_a);
-    if (sconf->knmod8 == 1)
-    {
-        mpz_tdiv_q_ui(Q, Q, 4);
-    }
+    //if (sconf->knmod8 == 1)
+    //{
+    //    mpz_tdiv_q_ui(Q, Q, 4);
+    //}
 
     // merge in the list of polya coefficients to the list of
     // relation factors that we read in.  both lists are sorted,

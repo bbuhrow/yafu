@@ -794,6 +794,11 @@ void firstRoots_32k(static_conf_t *sconf, dynamic_conf_t *dconf)
 #ifdef USE_XLBUCKET
     dconf->xl_nbucket.numslices = 0;
     dconf->xl_pbucket.numslices = 0;
+    for (j = 0; j < sconf->num_blocks; j++)
+    {
+        dconf->xl_nbucket.sliceid[j] = 0;
+        dconf->xl_pbucket.sliceid[j] = 0;
+    }
 #endif
 
     if (0)

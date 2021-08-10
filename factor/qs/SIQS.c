@@ -2629,6 +2629,17 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 	}
 	sconf->factor_base->large_B = i;
 
+    // when p > sieve_interval we use a special bucket sieve tailored for primes that
+    // will at most hit the interval once.  The AVX512 version of that method uses 
+    // compressstoreu for each root on each block for a total of 2*numblocks calls per side.
+    // (along with 2 popcnt_u32 calls as well for each block on each side.)
+    // As primes continue to get larger and we have more blocks, at some point it
+    // is better to switch back to the scatter loop.  The scatter loop uses 4 compressstoreu
+    // calls followed by N writes, where N is the number of interval hits for both roots.
+    // if we assume a compressstoreu is about the same as a normal write, then it makes
+    // sense to switch when (N + 4) < (2 * numblocks).  To estimate N we find the area
+    // under the triangle formed by the large sieve primes and their probability of
+    // hitting the interval.
 	for (; i < sconf->factor_base->B; i++)
 	{
 		if ((sconf->factor_base->list->prime[i] > 4 * sconf->sieve_interval) &&
