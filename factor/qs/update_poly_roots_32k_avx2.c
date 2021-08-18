@@ -25,6 +25,7 @@ code to the public domain.
 #include "poly_macros_32k.h"
 #include "poly_macros_common.h"
 #include "poly_macros_common_avx2.h"
+#include <immintrin.h>
 
 // protect avx2 code under MSVC builds.  USE_AVX2 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware
@@ -1875,6 +1876,788 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 	return;
 }
 
+#endif
+
+#if defined( USE_AVX2 )
+
+__m256i _mm256_mask_add_op2_epi32(__m256i m, __m256i a, __m256i b) {
+    return _mm256_add_epi32(a, _mm256_and_si256(m, b));
+}
+
+__m256i _mm256_mask_sub_op2_epi32(__m256i m, __m256i a, __m256i b) {
+    return _mm256_sub_epi32(a, _mm256_and_si256(m, b));
+}
+
+__m256i _mm256_cmplt_epi32(__m256i a, __m256i b) {
+    __m256i m = _mm256_or_si256(_mm256_cmpgt_epi32(a, b), _mm256_cmpeq_epi32(a, b));
+    m = _mm256_andnot_si256(m, _mm256_cmpeq_epi32(a, a));
+    return m;
+}
+
+
+void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
+{
+    //update the roots 
+    int* rootupdates = dconf->rootupdates;
+
+    update_t update_data = dconf->update_data;
+
+    uint32_t startprime = 2;
+    uint32_t bound = sconf->factor_base->B;
+
+    char v = dconf->curr_poly->nu[dconf->numB];
+    char sign = dconf->curr_poly->gray[dconf->numB];
+
+    int* ptr;
+    lp_bucket* lp_bucket_p = dconf->buckets;
+    uint32_t med_B = sconf->factor_base->med_B;
+    uint32_t large_B = sconf->factor_base->large_B;
+    uint32_t xlarge_B = sconf->factor_base->x2_large_B;
+
+    uint32_t j, interval;
+    int k, numblocks, idx;
+    //uint32_t root1, prime;
+
+    int bound_index = 0;
+    int check_bound = BUCKET_ALLOC / 2 - 1;
+    uint32_t bound_val = med_B;
+    uint32_t* numptr_p, * numptr_n, * sliceptr_p, * sliceptr_n;
+
+    uint8_t* slicelogp_ptr = NULL;
+    uint32_t* slicebound_ptr = NULL;
+    uint32_t* bptr;
+    int room;
+    uint8_t logp = 0;
+
+    __m256i vshifted_index = _mm256_setr_epi32(
+        0, 65536, 131072, 196608,
+        262144, 327680, 393216, 458752);
+
+    __m256i vone = _mm256_set1_epi32(1);
+
+    __m256i vnroot1, vnroot2;
+    __m256i vprime, vroot1, vroot2, vpval, vbnum1, vbnum2, vinterval;
+    __m256i velement1, velement2, vblockm1 = _mm256_set1_epi32(32767);
+    __m256i mask1, mask2;
+    uint32_t bitmask1, bitmask2;
+
+    ALIGNED_MEM uint32_t e1[32]; //e1[65536];
+    ALIGNED_MEM uint32_t b1[32]; //b1[65536];
+    ALIGNED_MEM uint32_t b2[32]; //b1[65536];
+
+    numblocks = sconf->num_blocks;
+    interval = numblocks << 15;
+    vinterval = _mm256_set1_epi32(interval);
+
+    if (lp_bucket_p->alloc_slices != 0) // != NULL)
+    {
+
+        lp_bucket_p->fb_bounds[0] = med_B;
+
+        sliceptr_p = lp_bucket_p->list;
+        sliceptr_n = lp_bucket_p->list + (numblocks << BUCKET_BITS);
+
+        numptr_p = lp_bucket_p->num;
+        numptr_n = lp_bucket_p->num + numblocks;
+
+        slicelogp_ptr = lp_bucket_p->logp;
+        slicebound_ptr = lp_bucket_p->fb_bounds;
+
+        // reset bucket counts
+        for (j = 0; j < lp_bucket_p->list_size; j++)
+        {
+            numptr_p[j] = 0;
+        }
+        lp_bucket_p->num_slices = 0;
+
+    }
+    else
+    {
+        sliceptr_p = NULL;
+        sliceptr_n = NULL;
+        numptr_p = NULL;
+        numptr_n = NULL;
+    }
+
+
+    nextRoots_32k_avx2_small(sconf, dconf);
+
+    k = 0;
+    ptr = &rootupdates[(v - 1) * bound + med_B];
+
+    if (sign > 0)
+    {
+
+        //bound_index = 0;
+        bound_val = med_B;
+        check_bound = med_B + BUCKET_ALLOC / 2;
+
+        logp = update_data.logp[med_B];
+
+#if 0
+        for (j = med_B; j < large_B; j += 8, ptr += 8)
+        {
+            CHECK_NEW_SLICE(j);
+
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            mask1 = _mm256_cmpgt_epi32(vpval, vroot1);
+            mask2 = _mm256_cmpgt_epi32(vpval, vroot2);
+            vroot1 = _mm256_sub_epi32(vroot1, vpval);
+            vroot2 = _mm256_sub_epi32(vroot2, vpval);
+            vroot1 = _mm256_mask_add_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_add_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+
+            // we loop over roots below, so have to compute these before we
+            // clobber them.
+            vnroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vnroot2 = _mm256_sub_epi32(vprime, vroot2);
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+
+            while (bitmask1 > 0)
+            {
+                uint32_t m = bitmask1;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vroot1, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _blsr_u32(m);
+                }
+
+                vroot1 = _mm256_add_epi32(vroot1, vprime);
+                mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+                bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            }
+
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            while (bitmask2 > 0)
+            {
+                uint32_t m = bitmask2;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vroot2, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vroot2 = _mm256_add_epi32(vroot2, vprime);
+                mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+                bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            }
+
+            mask1 = _mm256_cmplt_epi32(vnroot1, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            while (bitmask1 > 0)
+            {
+                __mmask16 m = bitmask1;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vnroot1, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vnroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot1 = _mm256_add_epi32(vnroot1, vprime);
+                mask1 = _mm256_cmplt_epi32(vnroot1, vinterval);
+                bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            }
+
+            mask2 = _mm256_cmplt_epi32(vnroot2, vinterval);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            while (bitmask2 > 0)
+            {
+                __mmask16 m = bitmask2;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vnroot2, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vnroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot2 = _mm256_add_epi32(vnroot2, vprime);
+                mask2 = _mm256_cmplt_epi32(vnroot2, vinterval);
+                bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            }
+
+        }
+#elif 1
+
+        for (j = med_B; j < large_B; j += 8, ptr += 8)
+        {
+            CHECK_NEW_SLICE(j);
+
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            mask1 = _mm256_cmpgt_epi32(vpval, vroot1);
+            mask2 = _mm256_cmpgt_epi32(vpval, vroot2);
+            vroot1 = _mm256_sub_epi32(vroot1, vpval);
+            vroot2 = _mm256_sub_epi32(vroot2, vpval);
+            vroot1 = _mm256_mask_add_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_add_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+
+            for (k = 0; k < 8; k++)
+            {
+                uint32_t root1 = update_data.firstroots1[j + k];
+                uint32_t root2 = update_data.firstroots2[j + k];
+                uint32_t prime = update_data.prime[j + k];
+                uint32_t nroot1 = prime - root1;
+                uint32_t nroot2 = prime - root2;
+                uint32_t bnum;
+
+                FILL_ONE_PRIME_LOOP_P(j + k);
+                FILL_ONE_PRIME_LOOP_N(j + k);
+            }
+        }
+#else
+        for (j = med_B; j < large_B; ptr += 4)
+        {
+            uint32_t nroot1, nroot2, bnum;
+
+            CHECK_NEW_SLICE(j);
+
+            COMPUTE_4_PROOTS(j);
+
+            uint32_t root1 = update_data.firstroots1[j];
+            uint32_t root2 = update_data.firstroots2[j];
+            uint32_t prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+        }
+#endif
+        logp = update_data.logp[j - 1];
+
+        for (j = large_B; j < bound; j += 8, ptr += 8)
+        {
+            //int i;
+            int k;
+
+            CHECK_NEW_SLICE(j);
+
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            mask1 = _mm256_cmpgt_epi32(vpval, vroot1);
+            mask2 = _mm256_cmpgt_epi32(vpval, vroot2);
+            vroot1 = _mm256_sub_epi32(vroot1, vpval);
+            vroot2 = _mm256_sub_epi32(vroot2, vpval);
+            vroot1 = _mm256_mask_add_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_add_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+            vbnum1 = _mm256_srli_epi32(vroot1, 15);
+            vbnum2 = _mm256_srli_epi32(vroot2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
+
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+
+            // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+            _mm256_storeu_si256((__m256i*)b1, vbnum1);
+            _mm256_storeu_si256((__m256i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask1 > 0)
+            {
+                idx = (_trail_zcnt(bitmask1)) >> 2;
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bitmask1 = _reset_lsb(bitmask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm256_storeu_si256((__m256i*)b1, vbnum2);
+            _mm256_storeu_si256((__m256i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask2 > 0)
+            {
+                idx = (_trail_zcnt(bitmask2)) >> 2;
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
+            }
+
+
+            // and the -side roots; same story.
+            vroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vroot2 = _mm256_sub_epi32(vprime, vroot2);
+            vbnum1 = _mm256_srli_epi32(vroot1, 15);
+            vbnum2 = _mm256_srli_epi32(vroot2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+
+            // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+            _mm256_storeu_si256((__m256i*)b1, vbnum1);
+            _mm256_storeu_si256((__m256i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask1 > 0)
+            {
+                idx = (_trail_zcnt(bitmask1)) >> 2;
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bitmask1 = _reset_lsb(bitmask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm256_storeu_si256((__m256i*)b1, vbnum2);
+            _mm256_storeu_si256((__m256i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask2 > 0)
+            {
+                idx = (_trail_zcnt(bitmask2)) >> 2;
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
+            }
+
+        }
+    }
+    else
+    {
+        // all of this else case is identical to the if case except we
+        // calculate the roots slightly differently (modular addition
+        // versus modular subtraction).
+
+        // note: the reason for the top-level if-else is one of the main
+        // reasons why this is fast - it gets all of the polynomial
+        // switching related branching out of the inner loops of the bucket 
+        // sort.
+        //bound_index = 0;
+        bound_val = med_B;
+        check_bound = med_B + BUCKET_ALLOC / 2;
+
+
+        logp = update_data.logp[med_B];
+
+#if 0
+        for (j = med_B; j < large_B; j += 8, ptr += 8)
+        {
+            CHECK_NEW_SLICE(j);
+
+            // load the current roots, associated primes, and polynomial
+            // update info (ptr).  Do the polynomial update and then
+            // mask off values that are larger than the sieving interval.
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            vroot1 = _mm256_add_epi32(vroot1, vpval);
+            vroot2 = _mm256_add_epi32(vroot2, vpval);
+            mask1 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot1, vprime), _mm256_cmpeq_epi32(vroot1, vprime));
+            mask2 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot2, vprime), _mm256_cmpeq_epi32(vroot2, vprime));
+            vroot1 = _mm256_mask_sub_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_sub_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+
+            // we loop over roots below, so have to compute these before we
+            // clobber them.
+            vnroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vnroot2 = _mm256_sub_epi32(vprime, vroot2);
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            while (bitmask1 > 0)
+            {
+                uint32_t m = bitmask1;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vroot1, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _blsr_u32(m);
+                }
+
+                vroot1 = _mm256_add_epi32(vroot1, vprime);
+                mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+                bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            }
+
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            while (bitmask2 > 0)
+            {
+                uint32_t m = bitmask2;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vroot2, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_p[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vroot2 = _mm256_add_epi32(vroot2, vprime);
+                mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+                bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            }
+
+            mask1 = _mm256_cmplt_epi32(vnroot1, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            while (bitmask1 > 0)
+            {
+                __mmask16 m = bitmask1;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vnroot1, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vnroot1, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot1 = _mm256_add_epi32(vnroot1, vprime);
+                mask1 = _mm256_cmplt_epi32(vnroot1, vinterval);
+                bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            }
+
+            mask2 = _mm256_cmplt_epi32(vnroot2, vinterval);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            while (bitmask2 > 0)
+            {
+                __mmask16 m = bitmask2;
+
+                _mm256_storeu_si256((__m256i*)b1, _mm256_srli_epi32(vnroot2, 15));
+                _mm256_storeu_si256((__m256i*)e1,
+                    _mm256_or_si256(velement1, _mm256_and_si256(vnroot2, vblockm1)));
+
+                while (m > 0)
+                {
+                    idx = (_trail_zcnt(m)) >> 2;
+                    bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                    *bptr = e1[idx];
+                    numptr_n[b1[idx]]++;
+                    m = _reset_lsb(m); //m ^= (1 << idx);
+                }
+
+                vnroot2 = _mm256_add_epi32(vnroot2, vprime);
+                mask2 = _mm256_cmplt_epi32(vnroot2, vinterval);
+                bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+            }
+        }
+#elif 1
+
+        for (j = med_B; j < large_B; j += 8, ptr += 8)
+        {
+            CHECK_NEW_SLICE(j);
+
+            // load the current roots, associated primes, and polynomial
+            // update info (ptr).  Do the polynomial update and then
+            // mask off values that are larger than the sieving interval.
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            vroot1 = _mm256_add_epi32(vroot1, vpval);
+            vroot2 = _mm256_add_epi32(vroot2, vpval);
+            mask1 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot1, vprime), _mm256_cmpeq_epi32(vroot1, vprime));
+            mask2 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot2, vprime), _mm256_cmpeq_epi32(vroot2, vprime));
+            vroot1 = _mm256_mask_sub_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_sub_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+
+            for (k = 0; k < 8; k++)
+            {
+                uint32_t root1 = update_data.firstroots1[j + k];
+                uint32_t root2 = update_data.firstroots2[j + k];
+                uint32_t prime = update_data.prime[j + k];
+                uint32_t nroot1 = prime - root1;
+                uint32_t nroot2 = prime - root2;
+                uint32_t bnum;
+
+                FILL_ONE_PRIME_LOOP_P(j + k);
+                FILL_ONE_PRIME_LOOP_N(j + k);
+            }
+        }
+#else
+
+        for (j = med_B; j < large_B; ptr += 4)
+        {
+            uint32_t nroot1, nroot2, bnum;
+
+            CHECK_NEW_SLICE(j);
+
+            COMPUTE_4_NROOTS(j);
+
+            uint32_t root1 = update_data.firstroots1[j];
+            uint32_t root2 = update_data.firstroots2[j];
+            uint32_t prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+
+            root1 = update_data.firstroots1[j];
+            root2 = update_data.firstroots2[j];
+            prime = update_data.prime[j];
+            nroot1 = (prime - root1);
+            nroot2 = (prime - root2);
+
+            FILL_ONE_PRIME_LOOP_P(j);
+            FILL_ONE_PRIME_LOOP_N(j);
+
+            j++;
+        }
+#endif
+
+        logp = update_data.logp[j - 1];
+        for (j = large_B; j < bound; j += 8, ptr += 8)
+        {
+            //int i;
+
+            CHECK_NEW_SLICE(j);
+
+            vprime = _mm256_loadu_si256((__m256i*)(&update_data.prime[j]));
+            vroot1 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots1[j]));
+            vroot2 = _mm256_loadu_si256((__m256i*)(&update_data.firstroots2[j]));
+            vpval = _mm256_loadu_si256((__m256i*)ptr);
+            vroot1 = _mm256_add_epi32(vroot1, vpval);
+            vroot2 = _mm256_add_epi32(vroot2, vpval);
+            mask1 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot1, vprime), _mm256_cmpeq_epi32(vroot1, vprime));
+            mask2 = _mm256_or_si256(_mm256_cmpgt_epi32(vroot2, vprime), _mm256_cmpeq_epi32(vroot2, vprime));
+            vroot1 = _mm256_mask_sub_op2_epi32(mask1, vroot1, vprime);
+            vroot2 = _mm256_mask_sub_op2_epi32(mask2, vroot2, vprime);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots1[j]), vroot1);
+            _mm256_storeu_si256((__m256i*)(&update_data.firstroots2[j]), vroot2);
+            vbnum1 = _mm256_srli_epi32(vroot1, 15);
+            vbnum2 = _mm256_srli_epi32(vroot2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+
+            // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+            _mm256_storeu_si256((__m256i*)b1, vbnum1);
+            _mm256_storeu_si256((__m256i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask1 > 0)
+            {
+                idx = (_trail_zcnt(bitmask1)) >> 2;
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bitmask1 = _reset_lsb(bitmask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm256_storeu_si256((__m256i*)b1, vbnum2);
+            _mm256_storeu_si256((__m256i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask2 > 0)
+            {
+                idx = (_trail_zcnt(bitmask2)) >> 2;
+                bptr = sliceptr_p + (b1[idx] << BUCKET_BITS) + numptr_p[b1[idx]];
+                *bptr = e1[idx];
+                numptr_p[b1[idx]]++;
+                bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
+            }
+
+            // and the -side roots; same story.
+            vroot1 = _mm256_sub_epi32(vprime, vroot1);
+            vroot2 = _mm256_sub_epi32(vprime, vroot2);
+            vbnum1 = _mm256_srli_epi32(vroot1, 15);
+            vbnum2 = _mm256_srli_epi32(vroot2, 15);
+            velement1 = _mm256_add_epi32(_mm256_set1_epi32((j - bound_val) << 16), vshifted_index);
+            velement2 = _mm256_or_si256(velement1, _mm256_and_si256(vroot2, vblockm1));
+            velement1 = _mm256_or_si256(velement1, _mm256_and_si256(vroot1, vblockm1));
+
+            mask1 = _mm256_cmplt_epi32(vroot1, vinterval);
+            mask2 = _mm256_cmplt_epi32(vroot2, vinterval);
+            bitmask1 = ((_mm256_movemask_epi8(mask1)) & 0x88888888);
+            bitmask2 = ((_mm256_movemask_epi8(mask2)) & 0x88888888);
+
+            // msvc currently has a bug in the new _mm256_mask_compressstoreu_epi32
+            // intrinsic, so we fall back on this almost-as-fast code.
+            _mm256_storeu_si256((__m256i*)b1, vbnum1);
+            _mm256_storeu_si256((__m256i*)e1, velement1);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask1 > 0)
+            {
+                idx = (_trail_zcnt(bitmask1)) >> 2;
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bitmask1 = _reset_lsb(bitmask1); //mask1 ^= (1 << idx);
+            }
+
+            _mm256_storeu_si256((__m256i*)b1, vbnum2);
+            _mm256_storeu_si256((__m256i*)e1, velement2);
+
+            // extra big roots are much easier because they hit at most once
+            // in the entire +side interval.  no need to iterate.
+            while (bitmask2 > 0)
+            {
+                idx = (_trail_zcnt(bitmask2)) >> 2;
+                bptr = sliceptr_n + (b1[idx] << BUCKET_BITS) + numptr_n[b1[idx]];
+                *bptr = e1[idx];
+                numptr_n[b1[idx]]++;
+                bitmask2 = _reset_lsb(bitmask2); //mask1 ^= (1 << idx);
+            }
+        }
+    }
+
+    if (lp_bucket_p->list != NULL)
+    {
+        // all done bucket sieving, record final logp and number of slices.
+        lp_bucket_p->num_slices = bound_index + 1;
+        slicelogp_ptr[bound_index] = logp;
+    }
+
+    return;
+}
 #endif
 
 #if defined( USE_AVX2 )

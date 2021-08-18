@@ -668,6 +668,7 @@ void nextRoots_32k(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_sse41(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_avx2(static_conf_t* sconf, dynamic_conf_t* dconf);
 void nextRoots_32k_avx2_small(static_conf_t* sconf, dynamic_conf_t* dconf);
+void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf);
 extern void (*nextRoots_ptr)(static_conf_t*, dynamic_conf_t*);
 
 void nextRoots_32k_generic_small(static_conf_t* sconf, dynamic_conf_t* dconf);

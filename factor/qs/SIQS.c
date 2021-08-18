@@ -2071,21 +2071,21 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
 	return 0;
 }
 
-int siqs_static_init(static_conf_t *sconf, int is_tiny)
+int siqs_static_init(static_conf_t* sconf, int is_tiny)
 {
-	//find the best parameters, multiplier, and factor base
-	//for the input.  This is an iterative job because we may find
-	//a factor of the input while finding the factor base, in which case
-	//we log that fact, and start over with new parameters, multiplier etc.
-	//also allocate space for things that don't change during the sieving
-	//process.  this scratch space is shared among all threads.
+    //find the best parameters, multiplier, and factor base
+    //for the input.  This is an iterative job because we may find
+    //a factor of the input while finding the factor base, in which case
+    //we log that fact, and start over with new parameters, multiplier etc.
+    //also allocate space for things that don't change during the sieving
+    //process.  this scratch space is shared among all threads.
 
-	fact_obj_t *obj = sconf->obj;
-	uint32_t i, memsize;
-	uint32_t closnuf;
-	double sum, avg, sd;
+    fact_obj_t* obj = sconf->obj;
+    uint32_t i, memsize;
+    uint32_t closnuf;
+    double sum, avg, sd;
     uint32_t dlp_cutoff;
-	uint32_t tlp_cutoff;
+    uint32_t tlp_cutoff;
     int VFLAG = sconf->obj->VFLAG;
     int THREADS = sconf->obj->THREADS;
 
@@ -2097,26 +2097,26 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
     // When using AVX2, we'll maybe have to perform a round or two of SSE41 in a couple
     // places to cross over size boundaries within the factor base, if those boundaries
     // are not divisible by 16.
-	int nump = 8;
+    int nump = 8;
 
-	if (VFLAG > 2)
-	{
-		printf("static memory usage:\n");
-	}
+    if (VFLAG > 2)
+    {
+        printf("static memory usage:\n");
+    }
 
-	// some things work different if the input is tiny
-	sconf->is_tiny = is_tiny;
+    // some things work different if the input is tiny
+    sconf->is_tiny = is_tiny;
 
-	//default parameters
-	sconf->fudge_factor = 1.3;
-	sconf->large_mult = 30;
-	sconf->num_blocks = 40;
-	sconf->num_extra_relations = 64;
+    //default parameters
+    sconf->fudge_factor = 1.3;
+    sconf->large_mult = 30;
+    sconf->num_blocks = 40;
+    sconf->num_extra_relations = 64;
 
     // can raise this if we also raise TFSm and lower TF bounds
     // and get about the same speed... 
-	sconf->small_limit = 256;
-	sconf->use_dlp = 0;
+    sconf->small_limit = 256;
+    sconf->use_dlp = 0;
 
     // function pointer to the sieve array scanner
     scan_ptr = NULL;
@@ -2129,7 +2129,7 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 
     // fat binary assignments.  First assign the lowest level core functions.  
     // Sometimes these assume at least SSE2.
-	
+
     // sieve core functions
     med_sieve_ptr = &med_sieveblock_32k;
     lp_sieveblock_ptr = &lp_sieveblock;
@@ -2214,17 +2214,41 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 
         // ASM, so visual studio builds can't use it.
-        nextRoots_ptr = &nextRoots_32k_sse41;
-        if (sconf->obj->VFLAG > 1)
+        if (obj->HAS_BMI2)
         {
-            printf("assigning nextRoots_32k_sse41 ptr\n");
+            nextRoots_ptr = &nextRoots_32k_avx2_intrin;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2_intrin ptr\n");
+            }
+        }
+        else
+        {
+            nextRoots_ptr = &nextRoots_32k_sse41;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_sse41 ptr\n");
+            }
         }
 #else
-        if (VFLAG > 1)
+
+        if (obj->HAS_BMI2)
         {
-            printf("assigning nextRoots_32k_avx2 ptr\n");
+            if (VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2_intrin ptr\n");
+            }
+            nextRoots_ptr = &nextRoots_32k_avx2_intrin;
         }
-        nextRoots_ptr = &nextRoots_32k_avx2;
+        else
+        {
+            if (VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2 ptr\n");
+            }
+            nextRoots_ptr = &nextRoots_32k_avx2;
+        }
+
 #endif
     }
     else if (obj->HAS_SSE41)
@@ -2257,17 +2281,47 @@ int siqs_static_init(static_conf_t *sconf, int is_tiny)
 #if defined(_MSC_VER)
         // the avx2 code path for nextroots involves lots of inline 
         // ASM, so visual studio builds can't use it.
-        nextRoots_ptr = &nextRoots_32k_sse41;
-        if (sconf->obj->VFLAG > 1)
+
+        if (obj->HAS_BMI2)
         {
-            printf("assigning nextRoots_32k_sse41 ptr\n");
+            nextRoots_ptr = &nextRoots_32k_avx2_intrin;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2_intrin ptr\n");
+            }
+        }
+        else
+        {
+            nextRoots_ptr = &nextRoots_32k_sse41;
+            if (sconf->obj->VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_sse41 ptr\n");
+            }
         }
 #else
-        if (VFLAG > 1)
+        
+        if (obj->HAS_BMI2)
         {
-            printf("assigning nextRoots_32k_avx2 ptr\n");
+            if (VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2_intrin ptr\n");
+            }
+            nextRoots_ptr = &nextRoots_32k_avx2_intrin;
         }
-        nextRoots_ptr = &nextRoots_32k_avx2;
+        else
+        {
+            if (VFLAG > 1)
+            {
+                printf("assigning nextRoots_32k_avx2 ptr\n");
+            }
+            nextRoots_ptr = &nextRoots_32k_avx2;
+        }
+
+        //if (VFLAG > 1)
+        //{
+        //    printf("assigning nextRoots_32k_sse41 ptr\n");
+        //}
+        //nextRoots_ptr = &nextRoots_32k_sse41;
 #endif
     }
     else if (obj->HAS_SSE41)
