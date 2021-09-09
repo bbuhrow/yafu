@@ -566,11 +566,43 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
         else
         {
-            vecmulmod_ptr = &vecmulmod52;
-            vecsqrmod_ptr = &vecsqrmod52;
+            if (tdata[0].MAXBITS == 416)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed416_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed416_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                printf("Using 416-bit mul/sqr core\n");
+            }
+            else if (tdata[0].MAXBITS == 624)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed624_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed624_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                printf("Using 624-bit mul/sqr core\n");
+            }
+            else if (tdata[0].MAXBITS == 832)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed832_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed832_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                printf("Using 832-bit mul/sqr core\n");
+            }
+            else if (tdata[0].MAXBITS == 1040)
+            {
+                vecmulmod_ptr = &vecmulmod52_fixed1040_bfips;
+                vecsqrmod_ptr = &vecsqrmod52_fixed1040_bfips;
+                vecaddsubmod_ptr = &vec_simul_addsub52_fixed1040;
+                printf("Using 1040-bit mul/sqr core\n");
+            }
+            else
+            {
+                vecmulmod_ptr = &vecmulmod52;
+                vecsqrmod_ptr = &vecsqrmod52;
+                vecaddsubmod_ptr = &vec_simul_addsub52;
+            }
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
-            vecaddsubmod_ptr = &vec_simul_addsub52;
+            
         }
     }
     else
