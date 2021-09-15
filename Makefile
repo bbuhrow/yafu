@@ -17,26 +17,28 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc-7.3.0
+CC = gcc
 #CC = x86_64-w64-mingw32-gcc-4.5.1
 #CFLAGS = -march=core2 -mtune=core2
-CFLAGS = -g -DUSE_SSE2
+CFLAGS = -g -DUSE_SSE2 -no-pie
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
-LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk -L.
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../msieve-svn/zlib -I../ysieve.git/trunk -I../ytools.git/trunk
+LIBS = -L../ysieve.git/trunk -L../ytools.git/trunk -L.
 BINNAME = yafu
 OBJ_EXT = .o
+
+# ======== location of gmp and gmp-ecm library and header ========
+INC += -I../gmp-install/wsl/6.1.2/include
+LIBS += -L../gmp-install/wsl/6.1.2/lib/
+INC += -I../ecm-install/wsl/include/
+LIBS += -L../ecm-install/wsl/lib/
 
 # ===================== compiler options =========================
 ifeq ($(COMPILER),icc)
 	CC = icc
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
 	CFLAGS += -qopt-report=5
-endif
-
-ifeq ($(COMPILER),gcc)
-	CC = gcc
 endif
 
 
@@ -58,10 +60,6 @@ else
 	
 endif
 
-ifeq ($(SMALLINT),1)
-	CFLAGS += -DSMALL_SIQS_INTERVALS
-endif
-
 ifeq ($(USE_BMI2),1)
 # -mbmi enables _blsr_u64 and -mbmi2 enables _pdep_u64 when using gcc
   CFLAGS += -mbmi2 -mbmi -DUSE_BMI2
@@ -79,9 +77,6 @@ ifeq ($(USE_AVX2),1)
 
 endif
 
-ifeq ($(NO_ZLIB),1)
-  CFLAGS += -DNO_ZLIB
-endif
 
 ifeq ($(USE_SSE41),1)
 	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
@@ -104,55 +99,15 @@ endif
 
 
 
-
-ifeq ($(SKYLAKEX),1)
-	ifeq ($(MINGW),1)
-		INC +=  -I../../gmp-install/mingw/6.2.0/include
-		LIBS += -L../../gmp-install/mingw/6.2.0/lib/
-		INC +=  -I../../ecm-install/mingw/7.0.4/include/
-		LIBS += -L../../ecm-install/mingw/7.0.4/lib/
-	else
-		INC += -I../../gmp-install/wsl/6.1.2/include
-		LIBS += -L../../gmp-install/wsl/6.1.2/lib/
-		INC += -I../../ecm-install/wsl/include/
-		LIBS += -L../../ecm-install/wsl/lib/
-	endif	
-else
-	OBJ_EXT = .o
-  
-    ifeq ($(SKYLAKEX),1)
-        INC += -I../../gmp-install/wsl/6.1.2/include
-        LIBS += -L../../gmp-install/wsl/6.1.2/lib/
-        INC += -I../../ecm-install/wsl/include/
-        LIBS += -L../../ecm-install/wsl/lib/
-    else
-        ifeq ($(KNL),1)
-			OBJ_EXT = .ko
-            INC += -I../../gmp_install/gmp-6.2.0-knl/include
-            LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
-            INC += -I../../ecm_install_gmp620_knl/include/
-            LIBS += -L../../ecm_install_gmp620_knl/lib/
-        else
-			ifeq ($(MINGW),1)
-				INC +=  -I../../gmp-install/mingw/6.2.0/include
-				LIBS += -L../../gmp-install/mingw/6.2.0/lib/
-				INC +=  -I../../ecm-install/mingw/7.0.4/include/
-				LIBS += -L../../ecm-install/mingw/7.0.4/lib/
-			else
-				# for non avx512 systems
-				INC += -I../gmp/include
-				LIBS += -L../gmp/lib/
-				INC += -I../gmp-ecm/include/
-				LIBS += -L../gmp-ecm/lib/
-			endif
-        endif
-    endif
-
-	
+# ===================== feature options =========================
+ifeq ($(SMALLINT),1)
+	CFLAGS += -DSMALL_SIQS_INTERVALS
 endif
 
+ifeq ($(NO_ZLIB),1)
+  CFLAGS += -DNO_ZLIB
+endif
 
-# ===================== feature options =========================
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
@@ -171,23 +126,9 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-#	modify the following line for your particular msieve installation
 
-	ifeq ($(COMPILER),icc)
-		LIBS += -L../../msieve/lib/linux
-	else
-        ifeq ($(COMPILER),icc)
-            LIBS += -L../../msieve/lib/wsl/
-        else
-			ifeq ($(MINGW),1)
-				LIBS += -L../../msieve/lib/mingw/
-			else
-				LIBS += -L../../msieve/lib/wsl/
-			endif
-        endif
-	endif
-
-	LIBS += -lmsieve
+	#	modify the following line for your particular msieve installation
+	LIBS += -L../msieve -lmsieve
 endif
 
 ifeq ($(FORCE_GENERIC),1)
@@ -228,7 +169,6 @@ endif
 
 ifeq ($(COMPILER),icc)
   LIBS +=  -lsvml
-# -L/apps/intel/parallel_studio_xe/2017_U1/compilers_and_libraries_2017.1.132/linux/compiler/lib/intel64/ 
 endif
 
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)

@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
     // get the computer name, cache sizes, etc.  store in globals
     // we need to have the cpu id string before calling apply_tuneinfo so that
     // any tune_info lines are applied correctly.
-    get_computer_info(&comp_info, options->vproc);
+    ytools_get_computer_info(&comp_info, options->vproc);
 #endif
 
 	// a factorization object that gets passed around to any factorization routine
