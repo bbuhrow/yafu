@@ -191,17 +191,15 @@ yafu
             ...
             
 ytools
-    trunk
-        ytools
-            x64
-                Release
-                    ytools.lib
+    ytools
+        x64
+            Release
+                ytools.lib
 ysieve
-    trunk
-        ysieve_lib
-            x64
-                Release
-                    ysieve_lib.lib
+    ysieve_lib
+        x64
+            Release
+                ysieve_lib.lib
                     
 		
 The mpir and gmp-ecm libraries will need to be built separately, for either 
@@ -209,11 +207,11 @@ Win32 or x64 targets.  To change the target for a yafu build, within MSVC
 select Build -> Configuration Manger then in the Active Solution Platform 
 pulldown choose x64 or Win32.
 
-MINGW-64 OR MINGW-32
+MINGW-64
 =============
-YAFU should build in a mingw or mingw-64 environment.  The  src zip file should 
+YAFU should build in mingw-64 environment.  The  src zip file should 
 include a Makefile.mingw for this purpose.  The build should be similar to
-a linux build.  This options is less-well tested.
+a linux build.  This option is less-well tested.
 
 OTHER
 =============
