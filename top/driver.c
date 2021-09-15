@@ -301,6 +301,7 @@ int main(int argc, char *argv[])
 	{		
         // running interactively, reset the fobj every line.
         reset_factobj(fobj);
+        options_to_factobj(fobj, options);
 
 		// handle a batch file, if passed in.
 		if (yafu_obj.USEBATCHFILE)
