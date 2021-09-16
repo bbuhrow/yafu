@@ -58,14 +58,18 @@ This file is a snapshot of a work in progress, originated by Mayo
 // test cases:
 // is stage 2 broken for mersennes? - yes looks that way
 
-// "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 4248094344 finds factor 1460915248436556406607
-// "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 2102985689 finds both factors 1460915248436556406607 and 1534086200463688788034864584049
-// "ecm((2^1063+1)/3,128)" -v -v -B1ecm 3000000 -sigma 3299028348 finds both factors 114584129081 and 26210488518118323164267329859
-// "ecm((2^827+1)/3,8)" -v -v -B1ecm 28000000 -B2ecm 760000000 -sigma 4029008539
-// "ecm((2^773-1)/6864241/9461521,8)" -v -v -B1ecm 2500000 -B2ecm 1800000000 -sigma 8170945836124664
+// ./yafu "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 4248094344 finds factor 1460915248436556406607
+// ./yafu "ecm(2^823-1,8)" -v -v -B1ecm 3000000 -sigma 2102985689 finds both factors 1460915248436556406607 and 1534086200463688788034864584049
+// ./yafu "ecm((2^1063+1)/3,8)" -v -v -B1ecm 3000000 -sigma 3299028348 finds both factors 114584129081 and 26210488518118323164267329859
+// ./yafu "ecm((2^827+1)/3,8)" -v -v -B1ecm 28000000 -B2ecm 760000000 -sigma 4029008539 fails to find factor!
+// ./yafu "ecm((2^773-1)/6864241/9461521,8)" -v -v -B1ecm 2500000 -B2ecm 1800000000 -sigma 8170945836124664 fails to find factor!
 
 // need to fix
-// 2^843+1
+// ./yafu "ecm((2^843+1)/9,8)" -v -v -B1ecm 1000000
+// Mersenne input 2^843 - 1 determined to be faster by REDC
+// conflicting parameters:
+// Choosing MAXBITS = 1040, NWORDS = 12, NBLOCKS = 3 based on input size 561
+// then crashes.
 
 void vecmulmod52_mersenne_416(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {

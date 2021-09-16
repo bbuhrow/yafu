@@ -549,7 +549,8 @@ void vec_add(vec_monty_t *mdata, ecm_work *work, ecm_pt *Pin, ecm_pt *Pout)
 
     // choosing the initial point Pz0 = 1 means that z_p-q = 1 and this mul isn't necessary...
     // but that involves a different way to initialize curves, so for now
-    // we can't assume Z=1
+    // we can't assume Z=1.
+    // with streamlined prac, the if case is never executed...
 	if (Pin->X == Pout->X)
 	{
 		base_t *swap;
@@ -727,6 +728,7 @@ lucas_cost(uint64_t n, double v)
 			d = e;
 			e = r;
 		}
+#ifdef ORIG_PRAC
 		if (d - e <= e / 4 && ((d + e) % 3) == 0)
 		{ /* condition 1 */
 			d = (2 * d - e) / 3;
@@ -739,6 +741,9 @@ lucas_cost(uint64_t n, double v)
 			c += ADD + DUP; /* one addition, one duplicate */
 		}
 		else if ((d + 3) / 4 <= e)
+#else
+        if ((d + 3) / 4 <= e)
+#endif
 		{ /* condition 3 */
 			d -= e;
 			c += ADD; /* one addition */
@@ -755,6 +760,7 @@ lucas_cost(uint64_t n, double v)
 			c += ADD + DUP; /* one addition, one duplicate */
 		}
 		/* now d is odd and e is even */
+#ifdef ORIG_PRAC
 		else if (d % 3 == 0)
 		{ /* condition 6 */
 			d = d / 3 - e;
@@ -770,6 +776,7 @@ lucas_cost(uint64_t n, double v)
 			d = (d - e) / 3;
 			c += 3.0 * ADD + DUP; /* three additions, one duplicate */
 		}
+#endif
 		else /* necessarily e is even: catches all cases */
 		{ /* condition 9 */
 			e /= 2;
@@ -799,7 +806,8 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	  0.61807966846989581 };
 
 	/* chooses the best value of v */
-	for (d = 0, cmin = ADD * (double)c; d < NV; d++)
+    cmin = 999999999.0; // ADD* (double)c;
+	for (i = d = 0; d < NV; d++)
 	{
 		cost = lucas_cost(c, val[d]);
 		if (cost < cmin)
@@ -858,55 +866,59 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			work->pt2.Z->data = sw_z;
 		}
 		/* do the first line of Table 4 whose condition qualifies */
-		if (d - e <= e / 4 && ((d + e) % 3) == 0)
-		{ /* condition 1 */
-			d = (2 * d - e) / 3;
-			e = (e - d) / 2;
-            
+#ifdef ORIG_PRAC
+        if (d - e <= e / 4 && ((d + e) % 3) == 0)
+        { /* condition 1 */
+            d = (2 * d - e) / 3;
+            e = (e - d) / 2;
+
             vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
             vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
-			vec_add(mdata, work, &work->pt3, &work->pt4); // T = A + B (C)
+            vec_add(mdata, work, &work->pt3, &work->pt4); // T = A + B (C)
 
             vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s1, d1, mdata);
             vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s2, d2, mdata);
 
-			vec_add(mdata, work, &work->pt2, &work->pt5); // T2 = T + A (B)
+            vec_add(mdata, work, &work->pt2, &work->pt5); // T2 = T + A (B)
 
             vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s1, d1, mdata);
             vecaddsubmod_ptr(work->pt4.X, work->pt4.Z, s2, d2, mdata);
 
-			vec_add(mdata, work, &work->pt1, &work->pt2); // B = B + T (A)
+            vec_add(mdata, work, &work->pt1, &work->pt2); // B = B + T (A)
 
-			//add3(xT, zT, xA, zA, xB, zB, xC, zC, n, u, v, w); /* T = f(A,B,C) */
-			//add3(xT2, zT2, xT, zT, xA, zA, xB, zB, n, u, v, w); /* T2 = f(T,A,B) */
-			//add3(xB, zB, xB, zB, xT, zT, xA, zA, n, u, v, w); /* B = f(B,T,A) */
-			//mpres_swap(xA, xT2, n);
-			//mpres_swap(zA, zT2, n); /* swap A and T2 */
+            //add3(xT, zT, xA, zA, xB, zB, xC, zC, n, u, v, w); /* T = f(A,B,C) */
+            //add3(xT2, zT2, xT, zT, xA, zA, xB, zB, n, u, v, w); /* T2 = f(T,A,B) */
+            //add3(xB, zB, xB, zB, xT, zT, xA, zA, n, u, v, w); /* B = f(B,T,A) */
+            //mpres_swap(xA, xT2, n);
+            //mpres_swap(zA, zT2, n); /* swap A and T2 */
 
-			sw_x = work->pt1.X->data;
-			sw_z = work->pt1.Z->data;
-			work->pt1.X->data = work->pt5.X->data;
-			work->pt1.Z->data = work->pt5.Z->data;
-			work->pt5.X->data = sw_x;
-			work->pt5.Z->data = sw_z;
+            sw_x = work->pt1.X->data;
+            sw_z = work->pt1.Z->data;
+            work->pt1.X->data = work->pt5.X->data;
+            work->pt1.Z->data = work->pt5.Z->data;
+            work->pt5.X->data = sw_x;
+            work->pt5.Z->data = sw_z;
 
-		}
-		else if (d - e <= e / 4 && (d - e) % 6 == 0)
-		{ /* condition 2 */
-			d = (d - e) / 2;
-			
+        }
+        else if (d - e <= e / 4 && (d - e) % 6 == 0)
+        { /* condition 2 */
+            d = (d - e) / 2;
+
             vecaddsubmod_ptr(work->pt1.X, work->pt1.Z, s1, d1, mdata);
             vecaddsubmod_ptr(work->pt2.X, work->pt2.Z, s2, d2, mdata);
 
-			vec_add(mdata, work, &work->pt3, &work->pt2);		// B = A + B (C)
-			vec_duplicate(mdata, work, s1, d1, &work->pt1);		// A = 2A
+            vec_add(mdata, work, &work->pt3, &work->pt2);		// B = A + B (C)
+            vec_duplicate(mdata, work, s1, d1, &work->pt1);		// A = 2A
 
-			//add3(xB, zB, xA, zA, xB, zB, xC, zC, n, u, v, w); /* B = f(A,B,C) */
-			//duplicate(xA, zA, xA, zA, n, b, u, v, w); /* A = 2*A */
+            //add3(xB, zB, xA, zA, xB, zB, xC, zC, n, u, v, w); /* B = f(A,B,C) */
+            //duplicate(xA, zA, xA, zA, n, b, u, v, w); /* A = 2*A */
 
-		}
-		else if ((d + 3) / 4 <= e)
+        }
+        else if ((d + 3) / 4 <= e)
+#else
+        if ((d + 3) / 4 <= e)
+#endif
 		{ /* condition 3 */
 			d -= e;
 			
@@ -964,6 +976,7 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			//duplicate(xA, zA, xA, zA, n, b, u, v, w); /* A = 2*A */
 		}
 		/* now d is odd, e is even */
+#ifdef ORIG_PRAC
 		else if (d % 3 == 0)
 		{ /* condition 6 */
 			d = d / 3 - e;
@@ -1074,6 +1087,7 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 			//duplicate(xT, zT, xA, zA, n, b, u, v, w);
 			//add3(xA, zA, xA, zA, xT, zT, xA, zA, n, u, v, w); /* A = 3*A */
 		}
+#endif
 		else /* necessarily e is even here */
 		{ /* condition 9 */
 			e /= 2;
@@ -3967,6 +3981,7 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
         //initialize info needed for giant step
         vecCopy(P->Z, Pa[0].Z);
         vecCopy(P->X, Pa[0].X);
+
         next_pt_vec(mdata, work, &Pa[0], work->A);
 
         if (verbose & (debug == 2))
@@ -4024,6 +4039,8 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
         if (verbose & (debug == 2))
             printf("A table generated to L = %d\n", 2 * L);
     }
+
+
 
     if (verbose > 1)
     {

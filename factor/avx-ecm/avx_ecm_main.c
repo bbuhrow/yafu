@@ -95,6 +95,7 @@ void broadcast_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src)
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
     }
 
+    vec_dest->size = vec_dest->WORDS_ALLOC;
     mpz_clear(src_cp);
     return;
 }
@@ -117,7 +118,7 @@ void insert_mpz_to_vec(vec_bignum_t *vec_dest, mpz_t src, int lane)
         mpz_tdiv_q_2exp(src_cp, src_cp, DIGITBITS);
     }
 
-    vec_dest->size = MAX(vec_dest->size, i);
+    vec_dest->size = vec_dest->WORDS_ALLOC; // MAX(vec_dest->size, i);
     mpz_clear(src_cp);
     return;
 }
@@ -551,11 +552,6 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             {
                 printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
             }
-            //vecmulmod_ptr = &vecmulmod52;
-            //vecsqrmod_ptr = &vecsqrmod52;
-            //vecaddsubmod_ptr = &vec_simul_addsub52;
-            //vecaddmod_ptr = &vecaddmod52;
-            //vecsubmod_ptr = &vecsubmod52;
         }
         else if (montyconst->isMersenne < 0)
         {
@@ -568,11 +564,6 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             {
                 printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
             }
-            //vecmulmod_ptr = &vecmulmod52;
-            //vecsqrmod_ptr = &vecsqrmod52;
-            //vecaddsubmod_ptr = &vec_simul_addsub52;
-            //vecaddmod_ptr = &vecaddmod52;
-            //vecsubmod_ptr = &vecsubmod52;
         }
         else
         {
