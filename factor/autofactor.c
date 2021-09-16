@@ -2040,14 +2040,14 @@ void factor(fact_obj_t *fobj)
 		if (is_mpz_prp(b, fobj->NUM_WITNESSES))
 		{
             char* s = mpz_get_str(NULL, 10, b);
-			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n", mpz_sizeinbase(b, 10), s);
+			logprint_oc(fobj->flogname, "a","prp%d cofactor = %s\n", gmp_base10(b), s);
 			add_to_factor_list(fobj->factors,b, fobj->VFLAG, fobj->NUM_WITNESSES);
             free(s);
 		}
 		else
 		{
             char* s = mpz_get_str(NULL, 10, b);
-			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n", mpz_sizeinbase(b, 10), s);
+			logprint_oc(fobj->flogname, "a", "c%d cofactor = %s\n", gmp_base10(b), s);
 			add_to_factor_list(fobj->factors,b, fobj->VFLAG, fobj->NUM_WITNESSES);
             free(s);
 		}

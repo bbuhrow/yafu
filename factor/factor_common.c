@@ -294,6 +294,8 @@ void alloc_factobj(fact_obj_t *fobj)
 	mpz_init(fobj->nfs_obj.snfs_cofactor);
 
     fobj->factors = (yfactor_list_t*)xmalloc(1 * sizeof(yfactor_list_t));
+	fobj->factors->aprcl_display_cutoff = 200;
+	fobj->factors->aprcl_prove_cutoff = 500;
 	fobj->factors->alloc_factors = 256;
 	fobj->factors->factors = (yfactor_t *)xmalloc(256 * sizeof(yfactor_t));
 	for (i=0; i < fobj->factors->alloc_factors; i++)
@@ -371,7 +373,9 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
 
 		if (v == APRTCLE_VERBOSE1)
 			printf("\n");
+
 		ret = mpz_aprtcle(n, v);
+
 		if (v == APRTCLE_VERBOSE1)
 			printf("\n");
 

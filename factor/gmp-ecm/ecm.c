@@ -633,7 +633,7 @@ void ecm_process_init(fact_obj_t *fobj)
             fobj->ecm_obj.use_external = 1;
         }
     }
-	
+
 	if (fobj->THREADS > 1)
 	{
         float ver;
@@ -644,9 +644,11 @@ void ecm_process_init(fact_obj_t *fobj)
         ver = 6;
 #endif
 
+        //printf("ecm version: %f, string version: %s\n", ver, ECM_VERSION);
+
 		if (!fobj->ecm_obj.use_external)
 		{                       
-            if (ver > 7.0)
+            if (ver >= 7.0)
             {
                 // ok to use multiple threads in ecm 7+
 
@@ -664,7 +666,7 @@ void ecm_process_init(fact_obj_t *fobj)
 		{
 			if ((fobj->ecm_obj.B1 < fobj->ecm_obj.ecm_ext_xover) || (fobj->ecm_obj.num_curves == 1))
 			{
-                if (ver > 7.0)
+                if (ver >= 7.0)
                 {
                     // ok to use multiple threads in ecm 7+
                 }
@@ -806,6 +808,11 @@ void *ecm_do_one_curve(void *ptr)
             if (fid != NULL)
             {
                 fclose(fid);
+
+                //char exename[1024];
+                //GetModuleFileName(NULL, exename, 1024);
+
+
                 sprintf(cmd, "echo %s | %s -resume `pwd`/avx_ecm_resume.txt %u | tee %s\n",
                     tmpstr, fobj->ecm_obj.ecm_path, fobj->ecm_obj.B1,
                     thread_data->tmp_output);
