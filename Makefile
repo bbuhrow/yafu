@@ -17,16 +17,37 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc-7.3.0
-#CC = x86_64-w64-mingw32-gcc-4.5.1
-#CFLAGS = -march=core2 -mtune=core2
-CFLAGS = -g -DUSE_SSE2
+CC = gcc
+CFLAGS = -g -m64 -DUSE_SSE2
+#CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -I../../msieve/zlib -I../../ysieve.git/trunk -I../../ytools.git/trunk
-LIBS = -L../../ysieve.git/trunk -L../../ytools.git/trunk -L.
+
 BINNAME = yafu
 OBJ_EXT = .o
+
+# ===================== path options =============================
+
+# standard search directories for headers/libraries within yafu.
+# These should normally not be modified.
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ 
+LIBS = -L.
+
+# we require additional search directories for msieve, zlib, gmp, gmp-ecm, 
+# ytools, and ysieve for libraries and headers.  By default, we look
+# adjacent to the yafu folder (i.e., ../ysieve, ../ytools, etc.).  Change
+# these if your installation locations differ.
+INC += -I../ysieve -I../ytools
+LIBS += -L../ysieve -L../ytools
+
+INC += -I../gmp_install/gmp-6.2.0/include
+LIBS += -L../gmp_install/gmp-6.2.0/lib
+
+INC += -I../ecm_install/include/
+LIBS += -L../ecm_install/lib/
+
+INC += -I../msieve/zlib 
+LIBS += -L../msieve/
 
 # ===================== compiler options =========================
 ifeq ($(COMPILER),icc)
@@ -34,11 +55,6 @@ ifeq ($(COMPILER),icc)
 	INC += -L/usr/lib/gcc/x86_64-redhat-linux/4.4.4
 	CFLAGS += -qopt-report=5
 endif
-
-ifeq ($(COMPILER),gcc)
-	CC = gcc
-endif
-
 
 # ===================== architecture options =========================
 # if this option is specified then compile *both* the sse2 and sse4.1 versions of the
@@ -51,15 +67,10 @@ ifeq ($(ICELAKE),1)
 	SKYLAKEX = 1
 else
 
-	ifeq ($(SKYLAKEX),1)
-		CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
-	endif
-	
-	
+ifeq ($(SKYLAKEX),1)
+	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
 endif
-
-ifeq ($(SMALLINT),1)
-	CFLAGS += -DSMALL_SIQS_INTERVALS
+	
 endif
 
 ifeq ($(USE_BMI2),1)
@@ -71,88 +82,43 @@ ifeq ($(USE_AVX2),1)
 	USE_SSE41=1
 	CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
 
-    ifeq ($(COMPILER),icc)
-      CFLAGS += -march=core-avx2  
-    else
-      CFLAGS += -mavx2 
-    endif
+ifeq ($(COMPILER),icc)
+	CFLAGS += -march=core-avx2  
+else
+	CFLAGS += -mavx2 
+endif
 
 endif
 
+ifeq ($(USE_SSE41),1)
+	CFLAGS += -DUSE_SSE41 -msse4.1
+endif
+
+ifeq ($(KNL),1)
+ifneq ($(USE_AVX2),1)
+    CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
+endif
+
+CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS 
+BINNAME = yafu_knl
+
+ifeq ($(COMPILER),icc)
+    CFLAGS += -xMIC-AVX512 
+else
+    CFLAGS += -march=knl
+endif
+
+endif
+
+# ===================== feature options =========================
 ifeq ($(NO_ZLIB),1)
   CFLAGS += -DNO_ZLIB
 endif
 
-ifeq ($(USE_SSE41),1)
-	CFLAGS += -DUSE_SSE41 -m64 -msse4.1
+ifeq ($(SMALLINT),1)
+	CFLAGS += -DSMALL_SIQS_INTERVALS
 endif
 
-ifeq ($(KNL),1)
-    ifneq ($(USE_AVX2),1)
-        CFLAGS += -DUSE_AVX2 -DUSE_SSE41 
-    endif
-
-    ifeq ($(COMPILER),icc)
-        CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -xMIC-AVX512 
-        BINNAME = yafu_knl
-    else
-        CFLAGS += -DTARGET_KNL -DUSE_AVX512F -DUSE_AVX512PF -DSMALL_SIQS_INTERVALS -march=knl
-        BINNAME = yafu_knl_gcc
-    endif
-  #-openmp
-endif
-
-
-
-
-ifeq ($(SKYLAKEX),1)
-	ifeq ($(MINGW),1)
-		INC +=  -I../../gmp-install/mingw/6.2.0/include
-		LIBS += -L../../gmp-install/mingw/6.2.0/lib/
-		INC +=  -I../../ecm-install/mingw/7.0.4/include/
-		LIBS += -L../../ecm-install/mingw/7.0.4/lib/
-	else
-		INC += -I../../gmp-install/wsl/6.1.2/include
-		LIBS += -L../../gmp-install/wsl/6.1.2/lib/
-		INC += -I../../ecm-install/wsl/include/
-		LIBS += -L../../ecm-install/wsl/lib/
-	endif	
-else
-	OBJ_EXT = .o
-  
-    ifeq ($(SKYLAKEX),1)
-        INC += -I../../gmp-install/wsl/6.1.2/include
-        LIBS += -L../../gmp-install/wsl/6.1.2/lib/
-        INC += -I../../ecm-install/wsl/include/
-        LIBS += -L../../ecm-install/wsl/lib/
-    else
-        ifeq ($(KNL),1)
-			OBJ_EXT = .ko
-            INC += -I../../gmp_install/gmp-6.2.0-knl/include
-            LIBS += -L../../gmp_install/gmp-6.2.0-knl/lib/
-            INC += -I../../ecm_install_gmp620_knl/include/
-            LIBS += -L../../ecm_install_gmp620_knl/lib/
-        else
-			ifeq ($(MINGW),1)
-				INC +=  -I../../gmp-install/mingw/6.2.0/include
-				LIBS += -L../../gmp-install/mingw/6.2.0/lib/
-				INC +=  -I../../ecm-install/mingw/7.0.4/include/
-				LIBS += -L../../ecm-install/mingw/7.0.4/lib/
-			else
-				# for non avx512 systems
-				INC += -I../gmp/include
-				LIBS += -L../gmp/lib/
-				INC += -I../gmp-ecm/include/
-				LIBS += -L../gmp-ecm/lib/
-			endif
-        endif
-    endif
-
-	
-endif
-
-
-# ===================== feature options =========================
 ifeq ($(PROFILE),1)
 	CFLAGS += -pg 
 	CFLAGS += -DPROFILING
@@ -171,22 +137,6 @@ endif
 
 ifeq ($(NFS),1)
 	CFLAGS += -DUSE_NFS
-#	modify the following line for your particular msieve installation
-
-	ifeq ($(COMPILER),icc)
-		LIBS += -L../../msieve/lib/linux
-	else
-        ifeq ($(COMPILER),icc)
-            LIBS += -L../../msieve/lib/wsl/
-        else
-			ifeq ($(MINGW),1)
-				LIBS += -L../../msieve/lib/mingw/
-			else
-				LIBS += -L../../msieve/lib/wsl/
-			endif
-        endif
-	endif
-
 	LIBS += -lmsieve
 endif
 
@@ -194,14 +144,9 @@ ifeq ($(FORCE_GENERIC),1)
 	CFLAGS += -DFORCE_GENERIC
 endif
 
-ifeq ($(MINGW),1)
-	LIBS += -lecm /g/projects/factoring/gmp-install/mingw/6.2.0/lib/libgmp.a -lytools -lysieve
-	#LIBS += -lecm -lgmp -lytools -lysieve
-else
-	LIBS += -lecm /mnt/g/projects/factoring/gmp-install/wsl/6.1.2/lib/libgmp.a -lytools -lysieve
-	#LIBS += -lecm -lgmp -lytools -lysieve
-endif
-
+# make sure we get the correct libgmp linked by using an absolute path
+LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
+#LIBS += -lecm -lgmp -lytools -lysieve
 
 ifeq ($(SKYLAKEX),1)
     # define KNL now for skylakex, after handling an actual command line KNL
@@ -212,11 +157,9 @@ endif
 ifeq ($(STATIC),1)
 # https://software.intel.com/en-us/articles/error-ld-cannot-find-lm
 	CFLAGS += -static-intel -static
-#	LIBS += -Wl,-Bstatic -lm -Wl,Bdynamic -pthread
-  LIBS += -L/usr/lib/x86_64-redhat-linux6E/lib64/ -lpthread -lm
+	LIBS += -L/usr/lib/x86_64-redhat-linux6E/lib64/ -lpthread -lm
 else
 	LIBS += -lpthread -lm
-
 endif
 
 ifeq ($(MINGW),1)
@@ -227,8 +170,7 @@ else
 endif
 
 ifeq ($(COMPILER),icc)
-  LIBS +=  -lsvml
-# -L/apps/intel/parallel_studio_xe/2017_U1/compilers_and_libraries_2017.1.132/linux/compiler/lib/intel64/ 
+	LIBS +=  -lsvml
 endif
 
 CFLAGS += $(OPT_FLAGS) $(WARN_FLAGS) $(INC)
@@ -277,7 +219,9 @@ ECM_SRCS = \
     factor/avx-ecm/avx_ecm_main.c \
     factor/avx-ecm/vec_common.c \
     factor/avx-ecm/vecarith.c \
-    factor/avx-ecm/vecarith52.c
+    factor/avx-ecm/vecarith52.c \
+	factor/avx-ecm/vecarith52_special.c \
+	factor/avx-ecm/vecarith52_common.c
 
 YAFU_SIQS_SRCS = \
 	factor/qs/filter.c \

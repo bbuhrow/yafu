@@ -551,6 +551,11 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             {
                 printf("Using special Mersenne mod for factor of: 2^%d-1\n", montyconst->nbits);
             }
+            //vecmulmod_ptr = &vecmulmod52;
+            //vecsqrmod_ptr = &vecsqrmod52;
+            //vecaddsubmod_ptr = &vec_simul_addsub52;
+            //vecaddmod_ptr = &vecaddmod52;
+            //vecsubmod_ptr = &vecsubmod52;
         }
         else if (montyconst->isMersenne < 0)
         {
@@ -563,6 +568,11 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             {
                 printf("Using special Mersenne mod for factor of: 2^%d+1\n", montyconst->nbits);
             }
+            //vecmulmod_ptr = &vecmulmod52;
+            //vecsqrmod_ptr = &vecsqrmod52;
+            //vecaddsubmod_ptr = &vec_simul_addsub52;
+            //vecaddmod_ptr = &vecaddmod52;
+            //vecsubmod_ptr = &vecsubmod52;
         }
         else
         {

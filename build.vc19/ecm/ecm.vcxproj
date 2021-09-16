@@ -78,7 +78,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir);..\..\..\..\gmp-ecm\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\top\cmdParser;..\..\top\aprcl;..\..\..\ytools;..\..\..\ysieve;..\..\..\msieve\zlib;..\..\..\mpir\lib\$(IntDir);..\..\..\gmp-ecm\include\</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;USE_AVX512F;SKYLAKEX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WholeProgramOptimization>false</WholeProgramOptimization>
     </ClCompile>
@@ -91,7 +91,7 @@
       <AdditionalDependencies>libecm.lib</AdditionalDependencies>
     </Lib>
     <Lib>
-      <AdditionalLibraryDirectories>..\..\..\..\gmp-ecm\lib\$(IntDir)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\gmp-ecm\lib\$(IntDir)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>false</LinkTimeCodeGeneration>
     </Lib>
   </ItemDefinitionGroup>
@@ -148,6 +148,8 @@
     <ClCompile Include="..\..\factor\avx-ecm\avx_ecm_main.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vecarith52.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_common.c" />
+    <ClCompile Include="..\..\factor\avx-ecm\vecarith52_special.c" />
     <ClCompile Include="..\..\factor\avx-ecm\vec_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\ecm.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\pm1.c" />

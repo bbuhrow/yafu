@@ -78,7 +78,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>..\..\include;..\..\..\..\ytools.git\trunk;..\..\..\..\ysieve.git\trunk\;..\..\..\..\msieve\zlib;..\..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\..\ytools;..\..\..\ysieve;..\..\..\msieve\zlib;..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;USE_AVX512F;USE_AVX512BW;USE_AVX2;USE_BMI2;SKYLAKEX;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>

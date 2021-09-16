@@ -3953,7 +3953,6 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
     ecm_pt* Pd = work->Pdnorm;  // non-inverted Pd
     vec_bignum_t** Paprod = work->Paprod;
 #ifndef DO_STAGE2_INV
-    vec_bignum_t** Paprod = work->Paprod;
     vec_bignum_t** Pbprod = work->Pbprod;
 #endif
     vec_bignum_t* acc = work->stg2acc;
@@ -4103,11 +4102,11 @@ void vec_ecm_stage2_pair(uint32_t pairmap_steps, uint32_t* pairmap_v, uint32_t* 
                 printf("pb=%d doesn't exist\n", pb);
             }
 
-            //if ((((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w - (uint64_t)pb) == 6378650689ULL) ||
-            //    (((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w + (uint64_t)pb) == 6378650689ULL))
+            //if ((((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w - (uint64_t)pb) == 10078477ULL) ||
+            //    (((2 * (uint64_t)amin + (uint64_t)pa) * (uint64_t)w + (uint64_t)pb) == 10078477ULL))
             //{
             //    printf("\naccumulated %lu @ amin = %u, pa = %d, pb = %d\n", 
-            //        6378650689ULL, amin, pa, pb);
+            //        10078477ULL, amin, pa, pb);
             //}
 
 #ifdef DO_STAGE2_INV
@@ -4155,7 +4154,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         flags = (uint8_t*)xcalloc((10000 + B2), sizeof(uint8_t));
     }
 
-    if (verbose > 1)
+    if (verbose > 0)
     {
         printf("commencing pair on range %lu:%lu\n", B1, B2);
     }
@@ -4467,7 +4466,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         free(flags);
     }
 
-    if (verbose > 1)
+    if (verbose > 0)
     {
         printf("%u pairs found from %u primes (ratio = %1.2f)\n",
             pairs, nump, (double)pairs / (double)nump);
