@@ -2417,7 +2417,8 @@ void vececm(thread_data_t* tdata)
             printf("Stage 1 took %1.4f seconds\n", t_time);
         }
 
-        // record results for this batch of primes
+        // check the stage 1 residue and record 
+        // results for this batch of primes
         if (tdata[0].save_b1) // && (save_intermediate)
         {
             if (tdata[0].save_b1 == 2)
@@ -2559,7 +2560,7 @@ void vececm(thread_data_t* tdata)
                 if (tdata[i].work->last_pid == (uint32_t)(-1))
                 {
                     // found a factor while initializing stage 2
-                    //printf("received factor from stage 2 init\n");
+                    printf("received factor from stage 2 init\n");
                     //print_vechexbignum52(tdata[i].work->stg2acc, "stg2acc: ");
                     last_p = STAGE2_MAX;
                 }
@@ -4154,7 +4155,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         flags = (uint8_t*)xcalloc((10000 + B2), sizeof(uint8_t));
     }
 
-    if (verbose > 0)
+    if (verbose > 1)
     {
         printf("commencing pair on range %lu:%lu\n", B1, B2);
     }
@@ -4466,7 +4467,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         free(flags);
     }
 
-    if (verbose > 0)
+    if (verbose > 1)
     {
         printf("%u pairs found from %u primes (ratio = %1.2f)\n",
             pairs, nump, (double)pairs / (double)nump);

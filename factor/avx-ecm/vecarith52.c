@@ -7234,27 +7234,6 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
     uint32_t NWORDS = mdata->NWORDS;
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
-    //if (NWORDS == 8)
-    //{
-    //    vecmulmod52_fixed416_bfips(a, b, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 12)
-    //{
-    //    vecmulmod52_fixed624_bfips(a, b, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 16)
-    //{
-    //    vecmulmod52_fixed832_bfips(a, b, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 20)
-    //{
-    //    vecmulmod52_fixed1040_bfips(a, b, c, n, mdata);
-    //    return;
-    //}
-
     // needed in loops
     __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
@@ -12009,27 +11988,6 @@ void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t
     uint32_t NWORDS = mdata->NWORDS;
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
-    //if (NWORDS == 8)
-    //{
-    //    vecsqrmod52_fixed416_bfips(a, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 12)
-    //{
-    //    vecsqrmod52_fixed624_bfips(a, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 16)
-    //{
-    //    vecsqrmod52_fixed832_bfips(a, c, n, mdata);
-    //    return;
-    //}
-    //else if (NWORDS == 20)
-    //{
-    //    vecsqrmod52_fixed1040_bfips(a, c, n, mdata);
-    //    return;
-    //}
-
     // needed in loops
     __m512i i0, i1;
     __m512i a0, a1, a2, a3;                                     // 4
@@ -13420,7 +13378,7 @@ void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
     // a and b are both positive
     // n is the montgomery base
     int i;
-    uint32_t NWORDS = a->WORDS_ALLOC;
+    uint32_t NWORDS = mdata->NWORDS; // a->WORDS_ALLOC;
     __mmask8 carry = 0;
     __mmask8 carryout = 0;
     __mmask8 mask = 0;
@@ -13478,7 +13436,7 @@ void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t*
     // a >= b
     // n is the montgomery base
     int i;
-    uint32_t NWORDS = a->WORDS_ALLOC;
+    uint32_t NWORDS = mdata->NWORDS; // a->WORDS_ALLOC;
     __mmask8 carry = 0;
     __mmask8 carryout = 0;
     __mmask8 mask = 0;
@@ -13611,7 +13569,7 @@ void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t
     // produce sum = a + b and diff = a - b at the same time which
     // saves 3N loads (only have to load a,b, and n once)
     int i;
-    uint32_t NWORDS = a->WORDS_ALLOC;
+    uint32_t NWORDS = mdata->NWORDS; // a->WORDS_ALLOC;
     __mmask8 carry = 0;
     __mmask8 borrow = 0;
     __mmask8 cmask = 0;
@@ -13936,7 +13894,7 @@ void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec
     // produce sum = a + b and diff = a - b at the same time which
     // saves 3N loads (only have to load a,b, and n once)
     int i;
-    uint32_t NWORDS = a->WORDS_ALLOC;
+    uint32_t NWORDS = mdata->NWORDS; // a->WORDS_ALLOC;
     __mmask8 carry = 0;
     __mmask8 borrow = 0;
     __mmask8 cmask = 0;

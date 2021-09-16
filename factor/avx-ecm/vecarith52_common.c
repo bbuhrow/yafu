@@ -57,7 +57,7 @@ This file is a snapshot of a work in progress, originated by Mayo
 // emulated instructions
 // in speed-critical functions these are not used... noticably faster to macro them
 // ---------------------------------------------------------------------
-__m512i __inline _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
+__m512i _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_add_epi64(a, b);
     *cout = _mm512_cmpgt_epu64_mask(t, _mm512_set1_epi64(0xfffffffffffffULL));
@@ -65,7 +65,7 @@ __m512i __inline _mm512_addsetc_epi52(__m512i a, __m512i b, __mmask8* cout)
     return t;
 }
 
-__m512i __inline _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
+__m512i _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_add_epi64(a, b);
     t = _mm512_add_epi64(t, _mm512_maskz_set1_epi64(c, 1));
@@ -74,7 +74,7 @@ __m512i __inline _mm512_adc_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* co
     return t;
 }
 
-__m512i __inline _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
+__m512i _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_add_epi64(a, b);
     t = _mm512_mask_add_epi64(a, m, t, _mm512_maskz_set1_epi64(c, 1));
@@ -83,7 +83,7 @@ __m512i __inline _mm512_mask_adc_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512
     return t;
 }
 
-__m512i __inline _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
+__m512i _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
 {
     __m512i t = _mm512_add_epi64(a, _mm512_maskz_set1_epi64(c, 1));
     *cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0xfffffffffffffULL));
@@ -91,7 +91,7 @@ __m512i __inline _mm512_addcarry_epi52(__m512i a, __mmask8 c, __mmask8* cout)
     return t;
 }
 
-__m512i __inline _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout)
+__m512i _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout)
 {
     __m512i t = _mm512_sub_epi64(a, _mm512_maskz_set1_epi64(c, 1));
     *cout = _mm512_cmpeq_epu64_mask(a, _mm512_set1_epi64(0));
@@ -99,7 +99,7 @@ __m512i __inline _mm512_subborrow_epi52(__m512i a, __mmask8 c, __mmask8* cout)
     return t;
 }
 
-__m512i __inline _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
+__m512i _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_sub_epi64(a, b);
     *cout = _mm512_cmpgt_epu64_mask(b, a);
@@ -109,7 +109,7 @@ __m512i __inline _mm512_sbb_epi52(__m512i a, __mmask8 c, __m512i b, __mmask8* co
     return t2;
 }
 
-__m512i __inline _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
+__m512i _mm512_mask_sbb_epi52(__m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
 {
     __m512i t = _mm512_mask_sub_epi64(a, m, a, b);
     *cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
@@ -198,7 +198,8 @@ void print_vechexbignum(vec_bignum_t* a, const char* pre)
         if (j != DEBUGLANE)
             continue;
 #endif
-        for (i = 2 * NWORDS - 1; i >= 0; i--)
+        //for (i = 2 * NWORDS - 1; i >= 0; i--)
+        for (i = NWORDS - 1; i >= 0; i--)
         {
             printf("%016llx", a->data[i * VECLEN + j]);
         }

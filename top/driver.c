@@ -301,7 +301,17 @@ int main(int argc, char *argv[])
 	{		
         // running interactively, reset the fobj every line.
         reset_factobj(fobj);
+
+        // don't need to re-annouce anything every time the user
+        // hits the return key
         options_to_factobj(fobj, options);
+        int verbose_level = fobj->VFLAG;
+        fobj->VFLAG = yafu_obj.VFLAG = -1;
+        for (i = 0; i < options->num_tune_info; i++)
+        {
+            apply_tuneinfo(&yafu_obj, fobj, options->tune_info[i]);
+        }
+        fobj->VFLAG = yafu_obj.VFLAG = verbose_level;
 
 		// handle a batch file, if passed in.
 		if (yafu_obj.USEBATCHFILE)
@@ -1249,6 +1259,8 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg)
 		fobj->qs_obj.qs_tune_freq = fobj->nfs_obj.gnfs_tune_freq;
 	}
 #else 
+
+    //printf("cpustr: %s\nyobj->CPU_ID_STR: %s\nosstr: %s\n", cpustr, yobj->CPU_ID_STR, osstr);
 	if ((strcmp(cpustr, yobj->CPU_ID_STR) == 0) && (strcmp(osstr, "LINUX64") == 0))
 	{
         if (yobj->VFLAG > 0)
