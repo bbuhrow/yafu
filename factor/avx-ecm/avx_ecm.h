@@ -30,6 +30,7 @@ either expressed or implied, of the FreeBSD Project.
 #include "gmp.h"
 #include "ytools.h"
 #include <stdint.h>
+#include <immintrin.h>
 
 #define INV_2_POW_64 5.4210108624275221700372640043497e-20
 
@@ -112,7 +113,6 @@ typedef struct
 } vec_monty_t;
 
 #ifdef USE_AVX512F
-#include <immintrin.h>
 
 //#define PRINT_DEBUG 2
 //#define NPRINT_DEBUG 0
