@@ -22,7 +22,7 @@ code to the public domain.
 #ifndef _YAFU_HEAD_DEF
 #define _YAFU_HEAD_DEF
 
-#define YAFU_VERSION_STRING "2.07"
+#define YAFU_VERSION_STRING "2.08"
 
 // default maximum size for strings/buffers
 #define GSTR_MAXSIZE 1024
@@ -62,6 +62,7 @@ typedef struct
     int NO_CLK_TEST;
 
     // machine info
+    char CWD[1024];
     double MEAS_CPU_FREQUENCY;
     int VERBOSE_PROC_INFO;
     char CPU_ID_STR[256];

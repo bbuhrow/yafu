@@ -1359,7 +1359,7 @@ void printUsage(options_t* options)
 // this function should not need to be changed:
 // parse options from a .ini (or other) file.
 // ========================================================================
-void readINI(const char* filename, options_t* options)
+int readINI(const char* filename, options_t* options)
 {
     FILE* doc;
     char* str;
@@ -1372,7 +1372,7 @@ void readINI(const char* filename, options_t* options)
     if (doc == NULL)
     {
         printf("warning: could not open %s, no options parsed\n", filename);
-        return;
+        return 0;
     }
 
     str = (char*)malloc(1024 * sizeof(char));
@@ -1424,5 +1424,5 @@ void readINI(const char* filename, options_t* options)
     fclose(doc);
     free(str);
 
-    return;
+    return 1;
 }

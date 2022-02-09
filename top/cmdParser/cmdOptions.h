@@ -191,7 +191,7 @@ typedef struct
 extern options_t* initOpt(void);
 extern void applyOpt(char* opt, char* arg, options_t* options);
 extern int processOpts(int argc, char** argv, options_t* options);
-extern void readINI(const char* filename, options_t* options);
+extern int readINI(const char* filename, options_t* options);
 
 
 #ifdef __cplusplus

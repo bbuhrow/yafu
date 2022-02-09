@@ -41,7 +41,7 @@ void apply_tuneinfo(yafu_obj_t* yobj, fact_obj_t *fobj, char *arg);
 
 // function to print the splash screen to file/screen
 void print_splash(fact_obj_t* fobj, info_t* comp_info, int is_cmdline_run,
-    FILE* logfile, int VFLAG, double freq, int numwit);
+    FILE* logfile, int VFLAG, double freq, int numwit, char *cwd);
 void helpfunc(char* s);
 
 // functions to make a batchfile ready to execute, and to process batchfile lines
@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
     //soe_staticdata_t* sdata;
     info_t comp_info;
     int i;
+    int ini_success;
 
 #if defined(__unix__)
 
@@ -106,7 +107,7 @@ int main(int argc, char *argv[])
 	// set defaults for various things and read the .ini file, if any.
 	yafu_init(&yafu_obj);
     options = initOpt();
-    readINI("yafu.ini", options);
+    ini_success = readINI("yafu.ini", options);
 
     // then process the command line, overriding any .ini settings.
     processOpts(argc, argv, options);
@@ -135,6 +136,18 @@ int main(int argc, char *argv[])
     {
         printf("input user seed %" PRIu64" detected\n", options->rand_seed);
         yafu_obj.USERSEED = 1;
+    }
+
+    if (yafu_obj.VFLAG > 0)
+    {
+        if (ini_success)
+        {
+            getcwd(yafu_obj.CWD, 1024);
+        }
+        else
+        {
+            strcpy(yafu_obj.CWD, "");
+        }
     }
 
 #if !defined(__APPLE__)
@@ -282,7 +295,7 @@ int main(int argc, char *argv[])
 		
 	// print the splash screen, to the logfile and depending on options, to the screen
 	print_splash(fobj, &comp_info, is_cmdline_run, logfile, yafu_obj.VFLAG, 
-        yafu_obj.MEAS_CPU_FREQUENCY, yafu_obj.NUM_WITNESSES);
+        yafu_obj.MEAS_CPU_FREQUENCY, yafu_obj.NUM_WITNESSES, yafu_obj.CWD);
 	
 	// start the calculator
 	// right now this just allocates room for user variables
@@ -886,7 +899,7 @@ int check_expression(options_t* options)
 }
 
 void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run, 
-    FILE* logfile, int VFLAG, double freq, int numwit)
+    FILE* logfile, int VFLAG, double freq, int numwit, char *cwd)
 {
 	if (VFLAG >= 0)
 		printf("\n\n");
@@ -962,7 +975,17 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         logprint(logfile,"using %u random witness for Rabin-Miller PRP checks\n", numwit);
     else
         logprint(logfile, "using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
-    logprint(logfile, "Cached %lu primes: max prime is %lu\n\n", fobj->num_p, fobj->max_p);
+    logprint(logfile, "Cached %lu primes: max prime is %lu\n", fobj->num_p, fobj->max_p);
+    if (strlen(cwd) == 0)
+    {
+        char buf[1024];
+        getcwd(buf, 1024);
+        logprint(logfile, "Could not parse yafu.ini from %s\n\n", buf);
+    }
+    else
+    {
+        logprint(logfile, "Parsed yafu.ini from %s\n\n", cwd);
+    }
 
 	if (VFLAG > 0 || !is_cmdline_run)
 	{		
@@ -975,7 +998,17 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
         else
             printf("Using %u random witnesses for Rabin-Miller PRP checks\n", numwit);
 
-        printf("Cached %lu primes; max prime is %lu\n\n", fobj->num_p, fobj->max_p);
+        printf("Cached %lu primes; max prime is %lu\n", fobj->num_p, fobj->max_p);
+        if (strlen(cwd) == 0)
+        {
+            char buf[1024];
+            getcwd(buf, 1024);
+            printf("Could not parse yafu.ini from %s\n\n", buf);
+        }
+        else
+        {
+            printf("Parsed yafu.ini from %s\n\n", cwd);
+        }
 
 		printf("===============================================================\n");
 		printf("======= Welcome to YAFU (Yet Another Factoring Utility) =======\n");
