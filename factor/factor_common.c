@@ -321,6 +321,198 @@ void alloc_factobj(fact_obj_t *fobj)
 	return;
 }
 
+void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
+{
+    uint32_t seed1, seed2;
+    int i;
+
+
+    dest->seed1 = src->seed1;
+    dest->seed2 = src->seed2;
+    dest->lcg_state = src->lcg_state;
+    dest->flags = src->flags;
+    dest->num_threads = src->num_threads;
+    strcpy(dest->flogname, src->flogname);
+    dest->do_logging = src->do_logging;   // not used...
+    dest->LOGFLAG = src->LOGFLAG;
+    dest->NUM_WITNESSES = src->NUM_WITNESSES;
+
+    // initialize stuff for rho	
+    dest->rho_obj.iterations = src->rho_obj.iterations;
+    dest->rho_obj.curr_poly = src->rho_obj.curr_poly;
+
+    // initialize stuff for pm1	
+    dest->pm1_obj.B1 = src->pm1_obj.B1;
+    dest->pm1_obj.B2 = src->pm1_obj.B2;
+    dest->pm1_obj.stg2_is_default = src->pm1_obj.stg2_is_default;
+    dest->pm1_obj.pm1_exponent = src->pm1_obj.pm1_exponent;
+    dest->pm1_obj.pm1_multiplier = src->pm1_obj.pm1_multiplier;
+    dest->pm1_obj.pm1_tune_freq = src->pm1_obj.pm1_tune_freq;
+    dest->pm1_obj.vecnum = src->pm1_obj.vecnum;
+
+    // initialize stuff for pp1	
+    dest->pp1_obj.B1 = src->pp1_obj.B1;
+    dest->pp1_obj.B2 = src->pp1_obj.B2;
+    dest->pp1_obj.stg2_is_default = src->pp1_obj.stg2_is_default;
+    dest->pp1_obj.pp1_exponent = src->pp1_obj.pp1_exponent;
+    dest->pp1_obj.pp1_multiplier = src->pp1_obj.pp1_multiplier;
+    dest->pp1_obj.pp1_tune_freq = src->pp1_obj.pp1_tune_freq;
+    dest->pp1_obj.vecnum = src->pp1_obj.vecnum;
+
+    // initialize stuff for ecm	
+    dest->ecm_obj.B1 = src->ecm_obj.B1;
+    dest->ecm_obj.B2 = src->ecm_obj.B2;
+    dest->ecm_obj.stg2_is_default = src->ecm_obj.stg2_is_default;
+    dest->ecm_obj.sigma = src->ecm_obj.sigma;
+    dest->ecm_obj.num_curves = src->ecm_obj.num_curves;
+    dest->ecm_obj.curves_run = src->ecm_obj.curves_run;
+    dest->ecm_obj.ecm_exponent = src->ecm_obj.ecm_exponent;
+    dest->ecm_obj.ecm_multiplier = src->ecm_obj.ecm_multiplier;
+    dest->ecm_obj.ecm_tune_freq = src->ecm_obj.ecm_tune_freq;
+    dest->ecm_obj.bail_on_factor = src->ecm_obj.bail_on_factor;
+    dest->ecm_obj.save_b1 = src->ecm_obj.save_b1;
+
+    // unlike ggnfs, ecm does not *require* external binaries.  
+    // an empty string indicates the use of the built-in GMP-ECM hooks, while
+    // a non-empty string (filled in by the user) will indicate the use of
+    // an external binary
+    strcpy(dest->ecm_obj.ecm_path, src->ecm_obj.ecm_path);
+    dest->ecm_obj.use_external = src->ecm_obj.use_external;
+#ifdef USE_AVX512F
+    dest->ecm_obj.prefer_gmpecm = src->ecm_obj.prefer_gmpecm;
+    dest->ecm_obj.ecm_ext_xover = src->ecm_obj.ecm_ext_xover;
+#else
+    dest->ecm_obj.prefer_gmpecm = src->ecm_obj.prefer_gmpecm;
+    dest->ecm_obj.ecm_ext_xover = src->ecm_obj.ecm_ext_xover;
+#endif
+
+    dest->ecm_obj.lcg_state = (uint64_t*)xrealloc(dest->ecm_obj.lcg_state,
+        src->num_threads * sizeof(uint64_t));
+    for (i = 0; i < (int)src->num_threads; i++)
+    {
+        dest->ecm_obj.lcg_state[i] =
+            hash64(lcg_rand_64(&dest->lcg_state));
+    }
+
+
+    // initialize stuff for squfof
+    dest->squfof_obj.num_factors = src->squfof_obj.num_factors;
+
+    // initialize stuff for qs	
+    dest->qs_obj.gbl_override_B_flag = src->qs_obj.gbl_override_B_flag;
+    dest->qs_obj.gbl_override_B = src->qs_obj.gbl_override_B;
+    dest->qs_obj.gbl_override_small_cutoff_flag = src->qs_obj.gbl_override_small_cutoff_flag;
+    dest->qs_obj.gbl_override_small_cutoff = src->qs_obj.gbl_override_small_cutoff;
+    dest->qs_obj.gbl_override_blocks_flag = src->qs_obj.gbl_override_blocks_flag;
+    dest->qs_obj.gbl_override_blocks = src->qs_obj.gbl_override_blocks;
+    dest->qs_obj.gbl_override_lpmult_flag = src->qs_obj.gbl_override_lpmult_flag;
+    dest->qs_obj.gbl_override_lpmult = src->qs_obj.gbl_override_lpmult;
+    dest->qs_obj.gbl_override_rel_flag = src->qs_obj.gbl_override_rel_flag;
+    dest->qs_obj.gbl_override_rel = src->qs_obj.gbl_override_rel;
+    dest->qs_obj.gbl_override_tf_flag = src->qs_obj.gbl_override_tf_flag;
+    dest->qs_obj.gbl_override_tf = src->qs_obj.gbl_override_tf;
+    dest->qs_obj.gbl_override_time_flag = src->qs_obj.gbl_override_time_flag;
+    dest->qs_obj.gbl_override_time = src->qs_obj.gbl_override_time;
+    dest->qs_obj.gbl_override_mfbd = src->qs_obj.gbl_override_mfbd;
+    dest->qs_obj.gbl_override_mfbt = src->qs_obj.gbl_override_mfbt;
+    dest->qs_obj.gbl_override_lpb = src->qs_obj.gbl_override_lpb;
+    dest->qs_obj.gbl_override_bdiv_flag = src->qs_obj.gbl_override_bdiv_flag;
+    dest->qs_obj.gbl_override_bdiv = src->qs_obj.gbl_override_bdiv;
+    dest->qs_obj.gbl_override_3lp_bat = src->qs_obj.gbl_override_3lp_bat;
+    dest->qs_obj.gbl_btarget = src->qs_obj.gbl_btarget;
+    dest->qs_obj.flags = src->qs_obj.flags;
+    dest->qs_obj.gbl_force_DLP = src->qs_obj.gbl_force_DLP;
+    dest->qs_obj.gbl_force_TLP = src->qs_obj.gbl_force_TLP;
+    dest->qs_obj.qs_exponent = src->qs_obj.qs_exponent;
+    dest->qs_obj.qs_multiplier = src->qs_obj.qs_multiplier;
+    dest->qs_obj.qs_tune_freq = src->qs_obj.qs_tune_freq;
+    dest->qs_obj.no_small_cutoff_opt = src->qs_obj.no_small_cutoff_opt;
+    strcpy(dest->qs_obj.siqs_savefile, src->qs_obj.siqs_savefile);
+    init_lehman();
+
+    // initialize stuff for trial division	
+    dest->div_obj.print = src->div_obj.print;
+    dest->div_obj.limit = src->div_obj.limit;
+    dest->div_obj.fmtlimit = src->div_obj.fmtlimit;
+
+    //initialize stuff for nfs
+    dest->nfs_obj.snfs = src->nfs_obj.snfs;
+    dest->nfs_obj.gnfs = src->nfs_obj.gnfs;
+    dest->nfs_obj.gnfs_exponent = src->nfs_obj.gnfs_exponent;
+    dest->nfs_obj.gnfs_multiplier = src->nfs_obj.gnfs_multiplier;
+    dest->nfs_obj.gnfs_tune_freq = src->nfs_obj.gnfs_tune_freq;
+    dest->nfs_obj.min_digits = src->nfs_obj.min_digits;
+    dest->nfs_obj.filter_min_rels_nudge = src->nfs_obj.filter_min_rels_nudge;
+    dest->nfs_obj.siever = src->nfs_obj.siever;
+    dest->nfs_obj.startq = src->nfs_obj.startq;
+    dest->nfs_obj.rangeq = src->nfs_obj.rangeq;
+    dest->nfs_obj.polystart = src->nfs_obj.polystart;
+    dest->nfs_obj.polyrange = src->nfs_obj.polyrange;
+    strcpy(dest->nfs_obj.outputfile, src->nfs_obj.outputfile);
+    strcpy(dest->nfs_obj.logfile, src->nfs_obj.logfile);
+    strcpy(dest->nfs_obj.fbfile, src->nfs_obj.fbfile);
+    dest->nfs_obj.sq_side = src->nfs_obj.sq_side;
+    dest->nfs_obj.timeout = src->nfs_obj.timeout;
+    strcpy(dest->nfs_obj.job_infile, src->nfs_obj.job_infile);
+    dest->nfs_obj.poly_option = src->nfs_obj.poly_option;
+    dest->nfs_obj.restart_flag = src->nfs_obj.restart_flag;
+    dest->nfs_obj.nfs_phases = src->nfs_obj.nfs_phases;
+    dest->nfs_obj.snfs_testsieve_threshold = src->nfs_obj.snfs_testsieve_threshold;
+    strcpy(dest->nfs_obj.filearg, src->nfs_obj.filearg);
+
+    dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
+#if defined(_WIN64)
+    strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
+#elif defined(WIN32)
+    strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
+#else
+    strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
+#endif
+
+    //initialize autofactor object
+    //whether we want to output certain info to their own files...
+    dest->autofact_obj.want_output_primes = src->autofact_obj.want_output_primes;
+    dest->autofact_obj.want_output_factors = src->autofact_obj.want_output_factors;
+    dest->autofact_obj.want_output_unfactored = src->autofact_obj.want_output_unfactored;
+    dest->autofact_obj.want_output_expressions = src->autofact_obj.want_output_expressions;
+    dest->autofact_obj.qs_gnfs_xover = src->autofact_obj.qs_gnfs_xover;
+    dest->autofact_obj.qs_snfs_xover = src->autofact_obj.qs_snfs_xover;
+    // use xover even when timing info is available
+    dest->autofact_obj.prefer_xover = src->autofact_obj.prefer_xover;
+    dest->autofact_obj.want_only_1_factor = src->autofact_obj.want_only_1_factor;
+    dest->autofact_obj.no_ecm = src->autofact_obj.no_ecm;
+    dest->autofact_obj.target_pretest_ratio = src->autofact_obj.target_pretest_ratio;
+    dest->autofact_obj.initial_work = src->autofact_obj.initial_work;
+    dest->autofact_obj.has_snfs_form = src->autofact_obj.has_snfs_form;
+
+    //pretesting plan used by factor()
+    dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;
+    strcpy(dest->autofact_obj.plan_str, src->autofact_obj.plan_str);
+    dest->autofact_obj.only_pretest = src->autofact_obj.only_pretest;
+    dest->autofact_obj.autofact_active = src->autofact_obj.autofact_active;
+
+    // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
+    dest->factors->aprcl_prove_cutoff = src->factors->aprcl_prove_cutoff;
+    // if a number is >= aprcl_display_cutoff, we will show the APRCL progress
+    dest->factors->aprcl_display_cutoff = src->factors->aprcl_display_cutoff;
+
+    dest->MEAS_CPU_FREQUENCY = 42;  // not used anymore
+    strcpy(dest->CPU_ID_STR, src->CPU_ID_STR);
+    dest->HAS_AVX2 = src->HAS_AVX2;
+    dest->HAS_AVX = src->HAS_AVX;
+    dest->HAS_SSE41 = src->HAS_SSE41;
+    dest->NUM_WITNESSES = src->NUM_WITNESSES;
+    dest->cache_size1 = src->cache_size1;
+    dest->cache_size2 = src->cache_size2;
+    dest->LOGFLAG = src->LOGFLAG;
+    dest->THREADS = src->THREADS;
+    dest->HAS_BMI2 = src->HAS_BMI2;
+    dest->HAS_AVX512F = src->HAS_AVX512F;
+    dest->HAS_AVX512BW = src->HAS_AVX512BW;
+
+    return;
+}
+
 void reset_factobj(fact_obj_t *fobj)
 {
 	// keep all of the settings in fobj, but do an init/free cycle on all

@@ -563,7 +563,10 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 						// load the new fobj with this number
 						fobj_refactor = (fact_obj_t *)malloc(sizeof(fact_obj_t));
 						init_factobj(fobj_refactor);
+                        copy_factobj(fobj_refactor, fobj);
+
 						mpz_set(fobj_refactor->N, fobj->factors->factors[i].factor);
+                        fobj_refactor->refactor_depth = fobj->refactor_depth;
 
 						// recurse on factor
 						factor(fobj_refactor);

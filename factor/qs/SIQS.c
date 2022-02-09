@@ -685,7 +685,7 @@ void SIQS(fact_obj_t *fobj)
 
 	// fill in the factorization object	
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
-	strcpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile);
+	strncpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, 80);
 
 	// initialize the data objects both shared (static) and 
 	// per-thread (dynamic)

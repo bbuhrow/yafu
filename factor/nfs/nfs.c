@@ -1207,7 +1207,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
 
         d = job->snfs->sdifficulty;
 
-        int do_skew_opt = 1;
+        int do_skew_opt = 0;
         
         if (do_skew_opt && (job->snfs->poly->skew > 0))
         {
@@ -1226,6 +1226,7 @@ int get_ggnfs_params(fact_obj_t *fobj, nfs_job_t *job)
             do
             {                
                 job->snfs->poly->skew += skew1percent;
+                
                 //printf("on iteration %d trying skew %lf: ", i++, job->snfs->poly->skew);
                 analyze_one_poly_xface(job->snfs);
                 //printf("murphy = %le\n", job->snfs->poly->murphy);

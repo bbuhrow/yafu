@@ -468,6 +468,7 @@ typedef struct
 void init_factobj(fact_obj_t *fobj);
 void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
+void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
 void alloc_factobj(fact_obj_t *fobj);
 
 //#if defined(WIN32)

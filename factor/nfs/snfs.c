@@ -1016,7 +1016,7 @@ done:
 void find_direct_form(fact_obj_t* fobj, snfs_t* form)
 {
     int b, p, found = 0, i, deg;
-    int c[7];
+    int c[10];
     mpz_t t, r, g, n, m;
 
     // find the following forms:
@@ -1107,7 +1107,7 @@ void find_direct_form(fact_obj_t* fobj, snfs_t* form)
                 form->form_type = SNFS_DIRECT;
                 mpz_set_ui(form->base1, b);
                 form->exp1 = p;
-                for (i = 6; i >= 0; i--)
+                for (i = 8; i >= 0; i--)
                 {
                     mpz_set_si(form->c[i], c[i]);
                 }

@@ -52,8 +52,17 @@ This file is a snapshot of a work in progress, originated by Mayo
 #ifdef USE_AVX512F
 #include <immintrin.h>
 
-//#define USE_AMM 1
+#define USE_AMM 1
 
+__m512i __inline _mm512_mask_sbb_src_epi52(__m512i src, __m512i a, __mmask8 m, __mmask8 c, __m512i b, __mmask8* cout)
+{
+    __m512i t = _mm512_mask_sub_epi64(src, m, a, b);
+    *cout = _mm512_mask_cmpgt_epu64_mask(m, b, a);
+    __m512i t2 = _mm512_mask_sub_epi64(src, m, t, _mm512_maskz_set1_epi64(c, 1));
+    *cout = _mm512_kor(*cout, _mm512_mask_cmpgt_epu64_mask(m, t2, t));
+    t2 = _mm512_and_epi64(t2, _mm512_set1_epi64(0xfffffffffffffULL));
+    return t2;
+}
 
 void vecmul52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
 {
@@ -4078,10 +4087,15 @@ void vecmulmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
             // i = 3, a3..0 = c[0..3]
             // i = 4, a3..0 = c[4..7]
             // i = 5, a3..0 = c[8..11]
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
+
+            c00 = a3;
+            c01 = a2;
+            c02 = a1;
+            c03 = a0;
 
         }
     }
@@ -4145,15 +4159,159 @@ void vecmulmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* 
             // i = 3, a3..0 = c[0..3]
             // i = 4, a3..0 = c[4..7]
             // i = 5, a3..0 = c[8..11]
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
-            _mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
+            c04 = a3;
+            c05 = a2;
+            c06 = a1;
+            c07 = a0;
+
+
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
+            //_mm512_store_epi64(c->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
 
         }
     }
 
+#ifdef USE_AMM
+    _mm512_store_epi64(c->data + 0 * VECLEN, c00);
+    _mm512_store_epi64(c->data + 1 * VECLEN, c01);
+    _mm512_store_epi64(c->data + 2 * VECLEN, c02);
+    _mm512_store_epi64(c->data + 3 * VECLEN, c03);
+    _mm512_store_epi64(c->data + 4 * VECLEN, c04);
+    _mm512_store_epi64(c->data + 5 * VECLEN, c05);
+    _mm512_store_epi64(c->data + 6 * VECLEN, c06);
+    _mm512_store_epi64(c->data + 7 * VECLEN, c07);
     _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+#else
+
+    __m512i cvec;
+    __m512i nvec;
+    __m512i bvec;
+
+    // compare
+    scarry = 0;	    // sub mask
+    scarry2 = 0;	// keep looking mask
+
+    cvec = c07;
+    nvec = _mm512_load_epi64(mdata->n->data + 7 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c06;
+    nvec = _mm512_load_epi64(mdata->n->data + 6 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c05;
+    nvec = _mm512_load_epi64(mdata->n->data + 5 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c04;
+    nvec = _mm512_load_epi64(mdata->n->data + 4 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c03;
+    nvec = _mm512_load_epi64(mdata->n->data + 3 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c02;
+    nvec = _mm512_load_epi64(mdata->n->data + 2 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c01;
+    nvec = _mm512_load_epi64(mdata->n->data + 1 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c00;
+    nvec = _mm512_load_epi64(mdata->n->data + 0 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    // check for equal as well by flipping mask bits that have still
+    // not been decided (i.e., are equal)
+    scarry |= (~scarry2);
+
+sub:
+
+    if (scarry == 0) goto done;
+    
+    // subtract n from c when c is not less than n, as indicated by a 1 bit in mask
+    scarry2 = 0;
+
+    nvec = _mm512_load_epi64(mdata->n->data + 0 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c00, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 0 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 1 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c01, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 1 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 2 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c02, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 2 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 3 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c03, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 3 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 4 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c04, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 4 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 5 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c05, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 5 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 6 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c06, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 6 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 7 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c07, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 7 * VECLEN, bvec);
+
+done:
+
+#endif
+    
 
     c->size = NWORDS;
     return;
@@ -7230,7 +7388,7 @@ void vecsqrmod52_fixed624_bfips_ifma(vec_bignum_t* a, vec_bignum_t* c, vec_bignu
 
 #endif
 
-void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+void vecmulmod52_avxecm(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j, k;
     int NWORDS = mdata->NWORDS;
@@ -7870,7 +8028,7 @@ void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t
     return;
 }
 
-void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+void vecmulmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     int i, j, k;
     uint32_t NWORDS = mdata->NWORDS;
@@ -7901,6 +8059,12 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
     __mmask8 scarry2;
     __mmask8 scarry;
 
+#ifdef USE_AMM
+    uint64_t* outdata = c->data;
+#else
+    uint64_t* outdata = s->data;
+#endif
+
     // deal with the sign
     c->size = NWORDS;
     c->signmask = a->signmask ^ b->signmask;
@@ -7909,8 +8073,6 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
     acc_e0 = zero;
     acc_e1 = zero;
     acc_e2 = zero;
-
-    //uint64_t* outdata = s->data;
 
     // first half mul
     for (i = 0; i < NBLOCKS; i++)
@@ -8074,10 +8236,10 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
         for (j = 0; j < i; j++)
         {
             // accumulate s * n
-            a0 = _mm512_load_epi64(s->data + ((j + 1) * BLOCKWORDS - 1) * VECLEN);
-            a1 = _mm512_load_epi64(s->data + ((j + 1) * BLOCKWORDS - 2) * VECLEN);
-            a2 = _mm512_load_epi64(s->data + ((j + 1) * BLOCKWORDS - 3) * VECLEN);
-            a3 = _mm512_load_epi64(s->data + ((j + 1) * BLOCKWORDS - 4) * VECLEN);
+            a0 = _mm512_load_epi64(outdata + ((j + 1) * BLOCKWORDS - 1) * VECLEN);
+            a1 = _mm512_load_epi64(outdata + ((j + 1) * BLOCKWORDS - 2) * VECLEN);
+            a2 = _mm512_load_epi64(outdata + ((j + 1) * BLOCKWORDS - 3) * VECLEN);
+            a3 = _mm512_load_epi64(outdata + ((j + 1) * BLOCKWORDS - 4) * VECLEN);
 
             b0 = _mm512_load_epi64(n->data + ((i - j - 1) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi64(n->data + ((i - j - 1) * BLOCKWORDS + 2) * VECLEN);
@@ -8124,7 +8286,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
 
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
             b0 = _mm512_load_epi64(n->data + 0 * VECLEN);
 
             // add in the final product
@@ -8148,7 +8310,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -8156,7 +8318,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -8179,7 +8341,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -8189,7 +8351,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
             // not sure what can be done about it.
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -8212,7 +8374,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -8220,7 +8382,7 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -8264,10 +8426,10 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
             // i = 3, j = 1, a0..3 = c[11..8]
             // i = 3, j = 2, a0..3 = c[7..4]
             // i = 4, j = 2, a0..3 = c[11..8]
-            a0 = _mm512_load_epi64(s->data + ((i - j) * BLOCKWORDS + 3) * VECLEN);
-            a1 = _mm512_load_epi64(s->data + ((i - j) * BLOCKWORDS + 2) * VECLEN);
-            a2 = _mm512_load_epi64(s->data + ((i - j) * BLOCKWORDS + 1) * VECLEN);
-            a3 = _mm512_load_epi64(s->data + ((i - j) * BLOCKWORDS + 0) * VECLEN);
+            a0 = _mm512_load_epi64(outdata + ((i - j) * BLOCKWORDS + 3) * VECLEN);
+            a1 = _mm512_load_epi64(outdata + ((i - j) * BLOCKWORDS + 2) * VECLEN);
+            a2 = _mm512_load_epi64(outdata + ((i - j) * BLOCKWORDS + 1) * VECLEN);
+            a3 = _mm512_load_epi64(outdata + ((i - j) * BLOCKWORDS + 0) * VECLEN);
 
             b0 = _mm512_load_epi64(n->data + ((j - 1) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi64(n->data + ((j - 1) * BLOCKWORDS + 2) * VECLEN);
@@ -8369,9 +8531,9 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
         // i = 3, a1..3 = c[1..3]
         // i = 4, a1..3 = c[5..7]
         // i = 5, a1..3 = c[9..11]
-        a1 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
-        a2 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
-        a3 = _mm512_load_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
+        a1 = _mm512_load_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN);
 
         b0 = _mm512_load_epi64(n->data + (NWORDS - 1) * VECLEN);
         b1 = _mm512_load_epi64(n->data + (NWORDS - 2) * VECLEN);
@@ -8537,16 +8699,21 @@ void vecmulmod52_207(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_bign
             // i = 3, a3..0 = c[0..3]
             // i = 4, a3..0 = c[4..7]
             // i = 5, a3..0 = c[8..11]
-            _mm512_store_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
-            _mm512_store_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
-            _mm512_store_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
-            _mm512_store_epi64(s->data + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
-
+            _mm512_store_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 0) * VECLEN, a3);
+            _mm512_store_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 1) * VECLEN, a2);
+            _mm512_store_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 2) * VECLEN, a1);
+            _mm512_store_epi64(outdata + ((i - NBLOCKS) * BLOCKWORDS + 3) * VECLEN, a0);
         }
     }
 
 
-#ifndef USE_AMM
+#ifdef USE_AMM
+    //for (i = NWORDS - 1; i >= 0; i--)
+    //{
+    //    b0 = _mm512_load_epi64(s->data + i * VECLEN);
+    //    _mm512_store_epi64(c->data + i * VECLEN, b0);
+    //}
+#else
     a0 = acc_e0;
     scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
 
@@ -12476,10 +12643,14 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
         a1 = _mm512_and_epi64(vlmask, a1);
         a0 = _mm512_and_epi64(vlmask, a0);
 
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 0) * VECLEN, a3);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 1) * VECLEN, a2);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 2) * VECLEN, a1);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 0) * VECLEN, a3);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 1) * VECLEN, a2);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 2) * VECLEN, a1);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
+        c00 = a3;
+        c01 = a2;
+        c02 = a1;
+        c03 = a0;
     }
 
     i = 1;
@@ -12593,10 +12764,14 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
         a1 = _mm512_and_epi64(vlmask, a1);
         a0 = _mm512_and_epi64(vlmask, a0);
 
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 0) * VECLEN, a3);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 1) * VECLEN, a2);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 2) * VECLEN, a1);
-        _mm512_store_epi64(c->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 0) * VECLEN, a3);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 1) * VECLEN, a2);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 2) * VECLEN, a1);
+        //_mm512_store_epi64(c->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
+        c04 = a3;
+        c05 = a2;
+        c06 = a1;
+        c07 = a0;
     }
 
     //printf("fixed416: \n");
@@ -12605,6 +12780,145 @@ void vecsqrmod52_fixed416_bfips(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* 
     //    printf("%016lx", c->data[i * VECLEN + 0]);
     //}
     //printf("\n");
+
+#ifdef USE_AMM
+    _mm512_store_epi64(c->data + 0 * VECLEN, c00);
+    _mm512_store_epi64(c->data + 1 * VECLEN, c01);
+    _mm512_store_epi64(c->data + 2 * VECLEN, c02);
+    _mm512_store_epi64(c->data + 3 * VECLEN, c03);
+    _mm512_store_epi64(c->data + 4 * VECLEN, c04);
+    _mm512_store_epi64(c->data + 5 * VECLEN, c05);
+    _mm512_store_epi64(c->data + 6 * VECLEN, c06);
+    _mm512_store_epi64(c->data + 7 * VECLEN, c07);
+    _mm512_store_epi64(c->data + NWORDS * VECLEN, zero);
+#else
+
+    __m512i cvec;
+    __m512i nvec;
+    __m512i bvec;
+
+    // compare
+    scarry = 0;	    // sub mask
+    scarry2 = 0;	// keep looking mask
+
+    cvec = c07;
+    nvec = _mm512_load_epi64(mdata->n->data + 7 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c06;
+    nvec = _mm512_load_epi64(mdata->n->data + 6 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c05;
+    nvec = _mm512_load_epi64(mdata->n->data + 5 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c04;
+    nvec = _mm512_load_epi64(mdata->n->data + 4 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c03;
+    nvec = _mm512_load_epi64(mdata->n->data + 3 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c02;
+    nvec = _mm512_load_epi64(mdata->n->data + 2 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c01;
+    nvec = _mm512_load_epi64(mdata->n->data + 1 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    cvec = c00;
+    nvec = _mm512_load_epi64(mdata->n->data + 0 * VECLEN);
+    // compare those that have not already been decided using the mask
+    scarry |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_GT);
+    scarry2 |= _mm512_mask_cmp_epu64_mask(~scarry2, cvec, nvec, _MM_CMPINT_LT);
+
+    // decided all of them, stop comparing.
+    if (scarry2 == 0xff) goto sub;
+
+    // check for equal as well by flipping mask bits that have still
+    // not been decided (i.e., are equal)
+    scarry |= (~scarry2);
+
+sub:
+
+    if (scarry == 0) goto done;
+
+    // subtract n from c when c is not less than n, as indicated by a 1 bit in mask
+    scarry2 = 0;
+
+    nvec = _mm512_load_epi64(mdata->n->data + 0 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c00, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 0 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 1 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c01, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 1 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 2 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c02, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 2 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 3 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c03, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 3 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 4 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c04, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 4 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 5 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c05, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 5 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 6 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c06, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 6 * VECLEN, bvec);
+
+    nvec = _mm512_load_epi64(mdata->n->data + 7 * VECLEN);
+    bvec = _mm512_mask_sbb_src_epi52(zero, c07, scarry, scarry2, nvec, &scarry2);
+    _mm512_store_epi64(c->data + 7 * VECLEN, bvec);
+
+done:
+
+#endif
 
     c->size = NWORDS;
     return;
@@ -12616,7 +12930,7 @@ void vecsqrmod52_mul(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bign
     return;
 }
 
-void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t*mdata)
+void vecsqrmod52(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bignum_t *s, vec_monty_t*mdata)
 {
     // 8x sqr:
     // input 8 bignums in the even lanes of a.
@@ -12650,6 +12964,12 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
     __mmask8 scarry_e = 0;
     __mmask8 scarry2;
     __mmask8 scarry;
+
+#ifdef USE_AMM
+    uint64_t* outdata = c->data;
+#else
+    uint64_t* outdata = s->data;
+#endif
 
     // deal with the sign
     c->size = NWORDS;
@@ -13054,10 +13374,10 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
         for (j = 0; j < i; j++)
         {
             // accumulate s * n
-            a0 = _mm512_load_epi32(s->data + ((j + 1) * BLOCKWORDS - 1) * VECLEN);
-            a1 = _mm512_load_epi32(s->data + ((j + 1) * BLOCKWORDS - 2) * VECLEN);
-            a2 = _mm512_load_epi32(s->data + ((j + 1) * BLOCKWORDS - 3) * VECLEN);
-            a3 = _mm512_load_epi32(s->data + ((j + 1) * BLOCKWORDS - 4) * VECLEN);
+            a0 = _mm512_load_epi32(outdata + ((j + 1) * BLOCKWORDS - 1) * VECLEN);
+            a1 = _mm512_load_epi32(outdata + ((j + 1) * BLOCKWORDS - 2) * VECLEN);
+            a2 = _mm512_load_epi32(outdata + ((j + 1) * BLOCKWORDS - 3) * VECLEN);
+            a3 = _mm512_load_epi32(outdata + ((j + 1) * BLOCKWORDS - 4) * VECLEN);
 
             b0 = _mm512_load_epi32(n->data + ((i - j - 1) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi32(n->data + ((i - j - 1) * BLOCKWORDS + 2) * VECLEN);
@@ -13104,7 +13424,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
             b0 = _mm512_load_epi64(n->data + 0 * VECLEN);
 
             // add in the final product
@@ -13128,7 +13448,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -13136,7 +13456,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -13159,7 +13479,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -13167,7 +13487,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -13190,7 +13510,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             for (k = 0; k < j; k++)
             {
-                a0 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + k) * VECLEN);
+                a0 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + k) * VECLEN);
                 b1 = _mm512_load_epi64(n->data + (j - k) * VECLEN);
 
                 VEC_MUL_ACCUM_LOHI_PD(a0, b1, acc_e0, acc_e1);
@@ -13198,7 +13518,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
 
             //a0 = _mm512_and_epi64(vlmask, _mm512_mullo_epi64(nhatvec_e, acc_e0));
             _mm512_mullo_epi52(a0, nhatvec_e, acc_e0);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + j) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + j) * VECLEN, a0);
 
             // add in the final product
             VEC_MUL_ACCUM_LOHI_PD(a0, b0, acc_e0, acc_e1);
@@ -13769,10 +14089,10 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
         // the s*n terms.  No more doubling past here.
         for (j = 0; j < NBLOCKS - 1 - i; j++)
         {
-            a0 = _mm512_load_epi64(s->data + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
-            a1 = _mm512_load_epi64(s->data + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
-            a2 = _mm512_load_epi64(s->data + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
-            a3 = _mm512_load_epi64(s->data + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);
+            a0 = _mm512_load_epi64(outdata + (NWORDS - 1 - j * BLOCKWORDS) * VECLEN);
+            a1 = _mm512_load_epi64(outdata + (NWORDS - 2 - j * BLOCKWORDS) * VECLEN);
+            a2 = _mm512_load_epi64(outdata + (NWORDS - 3 - j * BLOCKWORDS) * VECLEN);
+            a3 = _mm512_load_epi64(outdata + (NWORDS - 4 - j * BLOCKWORDS) * VECLEN);
 
             b0 = _mm512_load_epi64(n->data + ((i + j) * BLOCKWORDS + 1) * VECLEN);
             b1 = _mm512_load_epi64(n->data + ((i + j) * BLOCKWORDS + 2) * VECLEN);
@@ -13789,9 +14109,9 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
         }
 
         // finish each triangluar shaped column sum (s * n)
-        a1 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + 1) * VECLEN);
-        a2 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + 2) * VECLEN);
-        a3 = _mm512_load_epi64(s->data + (i * BLOCKWORDS + 3) * VECLEN);
+        a1 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + 1) * VECLEN);
+        a2 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + 2) * VECLEN);
+        a3 = _mm512_load_epi64(outdata + (i * BLOCKWORDS + 3) * VECLEN);
 
         b0 = _mm512_load_epi64(n->data + (NWORDS - 1) * VECLEN);
         b1 = _mm512_load_epi64(n->data + (NWORDS - 2) * VECLEN);
@@ -13955,16 +14275,22 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
             a1 = _mm512_and_epi64(vlmask, a1);
             a0 = _mm512_and_epi64(vlmask, a0);
 
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + 0) * VECLEN, a3);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + 1) * VECLEN, a2);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + 2) * VECLEN, a1);
-            _mm512_store_epi64(s->data + (i * BLOCKWORDS + 3) * VECLEN, a0);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + 0) * VECLEN, a3);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + 1) * VECLEN, a2);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + 2) * VECLEN, a1);
+            _mm512_store_epi64(outdata + (i * BLOCKWORDS + 3) * VECLEN, a0);
         }
 
 
     }
 
-#ifndef USE_AMM
+#ifdef USE_AMM
+    //for (i = NWORDS - 1; i >= 0; i--)
+    //{
+    //    b0 = _mm512_load_epi64(s->data + i * VECLEN);
+    //    _mm512_store_epi64(c->data + i * VECLEN, b0);
+    //}
+#else
     a0 = acc_e0;
     scarry2 = _mm512_cmp_epu64_mask(a0, zero, _MM_CMPINT_EQ);
 
@@ -14002,7 +14328,7 @@ void vecsqrmod52_207(vec_bignum_t *a, vec_bignum_t *c, vec_bignum_t *n, vec_bign
     return;
 }
 
-void vecsqrmod52(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
+void vecsqrmod52_avxecm(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t* s, vec_monty_t* mdata)
 {
     // 8x sqr:
     // input 8 bignums in the even lanes of a.
@@ -15237,7 +15563,7 @@ void vecsqrmod52(vec_bignum_t* a, vec_bignum_t* c, vec_bignum_t* n, vec_bignum_t
     return;
 }
 
-void vecaddmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
+void vecaddmod52_avxecm(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
 {
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
@@ -15300,7 +15626,7 @@ void vecaddmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t*
     return;
 }
 
-void vecaddmod52_207(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata)
+void vecaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata)
 {
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
@@ -15380,7 +15706,7 @@ void vecaddmod52_207(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_mont
     return;
 }
 
-void vecsubmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
+void vecsubmod52_avxecm(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t* mdata)
 {
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
@@ -15422,7 +15748,7 @@ void vecsubmod52(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c, vec_monty_t*
     return;
 }
 
-void vecsubmod52_207(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata)
+void vecsubmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_monty_t* mdata)
 {
     // assumptions:
     // a, b, c are of length VECLEN * NWORDS
@@ -15553,7 +15879,8 @@ void vecsignedaddmod52(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *c, vec_bi
     return;
 }
 
-void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* sum, vec_bignum_t* diff,
+void vec_simul_addsub52_fixed1040(vec_bignum_t* a, vec_bignum_t* b, 
+    vec_bignum_t* sum, vec_bignum_t* diff,
     vec_monty_t* mdata)
 {
     // assumptions:
@@ -15878,7 +16205,7 @@ addsubdone:
     return;
 }
 
-void vec_simul_addsub52(vec_bignum_t* a, vec_bignum_t* b, 
+void vec_simul_addsub52_avxecm(vec_bignum_t* a, vec_bignum_t* b, 
     vec_bignum_t* sum, vec_bignum_t* diff, vec_monty_t* mdata)
 {
     // assumptions:
@@ -15973,7 +16300,8 @@ void vec_simul_addsub52(vec_bignum_t* a, vec_bignum_t* b,
     return;
 }
 
-void vec_simul_addsub52_207(vec_bignum_t *a, vec_bignum_t *b, vec_bignum_t *sum, vec_bignum_t *diff, 
+void vec_simul_addsub52(vec_bignum_t *a, vec_bignum_t *b, 
+    vec_bignum_t *sum, vec_bignum_t *diff, 
     vec_monty_t* mdata)
 {
     // assumptions:

@@ -314,7 +314,7 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
         for (i = 0; i < 100; i++)
         {
             best->poly->skew = origskew * (1 + (0.4 * (rand() / RAND_MAX) - 0.2));
-            printf("on iteration %d trying skew %lf: ", i, best->poly->skew);
+            //printf("on iteration %d trying skew %lf: ", i, best->poly->skew);
             analyze_one_poly_xface(best->snfs);
             if (best->poly->murphy > bestmurph)
             {

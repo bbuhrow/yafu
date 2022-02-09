@@ -164,12 +164,14 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     mpz_init(r);
     mpz_init(N);
 
-    mpz_set(N, fobj->ecm_obj.gmp_n);
+    // set N equal to the original input, so we can
+    // detect Mersenne inputs correctly.
+    mpz_set(N, fobj->N);
 
     // check for Mersenne inputs
     size_n = mpz_sizeinbase(N, 2);
 
-    for (i = size_n; i < 2048; i++)
+    for (i = 31; i <= size_n * 1.5; i++)
     {
         mpz_set_ui(r, 1);
         mpz_mul_2exp(r, r, i);
@@ -197,13 +199,18 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         mpz_set_ui(r, 1);
         mpz_mul_2exp(r, r, i);
         mpz_mod(g, r, N);
-        if (mpz_sizeinbase(g, 2) < DIGITBITS)
+        if (mpz_sizeinbase(g, 2) < (DIGITBITS/2))
         {
             size_n = i;
             isMersenne = mpz_get_ui(g);
             break;
         }
     }
+    //printf("found isMersenne = 2^%d %d\n", size_n, isMersenne);
+
+    // now set N equal to the actual input, which may have had factors removed
+    // by previous factoring routines.
+    mpz_set(N, fobj->ecm_obj.gmp_n);
 
     // if the input is Mersenne and still contains algebraic factors, remove them.
     if (abs(isMersenne) == 1)
@@ -615,7 +622,6 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
             }
             vecaddmod_ptr = &vecaddmod52;
             vecsubmod_ptr = &vecsubmod52;
-            
         }
     }
     else
