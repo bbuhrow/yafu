@@ -171,7 +171,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     // check for Mersenne inputs
     size_n = mpz_sizeinbase(N, 2);
 
-    for (i = 31; i <= size_n * 1.5; i++)
+    for (i = 31; i <= size_n; i++)
     {
         mpz_set_ui(r, 1);
         mpz_mul_2exp(r, r, i);
@@ -300,7 +300,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
     }
 
-    if ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7)
+    if ((isMersenne != 0) && ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7))
     {
         if (verbose > 1)
         {
