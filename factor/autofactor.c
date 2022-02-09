@@ -1826,12 +1826,12 @@ void factor(fact_obj_t *fobj)
 			if (fobj->VFLAG > 0)
 				printf("fac: found siqs savefile, resuming siqs\n");
 
-			// remove any common factor so the input exactly matches
-			// the file
-			// mpz_tdiv_q(b, b, g);
-			// mpz_set(fobj->N, b);
-			// mpz_set(origN, b);
-			// mpz_set(copyN, b);
+            // if the inputs don't match exactly, resume siqs on the exact
+            // number in the savefile and put the cofactor (prime or composite)
+            // into the factor list.  If composite it will get refactored.
+            add_to_factor_list(fobj->factors, g, fobj->VFLAG, fobj->NUM_WITNESSES);
+
+            mpz_set(b, tmpz);
 
 			//override default choice
 			fact_state = state_qs;
