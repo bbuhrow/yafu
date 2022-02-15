@@ -17,13 +17,31 @@ benefit from your work.
 
 #ifdef USE_NFS
 
+// until we can integrate the codebases its easier to just 
+// copy this from poly_params.c
+const double params_deg4[11][5] = {
+
+    { 80, 3.00E+013, 2.00E+012, 1.00E-007,  1 * 60},
+    { 85, 3.00E+014, 4.00E+012, 6.50E-008,  1 * 60},
+    { 90, 2.00E+015, 8.00E+012, 3.80E-008,  3 * 60},
+    { 92, 8.00E+015, 4.87E+013, 2.80E-008,  4 * 60},
+    { 95, 2.92E+016, 1.75E+014, 1.85E-008,  6 * 60},
+    {100, 1.52E+017, 1.13E+015, 8.75E-009, 12 * 60},
+    {105, 8.97E+017, 7.44E+015, 4.40E-009, 23 * 60},
+    {110, 6.60E+018, 3.00E+016, 1.40E-009, 45 * 60},
+    {115, 1.00E+019, 1.00E+017, 4.09E-010, 90 * 60},
+    {120, 3.00E+020, 5.00E+017, 2.14E-010, 180 * 60},
+    {125, 1.00E+022, 1.00E+099, 1.12E-010, 8 * 3600},
+};
+
+
 static const poly_deadline_t time_limits[] = {
     //  bits, seconds
-        {248, 1 * 60},		// 74 digits
-        {264, 2 * 60},		// 80 digits
-        {304, 6 * 60},		// 92 digits
-        {320, 15 * 60},		// 97 digits
-        {348, 30 * 60},		// 105 digits
+        {248, 15},		    // 74 digits 1
+        {264, 30},		    // 80 digits 2
+        {304, 60},		    // 92 digits 6
+        {320, 3 * 60},		// 97 digits 15
+        {348, 9 * 60},		// 105 digits 30
         {365, 1 * 3600},	// 110 digits
         {383, 2 * 3600},	// 116 digits
         {399, 4 * 3600},	// 120 digits
@@ -795,14 +813,7 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
             // we've found one and stop if so
             if (!is_startup)
             {
-                if (fobj->nfs_obj.poly_option > 2)
-                {
-                    bestscore = find_best_msieve_poly(fobj, job, 0);
-                }
-                else
-                {
-                    bestscore = 0.;
-                }
+                bestscore = find_best_msieve_poly(fobj, job, 0);
             }
 
             if (fobj->VFLAG > 0)
@@ -968,6 +979,57 @@ void do_msieve_polyselect(fact_obj_t *fobj, msieve_obj *obj, nfs_job_t *job,
 	return;
 }
 
+void get_default_poly4_norms(double digits, double *norm1, double *norm2, double *min_e) {
+
+    uint32_t i;
+    uint32_t num_default_entries = 11;
+    const double* low, * high;
+    double j, k, dist;
+    double max_digits;
+
+    /* if the input is too small (large), give up with an answer that will
+     be increasingly wrong the further from the ends of the table it gets */
+
+    if (digits < params_deg4[0][0])
+    {
+        *norm1 = params_deg4[0][1];
+        *norm2 = params_deg4[0][2];
+        *min_e = params_deg4[0][3];
+        return;
+    }
+
+    max_digits = params_deg4[num_default_entries - 1][0];
+    if (digits >= max_digits)
+    {
+        *norm1 = params_deg4[num_default_entries - 1][1];
+        *norm2 = params_deg4[num_default_entries - 1][2];
+        *min_e = params_deg4[num_default_entries - 1][3];
+        return;
+    }
+
+    /* Otherwise the parameters to use are a weighted average
+       of the two table entries the input falls between */
+
+    for (i = 0; i < num_default_entries - 1; i++) {
+        if (digits < params_deg4[i + 1][0])
+            break;
+    }
+
+    low = params_deg4[i];
+    high = params_deg4[i + 1];
+    dist = high[0] - low[0];
+    j = digits - low[0];
+    k = high[0] - digits;
+
+    /* use exponential interpolation */
+    *norm1 = exp((log(low[1]) * k +
+        log(high[1]) * j) / dist);
+    *norm2 = exp((log(low[2]) * k +
+        log(high[2]) * j) / dist);
+    *min_e = exp((log(low[3]) * k +
+        log(high[3]) * j) / dist);
+}
+
 void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj, 
 	mp_t *mpN, factor_list_t *factor_list, int tid, uint32_t flags,
 	uint32_t deadline, uint64_t start, uint64_t stop)
@@ -1012,8 +1074,24 @@ void init_poly_threaddata(nfs_threaddata_t *t, msieve_obj *obj,
 	t->logfilename = (char *)malloc(80 * sizeof(char));
 	t->polyfilename = (char *)malloc(80 * sizeof(char));
 	t->fbfilename = (char *)malloc(80 * sizeof(char));
-	sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d", 
-        start, stop, deadline_per_coeff);
+
+    // we want to make sure we actually find some polynomials when running on 
+    // really small inputs.  The default msieve values don't seem to allow
+    // enough polys to be found... here we tweak them a little bit.
+    if (mp_bits(mpN) < 330)
+    {
+        double norm1, norm2, min_e;
+        get_default_poly4_norms((double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10), &norm1, &norm2, &min_e);
+        sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d "
+            "stage1_norm=%1.4e stage2_norm=%1.4e min_evalue=%1.4e",
+            start, stop, deadline_per_coeff, norm1, norm2, min_e);
+    }
+    else
+    {
+        sprintf(nfs_args, "min_coeff=%" PRIu64 " max_coeff=%" PRIu64 " poly_deadline=%d",
+            start, stop, deadline_per_coeff);
+    }
+
 	sprintf(t->polyfilename,"%s.%d",fobj->nfs_obj.outputfile,tid);
 	sprintf(t->logfilename,"%s.%d",fobj->nfs_obj.logfile,tid);
 	sprintf(t->fbfilename,"%s.%d",fobj->nfs_obj.fbfile,tid);

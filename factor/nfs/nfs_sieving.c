@@ -494,8 +494,12 @@ void do_sieving(fact_obj_t *fobj, nfs_job_t *job)
         // such ranges until the user-range is met.
 		if (fobj->nfs_obj.rangeq > 0)
 			thread_data[i].job.qrange = ceil((double)fobj->nfs_obj.rangeq / (double)fobj->THREADS);
-		else
-			thread_data[i].job.qrange = ceil((double)job->qrange / (double)fobj->THREADS);
+        else
+        {
+            // the minimum range may need to scale a bit with input size, but the goal is
+            // to stop doing very tiny ranges if the number of threads is large.
+            thread_data[i].job.qrange = MAX(5000, ceil((double)job->qrange / (double)fobj->THREADS));
+        }
 		thread_data[i].job.min_rels = job->min_rels;
 		thread_data[i].job.current_rels = job->current_rels;
 		thread_data[i].siever = fobj->nfs_obj.siever;
