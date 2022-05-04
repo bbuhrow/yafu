@@ -185,7 +185,8 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj);
 void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj, 
 	enum factorization_state state, double work_done,
 	double target_digits, int log_results);
-void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork);
+void write_factor_json(fact_obj_t* fobj, factor_work_t* fwork,
+	struct timeval* start, struct timeval* stop);
 
 double get_qs_time_estimate(fact_obj_t *fobj, mpz_t b)
 {
@@ -2080,7 +2081,7 @@ void factor(fact_obj_t *fobj)
 
 	if (fobj->refactor_depth == 0)
 	{
-		write_factor_json(fobj, &fwork);
+		write_factor_json(fobj, &fwork, &start, &stop);
 	}
 
 	//restore flags
@@ -2095,7 +2096,8 @@ void factor(fact_obj_t *fobj)
 }
 
 
-void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork)
+void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
+	struct timeval *start, struct timeval *stop)
 {
 	FILE* fid = fopen(fobj->factor_json_name, "a");
 	yfactor_list_t* flist = fobj->factors;
@@ -2114,6 +2116,16 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork)
 			fprintf(fid, "{\n");
 			fprintf(fid, "\t\"input-expression\":\"%s\",\n", fobj->input_str);
 			gmp_fprintf(fid, "\t\"input-decimal\":\"%Zd\",\n", fobj->input_N);
+
+			if (fobj->argc > 1)
+			{
+				fprintf(fid, "\t\"input-argument-string\":\"");
+				for (i = 1; i < fobj->argc; i++)
+				{
+					fprintf(fid, "%s ", fobj->argv[i]);
+				}
+				fprintf(fid, "\",\n");
+			}
 
 			for (i = 0; i < flist->num_factors; i++)
 			{
@@ -2205,10 +2217,52 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork)
 				}
 			}
 
-			//fprintf(fid, "\t\"ecm-curves\" : [");
+			if (fwork->pm1_lvl1_curves > 0)
+			{
+				fprintf(fid, "\t\"pm1-curves\" : {\"150000\":%d", fwork->pm1_lvl1_curves);
+			}
+			if (fwork->pm1_lvl2_curves > 0)
+			{
+				fprintf(fid, ",\"3750000\":%d", fwork->pm1_lvl2_curves);
+			}
+			if (fwork->pm1_lvl3_curves > 0)
+			{
+				fprintf(fid, ",\"15000000\":%d", fwork->pm1_lvl3_curves);
+			}
+			if (fwork->pm1_lvl1_curves > 0) fprintf(fid, "},\n");
+
+			if (fwork->pp1_lvl1_curves > 0)
+			{
+				fprintf(fid, "\t\"pp1-curves\" : {\"25000\":%d", fwork->pp1_lvl1_curves);
+			}
+			if (fwork->pp1_lvl2_curves > 0)
+			{
+				fprintf(fid, ",\"750000\":%d", fwork->pp1_lvl2_curves);
+			}
+			if (fwork->pp1_lvl3_curves > 0)
+			{
+				fprintf(fid, ",\"2500000\":%d", fwork->pp1_lvl3_curves);
+			}
+			if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},\n");
+
+
 			if (fwork->tlevels[0] > 0.01)
 			{
-				fprintf(fid, "\t\"ecm-levels\" : [");
+				fprintf(fid, "\t\"ecm-curves\" : {");
+				if (fwork->ecm_15digit_curves > 0) fprintf(fid, "\"2000\":%d", fwork->ecm_15digit_curves);
+				if (fwork->ecm_20digit_curves > 0) fprintf(fid, ",\"11000\":%d", fwork->ecm_20digit_curves);
+				if (fwork->ecm_25digit_curves > 0) fprintf(fid, ",\"50000\":%d", fwork->ecm_25digit_curves);
+				if (fwork->ecm_30digit_curves > 0) fprintf(fid, ",\"250000\":%d", fwork->ecm_30digit_curves);
+				if (fwork->ecm_35digit_curves > 0) fprintf(fid, ",\"1000000\":%d", fwork->ecm_35digit_curves);
+				if (fwork->ecm_40digit_curves > 0) fprintf(fid, ",\"3000000\":%d", fwork->ecm_40digit_curves);
+				if (fwork->ecm_45digit_curves > 0) fprintf(fid, ",\"11000000\":%d", fwork->ecm_45digit_curves);
+				if (fwork->ecm_50digit_curves > 0) fprintf(fid, ",\"43000000\":%d", fwork->ecm_50digit_curves);
+				if (fwork->ecm_55digit_curves > 0) fprintf(fid, ",\"110000000\":%d", fwork->ecm_55digit_curves);
+				if (fwork->ecm_60digit_curves > 0) fprintf(fid, ",\"260000000\":%d", fwork->ecm_60digit_curves);
+				if (fwork->ecm_65digit_curves > 0) fprintf(fid, ",\"850000000\":%d", fwork->ecm_65digit_curves);
+				fprintf(fid, "},\n");
+
+				fprintf(fid, "\t\"ecm-levels\" : {");
 				int level = 15;
 				for (i = 0; i < NUM_ECM_LEVELS - 1; i++)
 				{
@@ -2218,32 +2272,35 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork)
 					}
 					else if (fwork->tlevels[i] > 0.01)
 					{
-						fprintf(fid, "\"t%d\":%1.2f],\n", level, fwork->tlevels[i]);
+						fprintf(fid, "\"t%d\":%1.2f},\n", level, fwork->tlevels[i]);
 					}
 					level += 5;
 				}
 				if (fwork->tlevels[i] > 0.01)
 				{
-					fprintf(fid, "\"t%d\":%1.2f],\n", level, fwork->tlevels[i]);
+					fprintf(fid, "\"t%d\":%1.2f},\n", level, fwork->tlevels[i]);
 				}
 			}
-			else
-			{
-				fprintf(fid, "\t\"ecm-levels\" : [],\n");
-			}
 
-			fprintf(fid, "\t\"runtime\" : [\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
-				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs\":%1.4f],\n",
+			fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
+				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs\":%1.4f},\n",
 				fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime, 
 				fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime);
 
+			char buffer[30];
+			time_t curtime;
+
+			curtime = start->tv_sec;
+			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
+			fprintf(fid, "\t\"time-start\" : \"%s\",\n", buffer);
+			curtime = stop->tv_sec;
+			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
+			fprintf(fid, "\t\"time-end\" : \"%s\",\n", buffer);
+
+
 			fprintf(fid, "}\n");
 
-			//"ecm-curves" : ["2000":30, "11000" : 74, "50000" : 216, "250000" : 432] ,
-			//"ecm-levels" : ["t15":38.02, "t20" : 11.32, "t25" : 1.06, "t30" : 0.07, "sum" : 25.34] ,
-			//"time-start" : "2022-04-25 16:25:34",
-			//"time-end" : "2022-04-25 18:34:56",
-			//"runtime" : ["total":7762.123, "ecm" : 762.456, "pm1" : 16.95, "siqs" : 7654.32] ,
+			
 		}
 
 

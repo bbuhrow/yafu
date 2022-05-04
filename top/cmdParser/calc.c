@@ -2147,7 +2147,19 @@ int feval(int funcnum, int nargs, meta_t *metadata)
 		// isprime - one argument
         if (check_args(funcnum, nargs)) break;
         i = mpz_probab_prime_p(operands[0], fobj->NUM_WITNESSES);
-		mpz_set_ui(operands[0], i);
+        if (i==0)
+            mpz_set_ui(operands[0], 0);
+        else if (i==1)
+            mpz_set_ui(operands[0], 1);
+        else if (i==2)
+            mpz_set_ui(operands[0], 1);
+        else
+        {
+            printf("mpz_probab_prime_p returned unexpected result %d\n", i);
+            mpz_set_ui(operands[0], i);
+        }
+            
+		
 		break;
 	case 12:
 		// sqrt - one argument

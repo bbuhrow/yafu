@@ -578,6 +578,8 @@ int add_to_factor_list(yfactor_list_t *flist, mpz_t n, int VFLAG, int NUM_WITNES
 
 		ret = mpz_aprtcle(n, v);
 
+        //printf("aprtcle returned %d\n", ret);
+
 		if (v == APRTCLE_VERBOSE1)
 			printf("\n");
 
@@ -626,6 +628,7 @@ void delete_from_factor_list(yfactor_list_t* flist, mpz_t n)
             {
                 mpz_set(flist->factors[j].factor, flist->factors[j + 1].factor);
                 flist->factors[j].count = flist->factors[j + 1].count;
+                flist->factors[j].type = flist->factors[j + 1].type;
             }
             // remove the last one in the list
             flist->factors[j].count = 0;
@@ -758,6 +761,10 @@ void print_factors(yfactor_list_t* flist, mpz_t N, int VFLAG, int NUM_WITNESSES)
 					if (v == APRTCLE_VERBOSE1)
 						printf("\n");
 					ret = mpz_aprtcle(flist->factors[i].factor, v);
+
+                    //gmp_printf("in print_factors aprtcle returned status %d on input %Zd\n", ret, 
+                    //    flist->factors[i].factor);
+
 					if (v == APRTCLE_VERBOSE1)
 						printf("\n");
 

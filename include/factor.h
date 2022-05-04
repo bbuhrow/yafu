@@ -407,6 +407,8 @@ typedef struct
 	uint32_t flags;				    // state flags
     char *input_str;                // a copy of the input string
     int input_str_alloc;
+    char argc;                      // number of input arguments to yafu
+    char** argv;                    // pointer to the input arguments to yafu (read only)
 
 	// info for work done in various places during this factorization
 	div_obj_t div_obj;			    // info for any trial division work 

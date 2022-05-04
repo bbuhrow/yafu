@@ -703,8 +703,8 @@ uint32_t modinv_1c(uint32_t a, uint32_t p) {
 
 int is_mpz_prp(mpz_t n, int num_witnesses)
 {
-    return mpz_probab_prime_p(n, num_witnesses) &&
-        mpz_strongbpsw_prp(n);
+    int i = mpz_probab_prime_p(n, num_witnesses);
+    return ((i == 1) || (i == 2)) && mpz_strongbpsw_prp(n);
 }
 
 int pull_twos(uint64_t* n, int* j, uint64_t p)
