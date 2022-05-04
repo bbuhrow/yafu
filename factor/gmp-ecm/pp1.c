@@ -76,6 +76,13 @@ int pp1_wrapper(fact_obj_t *fobj)
 {
 	int status;
 
+	// timing variables
+	struct timeval stopt;	// stop time of this job
+	struct timeval startt;	// start time of this job
+	double t_time;
+
+	gettimeofday(&startt, NULL);
+
 	mpz_set(pp1_data.gmp_n, fobj->pp1_obj.gmp_n);
 
 	pp1_data.params->B1done = 1.0 + floor (1 * 128.) / 134217728.;
@@ -104,6 +111,10 @@ int pp1_wrapper(fact_obj_t *fobj)
 
 	//the return value is the stage the factor was found in, if no error
 	pp1_data.stagefound = status;
+
+	gettimeofday(&stopt, NULL);
+	t_time = ytools_difftime(&startt, &stopt);
+	fobj->pp1_obj.ttime = t_time;
 
 	return status;
 }

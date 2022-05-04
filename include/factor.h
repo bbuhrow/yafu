@@ -97,7 +97,7 @@ typedef struct {
 } qs_savefile_t;
 
 
-/*--------------DECLARATIONS FOR MANAGING FACTORS FOUND -----------------*/
+/*--------------DECLARATIONS FOR MANAGING FACTORS FOUND  and factor I/O -----------------*/
 
 int add_to_factor_list(yfactor_list_t* factors, mpz_t n,
     int VFLAG, int NUM_WITNESSES);
@@ -396,13 +396,17 @@ typedef struct
 
 typedef struct
 {
-	mpz_t N;					    // numerical representation of input
+    mpz_t input_N;					// numerical representation of input
+	mpz_t N;					    // numerical representation of input, can change while processing
 	uint32_t digits;			    // number of digits in input
 	uint32_t bits;				    // number of bits in input
 	char flogname[1024];		    // name of the factorization logfile to use
 	FILE *logfile;				    // the logfile
 	char savefile_name[80];		    // data savefile name
+    char factor_json_name[80];      // json file name
 	uint32_t flags;				    // state flags
+    char *input_str;                // a copy of the input string
+    int input_str_alloc;
 
 	// info for work done in various places during this factorization
 	div_obj_t div_obj;			    // info for any trial division work 
@@ -470,6 +474,7 @@ void free_factobj(fact_obj_t *fobj);
 void reset_factobj(fact_obj_t *fobj);
 void copy_factobj(fact_obj_t* dest, fact_obj_t* src);
 void alloc_factobj(fact_obj_t *fobj);
+
 
 //#if defined(WIN32)
 // windows machines also need these declarations for functions located

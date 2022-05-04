@@ -113,6 +113,7 @@ int pm1_wrapper(fact_obj_t *fobj)
 
     gettimeofday(&stopt, NULL);
     t_time = ytools_difftime(&startt, &stopt);
+	fobj->pm1_obj.ttime = t_time;
 
     if (fobj->VFLAG > 0)
     {

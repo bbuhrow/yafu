@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
         yafu_obj.USERSEED = 1;
     }
 
-    if (yafu_obj.VFLAG > 0)
+    //if (yafu_obj.VFLAG > 0)
     {
         if (ini_success)
         {
@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
         // running interactively, reset the fobj every line.
         reset_factobj(fobj);
 
-        // don't need to re-annouce anything every time the user
+        // don't need to re-announce anything every time the user
         // hits the return key
         options_to_factobj(fobj, options);
         int verbose_level = fobj->VFLAG;
@@ -384,6 +384,12 @@ int main(int argc, char *argv[])
                 continue;
             }
 
+            if (strlen(input_str.s) >= fobj->input_str_alloc)
+            {
+                fobj->input_str = xrealloc(fobj->input_str, strlen(input_str.s) + 2);
+                fobj->input_str_alloc = strlen(input_str.s) + 2;
+            }
+            strcpy(fobj->input_str, input_str.s);
             firstline = 1;
             reset_preprocessor();
             logprint(logfile, "Processing: %s\n", input_str.s);

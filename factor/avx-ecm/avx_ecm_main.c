@@ -140,7 +140,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
     uint64_t limit;
     int size_n, isMersenne = 0, forceNoMersenne = 0;
     uint64_t sigma = fobj->ecm_obj.sigma;
-    uint32_t maxbits, nwords, nblocks;
+    uint32_t maxbits, mmaxbits, nwords, nblocks;
 
 	// timing variables
 	struct timeval stopt;	// stop time of this job
@@ -274,16 +274,19 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         }
     }
 
+    
     nwords = maxbits / DIGITBITS;
     nblocks = nwords / BLOCKWORDS;
+    //printf("input has %d bits, %d words, %d blocks, mersenne size is %d\n", 
+    //    mpz_sizeinbase(N, 2), nwords, nblocks, size_n);
 
     // and compute NBLOCKS if using Mersenne mod
     if (DIGITBITS == 52)
     {
-        maxbits = 208;
-        while (maxbits <= size_n)
+        mmaxbits = 208;
+        while (mmaxbits <= size_n)
         {
-            maxbits += 208;
+            mmaxbits += 208;
         }
     }
     else
@@ -300,7 +303,7 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
         gmp_printf("commencing parallel ecm on %Zd with %d threads\n", N, threads);
     }
 
-    if ((isMersenne != 0) && ((double)nwords / ((double)maxbits / (double)DIGITBITS) < 0.7))
+    if ((isMersenne != 0) && ((double)nwords / ((double)mmaxbits / (double)DIGITBITS) < 0.7))
     {
         if (verbose > 1)
         {
@@ -308,10 +311,11 @@ void vec_ecm_main(fact_obj_t* fobj, uint32_t numcurves, uint64_t B1,
                 size_n);
         }
         forceNoMersenne = 1;
+        size_n = mpz_sizeinbase(N, 2);
     }
     else
     {
-        nwords = maxbits / DIGITBITS;
+        nwords = mmaxbits / DIGITBITS;
         nblocks = nwords / BLOCKWORDS;
     }
 

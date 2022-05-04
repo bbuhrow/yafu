@@ -274,6 +274,13 @@ int ecm_loop(fact_obj_t *fobj)
     tpool_t *tpool_data;
     ecm_thread_data_t *thread_data;		//an array of thread data objects
 
+    // timing variables
+    struct timeval stopt;	// stop time of this job
+    struct timeval startt;	// start time of this job
+    double t_time;
+
+    gettimeofday(&startt, NULL);
+
     // if nothing else happens to overwrite it, set the normal exit condition.
     fobj->ecm_obj.exit_cond = ECM_EXIT_NORMAL;
 
@@ -473,6 +480,10 @@ int ecm_loop(fact_obj_t *fobj)
         }
 
     }
+
+    gettimeofday(&stopt, NULL);
+    t_time = ytools_difftime(&startt, &stopt);
+    fobj->ecm_obj.ttime = t_time;
 
 	return total_curves_run;
 }

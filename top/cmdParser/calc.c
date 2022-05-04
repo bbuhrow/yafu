@@ -2444,10 +2444,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
         if (check_args(funcnum, nargs)) break;
 
         mpz_set(fobj->N, operands[0]);
+        mpz_set(fobj->input_N, fobj->N);
         factor(fobj);
         mpz_set(operands[0], fobj->N);
-        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+        print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);        
 
+        // someday will come back and work on the command/scripting interpreter
+        if (0)
         {
             char vname[20];
             for (i = 0; i < fobj->factors->num_factors; i++)
