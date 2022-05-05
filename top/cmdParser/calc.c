@@ -3161,44 +3161,41 @@ int set_uvar(const char *name, mpz_t data, fact_obj_t* fobj)
 			return 1;
 		}
 	}
-    else if (strcmp(name, "VFLAG") == 0)
+    else if (strcmp(name, "verbose") == 0)
     {
         fobj->VFLAG = mpz_get_ui(data);
     }
-    else if (strcmp(name, "POLLARD_STG1_MAX") == 0) {
+    else if (strcmp(name, "B1pm1") == 0) {
         fobj->pm1_obj.B1 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "POLLARD_STG2_MAX") == 0) {
+    else if (strcmp(name, "B2pm1") == 0) {
         fobj->pm1_obj.B2 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "WILL_STG1_MAX") == 0) {
+    else if (strcmp(name, "B1pp1") == 0) {
         fobj->pp1_obj.B1 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "WILL_STG2_MAX") == 0) {
+    else if (strcmp(name, "B2pp1") == 0) {
         fobj->pp1_obj.B2 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "ECM_STG1_MAX") == 0) {
+    else if (strcmp(name, "B1ecm") == 0) {
         fobj->ecm_obj.B1 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "ECM_STG2_MAX") == 0) {
+    else if (strcmp(name, "B2ecm") == 0) {
         fobj->ecm_obj.B2 = mpz_get_ui(data);
     }
-    else if (strcmp(name, "BRENT_MAX_IT") == 0) {
+    else if (strcmp(name, "rhomax") == 0) {
         fobj->rho_obj.iterations = mpz_get_ui(data);
     }
-    else if (strcmp(name, "NUM_WITNESSES") == 0) {
+    else if (strcmp(name, "nprp") == 0) {
         fobj->NUM_WITNESSES = mpz_get_ui(data);
     }
-    else if (strcmp(name, "LOGFLAG") == 0) {
-        fobj->LOGFLAG = mpz_get_ui(data);
-    }
-    else if (strcmp(name, "THREADS") == 0) {
+    else if (strcmp(name, "threads") == 0) {
         fobj->THREADS = mpz_get_ui(data);
     }
-    //else if (strcmp(name, "PRIMES_TO_FILE") == 0) {
-    //    
+    //else if (strcmp(name, "pfile") == 0) {
+    //
     //}
-    //else if (strcmp(name, "PRIMES_TO_SCREEN") == 0) {
+    //else if (strcmp(name, "pscreen") == 0) {
     //   
     //}
 
@@ -3407,25 +3404,25 @@ int invalid_dest(char* dest)
         return 1;	//is a function name
 
     //global vars are ok
-    if (strcmp(dest, "POLLARD_STG1_MAX") == 0) {
+    if (strcmp(dest, "B1pm1") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "POLLARD_STG2_MAX") == 0) {
+    else if (strcmp(dest, "B2pm1") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "WILL_STG1_MAX") == 0) {
+    else if (strcmp(dest, "B1pp1") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "WILL_STG2_MAX") == 0) {
+    else if (strcmp(dest, "B2pp1") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "ECM_STG1_MAX") == 0) {
+    else if (strcmp(dest, "B1ecm") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "ECM_STG2_MAX") == 0) {
+    else if (strcmp(dest, "B2ecm") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "BRENT_MAX_IT") == 0) {
+    else if (strcmp(dest, "rhomax") == 0) {
         return 0;
     }
     else if (strcmp(dest, "IBASE") == 0) {
@@ -3434,25 +3431,19 @@ int invalid_dest(char* dest)
     else if (strcmp(dest, "OBASE") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "QS_DUMP_CUTOFF") == 0) {
+    else if (strcmp(dest, "nprp") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "NUM_WITNESSES") == 0) {
+    else if (strcmp(dest, "verbose") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "LOGFLAG") == 0) {
+    else if (strcmp(dest, "pfile") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "VFLAG") == 0) {
+    else if (strcmp(dest, "pscreen") == 0) {
         return 0;
     }
-    else if (strcmp(dest, "PRIMES_TO_FILE") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "PRIMES_TO_SCREEN") == 0) {
-        return 0;
-    }
-    else if (strcmp(dest, "THREADS") == 0) {
+    else if (strcmp(dest, "threads") == 0) {
         return 0;
     }
 
