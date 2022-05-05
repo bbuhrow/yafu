@@ -167,6 +167,8 @@ void nfs(fact_obj_t *fobj)
 	struct timeval start;	// start time of this job
 	struct timeval bstop;	// stop time of sieving batch
 	struct timeval bstart;	// start time of sieving batch
+	struct timeval ustop;	// utility stop time 
+	struct timeval ustart;	// utility start time
 	double t_time;
 	uint32_t pre_batch_rels = 0;
 	char tmpstr[GSTR_MAXSIZE];
@@ -329,7 +331,11 @@ void nfs(fact_obj_t *fobj)
 					job.poly->side = ALGEBRAIC_SPQ;
                     job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
 
+					gettimeofday(&ustart, NULL);
 					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
+					gettimeofday(&ustop, NULL);
+					t_time = ytools_difftime(&ustart, &ustop);
+					fobj->nfs_obj.poly_time += t_time;
 				}
 				else
 				{
@@ -362,7 +368,11 @@ void nfs(fact_obj_t *fobj)
                 // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
                 // so that we can keep sieving until it is actually time to
                 // filter.
+				gettimeofday(&ustart, NULL);
                 do_sieving(fobj, &job);
+				gettimeofday(&ustop, NULL);
+				t_time = ytools_difftime(&ustart, &ustop);
+				fobj->nfs_obj.sieve_time += t_time;
             }
             else
             {
@@ -395,7 +405,13 @@ void nfs(fact_obj_t *fobj)
 			// enough relations and move on to linear algebra
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 				(fobj->nfs_obj.nfs_phases & NFS_PHASE_FILTER))
+			{
+				gettimeofday(&ustart, NULL);
 				relations_needed = do_msieve_filtering(fobj, obj, &job);
+				gettimeofday(&ustop, NULL);
+				t_time = ytools_difftime(&ustart, &ustop);
+				fobj->nfs_obj.filter_time += t_time;
+			}
 			else
 				relations_needed = 0;
 
@@ -467,7 +483,14 @@ void nfs(fact_obj_t *fobj)
 				// try this hack - store a pointer to the msieve obj so that
 				// we can change a flag on abort in order to interrupt the LA.
 				obj_ptr = obj;
+
+				gettimeofday(&ustart, NULL);
 				nfs_solve_linear_system(obj, fobj->nfs_obj.gmp_n);
+				gettimeofday(&ustop, NULL);
+				t_time = ytools_difftime(&ustart, &ustop);
+				fobj->nfs_obj.la_time += t_time;
+				
+
 				if (obj_ptr->flags & MSIEVE_FLAG_STOP_SIEVING)
 					nfs_state = NFS_STATE_DONE;
 				else
@@ -567,7 +590,11 @@ void nfs(fact_obj_t *fobj)
 				// we can change a flag on abort in order to interrupt the sqrt.
 				obj_ptr = obj;
 
+				gettimeofday(&ustart, NULL);
 				retcode = nfs_find_factors(obj, fobj->nfs_obj.gmp_n, &factor_list);
+				gettimeofday(&ustop, NULL);
+				t_time = ytools_difftime(&ustart, &ustop);
+				fobj->nfs_obj.sqrt_time += t_time;
 
 				obj_ptr = NULL;
 
@@ -988,6 +1015,10 @@ void nfs(fact_obj_t *fobj)
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
+
+	gettimeofday(&stop, NULL);
+	t_time = ytools_difftime(&start, &stop);
+	fobj->nfs_obj.ttime = t_time;
 
 	if (obj != NULL)
 		msieve_obj_free(obj);

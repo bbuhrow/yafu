@@ -30,6 +30,8 @@ code to the public domain.
 #include "cmdOptions.h"
 #include <stdint.h>
 #include "autofactor.h"
+#include "gmp.h"
+#include "ecm.h"
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
@@ -545,7 +547,7 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			done = 1;
 			for (i=0; i<fobj->factors->num_factors; i++)
 			{
-				if (!is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES))
+				if (is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES) == 0)
 				{					
 					if (fobj->refactor_depth > 3)
 					{
@@ -2283,9 +2285,13 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			}
 
 			fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
-				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs\":%1.4f},\n",
-				fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime, 
-				fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime);
+				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs-total\":%1.4f, \"nfs-poly\":%1.4f"
+				", \"nfs-sieve\":%1.4f, \"nfs-filter\":%1.4f"
+				", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},\n",
+				fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime,
+				fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime,
+				fobj->nfs_obj.poly_time, fobj->nfs_obj.sieve_time, fobj->nfs_obj.filter_time,
+				fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time);
 
 			char buffer[30];
 			time_t curtime;
@@ -2298,13 +2304,37 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			fprintf(fid, "\t\"time-end\" : \"%s\",\n", buffer);
 
 
-			fprintf(fid, "}\n");
+			fprintf(fid, "\t\"info\":{");
 
-			
+#ifdef _MSC_VER
+			fprintf(fid, "\"compiler\":\"MSVC %d\",", _MSC_VER);
+#elif defined (__INTEL_COMPILER)
+			fprintf(fid, "\"compiler\":\"INTEL %d\",", __INTEL_COMPILER);
+#elif defined (__GNUC__)
+			fprintf(fid, "\"compiler\":\"GNUC %d\",", __GNUC__);
+#endif
+
+#ifdef _MSC_MPIR_VERSION
+#ifdef ECM_VERSION
+			fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", ECM_VERSION,
+				_MSC_MPIR_VERSION);
+#elif defined(VERSION)
+
+			fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", VERSION,
+				_MSC_MPIR_VERSION);
+#endif
+#else
+#ifdef ECM_VERSION
+			fprintf(fid, "\"ECM-version\":\"%s\",\"GMP-version\":\"%d.%d.%d\",", ECM_VERSION,
+				__GNU_MP_VERSION, __GNU_MP_VERSION_MINOR, __GNU_MP_VERSION_PATCHLEVEL);
+#endif
+
+#endif
+			fprintf(fid, "\"yafu-version\":\"%s\"}\n}\n", YAFU_VERSION_STRING);
+
+
+			fclose(fid);
 		}
-
-
-		fclose(fid);
 	}
 
 	return;

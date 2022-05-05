@@ -328,7 +328,11 @@ typedef struct
 	double gnfs_exponent;
 	double gnfs_multiplier;
 	double gnfs_tune_freq;
-
+    double poly_time;
+    double sieve_time;
+    double filter_time;
+    double la_time;
+    double sqrt_time;
 	uint32_t min_digits;
 
 	uint32_t num_factors;			//number of factors found in this method

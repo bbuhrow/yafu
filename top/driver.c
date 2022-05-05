@@ -404,6 +404,21 @@ int main(int argc, char *argv[])
             }
 		}
 
+        // support changing options from the command line in an interactive session
+        options->verbosity = fobj->VFLAG;
+        options->B1ecm = fobj->ecm_obj.B1;
+        options->B2ecm = fobj->ecm_obj.B2;
+        options->B1pm1 = fobj->pm1_obj.B1;
+        options->B2pm1 = fobj->pm1_obj.B2;
+        options->B1pp1 = fobj->pp1_obj.B1;
+        options->B2pp1 = fobj->pp1_obj.B2;
+        fobj->pm1_obj.stg2_is_default = (options->B2pm1 == 0);
+        fobj->pp1_obj.stg2_is_default = (options->B2pp1 == 0);
+        fobj->ecm_obj.stg2_is_default = (options->B2ecm == 0);
+        options->rhomax = fobj->rho_obj.iterations;
+        options->num_prp_witnesses = fobj->NUM_WITNESSES;
+        options->threads = fobj->THREADS;
+
 #if defined(WIN32) && !defined(__MINGW32__)
 		fflush(stdin);	//important!  otherwise scanf will process printf's output
 		

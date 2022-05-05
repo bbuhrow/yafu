@@ -101,7 +101,7 @@ int isEOE(char s);
 int getFunc(char* s, int* nargs);
 int feval(int func, int nargs, meta_t* metadata);
 int new_uvar(const char* name, mpz_t data);
-int set_uvar(const char* name, mpz_t data);
+int set_uvar(const char* name, mpz_t data, fact_obj_t *fobj);
 int get_uvar(const char* name, mpz_t data);
 void free_uvars();
 int new_strvar(const char* name, char* data);
@@ -1530,10 +1530,10 @@ void calc_with_assignment(str_t* in, meta_t* metadata, int force_quiet)
             // always set the default variable to the new answer
             mpz_set_str(tmp, str.s, 0);
             sCopy(&str, in);
-            set_uvar("ans", tmp);
+            set_uvar("ans", tmp, metadata->fobj);
 
             // and optionally any assigned variable as well.
-            if (set_uvar(varname, tmp))
+            if (set_uvar(varname, tmp, metadata->fobj))
             {
                 new_uvar(varname, tmp);
             }
@@ -2469,16 +2469,16 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             {
 
                 sprintf(vname, "_f%d", i);
-                if (set_uvar(vname, fobj->factors->factors[i].factor))
+                if (set_uvar(vname, fobj->factors->factors[i].factor, fobj))
                     new_uvar(vname, fobj->factors->factors[i].factor);
                 sprintf(vname, "_fpow%d", i);
                 mpz_set_ui(operands[4], fobj->factors->factors[i].count);
-                if (set_uvar(vname, operands[4]))
+                if (set_uvar(vname, operands[4], fobj))
                     new_uvar(vname, operands[4]);
             }
             sprintf(vname, "_fnum");
             mpz_set_ui(operands[4], fobj->factors->num_factors);
-            if (set_uvar(vname, operands[4]))
+            if (set_uvar(vname, operands[4], fobj))
                 new_uvar(vname, operands[4]);
         }
 
@@ -3126,7 +3126,7 @@ int new_uvar(const char *name, mpz_t data)
 	return uvars.num - 1;
 }
 
-int set_uvar(const char *name, mpz_t data)
+int set_uvar(const char *name, mpz_t data, fact_obj_t* fobj)
 {
 	// look for 'name' in the global uvars structure
 	// if found, copy in data and return 0
@@ -3161,6 +3161,46 @@ int set_uvar(const char *name, mpz_t data)
 			return 1;
 		}
 	}
+    else if (strcmp(name, "VFLAG") == 0)
+    {
+        fobj->VFLAG = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "POLLARD_STG1_MAX") == 0) {
+        fobj->pm1_obj.B1 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "POLLARD_STG2_MAX") == 0) {
+        fobj->pm1_obj.B2 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "WILL_STG1_MAX") == 0) {
+        fobj->pp1_obj.B1 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "WILL_STG2_MAX") == 0) {
+        fobj->pp1_obj.B2 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "ECM_STG1_MAX") == 0) {
+        fobj->ecm_obj.B1 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "ECM_STG2_MAX") == 0) {
+        fobj->ecm_obj.B2 = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "BRENT_MAX_IT") == 0) {
+        fobj->rho_obj.iterations = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "NUM_WITNESSES") == 0) {
+        fobj->NUM_WITNESSES = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "LOGFLAG") == 0) {
+        fobj->LOGFLAG = mpz_get_ui(data);
+    }
+    else if (strcmp(name, "THREADS") == 0) {
+        fobj->THREADS = mpz_get_ui(data);
+    }
+    //else if (strcmp(name, "PRIMES_TO_FILE") == 0) {
+    //    
+    //}
+    //else if (strcmp(name, "PRIMES_TO_SCREEN") == 0) {
+    //   
+    //}
 
 	for (i=0;i<uvars.num;i++)
 	{
@@ -3410,6 +3450,9 @@ int invalid_dest(char* dest)
         return 0;
     }
     else if (strcmp(dest, "PRIMES_TO_SCREEN") == 0) {
+        return 0;
+    }
+    else if (strcmp(dest, "THREADS") == 0) {
         return 0;
     }
 

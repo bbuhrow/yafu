@@ -170,6 +170,14 @@ void init_factobj(fact_obj_t* fobj)
     strcpy(fobj->nfs_obj.ggnfs_dir, "./");
 #endif
 
+    fobj->nfs_obj.poly_time = 0.0;
+    fobj->nfs_obj.filter_time = 0.0;
+    fobj->nfs_obj.sieve_time = 0.0;
+    fobj->nfs_obj.la_time = 0.0;
+    fobj->nfs_obj.sqrt_time = 0.0;
+    fobj->nfs_obj.ttime = 0.0;
+
+
     //initialize autofactor object
     //whether we want to output certain info to their own files...
     fobj->autofact_obj.want_output_primes = 0;
