@@ -102,7 +102,7 @@ default, it is assumed to be located at ../msieve/ relative to the Makefile.
 
 YAFU now requires several other projects to be built before yafu.  These are:
 gmp (https://gmplib.org/)
-gmp-ecm (http://ecm.gforge.inria.fr/)
+gmp-ecm (https://gitlab.inria.fr/zimmerma/ecm/-/releases)
 ytools (https://github.com/bbuhrow/ytools)
 ysieve (https://github.com/bbuhrow/ysieve)
 
