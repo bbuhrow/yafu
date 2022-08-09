@@ -1126,6 +1126,9 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		int npoly;
 		int gnfs_size;
 
+		if (fobj->VFLAG > 0)
+			printf("fac: generating an SNFS polynomial to assess ECM effort\n");
+
         fobj->VFLAG = -1;
 
 		mpz_set(fobj->nfs_obj.gmp_n, b);
@@ -1215,12 +1218,12 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		case state_ecm_60digit:
 		case state_ecm_65digit:
 			if (fobj->VFLAG >= 1)
-				printf("fac: setting target pretesting digits to %1.2f\n", target_digits);
+				printf("fac: setting target pretesting digits to %1.6f\n", target_digits);
 			
 			work_done = compute_ecm_work_done(fwork, 1, NULL, fobj->VFLAG, fobj->LOGFLAG);
 			
 			if (fobj->VFLAG >= 1)
-				printf("fac: estimated sum of completed work is t%1.2f\n", work_done);
+				printf("fac: estimated sum of completed work is t%1.6f\n", work_done);
 
 			break;
 
@@ -1242,7 +1245,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		((work_done > fobj->autofact_obj.only_pretest) && 
 		(fobj->autofact_obj.only_pretest > 1)))
 	{
-		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.2f\n", work_done);
+		logprint_oc(fobj->flogname, "a", "final ECM pretested depth: %1.6f\n", work_done);
 
 		// if the user specified -pretest, with or without arguments,
 		// we should stop factoring now that ecm is done.  this covers the
@@ -1390,7 +1393,7 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 
     if ((fobj->VFLAG >= 1) && fobj->LOGFLAG)
     {
-        printf("fac: %u more curves at B1=%u needed to get to t%1.2f\n",
+        printf("fac: %u more curves at B1=%u needed to get to t%1.6f\n",
             fwork->curves, fwork->B1, target_digits);
     }
 
@@ -1398,9 +1401,9 @@ void interp_and_set_curves(factor_work_t *fwork, fact_obj_t *fobj,
 	{
 		FILE *flog;
 		flog = fopen(fobj->flogname,"a");
-		logprint(flog,"current ECM pretesting depth: %1.2f\n", work_done);
+		logprint(flog,"current ECM pretesting depth: %1.6f\n", work_done);
 		logprint(flog,"scheduled %u curves at B1=%u toward target "
-			"pretesting depth of %1.2f\n", fwork->curves, fwork->B1, target_digits);
+			"pretesting depth of %1.6f\n", fwork->curves, fwork->B1, target_digits);
         if (flog != NULL) fclose(flog);
 	}
 
