@@ -688,17 +688,23 @@ void nfs(fact_obj_t *fobj)
 				if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
 					(fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE))
 				{
-					if (fobj->VFLAG > 0)
+					if (fobj->VFLAG >= 0)
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
 							job.current_rels, job.min_rels, est_time / 3600, 
 							(est_time % 3600) / 60);
 
+
+					logprint_oc(fobj->flogname, "a", "nfs: found %u relations, need at least %u "
+						"(filtering ETA: %uh %um), continuing with sieving ...\n", // uh... um... hmm... idk *shrug*
+						job.current_rels, job.min_rels, est_time / 3600,
+						(est_time % 3600) / 60);
+
 					nfs_state = NFS_STATE_SIEVE;
 				}
 				else
 				{
-					if (fobj->VFLAG > 0)
+					if (fobj->VFLAG >= 0)
 						printf("nfs: found %u relations, need at least %u "
 							"(filtering ETA: %uh %um), sieving not selected, finishing ...\n",
 							job.current_rels, job.min_rels, est_time / 3600, 
