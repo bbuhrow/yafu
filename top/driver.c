@@ -125,6 +125,7 @@ int main(int argc, char *argv[])
     if (strlen(options->batchfile) > 0)
     {
         yafu_obj.USEBATCHFILE = 1;
+        strcpy(yafu_obj.batchfilename, options->batchfile);
     }
     if (options->rand_seed == 0)
     {
@@ -1068,7 +1069,7 @@ void yafu_init(yafu_obj_t* yobj)
     yobj->LATHREADS = 0;
     yobj->CMD_LINE_REPEAT = 0;
     yobj->MEAS_CPU_FREQUENCY = 0.0;
-
+    strcpy(yobj->batchfilename, "");
 	strcpy(yobj->sessionname,"session.log");
     strcpy(yobj->scriptname, "");
 
@@ -1658,6 +1659,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->autofact_obj.yafu_pretest_plan = PRETEST_CUSTOM;
     fobj->autofact_obj.only_pretest = options->pretest;
     fobj->autofact_obj.autofact_active = 0;
+    fobj->autofact_obj.json_pretty = options->json_pretty;
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
     fobj->factors->aprcl_prove_cutoff = options->aprcl_p;

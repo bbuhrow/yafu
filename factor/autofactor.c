@@ -2114,13 +2114,19 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 	int printedp = 0;
 	int printedprp = 0;
 	int printedc = 0;
+	char lf = '\n';
+
+	if (fobj->autofact_obj.json_pretty)
+		lf = '\n';
+	else
+		lf = ' ';
 
 	if (fid != NULL)
 	{
 		{
-			fprintf(fid, "{\n");
-			fprintf(fid, "\t\"input-expression\":\"%s\",\n", fobj->input_str);
-			gmp_fprintf(fid, "\t\"input-decimal\":\"%Zd\",\n", fobj->input_N);
+			fprintf(fid, "{%c", lf);
+			fprintf(fid, "\t\"input-expression\":\"%s\",%c", fobj->input_str, lf);
+			gmp_fprintf(fid, "\t\"input-decimal\":\"%Zd\",%c", fobj->input_N, lf);
 
 			if (fobj->argc > 1)
 			{
@@ -2129,7 +2135,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 				{
 					fprintf(fid, "%s ", fobj->argv[i]);
 				}
-				fprintf(fid, "\",\n");
+				fprintf(fid, "\",%c", lf);
 			}
 
 			for (i = 0; i < flist->num_factors; i++)
@@ -2163,7 +2169,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 						if (printedp == (nump - 1))
 						{
-							gmp_fprintf(fid, "\"%Zd\"],\n", flist->factors[i].factor);
+							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
 						}
 						else
 						{
@@ -2187,7 +2193,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 						}
 						if (printedprp == (numprp - 1))
 						{
-							gmp_fprintf(fid, "\"%Zd\"],\n", flist->factors[i].factor);
+							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
 						}
 						else
 						{
@@ -2211,7 +2217,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 						}
 						if (printedc == (numc - 1))
 						{
-							gmp_fprintf(fid, "\"%Zd\"],\n", flist->factors[i].factor);
+							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
 						}
 						else
 						{
@@ -2234,7 +2240,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			{
 				fprintf(fid, ",\"15000000\":%d", fwork->pm1_lvl3_curves);
 			}
-			if (fwork->pm1_lvl1_curves > 0) fprintf(fid, "},\n");
+			if (fwork->pm1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
 
 			if (fwork->pp1_lvl1_curves > 0)
 			{
@@ -2248,7 +2254,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			{
 				fprintf(fid, ",\"2500000\":%d", fwork->pp1_lvl3_curves);
 			}
-			if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},\n");
+			if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
 
 
 			if (fwork->tlevels[0] > 0.01)
@@ -2265,7 +2271,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 				if (fwork->ecm_55digit_curves > 0) fprintf(fid, ",\"110000000\":%d", fwork->ecm_55digit_curves);
 				if (fwork->ecm_60digit_curves > 0) fprintf(fid, ",\"260000000\":%d", fwork->ecm_60digit_curves);
 				if (fwork->ecm_65digit_curves > 0) fprintf(fid, ",\"850000000\":%d", fwork->ecm_65digit_curves);
-				fprintf(fid, "},\n");
+				fprintf(fid, "},%c", lf);
 
 				fprintf(fid, "\t\"ecm-levels\" : {");
 				int level = 15;
@@ -2277,34 +2283,34 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 					}
 					else if (fwork->tlevels[i] > 0.01)
 					{
-						fprintf(fid, "\"t%d\":%1.2f},\n", level, fwork->tlevels[i]);
+						fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
 					}
 					level += 5;
 				}
 				if (fwork->tlevels[i] > 0.01)
 				{
-					fprintf(fid, "\"t%d\":%1.2f},\n", level, fwork->tlevels[i]);
+					fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
 				}
 			}
 
 			fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
 				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs-total\":%1.4f, \"nfs-poly\":%1.4f"
 				", \"nfs-sieve\":%1.4f, \"nfs-filter\":%1.4f"
-				", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},\n",
+				", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},%c",
 				fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime,
 				fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime,
 				fobj->nfs_obj.poly_time, fobj->nfs_obj.sieve_time, fobj->nfs_obj.filter_time,
-				fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time);
+				fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time, lf);
 
 			char buffer[30];
 			time_t curtime;
 
 			curtime = start->tv_sec;
 			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
-			fprintf(fid, "\t\"time-start\" : \"%s\",\n", buffer);
+			fprintf(fid, "\t\"time-start\" : \"%s\",%c", buffer, lf);
 			curtime = stop->tv_sec;
 			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
-			fprintf(fid, "\t\"time-end\" : \"%s\",\n", buffer);
+			fprintf(fid, "\t\"time-end\" : \"%s\",%c", buffer, lf);
 
 
 			fprintf(fid, "\t\"info\":{");
@@ -2333,7 +2339,7 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 #endif
 
 #endif
-			fprintf(fid, "\"yafu-version\":\"%s\"}\n}\n", YAFU_VERSION_STRING);
+			fprintf(fid, "\"yafu-version\":\"%s\"}%c}\n", YAFU_VERSION_STRING, lf);
 
 
 			fclose(fid);

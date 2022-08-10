@@ -373,7 +373,7 @@ typedef struct
     //double target_ecm_snfs_ratio;
 
     int no_ecm;
-
+    int json_pretty;
     int want_only_1_factor;
     int want_output_primes;
     int want_output_factors;

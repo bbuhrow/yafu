@@ -72,7 +72,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
     "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
-    "resume"};
+    "resume","jsonpretty"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -168,7 +168,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : Use GMP-ECM for stage 2",
     "(String)          : Filename for vecP+1 work input", 
     "(String)          : Filename for vecP-1 work input",
-    "(String)          : Filename to resume parallel P+1 or P-1" };
+    "(String)          : Filename to resume parallel P+1 or P-1",
+    "                  : Output JSON info pretty printed (one pair per line) "};
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -194,7 +195,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,0,1,1,
     1,1,1,0,0,
     0,1,0,1,1,
-    1};
+    1,0};
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -217,7 +218,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "",
-    ""};
+    "", ""};
 
 
 
@@ -952,6 +953,10 @@ void applyOpt(char* opt, char* arg, options_t* options)
         else
             printf("*** argument to resume too long, ignoring ***\n");
     }
+    else if (strcmp(opt, OptionArray[91]) == 0)
+    {
+        options->json_pretty = 1;
+    }
     else
     {
         int i;
@@ -1018,6 +1023,7 @@ options_t* initOpt(void)
     strcpy(options->expr, "");
     options->repeat = 0;
     options->no_clk_test = 1;
+    options->json_pretty = 0;
 
     // autofact options
     options->no_ecm = 0;

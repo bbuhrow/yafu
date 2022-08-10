@@ -199,6 +199,7 @@ void init_factobj(fact_obj_t* fobj)
     strcpy(fobj->autofact_obj.plan_str, "normal");
     fobj->autofact_obj.only_pretest = 0;
     fobj->autofact_obj.autofact_active = 0;
+    fobj->autofact_obj.json_pretty = 0;
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
     fobj->factors->aprcl_prove_cutoff = 500;
