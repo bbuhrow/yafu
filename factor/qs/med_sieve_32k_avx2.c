@@ -781,7 +781,8 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
         if (prime == 0)
             continue;
 
-        SIEVE_2X;
+        // medB can be greater than 32k, so can't do sieve2x
+        //SIEVE_2X;
         SIEVE_1X;
         SIEVE_LAST;
         UPDATE_ROOTS;

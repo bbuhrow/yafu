@@ -2123,227 +2123,229 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 
 	if (fid != NULL)
 	{
+		fprintf(fid, "{%c", lf);
+		fprintf(fid, "\t\"input-expression\":\"%s\",%c", fobj->input_str, lf);
+		gmp_fprintf(fid, "\t\"input-decimal\":\"%Zd\",%c", fobj->input_N, lf);
+
+		if (fobj->argc > 1)
 		{
-			fprintf(fid, "{%c", lf);
-			fprintf(fid, "\t\"input-expression\":\"%s\",%c", fobj->input_str, lf);
-			gmp_fprintf(fid, "\t\"input-decimal\":\"%Zd\",%c", fobj->input_N, lf);
-
-			if (fobj->argc > 1)
+			fprintf(fid, "\t\"input-argument-string\":\"");
+			for (i = 1; i < fobj->argc; i++)
 			{
-				fprintf(fid, "\t\"input-argument-string\":\"");
-				for (i = 1; i < fobj->argc; i++)
-				{
-					fprintf(fid, "%s ", fobj->argv[i]);
-				}
-				fprintf(fid, "\",%c", lf);
+				fprintf(fid, "%s ", fobj->argv[i]);
 			}
+			fprintf(fid, "\",%c", lf);
+		}
 
+		for (i = 0; i < flist->num_factors; i++)
+		{
+			if (flist->factors[i].type == PRIME)
+				nump++;
+		}
+		for (i = 0; i < flist->num_factors; i++)
+		{
+			if (flist->factors[i].type == PRP)
+				numprp++;
+		}
+		for (i = 0; i < flist->num_factors; i++)
+		{
+			if (flist->factors[i].type == COMPOSITE)
+				numc++;
+		}
+
+		if (nump > 0)
+		{
+			fprintf(fid, "\t\"factors-prime\":[");
 			for (i = 0; i < flist->num_factors; i++)
 			{
 				if (flist->factors[i].type == PRIME)
-					nump++;
+				{
+					// don't redo APR-CL calculations already performed by add_to_factor_list
+					for (j = 0; j < flist->factors[i].count - 1; j++)
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+					}
+
+					if (printedp == (nump - 1))
+					{
+						gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
+					}
+					else
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+					}
+					printedp++;
+				}
 			}
+		}
+
+		if (numprp > 0)
+		{
+			fprintf(fid, "\t\"factors-prp\":[");
 			for (i = 0; i < flist->num_factors; i++)
 			{
 				if (flist->factors[i].type == PRP)
-					numprp++;
+				{
+					for (j = 0; j < flist->factors[i].count - 1; j++)
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+					}
+					if (printedprp == (numprp - 1))
+					{
+						gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
+					}
+					else
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+					}
+					printedprp++;
+				}
 			}
+		}
+
+		if (numc > 0)
+		{
+			fprintf(fid, "\t\"factors-composite\":[");
 			for (i = 0; i < flist->num_factors; i++)
 			{
 				if (flist->factors[i].type == COMPOSITE)
-					numc++;
-			}
-
-			if (nump > 0)
-			{
-				fprintf(fid, "\t\"factors-prime\":[");
-				for (i = 0; i < flist->num_factors; i++)
 				{
-					if (flist->factors[i].type == PRIME)
+					for (j = 0; j < flist->factors[i].count - 1; j++)
 					{
-						// don't redo APR-CL calculations already performed by add_to_factor_list
-						for (j = 0; j < flist->factors[i].count - 1; j++)
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-
-						if (printedp == (nump - 1))
-						{
-							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
-						}
-						else
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-						printedp++;
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
 					}
+					if (printedc == (numc - 1))
+					{
+						gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
+					}
+					else
+					{
+						gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
+					}
+					printedc++;
 				}
 			}
+		}
 
-			if (numprp > 0)
+		if (fwork->pm1_lvl1_curves > 0)
+		{
+			fprintf(fid, "\t\"pm1-curves\" : {\"150000\":%d", fwork->pm1_lvl1_curves);
+		}
+		if (fwork->pm1_lvl2_curves > 0)
+		{
+			fprintf(fid, ",\"3750000\":%d", fwork->pm1_lvl2_curves);
+		}
+		if (fwork->pm1_lvl3_curves > 0)
+		{
+			fprintf(fid, ",\"15000000\":%d", fwork->pm1_lvl3_curves);
+		}
+		if (fwork->pm1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
+
+		if (fwork->pp1_lvl1_curves > 0)
+		{
+			fprintf(fid, "\t\"pp1-curves\" : {\"25000\":%d", fwork->pp1_lvl1_curves);
+		}
+		if (fwork->pp1_lvl2_curves > 0)
+		{
+			fprintf(fid, ",\"750000\":%d", fwork->pp1_lvl2_curves);
+		}
+		if (fwork->pp1_lvl3_curves > 0)
+		{
+			fprintf(fid, ",\"2500000\":%d", fwork->pp1_lvl3_curves);
+		}
+		if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
+
+
+		if (fwork->tlevels[0] > 0.01)
+		{
+			fprintf(fid, "\t\"ecm-curves\" : {");
+			if (fwork->ecm_15digit_curves > 0) fprintf(fid, "\"2000\":%d", fwork->ecm_15digit_curves);
+			if (fwork->ecm_20digit_curves > 0) fprintf(fid, ",\"11000\":%d", fwork->ecm_20digit_curves);
+			if (fwork->ecm_25digit_curves > 0) fprintf(fid, ",\"50000\":%d", fwork->ecm_25digit_curves);
+			if (fwork->ecm_30digit_curves > 0) fprintf(fid, ",\"250000\":%d", fwork->ecm_30digit_curves);
+			if (fwork->ecm_35digit_curves > 0) fprintf(fid, ",\"1000000\":%d", fwork->ecm_35digit_curves);
+			if (fwork->ecm_40digit_curves > 0) fprintf(fid, ",\"3000000\":%d", fwork->ecm_40digit_curves);
+			if (fwork->ecm_45digit_curves > 0) fprintf(fid, ",\"11000000\":%d", fwork->ecm_45digit_curves);
+			if (fwork->ecm_50digit_curves > 0) fprintf(fid, ",\"43000000\":%d", fwork->ecm_50digit_curves);
+			if (fwork->ecm_55digit_curves > 0) fprintf(fid, ",\"110000000\":%d", fwork->ecm_55digit_curves);
+			if (fwork->ecm_60digit_curves > 0) fprintf(fid, ",\"260000000\":%d", fwork->ecm_60digit_curves);
+			if (fwork->ecm_65digit_curves > 0) fprintf(fid, ",\"850000000\":%d", fwork->ecm_65digit_curves);
+			fprintf(fid, "},%c", lf);
+
+			fprintf(fid, "\t\"ecm-levels\" : {");
+			int level = 15;
+			for (i = 0; i < NUM_ECM_LEVELS - 1; i++)
 			{
-				fprintf(fid, "\t\"factors-prp\":[");
-				for (i = 0; i < flist->num_factors; i++)
+				if ((fwork->tlevels[i] > 0.01) && (fwork->tlevels[i + 1] > 0.01))
 				{
-					if (flist->factors[i].type == PRP)
-					{
-						for (j = 0; j < flist->factors[i].count - 1; j++)
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-						if (printedprp == (numprp - 1))
-						{
-							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
-						}
-						else
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-						printedprp++;
-					}
+					fprintf(fid, "\"t%d\":%1.2f,", level, fwork->tlevels[i]);
 				}
-			}
-
-			if (numc > 0)
-			{
-				fprintf(fid, "\t\"factors-composite\":[");
-				for (i = 0; i < flist->num_factors; i++)
-				{
-					if (flist->factors[i].type == COMPOSITE)
-					{
-						for (j = 0; j < flist->factors[i].count - 1; j++)
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-						if (printedc == (numc - 1))
-						{
-							gmp_fprintf(fid, "\"%Zd\"],%c", flist->factors[i].factor, lf);
-						}
-						else
-						{
-							gmp_fprintf(fid, "\"%Zd\",", flist->factors[i].factor);
-						}
-						printedc++;
-					}
-				}
-			}
-
-			if (fwork->pm1_lvl1_curves > 0)
-			{
-				fprintf(fid, "\t\"pm1-curves\" : {\"150000\":%d", fwork->pm1_lvl1_curves);
-			}
-			if (fwork->pm1_lvl2_curves > 0)
-			{
-				fprintf(fid, ",\"3750000\":%d", fwork->pm1_lvl2_curves);
-			}
-			if (fwork->pm1_lvl3_curves > 0)
-			{
-				fprintf(fid, ",\"15000000\":%d", fwork->pm1_lvl3_curves);
-			}
-			if (fwork->pm1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
-
-			if (fwork->pp1_lvl1_curves > 0)
-			{
-				fprintf(fid, "\t\"pp1-curves\" : {\"25000\":%d", fwork->pp1_lvl1_curves);
-			}
-			if (fwork->pp1_lvl2_curves > 0)
-			{
-				fprintf(fid, ",\"750000\":%d", fwork->pp1_lvl2_curves);
-			}
-			if (fwork->pp1_lvl3_curves > 0)
-			{
-				fprintf(fid, ",\"2500000\":%d", fwork->pp1_lvl3_curves);
-			}
-			if (fwork->pp1_lvl1_curves > 0) fprintf(fid, "},%c", lf);
-
-
-			if (fwork->tlevels[0] > 0.01)
-			{
-				fprintf(fid, "\t\"ecm-curves\" : {");
-				if (fwork->ecm_15digit_curves > 0) fprintf(fid, "\"2000\":%d", fwork->ecm_15digit_curves);
-				if (fwork->ecm_20digit_curves > 0) fprintf(fid, ",\"11000\":%d", fwork->ecm_20digit_curves);
-				if (fwork->ecm_25digit_curves > 0) fprintf(fid, ",\"50000\":%d", fwork->ecm_25digit_curves);
-				if (fwork->ecm_30digit_curves > 0) fprintf(fid, ",\"250000\":%d", fwork->ecm_30digit_curves);
-				if (fwork->ecm_35digit_curves > 0) fprintf(fid, ",\"1000000\":%d", fwork->ecm_35digit_curves);
-				if (fwork->ecm_40digit_curves > 0) fprintf(fid, ",\"3000000\":%d", fwork->ecm_40digit_curves);
-				if (fwork->ecm_45digit_curves > 0) fprintf(fid, ",\"11000000\":%d", fwork->ecm_45digit_curves);
-				if (fwork->ecm_50digit_curves > 0) fprintf(fid, ",\"43000000\":%d", fwork->ecm_50digit_curves);
-				if (fwork->ecm_55digit_curves > 0) fprintf(fid, ",\"110000000\":%d", fwork->ecm_55digit_curves);
-				if (fwork->ecm_60digit_curves > 0) fprintf(fid, ",\"260000000\":%d", fwork->ecm_60digit_curves);
-				if (fwork->ecm_65digit_curves > 0) fprintf(fid, ",\"850000000\":%d", fwork->ecm_65digit_curves);
-				fprintf(fid, "},%c", lf);
-
-				fprintf(fid, "\t\"ecm-levels\" : {");
-				int level = 15;
-				for (i = 0; i < NUM_ECM_LEVELS - 1; i++)
-				{
-					if ((fwork->tlevels[i] > 0.01) && (fwork->tlevels[i + 1] > 0.01))
-					{
-						fprintf(fid, "\"t%d\":%1.2f,", level, fwork->tlevels[i]);
-					}
-					else if (fwork->tlevels[i] > 0.01)
-					{
-						fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
-					}
-					level += 5;
-				}
-				if (fwork->tlevels[i] > 0.01)
+				else if (fwork->tlevels[i] > 0.01)
 				{
 					fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
 				}
+				level += 5;
 			}
+			if (fwork->tlevels[i] > 0.01)
+			{
+				fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
+			}
+		}
 
-			fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
-				"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs-total\":%1.4f, \"nfs-poly\":%1.4f"
-				", \"nfs-sieve\":%1.4f, \"nfs-filter\":%1.4f"
-				", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},%c",
-				fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime,
-				fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime,
-				fobj->nfs_obj.poly_time, fobj->nfs_obj.sieve_time, fobj->nfs_obj.filter_time,
-				fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time, lf);
+		fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
+			"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs-total\":%1.4f, \"nfs-poly\":%1.4f"
+			", \"nfs-sieve\":%1.4f, \"nfs-filter\":%1.4f"
+			", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},%c",
+			fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime,
+			fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime,
+			fobj->nfs_obj.poly_time, fobj->nfs_obj.sieve_time, fobj->nfs_obj.filter_time,
+			fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time, lf);
 
-			char buffer[30];
-			time_t curtime;
+		char buffer[30];
+		time_t curtime;
 
-			curtime = start->tv_sec;
-			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
-			fprintf(fid, "\t\"time-start\" : \"%s\",%c", buffer, lf);
-			curtime = stop->tv_sec;
-			strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
-			fprintf(fid, "\t\"time-end\" : \"%s\",%c", buffer, lf);
+		curtime = start->tv_sec;
+		strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
+		fprintf(fid, "\t\"time-start\" : \"%s\",%c", buffer, lf);
+		curtime = stop->tv_sec;
+		strftime(buffer, 30, "%Y-%m-%d  %T", localtime(&curtime));
+		fprintf(fid, "\t\"time-end\" : \"%s\",%c", buffer, lf);
 
 
-			fprintf(fid, "\t\"info\":{");
+		fprintf(fid, "\t\"info\":{");
 
 #ifdef _MSC_VER
-			fprintf(fid, "\"compiler\":\"MSVC %d\",", _MSC_VER);
+		fprintf(fid, "\"compiler\":\"MSVC %d\",", _MSC_VER);
 #elif defined (__INTEL_COMPILER)
-			fprintf(fid, "\"compiler\":\"INTEL %d\",", __INTEL_COMPILER);
+		fprintf(fid, "\"compiler\":\"INTEL %d\",", __INTEL_COMPILER);
 #elif defined (__GNUC__)
-			fprintf(fid, "\"compiler\":\"GNUC %d\",", __GNUC__);
+		fprintf(fid, "\"compiler\":\"GNUC %d\",", __GNUC__);
 #endif
 
 #ifdef _MSC_MPIR_VERSION
 #ifdef ECM_VERSION
-			fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", ECM_VERSION,
-				_MSC_MPIR_VERSION);
+		fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", ECM_VERSION,
+			_MSC_MPIR_VERSION);
 #elif defined(VERSION)
 
-			fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", VERSION,
-				_MSC_MPIR_VERSION);
+		fprintf(fid, "\"ECM-version\":\"%s\",\"MPIR-version\":\"%s\",", VERSION,
+			_MSC_MPIR_VERSION);
 #endif
 #else
 #ifdef ECM_VERSION
-			fprintf(fid, "\"ECM-version\":\"%s\",\"GMP-version\":\"%d.%d.%d\",", ECM_VERSION,
-				__GNU_MP_VERSION, __GNU_MP_VERSION_MINOR, __GNU_MP_VERSION_PATCHLEVEL);
+		fprintf(fid, "\"ECM-version\":\"%s\",\"GMP-version\":\"%d.%d.%d\",", ECM_VERSION,
+			__GNU_MP_VERSION, __GNU_MP_VERSION_MINOR, __GNU_MP_VERSION_PATCHLEVEL);
 #endif
 
 #endif
-			fprintf(fid, "\"yafu-version\":\"%s\"}%c}\n", YAFU_VERSION_STRING, lf);
+		fprintf(fid, "\"yafu-version\":\"%s\"}%c}\n", YAFU_VERSION_STRING, lf);
 
-
-			fclose(fid);
-		}
+		fclose(fid);
+	}
+	else
+	{
+		printf("could not open %s to append\n", fobj->factor_json_name);
+		exit(1);
 	}
 
 	return;

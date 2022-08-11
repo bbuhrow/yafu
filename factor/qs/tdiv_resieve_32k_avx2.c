@@ -739,8 +739,15 @@ void resieve_medprimes_32k_avx512bw(uint8_t parity, uint32_t poly_id, uint32_t b
 
         for (i = 0; i < result; i++)
         {
-            if (buffer[i] < 2)
-                continue;
+			if ((buffer[i] < 2) || (fbc->prime[buffer[i]] < 2))
+			{
+				// sometimes this happens for small inputs... TODO: figure
+				// out why and fix it.  But for now detecting and ignoring
+				// also works.
+				// printf("attempting to divide by %u at fb index %u during resieve\n",
+				//	fbc->prime[buffer[i]], buffer[i]);
+				break;
+			}
 
             DIVIDE_RESIEVED_PRIME_2((buffer[i]));
         }

@@ -1104,7 +1104,7 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 	//try to open the file
 	if (yobj->USEBATCHFILE == 2)
 		batchfile = stdin;
-	else
+	else if (yobj->USEBATCHFILE == 1)
 		batchfile = fopen(yobj->batchfilename,"r");
 
 	if (batchfile == NULL)
