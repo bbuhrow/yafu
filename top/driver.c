@@ -1609,6 +1609,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->nfs_obj.polybatch = options->poly_batch;
     strcpy(fobj->nfs_obj.ggnfs_dir, options->ggnfs_dir);
 
+    fobj->nfs_obj.cadoMsieve = options->cadoMsieve;
+
     // initialize autofactor object
     // whether we want to output certain info to their own files...
     fobj->autofact_obj.want_output_primes = 0;

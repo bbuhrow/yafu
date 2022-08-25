@@ -152,6 +152,15 @@ int nfs_check_special_case(fact_obj_t *fobj)
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
 {
+	if (fobj->nfs_obj.cadoMsieve) {
+		return cadoMsieve_nfs(fobj);
+	} else {
+		return general_nfs(fobj);
+	}
+}
+
+void general_nfs(fact_obj_t *fobj)
+{
 	// expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
@@ -1633,8 +1642,106 @@ void mpz_polys_free(mpz_polys_t* poly) {
     mpz_clear(poly->m);
 }
 
+void cadoMsieve_nfs(fact_obj_t *fobj)
+{
+	// TODO: Implement resume mechanics
+	// expect the input in fobj->nfs_obj.gmp_n
+	struct timeval stop;	// stop time of this job
+	struct timeval start;	// start time of this job
+	int process_done;
+	enum nfs_state_e nfs_state;
+	double t_time;
 
+	obj_ptr = NULL;
 
+	// initialize the flag to watch for interrupts, and set the
+	// pointer to the function to call if we see a user interrupt
+	NFS_ABORT = 0;
+	signal(SIGINT,nfsexit);
+
+	// start a counter for the whole job
+	gettimeofday(&start, NULL);
+
+	// nfs state machine:
+	nfs_state = NFS_STATE_INIT;
+	process_done = 0;
+	while (!process_done)
+	{
+        char* s;
+
+		switch (nfs_state)
+		{
+		case NFS_STATE_INIT:
+			nfs_state = NFS_STATE_POLY;
+			break;
+		case NFS_STATE_POLY:
+
+		case NFS_STATE_SIEVE:
+		case NFS_STATE_FILTER:
+		case NFS_STATE_LINALG:
+		case NFS_STATE_SQRT:
+			break;
+		case NFS_STATE_CLEANUP:
+			gettimeofday(&stop, NULL);
+
+            t_time = ytools_difftime(&start, &stop);
+
+			if (fobj->VFLAG >= 0)
+				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
+
+			logprint_oc(fobj->flogname, "a", "NFS elapsed time = %6.4f seconds.\n",t_time);
+			logprint_oc(fobj->flogname, "a", "\n");
+			logprint_oc(fobj->flogname, "a", "\n");
+
+			// free stuff			
+			nfs_state = NFS_STATE_DONE;
+			break;
+
+		case NFS_STATE_DONE:
+			process_done = 1;
+			break;
+		case NFS_STATE_FILTCHECK:
+		case NFS_STATE_STARTNEW:
+		case NFS_STATE_RESUMESIEVE:
+		case NFS_STATE_RESUMEPOLY:
+		default:
+			printf("unknown state, bailing\n");
+			// non ideal solution to infinite loop in factor() if we return without factors
+			// (should return error code instead)
+			NFS_ABORT = 1;
+			break;
+
+		}
+
+		//after every state, check elasped time against a specified timeout value
+		gettimeofday(&stop, NULL);
+        t_time = ytools_difftime(&start, &stop);
+
+		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
+		{
+			if (fobj->VFLAG >= 0)
+				printf("NFS timeout after %6.4f seconds.\n",t_time);
+
+			logprint_oc(fobj->flogname, "a", "NFS timeout after %6.4f seconds.\n",t_time);
+			process_done = 1;
+		}
+
+		if (NFS_ABORT)
+		{
+			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
+			exit(1);
+		}
+	}
+
+	//reset signal handler to default (no handler).
+	signal(SIGINT,NULL);
+
+	gettimeofday(&stop, NULL);
+	t_time = ytools_difftime(&start, &stop);
+	fobj->nfs_obj.ttime = t_time;
+
+	return;
+}
 
 #else
 
