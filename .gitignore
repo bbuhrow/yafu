@@ -7,3 +7,4 @@
 # Logs / Checkpoints
 *.log
 nfs.dat*
+siqs.dat
