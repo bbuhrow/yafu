@@ -499,6 +499,7 @@ void check_siever(fact_obj_t *fobj, char* sname, int siever)
         printf("could not find %s, bailing\n", sname);
         exit(-1);
     }
+	fclose(test);
 
     return;
 }
