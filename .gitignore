@@ -1,0 +1,9 @@
+# .gitignore
+# Build artifacts
+*.o
+*.a
+/yafu
+
+# Logs / Checkpoints
+*.log
+nfs.dat*
