@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "Default",
+            "includePath": ["./include"],
+            "defines": ["USE_NFS"]
+        }
+    ],
+    "version": 4
+}
