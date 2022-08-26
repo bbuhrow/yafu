@@ -72,7 +72,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
     "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
-    "resume", "jsonpretty", "cadoMsieve"};
+    "resume", "jsonpretty", "cadoMsieve", "cado_dir"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -959,7 +959,16 @@ void applyOpt(char* opt, char* arg, options_t* options)
     }
     else if (strcmp(opt, OptionArray[92]) == 0)
     {
+        // argument "cadoMsieve"
         options->cadoMsieve = 1;
+    }
+    else if (strcmp(opt, OptionArray[93]) == 0)
+    {
+        // argument "cado_dir"
+        if (strlen(arg) < MAXARGLEN)
+            strcpy(options->cado_dir, arg);
+        else
+            printf("*** argument to cado_dir too long, ignoring ***\n");
     }
     else
     {

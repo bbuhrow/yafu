@@ -1665,22 +1665,50 @@ void cadoMsieve_nfs(fact_obj_t *fobj)
 	// nfs state machine:
 	nfs_state = NFS_STATE_INIT;
 	process_done = 0;
+
+	char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
+	logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
+				gmp_base10(fobj->nfs_obj.gmp_n), s);
+
 	while (!process_done)
 	{
-        char* s;
-
 		switch (nfs_state)
 		{
 		case NFS_STATE_INIT:
 			nfs_state = NFS_STATE_POLY;
 			break;
-		case NFS_STATE_POLY:
+
+		case NFS_STATE_POLY: {
+			// Check for cado-nfs.py existence
+			FILE *test;
+			char name[1024];
+			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
+			test = fopen(name, "rb");
+			if (test == NULL)
+			{
+				printf("fopen error: %s\n", strerror(errno));
+				printf("could not find %s, bailing\n", name);
+				exit(-1);
+			}
+			fclose(test);
+
+			char syscmd[1024];
+			sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, s, fobj->num_threads);
+
+			printf("nfs: calling cado-nfs to find poly and sieve\n");
+			system(syscmd);
+			nfs_state = NFS_STATE_LINALG;
+			break;
+		}
 
 		case NFS_STATE_SIEVE:
 		case NFS_STATE_FILTER:
+			break;
 		case NFS_STATE_LINALG:
+			break;
 		case NFS_STATE_SQRT:
 			break;
+
 		case NFS_STATE_CLEANUP:
 			gettimeofday(&stop, NULL);
 
@@ -1700,6 +1728,7 @@ void cadoMsieve_nfs(fact_obj_t *fobj)
 		case NFS_STATE_DONE:
 			process_done = 1;
 			break;
+
 		case NFS_STATE_FILTCHECK:
 		case NFS_STATE_STARTNEW:
 		case NFS_STATE_RESUMESIEVE:
@@ -1740,6 +1769,7 @@ void cadoMsieve_nfs(fact_obj_t *fobj)
 	t_time = ytools_difftime(&start, &stop);
 	fobj->nfs_obj.ttime = t_time;
 
+	free(s);
 	return;
 }
 

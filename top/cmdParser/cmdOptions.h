@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 93
+#define NUMOPTIONS 94
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -141,6 +141,7 @@ typedef struct
     uint32_t nfs_timeout;
     uint32_t force_gnfs;
     uint32_t cadoMsieve;
+    char cado_dir[MAXARGLEN];
 
     // ecm/pp1/pm1/rho/tdiv options
     uint64_t B1pm1;
