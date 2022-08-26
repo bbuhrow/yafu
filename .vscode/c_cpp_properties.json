@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Default",
-            "includePath": ["./include"],
+            "includePath": ["${workspaceFolder}", "${workspaceFolder}/include"],
             "defines": ["USE_NFS"]
         }
     ],
