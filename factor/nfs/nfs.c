@@ -252,7 +252,8 @@ void nfs(fact_obj_t *fobj)
 			job.snfs = NULL;
 
 			if (fobj->nfs_obj.cadoMsieve) {
-				nfs_state = NFS_STATE_CADO;
+				// CADO-NFS takes care of resuming progress
+				nfs_state = NFS_STATE_POLY;
 			} else {
 				// determine what to do next based on the state of various files.
 				// this will set job.current_rels if it finds any
@@ -291,6 +292,147 @@ void nfs(fact_obj_t *fobj)
             }
 
 			break;
+		case NFS_STATE_POLY:
+
+			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
+			{
+				int better_by_gnfs = 0;
+
+				// always check snfs forms (it is fast)
+				better_by_gnfs = snfs_choose_poly(fobj, &job);
+
+				if(job.snfs == NULL || fobj->nfs_obj.gnfs ||
+					(better_by_gnfs && !fobj->nfs_obj.snfs))
+				{ 
+					// either we never were doing snfs, or the user selected gnfs,
+					// or snfs form detect failed.
+					if (fobj->nfs_obj.snfs)
+					{
+						// if the latter then bail with an error because the user 
+						// explicitly wants to run snfs...
+						printf("nfs: failed to find snfs polynomial!\n");
+						exit(-1);
+					}
+
+					if (better_by_gnfs && !(job.snfs == NULL))
+					{
+                        if (fobj->VFLAG >= 0)
+                        {
+                            printf("nfs: input snfs form is better done by gnfs: "
+                                "difficulty = %1.2f, size = %d, actual size = %d\n",
+                                job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+                        }
+						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+							": difficulty = %1.2f, size = %d, actual size = %d\n",
+                            job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+                        // clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
+                        snfs_clear(job.snfs);
+                        free(job.snfs);
+                        job.snfs = NULL;
+                        job.alambda = 0.0;
+                        job.rlambda = 0.0;
+                        job.lpba = 0;
+                        job.lpbr = 0;
+                        job.mfba = 0;
+                        job.mfbr = 0;
+                        job.alim = 0;
+                        job.rlim = 0;
+                        fobj->nfs_obj.siever = 0;
+					}
+
+					if (fobj->nfs_obj.cadoMsieve) {
+						// Let CADO-NFS find the poly
+						nfs_state = NFS_STATE_CADO;
+						break;
+					}
+
+					// init job.poly for gnfs
+					job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
+					if (job.poly == NULL)
+					{
+						printf("nfs: couldn't allocate memory!\n");
+						exit(-1);
+					}
+					mpz_polys_init(job.poly);
+					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
+					// assume gnfs for now
+					job.poly->side = ALGEBRAIC_SPQ;
+                    job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
+
+					gettimeofday(&ustart, NULL);
+					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
+					gettimeofday(&ustop, NULL);
+					t_time = ytools_difftime(&ustart, &ustop);
+					fobj->nfs_obj.poly_time += t_time;
+				}
+				else
+				{
+					fobj->nfs_obj.snfs = 1;
+					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
+				}
+			}
+
+			nfs_state = NFS_STATE_SIEVE;
+			break;
+
+		case NFS_STATE_SIEVE:
+			if (fobj->nfs_obj.cadoMsieve) {
+				nfs_state = NFS_STATE_CADO;
+				break;
+			}
+
+			pre_batch_rels = job.current_rels;
+			gettimeofday(&bstart, NULL);
+
+			// sieve if the user has requested to (or by default).  else,
+			// set the done sieving flag.  this will prevent some infinite loops,
+			// for instance if we only want to post-process, but filtering 
+			// doesn't produce a matrix.  if we don't want to sieve in that case,
+			// then we're done.
+            if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
+                (fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
+                !(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
+            {
+                // this is not a threadpool, so there can be imbalances between
+                // threads on multi-threaded runs where we end up waiting
+                // for the last one to finish.
+                // todo: make do_sieving a threadpool that incorporates the 
+                // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
+                // so that we can keep sieving until it is actually time to
+                // filter.
+				gettimeofday(&ustart, NULL);
+                do_sieving(fobj, &job);
+				gettimeofday(&ustop, NULL);
+				t_time = ytools_difftime(&ustart, &ustop);
+				fobj->nfs_obj.sieve_time += t_time;
+            }
+            else
+            {
+                fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+            }
+
+			// if this has been previously marked, then go ahead and exit.
+            if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
+            {
+                process_done = 1;
+            }
+			
+			// if user specified -ns with a fixed start and range,
+			// then mark that we're done sieving.  
+			if (fobj->nfs_obj.rangeq > 0)
+			{
+				// we're done sieving the requested range, but there may be
+				// more phases to check, so don't exit yet
+				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
+			}
+				
+			// then move on to the next phase
+			nfs_state = NFS_STATE_FILTCHECK;
+
+			break;
+
 		case NFS_STATE_CADO: {
 			FILE *fp;
 			char name[1024];
@@ -299,13 +441,14 @@ void nfs(fact_obj_t *fobj)
 			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
 			checkFilePresence(name);
 
-			printf("nfs: calling cado-nfs to find poly and sieve\n");
+			printf("nfs: calling cado-nfs\n");
 			char syscmd[1024];
+			sprintf(syscmd, "%s %s tasks.filter.run=false ", name, input);
 			if (job.min_rels != 0) {
-				sprintf(syscmd, "%s %s tasks.filter.run=false tasks.sieve.rels_wanted=%d -w cadoWorkdir -t %d", name, input, job.min_rels, fobj->num_threads);
-			} else {
-				sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, input, fobj->num_threads);
+				// Use sprintf to append to end of syscmd
+				sprintf(syscmd + strlen(syscmd), "tasks.sieve.rels_wanted=%d ", job.min_rels);
 			}
+			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir -t %d", fobj->num_threads);
 			system(syscmd);
 
 			// Check for convert_poly presence
@@ -373,136 +516,6 @@ void nfs(fact_obj_t *fobj)
 			nfs_state = NFS_STATE_FILTER;
 			break;
 		}
-		case NFS_STATE_POLY:
-
-			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
-				(fobj->nfs_obj.nfs_phases & NFS_PHASE_POLY))
-			{
-				int better_by_gnfs = 0;
-
-				// always check snfs forms (it is fast)
-				better_by_gnfs = snfs_choose_poly(fobj, &job);
-
-				if(job.snfs == NULL || fobj->nfs_obj.gnfs ||
-					(better_by_gnfs && !fobj->nfs_obj.snfs))
-				{ 
-					// either we never were doing snfs, or the user selected gnfs,
-					// or snfs form detect failed.
-					if (fobj->nfs_obj.snfs)
-					{
-						// if the latter then bail with an error because the user 
-						// explicitly wants to run snfs...
-						printf("nfs: failed to find snfs polynomial!\n");
-						exit(-1);
-					}
-
-					if (better_by_gnfs && !(job.snfs == NULL))
-					{
-                        if (fobj->VFLAG >= 0)
-                        {
-                            printf("nfs: input snfs form is better done by gnfs: "
-                                "difficulty = %1.2f, size = %d, actual size = %d\n",
-                                job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-                        }
-						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
-							": difficulty = %1.2f, size = %d, actual size = %d\n",
-                            job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-
-                        // clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
-                        snfs_clear(job.snfs);
-                        free(job.snfs);
-                        job.snfs = NULL;
-                        job.alambda = 0.0;
-                        job.rlambda = 0.0;
-                        job.lpba = 0;
-                        job.lpbr = 0;
-                        job.mfba = 0;
-                        job.mfbr = 0;
-                        job.alim = 0;
-                        job.rlim = 0;
-                        fobj->nfs_obj.siever = 0;
-					}
-
-					// init job.poly for gnfs
-					job.poly = (mpz_polys_t*)malloc(sizeof(mpz_polys_t));
-					if (job.poly == NULL)
-					{
-						printf("nfs: couldn't allocate memory!\n");
-						exit(-1);
-					}
-					mpz_polys_init(job.poly);
-					job.poly->rat.degree = 1; // maybe way off in the future this isn't true
-					// assume gnfs for now
-					job.poly->side = ALGEBRAIC_SPQ;
-                    job.poly->size = (double)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10);
-
-					gettimeofday(&ustart, NULL);
-					do_msieve_polyselect(fobj, obj, &job, &mpN, &factor_list);
-					gettimeofday(&ustop, NULL);
-					t_time = ytools_difftime(&ustart, &ustop);
-					fobj->nfs_obj.poly_time += t_time;
-				}
-				else
-				{
-					fobj->nfs_obj.snfs = 1;
-					mpz_set(fobj->nfs_obj.gmp_n, job.snfs->n);
-				}
-			}
-
-			nfs_state = NFS_STATE_SIEVE;
-			break;
-
-		case NFS_STATE_SIEVE:
-
-			pre_batch_rels = job.current_rels;
-			gettimeofday(&bstart, NULL);
-
-			// sieve if the user has requested to (or by default).  else,
-			// set the done sieving flag.  this will prevent some infinite loops,
-			// for instance if we only want to post-process, but filtering 
-			// doesn't produce a matrix.  if we don't want to sieve in that case,
-			// then we're done.
-            if (((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
-                (fobj->nfs_obj.nfs_phases & NFS_PHASE_SIEVE)) &&
-                !(fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING))
-            {
-                // this is not a threadpool, so there can be imbalances between
-                // threads on multi-threaded runs where we end up waiting
-                // for the last one to finish.
-                // todo: make do_sieving a threadpool that incorporates the 
-                // logic below (including timeout!) and the logic of NFS_STATE_FILTCHECK 
-                // so that we can keep sieving until it is actually time to
-                // filter.
-				gettimeofday(&ustart, NULL);
-                do_sieving(fobj, &job);
-				gettimeofday(&ustop, NULL);
-				t_time = ytools_difftime(&ustart, &ustop);
-				fobj->nfs_obj.sieve_time += t_time;
-            }
-            else
-            {
-                fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
-            }
-
-			// if this has been previously marked, then go ahead and exit.
-            if (fobj->nfs_obj.nfs_phases & NFS_DONE_SIEVING)
-            {
-                process_done = 1;
-            }
-			
-			// if user specified -ns with a fixed start and range,
-			// then mark that we're done sieving.  
-			if (fobj->nfs_obj.rangeq > 0)
-			{
-				// we're done sieving the requested range, but there may be
-				// more phases to check, so don't exit yet
-				fobj->nfs_obj.nfs_phases |= NFS_DONE_SIEVING;
-			}
-				
-			// then move on to the next phase
-			nfs_state = NFS_STATE_FILTCHECK;
-
-			break;
 
 		case NFS_STATE_FILTER:
 
@@ -539,11 +552,7 @@ void nfs(fact_obj_t *fobj)
 				logprint_oc(fobj->flogname, "a", "nfs: raising min_rels by %1.2f percent to %u\n", 
 					100*(fobj->nfs_obj.filter_min_rels_nudge-1), job.min_rels);
 
-				if (fobj->nfs_obj.cadoMsieve) {
-					nfs_state = NFS_STATE_CADO;
-				} else {
-					nfs_state = NFS_STATE_SIEVE;
-				}
+				nfs_state = NFS_STATE_SIEVE;
 			}
 
             if (fobj->VFLAG > 0)
@@ -728,11 +737,7 @@ void nfs(fact_obj_t *fobj)
 						"possibly no dependencies found\n"
 						"nfs: continuing with sieving\n");
 
-					if (fobj->nfs_obj.cadoMsieve) {
-						nfs_state = NFS_STATE_CADO;
-					} else {
-						nfs_state = NFS_STATE_SIEVE;
-					}
+					nfs_state = NFS_STATE_SIEVE;
 				}				
 			}
 			else
