@@ -301,7 +301,11 @@ void nfs(fact_obj_t *fobj)
 
 			printf("nfs: calling cado-nfs to find poly and sieve\n");
 			char syscmd[1024];
-			sprintf(syscmd, "%s %s tasks.filter.run=false tasks.sieve.rels_wanted=%d -w cadoWorkdir -t %d", name, input, job.min_rels, fobj->num_threads);
+			if (job.min_rels != 0) {
+				sprintf(syscmd, "%s %s tasks.filter.run=false tasks.sieve.rels_wanted=%d -w cadoWorkdir -t %d", name, input, job.min_rels, fobj->num_threads);
+			} else {
+				sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, input, fobj->num_threads);
+			}
 			system(syscmd);
 
 			// Check for convert_poly presence
