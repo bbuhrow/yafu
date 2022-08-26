@@ -152,15 +152,6 @@ int nfs_check_special_case(fact_obj_t *fobj)
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
 {
-	if (fobj->nfs_obj.cadoMsieve) {
-		return cadoMsieve_nfs(fobj);
-	} else {
-		return general_nfs(fobj);
-	}
-}
-
-void general_nfs(fact_obj_t *fobj)
-{
 	// expect the input in fobj->nfs_obj.gmp_n
 	char *input;
 	msieve_obj *obj = NULL;
@@ -240,9 +231,13 @@ void general_nfs(fact_obj_t *fobj)
 			job.use_max_rels = 0;
 			job.snfs = NULL;
 
-			// determine what to do next based on the state of various files.
-			// this will set job.current_rels if it finds any
-			nfs_state = check_existing_files(fobj, &last_specialq, &job);
+			if (fobj->nfs_obj.cadoMsieve) {
+				nfs_state = NFS_STATE_CADO;
+			} else {
+				// determine what to do next based on the state of various files.
+				// this will set job.current_rels if it finds any
+				nfs_state = check_existing_files(fobj, &last_specialq, &job);
+			}
 
 			// before we get started, check to make sure we can find ggnfs sievers
 			// if we are going to be doing sieving
@@ -276,7 +271,28 @@ void general_nfs(fact_obj_t *fobj)
             }
 
 			break;
+		case NFS_STATE_CADO: {
+			// Check for cado-nfs.py existence
+			FILE *test;
+			char name[1024];
+			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
+			test = fopen(name, "rb");
+			if (test == NULL)
+			{
+				printf("fopen error: %s\n", strerror(errno));
+				printf("could not find %s, bailing\n", name);
+				exit(-1);
+			}
+			fclose(test);
 
+			char syscmd[1024];
+			sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, input, fobj->num_threads);
+
+			printf("nfs: calling cado-nfs to find poly and sieve\n");
+			system(syscmd);
+			nfs_state = NFS_STATE_FILTER;
+			break;
+		}
 		case NFS_STATE_POLY:
 
 			if ((fobj->nfs_obj.nfs_phases == NFS_DEFAULT_PHASES) ||
@@ -1640,137 +1656,6 @@ void mpz_polys_free(mpz_polys_t* poly) {
     mpz_poly_free(&poly->rat);
     mpz_poly_free(&poly->alg);
     mpz_clear(poly->m);
-}
-
-void cadoMsieve_nfs(fact_obj_t *fobj)
-{
-	// TODO: Implement resume mechanics
-	// expect the input in fobj->nfs_obj.gmp_n
-	struct timeval stop;	// stop time of this job
-	struct timeval start;	// start time of this job
-	int process_done;
-	enum nfs_state_e nfs_state;
-	double t_time;
-
-	obj_ptr = NULL;
-
-	// initialize the flag to watch for interrupts, and set the
-	// pointer to the function to call if we see a user interrupt
-	NFS_ABORT = 0;
-	signal(SIGINT,nfsexit);
-
-	// start a counter for the whole job
-	gettimeofday(&start, NULL);
-
-	// nfs state machine:
-	nfs_state = NFS_STATE_INIT;
-	process_done = 0;
-
-	char* s = mpz_get_str(NULL, 10, fobj->nfs_obj.gmp_n);
-	logprint_oc(fobj->flogname, "a", "nfs: commencing nfs on c%d: %s\n",
-				gmp_base10(fobj->nfs_obj.gmp_n), s);
-
-	while (!process_done)
-	{
-		switch (nfs_state)
-		{
-		case NFS_STATE_INIT:
-			nfs_state = NFS_STATE_POLY;
-			break;
-
-		case NFS_STATE_POLY: {
-			// Check for cado-nfs.py existence
-			FILE *test;
-			char name[1024];
-			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
-			test = fopen(name, "rb");
-			if (test == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not find %s, bailing\n", name);
-				exit(-1);
-			}
-			fclose(test);
-
-			char syscmd[1024];
-			sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, s, fobj->num_threads);
-
-			printf("nfs: calling cado-nfs to find poly and sieve\n");
-			system(syscmd);
-			nfs_state = NFS_STATE_LINALG;
-			break;
-		}
-
-		case NFS_STATE_SIEVE:
-		case NFS_STATE_FILTER:
-			break;
-		case NFS_STATE_LINALG:
-			break;
-		case NFS_STATE_SQRT:
-			break;
-
-		case NFS_STATE_CLEANUP:
-			gettimeofday(&stop, NULL);
-
-            t_time = ytools_difftime(&start, &stop);
-
-			if (fobj->VFLAG >= 0)
-				printf("NFS elapsed time = %6.4f seconds.\n",t_time);
-
-			logprint_oc(fobj->flogname, "a", "NFS elapsed time = %6.4f seconds.\n",t_time);
-			logprint_oc(fobj->flogname, "a", "\n");
-			logprint_oc(fobj->flogname, "a", "\n");
-
-			// free stuff			
-			nfs_state = NFS_STATE_DONE;
-			break;
-
-		case NFS_STATE_DONE:
-			process_done = 1;
-			break;
-
-		case NFS_STATE_FILTCHECK:
-		case NFS_STATE_STARTNEW:
-		case NFS_STATE_RESUMESIEVE:
-		case NFS_STATE_RESUMEPOLY:
-		default:
-			printf("unknown state, bailing\n");
-			// non ideal solution to infinite loop in factor() if we return without factors
-			// (should return error code instead)
-			NFS_ABORT = 1;
-			break;
-
-		}
-
-		//after every state, check elasped time against a specified timeout value
-		gettimeofday(&stop, NULL);
-        t_time = ytools_difftime(&start, &stop);
-
-		if ((fobj->nfs_obj.timeout > 0) && (t_time > (double)fobj->nfs_obj.timeout))
-		{
-			if (fobj->VFLAG >= 0)
-				printf("NFS timeout after %6.4f seconds.\n",t_time);
-
-			logprint_oc(fobj->flogname, "a", "NFS timeout after %6.4f seconds.\n",t_time);
-			process_done = 1;
-		}
-
-		if (NFS_ABORT)
-		{
-			print_factors(fobj->factors, fobj->N, fobj->VFLAG, fobj->NUM_WITNESSES);
-			exit(1);
-		}
-	}
-
-	//reset signal handler to default (no handler).
-	signal(SIGINT,NULL);
-
-	gettimeofday(&stop, NULL);
-	t_time = ytools_difftime(&start, &stop);
-	fobj->nfs_obj.ttime = t_time;
-
-	free(s);
-	return;
 }
 
 #else
