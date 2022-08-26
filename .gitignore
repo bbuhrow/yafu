@@ -6,5 +6,7 @@
 
 # Logs / Checkpoints
 *.log
-nfs.dat*
 siqs.dat
+cadoWorkdir
+/*.db
+/nfs.*
