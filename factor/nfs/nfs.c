@@ -148,6 +148,14 @@ int nfs_check_special_case(fact_obj_t *fobj)
 // gnfs poly select should probably always be "fast", and min/avg/good/ should apply after that.
 // more options to control test sieving (number of points, q-range for each, number to test)
 
+ void checkFp(FILE* fp, char* name) {
+	if (fp == NULL)
+	{
+		printf("fopen error: %s\n", strerror(errno));
+		printf("could not find %s, bailing\n", name);
+		exit(-1);
+	}
+}
 
 //----------------------- NFS ENTRY POINT ------------------------------------//
 void nfs(fact_obj_t *fobj)
@@ -272,33 +280,69 @@ void nfs(fact_obj_t *fobj)
 
 			break;
 		case NFS_STATE_CADO: {
-			// Check for cado-nfs.py existence
-			FILE *test;
+			FILE *fp;
 			char name[1024];
-			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
-			test = fopen(name, "rb");
-			if (test == NULL)
-			{
-				printf("fopen error: %s\n", strerror(errno));
-				printf("could not find %s, bailing\n", name);
-				exit(-1);
-			}
-			fclose(test);
 
-			char syscmd[1024];
-			sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, input, fobj->num_threads);
+			// Check for cado-nfs.py existence
+			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
+			fp = fopen(name, "rb");
+			checkFp(fp, name);
+			fclose(fp);
 
 			printf("nfs: calling cado-nfs to find poly and sieve\n");
+			char syscmd[1024];
+			sprintf(syscmd, "%s %s tasks.filter.run=false -w cadoWorkdir -t %d", name, input, fobj->num_threads);
 			system(syscmd);
+
+			// Check for convert_poly existence
+			fp = fopen(fobj->nfs_obj.convert_poly_path, "rb");
+			checkFp(fp, fobj->nfs_obj.convert_poly_path);
+			fclose(fp);
 
 			printf("nfs: calling convert_poly to create nfs.fb from c*.poly\n");
 			int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
 			// Round down to 5 multiple
 			cadoPower -= cadoPower % 5;
-
-			// TODO: Test this on Windows
-			sprintf(syscmd, "%sbuild/*/misc/convert_poly -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.cado_dir, cadoPower);
+			// TODO: Support Windows lol
+			sprintf(syscmd, "%s -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.convert_poly_path, cadoPower);
 			system(syscmd);
+
+			printf("nfs: creating nfs.dat from CADO relations\n");
+			// Write the N header
+			FILE *dat = fopen("nfs.dat", "w");
+			sprintf(name, "N %s\n", input);
+			fwrite(name, sizeof(char), strlen(name), dat);
+			fclose(dat);
+
+			// By default, there are no cross-platform way of listing all files under a directory, so we have to find filenames through the log file
+			sprintf(name, "cadoWorkdir/c%d.log", cadoPower);
+			FILE *logFile = fopen(name, "r");
+			checkFp(logFile, name);
+
+			char line[16384];
+			while (fgets(line, 16384, logFile)) {
+				char *match = " relations in '";
+				char *filename = strstr(line, match);
+				if (filename != NULL) {
+					// Move beyond " relations in '" text
+					filename += strlen(match);
+					// Read ptr until next ' character
+					strtok(filename, "'");
+
+					// filename is now something like "/home/nyancat/Tools/yafu-combined/cadoWorkdir/c85.upload/c85.146453-147000.s_yzjb7c.gz"
+					printf("Extracting %s\n", filename);
+
+					// Make sure the file exists
+					fp = fopen(filename, "rb");
+					checkFp(fp, filename);
+					fclose(fp);
+
+					// Extract the relations and append them onto nfs.dat
+					sprintf(syscmd, "gunzip -ck %s >> nfs.dat", filename);
+					system(syscmd);
+				}
+			}
+			close(logFile);
 
 			nfs_state = NFS_STATE_FILTER;
 			break;

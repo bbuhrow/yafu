@@ -181,6 +181,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->nfs_obj.ttime = 0.0;
 
     fobj->nfs_obj.cadoMsieve = 0;
+    strcpy(fobj->nfs_obj.convert_poly_path, "");
 
     //initialize autofactor object
     //whether we want to output certain info to their own files...
@@ -482,13 +483,11 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     strcpy(dest->nfs_obj.filearg, src->nfs_obj.filearg);
 
     dest->nfs_obj.polybatch = src->nfs_obj.polybatch;
-#if defined(_WIN64)
     strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
-#elif defined(WIN32)
-    strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
-#else
-    strcpy(dest->nfs_obj.ggnfs_dir, src->nfs_obj.ggnfs_dir);
-#endif
+
+    dest->nfs_obj.cadoMsieve = src->nfs_obj.cadoMsieve;
+    strcpy(dest->nfs_obj.cado_dir, src->nfs_obj.cado_dir);
+    strcpy(dest->nfs_obj.convert_poly_path, src->nfs_obj.convert_poly_path);
 
     //initialize autofactor object
     //whether we want to output certain info to their own files...

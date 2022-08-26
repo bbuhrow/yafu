@@ -1611,6 +1611,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
 
     fobj->nfs_obj.cadoMsieve = options->cadoMsieve;
     strcpy(fobj->nfs_obj.cado_dir, options->cado_dir);
+    strcpy(fobj->nfs_obj.convert_poly_path, options->convert_poly_path);
 
     // initialize autofactor object
     // whether we want to output certain info to their own files...
