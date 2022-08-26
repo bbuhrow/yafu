@@ -728,7 +728,11 @@ void nfs(fact_obj_t *fobj)
 						"possibly no dependencies found\n"
 						"nfs: continuing with sieving\n");
 
-					nfs_state = NFS_STATE_SIEVE;
+					if (fobj->nfs_obj.cadoMsieve) {
+						nfs_state = NFS_STATE_CADO;
+					} else {
+						nfs_state = NFS_STATE_SIEVE;
+					}
 				}				
 			}
 			else
