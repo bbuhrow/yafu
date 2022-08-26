@@ -290,6 +290,16 @@ void nfs(fact_obj_t *fobj)
 
 			printf("nfs: calling cado-nfs to find poly and sieve\n");
 			system(syscmd);
+
+			printf("nfs: calling convert_poly to create nfs.fb from c*.poly\n");
+			int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
+			// Round down to 5 multiple
+			cadoPower -= cadoPower % 5;
+
+			// TODO: Test this on Windows
+			sprintf(syscmd, "%sbuild/*/misc/convert_poly -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.cado_dir, cadoPower);
+			system(syscmd);
+
 			nfs_state = NFS_STATE_FILTER;
 			break;
 		}
