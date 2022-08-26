@@ -216,6 +216,12 @@ void nfs(fact_obj_t *fobj)
 	input = (char *)malloc(GSTR_MAXSIZE * sizeof(char));
 	nfs_state = NFS_STATE_INIT;
 	process_done = 0;
+
+	// Used to predict CADO work file names
+	int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
+	// Round down to 5 multiple
+	cadoPower -= cadoPower % 5;
+
 	while (!process_done)
 	{
         char* s;
@@ -302,9 +308,6 @@ void nfs(fact_obj_t *fobj)
 			checkFilePresence(fobj->nfs_obj.convert_poly_path);
 
 			printf("nfs: calling convert_poly to create nfs.fb from c*.poly\n");
-			int cadoPower = gmp_base10(fobj->nfs_obj.gmp_n);
-			// Round down to 5 multiple
-			cadoPower -= cadoPower % 5;
 			// TODO: Support Windows lol
 			sprintf(syscmd, "%s -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.convert_poly_path, cadoPower);
 			system(syscmd);
@@ -336,7 +339,7 @@ void nfs(fact_obj_t *fobj)
 				strtok(filename, "'");
 
 				// filename is now something like "/home/nyancat/Tools/yafu-combined/cadoWorkdir/c85.upload/c85.146453-147000.s_yzjb7c.gz"
-				printf("Extracting %s\n", filename);
+				// printf("Extracting %s\n", filename);
 
 				// Make sure the file exists
 				checkFilePresence(filename);
@@ -742,6 +745,14 @@ void nfs(fact_obj_t *fobj)
 			sprintf(tmpstr, "%s.lp",fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.d",fobj->nfs_obj.outputfile);	remove(tmpstr);
 			sprintf(tmpstr, "%s.mat.chk",fobj->nfs_obj.outputfile);	remove(tmpstr);
+
+			if (fobj->nfs_obj.cadoMsieve) {
+				remove("nfs.cado");
+				sprintf(tmpstr, "c%d.db", cadoPower);    	remove(tmpstr);
+				sprintf(tmpstr, "c%d.db-shm", cadoPower);	remove(tmpstr);
+				sprintf(tmpstr, "c%d.db-wal", cadoPower);	remove(tmpstr);
+				system("rm -r cadoWorkdir");
+			}
 
 			gettimeofday(&stop, NULL);
 
