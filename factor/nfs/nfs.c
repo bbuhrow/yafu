@@ -491,7 +491,7 @@ void nfs(fact_obj_t *fobj)
 				// Make sure the file exists
 				checkFilePresence(filename);
 
-				// Extract the relations and append them onto nfs.cado
+				// Extract the relations into nfs.cado
 				sprintf(syscmd, "gunzip -ck %s > nfs.cado", filename);
 				system(syscmd);
 				checkFilePresence("nfs.cado");
