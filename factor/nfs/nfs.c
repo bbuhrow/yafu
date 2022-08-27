@@ -434,6 +434,11 @@ void nfs(fact_obj_t *fobj)
 			break;
 
 		case NFS_STATE_CADO: {
+#if defined(WIN32) || defined(_WIN64)
+			printf("cadoMsieve is not available on Windows! Bailing\n");
+			exit(-1);
+#endif
+
 			FILE *fp;
 			char buffer[1024];
 
