@@ -442,18 +442,47 @@ void nfs(fact_obj_t *fobj)
 			FILE *fp;
 			char buffer[1024];
 
+			if (job.snfs != NULL) {
+				// Select param file based on converted difficulty
+				cadoPower = est_gnfs_size(&job);
+				cadoPower -= cadoPower % 5;
+			}
+
+			FILE *dat = fopen("nfs.dat", "a+");
+
+			// First run
+			if (job.current_rels == 0) {
+				if (fgetc(dat) == 'N') {
+					// https://www.geeksforgeeks.org/c-program-count-number-lines-file/
+					for (char c = fgetc(dat); !feof(dat); c = fgetc(dat)) {
+						if (c == '\n') {
+							job.current_rels++;
+						}
+					}
+
+					// Don't count the header
+					job.current_rels--;
+
+					if (job.current_rels > job.min_rels) {
+						// Immediately try to filter again
+						job.min_rels = job.current_rels;
+					}
+
+					printf("nfs: found %d relations in nfs.dat\n", job.current_rels);
+				} else {
+					// Write the N header
+					sprintf(buffer, "N %s\n", input);
+					fwrite(buffer, sizeof(char), strlen(buffer), dat);
+					printf("nfs: created nfs.dat\n");
+				}
+			}
+
 			// Check for cado-nfs.py presence
 			sprintf(buffer, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
 			checkFilePresence(buffer);
 
 			printf("nfs: calling cado-nfs\n");
 			char syscmd[8192];
-
-			if (job.snfs != NULL) {
-				// Select param file based on converted difficulty
-				cadoPower = est_gnfs_size(&job);
-				cadoPower -= cadoPower % 5;
-			}
 
 			// Specify path, param file and N
 			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", buffer, fobj->nfs_obj.cado_dir, cadoPower, input);
@@ -470,8 +499,7 @@ void nfs(fact_obj_t *fobj)
 			// Reduce time before retry from 10 seconds to 1 second
 			sprintf(syscmd + strlen(syscmd), "slaves.downloadretry=1 ");
 
-			// Let CADO estimate relations needed during SNFS
-			if (job.min_rels != 0 || job.snfs != NULL) {
+			if (job.min_rels != 0) {
 				// Specify relations wanted
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.rels_wanted=%d ", job.min_rels);
 			}
@@ -513,6 +541,7 @@ void nfs(fact_obj_t *fobj)
 				// Specify whether to sieve rational or algebraic side
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.sqside=%d ", sqside);
 
+				// CADO seems to know the right sieving parameters, so we ignore the params from nfs.job
 				/*
 				// Specify sieving parameters
 				// Apparently 0=r, 1=a
@@ -526,7 +555,7 @@ void nfs(fact_obj_t *fobj)
 			// Specify work directory
 			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir");
 
-			printf("Cmdline: %s\n", syscmd);
+			printf("nfs: cmdline: %s\n", syscmd);
 			system(syscmd);
 
 			// Check for convert_poly presence
@@ -541,19 +570,12 @@ void nfs(fact_obj_t *fobj)
 			sprintf(syscmd, "%s -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.convert_poly_path, cadoPower);
 			system(syscmd);
 
-			printf("nfs: creating nfs.dat from CADO relations\n");
-			// Write the N header
-			FILE *dat = fopen("nfs.dat", "w");
-			sprintf(buffer, "N %s\n", input);
-			fwrite(buffer, sizeof(char), strlen(buffer), dat);
+			printf("nfs: appending CADO relations into nfs.dat\n");
 
 			// By default, there are no cross-platform way of listing all files under a directory, so we have to find filenames through the log file
 			sprintf(buffer, "cadoWorkdir/c%d.log", cadoPower);
 			FILE *logFile = fopen(buffer, "r");
 			checkFp(logFile, buffer);
-
-			// We will set min_rels to the amount of relations
-			job.min_rels = 0;
 
 			char logLine[16384];
 			while (fgets(logLine, 16384, logFile)) {
@@ -570,11 +592,10 @@ void nfs(fact_obj_t *fobj)
 				// filename is now something like "/home/nyancat/Tools/yafu-combined/cadoWorkdir/c85.upload/c85.146453-147000.s_yzjb7c.gz"
 				// printf("Extracting %s\n", filename);
 
-				// Make sure the file exists
-				checkFilePresence(filename);
-
 				// Extract the relations into nfs.cado
-				sprintf(syscmd, "gunzip -ck %s > nfs.cado", filename);
+				// Don't keep the file, as that would cause us to read it again the next run
+				// Suppress stderr with 2>/dev/null
+				sprintf(syscmd, "gunzip -c %s 1>nfs.cado 2>/dev/null && rm %s", filename, filename);
 				system(syscmd);
 				checkFilePresence("nfs.cado");
 
@@ -589,12 +610,18 @@ void nfs(fact_obj_t *fobj)
 
 					// fgets include \n already
 					fwrite(relatLine, sizeof(char), strlen(relatLine), dat);
-					job.min_rels++;
+					job.current_rels++;
 				}
 			}
-			close(logFile);
+			fclose(logFile);
 			fclose(dat);
 
+			// min_rels is not set by YAFU during GNFS
+			if (job.min_rels == 0) {
+				job.min_rels = job.current_rels;
+			}
+
+			printf("nfs: now have %d relations\n", job.current_rels);
 			nfs_state = NFS_STATE_FILTER;
 			break;
 		}
