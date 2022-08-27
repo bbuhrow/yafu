@@ -343,6 +343,9 @@ typedef struct
 
 	char filearg[GSTR_MAXSIZE]; // used to facilitate external trial sieving
 
+    uint32_t cadoMsieve;
+    char cado_dir[GSTR_MAXSIZE];
+    char convert_poly_path[GSTR_MAXSIZE];
 } nfs_obj_t;
 
 // enum for implementing the "plan" and "pretest" switches

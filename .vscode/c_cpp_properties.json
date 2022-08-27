@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "Default",
+            "includePath": ["${workspaceFolder}", "${workspaceFolder}/include", "."],
+            "defines": ["USE_NFS"]
+        }
+    ],
+    "version": 4
+}
