@@ -443,12 +443,31 @@ void nfs(fact_obj_t *fobj)
 
 			printf("nfs: calling cado-nfs\n");
 			char syscmd[1024];
-			sprintf(syscmd, "%s %s tasks.filter.run=false ", name, input);
+
+			// Specify path, param file and N
+			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", name, fobj->nfs_obj.cado_dir, cadoPower, input);
+
+			// Roundup of fobj->num_threads / 2
+			int nrclients = (fobj->num_threads / 2) + (obj->num_threads % 2);
+			// Spawn clients based on fobj->num_threads
+			// Use sprintf to append to end of syscmd
+			sprintf(syscmd + strlen(syscmd), "slaves.nrclients=%d slaves.hostnames=localhost ", nrclients);
+
+			// Stop after sieving enough relations
+			sprintf(syscmd + strlen(syscmd), "tasks.filter.run=false ");
+
+			// Reduce time before retry from 10 seconds to 1 second
+			sprintf(syscmd + strlen(syscmd), "slaves.downloadretry=1 ");
+
 			if (job.min_rels != 0) {
-				// Use sprintf to append to end of syscmd
+				// Specify relations wanted
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.rels_wanted=%d ", job.min_rels);
 			}
-			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir -t %d", fobj->num_threads);
+
+			// Specify work directory
+			sprintf(syscmd + strlen(syscmd), "-w cadoWorkdir");
+
+			printf("Cmdline: %s\n", syscmd);
 			system(syscmd);
 
 			// Check for convert_poly presence
