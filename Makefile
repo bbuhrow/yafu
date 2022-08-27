@@ -18,7 +18,7 @@
 # ----------------------------------------------------------------------*/
 
 CC = gcc
-CFLAGS = -g -m64 -DUSE_SSE2 -march=native /usr/lib64/libomp.so -lcuda
+CFLAGS = -g -m64 -DUSE_SSE2
 #CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
@@ -145,7 +145,7 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 # make sure we get the correct libgmp linked by using an absolute path
-LIBS += -lecm /usr/lib64/libgmp.so -lytools -lysieve
+LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
 #LIBS += -lecm -lgmp -lytools -lysieve
 
 ifeq ($(SKYLAKEX),1)
