@@ -435,17 +435,23 @@ void nfs(fact_obj_t *fobj)
 
 		case NFS_STATE_CADO: {
 			FILE *fp;
-			char name[1024];
+			char buffer[1024];
 
 			// Check for cado-nfs.py presence
-			sprintf(name, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
-			checkFilePresence(name);
+			sprintf(buffer, "%scado-nfs.py", fobj->nfs_obj.cado_dir);
+			checkFilePresence(buffer);
 
 			printf("nfs: calling cado-nfs\n");
-			char syscmd[1024];
+			char syscmd[8192];
+
+			if (job.snfs != NULL) {
+				// Select param file based on converted difficulty
+				cadoPower = est_gnfs_size(&job);
+				cadoPower -= cadoPower % 5;
+			}
 
 			// Specify path, param file and N
-			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", name, fobj->nfs_obj.cado_dir, cadoPower, input);
+			sprintf(syscmd, "%s %sparameters/factor/params.c%d N=%s ", buffer, fobj->nfs_obj.cado_dir, cadoPower, input);
 
 			// Roundup of fobj->num_threads / 2
 			int nrclients = (fobj->num_threads / 2) + (obj->num_threads % 2);
@@ -459,9 +465,55 @@ void nfs(fact_obj_t *fobj)
 			// Reduce time before retry from 10 seconds to 1 second
 			sprintf(syscmd + strlen(syscmd), "slaves.downloadretry=1 ");
 
-			if (job.min_rels != 0) {
+			// Let CADO estimate relations needed during SNFS
+			if (job.min_rels != 0 || job.snfs != NULL) {
 				// Specify relations wanted
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.rels_wanted=%d ", job.min_rels);
+			}
+
+			// SNFS, hell yeah!
+			// Information source: https://www.mersenneforum.org/showthread.php?t=24842
+			if (job.snfs != NULL) {
+				// Create poly file
+				FILE *poly = fopen("nfs.poly", "w");
+
+				sprintf(buffer, "n: %s\n", input);
+				sprintf(buffer + strlen(buffer), "skew: %f\n", job.snfs->poly->skew);
+
+				for (int deg = MAX_POLY_DEGREE; deg >= 0; deg--) {
+					s = mpz_get_str(NULL, 10, job.snfs->c[deg]);
+					sprintf(buffer + strlen(buffer), "c%d: %s\n", deg, s);
+					free(s);
+				}
+
+				for (int deg = 1; deg >= 0; deg--) {
+					s = mpz_get_str(NULL, 10, job.snfs->poly->rat.coeff[deg]);
+					sprintf(buffer + strlen(buffer), "Y%d: %s\n", deg, s);
+					free(s);
+				}
+
+				fwrite(buffer, sizeof(char), strlen(buffer), poly);
+				fclose(poly);
+
+				// Make CADO use our poly
+				sprintf(syscmd + strlen(syscmd), "tasks.polyselect.import=nfs.poly ");
+
+				int sqside;
+				if (job.snfs->poly->side == RATIONAL_SPQ) {
+					sqside = 0;
+				} else {
+					sqside = 1;
+				}
+
+				// Specify whether to sieve rational or algebraic side
+				sprintf(syscmd + strlen(syscmd), "tasks.sieve.sqside=%d ", sqside);
+
+				// Specify sieving parameters
+				// Apparently 0=r, 1=a
+				sprintf(syscmd + strlen(syscmd), "tasks.lim0=%d tasks.lim1=%d ", job.rlim, job.alim);
+				sprintf(syscmd + strlen(syscmd), "tasks.lpb0=%d tasks.lpb1=%d ", job.lpbr, job.lpba);
+				sprintf(syscmd + strlen(syscmd), "tasks.sieve.mfb0=%d tasks.sieve.mfb1=%d ", job.mfbr, job.mfba);
+				sprintf(syscmd + strlen(syscmd), "tasks.sieve.lambda0=%f tasks.sieve.lambda1=%f ", job.rlambda, job.alambda);
 			}
 
 			// Specify work directory
@@ -473,6 +525,10 @@ void nfs(fact_obj_t *fobj)
 			// Check for convert_poly presence
 			checkFilePresence(fobj->nfs_obj.convert_poly_path);
 
+			// Ensure CADO did find the poly
+			sprintf(buffer, "./cadoWorkdir/c%d.poly", cadoPower);
+			checkFilePresence(buffer);
+
 			printf("nfs: calling convert_poly to create nfs.fb from c*.poly\n");
 			// TODO: Support Windows lol
 			sprintf(syscmd, "%s -of msieve < ./cadoWorkdir/c%d.poly > nfs.fb", fobj->nfs_obj.convert_poly_path, cadoPower);
@@ -481,13 +537,13 @@ void nfs(fact_obj_t *fobj)
 			printf("nfs: creating nfs.dat from CADO relations\n");
 			// Write the N header
 			FILE *dat = fopen("nfs.dat", "w");
-			sprintf(name, "N %s\n", input);
-			fwrite(name, sizeof(char), strlen(name), dat);
+			sprintf(buffer, "N %s\n", input);
+			fwrite(buffer, sizeof(char), strlen(buffer), dat);
 
 			// By default, there are no cross-platform way of listing all files under a directory, so we have to find filenames through the log file
-			sprintf(name, "cadoWorkdir/c%d.log", cadoPower);
-			FILE *logFile = fopen(name, "r");
-			checkFp(logFile, name);
+			sprintf(buffer, "cadoWorkdir/c%d.log", cadoPower);
+			FILE *logFile = fopen(buffer, "r");
+			checkFp(logFile, buffer);
 
 			// We will set min_rels to the amount of relations
 			job.min_rels = 0;
@@ -779,6 +835,7 @@ void nfs(fact_obj_t *fobj)
 			sprintf(tmpstr, "%s.mat.chk",fobj->nfs_obj.outputfile);	remove(tmpstr);
 
 			if (fobj->nfs_obj.cadoMsieve) {
+				remove("nfs.poly");
 				remove("nfs.cado");
 				sprintf(tmpstr, "c%d.db", cadoPower);    	remove(tmpstr);
 				sprintf(tmpstr, "c%d.db-shm", cadoPower);	remove(tmpstr);
