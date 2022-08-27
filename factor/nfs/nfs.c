@@ -508,12 +508,14 @@ void nfs(fact_obj_t *fobj)
 				// Specify whether to sieve rational or algebraic side
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.sqside=%d ", sqside);
 
+				/*
 				// Specify sieving parameters
 				// Apparently 0=r, 1=a
 				sprintf(syscmd + strlen(syscmd), "tasks.lim0=%d tasks.lim1=%d ", job.rlim, job.alim);
 				sprintf(syscmd + strlen(syscmd), "tasks.lpb0=%d tasks.lpb1=%d ", job.lpbr, job.lpba);
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.mfb0=%d tasks.sieve.mfb1=%d ", job.mfbr, job.mfba);
 				sprintf(syscmd + strlen(syscmd), "tasks.sieve.lambda0=%f tasks.sieve.lambda1=%f ", job.rlambda, job.alambda);
+				*/
 			}
 
 			// Specify work directory
