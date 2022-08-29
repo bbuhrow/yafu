@@ -78,6 +78,11 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.ecm_tune_freq = 0;
     fobj->ecm_obj.bail_on_factor = 1;
     fobj->ecm_obj.save_b1 = 0;
+    fobj->ecm_obj.use_cgbn = 0;
+    fobj->ecm_obj.gpucurves = 0;
+    fobj->ecm_obj.use_gpuecm = 0;
+    fobj->ecm_obj.use_gpudev = 0;
+
 
     // unlike ggnfs, ecm does not *require* external binaries.  
     // an empty string indicates the use of the built-in GMP-ECM hooks, while
@@ -393,6 +398,10 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->ecm_obj.ecm_tune_freq = src->ecm_obj.ecm_tune_freq;
     dest->ecm_obj.bail_on_factor = src->ecm_obj.bail_on_factor;
     dest->ecm_obj.save_b1 = src->ecm_obj.save_b1;
+    dest->ecm_obj.gpucurves = src->ecm_obj.gpucurves;
+    dest->ecm_obj.use_cgbn = src->ecm_obj.use_cgbn;
+    dest->ecm_obj.use_gpudev = src->ecm_obj.use_gpudev;
+    dest->ecm_obj.use_gpuecm = src->ecm_obj.use_gpuecm;
 
     // unlike ggnfs, ecm does not *require* external binaries.  
     // an empty string indicates the use of the built-in GMP-ECM hooks, while

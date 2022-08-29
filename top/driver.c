@@ -1410,6 +1410,10 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
         fobj->ecm_obj.lcg_state[i] =
             hash64(lcg_rand_64(&fobj->lcg_state));
     }
+    fobj->ecm_obj.use_cgbn = options->use_cgbn;
+    fobj->ecm_obj.use_gpudev = options->use_gpudev;
+    fobj->ecm_obj.use_gpuecm = options->use_gpuecm;
+    fobj->ecm_obj.gpucurves = options->gpucurves;
 
     // unlike ggnfs, ecm does not *require* external binaries.  
     // an empty string indicates the use of the built-in GMP-ECM hooks, while

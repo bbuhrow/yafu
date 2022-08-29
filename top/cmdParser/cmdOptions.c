@@ -72,7 +72,9 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "snfs_xover", "soe_block", "forceTLP", "siqsLPB", "siqsMFBD",
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
     "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
-    "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path"};
+    "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
+    "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_ext_gmpecm",
+    "prefer_avxecm_stg2"};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -169,7 +171,17 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(String)          : Filename for vecP+1 work input", 
     "(String)          : Filename for vecP-1 work input",
     "(String)          : Filename to resume parallel P+1 or P-1",
-    "                  : Output JSON info pretty printed (one pair per line) "};
+    "                  : Output JSON info pretty printed (one pair per line) ",
+    "                  : cadoMsieve", 
+    "                  : cado_dir", 
+    "                  : convert_poly_path",
+    "(Integer < 32-bit): Number of gpu curves to run in a batch",
+    "                  : use cgbn with gpu-ecm (external ecm binary enabled with this option must exist)",
+    "                  : use gpu-ecm (external ecm binary enabled with this option must exist)",
+    "(Integer < 32-bit): gpu device number",
+    "                  : once over the ext_ecm crossover use gmp-ecm external binary",
+    "                  : use AVX-ECM for stage 2"
+};
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -195,7 +207,10 @@ int needsArg[NUMOPTIONS] = {
     1,1,0,1,1,
     1,1,1,0,0,
     0,1,0,1,1,
-    1,0};
+    1,0,0,1,1,  // resume, json-pretty, new cado options
+    1,0,0,1,0,  // gpucurves, cbgn, use gpu, gpu dev, prefer ext gcm
+    0           // prefer avxecm stg2
+};
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
@@ -218,7 +233,10 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "", 
     "", "", "", "", "", 
     "", "", "", "", "",
-    "", ""};
+    "", "", "", "", "",
+    "", "", "", "", "",
+    "", "", "", "", "",
+    ""};
 
 
 
@@ -977,6 +995,26 @@ void applyOpt(char* opt, char* arg, options_t* options)
             strcpy(options->convert_poly_path, arg);
         else
             printf("*** argument to convert_poly_path too long, ignoring ***\n");
+    }
+    else if (strcmp(opt, OptionArray[95]) == 0)
+    {
+        // argument "gpucurves"
+        options->gpucurves = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[96]) == 0)
+    {
+        // argument "use_cgbn"
+        options->use_cgbn = 1;
+    }
+    else if (strcmp(opt, OptionArray[97]) == 0)
+    {
+        // argument "use_gpuecm"
+        options->use_gpuecm = 1;
+    }
+    else if (strcmp(opt, OptionArray[98]) == 0)
+    {
+        // argument "use_gpudev"
+        options->use_gpudev = atoi(arg);
     }
     else
     {

@@ -2290,16 +2290,28 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 			{
 				fprintf(fid, "\"t%d\":%1.2f},%c", level, fwork->tlevels[i], lf);
 			}
+
+			double work_done = compute_ecm_work_done(fwork, 0, NULL, -1, 0);
+
+			if (work_done > 0.0)
+			{
+				fprintf(fid, "\"ecm-sum\":%1.2f,%c", work_done, lf);
+			}
 		}
 
-		fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f, \"ecm\":%1.4f, \"pm1\":%1.4f, "
-			"\"pp1\":%1.4f, \"siqs\":%1.4f, \"nfs-total\":%1.4f, \"nfs-poly\":%1.4f"
-			", \"nfs-sieve\":%1.4f, \"nfs-filter\":%1.4f"
-			", \"nfs-la\":%1.4f, \"nfs-sqrt\":%1.4f},%c",
-			fobj->autofact_obj.ttime, fobj->ecm_obj.ttime, fobj->pm1_obj.ttime,
-			fobj->pp1_obj.ttime, fobj->qs_obj.total_time, fobj->nfs_obj.ttime,
-			fobj->nfs_obj.poly_time, fobj->nfs_obj.sieve_time, fobj->nfs_obj.filter_time,
-			fobj->nfs_obj.la_time, fobj->nfs_obj.sqrt_time, lf);
+		fprintf(fid, "\t\"runtime\" : {\"total\":%1.4f", fobj->autofact_obj.ttime);
+		if (fobj->ecm_obj.ttime > 0.00001) fprintf(fid, ", \"ecm\":%1.4f", fobj->ecm_obj.ttime);
+		if (fobj->pm1_obj.ttime > 0.00001) fprintf(fid, ", \"pm1\":%1.4f", fobj->pm1_obj.ttime);
+		if (fobj->pp1_obj.ttime > 0.00001) fprintf(fid, ", \"pp1\":%1.4f", fobj->pp1_obj.ttime);
+		if (fobj->qs_obj.total_time > 0.00001) fprintf(fid, ", \"siqs\":%1.4f", fobj->qs_obj.total_time);
+		if (fobj->nfs_obj.ttime > 0.00001) fprintf(fid, ", \"nfs-total\":%1.4f", fobj->nfs_obj.ttime);
+		if (fobj->nfs_obj.poly_time > 0.00001) fprintf(fid, ", \"nfs-poly\":%1.4f", fobj->nfs_obj.poly_time);
+		if (fobj->nfs_obj.sieve_time > 0.00001) fprintf(fid, ", \"nfs-sieve\":%1.4f", fobj->nfs_obj.sieve_time);
+		if (fobj->nfs_obj.filter_time > 0.00001) fprintf(fid, ", \"nfs-filter\":%1.4f", fobj->nfs_obj.filter_time);
+		if (fobj->nfs_obj.la_time > 0.00001) fprintf(fid, ", \"nfs-la\":%1.4f", fobj->nfs_obj.la_time);
+		if (fobj->nfs_obj.sqrt_time > 0.00001) fprintf(fid, ", \"nfs-sqrt\":%1.4f", fobj->nfs_obj.sqrt_time);
+		//if (fobj->nfs_obj.poly_time > 0.0) fprintf(fid, ", \"nfs-poly-score\":%1.4f", fobj->nfs_obj.sqrt_time);
+		fprintf(fid, "},%c", lf);
 
 		char buffer[30];
 		time_t curtime;

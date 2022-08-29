@@ -158,6 +158,8 @@ typedef struct
     int save_b1;
     int prefer_gmpecm;
     int prefer_gmpecm_stg2;
+    int prefer_ext_gmpecm;
+    int prefer_avxecm_stg2;
 	char ecm_path[1024];
 	int use_external;
 	uint64_t B1;
@@ -171,6 +173,10 @@ typedef struct
 	uint64_t ecm_ext_xover;
     int bail_on_factor;
     enum ecm_exit_cond_e exit_cond;              // exit condition
+    int gpucurves;
+    int use_gpudev;
+    int use_gpuecm;
+    int use_cgbn;
 
 	// fit parameters to compute time_per_curve as a function of B1
 	double ecm_exponent;
