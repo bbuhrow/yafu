@@ -7,15 +7,15 @@ errors.
 Optionally, please be nice and tell me if you find this source to be
 useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
-benefit from your work.	
+benefit from your work. 
 
 Some parts of the code (and also this header), included in this 
 distribution have been reused from other sources. In particular I 
 have benefitted greatly from the work of Jason Papadopoulos's msieve @ 
-www.boo.net/~jasonp, Scott Contini's mpqs implementation, and Tom St. 
-Denis Tom's Fast Math library.  Many thanks to their kind donation of 
-code to the public domain.
-       				   --bbuhrow@gmail.com 11/24/09
+www.boo.net/~jasonp, Scott Contini's mpqs implementation, Tom St. 
+Denis Tom's Fast Math library, and Jeff Hurchalla's Binary GCD.  Many
+thanks to their kind donation of code to the public domain.
+                       --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
 #include "arith.h"
@@ -25,9 +25,9 @@ code to the public domain.
 
 uint64_t mpz_get_64(mpz_t src)
 {
-	uint64_t out = mpz_getlimbn(src, 0);
+    uint64_t out = mpz_getlimbn(src, 0);
 
-	return out;
+    return out;
 }
 
 void mpz_set_64(mpz_t dest, uint64_t src)
@@ -50,18 +50,18 @@ int ndigits_1(uint64_t n)
 
 double rint(double x)
 {
-	 double i, r = modf(x, &i);
-	 if (r < 0.0) {
-		 r += 1.0; 
-		 i -= 1.0;
-	 }
-	 return (r > 0.5 || (r == 0.5 && ((int)i & 1)) ? i + 1.0 : i);
+     double i, r = modf(x, &i);
+     if (r < 0.0) {
+         r += 1.0; 
+         i -= 1.0;
+     }
+     return (r > 0.5 || (r == 0.5 && ((int)i & 1)) ? i + 1.0 : i);
 }
 
 int gmp_base10(mpz_t x)
 {
-    mpz_t t;	//temp
-    int g;		//guess: either correct or +1
+    mpz_t t;    //temp
+    int g;      //guess: either correct or +1
 
     mpz_init(t);
     g = mpz_sizeinbase(x, 10);
@@ -131,9 +131,9 @@ void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
     s = v;
     c = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
-        "addq %%rax, %3		\n\t"
-        "adcq $0, %4		\n\t"
+    ASM_G("movq %2, %%rax       \n\t"
+        "addq %%rax, %3     \n\t"
+        "adcq $0, %4        \n\t"
         : "=r"(s), "=r"(c)
         : "r"(u), "0"(s), "1"(c)
         : "rax", "memory", "cc");
@@ -152,11 +152,11 @@ void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
     s = v;
     c = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
-        "addq %3, %%rax		\n\t"
-        "adcq $0, %5		\n\t"
-        "addq %%rax, %4		\n\t"
-        "adcq $0, %5		\n\t"
+    ASM_G("movq %2, %%rax       \n\t"
+        "addq %3, %%rax     \n\t"
+        "adcq $0, %5        \n\t"
+        "addq %%rax, %4     \n\t"
+        "adcq $0, %5        \n\t"
         : "=r"(s), "=r"(c)
         : "r"(u), "r"(w), "0"(s), "1"(c)
         : "rax", "memory", "cc");
@@ -175,12 +175,12 @@ void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sub, uint64_t* borrow)
     s = v;
     b = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
-        "subq %4, %%rax		\n\t"
-        "adcq $0, %5		\n\t"
-        "subq %3, %%rax		\n\t"
-        "adcq $0, %5		\n\t"
-        "movq %%rax, %4		\n\t"
+    ASM_G("movq %2, %%rax       \n\t"
+        "subq %4, %%rax     \n\t"
+        "adcq $0, %5        \n\t"
+        "subq %3, %%rax     \n\t"
+        "adcq $0, %5        \n\t"
+        "movq %%rax, %4     \n\t"
         : "=r"(s), "=r"(b)
         : "r"(u), "r"(w), "0"(s), "1"(b)
         : "rax", "memory", "cc");
@@ -199,10 +199,10 @@ void spSub(uint64_t u, uint64_t v, uint64_t* sub, uint64_t* borrow)
     s = v;
     b = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
-        "subq %3, %%rax		\n\t"
-        "adcq $0, %4		\n\t"
-        "movq %%rax, %3		\n\t"
+    ASM_G("movq %2, %%rax       \n\t"
+        "subq %3, %%rax     \n\t"
+        "adcq $0, %4        \n\t"
+        "movq %%rax, %3     \n\t"
         : "=r"(s), "=r"(b)
         : "r"(u), "0"(s), "1"(b)
         : "rax", "memory", "cc");
@@ -229,10 +229,10 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
     *product = v;
     *carry = u;
 
-    ASM_G("movq %2, %%rax	\n\t"
-        "mulq %3	\n\t"
-        "movq %%rax, %0		\n\t"
-        "movq %%rdx, %1		\n\t"
+    ASM_G("movq %2, %%rax   \n\t"
+        "mulq %3    \n\t"
+        "movq %%rax, %0     \n\t"
+        "movq %%rdx, %1     \n\t"
         : "=r"(*product), "=r"(*carry)
         : "1"(*carry), "0"(*product)
         : "rax", "rdx", "cc");
@@ -249,41 +249,41 @@ uint64_t spPRP2(uint64_t p)
     uint64_t result;
 
     ASM_G(
-        "xorq	%%rbx, %%rbx \n\t"
-        "xorq	%%rdi, %%rdi \n\t"
-        "addq	$1, %%rdi \n\t"		/* n = 1 */
-        "0:	\n\t"					/* begin loop */
-        "test	$1, %%rcx \n\t"		/* exp & 0x1 */
-        "je	2f		\n\t"			/* bit not set, skip accumulation into n */
-        "movq	%%rax, %%rsi \n\t"	/* save acc */
-        "mulq	%%rdi \n\t"			/* n * acc mod m */
-        "movq	%%rax, %%rdi \n\t"	/* save n */
-        "movq	%%rsi, %%rax \n\t"	/* restore acc */
-        "2:			\n\t"			/* square acc stage */
-        "shrq	$1, %%rcx \n\t"		/* base >>= 1 */
-        "addq	$1, %%rbx \n\t"
-        "mulq	%%rax \n\t"			/* acc = acc * acc*/
-        "cmpq	$5, %%rbx \n\t"		/* 5 iterations? */
+        "xorq   %%rbx, %%rbx \n\t"
+        "xorq   %%rdi, %%rdi \n\t"
+        "addq   $1, %%rdi \n\t"     /* n = 1 */
+        "0: \n\t"                   /* begin loop */
+        "test   $1, %%rcx \n\t"     /* exp & 0x1 */
+        "je 2f      \n\t"           /* bit not set, skip accumulation into n */
+        "movq   %%rax, %%rsi \n\t"  /* save acc */
+        "mulq   %%rdi \n\t"         /* n * acc mod m */
+        "movq   %%rax, %%rdi \n\t"  /* save n */
+        "movq   %%rsi, %%rax \n\t"  /* restore acc */
+        "2:         \n\t"           /* square acc stage */
+        "shrq   $1, %%rcx \n\t"     /* base >>= 1 */
+        "addq   $1, %%rbx \n\t"
+        "mulq   %%rax \n\t"         /* acc = acc * acc*/
+        "cmpq   $5, %%rbx \n\t"     /* 5 iterations? */
         "jb 0b \n\t"
-        "3:	\n\t"					/* begin loop */
-        "test	$1, %%rcx \n\t"		/* exp & 0x1 */
-        "je	4f		\n\t"			/* bit not set, skip accumulation into n */
-        "movq	%%rax, %%rsi \n\t"	/* save acc */
-        "mulq	%%rdi \n\t"			/* n * acc mod m */
-        "divq	%3 \n\t"
-        "movq	%%rdx, %%rdi \n\t"	/* save n */
-        "movq	%%rsi, %%rax \n\t"	/* restore acc */
-        "4:			\n\t"			/* square acc stage */
-        "shrq	$1, %%rcx \n\t"		/* base >>= 1 */
-        "mulq	%%rax \n\t"			/* acc = acc * acc*/
-        "divq	%3 \n\t"
-        "cmpq	$0, %%rcx \n\t"		/* exp == 0? */
-        "movq	%%rdx, %%rax \n\t"	/* mod m */
+        "3: \n\t"                   /* begin loop */
+        "test   $1, %%rcx \n\t"     /* exp & 0x1 */
+        "je 4f      \n\t"           /* bit not set, skip accumulation into n */
+        "movq   %%rax, %%rsi \n\t"  /* save acc */
+        "mulq   %%rdi \n\t"         /* n * acc mod m */
+        "divq   %3 \n\t"
+        "movq   %%rdx, %%rdi \n\t"  /* save n */
+        "movq   %%rsi, %%rax \n\t"  /* restore acc */
+        "4:         \n\t"           /* square acc stage */
+        "shrq   $1, %%rcx \n\t"     /* base >>= 1 */
+        "mulq   %%rax \n\t"         /* acc = acc * acc*/
+        "divq   %3 \n\t"
+        "cmpq   $0, %%rcx \n\t"     /* exp == 0? */
+        "movq   %%rdx, %%rax \n\t"  /* mod m */
         "jne 3b \n\t"
-        "movq	%%rdi, %0 \n\t"
+        "movq   %%rdi, %0 \n\t"
         : "=r"(result)
         : "a"(2), "c"(p - 1), "r"(p)
-        : "rbx", "rdx", "rdi", "rsi", "cc");				/* return result */
+        : "rbx", "rdx", "rdi", "rsi", "cc");                /* return result */
 
     return result;
 
@@ -294,30 +294,30 @@ uint64_t spModExp_asm(uint64_t b, uint64_t e, uint64_t m)
     uint64_t result;
 
     ASM_G(
-        "xorq	%%rdi, %%rdi \n\t"
-        "addq	$1, %%rdi \n\t"		/* n = 1 */
-        "cmpq	$0, %%rcx \n\t"		/* exp == 0? */
+        "xorq   %%rdi, %%rdi \n\t"
+        "addq   $1, %%rdi \n\t"     /* n = 1 */
+        "cmpq   $0, %%rcx \n\t"     /* exp == 0? */
         "je 1f \n\t"
-        "0:	\n\t"					/* begin loop */
-        "test	$1, %%rcx \n\t"		/* exp & 0x1 */
-        "je	2f		\n\t"			/* bit not set, skip accumulation into n */
-        "movq	%%rax, %%rsi \n\t"	/* save acc */
-        "mulq	%%rdi \n\t"			/* n * acc mod m */
-        "divq	%3 \n\t"
-        "movq	%%rdx, %%rdi \n\t"	/* save n */
-        "movq	%%rsi, %%rax \n\t"	/* restore acc */
-        "2:			\n\t"			/* square acc stage */
-        "shrq	$1, %%rcx \n\t"		/* base >>= 1 */
-        "mulq	%%rax \n\t"			/* acc = acc * acc*/
-        "divq	%3 \n\t"
-        "cmpq	$0, %%rcx \n\t"		/* exp == 0? */
-        "movq	%%rdx, %%rax \n\t"	/* mod m */
+        "0: \n\t"                   /* begin loop */
+        "test   $1, %%rcx \n\t"     /* exp & 0x1 */
+        "je 2f      \n\t"           /* bit not set, skip accumulation into n */
+        "movq   %%rax, %%rsi \n\t"  /* save acc */
+        "mulq   %%rdi \n\t"         /* n * acc mod m */
+        "divq   %3 \n\t"
+        "movq   %%rdx, %%rdi \n\t"  /* save n */
+        "movq   %%rsi, %%rax \n\t"  /* restore acc */
+        "2:         \n\t"           /* square acc stage */
+        "shrq   $1, %%rcx \n\t"     /* base >>= 1 */
+        "mulq   %%rax \n\t"         /* acc = acc * acc*/
+        "divq   %3 \n\t"
+        "cmpq   $0, %%rcx \n\t"     /* exp == 0? */
+        "movq   %%rdx, %%rax \n\t"  /* mod m */
         "jne 0b \n\t"
-        "1:			\n\t"			/* end loop */
-        "movq	%%rdi, %0 \n\t"
+        "1:         \n\t"           /* end loop */
+        "movq   %%rdi, %0 \n\t"
         : "=r"(result)
         : "a"(b), "c"(e), "r"(m)
-        : "rdx", "rdi", "rsi", "cc");				/* return result */
+        : "rdx", "rdi", "rsi", "cc");               /* return result */
 
     return result;
 }
@@ -422,8 +422,8 @@ void spModExp(uint64_t a, uint64_t b, uint64_t m, uint64_t* u)
     {
         if (bb & 0x1)
         {
-            spMultiply(aa, n, &prod[0], &prod[1]);		//n*a
-            spDivide(&t, &n, prod, m);					//n*a mod m
+            spMultiply(aa, n, &prod[0], &prod[1]);      //n*a
+            spDivide(&t, &n, prod, m);                  //n*a mod m
         }
         bb >>= 1;
         //compute successive squares of a
@@ -828,18 +828,74 @@ uint64_t spBinGCD_odd(uint64_t u, uint64_t v)
     return u;
 }
 
-// much faster version: assuming x is odd
-uint64_t bingcd64(uint64_t x, uint64_t y)
+// much faster version: assuming u is odd
+uint64_t bingcd64(uint64_t u, uint64_t v)
 {
-    if (y) {
-        y >>= _trail_zcnt64(y);
-        while (x != y)
-            if (x < y)
-                y -= x, y >>= _trail_zcnt64(y);
-            else
-                x -= y, x >>= _trail_zcnt64(x);
+#if 1
+    if (u == 0) {
+        return v;
     }
-    return x;
+    if (v != 0) {
+        int j = _trail_zcnt64(v);
+        v = (uint64_t)(v >> j);
+        while (1) {
+            uint64_t tmp = u;
+            uint64_t sub1 = (uint64_t)(v - tmp);
+            uint64_t sub2 = (uint64_t)(tmp - v);
+            if (tmp == v)
+                break;
+            u = (tmp >= v) ? v : tmp;
+            v = (tmp >= v) ? sub2 : sub1;
+            // For the line below, the standard way to write this algorithm
+            // would have been to use _trail_zcnt64(v)  (instead of
+            // _trail_zcnt64(sub1)).  However, as pointed out by
+            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
+            // number of low zero bits on u-v is the same as v-u, so counting or
+            // testing can begin on u-v without waiting for abs(u-v) to be
+            // determined."  Hence we are able to use sub1 for the argument.
+            // By removing the dependency on abs(u-v), the CPU can execute
+            // _trail_zcnt64() at the same time as abs(u-v).
+            j = _trail_zcnt64(sub1);
+            v = (uint64_t)(v >> j);
+        }
+    }
+    return u;
+#else
+// For reference, or if in the future we need to allow an even u,
+// this version allows u to be even or odd.
+    if (u == 0) {
+        return v;
+    }
+    if (v != 0) {
+        int i = _trail_zcnt64(u);
+        int j = _trail_zcnt64(v);
+        u = (uint64_t)(u >> i);
+        v = (uint64_t)(v >> j);
+        int k = (i < j) ? i : j;
+        while (1) {
+            uint64_t tmp = u;
+            uint64_t sub1 = (uint64_t)(v - tmp);
+            uint64_t sub2 = (uint64_t)(tmp - v);
+            if (tmp == v)
+                break;
+            u = (tmp >= v) ? v : tmp;
+            v = (tmp >= v) ? sub2 : sub1;
+            // For the line below, the standard way to write this algorithm
+            // would have been to use _trail_zcnt64(v)  (instead of
+            // _trail_zcnt64(sub1)).  However, as pointed out by
+            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
+            // number of low zero bits on u-v is the same as v-u, so counting or
+            // testing can begin on u-v without waiting for abs(u-v) to be
+            // determined."  Hence we are able to use sub1 for the argument.
+            // By removing the dependency on abs(u-v), the CPU can execute
+            // _trail_zcnt64() at the same time as abs(u-v).
+            j = _trail_zcnt64(sub1);
+            v = (uint64_t)(v >> j);
+        }
+        u = (uint64_t)(u << k);
+    }
+    return u;
+#endif
 }
 
 uint64_t gcd64(uint64_t x, uint64_t y)
@@ -975,13 +1031,13 @@ void gordon(int bits, mpz_t p, gmp_randstate_t gmp_randstate)
         1; j0 + 2; : : : (see Note 4.54). Denote this prime by p = p0 + 2jrs.
     5. Return(p).
 
-  4.54 Note (implementing Gordon’s algorithm)
+  4.54 Note (implementing Gordonï¿½s algorithm)
     (i) The primes s and t required in step 1 can be probable primes generated by Algorithm
     4.44. TheMiller-Rabin test (Algorithm 4.24) can be used to test each candidate
     for primality in steps 2 and 4, after ruling out candidates that are divisible by a small
     prime less than some boundB. See Note 4.45 for guidance on selecting B. Since the
     Miller-Rabin test is a probabilistic primality test, the output of this implementation
-    of Gordon’s algorithm is a probable prime.
+    of Gordonï¿½s algorithm is a probable prime.
     (ii) By carefully choosing the sizes of primes s, t and parameters i0, j0, one can control
     the exact bitlength of the resulting prime p. Note that the bitlengths of r and s will
     be about half that of p, while the bitlength of t will be slightly less than that of r.
@@ -1095,5 +1151,4 @@ void build_RSA(int bits, mpz_t in, gmp_randstate_t gmp_randstate)
     mpz_clear(q);
     return;
 }
-
 
