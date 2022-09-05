@@ -7,7 +7,7 @@ errors.
 Optionally, please be nice and tell me if you find this source to be
 useful. Again optionally, if you add to the functionality present here
 please consider making those additions public too, so that others may 
-benefit from your work. 
+benefit from your work.	
 
 Some parts of the code (and also this header), included in this 
 distribution have been reused from other sources. In particular I 
@@ -15,7 +15,7 @@ have benefitted greatly from the work of Jason Papadopoulos's msieve @
 www.boo.net/~jasonp, Scott Contini's mpqs implementation, and Tom St. 
 Denis Tom's Fast Math library.  Many thanks to their kind donation of 
 code to the public domain.
-                       --bbuhrow@gmail.com 11/24/09
+       				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
 #ifndef MONTY_H
@@ -33,13 +33,13 @@ typedef struct
     mpz_t r;
     mpz_t tmp;
 
-    mpz_t x;
-    mpz_t y;
-    mpz_t c; 
-    mpz_t q; 
-    mpz_t g; 
-    mpz_t ys; 
-    mpz_t t1;
+	mpz_t x;
+	mpz_t y;
+	mpz_t c; 
+	mpz_t q; 
+	mpz_t g; 
+	mpz_t ys; 
+	mpz_t t1;
 
 } monty_t;
 
@@ -55,18 +55,18 @@ void monty_redc(monty_t *mdata, mpz_t x);
 /********************* 128-bit Montgomery arith **********************/
 typedef struct
 {
-    uint64_t r[2];
-    uint64_t n[2];
-    uint64_t np[2];
-    uint64_t nhat[2];
-    uint64_t rhat[2];
-    uint64_t rmask[2];
-    uint64_t one[2];
-    uint64_t mtmp1[2];
-    uint64_t mtmp2[2];
-    uint64_t mtmp3[2];
-    uint64_t mtmp4[2];
-    uint64_t rho;
+	uint64_t r[2];
+	uint64_t n[2];
+	uint64_t np[2];
+	uint64_t nhat[2];
+	uint64_t rhat[2];
+	uint64_t rmask[2];
+	uint64_t one[2];
+	uint64_t mtmp1[2];
+	uint64_t mtmp2[2];
+	uint64_t mtmp3[2];
+	uint64_t mtmp4[2];
+	uint64_t rho;
 } monty128_t;
 
 
@@ -82,10 +82,13 @@ void submod128(uint64_t * u, uint64_t * v, uint64_t * w, uint64_t * n);
 
 #if (defined(GCC_ASM64X) || defined(__MINGW64__)) && !defined(ASM_ARITH_DEBUG)
 
+
+__inline uint64_t _umul128(uint64_t x, uint64_t y, uint64_t* hi);
+
 #if defined(USE_AVX512F) || defined(USE_BMI2)
 __inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
     __asm__(
-        "mulx %3, %0, %1    \n\t"
+        "mulx %3, %0, %1	\n\t"
         : "=&d"(x), "=&a"(y)
         : "0"(x), "1"(y)
     );
@@ -96,7 +99,7 @@ __inline uint64_t mulx64(uint64_t x, uint64_t y, uint64_t* hi) {
 #endif
 __inline uint64_t mul64(uint64_t x, uint64_t y, uint64_t* hi) {
     __asm__(
-        "mulq %3    \n\t"
+        "mulq %3	\n\t"
         : "=&a"(x), "=&d"(y)
         : "0"(x), "1"(y)
         : "cc"
@@ -135,7 +138,6 @@ __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
     return x;
 }
 
-
 __inline uint64_t u64div(uint64_t c, uint64_t n)
 {
 #if 1
@@ -160,8 +162,8 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     if (n & 0x8000000000000000)
     {
         __asm__(
-            "mulx %2, %%r10, %%r11  \n\t"
-            "movq %%r10, %%rax      \n\t"
+            "mulx %2, %%r10, %%r11	\n\t"
+            "movq %%r10, %%rax		\n\t"
             "xorq %%r8, %%r8 \n\t"
             "xorq %%r12, %%r12 \n\t"
             "mulq %3 \n\t"
@@ -179,8 +181,8 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     else
     {
         __asm__(
-            "mulx %2, %%r10, %%r11  \n\t"
-            "movq %3, %%rax     \n\t"
+            "mulx %2, %%r10, %%r11	\n\t"
+            "movq %3, %%rax		\n\t"
             "xorq %%r8, %%r8 \n\t"
             "mulq %%r10 \n\t"
             "mulq %4 \n\t"
@@ -202,8 +204,8 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     if (n & 0x8000000000000000)
     {
         __asm__(
-            "mulx %1, %%r10, %%r11  \n\t"
-            "movq %%r10, %%rax      \n\t"
+            "mulx %1, %%r10, %%r11	\n\t"
+            "movq %%r10, %%rax		\n\t"
             "xorq %%r8, %%r8 \n\t"
             "xorq %%r12, %%r12 \n\t"
             "mulq %2 \n\t"
@@ -221,8 +223,8 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     else
     {
         __asm__(
-            "mulx %1, %%r10, %%r11  \n\t"
-            "movq %2, %%rax     \n\t"
+            "mulx %1, %%r10, %%r11	\n\t"
+            "movq %2, %%rax		\n\t"
             "xorq %%r8, %%r8 \n\t"
             "mulq %%r10 \n\t"
             "mulq %3 \n\t"
@@ -242,8 +244,8 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
 __inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     __asm__(
-        "mulx %2, %%r10, %%r11  \n\t"
-        "movq %3, %%rax     \n\t"
+        "mulx %2, %%r10, %%r11	\n\t"
+        "movq %3, %%rax		\n\t"
         "xorq %%r8, %%r8 \n\t"
         "mulq %%r10 \n\t"
         "mulq %4 \n\t"
@@ -262,8 +264,8 @@ __inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 {
     __asm__(
-        "mulx %1, %%r10, %%r11  \n\t"
-        "movq %2, %%rax     \n\t"
+        "mulx %1, %%r10, %%r11	\n\t"
+        "movq %2, %%rax		\n\t"
         "xorq %%r8, %%r8 \n\t"
         "mulq %%r10 \n\t"
         "mulq %3 \n\t"
@@ -286,9 +288,9 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     if (n & 0x8000000000000000)
     {
         __asm__(
-            "mulq %2    \n\t"
-            "movq %%rax, %%r10      \n\t"
-            "movq %%rdx, %%r11      \n\t"
+            "mulq %2	\n\t"
+            "movq %%rax, %%r10		\n\t"
+            "movq %%rdx, %%r11		\n\t"
             "movq $0, %%r12 \n\t"
             "mulq %3 \n\t"
             "mulq %4 \n\t"
@@ -306,9 +308,9 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
     else
     {
         __asm__(
-            "mulq %2    \n\t"
-            "movq %%rax, %%r10      \n\t"
-            "movq %%rdx, %%r11      \n\t"
+            "mulq %2	\n\t"
+            "movq %%rax, %%r10		\n\t"
+            "movq %%rdx, %%r11		\n\t"
             "mulq %3 \n\t"
             "mulq %4 \n\t"
             "addq %%r10, %%rax \n\t"
@@ -328,9 +330,9 @@ __inline uint64_t mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 __inline uint64_t mulredc63(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
     __asm__(
-        "mulq %2    \n\t"
-        "movq %%rax, %%r10      \n\t"
-        "movq %%rdx, %%r11      \n\t"
+        "mulq %2	\n\t"
+        "movq %%rax, %%r10		\n\t"
+        "movq %%rdx, %%r11		\n\t"
         "mulq %3 \n\t"
         "mulq %4 \n\t"
         "addq %%r10, %%rax \n\t"
@@ -351,9 +353,9 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     if (n & 0x8000000000000000)
     {
         __asm__(
-            "mulq %2    \n\t"
-            "movq %%rax, %%r10      \n\t"
-            "movq %%rdx, %%r11      \n\t"
+            "mulq %2	\n\t"
+            "movq %%rax, %%r10		\n\t"
+            "movq %%rdx, %%r11		\n\t"
             "movq $0, %%r12 \n\t"
             "mulq %3 \n\t"
             "mulq %4 \n\t"
@@ -371,9 +373,9 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
     else
     {
         __asm__(
-            "mulq %2    \n\t"
-            "movq %%rax, %%r10      \n\t"
-            "movq %%rdx, %%r11      \n\t"
+            "mulq %2	\n\t"
+            "movq %%rax, %%r10		\n\t"
+            "movq %%rdx, %%r11		\n\t"
             "mulq %3 \n\t"
             "mulq %4 \n\t"
             "addq %%r10, %%rax \n\t"
@@ -393,9 +395,9 @@ __inline uint64_t sqrredc(uint64_t x, uint64_t n, uint64_t nhat)
 __inline uint64_t sqrredc63(uint64_t x, uint64_t n, uint64_t nhat)
 {
     __asm__(
-        "mulq %2    \n\t"
-        "movq %%rax, %%r10      \n\t"
-        "movq %%rdx, %%r11      \n\t"
+        "mulq %2	\n\t"
+        "movq %%rax, %%r10		\n\t"
+        "movq %%rdx, %%r11		\n\t"
         "mulq %3 \n\t"
         "mulq %4 \n\t"
         "addq %%r10, %%rax \n\t"
