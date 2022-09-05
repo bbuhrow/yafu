@@ -143,7 +143,7 @@ __inline uint64_t u64div(uint64_t c, uint64_t n)
 #if 1
     __asm__("divq %4"
         : "=a"(c), "=d"(n)
-        : "1"(c), "0ULL"(0), "r"(n));
+        : "1"(c), "0"(0ULL), "r"(n));
 #else
 // this should work if the above won't compile (e.g. on clang)
     uint64_t tmp = 0;
