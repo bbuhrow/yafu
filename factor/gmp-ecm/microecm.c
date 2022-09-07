@@ -204,7 +204,7 @@ MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint
 
 
 
-static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt P2,
+MICRO_ECM_FORCE_INLINE static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt P2,
     const uecm_pt Pin, uecm_pt *Pout)
 {
     // compute:
@@ -238,7 +238,7 @@ static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt 
     return;
 }
 
-static void uecm_udup(uint64_t s, uint64_t rho, uint64_t n, 
+MICRO_ECM_FORCE_INLINE static void uecm_udup(uint64_t s, uint64_t rho, uint64_t n,
     uint64_t insum, uint64_t indiff, uecm_pt *P)
 {
     uint64_t tt1 = uecm_sqrredc(indiff, n, rho);          // U=(x1 - z1)^2
