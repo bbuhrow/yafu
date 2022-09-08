@@ -17,6 +17,7 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "monty.h"
 #include "prime_sieve.h"
 #include "yafu_ecm.h"
+#include "microecm.h"
 
 /*------------------------------------------------------------------
 
@@ -760,7 +761,7 @@ void check_batch_relation(relation_batch_t *rb,
             }
 
             // large still on track, try to split it
-            uint64_t f64 = do_uecm(mpz_get_ui(_large));
+            uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), lcg_state); //do_uecm(mpz_get_ui(_large));
 
             // see if any factors found are acceptable
             if (f64 <= 1 || f64 > rb->lp_cutoff_r)
@@ -891,7 +892,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f1r, 2) <= 64)
     {
-        uint64_t f64 = do_uecm(mpz_get_ui(f1r));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f1r), lcg_state); //do_uecm(mpz_get_ui(f1r));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -915,7 +916,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f2r, 2) <= 64)
     {
-        uint64_t f64 = do_uecm(mpz_get_ui(f2r));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2r), lcg_state); //do_uecm(mpz_get_ui(f2r));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -940,7 +941,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f1a, 2) <= 64)
     {
-        uint64_t f64 = do_uecm(mpz_get_ui(f1a));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f1a), lcg_state); //do_uecm(mpz_get_ui(f1a));
         printf("should not be processing any algebraic side relation in QS!\n");
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;
@@ -960,7 +961,7 @@ void check_batch_relation(relation_batch_t *rb,
     }
     else if (mpz_sizeinbase(f2a, 2) <= 64)
     {
-        uint64_t f64 = do_uecm(mpz_get_ui(f2a));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(f2a), lcg_state); //do_uecm(mpz_get_ui(f2a));
         printf("should not be processing any algebraic side relation in QS!\n");
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
@@ -1059,7 +1060,7 @@ void check_batch_relation(relation_batch_t *rb,
         mpz_tdiv_q(_large, f1r, _small);
         lp_r[num_r++] = mpz_get_ui(_small);
 
-        uint64_t f64 = do_uecm(mpz_get_ui(_large));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), lcg_state); //do_uecm(mpz_get_ui(_large));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_r)
         {
@@ -1154,7 +1155,7 @@ void check_batch_relation(relation_batch_t *rb,
         mpz_tdiv_q(_large, f1a, _small);
         lp_a[num_a++] = mpz_get_ui(_small);
 
-        uint64_t f64 = do_uecm(mpz_get_ui(_large));
+        uint64_t f64 = getfactor_uecm(mpz_get_ui(_large), lcg_state); //do_uecm(mpz_get_ui(_large));
 
         if (f64 <= 1 || f64 > rb->lp_cutoff_a)
             return;

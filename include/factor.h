@@ -158,7 +158,6 @@ typedef struct
     int save_b1;
     int prefer_gmpecm;
     int prefer_gmpecm_stg2;
-    int prefer_ext_gmpecm;
     int prefer_avxecm_stg2;
 	char ecm_path[1024];
 	int use_external;
@@ -509,9 +508,9 @@ void savefile_rewind(savefile_t *s);
 
 
 /* ============================ interface to microecm ============================ */
-extern void init_uecm(uint64_t lcg);
-extern uint64_t do_uecm(uint64_t q);
-extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves, int verbose);
+//extern void init_uecm(uint64_t lcg);
+//extern uint64_t do_uecm(uint64_t q);
+//extern void microecm(uint64_t n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_t curves, int verbose);
 
 /* ============================ interface to tinyecm ============================ */
 extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
