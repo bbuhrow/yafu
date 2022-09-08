@@ -140,10 +140,17 @@ __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 
 __inline uint64_t u64div(uint64_t c, uint64_t n)
 {
+#if 1
     __asm__("divq %4"
         : "=a"(c), "=d"(n)
         : "1"(c), "0"(0ULL), "r"(n));
-
+#else
+// this should work if the above won't compile (e.g. on clang)
+    uint64_t tmp = 0;
+    __asm__("divq %4"
+        : "=a"(tmp), "=d"(n)
+        : "1"(c), "0"(tmp), "r"(n));
+#endif
     return n;
 }
 
@@ -490,12 +497,16 @@ __inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
 
 __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 {
+#if 0
     uint64_t r;
-    uint8_t c = _addcarry_u64(0, x, y, &r);
-    
-    if (c || (r < x))
-        r -= n;
-    return r;
+    uint64_t tmp = x - n;
+    uint8_t c = _addcarry_u64(0, tmp, y, &r);
+    return (c) ? r : x + y;
+#else
+    // FYI: The clause above often compiles with a branch in MSVC.
+    // The statement below often compiles without a branch (uses cmov) in MSVC.
+    return (x>=n-y) ? x-(n-y) : x+y;
+#endif
 }
 
 

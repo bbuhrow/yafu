@@ -12,9 +12,9 @@ benefit from your work.
 Some parts of the code (and also this header), included in this 
 distribution have been reused from other sources. In particular I 
 have benefitted greatly from the work of Jason Papadopoulos's msieve @ 
-www.boo.net/~jasonp, Scott Contini's mpqs implementation, and Tom St. 
-Denis Tom's Fast Math library.  Many thanks to their kind donation of 
-code to the public domain.
+www.boo.net/~jasonp, Scott Contini's mpqs implementation, Tom St. 
+Denis Tom's Fast Math library, and Jeff Hurchalla's Binary GCD.  Many
+thanks to their kind donation of code to the public domain.
        				   --bbuhrow@gmail.com 11/24/09
 ----------------------------------------------------------------------*/
 
@@ -828,18 +828,74 @@ uint64_t spBinGCD_odd(uint64_t u, uint64_t v)
     return u;
 }
 
-// much faster version: assuming x is odd
-uint64_t bingcd64(uint64_t x, uint64_t y)
+// much faster version: assuming u is odd
+uint64_t bingcd64(uint64_t u, uint64_t v)
 {
-    if (y) {
-        y >>= _trail_zcnt64(y);
-        while (x != y)
-            if (x < y)
-                y -= x, y >>= _trail_zcnt64(y);
-            else
-                x -= y, x >>= _trail_zcnt64(x);
+#if 1
+    if (u == 0) {
+        return v;
     }
-    return x;
+    if (v != 0) {
+        int j = _trail_zcnt64(v);
+        v = (uint64_t)(v >> j);
+        while (1) {
+            uint64_t tmp = u;
+            uint64_t sub1 = (uint64_t)(v - tmp);
+            uint64_t sub2 = (uint64_t)(tmp - v);
+            if (tmp == v)
+                break;
+            u = (tmp >= v) ? v : tmp;
+            v = (tmp >= v) ? sub2 : sub1;
+            // For the line below, the standard way to write this algorithm
+            // would have been to use _trail_zcnt64(v)  (instead of
+            // _trail_zcnt64(sub1)).  However, as pointed out by
+            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
+            // number of low zero bits on u-v is the same as v-u, so counting or
+            // testing can begin on u-v without waiting for abs(u-v) to be
+            // determined."  Hence we are able to use sub1 for the argument.
+            // By removing the dependency on abs(u-v), the CPU can execute
+            // _trail_zcnt64() at the same time as abs(u-v).
+            j = _trail_zcnt64(sub1);
+            v = (uint64_t)(v >> j);
+        }
+    }
+    return u;
+#else
+// For reference, or if in the future we need to allow an even u,
+// this version allows u to be even or odd.
+    if (u == 0) {
+        return v;
+    }
+    if (v != 0) {
+        int i = _trail_zcnt64(u);
+        int j = _trail_zcnt64(v);
+        u = (uint64_t)(u >> i);
+        v = (uint64_t)(v >> j);
+        int k = (i < j) ? i : j;
+        while (1) {
+            uint64_t tmp = u;
+            uint64_t sub1 = (uint64_t)(v - tmp);
+            uint64_t sub2 = (uint64_t)(tmp - v);
+            if (tmp == v)
+                break;
+            u = (tmp >= v) ? v : tmp;
+            v = (tmp >= v) ? sub2 : sub1;
+            // For the line below, the standard way to write this algorithm
+            // would have been to use _trail_zcnt64(v)  (instead of
+            // _trail_zcnt64(sub1)).  However, as pointed out by
+            // https://gmplib.org/manual/Binary-GCD, "in twos complement the
+            // number of low zero bits on u-v is the same as v-u, so counting or
+            // testing can begin on u-v without waiting for abs(u-v) to be
+            // determined."  Hence we are able to use sub1 for the argument.
+            // By removing the dependency on abs(u-v), the CPU can execute
+            // _trail_zcnt64() at the same time as abs(u-v).
+            j = _trail_zcnt64(sub1);
+            v = (uint64_t)(v >> j);
+        }
+        u = (uint64_t)(u << k);
+    }
+    return u;
+#endif
 }
 
 uint64_t gcd64(uint64_t x, uint64_t y)
