@@ -242,10 +242,10 @@ tinyecm_start:
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
-    goto tinyecm_marker;
-    goto spfermat_marker;
+    //goto tinyecm_marker;
+    //goto spfermat_marker;
     //goto tinyqs_marker;
-	//goto brent_marker;
+	goto brent_marker;
 	
 
 	
@@ -273,30 +273,24 @@ tinyecm_start:
 brent_marker:
 
     i = 0;
-	strcpy(filenames[i++], "pseudoprimes_32bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_34bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_36bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_38bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_40bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_42bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_44bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_46bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_41bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_48bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_50bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_52bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_54bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_56bit.dat");
-	strcpy(filenames[i++], "pseudoprimes_58bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_51bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_55bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_59bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_60bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_61bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_62bit.dat");
-    //strcpy(filenames[i++], "pseudoprimes_63bit.dat");
-    strcpy(filenames[i++], "pseudoprimes_64bit.dat");
-    num_files = 17;
+	strcpy(filenames[i++], "semiprimes_32bit.dat");
+	strcpy(filenames[i++], "semiprimes_34bit.dat");
+	strcpy(filenames[i++], "semiprimes_36bit.dat");
+	strcpy(filenames[i++], "semiprimes_38bit.dat");
+    strcpy(filenames[i++], "semiprimes_40bit.dat");
+	strcpy(filenames[i++], "semiprimes_42bit.dat");
+	strcpy(filenames[i++], "semiprimes_44bit.dat");
+	strcpy(filenames[i++], "semiprimes_46bit.dat");
+    strcpy(filenames[i++], "semiprimes_48bit.dat");
+	strcpy(filenames[i++], "semiprimes_50bit.dat");
+	strcpy(filenames[i++], "semiprimes_52bit.dat");
+	strcpy(filenames[i++], "semiprimes_54bit.dat");
+	strcpy(filenames[i++], "semiprimes_56bit.dat");
+	strcpy(filenames[i++], "semiprimes_58bit.dat");
+    //strcpy(filenames[i++], "semiprimes_60bit.dat");
+    //strcpy(filenames[i++], "semiprimes_62bit.dat");
+    //strcpy(filenames[i++], "semiprimes_64bit.dat");
+    num_files = i;
 
 	// lehman test
 	for (nf = 0; nf < 8; nf++)
@@ -352,9 +346,11 @@ brent_marker:
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
 	}
 
+	goto tinyecm_marker;
+
 	// spbrent test
     // msvc max of 62 bits
-    for (nf = 0; nf < 0; nf++)
+    for (nf = 0; nf < num_files; nf++)
     {
         in = fopen(filenames[nf], "r");
 
@@ -425,7 +421,7 @@ brent_marker:
         printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
     }
 
-	//goto tinyecm_marker;
+	goto tinyecm_marker;
 
 	// sequential squfof test
 	for (nf = 0; nf < 5; nf++)
@@ -863,11 +859,11 @@ spfermat_marker:
 
 tinyecm_marker:
 	i = 0;
-    //strcpy(filenames[i++], "semiprimes_32bit.dat");
-    //strcpy(filenames[i++], "semiprimes_34bit.dat");
-    //strcpy(filenames[i++], "semiprimes_36bit.dat");
-    //strcpy(filenames[i++], "semiprimes_38bit.dat");
-    //strcpy(filenames[i++], "semiprimes_40bit.dat");
+    strcpy(filenames[i++], "semiprimes_32bit.dat");
+    strcpy(filenames[i++], "semiprimes_34bit.dat");
+    strcpy(filenames[i++], "semiprimes_36bit.dat");
+    strcpy(filenames[i++], "semiprimes_38bit.dat");
+    strcpy(filenames[i++], "semiprimes_40bit.dat");
 	strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
 	strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
 	strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
@@ -904,51 +900,6 @@ tinyecm_marker:
 		int B1;
 		uint64_t known1, known2, known3;
 
-		switch (nf)
-		{
-		case 0:	
-		case 1:             // <= 40-bit
-		case 2:             
-            B1 = 70;        // tinyecm
-            //B1 = 47;        // uecm
-            curves = 16;
-            break;
-		case 3:             // 42-44 bit
-        case 4:  
-            B1 = 70;        // tinyecm
-            //B1 = 59;        // uecm
-            curves = 16;
-            break;
-        case 5:             // 46-50 bit
-        case 6:
-		case 7:				
-			B1 = 70;
-			curves = 24;
-			break;
-		case 8:				// 52 bit
-			B1 = 85;
-			curves = 24;
-			break;
-		case 9:				// 54-55 bit
-		case 10:				
-			B1 = 125;
-			curves = 24;
-			break;
-		case 11:				// 60 bit
-		case 12:
-			B1 = 165;
-			curves = 32;
-			break;
-		case 13:				// 63-64 bit
-			B1 = 205;
-			curves = 40;
-			break;
-		default:
-			B1 = 205;
-			curves = 24;
-			break;
-		}
-
 		in = fopen(filenames[nf], "r");
 		printf("testing file: %s\n", filenames[nf]);
 
@@ -960,7 +911,7 @@ tinyecm_marker:
 		correct = 0;
 		k = 0;
 
-		if (nf < 15)
+		if (nf < 17)
 		{
             totBits = 0;
             minBits = 999;
@@ -985,12 +936,13 @@ tinyecm_marker:
             fclose(in);
 
 			num = 100000;
+			double curves = 0;
 			for (i = 0; i < num; i++)
 			{
 				uint64_t outf;
-
-                //outf = do_uecm(comp[i]);
-				outf = getfactor_uecm(comp[i], &lcg);
+				int c;
+				outf = getfactor_uecm(comp[i], 0, &lcg);
+				curves += (double)c;
 
 				if ((outf == f1[i]) ||
 					(outf == f2[i]))
@@ -998,6 +950,7 @@ tinyecm_marker:
 					correct++;
 				}
 			}
+			curves /= (double)num;
 
 			gettimeofday(&gstop, NULL);
 			t_time = ytools_difftime(&gstart, &gstop);

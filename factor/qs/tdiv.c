@@ -303,7 +303,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             // that we are attempting to factor the potential dlp 
             // residue.
 			dconf->attempted_squfof++;
-            f64 = getfactor_uecm(q64, &dconf->lcg_state); // do_uecm(q64);
+            f64 = getfactor_uecm(q64, 0, &dconf->lcg_state); // do_uecm(q64);
 			
 			if ((f64 > 1) && (f64 != q64) && ((q64 % f64) == 0))
 			{
@@ -705,7 +705,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 					q64 = mpz_get_ui(dconf->gmptmp2);
 
                     // todo: target this better based on expected factor size.
-                    f64 = getfactor_uecm(q64, &dconf->lcg_state); //do_uecm(q64);
+                    f64 = getfactor_uecm(q64, 0, &dconf->lcg_state); //do_uecm(q64);
 					mpz_set_ui(dconf->gmptmp1, f64);
 
                     // check if the factor we found is obviously too big.
