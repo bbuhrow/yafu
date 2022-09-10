@@ -122,6 +122,89 @@ static const uint32_t map[61] = {
 
 static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
 
+#define NUMP 801
+static const int primes[NUMP] = {
+2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31,
+37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
+79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
+131, 137, 139, 149, 151, 157, 163, 167, 173, 179,
+181, 191, 193, 197, 199, 211, 223, 227, 229, 233,
+239, 241, 251, 257, 263, 269, 271, 277, 281, 283,
+293, 307, 311, 313, 317, 331, 337, 347, 349, 353,
+359, 367, 373, 379, 383, 389, 397, 401, 409, 419,
+421, 431, 433, 439, 443, 449, 457, 461, 463, 467,
+479, 487, 491, 499, 503, 509, 521, 523, 541, 547,
+557, 563, 569, 571, 577, 587, 593, 599, 601, 607,
+613, 617, 619, 631, 641, 643, 647, 653, 659, 661,
+673, 677, 683, 691, 701, 709, 719, 727, 733, 739,
+743, 751, 757, 761, 769, 773, 787, 797, 809, 811,
+821, 823, 827, 829, 839, 853, 857, 859, 863, 877,
+881, 883, 887, 907, 911, 919, 929, 937, 941, 947,
+953, 967, 971, 977, 983, 991, 997, 1009, 1013, 1019,
+1021, 1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087,
+1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153,
+1163, 1171, 1181, 1187, 1193, 1201, 1213, 1217, 1223, 1229,
+1231, 1237, 1249, 1259, 1277, 1279, 1283, 1289, 1291, 1297,
+1301, 1303, 1307, 1319, 1321, 1327, 1361, 1367, 1373, 1381,
+1399, 1409, 1423, 1427, 1429, 1433, 1439, 1447, 1451, 1453,
+1459, 1471, 1481, 1483, 1487, 1489, 1493, 1499, 1511, 1523,
+1531, 1543, 1549, 1553, 1559, 1567, 1571, 1579, 1583, 1597,
+1601, 1607, 1609, 1613, 1619, 1621, 1627, 1637, 1657, 1663,
+1667, 1669, 1693, 1697, 1699, 1709, 1721, 1723, 1733, 1741,
+1747, 1753, 1759, 1777, 1783, 1787, 1789, 1801, 1811, 1823,
+1831, 1847, 1861, 1867, 1871, 1873, 1877, 1879, 1889, 1901,
+1907, 1913, 1931, 1933, 1949, 1951, 1973, 1979, 1987, 1993,
+1997, 1999, 2003, 2011, 2017, 2027, 2029, 2039, 2053, 2063,
+2069, 2081, 2083, 2087, 2089, 2099, 2111, 2113, 2129, 2131,
+2137, 2141, 2143, 2153, 2161, 2179, 2203, 2207, 2213, 2221,
+2237, 2239, 2243, 2251, 2267, 2269, 2273, 2281, 2287, 2293,
+2297, 2309, 2311, 2333, 2339, 2341, 2347, 2351, 2357, 2371,
+2377, 2381, 2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437,
+2441, 2447, 2459, 2467, 2473, 2477, 2503, 2521, 2531, 2539,
+2543, 2549, 2551, 2557, 2579, 2591, 2593, 2609, 2617, 2621,
+2633, 2647, 2657, 2659, 2663, 2671, 2677, 2683, 2687, 2689,
+2693, 2699, 2707, 2711, 2713, 2719, 2729, 2731, 2741, 2749,
+2753, 2767, 2777, 2789, 2791, 2797, 2801, 2803, 2819, 2833,
+2837, 2843, 2851, 2857, 2861, 2879, 2887, 2897, 2903, 2909,
+2917, 2927, 2939, 2953, 2957, 2963, 2969, 2971, 2999, 3001,
+3011, 3019, 3023, 3037, 3041, 3049, 3061, 3067, 3079, 3083,
+3089, 3109, 3119, 3121, 3137, 3163, 3167, 3169, 3181, 3187,
+3191, 3203, 3209, 3217, 3221, 3229, 3251, 3253, 3257, 3259,
+3271, 3299, 3301, 3307, 3313, 3319, 3323, 3329, 3331, 3343,
+3347, 3359, 3361, 3371, 3373, 3389, 3391, 3407, 3413, 3433,
+3449, 3457, 3461, 3463, 3467, 3469, 3491, 3499, 3511, 3517,
+3527, 3529, 3533, 3539, 3541, 3547, 3557, 3559, 3571, 3581,
+3583, 3593, 3607, 3613, 3617, 3623, 3631, 3637, 3643, 3659,
+3671, 3673, 3677, 3691, 3697, 3701, 3709, 3719, 3727, 3733,
+3739, 3761, 3767, 3769, 3779, 3793, 3797, 3803, 3821, 3823,
+3833, 3847, 3851, 3853, 3863, 3877, 3881, 3889, 3907, 3911,
+3917, 3919, 3923, 3929, 3931, 3943, 3947, 3967, 3989, 4001,
+4003, 4007, 4013, 4019, 4021, 4027, 4049, 4051, 4057, 4073,
+4079, 4091, 4093, 4099, 4111, 4127, 4129, 4133, 4139, 4153,
+4157, 4159, 4177, 4201, 4211, 4217, 4219, 4229, 4231, 4241,
+4243, 4253, 4259, 4261, 4271, 4273, 4283, 4289, 4297, 4327,
+4337, 4339, 4349, 4357, 4363, 4373, 4391, 4397, 4409, 4421,
+4423, 4441, 4447, 4451, 4457, 4463, 4481, 4483, 4493, 4507,
+4513, 4517, 4519, 4523, 4547, 4549, 4561, 4567, 4583, 4591,
+4597, 4603, 4621, 4637, 4639, 4643, 4649, 4651, 4657, 4663,
+4673, 4679, 4691, 4703, 4721, 4723, 4729, 4733, 4751, 4759,
+4783, 4787, 4789, 4793, 4799, 4801, 4813, 4817, 4831, 4861,
+4871, 4877, 4889, 4903, 4909, 4919, 4931, 4933, 4937, 4943,
+4951, 4957, 4967, 4969, 4973, 4987, 4993, 4999, 5003, 5009,
+5011, 5021, 5023, 5039, 5051, 5059, 5077, 5081, 5087, 5099,
+5101, 5107, 5113, 5119, 5147, 5153, 5167, 5171, 5179, 5189,
+5197, 5209, 5227, 5231, 5233, 5237, 5261, 5273, 5279, 5281,
+5297, 5303, 5309, 5323, 5333, 5347, 5351, 5381, 5387, 5393,
+5399, 5407, 5413, 5417, 5419, 5431, 5437, 5441, 5443, 5449,
+5471, 5477, 5479, 5483, 5501, 5503, 5507, 5519, 5521, 5527,
+5531, 5557, 5563, 5569, 5573, 5581, 5591, 5623, 5639, 5641,
+5647, 5651, 5653, 5657, 5659, 5669, 5683, 5689, 5693, 5701,
+5711, 5717, 5737, 5741, 5743, 5749, 5779, 5783, 5791, 5801,
+5807, 5813, 5821, 5827, 5839, 5843, 5849, 5851, 5857, 5861,
+5867, 5869, 5879, 5881, 5897, 5903, 5923, 5927, 5939, 5953,
+5981, 5987, 6007, 6011, 6029, 6037, 6043, 6047, 6053, 6067,
+6073, 6079, 6089, 6091, 6101, 6113, 6121, 6131, 6133, 6143,
+};
 
 static uint32_t uecm_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc_lcg)
 {
@@ -778,7 +861,21 @@ static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uin
         q *= 2;
     }
 
-    if (stg1 == 47)
+    if (stg1 == 27)
+    {
+        uecm_uprac(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 7, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 11, 0.580178728295464130, s);
+        uecm_uprac(rho, n, P, 13, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 17, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 19, 0.618033988749894903, s);
+        uecm_uprac(rho, n, P, 23, 0.522786351415446049, s);
+    }
+    else if (stg1 == 47)
     {
         // jeff: improved perf slightly by using one more uprac for 3,
         // and removing uprac for 47.
@@ -891,16 +988,135 @@ static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uin
 }
 
 
+static void uecm_stage2_pair(int b1, int b2, 
+    int Astart, int D, int AD, int *p)
+{
+    // a very simple pairing procedure.  
+    int pid = 0;
+    int A;
+    int i;
+    int* pairs;
+    int steps[1000];
+    int s = 0;
+
+    pairs = (int*)malloc(D * sizeof(int));
+
+    printf("commencing pair for A0=%d, D=%d, b1=%d, b2=%d\n",
+        Astart, D, b1, b2);
+
+    while (p[pid] < b1) {
+        pid++;
+    }
+
+    printf("now at p=%d\n", p[pid]);
+
+    for (i = 0; i < D; i++)
+    {
+        pairs[i] = 0;
+    }
+
+    A = Astart;
+
+    while (p[pid] < b2)
+    {
+        int b = A - p[pid];
+
+        if ((p[pid] - A) > (D / 2))
+        {
+            A += D;
+            printf("new A = %d\n", A);
+            for (i = 0; i < D / 2; i++)
+            {
+                pairs[i] = 0;
+            }
+            steps[s++] = 0;
+            continue;
+        }
+
+        if (b > 0)
+        {
+            if (b > D / 2)
+            {
+                printf("unable to pair %d\n", primes[pid]);
+                pid++;
+                continue;
+            }
+
+            printf("new pair %d +/- %d (%d:%d)\n", A, b, A - b, A + b);
+            pairs[b] = 1;
+            steps[s++] = b;
+        }
+        else
+        {
+            if (pairs[abs(b)] == 0)
+            {
+                printf("leftover pair %d +/- %d (%d:%d)\n", A, b, A - b, A + b);
+                steps[s++] = abs(b);
+            }
+            
+        }
+
+        
+       
+
+        pid++;
+    }
+
+    free(pairs);
+
+    printf("steps[%d] = {", s);
+    for (i = 0; i < s; i++)
+    {
+        if (i % 16 == 0) printf("\n");
+        printf("%d,", steps[i]);
+    }
+    printf("\b};\n");
+    return;
+}
+
 
 // pre-paired sequences for various B1 and B2 = 25*B1
-static const int numb1_70 = 186;
-static const uint8_t b1_70[186] = {
+static const int numb1_27 = 76;
+static const uint8_t b1_27[76] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7 };
+
+static const int numb1_47 = 121;
+static const uint8_t b1_47[121] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,
+0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,
+37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,
+19,17,13,7,1,43,53,0,59 };
+
+static const int numb1_70_old = 186;
+static const uint8_t b1_70_old[186] = {
     53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,
     31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,
     0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,
     31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,
     29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
     17,13,11,1,23,31,37,49 };
+
+static const int numb1_70 = 175;
+static const uint8_t b1_70[175] = {
+31,41,43,47,49,0,59,47,43,41,37,31,29,19,13,7,
+1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
+29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,
+0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,
+41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,
+31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,
+29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,
+53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,
+53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,
+19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,
+7,17,29,0,53,47,43,41,17,13,11,1,23,31,37 };
 
 static const int numb1_85 = 225;
 static const uint8_t b1_85[225] = {
@@ -1129,18 +1345,131 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     pt1.X = Pa->X;
     pt1.Z = Pa->Z;
 
-    // [90]Q + [30]Q([60]Q) = [120]Q
-    uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-    Pd->X = Pa->X;
-    Pd->Z = Pa->Z;
+    
+    //initialize accumulator and Paprod
+    uint64_t acc = unityval;
+    uint64_t Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
 
-    // [120]Q + [30]Q([90]Q) = [150]Q
-    uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-
-    // adjustment of Pa and Pad for larger B1.
+    // adjustment of Pa and Pad for particular B1.
     // Currently we have Pa=150, Pd=120, Pad=30
-    if (stg1_max == 165)
+    if (stg1_max == 27)
     {
+        // first process these b's with A=90
+        int steps[16] = {59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+
+        for (i = 0; i < 16; i++)
+        {
+            b = steps[i];
+            // accumulate the cross product  (zimmerman syntax).
+            // page 342 in C&P
+            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
+            uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
+            tt1 = addmod(tt3, Pbprod[map[b]], n);
+            tt2 = submod(tt1, Paprod, n);
+
+            uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
+            if (tmp == 0)
+                break;
+            acc = tmp;
+        }
+
+        // then continue with Pa=150, Pd=120, Pad=30
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+
+    }
+    else if (stg1_max == 47)
+    {
+        // first process these b's with A=90
+        int steps[15] = {43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+
+        for (i = 0; i < 15; i++)
+        {
+            b = steps[i];
+            // accumulate the cross product  (zimmerman syntax).
+            // page 342 in C&P
+            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
+            uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
+            tt1 = addmod(tt3, Pbprod[map[b]], n);
+            tt2 = submod(tt1, Paprod, n);
+
+            uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
+            if (tmp == 0)
+                break;
+            acc = tmp;
+        }
+
+        // then continue with Pa=150, Pd=120, Pad=30
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+
+    }
+    else if (stg1_max == 70)
+    {
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // first process these b's with A=120
+        int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+
+        for (i = 0; i < 15; i++)
+        {
+            b = steps[i];
+            // accumulate the cross product  (zimmerman syntax).
+            // page 342 in C&P
+            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
+            uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
+            tt1 = addmod(tt3, Pbprod[map[b]], n);
+            tt2 = submod(tt1, Paprod, n);
+
+            uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
+            if (tmp == 0)
+                break;
+            acc = tmp;
+        }
+
+        // then continue with Pa=150, Pd=120, Pad=30
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+
+    }
+    else if (stg1_max < 165)
+    {
+        // then continue with Pa=150, Pd=120, Pad=30
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+    }
+    else if (stg1_max == 165)
+    {
+    // then continue with Pa=150, Pd=120, Pad=30
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+
         // need Pa = 180, Pad = 60
         // [150]Q + [30]Q([120]Q) = [180]Q
         uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
@@ -1151,6 +1480,15 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     }
     else if (stg1_max == 205)
     {
+    // then continue with Pa=150, Pd=120, Pad=30
+        // [90]Q + [30]Q([60]Q) = [120]Q
+        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
+        Pd->X = Pa->X;
+        Pd->Z = Pa->Z;
+
+        // [120]Q + [30]Q([90]Q) = [150]Q
+        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+
         // need Pa = 210, Pad = 90.
         // have pt1 = 90
 
@@ -1165,10 +1503,20 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     }
 
     //initialize accumulator and Paprod
-    uint64_t acc = unityval;
-    uint64_t Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
+    //uint64_t acc = unityval;
+    Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
 
-    if (stg1_max <= 70)
+    if (stg1_max == 27)
+    {
+        barray = b1_27;
+        numb = numb1_27;
+    }
+    else if (stg1_max == 47)
+    {
+        barray = b1_47;
+        numb = numb1_47;
+    }
+    else if (stg1_max <= 70)
     {
         barray = b1_70;
         numb = numb1_70;
@@ -1237,7 +1585,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
 }
 
 
-static void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
+static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
                      uint32_t curves, uint64_t *ploc_lcg)
 {
     //attempt to factor n with the elliptic curve method
@@ -1267,6 +1615,29 @@ static void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     uint64_t two_32 = uecm_sqrredc(two_16, n, rho);   // R*2^32        (mod n)
     uint64_t Rsqr = uecm_sqrredc(two_32, n, rho);     // R*2^64 ≡ R*R  (mod n)
 
+    uint64_t s;
+
+    int use_prebuilt_curves = 1;
+    uint32_t smallsigma[8] = { 11, 61, 56, 81, 83, 7, 30, 51 };
+    uint64_t Z[8] = { 85184, 14526784, 11239424, 34012224, 36594368, 21952, 1728000, 8489664 };
+    uint64_t X[8] = { 1560896ULL, 51312965696ULL, 30693697091ULL, 281784327616ULL,
+        326229015104ULL, 85184ULL, 716917375ULL, 17495004736ULL };
+    uint64_t u_v[8] = { 373248ULL, 41854210048ULL, 24566036643ULL, 242037319168ULL,
+        281268868608ULL, 4096ULL, 465484375ULL, 13686220288ULL };
+    uint64_t u3_v[8] = { 392, 11392, 9617, 19992, 20984, 160, 2805, 7992 };
+    uint64_t v[8] = { 44, 244, 224, 324, 332, 28, 120, 204 };
+    uint64_t d[8] = { 1098870784ULL, 200325818077184ULL, 110006210374144ULL, 1460769954361344ULL,
+        1732928528232448ULL, 38162432ULL, 1376481360000ULL, 57103695458304ULL };
+    uint64_t likely_gcd = 1;
+
+    int numlz = __builtin_clzll(n);
+
+    if (numlz >= 24)
+    {
+        use_prebuilt_curves = 0;
+        //printf("bitsize = %d, using random curves\n", 64 - numlz);
+    }
+
     *f = 1;
     for (curve = 0; (uint32_t)curve < curves; curve++)
     {
@@ -1275,8 +1646,30 @@ static void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
         stg1Doub = 0;
             printf("commencing curve %d of %u\n", curve, curves);
 #endif
-        uint64_t s;
-        uint64_t likely_gcd = uecm_build(&P, rho, n, ploc_lcg, &s, five, Rsqr);
+
+
+        if ((curve < 8) && (use_prebuilt_curves))
+        {
+            //ubuild(&P, rho, &work, goodsigma[curve]); // sigma);
+            //sigma = smallsigma[curve];
+            // lookup point
+            P.X = X[curve];
+            P.Z = Z[curve];
+            // some computation left to do for S parameter for this 'n'
+            uint64_t num;
+            spMulMod((n - u_v[curve]), u3_v[curve], n, &num);
+            uint64_t dem = d[curve];
+            dem = uecm_modinv_64(dem, n, &likely_gcd);
+            spMulMod(num, dem, n, &s);
+            s = u64div(s, n);      // put into Monty rep.
+            P.X = u64div(P.X, n);            // put into Monty rep.
+            P.Z = u64div(P.Z, n);            // put into Monty rep.
+        }
+        else
+        {
+            likely_gcd = uecm_build(&P, rho, n, ploc_lcg, &s, five, Rsqr);
+        }
+
         if (likely_gcd > 1)
         {
             // If the gcd gave us a factor, we're done.  If not, since gcd != 1
@@ -1287,7 +1680,8 @@ static void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
             *f = likely_gcd;
             break;
         }
-
+        
+        
 #ifdef MICRO_ECM_VERBOSE_PRINTF
         {
             printf("curve parameters:\n");
@@ -1343,42 +1737,67 @@ static void microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
         }
     }
 
-    return;
+    return curve;
 }
 
 
-static uint64_t uecm_dispatch(uint64_t n, int targetBits, uint64_t *ploc_lcg)
+
+static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *ploc_lcg)
 {
     int B1, curves;
     uint64_t f64 = 1;
 
-#ifdef MICRO_ECM_EXPECT_ARBITRARY_SIZE_FACTORS
-    // try fast attempts to find possible small factors.
+    //uecm_stage2_pair(70, 180, 120, 120, 30, primes);
+    //uecm_stage2_pair(180, 25 * 70, 150, 120, 30, primes);
+
+    //uecm_stage2_pair(47, 150, 90, 120, 30, primes);
+    //uecm_stage2_pair(150, 25 * 47, 150, 120, 30, primes);
+    
+    
+    //uecm_stage2_pair(30, 150, 90, 120, 30, primes);
+    //uecm_stage2_pair(150, 25 * 30, 150, 120, 30, primes);
+    //exit(0);
+
+    if (arbitrary)
+    {
+        // try fast attempts to find possible small factors.
+        {
+            B1 = 47;
+            curves = 1;
+            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            if (f64 > 1)
+                return f64;
+        }
+        {
+            B1 = 70;
+            curves = 1;
+            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            if (f64 > 1)
+                return f64;
+        }
+        if (targetBits > 58)
+        {
+            B1 = 125;
+            curves = 1;
+            microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+            if (f64 > 1)
+                return f64;
+        }
+    }
+
+    if (targetBits <= 40)
+    {
+        B1 = 27;
+        curves = 32;
+        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
+    }
+    else if (targetBits <= 44)
     {
         B1 = 47;
-        curves = 1;
+        curves = 32;
         microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
-        if (f64 > 1)
-            return f64;
     }
-    {
-        B1 = 70;
-        curves = 1;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
-        if (f64 > 1)
-            return f64;
-    }
-    if (targetBits > 58)
-    {
-        B1 = 125;
-        curves = 1;
-        microecm(n, &f64, B1, 25 * B1, curves, ploc_lcg);
-        if (f64 > 1)
-            return f64;
-    }
-#endif
-
-    if (targetBits <= 48)
+    else if (targetBits <= 48)
     {
         // multi-thread issue here...
         //f64 = LehmanFactor(n, 0, 0, 0);
@@ -1427,38 +1846,25 @@ static int uecm_get_bits(uint64_t n)
 }
 
 
-
-
-/* ----- PREFERRED API ------- */
-
 // getfactor_uecm() returns 1 if unable to find a factor of q64,
 // Otherwise it returns a factor of q64.
+// 
+// if the input is known to have no small factors, set is_arbitrary=0, 
+// otherwise, set is_arbitrary=1 and a few curves targetting small factors
+// will be run prior to the standard sequence of curves for the input size.
+//  
 // Prior to your first call of getfactor_uecm(), set *pran = 0  (or set it to
 // some other arbitrary value); after that, don't change *pran.
 // FYI: *pran is used within this file by a random number generator, and it
 // holds the current value of a pseudo random sequence.  Your first assigment
 // to *pran seeds the sequence, and after seeding it you don't want to
 // change *pran, since that would restart the sequence.
-uint64_t getfactor_uecm(uint64_t q64, uint64_t *pran)
+uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran)
 {
     if (q64 % 2 == 0)
         return 2;
     int bits = uecm_get_bits(q64);
-    return uecm_dispatch(q64, bits, pran);
+    return uecm_dispatch(q64, bits, is_arbitrary, pran);
 }
 
 
-
-/* ----- DEPRECATED API ------- */
-// This api is deprecated because it is not thread safe.
-static uint64_t LOC_LCG = 0;
-void init_uecm(uint64_t lcg)  // This is a deprecated function
-{
-    LOC_LCG = lcg;
-    return;
-}
-uint64_t do_uecm(uint64_t q64)
-{
-    return getfactor_uecm(q64, &LOC_LCG);
-}
-/* ----- END OF DEPRECATED API ------- */

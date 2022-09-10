@@ -65,6 +65,10 @@ extern "C" {
 // getfactor_uecm() returns 1 if it is unable to find a factor of q64, and
 // otherwise it returns a single factor of q64.
 //
+// if the input is known to have no small factors, set is_arbitrary=0, 
+// otherwise, set is_arbitrary=1 and a few curves targetting small factors
+// will be run prior to the standard sequence of curves for the input size.
+//  
 // Prior to your first call of getfactor_uecm(), set *pran = 0  (or set it to
 // some other arbitrary value); after that, don't change *pran.
 // FYI: *pran is used within microecm.c by a random number generator, and it
@@ -72,15 +76,7 @@ extern "C" {
 // to *pran seeds the sequence, and after seeding it you don't want to change
 // *pran, since that would restart the sequence.
 
-uint64_t getfactor_uecm(uint64_t q64, uint64_t *pran);
-
-
-
-/* ----- DEPRECATED API ------- */
-// These interface functions are deprecated because they are not thread safe.
-void init_uecm(uint64_t lcg);    // This is a deprecated function
-uint64_t do_uecm(uint64_t q64);  // This is a deprecated function
-/* ----- END OF DEPRECATED API ------- */
+uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran);
 
 #ifdef __cplusplus
 }
