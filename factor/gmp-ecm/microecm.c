@@ -56,6 +56,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #if defined(_MSC_VER)
 #  ifndef _WIN64
 #    error "64 bit compilation mode is required for MSVC"
@@ -66,13 +67,6 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 
-// If we define (or predefine) MICRO_ECM_EXPECT_ARBITRARY_SIZE_FACTORS, then
-// the micro-ECM factoring will first try a few curves that target mid-size to
-// semi-large factors for the given number to factor.  If no factor is found,
-// then factoring will proceed in the normal way - it will try curves that are
-// always targetted toward finding large factors.
-
-//#define MICRO_ECM_EXPECT_ARBITRARY_SIZE_FACTORS
 
 // Using the inline asm in this file can increase performance by ~20-25%
 // (surprisingly).  Hence these macros are defined by default.
@@ -111,14 +105,13 @@ typedef struct
 } uecm_pt;
 
 
-static const uint32_t map[61] = {
+static const uint32_t map[60] = {
     0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
     0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
     0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
     0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
     0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
-    0, 0, 0, 16, 0, 0, 0, 0, 0, 17,
-    18 };
+    0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
 
 static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
 
@@ -988,6 +981,8 @@ static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uin
 }
 
 
+
+#ifdef MICRO_ECM_VERBOSE_PRINTF
 static void uecm_stage2_pair(int b1, int b2, 
     int Astart, int D, int AD, int *p)
 {
@@ -1056,9 +1051,6 @@ static void uecm_stage2_pair(int b1, int b2,
             
         }
 
-        
-       
-
         pid++;
     }
 
@@ -1073,6 +1065,8 @@ static void uecm_stage2_pair(int b1, int b2,
     printf("\b};\n");
     return;
 }
+#endif
+
 
 
 // pre-paired sequences for various B1 and B2 = 25*B1
@@ -1094,7 +1088,7 @@ static const uint8_t b1_47[121] = {
 0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,
 37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,
 19,17,13,7,1,43,53,0,59 };
-
+/*
 static const int numb1_70_old = 186;
 static const uint8_t b1_70_old[186] = {
     53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,
@@ -1103,7 +1097,7 @@ static const uint8_t b1_70_old[186] = {
     31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,
     29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
     17,13,11,1,23,31,37,49 };
-
+*/
 static const int numb1_70 = 175;
 static const uint8_t b1_70[175] = {
 31,41,43,47,49,0,59,47,43,41,37,31,29,19,13,7,
@@ -1180,8 +1174,9 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     int i, j, k;
     uecm_pt Pa1;
     uecm_pt *Pa = &Pa1;
-    uecm_pt Pb[20];
-    uecm_pt *Pd;
+    uecm_pt Pb[18];
+    uecm_pt Pd1;
+    uecm_pt *Pd = &Pd1;
     const uint8_t *barray = 0;
     int numb;
 
@@ -1198,25 +1193,23 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     //stage 2 init
     //Q = P = result of stage 1
     //compute [d]Q for 0 < d <= MICRO_ECM_PARAM_D
-    Pd = &Pb[map[MICRO_ECM_PARAM_D]];
 
-    uint64_t Pbprod[20];
+    uint64_t Pbprod[18];
 
     // [1]Q
-    Pb[1].Z = P->Z;
-    Pb[1].X = P->X;
+    Pb[1] = *P;
     Pbprod[1] = uecm_mulredc(Pb[1].X, Pb[1].Z, n, rho);
 
     // [2]Q
-    Pb[2].Z = P->Z;
-    Pb[2].X = P->X;
     uint64_t diff1 = submod(P->X, P->Z, n);
     uint64_t sum1 = addmod(P->X, P->Z, n);
     uecm_udup(s, rho, n, sum1, diff1, &Pb[2]);
-    Pbprod[2] = uecm_mulredc(Pb[2].X, Pb[2].Z, n, rho);
+//    Pbprod[2] = uecm_mulredc(Pb[2].X, Pb[2].Z, n, rho);    // never used
 
     /*
-    MICRO_ECM_PARAM_D is small in tinyecm, so it is straightforward to just enumerate the needed
+    Let D = MICRO_ECM_PARAM_D.
+
+    D is small in tinyecm, so it is straightforward to just enumerate the needed
     points.  We can do it efficiently with two progressions mod 6.
     Pb[0] = scratch
     Pb[1] = [1]Q;
@@ -1228,37 +1221,37 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     Pb[7] = [19]Q;  prog2
     Pb[8] = [23]Q;  prog1
     Pb[9] = [29]Q;  prog1
-    Pb[10] = [30 == MICRO_ECM_PARAM_D]Q;
-    Pb[11] = [31]Q; prog2
-    Pb[12] = [37]Q; prog2
-    Pb[13] = [41]Q; prog1
-    Pb[14] = [43]Q; prog2
-    Pb[15] = [47]Q; prog1
-    Pb[16] = [49]Q; prog2
-    Pb[17] = [53]Q; prog1
-    Pb[18] = [59]Q; prog1
+    Pb[10] = [30 == D]Q;   // shouldn't this be [31]Q?
+    Pb[11] = [31]Q; prog2   // shouldn't this be [37]Q?
+    Pb[12] = [37]Q; prog2   // shouldn't this be [41]Q?
+    Pb[13] = [41]Q; prog1   // [43]Q?
+    Pb[14] = [43]Q; prog2   // [47]Q?
+    Pb[15] = [47]Q; prog1   // [49]Q?
+    Pb[16] = [49]Q; prog2   // [53]Q?
+    Pb[17] = [53]Q; prog1   // [59]Q?
+    // Pb[18] = [59]Q; prog1   // [60]Q?   note: we can remove this line I believe.  Pb[18] is never set, and never used.  Therefore I changed the definition of Pb above to have only 18 elements.
 
     two progressions with total of 17 adds to get 15 values of Pb.
     6 + 5(1) -> 11 + 6(5) -> 17 + 6(11) -> 23 + 6(17) -> 29 + 6(23) -> 35 + 6(29) -> 41 + 6(35) -> 47 + 6(41) -> 53 + 6(47) -> 59
-    6 + 1(5) -> 7 + 6(1) -> 13 + 6(7) -> 19 + 6(13) -> 25 + 6(19) -> 31 + 6(25) -> 37 + 6(31) -> 43 + 6(37) -> 49
+    6 + 1(5) -> 7  + 6(1) -> 13 + 6(7)  -> 19 + 6(13) -> 25 + 6(19) -> 31 + 6(25) -> 37 + 6(31) -> 43 + 6(37) -> 49
 
-    we also need [2 MICRO_ECM_PARAM_D]Q = [60]Q
+    we also need [2D]Q = [60]Q
     to get [60]Q we just need one more add:
     compute [60]Q from [31]Q + [29]Q([2]Q), all of which we
     have after the above progressions are computed.
 
-    we also need [A]Q = [((B1 + MICRO_ECM_PARAM_D) / (2 MICRO_ECM_PARAM_D) * 2 MICRO_ECM_PARAM_D]Q
+    we also need [A]Q = [((B1 + D) / (2D) * 2 D]Q
     which is equal to the following for various common B1:
     B1      [x]Q
     65      [120]Q
     85      [120]Q
-    125     [180]Q
-    165     [180]Q
+    125     [180]Q      note: according to the A[Q] formula above, wouldn't this be [120]Q?  ( I suspect maybe the formula is supposed to be [((B1 + D) / D) * D]Q )
+    165     [180]Q      note: same as above.
     205     [240]Q
 
-    and we need [x-MICRO_ECM_PARAM_D]Q as well, for the above [x]Q.
-    So far we are getting [x]Q and [x-2 MICRO_ECM_PARAM_D]Q each from prac(x,Q).
-    There is a better way using progressions of [2 MICRO_ECM_PARAM_D]Q
+    and we need [x-D]Q as well, for the above [x]Q.
+    So far we are getting [x]Q and [x-2D]Q each from prac(x,Q).
+    There is a better way using progressions of [2D]Q
     [120]Q = 2*[60]Q
     [180]Q = [120]Q + [60]Q([60]Q)
     [240]Q = 2*[120]Q
@@ -1268,7 +1261,7 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
 
     */
 
-    uecm_pt pt1, pt3;
+    uecm_pt pt5, pt6;
 
     // Calculate all Pb: the following is specialized for MICRO_ECM_PARAM_D=60
     // [2]Q + [1]Q([1]Q) = [3]Q
@@ -1277,15 +1270,14 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     // 2*[3]Q = [6]Q
     diff1 = submod(Pb[3].X, Pb[3].Z, n);
     sum1 = addmod(Pb[3].X, Pb[3].Z, n);
-    uecm_udup(s, rho, n, sum1, diff1, &pt3);   // pt3 = [6]Q
+    uecm_udup(s, rho, n, sum1, diff1, &pt6);   // pt6 = [6]Q
 
     // [3]Q + [2]Q([1]Q) = [5]Q
-    uecm_uadd(rho, n, Pb[3], Pb[2], Pb[1], &pt1);    // <-- pt1 = [5]Q
-    Pb[3].X = pt1.X;
-    Pb[3].Z = pt1.Z;
+    uecm_uadd(rho, n, Pb[3], Pb[2], Pb[1], &pt5);    // <-- pt5 = [5]Q
+    Pb[3] = pt5;
 
     // [6]Q + [5]Q([1]Q) = [11]Q
-    uecm_uadd(rho, n, pt3, pt1, Pb[1], &Pb[4]);    // <-- [11]Q
+    uecm_uadd(rho, n, pt6, pt5, Pb[1], &Pb[4]);    // <-- [11]Q
 
     i = 3;
     k = 4;
@@ -1293,21 +1285,21 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     while ((j + 12) < MICRO_ECM_PARAM_D)
     {
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
-        uecm_uadd(rho, n, pt3, Pb[k], Pb[i], &Pb[map[j + 12]]);
+        uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
         k = map[j + 12];
         j += 6;
     }
 
     // [6]Q + [1]Q([5]Q) = [7]Q
-    uecm_uadd(rho, n, pt3, Pb[1], pt1, &Pb[3]);    // <-- [7]Q
+    uecm_uadd(rho, n, pt6, Pb[1], pt5, &Pb[3]);    // <-- [7]Q
     i = 1;
     k = 3;
     j = 1;
     while ((j + 12) < MICRO_ECM_PARAM_D)
     {
         // [j+6]Q + [6]Q([j]Q) = [j+12]Q
-        uecm_uadd(rho, n, pt3, Pb[k], Pb[i], &Pb[map[j + 12]]);
+        uecm_uadd(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
         i = k;
         k = map[j + 12];
         j += 6;
@@ -1321,190 +1313,137 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     ptadds++;
 #endif
 
+    // temporary - make [4]Q
+    uecm_pt pt4;
+    diff1 = submod(Pb[2].X, Pb[2].Z, n);
+    sum1 = addmod(Pb[2].X, Pb[2].Z, n);
+    uecm_udup(s, rho, n, sum1, diff1, &pt4);   // pt4 = [4]Q
+
+
     // make all of the Pbprod's
-    for (i = 3; i < 19; i++)
+    for (i = 3; i < 18; i++)
     {
         Pbprod[i] = uecm_mulredc(Pb[i].X, Pb[i].Z, n, rho);
     }
 
 
     //initialize info needed for giant step
-    // temporary - make [4]Q
-    diff1 = submod(Pb[2].X, Pb[2].Z, n);
-    sum1 = addmod(Pb[2].X, Pb[2].Z, n);
-    uecm_udup(s, rho, n, sum1, diff1, &pt3);   // pt3 = [4]Q
-
     uecm_pt Pad;
 
     // Pd = [w]Q
     // [17]Q + [13]Q([4]Q) = [30]Q
-    uecm_uadd(rho, n, Pb[map[17]], Pb[map[13]], pt3, &Pad);    // <-- [30]Q
+    uecm_uadd(rho, n, Pb[map[17]], Pb[map[13]], pt4, &Pad);    // <-- [30]Q
 
     // [60]Q + [30]Q([30]Q) = [90]Q
     uecm_uadd(rho, n, *Pd, Pad, Pad, Pa);
-    pt1.X = Pa->X;
-    pt1.Z = Pa->Z;
 
-    
-    //initialize accumulator and Paprod
+    uecm_pt pt90 = *Pa;   // set pt90 = [90]Q
+    uecm_pt pt60 = *Pd;   // set pt60 = [60]Q
+
+    // [90]Q + [30]Q([60]Q) = [120]Q
+    uecm_uadd(rho, n, *Pa, Pad, *Pd, Pd);
+
+    // [120]Q + [30]Q([90]Q) = [150]Q
+    uecm_uadd(rho, n, *Pd, Pad, *Pa, Pa);
+
+
+    //initialize accumulator
     uint64_t acc = unityval;
-    uint64_t Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
 
     // adjustment of Pa and Pad for particular B1.
     // Currently we have Pa=150, Pd=120, Pad=30
-    if (stg1_max == 27)
-    {
-        // first process these b's with A=90
-        int steps[16] = {59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
 
-        for (i = 0; i < 16; i++)
+    if (stg1_max < 70)
+    {
+        // first process the appropriate b's with A=90
+        static const int steps27[16] = {59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+        static const int steps47[15] = {43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+        const int* steps;
+        int numsteps;
+        if (stg1_max == 27)
+        {
+            steps = steps27;
+            numsteps = 16;
+        }
+        else // if (stg1_max == 47)
+        {
+            steps = steps47;
+            numsteps = 15;
+        }
+
+        uint64_t pt90prod = uecm_mulredc(pt90.X, pt90.Z, n, rho);
+
+        for (i = 0; i < numsteps; i++)
         {
             b = steps[i];
             // accumulate the cross product  (zimmerman syntax).
             // page 342 in C&P
-            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
-            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
+            uint64_t tt1 = submod(pt90.X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(pt90.Z, Pb[map[b]].Z, n);
             uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
             tt1 = addmod(tt3, Pbprod[map[b]], n);
-            tt2 = submod(tt1, Paprod, n);
+            tt2 = submod(tt1, pt90prod, n);
 
             uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
             if (tmp == 0)
                 break;
             acc = tmp;
         }
-
-        // then continue with Pa=150, Pd=120, Pad=30
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
-
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-
-    }
-    else if (stg1_max == 47)
-    {
-        // first process these b's with A=90
-        int steps[15] = {43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
-
-        for (i = 0; i < 15; i++)
-        {
-            b = steps[i];
-            // accumulate the cross product  (zimmerman syntax).
-            // page 342 in C&P
-            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
-            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
-            uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
-            tt1 = addmod(tt3, Pbprod[map[b]], n);
-            tt2 = submod(tt1, Paprod, n);
-
-            uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
-            if (tmp == 0)
-                break;
-            acc = tmp;
-        }
-
-        // then continue with Pa=150, Pd=120, Pad=30
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
-
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-
     }
     else if (stg1_max == 70)
     {
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
-
         // first process these b's with A=120
-        int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+        static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+        // we currently have Pd=120
+
+        uint64_t pdprod = uecm_mulredc(Pd->X, Pd->Z, n, rho);
 
         for (i = 0; i < 15; i++)
         {
             b = steps[i];
             // accumulate the cross product  (zimmerman syntax).
             // page 342 in C&P
-            uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
-            uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
+            uint64_t tt1 = submod(Pd->X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(Pd->Z, Pb[map[b]].Z, n);
             uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
             tt1 = addmod(tt3, Pbprod[map[b]], n);
-            tt2 = submod(tt1, Paprod, n);
+            tt2 = submod(tt1, pdprod, n);
 
             uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
             if (tmp == 0)
                 break;
             acc = tmp;
         }
-
-        // then continue with Pa=150, Pd=120, Pad=30
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-
-    }
-    else if (stg1_max < 165)
-    {
-        // then continue with Pa=150, Pd=120, Pad=30
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
-
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
     }
     else if (stg1_max == 165)
     {
-    // then continue with Pa=150, Pd=120, Pad=30
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
-
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-
-        // need Pa = 180, Pad = 60
+        // Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+        // Need Pa = 180, Pd = 120, Pad = 60
+// either of these should be fine
+#if 0
         // [150]Q + [30]Q([120]Q) = [180]Q
         uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-
-        diff1 = submod(Pad.X, Pad.Z, n);
-        sum1 = addmod(Pad.X, Pad.Z, n);
-        uecm_udup(s, rho, n, sum1, diff1, &Pad);   // Pad = [60]Q
+#else
+        diff1 = submod(pt90.X, pt90.Z, n);
+        sum1 = addmod(pt90.X, pt90.Z, n);
+        uecm_udup(s, rho, n, sum1, diff1, Pa);
+#endif
+        Pad = pt60;
+        // have pa = 180, pd = 120, pad = 60
     }
     else if (stg1_max == 205)
     {
-    // then continue with Pa=150, Pd=120, Pad=30
-        // [90]Q + [30]Q([60]Q) = [120]Q
-        uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
-        Pd->X = Pa->X;
-        Pd->Z = Pa->Z;
+        // Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+        // need Pa = 210, Pd = 120, Pad = 90
 
-        // [120]Q + [30]Q([90]Q) = [150]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
+        // [120]Q + [90]Q([30]Q) = [210]Q
+        uecm_uadd(rho, n, *Pd, pt90, Pad, Pa);
 
-        // need Pa = 210, Pad = 90.
-        // have pt1 = 90
-
-        diff1 = submod(Pad.X, Pad.Z, n);
-        sum1 = addmod(Pad.X, Pad.Z, n);
-        uecm_udup(s, rho, n, sum1, diff1, &Pad);   // Pad = [60]Q
-
-        // [150]Q + [60]Q([90]Q) = [210]Q
-        uecm_uadd(rho, n, *Pa, Pad, pt1, Pa);
-        Pad.X = pt1.X;
-        Pad.Z = pt1.Z;
+        Pad = pt90;
     }
 
-    //initialize accumulator and Paprod
-    //uint64_t acc = unityval;
-    Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
+    //initialize Paprod
+    uint64_t Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
 
     if (stg1_max == 27)
     {
@@ -1547,15 +1486,13 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         if (barray[i] == 0)
         {
             //giant step - use the addition formula for ECM
-            pt1.X = Pa->X;
-            pt1.Z = Pa->Z;
+            uecm_pt point = *Pa;
 
             //Pa + Pd
             uecm_uadd(rho, n, *Pa, *Pd, Pad, Pa);
 
             //Pad holds the previous Pa
-            Pad.X = pt1.X;
-            Pad.Z = pt1.Z;
+            Pad = point;
 
             //and Paprod
             Paprod = uecm_mulredc(Pa->X, Pa->Z, n, rho);
@@ -1622,21 +1559,16 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     uint64_t Z[8] = { 85184, 14526784, 11239424, 34012224, 36594368, 21952, 1728000, 8489664 };
     uint64_t X[8] = { 1560896ULL, 51312965696ULL, 30693697091ULL, 281784327616ULL,
         326229015104ULL, 85184ULL, 716917375ULL, 17495004736ULL };
-    uint64_t u_v[8] = { 373248ULL, 41854210048ULL, 24566036643ULL, 242037319168ULL,
-        281268868608ULL, 4096ULL, 465484375ULL, 13686220288ULL };
-    uint64_t u3_v[8] = { 392, 11392, 9617, 19992, 20984, 160, 2805, 7992 };
-    uint64_t v[8] = { 44, 244, 224, 324, 332, 28, 120, 204 };
+//    uint64_t u_v[8] = { 373248ULL, 41854210048ULL, 24566036643ULL, 242037319168ULL,
+//        281268868608ULL, 4096ULL, 465484375ULL, 13686220288ULL };
+//    uint64_t u3_v[8] = { 392, 11392, 9617, 19992, 20984, 160, 2805, 7992 };
+    // the negt1 array = u_v[i] * u3_v[i].
+    uint64_t negt1[8] = { 146313216ULL, 476803160866816ULL, 236251574395731ULL, 4838810084806656ULL,
+                          5902145938870272ULL, 655360ULL, 1305683671875ULL, 109380272541696ULL };
     uint64_t d[8] = { 1098870784ULL, 200325818077184ULL, 110006210374144ULL, 1460769954361344ULL,
         1732928528232448ULL, 38162432ULL, 1376481360000ULL, 57103695458304ULL };
+
     uint64_t likely_gcd = 1;
-
-    int numlz = __builtin_clzll(n);
-
-    if (numlz >= 24)
-    {
-        use_prebuilt_curves = 0;
-        //printf("bitsize = %d, using random curves\n", 64 - numlz);
-    }
 
     *f = 1;
     for (curve = 0; (uint32_t)curve < curves; curve++)
@@ -1656,14 +1588,28 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
             P.X = X[curve];
             P.Z = Z[curve];
             // some computation left to do for S parameter for this 'n'
-            uint64_t num;
-            spMulMod((n - u_v[curve]), u3_v[curve], n, &num);
+
+            uint64_t num, uvc, u3vc;
+
             uint64_t dem = d[curve];
+            // jeff note:  uecm_modinv_64(dem, n) appears to require dem < n,
+            // so I now take the remainder to achieve dem < n.
+
+            // This is a faster way to compute dem = dem % n, even if the CPU
+            // has extremely fast division (as present in many new CPUs).
+            dem = uecm_mulredc(dem, unityval, n, rho);
+
+            num = uecm_mulredc(negt1[curve], Rsqr, n, rho);     // to Monty rep.
+               // The mulredc postcondition guarantees  num < n.
+            num = n - num;
+
             dem = uecm_modinv_64(dem, n, &likely_gcd);
-            spMulMod(num, dem, n, &s);
-            s = u64div(s, n);      // put into Monty rep.
-            P.X = u64div(P.X, n);            // put into Monty rep.
-            P.Z = u64div(P.Z, n);            // put into Monty rep.
+
+            dem = uecm_mulredc(dem, Rsqr, n, rho);              // to Monty rep.
+            s = uecm_mulredc(num, dem, n, rho);
+
+            P.X = uecm_mulredc(P.X, Rsqr, n, rho);              // to Monty rep.
+            P.Z = uecm_mulredc(P.Z, Rsqr, n, rho);              // to Monty rep.
         }
         else
         {
@@ -1746,18 +1692,17 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
 {
     int B1, curves;
     uint64_t f64 = 1;
-
+#ifdef MICRO_ECM_VERBOSE_PRINTF
     //uecm_stage2_pair(70, 180, 120, 120, 30, primes);
     //uecm_stage2_pair(180, 25 * 70, 150, 120, 30, primes);
 
     //uecm_stage2_pair(47, 150, 90, 120, 30, primes);
     //uecm_stage2_pair(150, 25 * 47, 150, 120, 30, primes);
     
-    
     //uecm_stage2_pair(30, 150, 90, 120, 30, primes);
     //uecm_stage2_pair(150, 25 * 30, 150, 120, 30, primes);
     //exit(0);
-
+#endif
     if (arbitrary)
     {
         // try fast attempts to find possible small factors.
@@ -1866,5 +1811,4 @@ uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran)
     int bits = uecm_get_bits(q64);
     return uecm_dispatch(q64, bits, is_arbitrary, pran);
 }
-
 
