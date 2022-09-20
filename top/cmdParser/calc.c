@@ -422,6 +422,7 @@ void calc_finalize()
         mpz_clear(operands[i]);
     }
 
+    gmp_randclear(gmp_randstate);
     sFree(&gstr1);
     sFree(&gstr2);
     sFree(&gstr3);

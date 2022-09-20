@@ -92,11 +92,13 @@ void init_factobj(fact_obj_t* fobj)
     fobj->ecm_obj.use_external = 0;
 #ifdef USE_AVX512F
     fobj->ecm_obj.prefer_gmpecm = 0;
-    fobj->ecm_obj.ecm_ext_xover = 40000000;
+    fobj->ecm_obj.ecm_ext_xover = 300000000;
 #else
     fobj->ecm_obj.prefer_gmpecm = 1;
     fobj->ecm_obj.ecm_ext_xover = 48000;
 #endif
+    fobj->ecm_obj.prefer_gmpecm_stg2 = 0;
+    fobj->ecm_obj.prefer_avxecm_stg2 = 0;
 
     // initialize stuff for squfof
     fobj->squfof_obj.num_factors = 0;
@@ -673,6 +675,7 @@ void clear_factor_list(yfactor_list_t * flist)
         flist->factors[i].count = 0;
         mpz_clear(flist->factors[i].factor);
     }
+    free(flist->factors);
     flist->num_factors = 0;
 
 	return;

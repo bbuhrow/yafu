@@ -2062,3 +2062,126 @@ void tinyecm_test(int sizeb, int num, int type)
 	return;
 }
 
+
+int tecm_dispatch(mpz_t n, mpz_t f, int targetBits, int arbitrary, uint64_t* ploc_lcg)
+{
+	int B1, curves;
+
+	//uecm_stage2_pair(70, 180, 120, 120, 30, primes);
+	//uecm_stage2_pair(180, 25 * 70, 150, 120, 30, primes);
+
+	//uecm_stage2_pair(47, 150, 90, 120, 30, primes);
+	//uecm_stage2_pair(150, 25 * 47, 150, 120, 30, primes);
+
+
+	//uecm_stage2_pair(30, 150, 90, 120, 30, primes);
+	//uecm_stage2_pair(150, 25 * 30, 150, 120, 30, primes);
+	//exit(0);
+
+	if (arbitrary)
+	{
+		// try fast attempts to find possible small factors.
+		//{
+		//	B1 = 47;
+		//	curves = 1;
+		//	tinyecm(n, f, B1, B1 * 25, curves, ploc_lcg, 0);
+		//	if (mpz_get_ui(f) > 1)
+		//		return 1;
+		//}
+		{
+			B1 = 70;
+			curves = 1;
+			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+			if (mpz_get_ui(f) > 1)
+				return 1;
+		}
+		if (targetBits > 58)
+		{
+			B1 = 125;
+			curves = 1;
+			tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+			if (mpz_get_ui(f) > 1)
+				return 1;
+		}
+	}
+
+	//if (targetBits <= 40)
+	//{
+	//	B1 = 27;
+	//	curves = 32;
+	//	tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	//}
+	//else if (targetBits <= 44)
+	//{
+	//	B1 = 47;
+	//	curves = 32;
+	//	tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	//}
+	if (targetBits <= 48)
+	{
+		B1 = 70;
+		curves = 32;
+		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 52)
+	{
+		B1 = 85;
+		curves = 32;
+		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 58)
+	{
+		B1 = 125;
+		curves = 32;
+		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 62)
+	{
+		B1 = 165;
+		curves = 42;
+		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	}
+	else if (targetBits <= 64)
+	{
+		B1 = 205;
+		curves = 42;
+		tinyecm(n, f, B1, 25 * B1, curves, ploc_lcg, 0);
+	}
+
+	if (mpz_get_ui(f) > 1)
+		return 1;
+	else
+		return 0;
+}
+
+
+static int tecm_get_bits(mpz_t n)
+{
+	return mpz_sizeinbase(n, 2);
+}
+
+// getfactor_tecm() returns 0 if unable to find a factor of n,
+// Otherwise it returns 1 and a factor of n in argument f.
+// 
+// if the input is known to have no small factors, set is_arbitrary=0, 
+// otherwise, set is_arbitrary=1 and a few curves targetting small factors
+// will be run prior to the standard sequence of curves for the input size.
+//  
+// Prior to your first call of getfactor_tecm(), set *pran = 0  (or set it to
+// some other arbitrary value); after that, don't change *pran.
+// FYI: *pran is used within this file by a random number generator, and it
+// holds the current value of a pseudo random sequence.  Your first assigment
+// to *pran seeds the sequence, and after seeding it you don't want to
+// change *pran, since that would restart the sequence.
+int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran)
+{
+	if (mpz_even_p(n))
+	{
+		mpz_set_ui(f, 2);
+		return 1;
+	}
+
+	int bits = tecm_get_bits(n);
+	return tecm_dispatch(n, f, bits, is_arbitrary, pran);
+}
+

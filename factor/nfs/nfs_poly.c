@@ -176,10 +176,23 @@ int snfs_choose_poly(fact_obj_t* fobj, nfs_job_t* job)
 
 	if (npoly == 0)
 	{
-		printf("nfs: no snfs polynomial with small coefficients found\n");
 		job->snfs = NULL;
 		snfs_clear(poly);
 		free(poly);
+
+		if (mpz_cmp_ui(fobj->nfs_obj.gmp_n, 1) == 0)
+		{
+			if (fobj->VFLAG >= 0)
+			{
+				printf("nfs: finishing with prp primitive poly\n");
+			}
+			return 2;
+		}
+		else
+		{
+			printf("nfs: no snfs polynomial with small coefficients found\n");
+		}
+		
 		return 1;
 	}
     else if (npoly == 1)

@@ -952,6 +952,7 @@ done:
 	mpz_clear(a);
 	mpz_clear(b);
 	mpz_clear(r);
+	mpz_clear(n);
 	return;
 }
 
@@ -1437,31 +1438,91 @@ snfs_t* gen_brent_poly(fact_obj_t *fobj, snfs_t *poly, int* npolys)
 	if ((poly->form_type != SNFS_DIRECT) && (poly->coeff1 == 1) && (abs(poly->coeff2) == 1))
 		find_primitive_factor(poly, fobj->primes, fobj->num_p, fobj->VFLAG);
 
-    if (fobj->LOGFLAG)
+
+    if (mpz_cmp(poly->primitive, poly->n) == 0)
     {
-        if (mpz_cmp(poly->primitive, poly->n) == 0)
-        {
-            FILE* f = fopen(fobj->flogname, "a");
-            if (f != NULL)
-            {
-                logprint(f, "nfs: commencing snfs on c%d primitive factor: ",
-                    gmp_base10(poly->primitive));
-                gmp_fprintf(f, "%Zd\n", poly->primitive);
-                fclose(f);
-            }
-        }
-        else
-        {
-            FILE* f = fopen(fobj->flogname, "a");
-            if (f != NULL)
-            {
-                logprint(f, "nfs: commencing snfs on c%d: ",
-                    gmp_base10(poly->n));
-                gmp_fprintf(f, "%Zd\n", poly->n);
-                fclose(f);
-            }
-        }
+		// it's possible for this primitive factor to be prime, in which case we are done.
+		if (is_mpz_prp(poly->primitive, 1))
+		{
+
+			if (fobj->LOGFLAG)
+			{
+				FILE* f = fopen(fobj->flogname, "a");
+
+				if (f != NULL)
+				{
+					logprint(f, "nfs: snfs primitive factor is a probable prime\nnfs: ");
+					gmp_fprintf(f, "%Zd\n", poly->primitive);
+					fclose(f);
+				}
+			}
+
+			if (fobj->VFLAG > 0)
+			{
+				printf("nfs: snfs primitive factor is a probable prime\nnfs: ");
+				gmp_printf("%Zd\n", poly->primitive);
+			}
+
+			char c[4];
+
+			add_to_factor_list(fobj->factors, poly->primitive, fobj->VFLAG, fobj->NUM_WITNESSES);
+			strncpy(c, "prp", 4);
+
+			if (fobj->LOGFLAG)
+			{
+				FILE *logfile = fopen(fobj->flogname, "a");
+				if (logfile == NULL)
+				{
+					printf("fopen error: %s\n", strerror(errno));
+					printf("could not open yafu logfile for appending\n");
+				}
+				else
+				{
+					char* s = mpz_get_str(NULL, 10, poly->primitive);
+					logprint(logfile, "%s%d = %s\n", c,
+						gmp_base10(poly->primitive), s);
+					fclose(logfile);
+					free(s);
+				}
+			}
+
+			mpz_set_ui(fobj->nfs_obj.gmp_n, 1);
+			*npolys = 0;
+			return NULL;
+
+		}
+		else
+		{
+			if (fobj->LOGFLAG)
+			{
+				FILE* f = fopen(fobj->flogname, "a");
+
+				if (f != NULL)
+				{
+					logprint(f, "nfs: commencing snfs on c%d primitive factor: ",
+						gmp_base10(poly->primitive));
+					gmp_fprintf(f, "%Zd\n", poly->primitive);
+					fclose(f);
+				}
+			}
+		}
     }
+    else
+    {
+		if (fobj->LOGFLAG)
+		{
+			FILE* f = fopen(fobj->flogname, "a");
+
+			if (f != NULL)
+			{
+				logprint(f, "nfs: commencing snfs on c%d: ",
+					gmp_base10(poly->n));
+				gmp_fprintf(f, "%Zd\n", poly->n);
+				fclose(f);
+			}
+		}
+    }
+
 
     if (poly->form_type == SNFS_DIRECT)
     {

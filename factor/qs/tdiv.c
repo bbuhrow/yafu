@@ -168,7 +168,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
 		if ((q64 > sconf->max_fb2) && (q64 < sconf->large_prime_max2))
 		{
-
+            // processing DLP's only with the batch GCD is slower...
             if ((sconf->use_dlp == 2) && (dconf->do_batch) && 0)
             {
                 int32_t soffset = offset;

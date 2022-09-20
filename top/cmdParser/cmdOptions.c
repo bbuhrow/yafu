@@ -73,8 +73,8 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
     "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
     "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
-    "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_ext_gmpecm",
-    "prefer_avxecm_stg2"};
+    "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2"
+    };
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -179,7 +179,6 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : use cgbn with gpu-ecm (external ecm binary enabled with this option must exist)",
     "                  : use gpu-ecm (external ecm binary enabled with this option must exist)",
     "(Integer < 32-bit): gpu device number",
-    "                  : once over the ext_ecm crossover use gmp-ecm external binary",
     "                  : use AVX-ECM for stage 2"
 };
 
@@ -208,8 +207,7 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,0,0,
     0,1,0,1,1,
     1,0,0,1,1,  // resume, json-pretty, new cado options
-    1,0,0,1,0,  // gpucurves, cbgn, use gpu, gpu dev, prefer ext gcm
-    0           // prefer avxecm stg2
+    1,0,0,1,0   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
 };
 
 // command line option aliases, specified by '--'
@@ -235,8 +233,8 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", "",
-    ""};
+    "", "", "", "", ""
+};
 
 
 
@@ -947,6 +945,7 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "prefer_gmpecm_stg2"
         options->prefer_gmpecm_stg2 = 1;
+        options->prefer_avxecm_stg2 = 0;
     }
     else if (strcmp(opt, OptionArray[88]) == 0)
     {
@@ -1015,6 +1014,12 @@ void applyOpt(char* opt, char* arg, options_t* options)
     {
         // argument "use_gpudev"
         options->use_gpudev = atoi(arg);
+    }
+    else if (strcmp(opt, OptionArray[99]) == 0)
+    {
+        // argument "prefer_avxecm_stg2"
+        options->prefer_avxecm_stg2 = 1;
+        options->prefer_gmpecm_stg2 = 0;
     }
     else
     {
@@ -1186,6 +1191,7 @@ options_t* initOpt(void)
     options->saveB1 = 0;
     options->ext_ecm_xover = 48000;
 #endif
+    options->prefer_avxecm_stg2 = 0;
     options->B1pm1 = 100000;
     options->B1pp1 = 20000;
     options->B1ecm = 11000;
@@ -1201,8 +1207,6 @@ options_t* initOpt(void)
     // ========================================================================
     return options;
 }
-
-
 
 
 // ========================================================================
@@ -1440,7 +1444,8 @@ int readINI(const char* filename, options_t* options)
         return 0;
     }
 
-    str = (char*)malloc(1024 * sizeof(char));
+    str = (char*)calloc(1024, sizeof(char));
+    strcpy(str, "");
     while (fgets(str, 1024, doc) != NULL)
     {
         //if first character is a % sign, skip this line.
@@ -1452,16 +1457,17 @@ int readINI(const char* filename, options_t* options)
             continue;
 
         //if last character of line is newline, remove it
-        do
+        len = strlen(str); 
+        while (len > 0)
         {
-            len = strlen(str);
             if (str[len - 1] == 10)
                 str[len - 1] = '\0';
             else if (str[len - 1] == 13)
                 str[len - 1] = '\0';
             else
                 break;
-        } while (len > 0);
+            len = strlen(str);
+        }
 
         //if line is now blank, skip it.
         if (strlen(str) == 0)

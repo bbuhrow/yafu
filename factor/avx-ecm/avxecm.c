@@ -829,6 +829,9 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	d = c - r;
 	e = 2 * r - c;
 
+    //printf("c = %" PRIu64 ", d = %" PRIu64 " e = %" PRIu64 " r = %" PRIu64 "\n",
+    //    c, d, e, r);
+
 	// mpres_set(xB, xA, n);
 	// mpres_set(zB, zA, n); /* B=A */
 	// mpres_set(xC, xA, n);
@@ -1116,6 +1119,7 @@ void vec_prac(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	if (d != 1)
 	{
 		printf("problem: d != 1\n");
+        exit(1);
 	}
 
 	return;
@@ -4181,7 +4185,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     {
         printf("commencing pair at A=%lu\n"
             "w = %u, R = %u, L = %u, U = %d, umax = %u, amin = %u\n",
-            2 * (uint64_t)amin * (uint64_t)w, w, work->R - 3, L, U, umax, amin);
+            2 * (uint64_t)amin * (uint64_t)w, w, R, L, U, umax, amin);
     }
 
     while (primes[pid] < B1) { pid++; }
@@ -4279,7 +4283,7 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
         else
             mq = 2 * w - q;
 
-        // printf("q, mq: %d, %d\n", q, mq);
+        //printf("q, mq: %d, %d\n", q, mq);
 
         do
         {
@@ -4437,19 +4441,19 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
     if (printpairmap)
     {
         printf("%u pairing steps generated\n", mapid);
-        //amin = (B1 + w) / (2 * w);
-        //printf("amin is now %lu (A = %lu)\n", amin, 2 * amin * w);
-        //for (i = 0; i < mapid; i++)
-        //{
-        //    printf("pair: %uw+/-%u => %lu:%lu\n", pairmap_v[i], pairmap_u[i],
-        //        (amin + pairmap_v[i]) * w - pairmap_u[i],
-        //        (amin + pairmap_v[i]) * w + pairmap_u[i]);
-        //    if (pairmap_u[i] == 0)
-        //    {
-        //        amin = amin + L - U;
-        //        printf("amin is now %u (A = %u)\n", amin, 2 * amin * w);
-        //    }
-        //}
+        amin = (B1 + w) / (2 * w);
+        printf("amin is now %lu (A = %lu)\n", amin, 2 * amin * w);
+        for (i = 0; i < mapid; i++)
+        {
+            printf("pair: %uw+/-%u => %lu:%lu\n", pairmap_v[i]+amin, pairmap_u[i],
+                (pairmap_v[i]+amin) * w - pairmap_u[i],
+                (pairmap_v[i]+amin) * w + pairmap_u[i]);
+            if (pairmap_u[i] == 0)
+            {
+                amin = amin + L - U;
+                printf("amin is now %u (A = %u)\n", amin, 2 * amin * w);
+            }
+        }
 
         printf("pairmap_v:\n{");
         for (i = 0; i < mapid; i++)
@@ -4490,7 +4494,11 @@ uint32_t pair(uint32_t* pairmap_v, uint32_t* pairmap_u,
             pairs, nump, (double)pairs / (double)nump);
     }
 
-    //exit(0);
+    if (printpairmap)
+    {
+        exit(0);
+    }
+
     return mapid;
 }
 

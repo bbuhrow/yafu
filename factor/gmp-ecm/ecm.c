@@ -261,6 +261,7 @@ int ecm_loop(fact_obj_t *fobj)
 	int i,j;
     double total_time = 0;
 	int num_batches;    
+    int run_avxecm = 0;
 
 	//maybe make this an input option: whether or not to stop after
 	//finding a factor in the middle of running a requested batch of curves
@@ -292,8 +293,11 @@ int ecm_loop(fact_obj_t *fobj)
 #if !defined(USE_AVX512F) || defined(__MINGW32__)
     if (1)
 #else
+    // run ecm curves using gmp-ecm, either the internal or external version,
+    // for at least stg1 and possibly stage 2 (unless prefer_avxecm_stg2 is specified), 
+    // in the following conditions
     if ((fobj->ecm_obj.prefer_gmpecm) || 
-        (fobj->ecm_obj.use_gpuecm) ||
+        ((fobj->ecm_obj.use_gpuecm) && (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover)) ||
         (fobj->ecm_obj.B1 > fobj->ecm_obj.ecm_ext_xover) ||
         (!fobj->HAS_AVX512F))
 #endif
@@ -385,6 +389,11 @@ int ecm_loop(fact_obj_t *fobj)
         ecm_process_free(fobj);
     }
     else
+    //{
+    //    run_avxecm = 1;
+    //}
+    //
+    //if (run_avxecm || fobj->ecm_obj.prefer_avxecm_stg2)
     {
         mpz_t F;
         int numfactors = 0;
@@ -400,6 +409,16 @@ int ecm_loop(fact_obj_t *fobj)
         else
         {
             B2 = fobj->ecm_obj.B2;
+        }
+
+        if (fobj->ecm_obj.prefer_avxecm_stg2)
+        {
+            // in order to do this we need:
+            // 1) set set B2=0 on gmpecm curves
+            // 2a) save the gmp-ecm stage1 curves
+            // 2b) read those curves
+            // 3) deal with all of the various possible parameterizations.  
+            // i.e., develop the ability to convert into avx-ecm's parameterization.
         }
 
         if (fobj->ecm_obj.prefer_gmpecm_stg2)

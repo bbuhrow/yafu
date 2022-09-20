@@ -302,7 +302,15 @@ void nfs(fact_obj_t *fobj)
 				// always check snfs forms (it is fast)
 				better_by_gnfs = snfs_choose_poly(fobj, &job);
 
-				if(job.snfs == NULL || fobj->nfs_obj.gnfs ||
+				if (better_by_gnfs == 2)
+				{
+					// primitive factor detection reduced the input
+					// to a (probable) prime number.  We are done.
+					nfs_state = NFS_STATE_CLEANUP;
+					break;
+				}
+
+				if (job.snfs == NULL || fobj->nfs_obj.gnfs ||
 					(better_by_gnfs && !fobj->nfs_obj.snfs))
 				{ 
 					// either we never were doing snfs, or the user selected gnfs,

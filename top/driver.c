@@ -310,6 +310,8 @@ int main(int argc, char *argv[])
 	//g_rand.low = 123;
     srand((unsigned int)options->rand_seed);
 
+    //test_dlp_composites();
+
 	// command line
 	while (1)
 	{		
@@ -511,6 +513,12 @@ int main(int argc, char *argv[])
 	free(fobj);      
     sFree(&input_str);
     free(options->inputExpr);
+    for (i = 0; i < options->num_tune_info; i++)
+    {
+        free(options->tune_info[i]);
+    }
+    free(options->tune_info);
+    free(options);
     //soe_finalize(sdata);
     //free(sdata);
 

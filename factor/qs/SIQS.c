@@ -540,6 +540,20 @@ void siqsexit(int sig)
 }
 
 
+// rare issues:
+// 1) when thread count is high, yafu can decide to stop because
+// of in-flight relations.  If these prove to not be enough to build
+// a matrix, wh enter a re-build loop which fails.
+// 2) on windows, I've seen the non-trivial dependencies count
+// be fairly low (10 or 11).  In some cases no factors are found with these.
+// then we enter a loop where the savefile is continually re-scanned
+// and the matrix re-fails, forever.
+//
+// I think both cases can be fixed by improving the ability to go back
+// and find more relations if something goes wrong during post-processing
+// and no factors are found.
+
+
 void SIQS(fact_obj_t *fobj)
 {
 	// the input fobj->N and this 'n' are pointers to memory which holds
@@ -686,6 +700,17 @@ void SIQS(fact_obj_t *fobj)
 	// fill in the factorization object	
 	fobj->qs_obj.savefile.name = (char *)malloc(80 * sizeof(char));
 	strncpy(fobj->savefile_name, fobj->qs_obj.siqs_savefile, 80);
+
+    // The above leaks a little memory:
+    // == 148041 == 80 bytes in 1 blocks are definitely lost in loss record 2 of 2
+    // == 148041 == at 0x4C2B0F7: malloc(vg_replace_malloc.c:381)
+    // == 148041 == by 0x42E5E7 : SIQS(SIQS.c:687)
+    // == 148041 == by 0x420046 : feval(calc.c:2575)
+    // == 148041 == by 0x41F175 : calc(calc.c:1947)
+    // == 148041 == by 0x41CBE2 : calc_with_assignment(calc.c:1527)
+    // == 148041 == by 0x41CBE2 : process_expression(calc.c:1473)
+    // == 148041 == by 0x405FD2 : main(driver.c:401)
+
 
 	// initialize the data objects both shared (static) and 
 	// per-thread (dynamic)
@@ -1010,6 +1035,11 @@ done:
 
 	//free everything else
 	free_siqs(thread_data[0].sconf);
+
+    // if in a batchfile or something, keep the primes around
+    // so we don't have to keep regenerating them.  They are
+    // static so that memory isn't lost.
+    //free(siqs_primes);
 
     if (sieve_log != NULL)
     {
@@ -4217,6 +4247,7 @@ int free_sieve(dynamic_conf_t *dconf)
 	align_free(dconf->update_data.logp);
 
 	monty_free(dconf->mdata);
+    free(dconf->mdata);
 
 	if (dconf->buckets->list != NULL)
 	{
@@ -4224,10 +4255,13 @@ int free_sieve(dynamic_conf_t *dconf)
 		free(dconf->buckets->fb_bounds);
 		free(dconf->buckets->logp);
 		align_free(dconf->buckets->num);
+        free(dconf->buckets->num_slices_batch);
 		free(dconf->buckets);
 	}
-	else
-		free(dconf->buckets);
+    else
+    {
+        free(dconf->buckets);
+    }
 
 	//support data on the poly currently being sieved
 	free(dconf->curr_poly->gray);
@@ -4378,8 +4412,7 @@ int free_siqs(static_conf_t *sconf)
 		free(sconf->factor_list.final_factors[i]);
 	}
 
-	if (sconf->in_mem)
-		free(sconf->in_mem_relations);
+    free(sconf->in_mem_relations);
 
 	mpz_clear(sconf->sqrt_n);
 	mpz_clear(sconf->n);
