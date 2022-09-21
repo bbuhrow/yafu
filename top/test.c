@@ -242,7 +242,7 @@ tinyecm_start:
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
-    //goto tinyecm_marker;
+   //goto tinyecm_marker;
     //goto spfermat_marker;
     //goto tinyqs_marker;
 	goto brent_marker;
@@ -329,12 +329,17 @@ brent_marker:
 
 		correct = 0;
 		k = 0;
-		for (i = 0; i < num; i++)
+		int j;
+
+		for (j = 0; j < 10; j++)
 		{
-			f64 = LehmanFactor(comp[i], 3.5, 0, 0.1);
-			if ((f64 == f1[i]) || (f64 == f2[i]))
+			for (i = 0; i < num; i++)
 			{
-				correct++;
+				f64 = LehmanFactor(comp[i], 3.5, 0, 0.1);
+				if ((f64 == f1[i]) || (f64 == f2[i]))
+				{
+					correct++;
+				}
 			}
 		}
 
@@ -346,7 +351,7 @@ brent_marker:
 		printf("average time per input = %1.4f ms\n", 1000 * t_time / (double)num);
 	}
 
-	//goto tinyecm_marker;
+	goto tinyecm_marker;
 
 	// spbrent test
     // msvc max of 62 bits
@@ -859,26 +864,26 @@ spfermat_marker:
 
 tinyecm_marker:
 	i = 0;
-    //strcpy(filenames[i++], "semiprimes_32bit.dat");
-    //strcpy(filenames[i++], "semiprimes_34bit.dat");
-    //strcpy(filenames[i++], "semiprimes_36bit.dat");
-    //strcpy(filenames[i++], "semiprimes_38bit.dat");
-    //strcpy(filenames[i++], "semiprimes_40bit.dat");
-	//strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
-	//strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
-	//strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
-	//strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
-	//strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
-	//strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
+    strcpy(filenames[i++], "semiprimes_32bit.dat");
+    strcpy(filenames[i++], "semiprimes_34bit.dat");
+    strcpy(filenames[i++], "semiprimes_36bit.dat");
+    strcpy(filenames[i++], "semiprimes_38bit.dat");
+    strcpy(filenames[i++], "semiprimes_40bit.dat");
+	strcpy(filenames[i++], "semiprimes_42bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_44bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_46bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
+	strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
 	//strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
 	//strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
 	//strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
 	//strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
 	//strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
 	//strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
-	strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
-	strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
-	strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
+	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
     //strcpy(filenames[i++], "pseudoprimes_70bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_80bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_90bit.dat");
@@ -937,22 +942,49 @@ tinyecm_marker:
             fclose(in);
 
 			num = 100000;
-			for (i = 0; i < num; i++)
+
+			if (0)
 			{
-				uint64_t outf; 
-
-				mpz_set_ui(gmp_comp, comp[i]);
-				//tinyecm(gmp_comp, gmp_f, B1, B1 * 25, curves, &lcg, 0);
-                getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
-                outf = mpz_get_ui(gmp_f);
-
-				//outf = getfactor_uecm(comp[i], 0, &lcg);
-
-				if ((outf == f1[i]) ||
-					(outf == f2[i]))
+				for (i = 0; i < num; i++)
 				{
-					correct++;
+					uint64_t outf;
+
+					//mpz_set_ui(gmp_comp, comp[i]);
+					//tinyecm(gmp_comp, gmp_f, B1, B1 * 25, curves, &lcg, 0);
+					//getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
+					//outf = mpz_get_ui(gmp_f);
+
+					outf = getfactor_uecm(comp[i], 0, &lcg);
+
+					if ((outf == f1[i]) ||
+						(outf == f2[i]))
+					{
+						correct++;
+					}
 				}
+			}
+			else
+			{
+				uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+
+				i = 0;
+				for (i = 0; i < 10; i++)
+				{
+					int j;
+
+					getfactor_uecm_x8_list(comp, outf, num, &lcg);
+
+					for (j = 0; j < num; j++)
+					{
+						if ((outf[j] == f1[j]) ||
+							(outf[j] == f2[j]))
+						{
+							correct++;
+						}
+					}
+				}
+
+				free(outf);
 			}
 
 

@@ -66,6 +66,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #endif
 
 
+#ifdef USE_AVX512F
+#  include <immintrin.h>
+#endif
 
 
 // Using the inline asm in this file can increase performance by ~20-25%
@@ -103,6 +106,14 @@ typedef struct
     uint64_t X;
     uint64_t Z;
 } uecm_pt;
+
+#ifdef USE_AVX512F
+typedef struct
+{
+    __m512i X;
+    __m512i Z;
+} uecm_pt_x8;
+#endif
 
 
 static const uint32_t map[60] = {
@@ -263,9 +274,6 @@ static uint64_t uecm_multiplicative_inverse(uint64_t a)
 /* --- end Hurchalla functions --- */
 
 
-
-
-
 // full strength mul/sqr redc
 MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
@@ -275,10 +283,6 @@ MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc(uint64_t x, uint64_t n, uint
 {
     return uecm_mulredc_alt(x, x, n, 0 - nhat);
 }
-
-
-
-
 
 MICRO_ECM_FORCE_INLINE static void uecm_uadd(uint64_t rho, uint64_t n, const uecm_pt P1, const uecm_pt P2,
     const uecm_pt Pin, uecm_pt *Pout)
@@ -331,6 +335,547 @@ MICRO_ECM_FORCE_INLINE static void uecm_udup(uint64_t s, uint64_t rho, uint64_t 
     return;
 }
 
+
+#ifdef USE_AVX512F
+#define uecm_and64 _mm512_and_epi64
+#define uecm_storeu64 _mm512_store_epi64
+#define uecm_add64 _mm512_add_epi64
+#define uecm_sub64 _mm512_sub_epi64
+#define uecm_set64 _mm512_set1_epi64
+#define uecm_srli64 _mm512_srli_epi64
+#define uecm_loadu64 _mm512_load_epi64
+#define uecm_castpd _mm512_castsi512_pd
+#define uecm_castepu _mm512_castpd_si512
+#define uecm_DIGIT_SIZE 52
+#define uecm_DIGIT_MASK 0x000fffffffffffffULL
+#define uecm_MB_WIDTH 8
+#define uecm_SIMD_BYTES 64
+
+static __m512d dbias;
+static __m512i vbias1;
+static __m512i vbias2;
+static __m512i lo52mask;
+
+MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52lo(__m512i b, __m512i c)
+{
+    return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
+}
+MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52hi(__m512i b, __m512i c)
+{
+    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
+    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
+    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    return _mm512_sub_epi64(uecm_castepu(prod1_ld), vbias1);
+}
+MICRO_ECM_FORCE_INLINE static void uecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
+{
+    __m512d prod1_ld = _mm512_cvtepu64_pd(b);
+    __m512d prod2_ld = _mm512_cvtepu64_pd(c);
+    __m512d prod1_hd = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, dbias, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *h = _mm512_sub_epi64(uecm_castepu(prod1_hd), vbias1);
+    prod1_hd = _mm512_sub_pd(_mm512_castsi512_pd(vbias2), prod1_hd);
+    prod1_ld = _mm512_fmadd_round_pd(prod1_ld, prod2_ld, prod1_hd, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+    *l = _mm512_castpd_si512(prod1_ld);
+    return;
+}
+MICRO_ECM_FORCE_INLINE static __m512i uecm_mulredc_x8(__m512i x, __m512i y, __m512i N, __m512i invN)
+{
+    // invN is the positive variant = 0 - nhat (the standard negative inverse)
+    __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
+    __m512i T_lo; // = uecm_mul52lo(x, y);
+    uecm_mul52lohi(x, y, &T_lo, &T_hi);
+    __m512i m = _mm512_and_si512(_mm512_mullo_epi64(T_lo, invN), lo52mask);
+    __m512i mN_hi = uecm_mul52hi(m, N);
+    __m512i tmp = uecm_add64(T_hi, N);
+    tmp = uecm_sub64(tmp, mN_hi);
+    __m512i result = uecm_sub64(T_hi, mN_hi);
+    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
+    return _mm512_mask_mov_epi64(result, msk, tmp);
+}
+MICRO_ECM_FORCE_INLINE static __m512i uecm_sqrredc_x8(__m512i x, __m512i N, __m512i invN)
+{
+    // invN is the positive variant = 0 - nhat (the standard negative inverse)
+    __m512i T_hi; // = uecm_mul52hi(x, y, dbias, vbias1);
+    __m512i T_lo; // = uecm_mul52lo(x, y);
+    uecm_mul52lohi(x, x, &T_lo, &T_hi);
+    __m512i m = _mm512_and_si512(_mm512_mullo_epi64(T_lo, invN), lo52mask);
+    __m512i mN_hi = uecm_mul52hi(m, N);
+    __m512i tmp = uecm_add64(T_hi, N);
+    tmp = uecm_sub64(tmp, mN_hi);
+    __m512i result = uecm_sub64(T_hi, mN_hi);
+    __mmask8 msk = _mm512_cmplt_epu64_mask(T_hi, mN_hi);
+    return _mm512_mask_mov_epi64(result, msk, tmp);
+}
+MICRO_ECM_FORCE_INLINE static __m512i uecm_addmod_x8(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = uecm_add64(x, y);
+    __mmask8 m = _mm512_cmpge_epu64_mask(t, N);
+    return _mm512_mask_sub_epi64(t, m, t, N);
+}
+MICRO_ECM_FORCE_INLINE static __m512i uecm_submod_x8(__m512i x, __m512i y, __m512i N)
+{
+    __m512i t = uecm_sub64(x, y);
+    __mmask8 m = _mm512_cmpgt_epu64_mask(y, x);
+    return _mm512_mask_add_epi64(t, m, t, N);
+}
+
+static uint64_t uecm_multiplicative_inverse52(uint64_t a)
+{
+    //    assert(a%2 == 1);  // the inverse (mod 2<<64) only exists for odd values
+    uint64_t x0 = (3 * a) ^ 2;
+    uint64_t y = 1 - a * x0;
+    uint64_t x1 = x0 * (1 + y);
+    y *= y;
+    uint64_t x2 = x1 * (1 + y);
+    y *= y;
+    uint64_t x3 = x2 * (1 + y);
+    y *= y;
+    uint64_t x4 = x3 * (1 + y);
+    return x4 & 0x000fffffffffffffull;
+}
+
+MICRO_ECM_FORCE_INLINE uint64_t submod52(uint64_t a, uint64_t b, uint64_t n)
+{
+    uint64_t r0;
+    if (_subborrow_u64(0, a, b, &r0))
+        r0 += n;
+    return r0;
+}
+MICRO_ECM_FORCE_INLINE uint64_t addmod52(uint64_t x, uint64_t y, uint64_t n)
+{
+    // FYI: The clause above often compiles with a branch in MSVC.
+    // The statement below often compiles without a branch (uses cmov) in MSVC.
+    return (x >= n - y) ? x - (n - y) : x + y;
+}
+
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc52(uint64_t x, uint64_t y, uint64_t N, uint64_t invN)
+{
+#if defined(_MSC_VER)
+    uint64_t T_hi;
+    uint64_t T_lo = _umul128(x, y, &T_hi);
+    uint64_t m = T_lo * invN;
+    uint64_t mN_hi = __umulh(m, N);
+#else
+    __uint128_t prod = (__uint128_t)x * y;
+    uint64_t T_hi = (uint64_t)(prod >> 52);
+    uint64_t T_lo = (uint64_t)(prod & 0x000fffffffffffffull);
+    uint64_t m = (T_lo * invN) & 0x000fffffffffffffull;
+    __uint128_t mN = (__uint128_t)m * N;
+    uint64_t mN_hi = (uint64_t)(mN >> 52);
+#endif
+    uint64_t tmp = T_hi + N;
+#if defined(MICRO_ECM_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
+    __asm__(
+        "subq %[mN_hi], %[tmp] \n\t"    /* tmp = T_hi + N - mN_hi */
+        "subq %[mN_hi], %[T_hi] \n\t"   /* T_hi = T_hi - mN_hi */
+        "cmovaeq %[T_hi], %[tmp] \n\t"  /* tmp = (T_hi >= mN_hi) ? T_hi : tmp */
+        : [tmp] "+&r"(tmp), [T_hi]"+&r"(T_hi)
+        : [mN_hi] "r"(mN_hi)
+        : "cc");
+    uint64_t result = tmp;
+#else
+    tmp = tmp - mN_hi;
+    uint64_t result = T_hi - mN_hi;
+    result = (T_hi < mN_hi) ? tmp : result;
+#endif
+    return result & 0x000fffffffffffffull;
+}
+MICRO_ECM_FORCE_INLINE static uint64_t uecm_sqrredc52(uint64_t x, uint64_t N, uint64_t invN)
+{
+    return uecm_mulredc52(x, x, N, invN);
+}
+
+MICRO_ECM_FORCE_INLINE static void uecm_uadd_x8(__m512i rho, __m512i n, 
+    const uecm_pt_x8 P1, const uecm_pt_x8 P2,
+    const uecm_pt_x8 Pin, uecm_pt_x8* Pout)
+{
+    // compute:
+    //x+ = z- * [(x1-z1)(x2+z2) + (x1+z1)(x2-z2)]^2
+    //z+ = x- * [(x1-z1)(x2+z2) - (x1+z1)(x2-z2)]^2
+    // where:
+    //x- = original x
+    //z- = original z
+    // given the sums and differences of the original points
+    __m512i diff1 = uecm_submod_x8(P1.X, P1.Z, n);
+    __m512i sum1 = uecm_addmod_x8(P1.X, P1.Z, n);
+    __m512i diff2 = uecm_submod_x8(P2.X, P2.Z, n);
+    __m512i sum2 = uecm_addmod_x8(P2.X, P2.Z, n);
+
+    __m512i tt1 = uecm_mulredc_x8(diff1, sum2, n, rho); //U
+    __m512i tt2 = uecm_mulredc_x8(sum1, diff2, n, rho); //V
+
+    __m512i tt3 = uecm_addmod_x8(tt1, tt2, n);
+    __m512i tt4 = uecm_submod_x8(tt1, tt2, n);
+    tt1 = uecm_sqrredc_x8(tt3, n, rho);   //(U + V)^2
+    tt2 = uecm_sqrredc_x8(tt4, n, rho);   //(U - V)^2
+
+    __m512i tmpx = uecm_mulredc_x8(tt1, Pin.Z, n, rho);     //Z * (U + V)^2
+    __m512i tmpz = uecm_mulredc_x8(tt2, Pin.X, n, rho);     //x * (U - V)^2
+    Pout->X = tmpx;
+    Pout->Z = tmpz;
+
+    return;
+}
+
+MICRO_ECM_FORCE_INLINE static void uecm_udup_x8(__m512i s, __m512i rho, __m512i n,
+    __m512i insum, __m512i indiff, uecm_pt_x8* P)
+{
+    __m512i tt1 = uecm_sqrredc_x8(indiff, n, rho);          // U=(x1 - z1)^2
+    __m512i tt2 = uecm_sqrredc_x8(insum, n, rho);           // V=(x1 + z1)^2
+    P->X = uecm_mulredc_x8(tt1, tt2, n, rho);         // x=U*V
+
+    __m512i tt3 = uecm_submod_x8(tt2, tt1, n);          // w = V-U
+    tt2 = uecm_mulredc_x8(tt3, s, n, rho);      // w = (A+2)/4 * w
+    tt2 = uecm_addmod_x8(tt2, tt1, n);          // w = w + U
+    P->Z = uecm_mulredc_x8(tt2, tt3, n, rho);         // Z = w*(V-U)
+    return;
+}
+
+static void uecm_uprac70_x8(__m512i rho, __m512i n, uecm_pt_x8* P, __m512i s)
+{
+    __m512i s1, s2, d1, d2;
+    __m512i swp;
+    int i;
+    static const uint8_t steps[116] = {
+        0,6,0,6,0,6,0,4,6,0,4,6,0,4,4,6,
+        0,4,4,6,0,5,4,6,0,3,3,4,6,0,3,5,
+        4,6,0,3,4,3,4,6,0,5,5,4,6,0,5,3,
+        3,4,6,0,3,3,4,3,4,6,0,5,3,3,3,3,
+        3,3,3,3,4,3,3,4,6,0,5,4,3,3,4,6,
+        0,3,4,3,5,4,6,0,5,3,3,3,4,6,0,5,
+        4,3,5,4,6,0,5,5,3,3,4,6,0,4,3,3,
+        3,5,4,6 };
+
+    uecm_pt_x8 pt1, pt2, pt3;
+    for (i = 0; i < 116; i++)
+    {
+        if (steps[i] == 0)
+        {
+            pt1.X = pt2.X = pt3.X = P->X;
+            pt1.Z = pt2.Z = pt3.Z = P->Z;
+
+            d1 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s1 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+            uecm_udup_x8(s, rho, n, s1, d1, &pt1);
+        }
+        else if (steps[i] == 3)
+        {
+            // integrate step 4 followed by swap(1,2)
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+
+            swp = pt1.X;
+            pt1.X = pt4.X;
+            pt4.X = pt3.X;
+            pt3.X = pt2.X;
+            pt2.X = swp;
+            swp = pt1.Z;
+            pt1.Z = pt4.Z;
+            pt4.Z = pt3.Z;
+            pt3.Z = pt2.Z;
+            pt2.Z = swp;
+        }
+        else if (steps[i] == 4)
+        {
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+
+            swp = pt2.X;
+            pt2.X = pt4.X;
+            pt4.X = pt3.X;
+            pt3.X = swp;
+            swp = pt2.Z;
+            pt2.Z = pt4.Z;
+            pt4.Z = pt3.Z;
+            pt3.Z = swp;
+        }
+        else if (steps[i] == 5)
+        {
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt1);        // A = 2A
+        }
+        else if (steps[i] == 6)
+        {
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, P);     // A = A + B (C)
+        }
+    }
+    return;
+}
+
+static void uecm_uprac85_x8(__m512i rho, __m512i n, uecm_pt_x8* P, __m512i s)
+{
+    __m512i s1, s2, d1, d2;
+    __m512i swp;
+    int i;
+    static const uint8_t steps[146] = {
+        0,6,0,6,0,6,0,6,0,4,
+        6,0,4,6,0,4,4,6,0,4,
+        4,6,0,5,4,6,0,3,3,4,
+        6,0,3,5,4,6,0,3,4,3,
+        4,6,0,5,5,4,6,0,5,3,
+        3,4,6,0,3,3,4,3,4,6,
+        0,4,3,4,3,5,3,3,3,3,
+        3,3,3,3,4,6,0,3,3,3,
+        3,3,3,3,3,3,4,3,4,3,
+        4,6,0,3,4,3,5,4,6,0,
+        5,3,3,3,4,6,0,5,4,3,
+        5,4,6,0,4,3,3,3,5,4,
+        6,0,4,3,5,3,3,4,6,0,
+        3,3,3,3,5,4,6,0,3,3,
+        3,4,3,3,4,6 };
+
+    uecm_pt_x8 pt1, pt2, pt3;
+    for (i = 0; i < 146; i++)
+    {
+        if (steps[i] == 0)
+        {
+            pt1.X = pt2.X = pt3.X = P->X;
+            pt1.Z = pt2.Z = pt3.Z = P->Z;
+
+            d1 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s1 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+            uecm_udup_x8(s, rho, n, s1, d1, &pt1);
+        }
+        else if (steps[i] == 3)
+        {
+            // integrate step 4 followed by swap(1,2)
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+
+            swp = pt1.X;
+            pt1.X = pt4.X;
+            pt4.X = pt3.X;
+            pt3.X = pt2.X;
+            pt2.X = swp;
+            swp = pt1.Z;
+            pt1.Z = pt4.Z;
+            pt4.Z = pt3.Z;
+            pt3.Z = pt2.Z;
+            pt2.Z = swp;
+        }
+        else if (steps[i] == 4)
+        {
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+
+            swp = pt2.X;
+            pt2.X = pt4.X;
+            pt4.X = pt3.X;
+            pt3.X = swp;
+            swp = pt2.Z;
+            pt2.Z = pt4.Z;
+            pt4.Z = pt3.Z;
+            pt3.Z = swp;
+        }
+        else if (steps[i] == 5)
+        {
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt1);        // A = 2A
+        }
+        else if (steps[i] == 6)
+        {
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, P);     // A = A + B (C)
+        }
+    }
+    return;
+}
+
+static void uecm_uprac_x8(__m512i rho, __m512i n, uecm_pt_x8* P, uint64_t c, double v, __m512i s)
+{
+    uint64_t d, e, r;
+    int i;
+    __m512i s1, s2, d1, d2;
+    __m512i swp;
+
+    // we require c != 0
+    int shift = _trail_zcnt64(c);
+    c = c >> shift;
+
+    d = c;
+    r = (uint64_t)((double)d * v + 0.5);
+
+    d = c - r;
+    e = 2 * r - c;
+
+    uecm_pt_x8 pt1, pt2, pt3;
+
+    // the first one is always a doubling
+    // point1 is [1]P
+    pt1.X = pt2.X = pt3.X = P->X;
+    pt1.Z = pt2.Z = pt3.Z = P->Z;
+
+    d1 = uecm_submod_x8(pt1.X, pt1.Z, n);
+    s1 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+    // point2 is [2]P
+    uecm_udup_x8(s, rho, n, s1, d1, &pt1);
+
+    while (d != e)
+    {
+        if (d < e)
+        {
+            r = d;
+            d = e;
+            e = r;
+            swp = pt1.X;
+            pt1.X = pt2.X;
+            pt2.X = swp;
+            swp = pt1.Z;
+            pt1.Z = pt2.Z;
+            pt2.Z = swp;
+        }
+        if (d - e <= e / 4 && ((d + e) % 3) == 0)
+        {
+            d = (2 * d - e) / 3;
+            e = (e - d) / 2;
+
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4); // T = A + B (C)
+            uecm_pt_x8 pt5;
+            uecm_uadd_x8(rho, n, pt4, pt1, pt2, &pt5); // T2 = T + A (B)
+            uecm_uadd_x8(rho, n, pt2, pt4, pt1, &pt2); // B = B + T (A)
+
+            swp = pt1.X;
+            pt1.X = pt5.X;
+            pt5.X = swp;
+            swp = pt1.Z;
+            pt1.Z = pt5.Z;
+            pt5.Z = swp;
+        }
+        else if (d - e <= e / 4 && (d - e) % 6 == 0)
+        {
+            d = (d - e) / 2;
+
+            d1 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s1 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt2);        // B = A + B (C)
+            uecm_udup_x8(s, rho, n, s1, d1, &pt1);        // A = 2A
+        }
+        else if ((d + 3) / 4 <= e)
+        {
+            d -= e;
+
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+
+            swp = pt2.X;
+            pt2.X = pt4.X;
+            pt4.X = pt3.X;
+            pt3.X = swp;
+            swp = pt2.Z;
+            pt2.Z = pt4.Z;
+            pt4.Z = pt3.Z;
+            pt3.Z = swp;
+        }
+        else if ((d + e) % 2 == 0)
+        {
+            d = (d - e) / 2;
+
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_uadd_x8(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt1);        // A = 2A
+        }
+        else if (d % 2 == 0)
+        {
+            d /= 2;
+
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_uadd_x8(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt1);        // A = 2A
+        }
+        else if (d % 3 == 0)
+        {
+            d = d / 3 - e;
+
+            d1 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s1 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+
+            uecm_pt_x8 pt4;
+            uecm_udup_x8(s, rho, n, s1, d1, &pt4);        // T = 2A
+            uecm_pt_x8 pt5;
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt5);        // T2 = A + B (C)
+            uecm_uadd_x8(rho, n, pt4, pt1, pt1, &pt1);        // A = T + A (A)
+            uecm_uadd_x8(rho, n, pt4, pt5, pt3, &pt4);        // T = T + T2 (C)
+
+            swp = pt3.X;
+            pt3.X = pt2.X;
+            pt2.X = pt4.X;
+            pt4.X = swp;
+            swp = pt3.Z;
+            pt3.Z = pt2.Z;
+            pt2.Z = pt4.Z;
+            pt4.Z = swp;
+
+        }
+        else if ((d + e) % 3 == 0)
+        {
+            d = (d - 2 * e) / 3;
+
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+
+
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+            uecm_uadd_x8(rho, n, pt4, pt1, pt2, &pt2);        // B = T + A (B)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt4);        // T = 2A
+            uecm_uadd_x8(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+        }
+        else if ((d - e) % 3 == 0)
+        {
+            d = (d - e) / 3;
+
+            uecm_pt_x8 pt4;
+            uecm_uadd_x8(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+
+            d2 = uecm_submod_x8(pt1.X, pt1.Z, n);
+            s2 = uecm_addmod_x8(pt1.X, pt1.Z, n);
+            uecm_uadd_x8(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+
+            swp = pt2.X;
+            pt2.X = pt4.X;
+            pt4.X = swp;
+            swp = pt2.Z;
+            pt2.Z = pt4.Z;
+            pt4.Z = swp;
+
+            uecm_udup_x8(s, rho, n, s2, d2, &pt4);        // T = 2A
+            uecm_uadd_x8(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+        }
+        else
+        {
+            e /= 2;
+
+            d2 = uecm_submod_x8(pt2.X, pt2.Z, n);
+            s2 = uecm_addmod_x8(pt2.X, pt2.Z, n);
+
+            uecm_uadd_x8(rho, n, pt3, pt2, pt1, &pt3);        // C = C + B (A)
+            uecm_udup_x8(s, rho, n, s2, d2, &pt2);        // B = 2B
+        }
+    }
+    uecm_uadd_x8(rho, n, pt1, pt2, pt3, P);     // A = A + B (C)
+
+    for (i = 0; i < shift; i++)
+    {
+        d1 = uecm_submod_x8(P->X, P->Z, n);
+        s1 = uecm_addmod_x8(P->X, P->Z, n);
+        uecm_udup_x8(s, rho, n, s1, d1, P);     // P = 2P
+    }
+    return;
+}
+
+#endif
 
 static void uecm_uprac70(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t s)
 {
@@ -751,7 +1296,6 @@ inline static uint64_t uecm_modinv_64(uint64_t a, uint64_t p, uint64_t* plikely_
         return p - ps1;
 }
 
-
 static uint64_t uecm_build(uecm_pt *P, uint64_t rho, uint64_t n, uint64_t *ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
 {
     uint64_t t1, t2, t3, t4;
@@ -818,6 +1362,75 @@ static uint64_t uecm_build(uecm_pt *P, uint64_t rho, uint64_t n, uint64_t *ploc_
     return likely_gcd;
 }
 
+#ifdef USE_AVX512F
+
+static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* ploc_lcg, uint64_t* ps, uint64_t five, uint64_t Rsqr)
+{
+    uint64_t t1, t2, t3, t4;
+    uint64_t u, v;
+
+    uint32_t sigma = uecm_lcg_rand_32B(7, (uint32_t)-1, ploc_lcg);
+
+    u = uecm_mulredc52((uint64_t)sigma, Rsqr, n, rho);  // to_monty(sigma)
+
+    //printf("sigma = %" PRIu64 ", u = %" PRIu64 ", n = %" PRIu64 "\n", sigma, u, n);
+
+    v = addmod52(u, u, n);
+    v = addmod52(v, v, n);            // 4*sigma
+
+    //printf("v = %" PRIu64 "\n", v);
+
+    u = uecm_sqrredc52(u, n, rho);
+    t1 = five;
+
+    //printf("monty(5) = %" PRIu64 "\n", t1);
+
+    u = submod52(u, t1, n);           // sigma^2 - 5
+
+    //printf("u = %" PRIu64 "\n", u);
+
+    t1 = uecm_mulredc52(u, u, n, rho);
+    uint64_t tmpx = uecm_mulredc52(t1, u, n, rho);  // u^3
+
+    uint64_t v2 = addmod52(v, v, n);             // 2*v
+    uint64_t v4 = addmod52(v2, v2, n);           // 4*v
+    uint64_t v8 = addmod52(v4, v4, n);           // 8*v
+    uint64_t v16 = addmod52(v8, v8, n);          // 16*v
+    uint64_t t5 = uecm_mulredc52(v16, tmpx, n, rho);    // 16*u^3*v
+
+    t1 = uecm_mulredc52(v, v, n, rho);
+    uint64_t tmpz = uecm_mulredc52(t1, v, n, rho);  // v^3
+
+    //compute parameter A
+    t1 = submod52(v, u, n);           // (v - u)
+    t2 = uecm_sqrredc52(t1, n, rho);
+    t4 = uecm_mulredc52(t2, t1, n, rho);   // (v - u)^3
+
+    t1 = addmod52(u, u, n);           // 2u
+    t2 = addmod52(u, v, n);           // u + v
+    t3 = addmod52(t1, t2, n);         // 3u + v
+
+    t1 = uecm_mulredc52(t3, t4, n, rho);   // a = (v-u)^3 * (3u + v)
+
+    // u holds the denom (jeff note: isn't it t5 that has the denom?)
+    // t1 holds the numer
+    // accomplish the division by multiplying by the modular inverse
+    t2 = 1;
+    t5 = uecm_mulredc52(t5, t2, n, rho);   // take t5 out of monty rep
+
+    uint64_t likely_gcd;
+    t3 = uecm_modinv_64(t5, n, &likely_gcd);
+
+    t3 = uecm_mulredc52(t3, Rsqr, n, rho); // to_monty(t3)
+    *ps = uecm_mulredc52(t3, t1, n, rho);
+
+    P->X = tmpx;
+    P->Z = tmpz;
+
+    return likely_gcd;
+}
+
+#endif
 
 static int uecm_check_factor(uint64_t Z, uint64_t n, uint64_t* f)
 {
@@ -838,7 +1451,6 @@ static int uecm_check_factor(uint64_t Z, uint64_t n, uint64_t* f)
     }
     return status;
 }
-
 
 static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uint64_t s)
 {
@@ -980,7 +1592,149 @@ static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uin
     return;
 }
 
+#ifdef USE_AVX512F
 
+static void uecm_stage1_x8(__m512i rho, __m512i n, uecm_pt_x8* P, uint64_t stg1, __m512i s)
+{
+    uint64_t q;
+
+    // handle the only even case
+    q = 2;
+    while (q < stg1 * 4)  // jeff: multiplying by 4 improves perf ~1%
+    {
+        __m512i diff1 = uecm_submod_x8(P->X, P->Z, n);
+        __m512i sum1 = uecm_addmod_x8(P->X, P->Z, n);
+        uecm_udup_x8(s, rho, n, sum1, diff1, P);
+        q *= 2;
+    }
+
+    if (stg1 == 27)
+    {
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 7, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 11, 0.580178728295464130, s);
+        uecm_uprac_x8(rho, n, P, 13, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 17, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 19, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 23, 0.522786351415446049, s);
+    }
+    else if (stg1 == 47)
+    {
+        // jeff: improved perf slightly by using one more uprac for 3,
+        // and removing uprac for 47.
+        uecm_uprac_x8(rho, n, P, 3, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 7, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 11, 0.580178728295464130, s);
+        uecm_uprac_x8(rho, n, P, 13, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 17, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 19, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 23, 0.522786351415446049, s);
+        uecm_uprac_x8(rho, n, P, 29, 0.548409048446403258, s);
+        uecm_uprac_x8(rho, n, P, 31, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 37, 0.580178728295464130, s);
+        uecm_uprac_x8(rho, n, P, 41, 0.548409048446403258, s);
+        uecm_uprac_x8(rho, n, P, 43, 0.618033988749894903, s);
+        //        uecm_uprac(rho, n, P, 47, 0.548409048446403258, s);
+    }
+    else if (stg1 == 59)
+    {   // jeff: probably stg1 of 59 would benefit from similar changes
+        // as stg1 of 47 above, but I didn't bother. Stg1 of 59 seems to
+        // always perform worse than stg1 of 47, so there doesn't seem
+        // to be any reason to ever use stg1 of 59.
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 3, 0.61803398874989485, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 7, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 7, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 11, 0.580178728295464130, s);
+        uecm_uprac_x8(rho, n, P, 13, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 17, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 19, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 23, 0.522786351415446049, s);
+        uecm_uprac_x8(rho, n, P, 29, 0.548409048446403258, s);
+        uecm_uprac_x8(rho, n, P, 31, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 1961, 0.552936068843375, s);   // 37 * 53
+        uecm_uprac_x8(rho, n, P, 41, 0.548409048446403258, s);
+        uecm_uprac_x8(rho, n, P, 43, 0.618033988749894903, s);
+        uecm_uprac_x8(rho, n, P, 47, 0.548409048446403258, s);
+        uecm_uprac_x8(rho, n, P, 59, 0.548409048446403258, s);
+    }
+    else if (stg1 == 70)
+    {
+        // call prac with best ratio found in deep search.
+        // some composites are cheaper than their
+        // constituent primes.
+        uecm_uprac70_x8(rho, n, P, s);
+    }
+    else // if (stg1 >= 85)
+    {
+        uecm_uprac85_x8(rho, n, P, s);
+
+        if (stg1 == 85)
+        {
+            uecm_uprac_x8(rho, n, P, 61, 0.522786351415446049, s);
+        }
+        else
+        {
+            uecm_uprac_x8(rho, n, P, 5, 0.618033988749894903, s);
+            uecm_uprac_x8(rho, n, P, 11, 0.580178728295464130, s);
+            //            uecm_uprac(rho, n, P, 61, 0.522786351415446049, s);
+            uecm_uprac_x8(rho, n, P, 89, 0.618033988749894903, s);
+            uecm_uprac_x8(rho, n, P, 97, 0.723606797749978936, s);
+            uecm_uprac_x8(rho, n, P, 101, 0.556250337855490828, s);
+            uecm_uprac_x8(rho, n, P, 107, 0.580178728295464130, s);
+            uecm_uprac_x8(rho, n, P, 109, 0.548409048446403258, s);
+            uecm_uprac_x8(rho, n, P, 113, 0.618033988749894903, s);
+
+            if (stg1 == 125)
+            {
+                // jeff: moved 61 to here
+                uecm_uprac_x8(rho, n, P, 61, 0.522786351415446049, s);
+                uecm_uprac_x8(rho, n, P, 103, 0.632839806088706269, s);
+            }
+            else
+            {
+                uecm_uprac_x8(rho, n, P, 7747, 0.552188778811121, s); // 61 x 127
+                uecm_uprac_x8(rho, n, P, 131, 0.618033988749894903, s);
+                uecm_uprac_x8(rho, n, P, 14111, 0.632839806088706, s);  // 103 x 137
+                uecm_uprac_x8(rho, n, P, 20989, 0.620181980807415, s);  // 139 x 151
+                uecm_uprac_x8(rho, n, P, 157, 0.640157392785047019, s);
+                uecm_uprac_x8(rho, n, P, 163, 0.551390822543526449, s);
+
+                if (stg1 == 165)
+                {
+                    uecm_uprac_x8(rho, n, P, 149, 0.580178728295464130, s);
+                }
+                else
+                {
+                    uecm_uprac_x8(rho, n, P, 13, 0.618033988749894903, s);
+                    uecm_uprac_x8(rho, n, P, 167, 0.580178728295464130, s);
+                    uecm_uprac_x8(rho, n, P, 173, 0.612429949509495031, s);
+                    uecm_uprac_x8(rho, n, P, 179, 0.618033988749894903, s);
+                    uecm_uprac_x8(rho, n, P, 181, 0.551390822543526449, s);
+                    uecm_uprac_x8(rho, n, P, 191, 0.618033988749894903, s);
+                    uecm_uprac_x8(rho, n, P, 193, 0.618033988749894903, s);
+                    uecm_uprac_x8(rho, n, P, 29353, 0.580178728295464, s);  // 149 x 197
+                    uecm_uprac_x8(rho, n, P, 199, 0.551390822543526449, s);
+                }
+            }
+        }
+    }
+    return;
+}
+
+#endif
 
 #ifdef MICRO_ECM_VERBOSE_PRINTF
 static void uecm_stage2_pair(int b1, int b2, 
@@ -1088,16 +1842,7 @@ static const uint8_t b1_47[121] = {
 0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,
 37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,
 19,17,13,7,1,43,53,0,59 };
-/*
-static const int numb1_70_old = 186;
-static const uint8_t b1_70_old[186] = {
-    53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,
-    31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,
-    0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,
-    31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,
-    29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
-    17,13,11,1,23,31,37,49 };
-*/
+
 static const int numb1_70 = 175;
 static const uint8_t b1_70[175] = {
 31,41,43,47,49,0,59,47,43,41,37,31,29,19,13,7,
@@ -1521,6 +2266,361 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     return acc;
 }
 
+#ifdef USE_AVX512F
+
+static __m512i uecm_stage2_x8(uecm_pt_x8* P, __m512i rho, __m512i n,
+    uint32_t stg1_max, __m512i s, __m512i unityval)
+{
+    int b;
+    int i, j, k;
+    uecm_pt_x8 Pa1;
+    uecm_pt_x8* Pa = &Pa1;
+    uecm_pt_x8 Pb[18];
+    uecm_pt_x8 Pd1;
+    uecm_pt_x8* Pd = &Pd1;
+    const uint8_t* barray = 0;
+    int numb;
+
+#ifdef MICRO_ECM_VERBOSE_PRINTF
+    ptadds = 0;
+    stg1Doub = 0;
+    stg1Add = 0;
+#endif
+
+    // this function has been written for MICRO_ECM_PARAM_D of 60, so you
+    // probably don't want to change it.
+    const int MICRO_ECM_PARAM_D = 60;
+
+    //stage 2 init
+    //Q = P = result of stage 1
+    //compute [d]Q for 0 < d <= MICRO_ECM_PARAM_D
+
+    __m512i Pbprod[18];
+
+    // [1]Q
+    Pb[1] = *P;
+    Pbprod[1] = uecm_mulredc_x8(Pb[1].X, Pb[1].Z, n, rho);
+
+    // [2]Q
+    __m512i diff1 = uecm_submod_x8(P->X, P->Z, n);
+    __m512i sum1 = uecm_addmod_x8(P->X, P->Z, n);
+    uecm_udup_x8(s, rho, n, sum1, diff1, &Pb[2]);
+    //    Pbprod[2] = uecm_mulredc(Pb[2].X, Pb[2].Z, n, rho);    // never used
+
+        /*
+        Let D = MICRO_ECM_PARAM_D.
+
+        D is small in tinyecm, so it is straightforward to just enumerate the needed
+        points.  We can do it efficiently with two progressions mod 6.
+        Pb[0] = scratch
+        Pb[1] = [1]Q;
+        Pb[2] = [2]Q;
+        Pb[3] = [7]Q;   prog2
+        Pb[4] = [11]Q;  prog1
+        Pb[5] = [13]Q;  prog2
+        Pb[6] = [17]Q;  prog1
+        Pb[7] = [19]Q;  prog2
+        Pb[8] = [23]Q;  prog1
+        Pb[9] = [29]Q;  prog1
+        Pb[10] = [30 == D]Q;   // shouldn't this be [31]Q?
+        Pb[11] = [31]Q; prog2   // shouldn't this be [37]Q?
+        Pb[12] = [37]Q; prog2   // shouldn't this be [41]Q?
+        Pb[13] = [41]Q; prog1   // [43]Q?
+        Pb[14] = [43]Q; prog2   // [47]Q?
+        Pb[15] = [47]Q; prog1   // [49]Q?
+        Pb[16] = [49]Q; prog2   // [53]Q?
+        Pb[17] = [53]Q; prog1   // [59]Q?
+        // Pb[18] = [59]Q; prog1   // [60]Q?   note: we can remove this line I believe.  Pb[18] is never set, and never used.  Therefore I changed the definition of Pb above to have only 18 elements.
+
+        two progressions with total of 17 adds to get 15 values of Pb.
+        6 + 5(1) -> 11 + 6(5) -> 17 + 6(11) -> 23 + 6(17) -> 29 + 6(23) -> 35 + 6(29) -> 41 + 6(35) -> 47 + 6(41) -> 53 + 6(47) -> 59
+        6 + 1(5) -> 7  + 6(1) -> 13 + 6(7)  -> 19 + 6(13) -> 25 + 6(19) -> 31 + 6(25) -> 37 + 6(31) -> 43 + 6(37) -> 49
+
+        we also need [2D]Q = [60]Q
+        to get [60]Q we just need one more add:
+        compute [60]Q from [31]Q + [29]Q([2]Q), all of which we
+        have after the above progressions are computed.
+
+        we also need [A]Q = [((B1 + D) / (2D) * 2 D]Q
+        which is equal to the following for various common B1:
+        B1      [x]Q
+        65      [120]Q
+        85      [120]Q
+        125     [180]Q      note: according to the A[Q] formula above, wouldn't this be [120]Q?  ( I suspect maybe the formula is supposed to be [((B1 + D) / D) * D]Q )
+        165     [180]Q      note: same as above.
+        205     [240]Q
+
+        and we need [x-D]Q as well, for the above [x]Q.
+        So far we are getting [x]Q and [x-2D]Q each from prac(x,Q).
+        There is a better way using progressions of [2D]Q
+        [120]Q = 2*[60]Q
+        [180]Q = [120]Q + [60]Q([60]Q)
+        [240]Q = 2*[120]Q
+        [300]Q = [240]Q + [60]Q([180]Q)
+        ...
+        etc.
+
+        */
+
+    uecm_pt_x8 pt5, pt6;
+
+    // Calculate all Pb: the following is specialized for MICRO_ECM_PARAM_D=60
+    // [2]Q + [1]Q([1]Q) = [3]Q
+    uecm_uadd_x8(rho, n, Pb[1], Pb[2], Pb[1], &Pb[3]);        // <-- temporary
+
+    // 2*[3]Q = [6]Q
+    diff1 = uecm_submod_x8(Pb[3].X, Pb[3].Z, n);
+    sum1 = uecm_addmod_x8(Pb[3].X, Pb[3].Z, n);
+    uecm_udup_x8(s, rho, n, sum1, diff1, &pt6);   // pt6 = [6]Q
+
+    // [3]Q + [2]Q([1]Q) = [5]Q
+    uecm_uadd_x8(rho, n, Pb[3], Pb[2], Pb[1], &pt5);    // <-- pt5 = [5]Q
+    Pb[3] = pt5;
+
+    // [6]Q + [5]Q([1]Q) = [11]Q
+    uecm_uadd_x8(rho, n, pt6, pt5, Pb[1], &Pb[4]);    // <-- [11]Q
+
+    i = 3;
+    k = 4;
+    j = 5;
+    while ((j + 12) < MICRO_ECM_PARAM_D)
+    {
+        // [j+6]Q + [6]Q([j]Q) = [j+12]Q
+        uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
+        i = k;
+        k = map[j + 12];
+        j += 6;
+    }
+
+    // [6]Q + [1]Q([5]Q) = [7]Q
+    uecm_uadd_x8(rho, n, pt6, Pb[1], pt5, &Pb[3]);    // <-- [7]Q
+    i = 1;
+    k = 3;
+    j = 1;
+    while ((j + 12) < MICRO_ECM_PARAM_D)
+    {
+        // [j+6]Q + [6]Q([j]Q) = [j+12]Q
+        uecm_uadd_x8(rho, n, pt6, Pb[k], Pb[i], &Pb[map[j + 12]]);
+        i = k;
+        k = map[j + 12];
+        j += 6;
+    }
+
+    // Pd = [2w]Q
+    // [31]Q + [29]Q([2]Q) = [60]Q
+    uecm_uadd_x8(rho, n, Pb[9], Pb[10], Pb[2], Pd);   // <-- [60]Q
+
+#ifdef MICRO_ECM_VERBOSE_PRINTF
+    ptadds++;
+#endif
+
+    // temporary - make [4]Q
+    uecm_pt_x8 pt4;
+    diff1 = uecm_submod_x8(Pb[2].X, Pb[2].Z, n);
+    sum1 = uecm_addmod_x8(Pb[2].X, Pb[2].Z, n);
+    uecm_udup_x8(s, rho, n, sum1, diff1, &pt4);   // pt4 = [4]Q
+
+
+    // make all of the Pbprod's
+    for (i = 3; i < 18; i++)
+    {
+        Pbprod[i] = uecm_mulredc_x8(Pb[i].X, Pb[i].Z, n, rho);
+    }
+
+
+    //initialize info needed for giant step
+    uecm_pt_x8 Pad;
+
+    // Pd = [w]Q
+    // [17]Q + [13]Q([4]Q) = [30]Q
+    uecm_uadd_x8(rho, n, Pb[map[17]], Pb[map[13]], pt4, &Pad);    // <-- [30]Q
+
+    // [60]Q + [30]Q([30]Q) = [90]Q
+    uecm_uadd_x8(rho, n, *Pd, Pad, Pad, Pa);
+
+    uecm_pt_x8 pt90 = *Pa;   // set pt90 = [90]Q
+    uecm_pt_x8 pt60 = *Pd;   // set pt60 = [60]Q
+
+    // [90]Q + [30]Q([60]Q) = [120]Q
+    uecm_uadd_x8(rho, n, *Pa, Pad, *Pd, Pd);
+
+    // [120]Q + [30]Q([90]Q) = [150]Q
+    uecm_uadd_x8(rho, n, *Pd, Pad, *Pa, Pa);
+
+
+    //initialize accumulator
+    __m512i acc = unityval;
+
+    // adjustment of Pa and Pad for particular B1.
+    // Currently we have Pa=150, Pd=120, Pad=30
+
+    if (stg1_max < 70)
+    {
+        // first process the appropriate b's with A=90
+        static const int steps27[16] = { 59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+        static const int steps47[15] = { 43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+        const int* steps;
+        int numsteps;
+        if (stg1_max == 27)
+        {
+            steps = steps27;
+            numsteps = 16;
+        }
+        else // if (stg1_max == 47)
+        {
+            steps = steps47;
+            numsteps = 15;
+        }
+
+        __m512i pt90prod = uecm_mulredc_x8(pt90.X, pt90.Z, n, rho);
+
+        for (i = 0; i < numsteps; i++)
+        {
+            b = steps[i];
+            // accumulate the cross product  (zimmerman syntax).
+            // page 342 in C&P
+            __m512i tt1 = uecm_submod_x8(pt90.X, Pb[map[b]].X, n);
+            __m512i tt2 = uecm_addmod_x8(pt90.Z, Pb[map[b]].Z, n);
+            __m512i tt3 = uecm_mulredc_x8(tt1, tt2, n, rho);
+            tt1 = uecm_addmod_x8(tt3, Pbprod[map[b]], n);
+            tt2 = uecm_submod_x8(tt1, pt90prod, n);
+
+            __m512i tmp = uecm_mulredc_x8(acc, tt2, n, rho);
+            __mmask8 m8 = _mm512_cmpgt_epi64_mask(tmp, _mm512_setzero_si512());
+            acc = _mm512_mask_mov_epi64(acc, m8, tmp);
+        }
+    }
+    else if (stg1_max == 70)
+    {
+        // first process these b's with A=120
+        static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+        // we currently have Pd=120
+
+        __m512i pdprod = uecm_mulredc_x8(Pd->X, Pd->Z, n, rho);
+
+        for (i = 0; i < 15; i++)
+        {
+            b = steps[i];
+            // accumulate the cross product  (zimmerman syntax).
+            // page 342 in C&P
+            __m512i tt1 = uecm_submod_x8(Pd->X, Pb[map[b]].X, n);
+            __m512i tt2 = uecm_addmod_x8(Pd->Z, Pb[map[b]].Z, n);
+            __m512i tt3 = uecm_mulredc_x8(tt1, tt2, n, rho);
+            tt1 = uecm_addmod_x8(tt3, Pbprod[map[b]], n);
+            tt2 = uecm_submod_x8(tt1, pdprod, n);
+
+            __m512i tmp = uecm_mulredc_x8(acc, tt2, n, rho);
+            __mmask8 m8 = _mm512_cmpgt_epi64_mask(tmp, _mm512_setzero_si512());
+            acc = _mm512_mask_mov_epi64(acc, m8, tmp);
+        }
+    }
+    else if (stg1_max == 165)
+    {
+        // Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+        // Need Pa = 180, Pd = 120, Pad = 60
+// either of these should be fine
+#if 0
+        // [150]Q + [30]Q([120]Q) = [180]Q
+        uecm_uadd_x8(rho, n, *Pa, Pad, *Pd, Pa);
+#else
+        diff1 = uecm_submod_x8(pt90.X, pt90.Z, n);
+        sum1 = uecm_addmod_x8(pt90.X, pt90.Z, n);
+        uecm_udup_x8(s, rho, n, sum1, diff1, Pa);
+#endif
+        Pad = pt60;
+        // have pa = 180, pd = 120, pad = 60
+    }
+    else if (stg1_max == 205)
+    {
+        // Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+        // need Pa = 210, Pd = 120, Pad = 90
+
+        // [120]Q + [90]Q([30]Q) = [210]Q
+        uecm_uadd_x8(rho, n, *Pd, pt90, Pad, Pa);
+
+        Pad = pt90;
+    }
+
+    //initialize Paprod
+    __m512i Paprod = uecm_mulredc_x8(Pa->X, Pa->Z, n, rho);
+
+    if (stg1_max == 27)
+    {
+        barray = b1_27;
+        numb = numb1_27;
+    }
+    else if (stg1_max == 47)
+    {
+        barray = b1_47;
+        numb = numb1_47;
+    }
+    else if (stg1_max <= 70)
+    {
+        barray = b1_70;
+        numb = numb1_70;
+    }
+    else if (stg1_max == 85)
+    {
+        barray = b1_85;
+        numb = numb1_85;
+    }
+    else if (stg1_max == 125)
+    {
+        barray = b1_125;
+        numb = numb1_125;
+    }
+    else if (stg1_max == 165)
+    {
+        barray = b1_165;
+        numb = numb1_165;
+    }
+    else if (stg1_max == 205)
+    {
+        barray = b1_205;
+        numb = numb1_205;
+    }
+
+    for (i = 0; i < numb; i++)
+    {
+        if (barray[i] == 0)
+        {
+            //giant step - use the addition formula for ECM
+            uecm_pt_x8 point = *Pa;
+
+            //Pa + Pd
+            uecm_uadd_x8(rho, n, *Pa, *Pd, Pad, Pa);
+
+            //Pad holds the previous Pa
+            Pad = point;
+
+            //and Paprod
+            Paprod = uecm_mulredc_x8(Pa->X, Pa->Z, n, rho);
+
+            i++;
+        }
+
+        //we accumulate XrZd - XdZr = (Xr - Xd) * (Zr + Zd) + XdZd - XrZr
+        //in CP notation, Pa -> (Xr,Zr), Pb -> (Xd,Zd)
+
+        b = barray[i];
+        // accumulate the cross product  (zimmerman syntax).
+        // page 342 in C&P
+        __m512i tt1 = uecm_submod_x8(Pa->X, Pb[map[b]].X, n);
+        __m512i tt2 = uecm_addmod_x8(Pa->Z, Pb[map[b]].Z, n);
+        __m512i tt3 = uecm_mulredc_x8(tt1, tt2, n, rho);
+        tt1 = uecm_addmod_x8(tt3, Pbprod[map[b]], n);
+        tt2 = uecm_submod_x8(tt1, Paprod, n);
+
+        __m512i tmp = uecm_mulredc_x8(acc, tt2, n, rho);
+        __mmask8 m8 = _mm512_cmpgt_epi64_mask(tmp, _mm512_setzero_si512());
+        acc = _mm512_mask_mov_epi64(acc, m8, tmp);
+    }
+
+    return acc;
+}
+
+
+#endif
 
 static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
                      uint32_t curves, uint64_t *ploc_lcg)
@@ -1686,7 +2786,170 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     return curve;
 }
 
+#ifdef USE_AVX512F
 
+static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B2,
+    uint32_t curves, uint32_t num_in, uint64_t* ploc_lcg)
+{
+    //attempt to factor n with the elliptic curve method
+    //following brent and montgomery's papers, and CP's book
+    int result;
+    uint8_t msk = 0;
+    uecm_pt P;
+    __m512i tmp1;
+    uint64_t uarray[8], rarray[8], sarray[8], tarray[8], oarray[8];
+    uint64_t narray[8], xarray[8], zarray[8], carray[8], fivea[8], Rsqra[8];
+    uint64_t likely_gcd;
+    uint32_t stg1_max = B1;
+    __m512i v_u, v_s, v_n, v_f, v_r, v_c, v_o;
+    uecm_pt_x8 v_P;
+    int i;
+    uint32_t j = 0;
+
+    // default (failed) factors
+    for (i = 0; i < num_in; i++)
+    {
+        f[i] = 1;
+    }
+
+    v_u = v_n = v_r = v_s = v_c = v_o = v_P.X = v_P.Z = _mm512_setzero_si512();;
+
+    while (1)
+    {
+        uint8_t lmsk = 0;
+
+        // this keeps the vectors full
+        for (i = 0; i < 8; i++)
+        {
+            if (((msk & (1 << i)) == 0) && (j < num_in))
+            {
+                // compute things we need for this new n.
+                uint64_t unityval = (1ULL << 52) % n64[j];   // unityval ≡ R  (mod n)
+                uint64_t rho = uecm_multiplicative_inverse52(n64[j]);
+                uint64_t two = addmod52(unityval, unityval, n64[j]);
+                uint64_t four = addmod52(two, two, n64[j]);
+                uint64_t five = addmod52(unityval, four, n64[j]);
+                uint64_t eight = addmod52(four, four, n64[j]);
+                uint64_t sixteen = addmod52(eight, eight, n64[j]);
+                uint64_t two_8 = uecm_sqrredc52(sixteen, n64[j], rho);        // R*2^8         (mod n)
+                uint64_t two_16 = uecm_sqrredc52(two_8, n64[j], rho);         // R*2^16        (mod n)
+                uint64_t two_32 = uecm_sqrredc52(two_16, n64[j], rho);        // R*2^32        (mod n)
+                uint64_t two_48 = uecm_mulredc52(two_16, two_32, n64[j], rho);// R*2^48        (mod n)
+                uint64_t Rsqr = uecm_mulredc52(two_48, sixteen, n64[j], rho); // R*2^52 ≡ R*R  (mod n)
+                uint64_t s;
+
+                // mark this index for loading into vectors
+                lmsk |= (1 << i);
+
+                // now we have a good curve built for this input (or a factor).
+                // load the info we need into our vectors.
+                uarray[i] = unityval;
+                rarray[i] = rho;
+                narray[i] = n64[j];
+                carray[i] = 0;
+                oarray[i] = j;
+                fivea[i] = five;
+                Rsqra[i] = Rsqr;
+
+                j++;
+            }
+
+            // build a curve for this index
+            uint64_t s;
+            likely_gcd = uecm_build52(&P, rarray[i], narray[i], ploc_lcg,
+                &s, fivea[i], Rsqra[i]);
+
+            while (likely_gcd > 1)
+            {
+                // If the gcd gave us a factor, we're done.  If not, since gcd != 1
+                // the inverse calculated in uecm_build would have bogus, and so this
+                // curve is probably set up for failure (hence we continue).
+                if (likely_gcd == narray[i] || narray[i] % likely_gcd != 0)
+                {
+                    likely_gcd = uecm_build52(&P, rarray[i], narray[i], ploc_lcg,
+                        &s, fivea[i], Rsqra[i]);
+                }
+                else
+                {
+                    f[oarray[i]] = likely_gcd;
+                    msk &= (~(1 << i));
+                    break;
+                }
+            }
+
+            sarray[i] = s;
+            xarray[i] = P.X;
+            zarray[i] = P.Z;
+
+        }
+
+        msk |= lmsk;
+        // these are conditionally loaded depending on if
+        // the input is newly loaded.
+        v_u = _mm512_mask_loadu_epi64(v_u, lmsk, uarray);
+        v_n = _mm512_mask_loadu_epi64(v_n, lmsk, narray);
+        v_r = _mm512_mask_loadu_epi64(v_r, lmsk, rarray);
+        v_c = _mm512_mask_loadu_epi64(v_c, lmsk, carray);
+        v_o = _mm512_mask_loadu_epi64(v_o, lmsk, oarray);
+
+        // these are always loaded for this new curve
+        v_s = _mm512_loadu_epi64(sarray);
+        v_P.X = _mm512_loadu_epi64(xarray);
+        v_P.Z = _mm512_loadu_epi64(zarray);
+
+        uecm_stage1_x8(v_r, v_n, &v_P, (uint64_t)stg1_max, v_s);
+
+        _mm512_storeu_epi64(tarray, v_P.Z);
+        for (i = 0; i < 8; i++)
+        {
+            if (msk & (1 << i))
+            {
+                uint64_t t;
+                result = uecm_check_factor(tarray[i], narray[i], &t);
+
+                if (result == 1)
+                {
+                    f[oarray[i]] = t;
+                    msk &= (~(1 << i));
+                }
+            }
+        }
+
+        if (B2 > B1)
+        {
+            __m512i stg2acc = uecm_stage2_x8(&v_P, v_r, v_n, stg1_max, v_s, v_u);
+
+            _mm512_storeu_epi64(tarray, stg2acc);
+
+            for (i = 0; i < 8; i++)
+            {
+                if (msk & (1 << i))
+                {
+                    uint64_t t;
+                    result = uecm_check_factor(tarray[i], narray[i], &t);
+
+                    if (result == 1)
+                    {
+                        f[oarray[i]] = t;
+                        msk &= (~(1 << i));
+                    }
+                }
+            }
+        }
+
+        // if we've exhaused the curves count for anything in
+        // the vector, flag it for replacement.
+        v_c = _mm512_add_epi64(v_c, uecm_set64(1));
+        msk &= _mm512_cmplt_epi64_mask(v_c, uecm_set64(curves));
+
+        if ((j == num_in) && (msk == 0))
+            break;
+    }
+
+    return;
+}
+
+#endif
 
 static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_t *ploc_lcg)
 {
@@ -1778,6 +3041,60 @@ static uint64_t uecm_dispatch(uint64_t n, int targetBits, int arbitrary, uint64_
     return f64;
 }
 
+#ifdef USE_AVX512F
+
+static void uecm_dispatch_x8_list(uint64_t* n, uint64_t* f,
+    int targetBits, uint32_t num_in, uint64_t* ploc_lcg)
+{
+    int B1, curves;
+
+    if (targetBits <= 40)
+    {
+        B1 = 27;
+        curves = 32;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 44)
+    {
+        B1 = 47;
+        curves = 32;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 48)
+    {
+        B1 = 70;
+        curves = 32;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 52)
+    {
+        B1 = 85;
+        curves = 32;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 58)
+    {
+        B1 = 125;
+        curves = 32;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 62)
+    {
+        B1 = 165;
+        curves = 42;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+    else if (targetBits <= 64)
+    {
+        B1 = 205;
+        curves = 42;
+        microecm_x8_list(n, f, B1, 25 * B1, curves, num_in, ploc_lcg);
+    }
+
+    return;
+}
+
+#endif
 
 static int uecm_get_bits(uint64_t n)
 {
@@ -1812,3 +3129,32 @@ uint64_t getfactor_uecm(uint64_t q64, int is_arbitrary, uint64_t *pran)
     return uecm_dispatch(q64, bits, is_arbitrary, pran);
 }
 
+#ifdef USE_AVX512F
+
+void getfactor_uecm_x8_list(uint64_t* q64, uint64_t* f64, uint32_t num_in, uint64_t* pran)
+{
+    dbias = _mm512_castsi512_pd(uecm_set64(0x4670000000000000ULL));
+    vbias1 = uecm_set64(0x4670000000000000ULL);
+    vbias2 = uecm_set64(0x4670000000000001ULL);
+    lo52mask = _mm512_set1_epi64(0x000fffffffffffffull);
+
+    int bits = uecm_get_bits(q64[0]);       // assume all the same size
+    uecm_dispatch_x8_list(q64, f64, bits, num_in, pran);
+    return;
+}
+
+#else
+
+void getfactor_uecm_x8_list(uint64_t* q64, uint64_t* f64, uint32_t num_in, uint64_t* pran)
+{
+    int bits = uecm_get_bits(q64[0]);       // assume all the same size
+    int i;
+
+    for (i = 0; i < num_in; i++)
+    {
+        f64[i] = uecm_dispatch(q64[i], bits, 0, pran);
+    }
+    return;
+}
+
+#endif

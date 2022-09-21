@@ -3882,7 +3882,7 @@ int update_check(static_conf_t *sconf)
                         // data will emerge from the filtering runs that might hone in
                         // cycle formation predictions.
                         if (sconf->digits_n > 120)
-                            sconf->check_inc = MIN(sconf->check_inc, 1000);
+                            sconf->check_inc = MAX(MIN(sconf->check_inc, 1000), 100);
 
 						// this is a better approximation than just assuming that 
 						// cycle formation stays constant.
