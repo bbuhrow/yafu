@@ -411,36 +411,32 @@ void siqsbench(fact_obj_t *fobj)
 	strcpy(list[8],"7456482836301983072751757080079609980368702375378513429852397523678294751191007081");
 	strcpy(list[9],"1877138824359859508015524119652506869600959721781289179190693027302028679377371001561");
 
-	strcpy(fobj->flogname,"bench.log");
-	log = fopen(fobj->flogname,"a");
+	fact_obj_t f;
+	init_factobj(&f);
+	copy_factobj(&f, fobj);
+
+	strcpy(f.flogname, "bench.log");
+	log = fopen(f.flogname, "a");
 	if (log == NULL)
 	{
 		printf("fopen error: %s\n", strerror(errno));
-		printf("couldn't open %s for writing\n",fobj->flogname);
+		printf("couldn't open %s for writing\n", f.flogname);
 		exit(1);
 	}
 
-//	cpu = ytools_get_cpu_type();
-//	fprintf(log,"detected cpu %d, with L1 = %d bytes, L2 = %d bytes\n",cpu,L1CACHE,L2CACHE);
-//#if defined(TFM_X86) || defined(TFM_X86_MSVC)
-//	fprintf(log,"Initialized with Tom's Fast Math (x86-32 asm)\n\n");
-//#elif defined(TFM_X86_64)
-//	fprintf(log,"Initialized with Tom's Fast Math (x86-64 asm)\n\n");
-//#else
-//	fprintf(log,"Initialized as (x86-32 generic)...\n\n");
-//#endif
-
-    fprintf(log, "commencing siqsbench on %s\n", fobj->CPU_ID_STR);
+	fprintf(log, "commencing siqsbench on %s\n", f.CPU_ID_STR);
 	fclose(log);
 
 	for (i=0; i<10; i++)
 	{
-		mpz_set_str(fobj->qs_obj.gmp_n, list[i], 10);
-		SIQS(fobj);
-		clear_factor_list(fobj->factors);
+		mpz_set_str(f.qs_obj.gmp_n, list[i], 10);
+		SIQS(&f);
+		reset_factobj(&f);
 	}
 
-    strcpy(fobj->flogname, "bench.log");
+	strcpy(f.flogname, "bench.log");
+
+	free_factobj(&f);
 
 	return;
 }

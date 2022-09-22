@@ -484,7 +484,7 @@ void new_poly_a(static_conf_t *sconf, dynamic_conf_t *dconf)
 done:
 
 
-	if (VFLAG > 2)
+	if (VFLAG > 3)
 	{
 		gmp_printf("target A: %Zd (%u bits), generated A: %Zd (%u bits)\n", target_a,
 			(uint32_t)mpz_sizeinbase(target_a, 2), poly_a, (uint32_t)mpz_sizeinbase(poly_a, 2));

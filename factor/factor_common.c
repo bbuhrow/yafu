@@ -540,6 +540,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->HAS_BMI2 = src->HAS_BMI2;
     dest->HAS_AVX512F = src->HAS_AVX512F;
     dest->HAS_AVX512BW = src->HAS_AVX512BW;
+    dest->VFLAG = src->VFLAG;
+    dest->LATHREADS = src->LATHREADS;
 
     return;
 }

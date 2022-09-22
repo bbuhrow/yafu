@@ -119,30 +119,34 @@ void factor_tune(fact_obj_t *inobj)
 	// RSA-129 (The magic words are squeamish ossifrage)
 	// 114381625757888867669235779976146612010218296721242362562561842935706935245733897830597123563958705058989075147599290026879543541
 
+	fact_obj_t fobj;
+
+	init_factobj(&fobj);
+	copy_factobj(&fobj, inobj);
+
 	// for each of the siqs inputs
 	for (i=0; i<NUM_SIQS_PTS; i++)
 	{
-		fact_obj_t* fobj = inobj; // (fact_obj_t*)malloc(sizeof(fact_obj_t));
-		//init_factobj(fobj);
+		reset_factobj(&fobj);
 
 		// measure how long it takes to gather a fixed number of relations 		
         mpz_set_str(n, siqslist[i], 10);
-		fobj->qs_obj.gbl_override_rel_flag = 1;
-		fobj->qs_obj.gbl_override_rel = 10000;	
+		fobj.qs_obj.gbl_override_rel_flag = 1;
+		fobj.qs_obj.gbl_override_rel = 10000;	
 
         // also set the tf_small_cutoff to its known best value so we
         // don't pollute the measurement with the optimization process.
-        fobj->qs_obj.gbl_override_small_cutoff_flag = 1;
-        fobj->qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
+        fobj.qs_obj.gbl_override_small_cutoff_flag = 1;
+        fobj.qs_obj.gbl_override_small_cutoff = siqs_tf_small_cutoff[i];
 
 		gettimeofday(&start, NULL);
-        mpz_set(fobj->qs_obj.gmp_n, n);
-		SIQS(fobj);
+        mpz_set(fobj.qs_obj.gmp_n, n);
+		SIQS(&fobj);
 		gettimeofday(&stop, NULL);
         t_time = ytools_difftime(&start, &stop);
 
 		// the number of relations actually gathered is stored in gbl_override_rel
-		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj->qs_obj.gbl_override_rel;
+		siqs_extraptime[i] = t_time * siqs_actualrels[i] / fobj.qs_obj.gbl_override_rel;
 
 		// add a guess at the linalg + sqrt time: something reasonable seems to be about
 		// 2% of the total sieve time
@@ -151,12 +155,9 @@ void factor_tune(fact_obj_t *inobj)
 		printf("elapsed time for ~10k relations of c%d = %6.4f seconds.\n",
             mpz_sizeinbase(n, 10), t_time);
 		printf("extrapolated time for complete factorization = %6.4f seconds\n",siqs_extraptime[i]);
-
-		clear_factor_list(fobj->factors);
-
-		//free_factobj(fobj);
-		//free(fobj);
 	}
+
+	free_factobj(&fobj);
 
 	fit = best_linear_fit(siqs_sizes, siqs_extraptime, NUM_SIQS_PTS, &a, &b);
 	printf("best linear fit is ln(y) = %g * x + %g\nR^2 = %g\n",a,b,fit);

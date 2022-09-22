@@ -2879,11 +2879,8 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
     //following brent and montgomery's papers, and CP's book
     int result;
     uint8_t msk = 0;
-    //uecm_pt P;
     uint64_t uarray[8], rarray[8], tarray[8], oarray[8];
     uint64_t narray[8], carray[8], fivea[8], Rsqra[8];
-    //uint64_t xarray[8], zarray[8], sarray[8];
-    //uint64_t likely_gcd;
     uint32_t stg1_max = B1;
     __m512i v_u, v_s, v_n, v_f, v_r, v_c, v_o;
     uecm_pt_x8 v_P;
@@ -2916,17 +2913,13 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 uint64_t eight = addmod52(four, four, n64[j]);
                 uint64_t sixteen = addmod52(eight, eight, n64[j]);
 
+                // an add, 3 sqrs, and 1 mul versus 3 sqrs and 2 muls
+                // with the sequence 2^4, 2^8, 2^16, 2^32, 2^48, 2^52
                 uint64_t two_5 = addmod52(sixteen, sixteen, n64[j]);
                 uint64_t two_8 = uecm_sqrredc52(sixteen, n64[j], rho);        // R*2^8         (mod n)
                 uint64_t two_13 = uecm_mulredc52(two_8, two_5, n64[j], rho);  // R*2^13         (mod n)
                 uint64_t two_26 = uecm_sqrredc52(two_13, n64[j], rho);        // R*2^26        (mod n)
                 uint64_t Rsqr = uecm_sqrredc52(two_26, n64[j], rho);          // R*2^52 ≡ R*R  (mod n)
-
-                //uint64_t two_8 = uecm_sqrredc52(sixteen, n64[j], rho);        // R*2^8         (mod n)
-                //uint64_t two_16 = uecm_sqrredc52(two_8, n64[j], rho);         // R*2^16        (mod n)
-                //uint64_t two_32 = uecm_sqrredc52(two_16, n64[j], rho);        // R*2^32        (mod n)
-                //uint64_t two_48 = uecm_mulredc52(two_16, two_32, n64[j], rho);// R*2^48        (mod n)
-                //uint64_t Rsqr = uecm_mulredc52(two_48, sixteen, n64[j], rho); // R*2^52 ≡ R*R  (mod n)
                 uint64_t s;
 
                 // mark this index for loading into vectors
@@ -2943,38 +2936,6 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
 
                 j++;
             }
-
-            //// build a curve for this index
-            //uint64_t s;
-            //likely_gcd = uecm_build52(&P, rarray[i], narray[i], ploc_lcg,
-            //    &s, fivea[i], Rsqra[i]);
-            //
-            //sarray[i] = s;
-            //xarray[i] = P.X;
-            //zarray[i] = P.Z;
-            //
-            //while (likely_gcd > 1)
-            //{
-            //    // If the gcd gave us a factor, we're done.  If not, since gcd != 1
-            //    // the inverse calculated in uecm_build would have bogus, and so this
-            //    // curve is probably set up for failure (hence we continue).
-            //    if (likely_gcd == narray[i] || narray[i] % likely_gcd != 0)
-            //    {
-            //        likely_gcd = uecm_build52(&P, rarray[i], narray[i], ploc_lcg,
-            //            &s, fivea[i], Rsqra[i]);
-            //
-            //        sarray[i] = s;
-            //        xarray[i] = P.X;
-            //        zarray[i] = P.Z;
-            //    }
-            //    else
-            //    {
-            //        f[oarray[i]] = likely_gcd;
-            //        //msk &= (~(1 << i));
-            //        i--;
-            //        break;
-            //    }
-            //}
         }
 
         msk |= lmsk;
@@ -2994,7 +2955,15 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
         __m512i lgcd = _mm512_loadu_epi64(tarray);
         __mmask8 m1 = _mm512_cmplt_epi64_mask(lgcd, v_n);
         __mmask8 m2 = _mm512_cmpgt_epi64_mask(lgcd, uecm_set64(1));
+#ifdef _INTEL_COMPILER
         __m512i rem = _mm512_rem_epi64(v_n, lgcd);
+#else
+        for (i = 0; i < 8; i++)
+        {
+            tarray[i] = narray[i] % tarray[i];
+        }
+        __m512i rem = _mm512_loadu_epi64(tarray);
+#endif
         __mmask8 m3 = _mm512_cmpeq_epi64_mask(rem, _mm512_setzero_si512());
         _mm512_mask_store_epi64(tarray, m2 & msk & m1 & m3, lgcd);
         msk &= (~(m2 & m1 & m3));
@@ -3004,11 +2973,6 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
             if (((m1 & m2 & m3) & (1 << i)) > 0)
                 f[oarray[i]] = tarray[i];
         }
-
-        // these are always loaded for this new curve
-        //v_s = _mm512_loadu_epi64(sarray);
-        //v_P.X = _mm512_loadu_epi64(xarray);
-        //v_P.Z = _mm512_loadu_epi64(zarray);
 
         uecm_stage1_x8(v_r, v_n, &v_P, (uint64_t)stg1_max, v_s);
 
