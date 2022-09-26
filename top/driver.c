@@ -1134,11 +1134,16 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 		while (1)
 		{
 			ptr = fgets(tmpline,GSTR_MAXSIZE,batchfile);
-			strcpy(line + strlen(line), tmpline);
-			
+            strcpy(line + strlen(line), tmpline);
+
 			// stop if we didn't read anything
 			if (feof(batchfile))
 			{
+                if (strlen(line) > 0)
+                {
+                    //printf("last line: %s\n", line);
+                    break;
+                }
 				printf("eof; done processing batchfile\n");
 				fclose(batchfile);
 				*code = 1;
@@ -1154,6 +1159,9 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 				free(line);
 				return input_exp;
 			}
+
+            //printf("line = %s\n", line);
+            //printf("last character is %02x\n", line[strlen(line) - 1]);
 
 			// if we got the end of the line, stop reading
 			if ((line[strlen(line)-1] == 0xa) ||

@@ -714,6 +714,7 @@ int check_relations_siqs_16_sse2(uint32_t blocknum, uint8_t parity,
 	return 0;
 }
 
+#ifdef USE_AVX2
 int check_relations_siqs_4_avx2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf)
 {
@@ -927,6 +928,8 @@ int check_relations_siqs_16_avx2(uint32_t blocknum, uint8_t parity,
 
     return 0;
 }
+
+#endif
 
 #ifdef USE_AVX512F
 #include <immintrin.h>

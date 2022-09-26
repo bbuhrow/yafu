@@ -91,14 +91,13 @@ typedef struct
 
 } tinyecm_work;
 
-static const uint32_t map[61] = {
+static const uint32_t map[60] = {
 	0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
 	0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
 	0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
 	0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
 	0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
-	0, 0, 0, 16, 0, 0, 0, 0, 0, 17,
-	18 };
+	0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
 
 static uint64_t* tecm_primes;
 static uint64_t tecm_nump;
@@ -1697,7 +1696,7 @@ void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 
 	// handle the only even case 
 	q = 2;
-	while (q < stg1)
+	while (q < stg1 * 4)  // jeff: multiplying by 4 improves perf ~1%
 	{
 		submod128(P->X, P->Z, work->diff1, work->n);
 		addmod128(P->X, P->Z, work->sum1, work->n);
@@ -1705,29 +1704,86 @@ void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 		q *= 2;
 	}
 
-	if (stg1 == 70)
+	if (stg1 == 27)
+	{
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 7, 0.618033988749894903);
+		prac(mdata, work, P, 11, 0.580178728295464130);
+		prac(mdata, work, P, 13, 0.618033988749894903);
+		prac(mdata, work, P, 17, 0.618033988749894903);
+		prac(mdata, work, P, 19, 0.618033988749894903);
+		prac(mdata, work, P, 23, 0.522786351415446049);
+	}
+	else if (stg1 == 47)
+	{
+		// jeff: improved perf slightly by using one more uprac for 3,
+		// and removing uprac for 47.
+		prac(mdata, work, P, 3, 0.618033988749894903);
+		prac(mdata, work, P, 3, 0.618033988749894903);
+		prac(mdata, work, P, 3, 0.618033988749894903);
+		prac(mdata, work, P, 3, 0.618033988749894903);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 7, 0.618033988749894903);
+		prac(mdata, work, P, 11, 0.580178728295464130);
+		prac(mdata, work, P, 13, 0.618033988749894903);
+		prac(mdata, work, P, 17, 0.618033988749894903);
+		prac(mdata, work, P, 19, 0.618033988749894903);
+		prac(mdata, work, P, 23, 0.522786351415446049);
+		prac(mdata, work, P, 29, 0.548409048446403258);
+		prac(mdata, work, P, 31, 0.618033988749894903);
+		prac(mdata, work, P, 37, 0.580178728295464130);
+		prac(mdata, work, P, 41, 0.548409048446403258);
+		prac(mdata, work, P, 43, 0.618033988749894903);
+		//        uecm_uprac(mdata, work, P, 47, 0.548409048446403258);
+	}
+	else if (stg1 == 59)
+	{   // jeff: probably stg1 of 59 would benefit from similar changes
+		// as stg1 of 47 above, but I didn't bother. Stg1 of 59 seems to
+		// always perform worse than stg1 of 47, so there doesn't seem
+		// to be any reason to ever use stg1 of 59.
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 3, 0.61803398874989485);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 5, 0.618033988749894903);
+		prac(mdata, work, P, 7, 0.618033988749894903);
+		prac(mdata, work, P, 7, 0.618033988749894903);
+		prac(mdata, work, P, 11, 0.580178728295464130);
+		prac(mdata, work, P, 13, 0.618033988749894903);
+		prac(mdata, work, P, 17, 0.618033988749894903);
+		prac(mdata, work, P, 19, 0.618033988749894903);
+		prac(mdata, work, P, 23, 0.522786351415446049);
+		prac(mdata, work, P, 29, 0.548409048446403258);
+		prac(mdata, work, P, 31, 0.618033988749894903);
+		prac(mdata, work, P, 1961, 0.552936068843375);   // 37 * 53
+		prac(mdata, work, P, 41, 0.548409048446403258);
+		prac(mdata, work, P, 43, 0.618033988749894903);
+		prac(mdata, work, P, 47, 0.548409048446403258);
+		prac(mdata, work, P, 59, 0.548409048446403258);
+	}
+	else if (stg1 == 70)
 	{
 		prac70(mdata, work, P);
 		i = 19;
 	}
-	else if (stg1 >= 85)
+	else // if (stg1 >= 85)
 	{
-		// call prac with best ratios found by a deep search.
-		// some composites are cheaper than their 
-		// constituent primes.
 		prac85(mdata, work, P);
-		if (stg1 < 100)
+
+		if (stg1 == 85)
 		{
-			// paired into a composite for larger bounds
 			prac(mdata, work, P, 61, 0.522786351415446049);
 		}
-		i = 23;
-
-		if (stg1 >= 125)
+		else
 		{
 			prac(mdata, work, P, 5, 0.618033988749894903);
 			prac(mdata, work, P, 11, 0.580178728295464130);
-			prac(mdata, work, P, 61, 0.522786351415446049);
+			//            uecm_uprac(mdata, work, P, 61, 0.522786351415446049);
 			prac(mdata, work, P, 89, 0.618033988749894903);
 			prac(mdata, work, P, 97, 0.723606797749978936);
 			prac(mdata, work, P, 101, 0.556250337855490828);
@@ -1735,127 +1791,269 @@ void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 			prac(mdata, work, P, 109, 0.548409048446403258);
 			prac(mdata, work, P, 113, 0.618033988749894903);
 
-			if (stg1 < 130)
+			if (stg1 == 125)
 			{
+				// jeff: moved 61 to here
+				prac(mdata, work, P, 61, 0.522786351415446049);
 				prac(mdata, work, P, 103, 0.632839806088706269);
-
 			}
-
-			i = 30;
-		}
-
-		if (stg1 >= 165)
-		{
-			prac(mdata, work, P, 7747, 0.552188778811121); // 61 x 127
-			prac(mdata, work, P, 131, 0.618033988749894903);
-			prac(mdata, work, P, 14111, 0.632839806088706);	// 103 x 137
-			prac(mdata, work, P, 20989, 0.620181980807415);	// 139 x 151
-			prac(mdata, work, P, 157, 0.640157392785047019);
-			prac(mdata, work, P, 163, 0.551390822543526449);
-
-			if (stg1 < 200)
+			else
 			{
-				prac(mdata, work, P, 149, 0.580178728295464130);
-			}
-			i = 38;
-		}
+				prac(mdata, work, P, 7747, 0.552188778811121); // 61 x 127
+				prac(mdata, work, P, 131, 0.618033988749894903);
+				prac(mdata, work, P, 14111, 0.632839806088706);  // 103 x 137
+				prac(mdata, work, P, 20989, 0.620181980807415);  // 139 x 151
+				prac(mdata, work, P, 157, 0.640157392785047019);
+				prac(mdata, work, P, 163, 0.551390822543526449);
 
-		if (stg1 >= 205)
-		{
-			prac(mdata, work, P, 13, 0.618033988749894903);
-			prac(mdata, work, P, 167, 0.580178728295464130);
-			prac(mdata, work, P, 173, 0.612429949509495031);
-			prac(mdata, work, P, 179, 0.618033988749894903);
-			prac(mdata, work, P, 181, 0.551390822543526449);
-			prac(mdata, work, P, 191, 0.618033988749894903);
-			prac(mdata, work, P, 193, 0.618033988749894903);
-			prac(mdata, work, P, 29353, 0.580178728295464);	// 149 x 197
-			prac(mdata, work, P, 199, 0.551390822543526449);
-			i = 46;
+				if (stg1 == 165)
+				{
+					prac(mdata, work, P, 149, 0.580178728295464130);
+				}
+				else
+				{
+					prac(mdata, work, P, 13, 0.618033988749894903);
+					prac(mdata, work, P, 167, 0.580178728295464130);
+					prac(mdata, work, P, 173, 0.612429949509495031);
+					prac(mdata, work, P, 179, 0.618033988749894903);
+					prac(mdata, work, P, 181, 0.551390822543526449);
+					prac(mdata, work, P, 191, 0.618033988749894903);
+					prac(mdata, work, P, 193, 0.618033988749894903);
+					prac(mdata, work, P, 29353, 0.580178728295464);  // 149 x 197
+					prac(mdata, work, P, 199, 0.551390822543526449);
+				}
+			}
 		}
 	}
-
 	return;
 }
 
 // pre-paired sequences for various B1 and B2 = 25*B1
-static const int numb1_70 = 186;
-static uint8_t b1_70[186] = { 53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,17,13,11,1,23,31,37,49 };
+static const int numb1_27 = 76;
+static const uint8_t b1_27[76] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7 };
+
+static const int numb1_47 = 121;
+static const uint8_t b1_47[121] = {
+1,7,13,17,23,29,31,41,43,47,49,0,59,47,43,41,
+37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,
+23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,
+11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,
+11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,
+0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,
+37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,
+19,17,13,7,1,43,53,0,59 };
+
+static const int numb1_70 = 175;
+static const uint8_t b1_70[175] = {
+31,41,43,47,49,0,59,47,43,41,37,31,29,19,13,7,
+1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
+29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,
+0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,
+41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,
+31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,
+29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,
+53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,
+53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,
+19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,
+7,17,29,0,53,47,43,41,17,13,11,1,23,31,37 };
 
 static const int numb1_85 = 225;
-static uint8_t b1_85[225] = { 1,53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,43,41,31,17,7,1,11,13,19,29 };
+static const uint8_t b1_85[225] = {
+	1,53,49,47,43,41,37,23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,
+	31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,
+	0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,
+	31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,
+	29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,
+	17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,
+	43,41,31,17,7,1,11,13,19,29 };
 
 static const int numb1_125 = 319;
-static uint8_t b1_125[319] = { 23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,17,0,47,43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,17,13,11,1,23,31,37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,43,41,31,17,7,1,11,13,19,29,0,59,53,49,47,37,29,11,13,17,23,31,0,59,43,41,37,29,23,17,13,1,31,47,0,59,53,49,47,41,37,31,19,13,7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,49,41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,37,49,53 };
+static const uint8_t b1_125[319] = {
+	23,19,13,11,1,7,17,29,31,0,59,47,43,41,37,31,29,19,13,7,1,11,23,0,59,53,43,41,37,31,23,17,11,7,1,19,
+	29,49,0,53,49,47,43,31,23,19,11,7,1,13,37,59,0,59,53,43,37,31,29,23,17,13,11,1,47,0,59,49,41,31,23,
+	17,11,7,1,19,37,47,0,59,49,47,43,41,31,17,13,11,7,37,0,53,49,43,37,23,19,13,7,1,29,31,41,59,0,59,49,
+	47,41,23,19,17,13,7,1,43,53,0,59,49,43,37,29,17,13,7,1,19,47,53,0,59,53,49,47,43,31,29,23,11,17,0,47,
+	43,41,37,31,23,19,17,11,1,13,29,53,0,59,47,41,37,31,23,19,11,7,17,29,0,53,47,43,41,17,13,11,1,23,31,
+	37,49,0,53,47,43,41,29,19,7,1,17,31,37,49,59,0,49,43,37,19,17,1,23,29,47,53,0,59,53,43,41,31,17,7,1,
+	11,13,19,29,0,59,53,49,47,37,29,11,13,17,23,31,0,59,43,41,37,29,23,17,13,1,31,47,0,59,53,49,47,41,37,
+	31,19,13,7,11,17,29,43,0,47,29,19,11,7,1,41,43,59,0,53,49,37,23,13,11,7,1,17,19,29,41,43,59,0,59,49,
+	41,37,23,13,1,7,11,29,43,47,53,0,59,53,49,31,23,13,7,1,17,29,43,47,0,59,31,29,19,11,7,37,49,53 };
 
 static const int numb1_165 = 425;
-static uint8_t b1_165[425] = { 13,7,1,11,19,47,59,0,59,49,43,37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,31,23,19,11,1,13,29,43,59,0,53,49,41,37,31,19,17,1,7,23,29,47,59,0,59,53,47,43,41,29,19,17,13,7,1,23,31,49,0,53,47,41,37,29,23,19,11,7,17,31,43,49,59,0,47,43,41,37,23,19,17,13,7,11,29,53,0,53,49,43,37,29,23,11,7,1,13,19,31,41,0,53,49,47,43,37,31,23,17,11,13,41,0,59,47,43,37,31,29,23,11,1,17,19,41,0,59,53,19,13,7,1,29,43,47,49,0,53,49,47,41,29,19,17,13,11,7,1,23,31,43,59,0,53,49,41,37,23,19,13,11,7,1,17,43,47,0,47,43,41,31,19,17,7,1,13,37,49,0,59,49,37,29,13,1,7,11,17,19,41,47,53,0,49,47,31,29,7,1,13,17,19,23,37,59,0,47,37,31,19,17,13,11,1,29,41,43,53,0,59,41,17,13,7,1,19,23,31,47,49,53,0,59,53,47,43,31,29,7,1,11,17,37,41,49,0,49,43,37,23,19,13,1,7,17,0,59,49,41,37,31,29,23,1,11,13,53,0,53,43,41,37,29,23,17,13,11,7,1,19,31,49,0,53,43,31,29,23,19,17,1,13,37,41,59,0,53,43,37,31,23,13,1,17,29,59,0,59,49,41,37,23,19,11,1,7,29,0,59,43,17,13,11,1,7,23,29,37,41,49,0,49,47,43,41,29,1,7,13,19,23,31,59,0,59,49,47,31,29,13,7,37,41,43,0,49,41,29,23,13,11,7,1,17,19,31,43,53,0,53,47,43,37,29,23,17,1,11,13,31,41,49,59,0,53,47,41,19,13,11,1,17,23,43,0,53,49,47,37,23,19,11,7,17,29,31,43,0,53,31,19,17,13,7,1,29,37,59 };
+static const uint8_t b1_165[425] = {
+	13,7,1,11,19,47,59,0,59,49,43,37,31,29,23,19,17,7,11,13,47,53,0,53,47,41,37,31,23,19,11,1,13,29,43,
+	59,0,53,49,41,37,31,19,17,1,7,23,29,47,59,0,59,53,47,43,41,29,19,17,13,7,1,23,31,49,0,53,47,41,37,29,
+	23,19,11,7,17,31,43,49,59,0,47,43,41,37,23,19,17,13,7,11,29,53,0,53,49,43,37,29,23,11,7,1,13,19,31,41,
+	0,53,49,47,43,37,31,23,17,11,13,41,0,59,47,43,37,31,29,23,11,1,17,19,41,0,59,53,19,13,7,1,29,43,47,49,
+	0,53,49,47,41,29,19,17,13,11,7,1,23,31,43,59,0,53,49,41,37,23,19,13,11,7,1,17,43,47,0,47,43,41,31,19,
+	17,7,1,13,37,49,0,59,49,37,29,13,1,7,11,17,19,41,47,53,0,49,47,31,29,7,1,13,17,19,23,37,59,0,47,37,31,
+	19,17,13,11,1,29,41,43,53,0,59,41,17,13,7,1,19,23,31,47,49,53,0,59,53,47,43,31,29,7,1,11,17,37,41,49,
+	0,49,43,37,23,19,13,1,7,17,0,59,49,41,37,31,29,23,1,11,13,53,0,53,43,41,37,29,23,17,13,11,7,1,19,31,49,
+	0,53,43,31,29,23,19,17,1,13,37,41,59,0,53,43,37,31,23,13,1,17,29,59,0,59,49,41,37,23,19,11,1,7,29,0,59,
+	43,17,13,11,1,7,23,29,37,41,49,0,49,47,43,41,29,1,7,13,19,23,31,59,0,59,49,47,31,29,13,7,37,41,43,0,49,
+	41,29,23,13,11,7,1,17,19,31,43,53,0,53,47,43,37,29,23,17,1,11,13,31,41,49,59,0,53,47,41,19,13,11,1,17,
+	23,43,0,53,49,47,37,23,19,11,7,17,29,31,43,0,53,31,19,17,13,7,1,29,37,59 };
 
 static const int numb1_205 = 511;
-static uint8_t b1_205[511] = { 1,23,41,0,59,53,49,47,37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,17,11,7,1,13,37,59,0,49,47,29,23,13,7,1,17,31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,19,17,7,1,11,23,31,43,59,0,59,53,41,31,13,11,7,1,17,29,37,0,49,43,37,29,11,1,13,17,19,23,41,0,59,49,47,43,41,37,31,19,7,1,13,23,29,53,0,53,49,43,41,37,31,29,23,13,7,17,19,47,59,0,49,47,37,29,23,17,11,7,13,19,31,41,53,0,59,43,29,23,19,17,13,11,1,41,0,59,37,31,23,17,13,11,7,1,19,29,43,53,0,49,47,43,41,31,19,17,1,7,11,13,23,0,47,43,37,29,13,11,7,1,17,19,23,31,59,0,59,37,31,29,23,19,13,1,7,11,41,47,53,0,53,49,43,31,23,17,13,41,59,0,59,53,31,19,17,1,7,11,23,37,47,49,0,59,53,47,43,41,37,31,23,19,17,11,1,0,59,53,49,47,31,17,13,7,1,11,29,37,0,53,43,31,17,13,7,1,29,41,49,0,53,49,41,29,23,11,7,1,19,31,47,0,47,43,41,29,23,19,7,1,11,49,0,59,31,29,23,17,11,7,1,13,41,43,0,59,43,37,17,1,7,11,13,19,41,49,0,59,53,43,41,37,31,29,23,13,11,1,47,0,59,53,47,31,19,17,13,1,7,11,29,37,43,49,0,49,43,41,31,17,13,7,11,23,37,53,0,53,49,41,23,19,13,11,7,1,17,37,59,0,49,47,43,37,31,29,23,1,7,41,0,59,43,41,37,31,17,13,11,7,47,49,0,59,49,47,37,31,29,19,17,7,1,0,53,47,37,19,13,1,11,31,41,0,49,47,37,23,17,13,11,7,19,31,53,0,59,53,47,29,13,11,7,1,23,41,0,49,47,41,37,19,11,13,17,23,29,31,43,0,59,29,19,13,1,41,43,47,53,0,59,53,43,41,37,23,17,11,7,1,13,29,49 };
+static const uint8_t b1_205[511] = {
+	1,23,41,0,59,53,49,47,37,23,19,17,13,1,7,29,43,0,53,49,41,31,29,19,17,11,7,1,13,37,59,0,49,47,29,23,
+	13,7,1,17,31,37,43,0,59,49,47,43,37,31,29,17,13,7,1,11,19,53,0,59,53,49,41,37,23,13,1,11,17,19,29,43,
+	47,0,53,49,47,43,23,19,11,1,7,17,37,41,0,59,53,41,37,31,29,19,17,11,1,13,43,47,0,53,47,41,19,17,7,1,
+	11,23,31,43,59,0,59,53,41,31,13,11,7,1,17,29,37,0,49,43,37,29,11,1,13,17,19,23,41,0,59,49,47,43,41,37,
+	31,19,7,1,13,23,29,53,0,53,49,43,41,37,31,29,23,13,7,17,19,47,59,0,49,47,37,29,23,17,11,7,13,19,31,41,
+	53,0,59,43,29,23,19,17,13,11,1,41,0,59,37,31,23,17,13,11,7,1,19,29,43,53,0,49,47,43,41,31,19,17,1,7,11,
+	13,23,0,47,43,37,29,13,11,7,1,17,19,23,31,59,0,59,37,31,29,23,19,13,1,7,11,41,47,53,0,53,49,43,31,23,
+	17,13,41,59,0,59,53,31,19,17,1,7,11,23,37,47,49,0,59,53,47,43,41,37,31,23,19,17,11,1,0,59,53,49,47,31,
+	17,13,7,1,11,29,37,0,53,43,31,17,13,7,1,29,41,49,0,53,49,41,29,23,11,7,1,19,31,47,0,47,43,41,29,23,19,
+	7,1,11,49,0,59,31,29,23,17,11,7,1,13,41,43,0,59,43,37,17,1,7,11,13,19,41,49,0,59,53,43,41,37,31,29,23,
+	13,11,1,47,0,59,53,47,31,19,17,13,1,7,11,29,37,43,49,0,49,43,41,31,17,13,7,11,23,37,53,0,53,49,41,23,
+	19,13,11,7,1,17,37,59,0,49,47,43,37,31,29,23,1,7,41,0,59,43,41,37,31,17,13,11,7,47,49,0,59,49,47,37,31,
+	29,19,17,7,1,0,53,47,37,19,13,1,11,31,41,0,49,47,37,23,17,13,11,7,19,31,53,0,59,53,47,29,13,11,7,1,23,
+	41,0,49,47,41,37,19,11,13,17,23,29,31,43,0,59,29,19,13,1,41,43,47,53,0,59,53,43,41,37,23,17,11,7,1,13,
+	29,49 };
 
-void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
+
+void ecm_stage2(tinyecm_pt* P, monty128_t* mdata, tinyecm_work* work )
 {
 	int b;
 	int i, j, k;
-	tinyecm_pt *Pa = &work->Pa;
-	tinyecm_pt *Pb = work->Pb;
-	tinyecm_pt *Pd = &Pb[map[60]];
-	tinyecm_pt *Pad = &work->Pad;
-	uint8_t *barray = NULL;
+	tinyecm_pt Pa1;
+	tinyecm_pt* Pa = &Pa1;
+	tinyecm_pt Pb[18];
+	tinyecm_pt Pd1;
+	tinyecm_pt* Pd = &Pd1;
+	const uint8_t* barray = 0;
 	int numb;
+	uint32_t stg1_max = work->stg1_max;
+
+#ifdef MICRO_ECM_VERBOSE_PRINTF
+	ptadds = 0;
+	stg1Doub = 0;
+	stg1Add = 0;
+#endif
+
+	// this function has been written for MICRO_ECM_PARAM_D of 60, so you
+	// probably don't want to change it.
+	const int MICRO_ECM_PARAM_D = 60;
 
 	//stage 2 init
 	//Q = P = result of stage 1
+	//compute [d]Q for 0 < d <= MICRO_ECM_PARAM_D
+
+	uint64_t Pbprod[18][2];
+
 	// [1]Q
-	copy128(P->Z, Pb[1].Z);
+	//Pb[1] = *P;
 	copy128(P->X, Pb[1].X);
-	mulmod128(Pb[1].X, Pb[1].Z, work->Pbprod[1], mdata);
+	copy128(P->Z, Pb[1].Z);
+	mulmod128(Pb[1].X, Pb[1].Z, Pbprod[1], mdata);
 
 	// [2]Q
 	submod128(P->X, P->Z, work->diff1, work->n);
 	addmod128(P->X, P->Z, work->sum1, work->n);
 	duplicate(mdata, work, work->sum1, work->diff1, &Pb[2]);
-	mulmod128(Pb[2].X, Pb[2].Z, work->Pbprod[2], mdata);
 
-	// Calculate all Pb: the following is specialized for D=120
+		/*
+		Let D = MICRO_ECM_PARAM_D.
+
+		D is small in tinyecm, so it is straightforward to just enumerate the needed
+		points.  We can do it efficiently with two progressions mod 6.
+		Pb[0] = scratch
+		Pb[1] = [1]Q;
+		Pb[2] = [2]Q;
+		Pb[3] = [7]Q;   prog2
+		Pb[4] = [11]Q;  prog1
+		Pb[5] = [13]Q;  prog2
+		Pb[6] = [17]Q;  prog1
+		Pb[7] = [19]Q;  prog2
+		Pb[8] = [23]Q;  prog1
+		Pb[9] = [29]Q;  prog1
+		Pb[10] = [30 == D]Q;   // shouldn't this be [31]Q?
+		Pb[11] = [31]Q; prog2   // shouldn't this be [37]Q?
+		Pb[12] = [37]Q; prog2   // shouldn't this be [41]Q?
+		Pb[13] = [41]Q; prog1   // [43]Q?
+		Pb[14] = [43]Q; prog2   // [47]Q?
+		Pb[15] = [47]Q; prog1   // [49]Q?
+		Pb[16] = [49]Q; prog2   // [53]Q?
+		Pb[17] = [53]Q; prog1   // [59]Q?
+		// Pb[18] = [59]Q; prog1   // [60]Q?   note: we can remove this line I believe.  Pb[18] is never set, and never used.  Therefore I changed the definition of Pb above to have only 18 elements.
+
+		two progressions with total of 17 adds to get 15 values of Pb.
+		6 + 5(1) -> 11 + 6(5) -> 17 + 6(11) -> 23 + 6(17) -> 29 + 6(23) -> 35 + 6(29) -> 41 + 6(35) -> 47 + 6(41) -> 53 + 6(47) -> 59
+		6 + 1(5) -> 7  + 6(1) -> 13 + 6(7)  -> 19 + 6(13) -> 25 + 6(19) -> 31 + 6(25) -> 37 + 6(31) -> 43 + 6(37) -> 49
+
+		we also need [2D]Q = [60]Q
+		to get [60]Q we just need one more add:
+		compute [60]Q from [31]Q + [29]Q([2]Q), all of which we
+		have after the above progressions are computed.
+
+		we also need [A]Q = [((B1 + D) / (2D) * 2 D]Q
+		which is equal to the following for various common B1:
+		B1      [x]Q
+		65      [120]Q
+		85      [120]Q
+		125     [180]Q      note: according to the A[Q] formula above, wouldn't this be [120]Q?  ( I suspect maybe the formula is supposed to be [((B1 + D) / D) * D]Q )
+		165     [180]Q      note: same as above.
+		205     [240]Q
+
+		and we need [x-D]Q as well, for the above [x]Q.
+		So far we are getting [x]Q and [x-2D]Q each from prac(x,Q).
+		There is a better way using progressions of [2D]Q
+		[120]Q = 2*[60]Q
+		[180]Q = [120]Q + [60]Q([60]Q)
+		[240]Q = 2*[120]Q
+		[300]Q = [240]Q + [60]Q([180]Q)
+		...
+		etc.
+
+		*/
+
+	tinyecm_pt pt5, pt6;
+
+	// Calculate all Pb: the following is specialized for MICRO_ECM_PARAM_D=60
 	// [2]Q + [1]Q([1]Q) = [3]Q
-	add(mdata, work, &Pb[1], &Pb[2], &Pb[1], &Pb[3]);		// <-- temporary
+	add(mdata, work, &Pb[1], &Pb[2], &Pb[1], &Pb[3]);        // <-- temporary
 
 	// 2*[3]Q = [6]Q
 	submod128(Pb[3].X, Pb[3].Z, work->diff1, work->n);
 	addmod128(Pb[3].X, Pb[3].Z, work->sum1, work->n);
-	duplicate(mdata, work, work->sum1, work->diff1, &work->pt3);	// pt3 = [6]Q
+	duplicate(mdata, work, work->sum1, work->diff1, &pt6);   // pt6 = [6]Q
 
 	// [3]Q + [2]Q([1]Q) = [5]Q
-	add(mdata, work, &Pb[3], &Pb[2], &Pb[1], &work->pt1);	// <-- pt1 = [5]Q
-	copy128(work->pt1.X, Pb[3].X);
-	copy128(work->pt1.Z, Pb[3].Z);
+	add(mdata, work, &Pb[3], &Pb[2], &Pb[1], &pt5);    // <-- pt5 = [5]Q
+	//Pb[3] = pt5;
+	copy128(pt5.X, Pb[3].X);
+	copy128(pt5.Z, Pb[3].Z);
 
 	// [6]Q + [5]Q([1]Q) = [11]Q
-	add(mdata, work, &work->pt3, &work->pt1, &Pb[1], &Pb[4]);	// <-- [11]Q
+	add(mdata, work, &pt6, &pt5, &Pb[1], &Pb[4]);    // <-- [11]Q
 
 	i = 3;
 	k = 4;
 	j = 5;
-	while ((j + 12) < (60))
+	while ((j + 12) < MICRO_ECM_PARAM_D)
 	{
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
-		add(mdata, work, &work->pt3, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
+		add(mdata, work, &pt6, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
 		i = k;
 		k = map[j + 12];
 		j += 6;
 	}
 
 	// [6]Q + [1]Q([5]Q) = [7]Q
-	add(mdata, work, &work->pt3, &Pb[1], &work->pt1, &Pb[3]);	// <-- [7]Q
+	add(mdata, work, &pt6, &Pb[1], &pt5, &Pb[3]);    // <-- [7]Q
 	i = 1;
 	k = 3;
 	j = 1;
-	while ((j + 12) < (60))
+	while ((j + 12) < MICRO_ECM_PARAM_D)
 	{
 		// [j+6]Q + [6]Q([j]Q) = [j+12]Q
-		add(mdata, work, &work->pt3, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
+		add(mdata, work, &pt6, &Pb[k], &Pb[i], &Pb[map[j + 12]]);
 		i = k;
 		k = map[j + 12];
 		j += 6;
@@ -1863,89 +2061,190 @@ void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
 
 	// Pd = [2w]Q
 	// [31]Q + [29]Q([2]Q) = [60]Q
-	add(mdata, work, &Pb[map[29]], &Pb[map[31]], &Pb[2], Pd);	// <-- [60]Q
+	add(mdata, work, &Pb[9], &Pb[10], &Pb[2], Pd);   // <-- [60]Q
+
+#ifdef MICRO_ECM_VERBOSE_PRINTF
+	ptadds++;
+#endif
+
+	// temporary - make [4]Q
+	tinyecm_pt pt4;
+	submod128(Pb[2].X, Pb[2].Z, work->diff1, work->n);
+	addmod128(Pb[2].X, Pb[2].Z, work->sum1, work->n);
+	duplicate(mdata, work, work->sum1, work->diff1, &pt4);   // pt4 = [4]Q
+
 
 	// make all of the Pbprod's
-	for (i = 3; i < 19; i++)
+	for (i = 3; i < 18; i++)
 	{
-		mulmod128(Pb[i].X, Pb[i].Z, work->Pbprod[i], mdata);
+		 mulmod128(Pb[i].X, Pb[i].Z, Pbprod[i], mdata);
 	}
 
 	//initialize info needed for giant step
-	// temporary - make [4]Q
-	submod128(Pb[2].X, Pb[2].Z, work->diff1, work->n);
-	addmod128(Pb[2].X, Pb[2].Z, work->sum1, work->n);
-	duplicate(mdata, work, work->sum1, work->diff1, &work->pt3);	// pt3 = [4]Q
+	tinyecm_pt Pad;
 
 	// Pd = [w]Q
 	// [17]Q + [13]Q([4]Q) = [30]Q
-	add(mdata, work, &Pb[map[17]], &Pb[map[13]], &work->pt3, Pad);	// <-- [30]Q
+	add(mdata, work, &Pb[map[17]], &Pb[map[13]], &pt4, &Pad);    // <-- [30]Q
 
 	// [60]Q + [30]Q([30]Q) = [90]Q
-	add(mdata, work, Pd, Pad, Pad, Pa);
-	copy128(Pa->X, work->pt1.X);
-	copy128(Pa->Z, work->pt1.Z);
+	add(mdata, work, Pd, &Pad, &Pad, Pa);
+
+	tinyecm_pt pt90;   // set pt90 = [90]Q
+	tinyecm_pt pt60;   // set pt60 = [60]Q
+
+	copy128(Pa->X, pt90.X);
+	copy128(Pd->X, pt60.X);
+	copy128(Pa->Z, pt90.Z);
+	copy128(Pd->Z, pt60.Z);
 
 	// [90]Q + [30]Q([60]Q) = [120]Q
-	add(mdata, work, Pa, Pad, Pd, Pa);
-	copy128(Pa->X, Pd->X);
-	copy128(Pa->Z, Pd->Z);
+	add(mdata, work, Pa, &Pad, Pd, Pd);
 
 	// [120]Q + [30]Q([90]Q) = [150]Q
-	add(mdata, work, Pa, Pad, &work->pt1, Pa);
+	add(mdata, work, Pd, &Pad, Pa, Pa);
 
-	// adjustment of Pa and Pad for larger B1.
+	//initialize accumulator
+	uint64_t acc[2];
+	copy128(mdata->one, acc);
+
+	// adjustment of Pa and Pad for particular B1.
 	// Currently we have Pa=150, Pd=120, Pad=30
-	if (work->stg1_max == 165)
+
+	if (stg1_max < 70)
 	{
-		// need Pa = 180, Pad = 60
-		// [150]Q + [30]Q([120]Q) = [180]Q
-		add(mdata, work, Pa, Pad, Pd, Pa);
+		// first process the appropriate b's with A=90
+		static const int steps27[16] = { 59,53,49,47,43,37,31,29,23,19,17,11,7,1,13,41 };
+		static const int steps47[15] = { 43,37,31,29,23,19,17,11,7,1,13,41,47,49,59 };
+		const int* steps;
+		int numsteps;
+		if (stg1_max == 27)
+		{
+			steps = steps27;
+			numsteps = 16;
+		}
+		else // if (stg1_max == 47)
+		{
+			steps = steps47;
+			numsteps = 15;
+		}
 
-		submod128(Pad->X, Pad->Z, work->diff1, work->n);
-		addmod128(Pad->X, Pad->Z, work->sum1, work->n);
-		duplicate(mdata, work, work->sum1, work->diff1, Pad);	// Pad = [60]Q
+		uint64_t pt90prod[2];
+		mulmod128(pt90.X, pt90.Z, pt90prod, mdata);
+
+		for (i = 0; i < numsteps; i++)
+		{
+			b = steps[i];
+			// accumulate the cross product  (zimmerman syntax).
+			// page 342 in C&P
+			uint64_t tt1[2];
+			uint64_t tt2[2];
+			submod128(pt90.X, Pb[map[b]].X, tt1, work->n);
+			addmod128(pt90.Z, Pb[map[b]].Z, tt2, work->n);
+			uint64_t tt3[2];
+			mulmod128(tt1, tt2, tt3, mdata);
+			addmod128(tt3, Pbprod[map[b]], tt1, work->n);
+			submod128(tt1, pt90prod, tt2, work->n);
+
+			uint64_t tmp[2];
+			mulmod128(acc, tt2, tmp, mdata);
+			if ((tmp[0] == 0) && (tmp[1] == 0))
+				break;
+			copy128(tmp, acc);
+		}
 	}
-	else if (work->stg1_max == 205)
+	else if (stg1_max == 70)
 	{
-		// need Pa = 210, Pad = 90.
-		// have pt1 = 90
+		// first process these b's with A=120
+		static const int steps[15] = { 49,47,41,37,31,23,19,17,13,11,7,29,43,53,59 };
+		// we currently have Pd=120
 
-		submod128(Pad->X, Pad->Z, work->diff1, work->n);
-		addmod128(Pad->X, Pad->Z, work->sum1, work->n);
-		duplicate(mdata, work, work->sum1, work->diff1, Pad);	// Pad = [60]Q
+		uint64_t pdprod[2];
+		mulmod128(Pd->X, Pd->Z, pdprod, mdata);
 
-		// [150]Q + [60]Q([90]Q) = [210]Q
-		add(mdata, work, Pa, Pad, &work->pt1, Pa);
-		copy128(work->pt1.X, Pad->X);
-		copy128(work->pt1.Z, Pad->Z);
+		for (i = 0; i < 15; i++)
+		{
+			b = steps[i];
+			// accumulate the cross product  (zimmerman syntax).
+			// page 342 in C&P
+			uint64_t tt1[2];
+			uint64_t tt2[2];
+			submod128(Pd->X, Pb[map[b]].X, tt1, work->n);
+			addmod128(Pd->Z, Pb[map[b]].Z, tt2, work->n);
+			uint64_t tt3[2];
+			mulmod128(tt1, tt2, tt3, mdata);
+			addmod128(tt3, Pbprod[map[b]], tt1, work->n);
+			submod128(tt1, pdprod, tt2, work->n);
+
+			uint64_t tmp[2];
+			mulmod128(acc, tt2, tmp, mdata);
+			if ((tmp[0] == 0) && (tmp[1] == 0))
+				break;
+			copy128(tmp, acc);
+		}
+	}
+	else if (stg1_max == 165)
+	{
+		// Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+		// Need Pa = 180, Pd = 120, Pad = 60
+		// either of these should be fine
+		submod128(pt90.X, pt90.Z, work->diff1, work->n);
+		addmod128(pt90.X, pt90.Z, work->sum1, work->n);
+		duplicate(mdata, work, work->sum1, work->diff1, Pa);
+
+		//Pad = pt60;
+		copy128(pt60.X, Pad.X);
+		copy128(pt60.Z, Pad.Z);
+		// have pa = 180, pd = 120, pad = 60
+	}
+	else if (stg1_max == 205)
+	{
+		// Currently we have Pa=150, Pd=120, Pad=30,  and pt60=60, pt90=90
+		// need Pa = 210, Pd = 120, Pad = 90
+
+		// [120]Q + [90]Q([30]Q) = [210]Q
+		add(mdata, work, Pd, &pt90, &Pad, Pa);
+
+		//Pad = pt90;
+		copy128(pt90.X, Pad.X);
+		copy128(pt90.Z, Pad.Z);
 	}
 
-	//initialize accumulator and Paprod
-	copy128(mdata->one, work->stg2acc);
-	mulmod128(Pa->X, Pa->Z, work->Paprod, mdata);
+	//initialize Paprod
+	uint64_t Paprod[2];
+	mulmod128(Pa->X, Pa->Z, Paprod, mdata);
 
-	if (work->stg1_max == 70)
+	if (stg1_max == 27)
+	{
+		barray = b1_27;
+		numb = numb1_27;
+	}
+	else if (stg1_max == 47)
+	{
+		barray = b1_47;
+		numb = numb1_47;
+	}
+	else if (stg1_max <= 70)
 	{
 		barray = b1_70;
 		numb = numb1_70;
 	}
-	else if (work->stg1_max == 85)
+	else if (stg1_max == 85)
 	{
 		barray = b1_85;
 		numb = numb1_85;
 	}
-	else if (work->stg1_max == 125)
+	else if (stg1_max == 125)
 	{
 		barray = b1_125;
 		numb = numb1_125;
 	}
-	else if (work->stg1_max == 165)
+	else if (stg1_max == 165)
 	{
 		barray = b1_165;
 		numb = numb1_165;
 	}
-	else if (work->stg1_max == 205)
+	else if (stg1_max == 205)
 	{
 		barray = b1_205;
 		numb = numb1_205;
@@ -1956,18 +2255,19 @@ void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
 		if (barray[i] == 0)
 		{
 			//giant step - use the addition formula for ECM
-			copy128(Pa->X, work->pt1.X);
-			copy128(Pa->Z, work->pt1.Z);
+			tinyecm_pt point;
+			copy128(Pa->X, point.X);
+			copy128(Pa->Z, point.Z);
 
 			//Pa + Pd
-			add(mdata, work, Pa, Pd, &work->Pad, Pa);
+			add(mdata, work, Pa, Pd, &Pad, Pa);
 
 			//Pad holds the previous Pa
-			copy128(work->pt1.X, work->Pad.X);
-			copy128(work->pt1.Z, work->Pad.Z);
+			copy128(point.X, Pad.X);
+			copy128(point.Z, Pad.Z);
 
 			//and Paprod
-			mulmod128(Pa->X, Pa->Z, work->Paprod, mdata);
+			mulmod128(Pa->X, Pa->Z, Paprod, mdata);
 
 			i++;
 		}
@@ -1978,14 +2278,23 @@ void ecm_stage2(tinyecm_pt *P, monty128_t *mdata, tinyecm_work *work)
 		b = barray[i];
 		// accumulate the cross product  (zimmerman syntax).
 		// page 342 in C&P
-		submod128(Pa->X, Pb[map[b]].X, work->tt1, work->n);
-		addmod128(Pa->Z, Pb[map[b]].Z, work->tt2, work->n);
-		mulmod128(work->tt1, work->tt2, work->tt3, mdata);
-		addmod128(work->tt3, work->Pbprod[map[b]], work->tt1, work->n);
-		submod128(work->tt1, work->Paprod, work->tt2, work->n);
-		mulmod128(work->stg2acc, work->tt2, work->stg2acc, mdata);
+		uint64_t tt1[2];
+		uint64_t tt2[2];
+		submod128(Pa->X, Pb[map[b]].X, tt1, work->n);
+		addmod128(Pa->Z, Pb[map[b]].Z, tt2, work->n);
+		uint64_t tt3[2];
+		mulmod128(tt1, tt2, tt3, mdata);
+		addmod128(tt3, Pbprod[map[b]], tt1, work->n);
+		submod128(tt1, Paprod, tt2, work->n);
+
+		uint64_t tmp[2];
+		mulmod128(acc, tt2, tmp, mdata);
+		if ((tmp[0] == 0) && (tmp[1] == 0))
+			break;
+		copy128(tmp, acc);
 	}
 
+	copy128(acc, work->stg2acc);
 	return;
 }
 

@@ -2950,12 +2950,14 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             mpz_t tmp1, tmp2, tmp3;
             uint32_t num = mpz_get_ui(operands[0]);
             uint32_t bits = mpz_get_ui(operands[1]);
+            char name[80];
 
             mpz_init(tmp1);
             mpz_init(tmp2);
             mpz_init(tmp3);
 
-            out = fopen("semiprimes.dat", "w");
+            snprintf(name, 80, "semiprimes_%02dbit.dat", bits);
+            out = fopen(name, "w");
             if (out == NULL)
             {
                 printf("couldn't open semiprimes.dat for writing\n");

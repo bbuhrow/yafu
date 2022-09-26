@@ -213,7 +213,7 @@ code to the public domain.
 #endif // USE_AVX2
 
 
-
+#ifdef USE_AVX2
 
 void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* full_fb,
     uint32_t start_prime, uint8_t s_init)
@@ -596,6 +596,8 @@ void med_sieveblock_32k_avx2(uint8_t* sieve, sieve_fb_compressed* fb, fb_list* f
     return;
 
 }
+
+#endif
 
 // intrinsics and sieve routines for processors with AVX512BW
 #ifdef USE_AVX512BW

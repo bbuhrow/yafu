@@ -356,6 +356,36 @@ static __m512i vbias1;
 static __m512i vbias2;
 static __m512i lo52mask;
 
+#define GCC_VERSION (__GNUC__ * 10000 \
+                     + __GNUC_MINOR__ * 100 \
+                     + __GNUC_PATCHLEVEL__)
+/* Test for GCC > 3.2.0 */
+#if GCC_VERSION < 95000
+#define _mm512_loadu_epi64 _mm512_load_epi64
+#define _mm512_storeu_epi64 _mm512_store_epi64
+#endif
+
+#ifdef IFMA
+
+MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52hi(__m512i b, __m512i c)
+{
+    return _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
+}
+
+MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52lo(__m512i b, __m512i c)
+{
+    return _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
+}
+
+MICRO_ECM_FORCE_INLINE static void uecm_mul52lohi(__m512i b, __m512i c, __m512i* l, __m512i* h)
+{
+    *l = _mm512_madd52lo_epu64(_mm512_set1_epi64(0), c, b);
+    *h = _mm512_madd52hi_epu64(_mm512_set1_epi64(0), c, b);
+    return;
+}
+#else
+
+
 MICRO_ECM_FORCE_INLINE static __m512i uecm_mul52lo(__m512i b, __m512i c)
 {
     return _mm512_and_si512(_mm512_mullo_epi64(b, c), _mm512_set1_epi64(0x000fffffffffffffull));
@@ -378,6 +408,9 @@ MICRO_ECM_FORCE_INLINE static void uecm_mul52lohi(__m512i b, __m512i c, __m512i*
     *l = _mm512_castpd_si512(prod1_ld);
     return;
 }
+
+#endif
+
 MICRO_ECM_FORCE_INLINE static __m512i uecm_mulredc_x8(__m512i x, __m512i y, __m512i N, __m512i invN)
 {
     // invN is the positive variant = 0 - nhat (the standard negative inverse)

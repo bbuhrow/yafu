@@ -632,7 +632,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
 
 
         }
-#endif
+
 
         // above this bound primes are much bigger and therefore
         // less likely to hit the interval.  For the ones that do,
@@ -1589,6 +1589,8 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
     return;
 }
 
+#endif
+
 #define COMPUTE_NEXT_ROOTS_BATCH_P(i) \
         root1 = (int)root1 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
         root2 = (int)root2 - rootupdates[(nu[numB + i] - 1) * bound + j + k]; \
@@ -1602,7 +1604,7 @@ void nextRoots_32k_knl_bucket(static_conf_t *sconf, dynamic_conf_t *dconf)
         root2 -= ((root2 >= prime) * prime); \
 
 
-#ifdef USE_BATCHPOLY
+#if defined(USE_BATCHPOLY) && defined(USE_AVX512F)
 void nextRoots_32k_knl_polybatch(static_conf_t *sconf, dynamic_conf_t *dconf)
 {
     int *rootupdates = dconf->rootupdates;
