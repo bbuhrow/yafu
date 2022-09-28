@@ -9,7 +9,7 @@
 #
 # 6/13/04: Hacked up for use in GGNFS by Chris Monico.
 
-INC=-I. -I./asm  -I../../../../gmp_install/gmp-6.2.0/include
+INC=-I. -I./asm  -I../../../../gmp_install/gmp-6.2.0/include -I../../include
 LIBFLAGS=-L.  -L../../../../gmp_install/gmp-6.2.0/lib
 #CFLAGS=-Os -march=amdfam10 -mtune=amdfam10 -funroll-loops
 CFLAGS=-O3 -march=native -mtune=native -funroll-loops

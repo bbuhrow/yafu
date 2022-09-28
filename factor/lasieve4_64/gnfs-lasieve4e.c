@@ -4014,7 +4014,7 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
     
     mpz_neg(large_factors[s1],large_factors[s1]);
 
-#if 0
+#ifdef GGNFS_MPQS
 	// original mpqs code
     if((nf= mpqs_factor(large_factors[s1],max_primebits[s1],&mf))<0) {
       /* did it fail on a square? */
@@ -4175,28 +4175,6 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 			// failure since we haven't expended much effort yet.
 			break;
 		}
-
-#if 0
-		n_mpqsfail[s1]++;
-		break;
-
-		if ((nf = tinyqs(tqs_params, large_factors[s1], factor1, factor2)) == 0) {
-			n_mpqsvain[s1]++;
-			break;
-		}
-		gmp_printf("tqs : %Zd = %Zd * %Zd\n", large_factors[s1], factor1, factor2);
-		if (mpz_sizeinbase(factor1, 2) > max_primebits[s1]) {
-			n_mpqsvain[s1]++;
-			break;
-		}
-		if (mpz_sizeinbase(factor1, 2) > max_primebits[s1]) {
-			n_mpqsvain[s1]++;
-			break;
-		}
-		mpz_set(large_primes[s1][0], factor1);
-		mpz_set(large_primes[s1][1], factor2);
-		nlp[s1] = 2;
-#endif
 	}
 
 #endif
