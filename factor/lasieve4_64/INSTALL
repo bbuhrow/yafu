@@ -1,0 +1,34 @@
+
+follow these steps to build the binaries on a 64-bit machine.
+These should build and run on Athlon64, or Core2 cpus.
+
+******************************
+NOTE for Phenom/K8 users: replace in athlon64/ls-defs.asm
+ define(l1_bits,15)dnl
+=>
+ define(l1_bits,16)dnl
+
+and in athlon64/siever-config.h
+#define L1_BITS 15
+=>
+#define L1_BITS 16
+
+This may add 5-10% speed to your sieving speed. 
+But try it both ways and decide for yourself. Caveat emptor!
+****************************** 
+
+Prerequisites: gmp.h libgmp
+
+cd athlon64
+make liblasieve.a
+make liblasieveI11.a
+make liblasieveI12.a
+make liblasieveI13.a
+make liblasieveI14.a
+make liblasieveI15.a
+make liblasieveI16.a
+cp *.a ..
+cd ..
+ln -s athlon64 asm
+make
+

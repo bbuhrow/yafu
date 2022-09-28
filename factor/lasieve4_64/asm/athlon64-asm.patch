@@ -1,0 +1,119 @@
+Index: athlon64/mpqs_td.asm
+===================================================================
+--- athlon64/mpqs_td.asm	(revision 441)
++++ athlon64/mpqs_td.asm	(working copy)
+@@ -290,7 +290,7 @@
+ 	mull %ecx
+ 	testl %edx,%edx
+ 	jnz tdloop
+-	cmpw $27,nr
++	cmpw $27,nrw
+ 	jnc gotonext
+ 	movl aux4d,%eax
+ 	movw aux5w,10(relptr,nr,2)
+@@ -321,10 +321,10 @@
+ 	mull %ecx
+ 	testl %edx,%edx
+ 	jnz tdloopk
+-	cmpw $27,nr
++	cmpw $27,nrw
+ 	jnc gotonext
+ 	movl aux4d,%eax
+-	movw nr1,10(relptr,nr,2)
++	movw nr1w,10(relptr,nr,2)
+ 	incq nr
+ 	movl aux4d,qxd
+ 	jmp divloopk
+@@ -354,7 +354,7 @@
+ 	testl %edx,%edx
+ 	jnz tdloopa
+ 	movl aux4d,%eax
+-	cmpw $27,nr
++	cmpw $27,nrw
+ 	jnc gotonext
+ 	addw nr1w,aux5w
+ 	movw aux5w,10(relptr,nr,2)
+Index: athlon64/tdslinie.asm
+===================================================================
+--- athlon64/tdslinie.asm	(revision 441)
++++ athlon64/tdslinie.asm	(working copy)
+@@ -10,6 +10,7 @@
+ define(sieve_ptr,%r8)dnl
+ define(sieve_ptr_ub,%r9)dnl
+ define(root,%r10)dnl
++define(rootw,%r10w)dnl
+ define(prime,%r11)dnl
+ define(prime32,%r11d)dnl
+ define(sv0,%al)dnl
+@@ -115,7 +116,7 @@
+ tdslinie_next_j`'i:
+ ')
+ 	cmpq aux_ptr,aux_ptr_ub
+-	movw root,root_src
++	movw rootw,root_src
+ 	leaq 8(aux_ptr),aux_ptr
+ 	ja tdslinie_fbi_loop
+ tdslinie_ende:
+Index: athlon64/tdslinie1.asm
+===================================================================
+--- athlon64/tdslinie1.asm	(revision 441)
++++ athlon64/tdslinie1.asm	(working copy)
+@@ -10,6 +10,7 @@
+ define(sieve_ptr,%r8)dnl
+ define(sieve_ptr_ub,%r9)dnl
+ define(root,%r10)dnl
++define(rootw,%r10w)dnl
+ define(prime,%r11)dnl
+ define(prime32,%r11d)dnl
+ define(sv0,%al)dnl
+@@ -58,7 +59,7 @@
+ 	jnz tdslinie1_suche
+ tdslinie1_nextfbi:
+ 	cmpq aux_ptr,aux_ptr_ub
+-	movw root,root_src
++	movw rootw,root_src
+ 	leaq 8(aux_ptr),aux_ptr
+ 	ja tdslinie1_fbi_loop
+ tdslinie1_ende:
+Index: athlon64/tdslinie2.asm
+===================================================================
+--- athlon64/tdslinie2.asm	(revision 441)
++++ athlon64/tdslinie2.asm	(working copy)
+@@ -10,6 +10,7 @@
+ define(sieve_ptr,%r8)dnl
+ define(sieve_ptr_ub,%r9)dnl
+ define(root,%r10)dnl
++define(rootw,%r10w)dnl
+ define(prime,%r11)dnl
+ define(prime32,%r11d)dnl
+ define(sv0,%al)dnl
+@@ -57,7 +58,7 @@
+ 	jnz tdslinie2_suche
+ tdslinie2_next_fbi:
+ 	cmpq aux_ptr,aux_ptr_ub
+-	movw root,root_src
++	movw rootw,root_src
+ 	leaq 8(aux_ptr),aux_ptr
+ 	ja tdslinie2_fbi_loop
+ tdslinie2_ende:
+Index: athlon64/tdslinie3.asm
+===================================================================
+--- athlon64/tdslinie3.asm	(revision 441)
++++ athlon64/tdslinie3.asm	(working copy)
+@@ -7,6 +7,7 @@
+ define(sieve_ptr,%r8)dnl
+ define(sieve_ptr_ub,%r9)dnl
+ define(root,%r10)dnl
++define(rootw,%r10w)dnl
+ define(prime,%r11)dnl
+ define(prime32,%r11d)dnl
+ define(sv0,%al)dnl
+@@ -73,7 +74,7 @@
+ tdslinie3_next_j`'i:
+ ')
+ 	cmpq aux_ptr,aux_ptr_ub
+-	movw root,root_src
++	movw rootw,root_src
+ 	leaq 8(aux_ptr),aux_ptr
+ 	ja tdslinie3_fbi_loop
+ tdslinie3_ende:

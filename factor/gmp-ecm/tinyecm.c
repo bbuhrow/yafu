@@ -28,7 +28,6 @@ either expressed or implied, of the FreeBSD Project.
 */
 
 #include "gmp.h"
-#include "soe.h"
 #include "monty.h"
 #include <stdint.h>
 
@@ -98,12 +97,6 @@ static const uint32_t map[60] = {
 	0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
 	0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
 	0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
-
-static uint64_t* tecm_primes;
-static uint64_t tecm_nump;
-static uint64_t tecm_minp;
-static uint64_t tecm_maxp;
-static int tecm_primes_initialized = 0;
 
 // local functions
 void add(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P1, tinyecm_pt *P2, 
@@ -246,6 +239,17 @@ void duplicate(monty128_t *mdata, tinyecm_work *work,
 #define ADD 6.0
 #define DUP 5.0
 #define NV 10  
+
+#if 0
+
+#include "soe.h"
+
+static uint64_t* tecm_primes;
+static uint64_t tecm_nump;
+static uint64_t tecm_minp;
+static uint64_t tecm_maxp;
+static int tecm_primes_initialized = 0;
+
 
 double getEcost(uint64_t d, uint64_t e)
 {
@@ -781,6 +785,8 @@ void lucas_opt2(uint32_t B1, int num)
 	return;
 }
 
+#endif
+
 void prac70(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 {
 	uint64_t *s1, *s2, *d1, *d2;
@@ -923,6 +929,7 @@ void prac85(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 
 }
 
+#if 0
 void prac_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, double v_in)
 {
 	uint64_t d, e, r;
@@ -1194,6 +1201,7 @@ void prac_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c,
 	return;
 
 }
+#endif
 
 void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, double v)
 {
@@ -1270,6 +1278,15 @@ void prac(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, uint64_t c, doub
 
 }
 
+static const double INV_2_POW_32 = 1.0 / (double)((uint64_t)(1) << 32);
+
+static uint32_t tecm_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t* ploc_lcg)
+{
+	*ploc_lcg = 6364136223846793005ULL * (*ploc_lcg) + 1442695040888963407ULL;
+	return lower + (uint32_t)(
+		(double)(upper - lower) * (double)((*ploc_lcg) >> 32) * INV_2_POW_32);
+}
+
 void build_one_curve(tinyecm_pt *P, monty128_t *mdata, 
 	tinyecm_work *work, uint32_t sigma, uint64_t * lcg_state, int verbose)
 {
@@ -1287,7 +1304,7 @@ void build_one_curve(tinyecm_pt *P, monty128_t *mdata,
 
 	if (sigma == 0)
 	{
-		work->sigma = lcg_rand_32_range(7, (uint32_t)-1, lcg_state);
+		work->sigma = tecm_lcg_rand_32B(7, (uint32_t)-1, lcg_state);
 	}
 	else
 	{
@@ -1436,6 +1453,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 	work.stg1_max = B1;
 	work.stg2_max = B2;
 
+#if 0
     if (!tecm_primes_initialized)
     {
         soe_staticdata_t* sdata = soe_init(0, 1, 32768);
@@ -1591,6 +1609,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 		mpz_clear(gmp3);
 		mpz_clear(gmp4);
 	}
+#endif
 
 	mpz_set_ui(f, 1);
 	for (curve = 0; curve < curves; curve++)
@@ -1648,6 +1667,7 @@ void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 	return;
 }
 
+#if 0
 //#define TESTMUL
 void ecm_stage1_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P, 
 	base_t b1, base_t *primes, int verbose)
@@ -1687,6 +1707,7 @@ void ecm_stage1_good(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P,
 	}
 	return;
 }
+#endif
 
 void ecm_stage1(monty128_t *mdata, tinyecm_work *work, tinyecm_pt *P)
 {

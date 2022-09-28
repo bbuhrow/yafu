@@ -52,7 +52,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 #include "microecm.h"
-#include "arith.h"
+//#include "monty.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -216,63 +217,7 @@ static uint32_t uecm_lcg_rand_32B(uint32_t lower, uint32_t upper, uint64_t *ploc
         (double)(upper - lower) * (double)((*ploc_lcg) >> 32) * INV_2_POW_32);
 }
 
-__inline uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n);
-__inline uint64_t uecm_addmod(uint64_t a, uint64_t b, uint64_t n);
 
-#if defined(MICRO_ECM_ALT_MULREDC_USE_INLINE_ASM_X86) && !defined(_MSC_VER)
-
-__inline uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    __asm__(
-        "xorq %%r8, %%r8 \n\t"
-        "subq %1, %0 \n\t"
-        "cmovc %2, %%r8 \n\t"
-        "addq %%r8, %0 \n\t"
-        : "+r"(a)
-        : "r"(b), "r"(n)
-        : "r8", "cc");
-
-    return a;
-}
-
-__inline uint64_t uecm_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-    uint64_t t = x - n;
-    x += y;
-    __asm__("add %2, %1\n\t"
-        "cmovc %1, %0\n\t"
-        :"+r" (x), "+&r" (t)
-        : "r" (y)
-        : "cc"
-    );
-    return x;
-}
-
-#else
-
-__inline uint64_t uecm_submod(uint64_t a, uint64_t b, uint64_t n)
-{
-    uint64_t r0;
-    if (_subborrow_u64(0, a, b, &r0))
-        r0 += n;
-    return r0;
-}
-
-__inline uint64_t uecm_addmod(uint64_t x, uint64_t y, uint64_t n)
-{
-#if 0
-    uint64_t r;
-    uint64_t tmp = x - n;
-    uint8_t c = _addcarry_u64(0, tmp, y, &r);
-    return (c) ? r : x + y;
-#else
-    // FYI: The clause above often compiles with a branch in MSVC.
-    // The statement below often compiles without a branch (uses cmov) in MSVC.
-    return (x >= n - y) ? x - (n - y) : x + y;
-#endif
-}
-
-#endif
 
 /* --- The following two functions are written by Jeff Hurchalla, Copyright 2022 --- */
 
@@ -326,14 +271,15 @@ static uint64_t uecm_multiplicative_inverse(uint64_t a)
     return x4;
 }
 
-static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
+// much faster version: assuming u is odd
+uint64_t bingcd64(uint64_t u, uint64_t v)
 {
 #if 1
     if (u == 0) {
         return v;
     }
     if (v != 0) {
-        int j = _trail_zcnt64(v);
+        int j = __builtin_ctzll(v);
         v = (uint64_t)(v >> j);
         while (1) {
             uint64_t tmp = u;
@@ -352,7 +298,7 @@ static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
             // determined."  Hence we are able to use sub1 for the argument.
             // By removing the dependency on abs(u-v), the CPU can execute
             // _trail_zcnt64() at the same time as abs(u-v).
-            j = _trail_zcnt64(sub1);
+            j = __builtin_ctzll(sub1);
             v = (uint64_t)(v >> j);
         }
     }
@@ -398,6 +344,33 @@ static uint64_t uecm_bingcd64(uint64_t u, uint64_t v)
 /* --- end Hurchalla functions --- */
 
 
+__inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
+{
+    __asm__(
+        "xorq %%r8, %%r8 \n\t"
+        "subq %1, %0 \n\t"
+        "cmovc %2, %%r8 \n\t"
+        "addq %%r8, %0 \n\t"
+        : "+r"(a)
+        : "r"(b), "r"(n)
+        : "r8", "cc");
+
+    return a;
+}
+
+__inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
+{
+    uint64_t t = x - n;
+    x += y;
+    __asm__("add %2, %1\n\t"
+        "cmovc %1, %0\n\t"
+        :"+r" (x), "+&r" (t)
+        : "r" (y)
+        : "cc"
+    );
+    return x;
+}
+
 // full strength mul/sqr redc
 MICRO_ECM_FORCE_INLINE static uint64_t uecm_mulredc(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)
 {
@@ -418,16 +391,16 @@ MICRO_ECM_FORCE_INLINE static void uecm_uadd(uint64_t rho, uint64_t n, const uec
     //x- = original x
     //z- = original z
     // given the sums and differences of the original points
-    uint64_t diff1 = uecm_submod(P1.X, P1.Z, n);
-    uint64_t sum1 = uecm_addmod(P1.X, P1.Z, n);
-    uint64_t diff2 = uecm_submod(P2.X, P2.Z, n);
-    uint64_t sum2 = uecm_addmod(P2.X, P2.Z, n);
+    uint64_t diff1 = submod(P1.X, P1.Z, n);
+    uint64_t sum1 = addmod(P1.X, P1.Z, n);
+    uint64_t diff2 = submod(P2.X, P2.Z, n);
+    uint64_t sum2 = addmod(P2.X, P2.Z, n);
 
     uint64_t tt1 = uecm_mulredc(diff1, sum2, n, rho); //U
     uint64_t tt2 = uecm_mulredc(sum1, diff2, n, rho); //V
 
-    uint64_t tt3 = uecm_addmod(tt1, tt2, n);
-    uint64_t tt4 = uecm_submod(tt1, tt2, n);
+    uint64_t tt3 = addmod(tt1, tt2, n);
+    uint64_t tt4 = submod(tt1, tt2, n);
     tt1 = uecm_sqrredc(tt3, n, rho);   //(U + V)^2
     tt2 = uecm_sqrredc(tt4, n, rho);   //(U - V)^2
 
@@ -449,9 +422,9 @@ MICRO_ECM_FORCE_INLINE static void uecm_udup(uint64_t s, uint64_t rho, uint64_t 
     uint64_t tt2 = uecm_sqrredc(insum, n, rho);           // V=(x1 + z1)^2
     P->X = uecm_mulredc(tt1, tt2, n, rho);         // x=U*V
 
-    uint64_t tt3 = uecm_submod(tt2, tt1, n);          // w = V-U
+    uint64_t tt3 = submod(tt2, tt1, n);          // w = V-U
     tt2 = uecm_mulredc(tt3, s, n, rho);      // w = (A+2)/4 * w
-    tt2 = uecm_addmod(tt2, tt1, n);          // w = w + U
+    tt2 = addmod(tt2, tt1, n);          // w = w + U
     P->Z = uecm_mulredc(tt2, tt3, n, rho);         // Z = w*(V-U)
 #ifdef MICRO_ECM_VERBOSE_PRINTF
     stg1Doub++;
@@ -591,14 +564,14 @@ static uint64_t uecm_multiplicative_inverse52(uint64_t a)
     return x4 & 0x000fffffffffffffull;
 }
 
-MICRO_ECM_FORCE_INLINE uint64_t uecm_submod52(uint64_t a, uint64_t b, uint64_t n)
+MICRO_ECM_FORCE_INLINE uint64_t submod52(uint64_t a, uint64_t b, uint64_t n)
 {
     uint64_t r0;
     if (_subborrow_u64(0, a, b, &r0))
         r0 += n;
     return r0;
 }
-MICRO_ECM_FORCE_INLINE uint64_t uecm_addmod52(uint64_t x, uint64_t y, uint64_t n)
+MICRO_ECM_FORCE_INLINE uint64_t addmod52(uint64_t x, uint64_t y, uint64_t n)
 {
     // FYI: The clause above often compiles with a branch in MSVC.
     // The statement below often compiles without a branch (uses cmov) in MSVC.
@@ -850,7 +823,7 @@ static void uecm_uprac_x8(__m512i rho, __m512i n, uecm_pt_x8* P, uint64_t c, dou
     __m512i swp;
 
     // we require c != 0
-    int shift = _trail_zcnt64(c);
+    int shift = __builtin_ctzll(c);
     c = c >> shift;
 
     d = c;
@@ -1056,8 +1029,8 @@ static void uecm_uprac70(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t s)
             pt1.X = pt2.X = pt3.X = P->X;
             pt1.Z = pt2.Z = pt3.Z = P->Z;
 
-            d1 = uecm_submod(pt1.X, pt1.Z, n);
-            s1 = uecm_addmod(pt1.X, pt1.Z, n);
+            d1 = submod(pt1.X, pt1.Z, n);
+            s1 = addmod(pt1.X, pt1.Z, n);
             uecm_udup(s, rho, n, s1, d1, &pt1);
         }
         else if (steps[i] == 3)
@@ -1093,8 +1066,8 @@ static void uecm_uprac70(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t s)
         }
         else if (steps[i] == 5)
         {
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
 
             uecm_uadd(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
             uecm_udup(s, rho, n, s2, d2, &pt1);        // A = 2A
@@ -1137,8 +1110,8 @@ static void uecm_uprac85(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t s)
             pt1.X = pt2.X = pt3.X = P->X;
             pt1.Z = pt2.Z = pt3.Z = P->Z;
 
-            d1 = uecm_submod(pt1.X, pt1.Z, n);
-            s1 = uecm_addmod(pt1.X, pt1.Z, n);
+            d1 = submod(pt1.X, pt1.Z, n);
+            s1 = addmod(pt1.X, pt1.Z, n);
             uecm_udup(s, rho, n, s1, d1, &pt1);
         }
         else if (steps[i] == 3)
@@ -1174,8 +1147,8 @@ static void uecm_uprac85(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t s)
         }
         else if (steps[i] == 5)
         {
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
 
             uecm_uadd(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
             uecm_udup(s, rho, n, s2, d2, &pt1);        // A = 2A
@@ -1196,7 +1169,7 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
     uint64_t swp;
 
     // we require c != 0
-    int shift = _trail_zcnt64(c);
+    int shift = __builtin_ctzll(c);
     c = c >> shift;
 
     d = c;
@@ -1212,8 +1185,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
     pt1.X = pt2.X = pt3.X = P->X;
     pt1.Z = pt2.Z = pt3.Z = P->Z;
 
-    d1 = uecm_submod(pt1.X, pt1.Z, n);
-    s1 = uecm_addmod(pt1.X, pt1.Z, n);
+    d1 = submod(pt1.X, pt1.Z, n);
+    s1 = addmod(pt1.X, pt1.Z, n);
 
     // point2 is [2]P
     uecm_udup(s, rho, n, s1, d1, &pt1);
@@ -1254,8 +1227,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
         {
             d = (d - e) / 2;
 
-            d1 = uecm_submod(pt1.X, pt1.Z, n);
-            s1 = uecm_addmod(pt1.X, pt1.Z, n);
+            d1 = submod(pt1.X, pt1.Z, n);
+            s1 = addmod(pt1.X, pt1.Z, n);
 
             uecm_uadd(rho, n, pt1, pt2, pt3, &pt2);        // B = A + B (C)
             uecm_udup(s, rho, n, s1, d1, &pt1);        // A = 2A
@@ -1280,8 +1253,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
         {
             d = (d - e) / 2;
 
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
 
             uecm_uadd(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
             uecm_udup(s, rho, n, s2, d2, &pt1);        // A = 2A
@@ -1290,8 +1263,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
         {
             d /= 2;
 
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
 
             uecm_uadd(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
             uecm_udup(s, rho, n, s2, d2, &pt1);        // A = 2A
@@ -1300,8 +1273,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
         {
             d = d / 3 - e;
 
-            d1 = uecm_submod(pt1.X, pt1.Z, n);
-            s1 = uecm_addmod(pt1.X, pt1.Z, n);
+            d1 = submod(pt1.X, pt1.Z, n);
+            s1 = addmod(pt1.X, pt1.Z, n);
 
             uecm_pt pt4;
             uecm_udup(s, rho, n, s1, d1, &pt4);        // T = 2A
@@ -1328,8 +1301,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
             uecm_uadd(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
 
 
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
             uecm_uadd(rho, n, pt4, pt1, pt2, &pt2);        // B = T + A (B)
             uecm_udup(s, rho, n, s2, d2, &pt4);        // T = 2A
             uecm_uadd(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
@@ -1341,8 +1314,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
             uecm_pt pt4;
             uecm_uadd(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
 
-            d2 = uecm_submod(pt1.X, pt1.Z, n);
-            s2 = uecm_addmod(pt1.X, pt1.Z, n);
+            d2 = submod(pt1.X, pt1.Z, n);
+            s2 = addmod(pt1.X, pt1.Z, n);
             uecm_uadd(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
 
             swp = pt2.X;
@@ -1359,8 +1332,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
         {
             e /= 2;
 
-            d2 = uecm_submod(pt2.X, pt2.Z, n);
-            s2 = uecm_addmod(pt2.X, pt2.Z, n);
+            d2 = submod(pt2.X, pt2.Z, n);
+            s2 = addmod(pt2.X, pt2.Z, n);
 
             uecm_uadd(rho, n, pt3, pt2, pt1, &pt3);        // C = C + B (A)
             uecm_udup(s, rho, n, s2, d2, &pt2);        // B = 2B
@@ -1370,8 +1343,8 @@ static void uecm_uprac(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t c, double 
 
     for (i = 0; i < shift; i++)
     {
-        d1 = uecm_submod(P->X, P->Z, n);
-        s1 = uecm_addmod(P->X, P->Z, n);
+        d1 = submod(P->X, P->Z, n);
+        s1 = addmod(P->X, P->Z, n);
         uecm_udup(s, rho, n, s1, d1, P);     // P = 2P
     }
     return;
@@ -1463,8 +1436,8 @@ static uint64_t uecm_build(uecm_pt *P, uint64_t rho, uint64_t n, uint64_t *ploc_
 
     //printf("sigma = %" PRIu64 ", u = %" PRIu64 ", n = %" PRIu64 "\n", sigma, u, n);
 
-    v = uecm_addmod(u, u, n);
-    v = uecm_addmod(v, v, n);            // 4*sigma
+    v = addmod(u, u, n);
+    v = addmod(v, v, n);            // 4*sigma
 
     //printf("v = %" PRIu64 "\n", v);
 
@@ -1473,30 +1446,30 @@ static uint64_t uecm_build(uecm_pt *P, uint64_t rho, uint64_t n, uint64_t *ploc_
 
     //printf("monty(5) = %" PRIu64 "\n", t1);
 
-    u = uecm_submod(u, t1, n);           // sigma^2 - 5
+    u = submod(u, t1, n);           // sigma^2 - 5
 
     //printf("u = %" PRIu64 "\n", u);
 
     t1 = uecm_mulredc(u, u, n, rho);
     uint64_t tmpx = uecm_mulredc(t1, u, n, rho);  // u^3
 
-    uint64_t v2 = uecm_addmod(v, v, n);             // 2*v
-    uint64_t v4 = uecm_addmod(v2, v2, n);           // 4*v
-    uint64_t v8 = uecm_addmod(v4, v4, n);           // 8*v
-    uint64_t v16 = uecm_addmod(v8, v8, n);          // 16*v
+    uint64_t v2 = addmod(v, v, n);             // 2*v
+    uint64_t v4 = addmod(v2, v2, n);           // 4*v
+    uint64_t v8 = addmod(v4, v4, n);           // 8*v
+    uint64_t v16 = addmod(v8, v8, n);          // 16*v
     uint64_t t5 = uecm_mulredc(v16, tmpx, n, rho);    // 16*u^3*v
 
     t1 = uecm_mulredc(v, v, n, rho);
     uint64_t tmpz = uecm_mulredc(t1, v, n, rho);  // v^3
 
     //compute parameter A
-    t1 = uecm_submod(v, u, n);           // (v - u)
+    t1 = submod(v, u, n);           // (v - u)
     t2 = uecm_sqrredc(t1, n, rho);
     t4 = uecm_mulredc(t2, t1, n, rho);   // (v - u)^3
 
-    t1 = uecm_addmod(u, u, n);           // 2u
-    t2 = uecm_addmod(u, v, n);           // u + v
-    t3 = uecm_addmod(t1, t2, n);         // 3u + v
+    t1 = addmod(u, u, n);           // 2u
+    t2 = addmod(u, v, n);           // u + v
+    t3 = addmod(t1, t2, n);         // 3u + v
 
     t1 = uecm_mulredc(t3, t4, n, rho);   // a = (v-u)^3 * (3u + v)
 
@@ -1616,8 +1589,8 @@ static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* plo
 
     //printf("sigma = %" PRIu64 ", u = %" PRIu64 ", n = %" PRIu64 "\n", sigma, u, n);
 
-    v = uecm_addmod52(u, u, n);
-    v = uecm_addmod52(v, v, n);            // 4*sigma
+    v = addmod52(u, u, n);
+    v = addmod52(v, v, n);            // 4*sigma
 
     //printf("v = %" PRIu64 "\n", v);
 
@@ -1626,30 +1599,30 @@ static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* plo
 
     //printf("monty(5) = %" PRIu64 "\n", t1);
 
-    u = uecm_submod52(u, t1, n);           // sigma^2 - 5
+    u = submod52(u, t1, n);           // sigma^2 - 5
 
     //printf("u = %" PRIu64 "\n", u);
 
     t1 = uecm_mulredc52(u, u, n, rho);
     uint64_t tmpx = uecm_mulredc52(t1, u, n, rho);  // u^3
 
-    uint64_t v2 = uecm_addmod52(v, v, n);             // 2*v
-    uint64_t v4 = uecm_addmod52(v2, v2, n);           // 4*v
-    uint64_t v8 = uecm_addmod52(v4, v4, n);           // 8*v
-    uint64_t v16 = uecm_addmod52(v8, v8, n);          // 16*v
+    uint64_t v2 = addmod52(v, v, n);             // 2*v
+    uint64_t v4 = addmod52(v2, v2, n);           // 4*v
+    uint64_t v8 = addmod52(v4, v4, n);           // 8*v
+    uint64_t v16 = addmod52(v8, v8, n);          // 16*v
     uint64_t t5 = uecm_mulredc52(v16, tmpx, n, rho);    // 16*u^3*v
 
     t1 = uecm_mulredc52(v, v, n, rho);
     uint64_t tmpz = uecm_mulredc52(t1, v, n, rho);  // v^3
 
     //compute parameter A
-    t1 = uecm_submod52(v, u, n);           // (v - u)
+    t1 = submod52(v, u, n);           // (v - u)
     t2 = uecm_sqrredc52(t1, n, rho);
     t4 = uecm_mulredc52(t2, t1, n, rho);   // (v - u)^3
 
-    t1 = uecm_addmod52(u, u, n);           // 2u
-    t2 = uecm_addmod52(u, v, n);           // u + v
-    t3 = uecm_addmod52(t1, t2, n);         // 3u + v
+    t1 = addmod52(u, u, n);           // 2u
+    t2 = addmod52(u, v, n);           // u + v
+    t3 = addmod52(t1, t2, n);         // 3u + v
 
     t1 = uecm_mulredc52(t3, t4, n, rho);   // a = (v-u)^3 * (3u + v)
 
@@ -1676,7 +1649,7 @@ static uint64_t uecm_build52(uecm_pt* P, uint64_t rho, uint64_t n, uint64_t* plo
 static int uecm_check_factor(uint64_t Z, uint64_t n, uint64_t* f)
 {
     int status = 0;
-    *f = uecm_bingcd64(n, Z);
+    *f = bingcd64(n, Z);
 
     if (*f > 1)
     {
@@ -1701,8 +1674,8 @@ static void uecm_stage1(uint64_t rho, uint64_t n, uecm_pt *P, uint64_t stg1, uin
     q = 2;
     while (q < stg1 * 4)  // jeff: multiplying by 4 improves perf ~1%
     {
-        uint64_t diff1 = uecm_submod(P->X, P->Z, n);
-        uint64_t sum1 = uecm_addmod(P->X, P->Z, n);
+        uint64_t diff1 = submod(P->X, P->Z, n);
+        uint64_t sum1 = addmod(P->X, P->Z, n);
         uecm_udup(s, rho, n, sum1, diff1, P);
         q *= 2;
     }
@@ -2187,8 +2160,8 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     Pbprod[1] = uecm_mulredc(Pb[1].X, Pb[1].Z, n, rho);
 
     // [2]Q
-    uint64_t diff1 = uecm_submod(P->X, P->Z, n);
-    uint64_t sum1 = uecm_addmod(P->X, P->Z, n);
+    uint64_t diff1 = submod(P->X, P->Z, n);
+    uint64_t sum1 = addmod(P->X, P->Z, n);
     uecm_udup(s, rho, n, sum1, diff1, &Pb[2]);
 //    Pbprod[2] = uecm_mulredc(Pb[2].X, Pb[2].Z, n, rho);    // never used
 
@@ -2254,8 +2227,8 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
     uecm_uadd(rho, n, Pb[1], Pb[2], Pb[1], &Pb[3]);        // <-- temporary
 
     // 2*[3]Q = [6]Q
-    diff1 = uecm_submod(Pb[3].X, Pb[3].Z, n);
-    sum1 = uecm_addmod(Pb[3].X, Pb[3].Z, n);
+    diff1 = submod(Pb[3].X, Pb[3].Z, n);
+    sum1 = addmod(Pb[3].X, Pb[3].Z, n);
     uecm_udup(s, rho, n, sum1, diff1, &pt6);   // pt6 = [6]Q
 
     // [3]Q + [2]Q([1]Q) = [5]Q
@@ -2301,8 +2274,8 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
 
     // temporary - make [4]Q
     uecm_pt pt4;
-    diff1 = uecm_submod(Pb[2].X, Pb[2].Z, n);
-    sum1 = uecm_addmod(Pb[2].X, Pb[2].Z, n);
+    diff1 = submod(Pb[2].X, Pb[2].Z, n);
+    sum1 = addmod(Pb[2].X, Pb[2].Z, n);
     uecm_udup(s, rho, n, sum1, diff1, &pt4);   // pt4 = [4]Q
 
 
@@ -2364,11 +2337,11 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
             b = steps[i];
             // accumulate the cross product  (zimmerman syntax).
             // page 342 in C&P
-            uint64_t tt1 = uecm_submod(pt90.X, Pb[map[b]].X, n);
-            uint64_t tt2 = uecm_addmod(pt90.Z, Pb[map[b]].Z, n);
+            uint64_t tt1 = submod(pt90.X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(pt90.Z, Pb[map[b]].Z, n);
             uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
-            tt1 = uecm_addmod(tt3, Pbprod[map[b]], n);
-            tt2 = uecm_submod(tt1, pt90prod, n);
+            tt1 = addmod(tt3, Pbprod[map[b]], n);
+            tt2 = submod(tt1, pt90prod, n);
 
             uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
             if (tmp == 0)
@@ -2389,11 +2362,11 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
             b = steps[i];
             // accumulate the cross product  (zimmerman syntax).
             // page 342 in C&P
-            uint64_t tt1 = uecm_submod(Pd->X, Pb[map[b]].X, n);
-            uint64_t tt2 = uecm_addmod(Pd->Z, Pb[map[b]].Z, n);
+            uint64_t tt1 = submod(Pd->X, Pb[map[b]].X, n);
+            uint64_t tt2 = addmod(Pd->Z, Pb[map[b]].Z, n);
             uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
-            tt1 = uecm_addmod(tt3, Pbprod[map[b]], n);
-            tt2 = uecm_submod(tt1, pdprod, n);
+            tt1 = addmod(tt3, Pbprod[map[b]], n);
+            tt2 = submod(tt1, pdprod, n);
 
             uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
             if (tmp == 0)
@@ -2410,8 +2383,8 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         // [150]Q + [30]Q([120]Q) = [180]Q
         uecm_uadd(rho, n, *Pa, Pad, *Pd, Pa);
 #else
-        diff1 = uecm_submod(pt90.X, pt90.Z, n);
-        sum1 = uecm_addmod(pt90.X, pt90.Z, n);
+        diff1 = submod(pt90.X, pt90.Z, n);
+        sum1 = addmod(pt90.X, pt90.Z, n);
         uecm_udup(s, rho, n, sum1, diff1, Pa);
 #endif
         Pad = pt60;
@@ -2492,11 +2465,11 @@ static uint64_t uecm_stage2(uecm_pt *P, uint64_t rho, uint64_t n, uint32_t stg1_
         b = barray[i];
         // accumulate the cross product  (zimmerman syntax).
         // page 342 in C&P
-        uint64_t tt1 = uecm_submod(Pa->X, Pb[map[b]].X, n);
-        uint64_t tt2 = uecm_addmod(Pa->Z, Pb[map[b]].Z, n);
+        uint64_t tt1 = submod(Pa->X, Pb[map[b]].X, n);
+        uint64_t tt2 = addmod(Pa->Z, Pb[map[b]].Z, n);
         uint64_t tt3 = uecm_mulredc(tt1, tt2, n, rho);
-        tt1 = uecm_addmod(tt3, Pbprod[map[b]], n);
-        tt2 = uecm_submod(tt1, Paprod, n);
+        tt1 = addmod(tt3, Pbprod[map[b]], n);
+        tt2 = submod(tt1, Paprod, n);
 
         uint64_t tmp = uecm_mulredc(acc, tt2, n, rho);
         if (tmp == 0)
@@ -2883,11 +2856,11 @@ static int microecm(uint64_t n, uint64_t *f, uint32_t B1, uint32_t B2,
     // Let R = 2^64.  We can see R%n ≡ (R-n)%n  (mod n)
     uint64_t unityval = ((uint64_t)0 - n) % n;   // unityval ≡ R  (mod n)
 
-    uint64_t two = uecm_addmod(unityval, unityval, n);
-    uint64_t four = uecm_addmod(two, two, n);
-    uint64_t five = uecm_addmod(unityval, four, n);
-    uint64_t eight = uecm_addmod(four, four, n);
-    uint64_t sixteen = uecm_addmod(eight, eight, n);
+    uint64_t two = addmod(unityval, unityval, n);
+    uint64_t four = addmod(two, two, n);
+    uint64_t five = addmod(unityval, four, n);
+    uint64_t eight = addmod(four, four, n);
+    uint64_t sixteen = addmod(eight, eight, n);
     uint64_t two_8 = uecm_sqrredc(sixteen, n, rho);   // R*2^8         (mod n)
     uint64_t two_16 = uecm_sqrredc(two_8, n, rho);    // R*2^16        (mod n)
     uint64_t two_32 = uecm_sqrredc(two_16, n, rho);   // R*2^32        (mod n)
@@ -3064,15 +3037,15 @@ static void microecm_x8_list(uint64_t* n64, uint64_t* f, uint32_t B1, uint32_t B
                 // compute things we need for this new n.
                 uint64_t unityval = (1ULL << 52) % n64[j];   // unityval ≡ R  (mod n)
                 uint64_t rho = uecm_multiplicative_inverse52(n64[j]);
-                uint64_t two = uecm_addmod52(unityval, unityval, n64[j]);
-                uint64_t four = uecm_addmod52(two, two, n64[j]);
-                uint64_t five = uecm_addmod52(unityval, four, n64[j]);
-                uint64_t eight = uecm_addmod52(four, four, n64[j]);
-                uint64_t sixteen = uecm_addmod52(eight, eight, n64[j]);
+                uint64_t two = addmod52(unityval, unityval, n64[j]);
+                uint64_t four = addmod52(two, two, n64[j]);
+                uint64_t five = addmod52(unityval, four, n64[j]);
+                uint64_t eight = addmod52(four, four, n64[j]);
+                uint64_t sixteen = addmod52(eight, eight, n64[j]);
 
                 // an add, 3 sqrs, and 1 mul versus 3 sqrs and 2 muls
                 // with the sequence 2^4, 2^8, 2^16, 2^32, 2^48, 2^52
-                uint64_t two_5 = uecm_addmod52(sixteen, sixteen, n64[j]);
+                uint64_t two_5 = addmod52(sixteen, sixteen, n64[j]);
                 uint64_t two_8 = uecm_sqrredc52(sixteen, n64[j], rho);        // R*2^8         (mod n)
                 uint64_t two_13 = uecm_mulredc52(two_8, two_5, n64[j], rho);  // R*2^13         (mod n)
                 uint64_t two_26 = uecm_sqrredc52(two_13, n64[j], rho);        // R*2^26        (mod n)
