@@ -241,7 +241,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
+
 				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -291,7 +291,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -300,8 +299,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
@@ -376,7 +373,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
 				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -390,32 +386,24 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
-					// if (proots[fbi] == modulo32)
 					if (m1 > 0)
 					{
-						//int ii;
-						printf("rare case? mask = %04x, fbi = %u, fbsz = %u\n", m1, fbi, fbsz);
-						
-						//printf("mod32: ");
 						int ii;
 						for (ii = 0; ii < 16; ii++)
 						{
-							modulo32 = FB[fbi+ii];
-							//printf("%u, ", modulo32); fflush(stdout);
-							u32_t x32 = b0_ul;
-							if (x32 == 0)x32 = modulo32;
-							else {
-								x32 = modmul32(modinv32(x32), b1_ul);
-								if (x32 > 0)x32 = modulo32 - x32;
+							if (m1 & (1 << ii))
+							{
+								modulo32 = FB[fbi + ii];
+								u32_t x32 = B0MOD(modulo32);
+								if (x32 == 0)x32 = modulo32;
+								else {
+									x32 = modmul32(modinv32(x32), B1MOD(modulo32));
+									if (x32 > 0)x32 = modulo32 - x32;
+								}
+								xm[ii] = x32;
 							}
-							xm[ii] = x32;
 						}
 						x = _mm512_loadu_epi32(xm);
-
-						//printf("x: ");
-						//for (ii = 0; ii < 16; ii++)
-						//	printf("%u, ", xm[ii]);
-						//printf("\n");
 					}
 
 					// else
@@ -428,7 +416,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_set1_epi32(absa1), m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -437,8 +424,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 					
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -537,7 +522,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
 				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -587,7 +571,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -596,8 +579,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
@@ -670,7 +651,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 #define A1MOD(p) A1MOD1(p)
 			
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
 				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
@@ -682,32 +662,24 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
-					// if (proots[fbi] == modulo32)
 					if (m1 > 0)
 					{
-						//int ii;
-						printf("rare case? mask = %04x, fbi = %u, fbsz = %u\n", m1, fbi, fbsz);
-
-						//printf("mod32: ");
 						int ii;
 						for (ii = 0; ii < 16; ii++)
 						{
-							modulo32 = FB[fbi + ii];
-							//printf("%u, ", modulo32); fflush(stdout);
-							u32_t x32 = b0_ul;
-							if (x32 == 0)x32 = modulo32;
-							else {
-								x32 = modmul32(modinv32(x32), b1_ul);
-								if (x32 > 0)x32 = modulo32 - x32;
+							if (m1 & (1 << ii))
+							{
+								modulo32 = FB[fbi + ii];
+								u32_t x32 = B0MOD(modulo32);
+								if (x32 == 0)x32 = modulo32;
+								else {
+									x32 = modmul32(modinv32(x32), B1MOD(modulo32));
+									if (x32 > 0)x32 = modulo32 - x32;
+								}
+								xm[ii] = x32;
 							}
-							xm[ii] = x32;
 						}
 						x = _mm512_loadu_epi32(xm);
-
-						//printf("x: ");
-						//for (ii = 0; ii < 16; ii++)
-						//	printf("%u, ", xm[ii]);
-						//printf("\n");
 					}
 
 					// else
@@ -720,7 +692,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa1)), m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -729,8 +700,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -833,7 +802,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
 				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -883,7 +851,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -892,8 +859,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
@@ -967,7 +932,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 
 #ifdef AVX512_LASIEVE_SETUP
-//u32_t count = fbsz;
 				for (; fbi < (fbsz - 16); fbi += 16)/*6:*/
 				{
 					__m512i x;
@@ -979,32 +943,24 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
-					// if (proots[fbi] == modulo32)
 					if (m1 > 0)
 					{
-						//int ii;
-						printf("rare case? mask = %04x, fbi = %u, fbsz = %u\n", m1, fbi, fbsz);
-
-						//printf("mod32: ");
 						int ii;
 						for (ii = 0; ii < 16; ii++)
 						{
-							modulo32 = FB[fbi + ii];
-							//printf("%u, ", modulo32); fflush(stdout);
-							u32_t x32 = b0_ul;
-							if (x32 == 0)x32 = modulo32;
-							else {
-								x32 = modmul32(modinv32(x32), b1_ul);
-								if (x32 > 0)x32 = modulo32 - x32;
+							if (m1 & (1 << ii))
+							{
+								modulo32 = FB[fbi + ii];
+								u32_t x32 = B0MOD(modulo32);
+								if (x32 == 0)x32 = modulo32;
+								else {
+									x32 = modmul32(modinv32(x32), B1MOD(modulo32));
+									if (x32 > 0)x32 = modulo32 - x32;
+								}
+								xm[ii] = x32;
 							}
-							xm[ii] = x32;
 						}
 						x = _mm512_loadu_epi32(xm);
-
-						//printf("x: ");
-						//for (ii = 0; ii < 16; ii++)
-						//	printf("%u, ", xm[ii]);
-						//printf("\n");
 					}
 
 					// else
@@ -1017,7 +973,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_set1_epi32(absa1), m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -1027,8 +982,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -1124,7 +1077,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
-				//u32_t count = fbsz;
 				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -1174,7 +1126,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, vabsa1, m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -1183,8 +1134,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
@@ -1271,32 +1220,24 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i zero = _mm512_setzero_epi32();
 					uint32_t xm[16];
 
-					// if (proots[fbi] == modulo32)
 					if (m1 > 0)
 					{
-						//int ii;
-						printf("rare case? mask = %04x, fbi = %u, fbsz = %u\n", m1, fbi, fbsz);
-
-						//printf("mod32: ");
 						int ii;
 						for (ii = 0; ii < 16; ii++)
 						{
-							modulo32 = FB[fbi + ii];
-							//printf("%u, ", modulo32); fflush(stdout);
-							u32_t x32 = b0_ul;
-							if (x32 == 0)x32 = modulo32;
-							else {
-								x32 = modmul32(modinv32(x32), b1_ul);
-								if (x32 > 0)x32 = modulo32 - x32;
+							if (m1 & (1 << ii))
+							{
+								modulo32 = FB[fbi + ii];
+								u32_t x32 = B0MOD(modulo32);
+								if (x32 == 0)x32 = modulo32;
+								else {
+									x32 = modmul32(modinv32(x32), B1MOD(modulo32));
+									if (x32 > 0)x32 = modulo32 - x32;
+								}
+								xm[ii] = x32;
 							}
-							xm[ii] = x32;
 						}
 						x = _mm512_loadu_epi32(xm);
-
-						//printf("x: ");
-						//for (ii = 0; ii < 16; ii++)
-						//	printf("%u, ", xm[ii]);
-						//printf("\n");
 					}
 
 					// else
@@ -1309,7 +1250,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						m1 = m1 & m2;
 						t = modmul32_16(t, m1, pr, vb1, m32);
 						t = modsub32_16(t, m1, t, _mm512_sub_epi32(m32, _mm512_set1_epi32(absa1)), m32);
-						//count -= _mm_popcnt_u32(m1);
 						x = modinv_16(x, m1, x, m32);
 						x = modmul32_16(x, m1, x, t, m32);
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
@@ -1318,8 +1258,6 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
-
-				//printf("%u of %u vec lanes computed modinv\n", fbsz - count, fbsz);
 
 				for (; fbi < fbsz; fbi++)
 				{
