@@ -7,7 +7,7 @@
 # Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 # 02111-1307, USA.
 
-CFLAGS= -O3 -march=k8 -mtune=k8 -I. -I../../../../gmp_install/gmp-6.2.0/include
+CFLAGS= -O3 -march=native -mtune=native -I. -I../../../../gmp_install/gmp-6.2.0/include
 #CFLAGS= -g
 
 CC=gcc-11.1.0

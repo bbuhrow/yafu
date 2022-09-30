@@ -1,17 +1,19 @@
 /* gnfs-lasieve4e.c
   By Jens Franke.
   6/13/04: Hacked up for use in GGNFS by Chris Monico.
-                                                                                                       
+  9/30/22: Vector AVX512 code contributed by Ben Buhrow
+
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License
   as published by the Free Software Foundation; either version 2
   of the License, or (at your option) any later version.
-                                                                                                       
+
   You should have received a copy of the GNU General Public License along
   with this program; see the file COPYING.  If not, write to the Free
   Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   02111-1307, USA.
 */
+
 
 // #include "lasieve.h"
 
@@ -24,7 +26,7 @@
 #include <string.h> 
 #include <time.h> 
 #include <ctype.h>
-
+#include <immintrin.h>
 
 #include "../gmp-ecm/microecm.h"
 
@@ -55,6 +57,7 @@
 #include "real-poly-aux.h"
 #include "gmp-aux.h"
 #include "lasieve-prepn.h"
+#include <immintrin.h>
 
 #define TDS_IMMEDIATELY 0
 #define TDS_BIGSS 1
@@ -105,7 +108,7 @@ mpz_t factors[MAX_LPFACTORS];
 static u32_t yield= 0,n_mpqsfail[2]= {0,0},n_mpqsvain[2]= {0,0};
 static i64_t mpqs_clock= 0;
 
-static i64_t sieve_clock= 0,sch_clock= 0,td_clock= 0,tdi_clock= 0;
+static i64_t sieve_clock= 0, lsetup_clock=0, sch_clock= 0,td_clock= 0,tdi_clock= 0;
 static i64_t cs_clock[2]= {0,0},Schedule_clock= 0,medsched_clock= 0;
 static i64_t si_clock[2]= {0,0},s1_clock[2]= {0,0};
 static i64_t s2_clock[2]= {0,0},s3_clock[2]= {0,0};
@@ -440,592 +443,633 @@ int main(int argc, char **argv)
 #ifdef STC_DEBUG
   debugfile= fopen("rtdsdebug","w");
 #endif
+
+
   {
-    i32_t option;
-    FILE*input_data;
-    u32_t i;
-    
-    sieve_count= U32_MAX;
-    g_ofile_name= NULL;
-    zip_output= 0;
-    special_q_side= NO_SIDE;
-    sigma= 0;
-    keep_factorbase= 0;
-    g_resume= 0;
-    base_name= NULL;
-    first_spq= 0;
-    sieve_count= 1;
-    force_aFBcalc= 0;
-    sysload_cmd= NULL;
-    process_no= 0;
-    catch_signals= 0;
-    
-    J_bits= U32_MAX;
-    
+	  i32_t option;
+	  FILE* input_data;
+	  u32_t i;
+
+	  sieve_count = U32_MAX;
+	  g_ofile_name = NULL;
+	  zip_output = 0;
+	  special_q_side = NO_SIDE;
+	  sigma = 0;
+	  keep_factorbase = 0;
+	  g_resume = 0;
+	  base_name = NULL;
+	  first_spq = 0;
+	  sieve_count = 1;
+	  force_aFBcalc = 0;
+	  sysload_cmd = NULL;
+	  process_no = 0;
+	  catch_signals = 0;
+
+	  J_bits = U32_MAX;
+
 #define NumRead(x) if(sscanf(optarg,"%u",&x)!=1) Usage()
 #define NumRead16(x) if(sscanf(optarg,"%hu",&x)!=1) Usage()
-    
-    append_output= 0;
-    while((option= getopt(argc,argv,"FJ:L:M:N:P:RS:ab:c:f:i:kn:o:q:rt:vz"))!=-1) {
-      switch(option) {
-      case 'R':
-	g_resume = 1; break;
-	case'F':
-	  force_aFBcalc= 1;
-	break;
-	case'J':
-	  NumRead(J_bits);
-	break;
-	case'L':
-	  sysload_cmd= optarg;
-	break;
-	case'M':
-	  if(sscanf(optarg,"%hu",&cmdline_first_mpqs_side)!=1)
-	    complain("-M %s ???\n",optarg);
-	break;
-	case'P':
-	  if(sscanf(optarg,"%hu",&cmdline_first_psp_side)!=1)
-	    complain("-P %s ???\n",optarg);
-	break;
-	case'S':
-	  if(sscanf(optarg,"%f",&sigma)!=1) {
-	    errprintf("Cannot read floating point number %s\n",optarg);
-	    Usage();
-	  }
-	break;
-	case'a':
-	  if(special_q_side!=NO_SIDE) {
-	    errprintf("Ignoring -a\n");
-	    break;
-	  }
-	special_q_side= ALGEBRAIC_SIDE;
-	break;
-	case'b':
-	  if(base_name!=NULL)errprintf("Ignoring -b %s\n",base_name);
-	  else base_name= optarg;
-	break;
-	case'c':
-	  NumRead(sieve_count);
-	break;
-	case'f':
-	  if(sscanf(optarg,"%u:%u:%u",&first_spq,&first_spq1,&first_root)!=3) {
-	    if(sscanf(optarg,"%u",&first_spq) == 1) {
-	      first_spq1= first_spq;
-	      first_root= 0;
-	    } else Usage();
-	  } else append_output= 1;
-	break;
-	case'i':
-	  if(sscanf(optarg,"%hu",&cmdline_first_sieve_side)!=1)
-	    complain("-i %s ???\n",optarg);
-	break;
-	case'k':
-	  keep_factorbase= 1;
-	break;
-	case'n':
-	  catch_signals= 1;
-	case'N':
-	  NumRead(process_no);
-	break;
-	case'o':
-	  g_ofile_name= optarg;
-	break;
-	case'q':
-	  NumRead16(special_q_side);
-	break;
-	case'r':
-	  if(special_q_side!=NO_SIDE) {
-	    errprintf("Ignoring -r\n");
-	    break;
-	  }
-	special_q_side= RATIONAL_SIDE;
-	break;
-	case't':
-	  if(sscanf(optarg,"%hu",&cmdline_first_td_side)!=1)
-	    complain("-t %s ???\n",optarg);
-	break;
-	case'v':
-	  verbose++;
-	break;
-	case'z':
-	  zip_output= 1;
-	break;
-      }
-    }
 
-    if(verbose) { /* first rudimentary test of automatic $Rev reporting */
-      fprintf(stderr, "gnfs-lasieve4I%de (with asm64): L1_BITS=%d, SVN $Revision: 430 $\n", I_bits, L1_BITS);
-    }
+	  // parse command line arguments
+	  append_output = 0;
+	  while ((option = getopt(argc, argv, "FJ:L:M:N:P:RS:ab:c:f:i:kn:o:q:rt:vz")) != -1) {
+		  switch (option) {
+		  case 'R':
+			  g_resume = 1; break;
+		  case'F':
+			  force_aFBcalc = 1;
+			  break;
+		  case'J':
+			  NumRead(J_bits);
+			  break;
+		  case'L':
+			  sysload_cmd = optarg;
+			  break;
+		  case'M':
+			  if (sscanf(optarg, "%hu", &cmdline_first_mpqs_side) != 1)
+				  complain("-M %s ???\n", optarg);
+			  break;
+		  case'P':
+			  if (sscanf(optarg, "%hu", &cmdline_first_psp_side) != 1)
+				  complain("-P %s ???\n", optarg);
+			  break;
+		  case'S':
+			  if (sscanf(optarg, "%f", &sigma) != 1) {
+				  errprintf("Cannot read floating point number %s\n", optarg);
+				  Usage();
+			  }
+			  break;
+		  case'a':
+			  if (special_q_side != NO_SIDE) {
+				  errprintf("Ignoring -a\n");
+				  break;
+			  }
+			  special_q_side = ALGEBRAIC_SIDE;
+			  break;
+		  case'b':
+			  if (base_name != NULL)errprintf("Ignoring -b %s\n", base_name);
+			  else base_name = optarg;
+			  break;
+		  case'c':
+			  NumRead(sieve_count);
+			  break;
+		  case'f':
+			  if (sscanf(optarg, "%u:%u:%u", &first_spq, &first_spq1, &first_root) != 3) {
+				  if (sscanf(optarg, "%u", &first_spq) == 1) {
+					  first_spq1 = first_spq;
+					  first_root = 0;
+				  }
+				  else Usage();
+			  }
+			  else append_output = 1;
+			  break;
+		  case'i':
+			  if (sscanf(optarg, "%hu", &cmdline_first_sieve_side) != 1)
+				  complain("-i %s ???\n", optarg);
+			  break;
+		  case'k':
+			  keep_factorbase = 1;
+			  break;
+		  case'n':
+			  catch_signals = 1;
+		  case'N':
+			  NumRead(process_no);
+			  break;
+		  case'o':
+			  g_ofile_name = optarg;
+			  break;
+		  case'q':
+			  NumRead16(special_q_side);
+			  break;
+		  case'r':
+			  if (special_q_side != NO_SIDE) {
+				  errprintf("Ignoring -r\n");
+				  break;
+			  }
+			  special_q_side = RATIONAL_SIDE;
+			  break;
+		  case't':
+			  if (sscanf(optarg, "%hu", &cmdline_first_td_side) != 1)
+				  complain("-t %s ???\n", optarg);
+			  break;
+		  case'v':
+			  verbose++;
+			  break;
+		  case'z':
+			  zip_output = 1;
+			  break;
+		  }
+	  }
+
+	  if (verbose) { /* first rudimentary test of automatic $Rev reporting */
+		  fprintf(stderr, "gnfs-lasieve4I%de (with asm64): L1_BITS=%d, SVN $Revision: 430 $\n", I_bits, L1_BITS);
+	  }
 
 #define LINE_BUF_SIZE 300
-    
-    if (g_resume != 0) {
-      char buf[LINE_BUF_SIZE];
-      int ret;
-      
-      if (zip_output != 0)
-	complain("Cannot resume gzipped file. gunzip, and retry without -z\n");
-      if (g_ofile_name == NULL)
-	complain("Cannot resume without the file name\n");
-      if (strcmp(g_ofile_name, "-") == 0)
-	complain("Cannot resume using stdout\n");
-      if ((g_ofile = fopen(g_ofile_name, "ab+")) == NULL)
-	complain("Cannot open %s for append: %m\n", g_ofile_name);
-      while(fgets(buf, LINE_BUF_SIZE, g_ofile)) {
-	ret = parse_q_from_line(buf);
-      }
-      if(ret < 0) fprintf(g_ofile, "\n"); /* encapsulating the last incomplete line */
-      printf(" Resuming with -f %d -c %d\n", first_spq, sieve_count);
-      first_spq1 = first_spq;
-    }
-    
-    if(J_bits == U32_MAX)
-      J_bits = I_bits-1;
-    if(cmdline_first_psp_side == USHRT_MAX)
-      cmdline_first_psp_side = cmdline_first_mpqs_side;
+
+	  if (g_resume != 0) {
+		  char buf[LINE_BUF_SIZE];
+		  int ret;
+
+		  if (zip_output != 0)
+			  complain("Cannot resume gzipped file. gunzip, and retry without -z\n");
+		  if (g_ofile_name == NULL)
+			  complain("Cannot resume without the file name\n");
+		  if (strcmp(g_ofile_name, "-") == 0)
+			  complain("Cannot resume using stdout\n");
+		  if ((g_ofile = fopen(g_ofile_name, "ab+")) == NULL)
+			  complain("Cannot open %s for append: %m\n", g_ofile_name);
+		  while (fgets(buf, LINE_BUF_SIZE, g_ofile)) {
+			  ret = parse_q_from_line(buf);
+		  }
+		  if (ret < 0) fprintf(g_ofile, "\n"); /* encapsulating the last incomplete line */
+		  printf(" Resuming with -f %d -c %d\n", first_spq, sieve_count);
+		  first_spq1 = first_spq;
+	  }
+
+	  if (J_bits == U32_MAX)
+		  J_bits = I_bits - 1;
+	  if (cmdline_first_psp_side == USHRT_MAX)
+		  cmdline_first_psp_side = cmdline_first_mpqs_side;
 #ifndef I_bits
 #error Must #define I_bits
 #endif
-    
-    if(optind<argc&&base_name == NULL) {
-      base_name= argv[optind];
-      optind++;
-    }
-    if(optind<argc)fprintf(stderr,"Ignoring %u trailing command line args\n",
-			   argc-optind);
-    if(base_name == NULL)base_name= "gnfs";
-    if((input_data= fopen(base_name,"r")) == NULL) {
-      complain("Cannot open %s for input of nfs polynomials: %m\n",base_name);
-    }
-    mpz_init(N);
-    mpz_init(m);
-    mpz_init(aux1);
-    mpz_init(aux2);
-    mpz_init(aux3);
-    mpz_init(sr_a);
-    mpz_init(sr_b);
-    mpz_ull_init();
-    mpz_init(rational_rest);
-    mpz_init(algebraic_rest);
+
+	  if (optind < argc && base_name == NULL) {
+		  base_name = argv[optind];
+		  optind++;
+	  }
+	  if (optind < argc)fprintf(stderr, "Ignoring %u trailing command line args\n",
+		  argc - optind);
+	  if (base_name == NULL)base_name = "gnfs";
+	  if ((input_data = fopen(base_name, "r")) == NULL) {
+		  complain("Cannot open %s for input of nfs polynomials: %m\n", base_name);
+	  }
+	  mpz_init(N);
+	  mpz_init(m);
+	  mpz_init(aux1);
+	  mpz_init(aux2);
+	  mpz_init(aux3);
+	  mpz_init(sr_a);
+	  mpz_init(sr_b);
+	  mpz_ull_init();
+	  mpz_init(rational_rest);
+	  mpz_init(algebraic_rest);
 
 
-	mpz_init(factor1);
-	mpz_init(factor2);
-	mpz_init(factor3);
-	pran = 42;
+	  mpz_init(factor1);
+	  mpz_init(factor2);
+	  mpz_init(factor3);
+	  pran = 42;
 
 
-    //input_poly(N,poly,poldeg,poly+1,poldeg+1,m,input_data);
+	  //input_poly(N,poly,poldeg,poly+1,poldeg+1,m,input_data);
 #if 0
-    if(poldeg[1]> 1) {
-      if(poldeg[0] == 1) {
-	mpz_t*X;
-	poldeg[0]= poldeg[1];
-	poldeg[1]= 1;
-	X= poly[0];
-	poly[0]= poly[1];
-	poly[1]= X;
-      } else {
-	complain("Degrees >1 on both sides not implemented\n");
-      }
-    }
+	  if (poldeg[1] > 1) {
+		  if (poldeg[0] == 1) {
+			  mpz_t* X;
+			  poldeg[0] = poldeg[1];
+			  poldeg[1] = 1;
+			  X = poly[0];
+			  poly[0] = poly[1];
+			  poly[1] = X;
+		  }
+		  else {
+			  complain("Degrees >1 on both sides not implemented\n");
+		  }
+	  }
 #endif
-    //skip_blanks_comments(&input_line,&input_line_alloc,input_data);
-    fclose(input_data);
-    { FILE *fp;
-    char token[256], value[512], thisLine[1024];
-    
-    
-    sieve_min[0] = sieve_min[1]=0;
-    
-    if (!(fp = fopen(base_name, "rb"))) {
-      printf("Error opening %s for read!\n", base_name);
-      return -1;
-    }
-    input_poly(N, poly, poldeg, poly + 1, poldeg + 1, m, fp);
-    rewind(fp);
-    while (!(feof(fp))) {
-      thisLine[0] = 0;
-      fgets(thisLine, 1023, fp);
-      /* Special case: If there's a polynomial, handle it seperately: */
-      if (strncmp(thisLine, "START_POLY", 10) == 0) {
-	while (!(feof(fp)) && strncmp(thisLine, "END_POLY", 8)) 
-	  fgets(thisLine, 1023, fp);
-      } else  if ((sscanf(thisLine, "%255s %511s", token, value) == 2) && 
-		  (thisLine[0] != '#')) {
-	
-	token[sizeof(token)-1] = 0;
-	if (strncmp(token, "skew:", 5) == 0) {
-	  sigma = (float)atof(value);
-	} else if (strncmp(token, "q0:", 3) == 0) {
-	  first_spq = atol(value);
-	  first_spq1= first_spq;
-	  first_root= 0;
-	  
-	} else if (strncmp(token, "qintsize:", 9) == 0) {
-	  sieve_count = atol(value);
-	} else if ((strncmp(token, "skip0:", 6) == 0) ||
-		   (strncmp(token, "askip:", 6) == 0)) {
-	  sieve_min[0] = atol(value);
-	} else if ((strncmp(token, "skip1:", 6) == 0) ||
-		   (strncmp(token, "rskip:", 6) == 0)) {
-	  sieve_min[1] = atol(value);
-	} else if ((strncmp(token, "lim0:", 5) == 0) ||
-		   (strncmp(token, "alim:", 5) == 0)) {
-	  FB_bound[0] = (float)atol(value);
-	} else if ((strncmp(token, "lim1:", 5) == 0)||
-		   (strncmp(token, "rlim:", 5) == 0)) {
-	  FB_bound[1] = (float)atof(value);
-	} else if ((strncmp(token, "lpb0:", 5) == 0) ||
-		   (strncmp(token, "lpba:", 5) == 0)) {
-	  max_primebits[0] = atoi(value);
-	} else if ((strncmp(token, "lpb1:", 5) == 0) ||
-		   (strncmp(token, "lpbr:", 5) == 0)) {
-	  max_primebits[1] = atoi(value);
-	} else if ((strncmp(token, "mfb0:", 5) == 0) ||
-		   (strncmp(token, "mfba:", 5) == 0)) {
-	  max_factorbits[0] = atoi(value);
-	} else if ((strncmp(token, "mfb1:", 5) == 0) ||
-		   (strncmp(token, "mfbr:", 5) == 0)) {
-	  value[sizeof(value)-1] = 0;
-	  max_factorbits[1] = atoi(value);
-	} else if ((strncmp(token, "lambda0:", 8) == 0) ||
-		   (strncmp(token, "alambda:", 8) == 0)) {
-	  sieve_report_multiplier[0] = (float)atof(value);
-	} else if ((strncmp(token, "lambda1:", 8) == 0) ||
-		   (strncmp(token, "rlambda:", 8) == 0)) {
-	  sieve_report_multiplier[1] = (float)atof(value);
-	} 
+	  //skip_blanks_comments(&input_line,&input_line_alloc,input_data);
+	  fclose(input_data);
+	  // parse the input poly file
+	  {
+		  FILE* fp;
+		  char token[256], value[512], thisLine[1024];
+
+
+		  sieve_min[0] = sieve_min[1] = 0;
+
+		  if (!(fp = fopen(base_name, "rb"))) {
+			  printf("Error opening %s for read!\n", base_name);
+			  return -1;
+		  }
+		  input_poly(N, poly, poldeg, poly + 1, poldeg + 1, m, fp);
+		  rewind(fp);
+		  while (!(feof(fp))) {
+			  thisLine[0] = 0;
+			  fgets(thisLine, 1023, fp);
+			  /* Special case: If there's a polynomial, handle it seperately: */
+			  if (strncmp(thisLine, "START_POLY", 10) == 0) {
+				  while (!(feof(fp)) && strncmp(thisLine, "END_POLY", 8))
+					  fgets(thisLine, 1023, fp);
+			  }
+			  else  if ((sscanf(thisLine, "%255s %511s", token, value) == 2) &&
+				  (thisLine[0] != '#')) {
+
+				  token[sizeof(token) - 1] = 0;
+				  if (strncmp(token, "skew:", 5) == 0) {
+					  sigma = (float)atof(value);
+				  }
+				  else if (strncmp(token, "q0:", 3) == 0) {
+					  first_spq = atol(value);
+					  first_spq1 = first_spq;
+					  first_root = 0;
+
+				  }
+				  else if (strncmp(token, "qintsize:", 9) == 0) {
+					  sieve_count = atol(value);
+				  }
+				  else if ((strncmp(token, "skip0:", 6) == 0) ||
+					  (strncmp(token, "askip:", 6) == 0)) {
+					  sieve_min[0] = atol(value);
+				  }
+				  else if ((strncmp(token, "skip1:", 6) == 0) ||
+					  (strncmp(token, "rskip:", 6) == 0)) {
+					  sieve_min[1] = atol(value);
+				  }
+				  else if ((strncmp(token, "lim0:", 5) == 0) ||
+					  (strncmp(token, "alim:", 5) == 0)) {
+					  FB_bound[0] = (float)atol(value);
+				  }
+				  else if ((strncmp(token, "lim1:", 5) == 0) ||
+					  (strncmp(token, "rlim:", 5) == 0)) {
+					  FB_bound[1] = (float)atof(value);
+				  }
+				  else if ((strncmp(token, "lpb0:", 5) == 0) ||
+					  (strncmp(token, "lpba:", 5) == 0)) {
+					  max_primebits[0] = atoi(value);
+				  }
+				  else if ((strncmp(token, "lpb1:", 5) == 0) ||
+					  (strncmp(token, "lpbr:", 5) == 0)) {
+					  max_primebits[1] = atoi(value);
+				  }
+				  else if ((strncmp(token, "mfb0:", 5) == 0) ||
+					  (strncmp(token, "mfba:", 5) == 0)) {
+					  max_factorbits[0] = atoi(value);
+				  }
+				  else if ((strncmp(token, "mfb1:", 5) == 0) ||
+					  (strncmp(token, "mfbr:", 5) == 0)) {
+					  value[sizeof(value) - 1] = 0;
+					  max_factorbits[1] = atoi(value);
+				  }
+				  else if ((strncmp(token, "lambda0:", 8) == 0) ||
+					  (strncmp(token, "alambda:", 8) == 0)) {
+					  sieve_report_multiplier[0] = (float)atof(value);
+				  }
+				  else if ((strncmp(token, "lambda1:", 8) == 0) ||
+					  (strncmp(token, "rlambda:", 8) == 0)) {
+					  sieve_report_multiplier[1] = (float)atof(value);
+				  }
 #ifdef _NO
-	else {
-	  printf("Warning: Ignoring input line:\n%s\n", thisLine);
-	}
+				  else {
+					  printf("Warning: Ignoring input line:\n%s\n", thisLine);
+				  }
 #endif
-      }
-    }
-    fclose(fp);
-    }
-    last_spq= first_spq+sieve_count;
-    if(last_spq>=I32_MAX/2) {
-      complain("Cannot handle special q >= %d\n",I32_MAX/2);
-    }
-    for(i= 0;i<2;i++) {
-      if(FB_bound[i]<4||sieve_report_multiplier[i]<=0) {
-	complain("Please set all bounds to reasonable values!\n");
-      }
+			  }
+		  }
+		  fclose(fp);
+	  }
+
+
+
+	  last_spq = first_spq + sieve_count;
+	  if (last_spq >= I32_MAX / 2) {
+		  complain("Cannot handle special q >= %d\n", I32_MAX / 2);
+	  }
+	  for (i = 0; i < 2; i++) {
+		  if (FB_bound[i] < 4 || sieve_report_multiplier[i] <= 0) {
+			  complain("Please set all bounds to reasonable values!\n");
+		  }
 #if 1
-      if(max_primebits[i]> 33) {
-	complain("Only large primes up to 33 bits are allowed.\n");
-      }
+		  if (max_primebits[i] > 33) {
+			  complain("Only large primes up to 33 bits are allowed.\n");
+		  }
 #endif
-    }
-    if(sieve_count!=0) {
-      if(sigma == 0)complain("Please set a skewness\n");
-      if(special_q_side == NO_SIDE) {
-	errprintf("Please use -a or -r\n");
-	Usage();
-      }
-      if(FB_bound[special_q_side]> first_spq) {
-	FB_bound[special_q_side]=(float) first_spq-1;
-	if(verbose) printf("Warning:  lowering FB_bound to %u.\n",first_spq-1);
-	//complain("Special q lower bound %u below rFB bound %g\n",
-	//first_spq,FB_bound[special_q_side]);
-      }
-    }
-    //fclose(input_data);
-    if(poldeg[0]<poldeg[1])poldeg_max= poldeg[1];
-    else poldeg_max= poldeg[0];
-    
-    
-    
-    i_shift= 1<<(I_bits-1);
-    n_I= 1<<I_bits;
-    n_i= n_I/2;
-    i_bits= I_bits-1;
-    n_J= 1<<J_bits;
-    n_j= n_J/2;
-    j_bits= J_bits-1;
-    {
-      u32_t i,j;
-      double x,y,z;
-      
-      x= sqrt(first_spq*sigma)*n_I;
-      y= x/sigma;
-      for(j= 0;j<2;j++) {
-	poly_f[j]= xmalloc((poldeg[j]+1)*sizeof(*poly_f[j]));
-	
-	for(i= 0,z= 1,poly_norm[j]= 0;
-	    i<=poldeg[j];i++) {
-	  poly_f[j][i]= mpz_get_d(poly[j][i]);
-	  poly_norm[j]= poly_norm[j]*y+fabs(poly_f[j][i])*z;
-	  z*= x;
-	}
-      }
-    }
-    
+	  }
+	  if (sieve_count != 0) {
+		  if (sigma == 0)complain("Please set a skewness\n");
+		  if (special_q_side == NO_SIDE) {
+			  errprintf("Please use -a or -r\n");
+			  Usage();
+		  }
+		  if (FB_bound[special_q_side] > first_spq) {
+			  FB_bound[special_q_side] = (float)first_spq - 1;
+			  if (verbose) printf("Warning:  lowering FB_bound to %u.\n", first_spq - 1);
+			  //complain("Special q lower bound %u below rFB bound %g\n",
+			  //first_spq,FB_bound[special_q_side]);
+		  }
+	  }
+	  //fclose(input_data);
+	  if (poldeg[0] < poldeg[1])poldeg_max = poldeg[1];
+	  else poldeg_max = poldeg[0];
+
+
+
+	  i_shift = 1 << (I_bits - 1);
+	  n_I = 1 << I_bits;
+	  n_i = n_I / 2;
+	  i_bits = I_bits - 1;
+	  n_J = 1 << J_bits;
+	  n_j = n_J / 2;
+	  j_bits = J_bits - 1;
+	  {
+		  u32_t i, j;
+		  double x, y, z;
+
+		  x = sqrt(first_spq * sigma) * n_I;
+		  y = x / sigma;
+		  for (j = 0; j < 2; j++) {
+			  poly_f[j] = xmalloc((poldeg[j] + 1) * sizeof(*poly_f[j]));
+
+			  for (i = 0, z = 1, poly_norm[j] = 0;
+				  i <= poldeg[j]; i++) {
+				  poly_f[j][i] = mpz_get_d(poly[j][i]);
+				  poly_norm[j] = poly_norm[j] * y + fabs(poly_f[j][i]) * z;
+				  z *= x;
+			  }
+		  }
+	  }
+
   }
   
   siever_init();
-  if(sieve_count!=0) {
-    if(g_ofile_name == NULL) {
-      if(zip_output == 0) {
-	asprintf(&g_ofile_name,"%s.lasieve-%u.%u-%u",base_name,
-		 special_q_side,first_spq,last_spq);
-      } else {
-	asprintf(&g_ofile_name,
-		 append_output == 0?
-		 "gzip --best --stdout > %s.lasieve-%u.%u-%u.gz":
-		 "gzip --best --stdout >> %s.lasieve-%u.%u-%u.gz",
-		 base_name,special_q_side,first_spq,last_spq);
-      }
-    } else {
-      if(strcmp(g_ofile_name,"-") == 0) {
-	if(zip_output == 0) {
-	  g_ofile= stdout;
-	  g_ofile_name= "to stdout";
-	  goto done_opening_output;
-	} else g_ofile_name= "gzip --best --stdout";
-      } else {
-	if(fnmatch("*.gz",g_ofile_name,0) == 0) {
-	  char*on1;
-	  
-	  zip_output= 1;
-	  on1= strdup(g_ofile_name);
-	  asprintf(&g_ofile_name,"gzip --best --stdout > %s",on1);
-	  free(on1);
-	} else zip_output= 0;
-      }
-    }
-    if(zip_output == 0) {
-      if (g_resume != 0) {
-        goto done_opening_output;
-      }
-      if(append_output> 0) {
-	g_ofile= fopen(g_ofile_name,"a");
-      } else {
-	if ((g_ofile = fopen(g_ofile_name, "r")) != NULL)
-	  complain(" Will not overwrite existing file %s for output; rename it, move it away, or use -R option (resume)\n", g_ofile_name);
-	g_ofile= fopen(g_ofile_name,"w");
-      }
-      if(g_ofile == NULL)complain("Cannot open %s for output: %m\n",g_ofile_name);
-    } else {
-      if ((g_ofile= popen(g_ofile_name,"w")) == NULL)
-	complain("Cannot exec %s for output: %m\n",g_ofile_name);
-    }
+  // handle opening the output file
+  if (sieve_count != 0) {
+	  if (g_ofile_name == NULL) {
+		  if (zip_output == 0) {
+			  asprintf(&g_ofile_name, "%s.lasieve-%u.%u-%u", base_name,
+				  special_q_side, first_spq, last_spq);
+		  }
+		  else {
+			  asprintf(&g_ofile_name,
+				  append_output == 0 ?
+				  "gzip --best --stdout > %s.lasieve-%u.%u-%u.gz" :
+				  "gzip --best --stdout >> %s.lasieve-%u.%u-%u.gz",
+				  base_name, special_q_side, first_spq, last_spq);
+		  }
+	  }
+	  else {
+		  if (strcmp(g_ofile_name, "-") == 0) {
+			  if (zip_output == 0) {
+				  g_ofile = stdout;
+				  g_ofile_name = "to stdout";
+				  goto done_opening_output;
+			  }
+			  else g_ofile_name = "gzip --best --stdout";
+		  }
+		  else {
+			  if (fnmatch("*.gz", g_ofile_name, 0) == 0) {
+				  char* on1;
+
+				  zip_output = 1;
+				  on1 = strdup(g_ofile_name);
+				  asprintf(&g_ofile_name, "gzip --best --stdout > %s", on1);
+				  free(on1);
+			  }
+			  else zip_output = 0;
+		  }
+	  }
+	  if (zip_output == 0) {
+		  if (g_resume != 0) {
+			  goto done_opening_output;
+		  }
+		  if (append_output > 0) {
+			  g_ofile = fopen(g_ofile_name, "a");
+		  }
+		  else {
+			  if ((g_ofile = fopen(g_ofile_name, "r")) != NULL)
+				  complain(" Will not overwrite existing file %s for output; rename it, move it away, or use -R option (resume)\n", g_ofile_name);
+			  g_ofile = fopen(g_ofile_name, "w");
+		  }
+		  if (g_ofile == NULL)complain("Cannot open %s for output: %m\n", g_ofile_name);
+	  }
+	  else {
+		  if ((g_ofile = popen(g_ofile_name, "w")) == NULL)
+			  complain("Cannot exec %s for output: %m\n", g_ofile_name);
+	  }
   done_opening_output:
-    fprintf(g_ofile,"");
+	  fprintf(g_ofile, "");
   }
   
+  // read or build the rational and algebraic factor base
   {
-    size_t FBS_alloc= 4096;
-    u32_t prime;
-    pr32_struct ps;
-    char*afbname;
-    FILE*afbfile;
-    u32_t side;
-    
-    initprime32(&ps);
-    
-    for(side= 0;side<2;side++) {
-      if(poldeg[side] == 1) {
-	FB[side]= xmalloc(FBS_alloc*sizeof(u32_t));
-	proots[side]= xmalloc(FBS_alloc*sizeof(u32_t));
-	prime= firstprime32(&ps);
-	for(prime= nextprime32(&ps),fbi1[side]= 0,FBsize[side]= 0;
-	    prime<FB_bound[side];prime= nextprime32(&ps)) {
-	  u32_t x;
-	  x= mpz_fdiv_ui(poly[side][1],prime);
-	  if(x> 0) {
-	    modulo32= prime;
-	    x= modmul32(modinv32(x),mpz_fdiv_ui(poly[side][0],prime));
-	    x= x> 0?prime-x:0;
-	  } else x= prime;
-	  if(prime<L1_SIZE)fbi1[side]= FBsize[side];
-	  if(prime<n_i)fbis[side]= FBsize[side];
-	  if(FBsize[side] == FBS_alloc) {
-	    FBS_alloc*= 2;
-	    FB[side]= xrealloc(FB[side],FBS_alloc*sizeof(u32_t));
-	    proots[side]= xrealloc(proots[side],FBS_alloc*sizeof(u32_t));
+	  size_t FBS_alloc = 4096;
+	  u32_t prime;
+	  pr32_struct ps;
+	  char* afbname;
+	  FILE* afbfile;
+	  u32_t side;
+
+	  initprime32(&ps);
+
+	  for (side = 0; side < 2; side++) {
+		  if (poldeg[side] == 1) {
+			  FB[side] = xmalloc(FBS_alloc * sizeof(u32_t));
+			  proots[side] = xmalloc(FBS_alloc * sizeof(u32_t));
+			  prime = firstprime32(&ps);
+			  for (prime = nextprime32(&ps), fbi1[side] = 0, FBsize[side] = 0;
+				  prime < FB_bound[side]; prime = nextprime32(&ps)) {
+				  u32_t x;
+				  x = mpz_fdiv_ui(poly[side][1], prime);
+				  if (x > 0) {
+					  modulo32 = prime;
+					  x = modmul32(modinv32(x), mpz_fdiv_ui(poly[side][0], prime));
+					  x = x > 0 ? prime - x : 0;
+				  }
+				  else x = prime;
+				  if (prime < L1_SIZE)fbi1[side] = FBsize[side];
+				  if (prime < n_i)fbis[side] = FBsize[side];
+				  if (FBsize[side] == FBS_alloc) {
+					  FBS_alloc *= 2;
+					  FB[side] = xrealloc(FB[side], FBS_alloc * sizeof(u32_t));
+					  proots[side] = xrealloc(proots[side], FBS_alloc * sizeof(u32_t));
+				  }
+				  proots[side][FBsize[side]] = x;
+				  FB[side][FBsize[side]++] = prime;
+			  }
+			  proots[side] = xrealloc(proots[side], FBsize[side] * sizeof(u32_t));
+			  FB[side] = xrealloc(FB[side], FBsize[side] * sizeof(u32_t));
+			  fbi1[side]++;
+			  fbis[side]++;
+			  if (fbi1[side] < fbis[side])fbi1[side] = fbis[side];
+		  }
+		  else {
+			  u32_t j, k, l;
+			  asprintf(&afbname, "%s.afb.%u", base_name, side);
+			  if (force_aFBcalc > 0 || (afbfile = fopen(afbname, "r")) == NULL) {
+				  u32_t* root_buffer;
+				  size_t aFB_alloc;
+
+				  root_buffer = xmalloc(poldeg[side] * sizeof(*root_buffer));
+				  aFB_alloc = 4096;
+				  FB[side] = xmalloc(aFB_alloc * sizeof(**FB));
+				  proots[side] = xmalloc(aFB_alloc * sizeof(**proots));
+				  for (prime = firstprime32(&ps), FBsize[side] = 0;
+					  prime < FB_bound[side]; prime = nextprime32(&ps)) {
+					  u32_t i, nr;
+
+					  nr = root_finder(root_buffer, poly[side], poldeg[side], prime);
+					  for (i = 0; i < nr; i++) {
+						  if (aFB_alloc <= FBsize[side]) {
+							  aFB_alloc *= 2;
+							  FB[side] = xrealloc(FB[side], aFB_alloc * sizeof(**FB));
+							  proots[side] = xrealloc(proots[side], aFB_alloc * sizeof(**proots));
+						  }
+						  FB[side][FBsize[side]] = prime;
+						  proots[side][FBsize[side]] = root_buffer[i];
+						  if (prime > 2)FBsize[side]++;
+					  }
+				  }
+				  FB[side] = xrealloc(FB[side], FBsize[side] * sizeof(**FB));
+				  proots[side] = xrealloc(proots[side], FBsize[side] * sizeof(**proots));
+				  free(root_buffer);
+
+				  if (keep_factorbase > 0) {
+					  if ((afbfile = fopen(afbname, "w")) == NULL) {
+						  complain("Cannot open %s for output of aFB: %m\n", afbname);
+					  }
+					  if (write_u32(afbfile, &(FBsize[side]), 1) != 1) {
+						  complain("Cannot write aFBsize to %s: %m\n", afbname);
+					  }
+					  if (write_u32(afbfile, FB[side], FBsize[side]) != FBsize[side] ||
+						  write_u32(afbfile, proots[side], FBsize[side]) != FBsize[side]) {
+						  complain("Cannot write aFB to %s: %m\n", afbname);
+					  }
+					  if (write_u32(afbfile, &xFBs[side], 1) != 1) {
+						  complain("Cannot write aFBsize to %s: %m\n", afbname);
+					  }
+					  fclose(afbfile);
+				  }
+
+			  }
+			  else {
+				  if (read_u32(afbfile, &(FBsize[side]), 1) != 1) {
+					  complain("Cannot read aFB size from %s: %m\n", afbname);
+				  }
+				  FB[side] = xmalloc(FBsize[side] * sizeof(u32_t));
+				  proots[side] = xmalloc(FBsize[side] * sizeof(u32_t));
+				  if (read_u32(afbfile, FB[side], FBsize[side]) != FBsize[side] ||
+					  read_u32(afbfile, proots[side], FBsize[side]) != FBsize[side]) {
+					  complain("Cannot read aFB from %s: %m\n", afbname);
+				  }
+				  if (read_u32(afbfile, &xFBs[side], 1) != 1) {
+					  complain("%s: Cannot read xFBsize\n", afbname);
+				  }
+				  fclose(afbfile);
+
+			  }
+
+
+			  for (j = 0, k = 0, l = 0; j < FBsize[side]; j++) {
+				  if (FB[side][j] < L1_SIZE)k = j;
+				  if (FB[side][j] < n_i)l = j;
+				  if (FB[side][j] > L1_SIZE && FB[side][j] > n_I)break;
+			  }
+			  if (FBsize[side] > 0) {
+				  if (k < l)k = l;
+				  fbis[side] = l + 1;
+				  fbi1[side] = k + 1;
+			  }
+			  else {
+				  fbis[side] = 0;
+				  fbi1[side] = 0;
+			  }
+		  }
 	  }
-	  proots[side][FBsize[side]]= x;
-	  FB[side][FBsize[side]++]= prime;
-	}
-	proots[side]= xrealloc(proots[side],FBsize[side]*sizeof(u32_t));
-	FB[side]= xrealloc(FB[side],FBsize[side]*sizeof(u32_t));
-	fbi1[side]++;
-	fbis[side]++;
-	if(fbi1[side]<fbis[side])fbi1[side]= fbis[side];
-      } else {
-	u32_t j,k,l;
-	asprintf(&afbname,"%s.afb.%u",base_name,side);
-	if(force_aFBcalc> 0||(afbfile= fopen(afbname,"r")) == NULL) {
-	  u32_t*root_buffer;
-	  size_t aFB_alloc;
-	  
-	  root_buffer= xmalloc(poldeg[side]*sizeof(*root_buffer));
-	  aFB_alloc= 4096;
-	  FB[side]= xmalloc(aFB_alloc*sizeof(**FB));
-	  proots[side]= xmalloc(aFB_alloc*sizeof(**proots));
-	  for(prime= firstprime32(&ps),FBsize[side]= 0;
-	      prime<FB_bound[side];prime= nextprime32(&ps)) {
-	    u32_t i,nr;
-	    
-	    nr= root_finder(root_buffer,poly[side],poldeg[side],prime);
-	    for(i= 0;i<nr;i++) {
-	      if(aFB_alloc<=FBsize[side]) {
-		aFB_alloc*= 2;
-		FB[side]= xrealloc(FB[side],aFB_alloc*sizeof(**FB));
-		proots[side]= xrealloc(proots[side],aFB_alloc*sizeof(**proots));
-	      }
-	      FB[side][FBsize[side]]= prime;
-	      proots[side][FBsize[side]]= root_buffer[i];
-	      if(prime> 2)FBsize[side]++;
-	    }
+
+	  {
+		  u32_t i, srfbs, safbs;
+
+		  for (i = 0, srfbs = 0; i < xFBs[1]; i++) {
+			  if (xFB[1][i].p == xFB[1][i].pp)srfbs++;
+		  }
+		  for (i = 0, safbs = 0; i < xFBs[0]; i++) {
+			  if (xFB[0][i].p == xFB[0][i].pp)safbs++;
+		  }
+		  logbook(0, "FBsize %u+%u (deg %u), %u+%u (deg %u)\n",
+			  FBsize[0], safbs, poldeg[0], FBsize[1], srfbs, poldeg[1]);
 	  }
-	  FB[side]= xrealloc(FB[side],FBsize[side]*sizeof(**FB));
-	  proots[side]= xrealloc(proots[side],FBsize[side]*sizeof(**proots));
-	  free(root_buffer);
-	  
-	  if(keep_factorbase> 0) {
-	    if((afbfile= fopen(afbname,"w")) == NULL) {
-	      complain("Cannot open %s for output of aFB: %m\n",afbname);
-	    }
-	    if(write_u32(afbfile,&(FBsize[side]),1)!=1) {
-	      complain("Cannot write aFBsize to %s: %m\n",afbname);
-	    }
-	    if(write_u32(afbfile,FB[side],FBsize[side])!=FBsize[side]||
-	       write_u32(afbfile,proots[side],FBsize[side])!=FBsize[side]) {
-	      complain("Cannot write aFB to %s: %m\n",afbname);
-	    }
-	    if(write_u32(afbfile,&xFBs[side],1)!=1) {
-	      complain("Cannot write aFBsize to %s: %m\n",afbname);
-	    }
-	    fclose(afbfile);
+	  free(afbname);
+
+	  {
+		  u32_t i;
+		  size_t si, sj;
+
+		  n_srb_i = 2 * ((n_i + 2 * CANDIDATE_SEARCH_STEPS - 1) / (2 * CANDIDATE_SEARCH_STEPS));
+		  n_srb_j = (n_J + 2 * CANDIDATE_SEARCH_STEPS - 1) / (2 * CANDIDATE_SEARCH_STEPS);
+		  sj = n_srb_j * sizeof(*(sieve_report_bounds[0]));
+		  si = n_srb_i * sizeof(**(sieve_report_bounds[0]));
+		  for (i = 0; i < 2; i++) {
+			  u32_t j;
+
+			  tpoly_f[i] = xmalloc((1 + poldeg[i]) * sizeof(**tpoly_f));
+			  sieve_report_bounds[i] = xmalloc(sj);
+			  for (j = 0; j < n_srb_j; j++)
+				  sieve_report_bounds[i][j] = xmalloc(si);
+		  }
 	  }
-	  
-	} else {
-	  if(read_u32(afbfile,&(FBsize[side]),1)!=1) {
-	    complain("Cannot read aFB size from %s: %m\n",afbname);
-	  }
-	  FB[side]= xmalloc(FBsize[side]*sizeof(u32_t));
-	  proots[side]= xmalloc(FBsize[side]*sizeof(u32_t));
-	  if(read_u32(afbfile,FB[side],FBsize[side])!=FBsize[side]||
-	     read_u32(afbfile,proots[side],FBsize[side])!=FBsize[side]) {
-	    complain("Cannot read aFB from %s: %m\n",afbname);
-	  }
-	  if(read_u32(afbfile,&xFBs[side],1)!=1) {
-	    complain("%s: Cannot read xFBsize\n",afbname);
-	  }
-	  fclose(afbfile);
-	  
-	}
-	
-	
-	for(j= 0,k= 0,l= 0;j<FBsize[side];j++) {
-	  if(FB[side][j]<L1_SIZE)k= j;
-	  if(FB[side][j]<n_i)l= j;
-	  if(FB[side][j]> L1_SIZE&&FB[side][j]> n_I)break;
-	}
-	if(FBsize[side]> 0) {
-	  if(k<l)k= l;
-	  fbis[side]= l+1;
-	  fbi1[side]= k+1;
-	} else {
-	  fbis[side]= 0;
-	  fbi1[side]= 0;
-	}
-      }
-    }
-    
-    {
-      u32_t i,srfbs,safbs;
-      
-      for(i= 0,srfbs= 0;i<xFBs[1];i++) {
-	if(xFB[1][i].p == xFB[1][i].pp)srfbs++;
-      }
-      for(i= 0,safbs= 0;i<xFBs[0];i++) {
-	if(xFB[0][i].p == xFB[0][i].pp)safbs++;
-      }
-      logbook(0,"FBsize %u+%u (deg %u), %u+%u (deg %u)\n",
-	      FBsize[0],safbs,poldeg[0],FBsize[1],srfbs,poldeg[1]);
-    }
-    free(afbname);
-    
-    {
-      u32_t i;
-      size_t si,sj;
-      
-      n_srb_i= 2*((n_i+2*CANDIDATE_SEARCH_STEPS-1)/(2*CANDIDATE_SEARCH_STEPS));
-      n_srb_j= (n_J+2*CANDIDATE_SEARCH_STEPS-1)/(2*CANDIDATE_SEARCH_STEPS);
-      sj= n_srb_j*sizeof(*(sieve_report_bounds[0]));
-      si= n_srb_i*sizeof(**(sieve_report_bounds[0]));
-      for(i= 0;i<2;i++) {
-	u32_t j;
-	
-	tpoly_f[i]= xmalloc((1+poldeg[i])*sizeof(**tpoly_f));
-	sieve_report_bounds[i]= xmalloc(sj);
-	for(j= 0;j<n_srb_j;j++)
-	  sieve_report_bounds[i][j]= xmalloc(si);
-      }
-    }
-    
+
   }
   
-  if(sieve_count == 0)exit(0);
+  if(sieve_count == 0)
+	  exit(0);
+
+  // more work on the factor bases
   {
-    u32_t side,i;
-    
-    for(side= 0;side<2;side++) {
-      u32_t prime,nr;
-      struct xFBstruct*s;
-      u32_t*root_buffer;
-      size_t xaFB_alloc= 0;
-      FB_logs[side]= xmalloc(FBsize[side]);
-      sieve_multiplier[side]= (UCHAR_MAX-50)/log(poly_norm[side]);
-      
-      root_buffer= xmalloc(poldeg[side]*sizeof(*root_buffer));
-      prime= 2;
-      nr= root_finder(root_buffer,poly[side],poldeg[side],prime);
-      
-      for(i= 0;i<nr;i++) {
-	adjust_bufsize((void**)&(xFB[side]),&xaFB_alloc,1+xFBs[side],
-		       16,sizeof(**xFB));
-	s= xFB[side]+xFBs[side];
-	s->p= prime;
-	s->pp= prime;
-	if(root_buffer[i] == prime) {
-	  s->qq= prime;
-	  s->q= 1;
-	  s->r= 1;
-	} else {
-	  s->qq= 1;
-	  s->q= prime;
-	  s->r= root_buffer[i];
-	}
-	xFBs[side]++;
-	add_primepowers2xaFB(&xaFB_alloc,n_I,side,0,0);
-      }
-      free(root_buffer);
-      for(i= 0;i<FBsize[side];i++) {
-	double l;
-	u32_t l1;
-	
-	prime= FB[side][i];
-	if(prime> n_I/prime)break;
-	l= log(prime);
-	l1= add_primepowers2xaFB(&xaFB_alloc,n_I,side,prime,proots[side][i]);
-	FB_logs[side][i]= rint(l1*l*sieve_multiplier[side]);
-      }
-      while(i<FBsize[side]) {
-	double l;
-	
-	l= log(FB[side][i]);
-	if(l> FB_maxlog[side])FB_maxlog[side]= l;
-	FB_logs[side][i++]= rint(sieve_multiplier[side]*l);
-      }
-      FB_maxlog[side]*= sieve_multiplier[side];
-      qsort(xFB[side],xFBs[side],sizeof(*(xFB[side])),xFBcmp);
-    }
+	  u32_t side, i;
+
+	  for (side = 0; side < 2; side++) {
+		  u32_t prime, nr;
+		  struct xFBstruct* s;
+		  u32_t* root_buffer;
+		  size_t xaFB_alloc = 0;
+		  FB_logs[side] = xmalloc(FBsize[side]);
+		  sieve_multiplier[side] = (UCHAR_MAX - 50) / log(poly_norm[side]);
+
+		  root_buffer = xmalloc(poldeg[side] * sizeof(*root_buffer));
+		  prime = 2;
+		  nr = root_finder(root_buffer, poly[side], poldeg[side], prime);
+
+		  for (i = 0; i < nr; i++) {
+			  adjust_bufsize((void**)&(xFB[side]), &xaFB_alloc, 1 + xFBs[side],
+				  16, sizeof(**xFB));
+			  s = xFB[side] + xFBs[side];
+			  s->p = prime;
+			  s->pp = prime;
+			  if (root_buffer[i] == prime) {
+				  s->qq = prime;
+				  s->q = 1;
+				  s->r = 1;
+			  }
+			  else {
+				  s->qq = 1;
+				  s->q = prime;
+				  s->r = root_buffer[i];
+			  }
+			  xFBs[side]++;
+			  add_primepowers2xaFB(&xaFB_alloc, n_I, side, 0, 0);
+		  }
+		  free(root_buffer);
+		  for (i = 0; i < FBsize[side]; i++) {
+			  double l;
+			  u32_t l1;
+
+			  prime = FB[side][i];
+			  if (prime > n_I / prime)break;
+			  l = log(prime);
+			  l1 = add_primepowers2xaFB(&xaFB_alloc, n_I, side, prime, proots[side][i]);
+			  FB_logs[side][i] = rint(l1 * l * sieve_multiplier[side]);
+		  }
+		  while (i < FBsize[side]) {
+			  double l;
+
+			  l = log(FB[side][i]);
+			  if (l > FB_maxlog[side])FB_maxlog[side] = l;
+			  FB_logs[side][i++] = rint(sieve_multiplier[side] * l);
+		  }
+		  FB_maxlog[side] *= sieve_multiplier[side];
+		  qsort(xFB[side], xFBs[side], sizeof(*(xFB[side])), xFBcmp);
+	  }
   }
   
   sieve_interval= xvalloc(L1_SIZE);
@@ -1043,45 +1087,47 @@ int main(int argc, char **argv)
 		j_per_strip,1<<jps_bits);
   n_strips= n_j>>(L1_BITS-i_bits);
   rec_info_init(n_i,n_j);
+
+  // memory allocation
   {
-    u32_t s;
+	  u32_t s;
 #define MAX_TINY_2POW 4
-    
-    if(poldeg[0]<poldeg[1])s= poldeg[1];
-    else s= poldeg[0];
-    tinysieve_curpos= xmalloc(TINY_SIEVE_MIN*s*sizeof(*tinysieve_curpos));
-    horizontal_sievesums= xmalloc(j_per_strip*sizeof(*horizontal_sievesums));
-    for(s= 0;s<2;s++) {
-      u32_t fbi;
-      size_t maxent;
-      
-      smallsieve_aux[s]= xmalloc(4*fbis[s]*sizeof(*(smallsieve_aux[s])));
+
+	  if (poldeg[0] < poldeg[1])s = poldeg[1];
+	  else s = poldeg[0];
+	  tinysieve_curpos = xmalloc(TINY_SIEVE_MIN * s * sizeof(*tinysieve_curpos));
+	  horizontal_sievesums = xmalloc(j_per_strip * sizeof(*horizontal_sievesums));
+	  for (s = 0; s < 2; s++) {
+		  u32_t fbi;
+		  size_t maxent;
+
+		  smallsieve_aux[s] = xmalloc(4 * fbis[s] * sizeof(*(smallsieve_aux[s])));
 #ifndef MMX_TD
 #ifdef PREINVERT
-      smalltd_pi[s]= xmalloc(fbis[s]*sizeof(*(smalltd_pi[s])));
+		  smalltd_pi[s] = xmalloc(fbis[s] * sizeof(*(smalltd_pi[s])));
 #endif
-      smalltdsieve_aux[s]= xmalloc(j_per_strip*sizeof(*(smalltdsieve_aux[s])));
-      for(fbi= 0;fbi<j_per_strip;fbi++)
-	smalltdsieve_aux[s][fbi]= 
-	  xmalloc(fbis[s]*sizeof(**(smalltdsieve_aux[s])));
+		  smalltdsieve_aux[s] = xmalloc(j_per_strip * sizeof(*(smalltdsieve_aux[s])));
+		  for (fbi = 0; fbi < j_per_strip; fbi++)
+			  smalltdsieve_aux[s][fbi] =
+			  xmalloc(fbis[s] * sizeof(**(smalltdsieve_aux[s])));
 #else
-      
-      MMX_TdAllocate(j_per_strip,fbis[0],fbis[1]);
+
+		  MMX_TdAllocate(j_per_strip, fbis[0], fbis[1]);
 #endif
-      smallsieve_aux1[s]= xmalloc(6*xFBs[s]*sizeof(*(smallsieve_aux1[s])));
-      
-      
-      maxent= fbis[s];
-      maxent+= xFBs[s];
-      smallpsieve_aux[s]= xmalloc(3*maxent*sizeof(*(smallpsieve_aux[s])));
-      maxent= 0;
-      for(fbi= 0;fbi<xFBs[s];fbi++) {
-	if(xFB[s][fbi].p == 2)
-	  maxent++;
-      }
-      smallsieve_aux2[s]= xmalloc(4*maxent*sizeof(*(smallsieve_aux2[s])));
-      x2FB[s]= xmalloc(maxent*6*sizeof(*(x2FB[s])));
-    }
+		  smallsieve_aux1[s] = xmalloc(6 * xFBs[s] * sizeof(*(smallsieve_aux1[s])));
+
+
+		  maxent = fbis[s];
+		  maxent += xFBs[s];
+		  smallpsieve_aux[s] = xmalloc(3 * maxent * sizeof(*(smallpsieve_aux[s])));
+		  maxent = 0;
+		  for (fbi = 0; fbi < xFBs[s]; fbi++) {
+			  if (xFB[s][fbi].p == 2)
+				  maxent++;
+		  }
+		  smallsieve_aux2[s] = xmalloc(4 * maxent * sizeof(*(smallsieve_aux2[s])));
+		  x2FB[s] = xmalloc(maxent * 6 * sizeof(*(x2FB[s])));
+	  }
   }
   
 #ifdef GCD_SIEVE_BOUND
@@ -1114,52 +1160,53 @@ int main(int argc, char **argv)
     }
   }
   
+  // more memory allocation
   {
-    u32_t s;
-    size_t total_alloc;
-    u16_t*sched_buf;
-    double pvl_max[2];
-    
-    total_alloc= 0;
-    for(s= 0;s<2;s++) {
-      u32_t i,fbi_lb;
-      
-      if(sigma>=1)pvl_max[s]= poldeg[s]*log(last_spq*sqrt(sigma));
-      else pvl_max[s]= poldeg[s]*log(last_spq/sqrt(sigma));
-      pvl_max[s]+= log(poly_norm[s]);
-      if(fbi1[s]>=FBsize[s]||i_bits+j_bits<=L1_BITS) {
-	n_schedules[s]= 0;
-	continue;
-      }
-      for(i= 0;i<N_PRIMEBOUNDS;i++)
-	if(FB_bound[s]<=schedule_primebounds[i]||
-	   i_bits+j_bits<=schedule_sizebits[i])
-	  break;
-      n_schedules[s]= i+1;
-      schedules[s]= xmalloc(n_schedules[s]*sizeof(**schedules));
-      fbi_lb= fbi1[s];
-      for(i= 0;i<n_schedules[s];i++) {
-	u32_t fbp_lb,fbp_ub;
-	u32_t fbi,fbi_ub;
-	u32_t sp_i;
-	u32_t n,sl_i;
-	u32_t ns;
-	size_t allocate,all1;
-	
-	if(i == n_schedules[s]-1)fbp_ub= FB_bound[s];
-	else fbp_ub= schedule_primebounds[i];
-	if(i == 0)fbp_lb= FB[s][fbi1[s]];
-	else fbp_lb= schedule_primebounds[i-1];
-	
-	if(i_bits+j_bits<schedule_sizebits[i])ns= 1<<(i_bits+j_bits-L1_BITS);
-	else ns= 1<<(schedule_sizebits[i]-L1_BITS);
-	schedules[s][i].n_strips= ns;
-	
-	
-	
+	  u32_t s;
+	  size_t total_alloc;
+	  u16_t* sched_buf;
+	  double pvl_max[2];
+
+	  total_alloc = 0;
+	  for (s = 0; s < 2; s++) {
+		  u32_t i, fbi_lb;
+
+		  if (sigma >= 1)pvl_max[s] = poldeg[s] * log(last_spq * sqrt(sigma));
+		  else pvl_max[s] = poldeg[s] * log(last_spq / sqrt(sigma));
+		  pvl_max[s] += log(poly_norm[s]);
+		  if (fbi1[s] >= FBsize[s] || i_bits + j_bits <= L1_BITS) {
+			  n_schedules[s] = 0;
+			  continue;
+		  }
+		  for (i = 0; i < N_PRIMEBOUNDS; i++)
+			  if (FB_bound[s] <= schedule_primebounds[i] ||
+				  i_bits + j_bits <= schedule_sizebits[i])
+				  break;
+		  n_schedules[s] = i + 1;
+		  schedules[s] = xmalloc(n_schedules[s] * sizeof(**schedules));
+		  fbi_lb = fbi1[s];
+		  for (i = 0; i < n_schedules[s]; i++) {
+			  u32_t fbp_lb, fbp_ub;
+			  u32_t fbi, fbi_ub;
+			  u32_t sp_i;
+			  u32_t n, sl_i;
+			  u32_t ns;
+			  size_t allocate, all1;
+
+			  if (i == n_schedules[s] - 1)fbp_ub = FB_bound[s];
+			  else fbp_ub = schedule_primebounds[i];
+			  if (i == 0)fbp_lb = FB[s][fbi1[s]];
+			  else fbp_lb = schedule_primebounds[i - 1];
+
+			  if (i_bits + j_bits < schedule_sizebits[i])ns = 1 << (i_bits + j_bits - L1_BITS);
+			  else ns = 1 << (schedule_sizebits[i] - L1_BITS);
+			  schedules[s][i].n_strips = ns;
+
+
+
 #ifndef SCHED_TOL
 #ifndef NO_SCHEDTOL
-/* these values are experimental; report SCHED_PATHOLOGY to http://mersenneforum.org/showthread.php?t=11430 */
+			  /* these values are experimental; report SCHED_PATHOLOGY to http://mersenneforum.org/showthread.php?t=11430 */
 #define SCHED_PAD 48
 #if I_bits<15
 #define SCHED_TOL 2
@@ -1169,153 +1216,157 @@ int main(int argc, char **argv)
 #endif
 #endif
 #ifdef SCHED_TOL
-        allocate = rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
+			  allocate = rint(SCHED_PAD + SCHED_TOL * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
 #else
-	allocate = rint(sched_tol[i]*n_i*j_per_strip*log(log(fbp_ub)/log(fbp_lb)));
+			  allocate = rint(sched_tol[i] * n_i * j_per_strip * log(log(fbp_ub) / log(fbp_lb)));
 #endif
-	allocate*= SE_SIZE;
-	
-	all1= allocate+n_i*ceil(pvl_max[s]/log(fbp_lb))*SE_SIZE;
-	schedules[s][i].alloc= allocate;
-	schedules[s][i].alloc1= all1;
-	//printf("### [%d][%d] alloc = %ld %ld %ld %ld\n",s,i,allocate,all1,n_i,j_per_strip);
-	
-	for(n= 0,fbi= fbi_lb;fbi<FBsize[s];) {
-	  u32_t fbi_ub1;
-	  fbi_ub1= fbi+SCHEDFBI_MAXSTEP;
-	  if(fbi_ub1>=FBsize[s])fbi_ub1= FBsize[s];
-	  else{
-	    if(FB[s][fbi_ub1]> fbp_ub) {
-	      while(FB[s][fbi_ub1]> fbp_ub)
-		fbi_ub1--;
-	      fbi_ub1++;
-	    }
+			  allocate *= SE_SIZE;
+
+			  all1 = allocate + n_i * ceil(pvl_max[s] / log(fbp_lb)) * SE_SIZE;
+			  schedules[s][i].alloc = allocate;
+			  schedules[s][i].alloc1 = all1;
+			  //printf("### [%d][%d] alloc = %ld %ld %ld %ld\n",s,i,allocate,all1,n_i,j_per_strip);
+
+			  for (n = 0, fbi = fbi_lb; fbi < FBsize[s];) {
+				  u32_t fbi_ub1;
+				  fbi_ub1 = fbi + SCHEDFBI_MAXSTEP;
+				  if (fbi_ub1 >= FBsize[s])fbi_ub1 = FBsize[s];
+				  else {
+					  if (FB[s][fbi_ub1] > fbp_ub) {
+						  while (FB[s][fbi_ub1] > fbp_ub)
+							  fbi_ub1--;
+						  fbi_ub1++;
+					  }
+				  }
+				  if (FB_logs[s][fbi] == FB_logs[s][fbi_ub1 - 1]) {
+					  n++;
+					  fbi = fbi_ub1;
+				  }
+				  else {
+					  u32_t l;
+					  n += FB_logs[s][fbi_ub1 - 1] - FB_logs[s][fbi];
+					  fbi = fbi_ub1 - 1;
+					  l = FB_logs[s][fbi];
+					  while (FB_logs[s][fbi] == l)fbi--;
+					  fbi++;
+				  }
+				  if (fbi >= FBsize[s] || FB[s][fbi] > fbp_ub)break;
+			  }
+			  fbi_ub = fbi;
+			  schedules[s][i].n_pieces = n;
+			  n++;
+			  schedules[s][i].schedule = xmalloc(n * sizeof(*(schedules[s][i].schedule)));
+			  for (sl_i = 0; sl_i < n; sl_i++)
+				  schedules[s][i].schedule[sl_i] =
+				  xmalloc(ns * sizeof(**(schedules[s][i].schedule)));
+			  schedules[s][i].schedule[0][0] = (u16_t*)total_alloc;
+			  total_alloc += all1;
+			  for (sp_i = 1; sp_i < ns; sp_i++) {
+				  schedules[s][i].schedule[0][sp_i] = (u16_t*)total_alloc;
+				  total_alloc += allocate;
+			  }
+			  schedules[s][i].fbi_bounds =
+				  xmalloc(n * sizeof(*(schedules[s][i].fbi_bounds)));
+			  schedules[s][i].schedlogs = xmalloc(n);
+			  for (n = 0, fbi = fbi_lb; fbi < fbi_ub;) {
+				  u32_t fbi_ub1;
+				  fbi_ub1 = fbi + SCHEDFBI_MAXSTEP;
+				  if (fbi_ub1 > fbi_ub)fbi_ub1 = fbi_ub;
+				  if (FB_logs[s][fbi] == FB_logs[s][fbi_ub1 - 1]) {
+					  schedules[s][i].fbi_bounds[n++] = fbi;
+					  fbi = fbi_ub1;
+				  }
+				  else {
+					  u32_t l, lmax;
+
+					  lmax = FB_logs[s][fbi_ub1 - 1];
+					  for (l = FB_logs[s][fbi]; l < lmax; l++) {
+						  schedules[s][i].fbi_bounds[n++] = fbi;
+						  while (fbi < fbi_ub && FB_logs[s][fbi] == l)fbi++;
+					  }
+				  }
+			  }
+			  if (n != schedules[s][i].n_pieces)
+				  Schlendrian("Expected %u schedule pieces on side %u, have %u\n",
+					  schedules[s][i].n_pieces, s, n);
+			  schedules[s][i].fbi_bounds[n++] = fbi;
+			  for (n = 0; n < schedules[s][i].n_pieces; n++)
+				  schedules[s][i].schedlogs[n] = FB_logs[s][schedules[s][i].fbi_bounds[n]];
+			  schedules[s][i].ri =
+				  LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]) * RI_SIZE;
+			  fbi_lb = fbi_ub;
+		  }
 	  }
-	  if(FB_logs[s][fbi] == FB_logs[s][fbi_ub1-1]) {
-	    n++;
-	    fbi= fbi_ub1;
-	  } else {
-	    u32_t l;
-	    n+= FB_logs[s][fbi_ub1-1]-FB_logs[s][fbi];
-	    fbi= fbi_ub1-1;
-	    l= FB_logs[s][fbi];
-	    while(FB_logs[s][fbi] == l)fbi--;
-	    fbi++;
+
+	  sched_buf = xmalloc((total_alloc + 65536 * SE_SIZE * j_per_strip) *
+		  sizeof(**((**schedules).schedule)));
+	  for (s = 0; s < 2; s++) {
+		  u32_t i;
+		  for (i = 0; i < n_schedules[s]; i++) {
+			  u32_t sp_i;
+
+			  for (sp_i = 0; sp_i < schedules[s][i].n_strips; sp_i++)
+				  schedules[s][i].schedule[0][sp_i] =
+				  sched_buf + (size_t)(schedules[s][i].schedule[0][sp_i]);
+		  }
 	  }
-	  if(fbi>=FBsize[s]||FB[s][fbi]> fbp_ub)break;
-	}
-	fbi_ub= fbi;
-	schedules[s][i].n_pieces= n;
-	n++;
-	schedules[s][i].schedule= xmalloc(n*sizeof(*(schedules[s][i].schedule)));
-	for(sl_i= 0;sl_i<n;sl_i++)
-	  schedules[s][i].schedule[sl_i]= 
-	    xmalloc(ns*sizeof(**(schedules[s][i].schedule)));
-	schedules[s][i].schedule[0][0]= (u16_t*)total_alloc;
-	total_alloc+= all1;
-	for(sp_i= 1;sp_i<ns;sp_i++) {
-	  schedules[s][i].schedule[0][sp_i]= (u16_t*)total_alloc;
-	  total_alloc+= allocate;
-	}
-	schedules[s][i].fbi_bounds= 
-	  xmalloc(n*sizeof(*(schedules[s][i].fbi_bounds)));
-	schedules[s][i].schedlogs= xmalloc(n);
-	for(n= 0,fbi= fbi_lb;fbi<fbi_ub;) {
-	  u32_t fbi_ub1;
-	  fbi_ub1= fbi+SCHEDFBI_MAXSTEP;
-	  if(fbi_ub1> fbi_ub)fbi_ub1= fbi_ub;
-	  if(FB_logs[s][fbi] == FB_logs[s][fbi_ub1-1]) {
-	    schedules[s][i].fbi_bounds[n++]= fbi;
-	    fbi= fbi_ub1;
-	  } else {
-	    u32_t l,lmax;
-	    
-	    lmax= FB_logs[s][fbi_ub1-1];
-	    for(l= FB_logs[s][fbi];l<lmax;l++) {
-	      schedules[s][i].fbi_bounds[n++]= fbi;
-	      while(fbi<fbi_ub&&FB_logs[s][fbi] == l)fbi++;
-	    }
-	  }
-	}
-	if(n!=schedules[s][i].n_pieces)
-	  Schlendrian("Expected %u schedule pieces on side %u, have %u\n",
-		      schedules[s][i].n_pieces,s,n);
-	schedules[s][i].fbi_bounds[n++]= fbi;
-	for(n= 0;n<schedules[s][i].n_pieces;n++)
-	  schedules[s][i].schedlogs[n]= FB_logs[s][schedules[s][i].fbi_bounds[n]];
-	schedules[s][i].ri= 
-	  LPri[s]+(schedules[s][i].fbi_bounds[0]-fbis[s])*RI_SIZE;
-	fbi_lb= fbi_ub;
-      }
-    }
-    sched_buf= xmalloc((total_alloc+65536*SE_SIZE*j_per_strip)*
-		       sizeof(**((**schedules).schedule)));
-    for(s= 0;s<2;s++) {
-      u32_t i;
-      for(i= 0;i<n_schedules[s];i++) {
-	u32_t sp_i;
-	
-	for(sp_i= 0;sp_i<schedules[s][i].n_strips;sp_i++)
-	  schedules[s][i].schedule[0][sp_i]= 
-	    sched_buf+(size_t)(schedules[s][i].schedule[0][sp_i]);
-      }
-    }
-    
+
 #ifdef USE_MEDSCHED
-    {
-      u32_t s;
-      
-      for(s= 0;s<2;s++) {
-	if(fbis[s]<fbi1[s]) {
-	  u32_t fbi;
-	  u32_t n;
-	  unsigned char oldlog;
-	  
-	  
-	  medsched_alloc[s]= j_per_strip*(fbi1[s]-fbis[s])*SE_SIZE;
-	  
-	  medsched_alloc[s]+= n_i*ceil(pvl_max[s]/log(n_i))*SE_SIZE;
-	  n_medsched_pieces[s]= 1+FB_logs[s][fbi1[s]-1]-FB_logs[s][fbis[s]];
-	  med_sched[s]= xmalloc((1+n_medsched_pieces[s])*sizeof(**med_sched));
-	  med_sched[s][0]= xmalloc(medsched_alloc[s]*sizeof(***med_sched));
-	  
-	  medsched_fbi_bounds[s]= 
-	    xmalloc((1+n_medsched_pieces[s])*sizeof(**medsched_fbi_bounds));
-	  medsched_logs[s]= xmalloc(n_medsched_pieces[s]);
-	  
-	  for(n= 0,fbi= fbis[s],oldlog= UCHAR_MAX;fbi<fbi1[s];fbi++) {
-	    if(FB_logs[s][fbi]!=oldlog) {
-	      medsched_fbi_bounds[s][n]= fbi;
-	      oldlog= FB_logs[s][fbi];
-	      medsched_logs[s][n++]= oldlog;
-	    }
+	  {
+		  u32_t s;
+
+		  for (s = 0; s < 2; s++) {
+			  if (fbis[s] < fbi1[s]) {
+				  u32_t fbi;
+				  u32_t n;
+				  unsigned char oldlog;
+
+
+				  medsched_alloc[s] = j_per_strip * (fbi1[s] - fbis[s]) * SE_SIZE;
+
+				  medsched_alloc[s] += n_i * ceil(pvl_max[s] / log(n_i)) * SE_SIZE;
+				  n_medsched_pieces[s] = 1 + FB_logs[s][fbi1[s] - 1] - FB_logs[s][fbis[s]];
+				  med_sched[s] = xmalloc((1 + n_medsched_pieces[s]) * sizeof(**med_sched));
+				  med_sched[s][0] = xmalloc(medsched_alloc[s] * sizeof(***med_sched));
+
+				  medsched_fbi_bounds[s] =
+					  xmalloc((1 + n_medsched_pieces[s]) * sizeof(**medsched_fbi_bounds));
+				  medsched_logs[s] = xmalloc(n_medsched_pieces[s]);
+
+				  for (n = 0, fbi = fbis[s], oldlog = UCHAR_MAX; fbi < fbi1[s]; fbi++) {
+					  if (FB_logs[s][fbi] != oldlog) {
+						  medsched_fbi_bounds[s][n] = fbi;
+						  oldlog = FB_logs[s][fbi];
+						  medsched_logs[s][n++] = oldlog;
+					  }
+				  }
+				  if (n != n_medsched_pieces[s])
+					  Schlendrian("Expected %u medium schedule pieces on side %u, have %u\n",
+						  n_medsched_pieces[s], s, n);
+				  medsched_fbi_bounds[s][n] = fbi;
+			  }
+			  else {
+
+				  n_medsched_pieces[s] = 0;
+			  }
+		  }
 	  }
-	  if(n!=n_medsched_pieces[s])
-	    Schlendrian("Expected %u medium schedule pieces on side %u, have %u\n",
-			n_medsched_pieces[s],s,n);
-	  medsched_fbi_bounds[s][n]= fbi;
-	} else {
-	  
-	  n_medsched_pieces[s]= 0;
-	}
-      }
-    }
 #endif
-    
+
   }
   
   {
-    u32_t s;
-    size_t schedbuf_alloc;
-    
-    for(s= 0,schedbuf_alloc= 0;s<2;s++) {
-      u32_t i;
-      
-      for(i= 0;i<n_schedules[s];i++)
-	if(schedules[s][i].n_pieces> schedbuf_alloc)
-	  schedbuf_alloc= schedules[s][i].n_pieces;
-    }
-    schedbuf= xmalloc((1+schedbuf_alloc)*sizeof(*schedbuf));
+	  u32_t s;
+	  size_t schedbuf_alloc;
+
+	  for (s = 0, schedbuf_alloc = 0; s < 2; s++) {
+		  u32_t i;
+
+		  for (i = 0; i < n_schedules[s]; i++)
+			  if (schedules[s][i].n_pieces > schedbuf_alloc)
+				  schedbuf_alloc = schedules[s][i].n_pieces;
+	  }
+	  schedbuf = xmalloc((1 + schedbuf_alloc) * sizeof(*schedbuf));
   }
   
   td_buf1= xmalloc((1+L1_SIZE)*sizeof(*td_buf1));
@@ -1352,1415 +1403,1624 @@ int main(int argc, char **argv)
   
   
   all_spq_done= 1;
+  // process all special_q
   {
-    u32_t*r;
-    initprime32(&special_q_ps);
-    last_clock= clock();
-    n_spq= 0;
-    n_spq_discard= 0;
-    r= xmalloc(poldeg_max*sizeof(*r));
-    special_q= pr32_seek(&special_q_ps,first_spq1);
-    if(catch_signals!=0) {
-      signal(SIGTERM,terminate_sieving);
-      signal(SIGINT,terminate_sieving);
-    }
-    tStart = lastReport = sTime();
-    for( ;special_q<last_spq&&special_q!=0;special_q= nextprime32(&special_q_ps),first_root= 0) {
-      u32_t nr;
-      
-      special_q_log= log(special_q);
-      if(cmdline_first_sieve_side == USHRT_MAX) {
-#if 1
-	double nn[2];
-	u32_t s;
-#if 0
-	for(s= 0;s<2;s++) {
-	  nn[s]= log(poly_norm[s]*(special_q_side == s?1:special_q));
-	  nn[s]= nn[s]/log(FB_bound[s])-sieve_report_multiplier[s];
-	}
-#else
-	for(s= 0;s<2;s++) {
-	  nn[s]= log(poly_norm[s]*(special_q_side == s?1:special_q));
-	  nn[s]= nn[s]/(sieve_report_multiplier[s]*log(FB_bound[s]));
-	}
-#endif
-	if(nn[0]<nn[1])first_sieve_side= 1;
-	else first_sieve_side= 0;
-#else
-	if(poly_norm[0]*(special_q_side == 0?1:special_q)
-	   <poly_norm[1]*(special_q_side == 1?1:special_q)) {
-	  first_sieve_side= 1;
-	} else {
-	  first_sieve_side= 0;
-	}
-#endif
-      } else {
-	first_sieve_side= cmdline_first_sieve_side;
-	if(first_sieve_side>=2)complain("First sieve side must not be %u\n",
-					(u32_t)first_sieve_side);
-      }
-      logbook(1,"First sieve side: %u\n",(u32_t)first_sieve_side);
-      if(cmdline_first_td_side!=USHRT_MAX)first_td_side= cmdline_first_td_side;
-      else first_td_side= first_sieve_side;
-      if(poldeg[special_q_side]> 1) {
-	nr= root_finder(r,poly[special_q_side],poldeg[special_q_side],special_q);
-	if(nr == 0)continue;
-	if(r[nr-1] == special_q) {
-	  
-	  
-	  nr--;
-	}
-      } else {
-	u32_t x= mpz_fdiv_ui(poly[special_q_side][1],special_q);
-	if(x == 0) {
-	  n_spq_discard++;
-	  continue;
-	}
-	modulo32= special_q;
-	x= modmul32(modinv32(x),mpz_fdiv_ui(poly[special_q_side][0],special_q));
-	r[0]= x == 0?0:special_q-x;
-	nr= 1;
-      }
-      
-      for(root_no= 0;root_no<nr;root_no++) {
-	u32_t termination_condition;
-	
-	if(r[root_no]<first_root)continue;
-	if((termination_condition= setjmp(termination_jb))!=0) {
-	  if(termination_condition == USER_INTERRUPT)
-	    {
-	      //char*hn,*ofn;
-	      //FILE*of;
-	      
-	      //hn= xmalloc(100);
-	      //if(gethostname(hn,99) == 0)
-	      //asprintf(&ofn,"%s.%s.last_spq%d",base_name,hn,process_no);
-	      //else asprintf(&ofn,"%s.unknown_host.last_spq%d",base_name,process_no);
-	      //free(hn);
-	      
-	      //if((of= fopen(ofn,"w"))!=0) {
-	      //fprintf(of,"%u\n",special_q);
-	      //fclose(of);
-	      //}
-	      //free(ofn);
-	      all_spq_done= 0;
-	      break;
-	    }
-	  
-	  else{
-#if 0
-	    char *cmd;
+	  u32_t* r;
+	  initprime32(&special_q_ps);
+	  last_clock = clock();
+	  n_spq = 0;
+	  n_spq_discard = 0;
+	  r = xmalloc(poldeg_max * sizeof(*r));
+	  special_q = pr32_seek(&special_q_ps, first_spq1);
+	  if (catch_signals != 0) {
+		  signal(SIGTERM, terminate_sieving);
+		  signal(SIGINT, terminate_sieving);
+	  }
+	  tStart = lastReport = sTime();
+	  for (; special_q < last_spq && special_q != 0; 
+		  special_q = nextprime32(&special_q_ps), first_root = 0) 
+	  {
+		  u32_t nr;
 
-	    asprintf(&cmd,"touch badsched.%s.%u.%u.%u",base_name,
-	             special_q_side,special_q,r[root_no]);
-	    system(cmd);
-	    free(cmd);
+		  special_q_log = log(special_q);
+		  if (cmdline_first_sieve_side == USHRT_MAX) {
+#if 1
+			  double nn[2];
+			  u32_t s;
+#if 0
+			  for (s = 0; s < 2; s++) {
+				  nn[s] = log(poly_norm[s] * (special_q_side == s ? 1 : special_q));
+				  nn[s] = nn[s] / log(FB_bound[s]) - sieve_report_multiplier[s];
+		  }
+#else
+			  for (s = 0; s < 2; s++) {
+				  nn[s] = log(poly_norm[s] * (special_q_side == s ? 1 : special_q));
+				  nn[s] = nn[s] / (sieve_report_multiplier[s] * log(FB_bound[s]));
+			  }
 #endif
-	    continue;
+			  if (nn[0] < nn[1])first_sieve_side = 1;
+			  else first_sieve_side = 0;
+#else
+			  if (poly_norm[0] * (special_q_side == 0 ? 1 : special_q)
+				  < poly_norm[1] * (special_q_side == 1 ? 1 : special_q)) {
+				  first_sieve_side = 1;
+			  }
+			  else {
+				  first_sieve_side = 0;
 	  }
-	}
-	if(sysload_cmd!=NULL) {
-	  if(system(sysload_cmd)!=0) {
-	    exitval= LOADTEST_EXITVAL;
-	    longjmp(termination_jb,USER_INTERRUPT);
-	  }
-	}
-	n_spq++;
-	reduce2(&a0,&b0,&a1,&b1,(i32_t)special_q,0,(i32_t)r[root_no],1,sigma*sigma);
-	{
-	  if(b0%((i32_t)special_q) == 0&&b1%((i32_t)special_q) == 0) {
-	    i32_t x;
-	    
-	    x= a0%((i32_t)special_q);
-	    if(x<0)x+= (i32_t)special_q;
-	    spq_i= x;
-	    x= a1%((i32_t)special_q);
-	    if(x<0)x+= (i32_t)special_q;
-	    spq_j= x;
-	  } else {
-	    i32_t x;
-	    
-	    x= b0%((i32_t)special_q);
-	    if(x<0)x+= (i32_t)special_q;
-	    spq_i= x;
-	    x= b1%((i32_t)special_q);
-	    if(x<0)x+= (i32_t)special_q;
-	    spq_j= x;
-	  }
-	  modulo32= special_q;
-	  spq_x= modmul32(spq_i,i_shift);
-	}
+#endif
+		  }
+		  else
+		  {
+			  first_sieve_side = cmdline_first_sieve_side;
+			  if (first_sieve_side >= 2)complain("First sieve side must not be %u\n",
+				  (u32_t)first_sieve_side);
+		  }
+
+		  logbook(1,"First sieve side: %u\n",(u32_t)first_sieve_side);
+		  if(cmdline_first_td_side!=USHRT_MAX)first_td_side= cmdline_first_td_side;
+		  else first_td_side= first_sieve_side;
+		  if (poldeg[special_q_side] > 1) {
+			  nr = root_finder(r, poly[special_q_side], poldeg[special_q_side], special_q);
+			  if (nr == 0)continue;
+			  if (r[nr - 1] == special_q) {
+
+
+				  nr--;
+			  }
+		  }
+		  else {
+			  u32_t x = mpz_fdiv_ui(poly[special_q_side][1], special_q);
+			  if (x == 0) {
+				  n_spq_discard++;
+				  continue;
+			  }
+			  modulo32 = special_q;
+			  x = modmul32(modinv32(x), mpz_fdiv_ui(poly[special_q_side][0], special_q));
+			  r[0] = x == 0 ? 0 : special_q - x;
+			  nr = 1;
+		  }
+      
+		  for(root_no= 0;root_no<nr;root_no++) {
+			u32_t termination_condition;
 	
-	//fprintf(g_ofile,"# Start %u %u (%d,%d) (%d,%d)\n",
-	//special_q,r[root_no],a0,b0,a1,b1);
-	{
-	  u32_t subsieve_nr;
+			if(r[root_no]<first_root)continue;
+			if((termination_condition= setjmp(termination_jb))!=0) {
+			  if(termination_condition == USER_INTERRUPT)
+				{
+				  //char*hn,*ofn;
+				  //FILE*of;
+	      
+				  //hn= xmalloc(100);
+				  //if(gethostname(hn,99) == 0)
+				  //asprintf(&ofn,"%s.%s.last_spq%d",base_name,hn,process_no);
+				  //else asprintf(&ofn,"%s.unknown_host.last_spq%d",base_name,process_no);
+				  //free(hn);
+	      
+				  //if((of= fopen(ofn,"w"))!=0) {
+				  //fprintf(of,"%u\n",special_q);
+				  //fclose(of);
+				  //}
+				  //free(ofn);
+				  all_spq_done= 0;
+				  break;
+				}
 	  
-	  {
-	    u32_t absa0,absa1,absb0,absb1;
-	    char a0s,a1s;
-	    clock_t new_clock;
+			  else{
+	#if 0
+			char *cmd;
+
+			asprintf(&cmd,"touch badsched.%s.%u.%u.%u",base_name,
+						special_q_side,special_q,r[root_no]);
+			system(cmd);
+			free(cmd);
+	#endif
+				continue;
+			  }
+			}
+
+			if(sysload_cmd!=NULL) {
+			  if(system(sysload_cmd)!=0) {
+				exitval= LOADTEST_EXITVAL;
+				longjmp(termination_jb,USER_INTERRUPT);
+			  }
+			}
+			n_spq++;
+
+			reduce2(&a0,&b0,&a1,&b1,(i32_t)special_q,0,(i32_t)r[root_no],1,sigma*sigma);
+
+			{
+				if (b0 % ((i32_t)special_q) == 0 && b1 % ((i32_t)special_q) == 0) {
+					i32_t x;
+
+					x = a0 % ((i32_t)special_q);
+					if (x < 0)x += (i32_t)special_q;
+					spq_i = x;
+					x = a1 % ((i32_t)special_q);
+					if (x < 0)x += (i32_t)special_q;
+					spq_j = x;
+				}
+				else {
+					i32_t x;
+
+					x = b0 % ((i32_t)special_q);
+					if (x < 0)x += (i32_t)special_q;
+					spq_i = x;
+					x = b1 % ((i32_t)special_q);
+					if (x < 0)x += (i32_t)special_q;
+					spq_j = x;
+				}
+				modulo32 = special_q;
+				spq_x = modmul32(spq_i, i_shift);
+			}
+	
+			//fprintf(g_ofile,"# Start %u %u (%d,%d) (%d,%d)\n",
+			//special_q,r[root_no],a0,b0,a1,b1);
+
+			// do all of the work (scheduling/setup ?) for this root of this special_q (?)
+			{
+			  u32_t subsieve_nr;
+	  
+			  {
+				u32_t absa0,absa1,absb0,absb1;
+				char a0s,a1s;
+				clock_t new_clock;
 	    
-#define GET_ABSSIG(abs,sig,arg) if(arg> 0) { abs= (u32_t)arg; sig= '+';} \
-        else { abs= (u32_t)(-arg); sig= '-'; }
-	    GET_ABSSIG(absa0,a0s,a0);
-	    GET_ABSSIG(absa1,a1s,a1);
-	    absb0= b0;
-	    absb1= b1;
-	    {
-	      u32_t s;
-	      
-	      for(s= 0;s<2;s++) {
-		u32_t fbi;
-		u16_t*abuf;
-		u16_t*ibuf;
-		
-		abuf= smallsieve_aux[s];
-		ibuf= smallpsieve_aux[s];
-		for(fbi= 0;fbi<fbis[s];fbi++) {
-		  u32_t aa,bb;
-		  modulo32= FB[s][fbi];
-		  
-		  aa= absa0%FB[s][fbi];
-		  if(a0s == '-'&&aa!=0)aa= FB[s][fbi]-aa;
-		  bb= absb0%FB[s][fbi];
-		  if(proots[s][fbi]!=FB[s][fbi]) {
-		    u32_t x;
-		    x= modsub32(aa,modmul32(proots[s][fbi],bb));
-		    if(x!=0) {
-		      aa= absa1%FB[s][fbi];
-		      if(a1s == '-'&&aa!=0)aa= FB[s][fbi]-aa;
-		      bb= absb1%FB[s][fbi];
-		      x= modmul32(asm_modinv32(x),modsub32(modmul32(proots[s][fbi],bb),aa));
-		      abuf[0]= (u16_t)(FB[s][fbi]);
-		      abuf[1]= (u16_t)x;
-		      abuf[2]= (u16_t)(FB_logs[s][fbi]);
-		      abuf+= 4;
-		    } else {
-		      ibuf[0]= (u16_t)(FB[s][fbi]);
-		      ibuf[1]= (u16_t)(FB_logs[s][fbi]);
-		      ibuf+= 3;
-		    }
-		  } else {
-		    
-		    if(bb!=0) {
-		      u32_t x;
-		      x= modulo32-bb;
-		      bb= absb1%FB[s][fbi];
-		      abuf[0]= (u16_t)(FB[s][fbi]);
-		      abuf[1]= (u16_t)(modmul32(asm_modinv32(x),bb));
-		      abuf[2]= (u16_t)(FB_logs[s][fbi]);
-		      abuf+= 4;
-		    } else {
-		      ibuf[0]= (u16_t)(FB[s][fbi]);
-		      ibuf[1]= (u16_t)(FB_logs[s][fbi]);
-		      ibuf+= 3;
-		    }
-		  }
-		}
-		smallsieve_auxbound[s][0]= abuf;
-		smallpsieve_aux_ub_pow1[s]= ibuf;
-	      }
-	    }
+		#define GET_ABSSIG(abs,sig,arg) if(arg> 0) { abs= (u32_t)arg; sig= '+';} \
+				else { abs= (u32_t)(-arg); sig= '-'; }
+
+				GET_ABSSIG(absa0,a0s,a0);
+				GET_ABSSIG(absa1,a1s,a1);
+				absb0= b0;
+				absb1= b1;
+
+				{
+					u32_t s;
+
+					for (s = 0; s < 2; s++) {
+						u32_t fbi;
+						u16_t* abuf;
+						u16_t* ibuf;
+
+						abuf = smallsieve_aux[s];
+						ibuf = smallpsieve_aux[s];
+						for (fbi = 0; fbi < fbis[s]; fbi++) {
+							u32_t aa, bb;
+							modulo32 = FB[s][fbi];
+
+							aa = absa0 % FB[s][fbi];
+							if (a0s == '-' && aa != 0)aa = FB[s][fbi] - aa;
+							bb = absb0 % FB[s][fbi];
+							if (proots[s][fbi] != FB[s][fbi]) {
+								u32_t x;
+								x = modsub32(aa, modmul32(proots[s][fbi], bb));
+								if (x != 0) {
+									aa = absa1 % FB[s][fbi];
+									if (a1s == '-' && aa != 0)aa = FB[s][fbi] - aa;
+									bb = absb1 % FB[s][fbi];
+									//x = modmul32(asm_modinv32(x), modsub32(modmul32(proots[s][fbi], bb), aa));
+									x = modmul32(modinv32(x), modsub32(modmul32(proots[s][fbi], bb), aa));
+									abuf[0] = (u16_t)(FB[s][fbi]);
+									abuf[1] = (u16_t)x;
+									abuf[2] = (u16_t)(FB_logs[s][fbi]);
+									abuf += 4;
+								}
+								else {
+									ibuf[0] = (u16_t)(FB[s][fbi]);
+									ibuf[1] = (u16_t)(FB_logs[s][fbi]);
+									ibuf += 3;
+								}
+							}
+							else {
+
+								if (bb != 0) {
+									u32_t x;
+									x = modulo32 - bb;
+									bb = absb1 % FB[s][fbi];
+									abuf[0] = (u16_t)(FB[s][fbi]);
+									abuf[1] = (u16_t)(modmul32(modinv32(x), bb));
+									//abuf[1] = (u16_t)(modmul32(asm_modinv32(x), bb));
+									abuf[2] = (u16_t)(FB_logs[s][fbi]);
+									abuf += 4;
+								}
+								else {
+									ibuf[0] = (u16_t)(FB[s][fbi]);
+									ibuf[1] = (u16_t)(FB_logs[s][fbi]);
+									ibuf += 3;
+								}
+							}
+						}
+						smallsieve_auxbound[s][0] = abuf;
+						smallpsieve_aux_ub_pow1[s] = ibuf;
+					}
+				}
 	    
-	    {
-	      u32_t s;
-	      
-	      for(s= 0;s<2;s++) {
-		u32_t i;
-		u16_t*buf;
-		u16_t*buf2;
-		u16_t*ibuf;
-		
-		buf= smallsieve_aux1[s];
-		buf2= x2FB[s];
-		ibuf= smallpsieve_aux_ub_pow1[s];
-		for(i= 0;i<xFBs[s];i++) {
-		  if(xFB[s][i].p == 2) {
-		    xFBtranslate(buf2,xFB[s]+i);
-		    buf2+= 4;
-		  } else {
-		    xFBtranslate(buf,xFB[s]+i);
-		    if(buf[0] == 1) {
-		      ibuf[1]= xFB[s][i].l;
-		      ibuf[0]= xFB[s][i].pp;
-		      ibuf+= 3;
-		    } else buf+= 6;
-		  }
-		}
-		x2FBs[s]= (buf2-x2FB[s])/4;
-		smallpsieve_aux_ub_odd[s]= ibuf;
-		smallsieve_aux1_ub_odd[s]= buf;
-	      }
-	    }
+				{
+					u32_t s;
+
+					for (s = 0; s < 2; s++) {
+						u32_t i;
+						u16_t* buf;
+						u16_t* buf2;
+						u16_t* ibuf;
+
+						buf = smallsieve_aux1[s];
+						buf2 = x2FB[s];
+						ibuf = smallpsieve_aux_ub_pow1[s];
+						for (i = 0; i < xFBs[s]; i++) {
+							if (xFB[s][i].p == 2) {
+								xFBtranslate(buf2, xFB[s] + i);
+								buf2 += 4;
+							}
+							else {
+								xFBtranslate(buf, xFB[s] + i);
+								if (buf[0] == 1) {
+									ibuf[1] = xFB[s][i].l;
+									ibuf[0] = xFB[s][i].pp;
+									ibuf += 3;
+								}
+								else buf += 6;
+							}
+						}
+						x2FBs[s] = (buf2 - x2FB[s]) / 4;
+						smallpsieve_aux_ub_odd[s] = ibuf;
+						smallsieve_aux1_ub_odd[s] = buf;
+					}
+				}
 	    
-	    {
-	      u32_t s;
-	      
+				{
+					u32_t s;
+
 #ifndef MMX_TD
-	      for(s= 0;s<2;s++) {
-		u32_t i;
-		u16_t*x;
-		
-		for(i= 0,x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];i++,x+= 4) {
-		  u32_t k,r,pr;
-		  
-		  modulo32= *x;
-		  r= x[1];
-		  pr= r;
-		  for(k= 0;k<j_per_strip;k++) {
-		    smalltdsieve_aux[s][k][i]= r;
-		    r= modadd32(r,pr);
-		  }
-#ifdef PREINVERT
-		  {
-		    u32_t pinv;
-		    
-		    pinv= modulo32;
-		    pinv= 2*pinv-pinv*pinv*modulo32;
-		    pinv= 2*pinv-pinv*pinv*modulo32;
-		    pinv= 2*pinv-pinv*pinv*modulo32;
-#if 0
-		    pinv= 2*pinv-pinv*pinv*modulo32;
+					for (s = 0; s < 2; s++) {
+						u32_t i;
+						u16_t* x;
+
+						for (i = 0, x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; i++, x += 4) {
+							u32_t k, r, pr;
+
+							modulo32 = *x;
+							r = x[1];
+							pr = r;
+							for (k = 0; k < j_per_strip; k++) {
+								smalltdsieve_aux[s][k][i] = r;
+								r = modadd32(r, pr);
+							}
+		#ifdef PREINVERT
+							{
+								u32_t pinv;
+
+								pinv = modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+		#if 0
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+		#endif
+								smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
+							}
+
+		#endif
+						}
+					}
 #endif
-		    smalltd_pi[s][i]= 2*pinv-pinv*pinv*modulo32;
-		  }
-		  
-#endif
-		}
-	      }
-#endif
-	    }
+				}
 	    
-	    {
-	      u32_t s;
-	      
-	      for(s= 0;s<2;s++) {
-		u16_t*x,*xx,k,pbound,copy_buf[6];
-		
-		k= 0;
-		pbound= TINY_SIEVE_MIN;
-		for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4) {
-		  if(*x> pbound) {
-		    if(k == 0)smallsieve_tinybound[s]= x;
-		    else smallsieve_auxbound[s][5-k]= x;
-		    k++;
-		    if(k<5)pbound= n_i/(5-k);
-		    else break;
-		  }
-		}
-		while(k<5)smallsieve_auxbound[s][5-(k++)]= x;
-		for(x= (xx= smallsieve_aux1[s]);x<smallsieve_aux1_ub_odd[s];x+= 6) {
-		  if(x[0]<TINY_SIEVE_MIN) {
-		    if(x!=xx) {
-		      memcpy(copy_buf,x,6*sizeof(*x));
-		      memcpy(x,xx,6*sizeof(*x));
-		      memcpy(xx,copy_buf,6*sizeof(*x));
-		    }
-		    xx+= 6;
-		  }
-		}
-		smallsieve_tinybound1[s]= xx;
-	      }
-	    }
+				{
+					u32_t s;
+
+					for (s = 0; s < 2; s++) {
+						u16_t* x, * xx, k, pbound, copy_buf[6];
+
+						k = 0;
+						pbound = TINY_SIEVE_MIN;
+						for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+							if (*x > pbound) {
+								if (k == 0)smallsieve_tinybound[s] = x;
+								else smallsieve_auxbound[s][5 - k] = x;
+								k++;
+								if (k < 5)pbound = n_i / (5 - k);
+								else break;
+							}
+						}
+						while (k < 5)smallsieve_auxbound[s][5 - (k++)] = x;
+						for (x = (xx = smallsieve_aux1[s]); x < smallsieve_aux1_ub_odd[s]; x += 6) {
+							if (x[0] < TINY_SIEVE_MIN) {
+								if (x != xx) {
+									memcpy(copy_buf, x, 6 * sizeof(*x));
+									memcpy(x, xx, 6 * sizeof(*x));
+									memcpy(xx, copy_buf, 6 * sizeof(*x));
+								}
+								xx += 6;
+							}
+						}
+						smallsieve_tinybound1[s] = xx;
+					}
+				}
+
+				new_clock = clock();
+				sch_clock += new_clock - last_clock;
+				last_clock = new_clock;
 	    
-	    {
-	      u32_t s;
-	      
-	      for(s= 0;s<2;s++) {
+				{
+					u32_t s;
+
+					for (s = 0; s < 2; s++) {
 #ifdef SCHEDULING_FUNCTION_CALCULATES_RI
-		lasieve_setup(FB[s]+fbis[s],proots[s]+fbis[s],fbi1[s]-fbis[s],
-			      a0,a1,b0,b1,LPri[s]);
+						lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], fbi1[s] - fbis[s],
+							a0, a1, b0, b1, LPri[s]);
 #else
-		lasieve_setup(FB[s]+fbis[s],proots[s]+fbis[s],FBsize[s]-fbis[s],
-			      a0,a1,b0,b1,LPri[s]);
+						lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], FBsize[s] - fbis[s],
+							a0, a1, b0, b1, LPri[s]);
 #endif
-	      }
-	    }
+					}
+				}
 	    
-	    {
-	      u32_t i,k;
-	      for(i= 0;i<2;i++) {
-		double large_primes_summand;
-		tpol(tpoly_f[i],poly_f[i],poldeg[i],a0,a1,b0,b1);
-		large_primes_summand= sieve_report_multiplier[i]*FB_maxlog[i];
-		if(i == special_q_side)
-		  large_primes_summand+= sieve_multiplier[i]*log(special_q);
-		get_sieve_report_bounds(sieve_report_bounds[i],tpoly_f[i],poldeg[i],
-					n_srb_i,n_srb_j,2*CANDIDATE_SEARCH_STEPS,
-					sieve_multiplier[i],large_primes_summand);
-	      }
-	    }
+				{
+					u32_t i, k;
+					for (i = 0; i < 2; i++) {
+						double large_primes_summand;
+						tpol(tpoly_f[i], poly_f[i], poldeg[i], a0, a1, b0, b1);
+						large_primes_summand = sieve_report_multiplier[i] * FB_maxlog[i];
+						if (i == special_q_side)
+							large_primes_summand += sieve_multiplier[i] * log(special_q);
+						get_sieve_report_bounds(sieve_report_bounds[i], tpoly_f[i], poldeg[i],
+							n_srb_i, n_srb_j, 2 * CANDIDATE_SEARCH_STEPS,
+							sieve_multiplier[i], large_primes_summand);
+					}
+				}
 	    
-	    new_clock= clock();
-	    sch_clock+= new_clock-last_clock;
-	    last_clock= new_clock;
-	  }
+				new_clock= clock();
+				lsetup_clock+= new_clock-last_clock;
+				last_clock= new_clock;
+			  }
 	  
-	  
-	  for(oddness_type= 1;oddness_type<4;oddness_type++) {
-	    {
-	      u32_t s;
-	      for(s= 0;s<2;s++) {
-		switch(oddness_type) {
-		  u16_t*x;
-		case 1:
-		  for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4) {
-		    u32_t p;
-		    
-		    p= x[0];
-		    x[3]= ((i_shift+p)/2)%p;
-		  }
-		  
-		  for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6) {
-		    u32_t p;
-		    
-		    p= x[0];
-		    
-		    x[4]= ((i_shift+p)/2)%p;
-		    x[5]= 0;
-		  }
-		  
-		  for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-		    x[2]= 0;
-		  
-		  {
-		    u16_t*x,*y,*z;
-		    u32_t i;
-		    
-		    x= smallsieve_aux1_ub_odd[s];
-		    y= smallpsieve_aux_ub_odd[s];
-		    z= smallsieve_aux2[s];
-		    for(i= 0;i<4*x2FBs[s];i+= 4) {
-		      u32_t p,pr,d,l;
-		      u16_t**a;
-		      
-		      d= x2FB[s][i+1];
-		      if(d == 1)continue;
-		      p= x2FB[s][i];
-		      pr= x2FB[s][i+2];
-		      l= x2FB[s][i+3];
-		      if(p<4) {
-			if(p == 1) {
-			  *y= d/2;
-			  *(y+2)= 0;
-			} else {
-			  *y= d;
-			  *(y+2)= d/2;
-			}
-			*(y+1)= l;
-			y+= 3;
-			continue;
-		      }
-		      p= p/2;
-		      if(p<=MAX_TINY_2POW)a= &z;
-		      else a= &x;
-		      **a= p;
-		      *(1+*a)= d;
-		      *(2+*a)= pr%p;
-		      *(3+*a)= l;
-		      *(4+*a)= ((i_shift+pr)/2)%p;
-		      *(5+*a)= d/2;
-		      *a+= 6;
-		    }
-		    smallsieve_aux1_ub[s]= x;
-		    smallpsieve_aux_ub[s]= y;
-		    smallsieve_aux2_ub[s]= z;
-		  }
-		  
-		  break;
-		case 2:
-		  for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4) {
-		    u32_t p,pr;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    x[3]= (pr%2 == 0?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-		  }
-		  
-		  for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6) {
-		    u32_t p,d,pr;
-		    
-		    p= x[0];
-		    d= x[1];
-		    pr= x[2];
-		    
-		    x[4]= (pr%2 == 0?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-		    x[5]= d/2;
-		  }
-		  
-		  for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-		    x[2]= (x[0])/2;
-		  
-		  {
-		    u16_t*x,*y,*z;
-		    u32_t i;
-		    
-		    x= smallsieve_aux1_ub_odd[s];
-		    y= smallpsieve_aux_ub_odd[s];
-		    z= smallsieve_aux2[s];
-		    for(i= 0;i<4*x2FBs[s];i+= 4) {
-		      u32_t p,pr,d,l;
-		      u16_t**a;
-		      
-		      d= x2FB[s][i+1];
-		      if(d!=1)continue;
-		      pr= x2FB[s][i+2];
-		      if(pr%2!=0)continue;
-		      p= x2FB[s][i];
-		      l= x2FB[s][i+3];
-		      if(p<4) {
-			
-			if(p == 1) {
-			  Schlendrian("Use 1=2^0 for sieving?\n");
-			}
-			*y= d;
-			*(y+1)= l;
-			*(y+2)= 0;
-			y+= 3;
-			continue;
-		      }
-		      p= p/2;
-		      if(p<=MAX_TINY_2POW)a= &z;
-		      else a= &x;
-		      **a= p;
-		      *(1+*a)= d;
-		      *(2+*a)= pr%p;
-		      *(3+*a)= l;
-		      *(4+*a)= ((i_shift+pr)/2)%p;
-		      *(5+*a)= 0;
-		      *a+= 6;
-		    }
-		    smallsieve_aux1_ub[s]= x;
-		    smallpsieve_aux_ub[s]= y;
-		    smallsieve_aux2_ub[s]= z;
-		  }
-		  
-		  break;
-		case 3:
-		  for(x= smallsieve_aux[s];x<smallsieve_auxbound[s][0];x+= 4) {
-		    u32_t p,pr;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    x[3]= (pr%2 == 1?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-		  }
-		  
-		  for(x= smallsieve_aux1[s];x<smallsieve_aux1_ub_odd[s];x+= 6) {
-		    u32_t p,d,pr;
-		    
-		    p= x[0];
-		    d= x[1];
-		    pr= x[2];
-		    
-		    x[4]= (pr%2 == 1?((i_shift+pr)/2)%p:((i_shift+pr+p)/2)%p);
-		    x[5]= d/2;
-		  }
-		  
-		  for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub_odd[s];x+= 3)
-		    x[2]= (x[0])/2;
-		  
-		  {
-		    u16_t*x,*y,*z;
-		    u32_t i;
-		    
-		    x= smallsieve_aux1_ub_odd[s];
-		    y= smallpsieve_aux_ub_odd[s];
-		    z= smallsieve_aux2[s];
-		    for(i= 0;i<4*x2FBs[s];i+= 4) {
-		      u32_t p,pr,d,l;
-		      u16_t**a;
-		      
-		      d= x2FB[s][i+1];
-		      if(d!=1)continue;
-		      pr= x2FB[s][i+2];
-		      if(pr%2!=1)continue;
-		      p= x2FB[s][i];
-		      l= x2FB[s][i+3];
-		      if(p<4) {
-			
-			if(p == 1) {
-			  Schlendrian("Use 1=2^0 for sieving?\n");
-			}
-			*y= d;
-			*(y+1)= l;
-			*(y+2)= 0;
-			y+= 3;
-			continue;
-		      }
-		      p= p/2;
-		      if(p<=MAX_TINY_2POW)a= &z;
-		      else a= &x;
-		      **a= p;
-		      *(1+*a)= d;
-		      *(2+*a)= pr%p;
-		      *(3+*a)= l;
-		      *(4+*a)= ((i_shift+pr)/2)%p;
-		      *(5+*a)= 0;
-		      *a+= 6;
-		    }
-		    smallsieve_aux1_ub[s]= x;
-		    smallpsieve_aux_ub[s]= y;
-		    smallsieve_aux2_ub[s]= z;
-		  }
-		  
-		  break;
-		}
-	      }
-	    }
+			  // do all of the work (sieving/td ?) for all oddness types
+			  for(oddness_type= 1;oddness_type<4;oddness_type++) 
+			  {
+				  {
+					  u32_t s;
+					  for (s = 0; s < 2; s++) {
+						  switch (oddness_type) {
+							  u16_t* x;
+						  case 1:
+							  for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+								  u32_t p;
+
+								  p = x[0];
+								  x[3] = ((i_shift + p) / 2) % p;
+							  }
+
+							  for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+								  u32_t p;
+
+								  p = x[0];
+
+								  x[4] = ((i_shift + p) / 2) % p;
+								  x[5] = 0;
+							  }
+
+							  for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+								  x[2] = 0;
+
+							  {
+								  u16_t* x, * y, * z;
+								  u32_t i;
+
+								  x = smallsieve_aux1_ub_odd[s];
+								  y = smallpsieve_aux_ub_odd[s];
+								  z = smallsieve_aux2[s];
+								  for (i = 0; i < 4 * x2FBs[s]; i += 4) {
+									  u32_t p, pr, d, l;
+									  u16_t** a;
+
+									  d = x2FB[s][i + 1];
+									  if (d == 1)continue;
+									  p = x2FB[s][i];
+									  pr = x2FB[s][i + 2];
+									  l = x2FB[s][i + 3];
+									  if (p < 4) {
+										  if (p == 1) {
+											  *y = d / 2;
+											  *(y + 2) = 0;
+										  }
+										  else {
+											  *y = d;
+											  *(y + 2) = d / 2;
+										  }
+										  *(y + 1) = l;
+										  y += 3;
+										  continue;
+									  }
+									  p = p / 2;
+									  if (p <= MAX_TINY_2POW)a = &z;
+									  else a = &x;
+									  **a = p;
+									  *(1 + *a) = d;
+									  *(2 + *a) = pr % p;
+									  *(3 + *a) = l;
+									  *(4 + *a) = ((i_shift + pr) / 2) % p;
+									  *(5 + *a) = d / 2;
+									  *a += 6;
+								  }
+								  smallsieve_aux1_ub[s] = x;
+								  smallpsieve_aux_ub[s] = y;
+								  smallsieve_aux2_ub[s] = z;
+							  }
+
+							  break;
+						  case 2:
+							  for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+								  u32_t p, pr;
+
+								  p = x[0];
+								  pr = x[1];
+								  x[3] = (pr % 2 == 0 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+							  }
+
+							  for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+								  u32_t p, d, pr;
+
+								  p = x[0];
+								  d = x[1];
+								  pr = x[2];
+
+								  x[4] = (pr % 2 == 0 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+								  x[5] = d / 2;
+							  }
+
+							  for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+								  x[2] = (x[0]) / 2;
+
+							  {
+								  u16_t* x, * y, * z;
+								  u32_t i;
+
+								  x = smallsieve_aux1_ub_odd[s];
+								  y = smallpsieve_aux_ub_odd[s];
+								  z = smallsieve_aux2[s];
+								  for (i = 0; i < 4 * x2FBs[s]; i += 4) {
+									  u32_t p, pr, d, l;
+									  u16_t** a;
+
+									  d = x2FB[s][i + 1];
+									  if (d != 1)continue;
+									  pr = x2FB[s][i + 2];
+									  if (pr % 2 != 0)continue;
+									  p = x2FB[s][i];
+									  l = x2FB[s][i + 3];
+									  if (p < 4) {
+
+										  if (p == 1) {
+											  Schlendrian("Use 1=2^0 for sieving?\n");
+										  }
+										  *y = d;
+										  *(y + 1) = l;
+										  *(y + 2) = 0;
+										  y += 3;
+										  continue;
+									  }
+									  p = p / 2;
+									  if (p <= MAX_TINY_2POW)a = &z;
+									  else a = &x;
+									  **a = p;
+									  *(1 + *a) = d;
+									  *(2 + *a) = pr % p;
+									  *(3 + *a) = l;
+									  *(4 + *a) = ((i_shift + pr) / 2) % p;
+									  *(5 + *a) = 0;
+									  *a += 6;
+								  }
+								  smallsieve_aux1_ub[s] = x;
+								  smallpsieve_aux_ub[s] = y;
+								  smallsieve_aux2_ub[s] = z;
+							  }
+
+							  break;
+						  case 3:
+							  for (x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; x += 4) {
+								  u32_t p, pr;
+
+								  p = x[0];
+								  pr = x[1];
+								  x[3] = (pr % 2 == 1 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+							  }
+
+							  for (x = smallsieve_aux1[s]; x < smallsieve_aux1_ub_odd[s]; x += 6) {
+								  u32_t p, d, pr;
+
+								  p = x[0];
+								  d = x[1];
+								  pr = x[2];
+
+								  x[4] = (pr % 2 == 1 ? ((i_shift + pr) / 2) % p : ((i_shift + pr + p) / 2) % p);
+								  x[5] = d / 2;
+							  }
+
+							  for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub_odd[s]; x += 3)
+								  x[2] = (x[0]) / 2;
+
+							  {
+								  u16_t* x, * y, * z;
+								  u32_t i;
+
+								  x = smallsieve_aux1_ub_odd[s];
+								  y = smallpsieve_aux_ub_odd[s];
+								  z = smallsieve_aux2[s];
+								  for (i = 0; i < 4 * x2FBs[s]; i += 4) {
+									  u32_t p, pr, d, l;
+									  u16_t** a;
+
+									  d = x2FB[s][i + 1];
+									  if (d != 1)continue;
+									  pr = x2FB[s][i + 2];
+									  if (pr % 2 != 1)continue;
+									  p = x2FB[s][i];
+									  l = x2FB[s][i + 3];
+									  if (p < 4) {
+
+										  if (p == 1) {
+											  Schlendrian("Use 1=2^0 for sieving?\n");
+										  }
+										  *y = d;
+										  *(y + 1) = l;
+										  *(y + 2) = 0;
+										  y += 3;
+										  continue;
+									  }
+									  p = p / 2;
+									  if (p <= MAX_TINY_2POW)a = &z;
+									  else a = &x;
+									  **a = p;
+									  *(1 + *a) = d;
+									  *(2 + *a) = pr % p;
+									  *(3 + *a) = l;
+									  *(4 + *a) = ((i_shift + pr) / 2) % p;
+									  *(5 + *a) = 0;
+									  *a += 6;
+								  }
+								  smallsieve_aux1_ub[s] = x;
+								  smallpsieve_aux_ub[s] = y;
+								  smallsieve_aux2_ub[s] = z;
+							  }
+
+							  break;
+						  }
+					  }
+				  }
 	    
 	    
-#ifdef GCD_SIEVE_BOUND
-	    {
-	      u32_t i;
-	      
-	      for(i= 0;i<np_gcd_sieve;i++) {
-		gcd_sieve_buffer[2*i+1]= (oddness_type/2)*(gcd_sieve_buffer[2*i]/2);
-	      }
-	    }
-#endif
+		#ifdef GCD_SIEVE_BOUND
+				  {
+					  u32_t i;
+
+					  for (i = 0; i < np_gcd_sieve; i++) {
+						  gcd_sieve_buffer[2 * i + 1] = (oddness_type / 2) * (gcd_sieve_buffer[2 * i] / 2);
+					  }
+				  }
+		#endif
 	    
-	    j_offset= 0;
-#ifndef NOSCHED
-	    {
-	      u32_t s;
-	      clock_t new_clock;
-	      
-	      for(s= 0;s<2;s++) {
-		u32_t i;
-		
-		for(i= 0;i<n_schedules[s];i++) {
-		  u32_t ns;
-		  
-		  ns= schedules[s][i].n_strips;
-		  if(ns> n_strips)ns= n_strips;
-		  do_scheduling(schedules[s]+i,ns,oddness_type,s);
-		  schedules[s][i].current_strip= 0;
-		}
-	      }
-#ifdef GATHER_STAT
-	      new_clock= clock();
-	      Schedule_clock+= new_clock-last_clock;
-	      last_clock= new_clock;
-#endif
-	    }
-#else 
-#define BADSCHED
-#endif
-	    
-	    
-#ifdef ZSS_STAT
-	    nss+= n_strips;
-#endif
-	    for(subsieve_nr= 0;subsieve_nr<n_strips;
-		subsieve_nr++,j_offset+= j_per_strip) {
-	      u16_t s,stepno;
-#ifdef USE_MEDSCHED
-#ifndef NOSCHED
-	      for(s= 0;s<2;s++) {
-		u32_t ll,*sched,*ri;
-		
-		if(n_medsched_pieces[s] == 0)continue;
-		for(ll= 0,sched= (u32_t*)med_sched[s][0],ri= LPri[s];
-		    ll<n_medsched_pieces[s];ll++) {
-		  ri= medsched(ri,current_ij[s]+medsched_fbi_bounds[s][ll],
-			       current_ij[s]+medsched_fbi_bounds[s][ll+1],&sched,
-			       medsched_fbi_bounds[s][ll],j_offset == 0?oddness_type:0);
-		  med_sched[s][ll+1]= (u16_t*)sched;
-		}
-	      }
-#endif
-	      
-	      
-	      {
-		clock_t new_clock;
-		new_clock= clock();
-		medsched_clock+= new_clock-last_clock;
-		last_clock= new_clock;
-	      }
-#endif
-	      for(s= first_sieve_side,stepno= 0;stepno<2;stepno++,s= 1-s) {
-		clock_t new_clock,clock_diff;
-		
-		{
-		  u32_t j;
-		  u16_t*x;
-		  
-		  
-		  for(x= smallsieve_aux[s],j= 0;x<smallsieve_tinybound[s];x+= 4,j++) {
-		    tinysieve_curpos[j]= x[3];
-		  }
-		  for(j= 0;j<j_per_strip;j++) {
-		    unsigned char*si_ub;
-		    bzero(tiny_sieve_buffer,TINY_SIEVEBUFFER_SIZE);
-		    si_ub= tiny_sieve_buffer+TINY_SIEVEBUFFER_SIZE;
-		    {
-		      u16_t*x;
-		      
-		      for(x= smallsieve_aux[s];x<smallsieve_tinybound[s];x+= 4) {
-			u32_t p,r,pr;
-			unsigned char l,*si;
-			
-			p= x[0];
-			pr= x[1];
-			l= x[2];
-			r= x[3];
-			si= tiny_sieve_buffer+r;
-			while(si<si_ub) {
-			  *si+= l;
-			  si+= p;
-			}
-			r= r+pr;
-			if(r>=p)r= r-p;
-			x[3]= r;
-		      }
-		    }
-		    
-		    {
-		      u16_t*x;
-		      
-		      for(x= smallsieve_aux2[s];x<smallsieve_aux2_ub[s];x+= 6) {
-			u32_t p,r,pr,d,d0;
-			unsigned char l,*si;
-			
-			p= x[0];
-			d= x[1];
-			pr= x[2];
-			l= x[3];
-			r= x[4];
-			
-			d0= x[5];
-			if(d0> 0) {
-			  x[5]--;
-			  continue;
-			}
-			si= tiny_sieve_buffer+r;
-			while(si<si_ub) {
-			  *si+= l;
-			  si+= p;
-			}
-			r= r+pr;
-			if(r>=p)r= r-p;
-			x[4]= r;
-			x[5]= d-1;
-		      }
-		    }
-		    
-		    {
-		      u16_t*x;
-		      
-		      for(x= smallsieve_aux1[s];x<smallsieve_tinybound1[s];x+= 6) {
-			u32_t p,r,pr,d,d0;
-			unsigned char l,*si;
-			
-			p= x[0];
-			d= x[1];
-			pr= x[2];
-			l= x[3];
-			r= x[4];
-			
-			d0= x[5];
-			if(d0> 0) {
-			  x[5]--;
-			  continue;
-			}
-			si= tiny_sieve_buffer+r;
-			while(si<si_ub) {
-			  *si+= l;
-			  si+= p;
-			}
-			r= r+pr;
-			if(r>=p)r= r-p;
-			x[4]= r;
-			x[5]= d-1;
-		      }
-		    }
-		    
-		    {
-		      unsigned char*si;
-		      
-		      si= sieve_interval+(j<<i_bits);
-		      si_ub= sieve_interval+((j+1)<<i_bits);
-		      while(si+TINY_SIEVEBUFFER_SIZE<si_ub) {
-			memcpy(si,tiny_sieve_buffer,TINY_SIEVEBUFFER_SIZE);
-			si+= TINY_SIEVEBUFFER_SIZE;
-		      }
-		      memcpy(si,tiny_sieve_buffer,si_ub-si);
-		    }
-		    
-		  }
-		  for(x= smallsieve_aux[s],j= 0;x<smallsieve_tinybound[s];x+= 4,j++) {
-		    x[3]= tinysieve_curpos[j];
-		  }
-		}
-		
-#ifdef ZSS_STAT
-		if(s == 1&&ncand == 0)
-		  nzss[0]++;
-#endif
-		new_clock= clock();
-		clock_diff= new_clock-last_clock;
-		si_clock[s]+= clock_diff;
-		sieve_clock+= clock_diff;
-		last_clock= new_clock;
-		
-#ifdef ASM_LINESIEVER
-		slinie(smallsieve_tinybound[s],smallsieve_auxbound[s][4],sieve_interval);
-#else
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_tinybound[s];x<smallsieve_auxbound[s][4];x+= 4) {
-		    u32_t p,r,pr;
-		    unsigned char l,*y;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    l= x[2];
-		    r= x[3];
-		    for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-		      unsigned char*yy,*yy_ub;
-		      
-		      yy_ub= y+n_i-3*p;
-		      for(yy= y+r;yy<yy_ub;yy= yy+4*p) {
-			*(yy)+= l;
-			*(yy+p)+= l;
-			*(yy+2*p)+= l;
-			*(yy+3*p)+= l;
-		      }
-		      while(yy<y+n_i) {
-			*(yy)+= l;
-			yy+= p;
-		      }
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-#if 0
-		    x[3]= r;
-#endif
-		  }
-		}
-#endif
-		
-		
-#if 1
-#ifdef ASM_LINESIEVER3
-		slinie3(smallsieve_auxbound[s][4],smallsieve_auxbound[s][3],sieve_interval);
-#else
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_auxbound[s][4];x<smallsieve_auxbound[s][3];x+= 4) {
-		    u32_t p,r,pr;
-		    unsigned char l,*y;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    l= x[2];
-		    r= x[3];
-		    for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-		      unsigned char*yy;
-		      
-		      yy= y+r;
-		      *(yy)+= l;
-		      *(yy+p)+= l;
-		      *(yy+2*p)+= l;
-		      yy+= 3*p;
-		      if(yy<y+n_i)*(yy)+= l;
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-#if 0
-		    x[3]= r;
-#endif
-		  }
-		}
-#endif
-#endif
-		
-		
-#if 1
-#ifdef ASM_LINESIEVER2
-		slinie2(smallsieve_auxbound[s][3],smallsieve_auxbound[s][2],sieve_interval);
-#else
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_auxbound[s][3];x<smallsieve_auxbound[s][2];x+= 4) {
-		    u32_t p,r,pr;
-		    unsigned char l,*y;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    l= x[2];
-		    r= x[3];
-		    for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-		      unsigned char*yy;
-		      
-		      yy= y+r;
-		      *(yy)+= l;
-		      *(yy+p)+= l;
-		      yy+= 2*p;
-		      if(yy<y+n_i)*(yy)+= l;
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-#if 0
-		    x[3]= r;
-#endif
-		  }
-		}
-#endif
-#endif
-		
-		
-#if 1
-#ifdef ASM_LINESIEVER1
-		slinie1(smallsieve_auxbound[s][2],smallsieve_auxbound[s][1],sieve_interval);
-#else
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_auxbound[s][2];x<smallsieve_auxbound[s][1];x+= 4) {
-		    u32_t p,r,pr;
-		    unsigned char l,*y;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    l= x[2];
-		    r= x[3];
-		    for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-		      unsigned char*yy;
-		      
-		      yy= y+r;
-		      *(yy)+= l;
-		      yy+= p;
-		      if(yy<y+n_i)*(yy)+= l;
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-#if 0
-		    x[3]= r;
-#endif
-		  }
-		}
-#endif
-#endif
-		
-#if 0
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_auxbound[s][1];x<smallsieve_auxbound[s][0];x+= 4) {
-		    u32_t p,r,pr;
-		    unsigned char l,*y;
-		    
-		    p= x[0];
-		    pr= x[1];
-		    l= x[2];
-		    r= x[3];
-		    for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-		      if(r<n_i)*(y+r)+= l;
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-#if 0
-		    x[3]= r;
-#endif
-		  }
-		}
-#endif
-		
-#if 1
-		{
-		  u16_t*x;
-		  
-		  for(x= smallsieve_tinybound1[s];x<smallsieve_aux1_ub[s];x+= 6) {
-		    u32_t p,r,pr,d,d0;
-		    unsigned char l;
-		    
-		    p= x[0];
-		    d= x[1];
-		    pr= x[2];
-		    l= x[3];
-		    r= x[4];
-		    
-		    for(d0= x[5];d0<j_per_strip;d0+= d) {
-		      unsigned char*y,*yy,*yy_ub;
-		      
-		      y= sieve_interval+(d0<<i_bits);
-		      yy_ub= y+n_i-3*p;
-		      for(yy= y+r;yy<yy_ub;yy= yy+4*p) {
-			*(yy)+= l;
-			*(yy+p)+= l;
-			*(yy+2*p)+= l;
-			*(yy+3*p)+= l;
-		      }
-		      while(yy<y+n_i) {
-			*(yy)+= l;
-			yy+= p;
-		      }
-		      r= r+pr;
-		      if(r>=p)r= r-p;
-		    }
-		    x[4]= r;
-		    x[5]= d0-j_per_strip;
-		  }
-		}
-#endif
-		
-#if 1
-		{
-		  u16_t*x;
-		  
-		  bzero(horizontal_sievesums,j_per_strip);
-		  for(x= smallpsieve_aux[s];x<smallpsieve_aux_ub[s];x+= 3) {
-		    u32_t p,d;
-		    unsigned char l;
-		    
-		    p= x[0];
-		    l= x[1];
-		    d= x[2];
-#if I_bits==L1_BITS
-		// j_per_strip = 2 here, and p is rarely 0 (which is a bug)
-		    if(d<2) horizontal_sievesums[d]+= l;
-		    if(p==0) x[0]=USHRT_MAX-1; // otherwise will crash in trial_divide()
-		    else if((d+=p)<2) horizontal_sievesums[d]+= l;
-#else
-#if I_bits<L1_BITS
-		    while(d<j_per_strip) {
-		      horizontal_sievesums[d]+= l;
-		      d+= p;
-		    }
-#else
-		// j_per_strip = 1 here, and p is rarely 0 (which is a bug) 
-		    if(d==0)
-		      *horizontal_sievesums += l;	    
-#endif
-#endif
-#if 0
-		    x[2]= d-j_per_strip;
-#endif
-		  }
-		}
-#else
-		bzero(horizontal_sievesums,j_per_strip);
-#endif
-		
-		new_clock= clock();
-		clock_diff= new_clock-last_clock;
-		s1_clock[s]+= clock_diff;
-		sieve_clock+= clock_diff;
-		last_clock= new_clock;
-#ifdef BADSCHED
-		ncand= 0;
-		continue;
-#endif
-#ifndef MEDSCHE_SI_OFFS
-#ifdef BIGENDIAN
-#define MEDSCHED_SI_OFFS 1
-#else
-#define MEDSCHED_SI_OFFS 0
-#endif
-#endif
-#ifdef ASM_SCHEDSIEVE1
-		schedsieve(medsched_logs[s],n_medsched_pieces[s],med_sched[s],sieve_interval);
-#else
-		{
-		  u32_t l;
-		  
-		  for(l= 0;l<n_medsched_pieces[s];l++) {
-		    unsigned char x;
-		    u16_t*schedule_ptr;
-		    
-		    x= medsched_logs[s][l];
-#ifdef ASM_SCHEDSIEVE
-		    schedsieve(x,sieve_interval,med_sched[s][l],med_sched[s][l+1]);
-#else
-		    for(schedule_ptr= med_sched[s][l]+MEDSCHED_SI_OFFS;
-			schedule_ptr+3*SE_SIZE<med_sched[s][l+1];
-			schedule_ptr+= 4*SE_SIZE) {
-		      sieve_interval[*schedule_ptr]+= x;
-		      sieve_interval[*(schedule_ptr+SE_SIZE)]+= x;
-		      sieve_interval[*(schedule_ptr+2*SE_SIZE)]+= x;
-		      sieve_interval[*(schedule_ptr+3*SE_SIZE)]+= x;
-		    }
-		    for(;
-			schedule_ptr<med_sched[s][l+1];schedule_ptr+= SE_SIZE)
-		      sieve_interval[*schedule_ptr]+= x;
-#endif
-		  }
-		}
-#endif
-		
-		new_clock= clock();
-		clock_diff= new_clock-last_clock;
-		s2_clock[s]+= clock_diff;
-		sieve_clock+= clock_diff;
-		last_clock= new_clock;
-#ifndef SCHED_SI_OFFS
-#ifdef BIGENDIAN
-#define SCHED_SI_OFFS 1
-#else
-#define SCHED_SI_OFFS 0
-#endif
-#endif
-		{
-		  u32_t j;
-		  
-		  for(j= 0;j<n_schedules[s];j++) {
-		    if(schedules[s][j].current_strip == schedules[s][j].n_strips) {
-		      u32_t ns;
-		      
-		      ns= schedules[s][j].n_strips;
-		      if(ns> n_strips-subsieve_nr)ns= n_strips-subsieve_nr;
-		      do_scheduling(schedules[s]+j,ns,0,s);
-		      schedules[s][j].current_strip= 0;
-		    }
-		  }
-#ifdef GATHER_STAT
-		  new_clock= clock();
-		  Schedule_clock+= new_clock-last_clock;
-		  last_clock= new_clock;
-#endif
-		  
-		  for(j= 0;j<n_schedules[s];j++) {
-#ifdef ASM_SCHEDSIEVE1
-		    u32_t i,k;
-		    
-		    k= schedules[s][j].current_strip;
-		    for(i= 0;i<=schedules[s][j].n_pieces;i++) {
-		      schedbuf[i]= schedules[s][j].schedule[i][k];
-		    }
-		    schedsieve(schedules[s][j].schedlogs,schedules[s][j].n_pieces,
-			       schedbuf,sieve_interval);
-#else
-		    u32_t l,k;
-		    
-		    k= schedules[s][j].current_strip;
-		    l= 0;
-		    while(l<schedules[s][j].n_pieces) {
-		      unsigned char x;
-		      u16_t*schedule_ptr,*sptr_ub;
-		      
-		      x= schedules[s][j].schedlogs[l];
-		      schedule_ptr= schedules[s][j].schedule[l][k]+SCHED_SI_OFFS;
-		      while(l<schedules[s][j].n_pieces)
-			if(schedules[s][j].schedlogs[++l]!=x)break;
-		      sptr_ub= schedules[s][j].schedule[l][k];
-		      
-#ifdef ASM_SCHEDSIEVE
-		      schedsieve(x,sieve_interval,schedule_ptr,sptr_ub);
-#else
-		      while(schedule_ptr+3*SE_SIZE<sptr_ub) {
-			sieve_interval[*schedule_ptr]+= x;
-			sieve_interval[*(schedule_ptr+SE_SIZE)]+= x;
-			sieve_interval[*(schedule_ptr+2*SE_SIZE)]+= x;
-			sieve_interval[*(schedule_ptr+3*SE_SIZE)]+= x;
-			schedule_ptr+= 4*SE_SIZE;
-		      }
-		      while(schedule_ptr<sptr_ub) {
-			sieve_interval[*schedule_ptr]+= x;
-			schedule_ptr+= SE_SIZE;
-		      }
-#endif
-		    }
-#endif
-		  }
-		}
-#if 0
-		dumpsieve(j_offset,s);
-#endif
-		new_clock= clock();
-		clock_diff= new_clock-last_clock;
-		sieve_clock+= clock_diff;
-		s3_clock[s]+= clock_diff;
-		last_clock= new_clock;
-		
-		if(s == first_sieve_side) {
-#ifdef GCD_SIEVE_BOUND
-		  gcd_sieve();
-#endif
-#ifdef ASM_SEARCH0
-		  {
-		    unsigned char*srbs;
-		    u32_t i;
-		    srbs= sieve_report_bounds[s][j_offset/CANDIDATE_SEARCH_STEPS];
-		    ncand= lasieve_search0(sieve_interval,horizontal_sievesums,
-					   horizontal_sievesums+j_per_strip,
-					   srbs,srbs+n_i/CANDIDATE_SEARCH_STEPS,
-					   cand,fss_sv);
-		    for(i= 0;i<ncand;i++)fss_sv[i]+= horizontal_sievesums[cand[i]>>i_bits];
-		  }
-#else
-		  {
-		    unsigned char*srbs;
-		    u32_t i;
-		    
-		    srbs= sieve_report_bounds[s][j_offset/CANDIDATE_SEARCH_STEPS];
-		    ncand= 0;
-		    for(i= 0;i<n_i;i+= CANDIDATE_SEARCH_STEPS) {
-		      unsigned char st;
-		      u32_t j;
-		      
-		      st= *(srbs++);
-		      for(j= 0;j<j_per_strip;j++) {
-			unsigned char*i_o,*i_max,st1;
-			
-			i_o= sieve_interval+(j<<i_bits)+i;
-			i_max= i_o+CANDIDATE_SEARCH_STEPS;
-			if(st<=horizontal_sievesums[j]) {
-			  while(i_o<i_max) {
-			    cand[ncand]= i_o-sieve_interval;
-			    fss_sv[ncand++]= *(i_o++)+horizontal_sievesums[j];
-			  }
-			  continue;
-			}
-			st1= st-horizontal_sievesums[j];
-#ifndef HAVE_SSIMD
-#ifdef GNFS_CS32 
-#define bc_t unsigned long
-#define BC_MASK 0x80808080
-#else
-#define bc_t unsigned long long
-#define BC_MASK 0x8080808080808080
-#endif
-			{
-			  if(st1<0x80) {
-			    bc_t bc,*i_oo;
-			    
-			    bc= st1;
-			    bc= (bc<<8)|bc;
-			    bc= (bc<<16)|bc;
-#ifndef GNFS_CS32
-			    bc= (bc<<32)|bc;
-#endif
-			    bc= BC_MASK-bc;
-			    for(i_oo= (bc_t*)i_o;i_oo<(bc_t*)i_max;i_oo++) {
-			      bc_t v= *i_oo;
-			      if(((v&BC_MASK)|((v+bc)&BC_MASK)) == 0)continue;
-			      for(i_o= (unsigned char*)i_oo;i_o<(unsigned char*)(i_oo+1);i_o++) {
-				if(*i_o>=st1) {
-				  cand[ncand]= i_o-sieve_interval;
-				  fss_sv[ncand++]= *i_o+horizontal_sievesums[j];
-				  
+				j_offset= 0;
+		#ifndef NOSCHED
+				{
+					u32_t s;
+					clock_t new_clock;
+
+					for (s = 0; s < 2; s++) {
+						u32_t i;
+
+						for (i = 0; i < n_schedules[s]; i++) {
+							u32_t ns;
+
+							ns = schedules[s][i].n_strips;
+							if (ns > n_strips)ns = n_strips;
+							do_scheduling(schedules[s] + i, ns, oddness_type, s);
+							schedules[s][i].current_strip = 0;
+						}
+					}
+		#ifdef GATHER_STAT
+					new_clock = clock();
+					Schedule_clock += new_clock - last_clock;
+					last_clock = new_clock;
+		#endif
 				}
-			      }
-			    }
-			  } else {
-			    bc_t*i_oo;
-			    
-			    for(i_oo= (bc_t*)i_o;i_oo<(bc_t*)i_max;i_oo++) {
-			      if((*i_oo&BC_MASK) == 0)continue;
-			      for(i_o= (unsigned char*)i_oo;i_o<(unsigned char*)(i_oo+1);i_o++) {
-				if(*i_o>=st1) {
-				  cand[ncand]= i_o-sieve_interval;
-				  fss_sv[ncand++]= *i_o+horizontal_sievesums[j];
-				  
-				}
-			      }
-			    }
-			  }
-			}
-#else
-			{
-			  unsigned long long x;
-			  
-			  x= st1-1;
-			  x|= x<<8;
-			  x|= x<<16;
-			  x|= x<<32;
-			  while(i_o<i_max) {
-			    asm volatile("movq (%%eax),%%mm7\n"
-					 "1:\n"
-					 "movq (%%esi),%%mm1\n"
-					 "movq 8(%%esi),%%mm0\n"
-					 "pmaxub 16(%%esi),%%mm1\n"
-					 "pmaxub 24(%%esi),%%mm0\n"
-					 "pmaxub %%mm7,%%mm1\n"
-					 "pmaxub %%mm1,%%mm0\n"
-					 "pcmpeqb %%mm7,%%mm0\n"
-					 "pmovmskb %%mm0,%%eax\n"
-					 "cmpl $255,%%eax\n"
-					 "jnz 2f\n"
-					 "leal 32(%%esi),%%esi\n"
-					 "cmpl %%esi,%%edi\n"
-					 "ja 1b\n"
-					 "2:\n"
-					 "emms":"=S"(i_o):"a"(&x),"S"(i_o),
-					 "D"(i_max));
-			    if(i_o<i_max) {
-			      unsigned char*i_max2= i_o+32;
-			      while(i_o<i_max2) {
-				if(*i_o>=st1) {
-				  cand[ncand]= i_o-sieve_interval;
-				  fss_sv[ncand++]= *i_o+horizontal_sievesums[j];
-				  
-				}
-				i_o++;
-			      }
-			    }
-			  }
-			}
-#endif
-			
-		      }
-		    }
-		  }
-#endif
+		#else 
+		#define BADSCHED
+		#endif
+	    
+	    
+		#ifdef ZSS_STAT
+				nss+= n_strips;
+		#endif
+
+				// do all of the work (for this oddness type?)
+				for (subsieve_nr = 0; subsieve_nr < n_strips;
+					subsieve_nr++, j_offset += j_per_strip)
+				{
+					u16_t s, stepno;
+		#ifdef USE_MEDSCHED
+		#ifndef NOSCHED
+					for (s = 0; s < 2; s++) {
+						u32_t ll, * sched, * ri;
+
+						if (n_medsched_pieces[s] == 0)continue;
+						for (ll = 0, sched = (u32_t*)med_sched[s][0], ri = LPri[s];
+							ll < n_medsched_pieces[s]; ll++) {
+							ri = medsched(ri, current_ij[s] + medsched_fbi_bounds[s][ll],
+								current_ij[s] + medsched_fbi_bounds[s][ll + 1], &sched,
+								medsched_fbi_bounds[s][ll], j_offset == 0 ? oddness_type : 0);
+							med_sched[s][ll + 1] = (u16_t*)sched;
+						}
+					}
+		#endif
+
+
+					{
+						clock_t new_clock;
+						new_clock = clock();
+						medsched_clock += new_clock - last_clock;
+						last_clock = new_clock;
+					}
+		#endif
+					for (s = first_sieve_side, stepno = 0; stepno < 2; stepno++, s = 1 - s)
+					{
+						clock_t new_clock, clock_diff;
+
+						{
+							u32_t j;
+							u16_t* x;
+
+
+							for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
+								tinysieve_curpos[j] = x[3];
+							}
+							for (j = 0; j < j_per_strip; j++) {
+								unsigned char* si_ub;
+								bzero(tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
+								si_ub = tiny_sieve_buffer + TINY_SIEVEBUFFER_SIZE;
+								{
+									u16_t* x;
+
+									for (x = smallsieve_aux[s]; x < smallsieve_tinybound[s]; x += 4) {
+										u32_t p, r, pr;
+										unsigned char l, * si;
+
+										p = x[0];
+										pr = x[1];
+										l = x[2];
+										r = x[3];
+										si = tiny_sieve_buffer + r;
+										while (si < si_ub) {
+											*si += l;
+											si += p;
+										}
+										r = r + pr;
+										if (r >= p)r = r - p;
+										x[3] = r;
+									}
+								}
+
+								{
+									u16_t* x;
+
+									for (x = smallsieve_aux2[s]; x < smallsieve_aux2_ub[s]; x += 6) {
+										u32_t p, r, pr, d, d0;
+										unsigned char l, * si;
+
+										p = x[0];
+										d = x[1];
+										pr = x[2];
+										l = x[3];
+										r = x[4];
+
+										d0 = x[5];
+										if (d0 > 0) {
+											x[5]--;
+											continue;
+										}
+										si = tiny_sieve_buffer + r;
+										while (si < si_ub) {
+											*si += l;
+											si += p;
+										}
+										r = r + pr;
+										if (r >= p)r = r - p;
+										x[4] = r;
+										x[5] = d - 1;
+									}
+								}
+
+								{
+									u16_t* x;
+
+									for (x = smallsieve_aux1[s]; x < smallsieve_tinybound1[s]; x += 6) {
+										u32_t p, r, pr, d, d0;
+										unsigned char l, * si;
+
+										p = x[0];
+										d = x[1];
+										pr = x[2];
+										l = x[3];
+										r = x[4];
+
+										d0 = x[5];
+										if (d0 > 0) {
+											x[5]--;
+											continue;
+										}
+										si = tiny_sieve_buffer + r;
+										while (si < si_ub) {
+											*si += l;
+											si += p;
+										}
+										r = r + pr;
+										if (r >= p)r = r - p;
+										x[4] = r;
+										x[5] = d - 1;
+									}
+								}
+
+								{
+									unsigned char* si;
+
+									si = sieve_interval + (j << i_bits);
+									si_ub = sieve_interval + ((j + 1) << i_bits);
+									while (si + TINY_SIEVEBUFFER_SIZE < si_ub) {
+										memcpy(si, tiny_sieve_buffer, TINY_SIEVEBUFFER_SIZE);
+										si += TINY_SIEVEBUFFER_SIZE;
+									}
+									memcpy(si, tiny_sieve_buffer, si_ub - si);
+								}
+
+							}
+							for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
+								x[3] = tinysieve_curpos[j];
+							}
+						}
+
+		#ifdef ZSS_STAT
+						if (s == 1 && ncand == 0)
+							nzss[0]++;
+		#endif
+						new_clock = clock();
+						clock_diff = new_clock - last_clock;
+						si_clock[s] += clock_diff;
+						sieve_clock += clock_diff;
+						last_clock = new_clock;
+//#define AVX512_SIEVE
+				#ifdef AVX512_SIEVE
+						{
+							u16_t* x;
+							
+							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][1] - 32; x += 32)
+							{
+								u32_t p, r, pr;
+								unsigned char l, * y;
+								__m512i vni = _mm512_set1_epi16(n_i);
+								__m512i xv = _mm512_load_si512(x);
+								__m512i vp = _mm512_slli_epi64(xv, 48);
+								__m512i vpr = _mm512_slli_epi64(xv, 32);
+								uint16_t xm[32];
+								__mmask32 m;
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+									// check if any locations exceed the upper bound
+									m = _mm512_mask_cmplt_epi16_mask(0x88888888, xv, vni);
+
+									while (m == 0x88888888) {
+										_mm512_store_epi64(xm, xv);
+
+										// they all hit, dump em in.  The first iteration
+										// i think this is always true.
+										y[xm[ 3]] += xm[ 2];
+										y[xm[ 7]] += xm[ 6];
+										y[xm[11]] += xm[10];
+										y[xm[15]] += xm[14];
+										y[xm[19]] += xm[18];
+										y[xm[23]] += xm[22];
+										y[xm[27]] += xm[26];
+										y[xm[31]] += xm[30];
+
+										// next loc
+										xv = _mm512_add_epi32(xv, vp);
+										m = _mm512_mask_cmplt_epi16_mask(0x88888888, xv, vni);
+									}
+
+									// some locations are now outside the upper bound,
+									// do the rest of the batch individually.
+									while (xm[3] < n_i) { y[xm[ 3]] += xm[ 2]; xm[ 3] += xm[0]; }
+									while (xm[ 7] < n_i){ y[xm[ 7]] += xm[ 6]; xm[ 7] += xm[4];}
+									while (xm[11] < n_i){ y[xm[11]] += xm[10]; xm[11] += xm[8];}
+									while (xm[15] < n_i){ y[xm[15]] += xm[14]; xm[15] += xm[12];}
+									while (xm[19] < n_i){ y[xm[19]] += xm[18]; xm[19] += xm[16];}
+									while (xm[23] < n_i){ y[xm[23]] += xm[22]; xm[23] += xm[20];}
+									while (xm[27] < n_i){ y[xm[27]] += xm[26]; xm[27] += xm[24];}
+									while (xm[31] < n_i){ y[xm[31]] += xm[30]; xm[31] += xm[28];}
+
+									// now update r
+									xv = _mm512_load_si512(xm);
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+
+								
+								}
+
+								
+							}
+
+							{
+								u16_t* x;
+
+								//printf("ASM_LINESIEVER1: sieve %u primes; n_i = %u\n",
+								//	(smallsieve_auxbound[s][1] - smallsieve_auxbound[s][2]) / 4, n_i);
+
+								// primes here are less than 4096, so no unrolling here 
+								// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+								for (; x < smallsieve_auxbound[s][1]; x += 4) {
+									u32_t p, r, pr;
+									unsigned char l, * y;
+
+									p = x[0];
+									pr = x[1];
+									l = x[2];
+									r = x[3];
+
+									for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+										unsigned char* yy;
+
+										yy = y + r;
+										*(yy) += l;
+										yy += p;
+										if (yy < y + n_i)*(yy) += l;
+										r = r + pr;
+										if (r >= p)r = r - p;
+									}
 #if 0
-		  {
-		    char*ofn;
-		    FILE*of;
-		    asprintf(&ofn,"cdump.%u.%u.j%u.ot%u",special_q,r[root_no],
-			     j_offset,oddness_type);
-		    if((of= fopen(ofn,"w"))!=NULL) {
-		      u32_t i;
-		      fprintf(of,"%u candidates\n",ncand);
-		      for(i= 0;i<ncand;i++)
-			fprintf(of,"%u %u\n",cand[i],fss_sv[i]);
-		      fclose(of);
-		    } else errprintf("Cannot open debug file %s: %m\n",ofn);
-		    free(ofn);
-		  }
+									x[3] = r;
 #endif
-		  
-		}
-		else
-		  {
-		    u32_t i,nc1;
-		    unsigned char*srbs;
-		    static u32_t bad_pvl= 0;
-		    
-		    srbs= sieve_report_bounds[s][j_offset/CANDIDATE_SEARCH_STEPS];
-		    n_prereports+= ncand;
-		    for(i= 0,nc1= 0;i<ncand;i++) {
-		      u16_t st_i,t_j,ii,jj,j;
-		      double pvl;
-		      
-		      j= cand[i]>>i_bits;
-#ifndef DEBUG_SIEVE_REPORT_BOUNDS
-		      if(sieve_interval[cand[i]]+horizontal_sievesums[j]<
-			 srbs[(cand[i]&(n_i-1))/CANDIDATE_SEARCH_STEPS])
-			continue;
-#endif
-		      jj= j_offset+j;
-		      ii= cand[i]&(n_i-1);
-		      st_i= 2*ii+(oddness_type == 2?0:1);
-		      t_j= 2*jj+(oddness_type == 1?0:1);
-		      pvl= log(fabs(rpol_eval(tpoly_f[s],poldeg[s],
-					      (double)st_i-(double)i_shift,(double)t_j)));
-		      if(special_q_side == s)
-			pvl-= special_q_log;
-		      pvl*= sieve_multiplier[s];
-		      pvl-= sieve_report_multiplier[s]*FB_maxlog[s];
-		      if((double)(sieve_interval[cand[i]]+horizontal_sievesums[j])>=pvl) {
-#ifdef DEBUG_SIEVE_REPORT_BOUNDS
-			if(sieve_interval[cand[i]]+horizontal_sievesums[j]<
-			   srbs[(cand[i]&(n_i-1))/CANDIDATE_SEARCH_STEPS]) {
-			  double pvl1;
-			  
-			  pvl= fabs(rpol_eval(tpoly_f[s],poldeg[s],
-					      (double)st_i-(double)i_shift,(double)t_j));
-			  fprintf(stderr,"Bad pvl min %u at (%f,%f),spq=%u\npvl: %.5g->",
-				  bad_pvl++,(double)st_i-(double)i_shift,(double)t_j,
-				  special_q,pvl);
-			  pvl= log(pvl);
-			  fprintf(stderr,"%.3f->",pvl);
-			  pvl= sieve_multiplier[s]*pvl;
-			  fprintf(stderr,"%.3f->",pvl);
-			  if(special_q_side == s)pvl-= sieve_multiplier[s]*special_q_log;
-			  fprintf(stderr,"%.3f->",pvl);
-			  pvl-= sieve_report_multiplier[s]*FB_maxlog[s];
-			  fprintf(stderr,"%.3f\nLower bound was %u sv was %u=%u+%u\n",pvl,
-				  (u32_t)srbs[(cand[i]&(n_i-1))/CANDIDATE_SEARCH_STEPS],
-				  (u32_t)sieve_interval[cand[i]]+(u32_t)horizontal_sievesums[j],
-				  (u32_t)sieve_interval[cand[i]],(u32_t)horizontal_sievesums[j]);
+								}
+							}
+						}
+
+
+		#elif defined( ASM_LINESIEVER)
+						slinie(smallsieve_tinybound[s], smallsieve_auxbound[s][4], sieve_interval);
+		#else
+						{
+							u16_t* x;
+
+							//printf("ASM_LINESIEVER: sieve %u primes; n_i = %u\n", 
+							//	(smallsieve_auxbound[s][4] - smallsieve_tinybound[s]) / 4, n_i);
+
+							// primes here are less than 1024, we unroll the sieve 4x 
+							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 4) {
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];	// prime
+								pr = x[1];	// prime root
+								l = x[2];	// log
+								r = x[3];	// starting root
+								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy, * yy_ub;
+
+									yy_ub = y + n_i - 3 * p;
+									for (yy = y + r; yy < yy_ub; yy = yy + 4 * p) {
+										*(yy) += l;
+										*(yy + p) += l;
+										*(yy + 2 * p) += l;
+										*(yy + 3 * p) += l;
+									}
+									while (yy < y + n_i) {
+										*(yy) += l;
+										yy += p;
+									}
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+		#if 0
+								x[3] = r;
+		#endif
+							}
+						}
+		#endif
+
+
+		#ifndef AVX512_SIEVE	//1
+		#ifdef ASM_LINESIEVER3
+						slinie3(smallsieve_auxbound[s][4], smallsieve_auxbound[s][3], sieve_interval);
+		#else
+						{
+							u16_t* x;
+
+							//printf("ASM_LINESIEVER3: sieve %u primes; n_i = %u\n",
+							//	(smallsieve_auxbound[s][3] - smallsieve_auxbound[s][4]) / 4, n_i);
+
+							// primes here are less than 4096/3, we unroll the sieve 3x 
+							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+							for (x = smallsieve_auxbound[s][4]; x < smallsieve_auxbound[s][3]; x += 4) {
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];
+								pr = x[1];
+								l = x[2];
+								r = x[3];
+								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy;
+
+									yy = y + r;
+									*(yy) += l;
+									*(yy + p) += l;
+									*(yy + 2 * p) += l;
+									yy += 3 * p;
+									if (yy < y + n_i)*(yy) += l;
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+		#if 0
+								x[3] = r;
+		#endif
+							}
+						}
+		#endif
+		#endif
+
+
+		#ifndef AVX512_SIEVE // 1
+		#ifdef ASM_LINESIEVER2
+						slinie2(smallsieve_auxbound[s][3], smallsieve_auxbound[s][2], sieve_interval);
+		#else
+						{
+							u16_t* x;
+
+							//printf("ASM_LINESIEVER2: sieve %u primes; n_i = %u\n",
+							//	(smallsieve_auxbound[s][2] - smallsieve_auxbound[s][3]) / 4, n_i);
+
+							// primes here are less than 4096/2, we unroll the sieve 2x 
+							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+							for (x = smallsieve_auxbound[s][3]; x < smallsieve_auxbound[s][2]; x += 4) {
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];
+								pr = x[1];
+								l = x[2];
+								r = x[3];
+								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy;
+
+									yy = y + r;
+									*(yy) += l;
+									*(yy + p) += l;
+									yy += 2 * p;
+									if (yy < y + n_i)*(yy) += l;
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+		#if 0
+								x[3] = r;
+		#endif
+							}
+						}
+		#endif
+		#endif
+
+
+		#ifndef AVX512_SIEVE //  1
+		#ifdef ASM_LINESIEVER1
+						slinie1(smallsieve_auxbound[s][2], smallsieve_auxbound[s][1], sieve_interval);
+		#else
+						{
+							u16_t* x;
+
+							//printf("ASM_LINESIEVER1: sieve %u primes; n_i = %u\n",
+							//	(smallsieve_auxbound[s][1] - smallsieve_auxbound[s][2]) / 4, n_i);
+
+							// primes here are less than 4096, so no unrolling here 
+							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+							for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1]; x += 4) {
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];
+								pr = x[1];
+								l = x[2];
+								r = x[3];
+								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy;
+
+									yy = y + r;
+									*(yy) += l;
+									yy += p;
+									if (yy < y + n_i)*(yy) += l;
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+		#if 0
+								x[3] = r;
+		#endif
+							}
+						}
+						//exit(1);
+		#endif
+		#endif
+
+		#if 0
+						{
+							u16_t* x;
+
+							for (x = smallsieve_auxbound[s][1]; x < smallsieve_auxbound[s][0]; x += 4) {
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];
+								pr = x[1];
+								l = x[2];
+								r = x[3];
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									if (r < n_i)*(y + r) += l;
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+		#if 0
+								x[3] = r;
+		#endif
+							}
+						}
+		#endif
+
+		#if 1
+						{
+							u16_t* x;
+
+							for (x = smallsieve_tinybound1[s]; x < smallsieve_aux1_ub[s]; x += 6) {
+								u32_t p, r, pr, d, d0;
+								unsigned char l;
+
+								p = x[0];
+								d = x[1];
+								pr = x[2];
+								l = x[3];
+								r = x[4];
+
+								for (d0 = x[5]; d0 < j_per_strip; d0 += d) {
+									unsigned char* y, * yy, * yy_ub;
+
+									y = sieve_interval + (d0 << i_bits);
+									yy_ub = y + n_i - 3 * p;
+									for (yy = y + r; yy < yy_ub; yy = yy + 4 * p) {
+										*(yy) += l;
+										*(yy + p) += l;
+										*(yy + 2 * p) += l;
+										*(yy + 3 * p) += l;
+									}
+									while (yy < y + n_i) {
+										*(yy) += l;
+										yy += p;
+									}
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+								x[4] = r;
+								x[5] = d0 - j_per_strip;
+							}
+						}
+		#endif
+
+		#if 1
+						{
+							u16_t* x;
+
+							bzero(horizontal_sievesums, j_per_strip);
+							for (x = smallpsieve_aux[s]; x < smallpsieve_aux_ub[s]; x += 3) {
+								u32_t p, d;
+								unsigned char l;
+
+								p = x[0];
+								l = x[1];
+								d = x[2];
+		#if I_bits==L1_BITS
+								// j_per_strip = 2 here, and p is rarely 0 (which is a bug)
+								if (d < 2) horizontal_sievesums[d] += l;
+								if (p == 0) x[0] = USHRT_MAX - 1; // otherwise will crash in trial_divide()
+								else if ((d += p) < 2) horizontal_sievesums[d] += l;
+		#else
+		#if I_bits<L1_BITS
+								while (d < j_per_strip) {
+									horizontal_sievesums[d] += l;
+									d += p;
+								}
+		#else
+								// j_per_strip = 1 here, and p is rarely 0 (which is a bug) 
+								if (d == 0)
+									*horizontal_sievesums += l;
+		#endif
+		#endif
+		#if 0
+								x[2] = d - j_per_strip;
+		#endif
+							}
+						}
+		#else
+						bzero(horizontal_sievesums, j_per_strip);
+		#endif
+
+						new_clock = clock();
+						clock_diff = new_clock - last_clock;
+						s1_clock[s] += clock_diff;
+						sieve_clock += clock_diff;
+						last_clock = new_clock;
+
+		#ifdef BADSCHED
+						ncand = 0;
+						continue;
+		#endif
+		#ifndef MEDSCHE_SI_OFFS
+		#ifdef BIGENDIAN
+		#define MEDSCHED_SI_OFFS 1
+		#else
+		#define MEDSCHED_SI_OFFS 0
+		#endif
+		#endif
+		#ifdef ASM_SCHEDSIEVE1
+						schedsieve(medsched_logs[s], n_medsched_pieces[s], med_sched[s], sieve_interval);
+		#else
+						{
+							u32_t l;
+
+							for (l = 0; l < n_medsched_pieces[s]; l++) {
+								unsigned char x;
+								u16_t* schedule_ptr;
+
+								x = medsched_logs[s][l];
+		#ifdef ASM_SCHEDSIEVE
+								schedsieve(x, sieve_interval, med_sched[s][l], med_sched[s][l + 1]);
+		#else
+								//for reference: #define SE_SIZE 2
+								for (schedule_ptr = med_sched[s][l] + MEDSCHED_SI_OFFS;
+									schedule_ptr + 3 * SE_SIZE < med_sched[s][l + 1];
+									schedule_ptr += 4 * SE_SIZE) {
+									sieve_interval[*schedule_ptr] += x;
+									sieve_interval[*(schedule_ptr + SE_SIZE)] += x;
+									sieve_interval[*(schedule_ptr + 2 * SE_SIZE)] += x;
+									sieve_interval[*(schedule_ptr + 3 * SE_SIZE)] += x;
+								}
+								for (;
+									schedule_ptr < med_sched[s][l + 1]; schedule_ptr += SE_SIZE)
+									sieve_interval[*schedule_ptr] += x;
+		#endif
+							}
+						}
+		#endif
+
+						new_clock = clock();
+						clock_diff = new_clock - last_clock;
+						s2_clock[s] += clock_diff;
+						sieve_clock += clock_diff;
+						last_clock = new_clock;
+		#ifndef SCHED_SI_OFFS
+		#ifdef BIGENDIAN
+		#define SCHED_SI_OFFS 1
+		#else
+		#define SCHED_SI_OFFS 0
+		#endif
+		#endif
+						{
+							u32_t j;
+
+							for (j = 0; j < n_schedules[s]; j++) {
+								if (schedules[s][j].current_strip == schedules[s][j].n_strips) {
+									u32_t ns;
+
+									ns = schedules[s][j].n_strips;
+									if (ns > n_strips - subsieve_nr)ns = n_strips - subsieve_nr;
+									do_scheduling(schedules[s] + j, ns, 0, s);
+									schedules[s][j].current_strip = 0;
+								}
+							}
+
+		#ifdef GATHER_STAT
+							new_clock = clock();
+							Schedule_clock += new_clock - last_clock;
+							last_clock = new_clock;
+		#endif
+
+							for (j = 0; j < n_schedules[s]; j++) {
+		#ifdef ASM_SCHEDSIEVE1
+								u32_t i, k;
+
+								k = schedules[s][j].current_strip;
+								for (i = 0; i <= schedules[s][j].n_pieces; i++) {
+									schedbuf[i] = schedules[s][j].schedule[i][k];
+								}
+								schedsieve(schedules[s][j].schedlogs, schedules[s][j].n_pieces,
+									schedbuf, sieve_interval);
+		#else
+								u32_t l, k;
+
+								k = schedules[s][j].current_strip;
+								l = 0;
+								while (l < schedules[s][j].n_pieces) {
+									unsigned char x;
+									u16_t* schedule_ptr, * sptr_ub;
+
+									x = schedules[s][j].schedlogs[l];
+									schedule_ptr = schedules[s][j].schedule[l][k] + SCHED_SI_OFFS;
+									while (l < schedules[s][j].n_pieces)
+										if (schedules[s][j].schedlogs[++l] != x)break;
+									sptr_ub = schedules[s][j].schedule[l][k];
+
+		#ifdef ASM_SCHEDSIEVE
+									// this is faster, but not by much
+									schedsieve(x, sieve_interval, schedule_ptr, sptr_ub);
+		#else
+									//for reference: #define SE_SIZE 2
+									//sieve_interval is a byte array
+									//schedule_ptr is a pointer to a list of 
+									//unordered offsets within the sieve_interval.
+									//we need to increment each of those offsets by x.
+									//so this is a gather/scatter and probably not
+									// a good candidate for vectorization.
+									// e.g.:
+									// sptr_ub=4101207624
+									//  * sched_ptr = 9155, +2 = 8861, +4 = 25560, +6 = 10868
+									//  * sched_ptr = 31581, +2 = 24146, +4 = 17921, +6 = 1956
+									//  * sched_ptr = 23119, +2 = 29339, +4 = 14577, +6 = 7741
+									//  * sched_ptr = 22200, +2 = 20647, +4 = 32225, +6 = 27748
+									//  * sched_ptr = 12575, +2 = 19747, +4 = 3901, +6 = 12502
+									//  * sched_ptr = 17874, +2 = 1026, +4 = 31833, +6 = 4227
+									//  sptr_ub = 0x7ffff4737648
+									//  sched_ptr = 0x7ffff4737010, +2 = 0x7ffff4737014, +4 = 0x7ffff4737018, +6 = 0x7ffff473701c
+									//  sched_ptr = 0x7ffff4737020, +2 = 0x7ffff4737024, +4 = 0x7ffff4737028, +6 = 0x7ffff473702c
+									//  sched_ptr = 0x7ffff4737030, +2 = 0x7ffff4737034, +4 = 0x7ffff4737038, +6 = 0x7ffff473703c
+									//  sched_ptr = 0x7ffff4737040, +2 = 0x7ffff4737044, +4 = 0x7ffff4737048, +6 = 0x7ffff473704c
+									//  sched_ptr = 0x7ffff4737050, +2 = 0x7ffff4737054, +4 = 0x7ffff4737058, +6 = 0x7ffff473705c
+									//  sched_ptr = 0x7ffff4737060, +2 = 0x7ffff4737064, +4 = 0x7ffff4737068, +6 = 0x7ffff473706c
+									//  sched_ptr = 0x7ffff4737070, +2 = 0x7ffff4737074, +4 = 0x7ffff4737078, +6 = 0x7ffff473707c
+									//
+									//printf("sptr_ub=%p, sched_ptr=%p\n", sptr_ub, schedule_ptr);
+									while (schedule_ptr + 3 * SE_SIZE < sptr_ub) {
+										sieve_interval[*schedule_ptr] += x;
+										sieve_interval[*(schedule_ptr + SE_SIZE)] += x;
+										sieve_interval[*(schedule_ptr + 2 * SE_SIZE)] += x;
+										sieve_interval[*(schedule_ptr + 3 * SE_SIZE)] += x;
+										//printf("sched_ptr=%p, +2=%p, +4=%p, +6=%p\n",
+										  //  schedule_ptr, (schedule_ptr + SE_SIZE),
+										  //  (schedule_ptr + 2 * SE_SIZE), (schedule_ptr + 3 * SE_SIZE));
+										schedule_ptr += 4 * SE_SIZE;
+									}
+									while (schedule_ptr < sptr_ub) {
+										sieve_interval[*schedule_ptr] += x;
+										schedule_ptr += SE_SIZE;
+									}
+									//exit(1);
+		#endif
+								}
+		#endif
+							}
+						}
+
+		#if 0
+						dumpsieve(j_offset, s);
+		#endif
+						new_clock = clock();
+						clock_diff = new_clock - last_clock;
+						sieve_clock += clock_diff;
+						s3_clock[s] += clock_diff;
+						last_clock = new_clock;
+
+						if (s == first_sieve_side) {
+		#ifdef GCD_SIEVE_BOUND
+							gcd_sieve();
+		#endif
+		#ifdef ASM_SEARCH0
+							{
+								unsigned char* srbs;
+								u32_t i;
+								srbs = sieve_report_bounds[s][j_offset / CANDIDATE_SEARCH_STEPS];
+								ncand = lasieve_search0(sieve_interval, horizontal_sievesums,
+									horizontal_sievesums + j_per_strip,
+									srbs, srbs + n_i / CANDIDATE_SEARCH_STEPS,
+									cand, fss_sv);
+								for (i = 0; i < ncand; i++)fss_sv[i] += horizontal_sievesums[cand[i] >> i_bits];
+							}
+		#else
+							{
+								unsigned char* srbs;
+								u32_t i;
+
+								srbs = sieve_report_bounds[s][j_offset / CANDIDATE_SEARCH_STEPS];
+								ncand = 0;
+								for (i = 0; i < n_i; i += CANDIDATE_SEARCH_STEPS) {
+									unsigned char st;
+									u32_t j;
+
+									st = *(srbs++);
+									for (j = 0; j < j_per_strip; j++) {
+										unsigned char* i_o, * i_max, st1;
+
+										i_o = sieve_interval + (j << i_bits) + i;
+										i_max = i_o + CANDIDATE_SEARCH_STEPS;
+										if (st <= horizontal_sievesums[j]) {
+											while (i_o < i_max) {
+												cand[ncand] = i_o - sieve_interval;
+												fss_sv[ncand++] = *(i_o++) + horizontal_sievesums[j];
+											}
+											continue;
+										}
+										st1 = st - horizontal_sievesums[j];
+		#ifndef HAVE_SSIMD
+		#ifdef GNFS_CS32 
+		#define bc_t unsigned long
+		#define BC_MASK 0x80808080
+		#else
+		#define bc_t unsigned long long
+		#define BC_MASK 0x8080808080808080
+		#endif
+										{
+											if (st1 < 0x80) {
+												bc_t bc, * i_oo;
+
+												bc = st1;
+												bc = (bc << 8) | bc;
+												bc = (bc << 16) | bc;
+		#ifndef GNFS_CS32
+												bc = (bc << 32) | bc;
+		#endif
+												bc = BC_MASK - bc;
+												for (i_oo = (bc_t*)i_o; i_oo < (bc_t*)i_max; i_oo++) {
+													bc_t v = *i_oo;
+													if (((v & BC_MASK) | ((v + bc) & BC_MASK)) == 0)continue;
+													for (i_o = (unsigned char*)i_oo; i_o < (unsigned char*)(i_oo + 1); i_o++) {
+														if (*i_o >= st1) {
+															cand[ncand] = i_o - sieve_interval;
+															fss_sv[ncand++] = *i_o + horizontal_sievesums[j];
+
+														}
+													}
+												}
+											}
+											else {
+												bc_t* i_oo;
+
+												for (i_oo = (bc_t*)i_o; i_oo < (bc_t*)i_max; i_oo++) {
+													if ((*i_oo & BC_MASK) == 0)continue;
+													for (i_o = (unsigned char*)i_oo; i_o < (unsigned char*)(i_oo + 1); i_o++) {
+														if (*i_o >= st1) {
+															cand[ncand] = i_o - sieve_interval;
+															fss_sv[ncand++] = *i_o + horizontal_sievesums[j];
+
+														}
+													}
+												}
+											}
+										}
+		#else
+										{
+											unsigned long long x;
+
+											x = st1 - 1;
+											x |= x << 8;
+											x |= x << 16;
+											x |= x << 32;
+											while (i_o < i_max) {
+												asm volatile("movq (%%eax),%%mm7\n"
+													"1:\n"
+													"movq (%%esi),%%mm1\n"
+													"movq 8(%%esi),%%mm0\n"
+													"pmaxub 16(%%esi),%%mm1\n"
+													"pmaxub 24(%%esi),%%mm0\n"
+													"pmaxub %%mm7,%%mm1\n"
+													"pmaxub %%mm1,%%mm0\n"
+													"pcmpeqb %%mm7,%%mm0\n"
+													"pmovmskb %%mm0,%%eax\n"
+													"cmpl $255,%%eax\n"
+													"jnz 2f\n"
+													"leal 32(%%esi),%%esi\n"
+													"cmpl %%esi,%%edi\n"
+													"ja 1b\n"
+													"2:\n"
+													"emms":"=S"(i_o) : "a"(&x), "S"(i_o),
+													"D"(i_max));
+												if (i_o < i_max) {
+													unsigned char* i_max2 = i_o + 32;
+													while (i_o < i_max2) {
+														if (*i_o >= st1) {
+															cand[ncand] = i_o - sieve_interval;
+															fss_sv[ncand++] = *i_o + horizontal_sievesums[j];
+
+														}
+														i_o++;
+													}
+												}
+											}
+										}
+		#endif
+
+									}
+								}
+							}
+		#endif
+		#if 0
+							{
+								char* ofn;
+								FILE* of;
+								asprintf(&ofn, "cdump.%u.%u.j%u.ot%u", special_q, r[root_no],
+									j_offset, oddness_type);
+								if ((of = fopen(ofn, "w")) != NULL) {
+									u32_t i;
+									fprintf(of, "%u candidates\n", ncand);
+									for (i = 0; i < ncand; i++)
+										fprintf(of, "%u %u\n", cand[i], fss_sv[i]);
+									fclose(of);
+								}
+								else errprintf("Cannot open debug file %s: %m\n", ofn);
+								free(ofn);
+							}
+		#endif
+
+						}
+						else
+						{
+							u32_t i, nc1;
+							unsigned char* srbs;
+							static u32_t bad_pvl = 0;
+
+							srbs = sieve_report_bounds[s][j_offset / CANDIDATE_SEARCH_STEPS];
+							n_prereports += ncand;
+							for (i = 0, nc1 = 0; i < ncand; i++) {
+								u16_t st_i, t_j, ii, jj, j;
+								double pvl;
+
+								j = cand[i] >> i_bits;
+		#ifndef DEBUG_SIEVE_REPORT_BOUNDS
+								if (sieve_interval[cand[i]] + horizontal_sievesums[j] <
+									srbs[(cand[i] & (n_i - 1)) / CANDIDATE_SEARCH_STEPS])
+									continue;
+		#endif
+								jj = j_offset + j;
+								ii = cand[i] & (n_i - 1);
+								st_i = 2 * ii + (oddness_type == 2 ? 0 : 1);
+								t_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
+								pvl = log(fabs(rpol_eval(tpoly_f[s], poldeg[s],
+									(double)st_i - (double)i_shift, (double)t_j)));
+								if (special_q_side == s)
+									pvl -= special_q_log;
+								pvl *= sieve_multiplier[s];
+								pvl -= sieve_report_multiplier[s] * FB_maxlog[s];
+								if ((double)(sieve_interval[cand[i]] + horizontal_sievesums[j]) >= pvl) {
+		#ifdef DEBUG_SIEVE_REPORT_BOUNDS
+									if (sieve_interval[cand[i]] + horizontal_sievesums[j] <
+										srbs[(cand[i] & (n_i - 1)) / CANDIDATE_SEARCH_STEPS]) {
+										double pvl1;
+
+										pvl = fabs(rpol_eval(tpoly_f[s], poldeg[s],
+											(double)st_i - (double)i_shift, (double)t_j));
+										fprintf(stderr, "Bad pvl min %u at (%f,%f),spq=%u\npvl: %.5g->",
+											bad_pvl++, (double)st_i - (double)i_shift, (double)t_j,
+											special_q, pvl);
+										pvl = log(pvl);
+										fprintf(stderr, "%.3f->", pvl);
+										pvl = sieve_multiplier[s] * pvl;
+										fprintf(stderr, "%.3f->", pvl);
+										if (special_q_side == s)pvl -= sieve_multiplier[s] * special_q_log;
+										fprintf(stderr, "%.3f->", pvl);
+										pvl -= sieve_report_multiplier[s] * FB_maxlog[s];
+										fprintf(stderr, "%.3f\nLower bound was %u sv was %u=%u+%u\n", pvl,
+											(u32_t)srbs[(cand[i] & (n_i - 1)) / CANDIDATE_SEARCH_STEPS],
+											(u32_t)sieve_interval[cand[i]] + (u32_t)horizontal_sievesums[j],
+											(u32_t)sieve_interval[cand[i]], (u32_t)horizontal_sievesums[j]);
+									}
+		#endif
+									fss_sv[nc1] = fss_sv[i];
+									cand[nc1++] = cand[i];
+								}
+							}
+							ncand = nc1;
+						}
+
+						new_clock = clock();
+						clock_diff = new_clock - last_clock;
+						sieve_clock += clock_diff;
+						cs_clock[s] += clock_diff;
+						last_clock = new_clock;
+					}
+
+
+		#ifndef BADSCHED
+					trial_divide();
+		#endif
+					{
+						clock_t new_clock;
+						new_clock = clock();
+						td_clock += new_clock - last_clock;
+						last_clock = new_clock;
+					}
+
+		#if TDS_MPQS == TDS_BIGSS
+		#error "MPQS at BIGSS not yet for serial siever"
+				  output_all_tdsurvivors();
+		#else
+		#if TDS_PRIMALITY_TEST == TDS_BIGSS
+		#error "MPQS at BIGSS not yet for serial siever"
+				  primality_tests_all();
+		#endif
+		#endif
+
+				}
+
+		#if TDS_MPQS == TDS_ODDNESS_CLASS
+				output_all_tdsurvivors();
+		#else
+		#if TDS_PRIMALITY_TEST == TDS_ODDNESS_CLASS
+				primality_tests_all();
+		#endif
+		#endif
+
+		#if TDS_MPQS == TDS_ODDNESS_CLASS || TDS_PRIMALITY_TEST == TDS_ODDNESS_CLASS
+				{
+				  clock_t new_clock;
+				  new_clock= clock();
+				  td_clock+= new_clock-last_clock;
+				  last_clock= new_clock;
+				}
+		#endif
+
+
+			  }
+
+		#if TDS_MPQS == TDS_SPECIAL_Q
+
+			  output_all_tdsurvivors();
+
+		#else
+		#if TDS_PRIMALITY_TEST == TDS_SPECIAL_Q
+			  primality_tests_all();
+		#endif
+		#endif
+		#if TDS_MPQS == TDS_SPECIAL_Q || TDS_PRIMALITY_TEST == TDS_SPECIAL_Q
+			  {
+				clock_t new_clock;
+				new_clock= clock();
+				td_clock+= new_clock-last_clock;
+				last_clock= new_clock;
+			  }
+		#endif
+
+
 			}
-#endif
-			fss_sv[nc1]= fss_sv[i];
-			cand[nc1++]= cand[i];
-		      }
-		    }
-		    ncand= nc1;
-		  }
-		
-		new_clock= clock();
-		clock_diff= new_clock-last_clock;
-		sieve_clock+= clock_diff;
-		cs_clock[s]+= clock_diff;
-		last_clock= new_clock;
-	      }
-#ifndef BADSCHED
-	      trial_divide();
-#endif
-	      {
-		clock_t new_clock;
-		new_clock= clock();
-		td_clock+= new_clock-last_clock;
-		last_clock= new_clock;
-	      }
-#if TDS_MPQS == TDS_BIGSS
-#error "MPQS at BIGSS not yet for serial siever"
-	      output_all_tdsurvivors();
-#else
-#if TDS_PRIMALITY_TEST == TDS_BIGSS
-#error "MPQS at BIGSS not yet for serial siever"
-	      primality_tests_all();
-#endif
-#endif
-	    }
-#if TDS_MPQS == TDS_ODDNESS_CLASS
-	    output_all_tdsurvivors();
-#else
-#if TDS_PRIMALITY_TEST == TDS_ODDNESS_CLASS
-	    primality_tests_all();
-#endif
-#endif
-#if TDS_MPQS == TDS_ODDNESS_CLASS || TDS_PRIMALITY_TEST == TDS_ODDNESS_CLASS
-	    {
-	      clock_t new_clock;
-	      new_clock= clock();
-	      td_clock+= new_clock-last_clock;
-	      last_clock= new_clock;
-	    }
-#endif
-	  }
-#if TDS_MPQS == TDS_SPECIAL_Q
-	  output_all_tdsurvivors();
-#else
-#if TDS_PRIMALITY_TEST == TDS_SPECIAL_Q
-	  primality_tests_all();
-#endif
-#endif
-#if TDS_MPQS == TDS_SPECIAL_Q || TDS_PRIMALITY_TEST == TDS_SPECIAL_Q
-	  {
-	    clock_t new_clock;
-	    new_clock= clock();
-	    td_clock+= new_clock-last_clock;
-	    last_clock= new_clock;
-	  }
-#endif
-	}
 	
-	//fprintf(g_ofile,"# Done %u %u (%d,%d) (%d,%d)\n",
-	//special_q,r[root_no],a0,b0,a1,b1);
-      }
-      if(root_no<nr) {
-	break;
-      }
-      tNow = sTime();
-      if (tNow > lastReport + 5.0) {
-	lastReport = tNow;
-        if(verbose) {
-          int eta = (int)(((double)last_spq - special_q)*(tNow - tStart)/((double)special_q - first_spq+1)/60);
-	  fprintf(stderr, "\rtotal yield: %u, q=%u (%1.5lf sec/rel; ETA %dh%02dm)  ", 
-		(unsigned int)yield, (unsigned int)special_q, (tNow - tStart)/yield,
-                eta/60, eta%60);
-	  fflush(stderr);
-        }
-      }
-    }
+			// done with this root
+			//fprintf(g_ofile,"# Done %u %u (%d,%d) (%d,%d)\n",
+			//special_q,r[root_no],a0,b0,a1,b1);
+		  }
+
+		  if (root_no < nr) {
+			  break;
+		  }
+		  tNow = sTime();
+		  if (tNow > lastReport + 5.0) {
+			  lastReport = tNow;
+			  if (verbose) {
+				  int eta = (int)(((double)last_spq - special_q) * (tNow - tStart) / ((double)special_q - first_spq + 1) / 60);
+				  fprintf(stderr, "\rtotal yield: %u, q=%u (%1.5lf sec/rel; ETA %dh%02dm)  ",
+					  (unsigned int)yield, (unsigned int)special_q, (tNow - tStart) / yield,
+					  eta / 60, eta % 60);
+				  fflush(stderr);
+			  }
+		  }
+
+		  // done with this special_q
+	  }
+
+
     fprintf(stderr, "\rtotal yield: %u, q=%u (%1.5lf sec/rel) \n", 
 	    (unsigned int)yield, (unsigned int)special_q, (sTime() - tStart)/yield);
     free(r);
@@ -2772,67 +3032,71 @@ int main(int argc, char **argv)
   }
   logbook(0,"%u Special q, %u reduction iterations\n",n_spq,n_iter);
   
-  if(n_spq_discard> 0)logbook(0,"%u Special q discarded\n",n_spq_discard);
+  if(n_spq_discard> 0)
+	  logbook(0,"%u Special q discarded\n",n_spq_discard);
+
+  // report timings
   {
-    u32_t side;
-    logbook(0,"reports: %u->%u->%u->%u->%u->%u\n",
-	    n_prereports,n_reports,n_rep1,n_rep2,
-	    n_tdsurvivors[first_td_side],n_tdsurvivors[1-first_td_side]);
-    logbook(0,"Number of relations with k rational and l algebraic primes for (k,l)=:\n");
-    
-    sieve_clock= rint((1000.0*sieve_clock)/CLOCKS_PER_SEC);
-    sch_clock= rint((1000.0*sch_clock)/CLOCKS_PER_SEC);
-    td_clock= rint((1000.0*td_clock)/CLOCKS_PER_SEC);
-    tdi_clock= rint((1000.0*tdi_clock)/CLOCKS_PER_SEC);
-    Schedule_clock= rint((1000.0*Schedule_clock)/CLOCKS_PER_SEC);
-    medsched_clock= rint((1000.0*medsched_clock)/CLOCKS_PER_SEC);
-    mpqs_clock= rint((1000.0*mpqs_clock)/CLOCKS_PER_SEC);
-    
-    for(side= 0;side<2;side++) {
-      cs_clock[side]= rint((1000.0*cs_clock[side])/CLOCKS_PER_SEC);
-      si_clock[side]= rint((1000.0*si_clock[side])/CLOCKS_PER_SEC);
-      s1_clock[side]= rint((1000.0*s1_clock[side])/CLOCKS_PER_SEC);
-      s2_clock[side]= rint((1000.0*s2_clock[side])/CLOCKS_PER_SEC);
-      s3_clock[side]= rint((1000.0*s3_clock[side])/CLOCKS_PER_SEC);
-      tdsi_clock[side]= rint((1000.0*tdsi_clock[side])/CLOCKS_PER_SEC);
-      tds1_clock[side]= rint((1000.0*tds1_clock[side])/CLOCKS_PER_SEC);
-      tds2_clock[side]= rint((1000.0*tds2_clock[side])/CLOCKS_PER_SEC);
-      tds3_clock[side]= rint((1000.0*tds3_clock[side])/CLOCKS_PER_SEC);
-      tds4_clock[side]= rint((1000.0*tds4_clock[side])/CLOCKS_PER_SEC);
-    }
-    
-    logbook(0,"\nTotal yield: %u\n",yield);
-    if(n_mpqsfail[0]!=0||n_mpqsfail[1]!=0||
-       n_mpqsvain[0]!=0||n_mpqsvain[1]!=0) {
-      logbook(0,"%u/%u mpqs failures, %u/%u vain mpqs\n",n_mpqsfail[0],
-	      n_mpqsfail[1],n_mpqsvain[0],n_mpqsvain[1]);
-    }
-    logbook(0,"milliseconds total: Sieve %d Sched %d medsched %d\n",
-	    (int)sieve_clock,(int)Schedule_clock,(int)medsched_clock);
-    logbook(0,"TD %d (Init %d, MPQS %d) Sieve-Change %d\n",
-	    (int)td_clock,(int)tdi_clock,(int)mpqs_clock,(int)sch_clock);
-    for(side= 0;side<2;side++) {
-      logbook(0,"TD side %d: init/small/medium/large/search: %d %d %d %d %d\n",
-	      (int)side,(int)tdsi_clock[side],(int)tds1_clock[side],
-	      (int)tds2_clock[side],(int)tds3_clock[side],(int)tds4_clock[side]);
-      logbook(0,"sieve: init/small/medium/large/search: %d %d %d %d %d\n",
-	      (int)si_clock[side],(int)s1_clock[side],(int)s2_clock[side],
-	      (int)s3_clock[side],(int)cs_clock[side]);
-    }
+	  u32_t side;
+	  logbook(0, "reports: %u->%u->%u->%u->%u->%u\n",
+		  n_prereports, n_reports, n_rep1, n_rep2,
+		  n_tdsurvivors[first_td_side], n_tdsurvivors[1 - first_td_side]);
+	  logbook(0, "Number of relations with k rational and l algebraic primes for (k,l)=:\n");
+
+	  sieve_clock = rint((1000.0 * sieve_clock) / CLOCKS_PER_SEC);
+	  sch_clock = rint((1000.0 * sch_clock) / CLOCKS_PER_SEC);
+	  lsetup_clock = rint((1000.0 * lsetup_clock) / CLOCKS_PER_SEC);
+	  td_clock = rint((1000.0 * td_clock) / CLOCKS_PER_SEC);
+	  tdi_clock = rint((1000.0 * tdi_clock) / CLOCKS_PER_SEC);
+	  Schedule_clock = rint((1000.0 * Schedule_clock) / CLOCKS_PER_SEC);
+	  medsched_clock = rint((1000.0 * medsched_clock) / CLOCKS_PER_SEC);
+	  mpqs_clock = rint((1000.0 * mpqs_clock) / CLOCKS_PER_SEC);
+
+	  for (side = 0; side < 2; side++) {
+		  cs_clock[side] = rint((1000.0 * cs_clock[side]) / CLOCKS_PER_SEC);
+		  si_clock[side] = rint((1000.0 * si_clock[side]) / CLOCKS_PER_SEC);
+		  s1_clock[side] = rint((1000.0 * s1_clock[side]) / CLOCKS_PER_SEC);
+		  s2_clock[side] = rint((1000.0 * s2_clock[side]) / CLOCKS_PER_SEC);
+		  s3_clock[side] = rint((1000.0 * s3_clock[side]) / CLOCKS_PER_SEC);
+		  tdsi_clock[side] = rint((1000.0 * tdsi_clock[side]) / CLOCKS_PER_SEC);
+		  tds1_clock[side] = rint((1000.0 * tds1_clock[side]) / CLOCKS_PER_SEC);
+		  tds2_clock[side] = rint((1000.0 * tds2_clock[side]) / CLOCKS_PER_SEC);
+		  tds3_clock[side] = rint((1000.0 * tds3_clock[side]) / CLOCKS_PER_SEC);
+		  tds4_clock[side] = rint((1000.0 * tds4_clock[side]) / CLOCKS_PER_SEC);
+	  }
+
+	  logbook(0, "\nTotal yield: %u\n", yield);
+	  if (n_mpqsfail[0] != 0 || n_mpqsfail[1] != 0 ||
+		  n_mpqsvain[0] != 0 || n_mpqsvain[1] != 0) {
+		  logbook(0, "%u/%u mpqs failures, %u/%u vain mpqs\n", n_mpqsfail[0],
+			  n_mpqsfail[1], n_mpqsvain[0], n_mpqsvain[1]);
+	  }
+	  logbook(0, "milliseconds total: Sieve %d Sched %d medsched %d\n",
+		  (int)sieve_clock, (int)Schedule_clock, (int)medsched_clock);
+	  logbook(0, "TD %d (Init %d, MPQS %d) Sieve-Change %d, lasieve_setup %d\n",
+		  (int)td_clock, (int)tdi_clock, (int)mpqs_clock, (int)sch_clock, (int)lsetup_clock);
+	  for (side = 0; side < 2; side++) {
+		  logbook(0, "TD side %d: init/small/medium/large/search: %d %d %d %d %d\n",
+			  (int)side, (int)tdsi_clock[side], (int)tds1_clock[side],
+			  (int)tds2_clock[side], (int)tds3_clock[side], (int)tds4_clock[side]);
+		  logbook(0, "sieve: init/small/medium/large/search: %d %d %d %d %d\n",
+			  (int)si_clock[side], (int)s1_clock[side], (int)s2_clock[side],
+			  (int)s3_clock[side], (int)cs_clock[side]);
+	  }
 #ifdef MMX_TDBENCH
-    fprintf(stderr,"MMX-Loops: %qu\n",MMX_TdNloop);
+	  fprintf(stderr, "MMX-Loops: %qu\n", MMX_TdNloop);
 #endif
 #ifdef ZSS_STAT
-    fprintf(stderr,
-	    "%u subsieves, zero: %u first sieve, %u second sieve %u first td\n",
-	    nss,nzss[0],nzss[1],nzss[2]);
+	  fprintf(stderr,
+		  "%u subsieves, zero: %u first sieve, %u second sieve %u first td\n",
+		  nss, nzss[0], nzss[1], nzss[2]);
 #endif
   }
-  
-  logTotalTime();
-  if(special_q>=last_spq&&all_spq_done!=0)exit(0);
-  if(exitval == 0)exitval= 1;
-  exit(exitval);
+
+	logTotalTime();
+	if (special_q >= last_spq && all_spq_done != 0)exit(0);
+	if (exitval == 0)exitval = 1;
+	exit(exitval);
 }
 
 #ifndef NOSCHED
@@ -3934,6 +4198,9 @@ primality_tests_all()
 {
   size_t i,j;
   
+  // possibly a candidate for a future vectorized single-limb prime-test
+  // routine.  As with splitting cofactors, we'd need a fair number
+  // of them per call to keep that efficient.
   for(i= 0,j= 0;i<total_ntds;i++) {
     mpz_set(large_factors[first_td_side],tds_lp[2*i]);
     mpz_set(large_factors[1-first_td_side],tds_lp[2*i+1]);
@@ -3956,6 +4223,10 @@ output_all_tdsurvivors()
 {
   size_t i;
   
+  // depending on how big total_ntds gets, this loop is a candidate
+  // for use of the vectorized uecm (and/or a future vectorized tecm).
+  // There needs to be a largish number for it to be a win, and with
+  // uecm already pretty fast, it could be more work than it's worth.
   for(i= 0;i<total_ntds;i++) {
     mpz_set_sll(sr_a,tds_ab[2*i]);
     mpz_set_sll(sr_b,tds_ab[2*i+1]);
@@ -4209,6 +4480,7 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
   }
   fprintf(g_ofile, "\n");
 }
+
 /* 
    #ifdef OFMT_CWI
    #define CWI_LPB 0x100000
