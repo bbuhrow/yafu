@@ -2825,7 +2825,9 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 #else
     dlp_cutoff = 77;
 #endif
-    tlp_cutoff = 121;
+
+    // don't use tlp unless forced.  too much can go wrong still.
+    tlp_cutoff = 221;
 
     // could maybe someday change this w.r.t input size... for now
     // just test it out...

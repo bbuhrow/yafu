@@ -23,6 +23,12 @@
 #include "recurrence6.h"
 #include <immintrin.h>
 
+#ifdef _MSC_VER
+// so that I can read the code in MSVC without it being grayed out.
+// It will not build in Visual studio.
+#define AVX512_LASIEVE_SETUP
+#endif
+
 static u32_t A,A_bits,ub;
 
 void rec_info_init(u32_t A1,u32_t ub1)
@@ -224,6 +230,55 @@ if(have_it[0]==0)Schlendrian("???");
 }
 
 
+#ifdef AVX512_LASIEVE_SETUP
+
+//#define USE_EMULATED_DIV
+
+__inline void _avx512_mask_divrem32(__m512i md, __m512i mr, __mmask16 m, __m512i dividend, __m512i divisor, __m512i *q, __m512i *r)
+{
+    __m512i qn1 = _mm512_and_epi64(dividend, _mm512_set1_epi64(0xffffffff));
+    __m512i qn2 = _mm512_and_epi64(_mm512_shuffle_epi32(dividend, 0xB1), _mm512_set1_epi64(0xffffffff));
+    __m512i qd1 = _mm512_and_epi64(divisor, _mm512_set1_epi64(0xffffffff));
+    __m512i qd2 = _mm512_and_epi64(_mm512_shuffle_epi32(divisor, 0xB1), _mm512_set1_epi64(0xffffffff));
+    __m512d dqn1 = _mm512_cvtepi32lo_pd(qn1);
+    __m512d dqn2 = _mm512_cvtepi32lo_pd(qn2);
+    __m512d dqd1 = _mm512_cvtepi32lo_pd(qd1);
+    __m512d dqd2 = _mm512_cvtepi32lo_pd(qd2);
+    dqn1 = _mm512_div_pd(dqn1, dqd1);
+    dqn2 = _mm512_div_pd(dqn2, dqd2);
+    qn1 = _mm512_cvtpd_epi64(dqn1);
+    qn2 = _mm512_cvtpd_epi64(dqn2);
+    __m512i t1 = _mm512_and_epi64(qn1, _mm512_set1_epi64(0xffffffff));
+    __m512i t2 = _mm512_and_epi64(qn2, _mm512_set1_epi64(0xffffffff));
+    qd1 = _mm512_mul_epi32(qn1, qd1);
+    qd2 = _mm512_mul_epi32(qn2, qd2);
+    t1 = _mm512_and_epi64(_mm512_sub_epi64(qn1, t1), _mm512_set1_epi64(0xffffffff));
+    t2 = _mm512_and_epi64(_mm512_sub_epi64(qn2, t2), _mm512_set1_epi64(0xffffffff));
+    t1 = _mm512_or_epi64(qn1, _mm512_shuffle_epi32(qn2, 0xB1));
+    t2 = _mm512_or_epi64(t1, _mm512_shuffle_epi32(t2, 0xB1));
+    *q = _mm512_mask_mov_epi32(md, m, t1);
+    *r = _mm512_mask_mov_epi32(mr, m, t2);
+    return;
+}
+
+__inline __m512i _avx512_div32(__m512i dividend, __m512i divisor)
+{
+    __m512i qn1 = _mm512_and_epi64(dividend, _mm512_set1_epi64(0xffffffff));
+    __m512i qn2 = _mm512_and_epi64(_mm512_shuffle_epi32(dividend, 0xB1), _mm512_set1_epi64(0xffffffff));
+    __m512i qd1 = _mm512_and_epi64(divisor, _mm512_set1_epi64(0xffffffff));
+    __m512i qd2 = _mm512_and_epi64(_mm512_shuffle_epi32(divisor, 0xB1), _mm512_set1_epi64(0xffffffff));
+    __m512d dqn1 = _mm512_cvtepi32lo_pd(qn1);
+    __m512d dqn2 = _mm512_cvtepi32lo_pd(qn2);
+    __m512d dqd1 = _mm512_cvtepi32lo_pd(qd1);
+    __m512d dqd2 = _mm512_cvtepi32lo_pd(qd2);
+    dqn1 = _mm512_div_pd(dqn1, dqd1);
+    dqn2 = _mm512_div_pd(dqn2, dqd2);
+    qn1 = _mm512_cvtpd_epi64(dqn1);
+    qn2 = _mm512_cvtpd_epi64(dqn2);
+    return _mm512_or_epi64(qn1, _mm512_shuffle_epi32(qn2, 0xB1));
+}
+
+
 u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
 {
     __m512i zero = _mm512_setzero_epi32();
@@ -287,7 +342,11 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
             //    break;
             //}
 
+#ifdef USE_EMULATED_DIV
+            k = _mm512_mask_add_epi32(k, m & bA, _avx512_div32(_mm512_sub_epi32(c, vA), b), one);
+#else
             k = _mm512_mask_add_epi32(k, m & bA, _mm512_div_epu32(_mm512_sub_epi32(c, vA), b), one);
+#endif
             t = _mm512_mask_add_epi32(t, m & bA, t, _mm512_mullo_epi32(k, s));
             c = _mm512_mask_sub_epi32(c, m & bA, c, _mm512_mullo_epi32(k, b));
 
@@ -299,8 +358,12 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
             //c = c % b;
             //t += k * s;
 
+#ifdef USE_EMULATED_DIV
+            _avx512_mask_divrem32(k, c, m, c, b, &k, &c);
+#else
             k = _mm512_mask_div_epu32(k, m, c, b);
             c = _mm512_mask_rem_epu32(c, m, c, b);
+#endif
             t = _mm512_mask_add_epi32(t, m, t, _mm512_mullo_epi32(k, s));
 
             __mmask16 cA = _mm512_cmplt_epu32_mask(c, vA);
@@ -312,7 +375,11 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
             //    break;
             //}
 
+#ifdef USE_EMULATED_DIV
+            k = _mm512_mask_add_epi32(k, m & cA, _avx512_div32(_mm512_sub_epi32(b, vA), c), one);
+#else
             k = _mm512_mask_add_epi32(k, m & cA, _mm512_div_epu32(_mm512_sub_epi32(b, vA), c), one);
+#endif
             s = _mm512_mask_add_epi32(s, m & cA, s, _mm512_mullo_epi32(k, t));
             b = _mm512_mask_sub_epi32(b, m & cA, b, _mm512_mullo_epi32(k, c));
 
@@ -324,8 +391,13 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
             //b = b % c;
             //s += k * t;
 
+#ifdef USE_EMULATED_DIV
+            _avx512_mask_divrem32(k, b, m, b, c, &k, &b);
+#else
+
             k = _mm512_mask_div_epu32(k, m, b, c);
             b = _mm512_mask_rem_epu32(b, m, b, c);
+#endif
             s = _mm512_mask_add_epi32(s, m, s, _mm512_mullo_epi32(k, t));
         }
     }
@@ -381,3 +453,4 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
     return 32;
 }
 
+#endif

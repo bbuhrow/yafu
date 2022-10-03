@@ -1172,23 +1172,41 @@ char * process_batchline(yafu_obj_t* yobj, char *input_exp, char *indup, int *co
 			line = (char *)realloc(line, (strlen(line) + GSTR_MAXSIZE) * sizeof(char));
 		} 
 
-		// remove LF an CRs from line
+		// remove LF and CRs and other unprintable characters from line
 		nChars = 0;
 		for (j=0; j<strlen(line); j++)
 		{
-			switch (line[j])
-			{
-			case 13:
-			case 10:
-				break;
-			default:
-				line[nChars++] = line[j];
-				break;
-			}
+			//switch (line[j])
+			//{
+			//case 13:
+			//case 10:
+			//	break;
+			//default:
+			//	line[nChars++] = line[j];
+			//	break;
+			//}
+            if (line[j] > 31)
+                line[nChars++] = line[j];
 		}
 		line[nChars++] = '\0';
 
-	} while (strlen(line) == 0);	
+	} while ((strlen(line) == 0) && !(feof(batchfile)));
+
+    //printf("loop exit with line length %d. characters: ", strlen(line));
+    //for (i = 0; i < strlen(line); i++)
+    //{
+    //    printf("%02x ", line[i]);
+    //}
+    //printf("\n");
+
+    if (feof(batchfile) && (strlen(line) == 0))
+    {
+        printf("eof; done processing batchfile\n");
+        fclose(batchfile);
+        *code = 1;
+        free(line);
+        return input_exp;
+    }
 
 	// this only applies for non-stdin batchfiles
 	if (yobj->USEBATCHFILE == 1)

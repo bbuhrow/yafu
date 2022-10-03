@@ -36,6 +36,8 @@
 #define AVX512_LASIEVE_SETUP
 #endif
 
+#ifdef AVX512_LASIEVE_SETUP
+
 __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 {
 	__m512i ps1, ps2, parity, dividend, divisor, rem, q, t;
@@ -127,9 +129,52 @@ __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 
 
 										if (lmsk > 0) {
-											// as long as we are using Intel complier...
+#ifdef __INTEL_COMPILER
 											q = _mm512_mask_div_epu32(q, lmsk, dividend, divisor);
 											rem = _mm512_mask_rem_epu32(rem, lmsk, dividend, divisor);
+											
+#if 0
+											__m512i qn1 = _mm512_and_epi64(dividend, _mm512_set1_epi64(0xffffffff));
+											__m512i qn2 = _mm512_and_epi64(_mm512_shuffle_epi32(dividend, 0xB1), _mm512_set1_epi64(0xffffffff));
+											__m512i qd1 = _mm512_and_epi64(divisor, _mm512_set1_epi64(0xffffffff));
+											__m512i qd2 = _mm512_and_epi64(_mm512_shuffle_epi32(divisor, 0xB1), _mm512_set1_epi64(0xffffffff));
+											__m512d dqn1 = _mm512_cvtepi32lo_pd(qn1);
+											__m512d dqn2 = _mm512_cvtepi32lo_pd(qn2);
+											__m512d dqd1 = _mm512_cvtepi32lo_pd(qd1);
+											__m512d dqd2 = _mm512_cvtepi32lo_pd(qd2);
+											dqn1 = _mm512_div_pd(dqn1, dqd1);
+											dqn2 = _mm512_div_pd(dqn2, dqd2);
+											qn1 = _mm512_cvtpd_epi64(dqn1);
+											qn2 = _mm512_cvtpd_epi64(dqn2);
+											__m512i t1 = _mm512_and_epi64(qn1, _mm512_set1_epi64(0xffffffff));
+											__m512i t2 = _mm512_and_epi64(qn2, _mm512_set1_epi64(0xffffffff));
+											qd1 = _mm512_mul_epi32(qn1, qd1);
+											qd2 = _mm512_mul_epi32(qn2, qd2);
+											t1 = _mm512_and_epi64(_mm512_sub_epi64(qn1, t1), _mm512_set1_epi64(0xffffffff));
+											t2 = _mm512_and_epi64(_mm512_sub_epi64(qn2, t2), _mm512_set1_epi64(0xffffffff));
+											q = _mm512_or_epi64(qn1, _mm512_shuffle_epi32(qn2, 0xB1));
+											rem = _mm512_or_epi64(t1, _mm512_shuffle_epi32(t2, 0xB1));
+#endif
+#else
+											{
+												uint32_t nm[16], dm[16];
+												_mm512_store_epi32(nm, dividend);
+												_mm512_store_epi32(dm, divisor);
+												int ii;
+												for (ii = 0; ii < 16; ii++)
+												{
+													if (lmsk & (1 << ii))
+													{
+														uint32_t tq = nm[ii] / dm[ii];
+														uint32_t tr = nm[ii] % dm[ii];
+														nm[ii] = tq;
+														dm[ii] = tr;
+													}
+												}
+												q = _mm512_mask_load_epi32(q, lmsk, nm);
+												rem = _mm512_mask_load_epi32(rem, lmsk, dm);
+											}
+#endif
 											q = _mm512_mask_mullo_epi32(q, lmsk, q, ps1);
 
 										}
@@ -184,6 +229,8 @@ __m512i modsub32_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
 	z = _mm512_mask_add_epi32(z, ndmsk & m, z, p);
 	return z;
 }
+
+#endif
 
 void
 lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0, i32_t b1, u32_t* ri_ptr)
