@@ -561,8 +561,20 @@ int main(int argc, char **argv)
 		  }
 	  }
 
+	  char features[1024];
+	  sprintf(features, "with asm64");
+#ifdef AVX512_TD
+	  sprintf(features, "%s,avx-512 mmx-td", features);
+#endif
+#ifdef AVX512_LASIEVE_SETUP
+	  sprintf(features, "%s,avx-512 lasetup", features);
+#endif
+#ifdef AVX512_LASCHED
+	  sprintf(features, "%s,avx-512 lasched", features);
+#endif
 	  if (verbose) { /* first rudimentary test of automatic $Rev reporting */
-		  fprintf(stderr, "gnfs-lasieve4I%de (with asm64): L1_BITS=%d, SVN $Revision: 430 $\n", I_bits, L1_BITS);
+		  fprintf(stderr, "gnfs-lasieve4I%de (%s): L1_BITS=%d, SVN $Revision: 430 $\n", 
+			  I_bits, features, L1_BITS);
 	  }
 
 #define LINE_BUF_SIZE 300
