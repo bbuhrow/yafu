@@ -12,7 +12,24 @@
 INC=-I. -I./asm  -I../../../../gmp_install/gmp-6.2.0/include -I../../include
 LIBFLAGS=-L.  -L../../../../gmp_install/gmp-6.2.0/lib
 #CFLAGS=-Os -march=amdfam10 -mtune=amdfam10 -funroll-loops
-CFLAGS=-O3 -march=native -mtune=native -funroll-loops
+CFLAGS=-O3 -march=native -mtune=native -funroll-loops -static-intel
+
+ifeq ($(AVX512_LASETUP),1)
+	CFLAGS += -DAVX512_LASIEVE_SETUP
+endif
+
+ifeq ($(AVX512_LASCHED),1)
+	CFLAGS += -DAVX512_LASCHED
+endif
+
+ifeq ($(LASTATS),1)
+	CFLAGS += -DGATHER_STAT
+endif
+
+ifeq ($(MPQS),1)
+	CFLAGS += -DGGNFS_MPQS
+endif
+
 
 .SUFFIXES:
 
@@ -26,6 +43,11 @@ SRCFILES=fbgen.c gnfs-lasieve4e.c input-poly.c mpz-ull.c mpqs.c \
 
 OBJS=if.o input-poly.o redu2.o recurrence6.o fbgen.o ../gmp-ecm/microecm.o tinyecm.o \
      real-poly-aux.o primgen32.o lasieve-prepn.o mpqs.o
+
+ifeq ($(AVX512_LASCHED),1)
+	SRCFILES += asm/lasched.c
+endif
+
 
 LIBS=-lgmp-aux -lgmp -lm
 
@@ -46,22 +68,25 @@ libgmp-aux.a: gmp-aux.o mpz-ull.o
 gnfs-lasieve4eI%.o: gnfs-lasieve4e.c 
 	$(CC) $(CFLAGS) $(INC) -c -DI_bits=$* -o $@ $<
 
-gnfs-lasieve4I11e: gnfs-lasieve4eI11.o $(OBJS) libgmp-aux.a \
+asm/lasched%.o: asm/lasched.c
+	$(CC) $(CFLAGS) $(INC) -c -DI_bits=$* -o $@ $<
+
+gnfs-lasieve4I11e: gnfs-lasieve4eI11.o asm/lasched11.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI11.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I12e: gnfs-lasieve4eI12.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I12e: gnfs-lasieve4eI12.o asm/lasched12.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI12.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I13e: gnfs-lasieve4eI13.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I13e: gnfs-lasieve4eI13.o asm/lasched13.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI13.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I14e: gnfs-lasieve4eI14.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I14e: gnfs-lasieve4eI14.o asm/lasched14.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI14.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I15e: gnfs-lasieve4eI15.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I15e: gnfs-lasieve4eI15.o asm/lasched15.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI15.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I16e: gnfs-lasieve4eI16.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I16e: gnfs-lasieve4eI16.o asm/lasched16.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI16.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
 

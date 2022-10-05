@@ -347,6 +347,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				}
 
+				_mm256_zeroupper();
+
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
 					u32_t x;
@@ -471,6 +473,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 					
 				}
+
+				_mm256_zeroupper();
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -627,6 +631,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				}
 
+				_mm256_zeroupper();
+
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
 					u32_t x;
@@ -747,6 +753,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
+
+				_mm256_zeroupper();
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -907,6 +915,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				}
 
+				_mm256_zeroupper();
+
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
 					u32_t x;
@@ -1029,6 +1039,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 
 				}
+
+				_mm256_zeroupper();
 
 				for (; fbi < fbsz; fbi++)
 				{
@@ -1182,6 +1194,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 				}
 
+				_mm256_zeroupper();
+
 				for (; fbi < fbsz && FB[fbi] <= fbp_bound; fbi++)
 				{
 					u32_t x;
@@ -1305,6 +1319,8 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
 
 				}
+
+				_mm256_zeroupper();
 
 				for (; fbi < fbsz; fbi++)
 				{

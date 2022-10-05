@@ -1676,6 +1676,96 @@ int main(int argc, char **argv)
 						u32_t i;
 						u16_t* x;
 
+#if 1
+						for (i = 0, x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]-32; i+=8, x += 32) {
+							u32_t k;
+
+							__m512i xv = _mm512_load_si512(x);
+							__m512i vp = _mm512_and_epi64(xv, _mm512_set1_epi64(0xffff));  // isolate primes
+							__m512i vr = _mm512_srli_epi64(xv, 16);	// align roots
+							__m128i vp128 = _mm512_cvtepi64_epi16(vp);
+							__m128i vr128 = _mm512_cvtepi64_epi16(vr);
+							__m128i vpr128 = vr128;
+
+							for (k = 0; k < j_per_strip; k++) {
+								//smalltdsieve_aux[s][k][i] = r;
+								//r = modadd32(r, pr);
+								_mm_storeu_epi16(&smalltdsieve_aux[s][k][i], vr128);
+								vr128 = _mm_add_epi16(vr128, vpr128);
+								__mmask8 m = _mm_cmpge_epu16_mask(vr128, vp128);
+								vr128 = _mm_mask_sub_epi16(vr128, m, vr128, vp128);
+							}
+#ifdef PREINVERT
+							{
+								//u32_t pinv;
+								__m512i vpi = vp;
+
+								//pinv = modulo32;
+								//pinv = 2 * pinv - pinv * pinv * modulo32;
+								//pinv = 2 * pinv - pinv * pinv * modulo32;
+								//pinv = 2 * pinv - pinv * pinv * modulo32;
+
+								__m512i t2 = _mm512_mullo_epi32(vpi, vpi);
+								__m512i t1 = _mm512_slli_epi32(vpi, 1);
+								__m512i t3 = _mm512_mullo_epi32(t2, vp);
+								vpi = _mm512_sub_epi32(t1, t3);
+
+								
+								t2 = _mm512_mullo_epi32(vpi, vpi);
+								t1 = _mm512_slli_epi32(vpi, 1);
+								t3 = _mm512_mullo_epi32(t2, vp);
+								vpi = _mm512_sub_epi32(t1, t3);
+
+								
+								t2 = _mm512_mullo_epi32(vpi, vpi);
+								t1 = _mm512_slli_epi32(vpi, 1);
+								t3 = _mm512_mullo_epi32(t2, vp);
+								vpi = _mm512_sub_epi32(t1, t3);
+
+								
+								t2 = _mm512_mullo_epi32(vpi, vpi);
+								t1 = _mm512_slli_epi32(vpi, 1);
+								t3 = _mm512_mullo_epi32(t2, vp);
+								vpi = _mm512_sub_epi32(t1, t3);
+
+								__m256i vpi256 = _mm512_cvtepi64_epi32(vpi);
+								_mm256_storeu_epi32(&smalltd_pi[s][i], vpi256);
+
+								//smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
+							}
+
+#endif
+						}
+
+						for ( ; x < smallsieve_auxbound[s][0]; i++, x += 4) {
+							u32_t k, r, pr;
+
+							modulo32 = *x;
+							r = x[1];
+							pr = r;
+							for (k = 0; k < j_per_strip; k++) {
+								smalltdsieve_aux[s][k][i] = r;
+								r = modadd32(r, pr);
+							}
+#ifdef PREINVERT
+							{
+								u32_t pinv;
+
+								pinv = modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+#if 0
+								pinv = 2 * pinv - pinv * pinv * modulo32;
+#endif
+								smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
+							}
+
+#endif
+
+						}
+
+#else
 						for (i = 0, x = smallsieve_aux[s]; x < smallsieve_auxbound[s][0]; i++, x += 4) {
 							u32_t k, r, pr;
 
@@ -1686,7 +1776,7 @@ int main(int argc, char **argv)
 								smalltdsieve_aux[s][k][i] = r;
 								r = modadd32(r, pr);
 							}
-		#ifdef PREINVERT
+#ifdef PREINVERT
 							{
 								u32_t pinv;
 
@@ -1694,14 +1784,17 @@ int main(int argc, char **argv)
 								pinv = 2 * pinv - pinv * pinv * modulo32;
 								pinv = 2 * pinv - pinv * pinv * modulo32;
 								pinv = 2 * pinv - pinv * pinv * modulo32;
-		#if 0
+#if 0
 								pinv = 2 * pinv - pinv * pinv * modulo32;
-		#endif
+#endif
 								smalltd_pi[s][i] = 2 * pinv - pinv * pinv * modulo32;
 							}
 
-		#endif
+#endif
+
 						}
+#endif
+
 					}
 #endif
 				}
@@ -2187,77 +2280,110 @@ int main(int argc, char **argv)
 						si_clock[s] += clock_diff;
 						sieve_clock += clock_diff;
 						last_clock = new_clock;
-//#define AVX512_SIEVE
-				#ifdef AVX512_SIEVE
+
+//#define AVX512_SIEVEA
+//#define AVX512_SIEVE4
+//#define AVX512_SIEVE3
+//#define AVX512_SIEVE2
+//#define AVX512_SIEVE1
+
+				#ifdef AVX512_SIEVEA
 						{
 							u16_t* x;
-							
-							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][1] - 32; x += 32)
+
+							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4] - 32; x += 32)
 							{
-								u32_t p, r, pr;
-								unsigned char l, * y;
+								// for reference, sieve info is packed into x thus:
+								//p = x[0];
+								//pr = x[1];
+								//l = x[2];
+								//r = x[3];
+								unsigned char *y;
 								__m512i vni = _mm512_set1_epi16(n_i);
 								__m512i xv = _mm512_load_si512(x);
-								__m512i vp = _mm512_slli_epi64(xv, 48);
-								__m512i vpr = _mm512_slli_epi64(xv, 32);
+								__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+								__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+								vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
 								uint16_t xm[32];
 								__mmask32 m;
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 
-									// check if any locations exceed the upper bound
-									m = _mm512_mask_cmplt_epi16_mask(0x88888888, xv, vni);
+									_mm512_store_epi64(xm, xv);
+									
+									*(y + xm[3] ) += xm[ 2];
+									*(y + xm[7] ) += xm[ 6];
+									*(y + xm[11]) += xm[10];
+									*(y + xm[15]) += xm[14];
+									*(y + xm[19]) += xm[18];
+									*(y + xm[23]) += xm[22];
+									*(y + xm[27]) += xm[26];
+									*(y + xm[31]) += xm[30];
 
-									while (m == 0x88888888) {
-										_mm512_store_epi64(xm, xv);
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
 
-										// they all hit, dump em in.  The first iteration
-										// i think this is always true.
-										y[xm[ 3]] += xm[ 2];
-										y[xm[ 7]] += xm[ 6];
-										y[xm[11]] += xm[10];
-										y[xm[15]] += xm[14];
-										y[xm[19]] += xm[18];
-										y[xm[23]] += xm[22];
-										y[xm[27]] += xm[26];
-										y[xm[31]] += xm[30];
+									_mm512_store_epi64(xm, xv);
 
-										// next loc
-										xv = _mm512_add_epi32(xv, vp);
-										m = _mm512_mask_cmplt_epi16_mask(0x88888888, xv, vni);
-									}
+									*(y + xm[3]) += xm[2];
+									*(y + xm[7]) += xm[6];
+									*(y + xm[11]) += xm[10];
+									*(y + xm[15]) += xm[14];
+									*(y + xm[19]) += xm[18];
+									*(y + xm[23]) += xm[22];
+									*(y + xm[27]) += xm[26];
+									*(y + xm[31]) += xm[30];
 
-									// some locations are now outside the upper bound,
-									// do the rest of the batch individually.
-									while (xm[3] < n_i) { y[xm[ 3]] += xm[ 2]; xm[ 3] += xm[0]; }
-									while (xm[ 7] < n_i){ y[xm[ 7]] += xm[ 6]; xm[ 7] += xm[4];}
-									while (xm[11] < n_i){ y[xm[11]] += xm[10]; xm[11] += xm[8];}
-									while (xm[15] < n_i){ y[xm[15]] += xm[14]; xm[15] += xm[12];}
-									while (xm[19] < n_i){ y[xm[19]] += xm[18]; xm[19] += xm[16];}
-									while (xm[23] < n_i){ y[xm[23]] += xm[22]; xm[23] += xm[20];}
-									while (xm[27] < n_i){ y[xm[27]] += xm[26]; xm[27] += xm[24];}
-									while (xm[31] < n_i){ y[xm[31]] += xm[30]; xm[31] += xm[28];}
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+
+									_mm512_store_epi64(xm, xv);
+
+									*(y + xm[3]) += xm[2];
+									*(y + xm[7]) += xm[6];
+									*(y + xm[11]) += xm[10];
+									*(y + xm[15]) += xm[14];
+									*(y + xm[19]) += xm[18];
+									*(y + xm[23]) += xm[22];
+									*(y + xm[27]) += xm[26];
+									*(y + xm[31]) += xm[30];
+
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+
+									_mm512_store_epi64(xm, xv);
+
+									*(y + xm[3]) += xm[2];
+									*(y + xm[7]) += xm[6];
+									*(y + xm[11]) += xm[10];
+									*(y + xm[15]) += xm[14];
+									*(y + xm[19]) += xm[18];
+									*(y + xm[23]) += xm[22];
+									*(y + xm[27]) += xm[26];
+									*(y + xm[31]) += xm[30];
+
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+
+									_mm512_store_epi64(xm, xv);
+
+									while ((y + xm[ 3]) < (y + n_i)) { *(y + xm[ 3]) += xm[ 2]; xm[3] += xm[0];}
+									while ((y + xm[ 7]) < (y + n_i)) { *(y + xm[ 7]) += xm[ 6]; xm[7] += xm[4]; }
+									while ((y + xm[11]) < (y + n_i)) { *(y + xm[11]) += xm[10]; xm[11] += xm[8]; }
+									while ((y + xm[15]) < (y + n_i)) { *(y + xm[15]) += xm[14]; xm[15] += xm[12]; }
+									while ((y + xm[19]) < (y + n_i)) { *(y + xm[19]) += xm[18]; xm[19] += xm[16]; }
+									while ((y + xm[23]) < (y + n_i)) { *(y + xm[23]) += xm[22]; xm[23] += xm[20]; }
+									while ((y + xm[27]) < (y + n_i)) { *(y + xm[27]) += xm[26]; xm[27] += xm[24]; }
+									while ((y + xm[31]) < (y + n_i)) { *(y + xm[31]) += xm[30]; xm[31] += xm[28]; }
 
 									// now update r
-									xv = _mm512_load_si512(xm);
+									xv = _mm512_load_si512(x);
 									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
 									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
 									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
-
-								
 								}
-
-								
 							}
 
 							{
-								u16_t* x;
-
-								//printf("ASM_LINESIEVER1: sieve %u primes; n_i = %u\n",
-								//	(smallsieve_auxbound[s][1] - smallsieve_auxbound[s][2]) / 4, n_i);
-
 								// primes here are less than 4096, so no unrolling here 
 								// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
-								for (; x < smallsieve_auxbound[s][1]; x += 4) {
+								//for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][1]; x += 4) {
+								for ( ; x < smallsieve_auxbound[s][1]; x += 4) {
 									u32_t p, r, pr;
 									unsigned char l, * y;
 
@@ -2272,7 +2398,10 @@ int main(int argc, char **argv)
 										yy = y + r;
 										*(yy) += l;
 										yy += p;
-										if (yy < y + n_i)*(yy) += l;
+										while (yy < (y + n_i)) {
+											*(yy) += l;
+											yy += p;
+										}
 										r = r + pr;
 										if (r >= p)r = r - p;
 									}
@@ -2284,26 +2413,124 @@ int main(int argc, char **argv)
 						}
 
 
-		#elif defined( ASM_LINESIEVER)
+
+		#elif defined( ASM_LINESIEVER) && !defined(AVX512_SIEVE4)
 						slinie(smallsieve_tinybound[s], smallsieve_auxbound[s][4], sieve_interval);
 		#else
 						{
 							u16_t* x;
 
-							//printf("ASM_LINESIEVER: sieve %u primes; n_i = %u\n", 
-							//	(smallsieve_auxbound[s][4] - smallsieve_tinybound[s]) / 4, n_i);
-
 							// primes here are less than 1024, we unroll the sieve 4x 
 							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+#ifdef AVX512_SIEVE4
 							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 4) {
+							//if (0) {
 								u32_t p, r, pr;
 								unsigned char l, * y;
 
 								p = x[0];	// prime
-								pr = x[1];	// prime root
+								pr = x[1];	// prime root/recurrence?
 								l = x[2];	// log
-								r = x[3];	// starting root
-								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+								r = x[3];	// starting root/recurrence?
+
+								if (p > 64) break;
+
+								__m512i vl = _mm512_set1_epi8(l);
+								uint64_t m = 0;
+								u32_t idx;
+								for (idx = r; idx < 64; idx += p)
+								{
+									m |= (1ull << idx);
+								}
+
+								//printf("p = %u, r = %u, l = %u, m = %016lx\n", p, r, l, m);
+								//
+								//{
+								//	int a;
+								//	printf("before sieve\n");
+								//	y = sieve_interval;
+								//	for (a = 0; a < n_i; a++)
+								//	{
+								//		if (a % 32 == 0)printf("\n");
+								//		printf("%02x", y[a]);
+								//	}
+								//	printf("\n");
+								//}
+
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy;
+
+									// there isn't any small-prime variation in the siever
+									// that I can see and as a result, we sieve with some
+									// very small primes.  The idea in this loop is to 
+									// do an initial sieve in a bit-mask, and then stream
+									// out writes of rotations of this mask.
+									// TODO: the mask needs to be 512-bits worth... and
+									// we need all the possible offsets for this prime, like
+									// in SoE presieving.
+									for (yy = y; yy < (y + n_i); yy += 64)
+									{
+										__m512i vy = _mm512_load_si512(yy);
+										vy = _mm512_mask_add_epi8(vy, m, vy, vl);
+										_mm512_store_si512(yy, vy);
+										//_rotl64(m, p);
+										//m = (m << p) | (m >> (64-p));
+										//printf("m = %016lx\n", m);
+										m = 0;
+										for (idx-=64; idx < 64; idx += p)
+										{
+											m |= (1ull << idx);
+										}
+									}
+									
+									//
+									//	int a;
+									//	printf("after sieve\n");
+									//	y = sieve_interval;
+									//	for (a = 0; a < n_i; a++)
+									//	{
+									//		if (a % 32 == 0)printf("\n");
+									//		printf("%02x", y[a]);
+									//	}
+									//	printf("\n");
+									//	fflush(stdout);
+									//	exit(1);
+									//
+
+									r = r + pr;
+									if (r >= p)r = r - p;
+								}
+
+								
+							}
+
+							//x = smallsieve_tinybound[s]
+							for ( ; x < smallsieve_auxbound[s][4]; x += 4) {
+#else
+							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 4) {
+#endif
+								u32_t p, r, pr;
+								unsigned char l, * y;
+
+								p = x[0];	// prime
+								pr = x[1];	// prime root/recurrence?
+								l = x[2];	// log
+								r = x[3];	// starting root/recurrence?
+
+								//printf("p = %u, r = %u, l = %u, m = %016lx\n", p, r, l, m);
+								//
+								//{
+								//	int a;
+								//	printf("before sieve\n");
+								//	y = sieve_interval;
+								//	for (a = 0; a < n_i; a++)
+								//	{
+								//		if (a % 32 == 0)printf("\n");
+								//		printf("%02x", y[a]);
+								//	}
+								//	printf("\n");
+								//}
+
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 									unsigned char* yy, * yy_ub;
 
@@ -2320,17 +2547,28 @@ int main(int argc, char **argv)
 									}
 									r = r + pr;
 									if (r >= p)r = r - p;
+
+									//{
+									//	int a;
+									//	printf("after sieve\n");
+									//	y = sieve_interval;
+									//	for (a = 0; a < n_i; a++)
+									//	{
+									//		if (a % 32 == 0)printf("\n");
+									//		printf("%02x", y[a]);
+									//	}
+									//	printf("\n");
+									//	fflush(stdout);
+									//	exit(1);
+									//}
 								}
-		#if 0
-								x[3] = r;
-		#endif
 							}
 						}
 		#endif
 
 
-		#ifndef AVX512_SIEVE	//1
-		#ifdef ASM_LINESIEVER3
+		#ifndef AVX512_SIEVEA	//1
+		#if defined( ASM_LINESIEVER3)  && !defined(AVX512_SIEVE3)
 						slinie3(smallsieve_auxbound[s][4], smallsieve_auxbound[s][3], sieve_interval);
 		#else
 						{
@@ -2371,8 +2609,8 @@ int main(int argc, char **argv)
 		#endif
 
 
-		#ifndef AVX512_SIEVE // 1
-		#ifdef ASM_LINESIEVER2
+		#ifndef AVX512_SIEVEA // 1
+		#if defined( ASM_LINESIEVER2)  && !defined(AVX512_SIEVE2)
 						slinie2(smallsieve_auxbound[s][3], smallsieve_auxbound[s][2], sieve_interval);
 		#else
 						{
@@ -2412,16 +2650,12 @@ int main(int argc, char **argv)
 		#endif
 
 
-		#ifndef AVX512_SIEVE //  1
-		#ifdef ASM_LINESIEVER1
+		#ifndef AVX512_SIEVEA //  1
+		#if defined( ASM_LINESIEVER1)  && !defined(AVX512_SIEVE1)
 						slinie1(smallsieve_auxbound[s][2], smallsieve_auxbound[s][1], sieve_interval);
 		#else
 						{
 							u16_t* x;
-
-							//printf("ASM_LINESIEVER1: sieve %u primes; n_i = %u\n",
-							//	(smallsieve_auxbound[s][1] - smallsieve_auxbound[s][2]) / 4, n_i);
-
 							// primes here are less than 4096, so no unrolling here 
 							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
 							for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1]; x += 4) {
@@ -2448,7 +2682,6 @@ int main(int argc, char **argv)
 		#endif
 							}
 						}
-						//exit(1);
 		#endif
 		#endif
 
@@ -2660,11 +2893,12 @@ int main(int argc, char **argv)
 		#ifdef ASM_SCHEDSIEVE
 									// this is faster, but not by much
 									schedsieve(x, sieve_interval, schedule_ptr, sptr_ub);
+
 		#else
 									//for reference: #define SE_SIZE 2
 									//sieve_interval is a byte array
 									//schedule_ptr is a pointer to a list of 
-									//unordered offsets within the sieve_interval.
+									//random offsets within the sieve_interval.
 									//we need to increment each of those offsets by x.
 									//so this is a gather/scatter and probably not
 									// a good candidate for vectorization.
@@ -3100,38 +3334,40 @@ int main(int argc, char **argv)
 }
 
 #ifndef NOSCHED
-void do_scheduling(struct schedule_struct*sched,u32_t ns,u32_t ot,u32_t s)
+void do_scheduling(struct schedule_struct* sched, u32_t ns, u32_t ot, u32_t s)
 {
-  u32_t ll,n1_j,*ri;;
-  
-  n1_j= ns<<(L1_BITS-i_bits);
-  for(ll= 0,ri= sched->ri;ll<sched->n_pieces;ll++) {
-    u32_t fbi_lb,fbi_ub,fbio;
-    memcpy(sched->schedule[ll+1],sched->schedule[ll],ns*sizeof(u16_t**));
-    fbio= sched->fbi_bounds[ll];
-    fbi_lb= fbio;
-    fbi_ub= sched->fbi_bounds[ll+1];
+	u32_t ll, n1_j, * ri;;
+
+	n1_j = ns << (L1_BITS - i_bits);
+	for (ll = 0, ri = sched->ri; ll < sched->n_pieces; ll++) {
+		u32_t fbi_lb, fbi_ub, fbio;
+		memcpy(sched->schedule[ll + 1], sched->schedule[ll], ns * sizeof(u16_t**));
+		fbio = sched->fbi_bounds[ll];
+		fbi_lb = fbio;
+		fbi_ub = sched->fbi_bounds[ll + 1];
+
 #ifdef SCHEDULING_FUNCTION_CALCULATES_RI
-    if(ot == 1)
-      lasieve_setup(FB[s]+fbi_lb,proots[s]+fbi_lb,fbi_ub-fbi_lb,
-		    a0,a1,b0,b1,LPri[s]+(fbi_lb-fbis[s])*RI_SIZE);
+		if (ot == 1)
+			lasieve_setup(FB[s] + fbi_lb, proots[s] + fbi_lb, fbi_ub - fbi_lb,
+				a0, a1, b0, b1, LPri[s] + (fbi_lb - fbis[s]) * RI_SIZE);
 #endif
-    ri= lasched(ri,current_ij[s]+fbi_lb,current_ij[s]+fbi_ub,
-		n1_j,(u32_t**)(sched->schedule[ll+1]),fbi_lb-fbio,ot);
-    {
-      u32_t k;
-      for(k= 0;k<ns;k++)
-	if(sched->schedule[ll+1][k]>=sched->schedule[0][k]+sched->alloc) {
-	  if(k == 0&&sched->schedule[ll+1][k]<sched->schedule[0][k]+sched->alloc1)
-	    continue;
-/* report SCHED_PATHOLOGY to http://mersenneforum.org/showthread.php?t=11430 */
-          fprintf(stderr,"\rSCHED_PATHOLOGY q0=%u k=%d excess=%d                      \n",
-                  (unsigned int)special_q, k, sched->schedule[ll+1][k]-(sched->schedule[0][k]+sched->alloc));
-	  longjmp(termination_jb,SCHED_PATHOLOGY);
+		ri = lasched(ri, current_ij[s] + fbi_lb, current_ij[s] + fbi_ub,
+			n1_j, (u32_t**)(sched->schedule[ll + 1]), fbi_lb - fbio, ot);
+
+		{
+			u32_t k;
+			for (k = 0; k < ns; k++)
+				if (sched->schedule[ll + 1][k] >= sched->schedule[0][k] + sched->alloc) {
+					if (k == 0 && sched->schedule[ll + 1][k] < sched->schedule[0][k] + sched->alloc1)
+						continue;
+					/* report SCHED_PATHOLOGY to http://mersenneforum.org/showthread.php?t=11430 */
+					fprintf(stderr, "\rSCHED_PATHOLOGY q0=%u k=%d excess=%d                      \n",
+						(unsigned int)special_q, k, sched->schedule[ll + 1][k] - (sched->schedule[0][k] + sched->alloc));
+					longjmp(termination_jb, SCHED_PATHOLOGY);
+				}
+		}
+
 	}
-    }
-    
-  }
 }
 #endif
 
@@ -3384,10 +3620,12 @@ trial_divide()
   qsort(cand,ncand,sizeof(*cand),tdcand_cmp);
   td_buf1[0]= td_buf[first_td_side];
   for(side= first_td_side,tdstep= 0;tdstep<2;side= 1-side,tdstep++) {
+
 #ifdef ZSS_STAT
     if(tdstep == 1&&ncand == 0)
       nzss[2]++;
 #endif
+
     {
       u32_t nfbp;
       
@@ -3403,59 +3641,64 @@ trial_divide()
       
       
 #ifndef SET_TDS_PBOUND
-      if(ncand> 0)p_bound= (2*n_i*j_per_strip)/(5*ncand);
+      
+	  if(ncand> 0)p_bound= (2*n_i*j_per_strip)/(5*ncand);
       else p_bound= U32_MAX;
+
 #else
       p_bound= SET_TDS_PBOUND(n_i,j_per_strip,ncand);
 #endif
       
-      {
-	unsigned char ht,allcoll;
-	
-	bzero(sieve_interval,L1_SIZE);
-	bzero(tds_coll,UCHAR_MAX-1);
-	for(ci= 0,ht= 1,allcoll= 0;ci<ncand;ci++) {
-	  unsigned char cht;
-	  
-	  cht= sieve_interval[cand[ci]];
-	  if(cht == 0) {
-	    cht= ht;
-	    if(ht<UCHAR_MAX)ht++;
-	    else{
-	      ht= 1;
-	      allcoll= 1;
-	    }
-	    tds_coll[cht-1]= allcoll;
-	    sieve_interval[cand[ci]]= cht;
-	  } else {
-	    tds_coll[cht-1]= 1;
+	  {
+		  unsigned char ht, allcoll;
+
+		  bzero(sieve_interval, L1_SIZE);
+		  bzero(tds_coll, UCHAR_MAX - 1);
+		  for (ci = 0, ht = 1, allcoll = 0; ci < ncand; ci++) {
+			  unsigned char cht;
+
+			  cht = sieve_interval[cand[ci]];
+			  if (cht == 0) {
+				  cht = ht;
+				  if (ht < UCHAR_MAX)ht++;
+				  else {
+					  ht = 1;
+					  allcoll = 1;
+				  }
+				  tds_coll[cht - 1] = allcoll;
+				  sieve_interval[cand[ci]] = cht;
+			  }
+			  else {
+				  tds_coll[cht - 1] = 1;
+			  }
+			  fss_sv[ci] = cht - 1;
+		  }
 	  }
-	  fss_sv[ci]= cht-1;
-	}
-      }
       
 #ifdef MMX_TD
       smalltdsieve_auxbound= MMX_TdInit(side,smallsieve_aux[side],
 					smallsieve_auxbound[side][0],
 					&p_bound,j_offset == 0&&oddness_type == 1);
 #else
-      {
-	u16_t*x,*z;
-	
-	x= smallsieve_aux[side];
-	z= smallsieve_auxbound[side][0];
-	if(*x> p_bound)smalltdsieve_auxbound= x;
-	else{
-	  while(x+4<z) {
-	    u16_t*y;
-	    
-	    y= x+4*((z-x)/8);
-	    if(y == smallsieve_auxbound[side][0]||*y> p_bound)z= y;
-	    else x= y;
+	  {
+		  u16_t* x, * z;
+
+		  x = smallsieve_aux[side];
+		  z = smallsieve_auxbound[side][0];
+		  if (*x > p_bound)
+			  smalltdsieve_auxbound = x;
+		  else {
+
+			  while (x + 4 < z) {
+				  u16_t* y;
+
+				  y = x + 4 * ((z - x) / 8);
+				  if (y == smallsieve_auxbound[side][0] || *y > p_bound)z = y;
+				  else x = y;
+			  }
+			  smalltdsieve_auxbound = z;
+		  }
 	  }
-	  smalltdsieve_auxbound= z;
-	}
-      }
 #endif
       
       newclock= clock();
@@ -3473,539 +3716,2177 @@ trial_divide()
 	schedtdsieve(&x,1,y,sieve_interval,tds_fbi_curpos);
       }
 #else
-      {
-	u32_t l;
-	
-	for(l= 0;l<n_medsched_pieces[side];l++) {
-	  u16_t*x,*x_ub;
-	  
-	  x_ub= med_sched[side][l+1];
-	  
-	  for(x= med_sched[side][l]+MEDSCHED_SI_OFFS;x+6<x_ub;x+= 8) {
-	    unsigned char z;
-	    if((sieve_interval[*x]|sieve_interval[*(x+2)]|
-		sieve_interval[*(x+4)]|sieve_interval[*(x+6)]) == 0) {
-	      continue;
-	    }
-	    if((z= sieve_interval[*x])!=0)
-	      *(tds_fbi_curpos[z-1]++)= *(x+1-2*MEDSCHED_SI_OFFS);
-	    if((z= sieve_interval[*(x+2)])!=0)
-	      *(tds_fbi_curpos[z-1]++)= *(x+3-2*MEDSCHED_SI_OFFS);
-	    if((z= sieve_interval[*(x+4)])!=0)
-	      *(tds_fbi_curpos[z-1]++)= *(x+5-2*MEDSCHED_SI_OFFS);
-	    if((z= sieve_interval[*(x+6)])!=0)
-	      *(tds_fbi_curpos[z-1]++)= *(x+7-2*MEDSCHED_SI_OFFS);
+	  {
+		  u32_t l;
+
+		  for (l = 0; l < n_medsched_pieces[side]; l++) {
+			  u16_t* x, * x_ub;
+
+			  x_ub = med_sched[side][l + 1];
+
+			  for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
+				  unsigned char z;
+				  if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
+					  sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0) {
+					  continue;
+				  }
+				  if ((z = sieve_interval[*x]) != 0)
+					  *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
+				  if ((z = sieve_interval[*(x + 2)]) != 0)
+					  *(tds_fbi_curpos[z - 1]++) = *(x + 3 - 2 * MEDSCHED_SI_OFFS);
+				  if ((z = sieve_interval[*(x + 4)]) != 0)
+					  *(tds_fbi_curpos[z - 1]++) = *(x + 5 - 2 * MEDSCHED_SI_OFFS);
+				  if ((z = sieve_interval[*(x + 6)]) != 0)
+					  *(tds_fbi_curpos[z - 1]++) = *(x + 7 - 2 * MEDSCHED_SI_OFFS);
+			  }
+			  while (x < x_ub) {
+				  unsigned char z;
+
+				  if ((z = sieve_interval[*x]) != 0)
+					  *(tds_fbi_curpos[z - 1]++) = *(x + 1 - 2 * MEDSCHED_SI_OFFS);
+				  x += 2;
+			  }
+		  }
 	  }
-	  while(x<x_ub) {
-	    unsigned char z;
-	    
-	    if((z= sieve_interval[*x])!=0)
-	      *(tds_fbi_curpos[z-1]++)= *(x+1-2*MEDSCHED_SI_OFFS);
-	    x+= 2;
-	  }
-	}
-      }
 #endif
       newclock= clock();
       tds2_clock[side]+= newclock-last_tdclock;
       last_tdclock= newclock;
       
-      {
-	u32_t j;
-	
-	for(j= 0;j<n_schedules[side];j++) {
+	  {
+		  u32_t j;
+
+		  for (j = 0; j < n_schedules[side]; j++) {
 #ifdef ASM_SCHEDTDSIEVE
-	  u32_t i,k;
-	  k= schedules[side][j].current_strip++;
-	  for(i= 0;i<=schedules[side][j].n_pieces;i++) {
-	    schedbuf[i]= schedules[side][j].schedule[i][k];
-	  }
-	  schedtdsieve(schedules[side][j].fbi_bounds,schedules[side][j].n_pieces,
-		       schedbuf,sieve_interval,tds_fbi_curpos);
+			  u32_t i, k;
+			  k = schedules[side][j].current_strip++;
+			  for (i = 0; i <= schedules[side][j].n_pieces; i++) {
+				  schedbuf[i] = schedules[side][j].schedule[i][k];
+			  }
+			  schedtdsieve(schedules[side][j].fbi_bounds, schedules[side][j].n_pieces,
+				  schedbuf, sieve_interval, tds_fbi_curpos);
 #else
 #if 1
-	  u32_t k,l,fbi_offset;
-	  u16_t*x,*x_ub;
-	  k= schedules[side][j].current_strip++;
-	  x= schedules[side][j].schedule[0][k]+SCHED_SI_OFFS;
-	  x_ub= schedules[side][j].schedule[schedules[side][j].n_pieces][k];
-	  l= 0;
-	  fbi_offset= schedules[side][j].fbi_bounds[l];
-	  while(x<x_ub) {
-	    u16_t**b0,**b1,**b0_ub;
+			  u32_t k, l, fbi_offset;
+			  u16_t* x, * x_ub;
+			  k = schedules[side][j].current_strip++;
+			  x = schedules[side][j].schedule[0][k] + SCHED_SI_OFFS;
+			  x_ub = schedules[side][j].schedule[schedules[side][j].n_pieces][k];
+			  l = 0;
+			  fbi_offset = schedules[side][j].fbi_bounds[l];
+			  while (x < x_ub) {
+				  u16_t** b0, ** b1, ** b0_ub;
 #ifdef ASM_SCHEDTDSIEVE2
-	    b0= tdsieve_sched2buf(&x,x_ub,sieve_interval,sched_tds_buffer,
-				  sched_tds_buffer+SCHED_TDS_BUFSIZE-4);
+				  b0 = tdsieve_sched2buf(&x, x_ub, sieve_interval, sched_tds_buffer,
+					  sched_tds_buffer + SCHED_TDS_BUFSIZE - 4);
 #else
-	    b0= sched_tds_buffer;
-	    b0_ub= b0+SCHED_TDS_BUFSIZE;
-	    for(;x+6<x_ub;x= x+8) {
-	      if((sieve_interval[*x]|sieve_interval[*(x+2)]|
-		  sieve_interval[*(x+4)]|sieve_interval[*(x+6)]) == 0)
-		continue;
-	      if(sieve_interval[x[0]]!=0)*(b0++)= x;
-	      if(sieve_interval[x[2]]!=0)*(b0++)= x+2;
-	      if(sieve_interval[x[4]]!=0)*(b0++)= x+4;
-	      if(sieve_interval[x[6]]!=0)*(b0++)= x+6;
-	      if(b0+4> b0_ub)goto sched_tds1;
-	    }
-	    for(;x<x_ub;x+= 2) {
-	      if(sieve_interval[*x]!=0)*(b0++)= x;
-	    }
+
+#if 1
+				  // very similar speed to ASM_SCHEDTDSIEVE2... gathers are slow.
+				  __m512i zero = _mm512_setzero_si512();
+				  b0 = sched_tds_buffer;
+				  b0_ub = b0 + SCHED_TDS_BUFSIZE;
+				  for (; x + 94 < x_ub; x = x + 96) {
+
+					  __m512i vx1 = _mm512_mask_loadu_epi16(zero, 0x55555555, x);
+					  __m512i vx2 = _mm512_mask_loadu_epi16(zero, 0x55555555, x + 32);
+					  __m512i vx3 = _mm512_mask_loadu_epi16(zero, 0x55555555, x + 64);
+
+					  // better CPI with 3 independent gathers
+					  __m512i vsi1 = _mm512_i32gather_epi32(vx1, sieve_interval, 1);
+					  __m512i vsi2 = _mm512_i32gather_epi32(vx2, sieve_interval, 1);
+					  __m512i vsi3 = _mm512_i32gather_epi32(vx3, sieve_interval, 1);
+
+					  __mmask64 m1 = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi1, zero);
+					  __mmask64 m2 = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi2, zero);
+					  __mmask64 m3 = _mm512_mask_cmpneq_epi8_mask(0x1111111111111111ull, vsi3, zero);
+
+					  if ((m1 | m2 | m3) == 0)
+						  continue;
+
+					  while (m1 > 0)
+					  {
+						  int id = _tzcnt_u64(m1) / 4;
+						  *(b0++) = x + 2*id;
+						  m1 = _blsr_u64(m1);
+					  }
+					  while (m2 > 0)
+					  {
+						  int id = _tzcnt_u64(m2) / 4;
+						  *(b0++) = x + 32 + 2*id;
+						  m2 = _blsr_u64(m2);
+					  }
+					  while (m3 > 0)
+					  {
+						  int id = _tzcnt_u64(m3) / 4;
+						  *(b0++) = x + 64 + 2*id;
+						  m3 = _blsr_u32(m3);
+					  }
+
+					  if (b0 + 48 > b0_ub)goto sched_tds1;
+				  }
+				  for (; x < x_ub; x += 2) {
+					  if (sieve_interval[*x] != 0)*(b0++) = x;
+				  }
+
+#else
+				  // could try a gather-load here
+				  b0 = sched_tds_buffer;
+				  b0_ub = b0 + SCHED_TDS_BUFSIZE;
+				  for (; x + 6 < x_ub; x = x + 8) {
+					  if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
+						  sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0)
+						  continue;
+					  if (sieve_interval[x[0]] != 0)*(b0++) = x;
+					  if (sieve_interval[x[2]] != 0)*(b0++) = x + 2;
+					  if (sieve_interval[x[4]] != 0)*(b0++) = x + 4;
+					  if (sieve_interval[x[6]] != 0)*(b0++) = x + 6;
+					  if (b0 + 4 > b0_ub)goto sched_tds1;
+				  }
+				  for (; x < x_ub; x += 2) {
+					  if (sieve_interval[*x] != 0)*(b0++) = x;
+				  }
+
 #endif
-	  sched_tds1:
-	    for(b1= sched_tds_buffer;b1<b0;b1++) {
-	      u16_t*y;
-	      u32_t fbi;
-	      y= *(b1);
-	      if(schedules[side][j].schedule[l+1][k]<=y) {
-		do{
-		  l++;
-		  if(l>=schedules[side][j].n_pieces)Schlendrian("XXX\n");
-		}while(schedules[side][j].schedule[l+1][k]<=y);
-		fbi_offset= schedules[side][j].fbi_bounds[l];
-	      }
-	      fbi= fbi_offset+*(y+1-2*SCHED_SI_OFFS);
-	      *(tds_fbi_curpos[sieve_interval[*y]-1]++)= fbi;
+
+#endif
+			  sched_tds1:
+				  for (b1 = sched_tds_buffer; b1 < b0; b1++) {
+					  u16_t* y;
+					  u32_t fbi;
+					  y = *(b1);
+					  if (schedules[side][j].schedule[l + 1][k] <= y) {
+						  do {
+							  l++;
+							  if (l >= schedules[side][j].n_pieces)Schlendrian("XXX\n");
+						  } while (schedules[side][j].schedule[l + 1][k] <= y);
+						  fbi_offset = schedules[side][j].fbi_bounds[l];
+					  }
+					  fbi = fbi_offset + *(y + 1 - 2 * SCHED_SI_OFFS);
+					  *(tds_fbi_curpos[sieve_interval[*y] - 1]++) = fbi;
+
 #ifdef TDS_FB_PREFETCH
-	      TDS_FB_PREFETCH(FB[side]+fbi);
+					  TDS_FB_PREFETCH(FB[side] + fbi);
 #endif
-	    }
-	  }
+
+				  }
+			  }
 #else
-	  u32_t l,k;
-	  
-	  k= schedules[side][j].current_strip++;
-	  for(l= 0;l<schedules[side][j].n_pieces;l++) {
-	    u16_t*x,*x_ub;
-	    u32_t fbi_offset;
-	    
-	    x_ub= schedules[side][j].schedule[l+1][k];
-	    fbi_offset= schedules[side][j].fbi_bounds[l];
-	    for(x= schedules[side][j].schedule[l][k]+SCHED_SI_OFFS;x+6<x_ub;x+= 8) {
-	      unsigned char z;
-	      if((sieve_interval[*x]|sieve_interval[*(x+2)]|
-		  sieve_interval[*(x+4)]|sieve_interval[*(x+6)]) == 0) {
-		continue;
-	      }
-	      if((z= sieve_interval[*x])!=0)
-		*(tds_fbi_curpos[z-1]++)= fbi_offset+*(x+1-2*SCHED_SI_OFFS);
-	      if((z= sieve_interval[*(x+2)])!=0)
-		*(tds_fbi_curpos[z-1]++)= fbi_offset+*(x+3-2*SCHED_SI_OFFS);
-	      if((z= sieve_interval[*(x+4)])!=0)
-		*(tds_fbi_curpos[z-1]++)= fbi_offset+*(x+5-2*SCHED_SI_OFFS);
-	      if((z= sieve_interval[*(x+6)])!=0)
-		*(tds_fbi_curpos[z-1]++)= fbi_offset+*(x+7-2*SCHED_SI_OFFS);
-	    }
-	    while(x<x_ub) {
-	      unsigned char z;
-	      
-	      if((z= sieve_interval[*x])!=0)
-		*(tds_fbi_curpos[z-1]++)= fbi_offset+*(x+1-2*SCHED_SI_OFFS);
-	      x+= 2;
-	    }
+			  u32_t l, k;
+
+			  k = schedules[side][j].current_strip++;
+			  for (l = 0; l < schedules[side][j].n_pieces; l++) {
+				  u16_t* x, * x_ub;
+				  u32_t fbi_offset;
+
+				  x_ub = schedules[side][j].schedule[l + 1][k];
+				  fbi_offset = schedules[side][j].fbi_bounds[l];
+				  for (x = schedules[side][j].schedule[l][k] + SCHED_SI_OFFS; x + 6 < x_ub; x += 8) {
+					  unsigned char z;
+					  if ((sieve_interval[*x] | sieve_interval[*(x + 2)] |
+						  sieve_interval[*(x + 4)] | sieve_interval[*(x + 6)]) == 0) {
+						  continue;
+					  }
+					  if ((z = sieve_interval[*x]) != 0)
+						  *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+					  if ((z = sieve_interval[*(x + 2)]) != 0)
+						  *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 3 - 2 * SCHED_SI_OFFS);
+					  if ((z = sieve_interval[*(x + 4)]) != 0)
+						  *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 5 - 2 * SCHED_SI_OFFS);
+					  if ((z = sieve_interval[*(x + 6)]) != 0)
+						  *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 7 - 2 * SCHED_SI_OFFS);
+				  }
+				  while (x < x_ub) {
+					  unsigned char z;
+
+					  if ((z = sieve_interval[*x]) != 0)
+						  *(tds_fbi_curpos[z - 1]++) = fbi_offset + *(x + 1 - 2 * SCHED_SI_OFFS);
+					  x += 2;
+				  }
+			  }
+#endif
+#endif
+		  }
 	  }
-#endif
-#endif
-	}
-      }
       newclock= clock();
       tds3_clock[side]+= newclock-last_tdclock;
       last_tdclock= newclock;
       
-      {
-	u32_t i;
-	
-	for(i= 0;i<UCHAR_MAX&&i<ncand;i++) {
-	  u32_t*p;
-	  
-	  for(p= tds_fbi[i];p<tds_fbi_curpos[i];p++)
-	    *p= FB[side][*p];
-	}
-      }
+	  {
+		  u32_t i;
+
+		  for (i = 0; i < UCHAR_MAX && i < ncand; i++) {
+			  u32_t* p;
+
+			  for (p = tds_fbi[i]; p < tds_fbi_curpos[i]; p++)
+				  *p = FB[side][*p];
+		  }
+	  }
       
-      {
-	u16_t*x;
-	
+	  {
+		  u16_t* x;
+
+//#define AVX512_TDS
+		  // tested to be about the same speed.  restructuring for 32x processing
+	      // instead of 8x would probably be needed for a win.
+
 #ifdef ASM_TDSLINIE
-	x= smalltdsieve_auxbound;
-	if(x<smallsieve_auxbound[side][4]) {
-	  tdslinie(x,smallsieve_auxbound[side][4],sieve_interval,tds_fbi_curpos);
-	  x= smallsieve_auxbound[side][4];
-	}
+		  x = smalltdsieve_auxbound;
+		  if (x < smallsieve_auxbound[side][4]) {
+			  tdslinie(x, smallsieve_auxbound[side][4], sieve_interval, tds_fbi_curpos);
+			  x = smallsieve_auxbound[side][4];
+		  }
 #else
-	for(x= smalltdsieve_auxbound;
-	    x<smallsieve_auxbound[side][4];x= x+4) {
-	  u32_t p,r,pr;
-	  unsigned char*y;
-	  
-	  p= x[0];
-	  pr= x[1];
-	  r= x[3];
-	  modulo32= p;
-	  for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-	    unsigned char*yy,*yy_ub;
-	    
-	    yy_ub= y+n_i-3*p;
-	    yy= y+r;
-	    while(yy<yy_ub) {
-	      unsigned char o;
-	      o= (*yy)|(*(yy+p));
-	      yy+= 2*p;
-	      if((o|(*yy)|(*(yy+p)))!=0) {
-		yy= yy-2*p;
-		if(*yy!=0)
-		  *(tds_fbi_curpos[*yy-1]++)= p;
-		if(*(yy+p)!=0)
-		  *(tds_fbi_curpos[*(yy+p)-1]++)= p;
-		yy+= 2*p;
-		if(*yy!=0)
-		  *(tds_fbi_curpos[*yy-1]++)= p;
-		if(*(yy+p)!=0)
-		  *(tds_fbi_curpos[*(yy+p)-1]++)= p;
-	      }
-	      yy+= 2*p;
-	    }
-	    yy_ub+= 2*p;
-	    if(yy<yy_ub) {
-	      if(((*yy)|(*(yy+p)))!=0) {
-		if(*yy!=0)
-		  *(tds_fbi_curpos[*yy-1]++)= p;
-		if(*(yy+p)!=0)
-		  *(tds_fbi_curpos[*(yy+p)-1]++)= p;
-	      }
-	      yy+= 2*p;
-	    }
-	    yy_ub+= p;
-	    if(yy<yy_ub) {
-	      if(*yy!=0)
-		*(tds_fbi_curpos[*yy-1]++)= p;
-	    }
-	    r= modadd32(r,pr);
-	  }
-	  x[3]= r;
-	}
+		  for (x = smalltdsieve_auxbound;
+			  x < smallsieve_auxbound[side][4]; x = x + 4) {
+			  u32_t p, r, pr;
+			  unsigned char* y;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+				  unsigned char* yy, * yy_ub;
+
+				  // basically we are checking for non-zero sieve locations
+				  // in this prime's progression and if we find any, we
+				  // append the primes to the end of a list for that
+				  // sieve location.  
+				  // So we basically re-do all of the sieve, except we are
+				  // not writing/modifiying the sieve.
+				  // yafu's approach in the QS is different for sufficiently large p.
+				  // there, we find all of the non-zero locations, then for each
+				  // location, determine which prime progressions hit it by
+				  // vector-stepping many primes at once through their progressions
+				  // and checking for equality to the index in question.
+				  // for this loop, that strategy doesn't make much sense because
+				  // the primes are too small... too many steps.  But later loops
+				  // might be an alternative option to try.
+				  yy_ub = y + n_i - 3 * p;
+				  yy = y + r;
+				  while (yy < yy_ub) {
+					  unsigned char o;
+					  o = (*yy) | (*(yy + p));
+					  yy += 2 * p;
+					  if ((o | (*yy) | (*(yy + p))) != 0) {
+						  yy = yy - 2 * p;
+						  if (*yy != 0)
+							  *(tds_fbi_curpos[*yy - 1]++) = p;
+						  if (*(yy + p) != 0)
+							  *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+						  yy += 2 * p;
+						  if (*yy != 0)
+							  *(tds_fbi_curpos[*yy - 1]++) = p;
+						  if (*(yy + p) != 0)
+							  *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+					  }
+					  yy += 2 * p;
+				  }
+				  yy_ub += 2 * p;
+				  if (yy < yy_ub) {
+					  if (((*yy) | (*(yy + p))) != 0) {
+						  if (*yy != 0)
+							  *(tds_fbi_curpos[*yy - 1]++) = p;
+						  if (*(yy + p) != 0)
+							  *(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+					  }
+					  yy += 2 * p;
+				  }
+				  yy_ub += p;
+				  if (yy < yy_ub) {
+					  if (*yy != 0)
+						  *(tds_fbi_curpos[*yy - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
 #endif
-#ifdef ASM_TDSLINIE3
-	if(x<smallsieve_auxbound[side][3]) {
-	  tdslinie3(x,smallsieve_auxbound[side][3],sieve_interval,tds_fbi_curpos);
-	  x= smallsieve_auxbound[side][3];
-	}
+
+#if !defined(AVX512_TDS) && defined( ASM_TDSLINIE3)
+		  if (x < smallsieve_auxbound[side][3]) {
+			  tdslinie3(x, smallsieve_auxbound[side][3], sieve_interval, tds_fbi_curpos);
+			  x = smallsieve_auxbound[side][3];
+		  }
 #else
-	for(;x<smallsieve_auxbound[side][3];x= x+4) {
-	  u32_t p,r,pr;
-	  unsigned char*y;
-	  
-	  p= x[0];
-	  pr= x[1];
-	  r= x[3];
-	  modulo32= p;
-	  for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-	    unsigned char*yy,*yy_ub;
-	    
-	    yy_ub= y+n_i;
-	    yy= y+r;
-	    if(((*yy)|(*(yy+p))|(*(yy+2*p)))!=0) {
-	      if(*yy!=0)*(tds_fbi_curpos[*yy-1]++)= p;
-	      if(*(yy+p)!=0)*(tds_fbi_curpos[*(yy+p)-1]++)= p;
-	      if(*(yy+2*p)!=0)*(tds_fbi_curpos[*(yy+2*p)-1]++)= p;
-	    }
-	    yy+= 3*p;
-	    if(yy<yy_ub) {
-	      if(*yy!=0)
-		*(tds_fbi_curpos[*yy-1]++)= p;
-	    }
-	    r= modadd32(r,pr);
-	  }
-	  x[3]= r;
-	}
+
+		  unsigned char* y;
+		  uint32_t nzlocs[16][128];		// 16 segments max, 128 locations max.
+		  uint32_t numnzlocs[16];
+		  uint32_t thisseg = 0;
+		  uint32_t thisloc = 0;
+		  uint32_t numlocs = 0;
+		  uint32_t numsegs = 0;
+		  if (1) {
+			  // first find the non-zero locations for each segment of the interval,
+			  // relative to the start of each segment
+			  __m512i zero = _mm512_setzero_si512();
+
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+				  int idx = 0;
+				  numlocs = 0;
+
+				  for (idx = 0; idx < n_i; idx += 64)
+				  {
+					  __m512i vy = _mm512_load_si512(y + idx);
+					  __mmask64 m64 = _mm512_cmpneq_epi8_mask(vy, zero);
+
+					  while (m64 > 0)
+					  {
+						  uint32_t id = _tzcnt_u64(m64);
+						  nzlocs[thisseg][numlocs++] = idx + id;
+						  m64 = _blsr_u64(m64);
+					  }
+				  }
+
+				  numnzlocs[thisseg] = numlocs;
+				  thisseg++;
+			  }
+			  numsegs = thisseg;
+		  }
+
+		  __m512i vni = _mm512_set1_epi16(n_i);
+		  uint16_t xm[32];
+		  u16_t* xstart = x;
+
+		  for (x = xstart; x < smallsieve_auxbound[side][3] - 32; x = x + 32) {
+
+			  __mmask32 m;
+			  __mmask32 mn_i;
+			  __m512i xv = _mm512_load_si512(x);
+			  __m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+			  __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+			  vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+			  __m512i xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+			  __m512i xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
+			  __m512i xv4 = _mm512_mask_add_epi16(xv3, 0x88888888, xv3, vp);
+
+			  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+				  //for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+				 // {
+				  thisloc = 0;
+				  while (thisloc < numnzlocs[thisseg])
+				  {
+					  if ((thisloc + 3) < numnzlocs[thisseg])
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+						  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+						  __m512i vloc3 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 2]);
+						  __m512i vloc4 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 3]);
+
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  loc = nzlocs[thisseg][thisloc];
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 1];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 2];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 3];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  loc = nzlocs[thisseg][thisloc];
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 2];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 3];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 2];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 3];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+								  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv4, vni);
+
+								  if (mn_i > 0)
+								  {
+									  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv4) |
+										  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv4) |
+										  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv4) |
+										  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv4);
+									  if (m > 0)
+									  {
+										  _mm512_store_si512(xm, xv4);
+										  loc = nzlocs[thisseg][thisloc];
+										  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+										  loc = nzlocs[thisseg][thisloc + 1];
+
+										  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+										  loc = nzlocs[thisseg][thisloc + 2];
+
+										  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+										  loc = nzlocs[thisseg][thisloc + 3];
+
+										  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  }
+								  }
+							  }
+						  }
+
+						  thisloc += 4;
+		  }
+					  else if ((thisloc + 1) < numnzlocs[thisseg])
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+						  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  loc = nzlocs[thisseg][thisloc];
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 1];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  loc = nzlocs[thisseg][thisloc];
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+								  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv4, vni);
+
+								  if (mn_i > 0)
+								  {
+									  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv4) |
+										  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv4);
+									  if (m > 0)
+									  {
+										  _mm512_store_si512(xm, xv4);
+										  loc = nzlocs[thisseg][thisloc];
+										  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+										  loc = nzlocs[thisseg][thisloc + 1];
+
+										  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  }
+								  }
+							  }
+						  }
+
+						  thisloc += 2;
+					  }
+					  else
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(loc);
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+								  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv4, vni);
+
+								  if (mn_i > 0)
+								  {
+									  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv4);
+									  if (m > 0)
+									  {
+										  _mm512_store_si512(xm, xv4);
+										  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+										  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+										  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+										  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+										  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+										  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+										  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+										  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  }
+								  }
+							  }
+						  }
+
+						  thisloc++;
+
+					  }
+
+					  }
+
+				  // now update r
+				  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+				  m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+				  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+
+				  xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+				  xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
+				  xv4 = _mm512_mask_add_epi16(xv3, 0x88888888, xv3, vp);
+
+				  }
+			  _mm512_store_si512(x, xv);
+			  }
+
+		  for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
+			  u32_t p, r, pr;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+
+			  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+				  for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+				  {
+					  uint32_t loc = nzlocs[thisseg][thisloc];
+
+					  if (r == loc) *(tds_fbi_curpos[y[r] - 1]++) = p;
+					  if (((r + p) == loc) && ((r + p) < n_i)) *(tds_fbi_curpos[y[r + p] - 1]++) = p;
+					  if (((r + 2 * p) == loc) && ((r + 2 * p) < n_i)) *(tds_fbi_curpos[y[r + 2 * p] - 1]++) = p;
+					  if (((r + 3 * p) == loc) && ((r + 3 * p) < n_i)) *(tds_fbi_curpos[y[r + 3 * p] - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
+
+#if 0
+		  for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
+			  u32_t p, r, pr;
+			  unsigned char* y;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+				  unsigned char* yy, * yy_ub;
+
+				  yy_ub = y + n_i;
+				  yy = y + r;
+				  if (((*yy) | (*(yy + p)) | (*(yy + 2 * p))) != 0) {
+					  if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+					  if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+					  if (*(yy + 2 * p) != 0)*(tds_fbi_curpos[*(yy + 2 * p) - 1]++) = p;
+				  }
+				  yy += 3 * p;
+				  if (yy < yy_ub) {
+					  if (*yy != 0)
+						  *(tds_fbi_curpos[*yy - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
 #endif
-#ifdef ASM_TDSLINIE2
-	if(x<smallsieve_auxbound[side][2]) {
-	  tdslinie2(x,smallsieve_auxbound[side][2],sieve_interval,tds_fbi_curpos);
-	  x= smallsieve_auxbound[side][2];
-	}
-#else
-	for(;x<smallsieve_auxbound[side][2];x= x+4) {
-	  u32_t p,r,pr;
-	  unsigned char*y;
-	  
-	  p= x[0];
-	  pr= x[1];
-	  r= x[3];
-	  modulo32= p;
-	  for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-	    unsigned char*yy,*yy_ub;
-	    
-	    yy_ub= y+n_i;
-	    yy= y+r;
-	    if(((*yy)|(*(yy+p)))!=0) {
-	      if(*yy!=0)*(tds_fbi_curpos[*yy-1]++)= p;
-	      if(*(yy+p)!=0)*(tds_fbi_curpos[*(yy+p)-1]++)= p;
-	    }
-	    yy+= 2*p;
-	    if(yy<yy_ub) {
-	      if(*yy!=0)
-		*(tds_fbi_curpos[*yy-1]++)= p;
-	    }
-	    r= modadd32(r,pr);
-	  }
-	  x[3]= r;
-	}
+
 #endif
-#ifdef ASM_TDSLINIE1
-	if(x<smallsieve_auxbound[side][1]) {
-	  tdslinie1(x,smallsieve_auxbound[side][1],sieve_interval,tds_fbi_curpos);
-	  x= smallsieve_auxbound[side][1];
-	}
+
+#if !defined(AVX512_TDS) && defined( ASM_TDSLINIE2)
+		  if (x < smallsieve_auxbound[side][2]) {
+			  tdslinie2(x, smallsieve_auxbound[side][2], sieve_interval, tds_fbi_curpos);
+			  x = smallsieve_auxbound[side][2];
+		  }
 #else
-	for(;x<smallsieve_auxbound[side][1];x= x+4) {
-	  u32_t p,r,pr;
-	  unsigned char*y;
-	  
-	  p= x[0];
-	  pr= x[1];
-	  r= x[3];
-	  modulo32= p;
-	  for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-	    unsigned char*yy,*yy_ub;
-	    
-	    yy_ub= y+n_i;
-	    yy= y+r;
-	    if(*yy!=0)*(tds_fbi_curpos[*yy-1]++)= p;
-	    yy+= p;
-	    if(yy<yy_ub) {
-	      if(*yy!=0)
-		*(tds_fbi_curpos[*yy-1]++)= p;
-	    }
-	    r= modadd32(r,pr);
-	  }
-	  x[3]= r;
-	}
+
+		  for (; x < smallsieve_auxbound[side][2] - 32; x = x + 32) {
+
+			  __mmask32 m;
+			  __mmask32 mn_i;
+			  __m512i xv = _mm512_load_si512(x);
+			  __m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+			  __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+			  vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+			  __m512i xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+			  __m512i xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
+			  __m512i xv4 = _mm512_mask_add_epi16(xv3, 0x88888888, xv3, vp);
+
+			  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+				  //for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+				 // {
+				  thisloc = 0;
+				  while (thisloc < numnzlocs[thisseg])
+				  {
+					  if ((thisloc + 3) < numnzlocs[thisseg])
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+						  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+						  __m512i vloc3 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 2]);
+						  __m512i vloc4 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 3]);
+
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  loc = nzlocs[thisseg][thisloc];
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 1];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 2];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 3];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  loc = nzlocs[thisseg][thisloc];
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 2];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 3];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 2];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 3];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+								  
+							  }
+						  }
+
+						  thisloc += 4;
+		  }
+					  else if ((thisloc + 1) < numnzlocs[thisseg])
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+						  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+							  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  loc = nzlocs[thisseg][thisloc];
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+							  loc = nzlocs[thisseg][thisloc + 1];
+
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  loc = nzlocs[thisseg][thisloc];
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+							  }
+						  }
+
+						  thisloc += 2;
+					  }
+					  else
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  __m512i vloc = _mm512_set1_epi16(loc);
+						  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv);
+
+						  if (m > 0)
+						  {
+							  _mm512_store_si512(xm, xv);
+							  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+							  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+							  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+							  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+							  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+							  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+							  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+							  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+						  }
+
+						  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+						  if (mn_i > 0)
+						  {
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2);
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv2);
+								  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv3, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv3);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv3);
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+							  }
+						  }
+
+						  thisloc++;
+
+					  }
+
+					  }
+
+				  // now update r
+				  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+				  m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+				  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+
+				  xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+				  xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
+
+				  }
+			  _mm512_store_si512(x, xv);
+			  }
+
+		  for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
+			  u32_t p, r, pr;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+
+			  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+				  for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+				  {
+					  uint32_t loc = nzlocs[thisseg][thisloc];
+
+					  if (r == loc) *(tds_fbi_curpos[y[r] - 1]++) = p;
+					  if (((r + p) == loc) && ((r + p) < n_i)) *(tds_fbi_curpos[y[r + p] - 1]++) = p;
+					  if (((r + 2 * p) == loc) && ((r + 2 * p) < n_i)) *(tds_fbi_curpos[y[r + 2 * p] - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
+
+
+#if 0
+		  for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
+			  u32_t p, r, pr;
+			  unsigned char* y;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+				  unsigned char* yy, * yy_ub;
+
+				  yy_ub = y + n_i;
+				  yy = y + r;
+				  if (((*yy) | (*(yy + p))) != 0) {
+					  if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+					  if (*(yy + p) != 0)*(tds_fbi_curpos[*(yy + p) - 1]++) = p;
+				  }
+				  yy += 2 * p;
+				  if (yy < yy_ub) {
+					  if (*yy != 0)
+						  *(tds_fbi_curpos[*yy - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
+#endif
+
+#endif
+
+
+
+#if !defined(AVX512_TDS) && defined( ASM_TDSLINIE1)
+		  if (x < smallsieve_auxbound[side][1]) {
+			  tdslinie1(x, smallsieve_auxbound[side][1], sieve_interval, tds_fbi_curpos);
+			  x = smallsieve_auxbound[side][1];
+		  }
+#else
+
+#ifdef AVX512_TDS
+		  // basically we are checking for non-zero sieve locations
+			// in this prime's progression and if we find any, we
+			// append the primes to the end of a list for that
+			// sieve location.  
+			// So we basically re-do all of the sieve, except we are
+			// not writing/modifiying the sieve.
+			// yafu's approach in the QS is different for sufficiently large p.
+			// there, we find all of the non-zero locations, then for each
+			// location, determine which prime progressions hit it by
+			// vector-stepping many primes at once through their progressions
+			// and checking for equality to the index in question.
+			// for the small-prime loop, that strategy doesn't make much sense because
+			// the primes are too small... too many steps.  But later loops
+			// might be an alternative option to try.
+		  {
+			  unsigned char* y;
+
+			  for ( ; x < smallsieve_auxbound[side][1] - 32; x = x + 32) {
+
+				  __mmask32 m;
+				  __mmask32 mn_i;
+				  __m512i xv = _mm512_load_si512(x);
+				  __m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+				  __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+				  vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+				  __m512i xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+				  __m512i xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
+				  __m512i xv4 = _mm512_mask_add_epi16(xv3, 0x88888888, xv3, vp);
+
+				  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+					  //for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+					 // {
+					  thisloc = 0;
+					  while (thisloc < numnzlocs[thisseg])
+					  {
+						  if ((thisloc + 3) < numnzlocs[thisseg])
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+							  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+							  __m512i vloc3 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 2]);
+							  __m512i vloc4 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 3]);
+
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  loc = nzlocs[thisseg][thisloc];
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 2];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 3];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv2) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv2);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv2);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 2];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+									  loc = nzlocs[thisseg][thisloc + 3];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+							  }
+
+							  thisloc += 4;
+						  }
+						  else if ((thisloc + 1) < numnzlocs[thisseg])
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+							  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc+1]);
+
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  loc = nzlocs[thisseg][thisloc];
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2) |
+									  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv2);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv2);
+									  loc = nzlocs[thisseg][thisloc];
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+									  loc = nzlocs[thisseg][thisloc + 1];
+
+									  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+							  }
+
+							  thisloc += 2;
+						  }
+						  else
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(loc);
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  mn_i = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+							  if (mn_i > 0)
+							  {
+								  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv2);
+								  if (m > 0)
+								  {
+									  _mm512_store_si512(xm, xv2);
+									  if ((xm[3]) == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+									  if ((xm[7]) == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+									  if ((xm[11]) == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+									  if ((xm[15]) == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+									  if ((xm[19]) == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+									  if ((xm[23]) == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+									  if ((xm[27]) == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+									  if ((xm[31]) == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+								  }
+
+							  }
+
+							  thisloc++;
+
+						  }
+
+					  }
+
+					  // now update r
+					  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+					  m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+					  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+
+					  xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
+				  }
+				  _mm512_store_si512(x, xv);
+			  }
+
+			  for ( ; x < smallsieve_auxbound[side][1]; x = x + 4) {
+			  	  u32_t p, r, pr;
+			  	  
+			  	  p = x[0];
+			  	  pr = x[1];
+			  	  r = x[3];
+			  	  modulo32 = p;
+
+				  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+			  		  for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+			  		  {
+			  	  		uint32_t loc = nzlocs[thisseg][thisloc];
+			  	  
+			  	  		if (r == loc) *(tds_fbi_curpos[y[r] - 1]++) = p;
+			  	  		if (((r + p) == loc) && ((r + p) < n_i)) *(tds_fbi_curpos[y[r + p] - 1]++) = p;
+			  		  }
+			  		  r = modadd32(r, pr);
+				  }
+				  x[3] = r;
+			  }
+		  }
+
+
+#else
+		  for (; x < smallsieve_auxbound[side][1]; x = x + 4) {
+			  u32_t p, r, pr;
+			  unsigned char* y;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+				  unsigned char* yy, * yy_ub;
+
+				  yy_ub = y + n_i;
+				  yy = y + r;
+				  if (*yy != 0)*(tds_fbi_curpos[*yy - 1]++) = p;
+				  yy += p;
+				  if (yy < yy_ub) {
+					  if (*yy != 0)
+						  *(tds_fbi_curpos[*yy - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
+#endif
+
 #endif
 #ifdef ASM_TDSLINIE0
-	if(x<smallsieve_auxbound[side][0]) {
-	  tdslinie0(x,smallsieve_auxbound[side][0],sieve_interval,tds_fbi_curpos);
-	  x= smallsieve_auxbound[side][0];
-	}
+		  if (x < smallsieve_auxbound[side][0]) {
+			  tdslinie0(x, smallsieve_auxbound[side][0], sieve_interval, tds_fbi_curpos);
+			  x = smallsieve_auxbound[side][0];
+		  }
+
 #else
-	for(;x<smallsieve_auxbound[side][0];x= x+4) {
-	  u32_t p,r,pr;
-	  unsigned char*y;
-	  
-	  p= x[0];
-	  pr= x[1];
-	  r= x[3];
-	  modulo32= p;
-	  for(y= sieve_interval;y<sieve_interval+L1_SIZE;y+= n_i) {
-	    unsigned char*yy,*yy_ub;
-	    
-	    yy_ub= y+n_i;
-	    yy= y+r;
-	    if(yy<yy_ub) {
-	      if(*yy!=0)
-		*(tds_fbi_curpos[*yy-1]++)= p;
-	    }
-	    r= modadd32(r,pr);
-	  }
-	  x[3]= r;
-	}
+
+
+#ifdef AVX512_TDS
+		  // basically we are checking for non-zero sieve locations
+			// in this prime's progression and if we find any, we
+			// append the primes to the end of a list for that
+			// sieve location.  
+			// So we basically re-do all of the sieve, except we are
+			// not writing/modifiying the sieve.
+			// yafu's approach in the QS is different for sufficiently large p.
+			// there, we find all of the non-zero locations, then for each
+			// location, determine which prime progressions hit it by
+			// vector-stepping many primes at once through their progressions
+			// and checking for equality to the index in question.
+			// for the small-prime loop, that strategy doesn't make much sense because
+			// the primes are too small... too many steps.  But later loops
+			// might be an alternative option to try.
+		  {
+			  unsigned char* y;
+
+			  for (; x < smallsieve_auxbound[side][0] - 32; x = x + 32) {
+
+				  __mmask32 m;
+				  __mmask32 mn_i;
+				  __m512i xv = _mm512_load_si512(x);
+				  __m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+				  __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+				  vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+
+				  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+					  //for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+					 // {
+					  thisloc = 0;
+					  while (thisloc < numnzlocs[thisseg])
+					  {
+						  if ((thisloc + 3) < numnzlocs[thisseg])
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+							  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+							  __m512i vloc3 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 2]);
+							  __m512i vloc4 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 3]);
+
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc3, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc4, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  loc = nzlocs[thisseg][thisloc];
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 2];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 3];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  thisloc += 4;
+						  }
+						  else if ((thisloc + 1) < numnzlocs[thisseg])
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(nzlocs[thisseg][thisloc]);
+							  __m512i vloc2 = _mm512_set1_epi16(nzlocs[thisseg][thisloc + 1]);
+
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv) |
+								  _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc2, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  loc = nzlocs[thisseg][thisloc];
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+
+								  loc = nzlocs[thisseg][thisloc + 1];
+
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  thisloc += 2;
+						  }
+						  else
+						  {
+							  uint32_t loc = nzlocs[thisseg][thisloc];
+
+							  __m512i vloc = _mm512_set1_epi16(loc);
+							  m = _mm512_mask_cmpeq_epu16_mask(0x88888888, vloc, xv);
+
+							  if (m > 0)
+							  {
+								  _mm512_store_si512(xm, xv);
+								  if (xm[3] == loc) *(tds_fbi_curpos[y[xm[3]] - 1]++) = x[0];
+								  if (xm[7] == loc) *(tds_fbi_curpos[y[xm[7]] - 1]++) = x[4];
+								  if (xm[11] == loc) *(tds_fbi_curpos[y[xm[11]] - 1]++) = x[8];
+								  if (xm[15] == loc) *(tds_fbi_curpos[y[xm[15]] - 1]++) = x[12];
+								  if (xm[19] == loc) *(tds_fbi_curpos[y[xm[19]] - 1]++) = x[16];
+								  if (xm[23] == loc) *(tds_fbi_curpos[y[xm[23]] - 1]++) = x[20];
+								  if (xm[27] == loc) *(tds_fbi_curpos[y[xm[27]] - 1]++) = x[24];
+								  if (xm[31] == loc) *(tds_fbi_curpos[y[xm[31]] - 1]++) = x[28];
+							  }
+
+							  thisloc++;
+
+						  }
+
+					  }
+
+					  // now update r
+					  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+					  m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+					  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+				  }
+				  _mm512_store_si512(x, xv);
+			  }
+
+			  for (; x < smallsieve_auxbound[side][0]; x = x + 4) {
+				  u32_t p, r, pr;
+
+				  p = x[0];
+				  pr = x[1];
+				  r = x[3];
+				  modulo32 = p;
+
+				  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
+
+					  for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
+					  {
+						  uint32_t loc = nzlocs[thisseg][thisloc];
+
+						  if (((r) == loc) && ((r) < n_i)) *(tds_fbi_curpos[y[r] - 1]++) = p;
+					  }
+					  r = modadd32(r, pr);
+				  }
+				  x[3] = r;
+			  }
+		  }
+
+
+#else
+
+		  for (; x < smallsieve_auxbound[side][0]; x = x + 4) {
+			  u32_t p, r, pr;
+			  unsigned char* y;
+
+			  p = x[0];
+			  pr = x[1];
+			  r = x[3];
+			  modulo32 = p;
+			  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+				  unsigned char* yy, * yy_ub;
+
+				  yy_ub = y + n_i;
+				  yy = y + r;
+				  if (yy < yy_ub) {
+					  if (*yy != 0)
+						  *(tds_fbi_curpos[*yy - 1]++) = p;
+				  }
+				  r = modadd32(r, pr);
+			  }
+			  x[3] = r;
+		  }
+
 #endif
-	newclock= clock();
-	tds1_clock[side]+= newclock-last_tdclock;
-	last_tdclock= newclock;
-      }
+
+#endif
+		  newclock = clock();
+		  tds1_clock[side] += newclock - last_tdclock;
+		  last_tdclock = newclock;
+	  }
       
       last_j= 0;
-      for(ci= 0,nc1= 0;ci<ncand;ci++) {
-	u32_t*fbp_buf;
-	u32_t*fbp_ptr;
-	u16_t st_i,true_j;
-	i32_t true_i;
-	
-	u32_t coll;
-	{
-	  u16_t jj;
-	  
-	  strip_j= cand[ci]>>i_bits;
-	  jj= j_offset+strip_j;
-	  strip_i= cand[ci]&(n_i-1);
-	  st_i= 2*strip_i+(oddness_type == 2?0:1);
-	  true_j= 2*jj+(oddness_type == 1?0:1);
-	}
-	
-	if(strip_j!=last_j) {
-	  u16_t j_step;
-	  if(strip_j<=last_j)
-	    Schlendrian("TD: Not sorted\n");
-	  j_step= strip_j-last_j;
-	  last_j= strip_j;
+	  for (ci = 0, nc1 = 0; ci < ncand; ci++) {
+		  u32_t* fbp_buf;
+		  u32_t* fbp_ptr;
+		  u16_t st_i, true_j;
+		  i32_t true_i;
+
+		  u32_t coll;
+		  {
+			  u16_t jj;
+
+			  strip_j = cand[ci] >> i_bits;
+			  jj = j_offset + strip_j;
+			  strip_i = cand[ci] & (n_i - 1);
+			  st_i = 2 * strip_i + (oddness_type == 2 ? 0 : 1);
+			  true_j = 2 * jj + (oddness_type == 1 ? 0 : 1);
+		  }
+
+		  if (strip_j != last_j) {
+			  u16_t j_step;
+			  if (strip_j <= last_j)
+				  Schlendrian("TD: Not sorted\n");
+			  j_step = strip_j - last_j;
+			  last_j = strip_j;
+
+
+//#define AVX512_MMX_TD
+
 #ifdef MMX_TD
-	  MMX_TdUpdate(side,j_step);
+			  MMX_TdUpdate(side, j_step);
 #else
-	  {
-	    u32_t i;
-	    u16_t*x,*y;
-	    
-	    y= smalltdsieve_aux[side][j_step-1];
-	    for(i= 0,x= smallsieve_aux[side];x<smallsieve_auxbound[side][0];i++,x+= 4) {
-	      modulo32= x[0];
-	      if(modulo32> p_bound)break;
-	      x[3]= modadd32((u32_t)x[3],(u32_t)y[i]);
-	    }
-	  }
+			  {
+				  u32_t i;
+				  u16_t* x, * y;
+
+
+#ifdef AVX512_MMX_TD
+				  // this is faster than the C loop, but not faster than
+				  // the MMX_TD routines.  Maybe with 32x processing.
+				  y = smalltdsieve_aux[side][j_step - 1];
+				  for (i = 0, x = smallsieve_aux[side]; x < smallsieve_auxbound[side][0] - 32; i+=8, x += 32) {
+
+					  if (x[28] > p_bound)break;
+
+					  __m512i xv = _mm512_load_si512(x);
+					  __m128i yv128 = _mm_loadu_epi16(&y[i]);
+					  __m512i vp = _mm512_slli_epi64(xv, 48);	// align primes with roots
+					  __m512i yv = _mm512_cvtepu16_epi64(yv128);
+					  yv = _mm512_slli_epi64(yv, 48);	// align y with roots
+					  
+					  //x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
+					  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, yv);
+					  __mmask32 m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+					  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+					  _mm512_store_si512(x, xv);
+				  }
+
+				  for ( ; x < smallsieve_auxbound[side][0]; i++, x += 4) {
+					  modulo32 = x[0];
+					  if (modulo32 > p_bound)break;
+					  x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
+				  }
+
+#else
+				  y = smalltdsieve_aux[side][j_step - 1];
+				  for (i = 0, x = smallsieve_aux[side]; x < smallsieve_auxbound[side][0]; i++, x += 4) {
+					  modulo32 = x[0];
+					  if (modulo32 > p_bound)break;
+					  x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
+				  }
 #endif
-	  {
-	    u16_t*x;
-	    for(x= smallpsieve_aux[side];x<smallpsieve_aux_ub[side];x+= 3) {
-	      modulo32= x[0];
-	      x[2]= modsub32(x[2],(j_step)%modulo32);
-	    }
-	  }
-	  
-	}
-	true_i= (i32_t)st_i-(i32_t)i_shift;
-	mpz_set_si(aux1,true_i);
-	mpz_mul_si(aux1,aux1,a0);
-	mpz_set_si(aux2,a1);
-	mpz_mul_ui(aux2,aux2,(u32_t)true_j);
-	mpz_add(sr_a,aux1,aux2);
-	
-	mpz_set_si(aux1,true_i);
-	mpz_mul_si(aux1,aux1,b0);
-	mpz_set_si(aux2,b1);
-	mpz_mul_ui(aux2,aux2,(u32_t)true_j);
-	mpz_add(sr_b,aux1,aux2);
-	
-	if(mpz_sgn(sr_b)<0) {
-	  mpz_neg(sr_b,sr_b);
-	  mpz_neg(sr_a,sr_a);
-	}
-	
-	{
-	  u32_t i;
-	  i= 1;
-	  mpz_set(aux2,sr_a);
-	  mpz_set(aux1,poly[side][0]);
-	  for(;;) {
-	    
-	    mpz_mul(aux1,aux1,sr_b);
-	    mpz_mul(aux3,aux2,poly[side][i]);
-	    mpz_add(aux1,aux1,aux3);
-	    if(++i> poldeg[side])break;
-	    
-	    mpz_mul(aux2,aux2,sr_a);
-	  }
-	}
-	
-	if(td_buf_alloc[side]<nfbp+mpz_sizeinbase(aux1,2)) {
-	  
-	  td_buf_alloc[side]+= 1024;
-	  while(td_buf_alloc[side]<nfbp+mpz_sizeinbase(aux1,2)) {
-	    td_buf_alloc[side]+= 1024;
-	  }
-	  td_buf[side]= xrealloc(td_buf[side],td_buf_alloc[side]*sizeof(**td_buf));
-	  if(side == first_td_side) {
-	    u32_t i,*oldptr;
-	    
-	    oldptr= td_buf1[0];
-	    for(i= 0;i<=nc1;i++)
-	      td_buf1[i]= td_buf[side]+(td_buf1[i]-oldptr);
-	  }
-	}
-	if(side == first_td_side)fbp_buf= td_buf1[nc1];
-	else fbp_buf= td_buf[side];
-	fbp_ptr= fbp_buf;
-	
-	if(side == special_q_side) {
-	  *(fbp_ptr++)= special_q;
-	}
-	
-	{
-	  int np,x;
-	  
-	  x= fss_sv[ci];
-	  np= tds_fbi_curpos[x]-tds_fbi[x];
-	  memcpy(fbp_ptr,tds_fbi[x],np*sizeof(*fbp_ptr));
-	  fbp_ptr+= np;
-	}
-	
-	{
-	  u16_t*x;
-	  
+			  }
+#endif
+			  {
+				  u16_t* x;
+				  for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
+					  modulo32 = x[0];
+					  x[2] = modsub32(x[2], (j_step) % modulo32);
+				  }
+			  }
+
+		  }
+		  true_i = (i32_t)st_i - (i32_t)i_shift;
+		  mpz_set_si(aux1, true_i);
+		  mpz_mul_si(aux1, aux1, a0);
+		  mpz_set_si(aux2, a1);
+		  mpz_mul_ui(aux2, aux2, (u32_t)true_j);
+		  mpz_add(sr_a, aux1, aux2);
+
+		  mpz_set_si(aux1, true_i);
+		  mpz_mul_si(aux1, aux1, b0);
+		  mpz_set_si(aux2, b1);
+		  mpz_mul_ui(aux2, aux2, (u32_t)true_j);
+		  mpz_add(sr_b, aux1, aux2);
+
+		  if (mpz_sgn(sr_b) < 0) {
+			  mpz_neg(sr_b, sr_b);
+			  mpz_neg(sr_a, sr_a);
+		  }
+
+		  {
+			  u32_t i;
+			  i = 1;
+			  mpz_set(aux2, sr_a);
+			  mpz_set(aux1, poly[side][0]);
+			  for (;;) {
+
+				  mpz_mul(aux1, aux1, sr_b);
+				  mpz_mul(aux3, aux2, poly[side][i]);
+				  mpz_add(aux1, aux1, aux3);
+				  if (++i > poldeg[side])break;
+
+				  mpz_mul(aux2, aux2, sr_a);
+			  }
+		  }
+
+		  if (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
+
+			  td_buf_alloc[side] += 1024;
+			  while (td_buf_alloc[side] < nfbp + mpz_sizeinbase(aux1, 2)) {
+				  td_buf_alloc[side] += 1024;
+			  }
+			  td_buf[side] = xrealloc(td_buf[side], td_buf_alloc[side] * sizeof(**td_buf));
+			  if (side == first_td_side) {
+				  u32_t i, * oldptr;
+
+				  oldptr = td_buf1[0];
+				  for (i = 0; i <= nc1; i++)
+					  td_buf1[i] = td_buf[side] + (td_buf1[i] - oldptr);
+			  }
+		  }
+		  if (side == first_td_side)fbp_buf = td_buf1[nc1];
+		  else fbp_buf = td_buf[side];
+		  fbp_ptr = fbp_buf;
+
+		  if (side == special_q_side) {
+			  *(fbp_ptr++) = special_q;
+		  }
+
+		  {
+			  int np, x;
+
+			  x = fss_sv[ci];
+			  np = tds_fbi_curpos[x] - tds_fbi[x];
+			  memcpy(fbp_ptr, tds_fbi[x], np * sizeof(*fbp_ptr));
+			  fbp_ptr += np;
+		  }
+
+		  {
+			  u16_t* x;
+
 #ifndef MMX_TD
+
 #ifdef PREINVERT
-	  {
-	    u32_t*p_inv;
-	    
-	    p_inv= smalltd_pi[side];
-	    for(x= smallsieve_aux[side];
-		x<smallsieve_auxbound[side][0]&&*x<=p_bound;x+= 4,p_inv++) {
-	      modulo32= *x;
-	      
-	      if(((modsub32((u32_t)strip_i,(u32_t)(x[3]))*(*p_inv))&0xffff0000) == 0) {
-		*(fbp_ptr++)= *x;
-	      }
-	    }
-	  }
-	  
+			  {
+				  u32_t* p_inv;
+
+				  p_inv = smalltd_pi[side];
+
+#if AVX512_MMX_TD
+				  __m512i vstrip_i = _mm512_set1_epi64(strip_i);
+				  __m512i zero = _mm512_setzero_si512();
+				  for (x = smallsieve_aux[side];
+					  (x < smallsieve_auxbound[side][0]-32) && x[28] <= p_bound; x += 32, p_inv+=8) {
+
+					  __m512i xv = _mm512_load_si512(x);
+					  __m512i vp = _mm512_and_epi64(xv, _mm512_set1_epi64(0xffff));  // isolate primes
+					  __m256i iv256 = _mm256_loadu_epi32(p_inv);
+					  __m512i vr = _mm512_srli_epi64(xv, 48);	// align roots
+					  __m512i iv = _mm512_cvtepu32_epi64(iv256);
+
+					  __mmask8 m = _mm512_cmpgt_epu64_mask(vr, vstrip_i);
+					  vr = _mm512_sub_epi64(vstrip_i, vr);
+					  vr = _mm512_mask_add_epi64(vr, m, vr, vp);
+
+					  iv = _mm512_mul_epu32(iv, vr);				  
+					  m = _mm512_cmpeq_epu64_mask(_mm512_and_epi64(iv, _mm512_set1_epi64(0xffff0000)), zero);
+					  uint32_t m32 = m & 0xff;
+					  while (m32 > 0)
+					  {
+						  uint32_t id = _tzcnt_u32(m32);
+						  *(fbp_ptr++) = x[4*id];
+						  m32 = _blsr_u32(m32);
+					  }
+				  }
+
+				  for (;
+					  x < smallsieve_auxbound[side][0] && *x <= p_bound; x += 4, p_inv++) {
+					  modulo32 = *x;
+
+					  if (((modsub32((u32_t)strip_i, (u32_t)(x[3])) * (*p_inv)) & 0xffff0000) == 0) {
+						  *(fbp_ptr++) = *x;
+					  }
+				  }
 #else
-	  for(x= smallsieve_aux[side];
-	      x<smallsieve_auxbound[side][0]&&*x<=p_bound;x+= 4) {
-	    u32_t p;
-	    
-	    p= *x;
-	    if(strip_i%p == x[3])
-	      *(fbp_ptr++)= p;
-	  }
+				  for (x = smallsieve_aux[side];
+					  x < smallsieve_auxbound[side][0] && *x <= p_bound; x += 4, p_inv++) {
+					  modulo32 = *x;
+
+					  if (((modsub32((u32_t)strip_i, (u32_t)(x[3])) * (*p_inv)) & 0xffff0000) == 0) {
+						  *(fbp_ptr++) = *x;
+					  }
+				  }
+#endif
+			  }
+
+#else
+
+//#define AVX512_MMX_TD
+
+#if 0 //def AVX512_MMX_TD
+
+			  // needs a faster vector divide
+			  __m512i vstrip_i = _mm512_set1_epi64(strip_i);
+			  __m512i zero = _mm512_setzero_si512();
+			  for (x = smallsieve_aux[side];
+				  (x < (smallsieve_auxbound[side][0] - 32)) && (x[28] <= p_bound); x += 32) {
+
+				  __m512i xv = _mm512_load_si512(x);
+				  __m512i vp = _mm512_and_epi64(xv, _mm512_set1_epi64(0xffff));  // isolate primes
+				  __m512i vr = _mm512_srli_epi64(xv, 48);	// align roots
+
+				  __m512i vt = _mm512_rem_epu64(vstrip_i, vp);
+				  __mmask8 m = _mm512_cmpeq_epu64_mask(vt, vr);
+
+				  while (m > 0)
+				  {
+					  uint32_t id = _tzcnt_u32(m);
+					  *(fbp_ptr++) = x[4 * id];
+					  m = _blsr_u32(m);
+				  }
+			  }
+
+			  for ( ;
+				  x < smallsieve_auxbound[side][0] && *x <= p_bound; x += 4) {
+				  u32_t p;
+
+				  p = *x;
+				  if (strip_i % p == x[3])
+					  *(fbp_ptr++) = p;
+			  }
+
+#else
+			  for (x = smallsieve_aux[side];
+				  x < smallsieve_auxbound[side][0] && *x <= p_bound; x += 4) {
+				  u32_t p;
+
+				  p = *x;
+				  if (strip_i % p == x[3])
+					  *(fbp_ptr++) = p;
+			  }
+#endif
+
 #endif
 #else
-	  fbp_ptr= MMX_Td(fbp_ptr,side,strip_i);
+			  fbp_ptr = MMX_Td(fbp_ptr, side, strip_i);
 #endif
-	  for(x= smallpsieve_aux[side];x<smallpsieve_aux_ub_pow1[side];x+= 3) {
-	    if(x[2] == 0) {
-	      *(fbp_ptr++)= *x;
-	    }
-	  }
-	}
-	
-	fbp_ptr= mpz_trialdiv(aux1,fbp_buf,fbp_ptr-fbp_buf,
-			      tds_coll[fss_sv[ci]] == 0?"td error":NULL);
-	
-	if(mpz_sizeinbase(aux1,2)<=max_factorbits[side]) {
-	  n_tdsurvivors[side]++;
-	  if(side == first_td_side) {
-	    if(mpz_sgn(aux1)> 0)
-	      mpz_set(td_rests[nc1],aux1);
-	    else
-	      mpz_neg(td_rests[nc1],aux1);
-	    cand[nc1++]= cand[ci];
-	    td_buf1[nc1]= fbp_ptr;
-	    nfbp= fbp_ptr-td_buf[side];
-	    continue;
-	  }
-	  if(mpz_sgn(aux1)<0)mpz_neg(aux1,aux1);
+			  for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub_pow1[side]; x += 3) {
+				  if (x[2] == 0) {
+					  *(fbp_ptr++) = *x;
+				  }
+			  }
+		  }
+
+		  fbp_ptr = mpz_trialdiv(aux1, fbp_buf, fbp_ptr - fbp_buf,
+			  tds_coll[fss_sv[ci]] == 0 ? "td error" : NULL);
+
+		  if (mpz_sizeinbase(aux1, 2) <= max_factorbits[side]) {
+			  n_tdsurvivors[side]++;
+			  if (side == first_td_side) {
+				  if (mpz_sgn(aux1) > 0)
+					  mpz_set(td_rests[nc1], aux1);
+				  else
+					  mpz_neg(td_rests[nc1], aux1);
+				  cand[nc1++] = cand[ci];
+				  td_buf1[nc1] = fbp_ptr;
+				  nfbp = fbp_ptr - td_buf[side];
+				  continue;
+			  }
+			  if (mpz_sgn(aux1) < 0)mpz_neg(aux1, aux1);
 #if TDS_MPQS == TDS_IMMEDIATELY
-	  output_tdsurvivor(td_buf1[ci],td_buf1[ci+1],fbp_buf,fbp_ptr,
-			    td_rests[ci],aux1);
+			  output_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
+				  td_rests[ci], aux1);
 #else
 #if TDS_PRIMALITY_TEST == TDS_IMMEDIATELY
-	  mpz_set(large_factors[first_td_side],td_rests[ci]);
-	  mpz_set(large_factors[1-first_td_side],aux1);
-	  if(primality_tests() == 1) {
-	    store_tdsurvivor(td_buf1[ci],td_buf1[ci+1],fbp_buf,fbp_ptr,
-			     large_factors[first_td_side],
-			     large_factors[1-first_td_side]);
-	  }
+			  mpz_set(large_factors[first_td_side], td_rests[ci]);
+			  mpz_set(large_factors[1 - first_td_side], aux1);
+			  if (primality_tests() == 1) {
+				  store_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
+					  large_factors[first_td_side],
+					  large_factors[1 - first_td_side]);
+			  }
 #else
-	  store_tdsurvivor(td_buf1[ci],td_buf1[ci+1],fbp_buf,fbp_ptr,
-			   td_rests[ci],aux1);
+			  store_tdsurvivor(td_buf1[ci], td_buf1[ci + 1], fbp_buf, fbp_ptr,
+				  td_rests[ci], aux1);
 #endif 
 #endif 
-	  
-	} else continue;
-	
-      }
+
+		  }
+		  else continue;
+
+	  }
 #ifndef MMX_TD
       {
 	u16_t j_step;
@@ -4036,14 +5917,14 @@ trial_divide()
 	
       }
 #else
-      {
-	u16_t*x,j_step;
-	j_step= j_per_strip-last_j;
-	for(x= smallpsieve_aux[side];x<smallpsieve_aux_ub[side];x+= 3) {
-	  if((modulo32= x[0]))
-	    x[2]= modsub32(x[2],(j_step)%modulo32);
-	}
-      }
+	  {
+		  u16_t* x, j_step;
+		  j_step = j_per_strip - last_j;
+		  for (x = smallpsieve_aux[side]; x < smallpsieve_aux_ub[side]; x += 3) {
+			  if ((modulo32 = x[0]))
+				  x[2] = modsub32(x[2], (j_step) % modulo32);
+		  }
+	  }
 #endif
       newclock= clock();
       tds4_clock[side]+= newclock-last_tdclock;

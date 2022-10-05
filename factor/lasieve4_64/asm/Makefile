@@ -8,9 +8,15 @@
 # 02111-1307, USA.
 
 CFLAGS= -O3 -march=native -mtune=native -I. -I../../../../gmp_install/gmp-6.2.0/include
+
+ifeq ($(AVX512_TD),1)
+	CFLAGS += -DAVX512_TD
+endif
+
+#-static-intel
 #CFLAGS= -g
 
-CC=gcc-11.1.0
+CC=gcc
 CTANGLE=ctangle
 
 SRCFILES=gcd32.c 32bit.h modinv32.c psp.c Makefile \
