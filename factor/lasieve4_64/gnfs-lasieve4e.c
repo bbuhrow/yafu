@@ -77,6 +77,24 @@
 u32_t nss= 0,nzss[3]= {0,0,0};
 #endif
 
+//#define AVX512_SIEVEA
+//#define AVX512_SIEVE4
+//#define AVX512_SIEVE3
+//#define AVX512_SIEVE2
+//#define AVX512_SIEVE1
+
+#ifdef AVX512_SIEVE4
+uint64_t*** rtab_s0;
+uint64_t*** rtab_s1;
+
+static int presieve_bound_p = 31;
+static int rtab_lookup[32] = { 0,0,0,0,0,1,0,2,0,0,0,3,0,4,0,0,0,5,0,6,0,0,0,7,0,0,0,0,0,8,0,9};
+static int steps[32] = { 0,0,0,63,0,60,0,63,0,0,0,55,0,52,0,0,0,51,0,57,0,0,0,46,0,0,0,0,0,58,0,62};
+static int initialized_rtab_s1[10] = {0,0,0,0,0,0,0,0,0,0};
+static int initialized_rtab_s0[10] = {0,0,0,0,0,0,0,0,0,0};
+static int all_initialized_s[2] = { 0,0 };
+#endif
+
 static float FB_bound[2],sieve_report_multiplier[2];
 static u16_t sieve_min[2],max_primebits[2],max_factorbits[2];
 static u32_t*(FB[2]),*(proots[2]),FBsize[2];
@@ -572,8 +590,11 @@ int main(int argc, char **argv)
 #ifdef AVX512_LASCHED
 	  sprintf(features, "%s,avx-512 lasched", features);
 #endif
+#ifdef AVX512_SIEVE1
+	  sprintf(features, "%s,avx-512 sieve1", features);
+#endif
 	  if (verbose) { /* first rudimentary test of automatic $Rev reporting */
-		  fprintf(stderr, "gnfs-lasieve4I%de (%s): L1_BITS=%d, SVN $Revision: 430 $\n", 
+		  fprintf(stderr, "gnfs-lasieve4I%de (%s): L1_BITS=%d\n", 
 			  I_bits, features, L1_BITS);
 	  }
 
@@ -628,12 +649,26 @@ int main(int argc, char **argv)
 	  mpz_init(rational_rest);
 	  mpz_init(algebraic_rest);
 
-
+	  // for tinyecm
 	  mpz_init(factor1);
 	  mpz_init(factor2);
 	  mpz_init(factor3);
 	  pran = 42;
 
+#ifdef AVX512_SIEVE4
+	  // for the small-prime sieve
+	  rtab_s0 = (uint64_t***)malloc(10 * sizeof(uint64_t**));
+	  rtab_s1 = (uint64_t***)malloc(10 * sizeof(uint64_t**));
+	  for (i = 0; i < 10; i++) {
+		  rtab_s0[i] = (uint64_t**)malloc(32 * sizeof(uint64_t*));
+		  rtab_s1[i] = (uint64_t**)malloc(32 * sizeof(uint64_t*));
+		  int j;
+		  for (j = 0; j < 32; j++) {
+			  rtab_s0[i][j] = (uint64_t*)malloc(8 * sizeof(uint64_t));
+			  rtab_s1[i][j] = (uint64_t*)malloc(8 * sizeof(uint64_t));
+		  }
+	  }
+#endif
 
 	  //input_poly(N,poly,poldeg,poly+1,poldeg+1,m,input_data);
 #if 0
@@ -2293,229 +2328,168 @@ int main(int argc, char **argv)
 						sieve_clock += clock_diff;
 						last_clock = new_clock;
 
-//#define AVX512_SIEVEA
-//#define AVX512_SIEVE4
-//#define AVX512_SIEVE3
-//#define AVX512_SIEVE2
-//#define AVX512_SIEVE1
 
-				#ifdef AVX512_SIEVEA
-						{
-							u16_t* x;
-
-							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4] - 32; x += 32)
-							{
-								// for reference, sieve info is packed into x thus:
-								//p = x[0];
-								//pr = x[1];
-								//l = x[2];
-								//r = x[3];
-								unsigned char *y;
-								__m512i vni = _mm512_set1_epi16(n_i);
-								__m512i xv = _mm512_load_si512(x);
-								__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
-								__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
-								vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
-								uint16_t xm[32];
-								__mmask32 m;
-								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-
-									_mm512_store_epi64(xm, xv);
-									
-									*(y + xm[3] ) += xm[ 2];
-									*(y + xm[7] ) += xm[ 6];
-									*(y + xm[11]) += xm[10];
-									*(y + xm[15]) += xm[14];
-									*(y + xm[19]) += xm[18];
-									*(y + xm[23]) += xm[22];
-									*(y + xm[27]) += xm[26];
-									*(y + xm[31]) += xm[30];
-
-									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
-
-									_mm512_store_epi64(xm, xv);
-
-									*(y + xm[3]) += xm[2];
-									*(y + xm[7]) += xm[6];
-									*(y + xm[11]) += xm[10];
-									*(y + xm[15]) += xm[14];
-									*(y + xm[19]) += xm[18];
-									*(y + xm[23]) += xm[22];
-									*(y + xm[27]) += xm[26];
-									*(y + xm[31]) += xm[30];
-
-									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
-
-									_mm512_store_epi64(xm, xv);
-
-									*(y + xm[3]) += xm[2];
-									*(y + xm[7]) += xm[6];
-									*(y + xm[11]) += xm[10];
-									*(y + xm[15]) += xm[14];
-									*(y + xm[19]) += xm[18];
-									*(y + xm[23]) += xm[22];
-									*(y + xm[27]) += xm[26];
-									*(y + xm[31]) += xm[30];
-
-									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
-
-									_mm512_store_epi64(xm, xv);
-
-									*(y + xm[3]) += xm[2];
-									*(y + xm[7]) += xm[6];
-									*(y + xm[11]) += xm[10];
-									*(y + xm[15]) += xm[14];
-									*(y + xm[19]) += xm[18];
-									*(y + xm[23]) += xm[22];
-									*(y + xm[27]) += xm[26];
-									*(y + xm[31]) += xm[30];
-
-									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
-
-									_mm512_store_epi64(xm, xv);
-
-									while ((y + xm[ 3]) < (y + n_i)) { *(y + xm[ 3]) += xm[ 2]; xm[3] += xm[0];}
-									while ((y + xm[ 7]) < (y + n_i)) { *(y + xm[ 7]) += xm[ 6]; xm[7] += xm[4]; }
-									while ((y + xm[11]) < (y + n_i)) { *(y + xm[11]) += xm[10]; xm[11] += xm[8]; }
-									while ((y + xm[15]) < (y + n_i)) { *(y + xm[15]) += xm[14]; xm[15] += xm[12]; }
-									while ((y + xm[19]) < (y + n_i)) { *(y + xm[19]) += xm[18]; xm[19] += xm[16]; }
-									while ((y + xm[23]) < (y + n_i)) { *(y + xm[23]) += xm[22]; xm[23] += xm[20]; }
-									while ((y + xm[27]) < (y + n_i)) { *(y + xm[27]) += xm[26]; xm[27] += xm[24]; }
-									while ((y + xm[31]) < (y + n_i)) { *(y + xm[31]) += xm[30]; xm[31] += xm[28]; }
-
-									// now update r
-									xv = _mm512_load_si512(x);
-									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
-									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
-									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
-								}
-							}
-
-							{
-								// primes here are less than 4096, so no unrolling here 
-								// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
-								//for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][1]; x += 4) {
-								for ( ; x < smallsieve_auxbound[s][1]; x += 4) {
-									u32_t p, r, pr;
-									unsigned char l, * y;
-
-									p = x[0];
-									pr = x[1];
-									l = x[2];
-									r = x[3];
-
-									for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-										unsigned char* yy;
-
-										yy = y + r;
-										*(yy) += l;
-										yy += p;
-										while (yy < (y + n_i)) {
-											*(yy) += l;
-											yy += p;
-										}
-										r = r + pr;
-										if (r >= p)r = r - p;
-									}
-#if 0
-									x[3] = r;
-#endif
-								}
-							}
-						}
+				
 
 
-
-		#elif defined( ASM_LINESIEVER) && !defined(AVX512_SIEVE4)
+		#if defined( ASM_LINESIEVER) && !defined(AVX512_SIEVE4)
 						slinie(smallsieve_tinybound[s], smallsieve_auxbound[s][4], sieve_interval);
 		#else
 						{
 							u16_t* x;
 
-							// primes here are less than 1024, we unroll the sieve 4x 
-							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
 #ifdef AVX512_SIEVE4
-							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 4) {
-							//if (0) {
-								u32_t p, r, pr;
-								unsigned char l, * y;
+							// Sadly, this isn't any faster... it seemed like
+							// a good idea and helps in the SoE :(
+							if (!all_initialized_s[s]) {
+								for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 4) {
+									u32_t p;
+									unsigned char l;
+									uint64_t** rtab;
 
-								p = x[0];	// prime
-								pr = x[1];	// prime root/recurrence?
-								l = x[2];	// log
-								r = x[3];	// starting root/recurrence?
-
-								if (p > 64) break;
-
-								__m512i vl = _mm512_set1_epi8(l);
-								uint64_t m = 0;
-								u32_t idx;
-								for (idx = r; idx < 64; idx += p)
-								{
-									m |= (1ull << idx);
-								}
-
-								//printf("p = %u, r = %u, l = %u, m = %016lx\n", p, r, l, m);
-								//
-								//{
-								//	int a;
-								//	printf("before sieve\n");
-								//	y = sieve_interval;
-								//	for (a = 0; a < n_i; a++)
-								//	{
-								//		if (a % 32 == 0)printf("\n");
-								//		printf("%02x", y[a]);
-								//	}
-								//	printf("\n");
-								//}
-
-								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
-									unsigned char* yy;
+									p = x[0];	// prime
+									l = x[2];	// log
 
 									// there isn't any small-prime variation in the siever
 									// that I can see and as a result, we sieve with some
 									// very small primes.  The idea in this loop is to 
-									// do an initial sieve in a bit-mask, and then stream
-									// out writes of rotations of this mask.
-									// TODO: the mask needs to be 512-bits worth... and
-									// we need all the possible offsets for this prime, like
+									// do an initial sieve in a byte-mask, and then stream
+									// out writes of rotations of this mask, like
 									// in SoE presieving.
-									for (yy = y; yy < (y + n_i); yy += 64)
+									if (p > presieve_bound_p) break;
+
+									if ((s == 0) && !initialized_rtab_s0[rtab_lookup[p]])
 									{
-										__m512i vy = _mm512_load_si512(yy);
-										vy = _mm512_mask_add_epi8(vy, m, vy, vl);
-										_mm512_store_si512(yy, vy);
-										//_rotl64(m, p);
-										//m = (m << p) | (m >> (64-p));
-										//printf("m = %016lx\n", m);
-										m = 0;
-										for (idx-=64; idx < 64; idx += p)
+										int j, k;
+										rtab = rtab_s0[rtab_lookup[p]];
+
+										//printf("uint64_t rtab_s0[%d][%d][8] = {\n", rtab_lookup[p], p);
+										for (j = 0; j < p; j++)
 										{
-											m |= (1ull << idx);
+											for (k = 0; k < 8; k++)
+												rtab[j][k] = 0;
+
+											//printf("{");
+											// make the 64-byte vector for the prime/offset
+											for (k = j; k < 64; k += p)
+											{
+												rtab[j][k / 8] |= ((uint64_t)l << (8 * (k & 7)));
+											}
+											//for (k = 0; k < 7; k++)
+											//	printf("0x%016lxULL, ", rtab[j][k]);
+											//printf("0x%016lxULL},\n", rtab[j][k]);
 										}
+										//printf("};\n");
+										initialized_rtab_s0[rtab_lookup[p]] = 1;
 									}
-									
-									//
-									//	int a;
-									//	printf("after sieve\n");
-									//	y = sieve_interval;
-									//	for (a = 0; a < n_i; a++)
-									//	{
-									//		if (a % 32 == 0)printf("\n");
-									//		printf("%02x", y[a]);
-									//	}
-									//	printf("\n");
-									//	fflush(stdout);
-									//	exit(1);
-									//
+									else if ((s == 1) && !initialized_rtab_s1[rtab_lookup[p]])
+									{
+										int j, k;
+										rtab = rtab_s1[rtab_lookup[p]];
+										//printf("uint64_t rtab_s1[%d][%d][8] = {\n", rtab_lookup[p], p);
+										for (j = 0; j < p; j++)
+										{
+											for (k = 0; k < 8; k++)
+												rtab[j][k] = 0;
 
-									r = r + pr;
-									if (r >= p)r = r - p;
+											//printf("{");
+											// make the 64-byte vector for the prime/offset
+											for (k = j; k < 64; k += p)
+											{
+												rtab[j][k / 8] |= ((uint64_t)l << (8 * (k & 7)));
+											}
+											//for (k = 0; k < 7; k++)
+											//	printf("0x%016lxULL, ", rtab[j][k]);
+											//printf("0x%016lxULL},\n", rtab[j][k]);
+										}
+										//printf("};\n");
+										initialized_rtab_s1[rtab_lookup[p]] = 1;
+									}
+
 								}
-
-								
+								all_initialized_s[s] = 1;
 							}
 
+							for (x = smallsieve_tinybound[s]; x < smallsieve_auxbound[s][4]; x += 16) {
+								unsigned char *y;
+								uint64_t** rtab1;
+								uint64_t** rtab2;
+								uint64_t** rtab3;
+								uint64_t** rtab4;
+
+								if (x[12] > presieve_bound_p) break;
+
+								if (s == 0)
+								{
+									rtab1 = rtab_s0[rtab_lookup[x[0]]];
+									rtab2 = rtab_s0[rtab_lookup[x[4]]];
+									rtab3 = rtab_s0[rtab_lookup[x[8]]];
+									rtab4 = rtab_s0[rtab_lookup[x[12]]];
+								}
+								else
+								{
+									rtab1 = rtab_s1[rtab_lookup[x[0]]];
+									rtab2 = rtab_s1[rtab_lookup[x[4]]];
+									rtab3 = rtab_s1[rtab_lookup[x[8]]];
+									rtab4 = rtab_s1[rtab_lookup[x[12]]];
+								}
+								int step1 = steps[x[ 0]];
+								int step2 = steps[x[ 4]];
+								int step3 = steps[x[ 8]];
+								int step4 = steps[x[12]];
+								u32_t r1 = x[3];
+								u32_t r2 = x[7];
+								u32_t r3 = x[11];
+								u32_t r4 = x[15];
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+									unsigned char* yy;
+
+									int rr1 = r1;
+									int rr2 = r2;
+									int rr3 = r3;
+									int rr4 = r4;
+									for (yy = y; yy < (y + n_i); yy += 64)
+									{
+										// load all of the presieved 64B chuncks for these
+										// four primes as well as this chunck of the sieve interval.
+										__m512i vl1 = _mm512_load_si512(rtab1[rr1]);
+										__m512i vl2 = _mm512_load_si512(rtab2[rr2]);
+										__m512i vl3 = _mm512_load_si512(rtab3[rr3]);
+										__m512i vl4 = _mm512_load_si512(rtab4[rr4]);
+										__m512i vy = _mm512_load_si512(yy);
+										// combine the presieved chuncks and write it out.
+										vl1 = _mm512_add_epi8(vl3, vl1);
+										vl2 = _mm512_add_epi8(vl4, vl2);
+										vy = _mm512_add_epi8(vy, vl1);
+										vy = _mm512_add_epi8(vy, vl2);
+										_mm512_store_si512(yy, vy);
+
+										// next rotation
+										rr1 += step1;
+										rr2 += step2;
+										rr3 += step3;
+										rr4 += step4;
+										rr1 = (rr1 >= 64) ? rr1 - 64 : rr1 + x[ 0] - 64;
+										rr2 = (rr2 >= 64) ? rr2 - 64 : rr2 + x[ 4] - 64;
+										rr3 = (rr3 >= 64) ? rr3 - 64 : rr3 + x[ 8] - 64;
+										rr4 = (rr4 >= 64) ? rr4 - 64 : rr4 + x[12] - 64;
+									}
+
+									r1 = r1 + x[1];
+									r2 = r2 + x[5];
+									r3 = r3 + x[9];
+									r4 = r4 + x[13];
+									if (r1 >= x[ 0])r1 = r1 - x[ 0];
+									if (r2 >= x[ 4])r2 = r2 - x[ 4];
+									if (r3 >= x[ 8])r3 = r3 - x[ 8];
+									if (r4 >= x[12])r4 = r4 - x[12];
+								}
+							}
+
+							_mm256_zeroupper();
+
+							// primes here are less than n_i/4, we unroll the sieve 4x 
+							// over those chunks.
 							//x = smallsieve_tinybound[s]
 							for ( ; x < smallsieve_auxbound[s][4]; x += 4) {
 #else
@@ -2528,20 +2502,6 @@ int main(int argc, char **argv)
 								pr = x[1];	// prime root/recurrence?
 								l = x[2];	// log
 								r = x[3];	// starting root/recurrence?
-
-								//printf("p = %u, r = %u, l = %u, m = %016lx\n", p, r, l, m);
-								//
-								//{
-								//	int a;
-								//	printf("before sieve\n");
-								//	y = sieve_interval;
-								//	for (a = 0; a < n_i; a++)
-								//	{
-								//		if (a % 32 == 0)printf("\n");
-								//		printf("%02x", y[a]);
-								//	}
-								//	printf("\n");
-								//}
 
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 									unsigned char* yy, * yy_ub;
@@ -2559,38 +2519,17 @@ int main(int argc, char **argv)
 									}
 									r = r + pr;
 									if (r >= p)r = r - p;
-
-									//{
-									//	int a;
-									//	printf("after sieve\n");
-									//	y = sieve_interval;
-									//	for (a = 0; a < n_i; a++)
-									//	{
-									//		if (a % 32 == 0)printf("\n");
-									//		printf("%02x", y[a]);
-									//	}
-									//	printf("\n");
-									//	fflush(stdout);
-									//	exit(1);
-									//}
 								}
 							}
 						}
 		#endif
 
 
-		#ifndef AVX512_SIEVEA	//1
 		#if defined( ASM_LINESIEVER3)  && !defined(AVX512_SIEVE3)
 						slinie3(smallsieve_auxbound[s][4], smallsieve_auxbound[s][3], sieve_interval);
 		#else
 						{
 							u16_t* x;
-
-							//printf("ASM_LINESIEVER3: sieve %u primes; n_i = %u\n",
-							//	(smallsieve_auxbound[s][3] - smallsieve_auxbound[s][4]) / 4, n_i);
-
-							// primes here are less than 4096/3, we unroll the sieve 3x 
-							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
 							for (x = smallsieve_auxbound[s][4]; x < smallsieve_auxbound[s][3]; x += 4) {
 								u32_t p, r, pr;
 								unsigned char l, * y;
@@ -2599,7 +2538,6 @@ int main(int argc, char **argv)
 								pr = x[1];
 								l = x[2];
 								r = x[3];
-								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 									unsigned char* yy;
 
@@ -2618,21 +2556,14 @@ int main(int argc, char **argv)
 							}
 						}
 		#endif
-		#endif
 
 
-		#ifndef AVX512_SIEVEA // 1
 		#if defined( ASM_LINESIEVER2)  && !defined(AVX512_SIEVE2)
 						slinie2(smallsieve_auxbound[s][3], smallsieve_auxbound[s][2], sieve_interval);
 		#else
 						{
 							u16_t* x;
 
-							//printf("ASM_LINESIEVER2: sieve %u primes; n_i = %u\n",
-							//	(smallsieve_auxbound[s][2] - smallsieve_auxbound[s][3]) / 4, n_i);
-
-							// primes here are less than 4096/2, we unroll the sieve 2x 
-							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
 							for (x = smallsieve_auxbound[s][3]; x < smallsieve_auxbound[s][2]; x += 4) {
 								u32_t p, r, pr;
 								unsigned char l, * y;
@@ -2641,7 +2572,7 @@ int main(int argc, char **argv)
 								pr = x[1];
 								l = x[2];
 								r = x[3];
-								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 									unsigned char* yy;
 
@@ -2659,18 +2590,70 @@ int main(int argc, char **argv)
 							}
 						}
 		#endif
-		#endif
 
 
-		#ifndef AVX512_SIEVEA //  1
 		#if defined( ASM_LINESIEVER1)  && !defined(AVX512_SIEVE1)
 						slinie1(smallsieve_auxbound[s][2], smallsieve_auxbound[s][1], sieve_interval);
 		#else
 						{
 							u16_t* x;
-							// primes here are less than 4096, so no unrolling here 
-							// over the 4096-byte chunks.  Those numbers probably scale with I_bits.
+
+#if defined(AVX512_SIEVE1)
+							// in this interval primes hit once; after that we have to check.
+							// do 8 at a time.
+							__m512i vni = _mm512_set1_epi16(n_i);
+							for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1] - 32; x += 32)
+							{
+								// for reference, sieve info is packed into x thus:
+								//p = x[0];
+								//pr = x[1];
+								//l = x[2];
+								//r = x[3];
+								unsigned char* y, l = x[30];	// assume these 8 primes have the same log
+								__m512i xv = _mm512_load_si512(x);
+								__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+								__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+								vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+								uint16_t xm[32];
+								__mmask32 m;
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+									_mm512_store_epi64(xm, xv);
+
+									*(y + xm[ 3]) += l;
+									*(y + xm[ 7]) += l;
+									*(y + xm[11]) += l;
+									*(y + xm[15]) += l;
+									*(y + xm[19]) += l;
+									*(y + xm[23]) += l;
+									*(y + xm[27]) += l;
+									*(y + xm[31]) += l;
+
+									__m512i xv2 = _mm512_add_epi16(xv, vp);
+									m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+									// as primes get larger, fewer of them will hit twice,
+									// so it's faster to go directly to the set bits.
+									while (m > 0)
+									{
+										int id = _tzcnt_u32(m) / 4;
+										*(y + xm[id*4] + xm[id*4+3]) += l;
+										m = _blsr_u32(m);
+									}
+
+									// now update r
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+								}
+							}
+
+							//x = smallsieve_auxbound[s][2]
+							for (; x < smallsieve_auxbound[s][1]; x += 4) {
+
+#else
 							for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1]; x += 4) {
+#endif
 								u32_t p, r, pr;
 								unsigned char l, * y;
 
@@ -2678,7 +2661,7 @@ int main(int argc, char **argv)
 								pr = x[1];
 								l = x[2];
 								r = x[3];
-								//printf("p=%u, pr=%u, l=%u, r=%u\n", p, pr, l, r);
+
 								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
 									unsigned char* yy;
 
@@ -2694,7 +2677,6 @@ int main(int argc, char **argv)
 		#endif
 							}
 						}
-		#endif
 		#endif
 
 		#if 0
@@ -2725,6 +2707,7 @@ int main(int argc, char **argv)
 						{
 							u16_t* x;
 
+							// these are the small prime powers...
 							for (x = smallsieve_tinybound1[s]; x < smallsieve_aux1_ub[s]; x += 6) {
 								u32_t p, r, pr, d, d0;
 								unsigned char l;
@@ -3795,6 +3778,8 @@ trial_divide()
 
 #if 1
 				  // very similar speed to ASM_SCHEDTDSIEVE2... gathers are slow.
+				  // it might be faster for really big inputs that use large factor
+				  // bases.
 				  __m512i zero = _mm512_setzero_si512();
 				  b0 = sched_tds_buffer;
 				  b0_ub = b0 + SCHED_TDS_BUFSIZE;

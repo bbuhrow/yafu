@@ -26,6 +26,10 @@ ifeq ($(AVX512_TD),1)
 	CFLAGS += -DAVX512_TD
 endif
 
+ifeq ($(AVX512_SIEVE1),1)
+	CFLAGS += -DAVX512_SIEVE1
+endif
+
 ifeq ($(LASTATS),1)
 	CFLAGS += -DGATHER_STAT
 endif
