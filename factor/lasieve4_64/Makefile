@@ -53,7 +53,7 @@ OBJS=if.o input-poly.o redu2.o recurrence6.o fbgen.o ../gmp-ecm/microecm.o tinye
      real-poly-aux.o primgen32.o lasieve-prepn.o mpqs.o
 
 ifeq ($(AVX512_LASCHED),1)
-	SRCFILES += asm/lasched.c
+	SRCFILES += asm/lasched.c asm/medsched.c
 endif
 
 
@@ -79,22 +79,25 @@ gnfs-lasieve4eI%.o: gnfs-lasieve4e.c
 asm/lasched%.o: asm/lasched.c
 	$(CC) $(CFLAGS) $(INC) -c -DI_bits=$* -o $@ $<
 
-gnfs-lasieve4I11e: gnfs-lasieve4eI11.o asm/lasched11.o $(OBJS) libgmp-aux.a \
+asm/medsched%.o: asm/medsched.c
+	$(CC) $(CFLAGS) $(INC) -c -DI_bits=$* -o $@ $<
+	
+gnfs-lasieve4I11e: gnfs-lasieve4eI11.o asm/lasched11.o asm/medsched11.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI11.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I12e: gnfs-lasieve4eI12.o asm/lasched12.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I12e: gnfs-lasieve4eI12.o asm/lasched12.o asm/medsched12.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI12.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I13e: gnfs-lasieve4eI13.o asm/lasched13.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I13e: gnfs-lasieve4eI13.o asm/lasched13.o asm/medsched13.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI13.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I14e: gnfs-lasieve4eI14.o asm/lasched14.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I14e: gnfs-lasieve4eI14.o asm/lasched14.o asm/medsched14.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI14.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I15e: gnfs-lasieve4eI15.o asm/lasched15.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I15e: gnfs-lasieve4eI15.o asm/lasched15.o asm/medsched15.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI15.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-gnfs-lasieve4I16e: gnfs-lasieve4eI16.o asm/lasched16.o $(OBJS) libgmp-aux.a \
+gnfs-lasieve4I16e: gnfs-lasieve4eI16.o asm/lasched16.o asm/medsched16.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI16.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
 
