@@ -83,6 +83,10 @@ u32_t nss= 0,nzss[3]= {0,0,0};
 //#define AVX512_SIEVE2
 //#define AVX512_SIEVE1
 
+#ifdef _MSC_VER
+#define AVX512_SIEVE1
+#endif
+
 #ifdef AVX512_SIEVE4
 uint64_t*** rtab_s0;
 uint64_t*** rtab_s1;
@@ -592,6 +596,9 @@ int main(int argc, char **argv)
 #endif
 #ifdef AVX512_SIEVE1
 	  sprintf(features, "%s,avx-512 sieve1", features);
+#endif
+#ifdef AVX512_ECM
+	  sprintf(features, "%s,avx-512 ecm", features);
 #endif
 	  if (verbose) { /* first rudimentary test of automatic $Rev reporting */
 		  fprintf(stderr, "gnfs-lasieve4I%de (%s): L1_BITS=%d\n", 
@@ -1207,7 +1214,7 @@ int main(int argc, char **argv)
     }
   }
   
-  // more memory allocation
+  // more memory allocation and bucket sieve setup.
   {
 	  u32_t s;
 	  size_t total_alloc;
@@ -1232,6 +1239,7 @@ int main(int argc, char **argv)
 		  n_schedules[s] = i + 1;
 		  schedules[s] = xmalloc(n_schedules[s] * sizeof(**schedules));
 		  fbi_lb = fbi1[s];
+		  //printf("%d schedules on side %d\n", n_schedules[s], s);
 		  for (i = 0; i < n_schedules[s]; i++) {
 			  u32_t fbp_lb, fbp_ub;
 			  u32_t fbi, fbi_ub;
@@ -1339,8 +1347,21 @@ int main(int argc, char **argv)
 			  schedules[s][i].fbi_bounds[n++] = fbi;
 			  for (n = 0; n < schedules[s][i].n_pieces; n++)
 				  schedules[s][i].schedlogs[n] = FB_logs[s][schedules[s][i].fbi_bounds[n]];
+#ifdef CONTIGUOUS_RI
+			  schedules[s][i].ri =
+				  LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]);// *RI_SIZE;
+#else
 			  schedules[s][i].ri =
 				  LPri[s] + (schedules[s][i].fbi_bounds[0] - fbis[s]) * RI_SIZE;
+#endif
+			 // printf("\tschedule offset %d = %u, (%u elements)", 
+		//		  i, (schedules[s][i].fbi_bounds[0] - fbis[s]), 
+		//		  (schedules[s][i].fbi_bounds[0] - fbis[s]));// *RI_SIZE);
+		//	  if (i > 0)
+		//		  printf(" diff = %u\n", (schedules[s][i].fbi_bounds[0] - fbis[s]) -
+		//			  (schedules[s][i - 1].fbi_bounds[0] - fbis[s]));
+		//	  else
+		//		  printf("\n");
 			  fbi_lb = fbi_ub;
 		  }
 	  }
@@ -1624,6 +1645,12 @@ int main(int argc, char **argv)
 				{
 					u32_t s;
 
+					// setup packed sieve structures and bounds.
+					// possible vectorization candidate?  No, not enough 
+					// time is spent here (Sieve-Change).
+					// The sieve and tds routines we want to change to 32x
+					// processing are associated with smallsieve_aux.
+					// instead of packing them, set them at intervals of fbis[s];
 					for (s = 0; s < 2; s++) {
 						u32_t fbi;
 						u16_t* abuf;
@@ -1891,7 +1918,8 @@ int main(int argc, char **argv)
 							a0, a1, b0, b1, LPri[s]);
 #else
 						lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], FBsize[s] - fbis[s],
-							a0, a1, b0, b1, LPri[s]);
+							a0, a1, b0, b1, LPri[s], FBsize[s]);
+						//printf("setup complete on side %d, size %u\n", s, FBsize[s]-fbis[s]);
 #endif
 					}
 				}
@@ -2186,9 +2214,11 @@ int main(int argc, char **argv)
 						if (n_medsched_pieces[s] == 0)continue;
 						for (ll = 0, sched = (u32_t*)med_sched[s][0], ri = LPri[s];
 							ll < n_medsched_pieces[s]; ll++) {
+							//printf("medsched %d from ij %u to %u\n", ll, 
+							//	medsched_fbi_bounds[s][ll], medsched_fbi_bounds[s][ll+1]);
 							ri = medsched(ri, current_ij[s] + medsched_fbi_bounds[s][ll],
 								current_ij[s] + medsched_fbi_bounds[s][ll + 1], &sched,
-								medsched_fbi_bounds[s][ll], j_offset == 0 ? oddness_type : 0);
+								medsched_fbi_bounds[s][ll], j_offset == 0 ? oddness_type : 0, FBsize[s]);
 							med_sched[s][ll + 1] = (u16_t*)sched;
 						}
 					}
@@ -2210,7 +2240,8 @@ int main(int argc, char **argv)
 							u32_t j;
 							u16_t* x;
 
-
+							// do all sieving with the tinyest primes into a small buffer,
+							// then copy that buffer over the sieve interval.
 							for (x = smallsieve_aux[s], j = 0; x < smallsieve_tinybound[s]; x += 4, j++) {
 								tinysieve_curpos[j] = x[3];
 							}
@@ -2530,7 +2561,85 @@ int main(int argc, char **argv)
 		#else
 						{
 							u16_t* x;
+
+#if defined(AVX512_SIEVE3)
+							// in this interval primes hit once; after that we have to check.
+							// do 8 at a time.
+							__m512i vni = _mm512_set1_epi16(n_i);
+							for (x = smallsieve_auxbound[s][4]; x < smallsieve_auxbound[s][3] - 32; x += 32)
+							{
+								// for reference, sieve info is packed into x thus:
+								//p = x[0];
+								//pr = x[1];
+								//l = x[2];
+								//r = x[3];
+								unsigned char* y, l = x[30];	// assume these 8 primes have the same log
+								__m512i xv = _mm512_load_si512(x);
+								__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+								__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+								vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+								uint16_t xm[32];
+								__mmask32 m;
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+									_mm512_store_epi64(xm, xv);
+
+									*(y + xm[3]) += l;
+									*(y + xm[7]) += l;
+									*(y + xm[11]) += l;
+									*(y + xm[15]) += l;
+									*(y + xm[19]) += l;
+									*(y + xm[23]) += l;
+									*(y + xm[27]) += l;
+									*(y + xm[31]) += l;
+
+									__m512i xv2 = _mm512_add_epi16(xv, vp);
+
+									*(y + xm[0] + xm[3]) += l;
+									*(y + xm[4] + xm[7]) += l;
+									*(y + xm[8] + xm[11]) += l;
+									*(y + xm[12] + xm[15]) += l;
+									*(y + xm[16] + xm[19]) += l;
+									*(y + xm[20] + xm[23]) += l;
+									*(y + xm[24] + xm[27]) += l;
+									*(y + xm[28] + xm[31]) += l;
+
+									xv2 = _mm512_add_epi16(xv2, vp);
+
+									*(y + 2*xm[0] + xm[3]) += l;
+									*(y + 2*xm[4] + xm[7]) += l;
+									*(y + 2*xm[8] + xm[11]) += l;
+									*(y + 2* xm[12] + xm[15]) += l;
+									*(y + 2* xm[16] + xm[19]) += l;
+									*(y + 2* xm[20] + xm[23]) += l;
+									*(y + 2* xm[24] + xm[27]) += l;
+									*(y + 2* xm[28] + xm[31]) += l;
+
+									xv2 = _mm512_add_epi16(xv2, vp);
+									m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+									// as primes get larger, fewer of them will hit twice,
+									// so it's faster to go directly to the set bits.
+									while (m > 0)
+									{
+										int id = _tzcnt_u32(m) / 4;
+										*(y + 3*xm[id * 4] + xm[id * 4 + 3]) += l;
+										m = _blsr_u32(m);
+									}
+
+									// now update r
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+								}
+							}
+
+							//x = smallsieve_auxbound[s][4]
+							for (; x < smallsieve_auxbound[s][3]; x += 4) {
+
+#else
 							for (x = smallsieve_auxbound[s][4]; x < smallsieve_auxbound[s][3]; x += 4) {
+#endif
 								u32_t p, r, pr;
 								unsigned char l, * y;
 
@@ -2564,7 +2673,73 @@ int main(int argc, char **argv)
 						{
 							u16_t* x;
 
+
+#if defined(AVX512_SIEVE2)
+							// in this interval primes hit 3x; after that we have to check.
+							// do 8 at a time.
+							__m512i vni = _mm512_set1_epi16(n_i);
+							for (x = smallsieve_auxbound[s][3]; x < smallsieve_auxbound[s][2] - 32; x += 32)
+							{
+								// for reference, sieve info is packed into x thus:
+								unsigned char* y, l = x[30];	// assume these 8 primes have the same log
+								__m512i xv = _mm512_load_si512(x);
+								__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+								__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+								vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+								uint16_t xm[32];
+								__mmask32 m;
+								for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+									_mm512_store_epi64(xm, xv);
+
+									*(y + xm[3]) += l;
+									*(y + xm[7]) += l;
+									*(y + xm[11]) += l;
+									*(y + xm[15]) += l;
+									*(y + xm[19]) += l;
+									*(y + xm[23]) += l;
+									*(y + xm[27]) += l;
+									*(y + xm[31]) += l;
+
+									__m512i xv2 = _mm512_add_epi16(xv, vp);
+									_mm512_store_epi64(xm, xv2);
+
+									*(y + xm[3]) += l;
+									*(y + xm[7]) += l;
+									*(y + xm[11]) += l;
+									*(y +  xm[15]) += l;
+									*(y +  xm[19]) += l;
+									*(y +  xm[23]) += l;
+									*(y +  xm[27]) += l;
+									*(y +  xm[31]) += l;
+
+									xv2 = _mm512_add_epi16(xv2, vp);
+									_mm512_store_epi64(xm, xv2);
+
+									m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
+									// as primes get larger, fewer of them will hit twice,
+									// so it's faster to go directly to the set bits.
+									while (m > 0)
+									{
+										int id = _tzcnt_u32(m) / 4;
+										*(y + xm[id * 4 + 3]) += l;
+										m = _blsr_u32(m);
+									}
+
+									// now update r
+									xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+									m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+									xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
+								}
+							}
+
+							//x = smallsieve_auxbound[s][3]
+							for (; x < smallsieve_auxbound[s][2]; x += 4) {
+
+#else
 							for (x = smallsieve_auxbound[s][3]; x < smallsieve_auxbound[s][2]; x += 4) {
+#endif
 								u32_t p, r, pr;
 								unsigned char l, * y;
 
@@ -2601,6 +2776,9 @@ int main(int argc, char **argv)
 #if defined(AVX512_SIEVE1)
 							// in this interval primes hit once; after that we have to check.
 							// do 8 at a time.
+							// possible further improvement: restructure x for contiguous
+							// p's, pr's, r's, l's, so we can do 32x at a time.  This touches
+							// a lot of the code...
 							__m512i vni = _mm512_set1_epi16(n_i);
 							for (x = smallsieve_auxbound[s][2]; x < smallsieve_auxbound[s][1] - 32; x += 32)
 							{
@@ -2623,14 +2801,17 @@ int main(int argc, char **argv)
 									*(y + xm[ 3]) += l;
 									*(y + xm[ 7]) += l;
 									*(y + xm[11]) += l;
+
+									__m512i xv2 = _mm512_add_epi16(xv, vp);
+
 									*(y + xm[15]) += l;
 									*(y + xm[19]) += l;
 									*(y + xm[23]) += l;
+
+									m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
+
 									*(y + xm[27]) += l;
 									*(y + xm[31]) += l;
-
-									__m512i xv2 = _mm512_add_epi16(xv, vp);
-									m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv2, vni);
 
 									// as primes get larger, fewer of them will hit twice,
 									// so it's faster to go directly to the set bits.
@@ -3182,7 +3363,7 @@ int main(int argc, char **argv)
 				  primality_tests_all();
 		#endif
 		#endif
-
+				  
 				}
 
 		#if TDS_MPQS == TDS_ODDNESS_CLASS
@@ -3201,7 +3382,6 @@ int main(int argc, char **argv)
 				  last_clock= new_clock;
 				}
 		#endif
-
 
 			  }
 
@@ -3223,7 +3403,8 @@ int main(int argc, char **argv)
 			  }
 		#endif
 
-
+			  
+			  
 			}
 	
 			// done with this root
@@ -3346,8 +3527,9 @@ void do_scheduling(struct schedule_struct* sched, u32_t ns, u32_t ot, u32_t s)
 			lasieve_setup(FB[s] + fbi_lb, proots[s] + fbi_lb, fbi_ub - fbi_lb,
 				a0, a1, b0, b1, LPri[s] + (fbi_lb - fbis[s]) * RI_SIZE);
 #endif
+		//printf("lasched %d on side %d from ij %u to %u\n", ll, s, fbi_lb, fbi_ub);
 		ri = lasched(ri, current_ij[s] + fbi_lb, current_ij[s] + fbi_ub,
-			n1_j, (u32_t**)(sched->schedule[ll + 1]), fbi_lb - fbio, ot);
+			n1_j, (u32_t**)(sched->schedule[ll + 1]), fbi_lb - fbio, ot, FBsize[s]);
 
 		{
 			u32_t k;
@@ -4008,6 +4190,7 @@ trial_divide()
 		  }
 #else
 
+#if defined(AVX512_TDS)
 		  unsigned char* y;
 		  uint32_t nzlocs[16][128];		// 16 segments max, 128 locations max.
 		  uint32_t numnzlocs[16];
@@ -4545,7 +4728,7 @@ trial_divide()
 			  x[3] = r;
 		  }
 
-#if 0
+#else
 		  for (; x < smallsieve_auxbound[side][3]; x = x + 4) {
 			  u32_t p, r, pr;
 			  unsigned char* y;
@@ -4584,6 +4767,7 @@ trial_divide()
 		  }
 #else
 
+#if defined(AVX512_TDS)
 		  for (; x < smallsieve_auxbound[side][2] - 32; x = x + 32) {
 
 			  __mmask32 m;
@@ -4978,7 +5162,7 @@ trial_divide()
 		  }
 
 
-#if 0
+#else
 		  for (; x < smallsieve_auxbound[side][2]; x = x + 4) {
 			  u32_t p, r, pr;
 			  unsigned char* y;
@@ -5009,7 +5193,7 @@ trial_divide()
 
 #endif
 
-
+		  //#define AVX512_TDS1
 
 #if !defined(AVX512_TDS) && defined( ASM_TDSLINIE1)
 		  if (x < smallsieve_auxbound[side][1]) {
@@ -5018,7 +5202,7 @@ trial_divide()
 		  }
 #else
 
-#ifdef AVX512_TDS
+#if 0 //def AVX512_TDS1
 		  // basically we are checking for non-zero sieve locations
 			// in this prime's progression and if we find any, we
 			// append the primes to the end of a list for that
@@ -5036,6 +5220,44 @@ trial_divide()
 		  {
 			  unsigned char* y;
 
+			  uint32_t nzlocs[16][128];		// 16 segments max, 128 locations max.
+			  uint32_t numnzlocs[16];
+			  uint32_t thisseg = 0;
+			  uint32_t thisloc = 0;
+			  uint32_t numlocs = 0;
+			  uint32_t numsegs = 0;
+			  if (1) {
+				  // first find the non-zero locations for each segment of the interval,
+				  // relative to the start of each segment
+				  __m512i zero = _mm512_setzero_si512();
+
+				  for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+					  int idx = 0;
+					  numlocs = 0;
+
+					  for (idx = 0; idx < n_i; idx += 64)
+					  {
+						  __m512i vy = _mm512_load_si512(y + idx);
+						  __mmask64 m64 = _mm512_cmpneq_epi8_mask(vy, zero);
+
+						  while (m64 > 0)
+						  {
+							  uint32_t id = _tzcnt_u64(m64);
+							  nzlocs[thisseg][numlocs++] = idx + id;
+							  m64 = _blsr_u64(m64);
+						  }
+					  }
+
+					  numnzlocs[thisseg] = numlocs;
+					  thisseg++;
+				  }
+				  numsegs = thisseg;
+			  }
+
+			  __m512i vni = _mm512_set1_epi16(n_i);
+			  uint16_t xm[32];
+
 			  for ( ; x < smallsieve_auxbound[side][1] - 32; x = x + 32) {
 
 				  __mmask32 m;
@@ -5045,16 +5267,13 @@ trial_divide()
 				  __m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
 				  vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
 				  __m512i xv2 = _mm512_mask_add_epi16(xv, 0x88888888, xv, vp);
-				  __m512i xv3 = _mm512_mask_add_epi16(xv2, 0x88888888, xv2, vp);
-				  __m512i xv4 = _mm512_mask_add_epi16(xv3, 0x88888888, xv3, vp);
 
 				  for (thisseg = 0, y = sieve_interval; y < sieve_interval + L1_SIZE; thisseg++, y += n_i) {
 
-					  //for (thisloc = 0; thisloc < numnzlocs[thisseg]; thisloc++)
-					 // {
 					  thisloc = 0;
 					  while (thisloc < numnzlocs[thisseg])
 					  {
+#if 0
 						  if ((thisloc + 3) < numnzlocs[thisseg])
 						  {
 							  uint32_t loc = nzlocs[thisseg][thisloc];
@@ -5244,6 +5463,7 @@ trial_divide()
 							  thisloc += 2;
 						  }
 						  else
+#endif
 						  {
 							  uint32_t loc = nzlocs[thisseg][thisloc];
 
@@ -5350,7 +5570,8 @@ trial_divide()
 #endif
 
 #endif
-#ifdef ASM_TDSLINIE0
+
+#if !defined(AVX512_TDS) && defined( ASM_TDSLINIE0)
 		  if (x < smallsieve_auxbound[side][0]) {
 			  tdslinie0(x, smallsieve_auxbound[side][0], sieve_interval, tds_fbi_curpos);
 			  x = smallsieve_auxbound[side][0];
@@ -5552,6 +5773,77 @@ trial_divide()
 
 #else
 
+#if 0
+
+			// crucial!  we are just coming out of the legacy tds assembly.
+			_mm256_zeroupper();
+
+			__m512i vni = _mm512_set1_epi16(n_i);
+			for (; x < smallsieve_auxbound[side][0] - 32; x = x + 32) {
+				unsigned char* y;
+
+				__m512i xv = _mm512_load_si512(x);
+				__m512i vp = _mm512_slli_epi64(xv, 48);			// align these with r
+				__m512i vpr = _mm512_slli_epi64(xv, 32);		// align these with r
+				vpr = _mm512_and_epi64(vpr, _mm512_set1_epi64(0xffff000000000000ULL));
+
+				for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+
+					__mmask8 m = _mm512_mask_cmplt_epu16_mask(0x88888888, xv, vni);
+
+					while (m > 0)
+					{
+						int id = _tzcnt_u32(m) / 4;
+						unsigned char* yy = y + x[4 * id + 3];
+						u32_t p = x[4 * id];
+						if (*yy != 0){
+							*(tds_fbi_curpos[*yy - 1]++) = p;
+							printf("adding prime %u to tds_fbi_curpos[%u-1]\n", p, *yy);
+						}
+						m = _blsr_u32(m);
+					}
+
+					//yy_ub = y + n_i;
+					//yy = y + r;
+					//if (yy < yy_ub) {
+					//	if (*yy != 0)
+					//		*(tds_fbi_curpos[*yy - 1]++) = p;
+					//}
+					//r = modadd32(r, pr);
+
+					xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, vpr);
+					m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
+					xv = _mm512_mask_sub_epi16(xv, 0x88888888, xv, vp);
+
+				}
+				//x[3] = r;
+				_mm512_store_si512(x, xv);
+			}
+
+			for (; x < smallsieve_auxbound[side][0]; x = x + 4) {
+				u32_t p, r, pr;
+				unsigned char* y;
+
+				p = x[0];
+				pr = x[1];
+				r = x[3];
+				modulo32 = p;
+				for (y = sieve_interval; y < sieve_interval + L1_SIZE; y += n_i) {
+					unsigned char* yy, * yy_ub;
+
+					yy_ub = y + n_i;
+					yy = y + r;
+					if (yy < yy_ub) {
+						if (*yy != 0)
+							*(tds_fbi_curpos[*yy - 1]++) = p;
+					}
+					r = modadd32(r, pr);
+				}
+				x[3] = r;
+			}
+
+#else
+
 		  for (; x < smallsieve_auxbound[side][0]; x = x + 4) {
 			  u32_t p, r, pr;
 			  unsigned char* y;
@@ -5573,6 +5865,8 @@ trial_divide()
 			  }
 			  x[3] = r;
 		  }
+		  
+#endif
 
 #endif
 
@@ -5617,42 +5911,12 @@ trial_divide()
 				  u32_t i;
 				  u16_t* x, * y;
 
-
-#ifdef AVX512_MMX_TD
-				  // this is faster than the C loop, but not faster than
-				  // the MMX_TD routines.  Maybe with 32x processing.
-				  y = smalltdsieve_aux[side][j_step - 1];
-				  for (i = 0, x = smallsieve_aux[side]; x < smallsieve_auxbound[side][0] - 32; i+=8, x += 32) {
-
-					  if (x[28] > p_bound)break;
-
-					  __m512i xv = _mm512_load_si512(x);
-					  __m128i yv128 = _mm_loadu_epi16(&y[i]);
-					  __m512i vp = _mm512_slli_epi64(xv, 48);	// align primes with roots
-					  __m512i yv = _mm512_cvtepu16_epi64(yv128);
-					  yv = _mm512_slli_epi64(yv, 48);	// align y with roots
-					  
-					  //x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
-					  xv = _mm512_mask_add_epi16(xv, 0x88888888, xv, yv);
-					  __mmask32 m = _mm512_mask_cmpge_epu16_mask(0x88888888, xv, vp);
-					  xv = _mm512_mask_sub_epi16(xv, m, xv, vp);
-					  _mm512_store_si512(x, xv);
-				  }
-
-				  for ( ; x < smallsieve_auxbound[side][0]; i++, x += 4) {
-					  modulo32 = x[0];
-					  if (modulo32 > p_bound)break;
-					  x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
-				  }
-
-#else
 				  y = smalltdsieve_aux[side][j_step - 1];
 				  for (i = 0, x = smallsieve_aux[side]; x < smallsieve_auxbound[side][0]; i++, x += 4) {
 					  modulo32 = x[0];
 					  if (modulo32 > p_bound)break;
 					  x[3] = modadd32((u32_t)x[3], (u32_t)y[i]);
 				  }
-#endif
 			  }
 #endif
 			  {
@@ -6119,9 +6383,8 @@ output_all_tdsurvivors()
 #endif
 
 static void
-output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
-     u32_t*fbp_buf0,*fbp_buf1,*fbp_buf0_ub,*fbp_buf1_ub;
-     mpz_t lf0,lf1;
+output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* fbp_buf1_ub,
+	mpz_t lf0, mpz_t lf1)
 {
   u32_t s,*(fbp_buffers[2]),*(fbp_buffers_ub[2]);
   u32_t nlp[2];
@@ -6145,21 +6408,22 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
   /* Note: here, the large_factors[] values are negative, so the logic is reversed */
 
   cl= clock();
+
   for(s= 0;s<2;s++) {
     u16_t s1;
     i32_t i,nf;
     mpz_t*mf;
     
     s1= s^first_mpqs_side;
-    if(mpz_sgn(large_factors[s1])> 0) {
-      if(mpz_cmp_ui(large_factors[s1],1) == 0)
-	nlp[s1]= 0;
-      else{
-	nlp[s1]= 1;
-	mpz_set(large_primes[s1][0],large_factors[s1]);
-      }
-      continue;
-    }
+	if (mpz_sgn(large_factors[s1]) > 0) {
+		if (mpz_cmp_ui(large_factors[s1], 1) == 0)
+			nlp[s1] = 0;
+		else {
+			nlp[s1] = 1;
+			mpz_set(large_primes[s1][0], large_factors[s1]);
+		}
+		continue;
+	}
     
     mpz_neg(large_factors[s1],large_factors[s1]);
 
@@ -6196,13 +6460,13 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 		n_mpqsvain[s1]++;
 		break;
 	}
-	//gmp_printf("mpqs: %Zd = ", large_factors[s1]);
+	gmp_printf("mpqs: %Zd = ", large_factors[s1]);
 	for (i = 0; i < nf; i++)
 	{
 		mpz_set(large_primes[s1][i], mf[i]);
-		//gmp_printf("%Zd ", mf[i]);
+		gmp_printf("%Zd ", mf[i]);
 	}
-	//printf("\n");
+	printf("\n");
 	nlp[s1]= nf;
 
 #else
@@ -6278,6 +6542,7 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 				{
 					mpz_set_ui(factor3, f64);
 					mpz_tdiv_q_ui(factor2, factor2, f64);
+
 					if (mpz_sizeinbase(factor2, 2) > max_primebits[s1]) {
 						n_mpqsvain[s1]++;
 						break;
@@ -6313,9 +6578,77 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 			}
 			else
 			{
-				// if the factor is obviously too big, give up.  This isn't a
-				// failure since we haven't expended much effort yet.
-				break;
+				// check if the factor is prime.  could again use
+				// a cheaper method.
+				if (mpz_probab_prime_p(factor1, 1) > 0)
+				{
+					// if the factor is obviously too big, give up.  This isn't a
+					// failure since we haven't expended much effort yet.
+					break;
+				}
+				else
+				{
+					// tecm found a composite first factor.
+					// if it is obviously too big, we're done.
+					if (mpz_sizeinbase(factor1, 2) > (max_primebits[s1] * 2))
+					{
+						break;
+					}
+
+					//gmp_printf("composite first factor %Zd\n", factor1);
+
+					// isolate the 2nd smaller factor, and check its size.
+					mpz_tdiv_q(factor2, large_factors[s1], factor1);
+
+					if (mpz_sizeinbase(factor2, 2) > (max_primebits[s1]))
+					{
+						break;
+					}
+
+					// this assumes max_primebits is 32 or less...
+					uint64_t q64 = mpz_get_ui(factor1);
+
+					// todo: target this better based on expected factor size.
+					uint64_t f64 = getfactor_uecm(q64, 0, &pran);
+
+					if (f64 > 1)
+					{
+						mpz_set_ui(factor3, f64);
+						mpz_tdiv_q_ui(factor1, factor1, f64);
+
+						if (mpz_sizeinbase(factor1, 2) > max_primebits[s1]) {
+							n_mpqsvain[s1]++;
+							break;
+						}
+						if (mpz_sizeinbase(factor3, 2) > max_primebits[s1]) {
+							n_mpqsvain[s1]++;
+							break;
+						}
+						if (mpz_probab_prime_p(factor1, 1) == 0)
+						{
+							n_mpqsvain[s1]++;
+							break;
+						}
+						if (mpz_probab_prime_p(factor2, 1) == 0)
+						{
+							n_mpqsvain[s1]++;
+							break;
+						}
+						if (mpz_probab_prime_p(factor3, 1) == 0)
+						{
+							n_mpqsvain[s1]++;
+							break;
+						}
+						mpz_set(large_primes[s1][0], factor1);
+						mpz_set(large_primes[s1][1], factor2);
+						mpz_set(large_primes[s1][2], factor3);
+						nlp[s1] = 3;
+					}
+					else
+					{
+						break;
+					}
+				}
 			}
 		}
 		else
@@ -6323,9 +6656,12 @@ output_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 			// if ecm can't find a factor, give up.  This isn't a
 			// failure since we haven't expended much effort yet.
 			break;
+			
 		}
 	}
 
+	_mm256_zeroupper();
+	 
 #endif
 
   }
