@@ -8,11 +8,17 @@
 # 02111-1307, USA.
 #
 # 6/13/04: Hacked up for use in GGNFS by Chris Monico.
+# 11/11/22: Ben Buhrow, added AVX512 functionality, compile options, and fast ecm cofactoring
 
-INC=-I. -I./asm  -I../../../../gmp_install/gmp-6.2.0/include -I../../include
-LIBFLAGS=-L.  -L../../../../gmp_install/gmp-6.2.0/lib
+INC=-I. -I./asm  -I../../../gmp_install/gmp-6.2.0/include -I../../include
+LIBFLAGS=-L.  -L../../../gmp_install/gmp-6.2.0/lib
 #CFLAGS=-Os -march=amdfam10 -mtune=amdfam10 -funroll-loops
-CFLAGS=-O3 -march=native -mtune=native -funroll-loops -static-intel
+CFLAGS=-O3 -g -march=native -mtune=native -funroll-loops -static-intel
+# -DCONTIGUOUS_RI
+
+ifeq ($(AVX512_ECM),1)
+	CFLAGS += -DAVX512_ECM
+endif
 
 ifeq ($(AVX512_LASETUP),1)
 	CFLAGS += -DAVX512_LASIEVE_SETUP
@@ -36,6 +42,10 @@ endif
 
 ifeq ($(MPQS),1)
 	CFLAGS += -DGGNFS_MPQS
+endif
+
+ifeq ($(AVX512_ALL),1)
+	CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_SIEVE1 -DAVX512_ECM 
 endif
 
 

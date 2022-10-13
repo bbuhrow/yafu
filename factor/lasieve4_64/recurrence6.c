@@ -49,7 +49,7 @@ void rec_info_init(u32_t A1,u32_t ub1)
     complain("rec_info_init: A=%u not a power of two\n",A);
 }
 
-u32_t get_recurrence_info(u32_t*res_ptr,u32_t p,u32_t r)
+u32_t get_recurrence_info(u32_t*res_ptr,u32_t p,u32_t r, u32_t FBsize)
 {
     u32_t b,c,s,t;
 
@@ -130,7 +130,11 @@ u32_t get_recurrence_info(u32_t*res_ptr,u32_t p,u32_t r)
 done:
     {
       res_ptr[0]= (s<<A_bits)+b;
-      res_ptr[1]= (t<<A_bits)-c;
+#ifdef CONTIGUOUS_RI
+      res_ptr[FBsize]= (t<<A_bits)-c;
+#else
+      res_ptr[1] = (t << A_bits) - c;
+#endif
     }
 
 #if 0
@@ -226,7 +230,11 @@ if(have_it[0]==0)Schlendrian("???");
 
 #endif
 
+#ifdef CONTIGUOUS_RI
+    return 1;
+#else
     return 2;
+#endif
 }
 
 
@@ -279,7 +287,7 @@ __inline __m512i _avx512_div32(__m512i dividend, __m512i divisor)
 }
 
 
-u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
+u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r, u32_t FBsize)
 {
     __m512i zero = _mm512_setzero_epi32();
     __m512i b = zero, c = zero, s = zero, t = zero;
@@ -446,11 +454,20 @@ u32_t get_recurrence_info_16(u32_t* res_ptr, __m512i p, __m512i r)
 
     for (i = 0; i < 16; i++)
     {
-        res_ptr[2*i+0] = (sm[i] << A_bits) + bm[i];
-        res_ptr[2*i+1] = (tm[i] << A_bits) - cm[i];
+#ifdef CONTIGUOUS_RI
+        res_ptr[i] = (sm[i] << A_bits) + bm[i];
+        res_ptr[i + FBsize] = (tm[i] << A_bits) - cm[i];
+#else
+        res_ptr[2 * i + 0] = (sm[i] << A_bits) + bm[i];
+        res_ptr[2 * i + 1] = (tm[i] << A_bits) - cm[i];
+#endif
     }
 
+#ifdef CONTIGUOUS_RI
+    return 16;
+#else
     return 32;
+#endif
 }
 
 #endif

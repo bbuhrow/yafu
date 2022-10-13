@@ -233,7 +233,8 @@ __m512i modsub32_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
 #endif
 
 void
-lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0, i32_t b1, u32_t* ri_ptr)
+lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0, i32_t b1, 
+	u32_t* ri_ptr, u32_t FBsize)
 {
 	u32_t b0_ul, b1_ul, absa0, absa1;
 
@@ -343,7 +344,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -373,7 +374,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #else
@@ -470,7 +471,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 					
 				}
 
@@ -499,7 +500,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #else
@@ -627,7 +628,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -657,7 +658,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #else
@@ -750,7 +751,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -779,8 +780,9 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
+
 #else
 				for (; fbi < fbsz; fbi++)/*6:*/
 #line 129 "lasieve-prepn.w"
@@ -911,7 +913,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -941,7 +943,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #else
@@ -1035,7 +1037,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 
 				}
@@ -1065,7 +1067,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #else
 
@@ -1190,7 +1192,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -1220,7 +1222,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #else
@@ -1316,7 +1318,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 						x = _mm512_mask_mov_epi32(x, m1 & ~m2, m32);
 					}
 
-					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x);
+					ri_ptr += get_recurrence_info_16(ri_ptr, m32, x, FBsize);
 
 				}
 
@@ -1345,7 +1347,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #else
 
