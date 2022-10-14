@@ -826,6 +826,9 @@ int main(int argc, char **argv)
 	  n_J = 1 << J_bits;
 	  n_j = n_J / 2;
 	  j_bits = J_bits - 1;
+
+	  
+
 	  {
 		  u32_t i, j;
 		  double x, y, z;
@@ -1142,6 +1145,12 @@ int main(int argc, char **argv)
   n_strips= n_j>>(L1_BITS-i_bits);
   rec_info_init(n_i,n_j);
 
+
+//if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
+//  i_bits, j_bits, n_i, n_j, j_per_strip, n_strips);
+
+
+
   // memory allocation
   {
 	  u32_t s;
@@ -1186,32 +1195,32 @@ int main(int argc, char **argv)
   
 #ifdef GCD_SIEVE_BOUND
   {
-    u32_t p,i;
-    
-    firstprime32(&special_q_ps);
-    np_gcd_sieve= 0;
-    for(p= nextprime32(&special_q_ps);p<GCD_SIEVE_BOUND;
-	p= nextprime32(&special_q_ps))np_gcd_sieve++;
-    gcd_sieve_buffer= xmalloc(2*np_gcd_sieve*sizeof(*gcd_sieve_buffer));
-    
-    firstprime32(&special_q_ps);
-    i= 0;
-    for(p= nextprime32(&special_q_ps);p<GCD_SIEVE_BOUND;
-	p= nextprime32(&special_q_ps))gcd_sieve_buffer[2*i++]= p;
+	  u32_t p, i;
+
+	  firstprime32(&special_q_ps);
+	  np_gcd_sieve = 0;
+	  for (p = nextprime32(&special_q_ps); p < GCD_SIEVE_BOUND;
+		  p = nextprime32(&special_q_ps))np_gcd_sieve++;
+	  gcd_sieve_buffer = xmalloc(2 * np_gcd_sieve * sizeof(*gcd_sieve_buffer));
+
+	  firstprime32(&special_q_ps);
+	  i = 0;
+	  for (p = nextprime32(&special_q_ps); p < GCD_SIEVE_BOUND;
+		  p = nextprime32(&special_q_ps))gcd_sieve_buffer[2 * i++] = p;
   }
 #endif
   
   {
-    u32_t s;
-    for(s= 0;s<2;s++) {
-      if(sieve_min[s]<TINY_SIEVE_MIN&&sieve_min[s]!=0) {
-	errprintf("Sieving with all primes on side %u since\n",s);
-	errprintf("tiny sieve procedure is being used\n");
-	sieve_min[s]= 0;
-      }
-      current_ij[s]= xmalloc(FBsize[s]*sizeof(*current_ij[s]));
-      LPri[s]= xmalloc(FBsize[s]*sizeof(**LPri)*RI_SIZE);
-    }
+	  u32_t s;
+	  for (s = 0; s < 2; s++) {
+		  if (sieve_min[s] < TINY_SIEVE_MIN && sieve_min[s] != 0) {
+			  errprintf("Sieving with all primes on side %u since\n", s);
+			  errprintf("tiny sieve procedure is being used\n");
+			  sieve_min[s] = 0;
+		  }
+		  current_ij[s] = xmalloc(FBsize[s] * sizeof(*current_ij[s]));
+		  LPri[s] = xmalloc(FBsize[s] * sizeof(**LPri) * RI_SIZE);
+	  }
   }
   
   // more memory allocation and bucket sieve setup.
@@ -6299,39 +6308,39 @@ store_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
 static int
 primality_tests()
 {
-  int s;
-  u16_t first_psp_side= cmdline_first_psp_side;
-  int need_test[2];
+	int s;
+	u16_t first_psp_side = cmdline_first_psp_side;
+	int need_test[2];
 
-  if(first_psp_side>1)
-    first_psp_side= (mpz_cmp(large_factors[0],large_factors[1])<0) ? 0 : 1;
-  
-  for(s= 0;s<2;s++) {
-    size_t nb;
-    need_test[s]= 0;
-    
-    nb= mpz_sizeinbase(large_factors[s],2);
-    if(mpz_cmp(large_factors[s],FBb_sq[s])<0) {
-      if(nb<=max_primebits[s])continue;
-      return 0;
-    }
-    if(mpz_cmp(large_factors[s],FBb_cu[s])<0) {
-      if(nb<=max_primebits[s]*2) {
-        need_test[s]= 1;
-        continue;
-      }
-      return 0;
-    }
-    need_test[s]= 1;
-  }
-  for(s= 0;s<2;s++) {
-    u16_t s1;
-    s1= s^first_psp_side;
-    if(!need_test[s1])continue;
-    if(psp(large_factors[s1],1)==1)return 0;
-    mpz_neg(large_factors[s1],large_factors[s1]);
-  }
-  return 1;
+	if (first_psp_side > 1)
+		first_psp_side = (mpz_cmp(large_factors[0], large_factors[1]) < 0) ? 0 : 1;
+
+	for (s = 0; s < 2; s++) {
+		size_t nb;
+		need_test[s] = 0;
+
+		nb = mpz_sizeinbase(large_factors[s], 2);
+		if (mpz_cmp(large_factors[s], FBb_sq[s]) < 0) {
+			if (nb <= max_primebits[s])continue;
+			return 0;
+		}
+		if (mpz_cmp(large_factors[s], FBb_cu[s]) < 0) {
+			if (nb <= max_primebits[s] * 2) {
+				need_test[s] = 1;
+				continue;
+			}
+			return 0;
+		}
+		need_test[s] = 1;
+	}
+	for (s = 0; s < 2; s++) {
+		u16_t s1;
+		s1 = s ^ first_psp_side;
+		if (!need_test[s1])continue;
+		if (psp(large_factors[s1], 1) == 1)return 0;
+		mpz_neg(large_factors[s1], large_factors[s1]);
+	}
+	return 1;
 }
 
 #if (TDS_PRIMALITY_TEST != TDS_IMMEDIATELY) && (TDS_PRIMALITY_TEST != TDS_MPQS)
@@ -6340,7 +6349,7 @@ primality_tests_all()
 {
   size_t i,j;
   
-  // possibly a candidate for a future vectorized single-limb prime-test
+  // possibly a candidate for a future vectorized prime-test
   // routine.  As with splitting cofactors, we'd need a fair number
   // of them per call to keep that efficient.
   for(i= 0,j= 0;i<total_ntds;i++) {
@@ -6511,36 +6520,45 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 		//printf("max_primebits[s1]=%d,sizeinbase(n)=%d\n", 
 		//	max_primebits[s1], mpz_sizeinbase(large_factors[s1],2));
 		if (getfactor_tecm(large_factors[s1], factor1, 
-			mpz_sizeinbase(large_factors[s1], 2) / 3 - 2, &pran) > 0)
+			mpz_sizeinbase(large_factors[s1], 2) / 3 - 1, &pran) > 0)
 		{
-			if (mpz_sizeinbase(factor1, 2) < max_primebits[s1])
+			if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
 			{
 				mpz_tdiv_q(factor2, large_factors[s1], factor1);
 
 				// if the remaining residue is obviously too big, we're done.
-				if (mpz_sizeinbase(factor2, 2) > (max_primebits[s1] * 2))
+				if (mpz_sizeinbase(factor2, 2) > ((max_primebits[s1] * 2)+2))
 				{
 					break;
 				}
 
 				// check if the residue is prime.  could again use
 				// a cheaper method.
-				if (mpz_probab_prime_p(factor2, 1) > 0)
+				if (mpz_probab_prime_p(factor2, 2) > 0)
 				{
 					break;
 				}
 
 				// ok, so we have extracted one suitable factor, and the 
-				// cofactor is not prime.  Do more work to split the cofactor,
-				// which is now <= 64 bits in size.
-				uint64_t q64 = mpz_get_ui(factor2);
-
+				// cofactor is not prime.  Do more work to split the cofactor.
 				// todo: target this better based on expected factor size.
-				uint64_t f64 = getfactor_uecm(q64, 0, &pran);
-				
+				uint64_t q64;
+				uint64_t f64;
+				if (mpz_sizeinbase(factor2, 2) <= 64)
+				{
+					q64 = mpz_get_ui(factor2);
+					f64 = getfactor_uecm(q64, 0, &pran);
+					mpz_set_ui(factor3, f64);
+				}
+				else
+				{
+					//printf("factor2 has size %d\n", mpz_sizeinbase(factor2, 2));
+					getfactor_tecm(factor2, factor3, 32, &pran);
+				}
+				f64 = mpz_get_ui(factor3);
+
 				if (f64 > 1)
 				{
-					mpz_set_ui(factor3, f64);
 					mpz_tdiv_q_ui(factor2, factor2, f64);
 
 					if (mpz_sizeinbase(factor2, 2) > max_primebits[s1]) {
@@ -6580,7 +6598,7 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 			{
 				// check if the factor is prime.  could again use
 				// a cheaper method.
-				if (mpz_probab_prime_p(factor1, 1) > 0)
+				if (mpz_probab_prime_p(factor1, 2) > 0)
 				{
 					// if the factor is obviously too big, give up.  This isn't a
 					// failure since we haven't expended much effort yet.
@@ -6590,7 +6608,7 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 				{
 					// tecm found a composite first factor.
 					// if it is obviously too big, we're done.
-					if (mpz_sizeinbase(factor1, 2) > (max_primebits[s1] * 2))
+					if (mpz_sizeinbase(factor1, 2) > ((max_primebits[s1] * 2)+1))
 					{
 						break;
 					}
@@ -6605,15 +6623,24 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 						break;
 					}
 
-					// this assumes max_primebits is 32 or less...
-					uint64_t q64 = mpz_get_ui(factor1);
-
 					// todo: target this better based on expected factor size.
-					uint64_t f64 = getfactor_uecm(q64, 0, &pran);
+					uint64_t q64;
+					uint64_t f64;
+					if (mpz_sizeinbase(factor1, 2) <= 64)
+					{
+						q64 = mpz_get_ui(factor1);
+						f64 = getfactor_uecm(q64, 0, &pran);
+						mpz_set_ui(factor3, f64);
+					}
+					else
+					{
+						//printf("factor1 has size %d\n", mpz_sizeinbase(factor1, 2));
+						getfactor_tecm(factor1, factor3, 32, &pran);
+					}
+					f64 = mpz_get_ui(factor3);
 
 					if (f64 > 1)
 					{
-						mpz_set_ui(factor3, f64);
 						mpz_tdiv_q_ui(factor1, factor1, f64);
 
 						if (mpz_sizeinbase(factor1, 2) > max_primebits[s1]) {
