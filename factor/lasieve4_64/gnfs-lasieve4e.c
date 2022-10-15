@@ -1146,8 +1146,8 @@ int main(int argc, char **argv)
   rec_info_init(n_i,n_j);
 
 
-//if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
-//  i_bits, j_bits, n_i, n_j, j_per_strip, n_strips);
+if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
+  i_bits, j_bits, n_i, n_j, j_per_strip, n_strips);
 
 
 
@@ -2781,6 +2781,7 @@ int main(int argc, char **argv)
 		#else
 						{
 							u16_t* x;
+
 
 #if defined(AVX512_SIEVE1)
 							// in this interval primes hit once; after that we have to check.
@@ -6469,13 +6470,14 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 		n_mpqsvain[s1]++;
 		break;
 	}
-	gmp_printf("mpqs: %Zd = ", large_factors[s1]);
+	if (nf==3)
+		gmp_printf("mpqs 3lp: %Zd(%d) = %Zd*%Zd*%Zd\n",
+			large_factors[s1], mpz_sizeinbase(large_factors[s1], 2),
+			mf[0], mf[1], mf[2]);
 	for (i = 0; i < nf; i++)
 	{
 		mpz_set(large_primes[s1][i], mf[i]);
-		gmp_printf("%Zd ", mf[i]);
 	}
-	printf("\n");
 	nlp[s1]= nf;
 
 #else
@@ -6483,7 +6485,6 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 	if (mpz_sizeinbase(large_factors[s1], 2) <= 64) {
 		uint64_t n64 = mpz_get_ui(large_factors[s1]);
 		uint64_t f = getfactor_uecm(n64, 0, &pran);
-		//printf("uecm: %lu = %lu * %lu\n", n64, f, n64 / f);
 		if (f > 1)
 		{
 			mpz_set_ui(factor1, f);
@@ -6517,27 +6518,39 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 	}
 	else
 	{
-		//printf("max_primebits[s1]=%d,sizeinbase(n)=%d\n", 
-		//	max_primebits[s1], mpz_sizeinbase(large_factors[s1],2));
 		if (getfactor_tecm(large_factors[s1], factor1, 
-			mpz_sizeinbase(large_factors[s1], 2) / 3 - 1, &pran) > 0)
+			mpz_sizeinbase(large_factors[s1], 2) / 3 - 2, &pran) > 0)
 		{
 			if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
 			{
 				mpz_tdiv_q(factor2, large_factors[s1], factor1);
 
 				// if the remaining residue is obviously too big, we're done.
-				if (mpz_sizeinbase(factor2, 2) > ((max_primebits[s1] * 2)+2))
+				if (mpz_sizeinbase(factor2, 2) > ((max_primebits[s1] * 2)+1))
 				{
 					break;
 				}
 
 				// check if the residue is prime.  could again use
 				// a cheaper method.
-				if (mpz_probab_prime_p(factor2, 2) > 0)
+				if (mpz_probab_prime_p(factor2, 1) > 0)
 				{
+					if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
+					{
+						// we just completed a DLP factorization involving
+						// 2 primes whos product was > 64 bits.
+						mpz_set(large_primes[s1][1], factor1);
+						mpz_set(large_primes[s1][2], factor2);
+						nlp[s1] = 2;
+						continue;
+					}
 					break;
 				}
+
+				//if (mpz_perfect_square_p(factor2))
+				//{
+				//	gmp_printf("residue %Zd is a square!\n", factor2);
+				//}
 
 				// ok, so we have extracted one suitable factor, and the 
 				// cofactor is not prime.  Do more work to split the cofactor.
@@ -6559,6 +6572,9 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 
 				if (f64 > 1)
 				{
+					//printf("found 3LP, initial targetbits was %d\n",
+					//	mpz_sizeinbase(large_factors[s1], 2) / 3 - 2);
+
 					mpz_tdiv_q_ui(factor2, factor2, f64);
 
 					if (mpz_sizeinbase(factor2, 2) > max_primebits[s1]) {
@@ -6584,6 +6600,9 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 						n_mpqsvain[s1]++;
 						break;
 					}
+					//gmp_printf("ecm1 3lp: %Zd(%d) = %Zd*%Zd*%Zd\n",
+					//	large_factors[s1], mpz_sizeinbase(large_factors[s1], 2),
+					//	factor1, factor2, factor3);
 					mpz_set(large_primes[s1][0], factor1);
 					mpz_set(large_primes[s1][1], factor2);
 					mpz_set(large_primes[s1][2], factor3);
@@ -6591,6 +6610,10 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 				}
 				else
 				{
+					// what are the odds that the largefactor is p1 * p2^2?
+					// and we've found p1 but ecm fails on the p2^2?
+					// tinyecm checks for squares if it finds gcd==N,
+					// but uecm doesn't.
 					break;
 				}
 			}
@@ -6598,7 +6621,7 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 			{
 				// check if the factor is prime.  could again use
 				// a cheaper method.
-				if (mpz_probab_prime_p(factor1, 2) > 0)
+				if (mpz_probab_prime_p(factor1, 1) > 0)
 				{
 					// if the factor is obviously too big, give up.  This isn't a
 					// failure since we haven't expended much effort yet.
@@ -6612,6 +6635,11 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 					{
 						break;
 					}
+
+					//if (mpz_perfect_square_p(factor1))
+					//{
+					//	gmp_printf("composite factor %Zd is a square!\n", factor1);
+					//}
 
 					//gmp_printf("composite first factor %Zd\n", factor1);
 
@@ -6666,6 +6694,9 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 							n_mpqsvain[s1]++;
 							break;
 						}
+						//gmp_printf("ecm2 3lp: %Zd(%d) = %Zd*%Zd*%Zd\n",
+						//	large_factors[s1], mpz_sizeinbase(large_factors[s1], 2), 
+						//	factor1, factor2, factor3);
 						mpz_set(large_primes[s1][0], factor1);
 						mpz_set(large_primes[s1][1], factor2);
 						mpz_set(large_primes[s1][2], factor3);
