@@ -6470,10 +6470,11 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 		n_mpqsvain[s1]++;
 		break;
 	}
-	if (nf==3)
-		gmp_printf("mpqs 3lp: %Zd(%d) = %Zd*%Zd*%Zd\n",
-			large_factors[s1], mpz_sizeinbase(large_factors[s1], 2),
-			mf[0], mf[1], mf[2]);
+	//if (nf==3)
+	FILE* fid = fopen("lps.dat", "a");
+	gmp_fprintf(fid, "%Zd(%d)\n",
+		large_factors[s1], mpz_sizeinbase(large_factors[s1], 2));
+	fclose(fid);
 	for (i = 0; i < nf; i++)
 	{
 		mpz_set(large_primes[s1][i], mf[i]);
@@ -6535,25 +6536,25 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 				// a cheaper method.
 				if (mpz_probab_prime_p(factor2, 1) > 0)
 				{
-					if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
+					if (mpz_sizeinbase(factor2, 2) <= max_primebits[s1])
 					{
 						// we just completed a DLP factorization involving
 						// 2 primes whos product was > 64 bits.
-						mpz_set(large_primes[s1][1], factor1);
-						mpz_set(large_primes[s1][2], factor2);
+						mpz_set(large_primes[s1][0], factor1);
+						mpz_set(large_primes[s1][1], factor2);
 						nlp[s1] = 2;
+						//FILE* fid = fopen("lps_ecm.dat", "a");
+						//gmp_fprintf(fid, "%Zd(%d)\n",
+						//	large_factors[s1], mpz_sizeinbase(large_factors[s1], 2));
+						//fclose(fid);
 						continue;
 					}
 					break;
 				}
 
-				//if (mpz_perfect_square_p(factor2))
-				//{
-				//	gmp_printf("residue %Zd is a square!\n", factor2);
-				//}
-
 				// ok, so we have extracted one suitable factor, and the 
-				// cofactor is not prime.  Do more work to split the cofactor.
+				// cofactor is not prime and a suitable size.  Do more work to 
+				// split the cofactor.
 				// todo: target this better based on expected factor size.
 				uint64_t q64;
 				uint64_t f64;
@@ -6565,16 +6566,12 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 				}
 				else
 				{
-					//printf("factor2 has size %d\n", mpz_sizeinbase(factor2, 2));
 					getfactor_tecm(factor2, factor3, 32, &pran);
 				}
 				f64 = mpz_get_ui(factor3);
 
 				if (f64 > 1)
 				{
-					//printf("found 3LP, initial targetbits was %d\n",
-					//	mpz_sizeinbase(large_factors[s1], 2) / 3 - 2);
-
 					mpz_tdiv_q_ui(factor2, factor2, f64);
 
 					if (mpz_sizeinbase(factor2, 2) > max_primebits[s1]) {
@@ -6636,13 +6633,6 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 						break;
 					}
 
-					//if (mpz_perfect_square_p(factor1))
-					//{
-					//	gmp_printf("composite factor %Zd is a square!\n", factor1);
-					//}
-
-					//gmp_printf("composite first factor %Zd\n", factor1);
-
 					// isolate the 2nd smaller factor, and check its size.
 					mpz_tdiv_q(factor2, large_factors[s1], factor1);
 
@@ -6662,7 +6652,6 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 					}
 					else
 					{
-						//printf("factor1 has size %d\n", mpz_sizeinbase(factor1, 2));
 						getfactor_tecm(factor1, factor3, 32, &pran);
 					}
 					f64 = mpz_get_ui(factor3);
@@ -6713,10 +6702,99 @@ output_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* f
 		{
 			// if ecm can't find a factor, give up.  This isn't a
 			// failure since we haven't expended much effort yet.
-			break;
-			
+
+			// unless this is a DLP with lpbr/a > 32... i.e., if the
+			// large factor size is greater than 64 bits but less than
+			// lpbr/a * 2.  In that case run mpqs... or tecm with
+			// greater effort.
+
+#if 0
+			if (mpz_sizeinbase(large_factors[s1], 2) <= (max_primebits[s1] * 2))
+			{
+				if (getfactor_tecm(large_factors[s1], factor1, 33, &pran) > 0)
+				{
+					if (mpz_sizeinbase(factor1, 2) <= max_primebits[s1])
+					{
+						mpz_tdiv_q(factor2, large_factors[s1], factor1);
+
+						// check if the residue is prime.  could again use
+						// a cheaper method.
+						if (mpz_probab_prime_p(factor2, 1) > 0)
+						{
+							if (mpz_sizeinbase(factor2, 2) <= max_primebits[s1])
+							{
+								// we just completed a DLP factorization involving
+								// 2 primes whos product was > 64 bits.
+								mpz_set(large_primes[s1][0], factor1);
+								mpz_set(large_primes[s1][1], factor2);
+								nlp[s1] = 2;
+							}
+							else
+								break;
+						}
+						else
+							break;
+					}
+					else
+						break;
+				}
+				else
+					break;
+			}
+			else
+				break;
+#else
+
+			if (mpz_sizeinbase(large_factors[s1], 2) <= (max_primebits[s1] * 2))
+			{
+				if ((nf = mpqs_factor(large_factors[s1], max_primebits[s1], &mf)) < 0) {
+					/* did it fail on a square? */
+					mpz_sqrtrem(large_primes[s1][0], large_primes[s1][1], large_factors[s1]);
+					if (mpz_sgn(large_primes[s1][1]) == 0) { /* remainder == 0? */
+						mpz_set(large_primes[s1][1], large_primes[s1][0]);
+						nlp[s1] = 2;
+#if 0 /* this is now tested well enough, no need for a message */
+						if (verbose > 1) {
+							fprintf(stderr, " mpqs on a prime square ");
+							mpz_out_str(stderr, 10, large_primes[s1][0]);
+							fprintf(stderr, "^2  ");
+						}
+#endif
+						continue;
+					}
+					if (verbose > 1) {
+						fprintf(stderr, "mpqs failed for ");
+						mpz_out_str(stderr, 10, large_factors[s1]);
+						fprintf(stderr, "(a,b): ");
+						mpz_out_str(stderr, 10, sr_a);
+						fprintf(stderr, " ");
+						mpz_out_str(stderr, 10, sr_b);
+						fprintf(stderr, "\n");
+					}
+					n_mpqsfail[s1]++;
+					break;
+				}
+				if (nf == 0) {
+					n_mpqsvain[s1]++;
+					break;
+				}
+				for (i = 0; i < nf; i++)
+				{
+					mpz_set(large_primes[s1][i], mf[i]);
+				}
+				nlp[s1] = nf;
+			}
+			else
+				break;
+#endif
 		}
+		
 	}
+
+	//FILE* fid = fopen("lps_ecm.dat", "a");
+	//gmp_fprintf(fid, "%Zd(%d)\n",
+	//	large_factors[s1], mpz_sizeinbase(large_factors[s1], 2));
+	//fclose(fid);
 
 	_mm256_zeroupper();
 	 
