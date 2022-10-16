@@ -18,6 +18,7 @@ code to the public domain.
        				   --bbuhrow@gmail.com 3/26/10
 ----------------------------------------------------------------------*/
 
+#include <stdio.h>
 #include "yafu.h"
 #include "soe.h"
 #include "factor.h"
@@ -32,6 +33,7 @@ code to the public domain.
 #include "autofactor.h"
 #include "gmp.h"
 #include "ecm.h"
+#include <math.h>
 
 /* produced using ecm -v -v -v for the various B1 bounds (default B2).
 /	Thanks A. Schindel !
@@ -2330,6 +2332,8 @@ void write_factor_json(fact_obj_t* fobj, factor_work_t *fwork,
 		fprintf(fid, "\"compiler\":\"MSVC %d\",", _MSC_VER);
 #elif defined (__INTEL_COMPILER)
 		fprintf(fid, "\"compiler\":\"INTEL %d\",", __INTEL_COMPILER);
+#elif defined (__INTEL_LLVM_COMPILER)
+		fprintf(fid, "\"compiler\":\"%s\",", __clang_version__);
 #elif defined (__GNUC__)
 		fprintf(fid, "\"compiler\":\"GNUC %d\",", __GNUC__);
 #endif

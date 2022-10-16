@@ -36,6 +36,8 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 #include "asm/siever-config.h"
 
+int psp(mpz_t n);
+
 #ifdef MPQS_STAT
 extern u64_t stat_asm_eval, stat_asm_td;
 extern u32_t stat_asm_div, stat_final_mulmod;

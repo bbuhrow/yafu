@@ -16,5 +16,5 @@ u32_t firstprime32(pr32_struct*ps);
 u32_t nextprime32(pr32_struct*ps);
 void clearprime32(pr32_struct*ps);
 void p32_seek(pr32_struct*ps,u32_t lb);
-
+u32_t pr32_seek(pr32_struct* ps, u32_t lb);
 /*:2*/

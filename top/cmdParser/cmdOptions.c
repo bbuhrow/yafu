@@ -40,6 +40,10 @@ SOFTWARE.
 #include <string.h>
 #include <inttypes.h>
 
+#ifdef __INTEL_LLVM_COMPILER
+#include <ctype.h>
+#endif
+
 // this function prints the help information specified by usageHelp
 // and OptionHelp.
 void printUsage(options_t* options);

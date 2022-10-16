@@ -27,6 +27,7 @@ code to the public domain.
 #include "monty.h"
 #include "cofactorize.h"
 #include <ecm.h>
+#include <math.h>
 
 void test_dlp_composites()
 {
@@ -242,10 +243,10 @@ tinyecm_start:
 	f1 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 	f2 = (uint32_t *)malloc(2000000 * sizeof(uint32_t));
 
-   //goto tinyecm_marker;
+    goto tinyecm_marker;
     //goto spfermat_marker;
     //goto tinyqs_marker;
-	goto brent_marker;
+	//goto brent_marker;
 	
 
 	
@@ -293,7 +294,7 @@ brent_marker:
     num_files = i;
 
 	// lehman test
-	for (nf = 0; nf < 8; nf++)
+	for (nf = 0; nf < 5; nf++)
 	{
 		in = fopen(filenames[nf], "r");
 
@@ -875,12 +876,12 @@ tinyecm_marker:
 	strcpy(filenames[i++], "semiprimes_48bit.dat");		// 70
 	strcpy(filenames[i++], "semiprimes_50bit.dat");		// 70
 	strcpy(filenames[i++], "semiprimes_52bit.dat");		// 85
-	//strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
-	//strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
-	//strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
-	//strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
-	//strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
-	//strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
+	strcpy(filenames[i++], "semiprimes_54bit.dat");       // 85
+	strcpy(filenames[i++], "semiprimes_56bit.dat");		// 125
+	strcpy(filenames[i++], "semiprimes_58bit.dat");		// 125
+	strcpy(filenames[i++], "semiprimes_60bit.dat");		// 165
+	strcpy(filenames[i++], "semiprimes_62bit.dat");		// 165
+	strcpy(filenames[i++], "semiprimes_64bit.dat");		// 205
 	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
@@ -941,20 +942,19 @@ tinyecm_marker:
 
             fclose(in);
 
-			num = 100000;
+			num = 10000;
 
-			if (0)
+			if (1)
 			{
 				for (i = 0; i < num; i++)
 				{
 					uint64_t outf;
 
-					//mpz_set_ui(gmp_comp, comp[i]);
-					//tinyecm(gmp_comp, gmp_f, B1, B1 * 25, curves, &lcg, 0);
-					//getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
-					//outf = mpz_get_ui(gmp_f);
+					mpz_set_ui(gmp_comp, comp[i]);
+					getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
+					outf = mpz_get_ui(gmp_f);
 
-					outf = getfactor_uecm(comp[i], 0, &lcg);
+					//outf = getfactor_uecm(comp[i], 0, &lcg);
 
 					if ((outf == f1[i]) ||
 						(outf == f2[i]))

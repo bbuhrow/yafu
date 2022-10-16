@@ -12,8 +12,13 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
+#include <stdio.h>
+#include <gmp.h>
 #include "nfs_impl.h"
 #include "threadpool.h"
+#include <math.h>
+
+
 
 #ifdef USE_NFS
 

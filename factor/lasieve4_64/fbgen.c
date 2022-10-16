@@ -217,7 +217,7 @@ void polprintmod32(u32_t *P, u32_t dP, char * c){
    printf("\n");
 }
 
-void mod32multab(dT){
+void mod32multab(u32_t dT){
    u32_t i,c;
    modulo32ebits=0;
    for(i=0,c=modulo32;(c>>=1)>dT;i++){

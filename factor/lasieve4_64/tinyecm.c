@@ -29,6 +29,7 @@ either expressed or implied, of the FreeBSD Project.
 
 #include "gmp.h"
 #include <stdint.h>
+#include <stdio.h>
 
 #define D 120
 
@@ -453,7 +454,7 @@ void ciosFullMul128x(uint64_t* u, uint64_t* v, uint64_t rho, uint64_t* n, uint64
 }
 
 // already defined within mingw64/msys2
-#if defined( GCC_ASM64X ) && !defined(__MINGW32__) && !defined(__INTEL_COMPILER)
+#if defined( GCC_ASM64X ) && !defined(__MINGW32__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
 
 __inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t* sum)
 {

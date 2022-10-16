@@ -27,11 +27,11 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 */
 
-#include "gmp.h"
-#include "monty.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "gmp.h"
+#include "monty.h"
 
 #define D 120
 

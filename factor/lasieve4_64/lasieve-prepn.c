@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <immintrin.h>
 #include <stdio.h>
+#include "if.h"
 
 #ifdef _MSC_VER
 // so that I can read the code in MSVC without it being grayed out.
@@ -129,7 +130,7 @@ __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 
 
 										if (lmsk > 0) {
-#ifdef __INTEL_COMPILER
+#if defined( __INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
 											q = _mm512_mask_div_epu32(q, lmsk, dividend, divisor);
 											rem = _mm512_mask_rem_epu32(rem, lmsk, dividend, divisor);
 											

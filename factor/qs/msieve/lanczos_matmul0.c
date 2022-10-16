@@ -18,6 +18,9 @@ Purpose:	Port into Yafu-1.14.
 
 #include "lanczos.h"
 #include "ytools.h"
+#ifdef __INTEL_LLVM_COMPILER
+#include <pthread.h>
+#endif
 
 /*-------------------------------------------------------------------*/
 static void yafu_mul_unpacked(qs_packed_matrix_t *matrix,

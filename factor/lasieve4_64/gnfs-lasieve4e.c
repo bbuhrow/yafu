@@ -16,8 +16,9 @@
 
 
 // #include "lasieve.h"
-
+#define _GNU_SOURCE 
 #include <stdio.h> 
+#include <fnmatch.h>
 #include <sys/types.h> 
 #include <math.h> 
 #include <stdlib.h> 
@@ -58,6 +59,7 @@
 #include "gmp-aux.h"
 #include "lasieve-prepn.h"
 #include <immintrin.h>
+#include "input-poly.h"
 
 #define TDS_IMMEDIATELY 0
 #define TDS_BIGSS 1
@@ -66,9 +68,26 @@
 
 #define GCD_SIEVE_BOUND 10
 #include "asm/siever-config.c"
-
 #include "asm/lasched.h"
 #include "asm/medsched.h"
+
+// declare some stuff not declared elsewhere
+int psp(mpz_t n);
+//tdslinie(aux_ptr, aux_ptr_ub, sieve_interval, tds_buffer);
+void tdslinie(u16_t* x, u16_t* smallsieve_auxbound, unsigned char* sieve_interval, u32_t** tds_fbi_curpos);
+void tdslinie1(u16_t* x, u16_t* smallsieve_auxbound, unsigned char* sieve_interval, u32_t** tds_fbi_curpos);
+void tdslinie2(u16_t* x, u16_t* smallsieve_auxbound, unsigned char* sieve_interval, u32_t** tds_fbi_curpos);
+void tdslinie3(u16_t* x, u16_t* smallsieve_auxbound, unsigned char* sieve_interval, u32_t** tds_fbi_curpos);
+void slinie(u16_t* smallsieve_auxbound, u16_t* smallsieve_auxbound2, unsigned char* sieve_interval);
+void slinie1(u16_t* smallsieve_auxbound, u16_t* smallsieve_auxbound2, unsigned char* sieve_interval);
+void slinie2(u16_t* smallsieve_auxbound, u16_t* smallsieve_auxbound2, unsigned char* sieve_interval);
+void slinie3(u16_t* smallsieve_auxbound, u16_t* smallsieve_auxbound2, unsigned char* sieve_interval);
+long mpqs_factor(mpz_t N, size_t max_bits, mpz_t** factors);
+u32_t lasieve_search0(unsigned char* sieve_interval, unsigned char* horizontal_sievesums,
+	unsigned char* horizontal_sievesums2,
+	unsigned char* srbs, unsigned char* srbs2,
+	u16_t* cand, unsigned char* fss_sv);
+void schedsieve(unsigned char x, unsigned char* sieve_interval, u16_t* med_sched, u16_t* med_sched2);
 
 #define L1_SIZE (1UL<<L1_BITS)
 
@@ -1928,7 +1947,6 @@ if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
 #else
 						lasieve_setup(FB[s] + fbis[s], proots[s] + fbis[s], FBsize[s] - fbis[s],
 							a0, a1, b0, b1, LPri[s], FBsize[s]);
-						//printf("setup complete on side %d, size %u\n", s, FBsize[s]-fbis[s]);
 #endif
 					}
 				}
@@ -3001,6 +3019,7 @@ if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
 								x = medsched_logs[s][l];
 		#ifdef ASM_SCHEDSIEVE
 								schedsieve(x, sieve_interval, med_sched[s][l], med_sched[s][l + 1]);
+
 		#else
 								//for reference: #define SE_SIZE 2
 								for (schedule_ptr = med_sched[s][l] + MEDSCHED_SI_OFFS;
@@ -3149,6 +3168,7 @@ if (verbose) printf("I,J: %d,%d, n_i,n_j = %d,%d, j_per_strip,n_strips=%u,%u\n",
 									horizontal_sievesums + j_per_strip,
 									srbs, srbs + n_i / CANDIDATE_SEARCH_STEPS,
 									cand, fss_sv);
+
 								for (i = 0; i < ncand; i++)fss_sv[i] += horizontal_sievesums[cand[i] >> i_bits];
 							}
 		#else
@@ -6252,9 +6272,7 @@ u32_t* mpz_trialdiv(mpz_t N,u32_t*pbuf,u32_t ncp,char*errmsg)
 #endif
 
 static void
-store_tdsurvivor(fbp_buf0,fbp_buf0_ub,fbp_buf1,fbp_buf1_ub,lf0,lf1)
-     u32_t*fbp_buf0,*fbp_buf1,*fbp_buf0_ub,*fbp_buf1_ub;
-     mpz_t lf0,lf1;
+store_tdsurvivor(u32_t* fbp_buf0, u32_t* fbp_buf0_ub, u32_t* fbp_buf1, u32_t* fbp_buf1_ub, mpz_t lf0, mpz_t lf1)
 {
   size_t n0,n1,n;
   
@@ -6338,7 +6356,8 @@ primality_tests()
 		u16_t s1;
 		s1 = s ^ first_psp_side;
 		if (!need_test[s1])continue;
-		if (psp(large_factors[s1], 1) == 1)return 0;
+		//if (psp(large_factors[s1], 1) == 1)return 0;
+		if (psp(large_factors[s1]) == 1)return 0;
 		mpz_neg(large_factors[s1], large_factors[s1]);
 	}
 	return 1;

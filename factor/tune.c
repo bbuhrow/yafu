@@ -4,6 +4,7 @@
 #include "gnfs.h"
 #include "gmp_xface.h"
 #include <stdint.h>
+#include <math.h>
 
 //----------------------- LOCAL DECLARATIONS ----------------------------------//
 #define NUM_SIQS_PTS 9

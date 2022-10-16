@@ -25,6 +25,7 @@ code to the public domain.
 #include <gmp_xface.h>
 #include <ecm.h>
 #include <signal.h>
+#include <math.h>
 
 // these are used by the top level function, so both YAFU and GMP-ECM
 // paths must use these prototypes

@@ -393,7 +393,7 @@ int par_shanks_loop(uint64_t *N, uint64_t *f, int num_in)
 
         // run parallel squfof
 #if (USE_AVX2) && !defined(_MSC_VER)
-#if defined(__INTEL_COMPILER)
+#if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
         par_shanks_mult_unit(&mult_batch);
 #else
         par_shanks_mult_unit_asm(&mult_batch);
@@ -1402,7 +1402,7 @@ void par_shanks_mult_unit_asm(par_mult_t *mult_save)
     //return 1 in f if no factor is found
     uint32_t imax;
 
-#if defined(__INTEL_COMPILER)
+#if defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
     uint32_t *iterations = mult_save->it;
     uint32_t *P = mult_save->P;
     uint32_t *Qn = mult_save->Qn;

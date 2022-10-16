@@ -45,7 +45,7 @@
 // assume we have SSE2 available
 #define D_HAS_SSE2
 
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
 #define _MM_SCALE_1 1
 #endif
 

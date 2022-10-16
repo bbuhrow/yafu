@@ -49,10 +49,11 @@ along with the ECM Library; see the file COPYING.LIB.  If not, see
 http://www.gnu.org/licenses/ or write to the Free Software Foundation, Inc.,
 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA. */
 
+#include <stdio.h>
 #include "avx_ecm.h"
 #include "soe.h"
 #include "arith.h"
-#include <stdio.h>
+
 
 //#define D 1155
 //#define U 8
@@ -1412,7 +1413,7 @@ void next_pt_vec(vec_monty_t *mdata, ecm_work *work, ecm_pt *P, uint64_t c)
 	}
 
 	// find the first '1' bit then skip it
-#ifdef __INTEL_COMPILER
+#if defined( __INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
 	mask = 1ULL << (64 - _lzcnt_u64((uint64_t)c) - 2);
 #elif defined(__GNUC__)
 	mask = 1ULL << (64 - __builtin_clzll((uint64_t)c) - 2);

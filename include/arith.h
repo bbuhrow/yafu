@@ -37,7 +37,7 @@ code to the public domain.
 #define UNKNOWN 3
 
 
-#ifdef __INTEL_COMPILER
+#if defined( __INTEL_COMPILER)
 // leading and trailing zero count are ABM instructions
 // that require haswell or later on Intel or ABM on AMD.
 // The same basic functionality exists with the 
@@ -77,7 +77,7 @@ __inline uint64_t _lead_zcnt64(uint64_t x)
         return 64;
 }
 #endif
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__INTEL_LLVM_COMPILER)
 #if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
 #define _reset_lsb(x) _blsr_u32(x)
 #define _reset_lsb64(x) _blsr_u64(x)

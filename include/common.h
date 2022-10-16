@@ -45,7 +45,7 @@ extern "C" {
    These are escaped with the _ICL_WIN_ define
    */
 
-#if defined(__INTEL_COMPILER)
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 
 	#define ASM_G __asm__
 	#define ASM_M __asm

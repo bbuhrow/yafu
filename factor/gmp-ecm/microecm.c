@@ -84,7 +84,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #ifdef _MSC_VER
 #  define MICRO_ECM_FORCE_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+#elif defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER) || defined (__INTEL_LLVM_COMPILER)
 #  define MICRO_ECM_FORCE_INLINE inline __attribute__((always_inline))
 #else
 #  define MICRO_ECM_FORCE_INLINE __inline

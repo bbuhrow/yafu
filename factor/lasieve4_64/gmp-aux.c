@@ -4,7 +4,7 @@
 #include <sys/types.h> 
 #include <string.h> 
 #include <gmp.h> 
-
+#include <stdlib.h>
 #include "asm/siever-config.h"
 #include "if.h"
 #include "gmp-aux.h"

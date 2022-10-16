@@ -44,6 +44,7 @@ This file is a snapshot of a work in progress, originated by Mayo
 */
 
 #include "avx_ecm.h"
+#include <math.h>
 
 #ifdef _MSC_VER
 #define USE_AVX512F
@@ -1109,14 +1110,14 @@ void vecmulmod52_fixed624_cios(vec_bignum_t* a, vec_bignum_t* b, vec_bignum_t* c
     uint32_t NWORDS = mdata->NWORDS;
     uint32_t NBLOCKS = mdata->NBLOCKS;
 
-#ifndef IFMA
+//#ifndef IFMA
     __m512d prod1_hd, prod2_hd, prod3_hd, prod4_hd;                 // 23
     __m512d prod1_ld, prod2_ld, prod3_ld, prod4_ld, prod5_ld;        // 28
     __m512d dbias = _mm512_castsi512_pd(set64(0x4670000000000000ULL));
     __m512i vbias1 = set64(0x4670000000000000ULL);  // 31
     __m512i vbias2 = set64(0x4670000000000001ULL);  // 31
     __m512i vbias3 = set64(0x4330000000000000ULL);  // 31
-#endif
+//#endif
 
     // needed after loops
     __m512i zero = set64(0);

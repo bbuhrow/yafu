@@ -12,7 +12,12 @@ benefit from your work.
        				   --bbuhrow@gmail.com 12/6/2012
 ----------------------------------------------------------------------*/
 
+#include <stdio.h>
 #include "nfs_impl.h"
+#ifdef __INTEL_LLVM_COMPILER
+#include <pthread.h>
+#endif
+#include <math.h>
 
 #ifdef USE_NFS
 

@@ -34,6 +34,10 @@ code to the public domain.
 #include <io.h>
 #endif
 
+#ifdef __INTEL_LLVM_COMPILER
+#include <ctype.h>
+#endif
+
 #include "cmdOptions.h"
 
 // function to read the .ini file and populate options
@@ -183,7 +187,7 @@ int main(int argc, char *argv[])
     fobj->THREADS = yafu_obj.THREADS;
     fobj->HAS_BMI2 = comp_info.BMI2;
 
-#if defined(__INTEL_COMPILER)
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512F))
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512f"))
@@ -194,7 +198,7 @@ int main(int argc, char *argv[])
         fobj->HAS_AVX512F = comp_info.AVX512F;
     }
 
-#ifdef __INTEL_COMPILER
+#if defined( __INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     if (_may_i_use_cpu_feature(_FEATURE_AVX512BW))
 #elif defined(__GNUC__)
     if (__builtin_cpu_supports("avx512bw"))
@@ -954,6 +958,9 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 #elif defined (__INTEL_COMPILER)
         printf("Built with Intel Compiler %d\n", __INTEL_COMPILER);
         logprint(logfile, "Built with Intel Compiler %d\n", __INTEL_COMPILER);
+#elif defined(__INTEL_LLVM_COMPILER)
+        printf("Built with Intel LLVM Compiler %s\n", __clang_version__);
+        logprint(logfile, "Built with Intel LLVM Compiler %s\n", __clang_version__);
 #elif defined (__GNUC__)
         printf("Built with GCC %d\n", __GNUC__);
         logprint(logfile, "Built with GCC %d\n", __GNUC__);

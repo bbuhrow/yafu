@@ -22,6 +22,7 @@ thanks to their kind donation of code to the public domain.
 #include "ytools.h"
 #include "common.h"
 #include <math.h>
+#include "mpz_aprcl.h"
 
 uint64_t mpz_get_64(mpz_t src)
 {

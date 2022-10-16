@@ -25,6 +25,7 @@ code to the public domain.
 #include <ecm.h>
 #include <signal.h>
 #include <time.h>
+#include <math.h>
 
 //local function declarations
 typedef struct {

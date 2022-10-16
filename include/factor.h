@@ -547,5 +547,7 @@ uint64_t spfermat(uint64_t limit, uint32_t mult, uint64_t n);
 // factoring related utility
 int resume_check_input_match(mpz_t file_n, mpz_t input_n, mpz_t common_fact, int VFLAG);
 
+// find a crossover between QS and NFS
+void factor_tune(fact_obj_t* inobj);
 
 #endif //_FACTOR_H

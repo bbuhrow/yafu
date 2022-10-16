@@ -193,6 +193,10 @@ DWORD WINAPI nfs_worker_thread_main(LPVOID thread_data);
 void* nfs_worker_thread_main(void* thread_data);
 #endif
 
+// for msieve interface
+uint32_t factor_gnfs(msieve_obj* obj, mp_t* n, factor_list_t* factor_list); 
+uint32_t mp_bits(mp_t* a);
+uint32_t factor_list_add(msieve_obj* obj, factor_list_t* list, mp_t* new_factor);
 
 //----------------------- SNFS FUNCTIONS -------------------------------------//
 void find_brent_form(fact_obj_t* fobj, snfs_t* poly);

@@ -19,6 +19,17 @@
 #include "asm/siever-config.h"
 #include "if.h"
 
+#ifdef __INTEL_LLVM_COMPILER
+// I don't know why but icx complains that this isn't declared.
+int
+vasprintf(char** result, const char* format,
+#if defined (_BSD_VA_LIST_) && defined (__FreeBSD__)
+    _BSD_VA_LIST_ args)
+#else
+va_list args);
+#endif
+#endif
+
 int verbose= 0;
 static ulong used_cols,ncol= 80;
 
