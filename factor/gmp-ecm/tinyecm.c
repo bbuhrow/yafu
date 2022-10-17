@@ -5214,7 +5214,7 @@ void getfactor_tecm_x8_list(uint64_t* q64, uint64_t* f64, int target_bits,
 	for (i = 0; i < num_in; i++)
 	{
 		u128_to_mpz(q64 + 2 * i, n);
-		tecm_dispatch(n, f, target_bits, pran);
+		tecm_dispatch(n, f, target_bits, 1, pran);
 		mpz_to_u128(f, f64 + 2 * i);
 	}
 
