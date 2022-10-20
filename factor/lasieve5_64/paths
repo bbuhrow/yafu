@@ -1,0 +1,6 @@
+CFLAGS+= -I/usr/local/include -L/usr/local/lib -I/usr/local/include/boinc
+#CFLAGS += -Dgetline=gnu_getline -fomit-frame-pointer
+#GMP_LIB+=-lgettextlib
+
+#CFLAGS += -march=pentium4
+#CFLAGS= -g

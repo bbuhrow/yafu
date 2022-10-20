@@ -1,0 +1,197 @@
+I) Installation
+===============
+
+1) Install cweb (which can be obtained from the anonymous ftp directory at
+the CWI), untar 'lasieve4.tgz', and change to the directory 'lasieve4'.
+2) Symbolically link one of the directories 'piii', 'mips', 'itanium',
+'generic' to asm.
+3) The directory 'asm' has to contain a file named siever-config.w. The
+subdirectory 'generic' only contains siever-config32.w and siever-config64.w
+The first is for machines (like Pentium, R5000, R10000) for which 'ulong' has
+32 bits, while 'unsigned long long' has 64 bits. The second is for machines for
+which 'ulong' has 64 bits, while 'unsigned' has 32 bits. Copy one of them
+to siever-config.w and edit this file, setting 'L1_BITS' to its correct value.
+Also, make it known to the compiler if your machine is bigendian. If you dont
+use GNU libc, you must edit siever-config.w to make sure that the makeshift
+replacements for asprintf and getline are compiled.
+4) One of the parameters of the lattice siever has to be selected at compile
+time. For a lattice sieving region of 4096x2048, (suitable for projects
+with SNFS complexity 150, or GNFS for numbers with 110 digits), 
+type 'make gnfs-lasieve4I12e'. For 8192x4096 (suitable for SNFS complexity
+around 180, or GNFS for numbers in the 130-140 digits range), type
+'make gnfs-lasieve4I13e'. For 16394x8192 (for very large projects, like
+GNFS on a number in the upper c150 or c160 digits ranke),
+make gnfs-lasieve4I14e.
+
+Note that the second dimension for the lattice siever is not fixed at compile
+time. For instance, gnfs-lasieve4I13e can also be used with smaller sieving
+areas like 8192x2048. However, it is best to use one of the parameters
+indicated above.
+
+II) How to use the lattice siever.
+==================================
+
+This introduction only explains how to run the lattice siever. Polynomial
+generation and postprocessing are explained in the documentation of other
+parts of this GNFS implementation.
+
+1) Format of the input file.
+
+You have to specify the polynomials, the number N you want to factor and
+the common root modulo N of the polynomials in the input file. All lines
+starting with '#' will be ignored when this file is read. The following example
+was used to the factorization of the 143-digits number 92!+1 by GNFS:
+
+# The number N you want to factor.
+12438414054641307255475324325873553077577991715875414356840239582938137710983519518443046123837041347353107486982656753664000000000000000000001
+# The quintic polynomial.
+X5 174713259600
+X4 3878365307190750
+X3 -93148346589566466517
+X2 -281809212356103765577732
+X1 4798255105891925291561282988
+X0 12163048750908282852500646068064
+# You dont have to specify the linear polynomial if it is just X - M.
+# The common root M of the polynomials modulo N.
+M  148077075528884255096769313
+# The next non-comment line contains information related to the factor base
+# for the linear polynomial.
+# First field: Primes below this number will be ignored for sieving.
+# Second field: Factor base bound
+# Third field: Sieve report bound lambda
+#     All sieve reports for which the sieve value is at least
+#          log(abs(polynomial value))-lambda*log(factor base bound)
+#     will be investigated by the trial division sieve.
+# Fourth field: Large primes bound. In the given example, the largest supported
+#     value of 32 bit.
+# Fifth field: Only sieve reports for which a number of size at most 58 bit
+#     remains after trial division will be investiaget further.
+0  8000000 2.7 32 58
+# Finally, the same information for the algebraic polynomial. 
+0 16000000 2.7 32 60
+
+The selection of the third field (called lambda) of the last two lines requires
+some care. If lambda is too large, then the trial division sieve will dominate
+the run time without producing more useful sieve reports than the optimal
+value. If it is too small, sieve reports will be lost, and you will be forced
+to sieve more special q. Note that the yield per special q decreases as the
+special q increases. The best procedure is to first fix the large prime bounds
+for your project. Next, sieve some special q with a very liberal choice of
+lambda (eg, 4.0). Next, resieve with smaller values of lambda, keeping the
+smallest value for which you do not loose more than 1-2% compared to the
+liberal choice of lambda. Larger losses are acceptable only if the decrease
+of the run time per special q is so considerable that the effect is not
+neutralized by the need to sieve more special q at the upper end of the range.
+
+While the lattice siever currently does not support two polynomials of degree
+> 1, it is possible to specify other linear polynomials than X-M. This is
+demonstrated in the following example, which was used to factor the 709-th
+Fibonacci number by SNFS:
+
+# Begin of example
+458392269656240387248967094446257272964105368801191123290813194523619497181852971726369101893194322650841914919659660851937653868417
+X5 1
+# Note that it is not necessary to have a line starting with X4 if the
+# fourth coefficient of the algebraic polynomial vanishes.
+X3 10
+X2 10
+X1 10
+X0 3
+# The two coefficients of the linear polynomial.
+Y1 212207101440105399533740733471
+Y0 -131151201344081895336534324866
+# The common root mod N of the polynomials.
+M 458392269656209054967322893631215759609546523619270512646885929928875921948408727621586159468514046710910397688470162564099928156184
+20 1500000 1.8 27 27
+20 1500000 2.8 27 48
+# End of example.
+
+2) Using the lattice siever.
+
+I assume that the pair of polynomials for your number field sieve experiment is
+in an input file named 'foo'. I also assume that you want to use special q
+on the algebraic side and that the size of your sieving area is 8192x4096.
+This was the case for the above c143.
+
+Before you start sieving, it is adviceable (but not necessary) to generate
+an algebraic factor base file named 'foo.afb.0'. (If both polynomials have
+degree >1, which is the case for HNFS or biquadratic gnfs, then two factor base
+files will be created.) If the lattice siever does
+not find this file, it will spend some time generating the algebraic factor
+base each time it is invoked. To generate 'foo.afb.?', type
+'gnfs-lasieve4I13e -b foo -k -c 0'. To force the recalculation of an existing
+factor base file, it is necessary to also use the '-F' option or to remove this
+file.
+
+To start lattice sieving for all special q between 16000000 and 16001000, type
+
+	gnfs-lasieve4I13e -b foo -f 16000000 -c 1000 -v -z -S 11739.41 -a
+
+or
+	gnfs-lasieve4I13e -f 16000000 -c 1000 -v -z -S 11739.41 -a foo
+
+from the UNIX command line. Note that this has the same effect as
+	gnfs-lasieve4I13e -b foo -f 16000000 -c 1000 -v -z -S 11739.41 -J 12 -a
+
+and that -J may be used to lower the default value of 12 for the number of bits
+in the second dimension of the sieving region. Note that it is probably not
+normally useful to use sieving regions which heavily deviate from being
+half-square. For special q on the rational side (which are not
+particularly useful in this example), replace '-a' by '-r'. In the example
+of the c143, we (T. Kleinjung and I) did this for most special q between
+16e6 and 66e6. This is most conveniently done by a shell script, or by a small
+client/server program. Note that special q above INT_MAX or below your
+specified factor base bound on the special q side are not allowed.
+
+The '-S' parameter of the lattice siever is the skewness of your polynomial.
+For gnfs polynomials, it is calculated by the  gnfs-qpoq or (better) gnfs-qpoq1
+programs. For SNFS projects, it normally close to 1. In some cases, values
+between 1 and 10 (or less than one if one of the polynomials has a dominating
+leading coefficient) offer a (slight) improvement. You may want to try this
+out before starting your SNFS project.
+
+For the 709-th Fibonacci number, I used 
+
+	gnfs-lasieve4I12e -f first_special_q -c 1000 -v -z -S 5 -J 11 -r F709
+
+for all special q between 1500000 and 6122500 (which turned out to be much more
+than needed).
+
+3) Interrupting and resuming a sieving task.
+
+When invoked with a flag '-n 1234' (where the argument can be any non-negative
+integer <0x100000000), the lattice siever catches the signals SIGINT and
+SIGTERM and writes the decimal representation of the first special q in the
+determined range which is not yet completely sieved to the file
+	"foo.bar.last_spq1234",
+where foo is the name of your gnfs project and bar the name of your machine,
+before exiting with an exit status of 1. The output file will not be renamed.
+It is necessary to remove the garbled last entry of the resulting output file,
+and resumption of sieving for the aborted special q will produce some
+additional duplicate sieve reports.
+
+When invoked with a flag '-L progname', the lattice siever will start sieving
+for a special q only if system(progname) returns an exit status of 0.
+Otherwise, it will exit after saving the next special q which is to be sieved
+in the same way as explained above. If this option is used without the '-n'
+option, then it will be assumed that the argument to the '-n' option was 0.
+Note that signals will be caught only if '-n' is used explicitely. Use
+'-N 1234' if you want the special q to be saved in 'foo.bar.last_spq1234'
+when the system is no longer idle, but if you dont want to catch signals.
+
+III) Acknowledgements.
+
+The number field sieve and lattice sieving are an invention of J. Pollard.
+Lattice sieving using the method of Pollard was pioneered by A. Lenstra.
+In particular, the organization of trial division by a sieve-like procedure
+appears to be due do Golliver, Lenstra and McCurley (ANTS94). The use of
+a continued fraction approach to lattice sieving appears to be new, however.
+
+The functions for factor base generation used in this implementation have been
+written by F. Bahr. The MPQS used in this version is optimized for the smaller
+numbers which remain after the trial division of a sieve report and was written
+by T. Kleinjung, who also provided many helpful suggestions.
+
+Have fun!
+
+Jens Franke
