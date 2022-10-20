@@ -136,10 +136,43 @@ u32_t* lasched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t n1_j,
 			u32_t memsched[16];
 			u32_t memij[16];
 
+			while (mij == 0xffff) {
+			
+				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
+				
+				_mm512_store_epi32(memsched, vsched);
+				_mm512_store_epi32(memij, vij);
+
+				*(sched_ptr[memij[ 0] >> L1_BITS]++) = memsched[ 0];
+				*(sched_ptr[memij[ 1] >> L1_BITS]++) = memsched[ 1];
+				*(sched_ptr[memij[ 2] >> L1_BITS]++) = memsched[ 2];
+				*(sched_ptr[memij[ 3] >> L1_BITS]++) = memsched[ 3];
+				*(sched_ptr[memij[ 4] >> L1_BITS]++) = memsched[ 4];
+				*(sched_ptr[memij[ 5] >> L1_BITS]++) = memsched[ 5];
+				*(sched_ptr[memij[ 6] >> L1_BITS]++) = memsched[ 6];
+				*(sched_ptr[memij[ 7] >> L1_BITS]++) = memsched[ 7];
+				*(sched_ptr[memij[ 8] >> L1_BITS]++) = memsched[ 8];
+				*(sched_ptr[memij[ 9] >> L1_BITS]++) = memsched[ 9];
+				*(sched_ptr[memij[10] >> L1_BITS]++) = memsched[10];
+				*(sched_ptr[memij[11] >> L1_BITS]++) = memsched[11];
+				*(sched_ptr[memij[12] >> L1_BITS]++) = memsched[12];
+				*(sched_ptr[memij[13] >> L1_BITS]++) = memsched[13];
+				*(sched_ptr[memij[14] >> L1_BITS]++) = memsched[14];
+				*(sched_ptr[memij[15] >> L1_BITS]++) = memsched[15];
+			
+				__m512i vi = _mm512_and_epi32(vij, vni_m1);
+				__mmask16 mib = _mm512_mask_cmplt_epu32_mask(mij, vi, vb);
+				__mmask16 mia = _mm512_mask_cmpge_epu32_mask(mij, vi, va);
+			
+				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
+				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
+				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+			}
+
 			while (mij > 0) {
 
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
-				
+
 				_mm512_store_epi32(memsched, vsched);
 				_mm512_store_epi32(memij, vij); // _mm512_srli_epi32(vij, L1_BITS));
 
@@ -252,27 +285,57 @@ u32_t* lasched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t n1_j,
 
 			__mmask16 mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));		
 
+			while (mij == 0xffff) {
+				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
+
+				_mm512_store_epi32(memsched, vsched);
+				_mm512_store_epi32(memij, vij);
+
+				*(sched_ptr[memij[ 0] >> L1_BITS]++) = memsched[0];
+				*(sched_ptr[memij[ 1] >> L1_BITS]++) = memsched[1];
+				*(sched_ptr[memij[ 2] >> L1_BITS]++) = memsched[2];
+				*(sched_ptr[memij[ 3] >> L1_BITS]++) = memsched[3];
+				*(sched_ptr[memij[ 4] >> L1_BITS]++) = memsched[4];
+				*(sched_ptr[memij[ 5] >> L1_BITS]++) = memsched[5];
+				*(sched_ptr[memij[ 6] >> L1_BITS]++) = memsched[6];
+				*(sched_ptr[memij[ 7] >> L1_BITS]++) = memsched[7];
+				*(sched_ptr[memij[ 8] >> L1_BITS]++) = memsched[8];
+				*(sched_ptr[memij[ 9] >> L1_BITS]++) = memsched[9];
+				*(sched_ptr[memij[10] >> L1_BITS]++) = memsched[10];
+				*(sched_ptr[memij[11] >> L1_BITS]++) = memsched[11];
+				*(sched_ptr[memij[12] >> L1_BITS]++) = memsched[12];
+				*(sched_ptr[memij[13] >> L1_BITS]++) = memsched[13];
+				*(sched_ptr[memij[14] >> L1_BITS]++) = memsched[14];
+				*(sched_ptr[memij[15] >> L1_BITS]++) = memsched[15];
+
+				__m512i vi = _mm512_and_epi32(vij, vni_m1);
+				__mmask16 mib = _mm512_mask_cmplt_epu32_mask(mij, vi, vb);
+				__mmask16 mia = _mm512_mask_cmpge_epu32_mask(mij, vi, va);
+
+				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
+				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
+				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+			}
+
 			while (mij > 0) {
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
 
 				_mm512_store_epi32(memsched, vsched);
-				_mm512_store_epi32(memij, vij); // _mm512_srli_epi32(vij, L1_BITS));
+				_mm512_store_epi32(memij, vij);
 
-				// *(sched_ptr[ij >> L1_BITS]++) = (fbi_offs << U16_SHIFT) | (ij & (L1_SIZE - 1));
 				u32_t m = mij;
 				while (m > 0)
 				{
 					int id = _tzcnt_u32(m);
 					*(sched_ptr[memij[id] >> L1_BITS]++) = memsched[id];
+					
+					// attempt to store directly from the vector.  slower.
+					//u32_t* ptr = sched_ptr[memij[id] >> L1_BITS]++;
+					//_mm512_mask_storeu_epi32(ptr - id, 1<<id, vsched);
 					m = _blsr_u32(m);
 				}
 
 				__m512i vi = _mm512_and_epi32(vij, vni_m1);
-
-				//i = ij & (n_i - 1);
-				//if (i < b)ij += ri[0];
-				//if (i >= a)ij += ri[1];
-
 				__mmask16 mib = _mm512_mask_cmplt_epu32_mask(mij, vi, vb);
 				__mmask16 mia = _mm512_mask_cmpge_epu32_mask(mij, vi, va);
 

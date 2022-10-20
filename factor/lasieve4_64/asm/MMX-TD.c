@@ -50,10 +50,11 @@ static int jps=0;
 /* Read-Ahead safety. */
 #define RAS MMX_REGW
 
+//#define TD_CONTIGUOUS_SMALLSIEVE
+
 #ifdef _MSC_VER
 #define AVX512_TD
-// can I change MMX_REGW to 32?
-// need to find everywhere this would impact...
+//#define TD_CONTIGUOUS_SMALLSIEVE
 #endif
 
 static u16_t *
@@ -87,7 +88,7 @@ MMX_TdAllocate(int jps_arg,size_t s0,size_t s1)
 
 u16_t*
 MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
-    int initialize)
+    int initialize, u32_t fbis)
 {
     u16_t* y, * z, * u;
     u32_t p_bound;
@@ -101,6 +102,60 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
         i = 0;
 
 #if defined(AVX512_TD)
+        
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+        while (y + MMX_REGW < x_ub) {
+            int k;
+
+            __m512i vr = _mm512_load_si512(y + 1 * fbis);
+            __m512i vp = _mm512_load_si512(y);
+            __m512i vpr = vr;
+
+            //modulo32 = *y;
+            //mi = *y;
+            //*z = mi;
+            __m512i vpi = vp;
+            _mm512_store_si512(z, vp);
+
+            //modulo32 = *y;
+            //mi = 2 * mi - mi * mi * modulo32;;
+            //mi = 2 * mi - mi * mi * modulo32;;
+            //mi = 2 * mi - mi * mi * modulo32;;
+
+            __m512i t2 = _mm512_mullo_epi16(vpi, vpi);
+            __m512i t1 = _mm512_slli_epi16(vpi, 1);
+            __m512i t3 = _mm512_mullo_epi16(t2, vp);
+            vpi = _mm512_sub_epi16(t1, t3);
+
+            t2 = _mm512_mullo_epi16(vpi, vpi);
+            t1 = _mm512_slli_epi16(vpi, 1);
+            t3 = _mm512_mullo_epi16(t2, vp);
+            vpi = _mm512_sub_epi16(t1, t3);
+
+            t2 = _mm512_mullo_epi16(vpi, vpi);
+            t1 = _mm512_slli_epi16(vpi, 1);
+            t3 = _mm512_mullo_epi16(t2, vp);
+            vpi = _mm512_sub_epi16(t1, t3);
+
+            // stuff stored in z expects to alternate between p's and p^-1's every
+            // MMX_REGW items.  So we either have to do a lot of shuffling
+            // or update MMX_REGW to 32 (and fix everywhere else that is used).
+            _mm512_store_si512((z + MMX_REGW), vpi);
+
+            for (k = 0; k < jps; k++) {
+                //MMX_TdPr[side][k][i] = rr;
+                //rr = modadd32(rr, r);
+                _mm512_store_si512((&MMX_TdPr[side][k][i]), vr);
+                vr = _mm512_add_epi16(vr, vpr);
+                __mmask32 m = _mm512_cmpge_epu16_mask(vr, vp);
+                vr = _mm512_mask_sub_epi16(vr, m, vr, vp);
+            }
+
+            y += 32, z += 3 * MMX_REGW, i += 32;
+        }
+
+#else
+
         while (y + 4 * MMX_REGW < x_ub) {
             int k;
 
@@ -151,7 +206,34 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
 
             y += 32, z += 24, i += 8;
         }
+#endif
 
+#else
+
+#ifdef TD_CONTIGUOUS_SMALLSIEVE
+        while (y + 1 * MMX_REGW < x_ub) {
+            int j;
+            for (j = 0; j < MMX_REGW; j++, y += 1, z++, i++) {
+                u16_t mi;
+                u32_t r, rr;
+                int k;
+
+                modulo32 = *y;
+                mi = *y;
+                *z = mi;
+                mi = 2 * mi - mi * mi * modulo32;
+                mi = 2 * mi - mi * mi * modulo32;
+                mi = 2 * mi - mi * mi * modulo32;
+                *(z + MMX_REGW) = mi;
+                r = y[1 * fbis];
+                rr = r;
+                for (k = 0; k < jps; k++) {
+                    MMX_TdPr[side][k][i] = rr;
+                    rr = modadd32(rr, r);
+                }
+            }
+            z += 2 * MMX_REGW;
+        }
 #else
         while (y + 4 * MMX_REGW < x_ub) {
             int j;
@@ -176,6 +258,7 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
             }
             z += 2 * MMX_REGW;
         }
+#endif
 
 #endif
     }
@@ -183,15 +266,39 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
     u = MMX_TdPr[side][jps - 1];
     p_bound = *pbound_ptr;
 
-#if defined(AVX512_TD)
+#if defined(AVX512_TD) // && !defined(TD_CONTIGUOUS_SMALLSIEVE)
 
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+    __m512i zero = _mm512_setzero_si512();
+
+    for (y = x; y < x_ub - MMX_REGW; y = y + MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
+
+        if (z[MMX_REGW] > p_bound) break;
+
+        __m512i vp = _mm512_load_si512(y);
+        __m512i uv = _mm512_load_si512(u);
+        __m512i vr = _mm512_load_si512(y + 3 * fbis);
+
+        __m512i t = _mm512_sub_epi16(zero, vr);
+        __mmask32 m = _mm512_cmpgt_epu16_mask(vr, zero);
+        t = _mm512_mask_add_epi16(t, m, t, vp);
+        _mm512_store_si512(z, t);
+
+        vr = _mm512_add_epi16(vr, uv);
+        m = _mm512_cmpge_epu16_mask(vr, vp);
+        vr = _mm512_mask_sub_epi16(vr, m, vr, vp);
+
+        _mm512_storeu_epi16(y + 3 * fbis, vr);
+    }
+
+#else
     __m128i zero = _mm_setzero_si128();
     for (y = x; y < x_ub - 4 * MMX_REGW; y = y + 4 * MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
 
         if (z[MMX_REGW] > p_bound) break;
 
         __m512i xv = _mm512_load_si512(y);
-        __m128i uv = _mm_loadu_si128((__m128i *)u);
+        __m128i uv = _mm_loadu_si128((__m128i*)u);
         __m512i vr = _mm512_srli_epi64(xv, 48);	// align roots
         __m128i vp128 = _mm512_cvtepi64_epi16(xv);
         __m128i vr128 = _mm512_cvtepi64_epi16(vr);
@@ -213,8 +320,22 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
         _mm512_storeu_epi64(y, xv);
     }
 
+#endif
+
 #else
 
+#ifdef TD_CONTIGUOUS_SMALLSIEVE
+
+    for (y = x; y < x_ub - 1 * MMX_REGW; y = y + 1 * MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
+        int i;
+        if (z[MMX_REGW] > p_bound) break;
+        for (i = 0; i < MMX_REGW; i++) {
+            modulo32 = y[i];
+            z[i] = modsub32(0, y[i + 3 * fbis]);
+            y[i + 3 * fbis] = modadd32(y[i + 3 * fbis], u[i]);
+        }
+    }
+#else
     for (y = x; y < x_ub - 4 * MMX_REGW; y = y + 4 * MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
         int i;
         if (z[MMX_REGW] > p_bound) break;
@@ -224,6 +345,7 @@ MMX_TdInit(int side, u16_t* x, u16_t* x_ub, u32_t* pbound_ptr,
             y[4 * i + 3] = modadd32(y[4 * i + 3], u[i]);
         }
     }
+#endif
 
 #endif
 
@@ -240,7 +362,21 @@ MMX_TdUpdate(int side,int j_step)
 
   y=MMX_TdPr[side][j_step-1];
 
-#if 1
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+
+  for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
+
+      __m512i xv = _mm512_load_si512(x);
+      __m512i pv = _mm512_load_si512((x + MMX_REGW));
+      __m512i yv = _mm512_load_si512(y);
+
+      __m512i t = _mm512_sub_epi16(xv, yv);
+      __mmask32 m = _mm512_cmpgt_epu16_mask(yv, xv);
+      t = _mm512_mask_add_epi16(t, m, t, pv);
+      _mm512_store_si512(x, t);
+  }
+
+#elif 1
 
   for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
 
@@ -255,6 +391,7 @@ MMX_TdUpdate(int side,int j_step)
   }
 
 #else
+
   for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
       int i;
       for (i = 0; i < MMX_REGW; i++) {
@@ -302,6 +439,32 @@ MMX_Td(u32_t* pbuf, int side, u16_t strip_i)
 
 #if defined(AVX512_TD)
 
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+    __m512i vs = _mm512_set1_epi16(strip_i);
+    __m512i zero = _mm512_setzero_si512();
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW) {
+
+        __m512i x0 = _mm512_load_si512((&(x[0])));
+        __m512i x1 = _mm512_load_si512((&(x[MMX_REGW])));
+        __m512i x2 = _mm512_load_si512((&(x[2 * MMX_REGW])));
+
+        __m512i tv = _mm512_add_epi16(vs, x0);
+        __m512i tv2 = _mm512_mullo_epi16(tv, x2);
+        __m512i tv3 = _mm512_mulhi_epu16(tv2, x1);
+
+        __mmask32 m = _mm512_cmpeq_epu16_mask(tv3, zero);
+
+        while (m > 0)
+        {
+            int id = _tzcnt_u32(m);
+            *(pbuf++) = x[MMX_REGW + id];
+            m = _blsr_u32(m);
+        }
+
+    }
+
+#else
+
     __m128i vs = _mm_set1_epi16(strip_i);
     __m128i zero = _mm_setzero_si128();
     for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW) {
@@ -324,6 +487,8 @@ MMX_Td(u32_t* pbuf, int side, u16_t strip_i)
         }
 
     }
+
+#endif
 
     return pbuf;
 
