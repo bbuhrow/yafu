@@ -17,7 +17,7 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc
+CC = gcc-11.1.0
 CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2
 #CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
@@ -30,8 +30,8 @@ OBJ_EXT = .o
 
 # standard search directories for headers/libraries within yafu.
 # These should normally not be modified.
-INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/  -Ifactor/gmp-ecm
-LIBS = -L.
+INC = -I. -Iinclude -Itop/aprcl -Itop/cmdParser -Itop/ -Ifactor/gmp-ecm  
+LIBS = -L. 
 
 # we require additional search directories for msieve, zlib, gmp, gmp-ecm, 
 # ytools, and ysieve for libraries and headers.  By default, we look
@@ -192,6 +192,7 @@ MSIEVE_SRCS = \
 
 MSIEVE_OBJS = $(MSIEVE_SRCS:.c=$(OBJ_EXT))
 
+
 #---------------------------YAFU file lists -------------------------
 YAFU_SRCS = \
 	top/driver.c \
@@ -210,6 +211,7 @@ COMMON_SRCS = \
 	arith/arith.c \
 	arith/monty.c \
 	factor/gmp-ecm/tinyecm.c \
+	factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c
 	
 ECM_SRCS = \

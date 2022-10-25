@@ -885,10 +885,10 @@ tinyecm_marker:
 	//strcpy(filenames[i++], "semiprimes_tlp_32x32x32.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_32x64.txt");
 	//strcpy(filenames[i++], "semiprimes_tlp_48x48.txt");
-    //strcpy(filenames[i++], "pseudoprimes_70bit.dat");
-	//strcpy(filenames[i++], "pseudoprimes_80bit.dat");
-	//strcpy(filenames[i++], "pseudoprimes_90bit.dat");
-	//strcpy(filenames[i++], "pseudoprimes_100bit.dat");
+    //strcpy(filenames[i++], "semiprimes_70bit.dat");
+	//strcpy(filenames[i++], "semiprimes_80bit.dat");
+	//strcpy(filenames[i++], "semiprimes_90bit.dat");
+	//strcpy(filenames[i++], "semiprimes_100bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_110bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_120bit.dat");
 	//strcpy(filenames[i++], "pseudoprimes_125bit.dat");
@@ -896,6 +896,8 @@ tinyecm_marker:
 	num = 10000;
 
 	uint64_t lcg = 42;
+
+	
 
 	// tinyecm test
 	for (nf = 0; nf < num_files; nf++)
@@ -928,6 +930,13 @@ tinyecm_marker:
             {
                 fscanf(in, "%" PRIu64 ",%u,%u", comp + i, f1 + i, f2 + i);
                 mpz_set_ui(gmptmp, comp[i]);
+
+				// to scan in for 52-bit processing:
+				//fscanf(in, "%" PRIu64 ",%u,%u", comp + 2 * i, f1 + i, f2 + i);
+				//mpz_set_ui(gmptmp, comp[2*i]);
+				//comp[2 * i + 1] = comp[2 * i + 0] >> 52;
+				//comp[2 * i + 0] &= 0x000fffffffffffffull;
+
                 j = mpz_sizeinbase(gmptmp, 2);
                 totBits += j;
                 if ((uint32_t)j > maxBits)
@@ -942,7 +951,7 @@ tinyecm_marker:
 
             fclose(in);
 
-			num = 10000;
+			num = 100000;
 
 			if (1)
 			{
@@ -950,17 +959,28 @@ tinyecm_marker:
 				{
 					uint64_t outf;
 
-					mpz_set_ui(gmp_comp, comp[i]);
-					getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
-					outf = mpz_get_ui(gmp_f);
+					//mpz_set_ui(gmp_comp, comp[i]);
+					//getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
+					//getfactor_tecm_x8(gmp_comp, gmp_f, maxBits/2, &lcg);
+					//outf = mpz_get_ui(gmp_f);
 
-					//outf = getfactor_uecm(comp[i], 0, &lcg);
-
-					if ((outf == f1[i]) ||
-						(outf == f2[i]))
+					//outf = getfactor_upm1(comp[i], 333);
+					//
+					//if ((outf == f1[i]) ||
+					//	(outf == f2[i]))
+					//{
+					//	correct++;
+					//}
+					//else
 					{
-						correct++;
+						outf = getfactor_uecm(comp[i], 0, &lcg);
+						if ((outf == f1[i]) ||
+							(outf == f2[i]))
+						{
+							correct++;
+						}
 					}
+
 				}
 			}
 			else
@@ -972,16 +992,33 @@ tinyecm_marker:
 				{
 					int j;
 
-					getfactor_uecm_x8_list(comp, outf, num, &lcg);
+					//getfactor_uecm_x8_list(comp, outf, num, &lcg);
+					//
+					//for (j = 0; j < num; j++)
+					//{
+					//	if ((outf[j] == f1[j]) ||
+					//		(outf[j] == f2[j]))
+					//	{
+					//		correct++;
+					//	}
+					//}
 
+					// tecm stores 104-bit results contiguously in 2 adjacent qwords.
+					getfactor_tecm_x8_list(comp, outf, maxBits / 2, num, &lcg);
 					for (j = 0; j < num; j++)
 					{
-						if ((outf[j] == f1[j]) ||
-							(outf[j] == f2[j]))
+						if ((outf[j * 2 + 0] == f1[j]) ||
+							(outf[j * 2 + 0] == f2[j]))
 						{
 							correct++;
 						}
+						//else
+						//{
+						//	printf("reported factor %016lx is not a factor of %016lx%016lx\n",
+						//		outf[j * 2], comp[j * 2+ 1], comp[j * 2]);
+						//}
 					}
+
 				}
 
 				free(outf);
@@ -1001,22 +1038,140 @@ tinyecm_marker:
 		else
 		{
 			
-			if ((nf == 15) || (nf == 16) || (nf == 17))
+			if ((strcmp(filenames[nf], "semiprimes_70bit.dat") == 0) ||
+				(strcmp(filenames[nf], "semiprimes_80bit.dat") == 0) ||
+				(strcmp(filenames[nf], "semiprimes_90bit.dat") == 0) ||
+				(strcmp(filenames[nf], "semiprimes_100bit.dat") == 0))
 			{
                 num = 10000;
+
+				if (0)
+				{
+					for (i = 0; i < num; i++)
+					{
+						int p;
+
+						fgets(buf, 1024, in);
+#ifdef _MSC_VER
+						gmp_sscanf(buf, "%Zd, %llu, %llu",
+							gmp_comp, &known1, &known2);
+#else
+						gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+							gmp_comp, &known1, &known2);
+#endif
+
+
+						getfactor_tecm(gmp_comp, gmp_f, 0, &lcg);
+						uint64_t outf = mpz_get_ui(gmp_f);
+
+						if ((outf == known1) ||
+							(outf == known2))
+						{
+							correct++;
+						}
+					}
+				}
+				else if (1)
+				{
+					uint64_t* outf = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+					uint64_t* f64a = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+					uint64_t* f64b = (uint64_t*)malloc(2000000 * sizeof(uint64_t));
+					totBits = 0;
+					minBits = 999;
+					maxBits = 0;
+					for (i = 0; i < num; i++)
+					{
+						int p;
+
+						fgets(buf, 1024, in);
+#ifdef _MSC_VER
+						gmp_sscanf(buf, "%Zd, %llu, %llu",
+							gmp_comp, &known1, &known2);
+#else
+						gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+							gmp_comp, &known1, &known2);
+#endif
+
+						j = mpz_sizeinbase(gmp_comp, 2);
+						totBits += j;
+						if ((uint32_t)j > maxBits)
+							maxBits = j;
+						if ((uint32_t)j < minBits && j != 0)
+							minBits = j;
+
+						uint64_t c0 = mpz_get_ui(gmp_comp);
+						mpz_tdiv_q_2exp(gmp_comp, gmp_comp, 64);
+						uint64_t c1 = mpz_get_ui(gmp_comp);
+
+						comp[2 * i + 1] = c0 >> 52;
+						comp[2 * i + 0] = c0 & 0x000fffffffffffffull;
+						comp[2 * i + 1] |= c1 << 12;
+
+						f64a[i] = known1;
+						f64b[i] = known2;
+					}
+
+					getfactor_tecm_x8_list(comp, outf, maxBits / 2, num, &lcg);
+					for (j = 0; j < num; j++)
+					{
+						if ((outf[j * 2 + 0] == f64a[j]) ||
+							(outf[j * 2 + 0] == f64b[j]))
+						{
+							correct++;
+						}
+					}
+				}
+				else
+				{
+					for (i = 0; i < num; i++)
+					{
+						int p;
+
+						fgets(buf, 1024, in);
+#ifdef _MSC_VER
+						gmp_sscanf(buf, "%Zd, %llu, %llu",
+							gmp_comp, &known1, &known2);
+#else
+						gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+							gmp_comp, &known1, &known2);
+#endif
+
+
+						//gmp_printf("commencing test of n = %Zd\n", gmp_comp);
+						getfactor_tecm_x8(gmp_comp, gmp_f, mpz_sizeinbase(gmp_comp, 2) / 2, &lcg);
+						uint64_t outf = mpz_get_ui(gmp_f);
+
+						if ((outf == known1) ||
+							(outf == known2))
+						{
+							correct++;
+						}
+						else if (mpz_cmp_ui(gmp_f, 1) > 0)
+						{
+							gmp_printf("reported factor %Zd is not correct\n", gmp_f);
+						}
+					}
+				}
+
+			}
+
+#if 0
+			else if ((nf == 15) || (nf == 16) || (nf == 17))
+			{
+				num = 10000;
 				for (i = 0; i < num; i++)
 				{
 					int p;
 
 					fgets(buf, 1024, in);
 #ifdef _MSC_VER
-                    gmp_sscanf(buf, "%Zd, %llu, %llu, %llu",
-                        gmp_comp, &known1, &known2, &known3);
+					gmp_sscanf(buf, "%Zd, %llu, %llu, %llu",
+						gmp_comp, &known1, &known2, &known3);
 #else
-                    gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 ", %" PRIu64 "",
-                        gmp_comp, &known1, &known2, &known3);
+					gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 ", %" PRIu64 "",
+						gmp_comp, &known1, &known2, &known3);
 #endif
-					
+
 
 					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
 					if ((mpz_cmp_ui(gmp_f, known1) == 0) ||
@@ -1030,20 +1185,20 @@ tinyecm_marker:
 			}
 			else if (nf > 17)
 			{
-                num = 10000;
+				num = 10000;
 				for (i = 0; i < num; i++)
 				{
 					int p;
 
 					fgets(buf, 1024, in);
 #ifdef _MSC_VER
-                    gmp_sscanf(buf, "%Zd, %llu, %llu",
-                        gmp_comp, &known1, &known2);
+					gmp_sscanf(buf, "%Zd, %llu, %llu",
+						gmp_comp, &known1, &known2);
 #else
-                    gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
-                        gmp_comp, &known1, &known2);
+					gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+						gmp_comp, &known1, &known2);
 #endif
-					
+
 
 					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
 					if ((mpz_cmp_ui(gmp_f, known1) == 0) ||
@@ -1051,31 +1206,31 @@ tinyecm_marker:
 					{
 						correct++;
 					}
-                    //else
-                    //{
-                    //    gmp_printf("found incorrect factor %Zd (known: %" PRIu64 ", %" PRIu64 "\n",
-                    //        gmp_f, known1, known2);
-                    //}
+					//else
+					//{
+					//    gmp_printf("found incorrect factor %Zd (known: %" PRIu64 ", %" PRIu64 "\n",
+					//        gmp_f, known1, known2);
+					//}
 				}
 
 			}
 			else
 			{
-                num = 100000;
+				num = 100000;
 				for (i = 0; i < num; i++)
 				{
 					int p;
 
 					fgets(buf, 1024, in);
 #ifdef _MSC_VER
-                    uint32_t k1, k2;
-                    gmp_sscanf(buf, "%Zd, %u, %u",
-                        gmp_comp, &k1, &k2);
-                    known1 = k1;
-                    known2 = k2;
+					uint32_t k1, k2;
+					gmp_sscanf(buf, "%Zd, %u, %u",
+						gmp_comp, &k1, &k2);
+					known1 = k1;
+					known2 = k2;
 #else
-                    gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
-                        gmp_comp, &known1, &known2);
+					gmp_sscanf(buf, "%Zd, %" PRIu64 ", %" PRIu64 "",
+						gmp_comp, &known1, &known2);
 #endif
 
 					tinyecm(gmp_comp, gmp_f, B1, 25 * B1, curves, &lcg_state, 0);
@@ -1086,6 +1241,7 @@ tinyecm_marker:
 					}
 				}
 			}
+#endif
 
 			fclose(in);
 

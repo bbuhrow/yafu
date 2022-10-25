@@ -32,8 +32,20 @@ ifeq ($(AVX512_TD),1)
 	CFLAGS += -DAVX512_TD
 endif
 
+ifeq ($(AVX512_TDSCHED),1)
+	CFLAGS += -DAVX512_TDSCHED
+endif
+
 ifeq ($(AVX512_SIEVE1),1)
 	CFLAGS += -DAVX512_SIEVE1
+endif
+
+ifeq ($(AVX512_TDS0),1)
+	CFLAGS += -DAVX512_TDS0
+endif
+
+ifeq ($(AVX512_SIEVE_SEARCH),1)
+	CFLAGS += -DAVX512_SIEVE_SEARCH
 endif
 
 ifeq ($(LASTATS),1)
@@ -45,7 +57,7 @@ ifeq ($(MPQS),1)
 endif
 
 ifeq ($(AVX512_ALL),1)
-	CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_SIEVE1 -DAVX512_ECM 
+	CFLAGS += -DAVX512_LASIEVE_SETUP -DAVX512_LASCHED -DAVX512_TD -DAVX512_ECM -DAVX512_SIEVE1 -DAVX512_SIEVE_SEARCH -DAVX512_TDS0 -DAVX512_TDSCHED 
 endif
 
 
@@ -110,7 +122,9 @@ gnfs-lasieve4I15e: gnfs-lasieve4eI15.o asm/lasched15.o asm/medsched15.o $(OBJS) 
 gnfs-lasieve4I16e: gnfs-lasieve4eI16.o asm/lasched16.o asm/medsched16.o $(OBJS) libgmp-aux.a \
                              liblasieve.a liblasieveI16.a 
 	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
-
+gnfs-lasieve4I17e: gnfs-lasieve4eI17.o asm/lasched17.o asm/medsched17.o $(OBJS) libgmp-aux.a \
+                             liblasieve.a liblasieveI17.a 
+	$(CC) $(CFLAGS) $(INC) $(LIBFLAGS) -o $@ $^ $(LIBS)
 
 clean:
 ifeq ($(OS),Windows_NT)
