@@ -65,6 +65,11 @@ int u32_cmp210(const void*,const void*);
 int u64_cmp012(const void*,const void*);
 int u64_cmp210(const void*,const void*);
 
+#ifdef __INTEL_LLVM_COMPILER
+#define NEED_ASPRINTF
+#endif
+
+
 #ifdef NEED_ASPRINTF
 int vasprintf(char**ptr,const char*template,va_list ap);
 int asprintf(char**,const char*,...);

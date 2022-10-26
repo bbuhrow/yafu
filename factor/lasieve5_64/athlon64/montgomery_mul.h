@@ -1,3 +1,6 @@
+#ifndef _MONTGOMERY_MUL_H_
+#define _MONTGOMERY_MUL_H_
+
 #define NMAX_ULONGS   8
 // SMJS #define ulong  unsigned long
 
@@ -11,19 +14,18 @@ typedef  unsigned long ulong;
 #endif
 */
 
-void ASM_ATTR (*asm_mulmod)(ulong *,ulong *,ulong *);
-void ASM_ATTR (*asm_zero)(ulong *);
-void ASM_ATTR (*asm_copy)(ulong *,ulong *);
-void ASM_ATTR (*asm_half)(ulong *);
-void ASM_ATTR (*asm_sub)(ulong *,ulong *,ulong *);
-void ASM_ATTR (*asm_add2)(ulong *,ulong *);
+extern void ASM_ATTR (*asm_mulmod)(ulong *,ulong *,ulong *);
+extern void ASM_ATTR (*asm_zero)(ulong *);
+extern void ASM_ATTR (*asm_copy)(ulong *,ulong *);
+extern void ASM_ATTR (*asm_half)(ulong *);
+extern void ASM_ATTR (*asm_sub)(ulong *,ulong *,ulong *);
+extern void ASM_ATTR (*asm_add2)(ulong *,ulong *);
 
-void (*asm_sub_n)(ulong *,ulong *);
-
-void (*asm_squmod)(ulong *,ulong *);
-void (*asm_diff)(ulong *,ulong *,ulong *);
-void (*asm_add2_ui)(ulong *,ulong);
-int (*asm_inv)(ulong *,ulong *);
+extern void (*asm_sub_n)(ulong *,ulong *);
+extern void (*asm_squmod)(ulong *,ulong *);
+extern void (*asm_diff)(ulong *,ulong *,ulong *);
+extern void (*asm_add2_ui)(ulong *,ulong);
+extern int (*asm_inv)(ulong *,ulong *);
 
 void init_montgomery_multiplication();
 int set_montgomery_multiplication(mpz_t);
@@ -70,3 +72,5 @@ void asm_sqm192(ulong *,ulong *);
 void asm_diff192(ulong *,ulong *,ulong *);
 void asm_add192_ui(ulong *,ulong);
 int asm_inv192(ulong *,ulong *);
+
+#endif

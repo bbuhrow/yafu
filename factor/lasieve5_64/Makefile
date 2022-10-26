@@ -22,7 +22,7 @@
 
 # linux
 CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-pointer -march=native -funroll-loops  \
-	-I../../../gmp_install/gmp-6.2.0/include -I../../include
+	-I../../../gmp-install/wsl/6.2.1/include -I../../include -fcommon
 
 #clang
 #CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
@@ -32,7 +32,7 @@ CFLAGS=-Wall -Wno-unused-variable -Wno-unused-function -Ofast -fomit-frame-point
 #endif
 
 
-GMP_LIB=-L../../../gmp_install/gmp-6.2.0/lib -lgmp
+GMP_LIB=-L../../../gmp-install/wsl/6.2.1/lib -lgmp
 #For windows
 #GMP_LIB=-Lc:/Users/steve/progs/local/lib -lgmp -lws2_32
 #Using brew installed gmp
@@ -111,7 +111,7 @@ SRCFILES=fbgen.c fbgen.h lasieve-prepn.c if.c la-cs.c gmp-aux.c mpz-ull.c \
 	td.[ch] \
 	ecm.[ch] strategy.c ecmtest.c \
 	ecmstat.c mpqsstat.c mpqstest.c mpqs3test.c mpqs.c mpqs3.c tinyecm.c ../gmp-ecm/microecm.c \
-	pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
+	../gmp-ecm/micropm1.c pprime_p.c pm1.[ch] pm1test.c pm1stat.c gnfs-lasieve4f.w
 
 
 ASMDIRS=athlon athlon64 piii generic xeon64
@@ -206,16 +206,16 @@ mpqs3.o: asm/mpqs-config.h
 
 mpqs.o: mpqs.c asm/mpqs-config.h asm/siever-config.h
 #	gcc -c -O2 -o $@ $<
-	$(CC) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 mpqs3.o: mpqs3.c asm/mpqs-config.h asm/siever-config.h
 #	gcc -c -O2 -o $@ $<
-	$(CC) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 gnfs-lasieve4I%e: gnfs-lasieve4eI%.o if.o input-poly.o libgmp-aux.a redu2.o \
 	recurrence6.o fbgen.o fbgen64.o real-poly-aux.o mpqs.o \
 	primgen32.o lasieve-prepn.o pprime_p.o \
-	strategy.o ecm.o mpqs3.o pm1.o ../gmp-ecm/microecm.o tinyecm.o \
+	strategy.o ecm.o mpqs3.o pm1.o ../gmp-ecm/microecm.o ../gmp-ecm/micropm1.o tinyecm.o \
 	asm/liblasieve.a asm/liblasieveI%.a
 	$(CC) -o $@ $^ $(GMP_LIB) -lm
 

@@ -30,7 +30,6 @@ void ASM_ATTR (*asm_sub)(ulong *,ulong *,ulong *)=NULL;
 void ASM_ATTR (*asm_add2)(ulong *,ulong *)=NULL;
 
 void (*asm_sub_n)(ulong *,ulong *)=NULL;
-
 void (*asm_squmod)(ulong *,ulong *)=NULL;
 void (*asm_diff)(ulong *,ulong *,ulong *)=NULL;
 void (*asm_add2_ui)(ulong *,ulong)=NULL;

@@ -295,7 +295,7 @@ static void polprintmod64(u64_t *P, u64_t dP, char * c){
   printf("\n");
 }
 
-static void mod64multab(dT){
+static void mod64multab(u32_t dT){
   u64_t i,c;
   modulo64ebits=0;
   for(i=0,c=mod64;(c>>=1)>dT;i++){

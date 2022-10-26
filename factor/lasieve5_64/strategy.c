@@ -40,6 +40,7 @@ static i64_t mpqsaux_clock;
 static uint64_t pran;
 static mpz_t uecm_factors[3];
 static int uecm_initialized = 0;
+int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
 
 #ifdef CF_STAT
 static double**stat_cost;
