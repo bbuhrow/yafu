@@ -559,6 +559,7 @@ static int upm1_check_factor(uint64_t Z, uint64_t n, uint64_t* f)
     return status;
 }
 
+static int ewin33[12] = { 8, 3, 5, 5, 9, 2, 7, 9, 7, 10, 10, 0 };
 static int ewin100[34] = { // 170 muls
         12, 12, 14, 3, 12, 7, 13, 6, 12, 0, 15, 4, 1, 8, 7, 3, 0, 14, 13, 6, 
         5, 6, 15, 13, 0, 11, 0, 14, 13, 3, 8, 8, 12, 0 };
@@ -613,6 +614,15 @@ static uint64_t upm1_stage1(uint64_t rho, uint64_t n, uint64_t one, uint64_t stg
 
     switch (stg1)
     {
+    case 33:
+        for (i = 0; i < 12; i++) {
+            P = upm1_sqrredc(P, n, rho);
+            P = upm1_sqrredc(P, n, rho);
+            P = upm1_sqrredc(P, n, rho);
+            P = upm1_sqrredc(P, n, rho);
+            if (ewin33[i] > 0) P = upm1_mulredc(P, g[ewin33[i]], n, rho);
+        }
+        break;
     case 100:
         for (i = 0; i < 34; i++) {
             P = upm1_sqrredc(P, n, rho);
@@ -621,7 +631,6 @@ static uint64_t upm1_stage1(uint64_t rho, uint64_t n, uint64_t one, uint64_t stg
             P = upm1_sqrredc(P, n, rho);
             if (ewin100[i] > 0) P = upm1_mulredc(P, g[ewin100[i]], n, rho);
         }
-
         break;
     case 333:
         for (i = 0; i < 119; i++) {
@@ -631,7 +640,6 @@ static uint64_t upm1_stage1(uint64_t rho, uint64_t n, uint64_t one, uint64_t stg
             P = upm1_sqrredc(P, n, rho);
             if (ewin333[i] > 0) P = upm1_mulredc(P, g[ewin333[i]], n, rho);
         }
-
         break;
     case 666:
         for (i = 0; i < 243; i++) {
@@ -641,7 +649,6 @@ static uint64_t upm1_stage1(uint64_t rho, uint64_t n, uint64_t one, uint64_t stg
             P = upm1_sqrredc(P, n, rho);
             if (ewin666[i] > 0) P = upm1_mulredc(P, g[ewin666[i]], n, rho);
         }
-
         break;
     case 1000:
         for (i = 0; i < 360; i++) {
@@ -651,7 +658,6 @@ static uint64_t upm1_stage1(uint64_t rho, uint64_t n, uint64_t one, uint64_t stg
             P = upm1_sqrredc(P, n, rho);
             if (ewin1000[i] > 0) P = upm1_mulredc(P, g[ewin1000[i]], n, rho);
         }
-
         break;
     }
     return P;
@@ -817,6 +823,25 @@ static const uint32_t upm1_map[60] = {
     0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
     0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
     0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
+
+/* baby-steps, giant-steps for b1 = 33, b2 = 825, w = 60
+q0 = 60 */
+static int num_b1_33_steps = 145;
+static uint8_t b1_33_steps[145] = {
+23, 19, 17, 13, 7, 1, 0,
+59, 53, 49, 47, 41, 37, 31, 23, 19, 17, 13, 11, 7, 0,
+53, 49, 43, 41, 31, 29, 23, 17, 13, 7, 1, 0,
+59, 49, 47, 43, 41, 29, 17, 13, 11, 7, 1, 0,
+59, 49, 43, 37, 31, 29, 23, 19, 17, 7, 0,
+53, 49, 47, 43, 29, 23, 13, 11, 7, 1, 0,
+53, 47, 41, 37, 31, 23, 19, 11, 1, 0,
+59, 49, 47, 41, 37, 31, 23, 19, 17, 13, 1, 0,
+53, 49, 41, 37, 31, 19, 17, 0,
+59, 53, 43, 37, 31, 29, 23, 13, 7, 1, 0,
+59, 53, 47, 43, 41, 29, 19, 17, 13, 7, 1, 0,
+59, 47, 43, 37, 29, 19, 11, 1, 0,
+53, 47, 41, 37, 29, 23, 19, 11, 7, 0,
+53, 43, 31, 29, 19, 17};
 
 /* baby-steps, giant-steps for b1 = 100, w = 60
 q0 = 120 */
@@ -1448,7 +1473,6 @@ static uint8_t b1_1000_pairs[2275] = {
 59, 47, 41, 31, 19, 1, 7, 11, 37, 49, 0,
 53, 43, 41, 37, 17, 7, 11, 19, 29 };
 
-
 static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, uint64_t unityval)
 {
     int w = 60;
@@ -1462,10 +1486,10 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
     six = upm1_mulredc(P, d[2], n, rho);       
     six = upm1_sqrredc(six, n, rho);          // P^6
 
-    // 1, 7, 13, 19, 25, 31, 37, 43
+    // 1, 7, 13, 19, 25, 31, 37, 43, 49
     // unnecessary powers will be mapped to scratch d[0].
     j = 1;
-    while ((j + 6) < 48)
+    while ((j + 6) < 50)
     {
         d[upm1_map[j+6]] = upm1_mulredc(d[upm1_map[j]], six, n, rho);
         j += 6;
@@ -1483,45 +1507,18 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
         j += 6;
     }
 
-#if 1
+#if 0
+    b1 = 33;
+    b2 = 25 * b1;
     // baby-steps, giant-steps
-    printf("/* baby-steps, giant-steps for b1 = %u, w = 60\n", b1);
+    printf("/* baby-steps, giant-steps for b1 = %u, b2 = %u, w = %u\n", b1, b2, w);
     i = 1;
     uint32_t p = primes[i];
     while (p < b1) p = primes[i++];
     uint32_t q = w;
     while (q < b1) q += w;
     printf("q0 = %u\n", q);
-    printf("b1_100_steps[] = {\n");
-    j = 0;
-    while (p < b2)
-    {
-        if (p < q)
-        {
-            printf("%u, ", q - p);
-            j++;
-        }
-        else
-        {
-            q += w;
-            printf("0,\n");
-            printf("%u, ", q - p);
-            j += 2;
-        }
-        p = primes[i++];
-    }
-    printf("};\n %d entries */ \n", j);
-    
-    b1 = 333;
-    b2 = b1 * 25;
-    printf("/* baby-steps, giant-steps for b1 = %u, w = 60\n", b1);
-    i = 1;
-    p = primes[i];
-    while (p < b1) p = primes[i++];
-    q = w;
-    while (q < b1) q += w;
-    printf("q0 = %u\n", q);
-    printf("b1_333_steps[] = {\n");
+    printf("b1_20_steps[] = {\n");
     j = 0;
     while (p < b2)
     {
@@ -1557,6 +1554,21 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
 
     switch (b1)
     {
+    case 33:
+
+        for (i = 0; i < num_b1_33_steps; i++)
+        {
+            if (b1_33_steps[i] == 0)
+            {
+                pgiant = upm1_mulredc(pgiant, pw, n, rho);
+                i++;
+            }
+            uint64_t tmp = upm1_mulredc(acc, 
+                upm1_submod(pgiant, d[upm1_map[b1_33_steps[i]]], n), n, rho);
+            if (tmp == 0) break;
+            else acc = tmp;
+        }
+        break;
     case 100:
         
         for (i = 0; i < num_b1_100_steps; i++)
@@ -1566,7 +1578,10 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
                 pgiant = upm1_mulredc(pgiant, pw, n, rho);
                 i++;
             }
-            acc = upm1_mulredc(acc, upm1_submod(pgiant, d[upm1_map[b1_100_steps[i]]], n), n, rho);
+            uint64_t tmp = upm1_mulredc(acc, 
+                upm1_submod(pgiant, d[upm1_map[b1_100_steps[i]]], n), n, rho);
+            if (tmp == 0) break;
+            else acc = tmp;
         }
         break;
     case 333:
@@ -1578,7 +1593,10 @@ static uint64_t upm1_stage2(uint64_t P, uint64_t rho, uint64_t n, uint32_t b1, u
                 pgiant = upm1_mulredc(pgiant, pw, n, rho);
                 i++;
             }
-            acc = upm1_mulredc(acc, upm1_submod(pgiant, d[upm1_map[b1_333_steps[i]]], n), n, rho);
+            uint64_t tmp = upm1_mulredc(acc, 
+                upm1_submod(pgiant, d[upm1_map[b1_333_steps[i]]], n), n, rho);
+            if (tmp == 0) break;
+            else acc = tmp;
         }
         break;
     }
@@ -1840,9 +1858,13 @@ static uint64_t micropm1(uint64_t n, uint32_t B1, uint32_t B2)
     }
     else if (B2 > B1)
     {
-        uint64_t stg2acc = upm1_stage2_pair(stg1_res, rho, n, B1, unityval);
-        q = upm1_mulredc(1, stg2acc, n, rho);
+        uint64_t stg2acc;
+        if (B1 <= 33)
+            stg2acc = upm1_stage2(stg1_res, rho, n, B1, unityval);
+        else
+            stg2acc = upm1_stage2_pair(stg1_res, rho, n, B1, unityval);
 
+        q = upm1_mulredc(1, stg2acc, n, rho);
         result = upm1_check_factor(q, n, &tmp1);
 
         if (result == 1)
@@ -1858,6 +1880,7 @@ static uint64_t upm1_dispatch(uint64_t n, int targetBits, uint32_t b1)
 {
     int B1 = 333;
 
+    //upm1_generate_window_plan(33);
     //upm1_generate_window_plan(100);
     //upm1_generate_window_plan(333);
     //upm1_generate_window_plan(666);

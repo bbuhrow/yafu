@@ -33,10 +33,9 @@ either expressed or implied, of the FreeBSD Project.
 
 #define D 120
 
-//#if defined( _MSC_VER) || defined(AVX512_ECM)
-//#define USE_AVX512F
-//#endif
+#if defined( _MSC_VER) || defined(AVX512_ECM)
 #define USE_AVX512F
+#endif
 
 //#define DEBUG 1
 #define base_t uint64_t
