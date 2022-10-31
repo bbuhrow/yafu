@@ -42,7 +42,7 @@ u32_t*ASM_ATTR medsched0_1(u32_t*,u32_t*,u32_t*,unsigned char*,unsigned char);
 
 
 u32_t*
-medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot,
+medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 	unsigned char* si, unsigned char lo)
 {
 	u32_t ij;
@@ -327,7 +327,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot,
 
 u32_t*
 medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
-	u32_t** sched_ptr, u32_t fbi_offs, u32_t ot)
+	u32_t** sched_ptr, u32_t fbi_offs, u32_t ot, u32_t FBsize)
 {
 	u32_t ij;
 	u32_t ot_mask, ot_tester;

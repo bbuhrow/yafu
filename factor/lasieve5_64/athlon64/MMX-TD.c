@@ -260,9 +260,82 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
 
 #endif
   }
+
+
   z=MMX_TdAux[side];
   u=MMX_TdPr[side][jps-1];
   p_bound=*pbound_ptr;
+
+#if defined(AVX512_TD) // && !defined(TD_CONTIGUOUS_SMALLSIEVE)
+
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+  __m512i zero = _mm512_setzero_si512();
+
+  for (y = x; y < x_ub - MMX_REGW; y = y + MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
+
+      if (z[MMX_REGW] > p_bound) break;
+
+      __m512i vp = _mm512_load_si512(y);
+      __m512i uv = _mm512_load_si512(u);
+      __m512i vr = _mm512_load_si512(y + 3 * fbis);
+
+      __m512i t = _mm512_sub_epi16(zero, vr);
+      __mmask32 m = _mm512_cmpgt_epu16_mask(vr, zero);
+      t = _mm512_mask_add_epi16(t, m, t, vp);
+      _mm512_store_si512(z, t);
+
+      vr = _mm512_add_epi16(vr, uv);
+      m = _mm512_cmpge_epu16_mask(vr, vp);
+      vr = _mm512_mask_sub_epi16(vr, m, vr, vp);
+
+      _mm512_storeu_epi16(y + 3 * fbis, vr);
+  }
+
+#else
+  __m128i zero = _mm_setzero_si128();
+  for (y = x; y < x_ub - 4 * MMX_REGW; y = y + 4 * MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
+
+      if (z[MMX_REGW] > p_bound) break;
+
+      __m512i xv = _mm512_load_si512(y);
+      __m128i uv = _mm_loadu_si128((__m128i*)u);
+      __m512i vr = _mm512_srli_epi64(xv, 48);	// align roots
+      __m128i vp128 = _mm512_cvtepi64_epi16(xv);
+      __m128i vr128 = _mm512_cvtepi64_epi16(vr);
+
+      __m128i t = _mm_sub_epi16(zero, vr128);
+      __mmask8 m = _mm_cmpgt_epu16_mask(vr128, zero);
+      t = _mm_mask_add_epi16(t, m, t, vp128);
+      _mm_storeu_si128((__m128i*)z, t);
+
+      vr128 = _mm_add_epi16(vr128, uv);
+      m = _mm_cmpge_epu16_mask(vr128, vp128);
+      vr128 = _mm_mask_sub_epi16(vr128, m, vr128, vp128);
+
+      xv = _mm512_and_epi64(xv, _mm512_set1_epi64(0xffffffffffffull));
+      vr = _mm512_cvtepu16_epi64(vr128);
+      vr = _mm512_slli_epi64(vr, 48);	// align roots
+      xv = _mm512_or_epi64(xv, vr);
+
+      _mm512_storeu_epi64(y, xv);
+  }
+
+#endif
+
+#else
+
+#ifdef TD_CONTIGUOUS_SMALLSIEVE
+
+for (y = x; y < x_ub - 1 * MMX_REGW; y = y + 1 * MMX_REGW, z += 3 * MMX_REGW, u += MMX_REGW) {
+    int i;
+    if (z[MMX_REGW] > p_bound) break;
+    for (i = 0; i < MMX_REGW; i++) {
+        modulo32 = y[i];
+        z[i] = modsub32(0, y[i + 3 * fbis]);
+        y[i + 3 * fbis] = modadd32(y[i + 3 * fbis], u[i]);
+    }
+}
+#else
   for(y=x;y<x_ub-4*MMX_REGW;y=y+4*MMX_REGW,z+=3*MMX_REGW,u+=MMX_REGW) {
     int i;
     if(z[MMX_REGW]>p_bound) break;
@@ -272,6 +345,9 @@ MMX_TdInit(int side,u16_t *x,u16_t *x_ub,u32_t *pbound_ptr,
       y[4*i+3]=modadd32(y[4*i+3],u[i]);
     }
   }
+#endif
+#endif
+
   *pbound_ptr=z[-MMX_REGW-1];
   MMX_TdBound[side]=z;
   return y;
@@ -283,17 +359,50 @@ u32_t* ASM_ATTR asm_TdUpdate8(u16_t*,u16_t*,u16_t*);
 void
 MMX_TdUpdate(int side,int j_step)
 {
-#if 0
-  u16_t *x,*y;
+#if defined(AVX512_TD)
+    u16_t* x, * y;
 
-  y=MMX_TdPr[side][j_step-1];
-  for(x=MMX_TdAux[side];x<MMX_TdBound[side];x+=3*MMX_REGW,y+=MMX_REGW) {
-    int i;
-    for(i=0;i<MMX_REGW;i++) {
-      modulo32=x[MMX_REGW+i];
-      x[i]=modsub32(x[i],y[i]);
+    y = MMX_TdPr[side][j_step - 1];
+
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
+
+        __m512i xv = _mm512_load_si512(x);
+        __m512i pv = _mm512_load_si512((x + MMX_REGW));
+        __m512i yv = _mm512_load_si512(y);
+
+        __m512i t = _mm512_sub_epi16(xv, yv);
+        __mmask32 m = _mm512_cmpgt_epu16_mask(yv, xv);
+        t = _mm512_mask_add_epi16(t, m, t, pv);
+        _mm512_store_si512(x, t);
+}
+
+#elif 1
+
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
+
+        __m128i xv = _mm_loadu_si128((__m128i*)x);
+        __m128i pv = _mm_loadu_si128((__m128i*)(x + MMX_REGW));
+        __m128i yv = _mm_loadu_si128((__m128i*)y);
+
+        __m128i t = _mm_sub_epi16(xv, yv);
+        __mmask8 m = _mm_cmpgt_epu16_mask(yv, xv);
+        t = _mm_mask_add_epi16(t, m, t, pv);
+        _mm_storeu_si128((__m128i*)x, t);
     }
-  }
+
+#else
+
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW, y += MMX_REGW) {
+        int i;
+        for (i = 0; i < MMX_REGW; i++) {
+            modulo32 = x[MMX_REGW + i];
+            x[i] = modsub32(x[i], y[i]);
+        }
+    }
+
+#endif
 #else
 #if MMX_REGW == 4
   asm_TdUpdate4(MMX_TdAux[side],MMX_TdBound[side],MMX_TdPr[side][j_step-1]);
@@ -315,34 +424,95 @@ u64_t MMX_TdNloop=0;
 u32_t *
 MMX_Td(u32_t *pbuf,int side,u16_t strip_i)
 {
-#if 1
+#if !defined(AVX512_TD)
 #ifdef MMX_TDBENCH
-  MMX_TdNloop+=(MMX_TdBound[side]-MMX_TdAux[side])/MMX_REGW;
+    MMX_TdNloop += (MMX_TdBound[side] - MMX_TdAux[side]) / MMX_REGW;
 #endif
 #if MMX_REGW == 4
-  return asm_MMX_Td4(pbuf,strip_i,MMX_TdAux[side],MMX_TdBound[side]);
+    return asm_MMX_Td4(pbuf, strip_i, MMX_TdAux[side], MMX_TdBound[side]);
 #elif MMX_REGW == 8
-  return asm_MMX_Td8(pbuf,strip_i,MMX_TdAux[side],MMX_TdBound[side]);
+    return asm_MMX_Td8(pbuf, strip_i, MMX_TdAux[side], MMX_TdBound[side]);
 #else
 #error "No asm for this MMX_REGW"
 #endif
 #else
-  u16_t* x;
+    u16_t* x;
 
-  for(x=MMX_TdAux[side];x<MMX_TdBound[side];x+=2*MMX_REGW) {
-    int i;
+#if defined(AVX512_TD)
 
-    for(i=0;i<MMX_REGW;i++,x++) {
-      u16_t t;
+#if defined(TD_CONTIGUOUS_SMALLSIEVE)
+    __m512i vs = _mm512_set1_epi16(strip_i);
+    __m512i zero = _mm512_setzero_si512();
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW) {
 
-      modulo32=x[MMX_REGW];
-    
-      t=strip_i+x[0];
-      t*=x[2*MMX_REGW];
-      if(((modulo32*(u32_t)t)&0xffff0000)==0)
-	*(pbuf++)=modulo32;
+        __m512i x0 = _mm512_load_si512((&(x[0])));
+        __m512i x1 = _mm512_load_si512((&(x[MMX_REGW])));
+        __m512i x2 = _mm512_load_si512((&(x[2 * MMX_REGW])));
+
+        __m512i tv = _mm512_add_epi16(vs, x0);
+        __m512i tv2 = _mm512_mullo_epi16(tv, x2);
+        __m512i tv3 = _mm512_mulhi_epu16(tv2, x1);
+
+        __mmask32 m = _mm512_cmpeq_epu16_mask(tv3, zero);
+
+        while (m > 0)
+        {
+            int id = _tzcnt_u32(m);
+            *(pbuf++) = x[MMX_REGW + id];
+            m = _blsr_u32(m);
+        }
+
+}
+
+#else
+
+    __m128i vs = _mm_set1_epi16(strip_i);
+    __m128i zero = _mm_setzero_si128();
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 3 * MMX_REGW) {
+
+        __m128i x0 = _mm_loadu_si128((__m128i*)(&(x[0])));
+        __m128i x1 = _mm_loadu_si128((__m128i*)(&(x[MMX_REGW])));
+        __m128i x2 = _mm_loadu_si128((__m128i*)(&(x[2 * MMX_REGW])));
+
+        __m128i tv = _mm_add_epi16(vs, x0);
+        __m128i tv2 = _mm_mullo_epi16(tv, x2);
+        __m128i tv3 = _mm_mulhi_epu16(tv2, x1);
+
+        __mmask8 m = _mm_cmpeq_epu16_mask(tv3, zero);
+
+        while (m > 0)
+        {
+            int id = _tzcnt_u32(m);
+            *(pbuf++) = x[MMX_REGW + id];
+            m = _blsr_u32(m);
+        }
+
     }
-  }
-  return pbuf;
+
+#endif
+
+    return pbuf;
+
+#else
+
+    for (x = MMX_TdAux[side]; x < MMX_TdBound[side]; x += 2 * MMX_REGW) {
+        int i;
+
+        for (i = 0; i < MMX_REGW; i++, x++) {
+            u16_t t;
+
+            modulo32 = x[MMX_REGW];
+
+            t = strip_i + x[0];
+            t *= x[2 * MMX_REGW];
+
+            if (((modulo32 * (u32_t)t) & 0xffff0000) == 0)
+                *(pbuf++) = modulo32;
+        }
+    }
+    return pbuf;
+
+#endif
+
 #endif
 }

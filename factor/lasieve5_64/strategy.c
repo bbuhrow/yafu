@@ -41,6 +41,7 @@ static uint64_t pran;
 static mpz_t uecm_factors[3];
 static int uecm_initialized = 0;
 int getfactor_tecm(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
+int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1);
 
 #ifdef CF_STAT
 static double**stat_cost;
@@ -392,6 +393,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 			nlp[s] = 2;
 		}
 	}
+
 	if ((nlp[0] < 2) && (nlp[1] < 2)) {
 #ifdef CF_STAT
 		yield += 1.;
@@ -421,16 +423,22 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 		ecm_curve_init(e[1]);
 		cf_ecm_init = 1;
 	}
+
+
 	m = st->stindex[nb[0]][nb[1]];
 	if (!m)return 1;
 	fm = st->stlist[m];
+
 #ifdef CF_STAT
 	cf_n++;
 #endif
+
 #line 419 "strategy.w"
+
 	for (s = 0; s < 2; s++)
 		if (nlp[s] == 2) { nlp[s] = 0; done[s] = 0; pm1done[s] = 0; }
 		else done[s] = 2;
+
 	for (j = 0; t = fm[j]; j++) {
 		i32_t nf, i;
 		size_t sf[2];
@@ -484,7 +492,8 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 				}
 				else
 				{
-					nf = 0;
+					// uecm failed, which does sometimes happen
+					nf = mpqs_factor(large_factors[s], max_primebits[s], &fac);
 				}
 			}
 			else
@@ -497,7 +506,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
 
 						// if the remaining residue is obviously too big, we're done.
-						if (mpz_sizeinbase(fac[1], 2) > ((max_primebits[s] * 2) + 1))
+						if (mpz_sizeinbase(fac[1], 2) > ((max_primebits[s] * 2)))
 						{
 							nf = 0;
 							goto done;
@@ -532,6 +541,8 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						}
 						else
 						{
+							// we have a composite residue > 64 bits.  
+							// use ecm first with high effort.
 							getfactor_tecm(fac[1], fac[2], 32, &pran);
 						}
 						f64 = mpz_get_ui(fac[2]);
@@ -562,11 +573,19 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						}
 						else
 						{
-							// what are the odds that the largefactor is p1 * p2^2?
-							// and we've found p1 but ecm fails on the p2^2?
-							// tinyecm checks for squares if it finds gcd==N,
-							// but uecm doesn't.
-							nf = 0;
+							// uecm/tecm failed, which does sometimes happen
+							nf = mpqs_factor(fac[1], max_primebits[s], &fac);
+							if (nf == 2)
+							{
+								// fac is now set to mpqs's statically allocated
+								// set of mpz_t's.  copy in the one we found by ecm.
+								nf = 3;
+								mpz_set(fac[2], uecm_factors[0]);
+							}
+							else
+							{
+								nf = 0;
+							}
 						}
 					}
 					else
@@ -583,7 +602,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 						{
 							// tecm found a composite first factor.
 							// if it is obviously too big, we're done.
-							if (mpz_sizeinbase(fac[0], 2) > ((max_primebits[s] * 2) + 1))
+							if (mpz_sizeinbase(fac[0], 2) > ((max_primebits[s] * 2)))
 							{
 								nf = 0;
 								goto done;
@@ -609,6 +628,8 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							}
 							else
 							{
+								// we have a composite residue > 64 bits.  
+								// use ecm with high effort first
 								getfactor_tecm(fac[0], fac[2], 32, &pran);
 							}
 							f64 = mpz_get_ui(fac[2]);
@@ -640,7 +661,19 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 							}
 							else
 							{
-								nf = 0;
+								// uecm/tecm failed, which does sometimes happen
+								nf = mpqs_factor(fac[0], max_primebits[s], &fac);
+								if (nf == 2)
+								{
+									// fac is now set to mpqs's statically allocated
+									// set of mpz_t's.  copy in the one we found by ecm.
+									nf = 3;
+									mpz_set(fac[2], uecm_factors[1]);
+								}
+								else
+								{
+									nf = 0;
+								}
 							}
 						}
 					}
@@ -652,6 +685,7 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 					// large factor size is greater than 64 bits but less than
 					// lpbr/a * 2.  In that case run mpqs... or tecm with
 					// greater effort.
+
 
 #if 0
 					if (mpz_sizeinbase(large_factors[s1], 2) <= (max_primebits[s1] * 2))
@@ -696,7 +730,37 @@ int cofactorisation(strat_t* st, mpz_t** large_primes, mpz_t* large_factors,
 					}
 					else
 					{
+#if 0
+						// try for a lucky p-1 hit on the 3LP before we go?
+						// testing on an input with LPB=33 and 3LP enabled
+						// saw that p-1 finds lots of factors but the residues
+						// are all (99.9%) large primes.  I.e., exactly the
+						// kind of inputs we want to not waste time on.
+						if (getfactor_tpm1(large_factors[s], fac[0], 333))
+						{
+							mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
+							if (mpz_sizeinbase(fac[1], 2) <= max_primebits[s])
+							{
+								gmp_printf("P-1 Success! %Zd = %Zd * %Zd\n",
+									large_factors[s], fac[0], fac[1]);
+							}
+							else if (mpz_probab_prime_p(fac[1], 1) == 0)
+							{
+								gmp_printf("Residue %Zd with %d bits is composite\n",
+									fac[1], mpz_sizeinbase(fac[1], 2));
+								gmp_printf("3LP = ");
+
+								mpz_set(fac[2], fac[0]);
+								nf = 1 + mpqs_factor(fac[2], max_primebits[s], &fac);
+
+								for (i = 0; i < nf; i++)
+									gmp_printf("%Zd ", fac[i]);
+								printf("\n");
+							}
+						}
+#else
 						nf = 0;
+#endif
 					}
 #endif
 				}
