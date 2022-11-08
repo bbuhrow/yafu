@@ -40,7 +40,7 @@ static short witness_initialized=0;
 short have_compos_witness;
 
 // SMJS
-#ifndef _WIN64
+#ifdef _WIN64
 static int randInited = 0;
 static gmp_randstate_t randstate; 
 #endif

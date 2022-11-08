@@ -30,6 +30,7 @@
 #include <immintrin.h>
 #include <stdio.h>
 #include "if.h"
+#include "avx512_aux.h"
 
 #ifdef _MSC_VER
 // so that I can read the code in MSVC without it being grayed out.
@@ -405,7 +406,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -533,7 +534,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -591,8 +592,11 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
 					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
 					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32);
-					__m512i vabsa1 = _mm512_sub_epi32(m32, _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32));
-					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
+					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32); 
+					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa1, zero);
+
+					vabsa1 = _mm512_mask_sub_epi32(vabsa1, m1, m32, vabsa1);
+					m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 
 					if (m1 > 0)
 					{
@@ -689,7 +693,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -811,7 +815,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 
 #endif
@@ -860,6 +864,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 				if (fbp_bound < b1_ul)fbp_bound = b1_ul;
 
 #ifdef AVX512_LASIEVE_SETUP
+
 				for (fbi = 0; fbi < (fbsz - 16); fbi += 16)/*6:*/
 #line 129 "lasieve-prepn.w"
 
@@ -875,9 +880,13 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
 					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_sub_epi32(m32, _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32));
+					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32); 
 					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32);
-					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
+					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa0, zero);
+
+					vabsa0 = _mm512_mask_sub_epi32(vabsa0, m1, m32, vabsa0);
+
+					m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 
 					if (m1 > 0)
 					{
@@ -974,7 +983,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -1098,7 +1107,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -1154,9 +1163,16 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 
 					__m512i vb0 = _mm512_rem_epu32(_mm512_set1_epi32(b0_ul), m32);
 					__m512i vb1 = _mm512_rem_epu32(_mm512_set1_epi32(b1_ul), m32);
-					__m512i vabsa0 = _mm512_sub_epi32(m32, _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32));
-					__m512i vabsa1 = _mm512_sub_epi32(m32, _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32));
-					__mmask16 m1 = _mm512_cmpeq_epu32_mask(pr, m32);
+					__m512i vabsa0 = _mm512_rem_epu32(_mm512_set1_epi32(absa0), m32);
+					__m512i vabsa1 = _mm512_rem_epu32(_mm512_set1_epi32(absa1), m32);
+
+					__mmask16 m1 = _mm512_cmpgt_epu32_mask(vabsa0, zero);
+					__mmask16 m2 = _mm512_cmpgt_epu32_mask(vabsa1, zero);
+
+					vabsa0 = _mm512_mask_sub_epi32(vabsa0, m1, m32, vabsa0);
+					vabsa1 = _mm512_mask_sub_epi32(vabsa1, m2, m32, vabsa1);
+
+					m1 = _mm512_cmpeq_epu32_mask(pr, m32);
 
 					if (m1 > 0)
 					{
@@ -1253,7 +1269,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
@@ -1379,7 +1395,7 @@ lasieve_setup(u32_t* FB, u32_t* proots, u32_t fbsz, i32_t a0, i32_t a1, i32_t b0
 							x = FB[fbi];
 						}
 					}
-					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x);
+					ri_ptr += get_recurrence_info(ri_ptr, FB[fbi], x, FBsize);
 				}
 #endif
 
