@@ -1,0 +1,1 @@
+int mpqs_factor(mpz_t N, size_t max_bits, mpz_t **factors);

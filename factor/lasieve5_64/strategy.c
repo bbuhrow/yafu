@@ -36,7 +36,7 @@ static i64_t mpqsaux_clock;
 #define CF_STAT
 
 // for tinyecm/microecm
-#include "../gmp-ecm/microecm.h"
+#include "microecm.h"
 static uint64_t pran;
 static mpz_t uecm_factors[3];
 static int uecm_initialized = 0;

@@ -1,0 +1,368 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\asm">
+      <UniqueIdentifier>{51a53952-9643-4473-9ae2-22d2c2222c29}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_64bit.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith64.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith128.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith192.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm-zeit.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched0.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched1.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched3.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2_64.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn64.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\ls-defs.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\medsched0.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD1.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD2.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000b.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_eval.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_gauss.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_nextpol.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieve.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieveinit.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_td.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_gauss.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_nextpol.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_sieve.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_td.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpz-td.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\pt64.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\rescale.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\ri-aux.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\schedsieve.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\search0.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie1A.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie2A.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie3A.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinieG.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdsieve-from-sched.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie1.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie2.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie3.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\translate.asm">
+      <Filter>Source Files\asm</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\basemath.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\gcd32.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\invtab.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\lasched.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\medsched.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\modinv32.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\mpqs3arith.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\noasm64.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\psp.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\siever-config.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\zeit.c">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecmstat.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecmtest.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\fbgen.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\fbgen64.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\gmp-aux.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\gnfs-lasieve4e.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\if.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\input-poly.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\la-cs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\lasieve-prepn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqsstat.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqstest.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpz-ull.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1stat.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pprime_p.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\primgen32.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\real-poly-aux.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\recurrence6.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\redu2.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\strategy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\td.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\tinyecm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\32bit.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\64bit.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\lasched.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\medsched.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\mpqs-config.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\siever-config.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\underscore.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\zeit.h">
+      <Filter>Source Files\asm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\ecm.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\fbgen.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\fbgen64.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\gmp-aux.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\if.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.wrong.orig.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly-orig.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\lasieve-prepn.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\mpqs.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\mpqs3.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\pm1.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\primgen32.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\real-poly-aux.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\recurrence6.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\redu2.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\strategy.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\td.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="avx512_aux.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -52,7 +52,6 @@ __m512i modinv_16(__m512i y, __mmask16 ndmsk, __m512i x, __m512i p)
 	dividend = p;
 	divisor = rem;
 	ps1 = q;
-
 	ps2 = zero;
 	parity = zero;
 
@@ -217,8 +216,42 @@ __m512i modmul32_16(__m512i z, __mmask16 ndmsk, __m512i x, __m512i y, __m512i p)
 	__m512i e = _mm512_mul_epu32(x, y);
 	__m512i o = _mm512_mul_epu32(_mm512_shuffle_epi32(x, 0xB1), _mm512_shuffle_epi32(y, 0xB1));
 
-	e = _mm512_rem_epu64(e, _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff)));
-	o = _mm512_rem_epu64(o, _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff)));
+	//e = _mm512_rem_epu64(e, _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff)));
+	//o = _mm512_rem_epu64(o, _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff)));
+
+	__m512i t1 = _mm512_and_epi64(p, _mm512_set1_epi64(0x00000000ffffffff));
+	__m512i t2 = _mm512_and_epi64(_mm512_shuffle_epi32(p, 0xB1), _mm512_set1_epi64(0x00000000ffffffff));
+
+#if defined( __GNUC__ ) && defined(_WIN64)
+	{
+		uint64_t memdiv[8];
+		uint64_t memrem[8];
+
+		_mm512_store_epi64(memdiv, e);
+		_mm512_store_epi64(memrem, t1);
+		
+		int i;
+		for (i = 0; i < 8; i++)
+		{
+			uint64_t q1 = memdiv[i] % memrem[i];
+			memdiv[i] = q1;
+		}
+		e = _mm512_load_epi64(memdiv);
+
+		_mm512_store_epi64(memdiv, o);
+		_mm512_store_epi64(memrem, t2);
+
+		for (i = 0; i < 8; i++)
+		{
+			uint64_t q1 = memdiv[i] % memrem[i];
+			memdiv[i] = q1;
+		}
+		o = _mm512_load_epi64(memdiv);
+	}
+#else
+	e = _mm512_rem_epu64(e, t1);
+	o = _mm512_rem_epu64(o, t2);
+#endif
 
 	x = _mm512_or_epi64(e, _mm512_shuffle_epi32(o, 0xB1));
 	return _mm512_mask_blend_epi32(ndmsk, z, x);

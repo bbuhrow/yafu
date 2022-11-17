@@ -4,7 +4,7 @@
 
 #if defined( __GNUC__ ) && defined(_WIN64)
 
-__inline void _avx512_mask_divrem32(__m512i md, __m512i mr, __mmask16 m,
+void _avx512_mask_divrem32(__m512i md, __m512i mr, __mmask16 m, 
     __m512i dividend, __m512i divisor, __m512i* q, __m512i* r)
 {
     uint32_t memdiv[16];
@@ -33,7 +33,7 @@ __inline void _avx512_mask_divrem32(__m512i md, __m512i mr, __mmask16 m,
     return;
 }
 
-__inline __m512i _avx512_div32(__m512i dividend, __m512i divisor)
+__m512i _avx512_div32(__m512i dividend, __m512i divisor)
 {
     uint32_t memdiv[16];
     uint32_t memrem[16];
@@ -51,7 +51,7 @@ __inline __m512i _avx512_div32(__m512i dividend, __m512i divisor)
     return _mm512_load_epi32(memdiv);
 }
 
-__inline __m512i _mm512_rem_epu64(__m512i dividend, __m512i divisor)
+__m512i _mm512_rem_epu64(__m512i dividend, __m512i divisor)
 {
     uint64_t memdiv[8];
     uint64_t memrem[8];
@@ -69,7 +69,7 @@ __inline __m512i _mm512_rem_epu64(__m512i dividend, __m512i divisor)
     return _mm512_load_epi64(memrem);
 }
 
-__inline __m512i _mm512_rem_epu32(__m512i dividend, __m512i divisor)
+__m512i _mm512_rem_epu32(__m512i dividend, __m512i divisor)
 {
     uint32_t memdiv[16];
     uint32_t memrem[16];
