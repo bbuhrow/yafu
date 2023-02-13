@@ -582,7 +582,8 @@ void update_INI(double mult, double exponent, double mult2,
 			//printf("Invalid line in yafu.ini, use Keyword=Value pairs"
 			//	"See docfile.txt for valid keywords");
 			// just write it out and keep going
-			fputs(str, out);
+			//fputs(str, out);
+			fprintf(out, "%s\n", str);
 			continue;
 		}
 		else if (strcmp(key,"tune_info") == 0)
@@ -646,13 +647,13 @@ void update_INI(double mult, double exponent, double mult2,
 #endif
 			else
 			{
-				//just write the line
+				//just write the original line
 				fputs(str2, out);
 			}
 		}
 		else
 		{
-			//just write the line
+			//just write the original line
 			fputs(str2, out);
 		}
 	}

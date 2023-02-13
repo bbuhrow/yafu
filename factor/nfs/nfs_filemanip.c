@@ -340,7 +340,11 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
                 }
 
 				*last_spq = 0;
-				return NFS_STATE_DONE;
+
+				if (fobj->autofact_obj.autofact_active)
+					return NFS_STATE_EXIT;
+				else
+					return NFS_STATE_DONE;
 			}
 		}
 		else
@@ -507,7 +511,12 @@ enum nfs_state_e check_existing_files(fact_obj_t *fobj, uint32_t*last_spq, nfs_j
 
 			fobj->flags |= FACTOR_INTERRUPT;
 			*last_spq = 0;
-			ans = NFS_STATE_DONE;
+			
+
+			if (fobj->autofact_obj.autofact_active)
+				ans = NFS_STATE_EXIT;
+			else
+				ans = NFS_STATE_DONE;
 		}
 
 	}

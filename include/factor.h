@@ -393,6 +393,13 @@ typedef struct
     char op_str[1024];
     char of_str[1024];
     char ou_str[1024];
+    int stople;
+    int stoplt;
+    int stopgt;
+    int stopge;
+    int stopbase;
+    int stopeq;
+    int check_stop_conditions;
 
     enum pretest_plan yafu_pretest_plan;
     char plan_str[1024];
@@ -525,6 +532,9 @@ extern void tinyecm(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2, uint32_t curves,
 // to *pran seeds the sequence, and after seeding it you don't want to
 // change *pran, since that would restart the sequence.
 int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran);
+void getfactor_tecm_x8_list(uint64_t* n, uint64_t* f, int target_bits, uint32_t num_in, uint64_t* pran);
+int getfactor_tecm_x8(mpz_t n, mpz_t f, int target_bits, uint64_t* pran);
+int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1);
 
 /* =============== interface to various small-factor-finding routines =========== */
 uint64_t spbrent(uint64_t N, uint64_t c, int imax);

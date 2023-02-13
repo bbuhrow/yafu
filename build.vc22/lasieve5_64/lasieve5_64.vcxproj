@@ -78,6 +78,7 @@
     <ClCompile Include="..\..\factor\lasieve5_64\athlon64\psp.c" />
     <ClCompile Include="..\..\factor\lasieve5_64\athlon64\siever-config.c" />
     <ClCompile Include="..\..\factor\lasieve5_64\athlon64\zeit.c" />
+    <ClCompile Include="..\..\factor\lasieve5_64\avx512_aux.c" />
     <ClCompile Include="..\..\factor\lasieve5_64\ecm.c" />
     <ClCompile Include="..\..\factor\lasieve5_64\ecmstat.c" />
     <ClCompile Include="..\..\factor\lasieve5_64\ecmtest.c" />
@@ -118,6 +119,7 @@
     <ClInclude Include="..\..\factor\lasieve5_64\athlon64\siever-config.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\athlon64\underscore.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\athlon64\zeit.h" />
+    <ClInclude Include="..\..\factor\lasieve5_64\avx512_aux.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\ecm.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\fbgen.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\fbgen64.h" />
@@ -136,7 +138,6 @@
     <ClInclude Include="..\..\factor\lasieve5_64\redu2.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\strategy.h" />
     <ClInclude Include="..\..\factor\lasieve5_64\td.h" />
-    <ClInclude Include="avx512_aux.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

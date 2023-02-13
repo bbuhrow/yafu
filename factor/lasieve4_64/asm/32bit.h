@@ -16,7 +16,11 @@ u32_t modpow32(u32_t x,u32_t a);
 u32_t modsqrt32(u32_t x);
 u32_t asm_modinv32(u32_t x);
 
-#define modinv32(x) asm_modinv32(x)
+
+
+
+//#define modinv32(x) modinv_1((x))
+#define modinv32(x) asm_modinv32((x))
 
 static inline u32_t modsq32(u32_t x)
 {

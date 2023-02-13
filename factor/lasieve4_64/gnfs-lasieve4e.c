@@ -412,57 +412,58 @@ double sTime()
 
 /**************************************************/
 void logTotalTime()
-     /**************************************************/
+/**************************************************/
 {
-  double t=sTime()-sieveStartTime;
-  FILE *fp=fopen("ggnfs.log", "a");
-  
-  fprintf(fp, "\tLatSieveTime: %ld\n", (long)t);
-  fclose(fp);
+	double t = sTime() - sieveStartTime;
+	FILE* fp = fopen("ggnfs.log", "a");
+
+	fprintf(fp, "\tLatSieveTime: %ld\n", (long)t);
+	fclose(fp);
 }
 
 /**************************************************/
-int parse_q_from_line(char *buf) {
-  /**************************************************/
-  char *p, *tmp, *next_field;
-  u32_t q, q0, i, side;
-  static int first=0;
-  
-  for(p=tmp=buf; *p && isspace(*p); p++);
-  if(!*p) return 0; /* empty line, skip */
-  
-  side = (special_q_side == RATIONAL_SIDE) ? 0 : 1;
-  for(i=0; *p; p++) {
-    if(*p == ':') {
-      if(i++ == side) tmp = p; /* we will only scan this section for a q0 */
-    } else if(!(*p == '-' || *p == ',' || isspace(*p) || isxdigit(*p))) {
-      if(first++ == 0) printf(" Warning! some corrupt lines in the original file\n");
-      return -1;
-    }
-  }
-  if(i!=2) {
-    printf(" Warning: an incomplete line in the original file; if just a few, it's ok, they will be skipped\n");
-    return -1;           /* must have two ':' some ',' and hexdigits */
-  }
-  
-  q0 = first_spq;
-  do {
-    q = strtoul(tmp + 1, &next_field, 16);
-    if(q >= first_spq && q < first_spq+sieve_count)
-      q0 = q;
-    tmp = next_field;
-  } while(tmp[0] == ',' && isxdigit(tmp[1]));
-  
-  /* I've seen cases when q0 is not the last reported in the comma-separated list */
-  /* However, the closer it is to the end of the line the more likely it was the true q0 */
-  /* In 99% cases it is the last value, but we don't want to depend on that */
-  
-  if(q0 > first_spq && q0 < first_spq+sieve_count) {
-    sieve_count -= (q0 - first_spq);
-    first_spq = q0;
-  }
-  return 1;
-}  
+int parse_q_from_line(char* buf) {
+	/**************************************************/
+	char* p, * tmp, * next_field;
+	u32_t q, q0, i, side;
+	static int first = 0;
+
+	for (p = tmp = buf; *p && isspace(*p); p++);
+	if (!*p) return 0; /* empty line, skip */
+
+	side = (special_q_side == RATIONAL_SIDE) ? 0 : 1;
+	for (i = 0; *p; p++) {
+		if (*p == ':') {
+			if (i++ == side) tmp = p; /* we will only scan this section for a q0 */
+		}
+		else if (!(*p == '-' || *p == ',' || isspace(*p) || isxdigit(*p))) {
+			if (first++ == 0) printf(" Warning! some corrupt lines in the original file\n");
+			return -1;
+		}
+	}
+	if (i != 2) {
+		printf(" Warning: an incomplete line in the original file; if just a few, it's ok, they will be skipped\n");
+		return -1;           /* must have two ':' some ',' and hexdigits */
+	}
+
+	q0 = first_spq;
+	do {
+		q = strtoul(tmp + 1, &next_field, 16);
+		if (q >= first_spq && q < first_spq + sieve_count)
+			q0 = q;
+		tmp = next_field;
+	} while (tmp[0] == ',' && isxdigit(tmp[1]));
+
+	/* I've seen cases when q0 is not the last reported in the comma-separated list */
+	/* However, the closer it is to the end of the line the more likely it was the true q0 */
+	/* In 99% cases it is the last value, but we don't want to depend on that */
+
+	if (q0 > first_spq && q0 < first_spq + sieve_count) {
+		sieve_count -= (q0 - first_spq);
+		first_spq = q0;
+	}
+	return 1;
+}
 
 /**************************************************/
 int main(int argc, char **argv)
@@ -4370,6 +4371,7 @@ trial_divide()
 					  m1 = _blsr_u64(m1);
 				  }
 		  }
+
 #else
 
 			  for (x = med_sched[side][l] + MEDSCHED_SI_OFFS; x + 6 < x_ub; x += 8) {

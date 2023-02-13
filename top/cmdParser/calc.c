@@ -48,6 +48,7 @@ SOFTWARE.
 #include "qs.h"
 #include "yafu_ecm.h"
 #include "nfs.h"
+#include "arith.h"
 
 // define this for debug or a verbose interface
 #define CALC_VERBOSE 0
@@ -157,7 +158,7 @@ static char function_names[NUM_FUNC][11] = {
     "primes", "torture", "ecm", "llt", "siqsbench",
     "sigma", "totient", "smallmpqs", "testrange", "sieverange",
     "fermat", "nfs", "tune", "bpsw", "aprcl",
-    "semiprimes", "vpp1", "vpm1"};
+    "semiprimes", "fftmul", "vpm1"};
 
 static int function_nargs[NUM_FUNC] = {
     1, 1, 1, 2, 2, 
@@ -175,7 +176,7 @@ static int function_nargs[NUM_FUNC] = {
     3, 2, 2, 1, 0, 
     2, 1, 1, 4, 4, 
     3, 1, 0, 1, 1,
-    2, 0, 0};
+    2, 4, 0};
 
 
 // =====================================================================
@@ -2996,6 +2997,13 @@ int feval(int funcnum, int nargs, meta_t *metadata)
     case 76:
         // vpp1
 
+        fftmul(operands[4], operands[0], operands[1], 
+            mpz_get_ui(operands[2]), mpz_get_ui(operands[3]));
+
+        mpz_set(operands[0], operands[4]);
+
+
+        if (0)
         {
             FILE* workfile;
             char* line;
@@ -3041,7 +3049,10 @@ int feval(int funcnum, int nargs, meta_t *metadata)
             printf("read %d inputs from %s\n", num, fobj->pp1_obj.vpp1_work_file);
         }
 
-        vecPP1(fobj);
+        //vecPP1(fobj);
+
+
+
         break;
 
     case 77:

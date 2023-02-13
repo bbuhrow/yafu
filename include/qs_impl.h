@@ -28,6 +28,13 @@
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
 
+// as part of analyzing 3lp parameterizations, we save off the 
+// full residues in tdiv.  These will be fully factored later and sorted
+// so that a synthetic data set resembling this real one can
+// be constructed for deeper analysis of cycle generation for
+// this parameterization.
+//#define GATHER_RESIDUE_STATS
+
 #ifdef _MSC_VER
 // optionally define this or not depending on whether your hardware supports it.
 // if defined, compile the sse41 functions into the fat binary.  the global
@@ -73,9 +80,9 @@
 #define SPARSE_STORE
 
 #ifdef SPARSE_STORE
-#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#define MAX_SMOOTH_PRIMES 200	//maximum number of factors for a smooth, including duplicates
 #else
-#define MAX_SMOOTH_PRIMES 50	//maximum number of factors for a smooth, including duplicates
+#define MAX_SMOOTH_PRIMES 200	//maximum number of factors for a smooth, including duplicates
 #endif
 
 #define MAX_SIEVE_REPORTS 2048
@@ -415,8 +422,10 @@ typedef struct {
     factor_list_t factor_list;
 
     //these are used during linear algebra and sqrt root
-    uint32_t total_poly_a;		// total number of polynomial 'a' values 
-    mpz_t* poly_a_list;			// list of 'a' values for MPQS polys 
+    uint32_t total_poly_a;		// used during sieving: total number of polynomial 'a' values 
+    mpz_t* poly_a_list;			// used during sieving: list of 'a' values for MPQS polys 
+    uint32_t filt_total_poly_a;	// used during filtering: total number of polynomial 'a' values 
+    mpz_t* filt_poly_a_list;	// used during filtering: list of 'a' values for MPQS polys 
     poly_t* poly_list;			// list of MPQS polynomials 
     uint32_t poly_list_alloc;
     uint32_t apoly_alloc;
@@ -451,6 +460,10 @@ typedef struct {
     int num_alloc_rb;
     int num_active_rb;
     int max_active_rb;
+#endif
+
+#ifdef GATHER_RESIDUE_STATS
+    FILE* residue_files[64];
 #endif
 
 } static_conf_t;

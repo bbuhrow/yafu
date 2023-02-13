@@ -275,6 +275,9 @@
     <ClCompile Include="..\..\factor\lasieve5_64\tinyecm.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\avx512_aux.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\factor\lasieve5_64\athlon64\32bit.h">
@@ -361,7 +364,7 @@
     <ClInclude Include="..\..\factor\lasieve5_64\td.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="avx512_aux.h">
+    <ClInclude Include="..\..\factor\lasieve5_64\avx512_aux.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

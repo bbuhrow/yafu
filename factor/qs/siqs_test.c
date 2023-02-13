@@ -45,6 +45,11 @@ int check_relation(mpz_t a, mpz_t b, siqs_r *r, fb_list *fb, mpz_t n, int VFLAG,
 	mpz_mul_ui(RHS, RHS, lp[2]);
     for (j = 0; j < num_factors; j++)
     {
+		if (r->fb_offsets[j] > fb->B)
+		{
+			printf("error fb_offset is greater than the factor base size (%u > %u)\n",
+				r->fb_offsets[j], fb->B);
+		}
         mpz_mul_ui(RHS, RHS, fb->list->prime[r->fb_offsets[j]]);
     }
 

@@ -115,18 +115,21 @@ uint32_t process_poly_a(static_conf_t *sconf)
 
 	// now we copy all the b coefficients over to sconf where they are
 	// needed by the rest of the filtering routine.
-	// make sure there is enough room for them.  curr_b could
-	// currently be allocated for a number of poly smaller or bigger than
-	// maxB
-
-	//free any we won't be needing
+	// clear out b-poly info from the last a-poly, if any exists.
     for (j = 0; (uint32_t)j < sconf->bpoly_alloc; j++)
     {
         mpz_clear(sconf->curr_b[j]);
     }
+	if (sconf->bpoly_alloc > 0)
+	{
+		free(sconf->curr_b);
+	}
+
+	// initialize a list of b-polys associated with the current a-poly.
+	sconf->curr_b = (mpz_t*)malloc(maxB * sizeof(mpz_t));
 
 	// reallocate the size of the array
-	sconf->curr_b = (mpz_t *)realloc(sconf->curr_b, maxB * sizeof(mpz_t));
+	//sconf->curr_b = (mpz_t *)realloc(sconf->curr_b, maxB * sizeof(mpz_t));
 
 	// allocate any additional we need
     for (j = 0; j < maxB; j++)
@@ -369,7 +372,7 @@ void td_and_merge_relation(fb_list *fb, mpz_t n,
         if (!check_relation(sconf->curr_a,
             sconf->curr_b[rel->poly_idx], r_out, fb, n, obj->VFLAG, sconf->knmod8))
         {
-            if (rel->large_prime[0] != r_out->large_prime[1]) {
+            if (r_out->large_prime[0] != r_out->large_prime[1]) {
                 yafu_add_to_cycles(sconf, obj->flags, 
                     r_out->large_prime[0], r_out->large_prime[1]);
                 sconf->num_cycles++;
@@ -631,7 +634,7 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 	{	
 		fgets(str,1024,data);
 		substr = str + 2;
-		mpz_set_str(dconf->gmptmp1, substr, 0); //str2hexz(substr,&dconf->qstmp1);
+		mpz_set_str(dconf->gmptmp1, substr, 0);
 		// check against the input to SIQS, i.e., does not have a 
 		// multiplier applied (the file saved N does not include the multiplier).
 		if (mpz_cmp(dconf->gmptmp1, sconf->obj->qs_obj.gmp_n) == 0)
@@ -880,19 +883,6 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 						//so read in the large primes and add to cycles
 						substr = strchr(substr, 'L');
 						yafu_read_large_primes(substr, lp, lp + 1);
-						if (sconf->use_dlp)
-						{
-							//if ((lp[0] > 1) && (lp[0] < pmax))
-							//{
-							//	j++;
-							//	continue;
-							//}
-							//if ((lp[1] > 1) && (lp[1] < pmax))
-							//{
-							//	j++;
-							//	continue;
-							//}
-						}
 						if (lp[0] != lp[1])
 						{
 							yafu_add_to_cycles(sconf, sconf->obj->flags, lp[0], lp[1]);
@@ -920,7 +910,6 @@ int restart_siqs(static_conf_t *sconf, dynamic_conf_t *dconf)
 						sconf->num_cycles +
 						sconf->components - sconf->vertices,
 						sconf->num_cycles);
-					printf("threw away %d relations with large primes too small\n", j);
 					fflush(stdout);
 					sconf->last_numfull = sconf->num_relations;
 					sconf->last_numcycles = sconf->num_cycles;
@@ -1548,18 +1537,6 @@ qs_la_col_t * find_cycles(fact_obj_t*obj, uint32_t *hashtable, qs_cycle_t *table
 				c->cycle.list = NULL;
 				qs_enumerate_cycle(obj, c, table, entry1,
 					entry2, start);
-
-				//if (c->cycle.num_relations >= 4)
-				//	printf("large cycle\n");
-				//
-				//printf("relations in this cycle:\n");
-				//for (j = 0; j < c->cycle.num_relations; j++)
-				//{
-				//	siqs_r *thisr = &relation_list[c->cycle.list[j]];
-				//	printf("poly_idx = %u, offset = %u, lp1 = %u, lp2 = %u\n", 
-				//		thisr->poly_idx, thisr->sieve_offset, 
-				//		thisr->large_prime[0], thisr->large_prime[1]);
-				//}
 
 				if (c->cycle.list)
 					curr_cycle++;
@@ -2264,6 +2241,8 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	int first, last_poly;
 	uint32_t this_rel = 0;
     uint32_t progress;
+	// the initial list of b-polys should be empty.
+	sconf->bpoly_alloc = 0;
 
  	/* Rather than reading all the relations in and 
 	   then removing singletons, read only the large 
@@ -2403,13 +2382,17 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 
 	sconf->poly_list = (poly_t *)xmalloc(num_poly * sizeof(poly_t));
 
-	// if in-mem, don't need a new a_list
+	// if in-mem, don't reallocate a new a_list.  Since nothing is
+	// written to file, the only record of the a-polys is the one
+	// created during sieving and reused here in filtering.
 	if (!sconf->in_mem)
 	{		
 		sconf->total_poly_a = total_poly_a;
 		sconf->poly_a_list = (mpz_t *)xmalloc(total_poly_a * sizeof(mpz_t));
-		for (i=0; i<total_poly_a; i++)
+		for (i = 0; i < total_poly_a; i++)
+		{
 			mpz_init(sconf->poly_a_list[i]);
+		}
 	}
 
 	final_poly_index = (uint32_t *)xmalloc(1024 * 
@@ -2607,13 +2590,13 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 			{
                 r = relation_list + curr_saved;
 
-                //char c = ' ';
-                //
-                //if (rel->parity)
-                //    c = '-';
-                //printf("saving in-mem rel %u @ pos %u, %c%x %u,%u L %x %x\n", 
+                char c = ' ';
+                
+                if (rel->parity)
+                    c = '-';
+                //printf("saving in-mem rel %u @ pos %u, %c%x %u,%u,%u L %x %x\n", 
                 //    this_rel-1, curr_saved, c, rel->sieve_offset, rel->apoly_idx,
-                //    rel->poly_idx, rel->large_prime[0], rel->large_prime[1]);
+                //    rel->poly_idx, rel->num_factors, rel->large_prime[0], rel->large_prime[1]);
 
                 td_and_merge_relation(sconf->factor_base,
                     sconf->n, sconf, sconf->obj, r, rel);
@@ -2788,6 +2771,13 @@ void yafu_qs_filter_relations(static_conf_t *sconf) {
 	if (fobj->VFLAG > 0)
 		printf("largest cycle: %u relations\n",
 			cycle_list[num_cycles-1].cycle.num_relations);
+
+	// not needed outside of filtering.
+	for (i = 0; i < sconf->bpoly_alloc; i++)
+		mpz_clear(sconf->curr_b[i]);
+	free(sconf->curr_b);
+
+	return;
 }
 
 static int compare_relations(const void *x, const void *y) {

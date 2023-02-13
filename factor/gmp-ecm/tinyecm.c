@@ -177,6 +177,9 @@ double bench_curves;
 double bench_stg1;
 double bench_stg2;
 
+static uint32_t total_curves_run = 0;
+
+
 void u128_to_mpz(uint64_t *in, mpz_t out)
 {
 	mpz_set_ui(out, in[1]);
@@ -2436,7 +2439,357 @@ int check_factor(uint64_t * Z, uint64_t * n, uint64_t * f)
 	return status;
 }
 
+static int tpm1_ewin100[34] = { // 170 muls
+		12, 12, 14, 3, 12, 7, 13, 6, 12, 0, 15, 4, 1, 8, 7, 3, 0, 14, 13, 6,
+		5, 6, 15, 13, 0, 11, 0, 14, 13, 3, 8, 8, 12, 0 };
+static int tpm1_ewin333[119] = { // 595 muls
+	2, 5, 1, 6, 12, 5, 1, 5, 0, 15, 3, 13, 2, 4, 2, 0, 4, 13, 11, 9, 4, 5,
+	4, 13, 7, 15, 0, 11, 10, 7, 5, 4, 7, 0, 14, 11, 12, 10, 12, 4, 11, 2,
+	5, 2, 10, 10, 7, 3, 14, 11, 8, 0, 15, 2, 2, 3, 10, 11, 6, 9, 2, 8, 15,
+	4, 12, 13, 14, 13, 0, 7, 3, 3, 12, 3, 9, 8, 4, 6, 15, 0, 3, 9, 11, 14,
+	5, 7, 4, 4, 11, 14, 8, 6, 11, 14, 0, 12, 13, 4, 12, 12, 11, 6, 13, 0,
+	10, 8, 13, 6, 13, 15, 2, 5, 14, 13, 11, 11, 15, 0, 0 };
 
+static void tpm1_stage1(monty128_t* mdata, uint64_t *P, uint64_t stg1)
+{
+	int i;
+	uint64_t g[16][2];
+
+	g[0][0] = P[0] = mdata->one[0];
+	g[0][1] = P[1] = mdata->one[1];
+
+	for (i = 1; i < 16; i++)
+		addmod128(g[i - 1], g[i - 1], g[i], mdata->n);
+
+	switch (stg1)
+	{
+	case 100:
+		for (i = 0; i < 34; i++) {
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			if (tpm1_ewin100[i] > 0) mulmod128(P, g[tpm1_ewin100[i]], P, mdata);
+		}
+		break;
+	case 333:
+		for (i = 0; i < 119; i++) {
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			sqrmod128(P, P, mdata);
+			if (tpm1_ewin333[i] > 0) mulmod128(P, g[tpm1_ewin333[i]], P, mdata);
+		}
+		break;
+	}
+	return;
+}
+
+static void tpm1_expRL(monty128_t* mdata, uint64_t* P, uint64_t* in, uint32_t m)
+{
+	uint64_t s[2];
+	P[0] = mdata->one[0];
+	P[1] = mdata->one[1];
+	s[0] = in[0];
+	s[1] = in[1];
+
+	while (m > 0)
+	{
+		if (m & 1)
+			mulmod128(P, s, P, mdata);
+		sqrmod128(s, s, mdata);
+		m >>= 1;
+	}
+	return;
+}
+
+static const uint32_t tpm1_map[60] = {
+	0, 1, 2, 0, 0, 0, 0, 3, 0, 0,
+	0, 4, 0, 5, 0, 0, 0, 6, 0, 7,
+	0, 0, 0, 8, 0, 0, 0, 0, 0, 9,
+	0, 10, 0, 0, 0, 0, 0, 11, 0, 0,
+	0, 12, 0, 13, 0, 0, 0, 14, 0, 15,
+	0, 0, 0, 16, 0, 0, 0, 0, 0, 17 };
+
+/* baby-steps, giant-steps pairing for b1 = 100, w = 60
+q0 = 120 */
+static int tpm1_num_b1_100_pairs = 279;
+static uint8_t tpm1_b1_100_pairs[279] = {
+19, 17, 13, 11, 7, 29, 31, 37, 43, 47, 53, 59, 0,
+59, 49, 47, 43, 41, 29, 17, 13, 11, 7, 1, 23, 31, 37, 53, 0,
+53, 49, 47, 43, 29, 23, 13, 11, 7, 1, 19, 37, 41, 59, 0,
+59, 49, 47, 41, 37, 31, 23, 19, 17, 13, 1, 7, 11, 29, 43, 0,
+59, 53, 43, 37, 31, 29, 23, 13, 7, 1, 17, 19, 41, 47, 0,
+59, 47, 43, 37, 29, 19, 11, 1, 7, 13, 23, 31, 41, 49, 53, 0,
+53, 43, 31, 29, 19, 17, 13, 11, 1, 23, 37, 41, 47, 0,
+53, 49, 41, 31, 23, 19, 13, 7, 11, 17, 37, 59, 0,
+59, 49, 47, 41, 31, 29, 19, 17, 11, 7, 13, 23, 37, 43, 0,
+49, 47, 37, 29, 19, 13, 7, 1, 17, 23, 31, 59, 0,
+43, 41, 37, 31, 29, 23, 19, 17, 13, 1, 7, 47, 53, 0,
+59, 41, 31, 17, 13, 11, 7, 1, 19, 43, 47, 49, 53, 0,
+49, 37, 29, 17, 11, 7, 1, 19, 23, 41, 47, 53, 59, 0,
+59, 53, 43, 23, 17, 13, 11, 19, 29, 41, 0,
+59, 53, 47, 41, 23, 17, 13, 11, 1, 31, 0,
+59, 53, 49, 47, 43, 41, 31, 19, 13, 7, 11, 29, 0,
+53, 47, 43, 41, 37, 29, 23, 13, 11, 1, 49, 59, 0,
+49, 47, 31, 29, 23, 19, 17, 7, 1, 43, 53, 0,
+59, 43, 41, 37, 29, 13, 11, 7, 1, 17, 31, 53, 0,
+59, 53, 49, 43, 29, 23, 19, 17, 11, 7, 1, 37, 41, 47, 0,
+53, 47, 43 };
+
+/* baby-steps, giant-steps pairing for b1 = 333, w = 60
+q0 = 360
+*/
+static int tpm1_num_b1_333_pairs = 837;
+static uint8_t tpm1_b1_333_pairs[837] = {
+23, 13, 11, 7, 1, 19, 29, 37, 41, 49, 59, 0,
+59, 49, 47, 41, 37, 31, 23, 19, 17, 13, 1, 7, 11, 29, 43, 0,
+59, 53, 43, 37, 31, 29, 23, 13, 7, 1, 17, 19, 41, 47, 0,
+59, 47, 43, 37, 29, 19, 11, 1, 7, 13, 23, 31, 41, 49, 53, 0,
+53, 43, 31, 29, 19, 17, 13, 11, 1, 23, 37, 41, 47, 0,
+53, 49, 41, 31, 23, 19, 13, 7, 11, 17, 37, 59, 0,
+59, 49, 47, 41, 31, 29, 19, 17, 11, 7, 13, 23, 37, 43, 0,
+49, 47, 37, 29, 19, 13, 7, 1, 17, 23, 31, 59, 0,
+43, 41, 37, 31, 29, 23, 19, 17, 13, 1, 7, 47, 53, 0,
+59, 41, 31, 17, 13, 11, 7, 1, 19, 43, 47, 49, 53, 0,
+49, 37, 29, 17, 11, 7, 1, 19, 23, 41, 47, 53, 59, 0,
+59, 53, 43, 23, 17, 13, 11, 19, 29, 41, 0,
+59, 53, 47, 41, 23, 17, 13, 11, 1, 31, 0,
+59, 53, 49, 47, 43, 41, 31, 19, 13, 7, 11, 29, 0,
+53, 47, 43, 41, 37, 29, 23, 13, 11, 1, 49, 59, 0,
+49, 47, 31, 29, 23, 19, 17, 7, 1, 43, 53, 0,
+59, 43, 41, 37, 29, 13, 11, 7, 1, 17, 31, 53, 0,
+59, 53, 49, 43, 29, 23, 19, 17, 11, 7, 1, 37, 41, 47, 0,
+53, 47, 43, 17, 1, 11, 19, 23, 29, 31, 37, 59, 0,
+49, 47, 31, 23, 19, 7, 17, 37, 43, 53, 59, 0,
+53, 49, 47, 41, 31, 29, 19, 11, 7, 17, 37, 43, 59, 0,
+47, 43, 37, 29, 23, 19, 1, 7, 17, 59, 0,
+47, 43, 37, 31, 29, 1, 11, 19, 23, 41, 49, 0,
+59, 53, 41, 37, 31, 11, 1, 17, 43, 47, 49, 0,
+59, 53, 49, 37, 31, 23, 19, 11, 13, 17, 0,
+59, 53, 47, 41, 37, 31, 29, 17, 13, 1, 11, 0,
+47, 31, 23, 19, 17, 13, 11, 37, 49, 53, 59, 0,
+59, 53, 43, 41, 29, 19, 17, 7, 13, 23, 31, 37, 0,
+49, 47, 43, 29, 23, 19, 11, 1, 7, 13, 41, 59, 0,
+47, 43, 37, 19, 17, 7, 11, 13, 23, 41, 49, 0,
+53, 49, 43, 41, 37, 31, 29, 17, 13, 7, 47, 59, 0,
+59, 53, 31, 29, 23, 7, 1, 11, 13, 19, 47, 49, 0,
+47, 43, 41, 23, 1, 11, 17, 19, 29, 31, 53, 59, 0,
+59, 49, 47, 37, 31, 23, 7, 17, 19, 29, 43, 53, 0,
+49, 43, 31, 19, 17, 1, 7, 11, 23, 41, 53, 0,
+53, 47, 43, 41, 37, 13, 11, 1, 7, 23, 31, 0,
+59, 43, 41, 37, 31, 29, 23, 17, 7, 1, 11, 49, 53, 0,
+49, 41, 17, 13, 11, 7, 1, 31, 0,
+59, 49, 43, 31, 17, 11, 1, 13, 23, 37, 47, 53, 0,
+53, 47, 41, 37, 31, 29, 19, 17, 1, 11, 59, 0,
+59, 53, 47, 41, 13, 7, 11, 19, 29, 37, 49, 0,
+53, 49, 47, 43, 19, 7, 1, 17, 23, 29, 0,
+53, 49, 19, 13, 7, 1, 17, 31, 37, 41, 43, 0,
+49, 43, 41, 37, 19, 17, 13, 1, 7, 11, 53, 0,
+59, 49, 17, 1, 7, 11, 13, 19, 29, 43, 53, 0,
+59, 49, 43, 23, 19, 17, 11, 31, 41, 47, 53, 0,
+59, 53, 41, 37, 31, 29, 23, 19, 13, 11, 1, 17, 43, 47, 0,
+47, 19, 13, 7, 11, 29, 37, 43, 53, 0,
+53, 47, 41, 31, 29, 19, 7, 1, 11, 13, 23, 43, 0,
+43, 41, 37, 29, 23, 19, 11, 7, 17, 31, 47, 59, 0,
+59, 49, 43, 37, 31, 23, 17, 7, 1, 13, 19, 29, 0,
+59, 53, 31, 29, 11, 7, 1, 41, 49, 0,
+53, 49, 47, 37, 31, 29, 23, 19, 1, 7, 59, 0,
+59, 47, 41, 31, 29, 19, 17, 11, 1, 13, 43, 0,
+59, 49, 47, 37, 17, 13, 11, 7, 1, 23, 29, 31, 43, 0,
+53, 49, 43, 13, 11, 1, 7, 17, 23, 31, 37, 41, 59, 0,
+53, 41, 37, 23, 11, 1, 29, 47, 49, 0,
+49, 41, 23, 13, 7, 11, 19, 29, 37, 43, 47, 53, 0,
+37, 23, 13, 11, 1, 29, 31, 49, 0,
+47, 29, 23, 7, 11, 17, 19, 37, 41, 49, 59, 0,
+53, 43, 37, 31, 23, 19, 13, 11, 1, 17, 29, 47, 0,
+59, 41, 37, 31, 11, 7, 1, 19, 23, 43, 47, 0,
+59, 47, 43, 41, 11, 7, 17, 23, 29, 53, 0,
+53, 47, 43, 41, 37, 19, 13, 1, 7, 17, 29, 31, 0,
+47, 31, 29, 23, 1, 13, 19, 41, 49, 53, 0,
+59, 49, 43, 37, 13, 1, 7, 11, 19, 31, 0,
+59, 49, 47, 43, 37, 17, 11, 7, 13, 31 };
+
+static void tpm1_stage2_pair(monty128_t* mdata, uint64_t *P, uint64_t *acc, uint32_t b1)
+{
+	int w = 60;
+	uint64_t d[32][2], six[2], x12[2], xmid[2], x24[2], x25[2];
+	uint64_t x36[2], x60[2], x72[2], five[2], pw[2], pgiant[2];
+	int i, j;
+	uint32_t b2 = 25 * b1;
+
+	// we accumulate f(vw) - f(u) where f(n) = n^2, so that
+	// we can pair together primes vw+/-u
+	// see: P. L. Montgomery, "Speeding the Pollard and Elliptic Curve Methods
+	// of Factorization," Mathematics of Computation, Vol 48, No. 177, 1987
+	// 
+	// b^(n+h)^2 = b^(n^2 + 2h(n) + h^2) = (b^(n^2))*(b^(2hn))*(b^(h^2))
+
+	// u=1, u^2=1, b^u^2 = P
+	copy128(P, d[1]);
+	sqrmod128(P, d[2], mdata);
+	mulmod128(P, d[2], six, mdata);
+	sqrmod128(six, six, mdata);                // P^6
+	sqrmod128(six, x12, mdata);                // P^12
+	sqrmod128(x12, x24, mdata);                // P^24
+	mulmod128(x24, x12, x36, mdata);           // P^36
+	mulmod128(x24, x36, x60, mdata);           // P^60
+	sqrmod128(x36, x72, mdata);                // P^72
+	sqrmod128(d[2], five, mdata);
+	mulmod128(five, d[1], five, mdata);        // P^5
+	mulmod128(x24, d[1], x25, mdata);          // P^25
+
+
+	// P^7^2 = P^(1+6)^2 = P^(1^2) * P^(12*1) * P^36
+	// P^13^2 = P^(7+6)^2 = P^(7^2) * P^(12*7) * P^36
+	// P^19^2 = P^(13+6)^2 = P^(13^2) * P^(12*13) * P^36
+	// ...
+
+	// 1, 7, 13, 19, 25, 31, 37, 43, 49
+	// unnecessary powers will be mapped to scratch d[0].
+	j = 1;
+	copy128(x12, xmid);
+	while ((j + 6) < 50)
+	{
+		mulmod128(d[tpm1_map[j]], x36, d[tpm1_map[j + 6]], mdata);
+		mulmod128(d[tpm1_map[j + 6]], xmid, d[tpm1_map[j + 6]], mdata);
+		mulmod128(xmid, x72, xmid, mdata);
+		j += 6;
+	}
+
+	// P^11^2 = P^(5+6)^2 = P^(5^2) * P^(12*5) * P^36
+	// P^17^2 = P^(11+6)^2 = P^(11^2) * P^(12*11) * P^36
+	// P^23^2 = P^(17+6)^2 = P^(17^2) * P^(12*17) * P^36
+	// ...
+
+	// 11, 17, 23, 29, 35, 41, 47, 53, 59
+	// unnecessary powers will be mapped to scratch d[0].
+	mulmod128(x25, x36, d[tpm1_map[11]], mdata);
+	mulmod128(d[tpm1_map[11]], x60, d[tpm1_map[11]], mdata);
+	mulmod128(x60, x72, xmid, mdata);
+	j = 11;
+	while ((j + 6) < 60)
+	{
+		mulmod128(d[tpm1_map[j]], x36, d[tpm1_map[j + 6]], mdata);
+		mulmod128(d[tpm1_map[j + 6]], xmid, d[tpm1_map[j + 6]], mdata);
+		mulmod128(xmid, x72, xmid, mdata);
+		j += 6;
+	}
+
+	// P^(2w)^2, assumes w=60
+	// P^(120^2) = P^(14440)
+	tpm1_expRL(mdata, pw, P, 120 * 120);
+	uint64_t x14400[2];
+	copy128(pw, x14400);
+	uint64_t x240x120[2];
+	sqrmod128(pw, x240x120, mdata);
+	copy128(x240x120, xmid);
+	// P^(240^2) = P^(120+120)^2 = P^(120^2) * P^(240*120) * P^(14400)
+	// P^(360^2) = P^(240+120)^2 = P^(240^2) * P^(240*240) * P^(14400)
+	// P^(480^2) = P^(360+120)^2 = P^(360^2) * P^(240*360) * P^(14400)
+	// ...
+
+	copy128(pw, pgiant);
+	i = 2 * w;
+	while (i < b1)
+	{
+		mulmod128(pgiant, x14400, pgiant, mdata);
+		mulmod128(pgiant, xmid, pgiant, mdata);
+		mulmod128(xmid, x240x120, xmid, mdata);
+		i += 2 * w;
+	}
+
+	copy128(mdata->one, acc);
+	switch (b1)
+	{
+	case 100:
+
+		for (i = 0; i < tpm1_num_b1_100_pairs; i++)
+		{
+			if (tpm1_b1_100_pairs[i] == 0)
+			{
+				mulmod128(pgiant, x14400, pgiant, mdata);
+				mulmod128(pgiant, xmid, pgiant, mdata);
+				mulmod128(xmid, x240x120, xmid, mdata);
+				i++;
+			}
+
+			// if we happen to pick up all factors of the input with this
+			// prime pair, then the modular reduction will become 0.
+			// testing for this is simple and allows us to avoid gcd == n.
+			uint64_t tmp[2], sub[2];
+			submod128(pgiant, d[tpm1_map[tpm1_b1_100_pairs[i]]], sub, mdata->n);
+			mulmod128(acc, sub, tmp, mdata);
+			if ((tmp[0] == 0) && (tmp[1] == 0)) break;
+			else copy128(tmp, acc);
+		}
+		break;
+	case 333:
+
+		for (i = 0; i < tpm1_num_b1_333_pairs; i++)
+		{
+			if (tpm1_b1_333_pairs[i] == 0)
+			{
+				mulmod128(pgiant, x14400, pgiant, mdata);
+				mulmod128(pgiant, xmid, pgiant, mdata);
+				mulmod128(xmid, x240x120, xmid, mdata);
+				i++;
+			}
+
+			uint64_t tmp[2], sub[2];
+			submod128(pgiant, d[tpm1_map[tpm1_b1_333_pairs[i]]], sub, mdata->n);
+			mulmod128(acc, sub, tmp, mdata);
+			if ((tmp[0] == 0) && (tmp[1] == 0)) break;
+			else copy128(tmp, acc);
+		}
+		break;
+
+	}
+
+	return;
+}
+
+static void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
+{
+	//attempt to factor n with the elliptic curve method
+	//following brent and montgomery's papers, and CP's book
+	int result;
+	uint64_t stg1_res[2], q[2], n128[2];
+	uint64_t tmp1[2];
+	monty128_t mdata;
+
+	mpz_to_u128(n, n128);
+	monty128_init(&mdata, n128);
+
+	tmp1[0] = 1;
+	tmp1[1] = 0;
+	tpm1_stage1(&mdata, stg1_res, B1);
+	mulmod128(tmp1, stg1_res, q, &mdata);
+	submod128(q, tmp1, q, n128);
+	result = check_factor(q, n128, tmp1);
+
+	if (result == 1)
+	{
+		u128_to_mpz(tmp1, f);
+	}
+	else if (B2 > B1)
+	{
+		uint64_t stg2acc[2];
+		tpm1_stage2_pair(&mdata, stg1_res, stg2acc, B1);
+
+		tmp1[0] = 1;
+		tmp1[1] = 0;
+		mulmod128(tmp1, stg2acc, q, &mdata);
+		result = check_factor(q, n128, tmp1);
+
+		if (result == 1)
+		{
+			u128_to_mpz(tmp1, f);
+		}
+	}
+
+	return;
+}
 
 
 #ifdef USE_AVX512F
@@ -4477,6 +4830,8 @@ void tinyecm_x8_list(uint64_t* n, uint64_t* f, uint32_t B1, uint32_t B2, uint32_
 		// the vector, flag it for replacement.
 		v_c = _mm512_add_epi64(v_c, tecm_set64(1));
 
+		total_curves_run += 8;
+
 		//__mmask8 a;
 		//if (a = _mm512_cmpeq_epi64_mask(v_c, tecm_set64(curves)))
 		//{
@@ -4620,14 +4975,6 @@ done:
 
 
 #endif
-
-
-
-
-
-
-
-
 
 void tinyecm_test(int sizeb, int num, int type)
 {
@@ -4785,6 +5132,21 @@ int getfactor_tecm(mpz_t n, mpz_t f, int is_arbitrary, uint64_t* pran)
 
 	int bits = tecm_get_bits(n);
 	return tecm_dispatch(n, f, bits, is_arbitrary, pran);
+}
+
+int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1)
+{
+	if (mpz_even_p(n))
+	{
+		mpz_set_ui(f, 2);
+		return 1;
+	}
+
+	tinypm1(n, f, b1, 25 * b1);
+	if (mpz_get_ui(f) > 1)
+		return 1;
+	else
+		return 0;
 }
 
 
@@ -5183,6 +5545,7 @@ void getfactor_tecm_x8_list(uint64_t* q64, uint64_t* f64, int target_bits,
 	//return;
 
 	tecm_dispatch_x8_list(q64, f64, target_bits, num_in, pran);
+	printf("total curves run: %u\n", total_curves_run);
 	return;
 }
 

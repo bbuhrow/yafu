@@ -138,6 +138,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\arith\arith.c" />
+    <ClCompile Include="..\..\arith\fftmul.c" />
     <ClCompile Include="..\..\arith\monty.c" />
     <ClCompile Include="..\..\factor\factor_common.c" />
     <ClCompile Include="..\..\factor\gmp-ecm\microecm.c" />

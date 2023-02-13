@@ -38,7 +38,7 @@ extern "C" {
 #include <stdint.h>
 
     // the number of recognized command line options
-#define NUMOPTIONS 100
+#define NUMOPTIONS 106
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -182,7 +182,13 @@ typedef struct
     uint32_t snfs_testsieve_threshold;
     double work;
     double qs_snfs_xover;
-    
+    int stople;
+    int stoplt;
+    int stopgt;
+    int stopge;
+    int stopbase;
+    int stopeq;
+    int check_stop_conditions;
 
     // prime finding options
     uint32_t pfile;

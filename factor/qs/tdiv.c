@@ -58,6 +58,154 @@ this file contains code implementing 6) as well as other auxiliary routines
 
 */
 
+
+int split_3lp_tdiv(mpz_t candidate3lp, mpz_t _1, mpz_t _2, mpz_t _3,
+    uint32_t max_factor, uint64_t* lcg)
+{
+
+    if (getfactor_tecm(candidate3lp, _1,
+        mpz_sizeinbase(candidate3lp, 2) / 3 - 2, lcg) > 0)
+    {
+        if ((mpz_sizeinbase(_1, 2) <= 32) && (mpz_get_ui(_1) < max_factor))
+        {
+            mpz_tdiv_q(_2, candidate3lp, _1);
+
+            // if the remaining residue is obviously too big, we're done.
+            if (mpz_sizeinbase(_2, 2) > 64) //((max_primebits[s] * 2)))
+            {
+                return 0;
+            }
+
+            // check if the residue is prime.  could again use
+            // a cheaper method.
+            if (mpz_probab_prime_p(_2, 1) > 0)
+            {
+                if ((mpz_sizeinbase(_2, 2) <= 32) && (mpz_get_ui(_2) < max_factor))
+                    return 2;
+                else
+                    return 0;
+            }
+
+            // ok, so we have extracted one suitable factor, and the 
+            // cofactor is not prime and a suitable size.  Do more work to 
+            // split the cofactor.
+            // todo: target this better based on expected factor size.
+            uint64_t q64;
+            uint64_t f64;
+
+            q64 = mpz_get_ui(_2);
+            f64 = getfactor_uecm(q64, 0, lcg);
+            mpz_set_ui(_3, f64);
+
+            if (f64 > 1)
+            {
+                mpz_tdiv_q_ui(_2, _2, f64);
+
+                if (mpz_get_ui(_2) > max_factor) {
+                    return 0;
+                }
+                if (mpz_get_ui(_3) > max_factor) {
+                    return 0;
+                }
+                if (mpz_probab_prime_p(_1, 1) == 0)
+                {
+                    return 0;
+                }
+                if (mpz_probab_prime_p(_2, 1) == 0)
+                {
+                    return 0;
+                }
+                if (mpz_probab_prime_p(_3, 1) == 0)
+                {
+                    return 0;
+                }
+
+                return 3;
+            }
+        }
+        else
+        {
+            // check if the factor is prime.  could again use
+            // a cheaper method.
+            if (mpz_probab_prime_p(_1, 1) > 0)
+            {
+                // if the factor is obviously too big, give up.  This isn't a
+                // failure since we haven't expended much effort yet.
+                return 0;
+            }
+            else
+            {
+                // tecm found a composite first factor.
+                // if it is obviously too big, we're done.
+                if (mpz_sizeinbase(_1, 2) > 64) //((max_primebits[s] * 2)))
+                {
+                    return 0;
+                }
+
+                // isolate the 2nd smaller factor, and check its size.
+                mpz_tdiv_q(_2, candidate3lp, _1);
+
+                if (mpz_sizeinbase(_2, 2) > 32) //(max_primebits[s]))
+                {
+                    return 0;
+                }
+
+                // todo: target this better based on expected factor size.
+                uint64_t q64;
+                uint64_t f64;
+
+                q64 = mpz_get_ui(_1);
+                f64 = getfactor_uecm(q64, 0, lcg);
+                mpz_set_ui(_3, f64);
+
+
+                if (f64 > 1)
+                {
+                    mpz_tdiv_q_ui(_1, _1, f64);
+
+                    if (mpz_get_ui(_1) > max_factor) {
+                        return 0;
+                    }
+                    if (mpz_get_ui(_3) > max_factor) {
+                        return 0;
+                    }
+                    if (mpz_probab_prime_p(_1, 1) == 0)
+                    {
+                        return 0;
+                    }
+                    if (mpz_probab_prime_p(_2, 1) == 0)
+                    {
+                        return 0;
+                    }
+                    if (mpz_probab_prime_p(_3, 1) == 0)
+                    {
+                        return 0;
+                    }
+                    return 3;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+        }
+    }
+    else
+    {
+        // if ecm can't find a factor, give up.  
+        // unless this is a DLP with lpbr/a > 32... i.e., if the
+        // large factor size is greater than 64 bits but less than
+        // lpbr/a * 2.  In that case run mpqs... or tecm with
+        // greater effort.
+
+        return 0;
+    }
+
+    return 0;
+}
+
+
+
 void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity, 
 						 uint32_t poly_id, uint32_t bnum, 
 						 static_conf_t *sconf, dynamic_conf_t *dconf)
@@ -120,6 +268,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
     smooth_num = i - 1;
 #endif
     
+
 	// check if it completely factored by looking at the unfactored portion in tmp
 	if ((mpz_size(dconf->Qvals[report_num]) == 1) && 
 		(mpz_cmp_ui(dconf->Qvals[report_num], sconf->large_prime_max) < 0))
@@ -130,6 +279,19 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 		large_prime[0] = (uint32_t)mpz_get_ui(dconf->Qvals[report_num]); //Q->val[0];
 		large_prime[1] = 1;
 		large_prime[2] = 1;
+
+#ifdef GATHER_RESIDUE_STATS
+
+        // as part of analyzing 3lp parameterizations, save off this residue.  
+        // These will be fully factored later and sorted
+        // so that a synthetic data set resembling this real one can
+        // be constructed for deeper analysis of cycle generation for
+        // this parameterization.
+        fprintf(sconf->residue_files[dconf->tid],
+            "%u\n", large_prime[0]);
+
+#endif
+
 
 		if (large_prime[0] == 1)
 			dconf->num_full++;
@@ -266,6 +428,17 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
             }
 
 
+#ifdef GATHER_RESIDUE_STATS
+
+            // as part of analyzing 3lp parameterizations, save off this residue.  
+            // These will be fully factored later and sorted
+            // so that a synthetic data set resembling this real one can
+            // be constructed for deeper analysis of cycle generation for
+            // this parameterization.
+            fprintf(sconf->residue_files[dconf->tid], "%lu\n", q64);
+
+#endif
+
 			//quick prime check: compute 2^(residue-1) mod residue.  
 
 #if defined(_MSC_VER) || (BITS_PER_DIGIT == 32)
@@ -377,6 +550,18 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 			sprintf(fname, "tlp_attempts.dat");
 #endif
 
+#ifdef GATHER_RESIDUE_STATS
+
+            // as part of analyzing 3lp parameterizations, save off this residue.  
+            // These will be fully factored later and sorted
+            // so that a synthetic data set resembling this real one can
+            // be constructed for deeper analysis of cycle generation for
+            // this parameterization.
+            gmp_fprintf(sconf->residue_files[dconf->tid],
+                "%Zd\n", dconf->Qvals[report_num]);
+
+#endif
+
             if (dconf->do_batch)
             {
                 int32_t soffset = offset;
@@ -441,7 +626,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     //    rb = &sconf->rb2;
                     //}
                     
-                    if (VFLAG > 1)
+                    if (VFLAG > 0)
                     {
                         printf("now processing %u relations in batch %d in thread %d\n",
                             rb->num_relations, dconf->batch_run_override, dconf->tid);
@@ -459,7 +644,7 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
                     gettimeofday(&stop, NULL);
 
                     ttime = ytools_difftime(&start, &stop);
-                    if (VFLAG > 1)
+                    if (VFLAG > 0)
                     {
                         printf("relation_batch_run took %1.4f sec producing %u tlp's\n", 
                             ttime, rb->num_success);
@@ -621,7 +806,42 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 
             }
 #else
-			if (1)
+			
+            if (1)
+            {
+                int numf = split_3lp_tdiv(dconf->Qvals[report_num],
+                    dconf->gmptmp1, dconf->gmptmp2, dconf->gmptmp3,
+                    sconf->large_prime_max, &dconf->lcg_state);
+                
+                if (numf == 2)
+                {
+                    large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+                    large_prime[1] = mpz_get_ui(dconf->gmptmp2);
+                    large_prime[2] = 1;
+
+                    printf("split_3lp found a dlp: %u,%u\n",
+                        large_prime[0], large_prime[1]);
+
+                    dconf->tlp_useful++;
+                    buffer_relation(offset, large_prime, smooth_num + 1,
+                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
+                        polya_factors, it, 1);
+
+                }
+                else if (numf == 3)
+                {
+                    large_prime[0] = mpz_get_ui(dconf->gmptmp1);
+                    large_prime[1] = mpz_get_ui(dconf->gmptmp2);
+                    large_prime[2] = mpz_get_ui(dconf->gmptmp3);
+
+                    dconf->tlp_useful++;
+                    buffer_relation(offset, large_prime, smooth_num + 1,
+                        fb_offsets, dconf->curr_poly->index, poly_id, parity, dconf,
+                        polya_factors, it, 1);
+
+                }
+            }
+            else if (0)
 			{
 				int B1, B2, curves, bits = mpz_sizeinbase(dconf->Qvals[report_num], 2);
                 // successful tlps will have 3 about equal size factors, so
@@ -656,11 +876,13 @@ void trial_divide_Q_siqs(uint32_t report_num,  uint8_t parity,
 				{
 					printf("something's wrong, bits = %u, targetBits = %u\n", bits, targetBits);
 				}
-
+                
 				tinyecm(dconf->Qvals[report_num], dconf->gmptmp1, B1, B1 * 25, 
                     curves, &dconf->lcg_state, 0);
+
 				if (mpz_sizeinbase(dconf->gmptmp1, 2) > 32)
 				{
+                    // what if tecm finds a composite factor
 					return;
 				}
 

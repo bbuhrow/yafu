@@ -266,9 +266,12 @@ void reduce_qs_matrix(fact_obj_t *obj, uint32_t *nrows,
 
 	counts = (qs_row_count_t *)xcalloc((size_t)reduced_rows, 
 					sizeof(qs_row_count_t));
+
 	for (i = 0; i < reduced_cols; i++) {
 		for (j = 0; j < cols[i].weight; j++)
+		{
 			counts[cols[i].data[j]].count++;
+		}
 	}
 
 	do {

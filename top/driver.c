@@ -25,6 +25,8 @@ code to the public domain.
 #include "factor.h"
 #include "autofactor.h"
 #include "gmp.h"
+#include "microecm.h"
+#include "cofactorize.h"
 #include <ecm.h>
 #include <immintrin.h>
 
@@ -315,6 +317,146 @@ int main(int argc, char *argv[])
     srand((unsigned int)options->rand_seed);
 
     //test_dlp_composites();
+
+    if (0)
+    {
+        // analysis of saved residues.
+        FILE* fid = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295.txt", "r");
+        FILE* fout = fopen("residues_B_750016_MFBT_2.80_TF_140_LPB_4294967295_analysis.txt", "w");
+        mpz_t n, f, f2;
+        uint64_t lcg = 31751835123;
+        char buf[1024];
+        int k = 0;
+        tiny_qs_params* tqs_params;
+
+        mpz_init(n);
+        mpz_init(f);
+        mpz_init(f2);
+        tqs_params = init_tinyqs();
+
+        while (~feof(fid))
+        {
+            if (fgets(buf, 1024, fid) == NULL)
+                break;
+
+            mpz_set_str(n, buf, 10);
+            printf("processing line %d: %s", k, buf);
+            k++;
+
+            fprintf(fout, "%d:", mpz_sizeinbase(n, 2));
+
+            if (mpz_probab_prime_p(n, 1))
+            {
+                fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
+                continue;
+            }
+
+            if (mpz_sizeinbase(n, 2) > 128)
+            {
+                reset_factobj(fobj);
+                mpz_set(fobj->N, n);
+                factor(fobj);
+                yfactor_list_t* flist = fobj->factors;
+                for (i = 0; i < flist->num_factors; i++)
+                {
+                    int j;
+                    for (j = 0; j < flist->factors[i].count; j++)
+                    {
+                        int sz = mpz_sizeinbase(flist->factors[i].factor, 2);
+                        fprintf(fout, "%d,", sz);
+                    }
+                }
+                fprintf(fout, "\n");
+                printf("\n");
+            }
+            else
+            {
+                int szn = mpz_sizeinbase(n, 2);
+                int done = 0;
+                while (szn > 64)
+                {
+                    if (mpz_probab_prime_p(n, 1))
+                    {
+                        fprintf(fout, "%d,\n", mpz_sizeinbase(n, 2));
+                        done = 1;
+                        break;
+                    }
+
+                    getfactor_tecm(n, f, szn / 2, &lcg);
+                    if (mpz_cmp_ui(f, 1) > 0)
+                    {
+                        int szf = mpz_sizeinbase(f, 2);
+                        fprintf(fout, "%d,", szf);
+                        mpz_tdiv_q(n, n, f);
+                        szn = mpz_sizeinbase(n, 2);
+                    }
+                    else
+                    {
+                        int numf = tinyqs(tqs_params, n, f, f2);
+                        if (numf > 0)
+                        {
+                            fprintf(fout, "%d,\n", mpz_sizeinbase(f, 2));
+                            if (mpz_probab_prime_p(f, 1))
+                            {
+                                mpz_tdiv_q(n, n, f);
+                                szn = mpz_sizeinbase(n, 2);
+                            }
+                            else
+                            {
+                                printf("tinyqs found a composite factor!\n");
+                                exit(1);
+                            }
+                            fprintf(fout, "%d,\n", mpz_sizeinbase(f2, 2));
+                            if (mpz_probab_prime_p(f2, 1))
+                            {
+                                mpz_tdiv_q(n, n, f2);
+                                szn = mpz_sizeinbase(n, 2);
+                            }
+                            else
+                            {
+                                printf("tinyqs found a composite factor!\n");
+                                exit(1);
+                            }
+                        }
+                    }
+                }
+
+                if (done)
+                    continue;
+
+                uint64_t q64 = mpz_get_ui(n);
+                while (q64 > 1)
+                {
+                    mpz_set_ui(n, q64);
+
+                    if (mpz_probab_prime_p(n, 1))
+                    {
+                        fprintf(fout, "%d,", mpz_sizeinbase(n, 2));
+                        break;
+                    }
+
+                    uint64_t f64 = getfactor_uecm(q64, 0, &lcg);
+                    if (f64 > 1)
+                    {
+                        int szf = spBits(f64);
+                        fprintf(fout, "%d,", szf);
+                        q64 /= f64;
+                    }
+                }
+                fprintf(fout, "\n");
+            }
+        }
+        printf("\n");
+
+        mpz_clear(n);
+        mpz_clear(f);
+        mpz_clear(f2);
+        fclose(fout);
+        fclose(fid);
+    }
+
+
+
 
 	// command line
 	while (1)
@@ -1709,6 +1851,14 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.only_pretest = options->pretest;
     fobj->autofact_obj.autofact_active = 0;
     fobj->autofact_obj.json_pretty = options->json_pretty;
+    fobj->autofact_obj.stopbase = options->stopbase;
+    fobj->autofact_obj.stopeq = options->stopeq;
+    fobj->autofact_obj.stopge = options->stopge;
+    fobj->autofact_obj.stopgt = options->stopgt;
+    fobj->autofact_obj.stople = options->stople;
+    fobj->autofact_obj.stoplt = options->stoplt;
+    fobj->autofact_obj.check_stop_conditions = options->check_stop_conditions;
+
 
     // if a number is <= aprcl_prove_cutoff, we will prove it prime or composite
     fobj->factors->aprcl_prove_cutoff = options->aprcl_p;

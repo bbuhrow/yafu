@@ -143,7 +143,7 @@ void siqs_start(void *vptr)
 	udata->num_needed = static_conf->factor_base->B + static_conf->num_extra_relations;
     static_conf->num_needed = udata->num_needed;
     udata->num_found = static_conf->num_r;
-    static_conf->total_poly_a = -1;
+    static_conf->total_poly_a = 0;
     udata->num_meas = 0;
     udata->orig_value = static_conf->tf_small_cutoff;
 
@@ -343,7 +343,10 @@ void siqs_dispatch(void *vptr)
         }
         else
         {
-            in_flight_rels = (tdata->num_threads - 1) * 0.75 * avg_rels_per_acoeff;
+
+            in_flight_rels = (tdata->num_threads - 1) * 0.725 * avg_rels_per_acoeff;
+            // test: exaggerate this to force more bad matrices
+            //in_flight_rels = (tdata->num_threads - 1) * 1.25 * avg_rels_per_acoeff;
 
             if (static_conf->do_batch)
             {
@@ -359,7 +362,7 @@ void siqs_dispatch(void *vptr)
 
                 // now an estimate of the relations in-flight inside the 
                 // batch queues (with a fudge factor aiming low).
-                in_flight_rels += ratio * 0.9 * (double)rels;
+                in_flight_rels += ratio * 1.1 * (double)rels;
             }
         }
         //printf("found %u rels so far in %d 'A' polys, avg rels_per_poly = %f, rels in flight = %f\n",
@@ -376,11 +379,9 @@ void siqs_dispatch(void *vptr)
         ((udata->num_found + in_flight_rels) < udata->num_needed))
     {
         relation_batch_t *src_rb;
-		//printf("thread %d starting new poly\n", tid);
         // generate a new poly A value for the thread we pulled out of the queue
         // using its dconf.  this is done by the master thread because it also 
         // stores the coefficients in a master list
-        static_conf->total_poly_a++;
         new_poly_a(static_conf, t[tid].dconf);
         tdata->work_fcn_id = 0;
 
@@ -393,7 +394,7 @@ void siqs_dispatch(void *vptr)
             if ((static_conf->use_dlp == 2) &&
                 (t[tid].dconf->batch_run_override == -1))
             {
-                if (fobj->VFLAG > 1)
+                if (fobj->VFLAG > 0)
                 {
                     printf("thread %d done processing batch %d\n",
                         tid, t[tid].dconf->batch_run_override);
@@ -471,7 +472,7 @@ void siqs_dispatch(void *vptr)
                     first_free = 0;
                 }
 
-                if (fobj->VFLAG > 1)
+                if (fobj->VFLAG > 0)
                 {
                     printf("there are now %d active batch processing threads\n", count);
                 }
@@ -487,7 +488,7 @@ void siqs_dispatch(void *vptr)
                 //    static_conf->batch_buffer_id = 1;
                 //}
 
-                if (fobj->VFLAG > 1)
+                if (fobj->VFLAG > 0)
                 {
                     printf("now gathering relations into batch buffer %d\n",
                         static_conf->batch_buffer_id);
@@ -508,19 +509,12 @@ void siqs_dispatch(void *vptr)
     }
     else
     {
-        //if (static_conf->do_batch)
-        //{
-        //    int i;
-        //    for (i = 0; i < THREADS; i++)
-        //    {
-        //        t[i].dconf->batch_run_override = 1;
-        //    }
-        //}
         static_conf->flag = 1;
 		//printf("thread %d stopping work\n", tid);
         //printf("thread %d stopping work: found %d, %d in flight, need %d\n",
         //    tid, udata->num_found, (int)in_flight_rels, udata->num_needed);
-        tdata->work_fcn_id = tdata->num_work_fcn;        
+        tdata->work_fcn_id = tdata->num_work_fcn;
+        //printf("stopping work with %d poly-a's\n", static_conf->total_poly_a + 1);
     }
 
 
@@ -584,6 +578,7 @@ void SIQS(fact_obj_t *fobj)
 	clock_t start, stop;
 	double t_time;
 	struct timeval myTVend;
+    int max_retries = 5;
 
 	// checking savefile
 	FILE *data;
@@ -623,6 +618,10 @@ void SIQS(fact_obj_t *fobj)
 		gmp_printf("\nstarting SIQS on c%d: %Zd\n",
 			fobj->digits, fobj->qs_obj.gmp_n);
 	}
+
+    // test/debug: force a particular random seed
+    // fobj->lcg_state = 10081388431143555077;
+    // printf("warning: test lcg_state is enabled!\n");
 
 	if (sieve_log != NULL)
 	{
@@ -680,15 +679,6 @@ void SIQS(fact_obj_t *fobj)
 		mpz_clear(g);
 		fclose(data);
 	}
-
-	// then do a small amount of trial division
-	// which will add anything found to the global factor list
-	// this is only called with the main thread
-	// mpz_set(fobj->div_obj.gmp_n, fobj->qs_obj.gmp_n);
-	// fobj->div_obj.print = 0;
-	// fobj->div_obj.limit = 10000;
-	// zTrial(fobj);
-	// mpz_set(fobj->qs_obj.gmp_n, fobj->div_obj.gmp_n);
 
 	// At this point, we are committed to doing qs on the input
 	// we need to:
@@ -837,112 +827,120 @@ void SIQS(fact_obj_t *fobj)
     }
 #endif
 
-	if (fobj->THREADS == 1)
-	{
-		// it is noticably faster to remove the tpool overhead
-		// if we just have one thread.  This is basically what
-		// tpool_go() does without all of the threading overhead.
-		// todo: maybe this *should* be what tpool_go() does when
-		// num_threads == 1...
-		while (1)
-		{
-			siqs_sync(tpool_data);
-			siqs_dispatch(tpool_data);
-			if (tpool_data->work_fcn_id == 0)
-			{
-				process_poly(tpool_data);
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-	else
-	{
-		tpool_go(tpool_data);
-	}
 
-	// this just holds pointers to other stuff that still exists.
-	// we can get rid of the wrapper now...
-	free(tpool_data);
-
-    uint32_t missed_batch_rels = 0;
-	for (i = 0; i < fobj->THREADS; i++)
-	{
-        missed_batch_rels += thread_data[i].dconf->rb.num_relations;
-		free_sieve(thread_data[i].dconf);
-		free(thread_data[i].dconf->relation_buf);
-	}
-
-    if ((static_conf->do_batch) && (fobj->VFLAG > 0) && (missed_batch_rels > 0))
+#ifdef GATHER_RESIDUE_STATS
+    char fname[1024];
+    
+    for (i = 0; i < fobj->THREADS; i++)
     {
-        printf("threw away %u batched relations\n", missed_batch_rels);
+        sprintf(fname, "residues_B_%u_MFBT_%1.2f_TF_%u_LPB_%u_tid_%d.txt",
+            static_conf->factor_base->B, static_conf->tlp_exp, static_conf->tf_closnuf,
+            static_conf->large_prime_max, i);
+        static_conf->residue_files[i] = fopen(fname, "a");
+        if (static_conf->residue_files[i] == NULL)
+        {
+            printf("problem opening %s to append\n", fname);
+            exit(1);
+        }
     }
 
-    if (!static_conf->in_mem)
-    {
-        // finalize savefile
-        qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
-        qs_savefile_close(&static_conf->obj->qs_obj.savefile);
-    }
-
-	update_final(static_conf);
-
-	if (udata.updatecode == 2)
-	{
-		goto done;
-	}
-
-	// we don't need the poly_a_list anymore... free it so the other routines
-	// can use it (unless we are doing in-mem)
-	if (!static_conf->in_mem)
-	{
-		for (i = 0; i < static_conf->total_poly_a + 1; i++)
-			mpz_clear(static_conf->poly_a_list[i]);
-		free(static_conf->poly_a_list);
-	}
-
-	gettimeofday(&myTVend, NULL);
-	t_time = ytools_difftime(&static_conf->totaltime_start, &myTVend);
-
-	if (fobj->VFLAG > 0)
-	{
-		if (static_conf->use_dlp == 2)
-			printf("TLP filtering time = %6.4f seconds.\n", static_conf->t_time4);
-		printf("QS elapsed time = %6.4f seconds.\n", t_time);
-		printf("\n==== post processing stage (msieve-1.38) ====\n");
-	}
-
-	if (sieve_log != NULL)
-	{
-		if (static_conf->use_dlp == 2)
-			logprint(sieve_log, "TLP filtering time = %6.4f seconds.\n", static_conf->t_time4);
-		logprint(sieve_log, "QS elapsed time = %6.4f seconds.\n", t_time);
-	}
-
-#if defined(TARGET_KNL)
-    // for now, just do timing on the sieving portion.  LA is really slow.
-    exit(0);
 #endif
 
-	fobj->qs_obj.qs_time = t_time;
-	
-	start = clock();
-
-	// filter the relation set and get ready for linear algebra
-	// all the polys and relations are on disk.
-	// read them in and build the cycle list to send to LA.
-	
-	// initialize the b list for the current a.  qs_filter_relations
-	// will change this as needed.
-    k = 0;
+    uint32_t factors_found = 0;
+    int num_retries = 0;
     do
     {
-        static_conf->curr_b = (mpz_t *)malloc(2 * sizeof(mpz_t));
-        for (i = 0; i < 2; i++)
-            mpz_init(static_conf->curr_b[i]);
-        static_conf->bpoly_alloc = 2;
+
+
+        if (fobj->THREADS == 1)
+        {
+            // it is noticably faster to remove the tpool overhead
+            // if we just have one thread.  This is basically what
+            // tpool_go() does without all of the threading overhead.
+            // todo: maybe this *should* be what tpool_go() does when
+            // num_threads == 1...
+            while (1)
+            {
+                siqs_sync(tpool_data);
+                siqs_dispatch(tpool_data);
+                if (tpool_data->work_fcn_id == 0)
+                {
+                    process_poly(tpool_data);
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            tpool_go(tpool_data);
+        }
+
+
+        uint32_t missed_batch_rels = 0;
+        for (i = 0; i < fobj->THREADS; i++)
+        {
+            missed_batch_rels += thread_data[i].dconf->rb.num_relations;
+        }
+
+        if ((static_conf->do_batch) && (fobj->VFLAG > 0) && (missed_batch_rels > 0))
+        {
+            printf("threw away %u batched relations\n", missed_batch_rels);
+        }
+
+        if (!static_conf->in_mem)
+        {
+            // finalize savefile
+            qs_savefile_flush(&static_conf->obj->qs_obj.savefile);
+            qs_savefile_close(&static_conf->obj->qs_obj.savefile);
+        }
+
+        update_final(static_conf);
+
+        if (udata.updatecode == 2)
+        {
+            // a stop condition, other than finding enough relations to finish, was met.
+            // e.g., specified elasped time or relation count or a CTRL-C.  In these
+            // cases don't run filtering, just go to cleanup.
+            goto done;
+        }
+
+        gettimeofday(&myTVend, NULL);
+        t_time = ytools_difftime(&static_conf->totaltime_start, &myTVend);
+
+        if (fobj->VFLAG > 0)
+        {
+            if (static_conf->use_dlp == 2)
+                printf("TLP filtering time = %6.4f seconds.\n", static_conf->t_time4);
+            printf("QS elapsed time = %6.4f seconds.\n", t_time);
+            printf("\n==== post processing stage (msieve-1.38) ====\n");
+        }
+
+        if (sieve_log != NULL)
+        {
+            if (static_conf->use_dlp == 2)
+                logprint(sieve_log, "TLP filtering time = %6.4f seconds.\n", static_conf->t_time4);
+            logprint(sieve_log, "QS elapsed time = %6.4f seconds.\n", t_time);
+        }
+
+        fobj->qs_obj.qs_time = t_time;
+
+        start = clock();
+
+        // filtering will reload (if using a savefile) and possibly re-order
+        // the a-polys.  If using a save file we clear our current list
+        // so that filtering can do it's thing.  If in-mem, keep them; filtering
+        // knows how to deal with that case too.
+        if (!static_conf->in_mem)
+        {
+            for (i = 0; (uint32_t)i < static_conf->total_poly_a; i++)
+            {
+                mpz_clear(static_conf->poly_a_list[i]);
+            }
+            free(static_conf->poly_a_list);
+        }
 
         // load and filter relations and polys.
         yafu_qs_filter_relations(thread_data[0].sconf);
@@ -952,62 +950,143 @@ void SIQS(fact_obj_t *fobj)
         relation_list = static_conf->relation_list;
 
         // solve the system of equations
-        switch (j = qs_solve_linear_system(static_conf->obj, static_conf->factor_base->B,
-            &bitfield, relation_list, cycle_list, &num_cycles))
+        j = qs_solve_linear_system(static_conf->obj, static_conf->factor_base->B,
+            &bitfield, relation_list, cycle_list, &num_cycles);
+
+        if ((j == -1) || (j == -2))
         {
-        case 0:
-            break;
-        case -1:
-            // not enough dependencies.  Sieve more...
+            // not enough dependencies or corrupt matrix.
+            if (num_retries >= max_retries)
+            {
+                printf("Problem with filtering and too many retries, giving up\n");
+                logprint(sieve_log, "Problem with filtering and too many "
+                    "retries, giving up\n");
+            }
+            else
+            {
+                udata.num_needed = udata.num_needed * 1.05;
+                printf("Problem with filtering (code %d), re-trying with new relation "
+                    "target of %u\n", j, udata.num_needed);
+                logprint(sieve_log, "Problem with filtering (code %d), re-trying with new relation "
+                    "target of % u\n", j, udata.num_needed);
 
-            break;
-        case -2:
-            // corrupt matrix.  try again?
-            k++;
-            qs_savefile_free(&static_conf->obj->qs_obj.savefile);
-            printf("attempting to rebuild matrix (%d of %d)\n", k, 10);
-            static_conf->charcount = 42;
+                //initialize the bookkeeping for tracking partial relations
+                free(static_conf->cycle_hashtable);
+                free(static_conf->cycle_table);
+                static_conf->components = 0;
+                static_conf->vertices = 0;
+                static_conf->num_cycles = 0;
+                static_conf->num_relations = 0;
 
-#ifdef _WIN32
-            Sleep(1000);
-#else
-            sleep(1);
-#endif
-            qs_savefile_init(&static_conf->obj->qs_obj.savefile, fobj->qs_obj.siqs_savefile);
-            break;
+                static_conf->cycle_hashtable = (uint32_t*)xcalloc(
+                    (size_t)(1 << QS_LOG2_CYCLE_HASH),
+                    sizeof(uint32_t));
+                static_conf->cycle_table_size = 1;
+                static_conf->cycle_table_alloc = 10000;
+                static_conf->cycle_table = (qs_cycle_t*)xmalloc(
+                    static_conf->cycle_table_alloc * sizeof(qs_cycle_t));
+
+                if (!static_conf->in_mem)
+                {
+                    restart_siqs(static_conf, thread_data[0].dconf);
+                    qs_savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                }
+                else
+                {
+                    printf("rebuilding graph with %u buffered in-memory relations\n",
+                        static_conf->buffered_rels);
+                    rebuild_graph(static_conf, static_conf->in_mem_relations,
+                        static_conf->buffered_rels);
+                }
+
+                num_retries++;
+                continue;
+            }
         }
 
-    } while ((j == -2) && (k < 10));
+        stop = clock();
+        static_conf->t_time1 = (double)(stop - start) / (double)CLOCKS_PER_SEC;
 
-	stop = clock();
-	static_conf->t_time1 = (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        start = clock();
+        //sqrt stage
+        if (bitfield != NULL && num_cycles > 0)
+        {
 
-	start = clock();
-	//sqrt stage
-	if (bitfield != NULL && num_cycles > 0) 
-	{
-	
-		yafu_find_factors(static_conf->obj, static_conf->n, static_conf->factor_base->list, 
-			static_conf->factor_base->B, cycle_list, num_cycles, 
-			relation_list, bitfield, static_conf->multiplier, 
-			static_conf->poly_a_list, static_conf->poly_list, 
-			&static_conf->factor_list);
-					
-        free(bitfield);
-	}
+            factors_found = yafu_find_factors(static_conf->obj,
+                static_conf->n, static_conf->factor_base->list,
+                static_conf->factor_base->B, cycle_list, num_cycles,
+                relation_list, bitfield, static_conf->multiplier,
+                static_conf->poly_a_list, static_conf->poly_list,
+                &static_conf->factor_list);
+        }
 
-	stop = clock();
-	static_conf->t_time2= (double)(stop - start)/(double)CLOCKS_PER_SEC;
+        stop = clock();
+        static_conf->t_time2 = (double)(stop - start) / (double)CLOCKS_PER_SEC;
 
-	gettimeofday (&myTVend, NULL);
-    static_conf->t_time3 = ytools_difftime(&static_conf->totaltime_start, &myTVend);
-	
-	if (fobj->VFLAG > 0)
-	{
-		printf("Lanczos elapsed time = %6.4f seconds.\n",static_conf->t_time1);
-		printf("Sqrt elapsed time = %6.4f seconds.\n",static_conf->t_time2);
-		
-	}
+        gettimeofday(&myTVend, NULL);
+        static_conf->t_time3 = ytools_difftime(&static_conf->totaltime_start, &myTVend);
+
+        if (fobj->VFLAG > 0)
+        {
+            printf("Lanczos elapsed time = %6.4f seconds.\n", static_conf->t_time1);
+            printf("Sqrt elapsed time = %6.4f seconds.\n", static_conf->t_time2);
+        }
+
+        if (factors_found == 0)
+        {
+            // we failed to find any factors... too few dependencies,
+            // none of them worked, or something else went wrong.
+            // There are a couple things to try: either take away some
+            // relations or add some more.  Most often adding more
+            // seems to help.  We can/should also keep track of this
+            // failure and somehow revert back to ecm or maybe nfs if
+            // QS keeps failing.
+            if (num_retries >= max_retries)
+            {
+                printf("Failed to find factors and too many retries, giving up\n");
+                logprint(sieve_log, "Failed to find factors and too many "
+                    "retries, giving up\n");
+            }
+            else
+            {
+                udata.num_needed = udata.num_needed * 1.05;
+                printf("Failed to find factors, re-trying with new relation target of %u\n",
+                    udata.num_needed);
+                logprint(sieve_log, "Failed to find factors, re-trying with "
+                    "new relation target of % u\n", udata.num_needed);
+
+                //initialize the bookkeeping for tracking partial relations
+                free(static_conf->cycle_hashtable);
+                free(static_conf->cycle_table);
+                static_conf->components = 0;
+                static_conf->vertices = 0;
+                static_conf->num_cycles = 0;
+                static_conf->num_relations = 0;
+
+                static_conf->cycle_hashtable = (uint32_t*)xcalloc(
+                    (size_t)(1 << QS_LOG2_CYCLE_HASH),
+                    sizeof(uint32_t));
+                static_conf->cycle_table_size = 1;
+                static_conf->cycle_table_alloc = 10000;
+                static_conf->cycle_table = (qs_cycle_t*)xmalloc(
+                    static_conf->cycle_table_alloc * sizeof(qs_cycle_t));
+
+                if (!static_conf->in_mem)
+                {
+                    restart_siqs(static_conf, thread_data[0].dconf);
+                    qs_savefile_open(&static_conf->obj->qs_obj.savefile, SAVEFILE_APPEND);
+                }
+                else
+                {
+                    printf("rebuilding graph with %u buffered in-memory relations\n",
+                        static_conf->buffered_rels);
+                    rebuild_graph(static_conf, static_conf->in_mem_relations, 
+                        static_conf->buffered_rels);
+                }
+                num_retries++;
+            }
+        }
+    } while ((factors_found == 0) && (num_retries < max_retries));
 
 	if (fobj->VFLAG >= 0)
 	{
@@ -1028,18 +1107,37 @@ void SIQS(fact_obj_t *fobj)
 	static_conf->cycle_list = cycle_list;
 	static_conf->num_cycles = num_cycles;
 
-	//free stuff used during filtering
-	free_filter_vars(static_conf);
+    // free stuff used during filtering
+    free_filter_vars(static_conf);
+
+    // and during sqrt
+    if ((bitfield != NULL) && (num_cycles > 0))
+    {
+        free(bitfield);
+    }
 
 done:
 
+#ifdef GATHER_RESIDUE_STATS
+
+    for (i = 0; i < fobj->THREADS; i++)
+    {
+        fclose(static_conf->residue_files[i]);
+    }
+
+#endif
+
+    free(tpool_data);
+
+    // free dynamic thread data
+    for (i = 0; i < fobj->THREADS; i++)
+    {
+        free_sieve(thread_data[i].dconf);
+        free(thread_data[i].dconf->relation_buf);
+    }
+
 	//free everything else
 	free_siqs(thread_data[0].sconf);
-
-    // if in a batchfile or something, keep the primes around
-    // so we don't have to keep regenerating them.  They are
-    // static so that memory isn't lost.
-    //free(siqs_primes);
 
     if (sieve_log != NULL)
     {
@@ -1055,6 +1153,12 @@ done:
 
 	//reset signal handler to default (no handler).
 	signal(SIGINT,NULL);
+
+    if (num_retries > 0)
+    {
+        // during testing for successful retries, stop here
+        //exit(0);
+    }
 
 	return;
 }
@@ -1646,6 +1750,11 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         else
         {
             printf("using multiplier of %u (kn mod 8 == %u)\n", sconf->multiplier, sconf->knmod8);
+        }
+
+        if (sconf->in_mem)
+        {
+            printf("using in-memory storage, aborts will lose all progress\n");
         }
 
         printf("using SPV correction of %d bits, starting at offset %d\n",
@@ -3107,38 +3216,38 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         closnuf -= 2;
 #endif
     }
-	else if ((sconf->use_dlp == 2) || sconf->obj->qs_obj.gbl_force_TLP)
-	{
-		// different than DLP?
-		if (sconf->digits_n < 82)
-			closnuf = sconf->digits_n + 7;
-		else if (sconf->digits_n < 90)
-			closnuf = sconf->digits_n + 5;
-		else if (sconf->digits_n < 95)
-			closnuf = sconf->digits_n + 3;
-		else if (sconf->digits_n < 100)
-			closnuf = sconf->digits_n + 1;
-		else
-			closnuf = sconf->digits_n;
+    else if ((sconf->use_dlp == 2) || sconf->obj->qs_obj.gbl_force_TLP)
+    {
+        // different than DLP?
+        if (sconf->digits_n < 82)
+            closnuf = sconf->digits_n + 7;
+        else if (sconf->digits_n < 90)
+            closnuf = sconf->digits_n + 5;
+        else if (sconf->digits_n < 95)
+            closnuf = sconf->digits_n + 3;
+        else if (sconf->digits_n < 100)
+            closnuf = sconf->digits_n + 1;
+        else
+            closnuf = sconf->digits_n;
 
         closnuf -= 4;
-	}
+    }
     else
     {
         closnuf -= sconf->tf_small_cutoff;	//correction to the previous estimate
     }
 
-	if (sconf->obj->qs_obj.gbl_override_tf_flag)
-	{
-		//printf("overriding TF bound %u to %u\n", closnuf, sconf->obj->gbl_override_tf);
-		closnuf = sconf->obj->qs_obj.gbl_override_tf;
-	}
+    if (sconf->obj->qs_obj.gbl_override_tf_flag)
+    {
+        //printf("overriding TF bound %u to %u\n", closnuf, sconf->obj->gbl_override_tf);
+        closnuf = sconf->obj->qs_obj.gbl_override_tf;
+    }
 
-	// need the highest bit to be clear in order to scan the sieve array efficiently
-	// this means we may check more sieve reports than we otherwise would have, but
-	// only for the very largest of jobs which might actually benefit from doing so anyway.
-	if ((closnuf >= 128) && (sconf->use_dlp != 2))
-		closnuf = 127;
+    // need the highest bit to be clear in order to scan the sieve array efficiently
+    // this means we may check more sieve reports than we otherwise would have, but
+    // only for the very largest of jobs which might actually benefit from doing so anyway.
+    if ((closnuf >= 128) && (sconf->use_dlp != 2))
+        closnuf = 127;
 
 #ifndef USE_AVX512BW
     // so far, detecting sieve hits when tf bound is > 127 only
@@ -3147,13 +3256,17 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
         closnuf = 127;
 #endif
 
-	sconf->blockinit = closnuf;
-	sconf->tf_closnuf = closnuf;
+    sconf->blockinit = closnuf;
+    sconf->tf_closnuf = closnuf;
 
     if (sconf->digits_n < sconf->obj->qs_obj.inmem_cutoff)
+    {
         sconf->in_mem = 1;
+    }
     else
+    {
         sconf->in_mem = 0;
+    }
 
 	// needed during filtering
 	mpz_init(sconf->curr_a);
@@ -3164,9 +3277,6 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
 	sconf->curr_poly->qlisort = (int *)malloc(MAX_A_FACTORS*sizeof(int));
 	sconf->curr_poly->gray = (char *) malloc( (1 << (MAX_A_FACTORS-1) ) * sizeof(char));
 	sconf->curr_poly->nu = (char *) malloc((1 << (MAX_A_FACTORS-1)) * sizeof(char));
-
-	// initialize a list of all poly_a values used 
-	sconf->poly_a_list = (mpz_t *)malloc(sizeof(mpz_t));
 
 	// compute how often to check our list of partial relations and update the gui.
     // for the TLP-variation, this determines when we run filtering... so it is
@@ -3934,6 +4044,8 @@ int update_check(static_conf_t *sconf)
 									sconf->check_inc);
 							}
 
+                            sconf->check_inc = MAX(sconf->check_inc, 200);
+
 							for (j = 0; j < num_cycles; j++)
 							{
 								free(cycle_list[j].cycle.list);
@@ -4316,24 +4428,9 @@ void free_filter_vars(static_conf_t *sconf)
 {
 	int i;
 
-	// list of a values used first to track all a coefficients
-	// generated during sieving for duplication, then used again during
-	// filtering
-	for (i=0; (uint32_t)i < sconf->total_poly_a; i++)
-		mpz_clear(sconf->poly_a_list[i]);
-	free(sconf->poly_a_list);
-
 	// cycle table stuff created at the beginning of the factorization
 	free(sconf->cycle_hashtable);
 	free(sconf->cycle_table);
-
-	// list of polys used in filtering and sqrt
-	if (sconf->curr_b != NULL)
-	{
-		for (i=0;(uint32_t)i < sconf->bpoly_alloc;i++)
-			mpz_clear(sconf->curr_b[i]);
-		free(sconf->curr_b);
-	}
 
 	if (sconf->poly_list != NULL)
 	{
@@ -4393,6 +4490,14 @@ int free_siqs(static_conf_t *sconf)
 	align_free(sconf->factor_base->tinylist);
 	free(sconf->factor_base);
     align_free(sconf->sieve_primes);
+
+    // list of a values used first to track all a coefficients
+    // generated during sieving.
+    for (i = 0; (uint32_t)i < sconf->total_poly_a; i++)
+    {
+        mpz_clear(sconf->poly_a_list[i]);
+    }
+    free(sconf->poly_a_list);
 
 	//while freeing the list of factors, divide them out of the input
 	for (i=0;i<sconf->factor_list.num_factors;i++)
@@ -4596,9 +4701,16 @@ void rebuild_graph(static_conf_t *sconf, siqs_r *relation_list, int num_relation
     int i;
     for (i = 0; i < num_relations; i++) {
         siqs_r *r = relation_list + i;
+        //if (r->large_prime[0] != r->large_prime[1]) {
+        //    yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0],
+        //        r->large_prime[1]);
+        //}
         if (r->large_prime[0] != r->large_prime[1]) {
-            yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0],
-                r->large_prime[1]);
+            yafu_add_to_cycles(sconf, sconf->obj->flags, r->large_prime[0], r->large_prime[1]);
+            sconf->num_cycles++;
+        }
+        else {
+            sconf->num_relations++;
         }
     }
     return;

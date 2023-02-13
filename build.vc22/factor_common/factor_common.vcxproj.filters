@@ -51,6 +51,9 @@
     <ClCompile Include="..\..\factor\gmp-ecm\micropm1.c">
       <Filter>Source Files\small_factor</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\arith\fftmul.c">
+      <Filter>Source Files\arith</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\arith.h">

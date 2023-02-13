@@ -327,29 +327,63 @@ void nfs(fact_obj_t *fobj)
 
 					if (better_by_gnfs && !(job.snfs == NULL))
 					{
-                        if (fobj->VFLAG >= 0)
-                        {
-                            printf("nfs: input snfs form is better done by gnfs: "
-                                "difficulty = %1.2f, size = %d, actual size = %d\n",
-                                job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
-                        }
-						logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
-							": difficulty = %1.2f, size = %d, actual size = %d\n",
-                            job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+						int done_by_siqs = 0;
 
-                        // clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
-                        snfs_clear(job.snfs);
-                        free(job.snfs);
-                        job.snfs = NULL;
-                        job.alambda = 0.0;
-                        job.rlambda = 0.0;
-                        job.lpba = 0;
-                        job.lpbr = 0;
-                        job.mfba = 0;
-                        job.mfbr = 0;
-                        job.alim = 0;
-                        job.rlim = 0;
-                        fobj->nfs_obj.siever = 0;
+						// check if this is really a siqs job
+						if (mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10) < fobj->autofact_obj.qs_gnfs_xover)
+						{
+							if (fobj->VFLAG >= 0)
+							{
+								printf("nfs: input snfs form is better done by siqs: "
+									"difficulty = %1.2f, size = %d, actual size = %d\n",
+									job.snfs->difficulty, est_gnfs_size(&job),
+									(int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+								fflush(stdout);
+							}
+
+							logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by siqs"
+								": difficulty = %1.2f, size = %d, actual size = %d\n",
+								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+
+							mpz_set(fobj->qs_obj.gmp_n, fobj->nfs_obj.gmp_n);
+							SIQS(fobj);
+							mpz_set(fobj->nfs_obj.gmp_n, fobj->qs_obj.gmp_n);
+
+							done_by_siqs = 1;
+						}
+						else
+						{
+
+							if (fobj->VFLAG >= 0)
+							{
+								printf("nfs: input snfs form is better done by gnfs: "
+									"difficulty = %1.2f, size = %d, actual size = %d\n",
+									job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+							}
+							logprint_oc(fobj->flogname, "a", "nfs: input snfs form is better done by gnfs"
+								": difficulty = %1.2f, size = %d, actual size = %d\n",
+								job.snfs->difficulty, est_gnfs_size(&job), (int)mpz_sizeinbase(fobj->nfs_obj.gmp_n, 10));
+						}
+
+						// clear out the snfs portion of the job so that ggnfs polyselect isn't confused.
+						snfs_clear(job.snfs);
+						free(job.snfs);
+						job.snfs = NULL;
+						job.alambda = 0.0;
+						job.rlambda = 0.0;
+						job.lpba = 0;
+						job.lpbr = 0;
+						job.mfba = 0;
+						job.mfbr = 0;
+						job.alim = 0;
+						job.rlim = 0;
+						fobj->nfs_obj.siever = 0;
+						
+						if (done_by_siqs)
+						{
+							nfs_state = NFS_STATE_CLEANUP;
+							break;
+						}
 					}
 
 					if (fobj->nfs_obj.cadoMsieve) {
@@ -904,6 +938,15 @@ void nfs(fact_obj_t *fobj)
 
 		case NFS_STATE_DONE:
 			process_done = 1;
+			break;
+
+		case NFS_STATE_EXIT:
+			// state DONE means we are done with nfs, which could return control
+			// to factor().  But some states of finishing NFS are ill-suited to 
+			// continuing with factor(), like if we detected an existing poly file
+			// or data file and are refusing to continue.  In those cases user
+			// intervention is required.  So we need to exit.
+			exit(0);
 			break;
 
 		case NFS_STATE_FILTCHECK:

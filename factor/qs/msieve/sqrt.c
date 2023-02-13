@@ -124,9 +124,6 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				poly = poly_list + relation->poly_idx;
 				b = poly->b;
 				a = poly_a_list[poly->a_idx];
-				//sieve_offset = relation->sieve_offset & 
-				//				0x7fffffff;
-				//sign_of_index = relation->sieve_offset >> 31;
 				sieve_offset = relation->sieve_offset;
 				sign_of_index = relation->parity;
 
@@ -137,19 +134,19 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 				   are an even number of negative values
 				   to multiply together */
 	
-				mpz_mul_ui(sum, a, sieve_offset); //zShortMul(a,sieve_offset,&sum);
+				mpz_mul_ui(sum, a, sieve_offset);
                 if (knmod8 == 1)
                 {
                     mpz_mul_2exp(sum, sum, 1);
                 }
 
 				if (sign_of_index == POSITIVE)
-					mpz_add(sum, sum, b); //zAdd(&sum,b,&tmp);
+					mpz_add(sum, sum, b);
 				else
-					mpz_sub(sum, sum, b); //zSub(&sum,b,&tmp);
+					mpz_sub(sum, sum, b);
 	
 				/* multiply the sum into x */	
-				mpz_mul(x, x, sum); //zModMul(&x,&sum,n,&x);
+				mpz_mul(x, x, sum);
 				mpz_tdiv_r(x, x, n); 
 	
 				/* do not multiply the factors associated 
@@ -228,15 +225,15 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			while (!(exponent & mask2))
 				mask2 >>= 1;
 			for (mask2 >>= 1; mask2; mask2 >>= 1) {
-				mpz_mul(tmp, tmp, tmp); //zModMul(&tmp,&tmp,n,&tmp2);
+				mpz_mul(tmp, tmp, tmp);
 				mpz_tdiv_r(tmp, tmp, n);
 				
 				if (exponent & mask2) {
-					mpz_mul(tmp, tmp, factor); //zModMul(&tmp,&factor,n,&tmp); 
+					mpz_mul(tmp, tmp, factor);
 					mpz_tdiv_r(tmp, tmp, n);
 				}
 			}
-			mpz_mul(y, tmp, y); //zModMul(&tmp,&y,n,&y);  
+			mpz_mul(y, tmp, y);
 			mpz_tdiv_r(y, y, n);
 		}
 
@@ -255,9 +252,9 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			   if tmp contains *only* multiplier factors */
 			if (multiplier > 1) {
 				uint32_t ignore_me = spGCD(multiplier,
-						mpz_tdiv_ui(tmp, multiplier)); //zShortMod(&tmp, multiplier));
+						mpz_tdiv_ui(tmp, multiplier));
 				if (ignore_me > 1) {
-					mpz_tdiv_q_ui(tmp, tmp, ignore_me); //zShortDiv(&tmp, ignore_me, &tmp2);
+					mpz_tdiv_q_ui(tmp, tmp, ignore_me);
 					if (mpz_cmp_ui(tmp, 1) == 0)
 						continue;
 				}
@@ -277,6 +274,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
 			//add the factor to our global list
             bits_before = bits;
 			bits = yafu_factor_list_add(obj, factor_list, tmp);
+			factor_found++;
 
 			//check if only the multiplier remains
 			if (abs(bits) < 8)
@@ -288,7 +286,7 @@ uint32_t yafu_find_factors(fact_obj_t *obj, mpz_t n,
                 mpz_mul(tmpn, tmpn, tmp);
                 bits_before = bits;
             }
-			mpz_tdiv_q(tmp2, n, tmpn); //zDiv(&tmpn, &tmp, &tmp2, &tmp3);
+			mpz_tdiv_q(tmp2, n, tmpn);
 
 			//check if the remaining number is prime
 			if (is_mpz_prp(tmp2, obj->NUM_WITNESSES))

@@ -495,27 +495,21 @@ done:
 	mpz_clear(tmp3);
 
 	// record this a in the list
-	sconf->poly_a_list = (mpz_t *)realloc(sconf->poly_a_list,
-		(sconf->total_poly_a + 1) * sizeof(mpz_t));
+	if (sconf->total_poly_a == 0)
+	{
+		sconf->poly_a_list = (mpz_t*)malloc(1 * sizeof(mpz_t));
+	}
+	else
+	{
+		sconf->poly_a_list = (mpz_t*)realloc(sconf->poly_a_list,
+			(sconf->total_poly_a + 1) * sizeof(mpz_t));
+	}
+
 	mpz_init(sconf->poly_a_list[sconf->total_poly_a]);
 	mpz_set(sconf->poly_a_list[sconf->total_poly_a], poly_a);
     poly->index = sconf->total_poly_a;
+	sconf->total_poly_a++;
 
-	// Somehow the above leaks memory:
-	// == 148041 == 16 bytes in 1 blocks are definitely lost in loss record 1 of 2
-	// == 148041 == at 0x4C2B0F7: malloc(vg_replace_malloc.c:381)
-	// == 148041 == by 0x591FE8 : __gmp_default_allocate(in / users / buhrow / src / c / yafu / yafu)
-	// == 148041 == by 0x566788 : __gmpz_realloc(in / users / buhrow / src / c / yafu / yafu)
-	// == 148041 == by 0x566BC4 : __gmpz_set(in / users / buhrow / src / c / yafu / yafu)
-	// == 148041 == by 0x48A0EC : new_poly_a(new_poly.c:501)
-	// == 148041 == by 0x4303DB : siqs_dispatch(SIQS.c:384)
-	// == 148041 == by 0x4303DB : SIQS(SIQS.c:825)
-	// == 148041 == by 0x420046 : feval(calc.c:2575)
-	// == 148041 == by 0x41F175 : calc(calc.c:1947)
-	// == 148041 == by 0x41CBE2 : calc_with_assignment(calc.c:1527)
-	// == 148041 == by 0x41CBE2 : process_expression(calc.c:1473)
-	// == 148041 == by 0x405FD2 : main(driver.c:401)
-	// 
 	// sort the indices of factors of 'a'
 	qsort(poly->qlisort, poly->s, sizeof(int), &qcomp_int);
 

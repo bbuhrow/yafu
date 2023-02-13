@@ -77,7 +77,9 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "siqsMFBT", "siqsBDiv", "siqsBT", "prefer_gmpecm", "saveB1",
     "siqsNobat", "inmem", "prefer_gmpecm_stg2", "vpp1_work_file", "vpm1_work_file",
     "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
-    "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2"
+    "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
+    "stoplt", "stople", "stopeq", "stopgt", "stopge", 
+    "stopbase"
     };
 
 // help strings displayed with -h
@@ -183,7 +185,13 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "                  : use cgbn with gpu-ecm (external ecm binary enabled with this option must exist)",
     "                  : use gpu-ecm (external ecm binary enabled with this option must exist)",
     "(Integer < 32-bit): gpu device number",
-    "                  : use AVX-ECM for stage 2"
+    "                  : use AVX-ECM for stage 2",
+    "(Integer < 32-bit): stop if a factor is found of less than <n> digits",
+    "(Integer < 32-bit): stop if a factor is found of less than or equal to <n> digits",
+    "(Integer < 32-bit): stop if a factor is found of equal to <n> digits",
+    "(Integer < 32-bit): stop if a factor is found of greater than <n> digits",
+    "(Integer < 32-bit): stop if a factor is found of greater than or equal to <n> digits",
+    "(Integer < 32-bit): Base to use for stopXY options(default 10, range: 2 <= b <= 62)",
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -211,7 +219,9 @@ int needsArg[NUMOPTIONS] = {
     1,1,1,0,0,
     0,1,0,1,1,
     1,0,0,1,1,  // resume, json-pretty, new cado options
-    1,0,0,1,0   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
+    1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
+    1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
+    1           // "stopbase"
 };
 
 // command line option aliases, specified by '--'
@@ -237,7 +247,9 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", "", "", "", ""
+    "", "", "", "", "",
+    "", "", "", "", "",
+    ""
 };
 
 
@@ -1025,6 +1037,41 @@ void applyOpt(char* opt, char* arg, options_t* options)
         options->prefer_avxecm_stg2 = 1;
         options->prefer_gmpecm_stg2 = 0;
     }
+    else if (strcmp(opt, OptionArray[100]) == 0)
+    {
+        // argument "stoplt"
+        options->stoplt = atoi(arg);
+        options->check_stop_conditions = 1;
+    }
+    else if (strcmp(opt, OptionArray[101]) == 0)
+    {
+        // argument "stople"
+        options->stople = atoi(arg);
+        options->check_stop_conditions = 1;
+    }
+    else if (strcmp(opt, OptionArray[102]) == 0)
+    {
+        // argument "stopeq"
+        options->stopeq = atoi(arg);
+        options->check_stop_conditions = 1;
+    }
+    else if (strcmp(opt, OptionArray[103]) == 0)
+    {
+        // argument "stopgt"
+        options->stopgt = atoi(arg);
+        options->check_stop_conditions = 1;
+    }
+    else if (strcmp(opt, OptionArray[104]) == 0)
+    {
+        // argument "stopge"
+        options->stopge = atoi(arg);
+        options->check_stop_conditions = 1;
+    }
+    else if (strcmp(opt, OptionArray[105]) == 0)
+    {
+        // argument "stopbase"
+        options->stopbase = atoi(arg);
+    }
     else
     {
         int i;
@@ -1105,6 +1152,13 @@ options_t* initOpt(void)
     options->pretest = 0;
     options->want_output_expr = 1;
     strcpy(options->tune_info, "");
+    options->stopbase = 10;
+    options->stopeq = -1;
+    options->stople = -1;
+    options->stoplt = -1;
+    options->stopge = -1;
+    options->stopgt = -1;
+    options->check_stop_conditions = 0;
     
     // nfs options
     strcpy(options->nfs_outfile, "nfs.dat");

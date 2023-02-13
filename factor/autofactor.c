@@ -1650,6 +1650,92 @@ void init_factor_work(factor_work_t *fwork, fact_obj_t *fobj)
 	return;
 }
 
+int check_for_exit_on_factor(fact_obj_t* fobj)
+{
+	// request: https://www.mersenneforum.org/showpost.php?p=624156&postcount=262
+	// -stoplt n : Stop after finding a factor with Less than n digits
+	// -stople n : Stop after finding a factor with Less than or Equal to n digits
+	// -stopeq n : Stop after finding a factor with n digits
+	// -stopge n : Stop after finding a factor with Greater than or Equal to n digits
+	// -stopgt n : Stop after finding a factor with Greater than n digits
+	// -stopbase b : Base to use for stopXY options(default 10, range: 2 <= b <= 62)
+	// ie : the bases supported by "mpz_get_str"
+
+	yfactor_list_t* factors = fobj->factors;
+	int base = fobj->autofact_obj.stopbase;
+	int i;
+
+	if (fobj->autofact_obj.check_stop_conditions == 0)
+		return 0;
+
+	for (i = 0; i < factors->num_factors; i++)
+	{
+		int sz = mpz_sizeinbase(factors->factors[i].factor, base);
+
+		if ((sz == fobj->autofact_obj.stopeq) && (fobj->autofact_obj.stopeq > 0))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: found factor == %d digits in base %d, stopping.\n", 
+					fobj->autofact_obj.stopeq, base);
+			}
+			logprint_oc(fobj->flogname, "a", "found factor == %d digits in base %d, stopping.",
+				sz, base);
+			return 1;
+		}
+		
+		if ((sz <= fobj->autofact_obj.stople) && (fobj->autofact_obj.stople > 0))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: found factor <= %d digits in base %d, stopping.\n", 
+					fobj->autofact_obj.stople, base);
+			}
+			logprint_oc(fobj->flogname, "a", "found factor <= %d digits in base %d, stopping.",
+				sz, base);
+			return 1;
+		}
+
+		if ((sz >= fobj->autofact_obj.stopge) && (fobj->autofact_obj.stopge > 0))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: found factor >= %d digits in base %d, stopping.\n", 
+					fobj->autofact_obj.stopge, base);
+			}
+			logprint_oc(fobj->flogname, "a", "found factor >= %d digits in base %d, stopping.",
+				sz, base);
+			return 1;
+		}
+
+		if ((sz < fobj->autofact_obj.stoplt) && (fobj->autofact_obj.stoplt > 0))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: found factor < %d digits in base %d, stopping.\n", 
+					fobj->autofact_obj.stoplt, base);
+			}
+			logprint_oc(fobj->flogname, "a", "found factor < %d digits in base %d, stopping.",
+				sz, base);
+			return 1;
+		}
+
+		if ((sz > fobj->autofact_obj.stopgt) && (fobj->autofact_obj.stopgt > 0))
+		{
+			if (fobj->VFLAG > 0)
+			{
+				printf("fac: found factor > %d digits in base %d, stopping.\n", 
+					fobj->autofact_obj.stopgt, base);
+			}
+			logprint_oc(fobj->flogname, "a", "found factor > %d digits in base %d, stopping.",
+				sz, base);
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
 void factor(fact_obj_t *fobj)
 {
 	//run a varity of factoring algorithms on b.
@@ -1948,7 +2034,8 @@ void factor(fact_obj_t *fobj)
         // check if we are done:
         // * number is completely factored
         // * sieve method was performed and either finished or was interrupted.
-        if (check_if_done(fobj, origN) ||
+		// * one of the exit-on-factor-found conditions is met
+        if (check_if_done(fobj, origN) || check_for_exit_on_factor(fobj) ||
             (quit_after_sieve_method &&
             ((fact_state == state_qs) ||
             (fact_state == state_nfs))) ||

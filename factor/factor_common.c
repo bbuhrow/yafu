@@ -197,7 +197,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->autofact_obj.want_output_unfactored = 0;
     fobj->autofact_obj.want_output_expressions = 1;
     fobj->autofact_obj.qs_gnfs_xover = 95;
-    fobj->autofact_obj.qs_snfs_xover = 75;
+    fobj->autofact_obj.qs_snfs_xover = 95;
     // use xover even when timing info is available
     fobj->autofact_obj.prefer_xover = 0;
     fobj->autofact_obj.want_only_1_factor = 0;
@@ -205,6 +205,13 @@ void init_factobj(fact_obj_t* fobj)
     fobj->autofact_obj.target_pretest_ratio = 4.0 / 13.0;
     fobj->autofact_obj.initial_work = 0.0;
     fobj->autofact_obj.has_snfs_form = -1;		// not checked yet
+    fobj->autofact_obj.stopbase = 10;
+    fobj->autofact_obj.stopeq = -1;
+    fobj->autofact_obj.stoplt = -1;
+    fobj->autofact_obj.stople = -1;
+    fobj->autofact_obj.stopgt = -1;
+    fobj->autofact_obj.stopge = -1;
+    fobj->autofact_obj.check_stop_conditions = 0;
 
     //pretesting plan used by factor()
     fobj->autofact_obj.yafu_pretest_plan = PRETEST_NORMAL;
@@ -515,6 +522,13 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->autofact_obj.target_pretest_ratio = src->autofact_obj.target_pretest_ratio;
     dest->autofact_obj.initial_work = src->autofact_obj.initial_work;
     dest->autofact_obj.has_snfs_form = src->autofact_obj.has_snfs_form;
+    dest->autofact_obj.stopbase = src->autofact_obj.stopbase;
+    dest->autofact_obj.stopge = src->autofact_obj.stopge;
+    dest->autofact_obj.stopgt = src->autofact_obj.stopgt;
+    dest->autofact_obj.stopeq = src->autofact_obj.stopeq;
+    dest->autofact_obj.stoplt = src->autofact_obj.stoplt;
+    dest->autofact_obj.stople = src->autofact_obj.stople;
+    dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
 
     //pretesting plan used by factor()
     dest->autofact_obj.yafu_pretest_plan = src->autofact_obj.yafu_pretest_plan;

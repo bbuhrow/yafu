@@ -62,7 +62,8 @@ enum nfs_state_e
     NFS_STATE_RESUMESIEVE,
     NFS_STATE_RESUMEPOLY,
     NFS_STATE_CADO,
-    NFS_STATE_DONE
+    NFS_STATE_DONE,
+    NFS_STATE_EXIT
 };
 
 enum param_flag_e

@@ -25,7 +25,7 @@ code to the public domain.
 jasonp's block lanczos routines are implemented */
 
 static void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
-		    	siqs_r *relation_list);
+		    	siqs_r *relation_list, uint32_t num_relations);
 
 
 /*------------------------------------------------------------------*/
@@ -48,7 +48,19 @@ int qs_solve_linear_system(fact_obj_t *obj, uint32_t fb_size,
 	/* convert the list of relations from the sieving 
 	   stage into a matrix. */
 
-	build_qs_matrix(ncols, cols, relation_list);
+	uint32_t max_rel_index = 0;
+	int i;
+	for (i = 0; i < *num_cycles; i++)
+	{
+		int j;
+		for (j = 0; j < cycle_list[i].cycle.num_relations; j++)
+		{
+			if (cycle_list[i].cycle.list[j] > max_rel_index)
+				max_rel_index = cycle_list[i].cycle.list[j];
+		}
+	}
+
+	build_qs_matrix(ncols, cols, relation_list, max_rel_index);
 	count_qs_matrix_nonzero(obj, fb_size, 0, ncols, cols);
 
 	/* reduce the matrix dimensions to ignore almost empty rows */
@@ -101,7 +113,7 @@ uint32_t qs_merge_relations(uint32_t *merge_array,
 	i1 = i2 = 0;
 	num_merge = 0;
 
-	while (i1 < n1 && i2 < n2) {
+	while ((i1 < n1) && (i2 < n2)) {
 		val1 = src1[i1];
 		val2 = src2[i2];
 
@@ -148,7 +160,7 @@ uint32_t qs_merge_relations(uint32_t *merge_array,
 
 		do {
 			i2++; count2++;
-		} while (i2 < n2 && src2[i2] == val2);
+		} while ((i2 < n2) && (src2[i2] == val2));
 
 		if (count2 & 1)
 			merge_array[num_merge++] = val2;
@@ -161,7 +173,7 @@ uint32_t qs_merge_relations(uint32_t *merge_array,
 //#define QS_MAX_COL_WEIGHT 10000
 
 void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols, 
-			   siqs_r *relation_list) {
+			   siqs_r *relation_list, uint32_t num_relations) {
 
 	/* Convert lists of relations from the sieving stage
 	   into a sparse matrix. The matrix is stored by
@@ -179,7 +191,8 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 	   not used would have created the heaviest matrix columns
 	   anyway */
 	
-	//printf("building matrix with %u columns\n", ncols);
+	printf("building matrix with %u columns\n", ncols);
+
     buf = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
     accum = (uint32_t*)xmalloc(QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 	for (i = 0; i < ncols; i++) {
@@ -193,21 +206,30 @@ void build_qs_matrix(uint32_t ncols, qs_la_col_t *cols,
 
 		for (j = weight = 0; j < col->cycle.num_relations; j++) {
 			siqs_r *r = &relation_list[col->cycle.list[j]];
+			
+			//if (r->num_factors > 40)
+			//	printf("warning merging large relation with %d factors "
+			//		"with index %d\n", r->num_factors, col->cycle.list[j]);
+
 			if ((weight + r->num_factors) > QS_MAX_COL_WEIGHT)
 			{
                 QS_MAX_COL_WEIGHT *= 2;
 				printf("weight = %u: allocated new max weight vectors of size %u\n", 
-                    (weight + r->num_factors), QS_MAX_COL_WEIGHT);
+					(weight + r->num_factors), QS_MAX_COL_WEIGHT); fflush(stdout);
                 buf = (uint32_t*)xrealloc(buf, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
                 accum = (uint32_t*)xrealloc(accum, QS_MAX_COL_WEIGHT * sizeof(uint32_t));
 			}
+
 			weight = qs_merge_relations(accum, buf, weight,
 						r->fb_offsets, r->num_factors);
 			memcpy(buf, accum, weight * sizeof(uint32_t));
 		}
 
+		//printf("column %d has weight %u after merging %u relations\n",
+		//	i, weight, col->cycle.num_relations);
+
 		col->weight = weight;
-		col->data = (uint32_t *)malloc(weight * sizeof(uint32_t));
+		col->data = (uint32_t *)xmalloc(weight * sizeof(uint32_t));
 		memcpy(col->data, buf, weight * sizeof(uint32_t));
 	}
 

@@ -642,10 +642,8 @@ static uint32_t yafu_find_nonsingular_sub(fact_obj_t *obj,
 		}
 				
 		if (j == 64) {
-			printf("lanczos error: submatrix "
-					"is not invertible\n");
-			logprint(obj->logfile, "lanczos error: submatrix "
-					"is not invertible\n");
+			printf("lanczos error: submatrix is not invertible\n");
+			logprint(obj->logfile, "lanczos error: submatrix is not invertible\n");
 			return 0;
 		}
 			
@@ -1332,7 +1330,7 @@ uint64_t * yafu_block_lanczos_core(fact_obj_t *obj,
 			printf("linear algebra failed; retrying...\n");
 			if (obj->logfile != NULL)
 				logprint(obj->logfile,"linear algebra failed; retrying...\n");
-			exit(1);
+			//exit(1);
 		}
 		return NULL;
 	}

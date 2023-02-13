@@ -495,6 +495,14 @@ __inline uint64_t submod(uint64_t a, uint64_t b, uint64_t n)
     return r0;
 }
 
+__inline uint32_t submod32(uint32_t a, uint32_t b, uint32_t n)
+{
+    uint32_t r0;
+    if (_subborrow_u32(0, a, b, &r0))
+        r0 += n;
+    return r0;
+}
+
 __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
 {
 #if 0
@@ -508,6 +516,14 @@ __inline uint64_t addmod(uint64_t x, uint64_t y, uint64_t n)
     return (x>=n-y) ? x-(n-y) : x+y;
 #endif
 }
+
+__inline uint32_t addmod32(uint32_t x, uint32_t y, uint32_t n)
+{
+    // FYI: The clause above often compiles with a branch in MSVC.
+    // The statement below often compiles without a branch (uses cmov) in MSVC.
+    return (x >= n - y) ? x - (n - y) : x + y;
+}
+
 
 
 // good to 60 bit inputs

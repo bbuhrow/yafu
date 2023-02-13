@@ -248,6 +248,6 @@ uint64_t mpz_get_64(mpz_t src);
 void mpz_set_64(mpz_t dest, uint64_t src);
 void build_RSA(int bits, mpz_t n, gmp_randstate_t gmp_randstate);
 void gordon(int bits, mpz_t n, gmp_randstate_t gmp_randstate);
-
+void fftmul(mpz_t c, mpz_t a, mpz_t b, int bits_per_word, int fftlen);
 
 #endif
