@@ -176,7 +176,6 @@ u32_t* lasched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t n1_j,
 				_mm512_store_epi32(memsched, vsched);
 				_mm512_store_epi32(memij, vij); // _mm512_srli_epi32(vij, L1_BITS));
 
-				// *(sched_ptr[ij >> L1_BITS]++) = (fbi_offs << U16_SHIFT) | (ij & (L1_SIZE - 1));
 				u32_t m = mij;
 				while (m > 0)
 				{
@@ -186,11 +185,6 @@ u32_t* lasched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t n1_j,
 				}
 
 				__m512i vi = _mm512_and_epi32(vij, vni_m1);
-
-				//i = ij & (n_i - 1);
-				//if (i < b)ij += ri[0];
-				//if (i >= a)ij += ri[1];
-
 				__mmask16 mib = _mm512_mask_cmplt_epu32_mask(mij, vi, vb);
 				__mmask16 mia = _mm512_mask_cmpge_epu32_mask(mij, vi, va);
 
