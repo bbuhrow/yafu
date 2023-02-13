@@ -174,7 +174,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			__m512i vb = _mm512_sub_epi32(vni, _mm512_and_epi32(vri2, vni_m1));
 			__m512i vij = _mm512_load_epi32(ij_ptr);
 
-			__mmask16 mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+			__mmask16 mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			u32_t memsched[16];
 			u32_t memij[16];
 
@@ -233,7 +233,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
 				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
-				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+				mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			}
 
 			ri += (RI_INCR * 16);
@@ -320,7 +320,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			vij = _mm512_mask_mov_epi32(vij, (~mri0) & (~mri1) & ((~mri2) | (~mri3)), _mm512_add_epi32(vri2, vri1));
 			vij = _mm512_srli_epi32(_mm512_add_epi32(vij, _mm512_andnot_epi32(vot_tester, vni)), 1);
 
-			__mmask16 mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+			__mmask16 mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 
 #if 1
 			while (mij == 0xffff) {
@@ -352,7 +352,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
 				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
-				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+				mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			}
 #endif
 			while (mij > 0) {
@@ -379,7 +379,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				vij = _mm512_mask_add_epi32(vij, mib, vij, vri1);
 				vij = _mm512_mask_add_epi32(vij, mia, vij, vri2);
-				mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(ij_ub));
+				mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			}
 
 			ri += (RI_INCR * 16);
