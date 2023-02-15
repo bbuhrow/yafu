@@ -256,6 +256,7 @@ done:
             __m512i ub2 = _mm512_slli_epi32(_mm512_set1_epi32(ub), 1);
             __mmask16 r0 = _mm512_cmpeq_epi32_mask(r, zero);
             __mmask16 rp = _mm512_cmpge_epu32_mask(r, p);
+            __m512i mask32 = _mm512_set1_epi64(0xffffffff);
 
             //if (r == 0) {
             //	b = 1;
@@ -310,10 +311,27 @@ done:
                     //    break;
                     //}
 
-#ifdef USE_EMULATED_DIV
-                    k = _mm512_mask_add_epi32(k, m & bA, _avx512_div32(_mm512_sub_epi32(c, vA), b), one);
-#else
+#ifdef USE_SVML_DIVREM
                     k = _mm512_mask_add_epi32(k, m & bA, _mm512_div_epu32(_mm512_sub_epi32(c, vA), b), one);
+#else
+       
+                    __m512i tmp = _mm512_sub_epi32(c, vA);
+
+
+                    __m512d npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(tmp, mask32)); // numerator in 64-bit float
+                    __m512d npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(tmp, 32));   // numerator in 64-bit float
+                    __m512d dpd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(b, mask32));     // denominator in 32-bit float
+                    __m512d dpd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(b, 32));     // denominator in 32-bit float
+
+                    npd1 = _mm512_div_pd(npd1, dpd1);
+                    npd2 = _mm512_div_pd(npd2, dpd2);
+
+                    __m512i tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
+                    __m512i tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
+                    tmp = _mm512_or_epi64(tmp64a, tmp64b);
+
+                    k = _mm512_mask_add_epi32(k, m & bA, tmp, one);
+
 #endif
                     t = _mm512_mask_add_epi32(t, m & bA, t, _mm512_mullo_epi32(k, s));
                     c = _mm512_mask_sub_epi32(c, m & bA, c, _mm512_mullo_epi32(k, b));
@@ -326,11 +344,28 @@ done:
                     //c = c % b;
                     //t += k * s;
 
-#ifdef USE_EMULATED_DIV
-                    _avx512_mask_divrem32(k, c, m, c, b, &k, &c);
-#else
+#ifdef USE_SVML_DIVREM
                     k = _mm512_mask_div_epu32(k, m, c, b);
                     c = _mm512_mask_rem_epu32(c, m, c, b);
+#else
+
+                    // we already have 'b' converted in dpd1/2
+
+                    npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(c, mask32));   // numerator in 64-bit float
+                    npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(c, 32));   // numerator in 64-bit float
+                    
+                    npd1 = _mm512_div_pd(npd1, dpd1);
+                    npd2 = _mm512_div_pd(npd2, dpd2);
+                    
+                    tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
+                    tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
+                    tmp = _mm512_or_epi64(tmp64a, tmp64b);  // integer division result
+                    k = _mm512_mask_mov_epi32(k, m, tmp);
+
+                    // to get the remainder we compute c - div * b
+                    tmp = _mm512_mullo_epi32(k, b);
+                    c = _mm512_mask_sub_epi32(c, m, c, tmp);
+
 #endif
                     t = _mm512_mask_add_epi32(t, m, t, _mm512_mullo_epi32(k, s));
 
@@ -343,10 +378,26 @@ done:
                     //    break;
                     //}
 
-#ifdef USE_EMULATED_DIV
-                    k = _mm512_mask_add_epi32(k, m & cA, _avx512_div32(_mm512_sub_epi32(b, vA), c), one);
-#else
+#ifdef USE_SVML_DIVREM
                     k = _mm512_mask_add_epi32(k, m & cA, _mm512_div_epu32(_mm512_sub_epi32(b, vA), c), one);
+#else
+                    //
+                    tmp = _mm512_sub_epi32(b, vA);
+
+                    npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(tmp, mask32)); // numerator in 64-bit float
+                    npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(tmp, 32));   // numerator in 64-bit float
+                    dpd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(c, mask32));     // denominator in 32-bit float
+                    dpd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(c, 32));     // denominator in 32-bit float
+
+                    npd1 = _mm512_div_pd(npd1, dpd1);
+                    npd2 = _mm512_div_pd(npd2, dpd2);
+
+                    tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
+                    tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
+                    tmp = _mm512_or_epi64(tmp64a, tmp64b);
+
+                    k = _mm512_mask_add_epi32(k, m & cA, tmp, one);
+
 #endif
                     s = _mm512_mask_add_epi32(s, m & cA, s, _mm512_mullo_epi32(k, t));
                     b = _mm512_mask_sub_epi32(b, m & cA, b, _mm512_mullo_epi32(k, c));
@@ -359,12 +410,29 @@ done:
                     //b = b % c;
                     //s += k * t;
 
-#ifdef USE_EMULATED_DIV
-                    _avx512_mask_divrem32(k, b, m, b, c, &k, &b);
-#else
-
+#ifdef USE_SVML_DIVREM
                     k = _mm512_mask_div_epu32(k, m, b, c);
                     b = _mm512_mask_rem_epu32(b, m, b, c);
+#else
+
+                    // we already have 'c' converted in dpd1/2
+
+                    npd1 = _mm512_cvtepu64_pd(_mm512_and_epi64(b, mask32));   // numerator in 64-bit float
+                    npd2 = _mm512_cvtepu64_pd(_mm512_srli_epi64(b, 32));   // numerator in 64-bit float
+
+                    npd1 = _mm512_div_pd(npd1, dpd1);
+                    npd2 = _mm512_div_pd(npd2, dpd2);
+
+                    tmp64a = _mm512_and_epi64(_mm512_cvt_roundpd_epu64(npd1, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), mask32);
+                    tmp64b = _mm512_slli_epi64(_mm512_cvt_roundpd_epu64(npd2, (_MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC)), 32);
+                    tmp = _mm512_or_epi64(tmp64a, tmp64b);  // integer division result
+                    k = _mm512_mask_mov_epi32(k, m, tmp);
+
+                    // to get the remainder we compute b - div * c
+                    tmp = _mm512_mullo_epi32(k, c);
+                    b = _mm512_mask_sub_epi32(b, m, b, tmp);
+
+
 #endif
                     s = _mm512_mask_add_epi32(s, m, s, _mm512_mullo_epi32(k, t));
                 }
