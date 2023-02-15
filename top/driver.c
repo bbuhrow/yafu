@@ -1150,6 +1150,28 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 
     logprint(logfile,"detected %s\ndetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
 		comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
+
+    logprint(logfile, "CPU features enabled: ");
+#ifdef USE_SSE41 
+    if (comp_info->bSSE41Extensions) logprint(logfile, "SSE41 ");
+#endif
+#ifdef USE_AVX2
+    if (comp_info->AVX2) logprint(logfile, "AVX2 ");
+#endif
+#ifdef USE_BMI2
+    if (comp_info->BMI2) logprint(logfile, "BMI2 ");
+#endif
+#ifdef USE_AVX512F
+    if (comp_info->AVX512F) logprint(logfile, "AVX512F ");
+#endif
+#ifdef USE_AVX512BW
+    if (comp_info->AVX512BW) logprint(logfile, "AVX512BW ");
+#endif
+#ifdef IFMA
+    if (comp_info->AVX512IFMA) logprint(logfile, "AVX512IFMA ");
+#endif
+    logprint(logfile, "\n");
+
     if (freq > 100.0)
         logprint(logfile,"measured cpu frequency ~= %f\n", freq);
     if (numwit == 1)
@@ -1172,6 +1194,28 @@ void print_splash(fact_obj_t *fobj, info_t *comp_info, int is_cmdline_run,
 	{		
 		printf("Detected %s\nDetected L1 = %d bytes, L2 = %d bytes, CL = %d bytes\n",
             comp_info->idstr, comp_info->L1cache, comp_info->L2cache, comp_info->cachelinesize);
+
+        printf("CPU features enabled: ");
+#ifdef USE_SSE41 
+        if (comp_info->bSSE41Extensions) printf("SSE41 ");
+#endif
+#ifdef USE_AVX2
+        if (comp_info->AVX2) printf("AVX2 ");
+#endif
+#ifdef USE_BMI2
+        if (comp_info->BMI2) printf("BMI2 ");
+#endif
+#ifdef USE_AVX512F
+        if (comp_info->AVX512F) printf("AVX512F ");
+#endif
+#ifdef USE_AVX512BW
+        if (comp_info->AVX512BW) printf("AVX512BW ");
+#endif
+#ifdef IFMA 
+        if (comp_info->AVX512IFMA) printf("AVX512IFMA ");
+#endif
+        printf("\n");
+
         if (freq > 100.0)
 		    printf("Measured cpu frequency ~= %f\n", freq);
         if (numwit == 1)
