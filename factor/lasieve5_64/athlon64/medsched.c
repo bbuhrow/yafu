@@ -90,7 +90,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 #endif
 			__m512i va = _mm512_sub_epi32(vni, _mm512_and_epi32(vri1, vni_m1));
 			__m512i vb = _mm512_sub_epi32(vni, _mm512_and_epi32(vri2, vni_m1));
-			__m512i vij = _mm512_load_epi32(ij_ptr);
+			__m512i vij = _mm512_loadu_epi32(ij_ptr);
 
 			__mmask16 mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(L1_SIZE));
 			u32_t memsched[16];
@@ -100,7 +100,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 
 				//__m512i vsched = _mm512_or_epi32(vfbi_offs, vij);
 
-				_mm512_store_epi32(memsched, vij);
+				_mm512_storeu_epi32(memsched, vij);
 
 				u32_t m = mij;
 				while (m > 0)
@@ -120,7 +120,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
 			ij_ptr += 16;
 			//fbi_offs += 16;
 			//
@@ -239,7 +239,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 			while (mij > 0) {
 				//__m512i vsched = _mm512_or_epi32(vfbi_offs, vij);
 
-				_mm512_store_epi32(memsched, vij);
+				_mm512_storeu_epi32(memsched, vij);
 
 				u32_t m = mij;
 				while (m > 0)
@@ -259,7 +259,7 @@ medsched_1(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub, u32_t ot, u32_t FBsize,
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
 			ij_ptr += 16;
 			//fbi_offs += 16;
 			//
@@ -377,7 +377,7 @@ medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
 #endif
 			__m512i va = _mm512_sub_epi32(vni, _mm512_and_epi32(vri1, vni_m1));
 			__m512i vb = _mm512_sub_epi32(vni, _mm512_and_epi32(vri2, vni_m1));
-			__m512i vij = _mm512_load_epi32(ij_ptr);
+			__m512i vij = _mm512_loadu_epi32(ij_ptr);
 
 			__mmask16 mij = _mm512_cmplt_epi32_mask(vij, _mm512_set1_epi32(L1_SIZE));
 			u32_t memsched[16];
@@ -387,7 +387,7 @@ medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
 
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, vij);
 
-				_mm512_store_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memsched, vsched);
 
 				u32_t m = mij;
 				while (m > 0)
@@ -407,7 +407,7 @@ medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
 			ij_ptr += 16;
 			fbi_offs += 16;
 
@@ -500,7 +500,7 @@ medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
 			while (mij > 0) {
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, vij);
 
-				_mm512_store_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memsched, vsched);
 
 				u32_t m = mij;
 				while (m > 0)
@@ -520,7 +520,7 @@ medsched(u32_t* ri, u32_t* ij_ptr, u32_t* ij_ptr_ub,
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(L1_SIZE)));
 			ij_ptr += 16;
 			fbi_offs += 16;
 

@@ -453,7 +453,7 @@ void ciosFullMul128x(uint64_t* u, uint64_t* v, uint64_t rho, uint64_t* n, uint64
 }
 
 // already defined within mingw64/msys2
-#if defined( GCC_ASM64X ) && !defined(__MINGW32__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if 0 //defined( GCC_ASM64X ) && !defined(__MINGW32__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
 
 __inline uint8_t _addcarry_u64(uint64_t x, uint8_t w, uint64_t y, uint64_t* sum)
 {

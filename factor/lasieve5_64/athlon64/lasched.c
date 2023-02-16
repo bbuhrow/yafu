@@ -172,7 +172,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 			__m512i va = _mm512_sub_epi32(vni, _mm512_and_epi32(vri1, vni_m1));
 			__m512i vb = _mm512_sub_epi32(vni, _mm512_and_epi32(vri2, vni_m1));
-			__m512i vij = _mm512_load_epi32(ij_ptr);
+			__m512i vij = _mm512_loadu_epi32(ij_ptr);
 
 			__mmask16 mij = _mm512_cmplt_epu32_mask(vij, _mm512_set1_epi32(ij_ub));
 			u32_t memsched[16];
@@ -183,8 +183,8 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
 
-				_mm512_store_epi32(memsched, vsched);
-				_mm512_store_epi32(memij, vij);
+				_mm512_storeu_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memij, vij);
 
 				*(sched_ptr[memij[0] >> L1_BITS]++) = memsched[0];
 				*(sched_ptr[memij[1] >> L1_BITS]++) = memsched[1];
@@ -216,8 +216,8 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
 
-				_mm512_store_epi32(memsched, vsched);
-				_mm512_store_epi32(memij, vij); // _mm512_srli_epi32(vij, L1_BITS));
+				_mm512_storeu_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memij, vij); // _mm512_srli_epi32(vij, L1_BITS));
 
 				u32_t m = mij;
 				while (m > 0)
@@ -237,7 +237,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(ij_ub)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(ij_ub)));
 			ij_ptr += 16;
 			fbi_offs += 16;
 
@@ -326,8 +326,8 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			while (mij == 0xffff) {
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
 
-				_mm512_store_epi32(memsched, vsched);
-				_mm512_store_epi32(memij, vij);
+				_mm512_storeu_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memij, vij);
 
 				*(sched_ptr[memij[0] >> L1_BITS]++) = memsched[0];
 				*(sched_ptr[memij[1] >> L1_BITS]++) = memsched[1];
@@ -358,8 +358,8 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			while (mij > 0) {
 				__m512i vsched = _mm512_or_epi32(vfbi_offs, _mm512_and_epi32(vij, vL1m1));
 
-				_mm512_store_epi32(memsched, vsched);
-				_mm512_store_epi32(memij, vij);
+				_mm512_storeu_epi32(memsched, vsched);
+				_mm512_storeu_epi32(memij, vij);
 
 				u32_t m = mij;
 				while (m > 0)
@@ -383,7 +383,7 @@ u32_t*ri,*ij_ptr,*ij_ptr_ub,n1_j,**sched_ptr,fbi_offs,ot,FBsize;
 			}
 
 			ri += (RI_INCR * 16);
-			_mm512_store_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(ij_ub)));
+			_mm512_storeu_epi32(ij_ptr, _mm512_sub_epi32(vij, _mm512_set1_epi32(ij_ub)));
 			ij_ptr += 16;
 			fbi_offs += 16;
 
