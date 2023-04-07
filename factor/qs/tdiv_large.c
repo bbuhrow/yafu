@@ -64,14 +64,22 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 #if (defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__))
 	
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
+
+
+
     #if defined(USE_AVX2)
 
         // these systems support SIMD 
-        #define SCAN_CLEAN asm volatile("emms");	
+        #define SCAN_CLEAN ASM_ volatile("emms");	
 
 
         #define SCAN_16X_VEC_b			\
-			asm volatile (			\
+			ASM_ volatile (			\
 				"vmovdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
 				"vmovdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"vmovdqa 16(%1), %%xmm2	\n\t"		\
@@ -89,10 +97,10 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 "salq $32, %%r10		\n\t"			/*  */ \
                 "salq $48, %%r11		\n\t"			/*  */ \
                 "orq	%%r11,%%r10		\n\t"		/* r8 now holds 16 comparisons in 64 bits */ \
-                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \                                
-                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \                                
+                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \
+                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \
                 "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
-                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \
                 "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
                 "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
                 "1:			\n\t"					/* top of bit scan loop */ \
@@ -115,7 +123,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 : "r8", "r9", "r10", "r11", "rcx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "cc", "memory");	
 
         #define SCAN_16X_VEC			\
-			asm volatile (			\
+			ASM_ volatile (			\
 				"vmovdqa (%2), %%ymm0	\n\t"	/*move mask into xmm0*/	\
 				"vmovdqa (%1), %%ymm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"vmovdqa 32(%1), %%ymm2	\n\t"		\
@@ -123,7 +131,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 				"vpcmpeqw %%ymm0, %%ymm2, %%ymm2	\n\t"		\
                 "vpor   %%ymm1, %%ymm2, %%ymm3 \n\t" \
                 "vpmovmskb %%ymm1, %%r8   \n\t"		/* 1st 4 comparisons in 16 bits of r8  */		\
-                "vpmovmskb %%ymm2, %%r9   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\                
+                "vpmovmskb %%ymm2, %%r9   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\
                 "vpmovmskb %%ymm3, %%r10   \n\t"		/* 2nd 4 comparisons in 16 bits of r9  */		\
                 "testq %%r10, %%r10 \n\t"			/* AND, and set ZF */ \
 			    "jz 3f	\n\t"						/* jump out if zero (no hits).  high percentage. */ \
@@ -131,7 +139,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \
                 "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
                 "movl   %0,%%r11d \n\t" \
-                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \
                 "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
                 "1:			\n\t"					/* top of bit scan loop */ \
                 "bsfq	%%r8,%%rcx		\n\t"		/* put least significant set bit index into rcx */ \
@@ -157,7 +165,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 	#elif defined(D_HAS_SSE2)
 
         // these systems support SIMD 
-        #define SCAN_CLEAN asm volatile("emms");	
+        #define SCAN_CLEAN ASM_ volatile("emms");	
 
 		// top level sieve scanning with SSE2
         // the block_loc that we are looking for is in the
@@ -167,7 +175,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
         // perform the test on each, and OR all of the results together.
 
         #define SCAN_16X_VEC			\
-			asm volatile (			\
+			ASM_ volatile (			\
 				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
 				"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movdqa 16(%1), %%xmm2	\n\t"		\
@@ -212,7 +220,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 
 		#define SCAN_16X			\
-			asm volatile (			\
+			ASM_ volatile (			\
 				"movdqa (%2), %%xmm0	\n\t"	/*move mask into xmm0*/	\
 				"movdqa (%1), %%xmm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movdqa 16(%1), %%xmm2	\n\t"		\
@@ -232,7 +240,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 
 	#elif defined(HAS_MMX)
 		#define SCAN_16X			\
-			asm volatile (					/*this hasn't been tested yet...*/	\
+			ASM_ volatile (					/*this hasn't been tested yet...*/	\
 				"movq (%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq (%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
 				"movq 8(%1), %%mm2	\n\t"		\
@@ -249,7 +257,7 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
 				: "=r"(result)						\
 				: "r"(bptr + j), "r"(mask)			\
 				: "%mm0", "%mm1", "%mm2", "%mm3", "%mm4");		\
-			asm volatile (			\
+			ASM_ volatile (			\
 				"movl %0, %%ebx	\n\t"	/*remember result of first 8 comparisons*/	\
 				"movq 8(%2), %%mm0	\n\t"	/*move mask into xmm0*/	\
 				"movq 32(%1), %%mm1	\n\t"	/*move 16 bptr locations into xmm regs*/	\
@@ -441,7 +449,7 @@ void tdiv_LP_avx2(uint32_t report_num,  uint8_t parity, uint32_t bnum,
 #endif
 		uint32_t result = 0;
 
-#if defined (_MSC_VER)
+#if defined (_MSC_VER) && !defined(__INTEL_COMPILER)
         for (j = 0; (uint32_t)j < (lpnum & (uint32_t)(~15)); j += 16)
         {
             SCAN_16X;

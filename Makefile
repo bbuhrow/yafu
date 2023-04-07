@@ -17,8 +17,8 @@
 #        				   --bbuhrow@gmail.com 7/28/09
 # ----------------------------------------------------------------------*/
 
-CC = gcc-11.1.0
-CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2
+CC = gcc
+CFLAGS = -g -m64 -std=gnu99 -DUSE_SSE2 -fno-common
 #CFLAGS += -march=core2 -mtune=core2
 WARN_FLAGS = -Wall # -Wconversion
 OPT_FLAGS = -O2
@@ -40,11 +40,11 @@ LIBS = -L.
 INC += -I../ysieve -I../ytools
 LIBS += -L../ysieve/ -L../ytools/
 
-INC += -I../gmp_install/gmp-6.2.0/include
-LIBS += -L../gmp_install/gmp-6.2.0/lib
+INC += -I../gmp-install/6.2.1/include
+LIBS += -L../gmp-install/6.2.1/lib
 
-INC += -I../ecm_install/include/
-LIBS += -L../ecm_install/lib/
+INC += -I../ecm-install/7.0.6/include/
+LIBS += -L../ecm-install/7.0.6/lib/
 
 INC += -I../msieve/zlib 
 LIBS += -L../msieve/
@@ -147,8 +147,8 @@ ifeq ($(FORCE_GENERIC),1)
 endif
 
 # make sure we get the correct libgmp linked by using an absolute path
-LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
-#LIBS += -lecm -lgmp -lytools -lysieve
+#LIBS += -lecm /users/buhrow/src/c/gmp_install/gmp-6.2.0/lib/libgmp.a -lytools -lysieve
+LIBS += -lecm -lgmp -lytools -lysieve
 
 ifeq ($(SKYLAKEX),1)
     # define KNL now for skylakex, after handling an actual command line KNL
@@ -210,6 +210,7 @@ COMMON_SRCS = \
 	factor/trialdiv.c \
 	arith/arith.c \
 	arith/monty.c \
+	arith/fftmul.c \
 	factor/gmp-ecm/tinyecm.c \
 	factor/gmp-ecm/micropm1.c \
     factor/gmp-ecm/microecm.c

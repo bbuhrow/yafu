@@ -24,6 +24,8 @@ thanks to their kind donation of code to the public domain.
 #include <math.h>
 #include "mpz_aprcl.h"
 
+
+
 uint64_t mpz_get_64(mpz_t src)
 {
 	uint64_t out = mpz_getlimbn(src, 0);
@@ -49,15 +51,15 @@ int ndigits_1(uint64_t n)
     return i;
 }
 
-double rint(double x)
-{
-	 double i, r = modf(x, &i);
-	 if (r < 0.0) {
-		 r += 1.0; 
-		 i -= 1.0;
-	 }
-	 return (r > 0.5 || (r == 0.5 && ((int)i & 1)) ? i + 1.0 : i);
-}
+//double rint(double x)
+//{
+//	 double i, r = modf(x, &i);
+//	 if (r < 0.0) {
+//		 r += 1.0; 
+//		 i -= 1.0;
+//	 }
+//	 return (r > 0.5 || (r == 0.5 && ((int)i & 1)) ? i + 1.0 : i);
+//}
 
 int gmp_base10(mpz_t x)
 {
@@ -124,6 +126,14 @@ int bits64(uint64_t n)
 
 #if defined(GCC_ASM64X) && !defined(ASM_ARITH_DEBUG)
 
+
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
+
+
 void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
 {
     //fp_word s,c;
@@ -132,7 +142,7 @@ void spAdd(uint64_t u, uint64_t v, uint64_t* sum, uint64_t* carry)
     s = v;
     c = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
+    ASM_("movq %2, %%rax		\n\t"
         "addq %%rax, %3		\n\t"
         "adcq $0, %4		\n\t"
         : "=r"(s), "=r"(c)
@@ -153,7 +163,7 @@ void spAdd3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sum, uint64_t* carry)
     s = v;
     c = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
+    ASM_("movq %2, %%rax		\n\t"
         "addq %3, %%rax		\n\t"
         "adcq $0, %5		\n\t"
         "addq %%rax, %4		\n\t"
@@ -176,7 +186,7 @@ void spSub3(uint64_t u, uint64_t v, uint64_t w, uint64_t* sub, uint64_t* borrow)
     s = v;
     b = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
+    ASM_("movq %2, %%rax		\n\t"
         "subq %4, %%rax		\n\t"
         "adcq $0, %5		\n\t"
         "subq %3, %%rax		\n\t"
@@ -200,7 +210,7 @@ void spSub(uint64_t u, uint64_t v, uint64_t* sub, uint64_t* borrow)
     s = v;
     b = 0;
 
-    ASM_G("movq %2, %%rax		\n\t"
+    ASM_("movq %2, %%rax		\n\t"
         "subq %3, %%rax		\n\t"
         "adcq $0, %4		\n\t"
         "movq %%rax, %3		\n\t"
@@ -218,7 +228,7 @@ uint64_t spDivide(uint64_t* q, uint64_t* r, uint64_t u[2], uint64_t v)
 {
     *r = u[1];
     *q = u[0];
-    ASM_G("divq %4"
+    ASM_("divq %4"
         : "=a"(*q), "=d"(*r)
         : "1"(*r), "0"(*q), "r"(v));
 
@@ -230,7 +240,7 @@ void spMultiply(uint64_t u, uint64_t v, uint64_t* product, uint64_t* carry)
     *product = v;
     *carry = u;
 
-    ASM_G("movq %2, %%rax	\n\t"
+    ASM_("movq %2, %%rax	\n\t"
         "mulq %3	\n\t"
         "movq %%rax, %0		\n\t"
         "movq %%rdx, %1		\n\t"
@@ -249,7 +259,7 @@ uint64_t spPRP2(uint64_t p)
     // free for the first 5 iterations.  may not be much, but it's something.
     uint64_t result;
 
-    ASM_G(
+    ASM_(
         "xorq	%%rbx, %%rbx \n\t"
         "xorq	%%rdi, %%rdi \n\t"
         "addq	$1, %%rdi \n\t"		/* n = 1 */
@@ -294,7 +304,8 @@ uint64_t spModExp_asm(uint64_t b, uint64_t e, uint64_t m)
 {
     uint64_t result;
 
-    ASM_G(
+
+    ASM_(
         "xorq	%%rdi, %%rdi \n\t"
         "addq	$1, %%rdi \n\t"		/* n = 1 */
         "cmpq	$0, %%rcx \n\t"		/* exp == 0? */

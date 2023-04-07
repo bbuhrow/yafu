@@ -22,7 +22,7 @@ code to the public domain.
 #ifndef _SIQD_DEMO_H
 #define _SIQD_DEMO_H
 
-#define VERSION_STRING "1.0"
+#define VERSION_STRING "1.1"
 
 //default maximum size in chars for a str_t
 #define GSTR_MAXSIZE 1024

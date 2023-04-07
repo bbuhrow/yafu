@@ -1178,7 +1178,7 @@ options_t* initOpt(void)
     options->lathreads = 1;
     options->filt_bump = 5;
     options->force_gnfs = 0;
-    options->qs_snfs_xover = 75;
+    options->qs_snfs_xover = 95;
     options->snfs_testsieve_threshold = 160;
     strcpy(options->testsieve, "");
     strcpy(options->poly_method, "avg");
