@@ -1,7 +1,10 @@
 #include "common.h"
+#include <immintrin.h>
 
 #ifndef _POLY_COMMON_H_
 #define _POLY_COMMON_H_
+
+#define USE_SSE2
 
 typedef struct 
 {
@@ -176,7 +179,7 @@ typedef struct
 	}
 
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 	#define COMPUTE_4_PROOTS(j)								\
 		do {	\
@@ -315,20 +318,20 @@ typedef struct
 #ifdef USE_SSE2
 
 	#define COMPUTE_8X_SMALL_PROOTS	\
-		ASM_G (	\
-			"movq   %0, %%rsi \n\t"	\
+		__asm (	\
+			"movq   %0, %%r13 \n\t"	\
 			"xorq	%%r15, %%r15 \n\t"	\
 			"xorq	%%rax, %%rax \n\t"	\
-			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
-			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
-			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
-			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
-			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
-			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
-			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
-			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
-			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"movl   68(%%r13), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%r13), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%r13), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%r13), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%r13), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%r13), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%r13), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%r13), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%r13), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%r13), %%r12 \n\t"	/* r12 = fbn2 */	\
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
@@ -370,24 +373,24 @@ typedef struct
 			"1: \n\t"	\
 			:	\
 			: "g"(&h)	\
-			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "rax", "rsi", "rbx", "rcx", "rdx",	\
-			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
+			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "rax", "rbx", "rcx", "rdx",	\
+			"r8", "r9", "r10", "r11", "r12", "r13", "r15", "cc", "memory");
 
 	#define COMPUTE_8X_SMALL_NROOTS	\
 		ASM_G (	\
 			"movq   %0, %%rsi \n\t"	\
 			"xorq	%%r15, %%r15 \n\t"	\
 			"xorq	%%rax, %%rax \n\t"	\
-			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
-			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
-			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
-			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
-			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
-			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
-			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
-			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
-			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"movl   68(%%rsi), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%rsi), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%rsi), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%rsi), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%rsi), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%rsi), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%rsi), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%rsi), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%rsi), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%rsi), %%r12 \n\t"	/* r12 = fbn2 */	\
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
 			"0: \n\t"	\
@@ -532,51 +535,51 @@ typedef struct
 
 #if defined (GCC_ASM64X) && !defined(FORCE_GENERIC)
 	#define CHECK_NEW_SLICE_ASM \
-		"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
+		"cmpl   104(%%rsi),%%r15d	\n\t"		/* compare j with check_bound */ \
 			/* note this is the counter j, not the byte offset j */ \
 		"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
 			/* else, this is the "else-if" check */ \
 		"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
-		"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+		"subl   96(%%rsi),%%ebx \n\t"			/* ebx = j - bound_val */ \
 		"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
 		"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
 			/* now we are in the else-if block of CHECK_NEW_SLICE */ \
 		"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
-		"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
-		"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
-		"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
-		"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
-		"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
-		"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
-		"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+		"movl   100(%%rsi),%%edx \n\t"		/* move bound_index into rdx */ \
+		"movq   64(%%rsi),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+		"movq	16(%%r9),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+		"movq	56(%%rsi),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+		"movzbl (%%r14,%%r15),%%ebx \n\t"		/* bring in logp */ \
+		"movb	%%bl, 108(%%rsi) \n\t"		/* shove logp into output */ \
+		"movb   %%bl,(%%r8,%%rdx) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
 		"incq   %%rdx \n\t"						/* increment bound_index locally */ \
-		"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
-		"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+		"movl   %%edx,100(%%rsi) \n\t"		/* copy bound_index back to structure */ \
+		"movq	8(%%r9),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
 		"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 			/* note this is the counter j, not the byte offset j */ \
-		"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+		"movl   %%r15d,96(%%rsi) \n\t"		/* bound_val = j */ \
 		"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
-		"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+		"movl   92(%%rsi),%%ebx \n\t"			/* put numblocks into ebx */ \
 		"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
 		"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
-		"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
-		"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+		"addq   %%rbx,8(%%rsi) \n\t"			/* numptr_p += (numblocks << 1) */ \
+		"addq   %%rbx,0(%%rsi) \n\t"			/* numptr_n += (numblocks << 1) */ \
 		"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 			/* note also, this works because we've already left shifted by 1 */ \
-		"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
-		"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
-		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+		"addq   %%rbx,24(%%rsi) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+		"addq   %%rbx,16(%%rsi) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
 		"cmp	%%rax,%%rax \n\t"				/* force jump */ \
 		"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 		"1:		\n\t"									\
 			/* now we are in the if block of CHECK_NEW_SLICE */ \
 		"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
 		"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
-		"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+		"cmpl   92(%%rsi),%%ebx \n\t"			/* compare with numblocks */ \
 		"jae    3f \n\t"						/* jump past loop if condition met */ \
 			/* condition not met, put a couple things in registers */ \
-		"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-		"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
+		"movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+		"movq	0(%%rsi),%%r11 \n\t"			/* numptr_n into r11 */ \
 		"5:		\n\t"							\
 			/* now we are in the room loop */ \
 			/* room is in register ecx */ \
@@ -587,7 +590,7 @@ typedef struct
 		"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
 		"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
 		"incq   %%rbx \n\t"						/* increment counter */ \
-		"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+		"cmpl   92(%%rsi),%%ebx \n\t"			/* compare to numblocks */ \
 		"jl     5b \n\t"						/* iterate loop if condition met */ \
 		"3:		\n\t"							\
 		"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"	/* move bucket allocation into register for subtraction */ \
@@ -596,7 +599,7 @@ typedef struct
 		"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
 		"jle    4f \n\t"						/* jump if less than */ \
 		"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
-		"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+		"addl   %%ebx,104(%%rsi) \n\t"		/* add (room >> 1) to check_bound */ \
 		"cmpq	%%rax,%%rax \n\t"				/* force jump */ \
 		"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 		"4:		\n\t"							\
@@ -605,36 +608,36 @@ typedef struct
 		"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
 		"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
 		"xorq	%%rdx, %%rdx \n\t" \
-		"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
-		"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
-		"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
-		"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
-		"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
-		"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
-		"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+		"movl   100(%%rsi),%%edx \n\t"		/* move bound_index into rdx */ \
+		"movq   64(%%rsi),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+		"movq	16(%%r9),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+		"movq	56(%%rsi),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+		"movzbl (%%r14,%%r15),%%ebx \n\t"		/* bring in logp */ \
+		"movb	%%bl, 108(%%rsi) \n\t"		/* shove logp into output */ \
+		"movb   %%bl,(%%r8,%%rdx) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
 		"incq   %%rdx \n\t"						/* increment bound_index locally */ \
-		"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
-		"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+		"movl   %%edx,100(%%rsi) \n\t"		/* copy bound_index back to structure */ \
+		"movq	8(%%r9),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
 		"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 			/* note this is the counter j, not the byte offset j */ \
-		"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
+		"movl   %%r15d,96(%%rsi) \n\t"		/* bound_val = j */ \
 		"xorq	%%rbx, %%rbx \n\t" \
-		"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+		"movl   92(%%rsi),%%ebx \n\t"			/* put numblocks into ebx */ \
 		"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
 		"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
-		"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
-		"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+		"addq   %%rbx,8(%%rsi) \n\t"			/* numptr_p += (numblocks << 1) */ \
+		"addq   %%rbx,0(%%rsi) \n\t"			/* numptr_n += (numblocks << 1) */ \
 		"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 			/* note also, this works because we've already left shifted by 1 */ \
-		"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
-		"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
-		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+		"addq   %%rbx,24(%%rsi) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+		"addq   %%rbx,16(%%rsi) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
 		"2:		\n\t"
 
 #endif
 
 
-#if defined(MSC_ASM32A) && !defined(FORCE_GENERIC)
+#if defined(MSC_ASM32A) && !defined(FORCE_GENERIC) && !defined(__INTEL_COMPILER)
 	#define COMPUTE_NEXT_ROOTS_P	\
 	do {	\
 		uint32_t update = *ptr;	\
@@ -693,8 +696,14 @@ typedef struct
 
 #elif defined(GCC_ASM64X) && !defined(FORCE_GENERIC)
 
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
+
 	#define COMPUTE_NEXT_ROOTS_P						\
-		ASM_G (											\
+		ASM_ (											\
 			"xorl %%r8d, %%r8d		\n\t"	/*r8d = 0*/	\
 			"xorl %%r9d, %%r9d		\n\t"	/*r9d = 0*/	\
 			"subl %2, %%eax			\n\t"	/*root1 - ptr*/	\
@@ -705,10 +714,10 @@ typedef struct
 			"addl %%r9d, %%edx		\n\t"		\
 			: "+a"(root1), "+d"(root2)			\
 			: "g"(*ptr), "g"(prime)		\
-			: "r8", "r9", "cc");	
+			: "r8", "r9", "cc");
 
 	#define COMPUTE_NEXT_ROOTS_N		\
-		ASM_G (							\
+		ASM_ (							\
 			"movl %%eax, %%r8d		\n\t"	\
 			"addl %2, %%r8d			\n\t"	/*r8d = root1 + ptr*/		\
 			"movl %%edx, %%r9d		\n\t"								\
@@ -724,7 +733,7 @@ typedef struct
 			: "r8", "r9", "cc");
 
 	#define COMPUTE_FIRST_ROOTS			\
-		ASM_G (											\
+		ASM_ (											\
 			"xorl %%r8d, %%r8d		\n\t"	/*r8d = 0*/	\
 			"xorl %%r9d, %%r9d		\n\t"	/*r9d = 0*/	\
 			"subl %2, %%eax			\n\t"	/*root1 - bmodp*/	\

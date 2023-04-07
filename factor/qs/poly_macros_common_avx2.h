@@ -1,22 +1,30 @@
+#include <immintrin.h>
+#include "common.h"
 
 #if defined(GCC_ASM64X)
 
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
+
 
 #define COMPUTE_16X_SMALL_PROOTS_AVX2	\
-		ASM_G (	\
+		ASM_(	\
 			"movq   %0, %%rsi \n\t"	\
 			"xorq	%%r15, %%r15 \n\t"	\
 			"xorq	%%rax, %%rax \n\t"	\
-			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
-			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
-			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
-			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
-			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
-			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
-			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
-			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
-			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"movl   68(%%rsi), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%rsi), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%rsi), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%rsi), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%rsi), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%rsi), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%rsi), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%rsi), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%rsi), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%rsi), %%r12 \n\t"	/* r12 = fbn2 */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
@@ -71,20 +79,20 @@
 			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
 
 #define COMPUTE_16X_SMALL_NROOTS_AVX2	\
-		ASM_G (	\
+		ASM_ (	\
 			"movq   %0, %%rsi \n\t"	\
 			"xorq	%%r15, %%r15 \n\t"	\
 			"xorq	%%rax, %%rax \n\t"	\
-			"movl   68(%%rsi,1), %%r15d \n\t"	/* r15d = stop */	\
-			"movl   64(%%rsi,1), %%eax \n\t"	/* eax = start */	\
-			"movq   0(%%rsi,1), %%rbx \n\t"		/* rbx = first_r1 */	\
-			"movq   8(%%rsi,1), %%rcx \n\t"		/* rcx = first_r2 */	\
-			"movq   48(%%rsi,1), %%rdx \n\t"	/* rdx = primes */	\
-			"movq   56(%%rsi,1), %%r8 \n\t"		/* r8 = updates */	\
-			"movq   16(%%rsi,1), %%r9 \n\t"		/* r9 = fbp1 */	\
-			"movq   24(%%rsi,1), %%r10 \n\t"	/* r10 = fbp2 */	\
-			"movq   32(%%rsi,1), %%r11 \n\t"	/* r11 = fbn1 */	\
-			"movq   40(%%rsi,1), %%r12 \n\t"	/* r12 = fbn2 */	\
+			"movl   68(%%rsi), %%r15d \n\t"	/* r15d = stop */	\
+			"movl   64(%%rsi), %%eax \n\t"	/* eax = start */	\
+			"movq   0(%%rsi), %%rbx \n\t"		/* rbx = first_r1 */	\
+			"movq   8(%%rsi), %%rcx \n\t"		/* rcx = first_r2 */	\
+			"movq   48(%%rsi), %%rdx \n\t"	/* rdx = primes */	\
+			"movq   56(%%rsi), %%r8 \n\t"		/* r8 = updates */	\
+			"movq   16(%%rsi), %%r9 \n\t"		/* r9 = fbp1 */	\
+			"movq   24(%%rsi), %%r10 \n\t"	/* r10 = fbp2 */	\
+			"movq   32(%%rsi), %%r11 \n\t"	/* r11 = fbn1 */	\
+			"movq   40(%%rsi), %%r12 \n\t"	/* r12 = fbn2 */	\
 			"vpxor	%%ymm6, %%ymm6, %%ymm6 \n\t" \
 			"cmpl	%%r15d, %%eax \n\t"	\
 			"jge	1f \n\t"	\
@@ -136,7 +144,8 @@
 			: "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "rax", "rsi", "rbx", "rcx", "rdx",	\
 			"r8", "r9", "r10", "r11", "r12", "r15", "cc", "memory");
 
-#define CLEAN_AVX2 __asm__ volatile ("vzeroupper   \n\t");
+#define CLEAN_AVX2 \
+	ASM_ volatile ("vzeroupper   \n\t");
 
 #elif defined (_MSC_VER) && defined(_WIN64)
 
@@ -191,7 +200,7 @@
 				}	\
 			} while(0);
 
-	#define COMPUTE_16X_SMALL_NROOTS_AVX2	\
+#define COMPUTE_16X_SMALL_NROOTS_AVX2	\
 		do {	\
 				__m128i primes;	\
 				__m128i root1s;	\
@@ -283,7 +292,6 @@
                 h.stop = j - 32; \
 			} while(0);
 
-
 #define COMPUTE_32X_SMALL_NROOTS_AVX512	\
 		do {	\
 				__m512i primes;	\
@@ -322,7 +330,6 @@
 				}	\
                 h.stop = j - 32; \
 			} while(0);
-
 
 #define COMPUTE_16X_SMALL_PROOTS_AVX512	\
 		do {	\

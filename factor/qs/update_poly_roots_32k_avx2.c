@@ -92,54 +92,54 @@ code to the public domain.
    
 
 #define CHECK_NEW_SLICE_ASM_NEW \
-		"cmpl   104(%%rsi,1),%%r15d	\n\t"		/* compare j with check_bound */ \
+		"cmpl   104(%%rsi),%%r15d	\n\t"		/* compare j with check_bound */ \
 			/* note this is the counter j, not the byte offset j */ \
 		"jge     1f \n\t"						/* jump into "if" code if comparison works */ \
 			/* else, this is the "else-if" check */ \
 		"movl   %%r15d,%%ebx \n\t"				/* copy j into ebx */ \
-		"subl   96(%%rsi,1),%%ebx \n\t"			/* ebx = j - bound_val */ \
+		"subl   96(%%rsi),%%ebx \n\t"			/* ebx = j - bound_val */ \
 		"cmpl   $0xffff,%%ebx \n\t"				/* compare to 2^16 */ \
 		"jbe    2f \n\t"						/* exit CHECK_NEW_SLICE if this comparison fails too */ \
 			/* now we are in the else-if block of CHECK_NEW_SLICE */ \
 		"xorq	%%rdx, %%rdx \n\t"				/* clear rdx */ \
-		"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
-		"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
-		"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
-		"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+		"movl   100(%%rsi),%%edx \n\t"		/* move bound_index into rdx */ \
+		"movq   64(%%rsi),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+		"movq	16(%%r9),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+		"movq	56(%%rsi),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
 		"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
-		"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+		"movb	%%bl, 108(%%rsi) \n\t"		/* shove logp into output */ \
 		"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
 		"incq   %%rdx \n\t"						/* increment bound_index locally */ \
-		"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
-		"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+		"movl   %%edx,100(%%rsi) \n\t"		/* copy bound_index back to structure */ \
+		"movq	8(%%r9),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
 		"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 			/* note this is the counter j, not the byte offset j */ \
-		"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+		"movl   %%r15d,96(%%rsi) \n\t"		/* bound_val = j */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vmovdqa     (%%rdi), %%ymm15 \n\t" /* (j - bound_val) == 0, so just move in the lane offset */ \
             "vpslld	$16, %%ymm15, %%ymm15 \n\t"	/* put (j - bound_val + i) into high half of 32-bit words */ \
 		"xorq	%%rbx, %%rbx \n\t"				/* clear rbx */ \
-		"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+		"movl   92(%%rsi),%%ebx \n\t"			/* put numblocks into ebx */ \
 		"shll	$2,%%ebx \n\t"					/* numblocks * 4 (translate to bytes) */ \
 		"shll	$1,%%ebx \n\t"					/* numblocks << 1 (negative blocks are contiguous) */ \
-		"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
-		"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+		"addq   %%rbx,8(%%rsi) \n\t"			/* numptr_p += (numblocks << 1) */ \
+		"addq   %%rbx,0(%%rsi) \n\t"			/* numptr_n += (numblocks << 1) */ \
 		"shlq   $" BUCKET_BITStxt ",%%rbx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 			/* note also, this works because we've already left shifted by 1 */ \
-		"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
-		"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
-		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+		"addq   %%rbx,24(%%rsi) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+		"addq   %%rbx,16(%%rsi) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
 		"cmp	%%rax,%%rax \n\t"				/* force jump */ \
 		"je		2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 		"1:		\n\t"									\
 			/* now we are in the if block of CHECK_NEW_SLICE */ \
 		"xorl   %%ecx,%%ecx \n\t"				/* ecx = room  = 0 */ \
 		"xorq	%%rbx, %%rbx \n\t"				/* loop counter = 0 */ \
-		"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare with numblocks */ \
+		"cmpl   92(%%rsi),%%ebx \n\t"			/* compare with numblocks */ \
 		"jae    3f \n\t"						/* jump past loop if condition met */ \
 			/* condition not met, put a couple things in registers */ \
-		"movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-		"movq	0(%%rsi,1),%%r11 \n\t"			/* numptr_n into r11 */ \
+		"movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+		"movq	0(%%rsi),%%r11 \n\t"			/* numptr_n into r11 */ \
 		"5:		\n\t"							\
 			/* now we are in the room loop */ \
 			/* room is in register ecx */ \
@@ -150,7 +150,7 @@ code to the public domain.
 		"cmpl   %%ecx,%%edx \n\t"				/* *(numptr_p + k) > room ? */ \
 		"cmova  %%edx,%%ecx \n\t"				/* new value of room if so */ \
 		"incq   %%rbx \n\t"						/* increment counter */ \
-		"cmpl   92(%%rsi,1),%%ebx \n\t"			/* compare to numblocks */ \
+		"cmpl   92(%%rsi),%%ebx \n\t"			/* compare to numblocks */ \
 		"jl     5b \n\t"						/* iterate loop if condition met */ \
 		"3:		\n\t"							\
 		"movl   $" BUCKET_ALLOCtxt ",%%ebx \n\t"	/* move bucket allocation into register for subtraction */ \
@@ -158,8 +158,8 @@ code to the public domain.
 		"cmpl   $31,%%ebx \n\t"					/* answer less than 32? */ \
 		"movl   %%ebx,%%ecx \n\t"				/* copy answer back to room register */ \
 		"jle    4f \n\t"						/* jump if less than */ \
-		"sarl   %%ebx	\n\t"					/* room >> 1 (copy of room) */ \
-		"addl   %%ebx,104(%%rsi,1) \n\t"		/* add (room >> 1) to check_bound */ \
+		"sarl   $1,%%ebx	\n\t"					/* room >> 1 (copy of room) */ \
+		"addl   %%ebx,104(%%rsi) \n\t"		/* add (room >> 1) to check_bound */ \
 		"cmpq	%%rax,%%rax \n\t"				/* force jump */ \
 		"je     2f \n\t"						/* jump out of CHECK_NEW_SLICE */ \
 		"4:		\n\t"							\
@@ -168,33 +168,33 @@ code to the public domain.
 		"movl   %%r15d,%%eax \n\t"				/* copy j to scratch reg */ \
 		"shll   $0x4,%%eax \n\t"				/* multiply by 16 bytes per j */ \
 		"xorq	%%rdx, %%rdx \n\t" \
-		"movl   100(%%rsi,1),%%edx \n\t"		/* move bound_index into rdx */ \
-		"movq   64(%%rsi,1),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
-		"movq	16(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
-		"movq	56(%%rsi,1),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
+		"movl   100(%%rsi),%%edx \n\t"		/* move bound_index into rdx */ \
+		"movq   64(%%rsi),%%r9 \n\t"			/* move lp_bucket_p ptr into r9 */ \
+		"movq	16(%%r9),%%r8 \n\t"			/* move lp_bucket_p->logp ptr into r8 */ \
+		"movq	56(%%rsi),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
 		"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
-		"movb	%%bl, 108(%%rsi,1) \n\t"		/* shove logp into output */ \
+		"movb	%%bl, 108(%%rsi) \n\t"		/* shove logp into output */ \
 		"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
 		"incq   %%rdx \n\t"						/* increment bound_index locally */ \
-		"movl   %%edx,100(%%rsi,1) \n\t"		/* copy bound_index back to structure */ \
-		"movq	8(%%r9,1),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
+		"movl   %%edx,100(%%rsi) \n\t"		/* copy bound_index back to structure */ \
+		"movq	8(%%r9),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
 		"movl   %%r15d,(%%r8,%%rdx,4) \n\t"		/* mov j into lp_bucket_p->fb_bounds[bound_index] */ \
 			/* note this is the counter j, not the byte offset j */ \
-		"movl   %%r15d,96(%%rsi,1) \n\t"		/* bound_val = j */ \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+		"movl   %%r15d,96(%%rsi) \n\t"		/* bound_val = j */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vmovdqa     (%%rdi), %%ymm15 \n\t" /* (j - bound_val) == 0, so just move in the lane offset */ \
             "vpslld	$16, %%ymm15, %%ymm15 \n\t"	/* put (j - bound_val + i) into high half of 32-bit words */ \
 		"xorq	%%rbx, %%rbx \n\t" \
-		"movl   92(%%rsi,1),%%ebx \n\t"			/* put numblocks into ebx */ \
+		"movl   92(%%rsi),%%ebx \n\t"			/* put numblocks into ebx */ \
 		"shll	$2,%%ebx \n\t"					/* numblocks * 4 (bytes) */ \
 		"shll	$1,%%ebx \n\t"					/* numblocks << 1 */ \
-		"addq   %%rbx,8(%%rsi,1) \n\t"			/* numptr_p += (numblocks << 1) */ \
-		"addq   %%rbx,0(%%rsi,1) \n\t"			/* numptr_n += (numblocks << 1) */ \
+		"addq   %%rbx,8(%%rsi) \n\t"			/* numptr_p += (numblocks << 1) */ \
+		"addq   %%rbx,0(%%rsi) \n\t"			/* numptr_n += (numblocks << 1) */ \
 		"shll   $" BUCKET_BITStxt ",%%ebx \n\t"	/* numblocks << (BUCKET_BITS + 1) */ \
 			/* note also, this works because we've already left shifted by 1 */ \
-		"addq   %%rbx,24(%%rsi,1) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
-		"addq   %%rbx,16(%%rsi,1) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
-		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi,1) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
+		"addq   %%rbx,24(%%rsi) \n\t"			/* sliceptr_p += (numblocks << 11) */ \
+		"addq   %%rbx,16(%%rsi) \n\t"			/* sliceptr_n += (numblocks << 11) */ \
+		"addl   $" HALFBUCKET_ALLOCtxt ",104(%%rsi) \n\t"		/* add 2^(BUCKET_BITS-1) to check_bound */ \
 		"2:		\n\t"
 
 
@@ -370,7 +370,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 			h.start = j;									// 64
 			h.stop = sconf->factor_base->med_B;		// 68
 
-			COMPUTE_16X_SMALL_PROOTS_AVX2;
+            COMPUTE_16X_SMALL_PROOTS_AVX2;
 			
 			j = h.stop;
 		}	
@@ -412,13 +412,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         ASM_G (		\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
-            "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
+            "vpaddd     0(%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -429,7 +429,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpshufd	    $0, %%xmm13, %%xmm13 \n\t"  /* broadcast shifted-j to ymm13 */ \
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -439,14 +439,14 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	    72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	    40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	    72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	    40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	    48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	    48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa    (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpsubd	    %%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 -= ptr */ \
             "vmovdqa    (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	    32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	    32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpsubd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 -= ptr */ \
             "vpxor	    %%ymm4, %%ymm4, %%ymm4 \n\t"			/* zero xmm4 */ \
             "vpxor	    %%ymm5, %%ymm5, %%ymm5 \n\t"			/* zero xmm5 */ \
@@ -468,9 +468,9 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vmovdqa    %%ymm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
             "vpsubd	    %%ymm1, %%ymm6, %%ymm6 \n\t"			/* form negative root1's; prime - root1 */ \
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	88(%%rsi),%%r13d \n\t"		/* interval */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
@@ -547,8 +547,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
-            "cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-            "jae    2f \n\t" 						/* jump if CF = 1 */ \
+            /* "cmpl	%%r13d,%%r8d \n\t"				 root1 > interval? */ \
+            /* "jae    2f \n\t" 						 jump if CF = 1 */ \
             UPDATE_ROOT1_LOOP_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,7 ========== */	\
@@ -568,8 +568,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
@@ -665,7 +665,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             "addl   $8,%%r15d \n\t"					/* increment j by 4*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \
@@ -717,13 +717,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         ASM_G (		\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -735,7 +735,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             "vmovdqa     32(%%rdi), %%ymm12 \n\t" /* put the root masks into ymm12 */ \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -745,16 +745,16 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpxor	    %%ymm4, %%ymm4, %%ymm4 \n\t"			/* zero xmm4 */ \
             "vpxor	    %%ymm5, %%ymm5, %%ymm5 \n\t"			/* zero xmm5 */ \
             "vpsubd	    %%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 -= ptr */ \
             "vmovdqa (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpsubd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 -= ptr */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm0 \n\t"	/* xmm0 = next 4 primes */ \
             "vpcmpgtd	%%ymm1, %%ymm4, %%ymm4 \n\t"		/* signed comparison: 0 > root1? if so, set xmm4 dword to 1's */ \
@@ -778,9 +778,9 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	92(%%rsi,1),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	92(%%rsi),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
             /* do a vector compare and extract a bitmask, then the comparisons don't depend */ \
             /* on vpextrd and we can skip the vpextrd unless the test succeeds... */ \
             /* both eax and edx are available for use... */ \
@@ -919,8 +919,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vpand	    %%ymm6, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm7, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
             "vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 /* shift roots to compute blocknums */ \
@@ -1062,7 +1062,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "7: \n\t" \
             "addl   $8,%%r15d \n\t"					/* increment j by 1*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \
@@ -1204,13 +1204,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 		
         ASM_G (\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -1221,7 +1221,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpshufd	    $0, %%xmm13, %%xmm13 \n\t"  /* broadcast shifted-j to ymm13 */ \
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -1231,14 +1231,14 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpaddd	%%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 += ptr */ \
             "vmovdqa (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpaddd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 += ptr */ \
             "vmovdqa	%%ymm1, %%ymm4 \n\t"			/* copy root1 to xmm4 */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm0 \n\t"	/* xmm0 = next 4 primes */ \
@@ -1260,9 +1260,9 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpsubd	    %%ymm1, %%ymm6, %%ymm6 \n\t"			/* form negative root1's; prime - root1 */ \
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	88(%%rsi),%%r13d \n\t"		/* interval */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
@@ -1358,8 +1358,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
@@ -1455,7 +1455,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             "addl   $8,%%r15d \n\t"					/* increment j by 1*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \
@@ -1507,13 +1507,13 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
 
         ASM_G ( \
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -1525,7 +1525,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             "vmovdqa     32(%%rdi), %%ymm12 \n\t" /* put the root masks into ymm12 */ \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -1535,14 +1535,14 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpaddd	%%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 += ptr */ \
             "vmovdqa (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpaddd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 += ptr */ \
             "vmovdqa	%%ymm1, %%ymm4 \n\t"			/* copy root1 to xmm4 */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm0 \n\t"	/* xmm0 = next 4 primes */ \
@@ -1569,9 +1569,9 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpsrld	    $15, %%ymm2, %%ymm2 \n\t"			 /* shift roots to compute blocknums */ \
             "vpor	    %%ymm10, %%ymm15, %%ymm10 \n\t"			/* combine with the prime index half of the 32-bit word */ \
             "vpor	    %%ymm11, %%ymm15, %%ymm11 \n\t"			/* combine with the prime index half of the 32-bit word */ \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	92(%%rsi,1),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	92(%%rsi),%%r13d \n\t"		/* 88 = interval, 92 = numblocks */ \
             /* edx is free at this point... can it be used? */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
@@ -1708,8 +1708,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vpand	    %%ymm6, %%ymm12, %%ymm10 \n\t"			/* mask the root1s */ \
             "vpand	    %%ymm7, %%ymm12, %%ymm11 \n\t"			/* mask the root2s */ \
             "vpsrld	    $15, %%ymm6, %%ymm6 \n\t"			 /* shift roots to compute blocknums */ \
@@ -1850,7 +1850,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             /* ================================================ */	\
             "addl   $8,%%r15d \n\t"					/* increment j by 1*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \
@@ -2047,13 +2047,13 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
         ASM_G(\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -2064,7 +2064,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             "vpshufd	    $0, %%xmm13, %%xmm13 \n\t"  /* broadcast shifted-j to ymm13 */ \
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -2074,14 +2074,14 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	    72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	    40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	    72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	    40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	    48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	    48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa    (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpsubd	    %%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 -= ptr */ \
             "vmovdqa    (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	    32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	    32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpsubd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 -= ptr */ \
             "vpxor	    %%ymm4, %%ymm4, %%ymm4 \n\t"			/* zero xmm4 */ \
             "vpxor	    %%ymm5, %%ymm5, %%ymm5 \n\t"			/* zero xmm5 */ \
@@ -2103,9 +2103,9 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             "vmovdqa    %%ymm2, (%%r13,%%r15,4) \n\t"	/* save new root2 values */ \
             "vpsubd	    %%ymm1, %%ymm6, %%ymm6 \n\t"			/* form negative root1's; prime - root1 */ \
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	88(%%rsi),%%r13d \n\t"		/* interval */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
@@ -2182,8 +2182,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
-            "cmpl	%%r13d,%%r8d \n\t"				/* root1 > interval? */ \
-            "jae    2f \n\t" 						/* jump if CF = 1 */ \
+            /* "cmpl	%%r13d,%%r8d \n\t"				 root1 > interval? */ \
+            /* "jae    2f \n\t" 						 jump if CF = 1 */ \
             UPDATE_ROOT1_LOOP_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,7 ========== */	\
@@ -2203,8 +2203,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
@@ -2300,7 +2300,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             "addl   $8,%%r15d \n\t"					/* increment j by 4*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \
@@ -2528,13 +2528,13 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
         ASM_G(\
             "movq	%0,%%rsi \n\t"					/* move helperstruct into rsi */ \
-            "movl   80(%%rsi,1),%%r15d \n\t"		/* large_B = j = r15d */ \
+            "movl   80(%%rsi),%%r15d \n\t"		/* large_B = j = r15d */ \
             "vmovd      %%r15d, %%xmm15 \n\t"           /* broadcast j to ymm15 */ \
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
-            "movq	120(%%rsi,1),%%rdi \n\t"			/* edi = polyscratch */ \
+            "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
             "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
-            "movl	    96(%%rsi,1),%%r13d \n\t"		/* store bound_val in a register */ \
+            "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
             "vinserti128    $1, %%xmm14, %%ymm14, %%ymm14 \n\t" \
@@ -2545,7 +2545,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             "vpshufd	    $0, %%xmm13, %%xmm13 \n\t"  /* broadcast shifted-j to ymm13 */ \
             "vinserti128    $1, %%xmm13, %%ymm13, %%ymm13 \n\t" \
             /* do the loop comparison */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j >= bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j >= bound ? */ \
             "jae    9f	\n\t"						/* jump to end of loop, if test fails */ \
             "8: \n\t"	\
             /* ================================================ */	\
@@ -2555,14 +2555,14 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             /* ============ BEGIN - GET NEW ROOTS 1 =========== */	\
             /* ================================================ */	\
-            "movq	72(%%rsi,1),%%rdi \n\t"			/* edi = ptr */ \
-            "movq	40(%%rsi,1),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
+            "movq	72(%%rsi),%%rdi \n\t"			/* edi = ptr */ \
+            "movq	40(%%rsi),%%r14 \n\t"			/* move updata_data.root1 pointer into r14 */ \
             "vmovdqa (%%rdi,%%r15,4), %%ymm3 \n\t"	/* xmm3 = next 4 values of rootupdates */ \
-            "movq	48(%%rsi,1),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
+            "movq	48(%%rsi),%%r13 \n\t"			/* move updata_data.root2 pointer into r13 */ \
             "vmovdqa (%%r14,%%r15,4), %%ymm1 \n\t"	/* xmm1 = next 4 values of root1 */ \
             "vpaddd	%%ymm3, %%ymm1, %%ymm1 \n\t"			/* root1 += ptr */ \
             "vmovdqa (%%r13,%%r15,4), %%ymm2 \n\t"	/* xmm2 = next 4 values of root2 */ \
-            "movq	32(%%rsi,1),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
+            "movq	32(%%rsi),%%rdi \n\t"			/* move updata_data.prime pointer into r12 */ \
             "vpaddd	    %%ymm3, %%ymm2, %%ymm2 \n\t"			/* root2 += ptr */ \
             "vmovdqa	%%ymm1, %%ymm4 \n\t"			/* copy root1 to xmm4 */ \
             "vmovdqa    (%%rdi,%%r15,4), %%ymm0 \n\t"	/* xmm0 = next 4 primes */ \
@@ -2584,9 +2584,9 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             "vpsubd	    %%ymm1, %%ymm6, %%ymm6 \n\t"			/* form negative root1's; prime - root1 */ \
             "vpsubd	    %%ymm2, %%ymm7, %%ymm7 \n\t"			/* form negative root2's; prime - root2 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
-            "movq	8(%%rsi,1),%%r10 \n\t"			/* numptr_p into r10 */ \
-            "movq	24(%%rsi,1),%%r11 \n\t"			/* sliceptr_p into r11 */ \
-            "movl	88(%%rsi,1),%%r13d \n\t"		/* interval */ \
+            "movq	8(%%rsi),%%r10 \n\t"			/* numptr_p into r10 */ \
+            "movq	24(%%rsi),%%r11 \n\t"			/* sliceptr_p into r11 */ \
+            "movl	88(%%rsi),%%r13d \n\t"		/* interval */ \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
@@ -2682,8 +2682,8 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             /* =========== UPDATE NEG BUCKET - ROOT1,1 ========== */	\
             /* ================================================ */	\
-            "movq	0(%%rsi,1),%%r10 \n\t"			/* numptr_n into r10 */ \
-            "movq	16(%%rsi,1),%%r11 \n\t"			/* sliceptr_n into r10 */ \
+            "movq	0(%%rsi),%%r10 \n\t"			/* numptr_n into r10 */ \
+            "movq	16(%%rsi),%%r11 \n\t"			/* sliceptr_n into r10 */ \
             "vextracti128   $0,%%ymm15,%%xmm10 \n\t" \
             "vpextrd	$0,%%xmm7,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$0,%%xmm6,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
@@ -2779,7 +2779,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
             /* ================================================ */	\
             "addl   $8,%%r15d \n\t"					/* increment j by 1*/ \
             "vpaddd  %%ymm13, %%ymm15, %%ymm15 \n\t" /* add in shifted-j: (j+8)<<16 */ \
-            "cmpl   84(%%rsi,1),%%r15d \n\t"		/* j < bound ? */ \
+            "cmpl   84(%%rsi),%%r15d \n\t"		/* j < bound ? */ \
             "jb     8b \n\t"	\
             "9:		\n\t"				\
             "movl	%%r15d, %%eax \n\t" \

@@ -35,7 +35,14 @@
     }
 
 #if defined(GCC_ASM32X) || defined(GCC_ASM64X) || defined(__MINGW32__)
-	#define TDIV_MED_CLEAN asm volatile("emms");
+
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
+
+	#define TDIV_MED_CLEAN ASM_ volatile("emms");
 #elif defined(MSC_ASM32A)
 	#define TDIV_MED_CLEAN ASM_M {emms};
 #else

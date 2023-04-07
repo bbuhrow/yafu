@@ -48,11 +48,13 @@ code to the public domain.
 #if defined(GCC_ASM64X)
 
 
-#define TDIV_MED_CLEAN_AVX2
-__asm__ ("vzeroupper   \n\t");
+#ifdef _WIN32
+#define ASM_ ASM_M
+#else
+#define ASM_ ASM_G
+#endif
 
-#define TDIV_MED_CLEAN asm volatile("emms");
-
+#define TDIV_MED_CLEAN_AVX2 ASM_("vzeroupper   \n\t");
 
 #define STEP_COMPARE_COMBINE \
 		"vpsubw     %%xmm1, %%xmm2, %%xmm2 \n\t"		/* subtract primes from root1s */ \
@@ -129,7 +131,7 @@ __asm__ ("vzeroupper   \n\t");
         "movl	%%r11d, %0 \n\t"			/* return the count of set bits */ \
 
 #define RESIEVE_8X_14BIT_MAX \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -143,7 +145,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_8X_15BIT_MAX \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -155,7 +157,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_8X_16BIT_MAX \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			"vpor	%%xmm0, %%xmm7, %%xmm7 \n\t" \
@@ -166,7 +168,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_8X_14BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -181,7 +183,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_8X_15BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -194,7 +196,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_8X_16BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE \
 			STEP_COMPARE_COMBINE	\
 			"vpor	%%xmm0, %%xmm7, %%xmm7 \n\t" \
@@ -206,7 +208,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_14BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_2("0") \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -230,7 +232,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_15BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_2("0") \
 			STEP_COMPARE_COMBINE	\
 			STEP_COMPARE_COMBINE	\
@@ -250,7 +252,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_16BIT_MAX_VEC \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_2("0") \
 			STEP_COMPARE_COMBINE	\
 			"vpor	%%xmm0, %%xmm7, %%xmm7 \n\t" \
@@ -268,7 +270,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_14BIT_MAX_VEC_AVX2 \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_AVX2 \
 			STEP_COMPARE_COMBINE_AVX2	\
 			STEP_COMPARE_COMBINE_AVX2	\
@@ -283,7 +285,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_15BIT_MAX_VEC_AVX2 \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_AVX2 \
 			STEP_COMPARE_COMBINE_AVX2	\
 			STEP_COMPARE_COMBINE_AVX2	\
@@ -296,7 +298,7 @@ __asm__ ("vzeroupper   \n\t");
 			);
 
 #define RESIEVE_16X_16BIT_MAX_VEC_AVX2 \
-		asm ( \
+		ASM_ ( \
 			INIT_RESIEVE_AVX2 \
 			STEP_COMPARE_COMBINE_AVX2	\
 			"vpor	%%ymm0, %%ymm7, %%ymm7 \n\t" \

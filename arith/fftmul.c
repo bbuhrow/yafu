@@ -52,7 +52,7 @@ double* parsewords_balanced(mpz_t a, int b, int fftlen)
 	int64_t W = (1ULL << b);
 	int64_t mask = W - 1;
 	int64_t b2 = W / 2;
-	uint64_t* n = aa->_mp_d;
+	uint64_t* n = a->_mp_d;
 
 	mpz_init(aa);
 	mpz_set(aa, a);
@@ -829,7 +829,7 @@ void reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 
 void fast_reconstruct_int(mpz_t c, int64_t* ci, int bits_per_word, int fftlen)
 {
-	int i;
+	int i = 0;
 	int s = bits_per_word * fftlen;
 	int j = 0;
 	int b = bits_per_word;
