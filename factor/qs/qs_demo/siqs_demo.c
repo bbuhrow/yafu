@@ -546,7 +546,13 @@ void print_splash(info_t *comp_info, int is_cmdline_run, FILE *logfile,
     if (VFLAG > 0)
     {
 #ifdef _MSC_VER
+#if defined(__INTEL_COMPILER)
+        printf("Built with Microsoft Visual Studio %d and Intel Compiler %d\n", _MSC_VER, __INTEL_COMPILER);
+#elif defined(__INTEL_LLVM_COMPILER)
+        printf("Built with Microsoft Visual Studio %d and Intel LLVM Compiler %d\n", _MSC_VER, __clang_version__);
+#else
         printf("Built with Microsoft Visual Studio %d\n", _MSC_VER);
+#endif
 #elif defined (__INTEL_COMPILER)
         printf("Built with Intel Compiler %d\n", __INTEL_COMPILER);
 #elif defined (__INTEL_LLVM_COMPILER)

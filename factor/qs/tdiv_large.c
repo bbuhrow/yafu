@@ -193,10 +193,10 @@ const uint32_t bitmask[16] = { 0x1, 0x2, 0x4, 0x8,
                 "salq $32, %%r10		\n\t"			/*  */ \
                 "salq $48, %%r11		\n\t"			/*  */ \
                 "orq	%%r11,%%r10		\n\t"		/* r8 now holds 16 comparisons in 64 bits */ \
-                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \                                
-                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \                                
+                "orq	%%r9,%%r8		\n\t"		/* r8 now holds 8 comparisons in 32 bits */ \
+                "orq	%%r10,%%r8		\n\t"		/* r8 now holds 12 comparisons in 48 bits */ \
                 "movq   $0x2222222222222222,%%r9    \n\t" /* clear the bytemask results we don't care about */ \
-                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \                
+                "andq   %%r9,%%r8    \n\t"                /* clear the bytemask results we don't care about */ \
                 "movl	%0,%%r11d		\n\t"		/* initialize count of set bits */ \
                 "xorq	%%r10,%%r10		\n\t"		/* initialize bit scan offset */ \
                 "1:			\n\t"					/* top of bit scan loop */ \

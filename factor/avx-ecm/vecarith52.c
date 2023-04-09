@@ -47,7 +47,7 @@ This file is a snapshot of a work in progress, originated by Mayo
 #include <math.h>
 
 #ifdef _MSC_VER
-#define USE_AVX512F
+//#define USE_AVX512F
 #endif
 
 #ifdef USE_AVX512F
