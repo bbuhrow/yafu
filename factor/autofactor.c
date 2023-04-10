@@ -1659,6 +1659,7 @@ int check_for_exit_on_factor(fact_obj_t* fobj)
 	// -stopge n : Stop after finding a factor with Greater than or Equal to n digits
 	// -stopgt n : Stop after finding a factor with Greater than n digits
 	// -stopbase b : Base to use for stopXY options(default 10, range: 2 <= b <= 62)
+	// -stopprime  : add constraint that number is also prime
 	// ie : the bases supported by "mpz_get_str"
 
 	yfactor_list_t* factors = fobj->factors;
@@ -1671,6 +1672,13 @@ int check_for_exit_on_factor(fact_obj_t* fobj)
 	for (i = 0; i < factors->num_factors; i++)
 	{
 		int sz = mpz_sizeinbase(factors->factors[i].factor, base);
+
+		if (fobj->autofact_obj.stopprime && (factors->factors[i].type != (PRP | PRIME)))
+		{
+			// We require the factor to be prime and it's not, so don't need
+			// to check the other conditions.
+			continue;
+		}
 
 		if ((sz == fobj->autofact_obj.stopeq) && (fobj->autofact_obj.stopeq > 0))
 		{

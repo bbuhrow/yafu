@@ -1909,6 +1909,7 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->autofact_obj.stopgt = options->stopgt;
     fobj->autofact_obj.stople = options->stople;
     fobj->autofact_obj.stoplt = options->stoplt;
+    fobj->autofact_obj.stopprime = options->stopprime;
     fobj->autofact_obj.check_stop_conditions = options->check_stop_conditions;
 
 

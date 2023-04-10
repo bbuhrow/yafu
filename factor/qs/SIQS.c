@@ -1413,6 +1413,7 @@ void *process_poly(void *vptr)
 
         if (sconf->obj->HAS_AVX512F)
         {
+            //nextRoots_32k_avx2_intrin(sconf, dconf);
             nextRoots_32k_avx2_small(sconf, dconf);
             nextRoots_32k_knl_bucket(sconf, dconf);
         }

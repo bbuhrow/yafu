@@ -30,7 +30,7 @@ code to the public domain.
 // protect avx2 code under MSVC builds.  USE_AVX2 should be manually
 // enabled at the top of qs.h for MSVC builds on supported hardware.
 // this code is exclusive to 64-bit gcc format so it gets a GCC_ASM64X guard.
-#if defined( USE_AVX2 ) && defined(GCC_ASM64X)
+#if defined( USE_AVX2 ) && defined(GCC_ASM64X) && !defined(_MSC_VER)
 
 // we have put (j - bound_val + i) | (root1 & 0x7fff) into ymm10.
 #define UPDATE_ROOT1_NEW(it) \
@@ -108,7 +108,7 @@ code to the public domain.
 		"movq	56(%%rsi),%%r14 \n\t"			/* move updata_data.logp pointer into r14 */ \
 		"movzbl (%%r14,%%r15,1),%%ebx \n\t"		/* bring in logp */ \
 		"movb	%%bl, 108(%%rsi) \n\t"		/* shove logp into output */ \
-		"movb   %%bl,(%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
+		"movb   %%bl, (%%r8,%%rdx,1) \n\t"		/* mov logp into lp_bucket_p->logp[bound_index] */ \
 		"incq   %%rdx \n\t"						/* increment bound_index locally */ \
 		"movl   %%edx,100(%%rsi) \n\t"		/* copy bound_index back to structure */ \
 		"movq	8(%%r9),%%r8 \n\t"			/* move lp_bucket_p->fb_bounds ptr into r8 */ \
@@ -417,7 +417,7 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpshufd	    $0, %%xmm15, %%xmm15 \n\t"  /* broadcast j to ymm15 */ \
             "vinserti128    $1, %%xmm15, %%ymm15, %%ymm15 \n\t" \
             "movq	120(%%rsi),%%rdi \n\t"			/* edi = polyscratch */ \
-            "vpaddd     0(%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
+            "vpaddd     (%%rdi), %%ymm15, %%ymm15 \n\t" /* add in lane offsets */ \
             "movl	    96(%%rsi),%%r13d \n\t"		/* store bound_val in a register */ \
             "vmovd      %%r13d, %%xmm14 \n\t"           /* broadcast bound_val to ymm14 */ \
             "vpshufd	    $0, %%xmm14, %%xmm14 \n\t"  /* broadcast bound_val to ymm14 */ \
@@ -547,8 +547,8 @@ void nextRoots_32k_avx2(static_conf_t *sconf, dynamic_conf_t *dconf)
             "vpextrd	$2,%%xmm1,%%r8d \n\t"				/* else, extract root1,1 from xmm1 */ \
             "vpextrd	$2,%%xmm2,%%r9d \n\t"				/* else, extract root2,1 from xmm2 */ \
             "vpextrd	$2,%%xmm0,%%edx \n\t"				/* else, extract prime from xmm0 */ \
-            /* "cmpl	%%r13d,%%r8d \n\t"				 root1 > interval? */ \
-            /* "jae    2f \n\t" 						 jump if CF = 1 */ \
+                /* "cmpl	%%r13d,%%r8d \n\t"				 root1 > interval? */ \
+                /* "jae    2f \n\t" 						 jump if CF = 1 */ \
             UPDATE_ROOT1_LOOP_NEW("6") \
             /* ================================================ */	\
             /* =========== UPDATE POS BUCKET - ROOT2,7 ========== */	\
@@ -1994,7 +1994,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
         check_bound = med_B + BUCKET_ALLOC / 2;
         logp = update_data.logp[med_B];
         
-#if defined(GCC_ASM64X)
+#if defined(GCC_ASM64X) && !defined(_MSC_VER)
         polysieve_t helperstruct;
 
         logp = update_data.logp[med_B - 1];
@@ -2480,7 +2480,7 @@ void nextRoots_32k_avx2_intrin(static_conf_t* sconf, dynamic_conf_t* dconf)
 
         logp = update_data.logp[med_B];
 
-#if defined(GCC_ASM64X)
+#if defined(GCC_ASM64X) && !defined(_MSC_VER)
         polysieve_t helperstruct;
 
         logp = update_data.logp[med_B - 1];

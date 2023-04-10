@@ -211,6 +211,7 @@ void init_factobj(fact_obj_t* fobj)
     fobj->autofact_obj.stople = -1;
     fobj->autofact_obj.stopgt = -1;
     fobj->autofact_obj.stopge = -1;
+    fobj->autofact_obj.stopprime = 0;
     fobj->autofact_obj.check_stop_conditions = 0;
 
     //pretesting plan used by factor()
@@ -528,6 +529,7 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->autofact_obj.stopeq = src->autofact_obj.stopeq;
     dest->autofact_obj.stoplt = src->autofact_obj.stoplt;
     dest->autofact_obj.stople = src->autofact_obj.stople;
+    dest->autofact_obj.stopprime = src->autofact_obj.stopprime;
     dest->autofact_obj.check_stop_conditions = src->autofact_obj.check_stop_conditions;
 
     //pretesting plan used by factor()
