@@ -399,6 +399,7 @@ typedef struct
     int stopge;
     int stopbase;
     int stopeq;
+    int stopprime;
     int check_stop_conditions;
 
     enum pretest_plan yafu_pretest_plan;
