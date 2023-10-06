@@ -54,8 +54,10 @@ void lp_sieveblock(uint8_t *sieve, uint32_t bnum, uint32_t numblocks,
     pnum = poly_offset;
     poly_offset = poly_offset * 2 * numblocks * dconf->buckets->alloc_slices;
 
-    //printf("begin large_sieve on side %d with poly %d\n", side, pnum);
-    
+#ifdef DEBUGPRINT_BATCHPOLY
+    printf("begin large_sieve on side %d with poly %d\n", side, pnum);
+#endif
+
 #else 
     int pnum = 0;
 #endif
@@ -166,7 +168,9 @@ void lp_sieveblock_avx512f(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     pnum = poly_offset;
     poly_offset = poly_offset * 2 * numblocks * dconf->buckets->alloc_slices;
 
-    //printf("begin large_sieve on side %d with poly %d\n", side, pnum);
+#ifdef DEBUGPRINT_BATCHPOLY
+    printf("begin large_sieve_avx512f on side %d with poly %d\n", side, pnum);
+#endif
 
 #else 
     int pnum = 0;
@@ -300,7 +304,9 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
     pnum = poly_offset;
     poly_offset = poly_offset * 2 * numblocks * dconf->buckets->alloc_slices;
 
-    //printf("begin large_sieve on side %d with poly %d\n", side, pnum);
+#ifdef DEBUGPRINT_BATCHPOLY
+    printf("begin large_sieve_avx512bw on side %d with poly %d... ", side, pnum);
+#endif
 
 #else 
     int pnum = 0;
@@ -379,6 +385,455 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
         //point to the next slice of primes
         bptr += (numblocks << (BUCKET_BITS + 1));
         basebucket += (numblocks << 1);
+    }
+
+#ifdef DEBUGPRINT_BATCHPOLY
+    printf("complete.\n"); fflush(stdout);
+#endif
+    return;
+}
+#endif
+
+#ifdef USE_LINKED_LIST_SS
+void lp_sieve_interval_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+{
+    // with linked links by poly
+    int i;
+    int j;
+    //uint32_t numentries = 0;
+
+    if (side == 0)
+    {
+        // find the first hit for this poly.  should probably instead store
+        // a list of first locations for each poly.
+        uint32_t eidx = 0;
+        //while ((dconf->ss_slices_p[0].element[eidx] & 0xffff) != dconf->numB)
+        //{
+        //    eidx++;
+        //}
+        eidx = dconf->poly_ll_first_p[dconf->numB];
+
+        //printf("first element index for poly %u side %d = %u\n", dconf->numB, side, eidx);
+        uint32_t root;
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_p[i].element;
+            uint8_t logp = dconf->ss_slices_p[i].logp;
+            uint32_t nextentry;
+            uint32_t slicesize = dconf->ss_slices_p[i].size;
+            //__m512i vbuckets, vnextbuckets, vlosieve, vhisieve;
+            //__m512i vlogp = _mm512_set1_epi32(logp);
+            //ALIGNED_MEM uint32_t roots[16];
+            //int j;
+
+            do
+            {
+                //if ((dconf->ss_slices_p[i].element[eidx] & 0xffff) != dconf->numB)
+                //{
+                //    printf("error: next element index %u is not the same poly index (now %u)!\n",
+                //        eidx, (dconf->ss_slices_p[i].element[eidx] & 0xffff));
+                //    printf("faulty entry = %lx\n", dconf->ss_slices_p[i].element[eidx - nextentry]);
+                //    printf("current entry = %lx\n", dconf->ss_slices_p[i].element[eidx]);
+                //    printf("correctly processed %u entries for poly %d\n",
+                //        numentries, dconf->numB);
+                //    exit(1);
+                //}
+
+                //__mmask16 m = 0;
+                //for (j = 0; j < 16; j++)
+                //{
+                //    nextentry = elements[eidx] >> 48;
+                //    _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+                //    roots[j] = (elements[eidx] & 0xffff0000) >> 16;
+                //    m |= (1 << j);
+                //    eidx += nextentry;
+                //    if ((eidx >= slicesize) || (nextentry == 0xffff))
+                //    {
+                //        break;
+                //    }
+                //}
+                //
+                //vbuckets = _mm512_load_epi32(roots);
+                //vhisieve = _mm512_mask_i32gather_epi32(vbuckets, m, vbuckets, sieve, _MM_SCALE_1);
+                //vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
+                //_mm512_mask_i32scatter_epi32(sieve, m, vbuckets, vlosieve, _MM_SCALE_1);
+
+                nextentry = elements[eidx] >> 40;
+                _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+
+                root = (elements[eidx] & 0xffffff);
+                sieve[root] += logp;
+                eidx += nextentry;
+
+                //numentries++;
+            } while ((eidx < slicesize) && (nextentry != 0xffffff));
+
+
+
+
+            if (nextentry == 0xffffff)
+            {
+                // last entry for this poly
+                break;
+            }
+            else
+            {
+                // more entries in the next slice.  adjust the element index
+                // for the remainder of this slice's size.
+                //printf("finished processing %d entries from slice %d, adjusting "
+                //    "next entry index %d by size of slice %d (%d) to %d\n",
+                //    numentries, i, eidx, i, dconf->ss_slices_p[i].size,
+                //    eidx - dconf->ss_slices_p[i].size);
+
+                eidx -= dconf->ss_slices_p[i].size;
+            }
+
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+    else
+    {
+        // find the first hit for this poly.  should probably instead store
+        // a list of first locations for each poly.
+        uint32_t eidx = 0;
+        //while ((dconf->ss_slices_n[0].element[eidx] & 0xffff) != dconf->numB)
+        //{
+        //    eidx++;
+        //}
+        eidx = dconf->poly_ll_first_n[dconf->numB];
+        //printf("first element index for poly %u side %d = %u\n", dconf->numB, side, eidx);
+        uint32_t root;
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_n[i].element;
+            uint8_t logp = dconf->ss_slices_n[i].logp;
+            uint32_t nextentry;
+            uint32_t slicesize = dconf->ss_slices_n[i].size;
+
+            do
+            {
+                //if ((dconf->ss_slices_n[i].element[eidx] & 0xffff) != dconf->numB)
+                //{
+                //    printf("error: next element index %u is not the same poly index (now %u)!\n",
+                //        eidx, (dconf->ss_slices_n[i].element[eidx] & 0xffff));
+                //    printf("faulty entry = %lx\n", dconf->ss_slices_n[i].element[eidx - nextentry]);
+                //    printf("current entry = %lx\n", dconf->ss_slices_n[i].element[eidx]);
+                //    printf("correctly processed %u entries for poly %d\n",
+                //        numentries, dconf->numB);
+                //    exit(1);
+                //}
+                nextentry = elements[eidx] >> 40;
+                _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+
+                root = (elements[eidx] & 0xffffff);
+                sieve[root] += logp;
+                eidx += nextentry;
+            } while ((eidx < slicesize) && (nextentry != 0xffffff));
+
+            if (nextentry == 0xffffff)
+            {
+                // last entry for this poly
+                break;
+            }
+            else
+            {
+                // more entries in the next slice.  adjust the element index
+                // for the remainder of this slice's size.
+                //printf("finished processing %d entries from slice %d, adjusting "
+                //    "next entry index %d by size of slice %d (%d) to %d\n",
+                //    numentries, i, eidx, i, dconf->ss_slices_n[i].size,
+                //    eidx - dconf->ss_slices_n[i].size);
+
+                eidx -= dconf->ss_slices_n[i].size;
+            }
+
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+
+    return;
+}
+
+void lp_sieve_ss_linked_links(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+{
+    // with linked links by poly
+    int i;
+    int j;
+    //uint32_t numentries = 0;
+
+    if (side == 0)
+    {
+        // find the first hit for this poly.  should probably instead store
+        // a list of first locations for each poly.
+        uint32_t eidx = 0;
+        //while ((dconf->ss_slices_p[0].element[eidx] & 0xffff) != dconf->numB)
+        //{
+        //    eidx++;
+        //}
+        eidx = dconf->poly_ll_first_p[dconf->numB];
+
+        //printf("first element index for poly %u side %d = %u\n", dconf->numB, side, eidx);
+        uint32_t root;
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_p[i].element;           
+            uint8_t logp = dconf->ss_slices_p[i].logp;
+            uint32_t nextentry;
+            uint32_t slicesize = dconf->ss_slices_p[i].size;
+            //__m512i vbuckets, vnextbuckets, vlosieve, vhisieve;
+            //__m512i vlogp = _mm512_set1_epi32(logp);
+            //ALIGNED_MEM uint32_t roots[16];
+            //int j;
+
+            do 
+            {
+                //if ((dconf->ss_slices_p[i].element[eidx] & 0xffff) != dconf->numB)
+                //{
+                //    printf("error: next element index %u is not the same poly index (now %u)!\n",
+                //        eidx, (dconf->ss_slices_p[i].element[eidx] & 0xffff));
+                //    printf("faulty entry = %lx\n", dconf->ss_slices_p[i].element[eidx - nextentry]);
+                //    printf("current entry = %lx\n", dconf->ss_slices_p[i].element[eidx]);
+                //    printf("correctly processed %u entries for poly %d\n",
+                //        numentries, dconf->numB);
+                //    exit(1);
+                //}
+                
+                //__mmask16 m = 0;
+                //for (j = 0; j < 16; j++)
+                //{
+                //    nextentry = elements[eidx] >> 48;
+                //    _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+                //    roots[j] = (elements[eidx] & 0xffff0000) >> 16;
+                //    m |= (1 << j);
+                //    eidx += nextentry;
+                //    if ((eidx >= slicesize) || (nextentry == 0xffff))
+                //    {
+                //        break;
+                //    }
+                //}
+                //
+                //vbuckets = _mm512_load_epi32(roots);
+                //vhisieve = _mm512_mask_i32gather_epi32(vbuckets, m, vbuckets, sieve, _MM_SCALE_1);
+                //vlosieve = _mm512_sub_epi8(vhisieve, vlogp);
+                //_mm512_mask_i32scatter_epi32(sieve, m, vbuckets, vlosieve, _MM_SCALE_1);
+
+                nextentry = elements[eidx] >> 40;
+                _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+
+                root = (elements[eidx] & 0xffffff);
+                sieve[root] -= logp;
+                eidx += nextentry;
+                
+                //numentries++;
+            } while ((eidx < slicesize) && (nextentry != 0xffffff));
+
+
+            
+
+            if (nextentry == 0xffffff)
+            {
+                // last entry for this poly
+                break;
+            }
+            else
+            {
+                // more entries in the next slice.  adjust the element index
+                // for the remainder of this slice's size.
+                //printf("finished processing %d entries from slice %d, adjusting "
+                //    "next entry index %d by size of slice %d (%d) to %d\n",
+                //    numentries, i, eidx, i, dconf->ss_slices_p[i].size,
+                //    eidx - dconf->ss_slices_p[i].size);
+
+                eidx -= dconf->ss_slices_p[i].size;
+            }
+
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+    else
+    {
+        // find the first hit for this poly.  should probably instead store
+        // a list of first locations for each poly.
+        uint32_t eidx = 0;
+        //while ((dconf->ss_slices_n[0].element[eidx] & 0xffff) != dconf->numB)
+        //{
+        //    eidx++;
+        //}
+        eidx = dconf->poly_ll_first_n[dconf->numB];
+        //printf("first element index for poly %u side %d = %u\n", dconf->numB, side, eidx);
+        uint32_t root;
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_n[i].element;
+            uint8_t logp = dconf->ss_slices_n[i].logp;
+            uint32_t nextentry;
+            uint32_t slicesize = dconf->ss_slices_n[i].size;
+
+            do
+            {
+                //if ((dconf->ss_slices_n[i].element[eidx] & 0xffff) != dconf->numB)
+                //{
+                //    printf("error: next element index %u is not the same poly index (now %u)!\n",
+                //        eidx, (dconf->ss_slices_n[i].element[eidx] & 0xffff));
+                //    printf("faulty entry = %lx\n", dconf->ss_slices_n[i].element[eidx - nextentry]);
+                //    printf("current entry = %lx\n", dconf->ss_slices_n[i].element[eidx]);
+                //    printf("correctly processed %u entries for poly %d\n",
+                //        numentries, dconf->numB);
+                //    exit(1);
+                //}
+                nextentry = elements[eidx] >> 40;
+                _mm_prefetch(&elements[eidx + nextentry], _MM_HINT_T1);
+
+                root = (elements[eidx] & 0xffffff);
+                sieve[root] -= logp;
+                eidx += nextentry;
+            } while ((eidx < slicesize) && (nextentry != 0xffffff));
+
+            if (nextentry == 0xffffff)
+            {
+                // last entry for this poly
+                break;
+            }
+            else
+            {
+                // more entries in the next slice.  adjust the element index
+                // for the remainder of this slice's size.
+                //printf("finished processing %d entries from slice %d, adjusting "
+                //    "next entry index %d by size of slice %d (%d) to %d\n",
+                //    numentries, i, eidx, i, dconf->ss_slices_n[i].size,
+                //    eidx - dconf->ss_slices_n[i].size);
+
+                eidx -= dconf->ss_slices_n[i].size;
+            }
+
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+
+    return;
+}
+#endif
+
+#ifdef USE_SORTED_LIST_SS
+void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+{
+    // _sorted_buckets
+    int i;
+    int j;
+
+    if (side == 0)
+    {    
+        //printf("dumping %d sieve hits on side %d for poly %d\n",
+        //    dconf->ss_size_p[dconf->numB], side, dconf->numB);
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_p[i].element;
+            uint32_t curr_poly_idx = dconf->ss_slices_p[i].curr_poly_idx;
+            uint32_t root;
+            uint8_t logp = dconf->ss_slices_p[i].logp;
+
+            while (((elements[curr_poly_idx] >> 40) == dconf->numB) &&
+                (curr_poly_idx < dconf->ss_slices_p[i].size))
+            {
+                root = (elements[curr_poly_idx] & 0xffff);
+                sieve[root] -= logp;
+                curr_poly_idx++;
+            }
+            
+            dconf->ss_slices_p[i].curr_poly_num = curr_poly_idx - dconf->ss_slices_p[i].curr_poly_idx;
+            dconf->ss_slices_p[i].curr_poly_idx = curr_poly_idx;
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+    else
+    {
+        //printf("dumping %d sieve hits on side %d for poly %d\n",
+        //    dconf->ss_size_n[dconf->numB], side, dconf->numB);
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint64_t* elements = dconf->ss_slices_n[i].element;
+            uint32_t curr_poly_idx = dconf->ss_slices_n[i].curr_poly_idx;
+            uint32_t root;
+            uint8_t logp = dconf->ss_slices_n[i].logp;
+
+            while (((elements[curr_poly_idx] >> 40) == dconf->numB) &&
+                (curr_poly_idx < dconf->ss_slices_p[i].size))
+            {
+                root = (elements[curr_poly_idx] & 0xffff);
+                sieve[root] -= logp;
+                curr_poly_idx++;
+            }
+
+            dconf->ss_slices_n[i].curr_poly_num = curr_poly_idx - dconf->ss_slices_n[i].curr_poly_idx;
+            dconf->ss_slices_n[i].curr_poly_idx = curr_poly_idx;
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_n[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+
+    return;
+}
+#endif
+
+#ifdef USE_POLY_BUCKET_SS
+void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
+{
+    // _sorted_buckets
+    int i;
+    int j;
+
+    //int pidx = dconf->numB; // dconf->polymap[dconf->numB];
+    int pidx = dconf->polymap[dconf->numB];
+    //printf("mapping b-index %d to bucket %d\n", dconf->numB, pidx);
+
+    if ((side & 1) == 0)
+    {
+        //printf("dumping %d sieve hits on side %d for poly %d\n",
+        //    dconf->ss_size_p[dconf->numB], side, dconf->numB);
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
+            uint32_t root;
+            uint8_t logp = dconf->ss_slices_p[i].logp + 1;
+
+            for (j = 0; j < dconf->ss_slices_p[i].buckets[pidx].size; j++)
+            {
+                root = (bucketelements[j] & 0xffff);
+                sieve[root] -= logp;
+            }
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
+    }
+    else
+    {
+        //printf("dumping %d sieve hits on side %d for poly %d\n",
+        //    dconf->ss_size_n[dconf->numB], side, dconf->numB);
+
+        for (i = 0; i < dconf->num_ss_slices; i++)
+        {
+            uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+            uint32_t root;
+            uint8_t logp = dconf->ss_slices_n[i].logp + 1;
+
+            for (j = 0; j < dconf->ss_slices_n[i].buckets[pidx].size; j++)
+            {
+                root = (bucketelements[j] & 0xffff);
+                sieve[root] -= logp;
+            }
+            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
+            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
+        }
     }
 
     return;

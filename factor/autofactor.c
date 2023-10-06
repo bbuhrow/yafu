@@ -551,7 +551,13 @@ int check_if_done(fact_obj_t *fobj, mpz_t N)
 			{
 				if (is_mpz_prp(fobj->factors->factors[i].factor, fobj->NUM_WITNESSES) == 0)
 				{					
-					if (fobj->refactor_depth > 3)
+					if (fobj->autofact_obj.only_pretest)
+					{
+						// if we found factors and pretest is active then we're done.  
+						done = 1;
+						break;
+					}
+					else if (fobj->refactor_depth > 3)
 					{
 						printf("too many refactorization attempts, aborting\n");
 						done = 1;
@@ -1255,6 +1261,7 @@ enum factorization_state schedule_work(factor_work_t *fwork, mpz_t b, fact_obj_t
 		// too large as determined by factor
 		if (fobj->autofact_obj.only_pretest)
 		{
+			logprint_oc(fobj->flogname, "a", "scheduler: pretesting active, now finishing\n");
 			return state_done;
 		}
 

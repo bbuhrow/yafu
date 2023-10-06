@@ -572,8 +572,10 @@ void computeBl(static_conf_t *sconf, dynamic_conf_t *dconf, int needC)
     // need to do this whether or not we compute 'c'.
     if (sconf->knmod8 == 1)
     {
+		sconf->charcount = 0;
         if (mpz_tstbit(poly->mpz_poly_b, 0) == 0)
         {
+			sconf->charcount = 1;
             mpz_add(poly->mpz_poly_b, poly->mpz_poly_b, poly->mpz_poly_a);
         }
     }

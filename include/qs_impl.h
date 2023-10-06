@@ -27,6 +27,10 @@
 // either generic or knc codebases...
 //#define USE_BATCHPOLY
 //#define USE_BATCHPOLY_X2
+#define USE_SS_SEARCH 
+#define USE_POLY_BUCKET_SS
+//#define USE_LINKED_LIST_SS
+//#define USE_SORTED_LIST_SS
 
 // as part of analyzing 3lp parameterizations, we save off the 
 // full residues in tdiv.  These will be fully factored later and sorted
@@ -261,6 +265,44 @@ typedef struct
     uint32_t alloc_slices;	// the number of fb slices allocated
 } xlp_bucket_t;
 
+
+typedef struct
+{
+    int* root;
+    int* polynum;
+    int size;
+    int alloc;
+} ss_set_t;
+
+typedef struct
+{
+    uint64_t* element;      // bottom 16-bits holds polynum, next 16 bits holds root, top 32 bits holds fb index of prime
+    uint32_t alloc;         // allocated number of elements
+    uint32_t size;          // actual number of elements
+    uint32_t fboffset;      // starting fb offset for this bucket
+    uint32_t curr_poly_idx; // 
+    uint32_t curr_poly_num;
+    uint8_t logp;           // logp for this bucket.
+} ss_slice_t;
+
+
+typedef struct
+{
+    uint32_t* element;      // bottom 16-bits holds root, top 16 bits holds fb index of prime
+    uint32_t alloc;         // allocated number of elements
+    uint32_t size;          // actual number of elements
+} ss_bucket_t;
+
+typedef struct
+{
+    ss_bucket_t* buckets;   // one per bpoly
+    uint32_t numbuckets;    // number of buckets
+    uint32_t fboffset;      // starting fb offset for this bucket
+    uint32_t curr_poly_idx; // 
+    uint32_t curr_poly_num;
+    uint8_t logp;           // logp for this bucket.
+} ss_bucket_slice_t;
+
 typedef struct
 {
     mpz_t mpz_poly_a;
@@ -287,6 +329,9 @@ typedef struct
     uint32_t med_B;				//index at which primes are bigger than blocksize (and a multiple of 8)
     uint32_t large_B;				//index at which primes are bigger than entire sieve interval (and a multiple of 8)
     uint32_t x2_large_B;
+    uint32_t ss_start_B;
+    uint32_t num_ss_slices;
+    uint32_t slice_size;
     tiny_fb_element_siqs* tinylist;
     fb_element_siqs* list;
 } fb_list;
@@ -479,6 +524,9 @@ typedef struct {
     sieve_fb_compressed* comp_sieve_p;		// scratch space for a packed versions of fb
     sieve_fb_compressed* comp_sieve_n;		// for use during sieving smallish primes
 
+    uint8_t* ss_sieve_p;
+    uint8_t* ss_sieve_n;
+
     //large prime sieving
     update_t update_data;		// data for updating root values
     lp_bucket* buckets;			// bins holding sieve updates
@@ -490,6 +538,22 @@ typedef struct {
     xlp_bucket_t xl_pbucket;
     xlp_bucket_t xl_nbucket;
 #endif
+
+#if defined(USE_POLY_BUCKET_SS)
+    ss_bucket_slice_t* ss_slices_p;
+    ss_bucket_slice_t* ss_slices_n;
+    int poly_buckets_allocated;
+#else
+    ss_slice_t* ss_slices_p;
+    ss_slice_t* ss_slices_n;
+#endif
+
+    int* polymap;
+    uint32_t num_ss_slices;
+    uint64_t* poly_ll_ptr_p;
+    uint64_t* poly_ll_ptr_n;
+    uint64_t* poly_ll_first_p;
+    uint64_t* poly_ll_first_n;
 
     //scratch
     mpz_t gmptmp1;
@@ -594,6 +658,9 @@ void lp_sieveblock_avx512bw(uint8_t* sieve, uint32_t bnum, uint32_t numblocks,
 extern void (*lp_sieveblock_ptr)(uint8_t* , uint32_t , uint32_t ,
     lp_bucket* , int , dynamic_conf_t* );
 
+void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf);
+void lp_sieve_interval_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf);
+
 // trial division
 int check_relations_siqs_4_sse2(uint32_t blocknum, uint8_t parity,
     static_conf_t* sconf, dynamic_conf_t* dconf);
@@ -656,6 +723,8 @@ void save_relation_siqs(uint32_t offset, uint32_t* large_prime, uint32_t num_fac
     uint32_t* fb_offsets, uint32_t poly_id, uint32_t apoly_id, uint32_t parity,
     static_conf_t* conf);
 
+void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
+    static_conf_t* sconf, dynamic_conf_t* dconf);
 
 // threading and misc
 void siqs_sync(void* vptr);
@@ -754,7 +823,8 @@ void test_polya(fb_list* fb, mpz_t n, mpz_t target_a);
 int checkpoly_siqs(siqs_poly* poly, mpz_t n);
 int checkBl(mpz_t n, uint32_t* qli, fb_list* fb, mpz_t* Bl, int s);
 int check_relation(mpz_t a, mpz_t b, siqs_r* r, fb_list* fb, mpz_t n, int VFLAG, int knmod8);
-
+int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index,
+    int* polyv, int* polysign, dynamic_conf_t* dconf, static_conf_t* sconf);
 
 
 /*--------------LINEAR ALGEBRA RELATED DECLARATIONS ---------------------*/

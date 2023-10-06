@@ -245,6 +245,7 @@ typedef struct
     uint32_t gbl_override_rel;		//stop after collecting this many relations
     uint32_t gbl_override_blocks;		//override the # of blocks used
     uint32_t gbl_override_lpmult;		//override the large prime multiplier
+    uint32_t gbl_override_ssidx;
     float gbl_override_bdiv;        // override the lpmax divider for batch GCD
     uint32_t gbl_btarget;             // the target number of batch relations
     uint32_t gbl_override_lpb;		// override the large prime bound (specified in bits)
@@ -263,6 +264,7 @@ typedef struct
     int gbl_override_blocks_flag;
     int gbl_override_lpmult_flag;
     int gbl_override_bdiv_flag;
+    int gbl_override_ssidx_flag;
 
     uint32_t num_factors;			//number of factors found in this method
     uint32_t flags;				//each bit corresponds to a location in the 

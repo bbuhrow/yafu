@@ -19,125 +19,355 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\factor\lasieve5_64\athlon64\asm-zeit.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\asm_64bit.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith128.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith192.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith64.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasched0.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasched1.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasched3.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2_64.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn64.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\ls-defs.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\medsched0.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD1.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD2.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000b.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_gauss.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_nextpol.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_sieve.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_td.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_eval.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_gauss.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_nextpol.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieve.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieveinit.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_td.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\mpz-td.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\pt64.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\rescale.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\ri-aux.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\schedsieve.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\search0.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\slinie1A.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\slinie2A.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\slinie3A.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\slinieG.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\tdsieve-from-sched.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie1.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie2.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie3.asm" />
-    <None Include="..\..\factor\lasieve5_64\athlon64\translate.asm" />
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm-zeit.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_64bit.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith128.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith192.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\asm_arith64.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched0.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched1.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasched3.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn2_64.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\lasieve-asmprepn64.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\ls-defs.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\medsched0.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD1.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\MMX-TD2.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\modinv1000b.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_gauss.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_nextpol.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_sieve.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs3_td.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_eval.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_gauss.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_nextpol.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieve.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_sieveinit.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpqs_td.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\mpz-td.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\pt64.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\rescale.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\ri-aux.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\schedsieve.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\search0.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie1A.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie2A.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinie3A.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\slinieG.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdsieve-from-sched.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie1.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie2.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\tdslinie3.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="..\..\factor\lasieve5_64\athlon64\translate.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\basemath.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\gcd32.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\invtab.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\lasched.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\medsched.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\modinv32.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\mpqs3arith.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\noasm64.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\psp.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\siever-config.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\zeit.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\avx512_aux.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\ecm.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\ecmstat.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\ecmtest.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\fbgen.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\fbgen64.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\gmp-aux.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\gnfs-lasieve4e.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\if.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\input-poly.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\la-cs.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\lasieve-prepn.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpqs.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3test.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpqsstat.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpqstest.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\mpz-ull.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\pm1.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\pm1stat.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\pm1test.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\pprime_p.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\primgen32.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\real-poly-aux.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\recurrence6.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\redu2.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\strategy.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\td.c" />
-    <ClCompile Include="..\..\factor\lasieve5_64\tinyecm.c" />
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\basemath.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\gcd32.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\invtab.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\lasched.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\medsched.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\modinv32.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\mpqs3arith.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\noasm64.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\psp.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\siever-config.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\athlon64\zeit.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\avx512_aux.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecm.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecmstat.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\ecmtest.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\fbgen.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\fbgen64.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\gmp-aux.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\gnfs-lasieve4e.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\if.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\input-poly.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\la-cs.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\lasieve-prepn.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqs3test.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqsstat.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpqstest.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\mpz-ull.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1stat.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pm1test.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\pprime_p.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\primgen32.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\real-poly-aux.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\recurrence6.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\redu2.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\strategy.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\td.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\factor\lasieve5_64\tinyecm.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\32bit.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\64bit.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\lasched.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\medsched.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\mpqs-config.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\siever-config.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\underscore.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\zeit.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\avx512_aux.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\ecm.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\fbgen.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\fbgen64.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\gmp-aux.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\if.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\input-poly-orig.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.wrong.orig.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\lasieve-prepn.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\mpqs.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\mpqs3.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\pm1.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\primgen32.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\real-poly-aux.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\recurrence6.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\redu2.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\strategy.h" />
-    <ClInclude Include="..\..\factor\lasieve5_64\td.h" />
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\32bit.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\64bit.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\lasched.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\medsched.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\MMX-TD.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\montgomery_mul.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\mpqs-config.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\siever-config.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\underscore.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\athlon64\zeit.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\avx512_aux.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\ecm.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\fbgen.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\fbgen64.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\gmp-aux.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\if.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly-orig.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\input-poly.wrong.orig.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\lasieve-prepn.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\mpqs.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\mpqs3.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\pm1.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\primgen32.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\real-poly-aux.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\recurrence6.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\redu2.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\strategy.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="..\..\factor\lasieve5_64\td.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClInclude>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -150,26 +380,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>Intel C++ Compiler 19.2</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -252,6 +482,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>..\..\factor\lasieve5_64;..\..\factor\lasieve5_64\athlon64;..\..\..\mpir\lib\$(IntDir)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

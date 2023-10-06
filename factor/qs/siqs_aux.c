@@ -694,15 +694,15 @@ void get_gray_code(siqs_poly *poly)
 	int i, v, j, n = poly->s;
 	int tmp;
 
-	for (i=1; i< (1 << (n-1)); i++) {
+	for (i = 1; i < (1 << (n - 1)); i++) {
 		v = 1;
 		j = i;
-		while ((j&1)==0)
-			v++, j>>=1;
-		tmp = i + (1<<v) - 1;
-		tmp = (tmp>>v);
+		while ((j & 1) == 0)
+			v++, j >>= 1;
+		tmp = i + (1 << v) - 1;
+		tmp = (tmp >> v);
 		poly->nu[i] = v;
-		if (tmp&1)
+		if (tmp & 1)
 			poly->gray[i] = -1;
 		else
 			poly->gray[i] = 1;

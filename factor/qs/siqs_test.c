@@ -525,3 +525,250 @@ void get_dummy_params(int bits, uint32_t *B, uint32_t *M, uint32_t *NB)
 
 	return;
 }
+
+int check_poly_at_loc(int loc, int parity, int prime, int polynum, int index, 
+	int *polyv, int *polysign, dynamic_conf_t* dconf, static_conf_t *sconf)
+{
+	int result = 0;
+
+	// staring from the first b-poly, compute the indicated b-poly index, verify the polynum,
+	// and verify that the provided x-coordinate of the poly divides N.
+
+	uint32_t Bnum = 1;
+	mpz_ptr n = sconf->n;
+	mpz_t polyb, polyb1, polyb2, polyc, Q;
+	siqs_poly* poly = dconf->curr_poly;
+	int i, s = poly->s;
+
+	mpz_init(polyb);
+	mpz_init(polyb1);
+	mpz_init(polyb2);
+	mpz_init(polyc);
+	mpz_init(Q);
+
+	//initialize b
+	mpz_set_ui(polyb, 0);
+
+	// build up first b
+	for (i = 0; i < s; i++)
+	{
+		mpz_add(polyb, polyb, dconf->Bl[i]);
+	}
+	mpz_tdiv_q_2exp(polyb, polyb, 1);
+
+	mpz_set(polyb1, dconf->Bl[0]);
+
+	for (i = 1; i < s / 2; i++) {
+		//gmp_printf("%Zd\n", dconf->Bl[ii]);
+		mpz_add(polyb1, polyb1, dconf->Bl[i]);
+	}
+	mpz_tdiv_q_2exp(polyb1, polyb1, 1);
+
+	mpz_set(polyb2, dconf->Bl[i++]);
+
+	for ( ; i < s; i++) {
+		//gmp_printf("%Zd\n", dconf->Bl[ii]);
+		mpz_add(polyb2, polyb2, dconf->Bl[i]);
+	}
+	mpz_tdiv_q_2exp(polyb2, polyb2, 1);
+	
+
+	// need to do this whether or not we compute 'c'.
+	if (sconf->knmod8 == 1)
+	{
+		if (mpz_tstbit(polyb, 0) == 0)
+		{
+			mpz_add(polyb, polyb, poly->mpz_poly_a);
+		}
+	}
+
+	int p = 0;
+	for (; Bnum < index; Bnum++)
+	{
+		//compute the next b
+		if (poly->gray[Bnum] < 0)
+			mpz_sub(polyb, polyb, dconf->Bl[poly->nu[Bnum] - 1]);
+		else
+			mpz_add(polyb, polyb, dconf->Bl[poly->nu[Bnum] - 1]);
+
+		// need to do this whether or not we compute 'c'.
+		if (sconf->knmod8 == 1)
+		{
+			if (mpz_tstbit(polyb, 0) == 0)
+			{
+				mpz_add(polyb, polyb, poly->mpz_poly_a);
+			}
+		}
+
+		int v;
+		int tmp;
+		int sign;
+		int j;
+
+		// next poly enumeration
+		v = 1;
+		j = Bnum;
+
+		while ((j & 1) == 0)
+			v++, j >>= 1;
+		tmp = Bnum + (1 << v) - 1;
+		tmp = (tmp >> v);
+		if (tmp & 1)
+			sign = -1;
+		else
+			sign = 1;
+
+		// next polynum
+		p ^= (1 << (v - 1));
+	}
+
+	if (p != polynum)
+	{
+		printf("polynum %04x at index %d does not match input polynum %04x", p, index, polynum);
+	}
+
+	// compute C
+	if (sconf->knmod8 == 1)
+	{
+		mpz_mul(polyc, polyb, polyb);
+		mpz_sub(polyc, polyc, n);
+		mpz_tdiv_q(polyc, polyc, poly->mpz_poly_a);
+
+		if (mpz_tdiv_ui(polyc, 4) != 0)
+		{
+			printf("c not divisible by 4 in Q2(x) variation!\n");
+		}
+		mpz_tdiv_q_ui(polyc, polyc, 4);
+	}
+	else
+	{
+		//now that we have b, compute c = (b*b - n)/a
+		mpz_mul(polyc, polyb, polyb);
+		mpz_sub(polyc, polyc, n);
+		mpz_tdiv_q(polyc, polyc, poly->mpz_poly_a);
+	}
+
+	// now we have 'b' and 'c' at the provided poly index; compute Q
+	if (sconf->knmod8 == 1)
+	{
+		// this one is close enough, compute 
+		// Q(x) = (2ax + b)^2 - N, where x is the sieve index
+		// Q(x)/4a = (ax + b)x + c;	
+		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, loc);
+
+		if (parity)
+			mpz_sub(Q, dconf->gmptmp1, polyb);
+		else
+			mpz_add(Q, dconf->gmptmp1, polyb);
+
+		mpz_mul_ui(Q, Q, loc);
+		mpz_add(Q, Q, polyc);
+
+		if (mpz_sgn(Q) < 0)
+		{
+			mpz_neg(Q, Q);
+		}
+	}
+	else
+	{
+		// this one is close enough, compute 
+		// Q(x) = (ax + b)^2 - N, where x is the sieve index
+		// Q(x)/a = (ax + 2b)x + c;	
+		mpz_mul_2exp(dconf->gmptmp2, polyb, 1);
+		mpz_mul_ui(dconf->gmptmp1, dconf->curr_poly->mpz_poly_a, loc);
+
+		if (parity)
+			mpz_sub(Q, dconf->gmptmp1, dconf->gmptmp2);
+		else
+			mpz_add(Q, dconf->gmptmp1, dconf->gmptmp2);
+
+		mpz_mul_ui(Q, Q, loc);
+		mpz_add(Q, Q, polyc);
+
+		if (mpz_sgn(Q) < 0)
+		{
+			mpz_neg(Q, Q);
+		}
+	}
+
+	// finally make sure prime divides this Q.
+	if (mpz_tdiv_ui(Q, prime) == 0)
+	{
+		//gmp_printf("pass: prime %d divides Q = %Zd at x = %d\n", prime, Q, loc);
+		result = 1;
+	}
+	else
+	{
+		for (i = sconf->factor_base->x2_large_B; i < sconf->factor_base->B; i++)
+		{
+			if (prime == sconf->factor_base->list->prime[i])
+				break;
+		}
+
+		int pidx = i;
+
+		int root1 = sconf->modsqrt_array[pidx];
+		int root2 = prime - root1;
+		int amodp = mpz_tdiv_ui(dconf->curr_poly->mpz_poly_a, prime);
+		int bmodp = mpz_tdiv_ui(polyb, prime);
+		int inv;
+
+		//find a^-1 mod p = inv(a mod p) mod p
+		if (sconf->knmod8 == 1)
+		{
+			inv = modinv_1(2 * amodp, prime);
+		}
+		else
+		{
+			inv = modinv_1(amodp, prime);
+		}
+
+		root1 = (int)root1 - bmodp;
+		root2 = (int)root2 - bmodp;
+		if (root1 < 0) root1 += prime;
+		if (root2 < 0) root2 += prime;
+
+		root1 = (uint32_t)((uint64_t)inv * (uint64_t)root1 % (uint64_t)prime);
+		root2 = (uint32_t)((uint64_t)inv * (uint64_t)root2 % (uint64_t)prime);
+
+		gmp_printf("fail: prime %d does not divide Q = %Zd at x = %d\n", prime, Q, loc);
+		gmp_printf("knmod8 = %d\nA = %Zd\nB = %Zd\nC = %Zd\nN = %Zd\n", 
+			sconf->knmod8, dconf->curr_poly->mpz_poly_a, polyb, polyc, n);
+		printf("t = %d,%d; prime = %d\namodp = %d\nbmodp = %d\nainvp = %d\n", 
+			sconf->modsqrt_array[pidx], prime - sconf->modsqrt_array[pidx],
+			sconf->factor_base->list->prime[pidx], amodp, bmodp, inv);
+		printf("first roots = %d,%d (%d,%d)\n", dconf->update_data.firstroots1[pidx],
+			dconf->update_data.firstroots2[pidx], root1, root2);
+		gmp_printf("b1 = %Zd\nb2 = %Zd\n", polyb1, polyb2);
+
+		root1 = sconf->modsqrt_array[pidx];
+		root2 = prime - root1;
+
+		int bmodp1 = mpz_tdiv_ui(polyb1, prime);
+		int bmodp2 = mpz_tdiv_ui(polyb2, prime);
+
+		int r1 = (int)root1 - bmodp1;
+		int r2 = (int)root2 - bmodp1;
+		if (r1 < 0) r1 += prime;
+		if (r2 < 0) r2 += prime;
+
+		r1 = (int)((uint64_t)inv * (uint64_t)r1 % (uint64_t)prime);
+		r2 = (int)((uint64_t)inv * (uint64_t)r2 % (uint64_t)prime);
+
+		printf("left  side r1 = %d, r2 = %d\n", r1, r2);
+
+		r1 = prime - bmodp2;
+		r1 = (int)((uint64_t)inv * (uint64_t)r1 % (uint64_t)prime);
+
+		printf("right side r1 = %d\n", r1);
+
+		result = 0;
+	}
+
+	mpz_clear(Q);
+	mpz_clear(polyb);
+	mpz_clear(polyc);
+
+	return result;
+}
+
