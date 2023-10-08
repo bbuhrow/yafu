@@ -1448,39 +1448,34 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
 
     if (parity == 0)
     {
-        //printf("searching %d bucket locations on side %d for poly %d for divisors of sieve loc %d\n",
-        //    dconf->ss_size_p[dconf->numB], parity, dconf->numB, block_loc);
-
-
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
+            //uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_p[i].fboffset;
 
-            //printf("checking block loc %d over %d bucket elements for poly %d on side %d bucket %d, working backwards from index %d\n",
-            //    block_loc, dconf->ss_slices_p[i].curr_poly_num, dconf->numB, parity, i, curr_poly_idx);
-
             int k;
-            for (k = 0; k < dconf->ss_slices_n[i].buckets[pidx].size; k++)
+            //for (k = 0; k < dconf->ss_slices_p[i].buckets[pidx].size; k++)
+            for (k = 0; k < dconf->ss_slices_p[i].size[pidx]; k++)
             {
-                root = (bucketelements[k] & 0xffff);
+                root = (bucketelements[k] & 0x3ffff) - bnum * 32768;
 
                 if (block_loc == root)
                 {
-                    uint32_t pid = fboffset + (((bucketelements[k]) >> 16));
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
                     // todo: still a few invalid initial roots here using poly-buckets.
                     // random polys.  all seem to be side 0, slice 0
                     // need to look into it.
 
-                    //if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    //{
-                    //    printf("tdiv invalid root %u in slice %u, side %u, poly %u "
-                    //        "pid = %u, fboffset = %u\n",
-                    //        root, i, parity, dconf->numB, pid, fboffset);
-                    //}
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            root, i, parity, dconf->numB, pid, fboffset);
+                    }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
                     {
@@ -1497,39 +1492,33 @@ void tdiv_SS(uint32_t report_num, uint8_t parity, uint32_t bnum,
     }
     else
     {
-        //printf("searching %d bucket locations on side %d for poly %d for divisors of sieve loc %d\n",
-        //    dconf->ss_size_n[dconf->numB], parity, dconf->numB, block_loc);
-
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+            //uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
             uint32_t root;
             uint32_t fboffset = dconf->ss_slices_n[i].fboffset;
 
-            //printf("checking block loc %d over %d bucket elements for poly %d on side %d bucket %d, working backwards from index %d\n",
-            //    block_loc, dconf->ss_slices_p[i].curr_poly_num, dconf->numB, parity, i, curr_poly_idx);
-
             int k;
-            for (k = 0; k < dconf->ss_slices_n[i].buckets[pidx].size; k++)
+            //for (k = 0; k < dconf->ss_slices_n[i].buckets[pidx].size; k++)
+            for (k = 0; k < dconf->ss_slices_n[i].size[pidx]; k++)
             {
-                root = (bucketelements[k] & 0xffff);
+                root = (bucketelements[k] & 0x3ffff) - bnum * 32768;
 
                 if (block_loc == root)
                 {
-                    uint32_t pid = fboffset + (((bucketelements[k]) >> 16));
+                    uint32_t pid = fboffset + (((bucketelements[k]) >> 18));
                     uint32_t prime = sconf->factor_base->list->prime[pid];
 
-                    //if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
-                    //{
-                    //    printf("tdiv invalid root %u in slice %u, side %u, poly %u "
-                    //        "pid = %u, fboffset = %u\n",
-                    //        root, i, parity, dconf->numB, pid, fboffset);
-                    //}
+                    if ((mpz_tdiv_ui(dconf->Qvals[report_num], prime) != 0) && (dconf->numB > 1))
+                    {
+                        printf("tdiv invalid root %u in slice %u, side %u, poly %u "
+                            "pid = %u, fboffset = %u\n",
+                            root, i, parity, dconf->numB, pid, fboffset);
+                    }
 
                     while (mpz_tdiv_ui(dconf->Qvals[report_num], prime) == 0)
                     {
-                        //printf("prime %u (idx %d) divides block loc +%d of poly %d, adding to fb_offsets[%d]\n",
-                        //    prime, pid, block_loc, dconf->numB, smooth_num + 1);
                         fb_offsets[++smooth_num] = pid;
                         mpz_tdiv_q_ui(dconf->Qvals[report_num], dconf->Qvals[report_num],
                             prime);

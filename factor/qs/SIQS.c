@@ -33,6 +33,8 @@ code to the public domain.
 
 #include "soe.h"
 
+#define SS_TIMING
+
 //#define VDEBUG
 // opt debug will print out some info relevant to the process used to 
 // optimize the tf_small_cutoff value.  This value is varied slightly during the
@@ -1192,6 +1194,11 @@ void *process_poly(void *vptr)
     double t_time;
     struct timeval start, stop, st;
 
+    double t_sieve_ss_buckets = 0.0;
+    struct timeval start1, stop1;
+
+    sconf->t_time4 = 0.0;
+
     // this routine is handed a dconf structure which already has a
     // new poly a coefficient (and some supporting data).  continue from
     // there, first initializing the gray code...
@@ -1209,6 +1216,23 @@ void *process_poly(void *vptr)
     dconf->numB = 1;
     computeBl(sconf, dconf, 1);
 
+#if defined( USE_SS_SEARCH ) && defined( USE_LINKED_LIST_SS )
+    // pointers for the linked lists.
+    // instead of sorting, make arrays of hits for each poly linked lists.
+    // use upper 16 bits to store the distance to the next hit for that poly.
+    
+    uint32_t num_bpoly = (1 << (dconf->curr_poly->s - 1));
+    dconf->poly_ll_ptr_p = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
+    dconf->poly_ll_ptr_n = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
+    dconf->poly_ll_first_p = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
+    dconf->poly_ll_first_n = (uint64_t*)xmalloc(num_bpoly * sizeof(uint64_t));
+    for (i = 0; i < num_bpoly; i++)
+    {
+        dconf->poly_ll_ptr_p[i] = (uint64_t)(-1);
+        dconf->poly_ll_ptr_n[i] = (uint64_t)(-1);
+    }
+#endif
+
     firstRoots_ptr(sconf, dconf);
 
     // loop over each possible b value, for the current a value
@@ -1225,36 +1249,131 @@ void *process_poly(void *vptr)
         mpz_tdiv_q_2exp(dconf->gmptmp1, dconf->gmptmp1, sconf->qs_blockbits);
         minblock = mpz_get_ui(dconf->gmptmp1);
 
+#if defined( USE_SS_SEARCH ) //&& defined( USE_LINKED_LIST_SS )
+
+        memset(dconf->ss_sieve_p, blockinit, num_blocks * 32768);
+#ifdef SS_TIMING
+        gettimeofday(&start1, NULL);
+#endif
+        lp_sieve_ss(dconf->ss_sieve_p, 0, dconf);
+#ifdef SS_TIMING
+        gettimeofday(&stop1, NULL);
+        t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+#endif
+
+#endif
+
         for (i = 0; i < num_blocks; i++)
         {
+            dconf->sieve = sieve = dconf->ss_sieve_p + i * 32768;
+
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 1);
-            if (i == minblock)
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
-            else
-                med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
+            //if (i == minblock)
+            //    med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit - 4);
+            //else
+            med_sieve_ptr(sieve, fb_sieve_p, fb, start_prime, blockinit);
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 0, dconf);
+
+#if defined( USE_SS_SEARCH ) && defined( USE_LINKED_LIST_SS )
+
+            int j;
+            if (num_blocks > 1)
+            {
+                for (j = 0; j < 32768; j++)
+                {
+                    sieve[j] -= dconf->ss_sieve_p[i * 32768 + j];
+                }
+            }
+            else
+            {
+                //gettimeofday(&start1, NULL);
+                lp_sieve_ss(sieve, 0, dconf);
+                //gettimeofday(&stop1, NULL);
+                //t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+            }
+#elif defined( USE_SS_SEARCH )
+//#ifdef SS_TIMING
+//            gettimeofday(&start1, NULL);
+//#endif
+//            lp_sieve_ss(sieve, 0, dconf);
+//#ifdef SS_TIMING
+//            gettimeofday(&stop1, NULL);
+//            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+//#endif
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_p, 0);
             scan_ptr(i, 0, sconf, dconf);
+        }
+
+#if defined( USE_SS_SEARCH )
+
+        //memset(dconf->ss_sieve_p, 0, num_blocks * 32768);
+        //lp_sieve_interval_ss(dconf->ss_sieve_p, 0, dconf);
+        memset(dconf->ss_sieve_n, blockinit, num_blocks * 32768);
+
+#ifdef SS_TIMING
+        gettimeofday(&start1, NULL);
+#endif
+        lp_sieve_ss(dconf->ss_sieve_n, 1, dconf);
+#ifdef SS_TIMING
+        gettimeofday(&stop1, NULL);
+        t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+#endif
+
+#endif
+
+        for (i = 0; i < num_blocks; i++)
+        {
+            dconf->sieve = sieve = dconf->ss_sieve_n + i * 32768;
 
             // set the roots for the factors of a such that
             // they will not be sieved.  we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 1);
-            if (i == minblock)
-                med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
-            else
+            //if (i == minblock)
+            //    med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit - 4);
+            //else
                 med_sieve_ptr(sieve, fb_sieve_n, fb, start_prime, blockinit);
             lp_sieveblock_ptr(sieve, i, num_blocks, buckets, 1, dconf);
+
+#if defined( USE_SS_SEARCH ) && defined( USE_LINKED_LIST_SS )
+            
+            if (num_blocks > 1)
+            {
+                for (j = 0; j < 32768; j++)
+                {
+                    sieve[j] -= dconf->ss_sieve_n[i * 32768 + j];
+                }
+            }
+            else
+            {
+                //gettimeofday(&start1, NULL);
+                lp_sieve_ss(sieve, 1, dconf);
+                //gettimeofday(&stop1, NULL);
+                //t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+            }
+#elif defined( USE_SS_SEARCH )
+//#ifdef SS_TIMING
+//            gettimeofday(&start1, NULL);
+//#endif
+//            lp_sieve_ss(sieve, 1, dconf);
+//#ifdef SS_TIMING
+//            gettimeofday(&stop1, NULL);
+//            t_sieve_ss_buckets += ytools_difftime(&start1, &stop1);
+//#endif
+#endif
 
             // set the roots for the factors of a to force the following routine
             // to explicitly trial divide since we haven't found roots for them
             set_aprime_roots(sconf, invalid_root_marker, poly->qlisort, poly->s, fb_sieve_n, 0);
             scan_ptr(i, 1, sconf, dconf);
         }
+
+        // exit(0);
 
         // print a little more status info for huge jobs.
         if (sconf->digits_n > 110)
@@ -1440,18 +1559,24 @@ void *process_poly(void *vptr)
         }
     }
 
-    //exit(1);
-
-    //if (sconf->total_poly_a == 2)
-    //{
-    //
-    //    exit(1);
-    //}
+    //exit(0);
 
 	gettimeofday (&stop, NULL);
     t_time = ytools_difftime(&start, &stop);
 
+#ifdef SS_TIMING
+    printf("sieve buckets: %1.4f\n", t_sieve_ss_buckets);
+    printf("tdiv  buckets: %1.4f\n", sconf->t_time4);
+#endif
+
 	dconf->rels_per_sec = (double)dconf->buffered_rels / t_time;
+
+#if defined( USE_SS_SEARCH ) && defined( USE_LINK_LIST_SS )
+    free(dconf->poly_ll_ptr_p);
+    free(dconf->poly_ll_ptr_n);
+    free(dconf->poly_ll_first_p);
+    free(dconf->poly_ll_first_n);
+#endif
 
 	return 0;
 }
@@ -1734,6 +1859,10 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 #ifdef USE_BATCHPOLY
             printf("processing polynomials in batches of %d\n", dconf->poly_batchsize);
 #endif
+#ifdef USE_BATCHPOLY_X2
+            printf("processing polynomials in batches of %d for %u XL primes\n", 
+                dconf->poly_batchsize, sconf->factor_base->B - sconf->factor_base->x2_large_B);
+#endif
             printf("large prime hashtables have %d bytes\n", 
                 dconf->buckets->list_size * BUCKET_ALLOC * sizeof(uint32_t));
         }
@@ -1757,6 +1886,21 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
         {
             printf("using in-memory storage, aborts will lose all progress\n");
         }
+
+#ifdef USE_SS_SEARCH
+
+#if defined(USE_LINKED_LIST_SS)
+        printf("using linked-list subsum-search at fb index > %d\n", sconf->factor_base->ss_start_B);
+#elif defined(USE_SORTED_LIST_SS)
+        printf("using sorted-list subsum-search at fb index > %d\n", sconf->factor_base->ss_start_B);
+#elif defined(USE_POLY_BUCKET_SS)
+        printf("using poly-bucket subsum-search at fb index > %d (prime %u), %d slices\n", 
+            sconf->factor_base->ss_start_B, 
+            sconf->factor_base->list->prime[sconf->factor_base->ss_start_B],
+            sconf->factor_base->num_ss_slices);
+#endif
+
+#endif
 
         printf("using SPV correction of %d bits, starting at offset %d\n",
             sconf->tf_small_cutoff, sconf->sieve_small_fb_start);
@@ -1839,6 +1983,10 @@ void print_siqs_splash(dynamic_conf_t *dconf, static_conf_t *sconf)
 			logprint(sconf->obj->logfile,"buckets hold %d elements\n",BUCKET_ALLOC);
 #ifdef USE_BATCHPOLY
             logprint(sconf->obj->logfile, "processing polynomials in batches of %d\n", 
+                dconf->poly_batchsize);
+#endif
+#ifdef USE_BATCHPOLY_X2
+            logprint(sconf->obj->logfile, "processing polynomials in batches of %d for XL primes\n",
                 dconf->poly_batchsize);
 #endif
             logprint(sconf->obj->logfile, "large prime hashtables have %d bytes\n", 
@@ -1982,6 +2130,13 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         (size_t)(sconf->qs_blocksize * 4 * sizeof(uint8_t)));
     dconf->sieve = &dconf->sieve[2 * sconf->qs_blocksize];
 
+#ifdef USE_SS_SEARCH
+    dconf->ss_sieve_p = (uint8_t*)xmalloc_align(2 * sconf->num_blocks * 
+        sconf->qs_blocksize * sizeof(uint8_t));
+    dconf->ss_sieve_n = (uint8_t*)xmalloc_align(2 * sconf->num_blocks * 
+        sconf->qs_blocksize * sizeof(uint8_t));
+#endif
+
     if (sconf->obj->VFLAG > 2)
     {
         memsize = sconf->qs_blocksize * sizeof(uint8_t);
@@ -2036,6 +2191,80 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
         dconf->poly_batchsize = 1;
 #endif
 
+#if defined(USE_SS_SEARCH) && (defined(USE_LINKED_LIST_SS) || defined(USE_SORTED_LIST_SS))
+        int numslices = sconf->factor_base->num_ss_slices;
+        //printf("allocating %d slices for subset sum buckets\n", numslices);
+
+        dconf->ss_slices_p = (ss_slice_t*)xmalloc(numslices * sizeof(ss_slice_t));
+        dconf->ss_slices_n = (ss_slice_t*)xmalloc(numslices * sizeof(ss_slice_t));
+
+        dconf->num_ss_slices = numslices;
+        
+        for (i = 0; i < numslices; i++)
+        {
+            dconf->ss_slices_p[i].element = (uint64_t*)xmalloc(32768 * sizeof(uint64_t));
+            dconf->ss_slices_n[i].element = (uint64_t*)xmalloc(32768 * sizeof(uint64_t));
+            dconf->ss_slices_p[i].alloc = 32768;
+            dconf->ss_slices_n[i].alloc = 32768;
+            dconf->ss_slices_p[i].size = 0;
+            dconf->ss_slices_n[i].size = 0;
+            dconf->ss_slices_p[i].curr_poly_idx = 0;
+            dconf->ss_slices_n[i].curr_poly_idx = 0;
+            dconf->ss_slices_p[i].curr_poly_num = 0;
+            dconf->ss_slices_n[i].curr_poly_num = 0;
+            dconf->ss_slices_p[i].fboffset = i * 65536 + sconf->factor_base->x2_large_B;
+            dconf->ss_slices_n[i].fboffset = i * 65536 + sconf->factor_base->x2_large_B;
+            dconf->ss_slices_p[i].logp = (i * 65536 + sconf->factor_base->x2_large_B < sconf->factor_base->B) ? 
+                sconf->factor_base->list->logprime[i * 65536 + sconf->factor_base->x2_large_B] :
+                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+            dconf->ss_slices_n[i].logp = (i * 65536 + sconf->factor_base->x2_large_B < sconf->factor_base->B) ? 
+                sconf->factor_base->list->logprime[i * 65536 + sconf->factor_base->x2_large_B] :
+                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+        }
+
+        //printf("done allocating %u bytes\n", numslices * 32768 * 2 * 8); fflush(stdout);
+
+
+#elif defined(USE_SS_SEARCH) && defined(USE_POLY_BUCKET_SS)
+        int numslices = sconf->factor_base->num_ss_slices;
+        int slicesz = sconf->factor_base->slice_size;
+        printf("allocating %d slices of size %d for subset sum buckets\n", numslices, slicesz);
+
+        dconf->ss_slices_p = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
+        dconf->ss_slices_n = (ss_bucket_slice_t*)xmalloc(numslices * sizeof(ss_bucket_slice_t));
+
+        // supports 2^16 bpolys
+        dconf->polymap = (int*)xmalloc(65536 * sizeof(int));
+
+        dconf->num_ss_slices = numslices;
+        dconf->poly_buckets_allocated = 0;
+        for (i = 0; i < numslices; i++)
+        {
+            // at most 2^14 polys... for now
+            //dconf->ss_slices_p[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
+            //dconf->ss_slices_n[i].buckets = (ss_bucket_t*)xmalloc(32768 * sizeof(ss_bucket_t));
+            dconf->ss_slices_p[i].elements = (uint32_t*)xmalloc(16384 * 16384 * sizeof(uint32_t));
+            dconf->ss_slices_n[i].elements = (uint32_t*)xmalloc(16384 * 16384 * sizeof(uint32_t));
+            dconf->ss_slices_p[i].size = (uint32_t*)xmalloc(16384 * sizeof(uint32_t));
+            dconf->ss_slices_n[i].size = (uint32_t*)xmalloc(16384 * sizeof(uint32_t));
+            dconf->ss_slices_p[i].alloc = 16384;
+            dconf->ss_slices_n[i].alloc = 16384;
+            dconf->ss_slices_p[i].numbuckets = 16384;
+            dconf->ss_slices_n[i].numbuckets = 16384;
+            dconf->ss_slices_p[i].curr_poly_idx = 0;
+            dconf->ss_slices_n[i].curr_poly_idx = 0;
+            dconf->ss_slices_p[i].curr_poly_num = 0;
+            dconf->ss_slices_n[i].curr_poly_num = 0;
+            dconf->ss_slices_p[i].fboffset = i * slicesz + sconf->factor_base->ss_start_B;
+            dconf->ss_slices_n[i].fboffset = i * slicesz + sconf->factor_base->ss_start_B;
+            dconf->ss_slices_p[i].logp = (i * slicesz + sconf->factor_base->ss_start_B < sconf->factor_base->B) ?
+                sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B] :
+                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+            dconf->ss_slices_n[i].logp = (i * slicesz + sconf->factor_base->ss_start_B < sconf->factor_base->B) ?
+                sconf->factor_base->list->logprime[i * slicesz + sconf->factor_base->ss_start_B] :
+                sconf->factor_base->list->logprime[sconf->factor_base->B - 1];
+        }
+#endif
 
         //initialize the bucket lists and auxilary info.
         //printf("allocating space for buckets with %u blocks, %u slices, and %u polys\n",
@@ -2046,7 +2275,7 @@ int siqs_dynamic_init(dynamic_conf_t *dconf, static_conf_t *sconf)
             2 * sconf->num_blocks * dconf->buckets->alloc_slices * sizeof(uint32_t));
         
         // one entry per slice to record the starting prime and logp indices per slice.
-        // experimental variation: use one entryp to slice and per poly, so that we
+        // experimental variation: use one entry per slice and per poly, so that we
         // can sort xlarge primes in a batch of polys and other primes one poly at a time.
         dconf->buckets->fb_bounds = (uint32_t *)malloc(
             dconf->buckets->alloc_slices * dconf->poly_batchsize * sizeof(uint32_t));
@@ -2843,15 +3072,47 @@ int siqs_static_init(static_conf_t* sconf, int is_tiny)
     // sense to switch when (N + 4) < (2 * numblocks).  To estimate N we find the area
     // under the triangle formed by the large sieve primes and their probability of
     // hitting the interval.
+    for (; i < sconf->factor_base->B; i++)
+    {
+        if ((sconf->factor_base->list->prime[i] > 6 * sconf->sieve_interval) &&
+            ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
+            break;
+    }
+    sconf->factor_base->x2_large_B = i; // sconf->factor_base->B;
+
+#ifdef USE_SS_SEARCH
 	for (; i < sconf->factor_base->B; i++)
 	{
-		if ((sconf->factor_base->list->prime[i] > 6 * sconf->sieve_interval) &&
-            ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
-			break;
+		// when using subset-sum searching, use this as the switchover
+        // point.  It occurs much higher up in the fb compared to 
+        // standard poly enumeration.
+        if (sconf->obj->qs_obj.gbl_override_ssidx_flag)
+        {
+            if ((i > sconf->obj->qs_obj.gbl_override_ssidx) &&
+                ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
+                break;
+        }
+        else
+        {
+            if ((i > sconf->factor_base->B * 2 / 3) &&
+            //if ((i > 60000) &&
+                ((i % 16) == 0) && (((sconf->factor_base->B - i) % 16) == 0))
+                break;
+        }
 	}
-    sconf->factor_base->x2_large_B = i; // sconf->factor_base->B;
+    sconf->factor_base->ss_start_B = i;
+#endif
+    
     sconf->pmax = sconf->factor_base->list->prime[sconf->factor_base->B - 1];
 
+    if (sconf->factor_base->large_B < sconf->factor_base->med_B)
+        sconf->factor_base->large_B = sconf->factor_base->med_B;
+
+    sconf->factor_base->slice_size = 16384;
+    int numslices = (int)((sconf->factor_base->B - sconf->factor_base->ss_start_B) / 
+        sconf->factor_base->slice_size) + 1;
+    sconf->factor_base->num_ss_slices = numslices;
+    
 	if (VFLAG > 1)
 	{
 		printf("fb bounds\n\tsmall: %u\n\tSPV: %u\n\t10bit: %u\n\t11bit: %u\n\t12bit: %u\n\t"

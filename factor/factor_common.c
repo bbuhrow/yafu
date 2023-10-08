@@ -124,6 +124,8 @@ void init_factobj(fact_obj_t* fobj)
     fobj->qs_obj.gbl_override_bdiv_flag = 0;
     fobj->qs_obj.gbl_override_bdiv = 3;
     fobj->qs_obj.gbl_override_3lp_bat = 0;
+    fobj->qs_obj.gbl_override_ssidx_flag = 0;
+    fobj->qs_obj.gbl_override_ssidx = 0;
     fobj->qs_obj.gbl_btarget = 1000000;
     fobj->qs_obj.flags = 0;
     fobj->qs_obj.gbl_force_DLP = 0;
@@ -461,6 +463,8 @@ void copy_factobj(fact_obj_t* dest, fact_obj_t* src)
     dest->qs_obj.gbl_override_bdiv = src->qs_obj.gbl_override_bdiv;
     dest->qs_obj.gbl_override_3lp_bat = src->qs_obj.gbl_override_3lp_bat;
     dest->qs_obj.gbl_btarget = src->qs_obj.gbl_btarget;
+    dest->qs_obj.gbl_override_ssidx_flag = src->qs_obj.gbl_override_ssidx_flag;
+    dest->qs_obj.gbl_override_ssidx = src->qs_obj.gbl_override_ssidx;
     dest->qs_obj.flags = src->qs_obj.flags;
     dest->qs_obj.gbl_force_DLP = src->qs_obj.gbl_force_DLP;
     dest->qs_obj.gbl_force_TLP = src->qs_obj.gbl_force_TLP;

@@ -797,42 +797,38 @@ void lp_sieve_ss(uint8_t* sieve, int side, dynamic_conf_t* dconf)
 
     if ((side & 1) == 0)
     {
-        //printf("dumping %d sieve hits on side %d for poly %d\n",
-        //    dconf->ss_size_p[dconf->numB], side, dconf->numB);
-
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
+            //uint32_t* bucketelements = dconf->ss_slices_p[i].buckets[pidx].element;
+            uint32_t* bucketelements = dconf->ss_slices_p[i].elements + pidx * 16384;
             uint32_t root;
             uint8_t logp = dconf->ss_slices_p[i].logp + 1;
 
-            for (j = 0; j < dconf->ss_slices_p[i].buckets[pidx].size; j++)
+            //printf("%d p-side hits\n", dconf->ss_slices_p[i].buckets[pidx].size);
+            //for (j = 0; j < dconf->ss_slices_p[i].buckets[pidx].size; j++)
+            for (j = 0; j < dconf->ss_slices_p[i].size[pidx]; j++)
             {
-                root = (bucketelements[j] & 0xffff);
+                root = (bucketelements[j] & 0x3ffff);
                 sieve[root] -= logp;
             }
-            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
-            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
         }
     }
     else
     {
-        //printf("dumping %d sieve hits on side %d for poly %d\n",
-        //    dconf->ss_size_n[dconf->numB], side, dconf->numB);
-
         for (i = 0; i < dconf->num_ss_slices; i++)
         {
-            uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+            //uint32_t* bucketelements = dconf->ss_slices_n[i].buckets[pidx].element;
+            uint32_t* bucketelements = dconf->ss_slices_n[i].elements + pidx * 16384;
             uint32_t root;
             uint8_t logp = dconf->ss_slices_n[i].logp + 1;
 
-            for (j = 0; j < dconf->ss_slices_n[i].buckets[pidx].size; j++)
+            //printf("%d n-side hits\n", dconf->ss_slices_p[i].buckets[pidx].size);
+            //for (j = 0; j < dconf->ss_slices_n[i].buckets[pidx].size; j++)
+            for (j = 0; j < dconf->ss_slices_n[i].size[pidx]; j++)
             {
-                root = (bucketelements[j] & 0xffff);
+                root = (bucketelements[j] & 0x3ffff);
                 sieve[root] -= logp;
             }
-            //printf("dumped %d sieve hits with logp %d for poly %d on side %d bucket %d, bucket index now %d\n",
-            //    dconf->ss_slices_p[i].curr_poly_num, logp, dconf->numB, side, i, curr_poly_idx);
         }
     }
 

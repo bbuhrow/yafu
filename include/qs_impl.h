@@ -295,7 +295,10 @@ typedef struct
 
 typedef struct
 {
-    ss_bucket_t* buckets;   // one per bpoly
+    //ss_bucket_t* buckets;   // one per bpoly
+    uint32_t* elements;     // one huge list for all buckets
+    uint32_t* size;         // number of filled elements in each bucket (a portion of the huge array).
+    uint32_t alloc;         // the portion in the huge array that is allocated to each poly
     uint32_t numbuckets;    // number of buckets
     uint32_t fboffset;      // starting fb offset for this bucket
     uint32_t curr_poly_idx; // 

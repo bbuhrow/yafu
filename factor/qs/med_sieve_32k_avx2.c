@@ -622,8 +622,10 @@ void med_sieveblock_32k_avx512bw(uint8_t* sieve, sieve_fb_compressed* fb, fb_lis
 
     med_B = full_fb->med_B;
 
+#ifndef USE_SS_SEARCH
     //initialize the block
     BLOCK_INIT;
+#endif
 
     for (i = start_prime; i < bound; i += 32)
     {

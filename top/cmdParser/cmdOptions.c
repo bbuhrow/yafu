@@ -79,7 +79,7 @@ char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = {
     "resume", "jsonpretty", "cadoMsieve", "cado_dir", "convert_poly_path",
     "gpucurves", "cgbn", "use_gpuecm", "use_gpudev", "prefer_avxecm_stg2",
     "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    "stopbase", "stopprime"
+    "stopbase", "stopprime", "siqsSSidx"
     };
 
 // help strings displayed with -h
@@ -192,7 +192,8 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "(Integer < 32-bit): stop if a factor is found of greater than <n> digits",
     "(Integer < 32-bit): stop if a factor is found of greater than or equal to <n> digits",
     "(Integer < 32-bit): Base to use for stopXY options(default 10, range: 2 <= b <= 62)",
-    "                  : Use for stopXY options to add constraint that number is prime"
+    "                  : Use for stopXY options to add constraint that number is prime",
+    "(Integer < 32-bit): Factor base index at which to start using subset sum algorithm (default 0: unused)"
 };
 
 // indication of whether or not an option needs a corresponding argument.
@@ -222,7 +223,7 @@ int needsArg[NUMOPTIONS] = {
     1,0,0,1,1,  // resume, json-pretty, new cado options
     1,0,0,1,0,   // gpucurves, cbgn, use gpu, gpu dev, prefer avxecm stg2
     1,1,1,1,1,  // "stoplt", "stople", "stopeq", "stopgt", "stopge", 
-    1,0         // "stopbase", "stopprime"
+    1,0,1       // "stopbase", "stopprime"
 };
 
 // command line option aliases, specified by '--'
@@ -250,7 +251,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "", "", "", "", "",
     "", "", "", "", "",
     "", "", "", "", "",
-    "", ""
+    "", "", ""
 };
 
 
@@ -1078,6 +1079,11 @@ void applyOpt(char* opt, char* arg, options_t* options)
         // argument "stopprime"
         options->stopprime = 1;
     }
+    else if (strcmp(opt, OptionArray[107]) == 0)
+    {
+        // argument "siqsSSidx"
+        options->siqsSSidx = atoi(arg);
+    }
     else
     {
         int i;
@@ -1219,6 +1225,7 @@ options_t* initOpt(void)
     options->siqsForceDLP = 0;
     options->siqsTFSm = 0;
     options->siqsNobat = 0;
+    options->siqsSSidx = 0;
     options->siqsForceTLP = 0;
     options->siqsLPB = 0;
     options->siqsMFBD = 1.85;

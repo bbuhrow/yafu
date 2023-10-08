@@ -1678,6 +1678,8 @@ void options_to_factobj(fact_obj_t* fobj, options_t* options)
     fobj->qs_obj.gbl_override_tf = options->siqsTF;
     fobj->qs_obj.gbl_override_time_flag = (options->siqsT > 0);
     fobj->qs_obj.gbl_override_time = options->siqsT;
+    fobj->qs_obj.gbl_override_ssidx_flag = (options->siqsSSidx > 0);
+    fobj->qs_obj.gbl_override_ssidx = options->siqsSSidx;
     fobj->qs_obj.inmem_cutoff = options->inmem_cutoff;
     if ((options->siqsMFBD < 1.0) || (options->siqsMFBD > 2.0))
     {
